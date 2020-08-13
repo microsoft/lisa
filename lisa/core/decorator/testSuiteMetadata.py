@@ -19,16 +19,21 @@ class TestSuiteMetadata:
         tags: List[str],
         name: Optional[str] = None,
     ) -> None:
-        self.area = area
-        self.category = category
-        self.tags = tags
-        self.description = description
-        self.name = name
+        self._area = area
+        self._category = category
+        self._tags = tags
+        self._description = description
+        self._name = name
 
     def __call__(self, test_class: Type[TestSuite]) -> Callable[..., object]:
         factory = TestFactory()
-        factory.addTestClass(
-            test_class, self.area, self.category, self.description, self.tags, self.name
+        factory.add_class(
+            test_class,
+            self._area,
+            self._category,
+            self._description,
+            self._tags,
+            self._name,
         )
 
         def wrapper(

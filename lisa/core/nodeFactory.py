@@ -7,7 +7,7 @@ from lisa.util.exceptions import LisaException
 
 class NodeFactory:
     @staticmethod
-    def createNodeFromConfig(
+    def create_from_config(
         identifier: str, config: Dict[str, object]
     ) -> Optional[Node]:
         node_type = cast(str, config.get(constants.TYPE))
@@ -19,10 +19,8 @@ class NodeFactory:
             constants.ENVIRONMENTS_NODES_REMOTE,
         ]:
             is_default = cast(bool, config.get(constants.IS_DEFAULT, False))
-            node = Node.createNode(
-                identifier, node_type=node_type, isDefault=is_default
-            )
-            if node.isRemote:
+            node = Node.create(identifier, node_type=node_type, is_default=is_default)
+            if node.is_remote:
                 fields = [
                     constants.ENVIRONMENTS_NODES_REMOTE_ADDRESS,
                     constants.ENVIRONMENTS_NODES_REMOTE_PORT,
@@ -36,15 +34,15 @@ class NodeFactory:
                 for key in config:
                     if key in fields:
                         parameters[key] = cast(str, config[key])
-                node.setConnectionInfo(**parameters)
+                node.set_connection_info(**parameters)
         return node
 
     @staticmethod
-    def createNodeFromSpec(
+    def create_from_spec(
         spec: Dict[str, object], node_type: str = constants.ENVIRONMENTS_NODES_REMOTE
     ) -> Node:
         is_default = cast(bool, spec.get(constants.IS_DEFAULT, False))
-        node = Node.createNode(
-            "spec", spec=spec, node_type=node_type, isDefault=is_default
+        node = Node.create(
+            "spec", spec=spec, node_type=node_type, is_default=is_default
         )
         return node

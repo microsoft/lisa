@@ -14,52 +14,54 @@ if TYPE_CHECKING:
 
 class TestSuite(Action, metaclass=ABCMeta):
     def __init__(
-        self, environment: Environment, cases: List[str], testSuiteData: TestSuiteData,
+        self, environment: Environment, cases: List[str], testsuite_data: TestSuiteData,
     ) -> None:
         self.environment = environment
         # test cases to run, must be a test method in this class.
         self.cases = cases
-        self.testSuiteData = testSuiteData
-        self.shouldStop = False
+        self.testsuite_data = testsuite_data
+
+        self._should_stop = False
 
     @property
-    def skipRun(self) -> bool:
+    def skiprun(self) -> bool:
         return False
 
-    def beforeSuite(self) -> None:
+    def before_suite(self) -> None:
         pass
 
-    def afterSuite(self) -> None:
+    def after_suite(self) -> None:
         pass
 
-    def beforeCase(self) -> None:
+    def before_case(self) -> None:
         pass
 
-    def afterCase(self) -> None:
+    def after_case(self) -> None:
         pass
 
-    def getTypeName(self) -> str:
+    @property
+    def typename(self) -> str:
         return "TestSuite"
 
     async def start(self) -> None:
-        if self.skipRun:
-            log.info(f"suite[{self.testSuiteData.name}] skipped on this run")
+        if self.skiprun:
+            log.info(f"suite[{self.testsuite_data.name}] skipped on this run")
             return
-        self.beforeSuite()
+        self.before_suite()
         for test_case in self.cases:
-            self.beforeCase()
+            self.before_case()
             test_method = getattr(self, test_case)
             test_method()
-            self.afterCase()
-            if self.shouldStop:
+            self.after_case()
+            if self._should_stop:
                 log.info("received stop message, stop run")
-                self.setStatus(ActionStatus.STOPPED)
+                self.set_status(ActionStatus.STOPPED)
                 break
-        self.afterSuite()
+        self.after_suite()
 
     async def stop(self) -> None:
-        self.setStatus(ActionStatus.STOPPING)
-        self.shouldStop = True
+        self.set_status(ActionStatus.STOPPING)
+        self._should_stop = True
 
     async def close(self) -> None:
         pass

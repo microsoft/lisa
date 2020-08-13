@@ -9,7 +9,7 @@ class Git(Tool):
         return "git"
 
     @property
-    def canInstall(self) -> bool:
+    def can_install(self) -> bool:
         # TODO support installation later
         return False
 

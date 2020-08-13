@@ -22,54 +22,60 @@ class CustomScript(Tool):
         local_path: pathlib.Path,
         files: List[pathlib.PurePath],
         command: Optional[str] = None,
+        dependencies: Optional[List[Type[Tool]]] = None,
     ) -> None:
         super().__init__(node)
-        self.localPath = local_path
-        self.files = files
-        self.cwd: Union[pathlib.PurePath, pathlib.Path]
+        self._local_path = local_path
+        self._files = files
+        self._cwd: Union[pathlib.PurePath, pathlib.Path]
 
         self._name = name
         self._command = command
 
-    def runAsync(
+        if dependencies:
+            self._dependencies = dependencies
+        else:
+            self._dependencies = []
+
+    def runasync(
         self,
-        extraParameters: str = "",
+        parameters: str = "",
         shell: bool = False,
-        noErrorLog: bool = False,
-        noInfoLog: bool = False,
+        no_error_log: bool = False,
+        no_info_log: bool = False,
         cwd: Optional[pathlib.PurePath] = None,
     ) -> Process:
         if cwd is not None:
             raise LisaException("don't set cwd for script")
-        if extraParameters:
-            command = f"{self.command} {extraParameters}"
+        if parameters:
+            command = f"{self.command} {parameters}"
         else:
             command = self.command
 
-        return self.node.executeAsync(
+        return self.node.executeasync(
             cmd=command,
             shell=shell,
-            noErrorLog=noErrorLog,
-            noInfoLog=noInfoLog,
-            cwd=self.cwd,
+            no_error_log=no_error_log,
+            no_info_log=no_info_log,
+            cwd=self._cwd,
         )
 
     def run(
         self,
-        extraParameters: str = "",
+        parameters: str = "",
         shell: bool = False,
-        noErrorLog: bool = False,
-        noInfoLog: bool = False,
+        no_error_log: bool = False,
+        no_info_log: bool = False,
         cwd: Optional[pathlib.PurePath] = None,
     ) -> ExecutableResult:
-        process = self.runAsync(
-            extraParameters=extraParameters,
+        process = self.runasync(
+            parameters=parameters,
             shell=shell,
-            noErrorLog=noErrorLog,
-            noInfoLog=noInfoLog,
+            no_error_log=no_error_log,
+            no_info_log=no_info_log,
             cwd=cwd,
         )
-        return process.waitResult()
+        return process.wait_result()
 
     @property
     def name(self) -> str:
@@ -81,35 +87,39 @@ class CustomScript(Tool):
         return self._command
 
     @property
-    def canInstall(self) -> bool:
+    def can_install(self) -> bool:
         return True
 
     @property
-    def isInstalledInternal(self) -> bool:
+    def _is_installed_internal(self) -> bool:
         # the underlying 'isInstalledInternal' doesn't work for script
         # but once it's cached in node, it won't be copied again.
         return False
 
+    @property
+    def dependencies(self) -> List[Type[Tool]]:
+        return self._dependencies
+
     def install(self) -> bool:
-        if self.node.isRemote:
+        if self.node.is_remote:
             # copy to remote
-            remote_root_path = self.node.getToolPath(self)
-            for file in self.files:
+            remote_root_path = self.node.get_tool_path(self)
+            for file in self._files:
                 remote_path = remote_root_path.joinpath(file)
-                source_path = self.localPath.joinpath(file)
+                source_path = self._local_path.joinpath(file)
                 self.node.shell.copy(source_path, remote_path)
                 self.node.shell.chmod(remote_path, 0o755)
-            self.cwd = remote_root_path
+            self._cwd = remote_root_path
         else:
-            self.cwd = self.localPath
+            self._cwd = self._local_path
 
         if not self._command:
-            if self.node.isLinux:
+            if self.node.is_linux:
                 # in Linux, local script must to relative path.
-                self._command = f"./{pathlib.PurePosixPath(self.files[0])}"
+                self._command = f"./{pathlib.PurePosixPath(self._files[0])}"
             else:
                 # windows needs absolute path
-                self._command = f"{self.cwd.joinpath(self.files[0])}"
+                self._command = f"{self._cwd.joinpath(self._files[0])}"
         return True
 
 
@@ -131,7 +141,7 @@ class CustomScriptBuilder:
         if not files:
             raise LisaException("CustomScriptSpec should have at least one file")
 
-        self.dependencies = dependencies
+        self._dependencies = dependencies
 
         root_path = root_path.resolve().absolute()
         files_path: List[pathlib.PurePath] = []
@@ -151,13 +161,13 @@ class CustomScriptBuilder:
                 raise LisaException(f"file '{file_str}' must be in '{root_path}'")
             files_path.append(file)
 
-        self.files = files_path
-        self._localRootPath: pathlib.Path = root_path
+        self._files = files_path
+        self._local_rootpath: pathlib.Path = root_path
 
-        self.command: Union[str, None] = None
+        self._command: Union[str, None] = None
         if command:
             command_identifier = command
-            self.command = command
+            self._command = command
         else:
             command_identifier = files[0]
 
@@ -169,5 +179,5 @@ class CustomScriptBuilder:
 
     def build(self, node: Node) -> CustomScript:
         return CustomScript(
-            self.name, node, self._localRootPath, self.files, self.command
+            self.name, node, self._local_rootpath, self._files, self._command
         )

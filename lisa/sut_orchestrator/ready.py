@@ -5,16 +5,16 @@ from lisa.util import constants
 
 class ReadyPlatform(Platform):
     @classmethod
-    def platformType(cls) -> str:
+    def platform_type(cls) -> str:
         return constants.PLATFORM_READY
 
     def config(self, key: str, value: object) -> None:
         # ready platform has no config
         pass
 
-    def requestEnvironmentInternal(self, environment: Environment) -> Environment:
+    def _request_environment_internal(self, environment: Environment) -> Environment:
         return environment
 
-    def deleteEnvironmentInternal(self, environment: Environment) -> None:
+    def _delete_environment_internal(self, environment: Environment) -> None:
         # ready platform doesn't support delete environment
         pass

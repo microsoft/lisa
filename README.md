@@ -67,6 +67,8 @@ virtual environment for our Python distribution and packages.
 
 This is subject to change as we intend to make as much of it automatic as possible.
 
+Install and enable [ShellCheck](https://github.com/koalaman/shellcheck) to find bash errors locally.
+
 #### Visual Studio Code
 
 First, click the Python version in the bottom left, then enter the path emitted

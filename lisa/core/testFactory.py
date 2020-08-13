@@ -19,12 +19,13 @@ class TestCaseData:
             self.name = name
         else:
             self.name = method.__name__
-        self.key: str = self.name.lower()
         self.full_name = method.__qualname__.lower()
         self.method = method
         self.description = description
         self.priority = priority
         self.suite: TestSuiteData
+
+        self.key: str = self.name.lower()
 
 
 class TestSuiteData:
@@ -49,7 +50,7 @@ class TestSuiteData:
         self.tags = tags
         self.cases: Dict[str, TestCaseData] = dict()
 
-    def addCase(self, test_case: TestCaseData) -> None:
+    def add_case(self, test_case: TestCaseData) -> None:
         if self.cases.get(test_case.key) is None:
             self.cases[test_case.key] = test_case
         else:
@@ -64,7 +65,7 @@ class TestFactory:
         self.suites: Dict[str, TestSuiteData] = dict()
         self.cases: Dict[str, TestCaseData] = dict()
 
-    def addTestClass(
+    def add_class(
         self,
         test_class: Type[TestSuite],
         area: Optional[str],
@@ -88,13 +89,13 @@ class TestFactory:
         class_prefix = f"{key}."
         for test_case in self.cases.values():
             if test_case.full_name.startswith(class_prefix):
-                self._addCaseToSuite(test_suite, test_case)
+                self._add_case_to_suite(test_suite, test_case)
         log.info(
             f"registered test suite '{test_suite.key}' "
             f"with test cases: '{', '.join([key for key in test_suite.cases])}'"
         )
 
-    def addTestMethod(
+    def add_method(
         self, test_method: Callable[[], None], description: str, priority: Optional[int]
     ) -> None:
         test_case = TestCaseData(test_method, description, priority)
@@ -113,10 +114,10 @@ class TestFactory:
         test_suite = self.suites.get(class_name)
         if test_suite is not None:
             log.debug(f"add case '{test_case.name}' to suite '{test_suite.name}'")
-            self._addCaseToSuite(test_suite, test_case)
+            self._add_case_to_suite(test_suite, test_case)
 
-    def _addCaseToSuite(
+    def _add_case_to_suite(
         self, test_suite: TestSuiteData, test_case: TestCaseData
     ) -> None:
-        test_suite.addCase(test_case)
+        test_suite.add_case(test_case)
         test_case.suite = test_suite

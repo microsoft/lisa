@@ -7,12 +7,12 @@ from lisa.util.logger import log
 
 class TestCaseMetadata:
     def __init__(self, description: str, priority: Optional[int]) -> None:
-        self.priority = priority
-        self.description = description
+        self._priority = priority
+        self._description = description
 
     def __call__(self, func: Callable[..., None]) -> Callable[..., None]:
         factory = TestFactory()
-        factory.addTestMethod(func, self.description, self.priority)
+        factory.add_method(func, self._description, self._priority)
 
         def wrapper(*args: object) -> None:
             log.info(f"case '{func.__name__}' started")

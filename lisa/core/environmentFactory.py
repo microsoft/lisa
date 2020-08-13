@@ -9,40 +9,40 @@ from lisa.util.exceptions import LisaException
 
 @singleton
 class EnvironmentFactory:
-    default_no_name = "_no_name_default"
+    _default_no_name = "_no_name_default"
 
     def __init__(self) -> None:
         self.environments: Dict[str, Environment] = dict()
-        self.maxConcurrency = 1
+        self.max_concurrency = 1
 
-    def loadEnvironments(self, config: Dict[str, object]) -> None:
+    def load_environments(self, config: Dict[str, object]) -> None:
         if not config:
             raise LisaException("environment section must be set in config")
-        maxConcurrency = cast(
+        max_concurrency = cast(
             Optional[int], config.get(constants.ENVIRONMENT_MAX_CONCURRENDCY)
         )
-        if maxConcurrency is not None:
-            self.maxConcurrency = maxConcurrency
+        if max_concurrency is not None:
+            self.max_concurrency = max_concurrency
         environments_config = cast(
             List[Dict[str, object]], config.get(constants.ENVIRONMENTS)
         )
         without_name: bool = False
         for environment_config in environments_config:
-            environment = Environment.loadEnvironment(environment_config)
+            environment = Environment.load(environment_config)
             if environment.name is None:
                 if without_name:
                     raise LisaException("at least two environments has no name")
-                environment.name = self.default_no_name
+                environment.name = self._default_no_name
                 without_name = True
             self.environments[environment.name] = environment
 
-    def getEnvironment(self, name: Optional[str] = None) -> Environment:
+    def get_environment(self, name: Optional[str] = None) -> Environment:
         if name is None:
-            key = self.default_no_name
+            key = self._default_no_name
         else:
             key = name.lower()
-        environmet = self.environments.get(key)
-        if environmet is None:
+        environment = self.environments.get(key)
+        if environment is None:
             raise LisaException(f"not found environment '{name}'")
 
-        return environmet
+        return environment

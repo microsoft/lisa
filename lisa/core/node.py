@@ -4,7 +4,7 @@ import pathlib
 import random
 from typing import Dict, Optional, Type, TypeVar, Union, cast
 
-from lisa.core.customScript import CustomScript, CustomScriptBuilder
+from lisa.core.customScript import CustomScriptBuilder
 from lisa.core.tool import Tool
 from lisa.tool import Echo, Uname
 from lisa.util import constants, env
@@ -22,50 +22,52 @@ class Node:
     def __init__(
         self,
         identifier: str,
-        isRemote: bool = True,
+        is_remote: bool = True,
         spec: Optional[Dict[str, object]] = None,
-        isDefault: bool = False,
+        is_default: bool = False,
     ) -> None:
-        self.identifier = identifier
-        self.name: str = ""
-        self.isDefault = isDefault
-        self.isRemote = isRemote
+        self.is_default = is_default
+        self.is_remote = is_remote
         self.spec = spec
-        self.connection_info: Optional[ConnectionInfo] = None
-        self.workingPath: pathlib.PurePath = pathlib.PurePath()
+        self.name: str = ""
+
+        self.identifier = identifier
         self.shell = Shell()
 
-        self._isInitialized: bool = False
+        self.kernel_release: str = ""
+        self.kernel_version: str = ""
+        self.hardware_platform: str = ""
+        self.operating_system: str = ""
+
+        self._connection_info: Optional[ConnectionInfo] = None
+        self._working_path: pathlib.PurePath = pathlib.PurePath()
+
+        self._tools: Dict[str, Tool] = dict()
+
+        self._is_initialized: bool = False
         self._isLinux: bool = True
 
-        self.kernelRelease: str = ""
-        self.kernelVersion: str = ""
-        self.hardwarePlatform: str = ""
-        self.os: str = ""
-
-        self.tools: Dict[str, Tool] = dict()
-        self.scripts: Dict[str, CustomScript] = dict()
-
     @staticmethod
-    def createNode(
+    def create(
         identifier: str,
         spec: Optional[Dict[str, object]] = None,
         node_type: str = constants.ENVIRONMENTS_NODES_REMOTE,
-        isDefault: bool = False,
+        is_default: bool = False,
     ) -> Node:
         if node_type == constants.ENVIRONMENTS_NODES_REMOTE:
-            isRemote = True
+            is_remote = True
         elif node_type == constants.ENVIRONMENTS_NODES_LOCAL:
-            isRemote = False
+            is_remote = False
         else:
             raise LisaException(f"unsupported node_type '{node_type}'")
-        node = Node(identifier, spec=spec, isRemote=isRemote, isDefault=isDefault)
+        node = Node(identifier, spec=spec, is_remote=is_remote, is_default=is_default)
         log.debug(
-            f"created node '{node_type}', isDefault: {isDefault}, isRemote: {isRemote}"
+            f"created node '{node_type}', isDefault: {is_default}, "
+            f"isRemote: {is_remote}"
         )
         return node
 
-    def setConnectionInfo(
+    def set_connection_info(
         self,
         address: str = "",
         port: int = 22,
@@ -75,7 +77,7 @@ class Node:
         password: str = "",
         privateKeyFile: str = "",
     ) -> None:
-        if self.connection_info is not None:
+        if self._connection_info is not None:
             raise LisaException(
                 "node is set connection information already, cannot set again"
             )
@@ -96,30 +98,30 @@ class Node:
         elif not publicPort:
             publicPort = port
 
-        self.connection_info = ConnectionInfo(
+        self._connection_info = ConnectionInfo(
             publicAddress, publicPort, username, password, privateKeyFile,
         )
-        self.shell.setConnectionInfo(self.connection_info)
-        self.internalAddress = address
-        self.internalPort = port
+        self.shell.set_connection_info(self._connection_info)
+        self.internal_address = address
+        self.internal_port = port
 
-    def getToolPath(self, tool: Optional[Tool] = None) -> pathlib.PurePath:
-        assert self.workingPath
+    def get_tool_path(self, tool: Optional[Tool] = None) -> pathlib.PurePath:
+        assert self._working_path
         if tool:
             tool_name = tool.name
-            tool_path = self.workingPath.joinpath(constants.PATH_TOOL, tool_name)
+            tool_path = self._working_path.joinpath(constants.PATH_TOOL, tool_name)
         else:
-            tool_path = self.workingPath.joinpath(constants.PATH_TOOL)
+            tool_path = self._working_path.joinpath(constants.PATH_TOOL)
         return tool_path
 
-    def getTool(self, tool_type: Union[Type[T], CustomScriptBuilder]) -> T:
+    def get_tool(self, tool_type: Union[Type[T], CustomScriptBuilder]) -> T:
         if tool_type is CustomScriptBuilder:
             raise LisaException("CustomScript should call getScript with instance")
         if isinstance(tool_type, CustomScriptBuilder):
             tool_key = tool_type.name
         else:
             tool_key = tool_type.__name__
-        tool = self.tools.get(tool_key)
+        tool = self._tools.get(tool_key)
         if tool is None:
             # the Tool is not installed on current node, try to install it.
             tool_prefix = f"tool '{tool_key}'"
@@ -133,9 +135,9 @@ class Node:
                 cast_tool_type = cast(Type[Tool], tool_type)
                 tool = cast_tool_type(self)
 
-            if not tool.isInstalled:
+            if not tool.is_installed:
                 log.debug(f"{tool_prefix} is not installed")
-                if tool.canInstall:
+                if tool.can_install:
                     log.debug(f"{tool_prefix} installing")
                     is_success = tool.install()
                     if not is_success:
@@ -144,76 +146,84 @@ class Node:
                     raise LisaException(
                         f"{tool_prefix} doesn't support install on "
                         f"Node({self.identifier}), "
-                        f"Linux({self.isLinux}), "
-                        f"Remote({self.isRemote})"
+                        f"Linux({self.is_linux}), "
+                        f"Remote({self.is_remote})"
                     )
             else:
                 log.debug(f"{tool_prefix} is installed already")
-            self.tools[tool_key] = tool
+            self._tools[tool_key] = tool
         return cast(T, tool)
 
     def execute(
         self,
         cmd: str,
         shell: bool = False,
-        noErrorLog: bool = False,
-        noInfoLog: bool = False,
+        no_error_log: bool = False,
+        no_info_log: bool = False,
         cwd: Optional[pathlib.PurePath] = None,
     ) -> ExecutableResult:
-        process = self.executeAsync(
-            cmd, shell=shell, noErrorLog=noErrorLog, noInfoLog=noInfoLog, cwd=cwd
+        process = self.executeasync(
+            cmd,
+            shell=shell,
+            no_error_log=no_error_log,
+            no_info_log=no_info_log,
+            cwd=cwd,
         )
-        return process.waitResult()
+        return process.wait_result()
 
-    def executeAsync(
+    def executeasync(
         self,
         cmd: str,
         shell: bool = False,
-        noErrorLog: bool = False,
-        noInfoLog: bool = False,
+        no_error_log: bool = False,
+        no_info_log: bool = False,
         cwd: Optional[pathlib.PurePath] = None,
     ) -> Process:
         self._initialize()
         return self._execute(
-            cmd, shell=shell, noErrorLog=noErrorLog, noInfoLog=noInfoLog, cwd=cwd
+            cmd,
+            shell=shell,
+            no_error_log=no_error_log,
+            no_info_log=no_info_log,
+            cwd=cwd,
         )
 
     @property
-    def isLinux(self) -> bool:
+    def is_linux(self) -> bool:
         self._initialize()
         return self._isLinux
 
     def _initialize(self) -> None:
-        if not self._isInitialized:
+        if not self._is_initialized:
             # prevent loop calls, set _isInitialized to True first
-            self._isInitialized = True
+            self._is_initialized = True
             log.debug(f"initializing node {self.name}")
             self.shell.initialize()
-            uname = self.getTool(Uname)
+            uname = self.get_tool(Uname)
             (
-                self.kernelRelease,
-                self.kernelVersion,
-                self.hardwarePlatform,
-                self.os,
-            ) = uname.getLinuxInformation(noErrorLog=True)
-            if (not self.kernelRelease) or ("Linux" not in self.os):
+                self.kernel_release,
+                self.kernel_version,
+                self.hardware_platform,
+                self.operating_system,
+            ) = uname.get_linux_information(no_error_log=True)
+            if (not self.kernel_release) or ("Linux" not in self.operating_system):
                 self._isLinux = False
             if self._isLinux:
                 log.info(
                     f"initialized Linux node '{self.name}', "
-                    f"kernelRelease: {self.kernelRelease}, "
-                    f"kernelVersion: {self.kernelVersion}"
-                    f"hardwarePlatform: {self.hardwarePlatform}"
+                    f"kernelRelease: {self.kernel_release}, "
+                    f"kernelVersion: {self.kernel_version}"
+                    f"hardwarePlatform: {self.hardware_platform}"
                 )
             else:
                 log.info(f"initialized Windows node '{self.name}', ")
 
             # set working path
-            if self.isRemote:
+            if self.is_remote:
                 assert self.shell
-                assert self.connection_info
+                assert self._connection_info
 
-                if self.isLinux:
+                if self.is_linux:
                     remote_root_path = pathlib.Path("$HOME")
                 else:
                     remote_root_path = pathlib.Path("%TEMP%")
@@ -222,31 +232,35 @@ class Node:
                 ).as_posix()
 
                 # expand environment variables in path
-                echo = self.getTool(Echo)
+                echo = self.get_tool(Echo)
                 result = echo.run(working_path, shell=True)
 
                 # PurePath is more reasonable here, but spurplus doesn't support it.
-                if self.isLinux:
-                    self.workingPath = pathlib.PurePosixPath(result.stdout)
+                if self.is_linux:
+                    self._working_path = pathlib.PurePosixPath(result.stdout)
                 else:
-                    self.workingPath = pathlib.PureWindowsPath(result.stdout)
+                    self._working_path = pathlib.PureWindowsPath(result.stdout)
             else:
-                self.workingPath = pathlib.Path(env.get_run_local_path())
-            log.debug(f"working path is: '{self.workingPath}'")
-            self.shell.mkdir(self.workingPath, parents=True, exist_ok=True)
+                self._working_path = pathlib.Path(env.get_run_local_path())
+            log.debug(f"working path is: '{self._working_path}'")
+            self.shell.mkdir(self._working_path, parents=True, exist_ok=True)
 
     def _execute(
         self,
         cmd: str,
         shell: bool = False,
-        noErrorLog: bool = False,
-        noInfoLog: bool = False,
+        no_error_log: bool = False,
+        no_info_log: bool = False,
         cwd: Optional[pathlib.PurePath] = None,
     ) -> Process:
         cmd_prefix = f"cmd[{str(random.randint(0, 10000))}]"
-        process = Process(cmd_prefix, self.shell, self.isLinux)
+        process = Process(cmd_prefix, self.shell, self.is_linux)
         process.start(
-            cmd, shell=shell, noErrorLog=noErrorLog, noInfoLog=noInfoLog, cwd=cwd
+            cmd,
+            shell=shell,
+            no_error_log=no_error_log,
+            no_info_log=no_info_log,
+            cwd=cwd,
         )
         return process
 

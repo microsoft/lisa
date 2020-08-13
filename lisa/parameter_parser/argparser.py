@@ -50,7 +50,7 @@ def parse_args() -> Namespace:
     list_parser = subparsers.add_parser(constants.LIST)
     list_parser.set_defaults(func=commands.list_start)
     list_parser.add_argument("--type", "-t", dest="type", choices=["case"])
-    list_parser.add_argument("--all", "-a", dest="listAll", action="store_true")
+    list_parser.add_argument("--all", "-a", dest="list_all", action="store_true")
     support_config_file(list_parser)
     support_variable(list_parser)
 

@@ -13,56 +13,56 @@ class Uname(Tool):
         )
         # uname's result suppose not be changed frequently,
         #  so cache it for performance.
-        self.hasResult: bool = False
-        self.isLinux: bool = True
-        self.kernelRelease: str = ""
-        self.kernelVersion: str = ""
-        self.hardwarePlatform: str = ""
-        self.os: str = ""
+        self.has_result: bool = False
+        self.is_linux: bool = True
+        self.kernel_release: str = ""
+        self.kernel_version: str = ""
+        self.hardware_platform: str = ""
+        self.operating_system: str = ""
 
     @property
     def command(self) -> str:
         return "uname"
 
     @property
-    def canInstall(self) -> bool:
+    def can_install(self) -> bool:
         return False
 
     @property
-    def isInstalledInternal(self) -> bool:
+    def _is_installed_internal(self) -> bool:
         return True
 
-    def getLinuxInformation(
-        self, force: bool = False, noErrorLog: bool = False
+    def get_linux_information(
+        self, force: bool = False, no_error_log: bool = False
     ) -> Tuple[str, str, str, str]:
         """
             return:
                 kernel-release
                 kernel-version
                 hardware-platform
-                os
+                operating-system
         """
 
-        if (not self.hasResult) or force:
-            cmd_result = self.run("-vrio", noErrorLog=noErrorLog)
+        if (not self.has_result) or force:
+            cmd_result = self.run("-vrio", no_error_log=no_error_log)
 
-            if cmd_result.exitCode != 0:
-                self.isLinux = False
+            if cmd_result.exit_code != 0:
+                self.is_linux = False
             else:
                 match_result = self.key_info_pattern.fullmatch(cmd_result.stdout)
                 if not match_result:
                     raise LisaException(
                         f"no result matched, stdout: '{cmd_result.stdout}'"
                     )
-                self.kernelRelease = match_result.group("release")
-                self.kernelVersion = match_result.group("version")
-                self.hardwarePlatform = match_result.group("platform")
-                self.os = match_result.group("os")
-            self.hasResult = True
+                self.kernel_release = match_result.group("release")
+                self.kernel_version = match_result.group("version")
+                self.hardware_platform = match_result.group("platform")
+                self.operating_system = match_result.group("os")
+            self.has_result = True
 
         return (
-            self.kernelRelease,
-            self.kernelVersion,
-            self.hardwarePlatform,
-            self.os,
+            self.kernel_release,
+            self.kernel_version,
+            self.hardware_platform,
+            self.operating_system,
         )

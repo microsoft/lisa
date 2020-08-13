@@ -11,25 +11,25 @@ class ConnectionInfo:
         port: int = 22,
         username: str = "root",
         password: Optional[str] = "",
-        privateKeyFile: str = "",
+        privatekey_file: str = "",
     ) -> None:
         self.address = address
         self.port = port
         self.username = username
         self.password = password
-        self.privateKeyFile = privateKeyFile
+        self.privatekey_file = privatekey_file
 
-        if not self.password and not self.privateKeyFile:
+        if not self.password and not self.privatekey_file:
             raise LisaException(
                 "at least one of password and privateKeyFile need to be set"
             )
-        elif not self.privateKeyFile:
-            self.usePassword = True
+        elif not self.privatekey_file:
+            self._use_password = True
         else:
-            if not Path(self.privateKeyFile).exists():
-                raise FileNotFoundError(self.privateKeyFile)
+            if not Path(self.privatekey_file).exists():
+                raise FileNotFoundError(self.privatekey_file)
             self.password = None
-            self.usePassword = False
+            self._use_password = False
 
         if not self.username:
             raise LisaException("username must be set")

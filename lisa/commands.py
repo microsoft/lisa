@@ -34,15 +34,15 @@ def _initialize(args: Namespace) -> None:
     config = parse(args)
 
     # load external extension
-    _load_extends(config.base_path, config.getExtension())
+    _load_extends(config.base_path, config.get_extension())
 
     # initialize environment
     environment_factory = EnvironmentFactory()
-    environment_factory.loadEnvironments(config.getEnvironment())
+    environment_factory.load_environments(config.get_environment())
 
     # initialize platform
     factory = PlatformFactory()
-    factory.initializePlatform(config.getPlatform())
+    factory.initialize_platform(config.get_platform())
 
     _validate()
 
@@ -65,9 +65,9 @@ def check(args: Namespace) -> None:
 
 def list_start(args: Namespace) -> None:
     _initialize(args)
-    listAll = cast(Optional[bool], args.listAll)
+    list_all = cast(Optional[bool], args.list_all)
     if args.type == constants.LIST_CASE:
-        if listAll:
+        if list_all:
             factory = TestFactory()
             for metadata in factory.cases.values():
                 log.info(
@@ -85,7 +85,7 @@ def list_start(args: Namespace) -> None:
 
 
 def _validate() -> None:
-    environment_config = Config().getEnvironment()
+    environment_config = Config().get_environment()
     warn_as_error = False
     if environment_config:
         warn_as_error = cast(
@@ -96,12 +96,12 @@ def _validate() -> None:
     platform = PlatformFactory().current
     for environment in enviornments.values():
         if environment.spec is not None and isinstance(platform, ReadyPlatform):
-            _validateMessage(
+            _validate_message(
                 warn_as_error, "the ready platform cannot process environment spec"
             )
 
 
-def _validateMessage(warn_as_error: bool, message: str) -> None:
+def _validate_message(warn_as_error: bool, message: str) -> None:
     if warn_as_error:
         raise LisaException(message)
     else:

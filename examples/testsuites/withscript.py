@@ -16,12 +16,12 @@ from lisa.util.logger import log
 )
 class WithScript(TestSuite):
     @property
-    def skipRun(self) -> bool:
-        node = self.environment.defaultNode
-        return not node.isLinux
+    def skiprun(self) -> bool:
+        node = self.environment.default_node
+        return not node.is_linux
 
-    def beforeSuite(self) -> None:
-        self.echoScript = CustomScriptBuilder(
+    def before_suite(self) -> None:
+        self._echo_script = CustomScriptBuilder(
             Path(__file__).parent.joinpath("scripts"), ["echo.sh"]
         )
 
@@ -32,7 +32,7 @@ class WithScript(TestSuite):
         priority=1,
     )
     def script(self) -> None:
-        node = self.environment.defaultNode
-        script: CustomScript = node.getTool(self.echoScript)
+        node = self.environment.default_node
+        script: CustomScript = node.get_tool(self._echo_script)
         result = script.run()
         log.info(f"result stdout: {result.stdout}")

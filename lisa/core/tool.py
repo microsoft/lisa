@@ -14,8 +14,9 @@ if TYPE_CHECKING:
 class Tool(ABC):
     def __init__(self, node: Node) -> None:
         self.node: Node = node
-        self._isInstalled: Optional[bool] = None
         self.initialize()
+
+        self._isInstalled: Optional[bool] = None
 
     def initialize(self) -> None:
         pass
@@ -39,70 +40,65 @@ class Tool(ABC):
 
     @property
     @abstractmethod
-    def canInstall(self) -> bool:
+    def can_install(self) -> bool:
         raise NotImplementedError()
 
     @property
-    def isInstalledInternal(self) -> bool:
-        if self.node.isLinux:
+    def _is_installed_internal(self) -> bool:
+        if self.node.is_linux:
             where_command = "command -v"
         else:
             where_command = "where"
         result = self.node.execute(
-            f"{where_command} {self.command}", shell=True, noInfoLog=True
+            f"{where_command} {self.command}", shell=True, no_info_log=True
         )
-        self._isInstalled = result.exitCode == 0
+        self._isInstalled = result.exit_code == 0
         return self._isInstalled
 
     @property
-    def isInstalled(self) -> bool:
+    def is_installed(self) -> bool:
         # the check may need extra cost, so cache it's result.
         if self._isInstalled is None:
-            self._isInstalled = self.isInstalledInternal
+            self._isInstalled = self._is_installed_internal
         return self._isInstalled
 
-    def installInternal(self) -> bool:
+    def _install_internal(self) -> bool:
         raise NotImplementedError()
 
     def install(self) -> bool:
         # check dependencies
         for dependency in self.dependencies:
-            self.node.getTool(dependency)
-        result = self.installInternal()
+            self.node.get_tool(dependency)
+        result = self._install_internal()
         return result
 
-    def runAsync(
+    def runasync(
         self,
-        extraParameters: str = "",
+        parameters: str = "",
         shell: bool = False,
-        noErrorLog: bool = False,
-        noInfoLog: bool = False,
+        no_error_log: bool = False,
+        no_info_log: bool = False,
         cwd: Optional[pathlib.PurePath] = None,
     ) -> Process:
-        command = f"{self.command} {extraParameters}"
-        process = self.node.executeAsync(
-            command, shell, noErrorLog=noErrorLog, cwd=cwd, noInfoLog=noInfoLog,
+        command = f"{self.command} {parameters}"
+        process = self.node.executeasync(
+            command, shell, no_error_log=no_error_log, cwd=cwd, no_info_log=no_info_log,
         )
         return process
 
     def run(
         self,
-        extraParameters: str = "",
+        parameters: str = "",
         shell: bool = False,
-        noErrorLog: bool = False,
-        noInfoLog: bool = False,
+        no_error_log: bool = False,
+        no_info_log: bool = False,
         cwd: Optional[pathlib.PurePath] = None,
     ) -> ExecutableResult:
-        process = self.runAsync(
-            extraParameters=extraParameters,
+        process = self.runasync(
+            parameters=parameters,
             shell=shell,
-            noErrorLog=noErrorLog,
-            noInfoLog=noInfoLog,
+            no_error_log=no_error_log,
+            no_info_log=no_info_log,
             cwd=cwd,
         )
-        return process.waitResult()
-
-
-class ExecutableException(Exception):
-    def __init__(self, exe: Tool, message: str):
-        self.message = f"{exe.command}: {message}"
+        return process.wait_result()
