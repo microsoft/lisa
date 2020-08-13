@@ -35,4 +35,7 @@ class WithScript(TestSuite):
         node = self.environment.default_node
         script: CustomScript = node.get_tool(self._echo_script)
         result = script.run()
-        log.info(f"result stdout: {result.stdout}")
+        log.info(f"result1 stdout: {result.stdout}")
+        # the second time should be faster, without uploading
+        result = script.run()
+        log.info(f"result2 stdout: {result.stdout}")

@@ -178,6 +178,8 @@ class CustomScriptBuilder:
         self.name = f"custom_{command_identifier}_{hash_result.hexdigest()}"
 
     def build(self, node: Node) -> CustomScript:
-        return CustomScript(
+        script = CustomScript(
             self.name, node, self._local_rootpath, self._files, self._command
         )
+        script.initialize()
+        return script
