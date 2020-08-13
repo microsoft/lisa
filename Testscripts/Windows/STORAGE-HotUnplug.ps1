@@ -157,7 +157,7 @@ function Main {
         Start-Sleep -Seconds 5
         $diskNumber = Run-LinuxCmd -username $VMUserName -password $VMPassword -ip $Ipv4 -port $VMPort `
             -command "fdisk -l | grep 'Disk /dev/sd*' | grep -v 'Disk /dev/sda' | wc -l" -RunAsSudo
-        if ($diskNumber -ne 2) {
+        if ($diskNumber -ne 1) {
             Write-LogErr "Failed to attach VHDx"
             return "FAIL"
         }

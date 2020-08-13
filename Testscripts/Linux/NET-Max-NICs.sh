@@ -32,7 +32,8 @@ function Configure_HV_Interfaces
     fi
 
     if [ ! -z "${HV_LEGACY_NICS+x}" ]; then
-        grep "CONFIG_NET_TULIP=y\|CONFIG_TULIP=m" /boot/config-$(uname -r)
+        config_path=$(get_bootconfig_path)
+        grep "CONFIG_NET_TULIP=y\|CONFIG_TULIP=m" "$config_path"
         if [ $? -ne 0 ]; then
             LogErr "Tulip driver is not configured. Test skipped"
             SetTestStateSkipped

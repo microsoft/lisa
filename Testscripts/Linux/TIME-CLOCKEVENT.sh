@@ -93,7 +93,7 @@ VCPU=$(nproc)
 case $DISTRO in
     redhat_6 | centos_6)
         LogMsg "WARNING: $DISTRO does not support Hyper-V clockevent."
-        SetTestStateAborted
+        SetTestStateSkipped
         exit 0
         ;;
     redhat_7|redhat_8|centos_7|centos_8|fedora*|clear-linux-os)

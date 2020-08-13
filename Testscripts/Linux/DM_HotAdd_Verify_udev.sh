@@ -12,16 +12,8 @@
 
 # Source constants file and initialize most common variables
 UtilsInit
-items=(SUBSYSTEM==\"memory\", ACTION==\"add\", ATTR{state}=\"online\")
-
-case $DISTRO in
-    redhat_7|centos_7|redhat_8|centos_8)
-        items=(SUBSYSTEM!=\"memory\", GOTO=\"memory_hotplug_end\")
-    ;;
-    *)
-    ;;
-esac
-
+hotaddmemory_rule_keywords1=(SUBSYSTEM==\"memory\", ACTION==\"add\", ATTR{state}=\"online\")
+hotaddmemory_rule_keywords2=(SUBSYSTEM!=\"memory\", GOTO=\"memory_hotplug_end\")
 #######################################################################
 #
 # Main script body
@@ -34,18 +26,45 @@ if [ -e summary.log ]; then
     rm -rf summary.log
 fi
 
+config_path=$(get_bootconfig_path)
+
+# /sys/devices/system/memory/auto_online_blocks = online => when the memory is hot-added, it will be online automatically
+if grep CONFIG_MEMORY_HOTPLUG_DEFAULT_ONLINE=y $config_path; then
+    LogMsg "CONFIG_MEMORY_HOTPLUG_DEFAULT_ONLINE=y is set in $config_path, then no need to check udev rules on $DISTRO"
+    value_of_aob=$(cat /sys/devices/system/memory/auto_online_blocks)
+    if [ "$value_of_aob" == "online" ]; then
+        LogMsg "Value of /sys/devices/system/memory/auto_online_blocks is expected - online"
+        SetTestStateCompleted
+    else
+        LogErr "Value of /sys/devices/system/memory/auto_online_blocks is unexpected - $value_of_aob"
+        SetTestStateFailed
+    fi
+    exit 0
+fi
+
 # Search in /etc/udev and /lib/udev folders
 for udevfile in $(find /etc/udev/ /lib/udev/ -name "*.rules*"); do # search for all the .rules files
     match_count=0
-    for i in "${items[@]}"
+    for i in "${hotaddmemory_rule_keywords1[@]}"
     do
-        grep "$i" "$udevfile" > /dev/null # grep for the udev rule
-        sts=$?
-        if [ 0 -eq ${sts} ]; then
+        if grep "$i" "$udevfile"; then
              match_count=$(expr $match_count + 1)
         fi
     done
-    if [ ${#items[@]} -eq "$match_count" ]; then
+    if [ ${#hotaddmemory_rule_keywords1[@]} -eq "$match_count" ]; then
+        filelist=("${filelist[@]}" $udevfile) # populate an array with the results
+    fi
+done
+
+for udevfile in $(find /etc/udev/ /lib/udev/ -name "*.rules*"); do # search for all the .rules files
+    match_count=0
+    for i in "${hotaddmemory_rule_keywords2[@]}"
+    do
+        if grep "$i" "$udevfile"; then
+             match_count=$(expr $match_count + 1)
+        fi
+    done
+    if [ ${#hotaddmemory_rule_keywords2[@]} -eq "$match_count" ]; then
         filelist=("${filelist[@]}" $udevfile) # populate an array with the results
     fi
 done
@@ -67,7 +86,7 @@ else
     LogMsg "Error: No Hot-Add udev rules found on the system!"
     SetTestStateFailed
     UpdateSummary "Hot-Add udev rules: Failed!"
-    exit 1
+    exit 0
 fi
 
 SetTestStateCompleted

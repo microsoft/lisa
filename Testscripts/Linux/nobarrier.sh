@@ -47,13 +47,11 @@ function create_raid_and_mount() {
 	local list=""
 
 	LogMsg "IO test setup started.."
-	list=($(fdisk -l | grep 'Disk.*/dev/sd[a-z]' |awk  '{print $2}' | sed s/://| sort| grep -v "/dev/sd[ab]$" ))
+	list=$(get_AvailableDisks)
 
 	lsblk
 	install_package mdadm
-	LogMsg "--- Raid $deviceName creation started ---"
-	(echo y)| mdadm --create $deviceName --level 0 --raid-devices ${#list[@]} ${list[@]}
-	check_exit_status "$deviceName Raid creation"
+	create_raid0 "$list" "$deviceName"
 
 	time mkfs -t $format $deviceName
 	check_exit_status "$deviceName Raid format"

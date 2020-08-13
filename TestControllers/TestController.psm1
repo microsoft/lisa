@@ -59,6 +59,7 @@ Class TestController
 	[string] $TestTag
 	[string] $ExcludeTests
 	[string] $TestPriority
+	[string] $TestSetup
 	[int] $TestIterations
 	[bool] $EnableTelemetry
 	[string] $OverrideVMSize
@@ -76,7 +77,7 @@ Class TestController
 
 	[void] SyncEquivalentCustomParameters([string] $Key, [string] $Value) {
 		if ($Value) {
-			if ($this.CustomParams.$Key) {
+			if ($this.CustomParams.$Key -and $this.CustomParams.$Key -cne $Value) {
 				Write-LogWarn "Custom Parameter of '$Key' has been updated with Value: '$Value', previous value is '$($this.CustomParams.$Key)'"
 			}
 			$this.CustomParams[$Key] = $Value
@@ -99,6 +100,7 @@ Class TestController
 		$this.TestTag = $ParamTable["TestTag"]
 		$this.ExcludeTests = $ParamTable["ExcludeTests"]
 		$this.TestPriority = $ParamTable["TestPriority"]
+		$this.TestSetup = $ParamTable["TestSetup"]
 		$this.ResourceCleanup = $ParamTable["ResourceCleanup"]
 		$this.EnableTelemetry = $ParamTable["EnableTelemetry"]
 		$this.TestIterations = $ParamTable["TestIterations"]
@@ -132,13 +134,10 @@ Class TestController
 		$this.SyncEquivalentCustomParameters("TestLocation", $this.TestLocation)
 		$this.SyncEquivalentCustomParameters("OsVHD", $this.OsVHD)
 		$this.SyncEquivalentCustomParameters("OverrideVMSize", $this.OverrideVMSize)
-		# Sync VMGeneration with whatever values it got from command parameter;
-		# if $null/empty, inherited controller will update it with default value
 		$this.SyncEquivalentCustomParameters("VMGeneration", $this.VMGeneration)
 
 		$parameterErrors = @()
 		# Validate general parameters
-
 		return $parameterErrors
 	}
 
@@ -251,13 +250,14 @@ Class TestController
 		$SetupTypeXMLs = Get-ChildItem -Path "$WorkingDirectory\XML\VMConfigurations\*.xml"
 		$ReplaceableTestParameters = [xml](Get-Content -Path "$WorkingDirectory\XML\Other\ReplaceableTestParameters.xml")
 
-		$allTests = Select-TestCases -TestXMLs $TestXMLs -TestCategory $this.TestCategory -TestArea $this.TestArea `
+		$allTests = Select-TestCases -TestXMLs $TestXMLs -TestCategory $this.TestCategory -TestArea $this.TestArea -TestSetup $this.TestSetup `
 			-TestNames $this.TestNames -TestTag $this.TestTag -TestPriority $this.TestPriority -ExcludeTests $this.ExcludeTests
 
 		if (!$allTests) {
 			Throw "Not able to collect any test cases from XML files"
 		}
-		Write-LogInfo "$(@($allTests).Length) Test Cases have been collected"
+		$collectedTCCount = $allTests.Count
+		Write-LogInfo "$collectedTCCount Test Cases have been collected"
 
 		$SetupTypes = $allTests.SetupConfig.SetupType | Sort-Object -Unique
 		foreach ($file in $SetupTypeXMLs.FullName) {
@@ -287,7 +287,7 @@ Class TestController
 			Write-LogInfo "Custom parameter(s) are ready to be injected along with default parameters, if any."
 		}
 
-		foreach ( $test in $allTests) {
+		foreach ($test in $allTests) {
 			# Inject replaceable parameters
 			foreach ($ReplaceableParameter in $ReplaceableTestParameters.ReplaceableTestParameters.Parameter) {
 				$replaceWith = [System.Security.SecurityElement]::Escape($ReplaceableParameter.ReplaceWith)
@@ -314,6 +314,13 @@ Class TestController
 		}
 
 		$this.PrepareSetupTypeToTestCases($this.SetupTypeToTestCases, $allTests)
+
+		if (($this.TotalCaseNum -eq 0) -or ($allTests.Count -eq 0)) {
+			Write-LogWarn "All collected test cases are skipped, because the test case has native SetupConfig that conflicts with current Run-LISAv2 parameters, or LISAv2 needs more specific parameters to run against selected test cases, please check again"
+		}
+		elseif ($collectedTCCount -ne $allTests.Count) {
+			Write-LogInfo "$($allTests.Count) Test Cases have been selected or expanded to be run in this LISAv2 execution, other test cases may have been skipped due to test case native SetupConfig conflicts with current Run-LISAv2 parameters"
+		}
 	}
 
 	[void] PrepareTestImage() {}
@@ -490,9 +497,7 @@ Class TestController
 		}
 
 		try {
-			Write-LogInfo "==> Check if the test target machines are still running."
-			$isVmAlive = Is-VmAlive -AllVMDataObject $VMData -MaxRetryCount 10
-			if (!$global:IsWindowsImage -and $isVmAlive -eq "True" ) {
+			if (!$global:IsWindowsImage) {
 				if ($testParameters["SkipVerifyKernelLogs"] -ne "True") {
 					$ret = $this.GetAndCompareOsLogs($VmData, "Final")
 					if (($testParameters["FailForLogCheck"] -eq "True") -and ($ret -eq $false) -and ($currentTestResult.TestResult -eq $global:ResultPass)) {
@@ -505,7 +510,7 @@ Class TestController
 			}
 
 			Write-LogInfo "==> Run test cleanup script if defined."
-			$collectDetailLogs = !$this.TestCasePassStatus.contains($currentTestResult.TestResult) -and !$global:IsWindowsImage -and $testParameters["SkipVerifyKernelLogs"] -ne "True" -and $isVmAlive -eq "True"
+			$collectDetailLogs = !$this.TestCasePassStatus.contains($currentTestResult.TestResult) -and !$global:IsWindowsImage -and $testParameters["SkipVerifyKernelLogs"] -ne "True" -and ((Is-VmAlive -AllVMDataObject $VmData -MaxRetryCount 5) -eq "True")
 			$doRemoveFiles = $this.TestCasePassStatus.contains($currentTestResult.TestResult) -and !($this.ResourceCleanup -imatch "Keep") -and !$global:IsWindowsImage -and $testParameters["SkipVerifyKernelLogs"] -ne "True"
 			$this.TestProvider.RunTestCaseCleanup($vmData, $CurrentTestData, $currentTestResult, $collectDetailLogs, $doRemoveFiles, `
 				$global:user, $global:password, $SetupTypeData, $testParameters)
@@ -532,15 +537,42 @@ Class TestController
 
 	[void] RunTestCasesInSequence([int]$TestIterations)
 	{
-		$executionCount = 0
-		$CleanupResource = {
-			param ([ref]$VmDataToBeDeleted)
-			if ($VmDataToBeDeleted.Value) {
-				Write-LogInfo "Delete deployed target machine ..."
-				$null = $this.TestProvider.DeleteVMs($VmDataToBeDeleted.Value, $this.SetupTypeTable[$setupType], $this.UseExistingRG);
-				$VmDataToBeDeleted.Value = $null
+		$TryCleanupOnSuccess = {
+			param ([ref]$VmDataOnSuccess, [object]$SetupTypeData)
+			if ($this.ResourceCleanup -imatch "Keep") {
+				Write-LogWarn "ResourceCleanup = 'Keep' is respected, you may need to delete the testing resources * MANUALLY * sometime later."
 			}
+			elseif ($VmDataOnSuccess.Value) {
+				Write-LogInfo "Delete deployed target machine ..."
+				$null = $this.TestProvider.DeleteVMs($VmDataOnSuccess.Value, $SetupTypeData, $this.UseExistingRG);
+			}
+			$VmDataOnSuccess.Value = $null
 		}
+		$TryCleanupOnFailure = {
+			param ([ref]$VmDataOnFailure, [object]$SetupTypeData)
+			if ($VmDataOnFailure.Value) {
+				# when '-ResourceCleanup = Delete', DeleteVMs
+				if ($this.ResourceCleanup -imatch "Delete") {
+					Write-LogInfo "Delete deployed target machine ..."
+					$null = $this.TestProvider.DeleteVMs($VmDataOnFailure.Value, $SetupTypeData, $this.UseExistingRG);
+				}
+				# when '-UseExistingRG', try to DeleteVMs, unless '-ResourceCleanup = Keep'
+				elseif ($this.UseExistingRG) {
+					if ($this.ResourceCleanup -imatch "Keep") {
+						# '-ResourceCleanup = Keep' may cause following test cases in the same Setup group Aborted (because resource names of deployment are duplicated in the ExistingRG)
+						Write-LogWarn "ResourceCleanup = 'Keep' is respected, but may conflict with '-UseExistingRG', as 'Keep' will cause following tests Aborted."
+					}
+					else {
+						Write-LogInfo "Delete deployed target machine ..."
+						$null = $this.TestProvider.DeleteVMs($VmDataOnFailure.Value, $SetupTypeData, $this.UseExistingRG);
+					}
+				}
+			}
+			# this is by default choice for last Failed/Aborted, when $this.ResourceCleanup -eq 'Default'
+			$VmDataOnFailure.Value = $null
+		}
+
+		$executionCount = 0
 		foreach ($setupKey in $this.SetupTypeToTestCases.Keys) {
 			$setupType = $setupKey.Split(',')[0]
 			$vmData = $null
@@ -557,32 +589,41 @@ Class TestController
 						$currentTestCase.SetupConfig.TestLocation, $this.RGIdentifier, $this.UseExistingRG, $this.ResourceCleanup)
 					$vmData = $null
 					$deployErrors = ""
+					$systemBasicLogsCollected = $false
 					if ($deployVMResults) {
 						# By default set $vmData with $deployVMResults, because providers may return array of vmData directly if no errors.
 						$vmData = $deployVMResults
+						$deployErrors = Trim-ErrorLogMessage $deployVMResults.Error
 						# override the $vmData if $deployResults give VmData specifically with property 'VmData'
 						if ($deployVMResults.Keys -and ($deployVMResults.Keys -contains "VmData")) {
 							$vmData = $deployVMResults.VmData
 						}
-						# if there are deployment errors, skip RunTestCase and try to CleanupResource, as this is unrecoverable
-						# and we do not care about the last test run result (Pass or Fail), always try to CleanupResource, unless 'ResourceCleanup = Keep' set
+						# if there are deployment errors, skip RunTestCase and TryCleanupOnFailure, and we don't care about '-ReuseVmOnFailure', because this is unrecoverable
 						if ($vmData -and $deployVMResults.Error) {
-							if ($this.ResourceCleanup -imatch "Keep") {
-								Write-LogWarn "ResourceCleanup = 'Keep' is respected, current test will abort, as deployment error(s) detected."
-								$vmData = $null
+							# Before TryCleanupOnFailure, Set the case to abort, and Submit Telemetry Result
+							if (!$systemBasicLogsCollected) {
+								$currentTestResult = Create-TestResultObject
+								$currentTestResult.TestResult = $global:ResultAborted
+								$currentTestResult.TestSummary += $deployErrors
+								$this.GetSystemBasicLogs($vmData, $global:user, $global:password, $currentTestCase, $currentTestResult, $this.EnableTelemetry) | Out-Null
+								$systemBasicLogsCollected = $true
 							}
-							else {
-								&$CleanupResource -VmDataToBeDeleted ([ref]$vmData)
-							}
+							&$TryCleanupOnFailure -VmDataOnFailure ([ref]$vmData) -SetupTypeData $this.SetupTypeTable[$setupType]
 						}
-						$deployErrors = Trim-ErrorLogMessage $deployVMResults.Error
 					}
 					if (!$vmData) {
 						# Failed to deploy the VMs, Set the case to abort
+						$currentTestResult = Create-TestResultObject
+						if (!$systemBasicLogsCollected) {
+							$currentTestResult = Create-TestResultObject
+							$currentTestResult.TestResult = $global:ResultAborted
+							$currentTestResult.TestSummary += $deployErrors
+							$this.GetSystemBasicLogs($vmData, $global:user, $global:password, $currentTestCase, $currentTestResult, $this.EnableTelemetry) | Out-Null
+						}
 						Write-LogWarn("VMData is empty (null). Aborting the testing.")
 						$this.JunitReport.StartLogTestCase("LISAv2Test-$($this.TestPlatform)","$($currentTestCase.testName)","$($this.TestPlatform)-$($currentTestCase.Category)-$($currentTestCase.Area)")
-						$this.JunitReport.CompleteLogTestCase("LISAv2Test-$($this.TestPlatform)","$($currentTestCase.testName)","Aborted", $deployErrors)
-						$this.TestSummary.UpdateTestSummaryForCase($currentTestCase, $executionCount, "Aborted", "0", $deployErrors, $null)
+						$this.JunitReport.CompleteLogTestCase("LISAv2Test-$($this.TestPlatform)","$($currentTestCase.testName)", $global:ResultAborted, $deployErrors)
+						$this.TestSummary.UpdateTestSummaryForCase($currentTestCase, $executionCount, $global:ResultAborted, "0", $deployErrors, $null)
 						continue
 					}
 					else {
@@ -605,15 +646,9 @@ Class TestController
 
 				# Last Test is 'Pass', by default reuse VM deployment till the end of current SetupType (with the Combined Setup Key)
 				if ($this.TestCasePassStatus.contains($lastResult.TestResult)) {
-					# Unless '$this.DeployVMPerEachTest' is $true, then: (&$CleanupResource -VmDataToBeDeleted ([ref]$vmData))
+					# Only when '$this.DeployVMPerEachTest', TryCleanupOnSuccess, otherwise, keep and reuse all VmData
 					if ($this.DeployVMPerEachTest) {
-						if ($this.ResourceCleanup -imatch "Keep") {
-							Write-LogWarn "ResourceCleanup = 'Keep' is respected, but may be huge waste of resources when '-DeployVMPerEachTest' is Set."
-							$vmData = $null
-						}
-						else {
-							&$CleanupResource -VmDataToBeDeleted ([ref]$vmData)
-						}
+						&$TryCleanupOnSuccess -VmDataOnSuccess ([ref]$vmData) -SetupTypeData $this.SetupTypeTable[$setupType]
 					}
 				}
 				else {
@@ -629,37 +664,15 @@ Class TestController
 					# If -not $readyForReuseVM, LISA will preserve VM environment for analysis/debugging by default.
 					# but eventually will set $vmData = $null, which means force another deployment happen for next test case
 					if (!$readyForReuseVM) {
-						# when '-ResourceCleanup = Delete', &$CleanupResource
-						if ($vmData -and $this.ResourceCleanup -imatch "Delete") {
-							&$CleanupResource -VmDataToBeDeleted ([ref]$vmData)
-						}
-						# when '-UseExistingRG', try to &$CleanupResource, unless '-ResourceCleanup = Keep'
-						if ($vmData -and $this.UseExistingRG) {
-							if ($this.ResourceCleanup -imatch "Keep") {
-								# '-ResourceCleanup = Keep' may cause following test cases in the same Setup group Aborted (because resource names of deployment are duplicated in the ExistingRG)
-								Write-LogWarn "ResourceCleanup = 'Keep' is respected, but may conflict with '-UseExistingRG', as 'Keep' will cause following tests Aborted."
-							}
-							else {
-								&$CleanupResource -VmDataToBeDeleted ([ref]$vmData)
-							}
-						}
-						# this is by default choice for last Failed/Aborted
-						$vmData = $null
+						&$TryCleanupOnFailure -VmDataOnFailure ([ref]$vmData) -SetupTypeData $this.SetupTypeTable[$setupType]
 					}
 				}
 			}
 
-			# Cleanup, if $vmData is not null (Not Preserved for failure/debugging) or 'ResourceCleanup = Delete'
+			# Cleanup, if $vmData is not $null (Not Preserved for failure/debugging) or 'ResourceCleanup = Delete'
 			# at the end of each SetupType (Combined setup Key) after all tests belongs to this testSetup completed
-			# unless $ResourceCleanup is Keep
 			if ($vmData -or ($this.ResourceCleanup -imatch "Delete")) {
-				if ($this.ResourceCleanup -imatch "Keep") {
-					Write-LogWarn "ResourceCleanup = 'Keep' is respected, you may need to delete the testing resources * MANUALLY * sometime later."
-					$vmData = $null
-				}
-				else {
-					&$CleanupResource -VmDataToBeDeleted ([ref]$vmData)
-				}
+				&$TryCleanupOnSuccess -VmDataOnSuccess ([ref]$vmData) -SetupTypeData $this.SetupTypeTable[$setupType]
 			}
 		}
 
@@ -689,55 +702,77 @@ Class TestController
 	}
 
 	[void] GetSystemBasicLogs($AllVMData, $User, $Password, $CurrentTestData, $CurrentTestResult, $enableTelemetry) {
+		$GuestDistro = $null
+		$HardwarePlatform = $null
+		$LISVersion = "NA"
+		$HostVersion = $null
+		$VMSize = $null
+		$VMGen = $null
+		$Networking = $null
 		try {
-			if ($allVMData.Count -gt 1) {
-				$vmData = $allVMData[0]
-			} else {
-				$vmData = $allVMData
-			}
-			$FilesToDownload = "$($vmData.RoleName)-*.txt"
-			Copy-RemoteFiles -upload -uploadTo $vmData.PublicIP -port $vmData.SSHPort `
-				-files .\Testscripts\Linux\CollectLogFile.sh `
-				-username $user -password $password -maxRetry 5 | Out-Null
-			$Null = Run-LinuxCmd -username $user -password $password -ip $vmData.PublicIP -port $vmData.SSHPort `
-				-command "bash CollectLogFile.sh -hostname $($vmData.RoleName)" -ignoreLinuxExitCode -runAsSudo
-			$Null = Copy-RemoteFiles -downloadFrom $vmData.PublicIP -port $vmData.SSHPort `
-				-username $user -password $password -files "$FilesToDownload" -downloadTo $global:LogDir -download
-			$global:FinalKernelVersion = Get-Content "$global:LogDir\$($vmData.RoleName)-kernelVersion.txt"
-			$HardwarePlatform = Get-Content "$global:LogDir\$($vmData.RoleName)-hardwarePlatform.txt"
-			$GuestDistro = Get-Content "$global:LogDir\$($vmData.RoleName)-distroVersion.txt"
-			$LISMatch = (Select-String -Path "$global:LogDir\$($vmData.RoleName)-lis.txt" -Pattern "^version:").Line
-			if ($LISMatch) {
-				$LISVersion = $LISMatch.Split(":").Trim()[1]
-			} else {
-				$LISVersion = "NA"
-			}
-
-			$HostVersion = ""
-			$FoundLineNumber = (Select-String -Path "$global:LogDir\$($vmData.RoleName)-dmesg.txt" -Pattern "Hyper-V Host Build").LineNumber
-			if (![string]::IsNullOrEmpty($FoundLineNumber)) {
-				$ActualLineNumber = $FoundLineNumber[-1] - 1
-				$FinalLine = [string]((Get-Content -Path "$global:LogDir\$($vmData.RoleName)-dmesg.txt")[$ActualLineNumber])
-				$FinalLine = $FinalLine.Replace('; Vmbus version:4.0', '')
-				$FinalLine = $FinalLine.Replace('; Vmbus version:3.0', '')
-				$HostVersion = ($FinalLine.Split(":")[$FinalLine.Split(":").Count - 1 ]).Trim().TrimEnd(";")
-			}
-
+			$VMGen = $CurrentTestData.SetupConfig.VMGeneration
 			if ($currentTestData.SetupConfig.Networking -imatch "SRIOV") {
 				$Networking = "SRIOV"
 			} else {
 				$Networking = "Synthetic"
 			}
-			$VMSize = ""
-			if ($global:TestPlatform -eq "Azure") {
-				$VMSize = $vmData.InstanceSize
-			}
 			if ($global:TestPlatform -eq "HyperV") {
 				$VMSize = $global:HyperVInstanceSize
 			}
-			$VMGen = $CurrentTestData.SetupConfig.VMGeneration
+			if ($AllVMData.Count -gt 1) {
+				$vmData = $AllVMData[0]
+			} else {
+				$vmData = $AllVMData
+			}
 
-			if ($enableTelemetry) {
+			if ($vmData -and ((Is-VmAlive -AllVMDataObject $vmData -MaxRetryCount 5) -eq "True")) {
+				if ($global:TestPlatform -eq "Azure") {
+					$VMSize = $vmData.InstanceSize
+					# No Azure API, we use ARMImageName convention to get VMGeneration for Azure
+					if (!$CurrentTestData.SetupConfig.OsVHD -and ($CurrentTestData.SetupConfig.VMGeneration -ne "2") -and $CurrentTestData.SetupConfig.ARMImageName -imatch "gen2") {
+						$VMGen = 2
+					}
+				}
+				if ($global:TestPlatform -eq "HyperV") {
+					$VMGen = $vmData.VMGeneration
+				}
+
+				$FilesToDownload = "$($vmData.RoleName)-*.txt"
+				Copy-RemoteFiles -upload -uploadTo $vmData.PublicIP -port $vmData.SSHPort `
+					-files .\Testscripts\Linux\CollectLogFile.sh `
+					-username $user -password $password -maxRetry 5 | Out-Null
+				$Null = Run-LinuxCmd -username $user -password $password -ip $vmData.PublicIP -port $vmData.SSHPort `
+					-command "bash CollectLogFile.sh -hostname $($vmData.RoleName)" -ignoreLinuxExitCode -runAsSudo
+				$Null = Copy-RemoteFiles -downloadFrom $vmData.PublicIP -port $vmData.SSHPort `
+					-username $user -password $password -files "$FilesToDownload" -downloadTo $global:LogDir -download
+				$global:FinalKernelVersion = Get-Content "$global:LogDir\$($vmData.RoleName)-kernelVersion.txt"
+				$HardwarePlatform = Get-Content "$global:LogDir\$($vmData.RoleName)-hardwarePlatform.txt"
+				$GuestDistro = Get-Content "$global:LogDir\$($vmData.RoleName)-distroVersion.txt"
+				$LISMatch = (Select-String -Path "$global:LogDir\$($vmData.RoleName)-lis.txt" -Pattern "^version:").Line
+				if ($LISMatch) {
+					$LISVersion = $LISMatch.Split(":").Trim()[1]
+				}
+				$FoundLineNumber = (Select-String -Path "$global:LogDir\$($vmData.RoleName)-dmesg.txt" -Pattern "Hyper-V Host Build").LineNumber
+				if (![string]::IsNullOrEmpty($FoundLineNumber)) {
+					$ActualLineNumber = $FoundLineNumber[-1] - 1
+					$FinalLine = [string]((Get-Content -Path "$global:LogDir\$($vmData.RoleName)-dmesg.txt")[$ActualLineNumber])
+					$FinalLine = $FinalLine.Replace('; Vmbus version:4.0', '')
+					$FinalLine = $FinalLine.Replace('; Vmbus version:3.0', '')
+					$HostVersion = ($FinalLine.Split(":")[$FinalLine.Split(":").Count - 1 ]).Trim().TrimEnd(";")
+				}
+			}
+		}
+		catch {
+			$line = $_.InvocationInfo.ScriptLineNumber
+			$script_name = ($_.InvocationInfo.ScriptName).Replace($PWD,".")
+			$ErrorMessage =  $_.Exception.Message
+			Write-LogErr "EXCEPTION: $ErrorMessage"
+			Write-LogErr "Calling function - $($MyInvocation.MyCommand)."
+			Write-LogErr "Source: Line $line in script $script_name."
+		}
+
+		if ($enableTelemetry) {
+			try {
 				$dataTableName = ""
 				if ($this.XmlSecrets.secrets.TableName) {
 					$dataTableName = $this.XmlSecrets.secrets.TableName
@@ -754,14 +789,14 @@ Class TestController
 
 				Upload-TestResultToDatabase -SQLQuery $SQLQuery
 			}
-		}
-		catch {
-			$line = $_.InvocationInfo.ScriptLineNumber
-			$script_name = ($_.InvocationInfo.ScriptName).Replace($PWD,".")
-			$ErrorMessage =  $_.Exception.Message
-			Write-LogErr "EXCEPTION: $ErrorMessage"
-			Write-LogErr "Calling function - $($MyInvocation.MyCommand)."
-			Write-LogErr "Source: Line $line in script $script_name."
+			catch {
+				$line = $_.InvocationInfo.ScriptLineNumber
+				$script_name = ($_.InvocationInfo.ScriptName).Replace($PWD,".")
+				$ErrorMessage =  $_.Exception.Message
+				Write-LogErr "EXCEPTION: $ErrorMessage"
+				Write-LogErr "Calling function - $($MyInvocation.MyCommand)."
+				Write-LogErr "Source: Line $line in script $script_name."
+			}
 		}
 	}
 
@@ -772,75 +807,77 @@ Class TestController
 				Write-LogErr "Status value should be either final or initial"
 				return $false
 			}
-			foreach ($VM in $AllVMData) {
-				Write-LogInfo "Collecting $($VM.RoleName) VM Kernel $status Logs ..."
+			if ((Is-VmAlive -AllVMDataObject $AllVMData -MaxRetryCount 5) -eq "True") {
+				foreach ($VM in $AllVMData) {
+					Write-LogInfo "Collecting $($VM.RoleName) VM Kernel $status Logs ..."
 
-				$bootLogDir = "$global:Logdir\$($VM.RoleName)"
-				mkdir $bootLogDir -Force | Out-Null
+					$bootLogDir = "$global:Logdir\$($VM.RoleName)"
+					mkdir $bootLogDir -Force | Out-Null
 
-				$currentBootLogFile = "${status}BootLogs.txt"
-				$currentBootLog = Join-Path $BootLogDir $currentBootLogFile
+					$currentBootLogFile = "${status}BootLogs.txt"
+					$currentBootLog = Join-Path $BootLogDir $currentBootLogFile
 
-				$initialBootLogFile = "InitialBootLogs.txt"
-				$initialBootLog = Join-Path $BootLogDir $initialBootLogFile
+					$initialBootLogFile = "InitialBootLogs.txt"
+					$initialBootLog = Join-Path $BootLogDir $initialBootLogFile
 
-				$kernelLogStatus = Join-Path $BootLogDir "KernelLogStatus.txt"
+					$kernelLogStatus = Join-Path $BootLogDir "KernelLogStatus.txt"
 
-				if ($this.EnableCodeCoverage -and ($status -imatch "Final")) {
-					Write-LogInfo "Collecting coverage debug files from VM $($VM.RoleName)"
+					if ($this.EnableCodeCoverage -and ($status -imatch "Final")) {
+						Write-LogInfo "Collecting coverage debug files from VM $($VM.RoleName)"
 
-					$gcovCollected = Collect-GcovData -ip $VM.PublicIP -port $VM.SSHPort `
-						-username $global:user -password $global:password -logDir $global:LogDir
+						$gcovCollected = Collect-GcovData -ip $VM.PublicIP -port $VM.SSHPort `
+							-username $global:user -password $global:password -logDir $global:LogDir
 
-					if ($gcovCollected) {
-						Write-LogInfo "GCOV data collected successfully"
-					} else {
-						Write-LogErr "Failed to collect GCOV data from VM: $($VM.RoleName)"
-					}
-				}
-
-				Run-LinuxCmd -ip $VM.PublicIP -port $VM.SSHPort -runAsSudo `
-					-username $global:user -password $global:password `
-					-command "dmesg > ./${currentBootLogFile}" | Out-Null
-				Copy-RemoteFiles -download -downloadFrom $VM.PublicIP -port $VM.SSHPort -files "./${currentBootLogFile}" `
-					-downloadTo $BootLogDir -username $global:user -password $global:password | Out-Null
-				Write-LogInfo "$($VM.RoleName): $status kernel log, ${currentBootLogFile}, collected successfully."
-
-				Write-LogInfo "Checking for call traces in kernel logs.."
-				$KernelLogs = Get-Content $currentBootLog
-				$callTraceFound  = $false
-				foreach ($line in $KernelLogs) {
-					if (( $line -imatch "Call Trace" ) -and ($line -inotmatch "initcall ")) {
-						Write-LogErr $line
-						$callTraceFound = $true
-					}
-					if ($callTraceFound) {
-						if ($line -imatch "\[<") {
-							Write-LogErr $line
+						if ($gcovCollected) {
+							Write-LogInfo "GCOV data collected successfully"
+						} else {
+							Write-LogErr "Failed to collect GCOV data from VM: $($VM.RoleName)"
 						}
 					}
-				}
-				if (!$callTraceFound) {
-					Write-LogInfo "No kernel call traces found in the kernel log"
-				}
 
-				if($status -imatch "Final") {
-					$ret = Compare-OsLogs -InitialLogFilePath $InitialBootLog -FinalLogFilePath $currentBootLog -LogStatusFilePath $KernelLogStatus `
-						-ErrorMatchPatten "fail|error|warning"
+					Run-LinuxCmd -ip $VM.PublicIP -port $VM.SSHPort -runAsSudo `
+						-username $global:user -password $global:password `
+						-command "dmesg > ./${currentBootLogFile}" | Out-Null
+					Copy-RemoteFiles -download -downloadFrom $VM.PublicIP -port $VM.SSHPort -files "./${currentBootLogFile}" `
+						-downloadTo $BootLogDir -username $global:user -password $global:password | Out-Null
+					Write-LogInfo "$($VM.RoleName): $status kernel log, ${currentBootLogFile}, collected successfully."
 
-					if ($ret -eq $false) {
-						$retValue = $false
+					Write-LogInfo "Checking for call traces in kernel logs.."
+					$KernelLogs = Get-Content $currentBootLog
+					$callTraceFound  = $false
+					foreach ($line in $KernelLogs) {
+						if (( $line -imatch "Call Trace" ) -and ($line -inotmatch "initcall ")) {
+							Write-LogErr $line
+							$callTraceFound = $true
+						}
+						if ($callTraceFound) {
+							if ($line -imatch "\[<") {
+								Write-LogErr $line
+							}
+						}
+					}
+					if (!$callTraceFound) {
+						Write-LogInfo "No kernel call traces found in the kernel log"
 					}
 
-					# Removing final dmesg file from logs to reduce the size of logs.
-					# We can always see complete Final Logs as: Initial Kernel Logs + Difference in Kernel Logs
-					Remove-Item -Path $currentBootLog -Force | Out-Null
+					if($status -imatch "Final") {
+						$ret = Compare-OsLogs -InitialLogFilePath $InitialBootLog -FinalLogFilePath $currentBootLog -LogStatusFilePath $KernelLogStatus `
+							-ErrorMatchPatten "fail|error|warning"
 
-					Write-LogInfo "$($VM.RoleName): $status Kernel logs collected and compared successfully"
+						if ($ret -eq $false) {
+							$retValue = $false
+						}
 
-					if ($callTraceFound -and $global:TestPlatform -imatch "Azure") {
-						Write-LogInfo "Preserving the Resource Group(s) $($VM.ResourceGroupName). Setting tags : calltrace = yes"
-						Add-ResourceGroupTag -ResourceGroup $VM.ResourceGroupName -TagName "calltrace" -TagValue "yes"
+						# Removing final dmesg file from logs to reduce the size of logs.
+						# We can always see complete Final Logs as: Initial Kernel Logs + Difference in Kernel Logs
+						Remove-Item -Path $currentBootLog -Force | Out-Null
+
+						Write-LogInfo "$($VM.RoleName): $status Kernel logs collected and compared successfully"
+
+						if ($callTraceFound -and $global:TestPlatform -imatch "Azure") {
+							Write-LogInfo "Preserving the Resource Group(s) $($VM.ResourceGroupName). Setting tags : calltrace = yes"
+							Add-ResourceGroupTag -ResourceGroup $VM.ResourceGroupName -TagName "calltrace" -TagValue "yes"
+						}
 					}
 				}
 			}

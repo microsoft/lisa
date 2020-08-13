@@ -85,7 +85,7 @@ function Main {
         Write-LogInfo "constants.sh created successfully..."
         Write-LogInfo (Get-Content -Path $constantsFile)
 
-        if ($currentTestData.testName -eq "PERF-APACHE-BENCHMARK") {
+        if ($currentTestData.testName -imatch "PERF-APACHE-BENCHMARK") {
             $testName="Apache"
             $testName_lower="apache"
             $myString = @"
@@ -93,7 +93,7 @@ function Main {
 . utils.sh
 collect_VM_properties
 "@
-        } elseif ($currentTestData.testName -eq "PERF-MEMCACHED-BENCHMARK") {
+        } elseif ($currentTestData.testName -imatch "PERF-MEMCACHED-BENCHMARK") {
             $testName="Memcached"
             $testName_lower="memcached"
             $myString = @"
@@ -126,7 +126,7 @@ collect_VM_properties
 
         $uploadResults = $true
         $ReportLog = Get-Content -Path "$LogDir\report.log"
-        if ($currentTestData.testName -eq "PERF-APACHE-BENCHMARK") {
+        if ($currentTestData.testName -imatch "PERF-APACHE-BENCHMARK") {
             foreach ($line in $ReportLog) {
                 if ($line -imatch "WebServerVersion") {
                     continue;
@@ -150,7 +150,7 @@ collect_VM_properties
                     $currentTestResult.TestSummary += New-ResultSummary -testResult "Error in parsing logs." -metaData "Apache" -checkValues "PASS,FAIL,ABORTED" -testName $currentTestData.testName
                 }
             }
-        } elseif ($currentTestData.testName -eq "PERF-MEMCACHED-BENCHMARK") {
+        } elseif ($currentTestData.testName -imatch "PERF-MEMCACHED-BENCHMARK") {
             foreach ($line in $ReportLog) {
                 if ($line -imatch "TestConnections") {
                     continue;
@@ -214,34 +214,31 @@ collect_VM_properties
                 $resultMap["HostType"] = $TestPlatform
                 $resultMap["HostBy"] = $CurrentTestData.SetupConfig.TestLocation
                 $resultMap["HostOS"] = $HostOs
-                $resultMap["GuestOSType"] = "Linux"
-                $resultMap["GuestDistro"] = $GuestDistro
-                $resultMap["GuestSize"] = $clientVMData.InstanceSize
+                $resultMap["GuestOS"] = $GuestDistro
+                $resultMap["InstanceSize"] = $clientVMData.InstanceSize
                 $resultMap["KernelVersion"] = $KernelVersion
-                $resultMap["IPVersion"] = "IPv4"
-                $resultMap["ProtocolType"] = $testType
                 $resultMap["DataPath"] = $DataPath
-                if ($currentTestData.testName -eq "PERF-APACHE-BENCHMARK") {
+                if ($currentTestData.testName -imatch "PERF-APACHE-BENCHMARK") {
                     $resultMap["WebServerVersion"] = $($Line[0])
-                    $resultMap["TestConcurrency"] = $($Line[1])
-                    $resultMap["NumberOfAbInstances"] = $($Line[2])
-                    $resultMap["ConcurrencyPerAbInstance"] = $($Line[3])
-                    $resultMap["Document_bytes"] = $($Line[4])
-                    $resultMap["CompleteRequests"] = $($Line[5])
-                    $resultMap["RequestsPerSec"] = $($Line[6])
-                    $resultMap["TransferRate_KBps"] = $($Line[7])
-                    $resultMap["MeanConnectionTimes_ms"] = $($Line[8])
-                } elseif ($currentTestData.testName -eq "PERF-MEMCACHED-BENCHMARK") {
-                    $resultMap["TestConnections"] = $($Line[0])
-                    $resultMap["Threads"] = $($Line[1])
-                    $resultMap["ConnectionsPerThread"] = $($Line[2])
-                    $resultMap["RequestsPerThread"] = $($Line[3])
-                    $resultMap["BestLatency_ms"] = $($Line[4])
-                    $resultMap["WorstLatency_ms"] = $($Line[5])
-                    $resultMap["AverageLatency_ms"] = $($Line[6])
-                    $resultMap["BestOpsPerSec"] = $($Line[7])
-                    $resultMap["WorstOpsPerSec"] = $($Line[8])
-                    $resultMap["AverageOpsPerSec"] = $($Line[9])
+                    $resultMap["TestConcurrency"] = [Decimal]$($Line[1])
+                    $resultMap["NumberOfAbInstances"] = [Decimal]$($Line[2])
+                    $resultMap["ConcurrencyPerAbInstance"] = [Decimal]$($Line[3])
+                    $resultMap["Document_bytes"] = [Decimal]$($Line[4])
+                    $resultMap["CompleteRequests"] = [Decimal]$($Line[5])
+                    $resultMap["RequestsPerSec"] = [Decimal]$($Line[6])
+                    $resultMap["TransferRate_KBps"] = [Decimal]$($Line[7])
+                    $resultMap["MeanConnectionTimes_ms"] = [Decimal]$($Line[8])
+                } elseif ($currentTestData.testName -imatch "PERF-MEMCACHED-BENCHMARK") {
+                    $resultMap["TestConnections"] = [Decimal]$($Line[0])
+                    $resultMap["Threads"] = [Decimal]$($Line[1])
+                    $resultMap["ConnectionsPerThread"] = [Decimal]$($Line[2])
+                    $resultMap["RequestsPerThread"] = [Decimal]$($Line[3])
+                    $resultMap["BestLatency_ms"] = [Decimal]$($Line[4])
+                    $resultMap["WorstLatency_ms"] = [Decimal]$($Line[5])
+                    $resultMap["AverageLatency_ms"] = [Decimal]$($Line[6])
+                    $resultMap["BestOpsPerSec"] = [Decimal]$($Line[7])
+                    $resultMap["WorstOpsPerSec"] = [Decimal]$($Line[8])
+                    $resultMap["AverageOpsPerSec"] = [Decimal]$($Line[9])
                 }
                 $currentTestResult.TestResultData += $resultMap
             }

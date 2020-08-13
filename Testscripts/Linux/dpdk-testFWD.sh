@@ -8,7 +8,7 @@
 # dpdk-testFWD.sh
 # Description:
 #	This script runs testpmd with 3 VMs to measure performance in a more realistic
-# 	forwaring scenario (i.e. a more correct packet stream that avoids the exception path).
+# 	forwarding scenario (i.e. a more correct packet stream that avoids the exception path).
 #	It places testpmd output in $LOG_DIR, and then parses output to calculate avg pps.
 #	The accompanying ps1 script makes sure testpmd performs above the expected threshold.
 #
@@ -71,33 +71,36 @@ function Run_Testfwd() {
 	for ip in $IP_ADDRS; do
 		ssh "${ip}" "${free_huge_cmd}"
 	done
-	
+
+	trx_rx_ips=$(Get_Trx_Rx_Ip_Flags "${forwarder}")
+	if [ ${pmd} = "netvsc" ]; then
+		. dpdkUtils.sh && NetvscDevice_Setup "${sender}"
+		. dpdkUtils.sh && NetvscDevice_Setup "${receiver}"
+	fi
 	# start receiver and fowarder in advance so testpmd comes up easily
 	local fwd_recv_duration=$(expr "${test_duration}" + 5)
-	
-	local receiver_testfwd_cmd="$(Create_Timed_Testpmd_Cmd "${fwd_recv_duration}" "${core}" "${receiver_busaddr}" "${receiver_iface}" rxonly)"
+
+	local receiver_testfwd_cmd="$(Create_Timed_Testpmd_Cmd "${fwd_recv_duration}" "${core}" "${receiver_busaddr}" "${receiver_iface}" "${pmd}" rxonly)"
 	LogMsg "${receiver_testfwd_cmd}"
 	ssh "${receiver}" "${receiver_testfwd_cmd}" 2>&1 > "${LOG_DIR}"/dpdk-testfwd-receiver-"${core}"-core-$(date +"%m%d%Y-%H%M%S").log &
- 
-	local forwarder_testfwd_cmd="$(Create_Timed_Testpmd_Cmd "${fwd_recv_duration}" "${core}" "${forwarder_busaddr}" "${forwarder_iface}" mac)"
+
+	local forwarder_testfwd_cmd="$(Create_Timed_Testpmd_Cmd "${fwd_recv_duration}" "${core}" "${forwarder_busaddr}" "${forwarder_iface}" "${pmd}" mac)"
 	LogMsg "${forwarder_testfwd_cmd}"
 	ssh "${forwarder}" "${forwarder_testfwd_cmd}" 2>&1 > "${LOG_DIR}"/dpdk-testfwd-forwarder-"${core}"-core-$(date +"%m%d%Y-%H%M%S").log &
 
 	sleep 5
 
-	trx_rx_ips=$(Get_Trx_Rx_Ip_Flags "${forwarder}")
-	local sender_testfwd_cmd="$(Create_Timed_Testpmd_Cmd "${test_duration}" "${core}" "${sender_busaddr}" "${sender_iface}" txonly "${trx_rx_ips}")"
+	local sender_testfwd_cmd="$(Create_Timed_Testpmd_Cmd "${test_duration}" "${core}" "${sender_busaddr}" "${sender_iface}" "${pmd}" txonly "${trx_rx_ips}")"
 	LogMsg "${sender_testfwd_cmd}"
 	eval "${sender_testfwd_cmd} 2>&1 > ${LOG_DIR}/dpdk-testfwd-sender-${core}-core-$(date +"%m%d%Y-%H%M%S").log &"
-	
 	sleep "${test_duration}"
-	
+
 	LogMsg "killing testpmd"
 	local kill_cmd="pkill testpmd"
 	for ip in $IP_ADDRS; do
 		ssh "${ip}" "${kill_cmd}"
 	done
-	
+
 	LogMsg "Testfwd execution for with ${core} core(s) is COMPLETED"
 	sleep 10
 }

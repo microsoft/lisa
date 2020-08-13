@@ -133,6 +133,10 @@ function check_prereqs() {
         exit 0
     fi
 
+    which curl
+    if [ $? -ne 0 ]; then
+        install_package curl
+    fi
     LogMsg "Preconditions met"
 }
 

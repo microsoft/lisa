@@ -46,7 +46,7 @@ sdCount=$(fdisk -l | grep -c "Disk /dev/sd*")
 
 # Subtract the boot disk from the sdCount, then make
 # sure the two disk counts match
-sdCount=$((sdCount-2))
+sdCount=$((sdCount-1))
 LogMsg "fdisk -l disk count = $sdCount"
 
 if [ $sdCount == $diskCount ]; then

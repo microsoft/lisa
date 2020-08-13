@@ -102,7 +102,7 @@ download_pktgen_scripts ${server} ${pktgenDir}
 
 vfName=$(get_vf_name)
 if [ -z "${vfName}" ]; then
-        LogWarn "VF Name is not detected. Please check vm configuration."
+        LogErr "VF Name is not detected. Please check vm configuration."
 fi
 # Store current xdp drop queue variables
 pakcetDropBefore=$(calculate_packets_drop $vfName)

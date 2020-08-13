@@ -109,6 +109,7 @@ vmstat_cmd="vmstat"
 testName="apache"
 log_folder="$(pwd)/${testName}-test-logs"
 result_file="${log_folder}/report.csv"
+timeout=500
 
 Start_Monitor()
 {
@@ -176,14 +177,14 @@ Run_ab()
 		concurrency_left=$(($concurrency_left - $concurrency_per_ab))
 		requests_left=$(($requests_left - $total_request_per_ab))
 		LogMsg "Running parallel ab command for: ${total_request_per_ab} X ${concurrency_per_ab}"
-		ab -n ${total_request_per_ab} -r -c ${concurrency_per_ab} http://${server}/test.dat >> ${log_folder}/${current_concurrency}.${testName}.bench.log & pid=$!
+		ab -n ${total_request_per_ab} -r -c ${concurrency_per_ab} -s $timeout http://${server}/test.dat >> ${log_folder}/${current_concurrency}.${testName}.bench.log & pid=$!
 		PID_LIST+=" $pid"
 	done
 
 	if [ ${concurrency_left} -gt 0 ]
 	then
 		LogMsg "Running parallel ab command left for: ${requests_left} X ${concurrency_left}"
-		ab -n ${requests_left} -r -c ${concurrency_left} http://${server}/test.dat >> ${log_folder}/${current_concurrency}.${testName}.bench.log & pid=$!
+		ab -n ${requests_left} -r -c ${concurrency_left} -s $timeout http://${server}/test.dat >> ${log_folder}/${current_concurrency}.${testName}.bench.log & pid=$!
 		PID_LIST+=" $pid";
 	fi
 	trap "kill ${PID_LIST}" SIGINT

@@ -378,7 +378,7 @@ Run_Ntttcp()
 		rxpackets_sender_value=0.0
 		pktsInterrupt_sender_value=0.0
 		avg_latency_value=0.0
-		retrans_segs_value=0.0
+		retrans_segs_value=0
 		concreatedtime_us_value=0.0
 		for tx_ntttcp_log_file in "${tx_ntttcp_log_files[@]}";
 		do

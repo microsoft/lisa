@@ -295,7 +295,7 @@ Class TestSummary
 		if ($OSVHD) {
 			$str += "`r`nVHD Under Test        : " + $OSVHD
 		}
-		# This is Test Parameter '-ARMImageName'
+		# This is 'ARMImageName' from Controller
 		if ($ARMImageName) {
 			$armImageNameArr = @($ARMImageName.Trim(", ").Split(',').Trim())
 			$armImageNameArr | ForEach-Object {
@@ -321,12 +321,7 @@ Class TestSummary
 		if ($this.TestPriority) {
 			$str += "`r`nTest Priority         : $($this.TestPriority)"
 		}
-		if ($global:InitialKernelVersion) {
-			$str += "`r`nInitial Kernel Version: " + $global:InitialKernelVersion
-		}
-		if ($global:FinalKernelVersion) {
-			$str += "`r`nFinal Kernel Version  : " + $global:FinalKernelVersion
-		}
+
 		$str += "`r`nTotal Test Cases      : " + $this.TotalTc + " (" + $this.TotalPassTc + " Passed, " + `
 			$this.TotalFailTc + " Failed, " + $this.TotalAbortedTc + " Aborted, " + $this.TotalSkippedTc + " Skipped)"
 		$str += "`r`nTotal Time (dd:hh:mm) : $durationStr`r`n`r`n"
@@ -406,13 +401,31 @@ Class TestSummary
 
 	[void] UpdateTestSummaryForCase([object]$TestData, [int]$ExecutionCount, [string]$TestResult, [string]$Duration, [string]$TestSummary, [object]$AllVMData)
 	{
+		$GetKernelInfoForTestCase = {
+			$kernalInfoStr = ""
+			if ($global:InitialKernelVersion -and $global:FinalKernelVersion) {
+				if ($global:InitialKernelVersion -ne $global:FinalKernelVersion) {
+					$kernalInfoStr += "Kernel Version: " + $global:InitialKernelVersion + " -> " + $global:FinalKernelVersion
+				}
+				else {
+					$kernalInfoStr += "Kernel Version: " + $global:InitialKernelVersion
+				}
+			}
+			elseif ($global:InitialKernelVersion) {
+				$kernalInfoStr += "Initial Kernel Version: " + $global:InitialKernelVersion
+			}
+			elseif ($global:FinalKernelVersion) {
+				$kernalInfoStr += "Final Kernel Version: " + $global:FinalKernelVersion
+			}
+			return $kernalInfoStr
+		}
 		if ( $this.AddHeader ) {
 			$this.TextSummary += "{0,5} {1,-20} {2,-65} {3,20} {4,20} `r`n" -f "ID", "TestArea", "TestCaseName", "TestResult", "TestDuration(in minutes)"
 			$this.TextSummary += "-------------------------------------------------------------------------------------------------------------------------------------------`r`n"
 			$this.AddHeader = $false
 		}
 		$this.TextSummary += "{0,5} {1,-20} {2,-65} {3,20} {4,20} `r`n" -f "$ExecutionCount", "$($TestData.Area)", "$($TestData.testName)", "$TestResult", "$Duration"
-		$this.TextSummary += "{0, 5} $(ConvertFrom-SetupConfig -SetupConfig $TestData.SetupConfig)`r`n" -f " "
+		$this.TextSummary += "{0, 5} $(ConvertFrom-SetupConfig -SetupConfig $TestData.SetupConfig), $(&$GetKernelInfoForTestCase)`r`n" -f " "
 		if ($TestSummary) {
 			@($TestSummary.Split([string[]]"<br />", [StringSplitOptions]::None).Trim()) | ForEach-Object {
 				$this.TextSummary += "{0, 5} $_`r`n" -f " "

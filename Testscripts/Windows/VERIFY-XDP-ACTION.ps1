@@ -10,8 +10,6 @@
 param([object] $AllVmData,
     [object] $CurrentTestData)
 
-$MIN_KERNEL_VERSION = "5.6"
-$RHEL_MIN_KERNEL_VERSION = "4.18.0-213"
 $iFaceName = "eth1"
 
 function Main {
@@ -46,25 +44,6 @@ function Main {
         Write-LogInfo "  SSH Port : $($senderVMData.SSHPort)"
         Write-LogInfo "  Internal IP : $($senderVMData.InternalIP)"
 
-        # Check for compatible kernel
-        $currentKernelVersion = Run-LinuxCmd -ip $receiverVMData.PublicIP -port $receiverVMData.SSHPort `
-                -username $user -password $password -command "uname -r"
-        # ToDo: Update Minimum kernel version check once patches are in downstream distro.
-        if ($global:DetectedDistro -eq "UBUNTU"){
-            if ((Compare-KernelVersion $currentKernelVersion $MIN_KERNEL_VERSION) -lt 0){
-                Write-LogInfo "Unsupported kernel version: $currentKernelVersion"
-                return $global:ResultSkipped
-            }
-        } elseif ($global:DetectedDistro -eq "REDHAT"){
-            if ((Compare-KernelVersion $currentKernelVersion $RHEL_MIN_KERNEL_VERSION) -lt 0){
-                Write-LogInfo "Unsupported kernel version: $currentKernelVersion"
-                return $global:ResultSkipped
-            }
-        } else {
-            Write-LogInfo "Unsupported distro: $($global:DetectedDistro)."
-            return $global:ResultSkipped
-        }
-
         # PROVISION VMS FOR LISA WILL ENABLE ROOT USER AND WILL MAKE ENABLE PASSWORDLESS AUTHENTICATION ACROSS ALL VMS.
         Provision-VMsForLisa -allVMData $allVMData -installPackagesOnRoleNames "none"
 
@@ -80,6 +59,11 @@ function Main {
         Add-Content -Value "nicName=$iFaceName" -Path $constantsFile
         foreach ($param in $currentTestData.TestParameters.param) {
             Add-Content -Value "$param" -Path $constantsFile
+        }
+        switch -Wildcard ($($CurrentTestData.testName)){
+            '*DROP*' {Add-Content -Value "ACTION=DROP" -Path $constantsFile}
+            '*TX*' {Add-Content -Value "ACTION=TX" -Path $constantsFile}
+            '*ABORTED*' {Add-Content -Value "ACTION=ABORTED" -Path $constantsFile}
         }
         Write-LogInfo "constants.sh created successfully..."
         Write-LogInfo (Get-Content -Path $constantsFile)
@@ -100,7 +84,7 @@ collect_VM_properties
         # Terminate process if ran more than 5 mins
         # TODO: Check max installation time for other distros when added
         $timer = 0
-        while ((Get-Job -Id $testJob).State -eq "Running") {
+        while ($testJob -and ((Get-Job -Id $testJob).State -eq "Running")) {
             $currentStatus = Run-LinuxCmd -ip $receiverVMData.PublicIP -port $receiverVMData.SSHPort `
                 -username $user -password $password -command "tail -2 ~/xdpConsoleLogs.txt | head -1" -runAsSudo
             Write-LogInfo "Current Test Status: $currentStatus"
