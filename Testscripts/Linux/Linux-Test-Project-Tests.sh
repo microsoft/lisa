@@ -31,8 +31,13 @@ LTP_OUTPUT="$HOMEDIR/ltp-output.log"
 LTP_LITE_TESTS="math,fsx,ipc,mm,sched,pty,fs"
 ltp_git_url="https://github.com/linux-test-project/ltp.git"
 
-# The LTPROOT is used by some tests, e.g, block_dev test
-export LTPROOT="/opt/ltp"
+if [ -z "$CUSTOM_LTP_ROOT" ]; then
+    # The LTPROOT is used by some tests, e.g, block_dev test
+    export LTPROOT="/opt/ltp"
+else
+    TOP_BUILDDIR="$CUSTOM_LTP_ROOT"
+    export LTPROOT="$CUSTOM_LTP_ROOT"
+fi
 
 # Clear the old log
 rm -f $LTP_RESULTS $LTP_OUTPUT
@@ -128,6 +133,7 @@ if [[ $LTP_PACKAGE_URL == "" ]];then
     autoreconf -f 2>/dev/null
     make autotools 2>/dev/null
 
+    sed -i "s+/opt/ltp+$LTPROOT+g" "$TOP_SRCDIR/configure"
     test -d "$TOP_BUILDDIR" || mkdir -p "$TOP_BUILDDIR"
     cd "$TOP_BUILDDIR" && "$TOP_SRCDIR/configure"
     cd "$TOP_SRCDIR"
