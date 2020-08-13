@@ -6,5 +6,5 @@ from typing import Optional
 class ExecutableResult:
     stdout: str
     stderr: str
-    exitCode: Optional[int]
+    exit_code: Optional[int]
     elapsed: float

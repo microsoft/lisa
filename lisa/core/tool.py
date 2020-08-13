@@ -2,27 +2,31 @@ from __future__ import annotations
 
 import pathlib
 from abc import ABC, abstractmethod
-from typing import TYPE_CHECKING, List, Optional, TypeVar
+from typing import TYPE_CHECKING, List, Optional, Type
 
 from lisa.util.executableResult import ExecutableResult
+from lisa.util.process import Process
 
 if TYPE_CHECKING:
     from lisa.core.node import Node
-
-T = TypeVar("T")
 
 
 class Tool(ABC):
     def __init__(self, node: Node) -> None:
         self.node: Node = node
-        self._isInstalled: Optional[bool] = None
         self.initialize()
+
+        self._isInstalled: Optional[bool] = None
 
     def initialize(self) -> None:
         pass
 
     @property
-    def dependentedTools(self) -> List[T]:
+    def name(self) -> str:
+        return self.__class__.__name__
+
+    @property
+    def dependencies(self) -> List[Type[Tool]]:
         """
         declare all dependencies here
         they can be batch check and installed.
@@ -36,60 +40,65 @@ class Tool(ABC):
 
     @property
     @abstractmethod
-    def canInstall(self) -> bool:
+    def can_install(self) -> bool:
         raise NotImplementedError()
 
     @property
-    def isInstalledInternal(self) -> bool:
-        result = self.node.execute(f'bash -c "command -v {self.command}"')
-        self._isInstalled = result.exitCode == 0
+    def _is_installed_internal(self) -> bool:
+        if self.node.is_linux:
+            where_command = "command -v"
+        else:
+            where_command = "where"
+        result = self.node.execute(
+            f"{where_command} {self.command}", shell=True, no_info_log=True
+        )
+        self._isInstalled = result.exit_code == 0
         return self._isInstalled
 
     @property
-    def isInstalled(self) -> bool:
+    def is_installed(self) -> bool:
         # the check may need extra cost, so cache it's result.
         if self._isInstalled is None:
-            self._isInstalled = self.isInstalledInternal
+            self._isInstalled = self._is_installed_internal
         return self._isInstalled
 
-    def installInternal(self) -> bool:
+    def _install_internal(self) -> bool:
         raise NotImplementedError()
 
     def install(self) -> bool:
         # check dependencies
-        for dependency in self.dependentedTools:
-            self.node.getTool(dependency)  # type: ignore
-        result = self.installInternal()
+        for dependency in self.dependencies:
+            self.node.get_tool(dependency)
+        result = self._install_internal()
         return result
 
-    def runAsync(
+    def runasync(
         self,
-        extraParameters: str = "",
-        useBash: bool = False,
-        noErrorLog: bool = False,
-        cwd: Optional[pathlib.Path] = None,
-    ) -> ExecutableResult:
-        command = f"{self.command} {extraParameters}"
-        result: ExecutableResult = self.node.execute(
-            command, useBash, noErrorLog=noErrorLog, cwd=cwd
+        parameters: str = "",
+        shell: bool = False,
+        no_error_log: bool = False,
+        no_info_log: bool = False,
+        cwd: Optional[pathlib.PurePath] = None,
+    ) -> Process:
+        command = f"{self.command} {parameters}"
+        process = self.node.executeasync(
+            command, shell, no_error_log=no_error_log, cwd=cwd, no_info_log=no_info_log,
         )
-        return result
+        return process
 
     def run(
         self,
-        extraParameters: str = "",
-        useBash: bool = False,
-        noErrorLog: bool = False,
-        noInfoLog: bool = False,
-        cwd: Optional[pathlib.Path] = None,
+        parameters: str = "",
+        shell: bool = False,
+        no_error_log: bool = False,
+        no_info_log: bool = False,
+        cwd: Optional[pathlib.PurePath] = None,
     ) -> ExecutableResult:
-        command = f"{self.command} {extraParameters}"
-        result: ExecutableResult = self.node.execute(
-            command, useBash, noErrorLog=noErrorLog, noInfoLog=noInfoLog, cwd=cwd
+        process = self.runasync(
+            parameters=parameters,
+            shell=shell,
+            no_error_log=no_error_log,
+            no_info_log=no_info_log,
+            cwd=cwd,
         )
-        return result
-
-
-class ExecutableException(Exception):
-    def __init__(self, exe: Tool, message: str):
-        self.message = f"{exe.command}: {message}"
+        return process.wait_result()

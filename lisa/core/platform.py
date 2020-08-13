@@ -4,13 +4,13 @@ from abc import ABC, abstractmethod
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from .environment import Environment
+    from lisa.core.environment import Environment
 
 
 class Platform(ABC):
     @classmethod
     @abstractmethod
-    def platformType(cls) -> str:
+    def platform_type(cls) -> str:
         raise NotImplementedError()
 
     @abstractmethod
@@ -18,19 +18,19 @@ class Platform(ABC):
         pass
 
     @abstractmethod
-    def requestEnvironmentInternal(self, environment: Environment) -> Environment:
+    def _request_environment_internal(self, environment: Environment) -> Environment:
         raise NotImplementedError
 
     @abstractmethod
-    def deleteEnvironmentInternal(self, environment: Environment) -> None:
+    def _delete_environment_internal(self, environment: Environment) -> None:
         raise NotImplementedError()
 
-    def requestEnvironment(self, environment: Environment) -> Environment:
-        environment = self.requestEnvironmentInternal(environment)
-        environment.isReady = True
+    def request_environment(self, environment: Environment) -> Environment:
+        environment = self._request_environment_internal(environment)
+        environment.is_ready = True
         return environment
 
-    def deleteEnvironment(self, environment: Environment) -> None:
+    def delete_environment(self, environment: Environment) -> None:
         environment.close()
-        self.deleteEnvironmentInternal(environment)
-        environment.isReady = False
+        self._delete_environment_internal(environment)
+        environment.is_ready = False

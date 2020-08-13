@@ -1,10 +1,10 @@
-from lisa import CaseMetadata, SuiteMetadata
+from lisa import TestCaseMetadata, TestSuiteMetadata
 from lisa.core.testSuite import TestSuite
 from lisa.tool import Echo, Uname
 from lisa.util.logger import log
 
 
-@SuiteMetadata(
+@TestSuiteMetadata(
     area="demo",
     category="simple",
     description="""
@@ -14,7 +14,7 @@ from lisa.util.logger import log
     tags=["demo"],
 )
 class HelloWorld(TestSuite):
-    @CaseMetadata(
+    @TestCaseMetadata(
         description="""
         this test case use default node to
             1. get system info
@@ -24,32 +24,23 @@ class HelloWorld(TestSuite):
     )
     def hello(self) -> None:
         log.info(f"node count: {len(self.environment.nodes)}")
-        node = self.environment.defaultNode
+        node = self.environment.default_node
 
-        if node.isRemote:
-            log.info("It's remote machine, try on local one!")
-        else:
-            log.info("It's local machine, try on remote one!")
-
-        if node.isLinux:
-            uname = node.getTool(Uname)
-            release, version, hardware, os = uname.getLinuxInformation()
-            log.info(
-                f"release: '{release}', version: '{version}', "
-                f"hardware: '{hardware}', os: '{os}'"
-            )
-            log.info("It's Linux, try on Windows!")
-        else:
-            log.info("It's Windows, try on Linux!")
+        uname = node.get_tool(Uname)
+        release, version, hardware, os = uname.get_linux_information()
+        log.info(
+            f"release: '{release}', version: '{version}', "
+            f"hardware: '{hardware}', os: '{os}'"
+        )
 
         # get process output directly.
-        echo = node.getTool(Echo)
+        echo = node.get_tool(Echo)
         result = echo.run("hello world!")
         log.info(f"stdout of node: '{result.stdout}'")
         log.info(f"stderr of node: '{result.stderr}'")
-        log.info(f"exitCode of node: '{result.exitCode}'")
+        log.info(f"exitCode of node: '{result.exit_code}'")
 
-    @CaseMetadata(
+    @TestCaseMetadata(
         description="""
         do nothing, show how caseSetup, suiteSetup works.
         """,
@@ -58,15 +49,15 @@ class HelloWorld(TestSuite):
     def bye(self) -> None:
         log.info("bye!")
 
-    def beforeSuite(self) -> None:
+    def before_suite(self) -> None:
         log.info("setup my test suite")
         log.info(f"see my code at {__file__}")
 
-    def afterSuite(self) -> None:
+    def after_suite(self) -> None:
         log.info("clean up my test suite")
 
-    def beforeCase(self) -> None:
+    def before_case(self) -> None:
         log.info("before test case")
 
-    def afterCase(self) -> None:
+    def after_case(self) -> None:
         log.info("after test case")

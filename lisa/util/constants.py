@@ -7,6 +7,7 @@ CONFIG_ENVIRONMENT_FACTORY = "environmentFactory"
 PATH_REMOTE_ROOT = "lisa_working"
 PATH_TOOL = "tool"
 
+
 # list types
 LIST = "list"
 LIST_CASE = "case"

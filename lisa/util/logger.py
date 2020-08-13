@@ -6,12 +6,12 @@ import time
 env_key_run_local_path = "LISA_RUN_LOCAL_PATH"
 
 
-def log_lines(logLevel: int, content: str, prefix: str = "") -> None:
+def log_lines(level: int, content: str, prefix: str = "") -> None:
     for line in content.splitlines(False):
         if prefix:
-            log.log(logLevel, f"{prefix}{line}")
+            log.log(level, f"{prefix}{line}")
         else:
-            log.log(logLevel, line)
+            log.log(level, line)
 
 
 def init_log() -> None:

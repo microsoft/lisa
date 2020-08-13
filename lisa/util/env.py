@@ -15,7 +15,7 @@ def get_run_path() -> PurePath:
     return PurePath(get_env(KEY_RUN_PATH))
 
 
-def set_env(name: str, value: str, isSecret: bool = False) -> None:
+def set_env(name: str, value: str, is_secret: bool = False) -> None:
     name = f"{__prefix}{name}"
     os.environ[name] = value
 

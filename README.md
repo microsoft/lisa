@@ -44,7 +44,7 @@ poetry run python lisa/main.py
 ```
 
 You can also use `poetry shell` to drop into new shell where the first `python`
-in `PATH` is the virtualenv’s Python.
+in `PATH` is the virtualenv's Python.
 
 To obtain the path of the Poetry virtual environment setup for LISA (where the
 isolated Python installation and packages are located), run:
@@ -67,6 +67,8 @@ virtual environment for our Python distribution and packages.
 
 This is subject to change as we intend to make as much of it automatic as possible.
 
+Install and enable [ShellCheck](https://github.com/koalaman/shellcheck) to find bash errors locally.
+
 #### Visual Studio Code
 
 First, click the Python version in the bottom left, then enter the path emitted
@@ -82,13 +84,10 @@ Make sure below settings are in root level of `.vscode/settings.json`
     "python.linting.flake8Enabled": true,
     "python.linting.mypyEnabled": true,
     "python.linting.pylintEnabled": false,
-    "python.linting.pylintUseMinimalCheckers": false,
     "editor.formatOnSave": true,
-    "python.analysis.diagnosticMode": "workspace",
     "python.linting.mypyArgs": [
         "--strict",
-        "--ignore-missing-imports",
-        "--follow-imports=silent",
+        "--namespace-packages",
         "--show-column-numbers",
     ],
     "python.sortImports.path": "isort",

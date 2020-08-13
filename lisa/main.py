@@ -48,11 +48,11 @@ def main() -> None:
 
 
 if __name__ == "__main__":
-    exitCode = 0
+    exit_code = 0
     try:
         main()
     except Exception as exception:
         log.exception(exception)
-        exitCode = -1
+        exit_code = -1
     finally:
-        sys.exit(exitCode)
+        sys.exit(exit_code)

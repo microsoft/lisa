@@ -3,10 +3,11 @@ from typing import Callable, Dict, List, Optional, Type
 from singleton_decorator import singleton  # type: ignore
 
 from lisa.core.testSuite import TestSuite
+from lisa.util.exceptions import LisaException
 from lisa.util.logger import log
 
 
-class TestCaseMetadata:
+class TestCaseData:
     def __init__(
         self,
         method: Callable[[], None],
@@ -18,15 +19,16 @@ class TestCaseMetadata:
             self.name = name
         else:
             self.name = method.__name__
-        self.key: str = self.name.lower()
         self.full_name = method.__qualname__.lower()
         self.method = method
         self.description = description
         self.priority = priority
-        self.suite: TestSuiteMetadata
+        self.suite: TestSuiteData
+
+        self.key: str = self.name.lower()
 
 
-class TestSuiteMetadata:
+class TestSuiteData:
     def __init__(
         self,
         test_class: Type[TestSuite],
@@ -46,24 +48,24 @@ class TestSuiteMetadata:
         self.category = category
         self.description = description
         self.tags = tags
-        self.cases: Dict[str, TestCaseMetadata] = dict()
+        self.cases: Dict[str, TestCaseData] = dict()
 
-    def addCase(self, test_case: TestCaseMetadata) -> None:
+    def add_case(self, test_case: TestCaseData) -> None:
         if self.cases.get(test_case.key) is None:
             self.cases[test_case.key] = test_case
         else:
-            raise Exception(
-                f"TestSuiteMetadata has test method {test_case.key} already"
+            raise LisaException(
+                f"TestSuiteData has test method {test_case.key} already"
             )
 
 
 @singleton
 class TestFactory:
     def __init__(self) -> None:
-        self.suites: Dict[str, TestSuiteMetadata] = dict()
-        self.cases: Dict[str, TestCaseMetadata] = dict()
+        self.suites: Dict[str, TestSuiteData] = dict()
+        self.cases: Dict[str, TestCaseData] = dict()
 
-    def addTestClass(
+    def add_class(
         self,
         test_class: Type[TestSuite],
         area: Optional[str],
@@ -79,32 +81,30 @@ class TestFactory:
         key = name.lower()
         test_suite = self.suites.get(key)
         if test_suite is None:
-            test_suite = TestSuiteMetadata(
-                test_class, area, category, description, tags
-            )
+            test_suite = TestSuiteData(test_class, area, category, description, tags)
             self.suites[key] = test_suite
         else:
-            raise Exception(f"TestFactory duplicate test class name: {key}")
+            raise LisaException(f"TestFactory duplicate test class name: {key}")
 
         class_prefix = f"{key}."
         for test_case in self.cases.values():
             if test_case.full_name.startswith(class_prefix):
-                self._addCaseToSuite(test_suite, test_case)
+                self._add_case_to_suite(test_suite, test_case)
         log.info(
             f"registered test suite '{test_suite.key}' "
             f"with test cases: '{', '.join([key for key in test_suite.cases])}'"
         )
 
-    def addTestMethod(
+    def add_method(
         self, test_method: Callable[[], None], description: str, priority: Optional[int]
     ) -> None:
-        test_case = TestCaseMetadata(test_method, description, priority)
+        test_case = TestCaseData(test_method, description, priority)
         full_name = test_case.full_name
 
         if self.cases.get(full_name) is None:
             self.cases[full_name] = test_case
         else:
-            raise Exception(f"duplicate test class name: {full_name}")
+            raise LisaException(f"duplicate test class name: {full_name}")
 
         # this should be None in current observation.
         # the methods are loadded prior to test class
@@ -114,10 +114,10 @@ class TestFactory:
         test_suite = self.suites.get(class_name)
         if test_suite is not None:
             log.debug(f"add case '{test_case.name}' to suite '{test_suite.name}'")
-            self._addCaseToSuite(test_suite, test_case)
+            self._add_case_to_suite(test_suite, test_case)
 
-    def _addCaseToSuite(
-        self, test_suite: TestSuiteMetadata, test_case: TestCaseMetadata
+    def _add_case_to_suite(
+        self, test_suite: TestSuiteData, test_case: TestCaseData
     ) -> None:
-        test_suite.addCase(test_case)
+        test_suite.add_case(test_case)
         test_case.suite = test_suite
