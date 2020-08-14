@@ -31,12 +31,12 @@ LTP_OUTPUT="$HOMEDIR/ltp-output.log"
 LTP_LITE_TESTS="math,fsx,ipc,mm,sched,pty,fs"
 ltp_git_url="https://github.com/linux-test-project/ltp.git"
 
-if [ -z "$CUSTOM_LTP_ROOT" ]; then
-    # The LTPROOT is used by some tests, e.g, block_dev test
-    export LTPROOT="/opt/ltp"
-else
-    TOP_BUILDDIR="$CUSTOM_LTP_ROOT"
-    export LTPROOT="$CUSTOM_LTP_ROOT"
+# The LTPROOT is used by some tests, e.g, block_dev test
+export LTPROOT="/opt/ltp"
+
+if [[ ! -z "$CUSTOM_LTP_ROOT" ]]; then
+	TOP_BUILDDIR="$CUSTOM_LTP_ROOT"
+	export LTPROOT="$CUSTOM_LTP_ROOT"
 fi
 
 # Clear the old log
@@ -133,11 +133,10 @@ if [[ $LTP_PACKAGE_URL == "" ]];then
     autoreconf -f 2>/dev/null
     make autotools 2>/dev/null
 
-    sed -i "s+/opt/ltp+$LTPROOT+g" "$TOP_SRCDIR/configure"
     test -d "$TOP_BUILDDIR" || mkdir -p "$TOP_BUILDDIR"
     cd "$TOP_BUILDDIR" && "$TOP_SRCDIR/configure"
     cd "$TOP_SRCDIR"
-    ./configure 2>/dev/null
+    ./configure --prefix=$LTPROOT 2>/dev/null
 
     LogMsg "Compiling LTP..."
     make -j $(nproc) all 2>/dev/null
@@ -185,6 +184,7 @@ fi
 
 # LTP can request input if missing users/groups
 # are detected, the yes command will handle the prompt.
+echo $LTP_PARAMS
 yes | ./runltp $LTP_PARAMS 2>/dev/null
 
 grep -A 5 "Total Tests" "$LTP_RESULTS" >> ~/summary.log
