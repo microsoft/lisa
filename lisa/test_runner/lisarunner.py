@@ -1,10 +1,9 @@
 from typing import Dict, List, cast
 
 from lisa.action import Action, ActionStatus
-from lisa.environment import factory as env_factory
+from lisa.environment import get_environment
 from lisa.platform_ import Platform
-from lisa.testsuite import TestResult, TestStatus, TestSuite, TestSuiteData
-from lisa.testsuite import factory as test_factory
+from lisa.testsuite import TestResult, TestStatus, TestSuite, TestSuiteData, get_suites
 from lisa.util import constants
 from lisa.util.logger import get_logger
 
@@ -31,7 +30,8 @@ class LISARunner(Action):
         # select test cases
         test_cases_results: List[TestResult] = []
         test_suites: Dict[TestSuiteData, List[TestResult]] = dict()
-        for test_suite_data in test_factory.suites.values():
+        suites = get_suites()
+        for test_suite_data in suites.values():
             for test_case_data in test_suite_data.cases.values():
                 test_result = TestResult(case=test_case_data)
                 test_cases_results.append(test_result)
@@ -42,7 +42,7 @@ class LISARunner(Action):
         platform_type = self.platform.platform_type()
         # request environment
         self._log.info(f"platform {platform_type} environment requesting")
-        environment = env_factory.get_environment()
+        environment = get_environment()
         self._log.info(f"platform {platform_type} environment requested")
 
         self._log.info(f"start running {len(test_cases_results)} cases")
