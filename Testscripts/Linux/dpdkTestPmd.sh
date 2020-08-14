@@ -97,15 +97,15 @@ runTestPmd()
 	echo 4096 > /sys/devices/system/node/node0/hugepages/hugepages-2048kB/nr_hugepages \
 		&& echo 1 > /sys/devices/system/node/node0/hugepages/hugepages-1048576kB/nr_hugepages \
 		&&  modprobe -a ib_uverbs mlx4_en mlx4_core mlx4_ib; \
-		timeout --kill-after 10 10 testpmd --no-pci -m 1024 -c 0x3 -- -i --total-num-mbufs=16384 --coremask=0x2 --rxq=1 --txq=1
+		timeout --kill-after 10 10 dpdk-testpmd --no-pci -m 1024 -c 0x3 -- -i --total-num-mbufs=16384 --coremask=0x2 --rxq=1 --txq=1
 
 	for testmode in $modes; do
 		LogMsg "TestPmd is starting on ${serverNIC1ip} with ${testmode} mode, duration ${testDuration} secs"
-		ssh "${server}" "echo 4096 > /sys/devices/system/node/node0/hugepages/hugepages-2048kB/nr_hugepages && echo 1 > /sys/devices/system/node/node0/hugepages/hugepages-1048576kB/nr_hugepages &&  mount -a && modprobe -a ib_uverbs mlx4_en mlx4_core mlx4_ib;timeout 30 testpmd -l 1-3 -n 2 -w $pci_info_server ${vdev} -- --port-topology=chained --nb-cores 1 --forward-mode=${testmode}  --stats-period 1" 2>&1 > "$HOMEDIR"/dpdkVersion.txt
-		ssh "${server}" "pkill testpmd"
+		ssh "${server}" "echo 4096 > /sys/devices/system/node/node0/hugepages/hugepages-2048kB/nr_hugepages && echo 1 > /sys/devices/system/node/node0/hugepages/hugepages-1048576kB/nr_hugepages &&  mount -a && modprobe -a ib_uverbs mlx4_en mlx4_core mlx4_ib;timeout 30 dpdk-testpmd -l 1-3 -n 2 -w $pci_info_server ${vdev} -- --port-topology=chained --nb-cores 1 --forward-mode=${testmode}  --stats-period 1" 2>&1 > "$HOMEDIR"/dpdkVersion.txt
+		ssh "${server}" "pkill dpdk-testpmd"
 		sleep 60
 		ssh "${server}" "echo 0 > /sys/devices/system/node/node0/hugepages/hugepages-2048kB/nr_hugepages"
-		serverTestPmdCmd="echo 4096 > /sys/devices/system/node/node0/hugepages/hugepages-2048kB/nr_hugepages && echo 1 > /sys/devices/system/node/node0/hugepages/hugepages-1048576kB/nr_hugepages &&  mount -a && modprobe -a ib_uverbs mlx4_en mlx4_core mlx4_ib;timeout ${testDuration} testpmd -l 0-1 -w $pci_info_server ${vdev} -- --port-topology=chained --nb-cores 1 --txq 1 --rxq 1 --mbcache=512 --txd=4096 --rxd=4096 --forward-mode=${testmode}  --stats-period 1"
+		serverTestPmdCmd="echo 4096 > /sys/devices/system/node/node0/hugepages/hugepages-2048kB/nr_hugepages && echo 1 > /sys/devices/system/node/node0/hugepages/hugepages-1048576kB/nr_hugepages &&  mount -a && modprobe -a ib_uverbs mlx4_en mlx4_core mlx4_ib;timeout ${testDuration} dpdk-testpmd -l 0-1 -w $pci_info_server ${vdev} -- --port-topology=chained --nb-cores 1 --txq 1 --rxq 1 --mbcache=512 --txd=4096 --rxd=4096 --forward-mode=${testmode}  --stats-period 1"
 		echo "$serverTestPmdCmd"
 		ssh "${server}" "$serverTestPmdCmd" 2>&1 > "$LOGDIR"/dpdk-testpmd-"${testmode}"-receiver-$(date +"%m%d%Y-%H%M%S").log &
 		checkCmdExitStatus "TestPmd started on ${serverNIC1ip} with ${testmode} mode, duration ${testDuration} secs"
@@ -113,11 +113,11 @@ runTestPmd()
 
 		LogMsg "TestPmd is starting on ${clientNIC1ip} with txonly mode, duration ${testDuration} secs"
 
-		echo "timeout ${testDuration} testpmd -l 0-1 -w $pci_info_client ${vdev} -- --port-topology=chained --nb-cores 1 --txq 1 --rxq 1 --mbcache=512 --txd=4096 --rxd=4096 --forward-mode=txonly --stats-period 1 ${trx_rx_ips} 2>&1 >> $LOGDIR/dpdk-testpmd-${testmode}-sender.log &"
+		echo "timeout ${testDuration} dpdk-testpmd -l 0-1 -w $pci_info_client ${vdev} -- --port-topology=chained --nb-cores 1 --txq 1 --rxq 1 --mbcache=512 --txd=4096 --rxd=4096 --forward-mode=txonly --stats-period 1 ${trx_rx_ips} 2>&1 >> $LOGDIR/dpdk-testpmd-${testmode}-sender.log &"
 		echo 4096 > /sys/devices/system/node/node0/hugepages/hugepages-2048kB/nr_hugepages \
 			&& echo 1 > /sys/devices/system/node/node0/hugepages/hugepages-1048576kB/nr_hugepages \
 			&& modprobe -a ib_uverbs mlx4_en mlx4_core mlx4_ib
-		timeout "${testDuration}" testpmd -l 0-1 -w ${pci_info_client} ${vdev} -- \
+		timeout "${testDuration}" dpdk-testpmd -l 0-1 -w ${pci_info_client} ${vdev} -- \
 			--port-topology=chained --nb-cores 1 --txq 1 --rxq 1 --mbcache=512 --txd=4096 --rxd=4096 \
 			--forward-mode=txonly --stats-period 1 ${trx_rx_ips} 2>&1 > "$LOGDIR"/dpdk-testpmd-"${testmode}"-sender-$(date +"%m%d%Y-%H%M%S").log &
 		checkCmdExitStatus "TestPmd started on ${clientNIC1ip} with txonly mode, duration ${testDuration} secs"
@@ -127,8 +127,8 @@ runTestPmd()
 			&& echo 0 > /sys/devices/system/node/node0/hugepages/hugepages-1048576kB/nr_hugepages \
 			&& grep -i hug /proc/meminfo
 		ssh "${server}" "echo 0 > /sys/devices/system/node/node0/hugepages/hugepages-2048kB/nr_hugepages && echo 0 > /sys/devices/system/node/node0/hugepages/hugepages-1048576kB/nr_hugepages && grep -i hug /proc/meminfo"
-		pkill testpmd
-		ssh "${server}" "pkill testpmd"
+		pkill dpdk-testpmd
+		ssh "${server}" "pkill dpdk-testpmd"
 		sleep 60
 		LogMsg "TestPmd execution for ${testmode} mode is COMPLETED"
 	done
