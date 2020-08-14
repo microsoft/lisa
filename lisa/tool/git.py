@@ -1,6 +1,6 @@
 import pathlib
 
-from lisa.core.tool import Tool
+from lisa.executable import Tool
 
 
 class Git(Tool):

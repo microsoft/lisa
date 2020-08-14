@@ -2,12 +2,12 @@ import logging
 import pathlib
 import shlex
 import time
+from dataclasses import dataclass
 from logging import Logger
 from typing import TYPE_CHECKING, Dict, Optional, Type
 
-import spur  # type: ignore
+from spur.errors import NoSuchCommandError  # type: ignore
 
-from lisa.util.executableResult import ExecutableResult
 from lisa.util.logger import get_logger
 from lisa.util.perf_timer import create_timer
 from lisa.util.shell import Shell
@@ -16,6 +16,17 @@ if TYPE_CHECKING:
     BaseExceptionType = Type[BaseException]
 else:
     BaseExceptionType = bool
+
+
+@dataclass
+class ExecutableResult:
+    stdout: str
+    stderr: str
+    exit_code: Optional[int]
+    elapsed: float
+
+    def __str__(self) -> str:
+        return self.stdout
 
 
 class LogWriter:
@@ -117,7 +128,7 @@ class Process:
                 encoding="utf-8",
             )
             self._running = True
-        except (FileNotFoundError, spur.errors.NoSuchCommandError) as identifier:
+        except (FileNotFoundError, NoSuchCommandError) as identifier:
             # FileNotFoundError: not found command on Windows
             # NoSuchCommandError: not found command on remote Linux
             self._process = ExecutableResult(

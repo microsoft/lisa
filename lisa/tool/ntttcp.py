@@ -1,8 +1,8 @@
 from typing import List, Type
 
-from lisa.core.tool import Tool
+from lisa.executable import Tool
 from lisa.tool import Git
-from lisa.util.executableResult import ExecutableResult
+from lisa.util.process import ExecutableResult
 
 
 class Ntttcp(Tool):

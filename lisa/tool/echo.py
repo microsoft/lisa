@@ -1,4 +1,4 @@
-from lisa.core.tool import Tool
+from lisa.executable import Tool
 
 
 class Echo(Tool):

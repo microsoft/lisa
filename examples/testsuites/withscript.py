@@ -1,8 +1,7 @@
 from pathlib import Path
 
-from lisa import TestCaseMetadata, TestSuiteMetadata
-from lisa.core.customScript import CustomScript, CustomScriptBuilder
-from lisa.core.testSuite import TestSuite
+from lisa import TestCaseMetadata, TestSuite, TestSuiteMetadata
+from lisa.executable import CustomScript, CustomScriptBuilder
 
 
 @TestSuiteMetadata(
