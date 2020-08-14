@@ -5,7 +5,7 @@ import random
 from typing import Dict, Optional, Type, TypeVar, Union, cast
 
 from lisa.core.customScript import CustomScriptBuilder
-from lisa.core.tool import Tool
+from lisa.core.tool import LightTool, Tool
 from lisa.tool import Echo, Uname
 from lisa.util import constants, env
 from lisa.util.connectionInfo import ConnectionInfo
@@ -39,6 +39,7 @@ class Node:
         self.kernel_version: str = ""
         self.hardware_platform: str = ""
         self.operating_system: str = ""
+        self.tool = LightTool(self)
 
         self._connection_info: Optional[ConnectionInfo] = None
         self._working_path: pathlib.PurePath = pathlib.PurePath()
@@ -116,13 +117,15 @@ class Node:
             tool_path = self._working_path.joinpath(constants.PATH_TOOL)
         return tool_path
 
-    def get_tool(self, tool_type: Union[Type[T], CustomScriptBuilder]) -> T:
+    def get_tool(self, tool_type: Union[Type[T], CustomScriptBuilder, str]) -> T:
         if tool_type is CustomScriptBuilder:
             raise LisaException("CustomScript should call getScript with instance")
         if isinstance(tool_type, CustomScriptBuilder):
             tool_key = tool_type.name
+        elif isinstance(tool_type, str):
+            tool_key = tool_type
         else:
-            tool_key = tool_type.__name__
+            tool_key = tool_type.__name__.lower()
         tool = self._tools.get(tool_key)
         if tool is None:
             # the Tool is not installed on current node, try to install it.
@@ -131,6 +134,11 @@ class Node:
 
             if isinstance(tool_type, CustomScriptBuilder):
                 tool = tool_type.build(self)
+            elif isinstance(tool_type, str):
+                raise LisaException(
+                    f"{tool_type} cannot be found. "
+                    f"lightweight usage need to get_tool with type before using it."
+                )
             else:
                 cast_tool_type = cast(Type[Tool], tool_type)
                 tool = cast_tool_type(self)

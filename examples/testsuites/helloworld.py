@@ -41,12 +41,13 @@ class HelloWorld(TestSuite):
 
     @TestCaseMetadata(
         description="""
-        do nothing, show how caseSetup, suiteSetup works.
+        demonstrate a simple way to run command in one line.
         """,
         priority=2,
     )
     def bye(self) -> None:
-        self._log.info("bye!")
+        node = self.environment.default_node
+        self._log.info(f"stdout of node: '{node.tool.echo('bye!')}'")
 
     def before_suite(self) -> None:
         self._log.info("setup my test suite")

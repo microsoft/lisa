@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import pathlib
 from abc import ABC, abstractmethod
-from typing import TYPE_CHECKING, List, Optional, Type
+from typing import TYPE_CHECKING, List, Optional, Type, cast
 
 from lisa.util.executableResult import ExecutableResult
 from lisa.util.process import Process
@@ -26,9 +26,9 @@ class Tool(ABC):
 
     The should be implemented methods throws NotImplementedError, but not marked as
     abstract method, includes,
-    canInstall: specify if a tool can be installed or not. If a tool is not builtin, it
+    can_install: specify if a tool can be installed or not. If a tool is not builtin, it
                 must implement this method.
-    installInternal: If a tool is not builtin, it must implement this method. This
+    _install_internal: If a tool is not builtin, it must implement this method. This
                      method needs to install a tool, and make sure it can be detected
                      by isInstalledInternal.
 
@@ -99,7 +99,7 @@ class Tool(ABC):
         Unique name to a tool and used as path of tool. Don't change it, or there may
         be unpredictable behavior.
         """
-        return self.__class__.__name__
+        return self.__class__.__name__.lower()
 
     @property
     def _is_installed_internal(self) -> bool:
@@ -182,3 +182,29 @@ class Tool(ABC):
             cwd=cwd,
         )
         return process.wait_result()
+
+    def __call__(
+        self,
+        parameters: str = "",
+        shell: bool = False,
+        no_error_log: bool = False,
+        no_info_log: bool = False,
+        cwd: Optional[pathlib.PurePath] = None,
+    ) -> ExecutableResult:
+        return self.run(
+            parameters=parameters,
+            shell=shell,
+            no_error_log=no_error_log,
+            no_info_log=no_info_log,
+            cwd=cwd,
+        )
+
+
+class LightTool:
+    def __init__(self, node: Node) -> None:
+        self._node = node
+
+    def __getattr__(self, key: str) -> Tool:
+        key = key.lower()
+        tool: Tool = cast(Tool, self._node.get_tool(key))
+        return tool

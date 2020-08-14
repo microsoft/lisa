@@ -6,11 +6,12 @@ from lisa.util.exceptions import LisaException
 
 
 class Uname(Tool):
+    _key_info_pattern = re.compile(
+        r"(?P<release>[^ ]*?) (?P<version>[\w\W]*) (?P<platform>[\w\W]+?) "
+        r"(?P<os>[\w\W]+?)$"
+    )
+
     def initialize(self) -> None:
-        self.key_info_pattern = re.compile(
-            r"(?P<release>[^ ]*?) (?P<version>[\w\W]*) (?P<platform>[\w\W]+?) "
-            r"(?P<os>[\w\W]+?)$"
-        )
         # uname's result suppose not be changed frequently,
         #  so cache it for performance.
         self.has_result: bool = False
@@ -45,7 +46,7 @@ class Uname(Tool):
             if cmd_result.exit_code != 0:
                 self.is_linux = False
             else:
-                match_result = self.key_info_pattern.fullmatch(cmd_result.stdout)
+                match_result = self._key_info_pattern.fullmatch(cmd_result.stdout)
                 if not match_result:
                     raise LisaException(
                         f"no result matched, stdout: '{cmd_result.stdout}'"
