@@ -54,12 +54,6 @@ if [ ! "${client}" ]; then
 	UpdateTestState $ICA_TESTABORTED
 	exit 1
 fi
-if [ ! "${testServerIP}" ];then
-	LogMsg "testServerIP not defined. Using server ip: ${server} for testing"
-	testServerIP=$server
-else
-	LogMsg "testServerIP is ${testServerIP}. Ntttcp sender and receiver will use this ip"
-fi
 if [ ! "${testDuration}" ]; then
 	errMsg="Please add/provide value for testDuration in constants.sh. testDuration=60"
 	LogMsg "${errMsg}"
@@ -288,22 +282,22 @@ Run_Ntttcp()
 			tx_log_prefix="sender-${testType}-${bufferLength}k-p${num_threads_P}X${num_threads_n}.log"
 			rx_log_prefix="receiver-${testType}-${bufferLength}k-p${num_threads_P}X${num_threads_n}.log"
 			run_msg="Running ${testType} ${bufferLength}k Test: $current_test_threads connections : $num_threads_P X $num_threads_n X $client_count clients"
-			server_ntttcp_cmd="ulimit -n 204800 && ${ntttcp_cmd} -r${testServerIP} -u -b ${bufferLength}k -P ${num_threads_P} -t ${testDuration} -e -W 1 -C 1"
+			server_ntttcp_cmd="ulimit -n 204800 && ${ntttcp_cmd} -r${server} -u -b ${bufferLength}k -P ${num_threads_P} -t ${testDuration} -e -W 1 -C 1"
 			if [[ "$mode" == "multi-clients" ]];
 			then
 				server_ntttcp_cmd+=" -M"
 			fi
-			client_ntttcp_cmd="ulimit -n 204800 && ${ntttcp_cmd} -s${testServerIP} -u -b ${bufferLength}k -P ${num_threads_P} -n ${num_threads_n} -t ${testDuration} -W 1 -C 1"
+			client_ntttcp_cmd="ulimit -n 204800 && ${ntttcp_cmd} -s${server} -u -b ${bufferLength}k -P ${num_threads_P} -n ${num_threads_n} -t ${testDuration} -W 1 -C 1"
 		else
 			tx_log_prefix="sender-${testType}-p${num_threads_P}X${num_threads_n}.log"
 			rx_log_prefix="receiver-${testType}-p${num_threads_P}X${num_threads_n}.log"
 			run_msg="Running ${testType} Test: $current_test_threads connections : $num_threads_P X $num_threads_n X $client_count clients"
-			server_ntttcp_cmd="ulimit -n 204800 && ${ntttcp_cmd} -r${testServerIP} -P ${num_threads_P} -t ${testDuration} -e -W 1 -C 1"
+			server_ntttcp_cmd="ulimit -n 204800 && ${ntttcp_cmd} -r${server} -P ${num_threads_P} -t ${testDuration} -e -W 1 -C 1"
 			if [[ "$mode" == "multi-clients" ]];
 			then
 				server_ntttcp_cmd+=" -M"
 			fi
-			client_ntttcp_cmd="ulimit -n 204800 && ${ntttcp_cmd} -s${testServerIP} -P ${num_threads_P} -n ${num_threads_n} -t ${testDuration} -W 1 -C 1"
+			client_ntttcp_cmd="ulimit -n 204800 && ${ntttcp_cmd} -s${server} -P ${num_threads_P} -n ${num_threads_n} -t ${testDuration} -W 1 -C 1"
 			Run_SSHCommand "${server}" "for i in {1..$testDuration}; do ss -ta | grep ESTA | grep -v ssh | wc -l >> ${log_folder}/tcp-connections-p${num_threads_P}X${num_threads_n}.log; sleep 1; done" &
 		fi
 
