@@ -1,11 +1,27 @@
 from __future__ import annotations
 
 from abc import ABCMeta, abstractmethod
+from enum import Enum
 from typing import Dict
 
-from lisa.core.actionStatus import ActionStatus
 from lisa.util.exceptions import LisaException
 from lisa.util.logger import get_logger
+
+ActionStatus = Enum(
+    "ActionStatus",
+    [
+        "UNINITIALIZED",
+        "INITIALIZING",
+        "INITIALIZED",
+        "WAITING",
+        "RUNNING",
+        "SUCCESS",
+        "FAILED",
+        "STOPPING",
+        "STOPPED",
+        "UNKNOWN",
+    ],
+)
 
 
 class Action(metaclass=ABCMeta):

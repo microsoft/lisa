@@ -1,5 +1,5 @@
-from lisa.core.environment import Environment
-from lisa.core.platform import Platform
+from lisa.environment import Environment
+from lisa.platform_ import Platform
 from lisa.util import constants
 
 

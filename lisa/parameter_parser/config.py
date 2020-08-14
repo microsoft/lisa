@@ -1,7 +1,11 @@
+from argparse import Namespace
 from pathlib import Path
 from typing import Dict, List, Optional, cast
 
+import yaml
+
 from lisa.util import constants
+from lisa.util.logger import get_logger
 
 
 class Config(Dict[str, object]):
@@ -39,3 +43,21 @@ class Config(Dict[str, object]):
     # said data. Doing so correctly will enable us to delete this.
     def _get_and_cast(self, name: str) -> Dict[str, object]:
         return cast(Dict[str, object], self._config.get(name, dict()))
+
+
+def parse_to_config(args: Namespace) -> Config:
+    path = Path(args.config).absolute()
+    log = get_logger("parser")
+
+    log.info(f"load config from: {path}")
+    if not path.exists():
+        raise FileNotFoundError(path)
+
+    with open(path, "r") as file:
+        data = yaml.safe_load(file)
+
+    log.debug(f"final config data: {data}")
+    base_path = path.parent
+    log.debug(f"base path is {base_path}")
+    config = Config(base_path, data)
+    return config

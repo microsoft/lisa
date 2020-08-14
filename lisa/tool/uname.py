@@ -1,7 +1,7 @@
 import re
 from typing import Tuple
 
-from lisa.core.tool import Tool
+from lisa.executable import Tool
 from lisa.util.exceptions import LisaException
 
 

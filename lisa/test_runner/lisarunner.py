@@ -1,18 +1,15 @@
 from typing import Dict, List, cast
 
-from lisa.core.actionStatus import ActionStatus
-from lisa.core.environmentFactory import factory as env_factory
-from lisa.core.platform import Platform
-from lisa.core.testFactory import TestSuiteData
-from lisa.core.testFactory import factory as test_factory
-from lisa.core.testResult import TestResult, TestStatus
-from lisa.core.testRunner import TestRunner
-from lisa.core.testSuite import TestSuite
+from lisa.action import Action, ActionStatus
+from lisa.environment import factory as env_factory
+from lisa.platform_ import Platform
+from lisa.testsuite import TestResult, TestStatus, TestSuite, TestSuiteData
+from lisa.testsuite import factory as test_factory
 from lisa.util import constants
 from lisa.util.logger import get_logger
 
 
-class LISARunner(TestRunner):
+class LISARunner(Action):
     def __init__(self) -> None:
         super().__init__()
         self.exitCode = None

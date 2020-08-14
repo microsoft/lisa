@@ -4,17 +4,16 @@ from logging import Logger
 from pathlib import Path, PurePath
 from typing import Dict, List, Optional, cast
 
-from lisa.core.environmentFactory import factory as env_factory
-from lisa.core.package import import_module
-from lisa.core.platformFactory import factory as platform_factory
-from lisa.core.testFactory import factory as test_factory
-from lisa.parameter_parser.config import Config
-from lisa.parameter_parser.parser import parse
+from lisa.environment import factory as env_factory
+from lisa.parameter_parser.config import Config, parse_to_config
+from lisa.platform_ import factory as platform_factory
 from lisa.sut_orchestrator.ready import ReadyPlatform
 from lisa.test_runner.lisarunner import LISARunner
+from lisa.testsuite import factory as test_factory
 from lisa.util import constants
 from lisa.util.exceptions import LisaException
 from lisa.util.logger import get_logger
+from lisa.util.module import import_module
 
 
 def _load_extends(base_path: Path, extends_config: Dict[str, object]) -> None:
@@ -32,7 +31,7 @@ def _initialize(args: Namespace) -> None:
     import_module(base_module_path, logDetails=False)
 
     # merge all parameters
-    config = parse(args)
+    config = parse_to_config(args)
 
     # load external extension
     _load_extends(config.base_path, config.get_extension())
