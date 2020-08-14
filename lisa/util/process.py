@@ -98,7 +98,8 @@ class Process:
         self._log.debug(
             f"Linux({1 if self._is_linux else 0})"
             f"Remote({1 if self._shell.is_remote else 0}): "
-            f"{split_command}"
+            f"cmd: {split_command}, "
+            f"cwd: {cwd_path}"
         )
 
         try:

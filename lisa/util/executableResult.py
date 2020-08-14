@@ -8,3 +8,6 @@ class ExecutableResult:
     stderr: str
     exit_code: Optional[int]
     elapsed: float
+
+    def __str__(self) -> str:
+        return self.stdout
