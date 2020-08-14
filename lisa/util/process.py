@@ -114,10 +114,8 @@ class Process:
         )
 
         try:
-            real_shell = self._shell.inner_shell
-            assert real_shell
             self._timer = create_timer()
-            self._process = real_shell.spawn(
+            self._process = self._shell.spawn(
                 command=split_command,
                 stdout=self.stdout_writer,
                 stderr=self.stderr_writer,

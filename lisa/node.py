@@ -11,7 +11,7 @@ from lisa.util.exceptions import LisaException
 from lisa.util.logger import get_logger
 from lisa.util.perf_timer import create_timer
 from lisa.util.process import ExecutableResult, Process
-from lisa.util.shell import ConnectionInfo, Shell
+from lisa.util.shell import ConnectionInfo, LocalShell, Shell, SshShell
 
 T = TypeVar("T")
 
@@ -30,7 +30,7 @@ class Node:
         self.name: str = ""
 
         self.identifier = identifier
-        self.shell = Shell()
+        self.shell: Shell = LocalShell()
 
         self.kernel_release: str = ""
         self.kernel_version: str = ""
@@ -101,7 +101,7 @@ class Node:
         self._connection_info = ConnectionInfo(
             publicAddress, publicPort, username, password, privateKeyFile,
         )
-        self.shell.set_connection_info(self._connection_info)
+        self.shell = SshShell(self._connection_info)
         self.internal_address = address
         self.internal_port = port
 
