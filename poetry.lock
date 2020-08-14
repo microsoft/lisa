@@ -480,14 +480,6 @@ dev = ["pytest"]
 
 [[package]]
 category = "main"
-description = "A testable singleton decorator"
-name = "singleton-decorator"
-optional = false
-python-versions = "*"
-version = "1.0.0"
-
-[[package]]
-category = "main"
 description = "Python 2 and 3 compatibility utilities"
 name = "six"
 optional = false
@@ -581,7 +573,7 @@ python-versions = "*"
 version = "1.35"
 
 [metadata]
-content-hash = "47bdcdb43ab99e6e4c725e65fd612356d1f74c86032b19d610aa27503d88f560"
+content-hash = "39d3482f9c042789f379eedd7e704bc2af0f081424824e1675181675a8fbc3b6"
 lock-version = "1.0"
 python-versions = "^3.8"
 
@@ -855,9 +847,6 @@ retry = [
 ]
 rope = [
     {file = "rope-0.17.0.tar.gz", hash = "sha256:658ad6705f43dcf3d6df379da9486529cf30e02d9ea14c5682aa80eb33b649e1"},
-]
-singleton-decorator = [
-    {file = "singleton-decorator-1.0.0.tar.gz", hash = "sha256:1a90ad8a8a738be591c9c167fdd677c5d4a43d1bc6b1c128227be1c5e03bee07"},
 ]
 six = [
     {file = "six-1.15.0-py2.py3-none-any.whl", hash = "sha256:8b74bedcbbbaca38ff6d7491d76f2b06b3592611af620f8426e82dddb04a5ced"},

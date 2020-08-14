@@ -1,9 +1,10 @@
 from typing import Dict, List, cast
 
 from lisa.core.actionStatus import ActionStatus
-from lisa.core.environmentFactory import EnvironmentFactory
+from lisa.core.environmentFactory import factory as env_factory
 from lisa.core.platform import Platform
-from lisa.core.testFactory import TestFactory, TestSuiteData
+from lisa.core.testFactory import TestSuiteData
+from lisa.core.testFactory import factory as test_factory
 from lisa.core.testResult import TestResult, TestStatus
 from lisa.core.testRunner import TestRunner
 from lisa.core.testSuite import TestSuite
@@ -29,13 +30,11 @@ class LISARunner(TestRunner):
     async def start(self) -> None:
         await super().start()
         self.set_status(ActionStatus.RUNNING)
-        test_factory = TestFactory()
-        suites = test_factory.suites
 
         # select test cases
         test_cases_results: List[TestResult] = []
         test_suites: Dict[TestSuiteData, List[TestResult]] = dict()
-        for test_suite_data in suites.values():
+        for test_suite_data in test_factory.suites.values():
             for test_case_data in test_suite_data.cases.values():
                 test_result = TestResult(case=test_case_data)
                 test_cases_results.append(test_result)
@@ -43,11 +42,10 @@ class LISARunner(TestRunner):
                 test_suite_cases.append(test_result)
                 test_suites[test_case_data.suite] = test_suite_cases
 
-        environment_factory = EnvironmentFactory()
         platform_type = self.platform.platform_type()
         # request environment
         self._log.info(f"platform {platform_type} environment requesting")
-        environment = environment_factory.get_environment()
+        environment = env_factory.get_environment()
         self._log.info(f"platform {platform_type} environment requested")
 
         self._log.info(f"start running {len(test_cases_results)} cases")
