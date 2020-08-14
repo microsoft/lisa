@@ -1,6 +1,6 @@
 from typing import Callable, Optional
 
-from lisa.core.testFactory import TestFactory
+from lisa.core.testFactory import factory
 
 
 class TestCaseMetadata:
@@ -9,7 +9,6 @@ class TestCaseMetadata:
         self._description = description
 
     def __call__(self, func: Callable[..., None]) -> Callable[..., None]:
-        factory = TestFactory()
         factory.add_method(func, self._description, self._priority)
 
         def wrapper(*args: object) -> None:

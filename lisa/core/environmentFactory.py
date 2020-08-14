@@ -1,6 +1,5 @@
+from logging import Logger
 from typing import Dict, List, Optional, cast
-
-from singleton_decorator import singleton  # type: ignore
 
 from lisa.core.environment import Environment
 from lisa.util import constants
@@ -8,7 +7,6 @@ from lisa.util.exceptions import LisaException
 from lisa.util.logger import get_logger
 
 
-@singleton
 class EnvironmentFactory:
     _default_no_name = "_no_name_default"
 
@@ -16,7 +14,7 @@ class EnvironmentFactory:
         self.environments: Dict[str, Environment] = dict()
         self.max_concurrency = 1
 
-        self._log = get_logger("init", "env")
+        self._log: Logger
 
     def load_environments(self, config: Dict[str, object]) -> None:
         if not config:
@@ -30,6 +28,7 @@ class EnvironmentFactory:
             List[Dict[str, object]], config.get(constants.ENVIRONMENTS)
         )
         without_name: bool = False
+        self._initialize_logger()
         for environment_config in environments_config:
             environment = Environment.load(environment_config)
             if not environment.name:
@@ -50,3 +49,10 @@ class EnvironmentFactory:
             raise LisaException(f"not found environment '{name}'")
 
         return environment
+
+    def _initialize_logger(self) -> None:
+        if not hasattr(self, "_log"):
+            self._log = get_logger("init", "env")
+
+
+factory = EnvironmentFactory()

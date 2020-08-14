@@ -1,6 +1,5 @@
+from logging import Logger
 from typing import Dict, List, Optional, Type, cast
-
-from singleton_decorator import singleton  # type: ignore
 
 from lisa.core.platform import Platform
 from lisa.util import constants
@@ -8,13 +7,12 @@ from lisa.util.exceptions import LisaException
 from lisa.util.logger import get_logger
 
 
-@singleton
 class PlatformFactory:
     def __init__(self) -> None:
         self.platforms: Dict[str, Platform] = dict()
         self.current: Optional[Platform] = None
 
-        self._log = get_logger("init", "platform")
+        self._log: Logger
 
     def initialize_platform(self, config: List[Dict[str, object]]) -> None:
         if not config:
@@ -28,6 +26,7 @@ class PlatformFactory:
         if platform_type is None:
             raise LisaException("type of platfrom shouldn't be None")
 
+        self._initialize_logger()
         self._build_factory()
         self._log.debug(
             f"registered platforms: "
@@ -55,3 +54,10 @@ class PlatformFactory:
         for sub_class in Platform.__subclasses__():
             platform_class = cast(Type[Platform], sub_class)
             self._register_platform(platform_class)
+
+    def _initialize_logger(self) -> None:
+        if not hasattr(self, "_log"):
+            self._log = get_logger("init", "platform")
+
+
+factory = PlatformFactory()

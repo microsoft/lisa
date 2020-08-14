@@ -4,10 +4,10 @@ from logging import Logger
 from pathlib import Path, PurePath
 from typing import Dict, List, Optional, cast
 
-from lisa.core.environmentFactory import EnvironmentFactory
+from lisa.core.environmentFactory import factory as env_factory
 from lisa.core.package import import_module
-from lisa.core.platformFactory import PlatformFactory
-from lisa.core.testFactory import TestFactory
+from lisa.core.platformFactory import factory as platform_factory
+from lisa.core.testFactory import factory as test_factory
 from lisa.parameter_parser.config import Config
 from lisa.parameter_parser.parser import parse
 from lisa.sut_orchestrator.ready import ReadyPlatform
@@ -38,21 +38,19 @@ def _initialize(args: Namespace) -> None:
     _load_extends(config.base_path, config.get_extension())
 
     # initialize environment
-    environment_factory = EnvironmentFactory()
-    environment_factory.load_environments(config.get_environment())
+    env_factory.load_environments(config.get_environment())
 
     # initialize platform
-    factory = PlatformFactory()
-    factory.initialize_platform(config.get_platform())
+    platform_factory.initialize_platform(config.get_platform())
 
     log = get_logger("init")
-    _validate(log)
+    _validate(config, log)
 
 
 def run(args: Namespace) -> None:
     _initialize(args)
 
-    platform = PlatformFactory().current
+    platform = platform_factory.current
 
     runner = LISARunner()
     runner.config(constants.CONFIG_PLATFORM, platform)
@@ -71,8 +69,7 @@ def list_start(args: Namespace) -> None:
     log = get_logger("list")
     if args.type == constants.LIST_CASE:
         if list_all:
-            factory = TestFactory()
-            for metadata in factory.cases.values():
+            for metadata in test_factory.cases.values():
                 log.info(
                     f"case: {metadata.name}, suite: {metadata.suite.name}, "
                     f"area: {metadata.suite.area}, "
@@ -87,16 +84,16 @@ def list_start(args: Namespace) -> None:
     log.info("list information here")
 
 
-def _validate(log: Logger) -> None:
-    environment_config = Config().get_environment()
+def _validate(config: Config, log: Logger) -> None:
+    environment_config = config.get_environment()
     warn_as_error = False
     if environment_config:
         warn_as_error = cast(
             bool, environment_config.get(constants.WARN_AS_ERROR, False)
         )
-    factory = EnvironmentFactory()
-    enviornments = factory.environments
-    platform = PlatformFactory().current
+
+    enviornments = env_factory.environments
+    platform = platform_factory.current
     for environment in enviornments.values():
         if environment.spec is not None and isinstance(platform, ReadyPlatform):
             _validate_message(

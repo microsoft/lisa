@@ -1,6 +1,5 @@
+from logging import Logger
 from typing import Callable, Dict, List, Optional, Type
-
-from singleton_decorator import singleton  # type: ignore
 
 from lisa.core.testSuite import TestSuite
 from lisa.util.exceptions import LisaException
@@ -59,13 +58,12 @@ class TestSuiteData:
             )
 
 
-@singleton
 class TestFactory:
     def __init__(self) -> None:
         self.suites: Dict[str, TestSuiteData] = dict()
         self.cases: Dict[str, TestCaseData] = dict()
 
-        self._log = get_logger("init", "test")
+        self._log: Logger
 
     def add_class(
         self,
@@ -92,6 +90,7 @@ class TestFactory:
         for test_case in self.cases.values():
             if test_case.full_name.startswith(class_prefix):
                 self._add_case_to_suite(test_suite, test_case)
+        self._initialize_logger()
         self._log.info(
             f"registered test suite '{test_suite.key}' "
             f"with test cases: '{', '.join([key for key in test_suite.cases])}'"
@@ -114,6 +113,7 @@ class TestFactory:
         #   to make two collection consistent.
         class_name = full_name.split(".")[0]
         test_suite = self.suites.get(class_name)
+        self._initialize_logger()
         if test_suite is not None:
             self._log.debug(f"add case '{test_case.name}' to suite '{test_suite.name}'")
             self._add_case_to_suite(test_suite, test_case)
@@ -123,3 +123,10 @@ class TestFactory:
     ) -> None:
         test_suite.add_case(test_case)
         test_case.suite = test_suite
+
+    def _initialize_logger(self) -> None:
+        if not hasattr(self, "_log"):
+            self._log = get_logger("init", "test")
+
+
+factory = TestFactory()

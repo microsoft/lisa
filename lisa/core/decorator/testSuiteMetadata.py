@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING, Callable, List, Optional, Type
 
-from lisa.core.testFactory import TestFactory
+from lisa.core.testFactory import factory
 from lisa.core.testSuite import TestSuite
 
 if TYPE_CHECKING:
@@ -27,7 +27,6 @@ class TestSuiteMetadata:
         self._name = name
 
     def __call__(self, test_class: Type[TestSuite]) -> Callable[..., object]:
-        factory = TestFactory()
         factory.add_class(
             test_class,
             self._area,
