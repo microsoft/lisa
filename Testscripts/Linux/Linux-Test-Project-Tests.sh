@@ -184,7 +184,6 @@ fi
 
 # LTP can request input if missing users/groups
 # are detected, the yes command will handle the prompt.
-echo $LTP_PARAMS
 yes | ./runltp $LTP_PARAMS 2>/dev/null
 
 grep -A 5 "Total Tests" "$LTP_RESULTS" >> ~/summary.log
