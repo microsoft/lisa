@@ -93,6 +93,7 @@ Make sure below settings are in root level of `.vscode/settings.json`
     "python.sortImports.path": "isort",
     "python.analysis.useLibraryCodeForTypes": false,
     "python.analysis.autoImportCompletions": false,
+    "files.eol": "\n",
 }
 ```
 

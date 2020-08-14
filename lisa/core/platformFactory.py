@@ -5,7 +5,7 @@ from singleton_decorator import singleton  # type: ignore
 from lisa.core.platform import Platform
 from lisa.util import constants
 from lisa.util.exceptions import LisaException
-from lisa.util.logger import log
+from lisa.util.logger import get_logger
 
 
 @singleton
@@ -13,6 +13,8 @@ class PlatformFactory:
     def __init__(self) -> None:
         self.platforms: Dict[str, Platform] = dict()
         self.current: Optional[Platform] = None
+
+        self._log = get_logger("init", "platform")
 
     def initialize_platform(self, config: List[Dict[str, object]]) -> None:
         if not config:
@@ -27,7 +29,7 @@ class PlatformFactory:
             raise LisaException("type of platfrom shouldn't be None")
 
         self._build_factory()
-        log.debug(
+        self._log.debug(
             f"registered platforms: "
             f"[{', '.join([name for name in self.platforms.keys()])}]"
         )
@@ -35,7 +37,7 @@ class PlatformFactory:
         platform = self.platforms.get(platform_type.lower())
         if platform is None:
             raise LisaException(f"cannot find platform type '{platform_type}'")
-        log.info(f"activated platform '{platform_type}'")
+        self._log.info(f"activated platform '{platform_type}'")
 
         platform.config(constants.CONFIG_CONFIG, config[0])
         self.current = platform

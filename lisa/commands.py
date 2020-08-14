@@ -1,5 +1,6 @@
 import asyncio
 from argparse import Namespace
+from logging import Logger
 from pathlib import Path, PurePath
 from typing import Dict, List, Optional, cast
 
@@ -13,7 +14,7 @@ from lisa.sut_orchestrator.ready import ReadyPlatform
 from lisa.test_runner.lisarunner import LISARunner
 from lisa.util import constants
 from lisa.util.exceptions import LisaException
-from lisa.util.logger import log
+from lisa.util.logger import get_logger
 
 
 def _load_extends(base_path: Path, extends_config: Dict[str, object]) -> None:
@@ -44,7 +45,8 @@ def _initialize(args: Namespace) -> None:
     factory = PlatformFactory()
     factory.initialize_platform(config.get_platform())
 
-    _validate()
+    log = get_logger("init")
+    _validate(log)
 
 
 def run(args: Namespace) -> None:
@@ -66,6 +68,7 @@ def check(args: Namespace) -> None:
 def list_start(args: Namespace) -> None:
     _initialize(args)
     list_all = cast(Optional[bool], args.list_all)
+    log = get_logger("list")
     if args.type == constants.LIST_CASE:
         if list_all:
             factory = TestFactory()
@@ -84,7 +87,7 @@ def list_start(args: Namespace) -> None:
     log.info("list information here")
 
 
-def _validate() -> None:
+def _validate(log: Logger) -> None:
     environment_config = Config().get_environment()
     warn_as_error = False
     if environment_config:
@@ -97,11 +100,11 @@ def _validate() -> None:
     for environment in enviornments.values():
         if environment.spec is not None and isinstance(platform, ReadyPlatform):
             _validate_message(
-                warn_as_error, "the ready platform cannot process environment spec"
+                warn_as_error, "the ready platform cannot process environment spec", log
             )
 
 
-def _validate_message(warn_as_error: bool, message: str) -> None:
+def _validate_message(warn_as_error: bool, message: str, log: Logger) -> None:
     if warn_as_error:
         raise LisaException(message)
     else:

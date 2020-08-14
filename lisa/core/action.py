@@ -5,7 +5,7 @@ from typing import Dict
 
 from lisa.core.actionStatus import ActionStatus
 from lisa.util.exceptions import LisaException
-from lisa.util.logger import log
+from lisa.util.logger import get_logger
 
 
 class Action(metaclass=ABCMeta):
@@ -14,6 +14,7 @@ class Action(metaclass=ABCMeta):
 
         self.__status = ActionStatus.UNINITIALIZED
         self.__is_started = False
+        self._log = get_logger("Action")
 
     def config(self, key: str, value: object) -> None:
         pass
@@ -45,7 +46,7 @@ class Action(metaclass=ABCMeta):
 
     def set_status(self, status: ActionStatus) -> None:
         if self.__status != status:
-            log.info(
+            self._log.info(
                 f"{self.name} status changed from {self.__status.name} to {status.name}"
             )
         self.__status = status

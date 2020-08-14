@@ -175,7 +175,7 @@ class CustomScriptBuilder:
         command_identifier = self._normalize_pattern.sub("_", command_identifier)
         hash_source = "".join(files).encode("utf-8")
         hash_result = sha256(hash_source)
-        self.name = f"custom_{command_identifier}_{hash_result.hexdigest()}"
+        self.name = f"custom_{command_identifier}_{hash_result.hexdigest()}".lower()
 
     def build(self, node: Node) -> CustomScript:
         script = CustomScript(

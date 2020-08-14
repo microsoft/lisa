@@ -7,7 +7,7 @@ from retry import retry  # type: ignore
 
 from lisa.parameter_parser.argparser import parse_args
 from lisa.util import env
-from lisa.util.logger import init_log, log
+from lisa.util.logger import get_logger, init_loggger, set_level
 
 
 @retry(FileExistsError, tries=10, delay=0)  # type: ignore
@@ -32,17 +32,19 @@ def main() -> None:
 
     args = parse_args()
 
-    init_log()
-    log.info(f"Python version: {sys.version}")
-    log.info(f"local time: {datetime.now().astimezone()}")
-    log.info(f"command line args: {sys.argv}")
-    log.info(f"run local path: {env.get_run_local_path()}")
+    init_loggger()
+
+    _log = get_logger()
+    _log.info(f"Python version: {sys.version}")
+    _log.info(f"local time: {datetime.now().astimezone()}")
+    _log.info(f"command line args: {sys.argv}")
+    _log.info(f"run local path: {env.get_run_local_path()}")
 
     if args.debug:
         log_level = DEBUG
     else:
         log_level = INFO
-    log.setLevel(log_level)
+    set_level(log_level)
 
     args.func(args)
 
@@ -52,7 +54,8 @@ if __name__ == "__main__":
     try:
         main()
     except Exception as exception:
-        log.exception(exception)
+        _log = get_logger()
+        _log.exception(exception)
         exit_code = -1
     finally:
         sys.exit(exit_code)

@@ -2,12 +2,13 @@ import logging
 import pathlib
 import shlex
 import time
+from logging import Logger
 from typing import TYPE_CHECKING, Dict, Optional, Type
 
 import spur  # type: ignore
 
 from lisa.util.executableResult import ExecutableResult
-from lisa.util.logger import log
+from lisa.util.logger import get_logger
 from lisa.util.perf_timer import create_timer
 from lisa.util.shell import Shell
 
@@ -18,30 +19,37 @@ else:
 
 
 class LogWriter:
-    def __init__(self, level: int, cmd_prefix: str = "") -> None:
+    def __init__(self, level: int, log: Logger) -> None:
         self._level = level
-        self._cmd_prefix = cmd_prefix
+        self._log = log
         self._buffer: str = ""
 
     def write(self, message: str) -> None:
         if message == "\n":
-            log.log(self._level, f"{self._cmd_prefix}{self._buffer}")
+            self._log.log(self._level, self._buffer)
             self._buffer = ""
         else:
             self._buffer = "".join([self._buffer, message])
 
     def close(self) -> None:
         if len(self._buffer) > 0:
-            log.log(self._level, f"{self._cmd_prefix}{self._buffer}")
+            self._log.log(self._level, self._buffer)
 
 
 class Process:
-    def __init__(self, cmd_prefix: str, shell: Shell, is_linux: bool = True) -> None:
+    def __init__(
+        self,
+        id_: str,
+        shell: Shell,
+        parent_logger: Optional[Logger] = None,
+        is_linux: bool = True,
+    ) -> None:
         # the shell can be LocalShell or SshShell
         self._shell = shell
-        self._cmd_prefix = cmd_prefix
+        self._id = id_
         self._is_linux = is_linux
         self._running: bool = False
+        self._log = get_logger("cmd", id_, parent=parent_logger)
 
     def start(
         self,
@@ -62,8 +70,12 @@ class Process:
         if no_error_log:
             stderr_level = stdout_level
 
-        self.stdout_writer = LogWriter(stdout_level, f"{self._cmd_prefix}stdout: ")
-        self.stderr_writer = LogWriter(stderr_level, f"{self._cmd_prefix}stderr: ")
+        self.stdout_writer = LogWriter(
+            stdout_level, get_logger("stdout", parent=self._log)
+        )
+        self.stderr_writer = LogWriter(
+            stderr_level, get_logger("stderr", parent=self._log)
+        )
 
         # command may be Path object, convert it to str
         command = f"{command}"
@@ -83,8 +95,7 @@ class Process:
             else:
                 cwd_path = str(pathlib.PureWindowsPath(cwd))
 
-        log.debug(
-            f"{self._cmd_prefix}"
+        self._log.debug(
             f"Linux({1 if self._is_linux else 0})"
             f"Remote({1 if self._shell.is_remote else 0}): "
             f"{split_command}"
@@ -111,18 +122,17 @@ class Process:
             self._process = ExecutableResult(
                 "", identifier.strerror, 1, self._timer.elapsed()
             )
-            log.debug(f"{self._cmd_prefix} not found command: {identifier}")
+            self._log.debug(f"not found command: {identifier}")
 
     def wait_result(self, timeout: float = 600) -> ExecutableResult:
-        budget_time = timeout
         timer = create_timer()
 
-        while self.is_running() and budget_time >= timer.elapsed(False):
+        while self.is_running() and timeout >= timer.elapsed(False):
             time.sleep(0.01)
 
-        if budget_time < timer.elapsed():
+        if timeout < timer.elapsed():
             if self._process is not None:
-                log.warn(f"{self._cmd_prefix}timeout in {timeout} sec, and killed")
+                self._log.warn(f"timeout in {timeout} sec, and killed")
             self.kill()
 
         if not isinstance(self._process, ExecutableResult):
@@ -139,7 +149,7 @@ class Process:
         else:
             result = self._process
 
-        log.debug(f"{self._cmd_prefix}executed with {self._timer}")
+        self._log.debug(f"executed with {self._timer}")
         return result
 
     def kill(self) -> None:
