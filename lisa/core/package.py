@@ -2,7 +2,7 @@ import importlib
 import sys
 from pathlib import Path
 
-from lisa.util.logger import log
+from lisa.util.logger import get_logger
 
 
 def import_module(path: Path, logDetails: bool = True) -> None:
@@ -10,6 +10,8 @@ def import_module(path: Path, logDetails: bool = True) -> None:
     path = path.absolute()
     if not path.exists():
         raise FileNotFoundError(path)
+
+    log = get_logger("init", "module")
 
     package_name = path.stem
     global packages

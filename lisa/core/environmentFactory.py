@@ -5,6 +5,7 @@ from singleton_decorator import singleton  # type: ignore
 from lisa.core.environment import Environment
 from lisa.util import constants
 from lisa.util.exceptions import LisaException
+from lisa.util.logger import get_logger
 
 
 @singleton
@@ -14,6 +15,8 @@ class EnvironmentFactory:
     def __init__(self) -> None:
         self.environments: Dict[str, Environment] = dict()
         self.max_concurrency = 1
+
+        self._log = get_logger("init", "env")
 
     def load_environments(self, config: Dict[str, object]) -> None:
         if not config:
@@ -29,11 +32,12 @@ class EnvironmentFactory:
         without_name: bool = False
         for environment_config in environments_config:
             environment = Environment.load(environment_config)
-            if environment.name is None:
+            if not environment.name:
                 if without_name:
                     raise LisaException("at least two environments has no name")
                 environment.name = self._default_no_name
                 without_name = True
+            self._log.info(f"loaded environment {environment.name}")
             self.environments[environment.name] = environment
 
     def get_environment(self, name: Optional[str] = None) -> Environment:

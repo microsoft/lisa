@@ -11,7 +11,7 @@ from lisa.util import constants, env
 from lisa.util.connectionInfo import ConnectionInfo
 from lisa.util.exceptions import LisaException
 from lisa.util.executableResult import ExecutableResult
-from lisa.util.logger import log
+from lisa.util.logger import get_logger
 from lisa.util.perf_timer import create_timer
 from lisa.util.process import Process
 from lisa.util.shell import Shell
@@ -47,6 +47,7 @@ class Node:
 
         self._is_initialized: bool = False
         self._is_linux: bool = True
+        self._log = get_logger("node", self.identifier)
 
     @staticmethod
     def create(
@@ -62,7 +63,7 @@ class Node:
         else:
             raise LisaException(f"unsupported node_type '{node_type}'")
         node = Node(identifier, spec=spec, is_remote=is_remote, is_default=is_default)
-        log.debug(
+        node._log.debug(
             f"created node '{node_type}', isDefault: {is_default}, "
             f"isRemote: {is_remote}"
         )
@@ -125,8 +126,8 @@ class Node:
         tool = self._tools.get(tool_key)
         if tool is None:
             # the Tool is not installed on current node, try to install it.
-            tool_prefix = f"tool[{tool_key}]"
-            log.debug(f"{tool_prefix} is initializing")
+            tool_log = get_logger("tool", tool_key, self._log)
+            tool_log.debug("is initializing")
 
             if isinstance(tool_type, CustomScriptBuilder):
                 tool = tool_type.build(self)
@@ -136,23 +137,23 @@ class Node:
                 tool.initialize()
 
             if not tool.is_installed:
-                log.debug(f"{tool_prefix} is not installed")
+                tool_log.debug("not installed")
                 if tool.can_install:
-                    log.debug(f"{tool_prefix} installing")
+                    tool_log.debug("installing")
                     timer = create_timer()
                     is_success = tool.install()
-                    log.debug(f"{tool_prefix} installed in {timer}")
+                    tool_log.debug(f"installed in {timer}")
                     if not is_success:
-                        raise LisaException(f"{tool_prefix} install failed")
+                        raise LisaException("install failed")
                 else:
                     raise LisaException(
-                        f"{tool_prefix} doesn't support install on "
+                        "doesn't support install on "
                         f"Node({self.identifier}), "
                         f"Linux({self.is_linux}), "
                         f"Remote({self.is_remote})"
                     )
             else:
-                log.debug(f"{tool_prefix} is installed already")
+                tool_log.debug("installed already")
             self._tools[tool_key] = tool
         return cast(T, tool)
 
@@ -199,7 +200,7 @@ class Node:
         if not self._is_initialized:
             # prevent loop calls, set _isInitialized to True first
             self._is_initialized = True
-            log.debug(f"initializing node {self.name}")
+            self._log.debug(f"initializing node {self.name}")
             self.shell.initialize()
             uname = self.get_tool(Uname)
             (
@@ -211,14 +212,14 @@ class Node:
             if (not self.kernel_release) or ("Linux" not in self.operating_system):
                 self._is_linux = False
             if self._is_linux:
-                log.info(
+                self._log.info(
                     f"initialized Linux node '{self.name}', "
                     f"kernelRelease: {self.kernel_release}, "
                     f"kernelVersion: {self.kernel_version}"
                     f"hardwarePlatform: {self.hardware_platform}"
                 )
             else:
-                log.info(f"initialized Windows node '{self.name}', ")
+                self._log.info(f"initialized Windows node '{self.name}', ")
 
             # set working path
             if self.is_remote:
@@ -244,7 +245,7 @@ class Node:
                     self._working_path = pathlib.PureWindowsPath(result.stdout)
             else:
                 self._working_path = pathlib.Path(env.get_run_local_path())
-            log.debug(f"working path is: '{self._working_path}'")
+            self._log.debug(f"working path is: '{self._working_path}'")
             self.shell.mkdir(self._working_path, parents=True, exist_ok=True)
 
     def _execute(
@@ -255,8 +256,10 @@ class Node:
         no_info_log: bool = False,
         cwd: Optional[pathlib.PurePath] = None,
     ) -> Process:
-        cmd_prefix = f"cmd[{str(random.randint(0, 10000))}]"
-        process = Process(cmd_prefix, self.shell, self.is_linux)
+        cmd_id = str(random.randint(0, 10000))
+        process = Process(
+            cmd_id, self.shell, parent_logger=self._log, is_linux=self.is_linux
+        )
         process.start(
             cmd,
             shell=shell,

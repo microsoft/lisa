@@ -6,7 +6,7 @@ from typing import TYPE_CHECKING, Dict, List, Optional, cast
 from lisa.core.nodeFactory import NodeFactory
 from lisa.util import constants
 from lisa.util.exceptions import LisaException
-from lisa.util.logger import log
+from lisa.util.logger import get_logger
 
 if TYPE_CHECKING:
     from lisa.core.node import Node
@@ -16,19 +16,20 @@ if TYPE_CHECKING:
 class Environment(object):
     def __init__(self) -> None:
         self.nodes: List[Node] = []
-        self.name: Optional[str] = None
+        self.name: str = ""
         self.is_ready: bool = False
         self.platform: Optional[Platform] = None
         self.spec: Optional[Dict[str, object]] = None
 
         self._default_node: Optional[Node] = None
+        self._log = get_logger("env", self.name)
 
     @staticmethod
     def load(config: Dict[str, object]) -> Environment:
         environment = Environment()
         spec = copy.deepcopy(config)
 
-        environment.name = cast(Optional[str], spec.get(constants.NAME))
+        environment.name = cast(str, spec.get(constants.NAME, ""))
 
         has_default_node = False
         nodes_spec = []
@@ -80,7 +81,7 @@ class Environment(object):
         spec[constants.ENVIRONMENTS_NODES] = nodes_spec
 
         environment.spec = spec
-        log.debug(f"environment spec is {environment.spec}")
+        environment._log.debug(f"environment spec is {environment.spec}")
         return environment
 
     @property

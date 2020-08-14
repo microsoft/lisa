@@ -4,11 +4,12 @@ from pathlib import Path
 import yaml
 
 from lisa.parameter_parser.config import Config
-from lisa.util.logger import log
+from lisa.util.logger import get_logger
 
 
 def parse(args: Namespace) -> Config:
     path = Path(args.config).absolute()
+    log = get_logger("parser")
 
     log.info(f"load config from: {path}")
     if not path.exists():

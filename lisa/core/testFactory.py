@@ -4,7 +4,7 @@ from singleton_decorator import singleton  # type: ignore
 
 from lisa.core.testSuite import TestSuite
 from lisa.util.exceptions import LisaException
-from lisa.util.logger import log
+from lisa.util.logger import get_logger
 
 
 class TestCaseData:
@@ -65,6 +65,8 @@ class TestFactory:
         self.suites: Dict[str, TestSuiteData] = dict()
         self.cases: Dict[str, TestCaseData] = dict()
 
+        self._log = get_logger("init", "test")
+
     def add_class(
         self,
         test_class: Type[TestSuite],
@@ -90,7 +92,7 @@ class TestFactory:
         for test_case in self.cases.values():
             if test_case.full_name.startswith(class_prefix):
                 self._add_case_to_suite(test_suite, test_case)
-        log.info(
+        self._log.info(
             f"registered test suite '{test_suite.key}' "
             f"with test cases: '{', '.join([key for key in test_suite.cases])}'"
         )
@@ -113,7 +115,7 @@ class TestFactory:
         class_name = full_name.split(".")[0]
         test_suite = self.suites.get(class_name)
         if test_suite is not None:
-            log.debug(f"add case '{test_case.name}' to suite '{test_suite.name}'")
+            self._log.debug(f"add case '{test_case.name}' to suite '{test_suite.name}'")
             self._add_case_to_suite(test_suite, test_case)
 
     def _add_case_to_suite(
