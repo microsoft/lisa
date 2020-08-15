@@ -788,6 +788,10 @@ Class TestController
 					-ARMImageName $CurrentTestData.SetupConfig.ARMImageName -OsVHD $global:BaseOsVHD -BuildURL $env:BUILD_URL -TableName $dataTableName
 
 				Upload-TestResultToDatabase -SQLQuery $SQLQuery
+
+				if ($dataTableName -eq "LISAv2Results") {
+					Invoke-IngestKustoFromTSQL -SQLString $SQLQuery
+				}
 			}
 			catch {
 				$line = $_.InvocationInfo.ScriptLineNumber
