@@ -147,7 +147,7 @@ function Main {
     $resultArr = @()
 
     $ltpRoot = "/opt/ltp"
-    if ($TestParams["CUSTOM_LTP_ROOT"] -and $TestParams["CUSTOM_LTP_ROOT"] -ne "") {
+    if ($TestParams["CUSTOM_LTP_ROOT"]) {
         $ltpRoot = $TestParams["CUSTOM_LTP_ROOT"]
     }
 

@@ -31,13 +31,12 @@ LTP_OUTPUT="$HOMEDIR/ltp-output.log"
 LTP_LITE_TESTS="math,fsx,ipc,mm,sched,pty,fs"
 ltp_git_url="https://github.com/linux-test-project/ltp.git"
 
-# The LTPROOT is used by some tests, e.g, block_dev test
-export LTPROOT="/opt/ltp"
-
 if [[ ! -z "$CUSTOM_LTP_ROOT" ]]; then
 	TOP_BUILDDIR="$CUSTOM_LTP_ROOT"
-	export LTPROOT="$CUSTOM_LTP_ROOT"
 fi
+
+# The LTPROOT is used by some tests, e.g, block_dev test
+export LTPROOT=$TOP_BUILDDIR
 
 # Clear the old log
 rm -f $LTP_RESULTS $LTP_OUTPUT
@@ -136,7 +135,7 @@ if [[ $LTP_PACKAGE_URL == "" ]];then
     test -d "$TOP_BUILDDIR" || mkdir -p "$TOP_BUILDDIR"
     cd "$TOP_BUILDDIR" && "$TOP_SRCDIR/configure"
     cd "$TOP_SRCDIR"
-    ./configure --prefix=$LTPROOT 2>/dev/null
+    ./configure --prefix=$TOP_BUILDDIR 2>/dev/null
 
     LogMsg "Compiling LTP..."
     make -j $(nproc) all 2>/dev/null
