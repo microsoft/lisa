@@ -188,6 +188,10 @@ Class TestController
 				Get-LISAv2Tools -XMLSecretFile $XMLSecretFile
 				$this.UpdateXMLStringsFromSecretsFile()
 				$this.UpdateRegionAndStorageAccountsFromSecretsFile()
+				$kustoDataDLLPath = $this.XmlSecrets.secrets.KustoDataDLLPath
+				if ($kustoDataDllPath -and (Test-Path "$kustoDataDLLPath")) {
+					[System.Reflection.Assembly]::LoadFrom("$kustoDataDllPath") | Out-Null
+				}
 			} else {
 				Write-LogErr "The Secret file provided: '$XMLSecretFile' does not exist"
 			}
@@ -788,6 +792,9 @@ Class TestController
 					-ARMImageName $CurrentTestData.SetupConfig.ARMImageName -OsVHD $global:BaseOsVHD -BuildURL $env:BUILD_URL -TableName $dataTableName
 
 				Upload-TestResultToDatabase -SQLQuery $SQLQuery
+
+				# IngestKusto may throw exceptions or log error messages, in that case, manual configuration is needed from kusto cluster service for its table schemas mapping to exising SQL database
+				Invoke-IngestKustoFromTSQL -SQLString $SQLQuery
 			}
 			catch {
 				$line = $_.InvocationInfo.ScriptLineNumber
