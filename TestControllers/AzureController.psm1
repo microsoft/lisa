@@ -214,6 +214,7 @@ Class AzureController : TestController
 			}
 			elseif ( $this.StorageAccount -imatch "^ExistingStorage_Premium" ) {
 				$azureConfig.Subscription.ARMStorageAccount = $RegionAndStorageMap.AllRegions.$($this.TestLocation).PremiumStorage
+				$this.SyncEquivalentCustomParameters("StorageAccountType", "Premium_LRS")
 				Write-LogInfo "Selecting existing premium storage account in $($this.TestLocation) - $($azureConfig.Subscription.ARMStorageAccount)"
 			}
 			elseif ($this.StorageAccount -and ($this.StorageAccount -inotmatch "^Auto_Complete_RG=.+")) {
@@ -231,6 +232,12 @@ Class AzureController : TestController
 			else { # else means $this.StorageAccount is empty, or $this.StorageAccount is like 'Auto_Complete_RG=Xxx'
 				$azureConfig.Subscription.ARMStorageAccount = $RegionAndStorageMap.AllRegions.$($this.TestLocation).StandardStorage
 				Write-LogInfo "Auto selecting storage account : $($azureConfig.Subscription.ARMStorageAccount) as per your test region."
+			}
+
+			# Restore $this.OsVHD to full URI with target storage account and container info, when '-OsVHD' is just provided with file BaseName and '-TargeLocation' is a single region
+			if ($this.OsVHD -and $this.OsVHD -inotmatch "/") {
+				$this.OsVHD = 'http://{0}.blob.core.windows.net/vhds/{1}' -f $azureConfig.Subscription.ARMStorageAccount, $this.OsVHD
+				$this.SyncEquivalentCustomParameters("OsVHD", $this.OsVHD)
 			}
 		}
 		else {
@@ -316,6 +323,9 @@ Class AzureController : TestController
 			#   because HyperVGeneration property for Azure Gallery Image is only decided by the 'ARMImageName' (Publisher, Provider, SKU, Version),
 			#   and from ARM template constraint, there's no Generation property to be applied when deploying with Gallery image with (Publisher, Provider, SKU, Version)
 			Add-SetupConfig -AllTests $AllTests -ConfigName "VMGeneration" -ConfigValue $this.CustomParams["VMGeneration"] -DefaultConfigValue "1" -Force $this.ForceCustom
+		}
+		if ($this.CustomParams["StorageAccountType"]) {
+			Add-SetupConfig -AllTests $AllTests -ConfigName "StorageAccountType" -ConfigValue $this.CustomParams["StorageAccountType"] -Force $this.ForceCustom
 		}
 
 		foreach ($test in $AllTests) {
