@@ -3,12 +3,11 @@ import pathlib
 import shlex
 import time
 from dataclasses import dataclass
-from logging import Logger
 from typing import TYPE_CHECKING, Dict, Optional, Type
 
 from spur.errors import NoSuchCommandError  # type: ignore
 
-from lisa.util.logger import get_logger
+from lisa.util.logger import Logger, get_logger
 from lisa.util.perf_timer import create_timer
 from lisa.util.shell import Shell
 
