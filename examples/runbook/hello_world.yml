@@ -1,4 +1,4 @@
-name: local try
+name: hello world
 extension:
   paths:
     - "../testsuites"

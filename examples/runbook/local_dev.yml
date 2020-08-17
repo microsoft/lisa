@@ -24,7 +24,7 @@ testcase:
       # tag is a simple way to include test cases within same topic.
       tag: vf
     # force to select. If any reason test cases are dropped, fail the run.
-    forceInclude: true
+    selectAction: forceInclude
     name: network
   - name: settings
     criteria:
@@ -41,7 +41,7 @@ testcase:
       name: "excluded test cases"
     # use to exclude some test cases
     # default is true
-    include: false
+    selectAction: exclude
   - name: unstable test cases
     criteria:
       name: "we don't have unstable case"

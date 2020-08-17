@@ -4,6 +4,7 @@ from typing import Dict, List, Optional, cast
 
 import yaml
 
+from lisa.schema import validate_config
 from lisa.util import constants
 from lisa.util.logger import get_logger
 
@@ -55,6 +56,9 @@ def parse_to_config(args: Namespace) -> Config:
 
     with open(path, "r") as file:
         data = yaml.safe_load(file)
+
+    # load schema
+    validate_config(data)
 
     log.debug(f"final config data: {data}")
     base_path = path.parent
