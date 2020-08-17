@@ -1,13 +1,35 @@
 import logging
 import os
 import time
-from typing import Optional
+from typing import Dict, List, Optional, Union, cast
 
 # to prevent circular import, hard code it here.
 ENV_KEY_RUN_LOCAL_PATH = "LISA_RUN_LOCAL_PATH"
 DEFAULT_LOG_NAME = "LISA"
 
-_root_logger: Optional[logging.Logger] = None
+
+class Logger(logging.Logger):
+    def lines(
+        self,
+        level: int,
+        content: Union[str, List[str], Dict[str, str]],
+        prefix: str = "",
+    ) -> None:
+        if isinstance(content, str):
+            content = content.splitlines(False)
+        elif isinstance(content, dict):
+            temp_content: List[str] = []
+            for key in content:
+                temp_content.append(f"{key}: {content[key]}")
+            content = temp_content
+        for line in content:
+            if prefix:
+                self.log(level, f"{prefix}{line}")
+            else:
+                self.log(level, line)
+
+
+_root_logger: Optional[Logger] = None
 
 
 def init_loggger() -> None:
@@ -22,8 +44,9 @@ def init_loggger() -> None:
         ],
     )
     logging.Formatter.converter = time.gmtime
+    logging.setLoggerClass(Logger)
     global _root_logger
-    _root_logger = logging.getLogger(DEFAULT_LOG_NAME)
+    _root_logger = cast(Logger, logging.getLogger(DEFAULT_LOG_NAME))
 
 
 def set_level(level: int) -> None:
@@ -32,8 +55,8 @@ def set_level(level: int) -> None:
 
 
 def get_logger(
-    name: str = "", id_: str = "", parent: Optional[logging.Logger] = None
-) -> logging.Logger:
+    name: str = "", id_: str = "", parent: Optional[Logger] = None
+) -> Logger:
     if not name:
         name = ""
     if id_:
@@ -49,15 +72,6 @@ def get_logger(
             if not parent_name.endswith("]"):
                 parent_name = f"{parent_name}."
             name = f"{parent_name}{name}"
-        logger = _root_logger.getChild(name)
-    logger.__setattr__("lines", _lines)
+        logger = cast(Logger, _root_logger.getChild(name))
 
     return logger
-
-
-def _lines(logger: logging.Logger, level: int, content: str, prefix: str = "") -> None:
-    for line in content.splitlines(False):
-        if prefix:
-            logger.log(level, f"{prefix}{line}")
-        else:
-            logger.log(level, line)
