@@ -1,0 +1,303 @@
+# run name prefix to help grouping results and put it in title.
+name:
+  type: string
+# share configurations for similar runs.
+parent:
+  type: list
+  schema:
+    type: dict
+    schema:
+      path:
+        type: string
+        required: true
+      # for simple merge, this part is optional.
+      # operations include:
+      # overwrite: default behavior. add non-exist items and replace exist.
+      # remove: remove specified path totally
+      # add: add non-exist, not replace exist.
+      strategy:
+        type: list
+        schema:
+          type: dict
+          schema:
+            path:
+              type: string
+            operation:
+              type: string
+              allowed:
+                - overwrite
+                - add
+                - remove
+# add extended classes can be put in folders and include here. it doesn't matter how
+# those files are organized, lisa loads by their inherits relationship. if there is any
+# conflict on type name, there should be an error message.
+extension:
+  type: dict
+  schema:
+    paths:
+      type: list
+      schema:
+        type: string
+# it uses to support variables in other fields.
+# duplicate items will be overwritten one by one.
+# if a variable is not defined here, LISA can fail earlier to ask check it.
+# file path is relative to LISA command starts.
+variable:
+  type: list
+  schema:
+    type: dict
+    schema:
+      # If it's secret, it will be removed from log and other output information.
+      # secret files also need to be removed after test
+      # it's not recommended highly to put secret in configurations directly.
+      isSecret:
+        type: boolean
+      file:
+        type: string
+        excludes:
+          - name
+          - value
+        # continue to support v2 format. it's simple.
+        regex: "[\\w\\W]*[.](xml|yml|yaml)$"
+      # redefine parameters in file to reuse configurations
+      name:
+        type: string
+        excludes: file
+      value:
+        type: string
+        excludes: file
+# supports multiple artifacts in future.
+artifact:
+  type: list
+  schema:
+    type: dict
+    schema:
+      # name is optional. artifacts can be referred by name or index.
+      name:
+        type: string
+      type:
+        type: string
+        required: true
+        allowed:
+          - vhd
+      locations:
+        type: list
+        required: true
+        schema:
+          type: dict
+          schema:
+            type:
+              type: string
+              allowed:
+                - http
+            path:
+              type: string
+environment:
+  type: dict
+  schema:
+    maxConcurrency:
+      type: number
+      min: 1
+      required: false
+    warnAsError:
+      type: boolean
+    environments:
+      type: list
+      schema:
+        type: dict
+        schema:
+          name:
+            type: string
+          # the environment spec may not be fully supported by each platform.
+          # If so, there is a warning message.
+          # Environment spec can be forced to apply, as error is loud.
+          topology:
+            type: string
+            allowed:
+              - subnet
+          # template and nodes conflicts, they should have only one.
+          #  it uses to prevent duplicate content for big amount nodes.
+          template:
+            type: dict
+            excludes: nodes
+            schema:
+              nodeCount:
+                type: integer
+                min: 1
+              # optional, if there is only one artifact.
+              artifact:
+                type: string
+              vcpu:
+                type: integer
+                min: 1
+              memoryGB:
+                type: integer
+                min: 1
+              gpuCount:
+                type: integer
+                min: 0
+          nodes:
+            type: list
+            excludes: template
+            schema:
+              type: dict
+              oneof_schema:
+                # local and remote are node type, and don't need platform to handle
+                - type:
+                    type: string
+                    allowed:
+                      - local
+                  name:
+                    type: string
+                  # If test suite doesn't specify where to run a case,
+                  #  it should be run on default node.
+                  isDefault:
+                    type: boolean
+                - type:
+                    type: string
+                    allowed:
+                      - remote
+                  name:
+                    type: string
+                  isDefault:
+                    type: boolean
+                  address:
+                    type: string
+                    dependencies:
+                      type: remote
+                  port:
+                    type: integer
+                    min: 1
+                    max: 65535
+                  publicAddress:
+                    type: string
+                  publicPort:
+                    type: integer
+                    min: 1
+                    max: 65535
+                  username:
+                    type: string
+                  password:
+                    type: string
+                  privateKeyFile:
+                    type: string
+                - type:
+                    type: string
+                    allowed:
+                      - spec
+                  name:
+                    type: string
+                  isDefault:
+                    type: boolean
+                  artifact:
+                    type: string
+                  vcpu:
+                    type: integer
+                    min: 1
+                  memoryGB:
+                    type: integer
+                    min: 1
+                  gpuCount:
+                    type: integer
+                    min: 0
+# it sends test progress and results to any place wanted.
+notifier:
+  type: list
+  schema:
+    type: dict
+    schema:
+      # detail types are defined in notifier itself, allowed items are handled in code.
+      type:
+        type: string
+        allowed:
+          - junit
+          - html
+          - database
+    # TODO: temp allow unknown
+    allow_unknown: true
+# it's examples for all platforms, but currently should leave single one only.
+platform:
+  type: list
+  schema:
+    type: dict
+    schema:
+      type:
+        type: string
+        allowed:
+          # It uses to pure existing environment.
+          #  run test cases on existing machine.
+          - ready
+          - azure
+# rules apply ordered on previous selection.
+# The order of test cases running is not guaranteed, until it set dependencies.
+testcase:
+  type: list
+  schema:
+    type: dict
+    schema:
+      type:
+        type: string
+      # all rules in same criteria are AND condition.
+      # we may support richer conditions later.
+      # match case by name pattern
+      criteria:
+        type: dict
+        schema:
+          name:
+            type: string
+          area:
+            type: string
+          category:
+            type: string
+          priority:
+            type: integer
+            min: 0
+            max: 3
+          # tag is a simple way to include test cases within same topic.
+          tag:
+            oneof:
+              - type: list
+                schema:
+                  type: string
+              - type: string
+      # specify use this rule to select or drop test cases. if it's forced include or
+      # exclude, it won't be effect by following select actions. And it fails if
+      # there are force rules conflict.
+      selectAction:
+        type: string
+        allowed:
+          # none means this action part doesn't include or exclude cases
+          - none
+          - include
+          - exclude
+          - forceInclude
+          - forceExclude
+      # if it's false, the test cases are disable in current run.
+      # it uses to control test cases dynamic form command line.
+      enable:
+        type: boolean
+      name:
+        type: string
+      # True means if previous cases failed, skip those cases
+      ignorePreviousFailure:
+        type: boolean
+      # run this group of test cases several times
+      # default is 1
+      iteration:
+        type: integer
+        min: 1
+      # retry times. default is 0, means not retry.
+      retry:
+        type: integer
+        min: 0
+      # each case with this rule will be run in a new environment.
+      useNewEnvironment:
+        type: boolean
+      # Once it's set, failed test result will be rewrite to success
+      # it uses to work around some cases temporarily, don't overuse it.
+      # default is false
+      ignoreFailure:
+        type: boolean
+      # case can run on a specified environment
+      environment:
+        type: string

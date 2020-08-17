@@ -7,13 +7,13 @@ environment:
     - nodes:
         - type: remote
           port: 22
-          Address: <ip or fqdn>
+          address: <ip or fqdn>
           username: <username>
           password: <your password or privateKeyFile>
           privateKeyFile: <your password or privateKeyFile>
         - type: remote
           port: 22
-          Address: <ip or fqdn>
+          address: <ip or fqdn>
           username: <username>
           password: <your password or privateKeyFile>
           privateKeyFile: <your password or privateKeyFile>
