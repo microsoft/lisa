@@ -1,6 +1,6 @@
 import logging
-import os
 import time
+from functools import partial
 from typing import Dict, List, Optional, Union, cast
 
 # to prevent circular import, hard code it here.
@@ -29,29 +29,34 @@ class Logger(logging.Logger):
                 self.log(level, line)
 
 
-_root_logger: Optional[Logger] = None
+_get_root_logger = partial(logging.getLogger, DEFAULT_LOG_NAME)
+
+_format = "%(asctime)s.%(msecs)03d[%(levelname)-.1s]%(name)s %(message)s"
+_datefmt = "%m%d %H:%M:%S"
 
 
 def init_loggger() -> None:
-    format = "%(asctime)s.%(msecs)03d[%(levelname)-.1s]%(name)s %(message)s"
     logging.basicConfig(
         level=logging.INFO,
-        format=format,
-        datefmt="%m%d %H:%M:%S",
-        handlers=[
-            logging.FileHandler(f"{os.getenv(ENV_KEY_RUN_LOCAL_PATH)}/lisa-host.log"),
-            logging.StreamHandler(),
-        ],
+        format=_format,
+        datefmt=_datefmt,
+        handlers=[logging.StreamHandler()],
     )
     logging.Formatter.converter = time.gmtime
     logging.setLoggerClass(Logger)
-    global _root_logger
-    _root_logger = cast(Logger, logging.getLogger(DEFAULT_LOG_NAME))
+
+
+def set_log_file(path: str) -> None:
+    root_logger = _get_root_logger()
+    file_handler = logging.FileHandler(path)
+    file_handler.setLevel(root_logger.level)
+    file_handler.setFormatter(logging.Formatter(fmt=_format, datefmt=_datefmt))
+    root_logger.addHandler(file_handler)
 
 
 def set_level(level: int) -> None:
-    assert _root_logger
-    _root_logger.setLevel(level)
+    root_logger = _get_root_logger()
+    root_logger.setLevel(level)
 
 
 def get_logger(
@@ -61,9 +66,9 @@ def get_logger(
         name = ""
     if id_:
         name = f"{name}[{id_}]"
-    assert _root_logger
+    root_logger = cast(Logger, _get_root_logger())
     if not name:
-        logger = _root_logger
+        logger = root_logger
     else:
         if parent:
             parent_name = parent.name
@@ -72,6 +77,5 @@ def get_logger(
             if not parent_name.endswith("]"):
                 parent_name = f"{parent_name}."
             name = f"{parent_name}{name}"
-        logger = cast(Logger, _root_logger.getChild(name))
-
+        logger = cast(Logger, root_logger.getChild(name))
     return logger

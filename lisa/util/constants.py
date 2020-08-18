@@ -1,6 +1,7 @@
 # config types
 CONFIG_CONFIG = "config"
 CONFIG_PLATFORM = "platform"
+CONFIG_TEST_CASES = "testcases"
 
 # path related
 PATH_REMOTE_ROOT = "lisa_working"
@@ -23,7 +24,7 @@ FILE = "file"
 HTTP = "http"
 IS_DEFAULT = "isDefault"
 WARN_AS_ERROR = "warnAsError"
-
+ENABLE = "enable"
 
 # by level
 PARENT = "parent"
@@ -43,7 +44,7 @@ ARTIFACT_LOCATIONS = "locations"
 ARTIFACT_LOCATIONS_TYPE_HTTP = "http"
 
 ENVIRONMENT = "environment"
-ENVIRONMENT_MAX_CONCURRENDCY = "maxConcurrency"
+ENVIRONMENT_MAX_CONCURRENCY = "maxConcurrency"
 ENVIRONMENTS = "environments"
 ENVIRONMENTS_TOPOLOGY = "topology"
 ENVIRONMENTS_TEMPLATE = "template"
@@ -66,14 +67,22 @@ PLATFORM = "platform"
 PLATFORM_AZURE = "azure"
 PLATFORM_READY = "ready"
 
+# test case fields
 TESTCASE = "testcase"
 TESTCASE_CRITERIA = "criteria"
 TESTCASE_CRITERIA_AREA = "area"
 TESTCASE_CRITERIA_CATEGORY = "category"
 TESTCASE_CRITERIA_PRIORITY = "priority"
 TESTCASE_CRITERIA_TAG = "tag"
-TESTCASE_FORCEINCLUDE = "forceInclude"
-TESTCASE_ITERATION = "iteration"
-TESTCASE_IGNOREFAILURE = "ignoreFailure"
-TESTCASE_INCLUDE = "include"
+
+TESTCASE_SELECT_ACTION = "selectAction"
+TESTCASE_SELECT_ACTION_NONE = "none"
+TESTCASE_SELECT_ACTION_INCLUDE = "include"
+TESTCASE_SELECT_ACTION_EXCLUDE = "exclude"
+TESTCASE_SELECT_ACTION_FORCE_INCLUDE = "forceInclude"
+TESTCASE_SELECT_ACTION_FORCE_EXCLUDE = "forceExclude"
+
+TESTCASE_TIMES = "times"
 TESTCASE_RETRY = "retry"
+TESTCASE_USE_NEW_ENVIRONMENT = "useNewEnvironment"
+TESTCASE_IGNORE_FAILURE = "ignoreFailure"

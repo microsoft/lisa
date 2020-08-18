@@ -7,7 +7,7 @@ from retry import retry  # type: ignore
 
 from lisa.parameter_parser.argparser import parse_args
 from lisa.util import env
-from lisa.util.logger import get_logger, init_loggger, set_level
+from lisa.util.logger import get_logger, set_level, set_log_file
 
 
 @retry(FileExistsError, tries=10, delay=0)  # type: ignore
@@ -32,13 +32,13 @@ def main() -> None:
 
     args = parse_args()
 
-    init_loggger()
+    set_log_file(f"{local_path}/lisa-host.log")
 
-    _log = get_logger()
-    _log.info(f"Python version: {sys.version}")
-    _log.info(f"local time: {datetime.now().astimezone()}")
-    _log.info(f"command line args: {sys.argv}")
-    _log.info(f"run local path: {env.get_run_local_path()}")
+    log = get_logger()
+    log.info(f"Python version: {sys.version}")
+    log.info(f"local time: {datetime.now().astimezone()}")
+    log.info(f"command line args: {sys.argv}")
+    log.info(f"run local path: {env.get_run_local_path()}")
 
     if args.debug:
         log_level = DEBUG

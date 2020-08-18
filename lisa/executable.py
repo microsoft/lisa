@@ -141,10 +141,9 @@ class Tool(ABC):
         # check dependencies
         for dependency in self.dependencies:
             self.node.get_tool(dependency)
-        result = self._install_internal()
-        return result
+        return self._install_internal()
 
-    def runasync(
+    def run_async(
         self,
         parameters: str = "",
         shell: bool = False,
@@ -160,10 +159,9 @@ class Tool(ABC):
             command = f"{self.command} {parameters}"
         else:
             command = self.command
-        process = self.node.executeasync(
+        return self.node.execute_async(
             command, shell, no_error_log=no_error_log, cwd=cwd, no_info_log=no_info_log,
         )
-        return process
 
     def run(
         self,
@@ -176,7 +174,7 @@ class Tool(ABC):
         """
         Run a process and wait for result.
         """
-        process = self.runasync(
+        process = self.run_async(
             parameters=parameters,
             shell=shell,
             no_error_log=no_error_log,
@@ -225,7 +223,7 @@ class CustomScript(Tool):
         else:
             self._dependencies = []
 
-    def runasync(
+    def run_async(
         self,
         parameters: str = "",
         shell: bool = False,
@@ -240,7 +238,7 @@ class CustomScript(Tool):
         else:
             command = self.command
 
-        return self.node.executeasync(
+        return self.node.execute_async(
             cmd=command,
             shell=shell,
             no_error_log=no_error_log,
@@ -256,7 +254,7 @@ class CustomScript(Tool):
         no_info_log: bool = False,
         cwd: Optional[pathlib.PurePath] = None,
     ) -> ExecutableResult:
-        process = self.runasync(
+        process = self.run_async(
             parameters=parameters,
             shell=shell,
             no_error_log=no_error_log,
@@ -379,5 +377,4 @@ class LightTool:
 
     def __getattr__(self, key: str) -> Tool:
         key = key.lower()
-        tool: Tool = cast(Tool, self._node.get_tool(key))
-        return tool
+        return cast(Tool, self._node.get_tool(key))

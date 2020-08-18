@@ -42,6 +42,9 @@ jobs:
       - name: Run LISAv3 hello-world
         run: poetry run python lisa/main.py --debug
 
+      - name: Run unittest
+        run: poetry run python -m unittest discover lisa
+
       - name: Run black/flake8/isort
         run: poetry run flake8
 

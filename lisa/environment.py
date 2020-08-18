@@ -152,7 +152,7 @@ def load_environments(config: Dict[str, object]) -> None:
     if not config:
         raise LisaException("environment section must be set in config")
     global max_concurrency
-    max_concurrency = cast(int, config.get(constants.ENVIRONMENT_MAX_CONCURRENDCY, 1))
+    max_concurrency = cast(int, config.get(constants.ENVIRONMENT_MAX_CONCURRENCY, 1))
     environments_config = cast(
         List[Dict[str, object]], config.get(constants.ENVIRONMENTS)
     )

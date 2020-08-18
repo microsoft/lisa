@@ -1,12 +1,14 @@
 import logging
 from pathlib import Path
-from typing import Any, Dict, cast
+from typing import Any, Dict, Optional, cast
 
 import yaml
 from cerberus import Validator  # type: ignore
 
 from lisa.util.exceptions import LisaException
 from lisa.util.logger import get_logger
+
+_schema: Optional[Dict[str, object]] = None
 
 
 def validate_config(data: Any) -> None:
@@ -19,7 +21,9 @@ def validate_config(data: Any) -> None:
 
 
 def _load_schema() -> Dict[str, object]:
-    schema_path = Path(__file__).parent.joinpath("schema.yml")
-    with open(schema_path, "r") as f:
-        schema = cast(Dict[str, object], yaml.safe_load(f))
-    return schema
+    global _schema
+    if not _schema:
+        schema_path = Path(__file__).parent.joinpath("schema.yml")
+        with open(schema_path, "r") as f:
+            _schema = cast(Dict[str, object], yaml.safe_load(f))
+    return _schema

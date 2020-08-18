@@ -64,5 +64,4 @@ def parse_args() -> Namespace:
     for sub_parser in subparsers.choices.values():
         support_debug(sub_parser)
 
-    args = parser.parse_args()
-    return args
+    return parser.parse_args()
