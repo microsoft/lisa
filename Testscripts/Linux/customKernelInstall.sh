@@ -432,10 +432,11 @@ function InstallKernel() {
         fi
     fi
     if [[ ${CustomKernel} == "linuxnext" ]] || [[ ${CustomKernel} == "netnext" ]] || \
-        [[ ${CustomKernel} == "upstream-stable" ]] || [[ ${CustomKernel} == *.tar.gz ]]; then
+        [[ ${CustomKernel} == "upstream-stable" ]] || [[ ${CustomKernel} == *.tar.gz ]] || \
+        [[ $CustomKernel = *.tar ]]; then
         LogMsg "Custom Kernel:$CustomKernel"
         Install_Build_Deps
-        if [[ ${CustomKernel} == *.tar.gz ]]; then
+        if [[ $CustomKernel = *tar.gz || $CustomKernel = *.tar ]]; then
             sourceDir=$tarDestination
         else
             sourceDir=$(Get_Upstream_Source "." "$kernelSource")
