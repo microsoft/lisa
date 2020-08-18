@@ -4,7 +4,7 @@ import unittest
 from abc import ABCMeta
 from dataclasses import dataclass
 from enum import Enum
-from typing import TYPE_CHECKING, Callable, Dict, List, Optional, Type
+from typing import TYPE_CHECKING, Any, Callable, Dict, List, Type
 
 from lisa.action import Action, ActionStatus
 from lisa.util.exceptions import LisaException
@@ -17,8 +17,8 @@ if TYPE_CHECKING:
 
 TestStatus = Enum("TestStatus", ["NOTRUN", "RUNNING", "FAILED", "PASSED", "SKIPPED"])
 
-_suites: Dict[str, TestSuiteData] = dict()
-_cases: Dict[str, TestCaseData] = dict()
+_suites: Dict[str, TestSuiteMetadata] = dict()
+_cases: Dict[str, TestCaseMetadata] = dict()
 
 
 @dataclass
@@ -36,29 +36,30 @@ class TestSuiteMetadata:
         category: str,
         description: str,
         tags: List[str],
-        name: Optional[str] = None,
+        name: str = "",
     ) -> None:
-        self._area = area
-        self._category = category
-        self._tags = tags
-        self._description = description
-        self._name = name
+        self.name = name
+        self.cases: List[TestCaseMetadata] = []
+
+        self.area = area
+        self.category = category
+        if tags:
+            self.tags = tags
+        else:
+            self.tags = []
+        self.description = description
 
     def __call__(self, test_class: Type[TestSuite]) -> Callable[..., object]:
-        _add_test_class(
-            test_class,
-            self._area,
-            self._category,
-            self._description,
-            self._tags,
-            self._name,
-        )
+        self.test_class = test_class
+        if not self.name:
+            self.name = test_class.__name__
+        _add_suite_metadata(self)
 
         def wrapper(
             test_class: Type[TestSuite],
             environment: Environment,
             cases: List[TestResult],
-            metadata: TestSuiteData,
+            metadata: TestSuiteMetadata,
         ) -> TestSuite:
             return test_class(environment, cases, metadata)
 
@@ -66,69 +67,47 @@ class TestSuiteMetadata:
 
 
 class TestCaseMetadata:
-    def __init__(self, description: str, priority: Optional[int]) -> None:
-        self._priority = priority
-        self._description = description
+    def __init__(self, description: str, priority: int = 2) -> None:
+        self.priority = priority
+        self.description = description
+
+    def __getattr__(self, key: str) -> Any:
+        # inherit any attributes of metadata
+        assert self.suite, "suite is not set before use metadata"
+        return getattr(self.suite, key)
 
     def __call__(self, func: Callable[..., None]) -> Callable[..., None]:
-        _add_test_method(func, self._description, self._priority)
+        self.name = func.__name__
+        self.full_name = func.__qualname__
+
+        self._func = func
+        _add_case_metadata(self)
 
         def wrapper(*args: object) -> None:
             func(*args)
 
         return wrapper
 
+    def set_suite(self, suite: TestSuiteMetadata) -> None:
+        self.suite: TestSuiteMetadata = suite
+
 
 class TestCaseData:
-    def __init__(
-        self,
-        method: Callable[[], None],
-        description: str,
-        priority: Optional[int] = 2,
-        name: str = "",
-    ):
-        if name is not None and name != "":
-            self.name = name
-        else:
-            self.name = method.__name__
-        self.full_name = method.__qualname__.lower()
-        self.method = method
-        self.description = description
-        self.priority = priority
-        self.suite: TestSuiteData
+    def __init__(self, metadata: TestCaseMetadata):
+        self.metadata = metadata
 
-        self.key: str = self.name.lower()
+        # all runtime setting fields
+        self.select_action: str = ""
+        self.times: int = 1
+        self.retry: int = 0
+        self.use_new_environmnet: bool = False
+        self.ignore_failure: bool = False
+        self.environment_name: str = ""
 
-
-class TestSuiteData:
-    def __init__(
-        self,
-        test_class: Type[TestSuite],
-        area: Optional[str],
-        category: Optional[str],
-        description: str,
-        tags: List[str],
-        name: str = "",
-    ):
-        self.test_class = test_class
-        if name is not None and name != "":
-            self.name: str = name
-        else:
-            self.name = test_class.__name__
-        self.key = self.name.lower()
-        self.area = area
-        self.category = category
-        self.description = description
-        self.tags = tags
-        self.cases: Dict[str, TestCaseData] = dict()
-
-    def add_case(self, test_case: TestCaseData) -> None:
-        if self.cases.get(test_case.key) is None:
-            self.cases[test_case.key] = test_case
-        else:
-            raise LisaException(
-                f"TestSuiteData has test method {test_case.key} already"
-            )
+    def __getattr__(self, key: str) -> Any:
+        # inherit any attributes of metadata
+        assert self.metadata
+        return getattr(self.metadata, key)
 
 
 class TestSuite(Action, unittest.TestCase, metaclass=ABCMeta):
@@ -136,14 +115,14 @@ class TestSuite(Action, unittest.TestCase, metaclass=ABCMeta):
         self,
         environment: Environment,
         case_results: List[TestResult],
-        testsuite_data: TestSuiteData,
+        metadata: TestSuiteMetadata,
     ) -> None:
         self.environment = environment
         # test cases to run, must be a test method in this class.
         self.case_results = case_results
-        self.testsuite_data = testsuite_data
+        self._metadata = metadata
         self._should_stop = False
-        self._log = get_logger("suite", testsuite_data.name)
+        self._log = get_logger("suite", metadata.name)
 
     @property
     def skiprun(self) -> bool:
@@ -181,7 +160,7 @@ class TestSuite(Action, unittest.TestCase, metaclass=ABCMeta):
         for case_result in self.case_results:
             case_name = case_result.case.name
             test_method = getattr(self, case_name)
-            self._log = get_logger("case", f"{self.testsuite_data.name}.{case_name}")
+            self._log = get_logger("case", f"{case_result.case.full_name}")
 
             self._log.info("started")
             is_continue: bool = True
@@ -240,53 +219,41 @@ class TestSuite(Action, unittest.TestCase, metaclass=ABCMeta):
         pass
 
 
-def get_suites() -> Dict[str, TestSuiteData]:
+def get_suites_metadata() -> Dict[str, TestSuiteMetadata]:
     return _suites
 
 
-def get_cases() -> Dict[str, TestCaseData]:
+def get_cases_metadata() -> Dict[str, TestCaseMetadata]:
     return _cases
 
 
-def _add_test_class(
-    test_class: Type[TestSuite],
-    area: Optional[str],
-    category: Optional[str],
-    description: str,
-    tags: List[str],
-    name: Optional[str],
-) -> None:
-    if name is not None:
-        name = name
+def _add_suite_metadata(metadata: TestSuiteMetadata) -> None:
+    if metadata.name:
+        key = metadata.name
     else:
-        name = test_class.__name__
-    key = name.lower()
-    test_suite = _suites.get(key)
-    if test_suite is None:
-        test_suite = TestSuiteData(test_class, area, category, description, tags)
-        _suites[key] = test_suite
+        key = metadata.test_class.__name__
+    exist_metadata = _suites.get(key)
+    if exist_metadata is None:
+        _suites[key] = metadata
     else:
         raise LisaException(f"duplicate test class name: {key}")
 
     class_prefix = f"{key}."
     for test_case in _cases.values():
         if test_case.full_name.startswith(class_prefix):
-            _add_case_to_suite(test_suite, test_case)
+            _add_case_to_suite(metadata, test_case)
     log = get_logger("init", "test")
     log.info(
-        f"registered test suite '{test_suite.key}' "
-        f"with test cases: '{', '.join([key for key in test_suite.cases])}'"
+        f"registered test suite '{key}' "
+        f"with test cases: '{', '.join([case.name for case in metadata.cases])}'"
     )
 
 
-def _add_test_method(
-    test_method: Callable[[], None], description: str, priority: Optional[int]
-) -> None:
-    test_case = TestCaseData(test_method, description, priority)
-    full_name = test_case.full_name
+def _add_case_metadata(metadata: TestCaseMetadata) -> None:
 
+    full_name = metadata.full_name
     if _cases.get(full_name) is None:
-        _cases[full_name] = test_case
+        _cases[full_name] = metadata
     else:
         raise LisaException(f"duplicate test class name: {full_name}")
 
@@ -296,12 +263,14 @@ def _add_test_method(
     #   to make two collection consistent.
     class_name = full_name.split(".")[0]
     test_suite = _suites.get(class_name)
-    if test_suite is not None:
+    if test_suite:
         log = get_logger("init", "test")
-        log.debug(f"add case '{test_case.name}' to suite '{test_suite.name}'")
-        _add_case_to_suite(test_suite, test_case)
+        log.debug(f"add case '{metadata.name}' to suite '{test_suite.name}'")
+        _add_case_to_suite(test_suite, metadata)
 
 
-def _add_case_to_suite(test_suite: TestSuiteData, test_case: TestCaseData) -> None:
-    test_suite.add_case(test_case)
+def _add_case_to_suite(
+    test_suite: TestSuiteMetadata, test_case: TestCaseMetadata
+) -> None:
     test_case.suite = test_suite
+    test_suite.cases.append(test_case)

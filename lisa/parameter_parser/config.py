@@ -63,5 +63,4 @@ def parse_to_config(args: Namespace) -> Config:
     log.debug(f"final config data: {data}")
     base_path = path.parent
     log.debug(f"base path is {base_path}")
-    config = Config(base_path, data)
-    return config
+    return Config(base_path, data)

@@ -235,8 +235,6 @@ testcase:
   schema:
     type: dict
     schema:
-      type:
-        type: string
       # all rules in same criteria are AND condition.
       # we may support richer conditions later.
       # match case by name pattern
@@ -250,9 +248,13 @@ testcase:
           category:
             type: string
           priority:
-            type: integer
-            min: 0
-            max: 3
+            oneof:
+              - type: integer
+                min: 0
+                max: 3
+              - type: list
+                schema:
+                  type: integer
           # tag is a simple way to include test cases within same topic.
           tag:
             oneof:
@@ -278,15 +280,12 @@ testcase:
         type: boolean
       name:
         type: string
-      # True means if previous cases failed, skip those cases
-      ignorePreviousFailure:
-        type: boolean
       # run this group of test cases several times
       # default is 1
-      iteration:
+      times:
         type: integer
         min: 1
-      # retry times. default is 0, means not retry.
+      # retry times if fails. Default is 0, not to retry.
       retry:
         type: integer
         min: 0
@@ -298,6 +297,6 @@ testcase:
       # default is false
       ignoreFailure:
         type: boolean
-      # case can run on a specified environment
+      # case should run on a specified environment
       environment:
         type: string

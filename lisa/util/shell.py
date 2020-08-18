@@ -101,8 +101,7 @@ class SshShell:
     def exists(self, path: PurePath) -> bool:
         assert self._inner_shell
         path_str = self._purepath_to_str(path)
-        exists: bool = self._inner_shell.exists(path_str)
-        return exists
+        return cast(bool, self._inner_shell.exists(path_str))
 
     def remove(self, path: PurePath, recursive: bool = False) -> None:
         assert self._inner_shell
@@ -131,14 +130,12 @@ class SshShell:
     def is_dir(self, path: PurePath) -> bool:
         assert self._inner_shell
         path_str = self._purepath_to_str(path)
-        result: bool = self._inner_shell.is_dir(path_str)
-        return result
+        return cast(bool, self._inner_shell.is_dir(path_str))
 
     def is_symlink(self, path: PurePath) -> bool:
         assert self._inner_shell
         path_str = self._purepath_to_str(path)
-        result: bool = self._inner_shell.is_symlink(path_str)
-        return result
+        return cast(bool, self._inner_shell.is_symlink(path_str))
 
     def symlink(self, source: PurePath, destination: PurePath) -> None:
         assert self._inner_shell
@@ -216,8 +213,7 @@ class LocalShell:
 
     def exists(self, path: PurePath) -> bool:
         assert isinstance(path, Path)
-        exists = path.exists()
-        return exists
+        return path.exists()
 
     def remove(self, path: PurePath, recursive: bool = False) -> None:
         assert isinstance(path, Path)
@@ -229,8 +225,7 @@ class LocalShell:
 
     def stat(self, path: PurePath) -> os.stat_result:
         assert isinstance(path, Path)
-        result = path.stat()
-        return result
+        return path.stat()
 
     def is_dir(self, path: PurePath) -> bool:
         assert isinstance(path, Path)

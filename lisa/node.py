@@ -170,7 +170,7 @@ class Node:
         no_info_log: bool = False,
         cwd: Optional[pathlib.PurePath] = None,
     ) -> ExecutableResult:
-        process = self.executeasync(
+        process = self.execute_async(
             cmd,
             shell=shell,
             no_error_log=no_error_log,
@@ -179,7 +179,7 @@ class Node:
         )
         return process.wait_result()
 
-    def executeasync(
+    def execute_async(
         self,
         cmd: str,
         shell: bool = False,
@@ -311,5 +311,4 @@ def from_spec(
     spec: Dict[str, object], node_type: str = constants.ENVIRONMENTS_NODES_REMOTE
 ) -> Node:
     is_default = cast(bool, spec.get(constants.IS_DEFAULT, False))
-    node = Node.create("spec", spec=spec, node_type=node_type, is_default=is_default)
-    return node
+    return Node.create("spec", spec=spec, node_type=node_type, is_default=is_default)
