@@ -355,11 +355,11 @@ Function PrepareAutoCompleteStorageAccounts ($storageAccountsRGName, $XMLSecretF
 				foreach ($skuKey in $RSAMapping[$regionKey].Keys) {
 					$skuTypeNode = $AzureSecretXml.CreateElement($skuKey)
 					$skuTypeNode.InnerText = $RSAMapping[$regionKey][$skuKey].StorageAccountName
-					$regionNode.AppendChild($skuTypeNode)
+					$null = $regionNode.AppendChild($skuTypeNode)
 				}
-				$rasANode.AppendChild($regionNode)
+				$null = $rasANode.AppendChild($regionNode)
 			}
-			$AzureSecretXml.secrets.AppendChild($rasANode)
+			$null = $AzureSecretXml.secrets.AppendChild($rasANode)
 			$AzureSecretXml.Save($AzureSecretFile)
 		}
 	}
@@ -2849,6 +2849,14 @@ function Add-AzureAccountFromSecretsFile {
 }
 
 Function Upload-AzureBootAndDeploymentDataToDB ($DeploymentTime, $AllVMData, $CurrentTestData) {
+	# Get the Database data
+	$dataSource = $Global:XMLSecrets.secrets.DatabaseServer
+	$dbuser = $Global:XMLSecrets.secrets.DatabaseUser
+	$dbpassword = $Global:XMLSecrets.secrets.DatabasePassword
+	$database = $Global:XMLSecrets.secrets.DatabaseName
+	if (!($dataSource -and $dbuser -and $dbpassword -and $database)) {
+		return
+	}
 	try {
 		$TextIdentifiers = [xml](Get-Content -Path "$PSScriptRoot\..\XML\Other\text-identifiers.xml")
 		$walaStartIdentifier = ""
@@ -2862,12 +2870,6 @@ Function Upload-AzureBootAndDeploymentDataToDB ($DeploymentTime, $AllVMData, $Cu
 		# Get the subscription data
 		$SubscriptionID = $Global:XMLSecrets.secrets.SubscriptionID
 		$SubscriptionName = $Global:XMLSecrets.secrets.SubscriptionName
-
-		# Get the Database data
-		$dataSource = $Global:XMLSecrets.secrets.DatabaseServer
-		$dbuser = $Global:XMLSecrets.secrets.DatabaseUser
-		$dbpassword = $Global:XMLSecrets.secrets.DatabasePassword
-		$database = $Global:XMLSecrets.secrets.DatabaseName
 
 		# Set the Database table
 		$dataTableName = "LinuxDeploymentAndBootData"
@@ -2907,22 +2909,23 @@ Function Upload-AzureBootAndDeploymentDataToDB ($DeploymentTime, $AllVMData, $Cu
 			$null = Copy-RemoteFiles -downloadFrom $vmData.PublicIP -port $vmData.SSHPort -username $user -password $password -files "$($vmData.RoleName)-*.txt" -downloadTo "$LogDir" -download
 
 			# Upload files in data subfolder to Azure.
-			$destfolder = "bootPerf"
-			$containerName = "logs"
-			$blobContext = New-AzStorageContext -StorageAccountName $storageAccountName -StorageAccountKey $storageAccountKey
+			if ($storageAccountName -and $storageAccountKey) {
+				$destfolder = "bootPerf"
+				$containerName = "logs"
+				$blobContext = New-AzStorageContext -StorageAccountName $storageAccountName -StorageAccountKey $storageAccountKey
 
-			$ticks = (Get-Date).Ticks
-			$fileName = "$LogDir\$($vmData.RoleName)-waagent.log.txt"
-			$blobName = "$destfolder/$($fileName.Replace("waagent","waagent-$ticks") | Split-Path -Leaf)"
-			$null = Set-AzStorageBlobContent -File $filename -Container $containerName -Blob $blobName -Context $blobContext -Force
-			$WALAlogFile = "https://$storageAccountName.blob.core.windows.net/$containerName/$destfolder/$($fileName.Replace("waagent","waagent-$ticks") | Split-Path -Leaf)"
-			Write-LogInfo "Upload file to Azure: Success: $WALAlogFile"
-			$fileName = "$LogDir\$($vmData.RoleName)-dmesg.txt"
-			$blobName = "$destfolder/$($fileName.Replace("dmesg","dmesg-$ticks") | Split-Path -Leaf)"
-			$null = Set-AzStorageBlobContent -File $filename -Container $containerName -Blob $blobName -Context $blobContext -Force
-			$kernelLogFile = "https://$storageAccountName.blob.core.windows.net/$containerName/$destfolder/$($fileName.Replace("dmesg","dmesg-$ticks") | Split-Path -Leaf)"
-			Write-LogInfo "Upload file to Azure: Success: $kernelLogFile"
-
+				$ticks = (Get-Date).Ticks
+				$fileName = "$LogDir\$($vmData.RoleName)-waagent.log.txt"
+				$blobName = "$destfolder/$($fileName.Replace("waagent","waagent-$ticks") | Split-Path -Leaf)"
+				$null = Set-AzStorageBlobContent -File $filename -Container $containerName -Blob $blobName -Context $blobContext -Force
+				$WALAlogFile = "https://$storageAccountName.blob.core.windows.net/$containerName/$destfolder/$($fileName.Replace("waagent","waagent-$ticks") | Split-Path -Leaf)"
+				Write-LogInfo "Upload file to Azure: Success: $WALAlogFile"
+				$fileName = "$LogDir\$($vmData.RoleName)-dmesg.txt"
+				$blobName = "$destfolder/$($fileName.Replace("dmesg","dmesg-$ticks") | Split-Path -Leaf)"
+				$null = Set-AzStorageBlobContent -File $filename -Container $containerName -Blob $blobName -Context $blobContext -Force
+				$kernelLogFile = "https://$storageAccountName.blob.core.windows.net/$containerName/$destfolder/$($fileName.Replace("dmesg","dmesg-$ticks") | Split-Path -Leaf)"
+				Write-LogInfo "Upload file to Azure: Success: $kernelLogFile"
+			}
 
 			# Analyse
 			$waagentFile = "$LogDir\$($vmData.RoleName)-waagent.log.txt"

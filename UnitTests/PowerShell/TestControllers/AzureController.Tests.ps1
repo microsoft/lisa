@@ -91,7 +91,8 @@ Describe "Test if module ${moduleName} PrepareTestEnvironment is valid" {
 		Mock Set-AzContext -Verifiable -ModuleName $moduleName {
 			return @{
 				"Account" = @{
-					"Id" = "Id"
+					"Id" = "Id";
+					"Type" = "User"
 				};
 				"Subscription" = @{
 					"SubscriptionId" = "SubscriptionId";

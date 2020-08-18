@@ -34,7 +34,8 @@ Describe "Test if ${moduleName} Run-LISAv2 fails with no test cases found" {
 		Mock Select-AzSubscription -Verifiable -ModuleName "AzureController" {
 			return @{
 				"Account" = @{
-					"Id" = "Id"
+					"Id" = "Id";
+					"Type" = "User"
 				};
 				"Subscription" = @{
 					"SubscriptionId" = "SubscriptionId";
@@ -61,7 +62,8 @@ Describe "Test if ${moduleName} Run-LISAv2 fails to parse report results on Azur
 		Mock Select-AzSubscription -Verifiable -ModuleName "AzureController" {
 			return @{
 				"Account" = @{
-					"Id" = "Id"
+					"Id" = "Id";
+					"Type" = "User"
 				};
 				"Subscription" = @{
 					"SubscriptionId" = "SubscriptionId";
