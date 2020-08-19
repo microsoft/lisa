@@ -2,14 +2,13 @@ from __future__ import annotations
 
 import pathlib
 import random
-from typing import Any, Dict, Optional, Type, TypeVar, Union, cast
+from typing import Any, Dict, List, Optional, TypeVar, Union, cast
 
-from lisa.executable import CustomScriptBuilder, LightTool, Tool
+from lisa.executable import Tools
 from lisa.tool import Echo, Uname
 from lisa.util import constants, env
 from lisa.util.exceptions import LisaException
 from lisa.util.logger import get_logger
-from lisa.util.perf_timer import create_timer
 from lisa.util.process import ExecutableResult, Process
 from lisa.util.shell import ConnectionInfo, LocalShell, Shell, SshShell
 
@@ -36,13 +35,10 @@ class Node:
         self.kernel_version: str = ""
         self.hardware_platform: str = ""
         self.operating_system: str = ""
-        self.tool = LightTool(self)
+        self.tools = Tools(self)
+        self.working_path: pathlib.PurePath = pathlib.PurePath()
 
         self._connection_info: Optional[ConnectionInfo] = None
-        self._working_path: pathlib.PurePath = pathlib.PurePath()
-
-        self._tools: Dict[str, Tool] = dict()
-
         self._is_initialized: bool = False
         self._is_linux: bool = True
         self._log = get_logger("node", self.identifier)
@@ -105,63 +101,6 @@ class Node:
         self.internal_address = address
         self.internal_port = port
 
-    def get_tool_path(self, tool: Optional[Tool] = None) -> pathlib.PurePath:
-        assert self._working_path
-        if tool:
-            tool_name = tool.name
-            tool_path = self._working_path.joinpath(constants.PATH_TOOL, tool_name)
-        else:
-            tool_path = self._working_path.joinpath(constants.PATH_TOOL)
-        return tool_path
-
-    def get_tool(self, tool_type: Union[Type[T], CustomScriptBuilder, str]) -> T:
-        if tool_type is CustomScriptBuilder:
-            raise LisaException("CustomScript should call getScript with instance")
-        if isinstance(tool_type, CustomScriptBuilder):
-            tool_key = tool_type.name
-        elif isinstance(tool_type, str):
-            tool_key = tool_type
-        else:
-            tool_key = tool_type.__name__.lower()
-        tool = self._tools.get(tool_key)
-        if tool is None:
-            # the Tool is not installed on current node, try to install it.
-            tool_log = get_logger("tool", tool_key, self._log)
-            tool_log.debug("is initializing")
-
-            if isinstance(tool_type, CustomScriptBuilder):
-                tool = tool_type.build(self)
-            elif isinstance(tool_type, str):
-                raise LisaException(
-                    f"{tool_type} cannot be found. "
-                    f"lightweight usage need to get_tool with type before using it."
-                )
-            else:
-                cast_tool_type = cast(Type[Tool], tool_type)
-                tool = cast_tool_type(self)
-                tool.initialize()
-
-            if not tool.is_installed:
-                tool_log.debug("not installed")
-                if tool.can_install:
-                    tool_log.debug("installing")
-                    timer = create_timer()
-                    is_success = tool.install()
-                    tool_log.debug(f"installed in {timer}")
-                    if not is_success:
-                        raise LisaException("install failed")
-                else:
-                    raise LisaException(
-                        "doesn't support install on "
-                        f"Node({self.identifier}), "
-                        f"Linux({self.is_linux}), "
-                        f"Remote({self.is_remote})"
-                    )
-            else:
-                tool_log.debug("installed already")
-            self._tools[tool_key] = tool
-        return cast(T, tool)
-
     def execute(
         self,
         cmd: str,
@@ -207,7 +146,7 @@ class Node:
             self._is_initialized = True
             self._log.debug(f"initializing node {self.name}")
             self.shell.initialize()
-            uname = self.get_tool(Uname)
+            uname = self.tools[Uname]
             (
                 self.kernel_release,
                 self.kernel_version,
@@ -240,18 +179,18 @@ class Node:
                 ).as_posix()
 
                 # expand environment variables in path
-                echo = self.get_tool(Echo)
+                echo = self.tools[Echo]
                 result = echo.run(working_path, shell=True)
 
                 # PurePath is more reasonable here, but spurplus doesn't support it.
                 if self.is_linux:
-                    self._working_path = pathlib.PurePosixPath(result.stdout)
+                    self.working_path = pathlib.PurePosixPath(result.stdout)
                 else:
-                    self._working_path = pathlib.PureWindowsPath(result.stdout)
+                    self.working_path = pathlib.PureWindowsPath(result.stdout)
             else:
-                self._working_path = pathlib.Path(env.get_run_local_path())
-            self._log.debug(f"working path is: '{self._working_path}'")
-            self.shell.mkdir(self._working_path, parents=True, exist_ok=True)
+                self.working_path = pathlib.Path(env.get_run_local_path())
+            self._log.debug(f"working path is: '{self.working_path}'")
+            self.shell.mkdir(self.working_path, parents=True, exist_ok=True)
 
     def _execute(
         self,
@@ -278,37 +217,94 @@ class Node:
         self.shell.close()
 
 
-def from_config(identifier: str, config: Dict[str, object]) -> Optional[Node]:
-    node_type = cast(str, config.get(constants.TYPE))
-    node = None
-    if node_type is None:
-        raise LisaException("type of node shouldn't be None")
-    if node_type in [
-        constants.ENVIRONMENTS_NODES_LOCAL,
-        constants.ENVIRONMENTS_NODES_REMOTE,
-    ]:
-        is_default = cast(bool, config.get(constants.IS_DEFAULT, False))
-        node = Node.create(identifier, node_type=node_type, is_default=is_default)
-        if node.is_remote:
-            fields = [
-                constants.ENVIRONMENTS_NODES_REMOTE_ADDRESS,
-                constants.ENVIRONMENTS_NODES_REMOTE_PORT,
-                constants.ENVIRONMENTS_NODES_REMOTE_PUBLIC_ADDRESS,
-                constants.ENVIRONMENTS_NODES_REMOTE_PUBLIC_PORT,
-                constants.ENVIRONMENTS_NODES_REMOTE_USERNAME,
-                constants.ENVIRONMENTS_NODES_REMOTE_PASSWORD,
-                constants.ENVIRONMENTS_NODES_REMOTE_PRIVATEKEYFILE,
-            ]
-            parameters: Dict[str, Any] = dict()
-            for key in config:
-                if key in fields:
-                    parameters[key] = cast(str, config[key])
-            node.set_connection_info(**parameters)
-    return node
+class Nodes(Dict[str, Node]):
+    def __init__(self) -> None:
+        self._default: Optional[Node] = None
+        self._list: List[Node] = list()
 
+    @property
+    def default(self) -> Node:
+        if self._default is None:
+            default = None
+            for node in self._list:
+                if node.is_default:
+                    default = node
+                    break
+            if default is None:
+                if len(self._list) == 0:
+                    raise LisaException("No node found in current environment")
+                else:
+                    default = self._list[0]
+            self._default = default
+        return self._default
 
-def from_spec(
-    spec: Dict[str, object], node_type: str = constants.ENVIRONMENTS_NODES_REMOTE
-) -> Node:
-    is_default = cast(bool, spec.get(constants.IS_DEFAULT, False))
-    return Node.create("spec", spec=spec, node_type=node_type, is_default=is_default)
+    def __getitem__(self, key: Union[int, str]) -> Node:
+        found = None
+        if not self._list:
+            raise LisaException("no node found")
+
+        if isinstance(key, int):
+            if len(self._list) > key:
+                found = self._list[key]
+        else:
+            for node in self._list:
+                if node.name == key:
+                    found = node
+                    break
+        if not found:
+            raise KeyError(f"cannot find node {key}")
+
+        return found
+
+    def __setitem__(self, key: Union[int, str], v: Node) -> None:
+        raise NotImplementedError("don't set node directly, call create_by_*")
+
+    def __len__(self) -> int:
+        return len(self._list)
+
+    def close(self) -> None:
+        for node in self._list:
+            node.close()
+
+    def create_by_config(self, config: Dict[str, object]) -> Optional[Node]:
+        node_type = cast(str, config.get(constants.TYPE))
+        node = None
+        if node_type is None:
+            raise LisaException("type of node shouldn't be None")
+        if node_type in [
+            constants.ENVIRONMENTS_NODES_LOCAL,
+            constants.ENVIRONMENTS_NODES_REMOTE,
+        ]:
+            is_default = cast(bool, config.get(constants.IS_DEFAULT, False))
+            node = Node.create(
+                str(len(self._list)), node_type=node_type, is_default=is_default
+            )
+            self._list.append(node)
+            if node.is_remote:
+                fields = [
+                    constants.ENVIRONMENTS_NODES_REMOTE_ADDRESS,
+                    constants.ENVIRONMENTS_NODES_REMOTE_PORT,
+                    constants.ENVIRONMENTS_NODES_REMOTE_PUBLIC_ADDRESS,
+                    constants.ENVIRONMENTS_NODES_REMOTE_PUBLIC_PORT,
+                    constants.ENVIRONMENTS_NODES_REMOTE_USERNAME,
+                    constants.ENVIRONMENTS_NODES_REMOTE_PASSWORD,
+                    constants.ENVIRONMENTS_NODES_REMOTE_PRIVATEKEYFILE,
+                ]
+                parameters: Dict[str, Any] = dict()
+                for key in config:
+                    if key in fields:
+                        parameters[key] = cast(str, config[key])
+                node.set_connection_info(**parameters)
+        return node
+
+    def from_spec(
+        self,
+        spec: Dict[str, object],
+        node_type: str = constants.ENVIRONMENTS_NODES_REMOTE,
+    ) -> Node:
+        is_default = cast(bool, spec.get(constants.IS_DEFAULT, False))
+        node = Node.create(
+            "spec", spec=spec, node_type=node_type, is_default=is_default
+        )
+        self._list.append(node)
+        return node

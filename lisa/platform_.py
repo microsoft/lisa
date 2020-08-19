@@ -11,10 +11,6 @@ if TYPE_CHECKING:
     from lisa.environment import Environment
 
 
-_platforms: Dict[str, Platform] = dict()
-_current: Optional[Platform] = None
-
-
 class Platform(ABC):
     @classmethod
     @abstractmethod
@@ -27,7 +23,7 @@ class Platform(ABC):
 
     @abstractmethod
     def _request_environment_internal(self, environment: Environment) -> Environment:
-        raise NotImplementedError
+        raise NotImplementedError()
 
     @abstractmethod
     def _delete_environment_internal(self, environment: Environment) -> None:
@@ -44,16 +40,30 @@ class Platform(ABC):
         environment.is_ready = False
 
 
-def get_platforms() -> Dict[str, Platform]:
-    return _platforms
+class Platforms(Dict[str, Platform]):
+    def __init__(self) -> None:
+        self._default: Optional[Platform] = None
+
+    @property
+    def default(self) -> Platform:
+        assert self._default
+        return self._default
+
+    @default.setter
+    def default(self, value: Platform) -> None:
+        self._default = value
+
+    def register_platform(self, platform: Type[Platform]) -> None:
+        platform_type = platform.platform_type().lower()
+        if platforms.get(platform_type) is None:
+            platforms[platform_type] = platform()
+        else:
+            raise LisaException(
+                f"platform '{platform_type}' exists, cannot be registered again"
+            )
 
 
-def get_current() -> Platform:
-    assert _current
-    return _current
-
-
-def initialize_platform(config: List[Dict[str, object]]) -> None:
+def initialize_platforms(config: List[Dict[str, object]]) -> None:
     if not config:
         raise LisaException("cannot find platform")
 
@@ -67,27 +77,19 @@ def initialize_platform(config: List[Dict[str, object]]) -> None:
 
     for sub_class in Platform.__subclasses__():
         platform_class = cast(Type[Platform], sub_class)
-        _register_platform(platform_class)
+        platforms.register_platform(platform_class)
     log = get_logger("init", "platform")
     log.debug(
-        f"registered platforms: " f"[{', '.join([name for name in _platforms.keys()])}]"
+        f"registered platforms: " f"[{', '.join([name for name in platforms.keys()])}]"
     )
 
-    platform = _platforms.get(platform_type.lower())
+    platform = platforms.get(platform_type.lower())
     if platform is None:
         raise LisaException(f"cannot find platform type '{platform_type}'")
     log.info(f"activated platform '{platform_type}'")
 
     platform.config(constants.CONFIG_CONFIG, config[0])
-    global _current
-    _current = platform
+    platforms.default = platform
 
 
-def _register_platform(platform: Type[Platform]) -> None:
-    platform_type = platform.platform_type().lower()
-    if _platforms.get(platform_type) is None:
-        _platforms[platform_type] = platform()
-    else:
-        raise LisaException(
-            f"platform '{platform_type}' exists, cannot be registered again"
-        )
+platforms = Platforms()

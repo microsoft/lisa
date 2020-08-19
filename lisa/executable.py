@@ -4,20 +4,26 @@ import pathlib
 import re
 from abc import ABC, abstractmethod
 from hashlib import sha256
-from typing import TYPE_CHECKING, List, Optional, Type, Union, cast
+from typing import TYPE_CHECKING, Dict, List, Optional, Type, TypeVar, Union, cast
 
+from lisa.util import constants
 from lisa.util.exceptions import LisaException
+from lisa.util.logger import get_logger
+from lisa.util.perf_timer import create_timer
 from lisa.util.process import ExecutableResult, Process
 
 if TYPE_CHECKING:
     from lisa.node import Node
 
 
+T = TypeVar("T")
+
+
 class Tool(ABC):
     """
     The base class, which wraps an executable, package, or scripts on a node.
     A tool can be installed, and execute on a node. When a tool is needed, call
-    Node.getTool() to get one object. The getTool checks if it's installed. If it's
+    Tool[] to get one object. The Tool[] checks if it's installed. If it's
     not installed, then check if it can be installed, and then install or fail.
     After the tool instance returned, the run/Async of the tool will call
     execute/Async of node. So that the command passes to current node.
@@ -140,7 +146,7 @@ class Tool(ABC):
         """
         # check dependencies
         for dependency in self.dependencies:
-            self.node.get_tool(dependency)
+            self.node.tools[dependency]
         return self._install_internal()
 
     def run_async(
@@ -182,6 +188,12 @@ class Tool(ABC):
             cwd=cwd,
         )
         return process.wait_result()
+
+    def get_tool_path(self) -> pathlib.PurePath:
+        """
+        compose a path, if the tool need to be installed
+        """
+        return self.node.working_path.joinpath(constants.PATH_TOOL, self.name)
 
     def __call__(
         self,
@@ -289,13 +301,13 @@ class CustomScript(Tool):
     def install(self) -> bool:
         if self.node.is_remote:
             # copy to remote
-            remote_root_path = self.node.get_tool_path(self)
+            node_script_path = self.get_tool_path()
             for file in self._files:
-                remote_path = remote_root_path.joinpath(file)
+                remote_path = node_script_path.joinpath(file)
                 source_path = self._local_path.joinpath(file)
                 self.node.shell.copy(source_path, remote_path)
                 self.node.shell.chmod(remote_path, 0o755)
-            self._cwd = remote_root_path
+            self._cwd = node_script_path
         else:
             self._cwd = self._local_path
 
@@ -371,10 +383,60 @@ class CustomScriptBuilder:
         return script
 
 
-class LightTool:
+class Tools:
     def __init__(self, node: Node) -> None:
         self._node = node
+        self._cache: Dict[str, Tool] = dict()
 
     def __getattr__(self, key: str) -> Tool:
-        key = key.lower()
-        return cast(Tool, self._node.get_tool(key))
+        return self.__getitem__(key)
+
+    def __getitem__(self, tool_type: Union[Type[T], CustomScriptBuilder, str]) -> T:
+        if tool_type is CustomScriptBuilder:
+            raise LisaException(
+                "CustomScriptBuilder should call build to create a script instance"
+            )
+        if isinstance(tool_type, CustomScriptBuilder):
+            tool_key = tool_type.name
+        elif isinstance(tool_type, str):
+            tool_key = tool_type.lower()
+        else:
+            tool_key = tool_type.__name__.lower()
+        tool = self._cache.get(tool_key)
+        if tool is None:
+            # the Tool is not installed on current node, try to install it.
+            tool_log = get_logger("tool", tool_key, self._node._log)
+            tool_log.debug("is initializing")
+
+            if isinstance(tool_type, CustomScriptBuilder):
+                tool = tool_type.build(self._node)
+            elif isinstance(tool_type, str):
+                raise LisaException(
+                    f"{tool_type} cannot be found. "
+                    f"short usage need to get with type before get with name."
+                )
+            else:
+                cast_tool_type = cast(Type[Tool], tool_type)
+                tool = cast_tool_type(self._node)
+                tool.initialize()
+
+            if not tool.is_installed:
+                tool_log.debug("not installed")
+                if tool.can_install:
+                    tool_log.debug("installing")
+                    timer = create_timer()
+                    is_success = tool.install()
+                    tool_log.debug(f"installed in {timer}")
+                    if not is_success:
+                        raise LisaException("install failed")
+                else:
+                    raise LisaException(
+                        "doesn't support install on "
+                        f"Node({self._node.identifier}), "
+                        f"Linux({self._node.is_linux}), "
+                        f"Remote({self._node.is_remote})"
+                    )
+            else:
+                tool_log.debug("installed already")
+            self._cache[tool_key] = tool
+        return cast(T, tool)

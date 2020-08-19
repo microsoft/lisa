@@ -24,18 +24,22 @@ class Config(Dict[str, object]):
         # TODO implement config validation
         pass
 
-    def get_extension(self) -> Dict[str, object]:
+    @property
+    def extension(self) -> Dict[str, object]:
         return self._get_and_cast(constants.EXTENSION)
 
-    def get_environment(self) -> Dict[str, object]:
+    @property
+    def environment(self) -> Dict[str, object]:
         return self._get_and_cast(constants.ENVIRONMENT)
 
-    def get_platform(self) -> List[Dict[str, object]]:
+    @property
+    def platform(self) -> List[Dict[str, object]]:
         return cast(
             List[Dict[str, object]], self._config.get(constants.PLATFORM, list())
         )
 
-    def get_testcase(self) -> Dict[str, object]:
+    @property
+    def testcase(self) -> Dict[str, object]:
         return self._get_and_cast(constants.TESTCASE)
 
     # TODO: This is a hack to get around our data not being

@@ -54,8 +54,8 @@ if __name__ == "__main__":
     try:
         main()
     except Exception as exception:
-        _log = get_logger()
-        _log.exception(exception)
+        log = get_logger()
+        log.exception(exception)
         exit_code = -1
     finally:
         sys.exit(exit_code)
