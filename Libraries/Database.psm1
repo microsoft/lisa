@@ -67,10 +67,10 @@ Function Get-SQLQueryOfTelemetryData ($TestPlatform, $TestLocation, $TestCategor
 	catch {
 		Write-LogErr "Get the SQL query of test results:  ERROR"
 		$line = $_.InvocationInfo.ScriptLineNumber
-		$script_name = ($_.InvocationInfo.ScriptName).Replace($PWD, ".")
+		$scriptName = ($_.InvocationInfo.ScriptName).Replace($PWD, ".")
 		$ErrorMessage = $_.Exception.Message
 		Write-LogInfo "EXCEPTION : $ErrorMessage"
-		Write-LogInfo "Source : Line $line in script $script_name."
+		Write-LogInfo "Source : Line $line in script $scriptName."
 	}
 }
 
@@ -122,7 +122,7 @@ Function Invoke-IngestKustoFromTSQL([string]$SQLString) {
 					foreach ($rowValue in $valueArr) {
 						$ingestValueArray = @($kustoTableColumns)
 						$cellValueIndex = 0
-						$cellValueArray = $rowValue.Split(",").Trim("' ")
+						$cellValueArray = @(($rowValue | Select-String -Pattern "\'([^\']*)\'" -AllMatches).Matches | ForEach-Object {$_.Groups[1].Value})
 						for ($tableColumnIndex = 0; $tableColumnIndex -lt $kustoTableColumns.Count; $tableColumnIndex++) {
 							if ($columns -contains $kustoTableColumns[$tableColumnIndex]) {
 								$ingestValueArray[$tableColumnIndex] = $cellValueArray[$cellValueIndex++].Replace(",", " ")
@@ -153,10 +153,10 @@ Function Invoke-IngestKustoFromTSQL([string]$SQLString) {
 	catch {
 		Write-LogErr "Ingest Kusto Data from TSQLString:  ERROR"
 		$line = $_.InvocationInfo.ScriptLineNumber
-		$script_name = ($_.InvocationInfo.ScriptName).Replace($PWD, ".")
+		$scriptName = ($_.InvocationInfo.ScriptName).Replace($PWD, ".")
 		$ErrorMessage = $_.Exception.Message
 		Write-LogInfo "EXCEPTION : $ErrorMessage `n when ingesting into '$kustoDatabase' by '$kustoClusterURI' with '$ingestInlineCmd'"
-		Write-LogInfo "Source : Line $line in script $script_name."
+		Write-LogInfo "Source : Line $line in script $scriptName."
 	}
 	finally {
 		if ($queryProvider) {$queryProvider.Dispose()}
@@ -193,10 +193,10 @@ Function Upload-TestResultToDatabase ([String]$SQLQuery) {
 					$uploadSucceeded = $false
 					Write-LogErr "Uploading test results to database: ERROR"
 					$line = $_.InvocationInfo.ScriptLineNumber
-					$script_name = ($_.InvocationInfo.ScriptName).Replace($PWD, ".")
+					$scriptName = ($_.InvocationInfo.ScriptName).Replace($PWD, ".")
 					$ErrorMessage = $_.Exception.Message
 					Write-LogErr "EXCEPTION : $ErrorMessage"
-					Write-LogErr "Source : Line $line in script $script_name."
+					Write-LogErr "Source : Line $line in script $scriptName."
 					if ($retry -lt $maxRetry) {
 						Start-Sleep -Seconds 1
 						Write-LogWarn "Retring, attempt $retry"
@@ -259,10 +259,10 @@ Function Upload-TestResultDataToDatabase ([Array] $TestResultData, [Object] $Dat
 		catch {
 			Write-LogErr "Fail to upload test results to database"
 			$line = $_.InvocationInfo.ScriptLineNumber
-			$script_name = ($_.InvocationInfo.ScriptName).Replace($PWD, ".")
+			$scriptName = ($_.InvocationInfo.ScriptName).Replace($PWD, ".")
 			$ErrorMessage = $_.Exception.Message
 			Write-LogInfo "EXCEPTION : $ErrorMessage"
-			Write-LogInfo "Source : Line $line in script $script_name."
+			Write-LogInfo "Source : Line $line in script $scriptName."
 			# throw from catch, in order to be caught by caller module/function
 			throw $_.Exception
 		}
