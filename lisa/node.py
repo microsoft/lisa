@@ -2,7 +2,8 @@ from __future__ import annotations
 
 import pathlib
 import random
-from typing import Any, Dict, List, Optional, TypeVar, Union, cast
+from collections import UserDict
+from typing import TYPE_CHECKING, Any, Dict, List, Optional, TypeVar, Union, cast
 
 from lisa.executable import Tools
 from lisa.tool import Echo, Uname
@@ -18,17 +19,22 @@ T = TypeVar("T")
 class Node:
     def __init__(
         self,
-        identifier: str,
+        index: int,
         is_remote: bool = True,
         spec: Optional[Dict[str, object]] = None,
         is_default: bool = False,
+        id_: str = "",
     ) -> None:
+        """
+        id_: passed in by platform, uses to associate with resource in platform
+        """
         self.is_default = is_default
         self.is_remote = is_remote
         self.spec = spec
         self.name: str = ""
+        self.index = index
+        self.id = id_
 
-        self.identifier = identifier
         self.shell: Shell = LocalShell()
 
         self.kernel_release: str = ""
@@ -41,11 +47,11 @@ class Node:
         self._connection_info: Optional[ConnectionInfo] = None
         self._is_initialized: bool = False
         self._is_linux: bool = True
-        self._log = get_logger("node", self.identifier)
+        self._log = get_logger("node", str(self.index))
 
     @staticmethod
     def create(
-        identifier: str,
+        index: int,
         spec: Optional[Dict[str, object]] = None,
         node_type: str = constants.ENVIRONMENTS_NODES_REMOTE,
         is_default: bool = False,
@@ -56,7 +62,7 @@ class Node:
             is_remote = False
         else:
             raise LisaException(f"unsupported node_type '{node_type}'")
-        node = Node(identifier, spec=spec, is_remote=is_remote, is_default=is_default)
+        node = Node(index, spec=spec, is_remote=is_remote, is_default=is_default)
         node._log.debug(
             f"created node '{node_type}', isDefault: {is_default}, "
             f"isRemote: {is_remote}"
@@ -217,7 +223,13 @@ class Node:
         self.shell.close()
 
 
-class Nodes(Dict[str, Node]):
+if TYPE_CHECKING:
+    NodeDict = UserDict[str, Node]
+else:
+    NodeDict = UserDict
+
+
+class Nodes(NodeDict):
     def __init__(self) -> None:
         self._default: Optional[Node] = None
         self._list: List[Node] = list()
@@ -277,7 +289,7 @@ class Nodes(Dict[str, Node]):
         ]:
             is_default = cast(bool, config.get(constants.IS_DEFAULT, False))
             node = Node.create(
-                str(len(self._list)), node_type=node_type, is_default=is_default
+                len(self._list), node_type=node_type, is_default=is_default
             )
             self._list.append(node)
             if node.is_remote:
@@ -304,7 +316,7 @@ class Nodes(Dict[str, Node]):
     ) -> Node:
         is_default = cast(bool, spec.get(constants.IS_DEFAULT, False))
         node = Node.create(
-            "spec", spec=spec, node_type=node_type, is_default=is_default
+            len(self._list), spec=spec, node_type=node_type, is_default=is_default
         )
         self._list.append(node)
         return node

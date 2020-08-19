@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import copy
+from collections import UserDict
 from functools import partial
 from typing import TYPE_CHECKING, Dict, List, Optional, cast
 
@@ -126,8 +127,15 @@ def load_environments(config: Dict[str, object]) -> None:
         environments[environment.name] = environment
 
 
-class Environments(Dict[str, Environment]):
+if TYPE_CHECKING:
+    EnvironmentDict = UserDict[str, Environment]
+else:
+    EnvironmentDict = UserDict
+
+
+class Environments(EnvironmentDict):
     def __init__(self) -> None:
+        super().__init__()
         self.max_concurrency = 1
 
     def __getitem__(self, k: Optional[str] = None) -> Environment:
@@ -135,11 +143,14 @@ class Environments(Dict[str, Environment]):
             key = _default_no_name
         else:
             key = k.lower()
-        environment = super().get(key)
+        environment = self.data.get(key)
         if environment is None:
             raise LisaException(f"not found environment '{k}'")
 
         return environment
+
+    def __setitem__(self, k: str, v: Environment) -> None:
+        self.data[k] = v
 
     @property
     def default(self) -> Environment:

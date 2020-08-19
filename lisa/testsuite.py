@@ -4,6 +4,7 @@ import unittest
 from abc import ABCMeta
 from dataclasses import dataclass
 from enum import Enum
+from functools import wraps
 from typing import TYPE_CHECKING, Any, Callable, Dict, List, Type
 
 from lisa.action import Action, ActionStatus
@@ -55,6 +56,7 @@ class TestSuiteMetadata:
             self.name = test_class.__name__
         _add_suite_metadata(self)
 
+        @wraps(self.test_class)
         def wrapper(
             test_class: Type[TestSuite],
             environment: Environment,
@@ -83,6 +85,7 @@ class TestCaseMetadata:
         self._func = func
         _add_case_metadata(self)
 
+        @wraps(self._func)
         def wrapper(*args: object) -> None:
             func(*args)
 

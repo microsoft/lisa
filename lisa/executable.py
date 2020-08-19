@@ -432,7 +432,7 @@ class Tools:
                 else:
                     raise LisaException(
                         "doesn't support install on "
-                        f"Node({self._node.identifier}), "
+                        f"Node({self._node.index}), "
                         f"Linux({self._node.is_linux}), "
                         f"Remote({self._node.is_remote})"
                     )

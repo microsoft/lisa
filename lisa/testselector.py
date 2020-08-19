@@ -1,4 +1,3 @@
-import functools
 import re
 from functools import partial
 from typing import (
@@ -19,7 +18,7 @@ from lisa.util import constants
 from lisa.util.exceptions import LisaException
 from lisa.util.logger import get_logger
 
-_get_logger = functools.partial(get_logger, "init", "selector")
+_get_logger = partial(get_logger, "init", "selector")
 
 
 def select_testcases(
@@ -42,12 +41,13 @@ def select_testcases(
         force_excluded: Set[str] = set()
         for filter in filters:
             filter = cast(Dict[str, Any], filter)
-            log.debug(f"applying test case rule: {filter}")
             enabled = filter.get(constants.ENABLE, True)
             if enabled:
                 selected = _apply_filter(
                     filter, selected, force_included, force_excluded, full_list
                 )
+            else:
+                log.debug(f"skip disabled rule: {filter}")
         log.info(f"selected cases count: {len(list(selected.values()))}")
         results = list(selected.values())
     else:
