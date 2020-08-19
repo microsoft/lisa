@@ -1,6 +1,7 @@
 from argparse import Namespace
+from collections import UserDict
 from pathlib import Path
-from typing import Dict, List, Optional, cast
+from typing import TYPE_CHECKING, Dict, List, Optional, cast
 
 import yaml
 
@@ -8,13 +9,19 @@ from lisa.schema import validate_config
 from lisa.util import constants
 from lisa.util.logger import get_logger
 
+if TYPE_CHECKING:
+    ConfigDict = UserDict[str, object]
+else:
+    ConfigDict = UserDict
 
-class Config(Dict[str, object]):
+
+class Config(ConfigDict):
     def __init__(
         self,
         base_path: Optional[Path] = None,
         config: Optional[Dict[str, object]] = None,
     ) -> None:
+        super().__init__()
         if base_path is not None:
             self.base_path = base_path
         if config is not None:

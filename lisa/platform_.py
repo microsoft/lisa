@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
+from collections import UserDict
 from typing import TYPE_CHECKING, Dict, List, Optional, Type, cast
 
 from lisa.util import constants
@@ -40,8 +41,15 @@ class Platform(ABC):
         environment.is_ready = False
 
 
-class Platforms(Dict[str, Platform]):
+if TYPE_CHECKING:
+    PlatformDict = UserDict[str, Platform]
+else:
+    PlatformDict = UserDict
+
+
+class Platforms(PlatformDict):
     def __init__(self) -> None:
+        super().__init__()
         self._default: Optional[Platform] = None
 
     @property
