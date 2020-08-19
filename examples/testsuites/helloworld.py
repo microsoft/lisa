@@ -24,7 +24,7 @@ class HelloWorld(TestSuite):
         self._log.info(f"node count: {len(self.environment.nodes)}")
         node = self.environment.default_node
 
-        uname = node.get_tool(Uname)
+        uname = node.tools[Uname]
         release, version, hardware, os = uname.get_linux_information()
         self._log.info(
             f"release: '{release}', version: '{version}', "
@@ -32,7 +32,7 @@ class HelloWorld(TestSuite):
         )
 
         # get process output directly.
-        echo = node.get_tool(Echo)
+        echo = node.tools[Echo]
         result = echo.run("hello world!")
         self._log.info(f"stdout of node: '{result.stdout}'")
         self._log.info(f"stderr of node: '{result.stderr}'")
@@ -46,7 +46,9 @@ class HelloWorld(TestSuite):
     )
     def bye(self) -> None:
         node = self.environment.default_node
-        self._log.info(f"stdout of node: '{node.tool.echo('bye!')}'")
+        # use it once like this way before use short cut
+        node.tools[Echo]
+        self._log.info(f"stdout of node: '{node.tools.echo('bye!')}'")
 
     def before_suite(self) -> None:
         self._log.info("setup my test suite")

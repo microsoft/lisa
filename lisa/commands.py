@@ -4,9 +4,9 @@ from argparse import Namespace
 from pathlib import Path, PurePath
 from typing import Dict, Iterable, List, Optional, cast
 
-from lisa.environment import get_environments, load_environments
+from lisa.environment import environments, load_environments
 from lisa.parameter_parser.config import Config, parse_to_config
-from lisa.platform_ import get_current, initialize_platform
+from lisa.platform_ import initialize_platforms, platforms
 from lisa.sut_orchestrator.ready import ReadyPlatform
 from lisa.test_runner.lisarunner import LISARunner
 from lisa.testselector import select_testcases
@@ -16,7 +16,7 @@ from lisa.util.exceptions import LisaException
 from lisa.util.logger import get_logger
 from lisa.util.module import import_module
 
-_get_logger = functools.partial(get_logger, "init")
+_get_init_logger = functools.partial(get_logger, "init")
 
 
 def _load_extends(base_path: Path, extends_config: Dict[str, object]) -> None:
@@ -37,20 +37,20 @@ def _initialize(args: Namespace) -> Iterable[TestCaseData]:
     config = parse_to_config(args)
 
     # load external extension
-    _load_extends(config.base_path, config.get_extension())
+    _load_extends(config.base_path, config.extension)
 
     # initialize environment
-    load_environments(config.get_environment())
+    load_environments(config.environment)
 
     # initialize platform
-    initialize_platform(config.get_platform())
+    initialize_platforms(config.platform)
 
     # filter test cases
-    selected_cases = select_testcases(config.get_testcase())
+    selected_cases = select_testcases(config.testcase)
 
     _validate(config)
 
-    log = _get_logger()
+    log = _get_init_logger()
     log.info(f"selected cases: {len(list(selected_cases))}")
     return selected_cases
 
@@ -58,10 +58,8 @@ def _initialize(args: Namespace) -> Iterable[TestCaseData]:
 def run(args: Namespace) -> None:
     selected_cases = _initialize(args)
 
-    platform = get_current()
-
     runner = LISARunner()
-    runner.config(constants.CONFIG_PLATFORM, platform)
+    runner.config(constants.CONFIG_PLATFORM, platforms.default)
     runner.config(constants.CONFIG_TEST_CASES, selected_cases)
     awaitable = runner.start()
     asyncio.run(awaitable)
@@ -75,7 +73,7 @@ def check(args: Namespace) -> None:
 def list_start(args: Namespace) -> None:
     selected_cases = _initialize(args)
     list_all = cast(Optional[bool], args.list_all)
-    log = get_logger("list")
+    log = _get_init_logger("list")
     if args.type == constants.LIST_CASE:
         if list_all:
             cases: Iterable[TestCaseData] = select_testcases()
@@ -95,20 +93,18 @@ def list_start(args: Namespace) -> None:
 
 
 def _validate(config: Config) -> None:
-    environment_config = config.get_environment()
+    environment_config = config.environment
     warn_as_error = False
     if environment_config:
         warn_as_error = cast(
             bool, environment_config.get(constants.WARN_AS_ERROR, False)
         )
 
-    enviornments = get_environments()
-    platform = get_current()
-    log = _get_logger()
-    for environment in enviornments.values():
-        if environment.spec is not None and isinstance(platform, ReadyPlatform):
-            message = "the ready platform cannot process environment spec"
-            if warn_as_error:
-                raise LisaException(message)
-            else:
-                log.warn(message)
+    log = _get_init_logger()
+    for environment in environments.values():
+        if environment.spec is not None and isinstance(
+            platforms.default, ReadyPlatform
+        ):
+            log.warn_or_raise(
+                warn_as_error, "the ready platform cannot process environment spec"
+            )

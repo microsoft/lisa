@@ -1,7 +1,7 @@
 from typing import Dict, Iterable, List, cast
 
 from lisa.action import Action, ActionStatus
-from lisa.environment import get_environment
+from lisa.environment import environments
 from lisa.platform_ import Platform
 from lisa.testsuite import (
     TestCaseData,
@@ -48,7 +48,7 @@ class LISARunner(Action):
         platform_type = self.platform.platform_type()
         # request environment
         self._log.info(f"platform {platform_type} environment requesting")
-        environment = get_environment()
+        environment = environments.default
         self._log.info(f"platform {platform_type} environment requested")
 
         self._log.info(f"start running {len(test_results)} cases")

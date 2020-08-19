@@ -1,9 +1,10 @@
 from __future__ import annotations
 
 import copy
+from functools import partial
 from typing import TYPE_CHECKING, Dict, List, Optional, cast
 
-from lisa.node import from_config
+from lisa.node import Nodes
 from lisa.util import constants
 from lisa.util.exceptions import LisaException
 from lisa.util.logger import get_logger
@@ -14,14 +15,12 @@ if TYPE_CHECKING:
 
 
 _default_no_name = "_no_name_default"
-_all_environments: Dict[str, Environment] = dict()
-
-max_concurrency = 1
+_get_init_logger = partial(get_logger, "init", "env")
 
 
 class Environment(object):
     def __init__(self) -> None:
-        self.nodes: List[Node] = []
+        self.nodes: Nodes = Nodes()
         self.name: str = ""
         self.is_ready: bool = False
         self.platform: Optional[Platform] = None
@@ -43,11 +42,9 @@ class Environment(object):
             List[Dict[str, object]], spec.get(constants.ENVIRONMENTS_NODES)
         )
         for node_config in nodes_config:
-            index = str(len(environment.nodes))
-            node = from_config(index, node_config)
-            if node is not None:
-                environment.nodes.append(node)
-            else:
+            node = environment.nodes.create_by_config(node_config)
+            if not node:
+                # it's a spec
                 nodes_spec.append(node_config)
 
             is_default = cast(Optional[bool], node_config.get(constants.IS_DEFAULT))
@@ -92,51 +89,10 @@ class Environment(object):
 
     @property
     def default_node(self) -> Node:
-        if self._default_node is None:
-            default = None
-            for node in self.nodes:
-                if node.is_default:
-                    default = node
-                    break
-            if default is None:
-                if len(self.nodes) == 0:
-                    raise LisaException("No node found in current environment")
-                else:
-                    default = self.nodes[0]
-            self._default_node = default
-        return self._default_node
-
-    def get_node_byname(self, name: str, throw_error: bool = True) -> Optional[Node]:
-        found = None
-
-        if len(self.nodes) == 0:
-            raise LisaException("nodes shouldn't be Empty when call getNodeByName")
-
-        for node in self.nodes:
-            if node.name == name:
-                found = node
-                break
-        if found is None and throw_error:
-            raise LisaException(f"cannot find node {name}")
-        return found
-
-    def get_node_byindex(self, index: int) -> Node:
-        found = None
-        if self.nodes is not None:
-            if len(self.nodes) > index:
-                found = self.nodes[index]
-        else:
-            raise LisaException("nodes shouldn't be None when call getNodeByIndex")
-
-        assert found
-        return found
-
-    def set_platform(self, platform: Platform) -> None:
-        self.platform = platform
+        return self.nodes.default
 
     def close(self) -> None:
-        for node in self.nodes:
-            node.close()
+        self.nodes.close()
 
     def _validate_single_default(
         self, has_default: bool, is_default: Optional[bool]
@@ -151,13 +107,14 @@ class Environment(object):
 def load_environments(config: Dict[str, object]) -> None:
     if not config:
         raise LisaException("environment section must be set in config")
-    global max_concurrency
-    max_concurrency = cast(int, config.get(constants.ENVIRONMENT_MAX_CONCURRENCY, 1))
+    environments.max_concurrency = cast(
+        int, config.get(constants.ENVIRONMENT_MAX_CONCURRENCY, 1)
+    )
     environments_config = cast(
         List[Dict[str, object]], config.get(constants.ENVIRONMENTS)
     )
     without_name: bool = False
-    log = get_logger("init", "env")
+    log = _get_init_logger()
     for environment_config in environments_config:
         environment = Environment.load(environment_config)
         if not environment.name:
@@ -166,20 +123,27 @@ def load_environments(config: Dict[str, object]) -> None:
             environment.name = _default_no_name
             without_name = True
         log.info(f"loaded environment {environment.name}")
-        _all_environments[environment.name] = environment
+        environments[environment.name] = environment
 
 
-def get_environments() -> Dict[str, Environment]:
-    return _all_environments
+class Environments(Dict[str, Environment]):
+    def __init__(self) -> None:
+        self.max_concurrency = 1
+
+    def __getitem__(self, k: Optional[str] = None) -> Environment:
+        if k is None:
+            key = _default_no_name
+        else:
+            key = k.lower()
+        environment = super().get(key)
+        if environment is None:
+            raise LisaException(f"not found environment '{k}'")
+
+        return environment
+
+    @property
+    def default(self) -> Environment:
+        return self[_default_no_name]
 
 
-def get_environment(name: Optional[str] = None) -> Environment:
-    if name is None:
-        key = _default_no_name
-    else:
-        key = name.lower()
-    environment = _all_environments.get(key)
-    if environment is None:
-        raise LisaException(f"not found environment '{name}'")
-
-    return environment
+environments = Environments()

@@ -24,9 +24,9 @@ class Ntttcp(Tool):
         return can_install
 
     def _install_internal(self) -> bool:
-        tool_path = self.node.get_tool_path(self)
+        tool_path = self.get_tool_path()
         self.node.shell.mkdir(tool_path)
-        git = self.node.get_tool(Git)
+        git = self.node.tools[Git]
         git.clone(self.repo, tool_path)
         code_path = tool_path.joinpath("ntttcp-for-linux/src")
         self.node.execute("make && sudo make install", shell=True, cwd=code_path)

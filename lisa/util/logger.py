@@ -3,6 +3,8 @@ import time
 from functools import partial
 from typing import Dict, List, Optional, Union, cast
 
+from lisa.util.exceptions import LisaException
+
 # to prevent circular import, hard code it here.
 ENV_KEY_RUN_LOCAL_PATH = "LISA_RUN_LOCAL_PATH"
 DEFAULT_LOG_NAME = "LISA"
@@ -27,6 +29,12 @@ class Logger(logging.Logger):
                 self.log(level, f"{prefix}{line}")
             else:
                 self.log(level, line)
+
+    def warn_or_raise(self, raise_error: bool, message: str) -> None:
+        if raise_error:
+            raise LisaException(message)
+        else:
+            self.warn(message)
 
 
 _get_root_logger = partial(logging.getLogger, DEFAULT_LOG_NAME)
