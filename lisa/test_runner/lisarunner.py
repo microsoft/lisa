@@ -45,11 +45,8 @@ class LISARunner(Action):
             test_suite_cases.append(test_result)
             test_suites[test_case_data.metadata.suite] = test_suite_cases
 
-        platform_type = self.platform.platform_type()
         # request environment
-        self._log.info(f"platform {platform_type} environment requesting")
-        environment = environments.default
-        self._log.info(f"platform {platform_type} environment requested")
+        environment = self.platform.request_environment(environments.default)
 
         self._log.info(f"start running {len(test_results)} cases")
         for test_suite_data in test_suites:
@@ -73,14 +70,7 @@ class LISARunner(Action):
             self._log.info(f"    {key.name}\t: {result_count_dict.get(key, 0)}")
 
         # delete enviroment after run
-        self._log.info(
-            f"platform {platform_type} environment {environment.name} deleting"
-        )
         self.platform.delete_environment(environment)
-        self._log.info(
-            f"platform {platform_type} environment {environment.name} deleted"
-        )
-
         self.set_status(ActionStatus.SUCCESS)
 
     async def stop(self) -> None:

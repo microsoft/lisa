@@ -155,6 +155,14 @@ mypy’s [cheat sheet][].
 [intro]: https://kishstats.com/python/2019/01/07/python-type-hinting.html
 [cheat sheet]: https://mypy.readthedocs.io/en/latest/cheat_sheet_py3.html
 
+## Runbook schema
+
+Some plugins like Platform need follow this section to extend runbook schema. Runbook is the configurations of LISA runs. Every LISA run need a runbook.
+
+The runbook uses [dataclass](https://docs.python.org/3/library/dataclasses.html) to define, [dataclass-json](https://github.com/lidatong/dataclasses-json/) to deserialize, and [marshmallow](https://marshmallow.readthedocs.io/en/3.0/api_reference.html) to validate the schema.
+
+See more examples in [schema.py](lisa/schema.py), if you need to extend runbook schema.
+
 ## Committing Guidelines
 
 A best practice when using [Git](https://git-scm.com/book/en/v2) is to create a

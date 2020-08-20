@@ -56,7 +56,7 @@ class Process:
     ) -> None:
         # the shell can be LocalShell or SshShell
         self._shell = shell
-        self._id = id_
+        self._id_ = id_
         self._is_linux = is_linux
         self._running: bool = False
         self._log = get_logger("cmd", id_, parent=parent_logger)

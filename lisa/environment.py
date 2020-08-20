@@ -3,10 +3,10 @@ from __future__ import annotations
 import copy
 from collections import UserDict
 from functools import partial
-from typing import TYPE_CHECKING, Dict, List, Optional, cast
+from typing import TYPE_CHECKING, Optional
 
+from lisa import schema
 from lisa.node import Nodes
-from lisa.util import constants
 from lisa.util.exceptions import LisaException
 from lisa.util.logger import get_logger
 
@@ -25,67 +25,50 @@ class Environment(object):
         self.name: str = ""
         self.is_ready: bool = False
         self.platform: Optional[Platform] = None
-        self.spec: Optional[Dict[str, object]] = None
+        self.data: Optional[schema.Environment] = None
 
         self._default_node: Optional[Node] = None
         self._log = get_logger("env", self.name)
 
     @staticmethod
-    def load(config: Dict[str, object]) -> Environment:
+    def load(environment_data: schema.Environment) -> Environment:
         environment = Environment()
-        spec = copy.deepcopy(config)
-
-        environment.name = cast(str, spec.get(constants.NAME, ""))
+        environment.name = environment_data.name
 
         has_default_node = False
         nodes_spec = []
-        nodes_config = cast(
-            List[Dict[str, object]], spec.get(constants.ENVIRONMENTS_NODES)
-        )
-        for node_config in nodes_config:
-            node = environment.nodes.create_by_config(node_config)
-            if not node:
-                # it's a spec
-                nodes_spec.append(node_config)
+        if environment_data.nodes:
+            for node_data in environment_data.nodes:
+                node = environment.nodes.from_data(node_data)
+                if not node:
+                    # it's a spec
+                    nodes_spec.append(node_data)
 
-            is_default = cast(Optional[bool], node_config.get(constants.IS_DEFAULT))
+                has_default_node = environment._validate_single_default(
+                    has_default_node, node_data.is_default
+                )
+
+        # validate template and node not appear together
+        if environment_data.template is not None:
+            is_default = environment_data.template.is_default
             has_default_node = environment._validate_single_default(
                 has_default_node, is_default
             )
-
-        # validate template and node not appear together
-        nodes_template = cast(
-            List[Dict[str, object]], spec.get(constants.ENVIRONMENTS_TEMPLATE)
-        )
-        if nodes_template is not None:
-            for item in nodes_template:
-                node_count = cast(
-                    Optional[int], item.get(constants.ENVIRONMENTS_TEMPLATE_NODE_COUNT)
-                )
-                if node_count is None:
-                    node_count = 1
-                else:
-                    del item[constants.ENVIRONMENTS_TEMPLATE_NODE_COUNT]
-
-                is_default = cast(Optional[bool], item.get(constants.IS_DEFAULT))
-                has_default_node = environment._validate_single_default(
-                    has_default_node, is_default
-                )
-                for i in range(node_count):
-                    copied_item = copy.deepcopy(item)
-                    # only one default node for template also
-                    if is_default and i > 0:
-                        del copied_item[constants.IS_DEFAULT]
-                    nodes_spec.append(copied_item)
-            del spec[constants.ENVIRONMENTS_TEMPLATE]
+            for i in range(environment_data.template.node_count):
+                copied_item = copy.deepcopy(environment_data.template)
+                # only one default node for template also
+                if is_default and i > 0:
+                    copied_item.is_default = False
+                nodes_spec.append(copied_item)
+            environment_data.template = None
 
         if len(nodes_spec) == 0 and len(environment.nodes) == 0:
             raise LisaException("not found any node in environment")
 
-        spec[constants.ENVIRONMENTS_NODES] = nodes_spec
+        environment_data.nodes = nodes_spec
 
-        environment.spec = spec
-        environment._log.debug(f"environment spec is {environment.spec}")
+        environment.data = environment_data
+        environment._log.debug(f"environment data is {environment.data}")
         return environment
 
     @property
@@ -105,19 +88,15 @@ class Environment(object):
         return has_default
 
 
-def load_environments(config: Dict[str, object]) -> None:
-    if not config:
-        raise LisaException("environment section must be set in config")
-    environments.max_concurrency = cast(
-        int, config.get(constants.ENVIRONMENT_MAX_CONCURRENCY, 1)
-    )
-    environments_config = cast(
-        List[Dict[str, object]], config.get(constants.ENVIRONMENTS)
-    )
+def load_environments(environment_root_data: Optional[schema.EnvironmentRoot]) -> None:
+    if not environment_root_data:
+        return
+    environments.max_concurrency = environment_root_data.max_concurrency
+    environments_data = environment_root_data.environments
     without_name: bool = False
     log = _get_init_logger()
-    for environment_config in environments_config:
-        environment = Environment.load(environment_config)
+    for environment_data in environments_data:
+        environment = Environment.load(environment_data)
         if not environment.name:
             if without_name:
                 raise LisaException("at least two environments has no name")
@@ -128,15 +107,15 @@ def load_environments(config: Dict[str, object]) -> None:
 
 
 if TYPE_CHECKING:
-    EnvironmentDict = UserDict[str, Environment]
+    EnvironmentsDict = UserDict[str, Environment]
 else:
-    EnvironmentDict = UserDict
+    EnvironmentsDict = UserDict
 
 
-class Environments(EnvironmentDict):
+class Environments(EnvironmentsDict):
     def __init__(self) -> None:
         super().__init__()
-        self.max_concurrency = 1
+        self.max_concurrency: int = 1
 
     def __getitem__(self, k: Optional[str] = None) -> Environment:
         if k is None:

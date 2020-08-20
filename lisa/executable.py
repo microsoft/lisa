@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import pathlib
-import re
 from abc import ABC, abstractmethod
 from hashlib import sha256
 from typing import TYPE_CHECKING, Dict, List, Optional, Type, TypeVar, Union, cast
@@ -327,8 +326,6 @@ class CustomScriptBuilder:
         It needs some special handling in tool.py, but not much.
     """
 
-    _normalize_pattern = re.compile(r"[^\w]|\d")
-
     def __init__(
         self,
         root_path: pathlib.Path,
@@ -370,7 +367,7 @@ class CustomScriptBuilder:
             command_identifier = files[0]
 
         # generate an unique name based on file names
-        command_identifier = self._normalize_pattern.sub("_", command_identifier)
+        command_identifier = constants.NORMALIZE_PATTERN.sub("_", command_identifier)
         hash_source = "".join(files).encode("utf-8")
         hash_result = sha256(hash_source)
         self.name = f"custom_{command_identifier}_{hash_result.hexdigest()}".lower()

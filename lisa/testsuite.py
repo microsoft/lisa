@@ -103,7 +103,7 @@ class TestCaseData:
         self.select_action: str = ""
         self.times: int = 1
         self.retry: int = 0
-        self.use_new_environmnet: bool = False
+        self.use_new_environment: bool = False
         self.ignore_failure: bool = False
         self.environment_name: str = ""
 

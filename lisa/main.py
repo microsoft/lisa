@@ -6,7 +6,7 @@ from pathlib import Path
 from retry import retry  # type: ignore
 
 from lisa.parameter_parser.argparser import parse_args
-from lisa.util import env
+from lisa.util import constants, env
 from lisa.util.logger import get_logger, set_level, set_log_file
 
 
@@ -27,6 +27,8 @@ def main() -> None:
     run_path = create_run_path(local_path)
     local_path = local_path.joinpath(run_path)
     local_path.mkdir(parents=True)
+
+    constants.RUN_ID = run_path.name
     env.set_env(env.KEY_RUN_LOCAL_PATH, str(local_path))
     env.set_env(env.KEY_RUN_PATH, str(run_path))
 
