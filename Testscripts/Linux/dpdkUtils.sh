@@ -179,7 +179,7 @@ function Install_Dpdk () {
 					ssh "${1}" "rpm -ivh $VALUE"
 				fi
 			done
-			packages+=(kernel-devel-$(uname -r) numactl-devel.x86_64 librdmacm-devel meson pkgconfig)
+			packages+=(kernel-devel-$(uname -r) numactl-devel.x86_64 librdmacm-devel pkgconfig)
 			ssh "${1}" "yum makecache"
 			check_package "libmnl-devel"
 			if [ $? -eq 0 ]; then
@@ -189,6 +189,9 @@ function Install_Dpdk () {
 			if [ $? -eq 0 ]; then
 				packages+=("elfutils-libelf-devel")
 			fi
+			# Required as meson is dependent on python36
+			ssh "${1}" "yum install -y rh-python36 ninja-build"
+			ssh "${1}" 'PATH=$PATH:/opt/rh/rh-python36/root/usr/bin/ && pip install --upgrade pip && pip install meson'
 			;;
 		ubuntu|debian)
 			ssh "${1}" "until dpkg --force-all --configure -a; sleep 10; do echo 'Trying again...'; done"
@@ -213,7 +216,10 @@ function Install_Dpdk () {
 			else
 				packages+=(kernel-default-devel)
 			fi
-			packages+=(libnuma-devel numactl librdmacm1 rdma-core-devel libmnl-devel meson pkg-config)
+			packages+=(libnuma-devel numactl librdmacm1 rdma-core-devel libmnl-devel pkg-config)
+			# default meson in SUSE 15-SP1 is 0.46 & required is 0.47. Installing it manually
+			ssh "${1}" "zypper install -y ninja"
+			ssh "${1}" "rpm -ivh https://download.opensuse.org/repositories/openSUSE:/Leap:/15.2/standard/noarch/meson-0.54.2-lp152.1.1.noarch.rpm"
 			;;
 		*)
 			echo "Unknown distribution"
@@ -318,8 +324,11 @@ function Install_Dpdk () {
 	LogMsg "MLX_PMD flag enabling on ${1}"
 	if type Dpdk_Configure > /dev/null; then
 		echo "Calling testcase provided Dpdk_Configure(1) on ${1}"
-		ssh ${1} "cd ${LIS_HOME}/${DPDK_DIR} && meson build"
-		#ssh ${1} "sed -ri 's,(MLX._PMD=)n,\1y,' ${LIS_HOME}/${DPDK_DIR}/build/.config"
+		if [[ ${DISTRO_NAME} == rhel || ${DISTRO_NAME} == centos ]]; then
+			ssh ${1} "cd ${LIS_HOME}/${DPDK_DIR} && PATH=$PATH:/opt/rh/rh-python36/root/usr/bin/ && meson build"
+		else
+			ssh ${1} "cd ${LIS_HOME}/${DPDK_DIR} && meson build"
+		fi
 		# shellcheck disable=SC2034
 		ssh ${1} ". constants.sh; . utils.sh; . dpdkUtils.sh; cd ${LIS_HOME}/${DPDK_DIR}; $(typeset -f Dpdk_Configure); DPDK_DIR=${DPDK_DIR} LIS_HOME=${LIS_HOME} Dpdk_Configure ${1}"
 		ssh ${1} "cd ${LIS_HOME}/${DPDK_DIR}/build && ninja && ninja install && ldconfig"
@@ -329,7 +338,11 @@ function Install_Dpdk () {
 		check_exit_status "${1} CONFIG_RTE_LIBRTE_MLX4_PMD=y" "exit"
 		ssh "${1}" "sed -i 's/^CONFIG_RTE_LIBRTE_MLX5_PMD=n/CONFIG_RTE_LIBRTE_MLX5_PMD=y/g' $RTE_SDK/config/common_base"
 		check_exit_status "${1} CONFIG_RTE_LIBRTE_MLX5_PMD=y" "exit"
-		ssh "${1}" "cd $RTE_SDK && meson $RTE_TARGET"
+		if [[ ${DISTRO_NAME} == rhel || ${DISTRO_NAME} == centos ]]; then
+			ssh ${1} "cd ${LIS_HOME}/${DPDK_DIR} && PATH=$PATH:/opt/rh/rh-python36/root/usr/bin/ && meson ${RTE_TARGET}"
+		else
+			ssh ${1} "cd ${LIS_HOME}/${DPDK_DIR} && meson ${RTE_TARGET}"
+		fi
 		ssh "${1}" "cd $RTE_SDK/$RTE_TARGET && ninja 2>&1 && ninja install 2>&1 && ldconfig"
 		check_exit_status "dpdk build on ${1}" "exit"
 	fi
