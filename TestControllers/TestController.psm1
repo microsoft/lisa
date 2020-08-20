@@ -234,8 +234,13 @@ Class TestController
 		}
 
 		foreach ($test in $AllTests) {
+			$testOsVHDString = $test.SetupConfig.OsVHD
+			# SetupConfig.OsVHD may be wrapped within <![CDATA['$OsVHD']]> for escaping &|<|>|'|", in that case, we use InnerText
+			if ($test.SetupConfig.OsVHD.InnerText) {
+				$testOsVHDString = $test.SetupConfig.OsVHD.InnerText
+			}
 			# Put test case to hashtable, per setupType, TestLocation, OsVHD
-			$key = "$($test.SetupConfig.SetupType),$($test.SetupConfig.TestLocation),$($test.SetupConfig.OsVHD)"
+			$key = "$($test.SetupConfig.SetupType),$($test.SetupConfig.TestLocation),$testOsVHDString"
 			if ($test.SetupConfig.SetupType) {
 				if ($SetupTypeToTestCases.ContainsKey($key)) {
 					$SetupTypeToTestCases[$key] += $test
@@ -270,7 +275,7 @@ Class TestController
 					$this.SetupTypeTable[$setupTypeXml.LocalName] = $setupTypeXml
 				}
 				else {
-					Throw "Duplicate setup type defined with the same name: $($setupTypeXml.LocalName) from $file"
+					Throw "Conflicts in SetupType '$($setupTypeXml.LocalName)' from '$file', which has the same name defined in other TestSetup files, please check all other TestSetup Xml files"
 				}
 			}
 		}

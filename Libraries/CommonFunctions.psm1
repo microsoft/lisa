@@ -209,7 +209,7 @@ Function Add-SetupConfig {
             if (!$test.SetupConfig.$ConfigName) {
                 # use CDATA when the value contains XML escaped characters
                 if ($ConfigValue -imatch "&|<|>|'|""") {
-                    $test.SetupConfig.InnerXml += "<$ConfigName><![CDATA['$ConfigValue']]></$ConfigName>"
+                    $test.SetupConfig.InnerXml += "<$ConfigName><![CDATA[$ConfigValue]]></$ConfigName>"
                 }
                 else {
                     $test.SetupConfig.InnerXml += "<$ConfigName>$ConfigValue</$ConfigName>"

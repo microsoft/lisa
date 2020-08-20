@@ -333,11 +333,16 @@ Class AzureController : TestController
 		}
 
 		foreach ($test in $AllTests) {
+			$testOsVHDString = $test.SetupConfig.OsVHD
+			# SetupConfig.OsVHD may be wrapped within <![CDATA['$OsVHD']]> for escaping &|<|>|'|", in that case, we use InnerText
+			if ($test.SetupConfig.OsVHD.InnerText) {
+				$testOsVHDString = $test.SetupConfig.OsVHD.InnerText
+			}
 			# Put test case to hashtable, per setupType,OverrideVMSize,networking,diskType,osDiskType,switchName
 			$key = "$($test.SetupConfig.SetupType),$($test.SetupConfig.OverrideVMSize),$($test.SetupConfig.Networking),$($test.SetupConfig.DiskType)," +
 				"$($test.SetupConfig.OSDiskType),$($test.SetupConfig.SwitchName),$($test.SetupConfig.ImageType)," +
 				"$($test.SetupConfig.OSType),$($test.SetupConfig.StorageAccountType),$($test.SetupConfig.TestLocation)," +
-				"$($test.SetupConfig.ARMImageName),$($test.SetupConfig.OsVHD),$($test.SetupConfig.VMGeneration)"
+				"$($test.SetupConfig.ARMImageName),$testOsVHDString,$($test.SetupConfig.VMGeneration)"
 			if ($test.SetupConfig.SetupType) {
 				if ($SetupTypeToTestCases.ContainsKey($key)) {
 					$SetupTypeToTestCases[$key] += $test

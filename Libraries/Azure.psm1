@@ -257,8 +257,8 @@ Function Move-OsVHDToStorageAccount($OriginalOsVHD, $TargetStorageAccount) {
 		}
 	}
 	if (($global:BaseOsVHD -inotmatch "/") -or (($global:BaseOsVHD -imatch 'sp=') -and ($global:BaseOsVHD -imatch 'sig='))) {
-		Set-Variable -Name BaseOsVHD -Value $targetOsVHD -Scope Global
-		Write-LogInfo "New Base VHD name - '$targetOsVHD'"
+		Set-Variable -Name BaseOsVHD -Value $targetOsVHD -Scope Global -Force
+		Write-LogInfo "New Base VHD name - $targetOsVHD"
 	}
 	if (!$global:StorageAccountsCopiedOsVHD) {
 		Set-Variable -Name StorageAccountsCopiedOsVHD -Value @("$TargetStorageAccount") -Scope Global -Force
@@ -294,14 +294,30 @@ Function Select-StorageAccountByTestLocation($CurrentTestData, [string]$Location
 	}
 
 	if ($CurrentTestData.SetupConfig.OsVHD) {
+		$originalOsVHD = $CurrentTestData.SetupConfig.OsVHD
+		# SetupConfig.OsVHD may be wrapped within <![CDATA['$OsVHD']]> for escaping &|<|>|'|", in that case, we use InnerText
+		if ($CurrentTestData.SetupConfig.OsVHD.InnerText) {
+			$originalOsVHD = $CurrentTestData.SetupConfig.OsVHD.InnerText
+		}
 		if ($global:StorageAccountsCopiedOsVHD -notcontains $targetStorageAccount) {
-			$updatedOsVHD = Move-OsVHDToStorageAccount -OriginalOsVHD $CurrentTestData.SetupConfig.OsVHD -TargetStorageAccount $targetStorageAccount
-			$CurrentTestData.SetupConfig.OsVHD = $updatedOsVHD
+			$updatedOsVHD = Move-OsVHDToStorageAccount -OriginalOsVHD $originalOsVHD -TargetStorageAccount $targetStorageAccount
+			if ($CurrentTestData.SetupConfig.OsVHD.InnerXml) {
+				$CurrentTestData.SetupConfig.OsVHD.InnerXml = $updatedOsVHD
+			}
+			else {
+				$CurrentTestData.SetupConfig.OsVHD = $updatedOsVHD
+			}
 		}
 		else {
-			$vhdName = $CurrentTestData.SetupConfig.OsVHD.Split("?")[0].split('/')[-1]
+			$vhdName = $originalOsVHD.Split("?")[0].split('/')[-1]
 			Write-LogInfo "VHD '$vhdName' had ever been copied to '$targetStorageAccount', skip copying again"
-			$CurrentTestData.SetupConfig.OsVHD = 'http://{0}.blob.core.windows.net/vhds/{1}' -f $targetStorageAccount, $vhdName
+			$alreadyCopiedOsVHD = 'http://{0}.blob.core.windows.net/vhds/{1}' -f $targetStorageAccount, $vhdName
+			if ($CurrentTestData.SetupConfig.OsVHD.InnerXml) {
+				$CurrentTestData.SetupConfig.OsVHD.InnerXml = $alreadyCopiedOsVHD
+			}
+			else {
+				$CurrentTestData.SetupConfig.OsVHD = $alreadyCopiedOsVHD
+			}
 		}
 	}
 	# update ARMStorageAccount value from '$global:GlobalConfig', in case Test Scripts use '$global:GlobalConfig.Global.Azure.Subscription.ARMStorageAccount' directly
@@ -1636,10 +1652,7 @@ Function Invoke-AllResourceGroupDeployments($SetupTypeData, $CurrentTestData, $R
 	$resourceGroupCount = 0
 	$outputError = ""
 	Write-LogInfo "Current test setup: $($SetupTypeData.Name)"
-	$osVHDName = ""
-	if ($CurrentTestData.SetupConfig.OsVHD) {
-		$osVHDName = $CurrentTestData.SetupConfig.OsVHD.Split("?")[0].split('/')[-1]
-	}
+
 	$osImage = $CurrentTestData.SetupConfig.ARMImageName
 	$location = $CurrentTestData.SetupConfig.TestLocation
 	if (!$location) {
@@ -1702,6 +1715,16 @@ Function Invoke-AllResourceGroupDeployments($SetupTypeData, $CurrentTestData, $R
 					Write-LogInfo "test platform is : $testPlatform"
 					if ($isResourceGroupCreated -eq "True") {
 						$azureDeployJSONFilePath = Join-Path $env:TEMP "$groupName.json"
+						# Get $osVHDName for GenerateAzDeploymentJSONFile()
+						if ($CurrentTestData.SetupConfig.OsVHD) {
+							# After Select-StorageAccountByTestLocation(), SetupConfig.OsVHD has been updated with full storage URL (no InnerText string), otherwise throw exception with message
+							if ($CurrentTestData.SetupConfig.OsVHD.InnerText) {
+								Throw "'OsVHD' should be storage URL string, instead of an XmlElement wrapped in <![CDATA['OsVHD']]>"
+							}
+							else {
+								$osVHDName = $CurrentTestData.SetupConfig.OsVHD.Split("?")[0].split('/')[-1]
+							}
+						}
 						$null = GenerateAzDeploymentJSONFile -RGName $groupName -ImageName $osImage -VHDName $osVHDName -RGXMLData $RG -Location $location `
 							-azuredeployJSONFilePath $azureDeployJSONFilePath -StorageAccountName $updatedStorageAccount
 
