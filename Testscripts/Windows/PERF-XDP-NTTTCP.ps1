@@ -184,7 +184,7 @@ collect_VM_properties
             $testResult = "ABORTED"
         }
         elseif ($currentState -imatch "TestSkipped") {
-            Write-LogErr "Test Skipped. Last known status: $currentStatus"
+            Write-LogErr "Test Skipped. Last known status: $currentStatus."
             $testResult = "SKIPPED"
         }
         elseif ($currentState -imatch "TestFailed") {
@@ -192,7 +192,7 @@ collect_VM_properties
             $testResult = "FAIL"
         }
         else {
-            Write-LogErr "Test execution is not successful, check test logs in VM."
+            Write-LogErr "Test execution is not successful, check test logs in VM. Last known status: $currentStatus."
             $testResult = "ABORTED"
         }
         Copy-RemoteFiles -downloadFrom $receiverVMData.PublicIP -port $receiverVMData.SSHPort `
