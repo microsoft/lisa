@@ -32,6 +32,12 @@ On Windows (in PowerShell):
 $env:PATH += ";$env:USERPROFILE\.poetry\bin"
 ```
 
+TEMP WORKAROUND: poetry cannot handle azure-identity package in current version (1.0.10), so install the preview version, until it's released.
+
+```bash
+poetry self update --preview 1.1.0a2
+```
+
 Then use Poetry to install LISA v3's Python package dependencies:
 
 ```

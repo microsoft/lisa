@@ -1,7 +1,7 @@
 from typing import Any, List
 from unittest import TestCase
 
-from lisa.schema import validate_config
+from lisa.parameter_parser.config import validate
 from lisa.testselector import select_testcases
 from lisa.testsuite import (
     TestCaseData,
@@ -155,10 +155,10 @@ class SelectorTestCase(TestCase):
     def _select_and_check(
         self, config: List[Any], expected_descriptions: List[str]
     ) -> List[TestCaseData]:
-        root_config = {"testcase": config}
-        validate_config(root_config)
+        root_config = {constants.TESTCASE: config}
+        config_instance = validate(root_config)
         case_metadatas = self._generate_metadata()
-        selected = select_testcases(config, case_metadatas)
+        selected = select_testcases(config_instance.testcase, case_metadatas)
         self.assertListEqual(
             expected_descriptions, [case.description for case in selected]
         )

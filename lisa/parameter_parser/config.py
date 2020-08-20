@@ -1,64 +1,24 @@
-from argparse import Namespace
-from collections import UserDict
+from dataclasses import field, make_dataclass
 from pathlib import Path
-from typing import TYPE_CHECKING, Dict, List, Optional, cast
+from typing import Any, List, Optional, Tuple, Type, cast
 
 import yaml
+from marshmallow import Schema
+from marshmallow import validate as marshmallow_validate
 
-from lisa.schema import validate_config
+from lisa import schema
+from lisa.platform_ import platforms
 from lisa.util import constants
 from lisa.util.logger import get_logger
 
-if TYPE_CHECKING:
-    ConfigDict = UserDict[str, object]
-else:
-    ConfigDict = UserDict
+_schema: Optional[Schema] = None
 
 
-class Config(ConfigDict):
-    def __init__(
-        self,
-        base_path: Optional[Path] = None,
-        config: Optional[Dict[str, object]] = None,
-    ) -> None:
-        super().__init__()
-        if base_path is not None:
-            self.base_path = base_path
-        if config is not None:
-            self._config: Dict[str, object] = config
-
-    def validate(self) -> None:
-        # TODO implement config validation
-        pass
-
-    @property
-    def extension(self) -> Dict[str, object]:
-        return self._get_and_cast(constants.EXTENSION)
-
-    @property
-    def environment(self) -> Dict[str, object]:
-        return self._get_and_cast(constants.ENVIRONMENT)
-
-    @property
-    def platform(self) -> List[Dict[str, object]]:
-        return cast(
-            List[Dict[str, object]], self._config.get(constants.PLATFORM, list())
-        )
-
-    @property
-    def testcase(self) -> Dict[str, object]:
-        return self._get_and_cast(constants.TESTCASE)
-
-    # TODO: This is a hack to get around our data not being
-    # structured. Since we generally know the type of the data we’re
-    # trying to get, this indicates that we need to properly structure
-    # said data. Doing so correctly will enable us to delete this.
-    def _get_and_cast(self, name: str) -> Dict[str, object]:
-        return cast(Dict[str, object], self._config.get(name, dict()))
-
-
-def parse_to_config(args: Namespace) -> Config:
-    path = Path(args.config).absolute()
+def load(path: Path) -> Any:
+    """
+    load config, not to validate it, since some extended schemas are not ready
+    before extended modules imported.
+    """
     log = get_logger("parser")
 
     log.info(f"load config from: {path}")
@@ -68,10 +28,100 @@ def parse_to_config(args: Namespace) -> Config:
     with open(path, "r") as file:
         data = yaml.safe_load(file)
 
-    # load schema
-    validate_config(data)
-
     log.debug(f"final config data: {data}")
-    base_path = path.parent
-    log.debug(f"base path is {base_path}")
-    return Config(base_path, data)
+    return data
+
+
+def validate(data: Any) -> schema.Config:
+    _load_platform_schema()
+
+    global _schema
+    if not _schema:
+        _schema = schema.Config.schema()  # type:ignore
+
+    assert _schema
+    config = cast(schema.Config, _schema.load(data))
+    return config
+
+
+def _set_schema_class(
+    schema_type: Type[Any], updated_fields: Optional[List[Tuple[str, Any, Any]]] = None
+) -> None:
+    if updated_fields is None:
+        updated_fields = []
+    setattr(
+        schema,
+        schema_type.__name__,
+        make_dataclass(
+            schema_type.__name__, fields=updated_fields, bases=(schema_type,),
+        ),
+    )
+
+
+def _load_platform_schema() -> None:
+    # load platform extensions
+    platform_fields: List[Tuple[str, Any, Any]] = []
+    platform_field_names: List[str] = []
+
+    # 1. discover extension schemas and construct new field
+    for platform in platforms.values():
+        platform_schema = platform.platform_schema
+        if platform_schema:
+            platform_type_name = platform.platform_type()
+            platform_field = (
+                platform_type_name,
+                Optional[platform_schema],
+                field(default=None),
+            )
+            platform_fields.append(platform_field)
+            platform_field_names.append(platform_type_name)
+
+    # 2. refresh data class in schema platform and environment
+    if platform_fields:
+        # add in platform type
+        platform_with_type_fields = platform_fields.copy()
+        platform_field_names.append(constants.PLATFORM_READY)
+        type_field = (
+            constants.TYPE,
+            str,
+            field(
+                default=constants.PLATFORM_READY,
+                metadata=schema.metadata(
+                    required=True,
+                    validate=marshmallow_validate.OneOf(platform_field_names),
+                ),
+            ),
+        )
+        platform_with_type_fields.append(type_field)
+        # refresh platform
+        _set_schema_class(schema.Platform, platform_with_type_fields)
+        schema.Platform.supported_types = platform_field_names
+
+        # refresh node spec, template, and chain dataclasses
+        _set_schema_class(schema.NodeSpec, platform_fields)
+        _set_schema_class(schema.Template, platform_fields)
+
+        template_in_config = (
+            constants.ENVIRONMENTS_TEMPLATE,
+            Optional[schema.Template],
+            field(default=None),
+        )
+        _set_schema_class(schema.Environment, [template_in_config])
+        platform_spec_in_config = (
+            constants.ENVIRONMENTS,
+            Optional[List[schema.Environment]],
+            field(default=None),
+        )
+        _set_schema_class(schema.EnvironmentRoot, [platform_spec_in_config])
+
+        platform_in_config = (
+            constants.PLATFORM,
+            List[schema.Platform],
+            field(default_factory=list),
+        )
+        environment_in_config = (
+            constants.ENVIRONMENT,
+            Optional[schema.EnvironmentRoot],
+            field(default=None),
+        )
+        _set_schema_class(schema.Config, [platform_in_config, environment_in_config])

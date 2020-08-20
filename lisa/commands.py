@@ -4,9 +4,10 @@ from argparse import Namespace
 from pathlib import Path, PurePath
 from typing import Dict, Iterable, List, Optional, cast
 
+import lisa.parameter_parser.config as config_ops
 from lisa.environment import environments, load_environments
-from lisa.parameter_parser.config import Config, parse_to_config
-from lisa.platform_ import initialize_platforms, platforms
+from lisa.platform_ import initialize_platforms, load_platforms, platforms
+from lisa.schema import Config
 from lisa.sut_orchestrator.ready import ReadyPlatform
 from lisa.test_runner.lisarunner import LISARunner
 from lisa.testselector import select_testcases
@@ -28,29 +29,37 @@ def _load_extends(base_path: Path, extends_config: Dict[str, object]) -> None:
 
 
 def _initialize(args: Namespace) -> Iterable[TestCaseData]:
-
     # make sure extension in lisa is loaded
     base_module_path = Path(__file__).parent
     import_module(base_module_path, logDetails=False)
 
+    initialize_platforms()
+
     # merge all parameters
-    config = parse_to_config(args)
+    path = Path(args.config).absolute()
+    data = config_ops.load(path)
 
-    # load external extension
-    _load_extends(config.base_path, config.extension)
+    # load extended modules
+    if constants.EXTENSION in data:
+        _load_extends(path.parent, data[constants.EXTENSION])
 
+    # validate config, after extensions loaded
+    config = config_ops.validate(data)
+
+    log = _get_init_logger()
+    constants.RUN_NAME = f"lisa_{config.name}_{constants.RUN_ID}"
+    log.info(f"run name is {constants.RUN_NAME}")
     # initialize environment
     load_environments(config.environment)
 
     # initialize platform
-    initialize_platforms(config.platform)
+    load_platforms(config.platform)
 
     # filter test cases
     selected_cases = select_testcases(config.testcase)
 
     _validate(config)
 
-    log = _get_init_logger()
     log.info(f"selected cases: {len(list(selected_cases))}")
     return selected_cases
 
@@ -93,18 +102,13 @@ def list_start(args: Namespace) -> None:
 
 
 def _validate(config: Config) -> None:
-    environment_config = config.environment
-    warn_as_error = False
-    if environment_config:
-        warn_as_error = cast(
-            bool, environment_config.get(constants.WARN_AS_ERROR, False)
-        )
-
-    log = _get_init_logger()
-    for environment in environments.values():
-        if environment.spec is not None and isinstance(
-            platforms.default, ReadyPlatform
-        ):
-            log.warn_or_raise(
-                warn_as_error, "the ready platform cannot process environment spec"
-            )
+    if config.environment:
+        log = _get_init_logger()
+        for environment in environments.values():
+            if environment.data is not None and isinstance(
+                platforms.default, ReadyPlatform
+            ):
+                log.warn_or_raise(
+                    config.environment.warn_as_error,
+                    "the ready platform cannot process environment spec",
+                )

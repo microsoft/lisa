@@ -5,8 +5,9 @@ import random
 from collections import UserDict
 from typing import TYPE_CHECKING, Any, Dict, List, Optional, TypeVar, Union, cast
 
+from lisa import schema
 from lisa.executable import Tools
-from lisa.tool import Echo, Uname
+from lisa.tools import Echo, Uname
 from lisa.util import constants, env
 from lisa.util.exceptions import LisaException
 from lisa.util.logger import get_logger
@@ -28,12 +29,13 @@ class Node:
         """
         id_: passed in by platform, uses to associate with resource in platform
         """
+
         self.is_default = is_default
         self.is_remote = is_remote
         self.spec = spec
         self.name: str = ""
         self.index = index
-        self.id = id_
+        self.id_ = id_
 
         self.shell: Shell = LocalShell()
 
@@ -73,35 +75,19 @@ class Node:
         self,
         address: str = "",
         port: int = 22,
-        publicAddress: str = "",
-        publicPort: int = 22,
+        public_address: str = "",
+        public_port: int = 22,
         username: str = "root",
         password: str = "",
-        privateKeyFile: str = "",
+        private_key_file: str = "",
     ) -> None:
         if self._connection_info is not None:
             raise LisaException(
                 "node is set connection information already, cannot set again"
             )
 
-        if not address and not publicAddress:
-            raise LisaException(
-                "at least one of address and publicAddress need to be set"
-            )
-        elif not address:
-            address = publicAddress
-        elif not publicAddress:
-            publicAddress = address
-
-        if not port and not publicPort:
-            raise LisaException("at least one of port and publicPort need to be set")
-        elif not port:
-            port = publicPort
-        elif not publicPort:
-            publicPort = port
-
         self._connection_info = ConnectionInfo(
-            publicAddress, publicPort, username, password, privateKeyFile,
+            public_address, public_port, username, password, private_key_file,
         )
         self.shell = SshShell(self._connection_info)
         self.internal_address = address
@@ -224,12 +210,12 @@ class Node:
 
 
 if TYPE_CHECKING:
-    NodeDict = UserDict[str, Node]
+    NodesDict = UserDict[str, Node]
 else:
-    NodeDict = UserDict
+    NodesDict = UserDict
 
 
-class Nodes(NodeDict):
+class Nodes(NodesDict):
     def __init__(self) -> None:
         self._default: Optional[Node] = None
         self._list: List[Node] = list()
@@ -278,8 +264,11 @@ class Nodes(NodeDict):
         for node in self._list:
             node.close()
 
-    def create_by_config(self, config: Dict[str, object]) -> Optional[Node]:
-        node_type = cast(str, config.get(constants.TYPE))
+    def from_data(
+        self, node_data: Union[schema.LocalNode, schema.RemoteNode, schema.NodeSpec]
+    ) -> Optional[Node]:
+
+        node_type = node_data.type
         node = None
         if node_type is None:
             raise LisaException("type of node shouldn't be None")
@@ -287,9 +276,8 @@ class Nodes(NodeDict):
             constants.ENVIRONMENTS_NODES_LOCAL,
             constants.ENVIRONMENTS_NODES_REMOTE,
         ]:
-            is_default = cast(bool, config.get(constants.IS_DEFAULT, False))
             node = Node.create(
-                len(self._list), node_type=node_type, is_default=is_default
+                len(self._list), node_type=node_type, is_default=node_data.is_default
             )
             self._list.append(node)
             if node.is_remote:
@@ -300,12 +288,13 @@ class Nodes(NodeDict):
                     constants.ENVIRONMENTS_NODES_REMOTE_PUBLIC_PORT,
                     constants.ENVIRONMENTS_NODES_REMOTE_USERNAME,
                     constants.ENVIRONMENTS_NODES_REMOTE_PASSWORD,
-                    constants.ENVIRONMENTS_NODES_REMOTE_PRIVATEKEYFILE,
+                    constants.ENVIRONMENTS_NODES_REMOTE_PRIVATE_KEY_FILE,
                 ]
                 parameters: Dict[str, Any] = dict()
-                for key in config:
-                    if key in fields:
-                        parameters[key] = cast(str, config[key])
+                for field in fields:
+                    value = getattr(node_data, field)
+                    if value is not None:
+                        parameters[field] = value
                 node.set_connection_info(**parameters)
         return node
 

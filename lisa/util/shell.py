@@ -17,23 +17,23 @@ class ConnectionInfo:
         port: int = 22,
         username: str = "root",
         password: Optional[str] = "",
-        privatekey_file: str = "",
+        private_key_file: str = "",
     ) -> None:
         self.address = address
         self.port = port
         self.username = username
         self.password = password
-        self.privatekey_file = privatekey_file
+        self.private_key_file = private_key_file
 
-        if not self.password and not self.privatekey_file:
+        if not self.password and not self.private_key_file:
             raise LisaException(
                 "at least one of password and privateKeyFile need to be set"
             )
-        elif not self.privatekey_file:
+        elif not self.private_key_file:
             self._use_password = True
         else:
-            if not Path(self.privatekey_file).exists():
-                raise FileNotFoundError(self.privatekey_file)
+            if not Path(self.private_key_file).exists():
+                raise FileNotFoundError(self.private_key_file)
             self.password = None
             self._use_password = False
 
@@ -54,7 +54,7 @@ class SshShell:
             port=self._connection_info.port,
             username=self._connection_info.username,
             password=self._connection_info.password,
-            private_key_file=self._connection_info.privatekey_file,
+            private_key_file=self._connection_info.private_key_file,
             missing_host_key=spur.ssh.MissingHostKey.accept,
         )
 

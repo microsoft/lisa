@@ -12,9 +12,9 @@ class ReadyPlatform(Platform):
         # ready platform has no config
         pass
 
-    def _request_environment_internal(self, environment: Environment) -> Environment:
+    def _request_environment(self, environment: Environment) -> Environment:
         return environment
 
-    def _delete_environment_internal(self, environment: Environment) -> None:
+    def _delete_environment(self, environment: Environment) -> None:
         # ready platform doesn't support delete environment
         pass
