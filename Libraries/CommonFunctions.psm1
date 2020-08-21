@@ -207,13 +207,11 @@ Function Add-SetupConfig {
         param ([System.Collections.ArrayList]$TestCollections, [string]$ConfigName, [string]$ConfigValue, [bool]$Force = $false)
         foreach ($test in $TestCollections) {
             if (!$test.SetupConfig.$ConfigName) {
-                # use CDATA when the value contains XML escaped characters
+                # if the $ConfigValue contains certain characters as below, use [System.Security.SecurityElement]::Escape() to avoid exception
                 if ($ConfigValue -imatch "&|<|>|'|""") {
-                    $test.SetupConfig.InnerXml += "<$ConfigName><![CDATA['$ConfigValue']]></$ConfigName>"
+                    $ConfigValue = [System.Security.SecurityElement]::Escape($ConfigValue)
                 }
-                else {
-                    $test.SetupConfig.InnerXml += "<$ConfigName>$ConfigValue</$ConfigName>"
-                }
+                $test.SetupConfig.InnerXml += "<$ConfigName>$ConfigValue</$ConfigName>"
             }
             elseif ($Force) {
                 $test.SetupConfig.$ConfigName = $ConfigValue
