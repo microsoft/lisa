@@ -86,7 +86,7 @@ do
         if [ $? -eq 1 ]; then
                 LogErr "ERROR: Please provide valide client and server ip. Invalid ip: ${ip}"
                 SetTestStateAborted
-                exit 0
+                exit 1
         fi
 done
 
@@ -100,16 +100,19 @@ pktgenDir=~/pktgen
 ssh ${server} "mkdir -p ${pktgenDir}"
 download_pktgen_scripts ${server} ${pktgenDir}
 
-vfName=$(get_vf_name)
+vfName=$(get_vf_name "${nicName}")
 if [ -z "${vfName}" ]; then
         LogErr "VF Name is not detected. Please check vm configuration."
 fi
 # Store current xdp drop queue variables
 pakcetDropBefore=$(calculate_packets_drop $vfName)
+# https://lore.kernel.org/lkml/1579558957-62496-3-git-send-email-haiyangz@microsoft.com/t/
+LogMsg "XDP program cannot run with LRO (RSC) enabled, disable LRO before running XDP"
+ssh ${client} "ethtool -K ${nicName} lro off"
 # start xdpdump with drop
-xdpdumpCommand="cd bpf-samples/xdpdump && ./xdpdump -i ${nicName} > ~/xdpdumpout.txt"
+xdpdumpCommand="cd bpf-samples/xdpdump && ./xdpdump -i ${nicName} > ~/xdpdumpout.txt 2>&1"
 LogMsg "Starting xdpdump on ${client} with command: ${xdpdumpCommand}"
-ssh -f ${client} "sh -c '${xdpdumpCommand}'"
+ssh -f ${client} "sh -c '${xdpdumpCommand} &'"
 
 
 # Start pktgen application
@@ -136,12 +139,15 @@ dropLimit=$(( packetCount*packetDropThreshold/100 ))
 if [ $packetsDropped -lt $dropLimit ]; then
         LogErr "receiver did not receive packets."
         SetTestStateAborted
+        exit 1
 fi
 ssh ${client} "killall xdpdump"
 if [ $pps -ge 1000000 ]; then
         LogMsg "pps is greater than 1 Mpps"
         SetTestStateCompleted
+        exit 0
 else
         LogErr "pps is lower than 1 Mpps"
         SetTestStateFailed
+        exit 1
 fi

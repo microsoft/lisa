@@ -26,10 +26,12 @@ function XDPPing {
     Run-LinuxCmd -ip $clientVMData.PublicIP -port $clientVMData.SSHPort -username $user -password $password `
         -command $pingCommand -RunInBackground -runAsSudo
     # Start XDPDump
-    $xdpCommand = "cd /root/bpf-samples/xdpdump && timeout 10 ./xdpdump -i $NIC > ~/xdpdumpout_$NIC.txt"
+    # https://lore.kernel.org/lkml/1579558957-62496-3-git-send-email-haiyangz@microsoft.com/t/
+    Write-LogDbg "XDP program cannot run with LRO (RSC) enabled, disable LRO before running XDP"
+    $xdpCommand = "ethtool -K $NIC lro off && cd /root/bpf-samples/xdpdump && timeout 10 ./xdpdump -i $NIC > ~/xdpdumpout_$NIC.txt 2>&1"
     Write-LogInfo "Starting command $xdpCommand on $($clientVMData.RoleName)"
     $testJob = Run-LinuxCmd -ip $clientVMData.PublicIP -port $clientVMData.SSHPort -username $user -password $password `
-        -command $xdpCommand -RunInBackground -runAsSudo
+        -command $xdpCommand -RunInBackground -ignoreLinuxExitCode -runAsSudo
     return $testJob
 }
 
@@ -93,7 +95,7 @@ collect_VM_properties
             -username $user -password $password -upload -runAsSudo
         $testJob = Run-LinuxCmd -ip $clientVMData.PublicIP -port $clientVMData.SSHPort `
             -username $user -password $password -command "bash StartXDPSetup.sh" `
-            -RunInBackground -runAsSudo
+            -RunInBackground -runAsSudo -ignoreLinuxExitCode
         # Terminate process if ran more than 5 mins
         # TODO: Check max installation time for other distros when added
         $timer = 0
