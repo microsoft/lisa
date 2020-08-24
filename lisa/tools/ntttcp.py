@@ -1,7 +1,7 @@
 from typing import List, Type
 
 from lisa.executable import Tool
-from lisa.tool import Git
+from lisa.tools import Git
 from lisa.util.process import ExecutableResult
 
 

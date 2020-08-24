@@ -1,5 +1,5 @@
 from lisa import TestCaseMetadata, TestSuite, TestSuiteMetadata
-from lisa.tool import Echo, Uname
+from lisa.tools import Echo, Uname
 
 
 @TestSuiteMetadata(
