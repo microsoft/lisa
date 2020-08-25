@@ -187,8 +187,7 @@ collect_VM_properties
             $testResult = "PASS"
         } elseif ($finalStatus -imatch "TestRunning") {
             Write-LogInfo "Powershell background job is completed but VM is reporting that test is still running. Please check $LogDir\ConsoleLogs.txt"
-            Write-LogInfo "Contents of summary.log : $testSummary"
-            $testResult = "PASS"
+            $testResult = "ABORTED"
         }
 
         $DataCsv = Import-Csv -Path $LogDir\report.csv
