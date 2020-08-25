@@ -2466,14 +2466,35 @@ function install_iperf3 () {
 			# iperf3 is not available in the repository of SLES 12
 			which iperf3
 			if [ $? -ne 0 ]; then
-				LogMsg "iperf3 is not installed. So, Installing iperf3 using rpm"
-				iperf_url="$PACKAGE_BLOB_LOCATION/iperf-sles-x86_64.rpm"
-				libiperf_url="$PACKAGE_BLOB_LOCATION/libiperf0-sles-x86_64.rpm"
-				rpm -ivh $iperf_url $libiperf_url
-				which iperf3
+				iperf3_version=3.2
+				iperf3_url=https://github.com/esnet/iperf/archive/$iperf3_version.tar.gz
+				update_repos
+				gcc -v
 				if [ $? -ne 0 ]; then
-					LogErr "Unable to install iperf3 from source/rpm"
-					SetTestStateAborted
+					install_package "gcc"
+				fi
+				make -v
+				if [ $? -ne 0 ]; then
+					install_package "make"
+				fi
+				rm -rf $iperf3_version.tar.gz
+				wget $iperf3_url
+				if [ $? -ne 0 ]; then
+					LogErr "Failed to download iperf3 from $iperf3_url"
+					return 1
+				fi
+				rm -rf iperf-$iperf3_version
+				tar xf $iperf3_version.tar.gz
+				pushd iperf-$iperf3_version
+
+				./configure; make; make install
+				# update shared libraries links
+				ldconfig
+				popd
+				PATH="$PATH:/usr/local/bin"
+				iperf3 -v > /dev/null 2>&1
+				if [ $? -ne 0 ]; then
+					LogErr "Unable to install iperf3 from $iperf3_url"
 					return 1
 				fi
 			else
@@ -3514,6 +3535,7 @@ function check_package () {
 				;;
 
 			suse|opensuse|sles|sle_hpc)
+				CheckInstallLockSLES
 				zypper search "$package_name"
 				return $?
 				;;

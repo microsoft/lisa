@@ -147,7 +147,7 @@ function Install_Dpdk_Dependencies() {
 		fi
 
 		ssh "${install_ip}" "${dependencies_install_command}"
-		ssh ${install_ip} "ln -sf /usr/include/libmnl/libmnl/libmnl.h /usr/include/libmnl/libmnl.h"
+		ssh "${install_ip}" "ln -sf /usr/include/libmnl/libmnl/libmnl.h /usr/include/libmnl/libmnl.h"
 	else
 		LogErr "ERROR: unsupported distro ${distro} for DPDK on Azure"
 		SetTestStateAborted
@@ -244,6 +244,7 @@ function Install_Dpdk () {
 			# default meson in SUSE 15-SP1 is 0.46 & required is 0.47. Installing it separately
 			ssh "${1}" ". utils.sh && install_package ninja"
 			ssh "${1}" "rpm -ivh https://download.opensuse.org/repositories/openSUSE:/Leap:/15.2/standard/noarch/meson-0.54.2-lp152.1.1.noarch.rpm"
+			ssh "${1}" "ln -sf /usr/include/libmnl/libmnl/libmnl.h /usr/include/libmnl/libmnl.h"
 			;;
 		*)
 			echo "Unknown distribution"

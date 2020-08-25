@@ -99,7 +99,7 @@ function InstallDockerEngine() {
             else
                 release=$(lsb_release -cs)
             fi
-            add-apt-repository "deb [arch=amd64] https://download.docker.com/linux/$DISTRO_NAME ${release} stable"
+            add-apt-repository -y "deb [arch=amd64] https://download.docker.com/linux/$DISTRO_NAME ${release} stable"
             apt-get update
             install_package "docker-ce docker-ce-cli containerd.io"
             ret=$?
@@ -115,7 +115,7 @@ function InstallDockerEngine() {
             if [[ $DISTRO_VERSION == 8* ]];then
                 yum install --nogpgcheck -y docker-ce docker-ce-cli containerd.io --nobest
             elif [[ $DISTRO_VERSION == 7* ]];then
-                yum install http://mirror.centos.org/centos/7/extras/x86_64/Packages/container-selinux-2.107-1.el7_6.noarch.rpm
+                yum install -y http://mirror.centos.org/centos/7/extras/x86_64/Packages/container-selinux-2.107-1.el7_6.noarch.rpm
                 yum install --nogpgcheck -y docker-ce docker-ce-cli containerd.io
             else
                 HandleSkip "Test not supported for RH/CentOS $DISTRO_VERSION" $ret

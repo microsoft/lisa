@@ -78,16 +78,9 @@ function Main {
 			Start-AzVM -ResourceGroupName $VMData.ResourceGroupName -Name $VMData.RoleName -NoWait | Out-Null
 		}
 		Write-LogDbg "Starting VM $($AllVMData.RoleName) in RG $($AllVMData.ResourceGroupName)."
-		$startVMResult = Wait-AzVMBackRunningWithTimeOut -AllVMData $AllVMData -AzVMScript $startVMScriptBlock
+		$startVMResult = Wait-AzVMBackRunningWithTimeOut -AllVMData $AllVMData -AzVMScript $startVMScriptBlock -MaxRetryCount 30
 		if (!$startVMResult) {
 			Write-LogErr "Starting VM $($AllVMData.RoleName) failed in RG $($AllVMData.ResourceGroupName)."
-			return "FAIL"
-		}
-
-		# Waiting for the VM to run again and respond to SSH - port 22
-		$retval = Wait-ForVMToStartSSH -Ipv4addr $AllVMData.PublicIP -StepTimeout 600
-		if ($retval -eq $False) {
-			Write-LogErr "Test case timed out waiting for VM to boot"
 			return "FAIL"
 		}
 
