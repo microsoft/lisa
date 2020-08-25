@@ -39,7 +39,7 @@ Scenario 2 : You need to run all the performance tests quickly.
 <ReplaceableTestParameters>
 	<Parameter>
 		<ReplaceThis>DPDK_SOURCE_URL</ReplaceThis>
-		<ReplaceWith>https://fast.dpdk.org/rel/dpdk-18.11.tar.xz</ReplaceWith>
+		<ReplaceWith>https://git.dpdk.org/dpdk-stable/snapshot/dpdk-stable-18.11.9.tar.gz</ReplaceWith>
 	</Parameter>
 	<Parameter>
 		<ReplaceThis>DPDK_PERF_CORES</ReplaceThis>
