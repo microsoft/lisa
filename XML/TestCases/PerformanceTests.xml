@@ -900,7 +900,6 @@
         <param>testConnections=NTTTCP_TCP_CONNECTIONS</param>
         <param>ntttcpVersion=NTTTCP_VERSION</param>
         <param>lagscopeVersion=LAGSCOPE_VERSION</param>
-        <param>repo_url=XDPDUMP_REPO_URL</param>
     </TestParameters>
     <Platform>Azure</Platform>
     <Category>Performance</Category>

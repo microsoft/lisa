@@ -72,6 +72,44 @@ function Compare_NTTTCP_Result {
     }
 }
 
+
+function Create_Database_Result {
+
+    $XDPLogDir = $args[0]
+    $TestCaseName = $args[1]
+    $LogContents = Get-Content -Path "$LogDir\$XDPLogDir\report.log"
+    $TestDate = $(Get-Date -Format yyyy-MM-dd)
+    $testType = "TCP"
+    Write-LogInfo "Generating the performance data for database insertion with $XDPLogDir directory"
+    for ($i = 1; $i -lt $LogContents.Count; $i++) {
+        $Line = $LogContents[$i].Trim() -split '\s+'
+        $resultMap = @{}
+        $resultMap["TestCaseName"] = $TestCaseName
+        $resultMap["TestDate"] = $TestDate
+        $resultMap["HostType"] = $TestPlatform
+        $resultMap["HostBy"] = $CurrentTestData.SetupConfig.TestLocation
+        $resultMap["HostOS"] = $(Get-Content "$LogDir\VM_properties.csv" | Select-String "Host Version" | ForEach-Object { $_ -replace ",Host Version,", "" })
+        $resultMap["GuestOSType"] = "Linux"
+        $resultMap["GuestDistro"] = $(Get-Content "$LogDir\VM_properties.csv" | Select-String "OS type" | ForEach-Object { $_ -replace ",OS type,", "" })
+        $resultMap["GuestSize"] = $receiverVMData.InstanceSize
+        $resultMap["KernelVersion"] = $(Get-Content "$LogDir\VM_properties.csv" | Select-String "Kernel version" | ForEach-Object { $_ -replace ",Kernel version,", "" })
+        $resultMap["IPVersion"] = "IPv4"
+        $resultMap["ProtocolType"] = $testType
+        $resultMap["DataPath"] = $XDPLogDir
+        $resultMap["NumberOfConnections"] = $($Line[0])
+        $resultMap["Throughput_Gbps"] = $($Line[1])
+        $resultMap["SenderCyclesPerByte"] = $($Line[2])
+        $resultMap["ReceiverCyclesPerByte"] = $($Line[3])
+        $resultMap["Latency_ms"] = $($Line[4])
+        $resultMap["TXpackets"] = $($Line[5])
+        $resultMap["RXpackets"] = $($Line[6])
+        $resultMap["PktsInterrupts"] = $($Line[7])
+        $resultMap["ConnectionsCreatedTime"] = $($Line[8])
+        $resultMap["RetransSegments"] = $($Line[9])
+        $currentTestResult.TestResultData += $resultMap
+    }
+}
+
 function Main {
     try {
         $noReceiver = $true
@@ -152,7 +190,7 @@ collect_VM_properties
         }
 
         $currentState = Run-LinuxCmd -ip $receiverVMData.PublicIP -port $receiverVMData.SSHPort `
-            -username $user -password $password -command "cat ~/state.txt" -runAsSudo
+            -username $user -password $password -command "cat state.txt" -runAsSudo
         if ($currentState -imatch "Completed") {
             # Start PERF test without XDP
             $ResultDir = "$LogDir\WithoutXDP"
@@ -198,6 +236,15 @@ collect_VM_properties
         Copy-RemoteFiles -downloadFrom $receiverVMData.PublicIP -port $receiverVMData.SSHPort `
             -username $user -password $password -download `
             -downloadTo $LogDir -files "*.csv, *.txt, *.log" -runAsSudo
+
+        if ($testResult -eq "PASS") {
+            $TestCaseName = $GlobalConfig.Global.$TestPlatform.ResultsDatabase.testTag
+            if (!$TestCaseName) {
+                $TestCaseName = $CurrentTestData.testName
+            }
+            Create_Database_Result "WithXDP" $TestCaseName
+            Create_Database_Result "WithoutXDP" $TestCaseName
+        }
     }
     catch {
         $ErrorMessage = $_.Exception.Message
@@ -211,7 +258,8 @@ collect_VM_properties
         $resultArr += $testResult
     }
     Write-LogInfo "Test result: $testResult"
-    return $testResult
+    $currentTestResult.TestResult = Get-FinalResultHeader -resultarr $resultArr
+    return $currentTestResult
 }
 
 Main
