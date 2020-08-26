@@ -111,10 +111,10 @@ Start_Monitor()
 	pkill -f mpstat
 	pkill -f sar
 	pkill -f vmstat
-	${dstat_cmd} -dam > ${log_folder}/${lteration}.dstat.server.log &
-	${sar_cmd} -n DEV 1 > ${log_folder}/${lteration}.sar.server.log &
-	${mpstat_cmd} -P ALL 1 > ${log_folder}/${lteration}.mpstat.server.log &
-	${vmstat_cmd} 1 > ${log_folder}/${lteration}.vmstat.server.log &
+	${dstat_cmd} -dam > ${log_folder}/${lteration}.dstat.client.log &
+	${sar_cmd} -n DEV 1 > ${log_folder}/${lteration}.sar.client.log &
+	${mpstat_cmd} -P ALL 1 > ${log_folder}/${lteration}.mpstat.client.log &
+	${vmstat_cmd} 1 > ${log_folder}/${lteration}.vmstat.client.log &
 }
 
 Stop_Monitor()

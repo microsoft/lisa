@@ -127,10 +127,10 @@ Start_Monitor()
 	pkill -f mpstat
 	pkill -f sar
 	pkill -f vmstat
-	${dstat_cmd} -dam > ${log_folder}/${current_concurrency}.dstat.server.log &
-	${sar_cmd} -n DEV 1 > ${log_folder}/${current_concurrency}.sar.server.log &
-	${mpstat_cmd} -P ALL 1 > ${log_folder}/${current_concurrency}.mpstat.server.log &
-	${vmstat_cmd} 1 > ${log_folder}/${current_concurrency}.vmstat.server.log &
+	${dstat_cmd} -dam > ${log_folder}/${current_concurrency}.dstat.client.log &
+	${sar_cmd} -n DEV 1 > ${log_folder}/${current_concurrency}.sar.client.log &
+	${mpstat_cmd} -P ALL 1 > ${log_folder}/${current_concurrency}.mpstat.client.log &
+	${vmstat_cmd} 1 > ${log_folder}/${current_concurrency}.vmstat.client.log &
 }
 
 Stop_Monitor()
