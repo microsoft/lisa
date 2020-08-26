@@ -93,11 +93,11 @@ class AzurePlatform(Platform):
     def _request_environment(self, environment: Environment) -> Environment:
         assert self._rm_client
 
-        assert environment.data, "env data cannot be None"
-        env_data: schema.Environment = environment.data
+        assert environment.runbook, "env data cannot be None"
+        env_runbook: schema.Environment = environment.runbook
 
-        if self._azure_config.resource_group_name:
-            resource_group_name = self._azure_config.resource_group_name
+        if self._azure_runbook.resource_group_name:
+            resource_group_name = self._azure_runbook.resource_group_name
             self._log.info(f"reusing resource group: {resource_group_name}")
         else:
             normalized_run_name = constants.NORMALIZE_PATTERN.sub(
@@ -107,18 +107,18 @@ class AzurePlatform(Platform):
             self._enviornment_counter += 1
             self._log.info(f"creating resource group: {resource_group_name}")
 
-        if self._azure_config.dry_run:
-            self._log.info(f"dry_run: {self._azure_config.dry_run}")
+        if self._azure_runbook.dry_run:
+            self._log.info(f"dry_run: {self._azure_runbook.dry_run}")
         else:
             resource_group = self._rm_client.resource_groups.create_or_update(
-                resource_group_name, {"location": self._azure_config.location}
+                resource_group_name, {"location": self._azure_runbook.location}
             )
             self._log.info(f"created resource group is {resource_group}")
             nodes_parameters: List[Dict[str, Any]] = []
-            for node in env_data.nodes:
-                assert isinstance(node, schema.NodeSpec)
+            for node_runbook in env_runbook.nodes:
+                assert isinstance(node_runbook, schema.NodeSpec)
                 node_parameter: Dict[str, Any] = dict()
-                node_parameter["vcpu"] = node.cpu_count
+                node_parameter["vcpu"] = node_runbook.cpu_count
                 nodes_parameters.append(node_parameter)
             self._rm_client.deployments.validate(nodes_parameters)
 
@@ -129,21 +129,21 @@ class AzurePlatform(Platform):
 
     def _initialize(self) -> None:
         # set needed environment variables for authentication
-        self._azure_config = self._root_config.get_extended_schema(AzurePlatformSchema)
-        assert self._azure_config, "azure config cannot be empty"
+        self._azure_runbook = self._runbook.get_extended_runbook(AzurePlatformSchema)
+        assert self._azure_runbook, "platform runbook cannot be empty"
 
         # set azure log to warn level only
-        logging.getLogger("azure").setLevel(self._azure_config.log_level)
+        logging.getLogger("azure").setLevel(self._azure_runbook.log_level)
 
-        os.environ["AZURE_TENANT_ID"] = self._azure_config.service_principal_tenant_id
-        os.environ["AZURE_CLIENT_ID"] = self._azure_config.service_principal_client_id
-        os.environ["AZURE_CLIENT_SECRET"] = self._azure_config.service_principal_key
+        os.environ["AZURE_TENANT_ID"] = self._azure_runbook.service_principal_tenant_id
+        os.environ["AZURE_CLIENT_ID"] = self._azure_runbook.service_principal_client_id
+        os.environ["AZURE_CLIENT_SECRET"] = self._azure_runbook.service_principal_key
 
         self._credential = DefaultAzureCredential()
 
         self._sub_client = SubscriptionClient(self._credential)
 
-        self._subscription_id = self._azure_config.subscription_id
+        self._subscription_id = self._azure_runbook.subscription_id
         subscription = self._sub_client.subscriptions.get(self._subscription_id)
         if not subscription:
             raise LisaException(

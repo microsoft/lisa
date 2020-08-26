@@ -16,32 +16,32 @@ _schema: Optional[Schema] = None
 
 def load(path: Path) -> Any:
     """
-    load config, not to validate it, since some extended schemas are not ready
+    load runbook, not to validate it, since some extended runbooks are not ready
     before extended modules imported.
     """
     log = get_logger("parser")
 
-    log.info(f"load config from: {path}")
+    log.info(f"load runbook from: {path}")
     if not path.exists():
         raise FileNotFoundError(path)
 
     with open(path, "r") as file:
         data = yaml.safe_load(file)
 
-    log.debug(f"final config data: {data}")
+    log.debug(f"final runbook: {data}")
     return data
 
 
-def validate(data: Any) -> schema.Config:
+def validate(data: Any) -> schema.Runbook:
     _load_platform_schema()
 
     global _schema
     if not _schema:
-        _schema = schema.Config.schema()  # type:ignore
+        _schema = schema.Runbook.schema()  # type:ignore
 
     assert _schema
-    config = cast(schema.Config, _schema.load(data))
-    return config
+    runbook = cast(schema.Runbook, _schema.load(data))
+    return runbook
 
 
 def _set_schema_class(
@@ -113,27 +113,27 @@ def _load_platform_schema() -> None:
             _set_schema_class(schema.NodeSpec, node_fields)
             _set_schema_class(schema.Template, node_fields)
 
-            template_in_config = (
+            template_in_env = (
                 constants.ENVIRONMENTS_TEMPLATE,
                 Optional[schema.Template],
                 field(default=None),
             )
-            _set_schema_class(schema.Environment, [template_in_config])
-            platform_spec_in_config = (
+            _set_schema_class(schema.Environment, [template_in_env])
+            env_in_envroot = (
                 constants.ENVIRONMENTS,
                 Optional[List[schema.Environment]],
                 field(default=None),
             )
-            _set_schema_class(schema.EnvironmentRoot, [platform_spec_in_config])
+            _set_schema_class(schema.EnvironmentRoot, [env_in_envroot])
 
-        platform_in_config = (
+        platform_in_runbook = (
             constants.PLATFORM,
             List[schema.Platform],
             field(default_factory=list),
         )
-        environment_in_config = (
+        environment_in_runbook = (
             constants.ENVIRONMENT,
             Optional[schema.EnvironmentRoot],
             field(default=None),
         )
-        _set_schema_class(schema.Config, [platform_in_config, environment_in_config])
+        _set_schema_class(schema.Runbook, [platform_in_runbook, environment_in_runbook])

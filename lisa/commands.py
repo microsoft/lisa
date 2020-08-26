@@ -4,10 +4,10 @@ from argparse import Namespace
 from pathlib import Path, PurePath
 from typing import Dict, Iterable, List, Optional, cast
 
-import lisa.parameter_parser.config as config_ops
+import lisa.parameter_parser.runbook as runbook_ops
 from lisa.environment import environments, load_environments
 from lisa.platform_ import initialize_platforms, load_platforms, platforms
-from lisa.schema import Config
+from lisa.schema import Runbook
 from lisa.sut_orchestrator.ready import ReadyPlatform
 from lisa.test_runner.lisarunner import LISARunner
 from lisa.testselector import select_testcases
@@ -20,8 +20,8 @@ from lisa.util.module import import_module
 _get_init_logger = functools.partial(get_logger, "init")
 
 
-def _load_extends(base_path: Path, extends_config: Dict[str, object]) -> None:
-    for p in cast(List[str], extends_config.get(constants.PATHS, list())):
+def _load_extends(base_path: Path, extends_runbook: Dict[str, object]) -> None:
+    for p in cast(List[str], extends_runbook.get(constants.PATHS, list())):
         path = PurePath(p)
         if not path.is_absolute():
             path = base_path.joinpath(path)
@@ -36,29 +36,29 @@ def _initialize(args: Namespace) -> Iterable[TestCaseData]:
     initialize_platforms()
 
     # merge all parameters
-    path = Path(args.config).absolute()
-    data = config_ops.load(path)
+    path = Path(args.runbook).absolute()
+    data = runbook_ops.load(path)
 
     # load extended modules
     if constants.EXTENSION in data:
         _load_extends(path.parent, data[constants.EXTENSION])
 
-    # validate config, after extensions loaded
-    config = config_ops.validate(data)
+    # validate runbook, after extensions loaded
+    runbook = runbook_ops.validate(data)
 
     log = _get_init_logger()
-    constants.RUN_NAME = f"lisa_{config.name}_{constants.RUN_ID}"
+    constants.RUN_NAME = f"lisa_{runbook.name}_{constants.RUN_ID}"
     log.info(f"run name is {constants.RUN_NAME}")
     # initialize environment
-    load_environments(config.environment)
+    load_environments(runbook.environment)
 
     # initialize platform
-    load_platforms(config.platform)
+    load_platforms(runbook.platform)
 
     # filter test cases
-    selected_cases = select_testcases(config.testcase)
+    selected_cases = select_testcases(runbook.testcase)
 
-    _validate(config)
+    _validate(runbook)
 
     log.info(f"selected cases: {len(list(selected_cases))}")
     return selected_cases
@@ -74,7 +74,7 @@ def run(args: Namespace) -> None:
     asyncio.run(awaitable)
 
 
-# check configs
+# check runbook
 def check(args: Namespace) -> None:
     _initialize(args)
 
@@ -101,14 +101,14 @@ def list_start(args: Namespace) -> None:
     log.info("list information here")
 
 
-def _validate(config: Config) -> None:
-    if config.environment:
+def _validate(runbook: Runbook) -> None:
+    if runbook.environment:
         log = _get_init_logger()
         for environment in environments.values():
-            if environment.data is not None and isinstance(
+            if environment.runbook is not None and isinstance(
                 platforms.default, ReadyPlatform
             ):
                 log.warn_or_raise(
-                    config.environment.warn_as_error,
+                    runbook.environment.warn_as_error,
                     "the ready platform cannot process environment spec",
                 )
