@@ -39,19 +39,27 @@ T = TypeVar("T", bound=DataClassJsonMixin)
 
 
 class ExtendableSchemaMixin:
-    def get_extended_schema(
-        self, schema_type: Type[T], schema_name: str = constants.TYPE
-    ) -> T:
+    def get_extended_schema(self, schema_type: Type[T], field_name: str = "") -> T:
+        """
+        schema_type: type of schema
+        field_name: the field name which stores the data, if it's "", get it from type
+        """
         assert issubclass(
             schema_type, DataClassJsonMixin
         ), "schema_type must annotate from DataClassJsonMixin"
-        assert hasattr(self, schema_name), f"cannot find attr '{schema_name}'"
+        if not field_name:
+            assert hasattr(self, constants.TYPE), (
+                f"cannot find type attr on '{schema_type.__name__}'."
+                f"either set field_name or make sure type attr exists."
+            )
+            field_name = getattr(self, constants.TYPE)
+        assert hasattr(self, field_name), f"cannot find attr '{field_name}'"
 
-        customized_config = getattr(self, schema_name)
+        customized_config = getattr(self, field_name)
         if not isinstance(customized_config, schema_type):
             raise LisaException(
-                f"schema type mismatch, expected type: {schema_type}"
-                f"data: {customized_config}"
+                f"schema type mismatch, expected type: {schema_type} "
+                f"data type: {type(customized_config)}"
             )
         return customized_config
 
