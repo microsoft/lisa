@@ -102,14 +102,14 @@ def VerifyBashHistory():
 
 def VerifyIrqbalanceExist():
     global irqbalance_verify_result
-    result = Run("(command -v rpm > /dev/null && rpm -qa | grep -i irqbalance | wc -l) || (command -v dpkg > /dev/null && dpkg -l | grep -i irqbalance | wc -l)")
-    if (int(result) == 1):
+    result = Run("command -v irqbalance")
+    if (result == ''):
+        print ("IRQBALANCE_CHECK_FAIL")
+        RunLog.error("irqbalance doesn't exist.")
+    else:
         irqbalance_verify_result = True
         print ("IRQBALANCE_CHECK_PASS")
         RunLog.info("irqbalance exists.")
-    else:
-        print ("IRQBALANCE_CHECK_FAIL")
-        RunLog.error("irqbalance doesn't exist.")
 
 
 def RunTest():
