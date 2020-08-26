@@ -9,7 +9,6 @@ class ReadyPlatform(Platform):
         return constants.PLATFORM_READY
 
     def config(self, key: str, value: object) -> None:
-        # ready platform has no config
         pass
 
     def _request_environment(self, environment: Environment) -> Environment:

@@ -39,29 +39,29 @@ T = TypeVar("T", bound=DataClassJsonMixin)
 
 
 class ExtendableSchemaMixin:
-    def get_extended_schema(self, schema_type: Type[T], field_name: str = "") -> T:
+    def get_extended_runbook(self, runbook_type: Type[T], field_name: str = "") -> T:
         """
-        schema_type: type of schema
+        runbook_type: type of runbook
         field_name: the field name which stores the data, if it's "", get it from type
         """
         assert issubclass(
-            schema_type, DataClassJsonMixin
-        ), "schema_type must annotate from DataClassJsonMixin"
+            runbook_type, DataClassJsonMixin
+        ), "runbook_type must annotate from DataClassJsonMixin"
         if not field_name:
             assert hasattr(self, constants.TYPE), (
-                f"cannot find type attr on '{schema_type.__name__}'."
+                f"cannot find type attr on '{runbook_type.__name__}'."
                 f"either set field_name or make sure type attr exists."
             )
             field_name = getattr(self, constants.TYPE)
         assert hasattr(self, field_name), f"cannot find attr '{field_name}'"
 
-        customized_config = getattr(self, field_name)
-        if not isinstance(customized_config, schema_type):
+        customized_runbook = getattr(self, field_name)
+        if not isinstance(customized_runbook, runbook_type):
             raise LisaException(
-                f"schema type mismatch, expected type: {schema_type} "
-                f"data type: {type(customized_config)}"
+                f"runbook type mismatch, expected type: {runbook_type} "
+                f"data type: {type(customized_runbook)}"
             )
-        return customized_config
+        return customized_runbook
 
 
 @dataclass_json(letter_case=LetterCase.CAMEL)
@@ -95,7 +95,7 @@ class Strategy:
 @dataclass
 class Parent:
     """
-    share configurations for similar runs.
+    share runbook for similar runs.
     """
 
     path: str = field(default="", metadata=metadata(required=True))
@@ -128,7 +128,7 @@ class Variable:
 
     # If it's secret, it will be removed from log and other output information.
     # secret files also need to be removed after test
-    # it's not recommended highly to put secret in configurations directly.
+    # it's not recommended highly to put secret in runbook directly.
     is_secret: bool = False
 
     # continue to support v2 format. it's simple.
@@ -297,7 +297,6 @@ class Environment:
     # template and nodes conflicts, they should have only one.
     #  it uses to prevent duplicate content for big amount nodes.
     template: Optional[Template] = field(default=None)
-    # field_name is a config level variable, so use config directly.
     _nodes_raw: Optional[List[Any]] = field(
         default=None, metadata=metadata(data_key=constants.NODES),
     )
@@ -309,20 +308,19 @@ class Environment:
             # dataclasses_json cannot handle Union well, so manual handle it
             self.nodes: List[Union[NodeSpec, LocalNode, RemoteNode]] = []
             for node_raw in self._nodes_raw:
-                if node_raw[constants.TYPE] == constants.ENVIRONMENTS_NODES_LOCAL:
+                node_type = node_raw[constants.TYPE]
+                if node_type == constants.ENVIRONMENTS_NODES_LOCAL:
                     node: Union[
                         NodeSpec, LocalNode, RemoteNode
                     ] = LocalNode.schema().load(  # type:ignore
                         node_raw
                     )
-                elif node_raw[constants.TYPE] == constants.ENVIRONMENTS_NODES_REMOTE:
+                elif node_type == constants.ENVIRONMENTS_NODES_REMOTE:
                     node = RemoteNode.schema().load(node_raw)  # type:ignore
-                elif node_raw[constants.TYPE] == constants.ENVIRONMENTS_NODES_SPEC:
+                elif node_type == constants.ENVIRONMENTS_NODES_SPEC:
                     node = NodeSpec.schema().load(node_raw)  # type:ignore
                 else:
-                    raise LisaException(
-                        f"unknown config type '{type(config)}': {config}"
-                    )
+                    raise LisaException(f"unknown node type '{node_type}': {node_raw}")
                 self.nodes.append(node)
 
 
@@ -377,7 +375,7 @@ class Criteria:
     name: Optional[str] = None
     area: Optional[str] = None
     category: Optional[str] = None
-    # the schema is complex to convert, so need manual overwrite it.
+    # the runbook is complex to convert, so manual overwrite it in __post_init__.
     priority: Optional[Union[int, List[int]]] = field(default=None)
     # tag is a simple way to include test cases within same topic.
     tag: Optional[Union[str, List[str]]] = field(default=None)
@@ -396,7 +394,7 @@ class Criteria:
                     )
         elif self.priority is not None:
             raise LisaException(
-                f"priority must be integer, but '{self.priority}' "
+                f"priority must be Union[int, List[int]], but '{self.priority}' "
                 f"is '{type(self.priority)}'"
             )
 
@@ -408,7 +406,8 @@ class Criteria:
         elif not isinstance(self.tag, str):
             if self.tag is not None:
                 raise LisaException(
-                    f"tag must be str, but '{self.tag}' is '{type(self.tag)}'"
+                    f"tag must be Union[str, List[str]], "
+                    f"but '{self.tag}' is '{type(self.tag)}'"
                 )
 
 
@@ -462,7 +461,7 @@ class TestCase:
 
 @dataclass_json(letter_case=LetterCase.CAMEL)
 @dataclass
-class Config:
+class Runbook:
     # run name prefix to help grouping results and put it in title.
     name: str = "not_named"
     parent: Optional[List[Parent]] = field(default=None)

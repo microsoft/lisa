@@ -264,11 +264,11 @@ class Nodes(NodesDict):
         for node in self._list:
             node.close()
 
-    def from_data(
-        self, node_data: Union[schema.LocalNode, schema.RemoteNode, schema.NodeSpec]
+    def from_runbook(
+        self, node_runbook: Union[schema.LocalNode, schema.RemoteNode, schema.NodeSpec]
     ) -> Optional[Node]:
 
-        node_type = node_data.type
+        node_type = node_runbook.type
         node = None
         if node_type is None:
             raise LisaException("type of node shouldn't be None")
@@ -277,7 +277,7 @@ class Nodes(NodesDict):
             constants.ENVIRONMENTS_NODES_REMOTE,
         ]:
             node = Node.create(
-                len(self._list), node_type=node_type, is_default=node_data.is_default
+                len(self._list), node_type=node_type, is_default=node_runbook.is_default
             )
             self._list.append(node)
             if node.is_remote:
@@ -292,7 +292,7 @@ class Nodes(NodesDict):
                 ]
                 parameters: Dict[str, Any] = dict()
                 for field in fields:
-                    value = getattr(node_data, field)
+                    value = getattr(node_runbook, field)
                     if value is not None:
                         parameters[field] = value
                 node.set_connection_info(**parameters)

@@ -49,14 +49,16 @@ class LISARunner(Action):
         environment = self.platform.request_environment(environments.default)
 
         self._log.info(f"start running {len(test_results)} cases")
-        for test_suite_data in test_suites:
-            test_suite: TestSuite = test_suite_data.test_class(
-                environment, test_suites.get(test_suite_data, []), test_suite_data
+        for test_suite_metadata in test_suites:
+            test_suite: TestSuite = test_suite_metadata.test_class(
+                environment,
+                test_suites.get(test_suite_metadata, []),
+                test_suite_metadata,
             )
             try:
                 await test_suite.start()
             except Exception as identifier:
-                self._log.error(f"suite[{test_suite_data}] failed: {identifier}")
+                self._log.error(f"suite[{test_suite_metadata}] failed: {identifier}")
 
         result_count_dict: Dict[TestStatus, int] = dict()
         for result in test_results:

@@ -95,7 +95,7 @@ def _match_cases(
 
 
 def _apply_settings(
-    applied_case_data: TestCaseData, schema_data: schema.TestCase, action: str
+    applied_case_data: TestCaseData, case_runbook: schema.TestCase, action: str
 ) -> None:
     fields = [
         constants.TESTCASE_TIMES,
@@ -105,7 +105,7 @@ def _apply_settings(
         constants.ENVIRONMENT,
     ]
     for field in fields:
-        data = getattr(schema_data, field)
+        data = getattr(case_runbook, field)
         if data is not None:
             setattr(applied_case_data, field, data)
 
@@ -119,12 +119,12 @@ def _force_check(
     force_expected_set: Set[str],
     force_exclusive_set: Set[str],
     temp_force_exclusive_set: Set[str],
-    schema_data: schema.TestCase,
+    case_runbook: schema.TestCase,
 ) -> bool:
     is_skip = False
     if name in force_exclusive_set:
         if is_force:
-            raise LisaException(f"case {name} has force conflict on {schema_data}")
+            raise LisaException(f"case {name} has force conflict on {case_runbook}")
         else:
             temp_force_exclusive_set.add(name)
         is_skip = True
@@ -134,7 +134,7 @@ def _force_check(
 
 
 def _apply_filter(
-    schema_data: schema.TestCase,
+    case_runbook: schema.TestCase,
     current_selected: Dict[str, TestCaseData],
     force_included: Set[str],
     force_excluded: Set[str],
@@ -144,49 +144,51 @@ def _apply_filter(
     log = _get_logger()
     # initialize criterias
     patterns: List[Callable[[Union[TestCaseData, TestCaseMetadata]], bool]] = []
-    criterias_data = schema_data.criteria
-    assert criterias_data, "test case criteria cannot be None"
-    criterias_data_dict = criterias_data.__dict__
-    for data_key, data_value in criterias_data_dict.items():
-        if data_value is None:
+    criterias_runbook = case_runbook.criteria
+    assert criterias_runbook, "test case criteria cannot be None"
+    criterias_runbook_dict = criterias_runbook.__dict__
+    for runbook_key, runbook_value in criterias_runbook_dict.items():
+        if runbook_value is None:
             continue
-        if data_key in [
+        if runbook_key in [
             constants.NAME,
             constants.TESTCASE_CRITERIA_AREA,
             constants.TESTCASE_CRITERIA_CATEGORY,
         ]:
-            pattern = cast(str, criterias_data_dict[data_key])
+            pattern = cast(str, criterias_runbook_dict[runbook_key])
             expression = re.compile(pattern)
             patterns.append(
-                partial(_match_string, pattern=expression, attr_name=data_key)
+                partial(_match_string, pattern=expression, attr_name=runbook_key)
             )
-        elif data_key == constants.TESTCASE_CRITERIA_PRIORITY:
+        elif runbook_key == constants.TESTCASE_CRITERIA_PRIORITY:
             priority_pattern = cast(
-                Union[int, List[int]], criterias_data_dict[data_key]
+                Union[int, List[int]], criterias_runbook_dict[runbook_key]
             )
             patterns.append(partial(_match_priority, pattern=priority_pattern))
-        elif data_key == constants.TESTCASE_CRITERIA_TAG:
-            tag_pattern = cast(Union[str, List[str]], criterias_data_dict[data_key])
+        elif runbook_key == constants.TESTCASE_CRITERIA_TAG:
+            tag_pattern = cast(
+                Union[str, List[str]], criterias_runbook_dict[runbook_key]
+            )
             patterns.append(partial(_match_tag, criteria_tags=tag_pattern))
         else:
-            raise LisaException(f"unknown criteria key: {data_key}")
+            raise LisaException(f"unknown criteria key: {runbook_key}")
 
     # match by select Action:
     changed_cases: Dict[str, TestCaseData] = dict()
-    is_force = schema_data.select_action in [
+    is_force = case_runbook.select_action in [
         constants.TESTCASE_SELECT_ACTION_FORCE_INCLUDE,
         constants.TESTCASE_SELECT_ACTION_FORCE_EXCLUDE,
     ]
-    is_update_setting = schema_data.select_action in [
+    is_update_setting = case_runbook.select_action in [
         constants.TESTCASE_SELECT_ACTION_NONE,
         constants.TESTCASE_SELECT_ACTION_INCLUDE,
         constants.TESTCASE_SELECT_ACTION_FORCE_INCLUDE,
     ]
     temp_force_set: Set[str] = set()
-    if schema_data.select_action is constants.TESTCASE_SELECT_ACTION_NONE:
+    if case_runbook.select_action is constants.TESTCASE_SELECT_ACTION_NONE:
         # Just apply settings on test cases
         changed_cases = _match_cases(current_selected, patterns)
-    elif schema_data.select_action in [
+    elif case_runbook.select_action in [
         constants.TESTCASE_SELECT_ACTION_INCLUDE,
         constants.TESTCASE_SELECT_ACTION_FORCE_INCLUDE,
     ]:
@@ -199,7 +201,7 @@ def _apply_filter(
                 force_included,
                 force_excluded,
                 temp_force_set,
-                schema_data,
+                case_runbook,
             )
             if is_skip:
                 continue
@@ -208,7 +210,7 @@ def _apply_filter(
             case_data = current_selected.get(name, new_case_data)
             current_selected[name] = case_data
             changed_cases[name] = case_data
-    elif schema_data.select_action in [
+    elif case_runbook.select_action in [
         constants.TESTCASE_SELECT_ACTION_EXCLUDE,
         constants.TESTCASE_SELECT_ACTION_FORCE_EXCLUDE,
     ]:
@@ -220,25 +222,25 @@ def _apply_filter(
                 force_excluded,
                 force_included,
                 temp_force_set,
-                schema_data,
+                case_runbook,
             )
             if is_skip:
                 continue
             del current_selected[name]
     else:
-        raise LisaException(f"unknown selectAction: '{schema_data.select_action}'")
+        raise LisaException(f"unknown selectAction: '{case_runbook.select_action}'")
 
     # changed set cannot be operated in it's for loop, so update it here.
     for name in temp_force_set:
         del changed_cases[name]
     if is_update_setting:
         for case_data in changed_cases.values():
-            _apply_settings(case_data, schema_data, schema_data.select_action)
+            _apply_settings(case_data, case_runbook, case_runbook.select_action)
 
     log.debug(
-        f"applying action: [{schema_data.select_action}] on "
+        f"applying action: [{case_runbook.select_action}] on "
         f"case [{changed_cases.keys()}], "
-        f"data: {schema_data}, loaded criteria count: {len(patterns)}"
+        f"data: {case_runbook}, loaded criteria count: {len(patterns)}"
     )
 
     return current_selected

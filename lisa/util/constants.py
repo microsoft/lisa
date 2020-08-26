@@ -1,7 +1,7 @@
 import re
 
 # config types
-CONFIG_CONFIG = "config"
+CONFIG_RUNBOOK = "runbook"
 CONFIG_PLATFORM = "platform"
 CONFIG_TEST_CASES = "testcases"
 

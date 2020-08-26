@@ -53,9 +53,9 @@ class Platform(ABC):
         raise NotImplementedError()
 
     def config(self, key: str, value: Any) -> None:
-        if key == constants.CONFIG_CONFIG:
-            # store platform specified config, if there is.
-            self._root_config = cast(schema.Platform, value)
+        if key == constants.CONFIG_RUNBOOK:
+            # store platform runbook.
+            self._runbook = cast(schema.Platform, value)
         self._config(key, value)
 
     def request_environment(self, environment: Environment) -> Environment:
@@ -109,16 +109,16 @@ class Platforms(PlatformsDict):
             )
 
 
-def load_platforms(platforms_config: List[schema.Platform]) -> None:
+def load_platforms(platforms_runbook: List[schema.Platform]) -> None:
     log = _get_init_logger()
     # we may extend it later to support multiple platforms
-    platform_count = len(platforms_config)
+    platform_count = len(platforms_runbook)
     if platform_count != 1:
         raise LisaException("There must be 1 and only 1 platform")
 
     default_platform: Optional[Platform] = None
-    for platform_config in platforms_config:
-        platform_type = platform_config.type
+    for platform_runbook in platforms_runbook:
+        platform_type = platform_runbook.type
 
         platform = platforms.get(platform_type)
         if platform is None:
@@ -127,7 +127,7 @@ def load_platforms(platforms_config: List[schema.Platform]) -> None:
         if default_platform is None:
             default_platform = platform
             log.info(f"activated platform '{platform_type}'")
-        platform.config(constants.CONFIG_CONFIG, platform_config)
+        platform.config(constants.CONFIG_RUNBOOK, platform_runbook)
     assert default_platform
     platforms.default = default_platform
 

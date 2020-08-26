@@ -4,13 +4,13 @@ from lisa import commands
 from lisa.util import constants
 
 
-def support_config_file(parser: ArgumentParser, required: bool = True) -> None:
+def support_runbook(parser: ArgumentParser, required: bool = True) -> None:
     parser.add_argument(
-        "--config",
-        "-c",
+        "--runbook",
+        "-r",
         required=required,
-        dest="config",
-        help="configuration file of this run",
+        dest="runbook",
+        help="runbook of this run",
         default="examples/runbook/hello_world.yml",
     )
 
@@ -39,24 +39,24 @@ def parse_args() -> Namespace:
     # parse args run function.
     parser = ArgumentParser()
     support_debug(parser)
-    support_config_file(parser, required=False)
+    support_runbook(parser, required=False)
 
     subparsers = parser.add_subparsers(dest="cmd", required=False)
     run_parser = subparsers.add_parser("run")
     run_parser.set_defaults(func=commands.run)
-    support_config_file(run_parser)
+    support_runbook(run_parser)
     support_variable(run_parser)
 
     list_parser = subparsers.add_parser(constants.LIST)
     list_parser.set_defaults(func=commands.list_start)
     list_parser.add_argument("--type", "-t", dest="type", choices=["case"])
     list_parser.add_argument("--all", "-a", dest="list_all", action="store_true")
-    support_config_file(list_parser)
+    support_runbook(list_parser)
     support_variable(list_parser)
 
     check_parser = subparsers.add_parser("check")
     check_parser.set_defaults(func=commands.check)
-    support_config_file(check_parser)
+    support_runbook(check_parser)
     support_variable(check_parser)
 
     parser.set_defaults(func=commands.run)

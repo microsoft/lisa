@@ -2,7 +2,6 @@ from __future__ import annotations
 
 from abc import ABCMeta, abstractmethod
 from enum import Enum
-from typing import Dict
 
 from lisa.util.exceptions import LisaException
 from lisa.util.logger import get_logger
@@ -70,7 +69,3 @@ class Action(metaclass=ABCMeta):
     def validate_started(self) -> None:
         if not self.__is_started:
             raise LisaException(f"action[{self.name}] is not started yet.")
-
-    def validate_config(self, config: Dict[str, object]) -> None:
-        # TODO to validate action specified configs
-        pass

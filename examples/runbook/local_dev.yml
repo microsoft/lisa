@@ -1,6 +1,6 @@
 # run name prefix to help grouping results and put it in title.
 name: local try
-# share configurations for similar runs.
+# share runbook for similar runs.
 notifier:
   - type: junit
   - type: html

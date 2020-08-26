@@ -25,50 +25,50 @@ class Environment(object):
         self.name: str = ""
         self.is_ready: bool = False
         self.platform: Optional[Platform] = None
-        self.data: Optional[schema.Environment] = None
+        self.runbook: Optional[schema.Environment] = None
 
         self._default_node: Optional[Node] = None
         self._log = get_logger("env", self.name)
 
     @staticmethod
-    def load(environment_data: schema.Environment) -> Environment:
+    def load(environment_runbook: schema.Environment) -> Environment:
         environment = Environment()
-        environment.name = environment_data.name
+        environment.name = environment_runbook.name
 
         has_default_node = False
         nodes_spec = []
-        if environment_data.nodes:
-            for node_data in environment_data.nodes:
-                node = environment.nodes.from_data(node_data)
+        if environment_runbook.nodes:
+            for node_runbook in environment_runbook.nodes:
+                node = environment.nodes.from_runbook(node_runbook)
                 if not node:
                     # it's a spec
-                    nodes_spec.append(node_data)
+                    nodes_spec.append(node_runbook)
 
                 has_default_node = environment._validate_single_default(
-                    has_default_node, node_data.is_default
+                    has_default_node, node_runbook.is_default
                 )
 
         # validate template and node not appear together
-        if environment_data.template is not None:
-            is_default = environment_data.template.is_default
+        if environment_runbook.template is not None:
+            is_default = environment_runbook.template.is_default
             has_default_node = environment._validate_single_default(
                 has_default_node, is_default
             )
-            for i in range(environment_data.template.node_count):
-                copied_item = copy.deepcopy(environment_data.template)
+            for i in range(environment_runbook.template.node_count):
+                copied_item = copy.deepcopy(environment_runbook.template)
                 # only one default node for template also
                 if is_default and i > 0:
                     copied_item.is_default = False
                 nodes_spec.append(copied_item)
-            environment_data.template = None
+            environment_runbook.template = None
 
         if len(nodes_spec) == 0 and len(environment.nodes) == 0:
             raise LisaException("not found any node in environment")
 
-        environment_data.nodes = nodes_spec
+        environment_runbook.nodes = nodes_spec
 
-        environment.data = environment_data
-        environment._log.debug(f"environment data is {environment.data}")
+        environment.runbook = environment_runbook
+        environment._log.debug(f"environment data is {environment.runbook}")
         return environment
 
     @property
@@ -88,15 +88,17 @@ class Environment(object):
         return has_default
 
 
-def load_environments(environment_root_data: Optional[schema.EnvironmentRoot]) -> None:
-    if not environment_root_data:
+def load_environments(
+    environment_root_runbook: Optional[schema.EnvironmentRoot],
+) -> None:
+    if not environment_root_runbook:
         return
-    environments.max_concurrency = environment_root_data.max_concurrency
-    environments_data = environment_root_data.environments
+    environments.max_concurrency = environment_root_runbook.max_concurrency
+    environments_runbook = environment_root_runbook.environments
     without_name: bool = False
     log = _get_init_logger()
-    for environment_data in environments_data:
-        environment = Environment.load(environment_data)
+    for environment_runbook in environments_runbook:
+        environment = Environment.load(environment_runbook)
         if not environment.name:
             if without_name:
                 raise LisaException("at least two environments has no name")
