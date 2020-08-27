@@ -51,7 +51,7 @@ collect_VM_properties
             -username $user -password $password -command "chmod +x *.sh" -runAsSudo | Out-Null
         $testJob = Run-LinuxCmd -ip $allVMData.PublicIP -port $allVMData.SSHPort `
             -username $user -password $password -command "./StartXDPSetup.sh" `
-            -RunInBackground -runAsSudo
+            -RunInBackground -runAsSudo -ignoreLinuxExitCode
         # Terminate process if ran more than 5 mins
         # TODO: Check max installation time for other distros when added
         $timer = 0

@@ -25,10 +25,12 @@ function Ping-XDPDump {
         -command $ping_command -RunInBackground -runAsSudo
 
     # Start XDPDump
-    $xdp_command = "cd /root/bpf-samples/xdpdump && timeout 10 ./xdpdump -i $NIC > ~/xdpdumpout$LogSuffix.txt"
+    # https://lore.kernel.org/lkml/1579558957-62496-3-git-send-email-haiyangz@microsoft.com/t/
+    Write-LogDbg "XDP program cannot run with LRO (RSC) enabled, disable LRO before running XDP"
+    $xdp_command = "ethtool -K $NIC lro off && cd /root/bpf-samples/xdpdump && timeout 10 ./xdpdump -i $NIC > ~/xdpdumpout$LogSuffix.txt 2>&1"
     Write-LogInfo "Starting command: $xdp_command on $($VMData.RoleName)"
     $testJob = Run-LinuxCmd -ip $VMData.PublicIP -port $VMData.SSHPort -username $user -password $password `
-        -command $xdp_command -RunInBackground -runAsSudo
+        -command $xdp_command -RunInBackground -runAsSudo -ignoreLinuxExitCode
     $timer = 0
     while ($testJob -and ((Get-Job -Id $testJob).State -eq "Running")) {
         $currentStatus = Run-LinuxCmd -ip $VMData.PublicIP -port $VMData.SSHPort -username $user -password $password `
@@ -114,7 +116,7 @@ collect_VM_properties
             -username $user -password $password -command "chmod +x *.sh" -runAsSudo | Out-Null
         $testJob = Run-LinuxCmd -ip $clientVMData.PublicIP -port $clientVMData.SSHPort `
             -username $user -password $password -command "./StartXDPSetup.sh" `
-            -RunInBackground -runAsSudo
+            -RunInBackground -runAsSudo -ignoreLinuxExitCode
         # Terminate process if ran more than 5 mins
         # TODO: Check max installation time for other distros when added
         $timer = 0

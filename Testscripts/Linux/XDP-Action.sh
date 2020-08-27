@@ -15,8 +15,10 @@
 # and ping from server on eth1 network interface
 function ping_test () {
 	local logSuffix=$1
-
-	xdpdumpCommand="cd bpf-samples/xdpdump && timeout 20 ./xdpdump -i ${nicName} > ~/xdpdumpout_${logSuffix}.txt"
+	# https://lore.kernel.org/lkml/1579558957-62496-3-git-send-email-haiyangz@microsoft.com/t/
+	LogMsg "XDP program cannot run with LRO (RSC) enabled, disable LRO before running XDP"
+	ssh ${client} "ethtool -K ${nicName} lro off"
+	xdpdumpCommand="cd bpf-samples/xdpdump && timeout 20 ./xdpdump -i ${nicName} > ~/xdpdumpout_${logSuffix}.txt 2>&1"
 	LogMsg "Starting xdpdump on ${client} with command: ${xdpdumpCommand}"
 	ssh -f ${client} "sh -c '${xdpdumpCommand}'"
 
@@ -60,7 +62,7 @@ do
 	if [ $? -eq 1 ]; then
 		LogErr "ERROR: Please provide valide client and server ip. Invalid ip: ${ip}"
 		SetTestStateAborted
-		exit 0
+		exit 1
 	fi
 done
 
@@ -91,9 +93,11 @@ if [ "${ACTION}" == "DROP" ] || [ "${ACTION}" == "ABORTED" ];then
 	if [ $((packetDropBefore + packetLossInNetwork)) -lt $((packetDropAfter)) ];then
 		LogMsg "Test case executed successfully"
 		SetTestStateCompleted
+		exit 0
 	else
 		LogErr "Ping packets are not dropped. Please check pingOut logs"
 		SetTestStateFailed
+		exit 1
 	fi
 elif [ "${ACTION}" == "TX" ];then
 	LogMsg "Initializing validation for XDP Action ${ACTION}"
@@ -119,7 +123,7 @@ elif [ "${ACTION}" == "TX" ];then
 	else
 		LogMsg "More Packets dropped than expected please check pingOut logs"
 		SetTestStateFailed
-		exit 0
+		exit 1
 	fi
 
 	LogMsg "Starting analysis on packets captured by tcpdump application"
@@ -128,14 +132,15 @@ elif [ "${ACTION}" == "TX" ];then
 	if [ $tcpdumpCountAfter -gt 0 ];then
 		LogErr "ICMP packets captured by tcpdump. Please check xdpAction.log."
 		SetTestStateFailed
-		exit 0
+		exit 1
 	else
 		LogMsg "XDPDump with TX ran as ping server and requested back all packets to sender"
 		SetTestStateCompleted
+		exit 0
 	fi
 
 else
 	LogErr "Please provide ACTION variable: DROP/TX/ABORTED"
 	SetTestStateFailed
-	exit 0
+	exit 1
 fi

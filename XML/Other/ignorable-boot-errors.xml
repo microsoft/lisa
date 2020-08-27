@@ -70,5 +70,6 @@
             <keywords>Proceeding WITHOUT firewalling in effect!</keywords>
             <keywords>urandom warning\(s\) missed due to ratelimiting</keywords>
             <keywords>kdumpctl.*: Warning: There might not be enough space to save a vmcore</keywords>
+            <keywords>WARNING ExtHandler ExtHandler cgroups v2 mounted at</keywords>
         </warnings>
 </messages>
