@@ -2437,6 +2437,51 @@ Function Restart-VMFromShell($VMData, [switch]$SkipRestartCheck) {
     }
 }
 
+Function Wait-AzVMBackRunningWithTimeOut($AllVMData, [scriptblock]$AzVMScript) {
+    if (!$AllVMData -or !$AllVMData.InstanceSize -or !$AllVMData.ResourceGroupName -or !$AllVMData.RoleName) {
+        return $false
+    }
+    $VMCoresArray = @()
+    $AzureVMSizeInfo = Get-AzVMSize -Location $AllVMData[0].Location
+    foreach ($vmData in $AllVMData) {
+        $AzVMScript.Invoke($vmData)
+        if (-not $?) {
+            Write-LogErr "Failed in AzVM operation for $($vmData.RoleName)"
+            return $false
+        }
+        $VMCoresArray += ($AzureVMSizeInfo | Where-Object { $_.Name -eq $vmData.InstanceSize }).NumberOfCores
+    }
+    $MaximumCores = ($VMCoresArray | Measure-Object -Maximum).Maximum
+
+    # Calculate timeout depending on VM size.
+    # We're adding timeout of 10 minutes (default timeout) + 1 minute/10 cores (additional timeout).
+    # So For D64 VM, timeout = 10 + int[64/10] = 16 minutes.
+    # M128 VM, timeout = 10 + int[128/10] = 23 minutes.
+    $Timeout = New-Timespan -Minutes ([int]($MaximumCores / 10) + 10)
+    $sw = [diagnostics.stopwatch]::StartNew()
+    foreach ($vmData in $AllVMData) {
+        $vm = Get-AzVM -ResourceGroupName $vmData.ResourceGroupName -Name $vmData.RoleName -Status
+        while (($vm.Statuses[-1].Code -ne "PowerState/running") -and ($sw.elapsed -lt $Timeout)) {
+            Write-LogInfo "VM $($vmData.RoleName) is in $($vm.Statuses[-1].Code) state, still not in running state"
+            Start-Sleep -Seconds 20
+            $vm = Get-AzVM -ResourceGroupName $vmData.ResourceGroupName -Name $vmData.RoleName -Status
+        }
+    }
+    if (!($sw.elapsed -lt $Timeout)) {
+        Write-LogErr "VMs are not in PowerState/running status after $Timeout minutes (estimated timespan based on maximum NumberOfCores of VM size)"
+        return $false
+    }
+    else {
+        $vmData = Get-AllDeploymentData -ResourceGroups $AllVMData.ResourceGroupName -PatternOfResourceNamePrefix $AllVMData.RoleName
+        $AllVMData.PublicIP = $vmData.PublicIP
+
+        if ((Is-VmAlive -AllVMDataObject $AllVMData -MaxRetryCount 10) -eq "True") {
+            return $true
+        }
+        return $false
+    }
+}
+
 # This function get a data disk name on the guest
 # Background:
 #    If the vm has more than one disk controller, the order in which their corresponding device nodes are added is arbitrary.
