@@ -101,6 +101,14 @@ collect_VM_properties
 . utils.sh
 collect_VM_properties
 "@
+        } elseif ($currentTestData.testName -imatch "PERF-MARIADB-BENCHMARK") {
+            $testName="Mariadb"
+            $testName_lower="mariadb"
+            $myString = @"
+./perf_mariadb.sh &> mariadbConsoleLogs.txt
+. utils.sh
+collect_VM_properties
+"@
         }
         #region EXECUTE TEST
 
@@ -109,7 +117,7 @@ collect_VM_properties
         Copy-RemoteFiles -uploadTo $clientVMData.PublicIP -port $clientVMData.SSHPort -files $currentTestData.files -username $user -password $password -upload
 
         Run-LinuxCmd -ip $clientVMData.PublicIP -port $clientVMData.SSHPort -username $user -password $password -command "chmod +x *.sh" -runAsSudo | Out-Null
-        $testJob = Run-LinuxCmd -ip $clientVMData.PublicIP -port $clientVMData.SSHPort -username $user -password $password -command "./Start${testName}Test.sh" -RunInBackground -runAsSudo
+        $testJob = Run-LinuxCmd -ip $clientVMData.PublicIP -port $clientVMData.SSHPort -username $user -password $password -command "./Start${testName}Test.sh" -RunInBackground -runAsSudo -ignoreLinuxExitCode
         #endregion
 
         #region MONITOR TEST
@@ -118,20 +126,21 @@ collect_VM_properties
             Write-LogInfo "Current Test Status : $currentStatus"
             Wait-Time -seconds 20
         }
+
         $finalStatus = Run-LinuxCmd -ip $clientVMData.PublicIP -port $clientVMData.SSHPort -username $user -password $password -command "cat ./state.txt"
-        Copy-RemoteFiles -downloadFrom $clientVMData.PublicIP -port $clientVMData.SSHPort -username $user -password $password -download -downloadTo $LogDir -files "${testName_lower}ConsoleLogs.txt"
-        Copy-RemoteFiles -downloadFrom $clientVMData.PublicIP -port $clientVMData.SSHPort -username $user -password $password -download -downloadTo $LogDir -files "*${testName_lower}.bench.log"
-        Copy-RemoteFiles -downloadFrom $clientVMData.PublicIP -port $clientVMData.SSHPort -username $user -password $password -download -downloadTo $LogDir -files "report.log, report.csv"
-        Copy-RemoteFiles -downloadFrom $clientVMData.PublicIP -port $clientVMData.SSHPort -username $user -password $password -download -downloadTo $LogDir -files "VM_properties.csv"
+
+        $filesTocopy = "${testName_lower}ConsoleLogs.txt, *${testName_lower}.bench.log, report.log, report.csv, VM_properties.csv"
+        Copy-RemoteFiles -download -downloadFrom $clientVMData.PublicIP -downloadTo $LogDir -Port $clientVMData.SSHPort `
+            -username $user -password $password -files $filesTocopy
 
         $uploadResults = $true
         $ReportLog = Get-Content -Path "$LogDir\report.log"
-        if ($currentTestData.testName -imatch "PERF-APACHE-BENCHMARK") {
-            foreach ($line in $ReportLog) {
-                if ($line -imatch "WebServerVersion") {
-                    continue;
-                }
-                try {
+        try {
+            if ($currentTestData.testName -imatch "PERF-APACHE-BENCHMARK") {
+                foreach ($line in $ReportLog) {
+                    if ($line -imatch "WebServerVersion") {
+                        continue;
+                    }
                     $testConcurrency = ($line.Trim() -Replace " +"," ").Split(" ")[1]
                     $requestsPerSec = ($line.Trim() -Replace " +"," ").Split(" ")[6]
                     $meanConnectionTime_ms = ($line.Trim() -Replace " +"," ").Split(" ")[8]
@@ -143,19 +152,12 @@ collect_VM_properties
                         $uploadResults = $false
                         $testResult = "FAIL"
                     }
-                } catch {
-                    $ErrorMessage = $_.Exception.Message
-                    $ErrorLine = $_.InvocationInfo.ScriptLineNumber
-                    Write-LogErr "EXCEPTION : $ErrorMessage at line: $ErrorLine"
-                    $currentTestResult.TestSummary += New-ResultSummary -testResult "Error in parsing logs." -metaData "Apache" -checkValues "PASS,FAIL,ABORTED" -testName $currentTestData.testName
                 }
-            }
-        } elseif ($currentTestData.testName -imatch "PERF-MEMCACHED-BENCHMARK") {
-            foreach ($line in $ReportLog) {
-                if ($line -imatch "TestConnections") {
-                    continue;
-                }
-                try {
+            } elseif ($currentTestData.testName -imatch "PERF-MEMCACHED-BENCHMARK") {
+                foreach ($line in $ReportLog) {
+                    if ($line -imatch "TestConnections") {
+                        continue;
+                    }
                     $TestConnections = ($line.Trim() -Replace " +"," ").Split(" ")[0]
                     $AverageLatency_ms = ($line.Trim() -Replace " +"," ").Split(" ")[6]
                     $AverageOpsPerSec = ($line.Trim() -Replace " +"," ").Split(" ")[9]
@@ -167,13 +169,32 @@ collect_VM_properties
                         $uploadResults = $false
                         $testResult = "FAIL"
                     }
-                } catch {
-                    $ErrorMessage = $_.Exception.Message
-                    $ErrorLine = $_.InvocationInfo.ScriptLineNumber
-                    Write-LogErr "EXCEPTION : $ErrorMessage at line: $ErrorLine"
-                    $currentTestResult.TestSummary += New-ResultSummary -testResult "Error in parsing logs." -metaData "memcached" -checkValues "PASS,FAIL,ABORTED" -testName $currentTestData.testName
+                }
+            } elseif ($currentTestData.testName -imatch "PERF-MARIADB-BENCHMARK") {
+                foreach ($line in $ReportLog) {
+                    if ($line -imatch "Threads") {
+                        continue;
+                    }
+                    $Threads = ($line.Trim() -Replace " +"," ").Split(" ")[0]
+                    $TotalQueries = ($line.Trim() -Replace " +"," ").Split(" ")[1]
+                    $TransactionsPerSec = ($line.Trim() -Replace " +"," ").Split(" ")[2]
+                    $Latency95Percentile_ms = ($line.Trim() -Replace " +"," ").Split(" ")[3]
+                    $connResult = "TotalQueries=$TotalQueries TransactionsPerSec=$TransactionsPerSec Latency95Percentile_ms=$Latency95Percentile_ms"
+
+                    $metadata = "Threads=$Threads"
+                    $currentTestResult.TestSummary += New-ResultSummary -testResult $connResult -metaData $metaData -checkValues "PASS,FAIL,ABORTED" -testName $currentTestData.testName
+                    if (([float]$TotalQueries -eq 0)) {
+                        $uploadResults = $false
+                        $testResult = "FAIL"
+                    }
                 }
             }
+        }
+        catch {
+            $ErrorMessage = $_.Exception.Message
+            $ErrorLine = $_.InvocationInfo.ScriptLineNumber
+            Write-LogErr "EXCEPTION : $ErrorMessage at line: $ErrorLine"
+            $currentTestResult.TestSummary += New-ResultSummary -testResult "Error in parsing logs." -metaData ${testName} -checkValues "PASS,FAIL,ABORTED" -testName $currentTestData.testName
         }
         #endregion
 
@@ -238,6 +259,11 @@ collect_VM_properties
                     $resultMap["BestOpsPerSec"] = [Decimal]$($Line[7])
                     $resultMap["WorstOpsPerSec"] = [Decimal]$($Line[8])
                     $resultMap["AverageOpsPerSec"] = [Decimal]$($Line[9])
+                } elseif ($currentTestData.testName -imatch "PERF-MARIADB-BENCHMARK") {
+                    $resultMap["Threads"] = [Decimal]$($Line[0])
+                    $resultMap["TotalQueries"] = [Decimal]$($Line[1])
+                    $resultMap["TransactionsPerSec"] = [Decimal]$($Line[2])
+                    $resultMap["Latency95Percentile_ms"] = [Decimal]$($Line[3])
                 }
                 $currentTestResult.TestResultData += $resultMap
             }
