@@ -4,8 +4,7 @@ from typing import Callable, Dict, List, Mapping, Optional, Pattern, Set, Union,
 
 from lisa import schema
 from lisa.testsuite import TestCaseData, TestCaseMetadata, get_cases_metadata
-from lisa.util import constants
-from lisa.util.exceptions import LisaException
+from lisa.util import LisaException, constants
 from lisa.util.logger import get_logger
 
 _get_logger = partial(get_logger, "init", "selector")

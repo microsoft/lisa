@@ -8,10 +8,9 @@ from dataclasses_json import (  # type: ignore
     config,
     dataclass_json,
 )
-from marshmallow import fields, validate
+from marshmallow import ValidationError, fields, validate
 
-from lisa.util import constants
-from lisa.util.exceptions import LisaException
+from lisa.util import LisaException, constants
 
 """
 Schema is dealt with three components,
@@ -32,14 +31,79 @@ def metadata(
     if field_function is None:
         field_function = fields.Raw
     assert field_function
-    return config(mm_field=field_function(*args, **kwargs))
+    encoder = kwargs.pop("encoder", None)
+    decoder = kwargs.pop("decoder", None)
+    # keep data_key for underlying marshmallow
+    field_name = kwargs.get("data_key")
+    return config(
+        field_name=field_name,
+        encoder=encoder,
+        decoder=decoder,
+        mm_field=field_function(*args, **kwargs),
+    )
 
 
 T = TypeVar("T", bound=DataClassJsonMixin)
+U = TypeVar("U")
+
+
+class ListableValidator(validate.Validator):
+    default_message = ""
+
+    def __init__(
+        self,
+        value_type: U,
+        value_validator: Optional[
+            Union[validate.Validator, List[validate.Validator]]
+        ] = None,
+        error: str = "",
+    ) -> None:
+        self._value_type: Any = value_type
+        if value_validator is None:
+            self._inner_validator: List[validate.Validator] = []
+        elif callable(value_validator):
+            self._inner_validator = [value_validator]
+        elif isinstance(value_validator, list):
+            self._inner_validator = list(value_validator)
+        else:
+            raise ValueError(
+                "The 'value_validator' parameter must be a callable "
+                "or a collection of callables."
+            )
+        self.error: str = error or self.default_message
+
+    def _repr_args(self) -> str:
+        return f"_inner_validator={self._inner_validator}"
+
+    def _format_error(self, value: Any) -> str:
+        return self.error.format(input=value)
+
+    def __call__(self, value: Any) -> Any:
+        if isinstance(value, self._value_type):
+            if self._inner_validator:
+                for validator in self._inner_validator:
+                    validator(value)  # type: ignore
+        elif isinstance(value, list):
+            for value_item in value:
+                assert isinstance(value_item, self._value_type), (
+                    f"must be '{self._value_type}' but '{value_item}' "
+                    f"is '{type(value_item)}'"
+                )
+                if self._inner_validator:
+                    for validator in self._inner_validator:
+                        validator(value_item)  # type: ignore
+        elif value is not None:
+            raise ValidationError(
+                f"must be Union[{self._value_type}, List[{self._value_type}]], "
+                f"but '{value}' is '{type(value)}'"
+            )
+        return value
 
 
 class ExtendableSchemaMixin:
-    def get_extended_runbook(self, runbook_type: Type[T], field_name: str = "") -> T:
+    def get_extended_runbook(
+        self, runbook_type: Type[T], field_name: str = ""
+    ) -> Optional[T]:
         """
         runbook_type: type of runbook
         field_name: the field name which stores the data, if it's "", get it from type
@@ -56,9 +120,11 @@ class ExtendableSchemaMixin:
         assert hasattr(self, field_name), f"cannot find attr '{field_name}'"
 
         customized_runbook = getattr(self, field_name)
-        if not isinstance(customized_runbook, runbook_type):
+        if customized_runbook is not None and not isinstance(
+            customized_runbook, runbook_type
+        ):
             raise LisaException(
-                f"runbook type mismatch, expected type: {runbook_type} "
+                f"extended type mismatch, expected type: {runbook_type} "
                 f"data type: {type(customized_runbook)}"
             )
         return customized_runbook
@@ -249,6 +315,13 @@ class RemoteNode:
 
 @dataclass_json(letter_case=LetterCase.CAMEL)
 @dataclass
+class IntegerRange:
+    min: int
+    max: int
+
+
+@dataclass_json(letter_case=LetterCase.CAMEL)
+@dataclass
 class NodeSpec(ExtendableSchemaMixin):
     type: str = field(
         default=constants.ENVIRONMENTS_NODES_SPEC,
@@ -260,9 +333,9 @@ class NodeSpec(ExtendableSchemaMixin):
     is_default: bool = field(default=False)
     # optional, if there is only one artifact.
     artifact: str = field(default="")
-    cpu_count: int = field(
+    core_count: int = field(
         default=1,
-        metadata=metadata(data_key="cpuCount", validate=validate.Range(min=1)),
+        metadata=metadata(data_key="coreCount", validate=validate.Range(min=1)),
     )
     memory_gb: int = field(
         default=1,
@@ -347,6 +420,13 @@ class Platform(ExtendableSchemaMixin):
 
     supported_types: ClassVar[List[str]] = [constants.PLATFORM_READY]
 
+    admin_username: str = "lisa"
+    admin_password: str = ""
+    admin_private_key_file: str = ""
+
+    # True means not to delete an environment, even it's created by lisa
+    reserve_environment: bool = False
+
     def __post_init__(self, *args: Any, **kwargs: Any) -> None:
         platform_fields = dataclass_fields(self)
         # get type field to analyze if mismatch type info is set.
@@ -360,6 +440,16 @@ class Platform(ExtendableSchemaMixin):
                 raise LisaException(
                     f"platform type '{self.type}' and extension "
                     f"'{platform_field.name}' mismatch"
+                )
+
+        if self.type != constants.PLATFORM_READY:
+            if self.admin_password and self.admin_private_key_file:
+                raise LisaException(
+                    "only one of admin_password and admin_private_key_file can be set"
+                )
+            elif not self.admin_password and not self.admin_private_key_file:
+                raise LisaException(
+                    "one of admin_password and admin_private_key_file must be set"
                 )
 
 
@@ -376,39 +466,16 @@ class Criteria:
     area: Optional[str] = None
     category: Optional[str] = None
     # the runbook is complex to convert, so manual overwrite it in __post_init__.
-    priority: Optional[Union[int, List[int]]] = field(default=None)
+    priority: Optional[Union[int, List[int]]] = field(
+        default=None,
+        metadata=metadata(
+            validate=ListableValidator(int, validate.Range(min=0, max=3))
+        ),
+    )
     # tag is a simple way to include test cases within same topic.
-    tag: Optional[Union[str, List[str]]] = field(default=None)
-
-    def __post_init__(self, *args: Any, **kwargs: Any) -> None:
-        if isinstance(self.priority, int):
-            if self.priority < 0 or self.priority > 3:
-                raise LisaException(
-                    f"priority range should be 0 to 3, but '{self.priority}'"
-                )
-        elif isinstance(self.priority, list):
-            for priority in self.priority:
-                if priority < 0 or priority > 3:
-                    raise LisaException(
-                        f"priority range should be 0 to 3, but '{priority}'"
-                    )
-        elif self.priority is not None:
-            raise LisaException(
-                f"priority must be Union[int, List[int]], but '{self.priority}' "
-                f"is '{type(self.priority)}'"
-            )
-
-        if isinstance(self.tag, list):
-            for tag in self.tag:
-                assert isinstance(
-                    tag, str
-                ), f"tag must be str, but '{tag}' is '{type(tag)}'"
-        elif not isinstance(self.tag, str):
-            if self.tag is not None:
-                raise LisaException(
-                    f"tag must be Union[str, List[str]], "
-                    f"but '{self.tag}' is '{type(self.tag)}'"
-                )
+    tag: Optional[Union[str, List[str]]] = field(
+        default=None, metadata=metadata(validate=ListableValidator(str))
+    )
 
 
 @dataclass_json(letter_case=LetterCase.CAMEL)

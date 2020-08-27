@@ -3,7 +3,7 @@ from __future__ import annotations
 from abc import ABCMeta, abstractmethod
 from enum import Enum
 
-from lisa.util.exceptions import LisaException
+from lisa.util import LisaException
 from lisa.util.logger import get_logger
 
 ActionStatus = Enum(

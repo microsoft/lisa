@@ -3,7 +3,7 @@ import time
 from functools import partial
 from typing import Dict, List, Optional, Union, cast
 
-from lisa.util.exceptions import LisaException
+from lisa.util import LisaException
 
 # to prevent circular import, hard code it here.
 ENV_KEY_RUN_LOCAL_PATH = "LISA_RUN_LOCAL_PATH"

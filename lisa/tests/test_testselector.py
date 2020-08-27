@@ -10,8 +10,7 @@ from lisa.testsuite import (
     _cases,
     _suites,
 )
-from lisa.util import constants
-from lisa.util.exceptions import LisaException
+from lisa.util import LisaException, constants
 
 
 class SelectorTestCase(TestCase):

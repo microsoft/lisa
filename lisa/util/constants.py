@@ -1,4 +1,5 @@
 import re
+from pathlib import Path, PurePath
 
 # config types
 CONFIG_RUNBOOK = "runbook"
@@ -7,6 +8,10 @@ CONFIG_TEST_CASES = "testcases"
 
 RUN_ID = ""
 RUN_NAME = ""
+
+CACHE_PATH: Path
+RUN_LOCAL_PATH: Path
+RUN_LOGIC_PATH: PurePath
 
 # path related
 PATH_REMOTE_ROOT = "lisa_working"

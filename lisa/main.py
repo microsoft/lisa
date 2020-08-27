@@ -6,7 +6,7 @@ from pathlib import Path
 from retry import retry  # type: ignore
 
 from lisa.parameter_parser.argparser import parse_args
-from lisa.util import constants, env
+from lisa.util import constants
 from lisa.util.logger import get_logger, set_level, set_log_file
 
 
@@ -22,25 +22,29 @@ def create_run_path(root_path: Path) -> Path:
 
 
 def main() -> None:
-    local_path = Path("runtime").joinpath("runs").absolute()
+    runtime_root = Path("runtime").absolute()
+
+    constants.CACHE_PATH = runtime_root.joinpath("cache")
+    constants.CACHE_PATH.mkdir(parents=True, exist_ok=True)
     # create run root path
-    run_path = create_run_path(local_path)
-    local_path = local_path.joinpath(run_path)
+    runs_path = runtime_root.joinpath("runs")
+    logic_path = create_run_path(runs_path)
+    local_path = runtime_root.joinpath(logic_path)
     local_path.mkdir(parents=True)
 
-    constants.RUN_ID = run_path.name
-    env.set_env(env.KEY_RUN_LOCAL_PATH, str(local_path))
-    env.set_env(env.KEY_RUN_PATH, str(run_path))
+    constants.RUN_ID = logic_path.name
+    constants.RUN_LOCAL_PATH = local_path
+    constants.RUN_LOGIC_PATH = logic_path
 
     args = parse_args()
 
-    set_log_file(f"{local_path}/lisa-host.log")
+    set_log_file(f"{runtime_root}/lisa-host.log")
 
     log = get_logger()
     log.info(f"Python version: {sys.version}")
     log.info(f"local time: {datetime.now().astimezone()}")
     log.info(f"command line args: {sys.argv}")
-    log.info(f"run local path: {env.get_run_local_path()}")
+    log.info(f"run local path: {runtime_root}")
 
     if args.debug:
         log_level = DEBUG

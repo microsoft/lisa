@@ -5,8 +5,7 @@ from abc import ABC, abstractmethod
 from hashlib import sha256
 from typing import TYPE_CHECKING, Dict, List, Optional, Type, TypeVar, Union, cast
 
-from lisa.util import constants
-from lisa.util.exceptions import LisaException
+from lisa.util import LisaException, constants
 from lisa.util.logger import get_logger
 from lisa.util.perf_timer import create_timer
 from lisa.util.process import ExecutableResult, Process

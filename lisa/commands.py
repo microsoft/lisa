@@ -12,8 +12,7 @@ from lisa.sut_orchestrator.ready import ReadyPlatform
 from lisa.test_runner.lisarunner import LISARunner
 from lisa.testselector import select_testcases
 from lisa.testsuite import TestCaseData
-from lisa.util import constants
-from lisa.util.exceptions import LisaException
+from lisa.util import LisaException, constants
 from lisa.util.logger import get_logger
 from lisa.util.module import import_module
 

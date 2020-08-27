@@ -8,7 +8,7 @@ from functools import wraps
 from typing import TYPE_CHECKING, Any, Callable, Dict, List, Type
 
 from lisa.action import Action, ActionStatus
-from lisa.util.exceptions import LisaException
+from lisa.util import LisaException
 from lisa.util.logger import get_logger
 from lisa.util.perf_timer import create_timer
 

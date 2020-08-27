@@ -1,2 +1,0 @@
-class LisaException(Exception):
-    pass
