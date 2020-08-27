@@ -78,7 +78,7 @@ collect_VM_properties
         # IF Single core then enable single core only
         $testJob = Run-LinuxCmd -ip $receiverVMData.PublicIP -port $receiverVMData.SSHPort `
             -username $user -password $password -command "bash ./StartXDPSetup.sh" `
-            -RunInBackground -runAsSudo
+            -RunInBackground -runAsSudo -ignoreLinuxExitCode
         # Terminate process if ran more than 5 mins
         # TODO: Check max installation time for other distros when added
         $timer = 0
@@ -94,12 +94,12 @@ collect_VM_properties
         }
 
         $currentState = Run-LinuxCmd -ip $receiverVMData.PublicIP -port $receiverVMData.SSHPort `
-            -username $user -password $password -command "cat ~/state.txt" -runAsSudo
+            -username $user -password $password -command "cat state.txt" -runAsSudo
         if ($currentState -imatch "TestCompleted") {
             Write-LogInfo "Starting Pktgen validation"
             $testJobDrop = Run-LinuxCmd -ip $receiverVMData.PublicIP -port $receiverVMData.SSHPort `
                 -username $user -password $password -command "bash ./pktgenSetup.sh > ~/pktgenSetupLogs.log" `
-                -RunInBackground -runAsSudo
+                -RunInBackground -runAsSudo -ignoreLinuxExitCode
             $timer = 0
             while ((Get-Job -Id $testJobDrop).State -eq "Running") {
                 $currentStatus = Run-LinuxCmd -ip $receiverVMData.PublicIP -port $receiverVMData.SSHPort `
@@ -114,7 +114,7 @@ collect_VM_properties
             $currentStatus = Run-LinuxCmd -ip $receiverVMData.PublicIP -port $receiverVMData.SSHPort `
                     -username $user -password $password -command "tail -2 ~/pktgenSetupLogs.log | head -1" -runAsSudo
             $currentState = Run-LinuxCmd -ip $receiverVMData.PublicIP -port $receiverVMData.SSHPort `
-                -username $user -password $password -command "cat ~/state.txt" -runAsSudo
+                -username $user -password $password -command "cat state.txt" -runAsSudo
         }
 
         if ($currentState -imatch "TestCompleted") {

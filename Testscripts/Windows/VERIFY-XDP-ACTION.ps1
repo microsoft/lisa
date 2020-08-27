@@ -80,7 +80,7 @@ collect_VM_properties
         # Start XDP Setup
         $testJob = Run-LinuxCmd -ip $receiverVMData.PublicIP -port $receiverVMData.SSHPort `
             -username $user -password $password -command "bash ./StartXDPSetup.sh" `
-            -RunInBackground -runAsSudo
+            -RunInBackground -runAsSudo -ignoreLinuxExitCode
         # Terminate process if ran more than 5 mins
         # TODO: Check max installation time for other distros when added
         $timer = 0
@@ -103,7 +103,7 @@ collect_VM_properties
             Write-LogInfo "Starting XDP validation for Action: $($currentTestData.TestParameters.param)"
             $testJobDrop = Run-LinuxCmd -ip $receiverVMData.PublicIP -port $receiverVMData.SSHPort `
                 -username $user -password $password -command "./XDP-Action.sh > ~/xdpAction.log" `
-                -RunInBackground -runAsSudo
+                -RunInBackground -runAsSudo -ignoreLinuxExitCode
             $timer = 0
             while ((Get-Job -Id $testJobDrop).State -eq "Running") {
                 $currentStatus = Run-LinuxCmd -ip $receiverVMData.PublicIP -port $receiverVMData.SSHPort `

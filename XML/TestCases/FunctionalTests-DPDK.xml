@@ -182,7 +182,7 @@
     <files>.\Testscripts\Linux\utils.sh,.\Testscripts\Linux\dpdkSetup.sh,.\Testscripts\Linux\dpdkUtils.sh,.\Testscripts\Linux\dpdkPmdsBasicCheck.sh</files>
     <TestParameters>
       <param>dpdkSrcLink="DPDK_SOURCE_URL"</param>
-      <param>pmds=mlx,vdev_netvsc,tap,failsafe,netvsc</param>
+      <param>pmds=failsafe,mlx,vdev_netvsc,tap,netvsc</param>
       <param>failsafeUrl="DPDK_FAILSAFE_SH_URL"</param>
     </TestParameters>
     <Platform>Azure</Platform>
