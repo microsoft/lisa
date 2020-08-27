@@ -11,36 +11,6 @@ packetCount=10000000
 nicName='eth1'
 packetFwdThreshold=90
 
-function download_pktgen_scripts(){
-        local ip=$1
-        local dir=$2
-        if [ "${core}" = "multi" ];then
-                ssh $ip "wget https://git.kernel.org/pub/scm/linux/kernel/git/stable/linux.git/plain/samples/pktgen/pktgen_sample05_flow_per_thread.sh?h=v5.7.8 -O ${dir}/pktgen_sample.sh"
-        else
-                ssh $ip "wget https://git.kernel.org/pub/scm/linux/kernel/git/stable/linux.git/plain/samples/pktgen/pktgen_sample01_simple.sh?h=v5.7.8 -O ${dir}/pktgen_sample.sh"
-        fi
-        ssh $ip "wget https://git.kernel.org/pub/scm/linux/kernel/git/stable/linux.git/plain/samples/pktgen/functions.sh?h=v5.7.8 -O ${dir}/functions.sh"
-        ssh $ip "wget https://git.kernel.org/pub/scm/linux/kernel/git/stable/linux.git/plain/samples/pktgen/parameters.sh?h=v5.7.8 -O ${dir}/parameters.sh"
-        ssh $ip "chmod +x ${dir}/*.sh"
-}
-
-function calculate_packets_drop(){
-        local vfName=$1
-        local synthDrop=0
-        IFS=$'\n' read -r -d '' -a xdp_packet_array < <(ethtool -S $nicName | grep 'xdp' | cut -d':' -f2)
-        for i in "${xdp_packet_array[@]}";
-        do
-                synthDrop=$((synthDrop+i))
-        done
-        vfDrop=$(ethtool -S $vfName | grep rx_xdp_drop | cut -d':' -f2)
-        if [ $? -ne 0 ]; then
-                echo "$((synthDrop))"
-        else
-                echo "$((vfDrop + synthDrop))"
-        fi
-
-}
-
 function convert_MAC_to_HEXArray(){
         while IFS=':' read -ra ADDR; do
                 size=$((${#ADDR[@]} - 1))
@@ -125,7 +95,7 @@ LogMsg "XDP Setup Completed"
 LogMsg "Configure pktgen on ${sender}"
 pktgenDir=~/pktgen
 ssh ${sender} "mkdir -p ${pktgenDir}"
-download_pktgen_scripts ${sender} ${pktgenDir}
+download_pktgen_scripts ${sender} ${pktgenDir} ${cores}
 # Configure XDP_TX on Forwarder
 LogMsg "Build XDPDump with TX Action on ${forwarder}"
 ssh ${forwarder} "cd bpf-samples/xdpdump && make clean && CFLAGS='-D __TX_FWD__ -D __PERF__ -I../libbpf/src/root/usr/include' make"

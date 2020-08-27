@@ -5,8 +5,8 @@
 # This script holds commons function used in XDP Testcases
 
 function get_vf_name() {
-	local nicName=$1
-	local ignoreIF=$(ip route | grep default | awk '{print $5}')
+        local nicName=$1
+        local ignoreIF=$(ip route | grep default | awk '{print $5}')
         local interfaces=$(ls /sys/class/net | grep -v lo | grep -v ${ignoreIF})
         local synthIFs=""
         local vfIFs=""
@@ -52,8 +52,22 @@ function calculate_packets_drop(){
 }
 
 function calculate_packets_forward(){
-	local nicName=$1
-	local vfName=$(get_vf_name ${nicName})
-	vfForward=$(ethtool -S $vfName | grep rx_xdp_tx_xmit | cut -d':' -f2)
-	echo "$((vfForward))"
+        local nicName=$1
+        local vfName=$(get_vf_name ${nicName})
+        vfForward=$(ethtool -S $vfName | grep rx_xdp_tx_xmit | cut -d':' -f2)
+        echo "$((vfForward))"
+}
+
+function download_pktgen_scripts(){
+        local ip=$1
+        local dir=$2
+        local cores=$3
+        if [ "${cores}" = "multi" ];then
+                ssh $ip "wget https://git.kernel.org/pub/scm/linux/kernel/git/stable/linux.git/plain/samples/pktgen/pktgen_sample05_flow_per_thread.sh?h=v5.7.8 -O ${dir}/pktgen_sample.sh"
+        else
+                ssh $ip "wget https://git.kernel.org/pub/scm/linux/kernel/git/stable/linux.git/plain/samples/pktgen/pktgen_sample01_simple.sh?h=v5.7.8 -O ${dir}/pktgen_sample.sh"
+        fi
+        ssh $ip "wget https://git.kernel.org/pub/scm/linux/kernel/git/stable/linux.git/plain/samples/pktgen/functions.sh?h=v5.7.8 -O ${dir}/functions.sh"
+        ssh $ip "wget https://git.kernel.org/pub/scm/linux/kernel/git/stable/linux.git/plain/samples/pktgen/parameters.sh?h=v5.7.8 -O ${dir}/parameters.sh"
+        ssh $ip "chmod +x ${dir}/*.sh"
 }
