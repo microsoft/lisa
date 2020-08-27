@@ -3,13 +3,12 @@ from __future__ import annotations
 import pathlib
 import random
 from collections import UserDict
-from typing import TYPE_CHECKING, Any, Dict, List, Optional, TypeVar, Union, cast
+from typing import TYPE_CHECKING, Any, Dict, Iterable, List, Optional, TypeVar, Union
 
 from lisa import schema
 from lisa.executable import Tools
 from lisa.tools import Echo, Uname
-from lisa.util import constants, env
-from lisa.util.exceptions import LisaException
+from lisa.util import ContextMixin, LisaException, constants
 from lisa.util.logger import get_logger
 from lisa.util.process import ExecutableResult, Process
 from lisa.util.shell import ConnectionInfo, LocalShell, Shell, SshShell
@@ -17,12 +16,12 @@ from lisa.util.shell import ConnectionInfo, LocalShell, Shell, SshShell
 T = TypeVar("T")
 
 
-class Node:
+class Node(ContextMixin):
     def __init__(
         self,
         index: int,
         is_remote: bool = True,
-        spec: Optional[Dict[str, object]] = None,
+        spec: Optional[schema.NodeSpec] = None,
         is_default: bool = False,
         id_: str = "",
     ) -> None:
@@ -54,7 +53,7 @@ class Node:
     @staticmethod
     def create(
         index: int,
-        spec: Optional[Dict[str, object]] = None,
+        spec: Optional[schema.NodeSpec] = None,
         node_type: str = constants.ENVIRONMENTS_NODES_REMOTE,
         is_default: bool = False,
     ) -> Node:
@@ -65,10 +64,7 @@ class Node:
         else:
             raise LisaException(f"unsupported node_type '{node_type}'")
         node = Node(index, spec=spec, is_remote=is_remote, is_default=is_default)
-        node._log.debug(
-            f"created node '{node_type}', isDefault: {is_default}, "
-            f"isRemote: {is_remote}"
-        )
+        node._log.debug(f"created, type: '{node_type}', isDefault: {is_default}")
         return node
 
     def set_connection_info(
@@ -132,57 +128,65 @@ class Node:
         self._initialize()
         return self._is_linux
 
+    def close(self) -> None:
+        self.shell.close()
+
     def _initialize(self) -> None:
         if not self._is_initialized:
             # prevent loop calls, set _isInitialized to True first
             self._is_initialized = True
             self._log.debug(f"initializing node {self.name}")
-            self.shell.initialize()
-            uname = self.tools[Uname]
-            (
-                self.kernel_release,
-                self.kernel_version,
-                self.hardware_platform,
-                self.operating_system,
-            ) = uname.get_linux_information(no_error_log=True)
-            if (not self.kernel_release) or ("Linux" not in self.operating_system):
-                self._is_linux = False
-            if self._is_linux:
-                self._log.info(
-                    f"initialized Linux node '{self.name}', "
-                    f"kernelRelease: {self.kernel_release}, "
-                    f"kernelVersion: {self.kernel_version}"
-                    f"hardwarePlatform: {self.hardware_platform}"
-                )
-            else:
-                self._log.info(f"initialized Windows node '{self.name}', ")
-
-            # set working path
-            if self.is_remote:
-                assert self.shell
-                assert self._connection_info
-
-                if self.is_linux:
-                    remote_root_path = pathlib.Path("$HOME")
+            try:
+                self.shell.initialize()
+                uname = self.tools[Uname]
+                (
+                    self.kernel_release,
+                    self.kernel_version,
+                    self.hardware_platform,
+                    self.operating_system,
+                ) = uname.get_linux_information(no_error_log=True)
+                if (not self.kernel_release) or ("Linux" not in self.operating_system):
+                    self._is_linux = False
+                if self._is_linux:
+                    self._log.info(
+                        f"initialized Linux node '{self.name}', "
+                        f"kernelRelease: {self.kernel_release}, "
+                        f"kernelVersion: {self.kernel_version}"
+                        f"hardwarePlatform: {self.hardware_platform}"
+                    )
                 else:
-                    remote_root_path = pathlib.Path("%TEMP%")
-                working_path = remote_root_path.joinpath(
-                    constants.PATH_REMOTE_ROOT, env.get_run_path()
-                ).as_posix()
+                    self._log.info(f"initialized Windows node '{self.name}', ")
 
-                # expand environment variables in path
-                echo = self.tools[Echo]
-                result = echo.run(working_path, shell=True)
+                # set working path
+                if self.is_remote:
+                    assert self.shell
+                    assert self._connection_info
 
-                # PurePath is more reasonable here, but spurplus doesn't support it.
-                if self.is_linux:
-                    self.working_path = pathlib.PurePosixPath(result.stdout)
+                    if self.is_linux:
+                        remote_root_path = pathlib.Path("$HOME")
+                    else:
+                        remote_root_path = pathlib.Path("%TEMP%")
+                    working_path = remote_root_path.joinpath(
+                        constants.PATH_REMOTE_ROOT, constants.RUN_LOGIC_PATH
+                    ).as_posix()
+
+                    # expand environment variables in path
+                    echo = self.tools[Echo]
+                    result = echo.run(working_path, shell=True)
+
+                    # PurePath is more reasonable here, but spurplus doesn't support it.
+                    if self.is_linux:
+                        self.working_path = pathlib.PurePosixPath(result.stdout)
+                    else:
+                        self.working_path = pathlib.PureWindowsPath(result.stdout)
                 else:
-                    self.working_path = pathlib.PureWindowsPath(result.stdout)
-            else:
-                self.working_path = pathlib.Path(env.get_run_local_path())
-            self._log.debug(f"working path is: '{self.working_path}'")
-            self.shell.mkdir(self.working_path, parents=True, exist_ok=True)
+                    self.working_path = constants.RUN_LOCAL_PATH
+                self.shell.mkdir(self.working_path, parents=True, exist_ok=True)
+                self._log.debug(f"working path is: '{self.working_path}'")
+            except Exception as identifier:
+                # initialize failed, and make sure it reverses to not initialized state
+                self._is_initialized = False
+                raise identifier
 
     def _execute(
         self,
@@ -205,9 +209,6 @@ class Node:
         )
         return process
 
-    def close(self) -> None:
-        self.shell.close()
-
 
 if TYPE_CHECKING:
     NodesDict = UserDict[str, Node]
@@ -217,6 +218,7 @@ else:
 
 class Nodes(NodesDict):
     def __init__(self) -> None:
+        super().__init__()
         self._default: Optional[Node] = None
         self._list: List[Node] = list()
 
@@ -235,6 +237,10 @@ class Nodes(NodesDict):
                     default = self._list[0]
             self._default = default
         return self._default
+
+    def list(self) -> Iterable[Node]:
+        for node in self._list:
+            yield node
 
     def __getitem__(self, key: Union[int, str]) -> Node:
         found = None
@@ -300,12 +306,11 @@ class Nodes(NodesDict):
 
     def from_spec(
         self,
-        spec: Dict[str, object],
+        spec: schema.NodeSpec,
         node_type: str = constants.ENVIRONMENTS_NODES_REMOTE,
     ) -> Node:
-        is_default = cast(bool, spec.get(constants.IS_DEFAULT, False))
         node = Node.create(
-            len(self._list), spec=spec, node_type=node_type, is_default=is_default
+            len(self._list), spec=spec, node_type=node_type, is_default=spec.is_default
         )
         self._list.append(node)
         return node

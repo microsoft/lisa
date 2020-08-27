@@ -17,6 +17,8 @@ dataclasses-json = "^0.5.2"
 portalocker = "^1.7.1" 
 azure-identity = {version = "^1.4.0", allow-prereleases = true}
 azure-mgmt-resource = {version = "^15.0.0-beta.1", allow-prereleases = true}
+azure-mgmt-compute = {version = "^17.0.0-beta.1", allow-prereleases = true}
+azure-mgmt-network = {version = "^16.0.0-beta.1", allow-prereleases = true}
 
 [tool.poetry.dev-dependencies]
 black = "^19.10b0"

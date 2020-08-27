@@ -7,7 +7,7 @@ from typing import TYPE_CHECKING, Optional
 
 from lisa import schema
 from lisa.node import Nodes
-from lisa.util.exceptions import LisaException
+from lisa.util import ContextMixin, LisaException
 from lisa.util.logger import get_logger
 
 if TYPE_CHECKING:
@@ -19,14 +19,13 @@ _default_no_name = "_no_name_default"
 _get_init_logger = partial(get_logger, "init", "env")
 
 
-class Environment(object):
+class Environment(ContextMixin):
     def __init__(self) -> None:
         self.nodes: Nodes = Nodes()
         self.name: str = ""
         self.is_ready: bool = False
         self.platform: Optional[Platform] = None
         self.runbook: Optional[schema.Environment] = None
-
         self._default_node: Optional[Node] = None
         self._log = get_logger("env", self.name)
 
@@ -44,14 +43,14 @@ class Environment(object):
                     # it's a spec
                     nodes_spec.append(node_runbook)
 
-                has_default_node = environment._validate_single_default(
+                has_default_node = environment.__validate_single_default(
                     has_default_node, node_runbook.is_default
                 )
 
         # validate template and node not appear together
         if environment_runbook.template is not None:
             is_default = environment_runbook.template.is_default
-            has_default_node = environment._validate_single_default(
+            has_default_node = environment.__validate_single_default(
                 has_default_node, is_default
             )
             for i in range(environment_runbook.template.node_count):
@@ -78,7 +77,16 @@ class Environment(object):
     def close(self) -> None:
         self.nodes.close()
 
-    def _validate_single_default(
+    def clone(self) -> Environment:
+        cloned = Environment()
+        cloned.runbook = copy.deepcopy(self.runbook)
+        cloned.nodes = self.nodes
+        cloned.platform = self.platform
+        cloned.name = f"inst_{self.name}"
+        cloned._log = get_logger("env", self.name)
+        return cloned
+
+    def __validate_single_default(
         self, has_default: bool, is_default: Optional[bool]
     ) -> bool:
         if is_default:

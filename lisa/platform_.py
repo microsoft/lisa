@@ -6,8 +6,7 @@ from functools import partial
 from typing import TYPE_CHECKING, Any, List, Optional, Type, cast
 
 from lisa import schema
-from lisa.util import constants
-from lisa.util.exceptions import LisaException
+from lisa.util import LisaException, constants
 from lisa.util.logger import get_logger
 
 if TYPE_CHECKING:
@@ -72,11 +71,11 @@ class Platform(ABC):
         return environment
 
     def delete_environment(self, environment: Environment) -> None:
-        self._log.info(f"environment {environment.name} deleting")
+        self._log.debug(f"environment {environment.name} deleting")
         environment.close()
         self._delete_environment(environment)
         environment.is_ready = False
-        self._log.info(f"environment {environment.name} deleted")
+        self._log.debug(f"environment {environment.name} deleted")
 
 
 if TYPE_CHECKING:

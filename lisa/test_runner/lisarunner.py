@@ -1,7 +1,7 @@
-from typing import Dict, Iterable, List, cast
+from typing import Dict, Iterable, List, Optional, cast
 
 from lisa.action import Action, ActionStatus
-from lisa.environment import environments
+from lisa.environment import Environment, environments
 from lisa.platform_ import Platform
 from lisa.testsuite import (
     TestCaseData,
@@ -46,34 +46,41 @@ class LISARunner(Action):
             test_suites[test_case_data.metadata.suite] = test_suite_cases
 
         # request environment
-        environment = self.platform.request_environment(environments.default)
+        cloned_environment = environments.default.clone()
+        environment: Optional[Environment] = None
+        try:
+            environment = self.platform.request_environment(cloned_environment)
 
-        self._log.info(f"start running {len(test_results)} cases")
-        for test_suite_metadata in test_suites:
-            test_suite: TestSuite = test_suite_metadata.test_class(
-                environment,
-                test_suites.get(test_suite_metadata, []),
-                test_suite_metadata,
-            )
-            try:
-                await test_suite.start()
-            except Exception as identifier:
-                self._log.error(f"suite[{test_suite_metadata}] failed: {identifier}")
+            self._log.info(f"start running {len(test_results)} cases")
+            for test_suite_metadata in test_suites:
+                test_suite: TestSuite = test_suite_metadata.test_class(
+                    environment,
+                    test_suites.get(test_suite_metadata, []),
+                    test_suite_metadata,
+                )
+                try:
+                    await test_suite.start()
+                except Exception as identifier:
+                    self._log.error(
+                        f"suite[{test_suite_metadata.name}] failed: {identifier}"
+                    )
 
-        result_count_dict: Dict[TestStatus, int] = dict()
-        for result in test_results:
-            result_count = result_count_dict.get(result.status, 0)
-            result_count += 1
-            result_count_dict[result.status] = result_count
+            result_count_dict: Dict[TestStatus, int] = dict()
+            for result in test_results:
+                result_count = result_count_dict.get(result.status, 0)
+                result_count += 1
+                result_count_dict[result.status] = result_count
 
-        self._log.info("result summary")
-        self._log.info(f"    TOTAL\t: {len(test_results)}")
-        for key in TestStatus:
-            self._log.info(f"    {key.name}\t: {result_count_dict.get(key, 0)}")
+            self._log.info("result summary")
+            self._log.info(f"    TOTAL\t: {len(test_results)}")
+            for key in TestStatus:
+                self._log.info(f"    {key.name}\t: {result_count_dict.get(key, 0)}")
 
-        # delete enviroment after run
-        self.platform.delete_environment(environment)
-        self.set_status(ActionStatus.SUCCESS)
+            # delete enviroment after run
+            self.set_status(ActionStatus.SUCCESS)
+        finally:
+            if environment:
+                self.platform.delete_environment(environment)
 
     async def stop(self) -> None:
         super().stop()

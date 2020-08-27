@@ -2,7 +2,7 @@ import re
 from typing import Tuple
 
 from lisa.executable import Tool
-from lisa.util.exceptions import LisaException
+from lisa.util import LisaException
 
 
 class Uname(Tool):

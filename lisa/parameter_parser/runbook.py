@@ -37,7 +37,7 @@ def validate(data: Any) -> schema.Runbook:
 
     global _schema
     if not _schema:
-        _schema = schema.Runbook.schema()  # type:ignore
+        _schema = schema.Runbook.schema()  # type: ignore
 
     assert _schema
     runbook = cast(schema.Runbook, _schema.load(data))

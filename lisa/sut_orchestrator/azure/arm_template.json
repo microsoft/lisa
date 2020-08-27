@@ -1,0 +1,318 @@
+{
+    "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+    "contentVersion": "1.0.0.0",
+    "parameters": {
+        "location": {
+            "type": "string",
+            "metadata": {
+                "description": "location"
+            }
+        },
+        "nodes": {
+            "type": "array",
+            "metadata": {
+                "description": "all nodes"
+            }
+        },
+        "adminUsername": {
+            "type": "string",
+            "metadata": {
+                "description": "user name"
+            }
+        },
+        "adminPassword": {
+            "type": "string",
+            "metadata": {
+                "description": "password"
+            }
+        },
+        "adminKeyData": {
+            "type": "string",
+            "metadata": {
+                "description": "public key data"
+            }
+        }
+    },
+    "variables": {
+        "nodes": "[parameters('nodes')]",
+        "nodeCount": "[length(parameters('nodes'))]",
+        "location": "[parameters('location')]",
+        "resourceGroupName": "[resourceGroup().name]",
+        "publicIPv4AddressName": "lisa-publicIPv4Address",
+        "adminUserName": "[parameters('adminUserName')]",
+        "adminPassword": "[parameters('adminPassword')]",
+        "adminKeyData": "[parameters('adminKeyData')]",
+        "virtualNetworkName": "lisa-virtualNetwork",
+        "defaultSubnet": "lisa-subnetForPrimaryNIC",
+        "availabilitySetName": "lisa-availabilitySet",
+        "lbName": "lisa-loadBalancer",
+        "defaultSubnetId": "[concat(variables('vnetId'),'/subnets/', variables('defaultSubnet'))]",
+        "vnetId": "[resourceId('Microsoft.Network/virtualNetworks/', variables('virtualNetworkName'))]",
+        "lbId": "[resourceId('Microsoft.Network/loadBalancers/', variables('lbName'))]",
+        "frontEndIPv4ConfigID": "[concat(variables('lbId'),'/frontendIPConfigurations/LoadBalancerFrontEndIPv4')]"
+    },
+    "resources": [
+        {
+            "apiVersion": "2019-07-01",
+            "type": "Microsoft.Compute/availabilitySets",
+            "name": "[variables('availabilitySetName')]",
+            "location": "[variables('location')]",
+            "sku": {
+                "name": "Aligned"
+            },
+            "properties": {
+                "platformFaultDomainCount": 2,
+                "platformUpdateDomainCount": 5
+            }
+        },
+        {
+            "apiVersion": "2020-05-01",
+            "type": "Microsoft.Network/loadBalancers",
+            "name": "[variables('lbName')]",
+            "location": "[variables('location')]",
+            "dependsOn": [
+                "[resourceId('Microsoft.Network/publicIPAddresses/', variables('publicIPv4AddressName'))]"
+            ],
+            "properties": {
+                "frontendIPConfigurations": [
+                    {
+                        "name": "LoadBalancerFrontEndIPv4",
+                        "properties": {
+                            "publicIPAddress": {
+                                "id": "[resourceId('Microsoft.Network/publicIPAddresses', variables('publicIPv4AddressName'))]"
+                            }
+                        }
+                    }
+                ],
+                "backendAddressPools": [
+                    {
+                        "name": "BackendPoolIPv4"
+                    }
+                ],
+                "copy": [
+                    {
+                        "name": "inboundNatRules",
+                        "count": "[variables('nodeCount')]",
+                        "input": {
+                            "name": "[concat(variables('nodes')[copyIndex('inboundNatRules')]['name'], '-ssh')]",
+                            "properties": {
+                                "frontendIPConfiguration": {
+                                    "id": "[variables('frontEndIPv4ConfigID')]"
+                                },
+                                "protocol": "tcp",
+                                "frontendPort": "[add(1111, copyIndex('inboundNatRules'))]",
+                                "backendPort": "22",
+                                "enableFloatingIP": false
+                            }
+                        }
+                    }
+                ]
+            }
+        },
+        {
+            "apiVersion": "2020-05-01",
+            "type": "Microsoft.Network/publicIPAddresses",
+            "location": "[variables('location')]",
+            "name": "[variables('publicIPv4AddressName')]",
+            "properties": {
+                "publicIPAllocationMethod": "Dynamic"
+            }
+        },
+        {
+            "apiVersion": "2020-05-01",
+            "type": "Microsoft.Network/virtualNetworks",
+            "name": "[variables('virtualNetworkName')]",
+            "location": "[variables('location')]",
+            "properties": {
+                "addressSpace": {
+                    "addressPrefixes": [
+                        "10.0.0.0/16"
+                    ]
+                },
+                "subnets": [
+                    {
+                        "name": "[variables('defaultSubnet')]",
+                        "properties": {
+                            "addressPrefix": "10.0.0.0/24"
+                        }
+                    }
+                ]
+            }
+        },
+        {
+            "apiVersion": "2020-05-01",
+            "type": "Microsoft.Network/networkInterfaces",
+            "copy": {
+                "name": "nicCopy",
+                "count": "[variables('nodeCount')]"
+            },
+            "name": "[concat(variables('nodes')[copyIndex('nicCopy')]['name'], '-nic')]",
+            "location": "[variables('location')]",
+            "dependsOn": [
+                "[resourceId('Microsoft.Network/publicIPAddresses/', variables('publicIPv4AddressName'))]",
+                "[variables('vnetId')]",
+                "[variables('lbId')]"
+            ],
+            "properties": {
+                "ipConfigurations": [
+                    {
+                        "name": "IPv4Config",
+                        "properties": {
+                            "privateIPAddressVersion": "IPv4",
+                            "loadBalancerBackendAddressPools": [
+                                {
+                                    "id": "[concat(variables('lbId'), '/backendAddressPools/BackendPoolIPv4')]"
+                                }
+                            ],
+                            "loadBalancerInboundNatRules": [
+                                {
+                                    "id": "[concat(variables('lbId'), '/inboundNatRules/', variables('nodes')[copyIndex('nicCopy')]['name'], '-ssh')]"
+                                }
+                            ],
+                            "subnet": {
+                                "id": "[variables('defaultSubnetId')]"
+                            },
+                            "privateIPAllocationMethod": "Dynamic"
+                        }
+                    }
+                ]
+            }
+        },
+        {
+            "apiVersion": "2019-03-01",
+            "type": "Microsoft.Compute/images",
+            "copy": {
+                "name": "imageCopy",
+                "count": "[variables('nodeCount')]"
+            },
+            "condition": "[not(empty(variables('nodes')[copyIndex('imageCopy')]['vhd']))]",
+            "name": "[concat(variables('nodes')[copyIndex('imageCopy')]['name'], '-image')]",
+            "location": "[variables('location')]",
+            "properties": {
+                "storageProfile": {
+                    "osDisk": {
+                        "osType": "Linux",
+                        "osState": "Generalized",
+                        "blobUri": "[variables('nodes')[copyIndex('imageCopy')]['vhd']]",
+                        "storageAccountType": "Standard_LRS"
+                    }
+                },
+                "hyperVGeneration": "V1"
+            }
+        },
+        {
+            "apiVersion": "2019-07-01",
+            "type": "Microsoft.Compute/virtualMachines",
+            "copy": {
+                "name": "vmCopy",
+                "count": "[variables('nodeCount')]"
+            },
+            "name": "[variables('nodes')[copyIndex('vmCopy')]['name']]",
+            "location": "[variables('location')]",
+            "tags": { "RG": "[variables('resourceGroupName')]" },
+            "dependsOn": [
+                "[resourceId('Microsoft.Compute/availabilitySets', variables('availabilitySetName'))]",
+                "[resourceId('Microsoft.Network/networkInterfaces', concat(variables('nodes')[copyIndex('vmCopy')]['name'], '-nic'))]",
+                "[resourceId('Microsoft.Compute/images', concat(variables('nodes')[copyIndex('vmCopy')]['name'], '-image'))]"
+            ],
+            "properties": {
+                "availabilitySet": {
+                    "id": "[resourceId('Microsoft.Compute/availabilitySets',variables('availabilitySetName'))]"
+                },
+                "hardwareProfile": {
+                    "vmSize": "[variables('nodes')[copyIndex('vmCopy')]['vmSize']]"
+                },
+                "osProfile": {
+                    "computername": "[variables('nodes')[copyIndex('vmCopy')]['name']]",
+                    "adminUsername": "[variables('adminUserName')]",
+                    "adminPassword": "[if(empty(variables('adminKeyData')), variables('adminPassword'), json('null'))]",
+                    "linuxConfiguration": "[if(empty(variables('adminKeyData')), json('null'), lisa.getLinuxConfiguration(concat('/home/', variables('adminUserName'), '/.ssh/authorized_keys'), variables('adminKeyData')))]"
+                },
+                "storageProfile": {
+                    "imageReference": "[if(not(empty(variables('nodes')[copyIndex('vmCopy')]['vhd'])), lisa.getOsDiskVhd(variables('nodes')[copyIndex('vmCopy')]['name']), lisa.getOsDiskGallery(variables('nodes')[copyIndex('vmCopy')]))]",
+                    "osDisk": {
+                        "name": "[concat(variables('nodes')[copyIndex('vmCopy')]['name'], '-osDisk')]",
+                        "managedDisk": {
+                            "storageAccountType": "Standard_LRS"
+                        },
+                        "caching": "ReadWrite",
+                        "createOption": "FromImage"
+                    }
+                },
+                "networkProfile": {
+                    "networkInterfaces": [
+                        {
+                            "id": "[resourceId('Microsoft.Network/networkInterfaces', concat(variables('nodes')[copyIndex('vmCopy')]['name'], '-nic'))]"
+                        }
+                    ]
+                },
+                "diagnosticsProfile": {
+                    "bootDiagnostics": {
+                        "enabled": true,
+                        "storageUri": "[reference(resourceId('default-storage-westus2', 'Microsoft.Storage/storageAccounts', 'lisav2westus2'), '2015-06-15').primaryEndpoints['blob']]"
+                    }
+                }
+            }
+        }
+    ],
+    "functions": [
+        {
+            "namespace": "lisa",
+            "members": {
+                "getOsDiskGallery": {
+                    "parameters": [
+                        {
+                            "name": "node",
+                            "type": "object"
+                        }
+                    ],
+                    "output": {
+                        "type": "object",
+                        "value": "[parameters('node')['gallery']]"
+                    }
+                },
+                "getOsDiskVhd": {
+                    "parameters": [
+                        {
+                            "name": "vmName",
+                            "type": "string"
+                        }
+                    ],
+                    "output": {
+                        "type": "object",
+                        "value": {
+                            "id": "[resourceId('Microsoft.Compute/images', concat(parameters('vmName'), '-image'))]"
+                        }
+                    }
+                },
+                "getLinuxConfiguration": {
+                    "parameters": [
+                        {
+                            "name": "keyPath",
+                            "type": "string"
+                        },
+                        {
+                            "name": "publicKeyData",
+                            "type": "string"
+                        }
+                    ],
+                    "output": {
+                        "type": "object",
+                        "value": {
+                            "disablePasswordAuthentication": true,
+                            "ssh": {
+                                "publicKeys": [
+                                    {
+                                        "path": "[parameters('keyPath')]",
+                                        "keyData": "[parameters('publicKeyData')]"
+                                    }
+                                ]
+                            },
+                            "provisionVMAgent": true
+                        }
+                    }
+                }
+            }
+        }
+    ]
+}

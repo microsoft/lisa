@@ -1,5 +1,7 @@
+import logging
 import os
 import shutil
+from logging import getLogger
 from pathlib import Path, PurePath
 from typing import Any, Mapping, Optional, Sequence, Union, cast
 
@@ -7,7 +9,7 @@ import paramiko  # type: ignore
 import spur  # type: ignore
 import spurplus  # type: ignore
 
-from lisa.util.exceptions import LisaException
+from lisa.util import LisaException
 
 
 class ConnectionInfo:
@@ -17,7 +19,7 @@ class ConnectionInfo:
         port: int = 22,
         username: str = "root",
         password: Optional[str] = "",
-        private_key_file: str = "",
+        private_key_file: Optional[str] = None,
     ) -> None:
         self.address = address
         self.port = port
@@ -30,12 +32,13 @@ class ConnectionInfo:
                 "at least one of password and privateKeyFile need to be set"
             )
         elif not self.private_key_file:
-            self._use_password = True
+            # use password
+            # spurplus doesn't process empty string correctly, use None
+            self.private_key_file = None
         else:
             if not Path(self.private_key_file).exists():
                 raise FileNotFoundError(self.private_key_file)
             self.password = None
-            self._use_password = False
 
         if not self.username:
             raise LisaException("username must be set")
@@ -47,6 +50,9 @@ class SshShell:
         self._is_initialized = False
         self._connection_info = connection_info
         self._inner_shell: Optional[spurplus.SshShell] = None
+
+        paramiko_logger = getLogger("paramiko")
+        paramiko_logger.setLevel(logging.WARN)
 
     def initialize(self) -> None:
         self._inner_shell = spurplus.connect_with_retries(
