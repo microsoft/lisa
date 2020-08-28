@@ -43,6 +43,12 @@ function Main {
         Write-LogInfo "constants.sh created successfully..."
         Write-LogInfo (Get-Content -Path $constantsFile)
 
+        if ($currentTestData.SetupConfig.Networking -imatch "SRIOV") {
+            $DataPath = "SRIOV"
+        }
+        else {
+            $DataPath = "Synthetic"
+        }
         # Start XDP Installation
         $installXDPCommand = @"
 bash ./XDPForwardingTest.sh 2>&1 > ~/xdpConsoleLogs.txt
@@ -72,7 +78,7 @@ collect_VM_properties
         }
 
         $currentState = Run-LinuxCmd -ip $masterVM.PublicIP -port $masterVM.SSHPort `
-            -username $user -password $password -command "cat ~/state.txt" -runAsSudo
+            -username $user -password $password -command "cat state.txt" -runAsSudo
 
         if ($currentState -imatch "TestCompleted") {
             Write-LogInfo "Test Completed"
@@ -96,7 +102,36 @@ collect_VM_properties
         }
         Copy-RemoteFiles -downloadFrom $masterVM.PublicIP -port $masterVM.SSHPort `
             -username $user -password $password -download `
-            -downloadTo $LogDir -files "*.txt, *.log" -runAsSudo
+            -downloadTo $LogDir -files "*.txt, *.log,*.csv" -runAsSudo
+        if ( $testResult -eq "PASS" ) {
+            $TestCaseName = $GlobalConfig.Global.$TestPlatform.ResultsDatabase.testTag
+            if (!$TestCaseName) {
+                $TestCaseName = $CurrentTestData.testName
+            }
+            $reportCsv = Import-Csv -Path "$LogDir\report.csv"
+            $TestDate = $(Get-Date -Format yyyy-MM-dd)
+            $testType = "TX"
+            Write-LogInfo "Generating the performance data for database insertion."
+            $resultMap = @{}
+            $resultMap["TestCaseName"] = $TestCaseName
+            $resultMap["TestDate"] = $TestDate
+            $resultMap["HostType"] = $TestPlatform
+            $resultMap["HostBy"] = $CurrentTestData.SetupConfig.TestLocation
+            $resultMap["HostOS"] = $(Get-Content "$LogDir\VM_properties.csv" | Select-String "Host Version" | ForEach-Object { $_ -replace ",Host Version,", "" })
+            $resultMap["GuestOSType"] = "Linux"
+            $resultMap["GuestDistro"] = $(Get-Content "$LogDir\VM_properties.csv" | Select-String "OS type" | ForEach-Object { $_ -replace ",OS type,", "" })
+            $resultMap["GuestSize"] = $receiverVMData.InstanceSize
+            $resultMap["KernelVersion"] = $(Get-Content "$LogDir\VM_properties.csv" | Select-String "Kernel version" | ForEach-Object { $_ -replace ",Kernel version,", "" })
+            $resultMap["IPVersion"] = "IPv4"
+            $resultMap["XDPAction"] = $testType
+            $resultMap["DataPath"] = $DataPath
+            $resultMap["Cores"] = $reportCsv.cores
+            $resultMap["SenderPPS"] = $reportCsv.sender_pps
+            $resultMap["NumberOfPacketsSent"] = $reportCsv.packets_sent
+            $resultMap["NumberOfPacketsForwarded"] = $reportCsv.packets_forwarded
+            $resultMap["NumberOfPacketsReceived"] = $reportCsv.packets_received
+            $currentTestResult.TestResultData += $resultMap
+        }
     }
     catch {
         $ErrorMessage = $_.Exception.Message
@@ -110,7 +145,8 @@ collect_VM_properties
         $resultArr += $testResult
     }
     Write-LogInfo "Test result: $testResult"
-    return $testResult
+    $currentTestResult.TestResult = Get-FinalResultHeader -resultarr $resultArr
+    return $currentTestResult
 }
 
 Main

@@ -25,6 +25,13 @@ function convert_MAC_to_HEXArray(){
 
 function configure_XDPDUMP_TX(){
         LogMsg "Configuring TX Setup"
+        # new distros does not have ifconfig present by default
+	LogMsg "Installing net-tools for confirming ifconfig is present in VM."
+	installCommand="install_package net-tools"
+	$installCommand
+	ssh $forwarder  ". utils.sh && $installCommand"
+	ssh $receiver ". utils.sh && $installCommand"
+
         get_ip_command="/sbin/ifconfig $nicName | grep 'inet' | cut -d: -f2"
         get_mac_command="/sbin/ifconfig $nicName | grep -o -E '([[:xdigit:]]{1,2}:){5}[[:xdigit:]]{1,2}'"
         forwarderIP=$((ssh $forwarder $get_ip_command) | awk '{print $2}')
@@ -158,6 +165,7 @@ if [ $packetDrop -lt $fwdLimit ]; then
         LogErr "receiver did not receive enough packets. Receiver received ${packetDrop} which is lower than threshold" \
                 "of ${packetFwdThreshold}% of ${packetCount}. Please check logs"
         SetTestStateAborted
+        exit 0
 fi
 if [ $pps -ge 1000000 ]; then
         LogMsg "pps is greater than 1 Mpps"
@@ -165,6 +173,9 @@ if [ $pps -ge 1000000 ]; then
 else
         LogErr "pps is lower than 1 Mpps"
         SetTestStateFailed
+        exit 0
 fi
 # Success
+echo "cores,sender_pps,packets_sent,packets_forwarded,packets_received" > report.csv
+echo "${cores},${pps},${packetCount},${pktForward},${packetDrop}" >> report.csv
 LogMsg "Testcase successfully completed"
