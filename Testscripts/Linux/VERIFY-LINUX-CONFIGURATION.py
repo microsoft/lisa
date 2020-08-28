@@ -12,6 +12,7 @@ root_password_verify_result = False
 sshd_config_check_result = False
 last_console_check_result = False
 bash_history_verify_result = False
+irqbalance_verify_result = False
 
 
 '''
@@ -99,14 +100,27 @@ def VerifyBashHistory():
         RunLog.info("Content:\n%s" % hist_file_content)
 
 
+def VerifyIrqbalanceExist():
+    global irqbalance_verify_result
+    result = Run("command -v irqbalance")
+    if (result == ''):
+        print ("IRQBALANCE_CHECK_FAIL")
+        RunLog.error("irqbalance doesn't exist.")
+    else:
+        irqbalance_verify_result = True
+        print ("IRQBALANCE_CHECK_PASS")
+        RunLog.info("irqbalance exists.")
+
+
 def RunTest():
     UpdateState("TestRunning")
     VerifySSHDConfig()
     VerifyRootPassword()
     CheckLastConsole("dmesg | grep -i 'Kernel command line' | grep -i ' console='")
     VerifyBashHistory()
+    VerifyIrqbalanceExist()
 
-    if (root_password_verify_result and sshd_config_check_result and last_console_check_result and bash_history_verify_result):
+    if (root_password_verify_result and sshd_config_check_result and last_console_check_result and bash_history_verify_result and irqbalance_verify_result):
         ResultLog.info('PASS')
     else:
         ResultLog.info('FAIL')

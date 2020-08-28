@@ -128,7 +128,7 @@ collect_VM_properties
             -username $user -password $password -upload -runAsSudo
         $testJob = Run-LinuxCmd -ip $receiverVMData.PublicIP -port $receiverVMData.SSHPort `
             -username $user -password $password -command "bash ./StartXDPSetup.sh" `
-            -RunInBackground -runAsSudo
+            -RunInBackground -runAsSudo -ignoreLinuxExitCode
         # Terminate process if ran more than 5 mins
         # TODO: Check max installation time for other distros when added
         $timer = 0
@@ -144,7 +144,7 @@ collect_VM_properties
         }
 
         $currentState = Run-LinuxCmd -ip $receiverVMData.PublicIP -port $receiverVMData.SSHPort `
-            -username $user -password $password -command "cat ~/state.txt" -runAsSudo
+            -username $user -password $password -command "cat state.txt" -runAsSudo
         if ($currentState -imatch "TestCompleted") {
             # Start PERF test without XDP
             $ResultDir = "$LogDir\WithoutXDP"
@@ -152,9 +152,10 @@ collect_VM_properties
             Run_Lagscope_PERF $ResultDir
 
             # Start XDPDump on client
-            $xdp_command = "cd ~/bpf-samples/xdpdump && ./xdpdump -i $iFaceName > ~/xdpdumpoutPERF.txt"
-            $testJobXDP = Run-LinuxCmd -ip $receiverVMData.PublicIP -port $receiverVMData.SSHPort -username $user `
-                -password $password -command $xdp_command -RunInBackground -runAsSudo
+            # https://lore.kernel.org/lkml/1579558957-62496-3-git-send-email-haiyangz@microsoft.com/t/
+            Write-LogDbg "XDP program cannot run with LRO (RSC) enabled, disable LRO before running XDP"
+            $xdp_command = "ethtool -K $iFaceName lro off && cd ~/bpf-samples/xdpdump && ./xdpdump -i $iFaceName > ~/xdpdumpoutPERF.txt 2>&1"
+            $testJobXDP = Run-LinuxCmd -ip $receiverVMData.PublicIP -port $receiverVMData.SSHPort -username $user -password $password -command $xdp_command -RunInBackground -runAsSudo -ignoreLinuxExitCode
             Write-LogInfo "XDP Dump process started with id: $testJobXDP"
 
             # Start PERF test with XDP

@@ -855,6 +855,28 @@
     </SetupConfig>
   </test>
   <test>
+    <testName>PERF-SCHEDULER</testName>
+    <testScript>PERF-SCHEDULER.ps1</testScript>
+    <files>.\Testscripts\Linux\utils.sh,.\Testscripts\Linux\perf_scheduler.sh</files>
+    <TestParameters>
+      <param>MSG_THREADS=SCHBENCH_MSG_THREADS</param>
+      <param>RUNTIME=SCHBENCH_RUNTIME</param>
+      <param>SLEEPTIME=SCHBENCH_SLEEPTIME</param>
+      <param>CPUTIME=SCHBENCH_CPUTIME</param>
+      <param>DATASIZE=HACKBENCH_DATASIZE</param>
+      <param>LOOPS=HACKBENCH_LOOPS</param>
+    </TestParameters>
+    <Platform>Azure,HyperV</Platform>
+    <Category>Performance</Category>
+    <Area>BENCHMARK</Area>
+    <Tags>benchmark,scheduler</Tags>
+    <Priority>2</Priority>
+    <SetupConfig>
+      <SetupType>OneVM</SetupType>
+      <OverrideVMSize>Standard_D16s_v3</OverrideVMSize>
+    </SetupConfig>
+  </test>
+  <test>
     <testName>PERF-XDP-TCP-RX-DROP-SINGLECORE</testName>
     <testScript>PERF-XDP-RX-DROP.ps1</testScript>
     <files>.\Testscripts\Linux\utils.sh,.\Testscripts\Linux\XDPDumpSetup.sh,.\Testscripts\Linux\XDPUtils.sh,.\Testscripts\Linux\pktgenSetup.sh</files>

@@ -263,12 +263,14 @@ Class TestController
 		$collectedTCCount = $allTests.Count
 		Write-LogInfo "$collectedTCCount Test Cases have been collected"
 
-		$SetupTypes = $allTests.SetupConfig.SetupType | Sort-Object -Unique
 		foreach ($file in $SetupTypeXMLs.FullName) {
 			$setupXml = [xml]( Get-Content -Path $file)
-			foreach ($SetupType in $SetupTypes) {
-				if ($setupXml.TestSetup.$SetupType) {
-					$this.SetupTypeTable[$SetupType] = $setupXml.TestSetup.$SetupType
+			foreach ($setupTypeXml in $setupXml.SelectNodes("/TestSetup/*")) {
+				if (!$this.SetupTypeTable[$setupTypeXml.LocalName]) {
+					$this.SetupTypeTable[$setupTypeXml.LocalName] = $setupTypeXml
+				}
+				else {
+					Throw "Duplicate setup type defined with the same name: $($setupTypeXml.LocalName) from $file"
 				}
 			}
 		}
