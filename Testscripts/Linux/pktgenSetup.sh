@@ -9,17 +9,17 @@ UTIL_FILE="./utils.sh"
 
 # Source utils.sh
 . ${UTIL_FILE} || {
-        echo "ERROR: unable to source ${UTIL_FILE}!"
-        echo "TestAborted" > state.txt
-        exit 0
+    echo "ERROR: unable to source ${UTIL_FILE}!"
+    echo "TestAborted" > state.txt
+    exit 0
 }
 
 XDPUTIL_FILE="./XDPUtils.sh"
 
-# Source utils.sh
+# Source XDPUtils.sh
 . ${XDPUTIL_FILE} || {
-    echo "ERROR: unable to source ${XDPUTIL_FILE}!"
-    echo "TestAborted" > state.txt
+    LogMsg "ERROR: unable to source ${XDPUTIL_FILE}!"
+    SetTestStateAborted
     exit 0
 }
 
@@ -32,12 +32,12 @@ LogMsg "*********INFO: Script Execution Started********"
 # check for client and server ips are present
 for ip in ${client} ${server}
 do
-        CheckIP ${ip}
-        if [ $? -eq 1 ]; then
-                LogErr "ERROR: Please provide valide client and server ip. Invalid ip: ${ip}"
-                SetTestStateAborted
-                exit 1
-        fi
+    CheckIP ${ip}
+    if [ $? -eq 1 ]; then
+        LogErr "ERROR: Please provide valide client and server ip. Invalid ip: ${ip}"
+        SetTestStateAborted
+        exit 1
+    fi
 done
 
 # Build xdpdump with DROP Config
@@ -54,7 +54,7 @@ download_pktgen_scripts ${server} ${pktgenDir} ${cores}
 vfName=$(get_vf_name "${nicName}")
 
 if [ -z "${vfName}" ]; then
-        LogErr "VF Name is not detected. Please check vm configuration."
+    LogErr "VF Name is not detected. Please check vm configuration."
 fi
 # Store current xdp drop queue variables
 pakcetDropBefore=$(calculate_packets_drop $nicName)
@@ -70,13 +70,13 @@ ssh -f ${client} "sh -c '${xdpdumpCommand} &'"
 # Start pktgen application
 clientSecondMAC=$(ip link show $nicName | grep ether | awk '{print $2}')
 if [ "${core}" = "single" ];then
-        LogMsg "Starting pktgen on server: cd ${pktgenDir} && ./pktgen_sample.sh -i ${nicName} -m ${clientSecondMAC} -d ${clientSecondIP} -v -n100000"
-        ssh ${server} "modprobe pktgen; lsmod | grep pktgen"
-        result=$(ssh ${server} "cd ${pktgenDir} && ./pktgen_sample.sh -i ${nicName} -m ${clientSecondMAC} -d ${clientSecondIP} -v -n${packetCount}")
+    LogMsg "Starting pktgen on server: cd ${pktgenDir} && ./pktgen_sample.sh -i ${nicName} -m ${clientSecondMAC} -d ${clientSecondIP} -v -n100000"
+    ssh ${server} "modprobe pktgen; lsmod | grep pktgen"
+    result=$(ssh ${server} "cd ${pktgenDir} && ./pktgen_sample.sh -i ${nicName} -m ${clientSecondMAC} -d ${clientSecondIP} -v -n${packetCount}")
 else
-        LogMsg "Starting pktgen on server: cd ${pktgenDir} && ./pktgen_sample.sh -i ${nicName} -m ${clientSecondMAC} -d ${clientSecondIP} -v -n${packetCount} -t8"
-        ssh ${server} "modprobe pktgen; lsmod | grep pktgen"
-        result=$(ssh ${server} "cd ${pktgenDir} && ./pktgen_sample.sh -i ${nicName} -m ${clientSecondMAC} -d ${clientSecondIP} -v -n${packetCount} -t8")
+    LogMsg "Starting pktgen on server: cd ${pktgenDir} && ./pktgen_sample.sh -i ${nicName} -m ${clientSecondMAC} -d ${clientSecondIP} -v -n${packetCount} -t8"
+    ssh ${server} "modprobe pktgen; lsmod | grep pktgen"
+    result=$(ssh ${server} "cd ${pktgenDir} && ./pktgen_sample.sh -i ${nicName} -m ${clientSecondMAC} -d ${clientSecondIP} -v -n${packetCount} -t8")
 fi
 sleep 10
 pps=$(echo $result | grep -oh '[0-9]*pps' | cut -d'p' -f 1)
@@ -89,17 +89,17 @@ packetsDropped=$((pakcetDropAfter - pakcetDropBefore))
 LogMsg "Pakcets dropped: $packetsDropped"
 dropLimit=$(( packetCount*packetDropThreshold/100 ))
 if [ $packetsDropped -lt $dropLimit ]; then
-        LogErr "receiver did not receive packets."
-        SetTestStateAborted
-        exit 1
+    LogErr "receiver did not receive packets."
+    SetTestStateAborted
+    exit 1
 fi
 ssh ${client} "killall xdpdump"
 if [ $pps -ge 1000000 ]; then
-        LogMsg "pps is greater than 1 Mpps"
-        SetTestStateCompleted
-        exit 0
+    LogMsg "pps is greater than 1 Mpps"
+    SetTestStateCompleted
+    exit 0
 else
-        LogErr "pps is lower than 1 Mpps"
-        SetTestStateFailed
-        exit 1
+    LogErr "pps is lower than 1 Mpps"
+    SetTestStateFailed
+    exit 1
 fi

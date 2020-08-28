@@ -12,55 +12,55 @@ nicName='eth1'
 packetFwdThreshold=90
 
 function convert_MAC_to_HEXArray(){
-        while IFS=':' read -ra ADDR; do
-                size=$((${#ADDR[@]} - 1))
-                MACarr=$(printf '0x%s\n' ${ADDR[$i]})
-                for i in $(seq 1 $size);
-                do
-                        MACarr="$MACarr, $(printf '0x%s\n' ${ADDR[$i]})";
-                done
-        done <<< "$1"
-        echo "$MACarr"
+    while IFS=':' read -ra ADDR; do
+        size=$((${#ADDR[@]} - 1))
+        MACarr=$(printf '0x%s\n' ${ADDR[$i]})
+        for i in $(seq 1 $size);
+        do
+            MACarr="$MACarr, $(printf '0x%s\n' ${ADDR[$i]})";
+        done
+    done <<< "$1"
+    echo "$MACarr"
 }
 
 function configure_XDPDUMP_TX(){
-        LogMsg "Configuring TX Setup"
-        # new distros does not have ifconfig present by default
-	LogMsg "Installing net-tools for confirming ifconfig is present in VM."
-	installCommand="install_package net-tools"
-	$installCommand
-	ssh $forwarder  ". utils.sh && $installCommand"
-	ssh $receiver ". utils.sh && $installCommand"
+    LogMsg "Configuring TX Setup"
+    # new distros does not have ifconfig present by default
+    LogMsg "Installing net-tools for confirming ifconfig is present in VM."
+    installCommand="install_package net-tools"
+    $installCommand
+    ssh $forwarder  ". utils.sh && $installCommand"
+    ssh $receiver ". utils.sh && $installCommand"
 
-        get_ip_command="/sbin/ifconfig $nicName | grep 'inet' | cut -d: -f2"
-        get_mac_command="/sbin/ifconfig $nicName | grep -o -E '([[:xdigit:]]{1,2}:){5}[[:xdigit:]]{1,2}'"
-        forwarderIP=$((ssh $forwarder $get_ip_command) | awk '{print $2}')
-        LogMsg "Forwarder IP: $forwarderIP"
-        receiverIP=$((ssh $receiver $get_ip_command) | awk '{print $2}')
-        LogMsg "Receiver IP: $receiverIP"
-        forwarderMAC=$(ssh $forwarder $get_mac_command)
-        LogMsg "Forwarder MAC: $forwarderMAC"
-        receiverMAC=$(ssh $receiver $get_mac_command)
-        LogMsg "Receiver MAC: $receiverMAC"
+    get_ip_command="/sbin/ifconfig $nicName | grep 'inet' | cut -d: -f2"
+    get_mac_command="/sbin/ifconfig $nicName | grep -o -E '([[:xdigit:]]{1,2}:){5}[[:xdigit:]]{1,2}'"
+    forwarderIP=$((ssh $forwarder $get_ip_command) | awk '{print $2}')
+    LogMsg "Forwarder IP: $forwarderIP"
+    receiverIP=$((ssh $receiver $get_ip_command) | awk '{print $2}')
+    LogMsg "Receiver IP: $receiverIP"
+    forwarderMAC=$(ssh $forwarder $get_mac_command)
+    LogMsg "Forwarder MAC: $forwarderMAC"
+    receiverMAC=$(ssh $receiver $get_mac_command)
+    LogMsg "Receiver MAC: $receiverMAC"
 
-        #formatting MAC and IP address as needed in xdpdump file.
-        forwarderIP1=$(echo $forwarderIP | sed "s/\./\, /g")
-        receiverIP1=$(echo $receiverIP | sed "s/\./\, /g")
-        forwarderMAC1=$(convert_MAC_to_HEXArray $forwarderMAC)
-        receiverMAC1=$(convert_MAC_to_HEXArray $receiverMAC)
-        xdpdumpFileName=bpf-samples/xdpdump/xdpdump_kern.c
+    #formatting MAC and IP address as needed in xdpdump file.
+    forwarderIP1=$(echo $forwarderIP | sed "s/\./\, /g")
+    receiverIP1=$(echo $receiverIP | sed "s/\./\, /g")
+    forwarderMAC1=$(convert_MAC_to_HEXArray $forwarderMAC)
+    receiverMAC1=$(convert_MAC_to_HEXArray $receiverMAC)
+    xdpdumpFileName=bpf-samples/xdpdump/xdpdump_kern.c
 
-        LogMsg "Updating $xdpdumpFileName file with forwarding setup on $forwarder"
-        commandMACS="sed -i 's/unsigned char newethsrc \[\] = { 0x00, 0x22, 0x48, 0x4c, 0xc4, 0x4d };/unsigned char newethsrc \[\] = { ${forwarderMAC1} };/g' ${xdpdumpFileName}"
-        ssh $forwarder $commandMACS
-        commandMACD="sed -i 's/unsigned char newethdest \[\] = { 0x00, 0x22, 0x48, 0x4c, 0xc0, 0xfd };/unsigned char newethdest \[\] = { ${receiverMAC1} };/g' ${xdpdumpFileName}"
-        ssh $forwarder $commandMACD
-        LogMsg "Updated Source &  Destination MAC address in $xdpdumpFileName on $forwarder"
-        commandIPS="sed -i 's/__u8 newsrc \[\] = { 10, 0, 1, 5 };/__u8 newsrc \[\] = { ${forwarderIP1} };/g' ${xdpdumpFileName}"
-        ssh $forwarder $commandIPS
-        commandIPD="sed -i 's/__u8 newdest \[\] = { 10, 0, 1, 4 };/__u8 newdest \[\] = { ${receiverIP1} };/g' ${xdpdumpFileName}"
-        ssh $forwarder $commandIPD
-        LogMsg "Updated Source &  Destination IP address in $xdpdumpFileName on $forwarder"
+    LogMsg "Updating $xdpdumpFileName file with forwarding setup on $forwarder"
+    commandMACS="sed -i 's/unsigned char newethsrc \[\] = { 0x00, 0x22, 0x48, 0x4c, 0xc4, 0x4d };/unsigned char newethsrc \[\] = { ${forwarderMAC1} };/g' ${xdpdumpFileName}"
+    ssh $forwarder $commandMACS
+    commandMACD="sed -i 's/unsigned char newethdest \[\] = { 0x00, 0x22, 0x48, 0x4c, 0xc0, 0xfd };/unsigned char newethdest \[\] = { ${receiverMAC1} };/g' ${xdpdumpFileName}"
+    ssh $forwarder $commandMACD
+    LogMsg "Updated Source &  Destination MAC address in $xdpdumpFileName on $forwarder"
+    commandIPS="sed -i 's/__u8 newsrc \[\] = { 10, 0, 1, 5 };/__u8 newsrc \[\] = { ${forwarderIP1} };/g' ${xdpdumpFileName}"
+    ssh $forwarder $commandIPS
+    commandIPD="sed -i 's/__u8 newdest \[\] = { 10, 0, 1, 4 };/__u8 newdest \[\] = { ${receiverIP1} };/g' ${xdpdumpFileName}"
+    ssh $forwarder $commandIPD
+    LogMsg "Updated Source &  Destination IP address in $xdpdumpFileName on $forwarder"
 }
 
 UTIL_FILE="./utils.sh"
@@ -74,10 +74,10 @@ UTIL_FILE="./utils.sh"
 
 XDPUTIL_FILE="./XDPUtils.sh"
 
-# Source utils.sh
+# Source XDPUtils.sh
 . ${XDPUTIL_FILE} || {
-    echo "ERROR: unable to source ${XDPUTIL_FILE}!"
-    echo "TestAborted" > state.txt
+    LogMsg "ERROR: unable to source ${XDPUTIL_FILE}!"
+    SetTestStateAborted
     exit 0
 }
 
@@ -132,15 +132,15 @@ ssh -f ${forwarder} "sh -c '${xdpdumpCommand}'"
 forwarderSecondMAC=$((ssh ${forwarder} "ip link show ${nicName}") | grep ether | awk '{print $2}')
 LogMsg "Forwarder second MAC: ${forwarderSecondMAC}"
 if [ "${core}" = "single" ];then
-        startCommand="cd ${pktgenDir} && ./pktgen_sample.sh -i ${nicName} -m ${forwarderSecondMAC} -d ${forwarderSecondIP} -v -n${packetCount}"
-        LogMsg "Starting pktgen on sender: $startCommand"
-        ssh ${sender} "modprobe pktgen; lsmod | grep pktgen"
-        result=$(ssh ${sender} "${startCommand}")
+    startCommand="cd ${pktgenDir} && ./pktgen_sample.sh -i ${nicName} -m ${forwarderSecondMAC} -d ${forwarderSecondIP} -v -n${packetCount}"
+    LogMsg "Starting pktgen on sender: $startCommand"
+    ssh ${sender} "modprobe pktgen; lsmod | grep pktgen"
+    result=$(ssh ${sender} "${startCommand}")
 else
-        startCommand="cd ${pktgenDir} && ./pktgen_sample.sh -i ${nicName} -m ${forwarderSecondMAC} -d ${forwarderSecondIP} -v -n${packetCount} -t8"
-        LogMsg "Starting pktgen on sender: ${startCommand}"
-        ssh ${sender} "modprobe pktgen; lsmod | grep pktgen"
-        result=$(ssh ${sender} "${startCommand}")
+    startCommand="cd ${pktgenDir} && ./pktgen_sample.sh -i ${nicName} -m ${forwarderSecondMAC} -d ${forwarderSecondIP} -v -n${packetCount} -t8"
+    LogMsg "Starting pktgen on sender: ${startCommand}"
+    ssh ${sender} "modprobe pktgen; lsmod | grep pktgen"
+    result=$(ssh ${sender} "${startCommand}")
 fi
 sleep 10
 # Kill XDPDump on reciever & forwarder
@@ -162,20 +162,20 @@ LogMsg "Forwarder forwarded ${pktForward} packets and Receiver received ${packet
 # threshold value check
 fwdLimit=$(( packetCount*packetFwdThreshold/100 ))
 if [ $packetDrop -lt $fwdLimit ]; then
-        LogErr "receiver did not receive enough packets. Receiver received ${packetDrop} which is lower than threshold" \
-                "of ${packetFwdThreshold}% of ${packetCount}. Please check logs"
-        SetTestStateAborted
-        exit 0
+    LogErr "receiver did not receive enough packets. Receiver received ${packetDrop} which is lower than threshold" \
+            "of ${packetFwdThreshold}% of ${packetCount}. Please check logs"
+    SetTestStateAborted
+    exit 0
 fi
 if [ $pps -ge 1000000 ]; then
-        LogMsg "pps is greater than 1 Mpps"
-        SetTestStateCompleted
+    LogMsg "pps is greater than 1 Mpps"
+    SetTestStateCompleted
 else
-        LogErr "pps is lower than 1 Mpps"
-        SetTestStateFailed
-        exit 0
+    LogErr "pps is lower than 1 Mpps"
+    SetTestStateFailed
+    exit 0
 fi
 # Success
-echo "cores,sender_pps,packets_sent,packets_forwarded,packets_received" > report.csv
+echo "test_type,sender_pps,packets_sent,packets_forwarded,packets_received" > report.csv
 echo "${cores},${pps},${packetCount},${pktForward},${packetDrop}" >> report.csv
 LogMsg "Testcase successfully completed"

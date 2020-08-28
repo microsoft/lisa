@@ -125,7 +125,7 @@ collect_VM_properties
             $resultMap["IPVersion"] = "IPv4"
             $resultMap["XDPAction"] = $testType
             $resultMap["DataPath"] = $DataPath
-            $resultMap["Cores"] = $reportCsv.cores
+            $resultMap["TestType"] = $reportCsv.test_type
             $resultMap["SenderPPS"] = $reportCsv.sender_pps
             $resultMap["NumberOfPacketsSent"] = $reportCsv.packets_sent
             $resultMap["NumberOfPacketsForwarded"] = $reportCsv.packets_forwarded
