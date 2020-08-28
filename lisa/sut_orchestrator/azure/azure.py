@@ -9,7 +9,6 @@ from functools import lru_cache
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Dict, List, Optional, Type, cast
 
-import yaml
 from azure.identity import DefaultAzureCredential  # type: ignore
 from azure.mgmt.compute import ComputeManagementClient  # type: ignore
 from azure.mgmt.compute.models import ResourceSku, VirtualMachine  # type: ignore
@@ -31,6 +30,7 @@ from lisa import schema
 from lisa.environment import Environment
 from lisa.node import Node
 from lisa.platform_ import Platform
+from lisa.secret import PATTERN_GUID, PATTERN_HEADTAIL, add_secret
 from lisa.util import LisaException, constants, get_public_key_data
 
 AZURE = "azure"
@@ -146,6 +146,11 @@ class AzureArmParameter:
     admin_key_data: str = ""
     nodes: List[AzureArmParameterNode] = field(default_factory=list)
 
+    def __post_init__(self, *args: Any, **kwargs: Any) -> None:
+        add_secret(self.admin_username, PATTERN_HEADTAIL)
+        add_secret(self.admin_password)
+        add_secret(self.admin_key_data)
+
 
 @dataclass_json(letter_case=LetterCase.CAMEL)
 @dataclass
@@ -195,12 +200,21 @@ class AzurePlatformSchema:
     # wait resource deleted or not
     wait_delete: bool = False
 
+    def __post_init__(self, *args: Any, **kwargs: Any) -> None:
+        add_secret(self.service_principal_tenant_id, mask=PATTERN_GUID)
+        add_secret(self.service_principal_client_id, mask=PATTERN_GUID)
+        add_secret(self.service_principal_key)
+        add_secret(self.subscription_id, mask=PATTERN_GUID)
+
 
 @dataclass_json(letter_case=LetterCase.CAMEL)
 @dataclass
 class AzureNodeSchema:
     vm_size: str = field(default="")
     vhd: str = ""
+
+    def __post_init__(self, *args: Any, **kwargs: Any) -> None:
+        add_secret(self.vhd)
 
 
 @dataclass
@@ -212,7 +226,7 @@ class EnvironmentContext:
 @dataclass
 class NodeContext:
     vm_name: str = ""
-    username: str = "lisa"
+    username: str = ""
     password: str = ""
     private_key_file: str = ""
 
@@ -350,7 +364,7 @@ class AzurePlatform(Platform):
         location_data: Optional[AzureLocation] = None
         if cached_file_name.exists():
             with open(cached_file_name, "r") as f:
-                data = yaml.safe_load(f)
+                data = json.load(f)
             locations_data = cast(
                 AzureLocations, AzureLocations.schema().load(data)  # type:ignore
             )
@@ -401,7 +415,7 @@ class AzurePlatform(Platform):
             locations_data[location_data.location] = location_data
             with open(cached_file_name, "w") as f:
                 locations_data.serialize()
-                yaml.safe_dump(locations_data.to_dict(), f)  # type: ignore
+                json.dump(locations_data.to_dict(), f)  # type: ignore
             self._log.debug(
                 f"{location_data.location}: new data, "
                 f"sku: {len(location_data.skus_list)}"

@@ -1,4 +1,5 @@
 from dataclasses import field, make_dataclass
+from functools import partial
 from pathlib import Path
 from typing import Any, List, Optional, Tuple, Type, cast
 
@@ -13,14 +14,16 @@ from lisa.util.logger import get_logger
 
 _schema: Optional[Schema] = None
 
+_get_init_logger = partial(get_logger, "init", "runbook")
+
 
 def load(path: Path) -> Any:
     """
     load runbook, not to validate it, since some extended runbooks are not ready
     before extended modules imported.
     """
-    log = get_logger("parser")
 
+    log = _get_init_logger()
     log.info(f"load runbook from: {path}")
     if not path.exists():
         raise FileNotFoundError(path)
@@ -28,7 +31,6 @@ def load(path: Path) -> Any:
     with open(path, "r") as file:
         data = yaml.safe_load(file)
 
-    log.debug(f"final runbook: {data}")
     return data
 
 
@@ -41,6 +43,9 @@ def validate(data: Any) -> schema.Runbook:
 
     assert _schema
     runbook = cast(schema.Runbook, _schema.load(data))
+
+    log = _get_init_logger()
+    log.debug(f"final runbook: {runbook.to_dict()}")  # type: ignore
     return runbook
 
 

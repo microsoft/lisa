@@ -2,6 +2,7 @@ import sys
 from datetime import datetime
 from logging import DEBUG, INFO
 from pathlib import Path
+import traceback
 
 from retry import retry  # type: ignore
 
@@ -60,8 +61,11 @@ if __name__ == "__main__":
     try:
         main()
     except Exception as exception:
-        log = get_logger()
-        log.exception(exception)
         exit_code = -1
+        log = get_logger()
+        try:
+            log.exception(exception)
+        except Exception:
+            traceback.print_exc()
     finally:
         sys.exit(exit_code)

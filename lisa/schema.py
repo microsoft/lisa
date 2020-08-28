@@ -10,6 +10,7 @@ from dataclasses_json import (  # type: ignore
 )
 from marshmallow import ValidationError, fields, validate
 
+from lisa.secret import PATTERN_HEADTAIL, add_secret
 from lisa.util import LisaException, constants
 
 """
@@ -215,6 +216,10 @@ class Variable:
                 f"value: '{self.value}'"
             )
 
+        if self.is_secret:
+            add_secret(self.value)
+            add_secret(self.file)
+
 
 @dataclass_json(letter_case=LetterCase.CAMEL)
 @dataclass
@@ -223,6 +228,9 @@ class ArtifactLocation:
         default="", metadata=metadata(required=True, validate=validate.OneOf([])),
     )
     path: str = field(default="", metadata=metadata(required=True))
+
+    def __post_init__(self, *args: Any, **kwargs: Any) -> None:
+        add_secret(self.path)
 
 
 @dataclass_json(letter_case=LetterCase.CAMEL)
@@ -291,6 +299,13 @@ class RemoteNode:
     private_key_file: str = ""
 
     def __post_init__(self, *args: Any, **kwargs: Any) -> None:
+        add_secret(self.address)
+        add_secret(self.public_address)
+        add_secret(str(self.public_port))
+        add_secret(self.username, PATTERN_HEADTAIL)
+        add_secret(self.password)
+        add_secret(self.private_key_file)
+
         if not self.address and not self.public_address:
             raise LisaException(
                 "at least one of address and publicAddress need to be set"
@@ -420,7 +435,7 @@ class Platform(ExtendableSchemaMixin):
 
     supported_types: ClassVar[List[str]] = [constants.PLATFORM_READY]
 
-    admin_username: str = "lisa"
+    admin_username: str = "lisatest"
     admin_password: str = ""
     admin_private_key_file: str = ""
 
@@ -428,6 +443,10 @@ class Platform(ExtendableSchemaMixin):
     reserve_environment: bool = False
 
     def __post_init__(self, *args: Any, **kwargs: Any) -> None:
+        add_secret(self.admin_username, PATTERN_HEADTAIL)
+        add_secret(self.admin_password)
+        add_secret(self.admin_private_key_file)
+
         platform_fields = dataclass_fields(self)
         # get type field to analyze if mismatch type info is set.
         for platform_field in platform_fields:
