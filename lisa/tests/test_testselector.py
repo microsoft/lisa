@@ -99,8 +99,8 @@ class SelectorTestCase(TestCase):
         ]
         with self.assertRaises(LisaException) as cm:
             self._select_and_check(runbook, ["ut1", "ut2"])
-            self.assertIsInstance(cm.exception, LisaException)
-            self.assertIn("force", str(cm.exception))
+        self.assertIsInstance(cm.exception, LisaException)
+        self.assertIn("force", str(cm.exception))
 
     def test_select_force_conflict_exclude(self) -> None:
         runbook = [

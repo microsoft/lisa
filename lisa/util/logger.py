@@ -1,8 +1,9 @@
 import logging
 import time
 from functools import partial
-from typing import Dict, List, Optional, Union, cast
+from typing import Any, Dict, List, Optional, Union, cast
 
+from lisa.secret import mask
 from lisa.util import LisaException
 
 # to prevent circular import, hard code it here.
@@ -29,6 +30,49 @@ class Logger(logging.Logger):
                 self.log(level, f"{prefix}{line}")
             else:
                 self.log(level, line)
+
+    def _log(
+        self,
+        level: int,
+        msg: Any,
+        args: Any,
+        exc_info: Any = None,
+        extra: Optional[Dict[str, Any]] = None,
+        stack_info: bool = False,
+        stacklevel: int = 1,
+    ) -> None:
+        """
+        Low-level log implementation, proxied to allow nested logger adapters.
+        """
+        msg = self._filter_secrets(msg)
+        args = self._filter_secrets(args)
+
+        return super()._log(
+            level,
+            msg,
+            args,
+            exc_info=exc_info,
+            extra=extra,
+            stack_info=stack_info,
+            stacklevel=stacklevel,
+        )
+
+    def _filter_secrets(self, value: Any) -> Any:
+        if isinstance(value, str):
+            value = mask(value)
+        elif isinstance(value, Exception):
+            value_args = list(value.args)
+            for index in range(len(value.args)):
+                if isinstance(value_args[index], str):
+                    value_args[index] = mask(value.args[index])
+            value.args = tuple(value_args)
+        elif isinstance(value, tuple):
+            value_list = self._filter_secrets(list(value))
+            value = tuple(value_list)
+        elif isinstance(value, list):
+            for index in range(len(value)):
+                value[index] = self._filter_secrets(value[index])
+        return value
 
     def warn_or_raise(self, raise_error: bool, message: str) -> None:
         if raise_error:
