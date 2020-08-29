@@ -4,6 +4,8 @@
 
 # This script holds commons function used in XDP Testcases
 
+pktgenResult=""
+
 function get_vf_name() {
     local nicName=$1
     local ignoreIF=$(ip route | grep default | awk '{print $5}')
@@ -70,4 +72,34 @@ function download_pktgen_scripts(){
     ssh $ip "wget https://git.kernel.org/pub/scm/linux/kernel/git/stable/linux.git/plain/samples/pktgen/functions.sh?h=v5.7.8 -O ${dir}/functions.sh"
     ssh $ip "wget https://git.kernel.org/pub/scm/linux/kernel/git/stable/linux.git/plain/samples/pktgen/parameters.sh?h=v5.7.8 -O ${dir}/parameters.sh"
     ssh $ip "chmod +x ${dir}/*.sh"
+}
+
+function start_pktgen(){
+    local sender=$1
+    local cores=$2
+    local pktgenDir=$3
+    local nicName=$4
+    local forwarderSecondMAC=$5
+    local forwarderSecondIP=$6
+    local packetCount=$7
+    if [ "${cores}" = "single" ];then
+        startCommand="cd ${pktgenDir} && ./pktgen_sample.sh -i ${nicName} -m ${forwarderSecondMAC} -d ${forwarderSecondIP} -v -n${packetCount}"
+        LogMsg "Starting pktgen on sender: $startCommand"
+        ssh ${sender} "modprobe pktgen; lsmod | grep pktgen"
+        result=$(ssh ${sender} "${startCommand}")
+    else
+        startCommand="cd ${pktgenDir} && ./pktgen_sample.sh -i ${nicName} -m ${forwarderSecondMAC} -d ${forwarderSecondIP} -v -n${packetCount} -t8"
+        LogMsg "Starting pktgen on sender: ${startCommand}"
+        ssh ${sender} "modprobe pktgen; lsmod | grep pktgen"
+        result=$(ssh ${sender} "${startCommand}")
+    fi
+    pktgenResult=$result
+}
+
+function start_xdpdump(){
+    local ip=$1
+    local nicName=$2
+    xdpdumpCommand="cd bpf-samples/xdpdump && ./xdpdump -i ${nicName} > ~/xdpdumpout_${ip}.txt"
+    LogMsg "Starting xdpdump on ${ip} with command: ${xdpdumpCommand}"
+    ssh -f ${ip} "sh -c '${xdpdumpCommand}'"
 }

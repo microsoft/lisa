@@ -62,24 +62,19 @@ pakcetDropBefore=$(calculate_packets_drop $nicName)
 LogMsg "XDP program cannot run with LRO (RSC) enabled, disable LRO before running XDP"
 ssh ${client} "ethtool -K ${nicName} lro off"
 # start xdpdump with drop
-xdpdumpCommand="cd bpf-samples/xdpdump && ./xdpdump -i ${nicName} > ~/xdpdumpout.txt 2>&1"
-LogMsg "Starting xdpdump on ${client} with command: ${xdpdumpCommand}"
-ssh -f ${client} "sh -c '${xdpdumpCommand} &'"
-
+start_xdpdump ${client} ${nicName}
 
 # Start pktgen application
 clientSecondMAC=$(ip link show $nicName | grep ether | awk '{print $2}')
-if [ "${core}" = "single" ];then
-    LogMsg "Starting pktgen on server: cd ${pktgenDir} && ./pktgen_sample.sh -i ${nicName} -m ${clientSecondMAC} -d ${clientSecondIP} -v -n100000"
-    ssh ${server} "modprobe pktgen; lsmod | grep pktgen"
-    result=$(ssh ${server} "cd ${pktgenDir} && ./pktgen_sample.sh -i ${nicName} -m ${clientSecondMAC} -d ${clientSecondIP} -v -n${packetCount}")
-else
-    LogMsg "Starting pktgen on server: cd ${pktgenDir} && ./pktgen_sample.sh -i ${nicName} -m ${clientSecondMAC} -d ${clientSecondIP} -v -n${packetCount} -t8"
-    ssh ${server} "modprobe pktgen; lsmod | grep pktgen"
-    result=$(ssh ${server} "cd ${pktgenDir} && ./pktgen_sample.sh -i ${nicName} -m ${clientSecondMAC} -d ${clientSecondIP} -v -n${packetCount} -t8")
+LogMsg "Starting pktgen on ${server}"
+start_pktgen ${server} ${cores} ${pktgenDir} ${nicName} ${clientSecondMAC} ${clientSecondIP} ${packetCount}
+sleep 5
+pps=$(echo $pktgenResult | grep -oh '[0-9]*pps' | cut -d'p' -f 1)
+if [ $? -ne 0 ]; then
+    LogErr "Problem in running pktgen. No PPS found. Please check logs."
+    SetTestStateAborted
+    exit 0
 fi
-sleep 10
-pps=$(echo $result | grep -oh '[0-9]*pps' | cut -d'p' -f 1)
 LogMsg "PPS: $pps"
 # Get drop packet numbers
 pakcetDropAfter=$(calculate_packets_drop $nicName)
@@ -89,8 +84,9 @@ packetsDropped=$((pakcetDropAfter - pakcetDropBefore))
 LogMsg "Pakcets dropped: $packetsDropped"
 dropLimit=$(( packetCount*packetDropThreshold/100 ))
 if [ $packetsDropped -lt $dropLimit ]; then
-    LogErr "receiver did not receive packets."
-    SetTestStateAborted
+    LogErr "receiver did not receive enough packets. Receiver received ${packetsDropped} which is lower than threshold" \
+            "of ${packetDropThreshold}% of ${packetCount}. Please check logs"
+    SetTestStateFailed
     exit 1
 fi
 ssh ${client} "killall xdpdump"

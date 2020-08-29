@@ -120,29 +120,15 @@ pktForwardBefore=$(ssh ${forwarder} ". XDPUtils.sh && calculate_packets_forward 
 LogMsg "Before test, Packet forward count on ${forwarder} is ${pktForwardBefore}"
 
 # Start XDPDump on receiver
-xdpdumpCommand="cd bpf-samples/xdpdump && ./xdpdump -i ${nicName} > ~/xdpdumpout_${receiver}.txt"
-LogMsg "Starting xdpdump on ${receiver} with command: ${xdpdumpCommand}"
-ssh -f ${receiver} "sh -c '${xdpdumpCommand}'"
+start_xdpdump ${receiver} ${nicName}
 # Start XDPDump on forwarder
-xdpdumpCommand="cd bpf-samples/xdpdump && ./xdpdump -i ${nicName} > ~/xdpdumpout_${forwarder}.txt"
-LogMsg "Starting xdpdump on ${forwarder} with command: ${xdpdumpCommand}"
-ssh -f ${forwarder} "sh -c '${xdpdumpCommand}'"
+start_xdpdump ${forwarder} ${nicName}
 
 # Start pktgen on Sender
 forwarderSecondMAC=$((ssh ${forwarder} "ip link show ${nicName}") | grep ether | awk '{print $2}')
-LogMsg "Forwarder second MAC: ${forwarderSecondMAC}"
-if [ "${core}" = "single" ];then
-    startCommand="cd ${pktgenDir} && ./pktgen_sample.sh -i ${nicName} -m ${forwarderSecondMAC} -d ${forwarderSecondIP} -v -n${packetCount}"
-    LogMsg "Starting pktgen on sender: $startCommand"
-    ssh ${sender} "modprobe pktgen; lsmod | grep pktgen"
-    result=$(ssh ${sender} "${startCommand}")
-else
-    startCommand="cd ${pktgenDir} && ./pktgen_sample.sh -i ${nicName} -m ${forwarderSecondMAC} -d ${forwarderSecondIP} -v -n${packetCount} -t8"
-    LogMsg "Starting pktgen on sender: ${startCommand}"
-    ssh ${sender} "modprobe pktgen; lsmod | grep pktgen"
-    result=$(ssh ${sender} "${startCommand}")
-fi
-sleep 10
+LogMsg "Starting pktgen on ${sender}"
+start_pktgen ${sender} ${cores} ${pktgenDir} ${nicName} ${forwarderSecondMAC} ${forwarderSecondIP} ${packetCount}
+sleep 5
 # Kill XDPDump on reciever & forwarder
 LogMsg "Killing xdpdump on receiver and forwarder"
 ssh ${receiver} "killall xdpdump"
@@ -156,7 +142,12 @@ LogMsg "After test, Packet drop count on ${receiver} is ${packetDrop}"
 pktForwardAfter=$(ssh ${forwarder} ". XDPUtils.sh && calculate_packets_forward ${nicName}")
 pktForward=$((pktForwardAfter - pktForwardBefore))
 LogMsg "After test, Packet forward count on ${forwarder} is ${pktForward}"
-pps=$(echo $result | grep -oh '[0-9]*pps' | cut -d'p' -f 1)
+pps=$(echo $pktgenResult | grep -oh '[0-9]*pps' | cut -d'p' -f 1)
+if [ $? -ne 0 ]; then
+    LogErr "Problem in running pktgen. No PPS found. Please check logs."
+    SetTestStateAborted
+    exit 0
+fi
 LogMsg "Sender PPS: $pps"
 LogMsg "Forwarder forwarded ${pktForward} packets and Receiver received ${packetDrop} packets"
 # threshold value check
