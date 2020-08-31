@@ -498,7 +498,7 @@ function Is-VmAlive {
         $deadVms = 0
         $retryCount += 1
         foreach ( $vm in $AllVMDataObject) {
-            if ($global:IsWindowsImage) {
+            if ($vm.IsWindows) {
                 $port = $vm.RDPPort
             } else {
                 $port = $vm.SSHPort
@@ -510,7 +510,7 @@ function Is-VmAlive {
                 $deadVms += 1
 
                 if (($retryCount % $kernelPanicPeriod -eq 0) -and ($TestPlatform -eq "Azure") `
-                    -and (!$global:IsWindowsImage) -and (Check-AzureVmKernelPanic $vm)) {
+                    -and (!$vm.IsWindows) -and (Check-AzureVmKernelPanic $vm)) {
                     Write-LogErr "Linux VM $($vm.RoleName) failed to boot because of a kernel panic."
                     return "False"
                 }
@@ -524,7 +524,7 @@ function Is-VmAlive {
             Write-LogInfo "Retrying $retryCount/$MaxRetryCount in 3 seconds."
             Start-Sleep -Seconds 3
         } else {
-            Write-LogInfo "The SSH ports for all VMs are open."
+            Write-LogInfo "The remote ports for all VMs are open."
             return "True"
         }
     } While (($retryCount -lt $MaxRetryCount) -and ($deadVms -gt 0))
@@ -1072,14 +1072,13 @@ Function Set-CustomConfigInVMs($CustomKernel, $CustomLIS, $EnableSRIOV, $AllVMDa
 		}
 	}
 
-	# Detect Linux Distro
-	if (!$global:detectedDistro) {
-		$detectedDistro = Detect-LinuxDistro -VIP $AllVMData[0].PublicIP -SSHport $AllVMData[0].SSHPort `
-			-testVMUser $global:user -testVMPassword $global:password
-	}
-
 	# Solution for resolve download file issue "Fatal: Received unexpected end-of-file from server" for clear-os-linux
 	foreach ($vm in $AllVMData) {
+        # Detect Linux Distro
+        if (!$global:detectedDistro -and !$vm.IsWindows) {
+            $detectedDistro = Detect-LinuxDistro -VIP $AllVMData[0].PublicIP -SSHport $AllVMData[0].SSHPort `
+                -testVMUser $global:user -testVMPassword $global:password
+        }
 		if($global:detectedDistro -imatch "CLEARLINUX") {
 			Run-LinuxCmd -Username $global:user -password $global:password -ip $vm.PublicIP -Port $vm.SSHPort `
 				-Command "echo 'Subsystem sftp internal-sftp' >> /etc/ssh/sshd_config && sed -i 's/.*ExecStart=.*/ExecStart=\/usr\/sbin\/sshd -D `$OPTIONS -f \/etc\/ssh\/sshd_config/g' /usr/lib/systemd/system/sshd.service && systemctl daemon-reload && systemctl restart sshd.service" -runAsSudo
@@ -1134,12 +1133,8 @@ Function Detect-LinuxDistro() {
 
 	$DistroName = Run-LinuxCmd -username $testVMUser -password $testVMPassword -ip $VIP -port $SSHport -command "bash ./DetectLinuxDistro.sh" -runAsSudo
 
-	if (($DistroName -imatch "Unknown") -or (!$DistroName)) {
-		if ($global:IsWindowsImage) {
-			Write-LogInfo "Running on a Windows VM."
-		} else {
-			Write-LogErr "Linux distro detected : $DistroName"
-		}
+	if (!$DistroName -or ($DistroName -imatch "Unknown")) {
+		Write-LogErr "Linux distro detected : $DistroName"
 		# Instead of throw, it sets 'Unknown' if it does not exist
 		$CleanedDistroName = "Unknown"
 	} else {

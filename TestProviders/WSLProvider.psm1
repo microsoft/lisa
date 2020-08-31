@@ -120,6 +120,7 @@ Class WSLProvider : TestProvider
 				Add-Member -InputObject $objNode -MemberType NoteProperty -Name PublicIP -Value $publicIp -Force
 				Add-Member -InputObject $objNode -MemberType NoteProperty -Name SSHPort -Value $publicPort -Force
 				Add-Member -InputObject $objNode -MemberType NoteProperty -Name RoleName -Value $server.ToUpper() -Force
+				Add-Member -InputObject $objNode -MemberType NoteProperty -Name IsWindows -Value $false -Force
 
 				$newInstalledDistros = $this.GetInstalledWSLDistros($server)
 				$alreadyInstalled = $true

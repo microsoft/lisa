@@ -49,7 +49,7 @@ Class HyperVProvider : TestProvider
 				if ($isAllDeployed[0] -eq "True") {
 					$DeployedHyperVGroup = $isAllDeployed[1]
 					$DeploymentElapsedTime = $isAllDeployed[3]
-					$allVMData = Get-AllHyperVDeployementData -HyperVGroupNames $DeployedHyperVGroup -GlobalConfig $GlobalConfig
+					$allVMData = Get-AllHyperVDeployementData -HyperVGroupNames $DeployedHyperVGroup -CurrentTestData $TestCaseData
 				}
 				else {
 					$ErrorMessage = "One or more deployments failed."
@@ -60,7 +60,7 @@ Class HyperVProvider : TestProvider
 
 			$isVmAlive = Is-VmAlive -AllVMDataObject $allVMData
 			if ($isVmAlive -eq "True") {
-				if (!$global:IsWindowsImage) {
+				if ($TestCaseData.SetupConfig.OSType -notcontains "Windows") {
 					# After each successful deployment, update the $global:detectedDistro for reference by other scripts and logic
 					$null = Detect-LinuxDistro -VIP $allVMData[0].PublicIP -SSHport $allVMData[0].SSHPort -testVMUser $global:user -testVMPassword $global:password
 					$customStatus = Set-CustomConfigInVMs -CustomKernel $this.CustomKernel -CustomLIS $this.CustomLIS `

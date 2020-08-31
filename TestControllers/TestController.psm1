@@ -311,12 +311,6 @@ Class TestController
 					}
 				}
 			}
-			# Check whether the case if for Windows images
-			$IsWindowsImage = $false
-			if(($test.SetupConfig.OSType -contains "Windows")) {
-				$IsWindowsImage = $true
-			}
-			Set-Variable -Name IsWindowsImage -Value $IsWindowsImage -Scope Global
 		}
 
 		$this.PrepareSetupTypeToTestCases($this.SetupTypeToTestCases, $allTests)
@@ -352,7 +346,7 @@ Class TestController
 		$currentTestResult = Create-TestResultObject
 
 		Create-ConstantsFile -FilePath $constantsPath -Parameters $Parameters
-		if (!$global:IsWindowsImage) {
+		if ($CurrentTestData.SetupConfig.OSType -notcontains "Windows") {
 			foreach ($VM in $VMData) {
 				Copy-RemoteFiles -upload -uploadTo $VM.PublicIP -Port $VM.SSHPort `
 					-files $constantsPath -Username $Username -password $Password
@@ -443,14 +437,14 @@ Class TestController
 			Write-LogInfo "==> Run test setup script if defined."
 			$this.TestProvider.RunSetup($VmData, $CurrentTestData, $testParameters, $ApplyCheckpoint)
 
-			if (!$global:IsWindowsImage) {
+			if ($CurrentTestData.SetupConfig.OSType -notcontains "Windows") {
 				Write-LogInfo "==> Check the target machine kernel log."
 				$this.GetAndCompareOsLogs($VmData, "Initial")
 			}
 
 			# Upload test files to VMs
 			if ($CurrentTestData.files) {
-				if(!$global:IsWindowsImage){
+				if($CurrentTestData.SetupConfig.OSType -notcontains "Windows"){
 					foreach ($vm in $VmData) {
 						Write-LogInfo "==> Upload test files to target machine $($vm.RoleName) if any."
 						Copy-RemoteFiles -upload -uploadTo $vm.PublicIP -Port $vm.SSHPort `
@@ -503,7 +497,7 @@ Class TestController
 		}
 
 		try {
-			if (!$global:IsWindowsImage) {
+			if ($CurrentTestData.SetupConfig.OSType -notcontains "Windows") {
 				if ($testParameters["SkipVerifyKernelLogs"] -ne "True") {
 					$ret = $this.GetAndCompareOsLogs($VmData, "Final")
 					if (($testParameters["FailForLogCheck"] -eq "True") -and ($ret -eq $false) -and ($currentTestResult.TestResult -eq $global:ResultPass)) {
@@ -512,12 +506,12 @@ Class TestController
 						$currentTestResult.testSummary += New-ResultSummary -testResult "Test fails for log check"
 					}
 				}
-				$this.GetSystemBasicLogs($VmData, $global:user, $global:password, $CurrentTestData, $currentTestResult, $this.EnableTelemetry) | Out-Null
 			}
+			$this.GetSystemBasicLogs($VmData, $global:user, $global:password, $CurrentTestData, $currentTestResult, $this.EnableTelemetry) | Out-Null
 
 			Write-LogInfo "==> Run test cleanup script if defined."
-			$collectDetailLogs = !$this.TestCasePassStatus.contains($currentTestResult.TestResult) -and !$global:IsWindowsImage -and $testParameters["SkipVerifyKernelLogs"] -ne "True" -and ((Is-VmAlive -AllVMDataObject $VmData -MaxRetryCount 5) -eq "True")
-			$doRemoveFiles = $this.TestCasePassStatus.contains($currentTestResult.TestResult) -and !($this.ResourceCleanup -imatch "Keep") -and !$global:IsWindowsImage -and $testParameters["SkipVerifyKernelLogs"] -ne "True"
+			$collectDetailLogs = !$this.TestCasePassStatus.contains($currentTestResult.TestResult) -and ($CurrentTestData.SetupConfig.OSType -notcontains "Windows") -and $testParameters["SkipVerifyKernelLogs"] -ne "True" -and ((Is-VmAlive -AllVMDataObject $VmData -MaxRetryCount 5) -eq "True")
+			$doRemoveFiles = $this.TestCasePassStatus.contains($currentTestResult.TestResult) -and !($this.ResourceCleanup -imatch "Keep") -and ($CurrentTestData.SetupConfig.OSType -notcontains "Windows") -and $testParameters["SkipVerifyKernelLogs"] -ne "True"
 			$this.TestProvider.RunTestCaseCleanup($vmData, $CurrentTestData, $currentTestResult, $collectDetailLogs, $doRemoveFiles, `
 				$global:user, $global:password, $SetupTypeData, $testParameters)
 		} catch {
@@ -633,7 +627,7 @@ Class TestController
 						continue
 					}
 					else {
-						if(!$global:detectedDistro) {
+						if($currentTestCase.SetupConfig.OSType -notcontains "Windows" -and !$global:detectedDistro) {
 							$detectedDistro = Detect-LinuxDistro -VIP $vmData[0].PublicIP -SSHport $vmData[0].SSHPort `
 								-testVMUser $global:user -testVMPassword $global:password
 						}
@@ -731,7 +725,7 @@ Class TestController
 				$vmData = $AllVMData
 			}
 
-			if ($vmData -and ((Is-VmAlive -AllVMDataObject $vmData -MaxRetryCount 5) -eq "True")) {
+			if ($vmData -and !$vmData.IsWindows -and ((Is-VmAlive -AllVMDataObject $vmData -MaxRetryCount 5) -eq "True")) {
 				if ($global:TestPlatform -eq "Azure") {
 					$VMSize = $vmData.InstanceSize
 					# No Azure API, we use ARMImageName convention to get VMGeneration for Azure

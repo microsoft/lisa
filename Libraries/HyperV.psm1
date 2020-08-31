@@ -510,7 +510,7 @@ function Stop-HyperVGroupVMs($HyperVGroupName, $HyperVHost) {
     return $ReturnValue
 }
 
-function Get-AllHyperVDeployementData($HyperVGroupNames,$GlobalConfig,$RetryCount = 100) {
+function Get-AllHyperVDeployementData($HyperVGroupNames,$CurrentTestData,$RetryCount = 100) {
     $allDeployedVMs = @()
     function Create-QuickVMNode() {
         $objNode = New-Object -TypeName PSObject
@@ -520,10 +520,12 @@ function Get-AllHyperVDeployementData($HyperVGroupNames,$GlobalConfig,$RetryCoun
         Add-Member -InputObject $objNode -MemberType NoteProperty -Name InternalIP -Value $null -Force
         Add-Member -InputObject $objNode -MemberType NoteProperty -Name RoleName -Value $null -Force
         Add-Member -InputObject $objNode -MemberType NoteProperty -Name VMGeneration -Value $null -Force
-        if ($global:IsWindowsImage) {
+        if ($CurrentTestData.SetupConfig.OSType -contains "Windows") {
             Add-Member -InputObject $objNode -MemberType NoteProperty -Name RDPPort -Value 3389 -Force
+            Add-Member -InputObject $objNode -MemberType NoteProperty -Name IsWindows -Value $true -Force
         } else {
             Add-Member -InputObject $objNode -MemberType NoteProperty -Name SSHPort -Value 22 -Force
+            Add-Member -InputObject $objNode -MemberType NoteProperty -Name IsWindows -Value $false -Force
         }
         return $objNode
     }
@@ -531,7 +533,7 @@ function Get-AllHyperVDeployementData($HyperVGroupNames,$GlobalConfig,$RetryCoun
     $ALLVMs = @{}
     $index = 0
     foreach ($HyperVGroupName in $HyperVGroupNames.Split("^")) {
-        $HyperVHost = $GlobalConfig.Global.Hyperv.Hosts.ChildNodes[$index].ServerName
+        $HyperVHost = $global:GlobalConfig.Global.Hyperv.Hosts.ChildNodes[$index].ServerName
         $index++
         Write-LogInfo "Collecting $HyperVGroupName data.."
         $CurrentGroupData = Get-VMGroup -Name $HyperVGroupName -ComputerName $HyperVHost
@@ -586,7 +588,7 @@ function Inject-HostnamesInHyperVVMs($allVMData) {
         foreach ( $VM in $allVMData )
         {
             Write-LogInfo "Injecting hostname '$($VM.RoleName)' in HyperV VM..."
-            if (!$global:IsWindowsImage) {
+            if (!$VM.IsWindows) {
                 Run-LinuxCmd -username $user -password $password -ip $VM.PublicIP -port $VM.SSHPort `
                     -command "echo $($VM.RoleName) > /etc/hostname ; sed -i `"/127/s/`$/ $($VM.RoleName)/`" /etc/hosts" -runAsSudo -maxRetryCount 5
             } else {
@@ -738,7 +740,7 @@ function Check-IP {
                 if ($vmNic.IPAddresses -and $vmNic.IPAddresses[0]) {
                     $vmIP = $vmNic.IPAddresses[0]
                     $vmIP = $([ipaddress]$vmIP.trim()).IPAddressToString
-                    if ($global:IsWindowsImage) {
+                    if ($VM.IsWindows) {
                         $port = $($VM.RDPPort)
                     } else {
                         $port = $($VM.SSHPort)

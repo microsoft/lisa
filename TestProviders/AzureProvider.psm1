@@ -61,7 +61,9 @@ Class AzureProvider : TestProvider
 					$DeploymentElapsedTime = $isAllDeployed[3]
 					$allVMData = Get-AllDeploymentData -ResourceGroups $deployedGroups -PatternOfResourceNamePrefix $patternOfResourceNamePrefix
 					# After each successful deployment, update the $global:detectedDistro for reference by other scripts and logic
-					$null = Detect-LinuxDistro -VIP $allVMData[0].PublicIP -SSHport $allVMData[0].SSHPort -testVMUser $global:user -testVMPassword $global:password
+					if ($TestCaseData.SetupConfig.OSType -notcontains "Windows") {
+						$null = Detect-LinuxDistro -VIP $allVMData[0].PublicIP -SSHport $allVMData[0].SSHPort -testVMUser $global:user -testVMPassword $global:password
+					}
 				} else {
 					$ErrorMessage = "One or more deployments failed. " + $isAllDeployed[4]
 					Write-LogErr $ErrorMessage
@@ -77,7 +79,7 @@ Class AzureProvider : TestProvider
 				}
 
 				$enableSRIOV = $TestCaseData.SetupConfig.Networking -imatch "SRIOV"
-				if (!$global:IsWindowsImage) {
+				if ($TestCaseData.SetupConfig.OSType -notcontains "Windows") {
 					$customStatus = Set-CustomConfigInVMs -CustomKernel $this.CustomKernel -CustomLIS $this.CustomLIS -EnableSRIOV $enableSRIOV `
 						-AllVMData $allVMData -TestProvider $this
 					if (!$customStatus) {
@@ -90,7 +92,7 @@ Class AzureProvider : TestProvider
 			else {
 				# Do not DeleteVMs here, instead, we will set below $ErrorMessage
 				#, to indicate there's deployment errors, and TestController will handle those errors
-				$ErrorMessage = "Unable to connect SSH ports..."
+				$ErrorMessage = "Unable to connect to deployed VMs..."
 				Write-LogErr $ErrorMessage
 				return @{"VmData" = $allVMData; "Error" = $ErrorMessage}
 			}

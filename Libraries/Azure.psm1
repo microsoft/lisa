@@ -494,7 +494,7 @@ Function Invoke-AllResourceGroupDeployments($SetupTypeData, $CurrentTestData, $R
 				$VMNames += $newVM.RoleName
 			}
 			else {
-				$VMNames += Get-NewVMName -namePrefix $RGName -numberOfVMs $numberOfVMs
+				$VMNames += Get-NewVMName -namePrefix $RGName -numberOfVMs $numberOfVMs -CurrentTestData $CurrentTestData
 			}
 			$numberOfVMs += 1
 		}
@@ -2268,6 +2268,12 @@ Function Get-AllDeploymentData([string]$ResourceGroups, [string]$PatternOfResour
 			$QuickVMNode.Status = $testVMDetails.ProvisioningState
 			$QuickVMNode.InstanceSize = $testVMDetails.hardwareProfile.vmSize
 			$QuickVMNode.Location = $currentRGLocation
+			if ($testVMDetails.StorageProfile.OsDisk.OsType -eq "Windows") {
+				Add-Member -InputObject $QuickVMNode -MemberType NoteProperty -Name IsWindows -Value $true -Force
+			}
+			else {
+				Add-Member -InputObject $QuickVMNode -MemberType NoteProperty -Name IsWindows -Value $false -Force
+			}
 			$allDeployedVMs += $QuickVMNode
 		}
 		Write-LogInfo "Collected $ResourceGroup data!"
@@ -2275,8 +2281,8 @@ Function Get-AllDeploymentData([string]$ResourceGroups, [string]$PatternOfResour
 	return $allDeployedVMs
 }
 
-Function Get-NewVMName ($namePrefix, $numberOfVMs) {
-	if ($global:IsWindowsImage) {
+Function Get-NewVMName ($namePrefix, $numberOfVMs, $CurrentTestData) {
+	if ($CurrentTestData.SetupConfig.OsType -contains "Windows") {
 		# Windows computer name cannot be more than 15 characters long on Azure
 		$suffix = "-$numberOfVMs"
 		$len = 15 - $suffix.Length
