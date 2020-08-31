@@ -8,8 +8,8 @@
 
 .PARAMETER
 	-AzureSecretsFile, the path of Azure secrets file
-	-VmName, the name of the VM to install the CustomScript extension, if no VmName is provided, it will be installed on all VMs
-	-ResourceGroupName, the resource group name of the VMs to install the CustomScript extension, if no ResourceGroupName is provided, it will be installed on all VMs in the subscription
+	-VmName, the name of the VM to install the CustomScript extension, if no VmName is provided, it will be installed on all VMs in the ResourceGroup
+	-ResourceGroupName, the resource group name of the VMs to install the CustomScript extension.
 	-FileUris, comma separated Uris of the custom scripts
 	-CommandToRun, the command to run on the VM
 	-Timeout, the longest time that current job wait for command running on the VM, if no Timeout is provided, it will be 360s
@@ -94,7 +94,8 @@ Function Install-CustomScript($AzureSecretsFile, $FileUris, $CommandToRun, $Time
 	} elseif ($ResourceGroupName) {
 		$vms = Get-AzVM -ResourceGroupName $ResourceGroupName | Where-Object {$_.StorageProfile.OsDisk.OsType -eq $OSType}
 	} else {
-		$vms = Get-AzVM | Where-Object {$_.StorageProfile.OsDisk.OsType -eq $OSType}
+		Write-LogInfo "Resource Group Name is NULL. Exiting."
+		exit 1
 	}
 	$jobs = @()
 	$jobIdToVM = @{}
