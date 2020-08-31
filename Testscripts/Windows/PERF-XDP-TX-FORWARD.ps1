@@ -120,7 +120,7 @@ collect_VM_properties
             $resultMap["HostOS"] = $(Get-Content "$LogDir\VM_properties.csv" | Select-String "Host Version" | ForEach-Object { $_ -replace ",Host Version,", "" })
             $resultMap["GuestOSType"] = "Linux"
             $resultMap["GuestDistro"] = $(Get-Content "$LogDir\VM_properties.csv" | Select-String "OS type" | ForEach-Object { $_ -replace ",OS type,", "" })
-            $resultMap["GuestSize"] = $receiverVMData.InstanceSize
+            $resultMap["GuestSize"] = $masterVM.InstanceSize
             $resultMap["KernelVersion"] = $(Get-Content "$LogDir\VM_properties.csv" | Select-String "Kernel version" | ForEach-Object { $_ -replace ",Kernel version,", "" })
             $resultMap["IPVersion"] = "IPv4"
             $resultMap["XDPAction"] = $testType

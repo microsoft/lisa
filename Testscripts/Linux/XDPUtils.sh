@@ -94,6 +94,7 @@ function start_pktgen(){
         result=$(ssh ${sender} "${startCommand}")
     fi
     pktgenResult=$result
+    LogMsg "pktgen result: $pktgenResult"
 }
 
 function start_xdpdump(){

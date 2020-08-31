@@ -877,7 +877,7 @@
     </SetupConfig>
   </test>
   <test>
-    <testName>PERF-XDP-TCP-RX-DROP-SINGLECORE</testName>
+    <testName>PERF-XDP-RX-DROP-SINGLECORE</testName>
     <testScript>PERF-XDP-RX-DROP.ps1</testScript>
     <files>.\Testscripts\Linux\utils.sh,.\Testscripts\Linux\XDPDumpSetup.sh,.\Testscripts\Linux\XDPUtils.sh,.\Testscripts\Linux\pktgenSetup.sh</files>
     <TestParameters>
@@ -895,7 +895,7 @@
     </SetupConfig>
   </test>
   <test>
-    <testName>PERF-XDP-TCP-RX-DROP-MULTICORE</testName>
+    <testName>PERF-XDP-RX-DROP-MULTICORE</testName>
     <testScript>PERF-XDP-RX-DROP.ps1</testScript>
     <files>.\Testscripts\Linux\utils.sh,.\Testscripts\Linux\XDPDumpSetup.sh,.\Testscripts\Linux\XDPUtils.sh,.\Testscripts\Linux\pktgenSetup.sh</files>
     <TestParameters>

@@ -92,6 +92,8 @@ fi
 ssh ${client} "killall xdpdump"
 if [ $pps -ge 1000000 ]; then
     LogMsg "pps is greater than 1 Mpps"
+    echo "test_type,sender_pps,packets_sent,packets_received" > report.csv
+    echo "${cores},${pps},${packetCount},${packetsDropped}" >> report.csv
     SetTestStateCompleted
     exit 0
 else

@@ -155,7 +155,7 @@ fwdLimit=$(( packetCount*packetFwdThreshold/100 ))
 if [ $packetDrop -lt $fwdLimit ]; then
     LogErr "receiver did not receive enough packets. Receiver received ${packetDrop} which is lower than threshold" \
             "of ${packetFwdThreshold}% of ${packetCount}. Please check logs"
-    SetTestStateAborted
+    SetTestStateFailed
     exit 0
 fi
 if [ $pps -ge 1000000 ]; then
