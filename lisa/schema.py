@@ -1,6 +1,17 @@
 from dataclasses import dataclass, field
 from dataclasses import fields as dataclass_fields
-from typing import Any, Callable, ClassVar, List, Optional, Type, TypeVar, Union
+from typing import (
+    Any,
+    Callable,
+    ClassVar,
+    Dict,
+    List,
+    Optional,
+    Type,
+    TypeVar,
+    Union,
+    cast,
+)
 
 from dataclasses_json import (  # type: ignore
     DataClassJsonMixin,
@@ -185,6 +196,14 @@ class Extension:
 
 @dataclass_json(letter_case=LetterCase.CAMEL)
 @dataclass
+class VariableEntry:
+    is_secret: bool = False
+    mask: str = ""
+    value: Union[str, bool, int] = ""
+
+
+@dataclass_json(letter_case=LetterCase.CAMEL)
+@dataclass
 class Variable:
     """
     it uses to support variables in other fields.
@@ -205,20 +224,26 @@ class Variable:
     )
 
     name: str = field(default="")
-    value: str = field(default="")
+    value_raw: Union[str, bool, int, Dict[Any, Any]] = field(
+        default="", metadata=metadata(data_key="value")
+    )
 
     def __post_init__(self, *args: Any, **kwargs: Any) -> None:
-        if self.file and (self.name or self.value):
+        if self.file and (self.name or self.value_raw):
             raise LisaException(
                 f"file cannot be specified with name or value"
                 f"file: '{self.file}'"
                 f"name: '{self.name}'"
-                f"value: '{self.value}'"
+                f"value: '{self.value_raw}'"
             )
 
-        if self.is_secret:
-            add_secret(self.value)
-            add_secret(self.file)
+        if isinstance(self.value_raw, dict):
+            self.value: Union[str, bool, int, VariableEntry] = cast(
+                VariableEntry,
+                VariableEntry.schema().load(self.value_raw),  # type:ignore
+            )
+        else:
+            self.value = self.value_raw
 
 
 @dataclass_json(letter_case=LetterCase.CAMEL)

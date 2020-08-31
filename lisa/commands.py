@@ -2,12 +2,12 @@ import asyncio
 import functools
 from argparse import Namespace
 from pathlib import Path, PurePath
-from typing import Dict, Iterable, List, Optional, cast
+from typing import Any, Dict, Iterable, Optional, cast
 
 import lisa.parameter_parser.runbook as runbook_ops
+from lisa import schema
 from lisa.environment import environments, load_environments
 from lisa.platform_ import initialize_platforms, load_platforms, platforms
-from lisa.schema import Runbook
 from lisa.sut_orchestrator.ready import ReadyPlatform
 from lisa.test_runner.lisarunner import LISARunner
 from lisa.testselector import select_testcases
@@ -15,12 +15,18 @@ from lisa.testsuite import TestCaseData
 from lisa.util import LisaException, constants
 from lisa.util.logger import get_logger
 from lisa.util.module import import_module
+from lisa.variable import (
+    load_from_env,
+    load_from_pairs,
+    load_from_runbook,
+    replace_variables,
+)
 
 _get_init_logger = functools.partial(get_logger, "init")
 
 
-def _load_extends(base_path: Path, extends_runbook: Dict[str, object]) -> None:
-    for p in cast(List[str], extends_runbook.get(constants.PATHS, list())):
+def _load_extends(base_path: Path, extends_runbook: schema.Extension) -> None:
+    for p in extends_runbook.paths:
         path = PurePath(p)
         if not path.is_absolute():
             path = base_path.joinpath(path)
@@ -37,10 +43,24 @@ def _initialize(args: Namespace) -> Iterable[TestCaseData]:
     # merge all parameters
     path = Path(args.runbook).absolute()
     data = runbook_ops.load(path)
+    constants.RUNBOOK_PATH = path.parent
 
     # load extended modules
     if constants.EXTENSION in data:
-        _load_extends(path.parent, data[constants.EXTENSION])
+        extends_runbook = schema.Extension.schema().load(  # type:ignore
+            data[constants.EXTENSION]
+        )
+        _load_extends(path.parent, extends_runbook)
+
+    # load arg variables
+    variables: Dict[str, Any] = dict()
+    load_from_runbook(data, variables)
+    load_from_env(variables)
+    if hasattr(args, "variables"):
+        load_from_pairs(args.variables, variables)
+
+    # replace variables:
+    data = replace_variables(data, variables)
 
     # validate runbook, after extensions loaded
     runbook = runbook_ops.validate(data)
@@ -100,7 +120,7 @@ def list_start(args: Namespace) -> None:
     log.info("list information here")
 
 
-def _validate(runbook: Runbook) -> None:
+def _validate(runbook: schema.Runbook) -> None:
     if runbook.environment:
         log = _get_init_logger()
         for environment in environments.values():

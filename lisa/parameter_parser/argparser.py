@@ -40,6 +40,7 @@ def parse_args() -> Namespace:
     parser = ArgumentParser()
     support_debug(parser)
     support_runbook(parser, required=False)
+    support_variable(parser)
 
     subparsers = parser.add_subparsers(dest="cmd", required=False)
     run_parser = subparsers.add_parser("run")
