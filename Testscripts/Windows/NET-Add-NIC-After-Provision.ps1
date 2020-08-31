@@ -14,10 +14,10 @@
 	4. Check if IPs are assigned inside the VM for each new extra NIC
 #>
 
-param([object] $AllVmData, [string]$TestParams)
+param([object] $AllVmData, [string]$TestParams, [object]$CurrentTestData)
 
 function Main {
-	param($AllVMData, $TestParams)
+	$TestParams = (ConvertFrom-StringData $TestParams.Replace(";","`n"))
 	$currentTestResult = Create-TestResultObject
 	try {
 		$extraNICs = $TestParams.EXTRA_NICS
@@ -49,8 +49,14 @@ function Main {
 			# Add a new network interface
 			$ipConfig = New-AzNetworkInterfaceIpConfig -Name $ipConfigName -PrivateIpAddressVersion `
 				IPv4 -PrivateIpAddress $ipAddr -SubnetId $vnet.Subnets[0].Id
-			$nic = New-AzNetworkInterface -Name $nicName -ResourceGroupName $AllVMData.ResourceGroupName `
-				-Location $AllVMData.Location -IpConfiguration $ipConfig -Force
+			if ($CurrentTestData.SetupConfig.Networking -eq 'SRIOV') {
+				$nic = New-AzNetworkInterface -Name $nicName -ResourceGroupName $AllVMData.ResourceGroupName `
+					-Location $AllVMData.Location -IpConfiguration $ipConfig -Force -EnableAcceleratedNetworking
+			}
+			else {
+				$nic = New-AzNetworkInterface -Name $nicName -ResourceGroupName $AllVMData.ResourceGroupName `
+					-Location $AllVMData.Location -IpConfiguration $ipConfig -Force
+			}
 			Add-AzVMNetworkInterface -VM $vm -Id $nic.Id | Out-Null
 			if (-not $?) {
 				Write-LogErr "Failed to create extra NIC #${nicNr} in $($AllVMData.ResourceGroupName)"
@@ -67,26 +73,16 @@ function Main {
 		}
 		Write-LogDbg "Completed VM updating $($AllVMData.RoleName) in RG $($AllVMData.ResourceGroupName)."
 		# Start VM
+		$startVMScriptBlock = {
+			param($VMData)
+			Start-AzVM -ResourceGroupName $VMData.ResourceGroupName -Name $VMData.RoleName -NoWait | Out-Null
+		}
 		Write-LogDbg "Starting VM $($AllVMData.RoleName) in RG $($AllVMData.ResourceGroupName)."
-		Start-AzVM -ResourceGroupName $AllVMData.ResourceGroupName -Name $AllVMData.RoleName -NoWait | Out-Null
-		if (-not $?) {
-			Write-LogErr "Failed to start $($AllVMData.RoleName)"
+		$startVMResult = Wait-AzVMBackRunningWithTimeOut -AllVMData $AllVMData -AzVMScript $startVMScriptBlock
+		if (!$startVMResult) {
+			Write-LogErr "Starting VM $($AllVMData.RoleName) failed in RG $($AllVMData.ResourceGroupName)."
 			return "FAIL"
 		}
-		$vm = Get-AzVM -ResourceGroupName $AllVMData.ResourceGroupName -Name $AllVMData.RoleName -Status
-		$MaxAttempts = 30
-		while (($vm.Statuses[-1].Code -ne "PowerState/running") -and ($MaxAttempts -gt 0)) {
-			Write-LogDbg "Attempt $(31 - $MaxAttempts) - VM $($AllVMData.RoleName) is in $($vm.Statuses[-1].Code) state, still not in running state, wait for 20 seconds..."
-			Start-Sleep -Seconds 20
-			$MaxAttempts -= 1
-			$vm = Get-AzVM -ResourceGroupName $AllVMData.ResourceGroupName -Name $AllVMData.RoleName -Status
-		}
-		if ($vm.Statuses[-1].Code -ne "PowerState/running") {
-			Write-LogErr "Test case timed out waiting for VM to boot"
-			return "FAIL"
-		}
-		$vmData = Get-AllDeploymentData -ResourceGroups $AllVMData.ResourceGroupName -PatternOfResourceNamePrefix $AllVMData.RoleName
-		$AllVMData.PublicIP = $vmData.PublicIP
 
 		# Waiting for the VM to run again and respond to SSH - port 22
 		$retval = Wait-ForVMToStartSSH -Ipv4addr $AllVMData.PublicIP -StepTimeout 600
@@ -123,4 +119,4 @@ function Main {
 	return $currentTestResult
 }
 
-Main -allVMData $AllVmData -TestParams (ConvertFrom-StringData $TestParams.Replace(";","`n"))
+Main
