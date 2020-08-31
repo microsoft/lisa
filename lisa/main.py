@@ -1,8 +1,8 @@
 import sys
+import traceback
 from datetime import datetime
 from logging import DEBUG, INFO
 from pathlib import Path
-import traceback
 
 from retry import retry  # type: ignore
 
@@ -66,6 +66,8 @@ if __name__ == "__main__":
         try:
             log.exception(exception)
         except Exception:
+            # if there is any exception in log class, they have to be caught and show
+            # on console only
             traceback.print_exc()
     finally:
         sys.exit(exit_code)

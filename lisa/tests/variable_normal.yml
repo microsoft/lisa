@@ -1,0 +1,15 @@
+normalValue: normal_value
+normalEntry:
+  value: entry_value
+secretGuid:
+  value: 12345678-abcd-efab-cdef-1234567890ab
+  isSecret: true
+  mask: guid
+secretInt:
+  value: 1234567890
+  isSecret: true
+  mask: headtail
+secretHeadTail:
+  value: abcdefgh
+  isSecret: true
+  mask: headtail

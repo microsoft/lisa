@@ -9,6 +9,7 @@ CONFIG_TEST_CASES = "testcases"
 RUN_ID = ""
 RUN_NAME = ""
 
+RUNBOOK_PATH: Path
 CACHE_PATH: Path
 RUN_LOCAL_PATH: Path
 RUN_LOGIC_PATH: PurePath
@@ -29,7 +30,6 @@ LIST_CASE = "case"
 NODES = "nodes"
 NAME = "name"
 TYPE = "type"
-PATHS = "paths"
 IS_DEFAULT = "isDefault"
 ENABLE = "enable"
 
@@ -42,6 +42,7 @@ OPERATION_OVERWRITE = "overwrite"
 ENVIRONMENTS_SUBNET = "subnet"
 
 EXTENSION = "extension"
+VARIABLE = "variable"
 
 ENVIRONMENT = "environment"
 ENVIRONMENTS = "environments"
