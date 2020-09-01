@@ -21,6 +21,7 @@ from dataclasses_json import (  # type: ignore
 )
 from marshmallow import ValidationError, fields, validate
 
+from lisa import search_space
 from lisa.secret import PATTERN_HEADTAIL, add_secret
 from lisa.util import LisaException, constants
 
@@ -55,6 +56,7 @@ def metadata(
     )
 
 
+T_REQUIREMENT = TypeVar("T_REQUIREMENT", bound=search_space.RequirementMixin)
 T = TypeVar("T", bound=DataClassJsonMixin)
 U = TypeVar("U")
 
@@ -353,88 +355,342 @@ class RemoteNode:
             )
 
 
-@dataclass_json(letter_case=LetterCase.CAMEL)
-@dataclass
-class IntegerRange:
-    min: int
-    max: int
+FEATURE_NAME_RDMA = "RDMA"
 
 
 @dataclass_json(letter_case=LetterCase.CAMEL)
 @dataclass
-class NodeSpec(ExtendableSchemaMixin):
+class Feature:
+    name: str = ""
+    enabled: bool = True
+    can_disable: bool = False
+
+
+class Features:
+    RDMA = Feature(name=FEATURE_NAME_RDMA)
+
+
+@dataclass_json(letter_case=LetterCase.CAMEL)
+@dataclass
+class NodeSpace(search_space.RequirementMixin, ExtendableSchemaMixin):
     type: str = field(
-        default=constants.ENVIRONMENTS_NODES_SPEC,
+        default=constants.ENVIRONMENTS_NODES_REQUIREMENT,
         metadata=metadata(
-            required=True, validate=validate.OneOf([constants.ENVIRONMENTS_NODES_SPEC]),
+            required=True,
+            validate=validate.OneOf([constants.ENVIRONMENTS_NODES_REQUIREMENT]),
         ),
     )
     name: str = ""
     is_default: bool = field(default=False)
     # optional, if there is only one artifact.
     artifact: str = field(default="")
-    core_count: int = field(
-        default=1,
+    node_count: search_space.CountSpace = field(
+        default=search_space.IntRange(min=1), metadata=metadata(data_key="nodeCount"),
+    )
+    core_count: search_space.CountSpace = field(
+        default=search_space.IntRange(min=1),
         metadata=metadata(data_key="coreCount", validate=validate.Range(min=1)),
     )
-    memory_gb: int = field(
-        default=1,
-        metadata=metadata(data_key="memoryGb", validate=validate.Range(min=1)),
+    memory_mb: search_space.CountSpace = field(
+        default=search_space.IntRange(min=512),
+        metadata=metadata(data_key="memoryMb", validate=validate.Range(min=512)),
     )
-    gpu_count: int = field(
-        default=0,
+    nic_count: search_space.CountSpace = field(
+        default=search_space.IntRange(min=1),
+        metadata=metadata(data_key="nicCount", validate=validate.Range(min=1)),
+    )
+    gpu_count: search_space.CountSpace = field(
+        default=None,
         metadata=metadata(data_key="gpuCount", validate=validate.Range(min=0)),
     )
-
-
-@dataclass_json(letter_case=LetterCase.CAMEL)
-@dataclass
-class Template(NodeSpec):
-    node_count: int = field(
-        default=1,
-        metadata=metadata(data_key="nodeCount", validate=validate.Range(min=1)),
+    # all features on requirement should be included.
+    # all features on capability can be included.
+    features: Optional[search_space.SetSpace[Feature]] = field(
+        default=None, metadata=metadata()
+    )
+    # set by requirements
+    # capability's is ignored
+    excluded_features: Optional[search_space.SetSpace[Feature]] = field(
+        default=None, metadata=metadata(data_key="excludedFeatures")
     )
 
+    def __post_init__(self, *args: Any, **kwargs: Any) -> None:
+        if self.features:
+            self.features.is_allow_set = True
+        if self.excluded_features:
+            self.excluded_features.is_allow_set = False
+
+    def __eq__(self, other: object) -> bool:
+        assert isinstance(other, NodeSpace), f"actual: {type(other)}"
+
+        result = (
+            self.type == other.type
+            and self.name == other.name
+            and self.is_default == other.is_default
+            and self.artifact == other.artifact
+            and self.node_count == other.node_count
+            and self.core_count == other.core_count
+            and self.memory_mb == other.memory_mb
+            and self.nic_count == other.nic_count
+            and self.gpu_count == other.gpu_count
+            and self.features == other.features
+            and self.excluded_features == other.excluded_features
+        )
+        return result
+
+    def __repr__(self) -> str:
+        return (
+            f"count:{self.node_count}, core:{self.core_count}, "
+            f"mem:{self.memory_mb}, nic:{self.nic_count}, gpu:{self.gpu_count}, "
+            f"f:{self.features}, ef:{self.excluded_features}"
+        )
+
+    def check(self, capability: Any) -> search_space.ResultReason:
+        result = search_space.ResultReason()
+        if capability is None:
+            result.add_reason("capability shouldn't be None")
+
+        if self.features:
+            assert self.features.is_allow_set, "features should be allow set"
+        if self.excluded_features:
+            assert (
+                not self.excluded_features.is_allow_set
+            ), "excluded_features shouldn't be allow set"
+
+        assert isinstance(capability, NodeSpace), f"actual: {type(capability)}"
+
+        must_included_capability: Optional[search_space.SetSpace[Feature]] = None
+
+        if capability.features and self.excluded_features:
+            must_included_capability = search_space.SetSpace[Feature]()
+            for feature in capability.features:
+                if feature.enabled and feature.can_disable is False:
+                    must_included_capability.add(feature)
+
+        if (
+            not capability.node_count
+            or not capability.core_count
+            or not capability.memory_mb
+            or not capability.nic_count
+        ):
+            result.add_reason(
+                "node_count, core_count, memory_mb, nic_count shouldn't be None"
+            )
+
+        if isinstance(self.node_count, int) and isinstance(capability.node_count, int):
+            if self.node_count > capability.node_count:
+                result.add_reason(
+                    f"capability node count {capability.node_count} "
+                    f"must be more than requirement {self.node_count}"
+                )
+        else:
+            result.merge(
+                search_space.check_countspace(self.node_count, capability.node_count),
+                "node_count",
+            )
+
+        result.merge(
+            search_space.check_countspace(self.core_count, capability.core_count),
+            "core_count",
+        )
+        result.merge(
+            search_space.check_countspace(self.memory_mb, capability.memory_mb),
+            "memory_mb",
+        )
+        result.merge(
+            search_space.check_countspace(self.nic_count, capability.nic_count),
+            "nic_count",
+        )
+        result.merge(
+            search_space.check_countspace(self.gpu_count, capability.gpu_count),
+            "gpu_count",
+        )
+        result.merge(
+            search_space.check(self.features, capability.features), "features",
+        )
+        if self.excluded_features is not None:
+            result.merge(
+                search_space.check(self.excluded_features, must_included_capability),
+                "excluded_features",
+            )
+
+        return result
+
+    @classmethod
+    def from_value(cls, value: Any) -> Any:
+        assert isinstance(value, NodeSpace), f"actual: {type(value)}"
+        node = NodeSpace()
+        node.node_count = value.node_count
+        node.core_count = value.core_count
+        node.memory_mb = value.memory_mb
+        node.nic_count = value.nic_count
+        node.gpu_count = value.gpu_count
+
+        if value.features:
+            for feature in value.features:
+                if feature.enabled or feature.can_disable:
+                    if not node.features:
+                        node.features = search_space.SetSpace[Feature]()
+                    node.features.add(feature)
+                else:
+                    if not node.excluded_features:
+                        node.excluded_features = search_space.SetSpace[Feature]()
+                    node.excluded_features.add(feature)
+
+        return node
+
+    def _generate_min_capaiblity(self, capability: Any) -> Any:
+        min_value = NodeSpace()
+        assert isinstance(capability, NodeSpace), f"actual: {type(capability)}"
+
+        if self.node_count or capability.node_count:
+
+            if isinstance(self.node_count, int) and isinstance(
+                capability.node_count, int
+            ):
+                # capability can have more node
+                min_value.node_count = capability.node_count
+            else:
+                min_value.node_count = search_space.generate_min_capaiblity_countspace(
+                    self.node_count, capability.node_count
+                )
+        else:
+            raise LisaException("node_count cannot be zero")
+        if self.core_count or capability.core_count:
+            min_value.core_count = search_space.generate_min_capaiblity_countspace(
+                self.core_count, capability.core_count
+            )
+        else:
+            raise LisaException("core_count cannot be zero")
+        if self.memory_mb or capability.memory_mb:
+            min_value.memory_mb = search_space.generate_min_capaiblity_countspace(
+                self.memory_mb, capability.memory_mb
+            )
+        else:
+            raise LisaException("memory_mb cannot be zero")
+        if self.nic_count or capability.nic_count:
+            min_value.nic_count = search_space.generate_min_capaiblity_countspace(
+                self.nic_count, capability.nic_count
+            )
+        else:
+            raise LisaException("nic_count cannot be zero")
+        if self.gpu_count or capability.gpu_count:
+            min_value.gpu_count = search_space.generate_min_capaiblity_countspace(
+                self.gpu_count, capability.gpu_count
+            )
+        else:
+            min_value.gpu_count = 0
+
+        min_value.features = search_space.SetSpace[Feature]()
+        if self.features:
+            min_value.features.update(self.features)
+        if self.excluded_features:
+            for excluded_feature in self.excluded_features:
+                excluded_feature.enabled = False
+                min_value.features.add(excluded_feature)
+        return min_value
+
 
 @dataclass_json(letter_case=LetterCase.CAMEL)
 @dataclass
-class Environment:
+class Environment(search_space.RequirementMixin):
     name: str = field(default="")
-    # the environment spec may not be fully supported by each platform.
-    # If so, there is a warning message.
-    # Environment spec can be forced to apply, as error is loud.
     topology: str = field(
         default=constants.ENVIRONMENTS_SUBNET,
         metadata=metadata(validate=validate.OneOf([constants.ENVIRONMENTS_SUBNET])),
     )
-    # template and nodes conflicts, they should have only one.
-    #  it uses to prevent duplicate content for big amount nodes.
-    template: Optional[Template] = field(default=None)
-    _nodes_raw: Optional[List[Any]] = field(
+    nodes_raw: Optional[List[Any]] = field(
         default=None, metadata=metadata(data_key=constants.NODES),
     )
+    requirements: Optional[List[NodeSpace]] = None
 
     def __post_init__(self, *args: Any, **kwargs: Any) -> None:
-        if self.template and self._nodes_raw:
-            raise LisaException("cannot specify tempate and nodes both")
-        if self._nodes_raw:
-            # dataclasses_json cannot handle Union well, so manual handle it
-            self.nodes: List[Union[NodeSpec, LocalNode, RemoteNode]] = []
-            for node_raw in self._nodes_raw:
+        self.nodes: Optional[List[Union[LocalNode, RemoteNode]]] = None
+        if self.nodes_raw is not None:
+            self.nodes = []
+            for node_raw in self.nodes_raw:
                 node_type = node_raw[constants.TYPE]
                 if node_type == constants.ENVIRONMENTS_NODES_LOCAL:
                     node: Union[
-                        NodeSpec, LocalNode, RemoteNode
+                        LocalNode, RemoteNode
                     ] = LocalNode.schema().load(  # type:ignore
                         node_raw
                     )
+                    if self.nodes is None:
+                        self.nodes = []
+                    self.nodes.append(node)
                 elif node_type == constants.ENVIRONMENTS_NODES_REMOTE:
                     node = RemoteNode.schema().load(node_raw)  # type:ignore
-                elif node_type == constants.ENVIRONMENTS_NODES_SPEC:
-                    node = NodeSpec.schema().load(node_raw)  # type:ignore
+                    if self.nodes is None:
+                        self.nodes = []
+                    self.nodes.append(node)
+                elif node_type == constants.ENVIRONMENTS_NODES_REQUIREMENT:
+                    node_requirement = NodeSpace.schema().load(node_raw)  # type:ignore
+                    if self.requirements is None:
+                        self.requirements = []
+                    self.requirements.append(node_requirement)
                 else:
                     raise LisaException(f"unknown node type '{node_type}': {node_raw}")
-                self.nodes.append(node)
+
+    def __eq__(self, other: object) -> bool:
+        assert isinstance(other, type(self)), f"actual: {type(other)}"
+        result = self.name == other.name and self.topology == other.topology
+        result = result and search_space.equal_list(self.nodes, other.nodes)
+        result = result and search_space.equal_list(
+            self.requirements, other.requirements
+        )
+        return result
+
+    def check(self, capability: Any) -> search_space.ResultReason:
+        assert isinstance(capability, Environment), f"actual: {type(capability)}"
+        result = search_space.ResultReason()
+        if not capability.requirements:
+            result.add_reason("capbility shouldn't be None or empty")
+        else:
+            if self.requirements:
+                for index, current_req in enumerate(self.requirements):
+                    if len(capability.requirements) == 1:
+                        current_cap = capability.requirements[0]
+                    else:
+                        current_cap = capability.requirements[index]
+                    result.merge(
+                        search_space.check(current_req, current_cap), str(index),
+                    )
+                    if not result.result:
+                        break
+
+        return result
+
+    @classmethod
+    def from_value(cls, value: Any) -> Any:
+        assert isinstance(value, Environment), f"actual: {type(value)}"
+        env = Environment()
+        env.nodes = value.nodes
+        if value.requirements:
+            env.requirements = list()
+            for value_requirement in value.requirements:
+                env.requirements.append(NodeSpace.from_value(value_requirement))
+
+        return env
+
+    def _generate_min_capaiblity(self, capability: Any) -> Any:
+        env = Environment()
+        assert isinstance(capability, Environment), f"actual: {type(capability)}"
+        env.nodes = self.nodes
+        if self.requirements:
+            env.requirements = []
+            assert capability.requirements
+            for index, current_req in enumerate(self.requirements):
+                if len(capability.requirements) == 1:
+                    current_cap = capability.requirements[0]
+                else:
+                    current_cap = capability.requirements[index]
+
+                env.requirements.append(
+                    current_req.generate_min_capaiblity(current_cap)
+                )
+
+        return env
 
 
 @dataclass_json(letter_case=LetterCase.CAMEL)

@@ -5,8 +5,9 @@ from abc import ABCMeta
 from dataclasses import dataclass
 from enum import Enum
 from functools import wraps
-from typing import TYPE_CHECKING, Any, Callable, Dict, List, Type
+from typing import TYPE_CHECKING, Any, Callable, Dict, List, Optional, Set, Type
 
+from lisa import schema, search_space
 from lisa.action import Action, ActionStatus
 from lisa.util import LisaException
 from lisa.util.logger import get_logger
@@ -27,7 +28,74 @@ class TestResult:
     case: TestCaseData
     status: TestStatus = TestStatus.NOTRUN
     elapsed: float = 0
-    errorMessage: str = ""
+    message: str = ""
+
+
+@dataclass
+class TestCaseRequirement(search_space.RequirementMixin):
+    environment: Optional[schema.Environment] = None
+    platform_type: Optional[search_space.SetSpace[schema.Platform]] = None
+
+    def check(self, capability: Any) -> search_space.ResultReason:
+        assert isinstance(
+            capability, TestCaseRequirement
+        ), f"actual: {type(capability)}"
+        result = search_space.ResultReason()
+        result.merge(
+            search_space.check(self.environment, capability.environment),
+            name="environment",
+        )
+        result.merge(
+            search_space.check(self.platform_type, capability.platform_type),
+            name="platform_type",
+        )
+
+        return result
+
+    def _generate_min_capaiblity(self, capability: Any) -> Any:
+        assert isinstance(
+            capability, TestCaseRequirement
+        ), f"actual: {type(capability)}"
+        environment = search_space.generate_min_capaiblity(
+            self.environment, capability.environment
+        )
+        platform_type = search_space.generate_min_capaiblity(
+            self.platform_type, capability.platform_type
+        )
+        result = TestCaseSchema(environment=environment, platform_type=platform_type)
+
+        return result
+
+
+def simple_requirement(
+    min_count: int = 1,
+    node: Optional[schema.NodeSpace] = None,
+    platform_type: Optional[search_space.SetSpace[schema.Platform]] = None,
+) -> TestCaseRequirement:
+    """
+    define a simple requirement to support most test cases.
+    """
+    if node:
+        node.node_count = search_space.IntRange(min=min_count)
+        nodes: Optional[List[schema.NodeSpace]] = [node]
+    else:
+        nodes = [
+            schema.NodeSpace(
+                node_count=search_space.IntRange(min=min_count),
+                core_count=None,
+                memory_mb=None,
+                nic_count=None,
+                gpu_count=None,
+                features=None,
+                excluded_features=None,
+            )
+        ]
+    return TestCaseRequirement(
+        environment=schema.Environment(requirements=nodes), platform_type=platform_type,
+    )
+
+
+DEFAULT_REQUIREMENT = simple_requirement()
 
 
 class TestSuiteMetadata:
@@ -38,6 +106,7 @@ class TestSuiteMetadata:
         description: str,
         tags: List[str],
         name: str = "",
+        requirement: TestCaseRequirement = DEFAULT_REQUIREMENT,
     ) -> None:
         self.name = name
         self.cases: List[TestCaseMetadata] = []
@@ -49,6 +118,7 @@ class TestSuiteMetadata:
         else:
             self.tags = []
         self.description = description
+        self.requirement = requirement
 
     def __call__(self, test_class: Type[TestSuite]) -> Callable[..., object]:
         self.test_class = test_class
@@ -69,9 +139,16 @@ class TestSuiteMetadata:
 
 
 class TestCaseMetadata:
-    def __init__(self, description: str, priority: int = 2) -> None:
+    def __init__(
+        self,
+        description: str,
+        priority: int = 2,
+        requirement: Optional[TestCaseRequirement] = None,
+    ) -> None:
         self.priority = priority
         self.description = description
+        if requirement:
+            self.requirement = requirement
 
     def __getattr__(self, key: str) -> Any:
         # inherit any attributes of metadata
@@ -186,12 +263,12 @@ class TestSuite(Action, unittest.TestCase, metaclass=ABCMeta):
                 except Exception as identifier:
                     self._log.error("failed", exc_info=identifier)
                     case_result.status = TestStatus.FAILED
-                    case_result.errorMessage = str(identifier)
+                    case_result.message = str(identifier)
                 case_result.elapsed = timer.elapsed()
                 self._log.debug(f"method end with {timer}")
             else:
                 case_result.status = TestStatus.SKIPPED
-                case_result.errorMessage = "skipped as before_case failed"
+                case_result.message = "skipped as before_case failed"
 
             timer = create_timer()
             try:
@@ -277,3 +354,20 @@ def _add_case_to_suite(
 ) -> None:
     test_case.suite = test_suite
     test_suite.cases.append(test_case)
+
+
+@dataclass
+class TestCaseSchema:
+    """
+    for UT
+    """
+
+    environment: schema.Environment
+    platform_type: Optional[Set[schema.Platform]]
+
+    def __eq__(self, other: object) -> bool:
+        assert isinstance(other, type(self)), f"actual: {type(other)}"
+        return (
+            self.environment == other.environment
+            and self.platform_type == other.platform_type
+        )

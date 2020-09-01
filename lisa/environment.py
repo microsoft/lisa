@@ -3,7 +3,7 @@ from __future__ import annotations
 import copy
 from collections import UserDict
 from functools import partial
-from typing import TYPE_CHECKING, Optional
+from typing import TYPE_CHECKING, List, Optional
 
 from lisa import schema
 from lisa.node import Nodes
@@ -26,47 +26,36 @@ class Environment(ContextMixin):
         self.is_ready: bool = False
         self.platform: Optional[Platform] = None
         self.runbook: Optional[schema.Environment] = None
+        self.requirements: Optional[List[schema.NodeSpace]] = None
         self._default_node: Optional[Node] = None
         self._log = get_logger("env", self.name)
 
     @staticmethod
-    def load(environment_runbook: schema.Environment) -> Environment:
+    def load(env_runbook: schema.Environment) -> Environment:
         environment = Environment()
-        environment.name = environment_runbook.name
+        environment.name = env_runbook.name
 
         has_default_node = False
-        nodes_spec = []
-        if environment_runbook.nodes:
-            for node_runbook in environment_runbook.nodes:
-                node = environment.nodes.from_runbook(node_runbook)
-                if not node:
-                    # it's a spec
-                    nodes_spec.append(node_runbook)
+
+        if not env_runbook.requirements and not env_runbook.nodes:
+            raise LisaException("not found any node or requirement in environment")
+
+        if env_runbook.nodes:
+            for node_runbook in env_runbook.nodes:
+                if isinstance(node_runbook, schema.LocalNode):
+                    environment.nodes.from_local(node_runbook)
+                else:
+                    assert isinstance(
+                        node_runbook, schema.RemoteNode
+                    ), f"actual: {type(node_runbook)}"
+                    environment.nodes.from_remote(node_runbook)
 
                 has_default_node = environment.__validate_single_default(
                     has_default_node, node_runbook.is_default
                 )
 
-        # validate template and node not appear together
-        if environment_runbook.template is not None:
-            is_default = environment_runbook.template.is_default
-            has_default_node = environment.__validate_single_default(
-                has_default_node, is_default
-            )
-            for i in range(environment_runbook.template.node_count):
-                copied_item = copy.deepcopy(environment_runbook.template)
-                # only one default node for template also
-                if is_default and i > 0:
-                    copied_item.is_default = False
-                nodes_spec.append(copied_item)
-            environment_runbook.template = None
-
-        if len(nodes_spec) == 0 and len(environment.nodes) == 0:
-            raise LisaException("not found any node in environment")
-
-        environment_runbook.nodes = nodes_spec
-
-        environment.runbook = environment_runbook
+        environment.runbook = env_runbook
+        environment.requirements = env_runbook.requirements
         environment._log.debug(f"environment data is {environment.runbook}")
         return environment
 
@@ -80,6 +69,7 @@ class Environment(ContextMixin):
     def clone(self) -> Environment:
         cloned = Environment()
         cloned.runbook = copy.deepcopy(self.runbook)
+        cloned.requirements = copy.deepcopy(self.requirements)
         cloned.nodes = self.nodes
         cloned.platform = self.platform
         cloned.name = f"inst_{self.name}"
