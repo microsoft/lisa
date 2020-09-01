@@ -4,7 +4,7 @@ from typing import Callable, Dict, List, Mapping, Optional, Pattern, Set, Union,
 
 from lisa import schema
 from lisa.testsuite import TestCaseData, TestCaseMetadata, get_cases_metadata
-from lisa.util import LisaException, constants
+from lisa.util import LisaException, constants, set_filtered_fields
 from lisa.util.logger import get_logger
 
 _get_logger = partial(get_logger, "init", "selector")
@@ -103,10 +103,7 @@ def _apply_settings(
         constants.TESTCASE_IGNORE_FAILURE,
         constants.ENVIRONMENT,
     ]
-    for field in fields:
-        data = getattr(case_runbook, field)
-        if data is not None:
-            setattr(applied_case_data, field, data)
+    set_filtered_fields(case_runbook, applied_case_data, fields)
 
     # use default value from selector
     applied_case_data.select_action = action

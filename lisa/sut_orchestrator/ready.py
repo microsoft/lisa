@@ -8,9 +8,6 @@ class ReadyPlatform(Platform):
     def platform_type(cls) -> str:
         return constants.PLATFORM_READY
 
-    def config(self, key: str, value: object) -> None:
-        pass
-
     def _request_environment(self, environment: Environment) -> Environment:
         return environment
 

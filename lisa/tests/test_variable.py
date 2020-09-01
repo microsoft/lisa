@@ -256,7 +256,7 @@ class VariableTestCase(TestCase):
         self, variables: Dict[str, str], secrets: Dict[str, str]
     ) -> Dict[str, Any]:
         data = variable.replace_variables(self._get_default_data(), variables=variables)
-        assert isinstance(data, dict)
+        assert isinstance(data, dict), f"actual: {type(data)}"
         self.assertDictEqual(
             {
                 "keep": "normal",

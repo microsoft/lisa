@@ -297,46 +297,46 @@ class LocalShell:
         parents: bool = True,
         exist_ok: bool = False,
     ) -> None:
-        assert isinstance(path, Path)
+        assert isinstance(path, Path), f"actual: {type(path)}"
         path.mkdir(mode=mode, parents=parents, exist_ok=exist_ok)
 
     def exists(self, path: PurePath) -> bool:
-        assert isinstance(path, Path)
+        assert isinstance(path, Path), f"actual: {type(path)}"
         return path.exists()
 
     def remove(self, path: PurePath, recursive: bool = False) -> None:
-        assert isinstance(path, Path)
+        assert isinstance(path, Path), f"actual: {type(path)}"
         path.rmdir()
 
     def chmod(self, path: PurePath, mode: int) -> None:
-        assert isinstance(path, Path)
+        assert isinstance(path, Path), f"actual: {type(path)}"
         path.chmod(mode)
 
     def stat(self, path: PurePath) -> os.stat_result:
-        assert isinstance(path, Path)
+        assert isinstance(path, Path), f"actual: {type(path)}"
         return path.stat()
 
     def is_dir(self, path: PurePath) -> bool:
-        assert isinstance(path, Path)
+        assert isinstance(path, Path), f"actual: {type(path)}"
         return path.is_dir()
 
     def is_symlink(self, path: PurePath) -> bool:
-        assert isinstance(path, Path)
+        assert isinstance(path, Path), f"actual: {type(path)}"
         return path.is_symlink()
 
     def symlink(self, source: PurePath, destination: PurePath) -> None:
-        assert isinstance(source, Path)
-        assert isinstance(destination, Path)
+        assert isinstance(source, Path), f"actual: {type(source)}"
+        assert isinstance(destination, Path), f"actual: {type(destination)}"
         source.symlink_to(destination)
 
     def chown(self, path: PurePath, uid: int, gid: int) -> None:
-        assert isinstance(path, Path)
+        assert isinstance(path, Path), f"actual: {type(path)}"
         shutil.chown(path, cast(str, uid), cast(str, gid))
 
     def copy(self, local_path: PurePath, node_path: PurePath) -> None:
         self.mkdir(node_path.parent, parents=True, exist_ok=True)
-        assert isinstance(local_path, Path)
-        assert isinstance(node_path, Path)
+        assert isinstance(local_path, Path), f"actual: {type(local_path)}"
+        assert isinstance(node_path, Path), f"actual: {type(node_path)}"
         shutil.copy(local_path, node_path)
 
 

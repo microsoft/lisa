@@ -3,12 +3,13 @@ from __future__ import annotations
 import pathlib
 import random
 from collections import UserDict
-from typing import TYPE_CHECKING, Any, Dict, Iterable, List, Optional, TypeVar, Union
+from typing import TYPE_CHECKING, Iterable, List, Optional, TypeVar, Union
 
 from lisa import schema
 from lisa.executable import Tools
 from lisa.tools import Echo, Uname
-from lisa.util import ContextMixin, LisaException, constants
+from lisa.tools.uname import LinuxInfo
+from lisa.util import ContextMixin, LisaException, constants, fields_to_dict
 from lisa.util.logger import get_logger
 from lisa.util.process import ExecutableResult, Process
 from lisa.util.shell import ConnectionInfo, LocalShell, Shell, SshShell
@@ -38,10 +39,7 @@ class Node(ContextMixin):
 
         self.shell: Shell = LocalShell()
 
-        self.kernel_release: str = ""
-        self.kernel_version: str = ""
-        self.hardware_platform: str = ""
-        self.operating_system: str = ""
+        self.info: LinuxInfo = LinuxInfo()
         self.tools = Tools(self)
         self.working_path: pathlib.PurePath = pathlib.PurePath()
 
@@ -139,20 +137,17 @@ class Node(ContextMixin):
             try:
                 self.shell.initialize()
                 uname = self.tools[Uname]
-                (
-                    self.kernel_release,
-                    self.kernel_version,
-                    self.hardware_platform,
-                    self.operating_system,
-                ) = uname.get_linux_information(no_error_log=True)
-                if (not self.kernel_release) or ("Linux" not in self.operating_system):
+                self.info = uname.get_linux_information(no_error_log=True)
+                if (not self.info.kernel_release) or (
+                    "Linux" not in self.info.operating_system
+                ):
                     self._is_linux = False
                 if self._is_linux:
                     self._log.info(
                         f"initialized Linux node '{self.name}', "
-                        f"kernelRelease: {self.kernel_release}, "
-                        f"kernelVersion: {self.kernel_version}"
-                        f"hardwarePlatform: {self.hardware_platform}"
+                        f"kernelRelease: {self.info.kernel_release}, "
+                        f"kernelVersion: {self.info.kernel_version}"
+                        f"hardwarePlatform: {self.info.hardware_platform}"
                     )
                 else:
                     self._log.info(f"initialized Windows node '{self.name}', ")
@@ -296,11 +291,7 @@ class Nodes(NodesDict):
                     constants.ENVIRONMENTS_NODES_REMOTE_PASSWORD,
                     constants.ENVIRONMENTS_NODES_REMOTE_PRIVATE_KEY_FILE,
                 ]
-                parameters: Dict[str, Any] = dict()
-                for field in fields:
-                    value = getattr(node_runbook, field)
-                    if value is not None:
-                        parameters[field] = value
+                parameters = fields_to_dict(node_runbook, fields)
                 node.set_connection_info(**parameters)
         return node
 
