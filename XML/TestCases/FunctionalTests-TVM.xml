@@ -10,8 +10,28 @@
     <Priority>1</Priority>
     <SetupConfig>
       <SetupType>OneVM</SetupType>
-      <OverrideVMSize>Standard_D2s_v3,=~.*</OverrideVMSize>
+      <OverrideVMSize>Standard_D2s_v3,=~Standard_D[0-9]+s_v3</OverrideVMSize>
       <VMGeneration>2</VMGeneration>
+      <ARMImageName>Canonical 0003-com-ubuntu-server-trusted-vm 18_04-gen2 latest,RedHat RHEL 78-gen2 latest,RedHat RHEL 82gen2 latest,OpenLogic CentOS 7_8-gen2 latest,OpenLogic CentOS 8_2-gen2 latest,=~0003-com-ubuntu-server-trusted-vm\s18_04-gen2,=~RHEL\s78-gen2,=~RHEL\s82gen2,=~CentOS\s7_8-gen2,=~CentOS\s8_2-gen2</ARMImageName>
+    </SetupConfig>
+  </test>
+  <test>
+    <testName>TVM-TEST-COMPATIBILITY</testName>
+    <testScript>TVM-TestCompatibility.sh</testScript>
+    <files>.\Testscripts\Linux\TVM-TestCompatibility.sh,.\Testscripts\Linux\utils.sh,.\Tools\tvminfo</files>
+    <Platform>Azure</Platform>
+    <Category>Functional</Category>
+    <Area>TVM</Area>
+    <Tags>tvm</Tags>
+    <Priority>1</Priority>
+    <SetupConfig>
+      <TestLocation>eastus2euap</TestLocation>
+      <SetupType>OneVM</SetupType>
+      <SecureBoot>true</SecureBoot>
+      <vTPM>true</vTPM>
+      <OverrideVMSize>Standard_D2s_v3,=~Standard_D[0-9]+s_v3</OverrideVMSize>
+      <VMGeneration>2</VMGeneration>
+      <ARMImageName>=~0003-com-ubuntu-server-trusted-vm\s18_04-gen2</ARMImageName>
     </SetupConfig>
   </test>
 </TestCases>
