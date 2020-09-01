@@ -59,6 +59,14 @@ class SecretTestCase(TestCase):
             log.info("t1t2 2")
         self.assertListEqual(["INFO:LISA:** 2"], cm.output)
 
+    def test_stdout(self) -> None:
+        add_secret("t1", sub="*")
+        add_secret("t1t2", sub="**")
+
+        with self.assertLogs("LISA") as cm:
+            print("t1t2 2")
+        self.assertListEqual(["INFO:LISA.stdout:** 2"], cm.output)
+
     def test_log_with_args(self) -> None:
         log = get_logger()
         add_secret("t1")
