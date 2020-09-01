@@ -3,7 +3,7 @@ from __future__ import annotations
 import pathlib
 import random
 from collections import UserDict
-from typing import TYPE_CHECKING, Iterable, List, Optional, TypeVar, Union
+from typing import TYPE_CHECKING, Iterable, List, Optional, TypeVar, Union, cast
 
 from lisa import schema
 from lisa.executable import Tools
@@ -22,20 +22,14 @@ class Node(ContextMixin):
         self,
         index: int,
         is_remote: bool = True,
-        spec: Optional[schema.NodeSpec] = None,
+        requirement: Optional[schema.NodeSpace] = None,
         is_default: bool = False,
-        id_: str = "",
     ) -> None:
-        """
-        id_: passed in by platform, uses to associate with resource in platform
-        """
-
         self.is_default = is_default
         self.is_remote = is_remote
-        self.spec = spec
+        self.requirement = requirement
         self.name: str = ""
         self.index = index
-        self.id_ = id_
 
         self.shell: Shell = LocalShell()
 
@@ -51,7 +45,7 @@ class Node(ContextMixin):
     @staticmethod
     def create(
         index: int,
-        spec: Optional[schema.NodeSpec] = None,
+        requirement: Optional[schema.NodeSpace] = None,
         node_type: str = constants.ENVIRONMENTS_NODES_REMOTE,
         is_default: bool = False,
     ) -> Node:
@@ -61,7 +55,9 @@ class Node(ContextMixin):
             is_remote = False
         else:
             raise LisaException(f"unsupported node_type '{node_type}'")
-        node = Node(index, spec=spec, is_remote=is_remote, is_default=is_default)
+        node = Node(
+            index, requirement=requirement, is_remote=is_remote, is_default=is_default
+        )
         node._log.debug(f"created, type: '{node_type}', isDefault: {is_default}")
         return node
 
@@ -155,7 +151,9 @@ class Node(ContextMixin):
                 # set working path
                 if self.is_remote:
                     assert self.shell
-                    assert self._connection_info
+                    assert (
+                        self._connection_info
+                    ), "call setConnectionInfo before use remote node"
 
                     if self.is_linux:
                         remote_root_path = pathlib.Path("$HOME")
@@ -265,43 +263,61 @@ class Nodes(NodesDict):
         for node in self._list:
             node.close()
 
-    def from_runbook(
-        self, node_runbook: Union[schema.LocalNode, schema.RemoteNode, schema.NodeSpec]
-    ) -> Optional[Node]:
-
-        node_type = node_runbook.type
-        node = None
-        if node_type is None:
-            raise LisaException("type of node shouldn't be None")
-        if node_type in [
-            constants.ENVIRONMENTS_NODES_LOCAL,
-            constants.ENVIRONMENTS_NODES_REMOTE,
-        ]:
-            node = Node.create(
-                len(self._list), node_type=node_type, is_default=node_runbook.is_default
-            )
-            self._list.append(node)
-            if node.is_remote:
-                fields = [
-                    constants.ENVIRONMENTS_NODES_REMOTE_ADDRESS,
-                    constants.ENVIRONMENTS_NODES_REMOTE_PORT,
-                    constants.ENVIRONMENTS_NODES_REMOTE_PUBLIC_ADDRESS,
-                    constants.ENVIRONMENTS_NODES_REMOTE_PUBLIC_PORT,
-                    constants.ENVIRONMENTS_NODES_REMOTE_USERNAME,
-                    constants.ENVIRONMENTS_NODES_REMOTE_PASSWORD,
-                    constants.ENVIRONMENTS_NODES_REMOTE_PRIVATE_KEY_FILE,
-                ]
-                parameters = fields_to_dict(node_runbook, fields)
-                node.set_connection_info(**parameters)
-        return node
-
-    def from_spec(
-        self,
-        spec: schema.NodeSpec,
-        node_type: str = constants.ENVIRONMENTS_NODES_REMOTE,
-    ) -> Node:
+    def from_local(self, node_runbook: schema.LocalNode) -> Node:
+        assert isinstance(
+            node_runbook, schema.LocalNode
+        ), f"actual: {type(node_runbook)}"
         node = Node.create(
-            len(self._list), spec=spec, node_type=node_type, is_default=spec.is_default
+            len(self._list),
+            node_type=node_runbook.type,
+            is_default=node_runbook.is_default,
         )
         self._list.append(node)
+
         return node
+
+    def from_remote(self, node_runbook: schema.RemoteNode) -> Optional[Node]:
+        assert isinstance(
+            node_runbook, schema.RemoteNode
+        ), f"actual: {type(node_runbook)}"
+
+        node = Node.create(
+            len(self._list),
+            node_type=node_runbook.type,
+            is_default=node_runbook.is_default,
+        )
+        self._list.append(node)
+
+        fields = [
+            constants.ENVIRONMENTS_NODES_REMOTE_ADDRESS,
+            constants.ENVIRONMENTS_NODES_REMOTE_PORT,
+            constants.ENVIRONMENTS_NODES_REMOTE_PUBLIC_ADDRESS,
+            constants.ENVIRONMENTS_NODES_REMOTE_PUBLIC_PORT,
+            constants.ENVIRONMENTS_NODES_REMOTE_USERNAME,
+            constants.ENVIRONMENTS_NODES_REMOTE_PASSWORD,
+            constants.ENVIRONMENTS_NODES_REMOTE_PRIVATE_KEY_FILE,
+        ]
+        parameters = fields_to_dict(node_runbook, fields)
+        node.set_connection_info(**parameters)
+
+        return node
+
+    def from_requirement(self, node_requirement: schema.NodeSpace) -> List[Node]:
+        min_requirement = cast(
+            schema.NodeSpace, node_requirement.generate_min_capaiblity(node_requirement)
+        )
+        assert isinstance(min_requirement.node_count, int), (
+            f"must be int after generate_min_capaiblity, "
+            f"actual: {min_requirement.node_count}"
+        )
+        nodes: List[Node] = []
+        for _ in range(min_requirement.node_count):
+            node = Node.create(
+                len(self._list),
+                requirement=node_requirement,
+                node_type=constants.ENVIRONMENTS_NODES_REMOTE,
+                is_default=node_requirement.is_default,
+            )
+            nodes.append(node)
+            self._list.append(node)
+        return nodes

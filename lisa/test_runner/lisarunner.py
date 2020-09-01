@@ -67,6 +67,10 @@ class LISARunner(Action):
 
             result_count_dict: Dict[TestStatus, int] = dict()
             for result in test_results:
+                self._log.info(
+                    f"{result.case.metadata.full_name}\t: "
+                    f"{result.status.name} \t{result.message}"
+                )
                 result_count = result_count_dict.get(result.status, 0)
                 result_count += 1
                 result_count_dict[result.status] = result_count

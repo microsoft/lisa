@@ -432,8 +432,8 @@ class AzurePlatform(Platform):
     def _create_deployment_parameters(
         self, resource_group_name: str, environment: Environment
     ) -> Dict[str, Any]:
-        assert environment.runbook, "env data cannot be None"
-        env_runbook: schema.Environment = environment.runbook
+        assert environment.requirements, "env data cannot be None"
+        requirements = environment.requirements
 
         self._log.debug("creating deployment")
         # construct parameters
@@ -449,31 +449,33 @@ class AzurePlatform(Platform):
         arm_parameters.location = self._azure_runbook.location
 
         nodes_parameters: List[AzureArmParameterNode] = []
-        for node_runbook in env_runbook.nodes:
+        for node_space in requirements:
             assert isinstance(
-                node_runbook, schema.NodeSpec
-            ), f"actual: {type(node_runbook)}"
-            azure_node_runbook = node_runbook.get_extended_runbook(
+                node_space, schema.NodeSpace
+            ), f"actual: {type(node_space)}"
+            azure_node_runbook = node_space.get_extended_runbook(
                 AzureNodeSchema, field_name=AZURE
             )
-            gallery = AzureArmParameterGallery()
-            node_parameter = AzureArmParameterNode(gallery=gallery)
-            node_parameter.name = f"node-{len(nodes_parameters)}"
-            if azure_node_runbook:
-                if azure_node_runbook.vm_size:
-                    node_parameter.vm_size = azure_node_runbook.vm_size
-                if azure_node_runbook.vhd:
-                    node_parameter.vhd = azure_node_runbook.vhd
-                    node_parameter.gallery = None
-            nodes_parameters.append(node_parameter)
 
             # init node
-            node = environment.nodes.from_spec(node_runbook)
-            node_context = node.get_context(NodeContext)
-            node_context.vm_name = node_parameter.name
-            node_context.username = arm_parameters.admin_username
-            node_context.password = arm_parameters.admin_password
-            node_context.private_key_file = self._runbook.admin_private_key_file
+            nodes = environment.nodes.from_requirement(node_space)
+            for node in nodes:
+                gallery = AzureArmParameterGallery()
+                node_parameter = AzureArmParameterNode(gallery=gallery)
+                node_parameter.name = f"node-{len(nodes_parameters)}"
+                if azure_node_runbook:
+                    if azure_node_runbook.vm_size:
+                        node_parameter.vm_size = azure_node_runbook.vm_size
+                    if azure_node_runbook.vhd:
+                        node_parameter.vhd = azure_node_runbook.vhd
+                        node_parameter.gallery = None
+                nodes_parameters.append(node_parameter)
+
+                node_context = node.get_context(NodeContext)
+                node_context.vm_name = node_parameter.name
+                node_context.username = arm_parameters.admin_username
+                node_context.password = arm_parameters.admin_password
+                node_context.private_key_file = self._runbook.admin_private_key_file
 
         arm_parameters.nodes = nodes_parameters
 
@@ -587,7 +589,11 @@ class AzurePlatform(Platform):
 
         for vm_name, node in node_context_map.items():
             node_context = node.get_context(NodeContext)
-            vm = vms_map[vm_name]
+            vm = vms_map.get(vm_name, None)
+            if not vm:
+                raise LisaException(
+                    f"cannot find vm: '{vm_name}', make sure deployment is correct."
+                )
             nic = nic_map[vm_name]
             nat_rule = nat_rules_map[vm_name]
 

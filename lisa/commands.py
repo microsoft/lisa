@@ -129,5 +129,5 @@ def _validate(runbook: schema.Runbook) -> None:
             ):
                 log.warn_or_raise(
                     runbook.environment.warn_as_error,
-                    "the ready platform cannot process environment spec",
+                    "the ready platform cannot process environment requirement",
                 )

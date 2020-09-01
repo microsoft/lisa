@@ -114,16 +114,15 @@ def _load_platform_schema() -> None:
             schema.Platform.supported_types = platform_field_names
 
         if node_fields:
-            # refresh node spec, template, and chain dataclasses
-            _set_schema_class(schema.NodeSpec, node_fields)
-            _set_schema_class(schema.Template, node_fields)
+            # refresh node requirement, and chain dataclasses
+            _set_schema_class(schema.NodeSpace, node_fields)
 
-            template_in_env = (
-                constants.ENVIRONMENTS_TEMPLATE,
-                Optional[schema.Template],
+            requirements_in_env = (
+                constants.ENVIRONMENTS_NODES_REQUIREMENT,
+                Optional[List[schema.NodeSpace]],
                 field(default=None),
             )
-            _set_schema_class(schema.Environment, [template_in_env])
+            _set_schema_class(schema.Environment, [requirements_in_env])
             env_in_envroot = (
                 constants.ENVIRONMENTS,
                 Optional[List[schema.Environment]],
