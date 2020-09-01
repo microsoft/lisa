@@ -63,16 +63,16 @@ class Logger(logging.Logger):
             value = mask(value)
         elif isinstance(value, Exception):
             value_args = list(value.args)
-            for index in range(len(value.args)):
+            for index, arg_item in enumerate(value.args):
                 if isinstance(value_args[index], str):
-                    value_args[index] = mask(value.args[index])
+                    value_args[index] = mask(arg_item)
             value.args = tuple(value_args)
         elif isinstance(value, tuple):
             value_list = self._filter_secrets(list(value))
             value = tuple(value_list)
         elif isinstance(value, list):
-            for index in range(len(value)):
-                value[index] = self._filter_secrets(value[index])
+            for index, item in enumerate(value):
+                value[index] = self._filter_secrets(item)
         return value
 
     def warn_or_raise(self, raise_error: bool, message: str) -> None:

@@ -450,7 +450,9 @@ class AzurePlatform(Platform):
 
         nodes_parameters: List[AzureArmParameterNode] = []
         for node_runbook in env_runbook.nodes:
-            assert isinstance(node_runbook, schema.NodeSpec)
+            assert isinstance(
+                node_runbook, schema.NodeSpec
+            ), f"actual: {type(node_runbook)}"
             azure_node_runbook = node_runbook.get_extended_runbook(
                 AzureNodeSchema, field_name=AZURE
             )

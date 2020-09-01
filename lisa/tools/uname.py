@@ -1,8 +1,16 @@
 import re
-from typing import Tuple
+from dataclasses import dataclass
 
 from lisa.executable import Tool
 from lisa.util import LisaException
+
+
+@dataclass
+class LinuxInfo:
+    kernel_release: str = ""
+    kernel_version: str = ""
+    hardware_platform: str = ""
+    operating_system: str = ""
 
 
 class Uname(Tool):
@@ -16,10 +24,7 @@ class Uname(Tool):
         #  so cache it for performance.
         self.has_result: bool = False
         self.is_linux: bool = True
-        self.kernel_release: str = ""
-        self.kernel_version: str = ""
-        self.hardware_platform: str = ""
-        self.operating_system: str = ""
+        self.info: LinuxInfo = LinuxInfo()
 
     @property
     def command(self) -> str:
@@ -31,17 +36,9 @@ class Uname(Tool):
 
     def get_linux_information(
         self, force: bool = False, no_error_log: bool = False
-    ) -> Tuple[str, str, str, str]:
-        """
-            return:
-                kernel-release
-                kernel-version
-                hardware-platform
-                operating-system
-        """
-
+    ) -> LinuxInfo:
         if (not self.has_result) or force:
-            cmd_result = self.run("-vrio", no_error_log=no_error_log)
+            cmd_result = self.run("-vrio", no_error_log=no_error_log, no_info_log=True)
 
             if cmd_result.exit_code != 0:
                 self.is_linux = False
@@ -51,15 +48,12 @@ class Uname(Tool):
                     raise LisaException(
                         f"no result matched, stdout: '{cmd_result.stdout}'"
                     )
-                self.kernel_release = match_result.group("release")
-                self.kernel_version = match_result.group("version")
-                self.hardware_platform = match_result.group("platform")
-                self.operating_system = match_result.group("os")
+                self.info = LinuxInfo(
+                    kernel_release=match_result.group("release"),
+                    kernel_version=match_result.group("version"),
+                    hardware_platform=match_result.group("platform"),
+                    operating_system=match_result.group("os"),
+                )
             self.has_result = True
 
-        return (
-            self.kernel_release,
-            self.kernel_version,
-            self.hardware_platform,
-            self.operating_system,
-        )
+        return self.info

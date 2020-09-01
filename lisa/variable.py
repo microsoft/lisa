@@ -19,8 +19,8 @@ def replace_variables(data: Any, variables: Dict[str, Any]) -> Any:
         for key, value in data.items():
             data[key] = replace_variables(value, variables)
     elif isinstance(data, list):
-        for index in range(len(data)):
-            data[index] = replace_variables(data[index], variables)
+        for index, item in enumerate(data):
+            data[index] = replace_variables(item, variables)
     elif isinstance(data, str):
         matches = _VARIABLE_PATTERN.match(data)
         if matches:
@@ -120,7 +120,7 @@ def load_from_variable_entry(
     is_secret: bool = False,
 ) -> None:
 
-    assert isinstance(name, str)
+    assert isinstance(name, str), f"actual: {type(name)}"
     mask_pattern_name = ""
     if type(raw_value) in [str, int, bool]:
         value = raw_value

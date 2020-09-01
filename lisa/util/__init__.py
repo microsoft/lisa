@@ -1,5 +1,5 @@
 from pathlib import Path
-from typing import Type, TypeVar
+from typing import Any, Dict, Iterable, List, Type, TypeVar
 
 T = TypeVar("T")
 
@@ -13,7 +13,9 @@ class ContextMixin:
         if not hasattr(self, "_context"):
             self._context: T = context_type()
         else:
-            assert isinstance(self._context, context_type)
+            assert isinstance(
+                self._context, context_type
+            ), f"actual: {type(self._context)}"
         return self._context
 
 
@@ -29,3 +31,34 @@ def get_public_key_data(private_key_file_path: str) -> str:
     with open(public_key_path, "r") as fp:
         public_key_data = fp.read()
     return public_key_data
+
+
+def fields_to_dict(src: Any, fields: Iterable[str]) -> Dict[str, Any]:
+    """
+    copy field values form src to dest, if it's not None
+    """
+    assert src
+    assert fields
+
+    result: Dict[str, Any] = dict()
+    for field in fields:
+        value = getattr(src, field)
+        if value is not None:
+            result[field] = value
+    return result
+
+
+def set_filtered_fields(src: Any, dest: Any, fields: List[str]) -> None:
+    """
+    copy field values form src to dest, if it's not None
+    """
+    assert src
+    assert dest
+    assert fields
+    for field_name in fields:
+        if hasattr(src, field_name):
+            field_value = getattr(src, field_name)
+        else:
+            raise LisaException("field doesn't exist on src")
+        if field_value is not None:
+            setattr(dest, field_name, field_value)

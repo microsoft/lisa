@@ -30,7 +30,7 @@ def main() -> None:
     # create run root path
     runs_path = runtime_root.joinpath("runs")
     logic_path = create_run_path(runs_path)
-    local_path = runtime_root.joinpath(logic_path)
+    local_path = runs_path.joinpath(logic_path)
     local_path.mkdir(parents=True)
 
     constants.RUN_ID = logic_path.name
@@ -39,7 +39,7 @@ def main() -> None:
 
     args = parse_args()
 
-    set_log_file(f"{runtime_root}/lisa-host.log")
+    set_log_file(f"{local_path}/lisa-host.log")
 
     log = get_logger()
     log.info(f"Python version: {sys.version}")

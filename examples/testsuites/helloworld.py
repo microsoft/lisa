@@ -25,10 +25,10 @@ class HelloWorld(TestSuite):
         node = self.environment.default_node
 
         uname = node.tools[Uname]
-        release, version, hardware, os = uname.get_linux_information()
+        info = uname.get_linux_information()
         self._log.info(
-            f"release: '{release}', version: '{version}', "
-            f"hardware: '{hardware}', os: '{os}'"
+            f"release: '{info.kernel_release}', version: '{info.kernel_version}', "
+            f"hardware: '{info.hardware_platform}', os: '{info.operating_system}'"
         )
 
         # get process output directly.
