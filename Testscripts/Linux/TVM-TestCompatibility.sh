@@ -51,7 +51,6 @@ if [ ! -e /usr/bin/mbinfo ]; then
     exit 0
 fi
 
-
 sudo mbinfo
 rc=$?
 
