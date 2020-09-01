@@ -1,7 +1,8 @@
 import logging
+import sys
 import time
 from functools import partial
-from typing import Any, Dict, List, Optional, Union, cast
+from typing import Any, Dict, List, Optional, TextIO, Union, cast
 
 from lisa.secret import mask
 from lisa.util import LisaException
@@ -81,6 +82,26 @@ class Logger(logging.Logger):
             self.warn(message)
 
 
+class LogWriter(object):
+    def __init__(self, logger: Logger, level: int):
+        self._level = level
+        self._log = logger
+        self._buffer: str = ""
+
+    def write(self, message: str) -> None:
+        self._buffer = "".join([self._buffer, message])
+        if "\n" in message or "\r" in message:
+            self.flush()
+
+    def flush(self) -> None:
+        if len(self._buffer) > 0:
+            self._log.log(self._level, self._buffer.strip("\r\n"))
+            self._buffer = ""
+
+    def close(self) -> None:
+        self.flush()
+
+
 _get_root_logger = partial(logging.getLogger, DEFAULT_LOG_NAME)
 
 _format = "%(asctime)s.%(msecs)03d[%(levelname)-.1s]%(name)s %(message)s"
@@ -96,6 +117,11 @@ def init_loggger() -> None:
     )
     logging.Formatter.converter = time.gmtime
     logging.setLoggerClass(Logger)
+
+    stdout_logger = get_logger("stdout")
+    stderr_logger = get_logger("stderr")
+    sys.stdout = cast(TextIO, LogWriter(stdout_logger, logging.INFO))
+    sys.stderr = cast(TextIO, LogWriter(stderr_logger, logging.ERROR))
 
 
 def set_log_file(path: str) -> None:

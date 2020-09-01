@@ -7,7 +7,7 @@ from typing import TYPE_CHECKING, Dict, Optional, Type
 
 from spur.errors import NoSuchCommandError  # type: ignore
 
-from lisa.util.logger import Logger, get_logger
+from lisa.util.logger import Logger, LogWriter, get_logger
 from lisa.util.perf_timer import create_timer
 from lisa.util.shell import Shell
 
@@ -26,24 +26,6 @@ class ExecutableResult:
 
     def __str__(self) -> str:
         return self.stdout
-
-
-class LogWriter:
-    def __init__(self, level: int, log: Logger) -> None:
-        self._level = level
-        self._log = log
-        self._buffer: str = ""
-
-    def write(self, message: str) -> None:
-        if message == "\n":
-            self._log.log(self._level, self._buffer)
-            self._buffer = ""
-        else:
-            self._buffer = "".join([self._buffer, message])
-
-    def close(self) -> None:
-        if len(self._buffer) > 0:
-            self._log.log(self._level, self._buffer)
 
 
 class Process:
@@ -81,10 +63,10 @@ class Process:
             stderr_level = stdout_level
 
         self.stdout_writer = LogWriter(
-            stdout_level, get_logger("stdout", parent=self._log)
+            logger=get_logger("stdout", parent=self._log), level=stdout_level
         )
         self.stderr_writer = LogWriter(
-            stderr_level, get_logger("stderr", parent=self._log)
+            logger=get_logger("stderr", parent=self._log), level=stderr_level
         )
 
         # command may be Path object, convert it to str
