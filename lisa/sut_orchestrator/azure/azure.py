@@ -197,6 +197,8 @@ class AzurePlatformSchema:
 
     # do actual deployment, or pass through for troubleshooting
     dry_run: bool = False
+    # do actual deployment, or try to retrieve existing vms
+    deploy: bool = True
     # wait resource deleted or not
     wait_delete: bool = False
 
@@ -270,21 +272,24 @@ class AzurePlatform(Platform):
         if self._azure_runbook.dry_run:
             self._log.info(f"dry_run: {self._azure_runbook.dry_run}")
         else:
-            self._log.info(
-                f"creating or updating resource group: {resource_group_name}"
-            )
-            self._rm_client.resource_groups.create_or_update(
-                resource_group_name, {"location": self._azure_runbook.location}
-            )
-
             try:
+                if self._azure_runbook.deploy:
+                    self._log.info(
+                        f"creating or updating resource group: {resource_group_name}"
+                    )
+                    self._rm_client.resource_groups.create_or_update(
+                        resource_group_name, {"location": self._azure_runbook.location}
+                    )
+                else:
+                    self._log.info(f"reusing resource group: {resource_group_name}")
+
                 deployment_parameters = self._create_deployment_parameters(
                     resource_group_name, environment
                 )
 
-                self._validate_template(deployment_parameters)
-
-                self._deploy(deployment_parameters)
+                if self._azure_runbook.deploy:
+                    self._validate_template(deployment_parameters)
+                    self._deploy(deployment_parameters)
 
                 self._initialize_nodes(environment)
 
