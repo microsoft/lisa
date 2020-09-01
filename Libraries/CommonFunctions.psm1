@@ -211,7 +211,12 @@ Function Add-SetupConfig {
                 if ($ConfigValue -imatch "&|<|>|'|""") {
                     $ConfigValue = [System.Security.SecurityElement]::Escape($ConfigValue)
                 }
-                $test.SetupConfig.InnerXml += "<$ConfigName>$ConfigValue</$ConfigName>"
+                if ($null -eq $test.SetupConfig.$ConfigName) {
+                    $test.SetupConfig.InnerXml += "<$ConfigName>$ConfigValue</$ConfigName>"
+                }
+                else {
+                    $test.SetupConfig.$ConfigName = $ConfigValue
+                }
             }
             elseif ($Force) {
                 $test.SetupConfig.$ConfigName = $ConfigValue
@@ -325,7 +330,7 @@ Function Add-SetupConfig {
         foreach ($singleTest in $AllTests) {
             # If there's pre-defined value in TestXml, let's expand and apply as custom setup for current TestCase only
             if ($singleTest.SetupConfig.$ConfigName) {
-                $originalConfigValueArr = @($singleTest.SetupConfig.$ConfigName.Trim("$SplitBy ").Split($SplitBy).Trim()) | Where-Object {!$_.StartsWith("=~")}
+                $originalConfigValueArr = @($singleTest.SetupConfig.$ConfigName.Trim("$SplitBy ").Split($SplitBy).Trim()) -inotmatch "^=~"
                 if ($originalConfigValueArr.Count -gt 1) {
                     $null = $toBeSkippedTests.Add($singleTest)
                     foreach ($singleConfigValue in $originalConfigValueArr) {
@@ -340,7 +345,7 @@ Function Add-SetupConfig {
                     }
                 }
                 elseif ($originalConfigValueArr.Count -eq 1) {
-                    $singleTest.SetupConfig.$ConfigName = $originalConfigValueArr.ToString()
+                    $singleTest.SetupConfig.$ConfigName = $originalConfigValueArr[0]
                 }
                 elseif ($originalConfigValueArr.Count -eq 0) {
                     # Keep silent for ConfigName that all starts with '=~', silent with no warning message, and try the $DefaultConfigValue
