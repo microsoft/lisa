@@ -150,6 +150,17 @@ UTIL_FILE="./utils.sh"
 UtilsInit
 # Script start from here
 LogMsg "*********INFO: Script execution Started********"
+if [ -z ${ip} ] && [ ! -z "${1}" ]; then
+    CheckIP ${1}
+    ip=${1}
+    LogMsg "IP : ${ip}"
+fi
+
+if [ -z ${nicName}] && [ ! -z "${2}" ]; then
+    nicName=${2}
+    LogMsg "nicName: ${2}"
+fi
+
 LogMsg "vm : eth0 : ${ip}"
 
 check_xdp_support ${ip} ${nicName}

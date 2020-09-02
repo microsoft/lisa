@@ -5,72 +5,22 @@
 packetCount=10000000
 packetDropThreshold=90
 
-function get_vf_name() {
-        local ignoreIF=$(ip route | grep default | awk '{print $5}')
-        local interfaces=$(ls /sys/class/net | grep -v lo | grep -v ${ignoreIF})
-        local synthIFs=""
-        local vfIFs=""
-        local interface
-        for interface in ${interfaces}; do
-                # alternative is, but then must always know driver name
-                # readlink -f /sys/class/net/<interface>/device/driver/
-                local bus_addr=$(ethtool -i ${interface} | grep bus-info | awk '{print $2}')
-                if [ -z "${bus_addr}" ]; then
-                        synthIFs="${synthIFs} ${interface}"
-                else
-                        vfIFs="${vfIFs} ${interface}"
-                fi
-        done
-
-        local vfIF
-        local synthMAC=$(ip link show $nicName | grep ether | awk '{print $2}')
-        for vfIF in ${vfIFs}; do
-                local vfMAC=$(ip link show ${vfIF} | grep ether | awk '{print $2}')
-                # single = is posix compliant
-                if [ "${synthMAC}" = "${vfMAC}" ]; then
-                        echo "${vfIF}"
-                        break
-                fi
-        done
-}
-
-function calculate_packets_drop(){
-        local vfName=$1
-        local synthDrop=0
-        IFS=$'\n' read -r -d '' -a xdp_packet_array < <(ethtool -S $nicName | grep 'xdp' | cut -d':' -f2)
-        for i in "${xdp_packet_array[@]}";
-        do
-                synthDrop=$((synthDrop+i))
-        done
-        vfDrop=$(ethtool -S $vfName | grep rx_xdp_drop | cut -d':' -f2)
-        if [ $? -ne 0 ]; then
-                echo "$((synthDrop))"
-        else
-                echo "$((vfDrop + synthDrop))"
-        fi
-
-}
-
-function download_pktgen_scripts(){
-        local ip=$1
-        local dir=$2
-        if [ "${core}" = "multi" ];then
-                ssh $ip "wget https://git.kernel.org/pub/scm/linux/kernel/git/stable/linux.git/plain/samples/pktgen/pktgen_sample05_flow_per_thread.sh?h=v5.7.8 -O ${dir}/pktgen_sample.sh"
-        else
-                ssh $ip "wget https://git.kernel.org/pub/scm/linux/kernel/git/stable/linux.git/plain/samples/pktgen/pktgen_sample01_simple.sh?h=v5.7.8 -O ${dir}/pktgen_sample.sh"
-        fi
-        ssh $ip "wget https://git.kernel.org/pub/scm/linux/kernel/git/stable/linux.git/plain/samples/pktgen/functions.sh?h=v5.7.8 -O ${dir}/functions.sh"
-        ssh $ip "wget https://git.kernel.org/pub/scm/linux/kernel/git/stable/linux.git/plain/samples/pktgen/parameters.sh?h=v5.7.8 -O ${dir}/parameters.sh"
-        ssh $ip "chmod +x ${dir}/*.sh"
-}
-
 UTIL_FILE="./utils.sh"
 
 # Source utils.sh
 . ${UTIL_FILE} || {
-        echo "ERROR: unable to source ${UTIL_FILE}!"
-        echo "TestAborted" > state.txt
-        exit 0
+    echo "ERROR: unable to source ${UTIL_FILE}!"
+    echo "TestAborted" > state.txt
+    exit 0
+}
+
+XDPUTIL_FILE="./XDPUtils.sh"
+
+# Source XDPUtils.sh
+. ${XDPUTIL_FILE} || {
+    LogMsg "ERROR: unable to source ${XDPUTIL_FILE}!"
+    SetTestStateAborted
+    exit 0
 }
 
 # Source constants file and initialize most common variables
@@ -82,12 +32,12 @@ LogMsg "*********INFO: Script Execution Started********"
 # check for client and server ips are present
 for ip in ${client} ${server}
 do
-        CheckIP ${ip}
-        if [ $? -eq 1 ]; then
-                LogErr "ERROR: Please provide valide client and server ip. Invalid ip: ${ip}"
-                SetTestStateAborted
-                exit 1
-        fi
+    CheckIP ${ip}
+    if [ $? -eq 1 ]; then
+        LogErr "ERROR: Please provide valide client and server ip. Invalid ip: ${ip}"
+        SetTestStateAborted
+        exit 1
+    fi
 done
 
 # Build xdpdump with DROP Config
@@ -98,56 +48,56 @@ check_exit_status "Building xdpdump with config"
 # Configure pktgen application
 pktgenDir=~/pktgen
 ssh ${server} "mkdir -p ${pktgenDir}"
-download_pktgen_scripts ${server} ${pktgenDir}
+download_pktgen_scripts ${server} ${pktgenDir} ${cores}
+
 
 vfName=$(get_vf_name "${nicName}")
+
 if [ -z "${vfName}" ]; then
-        LogErr "VF Name is not detected. Please check vm configuration."
+    LogErr "VF Name is not detected. Please check vm configuration."
 fi
 # Store current xdp drop queue variables
-pakcetDropBefore=$(calculate_packets_drop $vfName)
+pakcetDropBefore=$(calculate_packets_drop $nicName)
 # https://lore.kernel.org/lkml/1579558957-62496-3-git-send-email-haiyangz@microsoft.com/t/
 LogMsg "XDP program cannot run with LRO (RSC) enabled, disable LRO before running XDP"
 ssh ${client} "ethtool -K ${nicName} lro off"
 # start xdpdump with drop
-xdpdumpCommand="cd bpf-samples/xdpdump && ./xdpdump -i ${nicName} > ~/xdpdumpout.txt 2>&1"
-LogMsg "Starting xdpdump on ${client} with command: ${xdpdumpCommand}"
-ssh -f ${client} "sh -c '${xdpdumpCommand} &'"
-
+start_xdpdump ${client} ${nicName}
 
 # Start pktgen application
 clientSecondMAC=$(ip link show $nicName | grep ether | awk '{print $2}')
-if [ "${core}" = "single" ];then
-        LogMsg "Starting pktgen on server: cd ${pktgenDir} && ./pktgen_sample.sh -i ${nicName} -m ${clientSecondMAC} -d ${clientSecondIP} -v -n100000"
-        ssh ${server} "modprobe pktgen; lsmod | grep pktgen"
-        result=$(ssh ${server} "cd ${pktgenDir} && ./pktgen_sample.sh -i ${nicName} -m ${clientSecondMAC} -d ${clientSecondIP} -v -n${packetCount}")
-else
-        LogMsg "Starting pktgen on server: cd ${pktgenDir} && ./pktgen_sample.sh -i ${nicName} -m ${clientSecondMAC} -d ${clientSecondIP} -v -n${packetCount} -t8"
-        ssh ${server} "modprobe pktgen; lsmod | grep pktgen"
-        result=$(ssh ${server} "cd ${pktgenDir} && ./pktgen_sample.sh -i ${nicName} -m ${clientSecondMAC} -d ${clientSecondIP} -v -n${packetCount} -t8")
+LogMsg "Starting pktgen on ${server}"
+start_pktgen ${server} ${cores} ${pktgenDir} ${nicName} ${clientSecondMAC} ${clientSecondIP} ${packetCount}
+sleep 5
+pps=$(echo $pktgenResult | grep -oh '[0-9]*pps' | cut -d'p' -f 1)
+if [ $? -ne 0 ]; then
+    LogErr "Problem in running pktgen. No PPS found. Please check logs."
+    SetTestStateAborted
+    exit 0
 fi
-sleep 10
-pps=$(echo $result | grep -oh '[0-9]*pps' | cut -d'p' -f 1)
 LogMsg "PPS: $pps"
 # Get drop packet numbers
-pakcetDropAfter=$(calculate_packets_drop $vfName)
+pakcetDropAfter=$(calculate_packets_drop $nicName)
 
 LogMsg "Before Drop: $pakcetDropBefore After Drop:$pakcetDropAfter "
 packetsDropped=$((pakcetDropAfter - pakcetDropBefore))
 LogMsg "Pakcets dropped: $packetsDropped"
 dropLimit=$(( packetCount*packetDropThreshold/100 ))
 if [ $packetsDropped -lt $dropLimit ]; then
-        LogErr "receiver did not receive packets."
-        SetTestStateAborted
-        exit 1
+    LogErr "receiver did not receive enough packets. Receiver received ${packetsDropped} which is lower than threshold" \
+            "of ${packetDropThreshold}% of ${packetCount}. Please check logs"
+    SetTestStateFailed
+    exit 1
 fi
 ssh ${client} "killall xdpdump"
 if [ $pps -ge 1000000 ]; then
-        LogMsg "pps is greater than 1 Mpps"
-        SetTestStateCompleted
-        exit 0
+    LogMsg "pps is greater than 1 Mpps"
+    echo "test_type,sender_pps,packets_sent,packets_received" > report.csv
+    echo "${cores},${pps},${packetCount},${packetsDropped}" >> report.csv
+    SetTestStateCompleted
+    exit 0
 else
-        LogErr "pps is lower than 1 Mpps"
-        SetTestStateFailed
-        exit 1
+    LogErr "pps is lower than 1 Mpps"
+    SetTestStateFailed
+    exit 1
 fi
