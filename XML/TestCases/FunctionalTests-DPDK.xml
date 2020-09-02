@@ -121,7 +121,7 @@
     <testScript>VERIFY-DPDK-NFF-GO.ps1</testScript>
     <files>.\Testscripts\Linux\utils.sh,.\Testscripts\Linux\dpdkSetup.sh,.\Testscripts\Linux\build_test_nff_go.sh,.\Testscripts\Linux\dpdkUtils.sh</files>
     <TestParameters>
-      <param>dpdkSrcLink="DPDK_SOURCE_URL"</param>
+      <param>dpdkSrcLink="https://github.com/DPDK/dpdk/archive/v19.08.tar.gz"</param>
       <param>nffGoSrcLink="NFF_GO_SOURCE_URL"</param>
       <param>nffGoSrcBranch="NFF_GO_SOURCE_BRANCH"</param>
       <param>nffGoEnvSrcLink="NFF_GO_ENV_SOURCE_URL"</param>
@@ -182,7 +182,7 @@
     <files>.\Testscripts\Linux\utils.sh,.\Testscripts\Linux\dpdkSetup.sh,.\Testscripts\Linux\dpdkUtils.sh,.\Testscripts\Linux\dpdkPmdsBasicCheck.sh</files>
     <TestParameters>
       <param>dpdkSrcLink="DPDK_SOURCE_URL"</param>
-      <param>pmds=mlx,vdev_netvsc,tap,failsafe,netvsc</param>
+      <param>pmds=failsafe,mlx,vdev_netvsc,tap,netvsc</param>
       <param>failsafeUrl="DPDK_FAILSAFE_SH_URL"</param>
     </TestParameters>
     <Platform>Azure</Platform>

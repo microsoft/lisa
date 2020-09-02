@@ -76,6 +76,7 @@ collect_VM_properties
         $finalStatus = Run-LinuxCmd -ip $clientVMData.PublicIP -port $clientVMData.SSHPort -username "root" -password $password -command "cat /root/state.txt"
         Copy-RemoteFiles -downloadFrom $clientVMData.PublicIP -port $clientVMData.SSHPort -username "root" -password $password -download -downloadTo $LogDir -files "/tmp/lagscope-n*-output.txt"
         Copy-RemoteFiles -downloadFrom $clientVMData.PublicIP -port $clientVMData.SSHPort -username "root" -password $password -download -downloadTo $LogDir -files "VM_properties.csv"
+        Copy-RemoteFiles -downloadFrom $clientVMData.PublicIP -port $clientVMData.SSHPort -username "root" -password $password -download -downloadTo $LogDir -files "Latency-*.csv"
 
         $testSummary = $null
         $lagscopeReportLog = Get-Content -Path "$LogDir\lagscope-n*-output.txt"
@@ -118,33 +119,53 @@ collect_VM_properties
         if ($testResult -eq "PASS") {
             Write-LogInfo "Generating the performance data for database insertion"
             $properties = Get-VMProperties -PropertyFilePath "$LogDir\VM_properties.csv"
-            $resultMap = @{}
-            if ($properties) {
-                $resultMap["GuestDistro"] = $properties.GuestDistro
-                $resultMap["HostOS"] = $properties.HostOS
-                $resultMap["KernelVersion"] = $properties.KernelVersion
-            }
-            $resultMap["HostType"] = "Azure"
-            $resultMap["HostBy"] = $CurrentTestData.SetupConfig.TestLocation
-            $resultMap["GuestOSType"] = "Linux"
-            $resultMap["GuestSize"] = $clientVMData.InstanceSize
-            $resultMap["IPVersion"] = "IPv4"
-            $resultMap["ProtocolType"] = "TCP"
-            $resultMap["TestCaseName"] = $global:GlobalConfig.Global.$TestPlatform.ResultsDatabase.testTag
-            $resultMap["TestDate"] = $(Get-Date -Format yyyy-MM-dd)
-            $resultMap["LISVersion"] = "Inbuilt"
+            $testDate = $(Get-Date -Format yyyy-MM-dd)
             if ($currentTestData.SetupConfig.Networking -imatch "SRIOV") {
-                $resultMap["DataPath"] = "SRIOV"
+                $dataPath = "SRIOV"
             } else {
-                $resultMap["DataPath"] = "Synthetic"
+                $dataPath = "Synthetic"
             }
-            $resultMap["MaxLatency_us"] = $maximumLat
-            $resultMap["AverageLatency_us"] = $averageLat
-            $resultMap["MinLatency_us"] = $minimumLat
-            #Percentile Values are not calculated yet. will be added in future
-            $resultMap["Latency95Percentile_us"] = 0
-            $resultMap["Latency99Percentile_us"] = 0
-            $currentTestResult.TestResultData += $resultMap
+
+            $histogramFlag = $false
+            foreach ($line in $lagscopeReportLog) {
+                # From the line 'Interval(usec)  Frequency', we begin to collect the histogram data
+                if ($line -imatch "Interval\(usec\)") {
+                    $histogramFlag = $true
+                    continue;
+                }
+                if ($histogramFlag -eq $false) {
+                    continue;
+                }
+                $interval = ($line.Trim() -replace '\s+',' ').Split(" ")[0]
+                $frequency = ($line.Trim() -replace '\s+',' ').Split(" ")[1]
+                if (($interval -match "^\d+$") -and ($frequency -match "^\d+$") -and ($interval -ne "0")) {
+                    $resultMap = @{}
+                    if ($properties) {
+                        $resultMap["GuestDistro"] = $properties.GuestDistro
+                        $resultMap["HostOS"] = $properties.HostOS
+                        $resultMap["KernelVersion"] = $properties.KernelVersion
+                    }
+                    $resultMap["HostType"] = "Azure"
+                    $resultMap["HostBy"] = $CurrentTestData.SetupConfig.TestLocation
+                    $resultMap["GuestOSType"] = "Linux"
+                    $resultMap["GuestSize"] = $clientVMData.InstanceSize
+                    $resultMap["IPVersion"] = "IPv4"
+                    $resultMap["ProtocolType"] = "TCP"
+                    $resultMap["TestCaseName"] = $global:GlobalConfig.Global.$TestPlatform.ResultsDatabase.testTag
+                    $resultMap["TestDate"] = $testDate
+                    $resultMap["LISVersion"] = "Inbuilt"
+                    $resultMap["DataPath"] = $dataPath
+                    $resultMap["MaxLatency_us"] = [Decimal]$maximumLat
+                    $resultMap["AverageLatency_us"] = [Decimal]$averageLat
+                    $resultMap["MinLatency_us"] = [Decimal]$minimumLat
+                    #Percentile Values are not calculated yet. will be added in future
+                    $resultMap["Latency95Percentile_us"] = 0
+                    $resultMap["Latency99Percentile_us"] = 0
+                    $resultMap["Interval_us"] = [int]$interval
+                    $resultMap["Frequency"] = [int]$frequency
+                    $currentTestResult.TestResultData += $resultMap
+                }
+            }
         }
     } catch {
         $ErrorMessage = $_.Exception.Message

@@ -146,6 +146,11 @@ function Main {
     $currentTestResult = Create-TestResultObject
     $resultArr = @()
 
+    $ltpRoot = "/opt/ltp"
+    if ($TestParams["CUSTOM_LTP_ROOT"]) {
+        $ltpRoot = $TestParams["CUSTOM_LTP_ROOT"]
+    }
+
     try {
         $null = Run-LinuxCmd -Command "bash ${TEST_SCRIPT} > LTP-summary.log 2>&1" `
             -Username $user -password $password -ip $AllVmData.PublicIP -Port $AllVmData.SSHPort `
@@ -162,7 +167,7 @@ function Main {
                 -Username $user -password $password -ip $AllVmData.PublicIP -Port $AllVmData.SSHPort `
                 -maxRetryCount 1 -runAsSudo -ignoreLinuxExitCode
 
-        $null = Run-LinuxCmd -Command "\cp -f /opt/ltp/VM_properties.csv /home/${user}" `
+        $null = Run-LinuxCmd -Command "\cp -f ${ltpRoot}/VM_properties.csv /home/${user}" `
                 -Username $user -password $password -ip $AllVmData.PublicIP -Port $AllVmData.SSHPort `
                 -maxRetryCount 1 -runAsSudo
 

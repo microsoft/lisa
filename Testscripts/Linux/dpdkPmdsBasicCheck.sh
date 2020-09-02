@@ -107,11 +107,11 @@ runTestPmd()
 	esac
 	LogMsg "TestPmd is starting with ${pmd} PMD"
 
-	cmd="echo 'stop' | testpmd -l 0-1 ${whitelist} ${vdev} -- -i --port-topology=chained --nb-cores 1"
+	cmd="echo 'stop' | dpdk-testpmd -l 0-1 ${whitelist} ${vdev} -- -i --port-topology=chained --nb-cores 1"
 	LogMsg "$cmd"
 	eval "$cmd" > $LOGDIR/$pmd.log 2>&1
 	checkCmdExitStatus "TestPmd with ${pmd} execution"
-	output=$(grep -iE -w '	err.*|fail.*|cannot.*|fatal.*' $LOGDIR/$pmd.log)
+	output=$(grep -iE -w 'err.*|fail.*|cannot.*|fatal.*' $LOGDIR/$pmd.log | grep -v failsafe)
 	if [[ $? == 0 ]];then
 		LogErr "ERROR: Unexpected logs are found in $pmd PMD:"
 		LogMsg "$output"

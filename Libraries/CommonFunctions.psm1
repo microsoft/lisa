@@ -70,7 +70,7 @@ Function Select-TestCases($TestXMLs, $TestCategory, $TestArea, $TestNames, $Test
     $WildCards = @('^','.','[',']','?','+','*')
     $ExcludedTestsCount = 0
     $testCategoryArray = $testAreaArray = $testNamesArray = $testTagArray = $testPriorityArray = $testSetupTypeArray = $excludedTestsArray = @()
-    # if the expected filter parameter is 'All' (case insensitive) or empty or $null, the actually filter used in this function will be '*', except for '$ExcludedTests'
+    # if the expected filter parameter is 'All' (case insensitive), empty or $null, the actual filter used in this function will be '*', except for '$ExcludedTests'
     if (!$TestCategory -or ($TestCategory -eq "All")) {
         $TestCategory = "*"
     }
@@ -207,11 +207,15 @@ Function Add-SetupConfig {
         param ([System.Collections.ArrayList]$TestCollections, [string]$ConfigName, [string]$ConfigValue, [bool]$Force = $false)
         foreach ($test in $TestCollections) {
             if (!$test.SetupConfig.$ConfigName) {
-                # use CDATA when the value contains XML escaped characters
+                # if the $ConfigValue contains certain characters as below, use [System.Security.SecurityElement]::Escape() to avoid exception
                 if ($ConfigValue -imatch "&|<|>|'|""") {
-                    $test.SetupConfig.InnerXml += "<$ConfigName><![CDATA['$ConfigValue']]></$ConfigName>"
-                } else {
+                    $ConfigValue = [System.Security.SecurityElement]::Escape($ConfigValue)
+                }
+                if ($null -eq $test.SetupConfig.$ConfigName) {
                     $test.SetupConfig.InnerXml += "<$ConfigName>$ConfigValue</$ConfigName>"
+                }
+                else {
+                    $test.SetupConfig.$ConfigName = $ConfigValue
                 }
             }
             elseif ($Force) {
@@ -326,7 +330,7 @@ Function Add-SetupConfig {
         foreach ($singleTest in $AllTests) {
             # If there's pre-defined value in TestXml, let's expand and apply as custom setup for current TestCase only
             if ($singleTest.SetupConfig.$ConfigName) {
-                $originalConfigValueArr = @($singleTest.SetupConfig.$ConfigName.Trim("$SplitBy ").Split($SplitBy).Trim()) | Where-Object {!$_.StartsWith("=~")}
+                $originalConfigValueArr = @($singleTest.SetupConfig.$ConfigName.Trim("$SplitBy ").Split($SplitBy).Trim()) -inotmatch "^=~"
                 if ($originalConfigValueArr.Count -gt 1) {
                     $null = $toBeSkippedTests.Add($singleTest)
                     foreach ($singleConfigValue in $originalConfigValueArr) {
@@ -341,12 +345,16 @@ Function Add-SetupConfig {
                     }
                 }
                 elseif ($originalConfigValueArr.Count -eq 1) {
-                    $singleTest.SetupConfig.$ConfigName = $originalConfigValueArr.ToString()
+                    $singleTest.SetupConfig.$ConfigName = $originalConfigValueArr[0]
                 }
                 elseif ($originalConfigValueArr.Count -eq 0) {
                     # Keep silent for ConfigName that all starts with '=~', silent with no warning message, and try the $DefaultConfigValue
                     if (!(&$IfNotContains -OriginalConfigValue "$($singleTest.SetupConfig.$ConfigName)" -ToBeCheckedConfigValue "$DefaultConfigValue" -SplitBy $SplitBy)) {
                         $singleTest.SetupConfig.$ConfigName = $DefaultConfigValue
+                    }
+                    else {
+                        # if none of pattern matches the DefaultConfigValue, skip this TestCase
+                        $null = $toBeSkippedTests.Add($singleTest)
                     }
                 }
             }
@@ -2430,6 +2438,51 @@ Function Restart-VMFromShell($VMData, [switch]$SkipRestartCheck) {
     }
     catch {
         Write-LogErr "Restarting $($VMData.RoleName) from shell failed with exception."
+        return $false
+    }
+}
+
+Function Wait-AzVMBackRunningWithTimeOut($AllVMData, [scriptblock]$AzVMScript) {
+    if (!$AllVMData -or !$AllVMData.InstanceSize -or !$AllVMData.ResourceGroupName -or !$AllVMData.RoleName) {
+        return $false
+    }
+    $VMCoresArray = @()
+    $AzureVMSizeInfo = Get-AzVMSize -Location $AllVMData[0].Location
+    foreach ($vmData in $AllVMData) {
+        $AzVMScript.Invoke($vmData)
+        if (-not $?) {
+            Write-LogErr "Failed in AzVM operation for $($vmData.RoleName)"
+            return $false
+        }
+        $VMCoresArray += ($AzureVMSizeInfo | Where-Object { $_.Name -eq $vmData.InstanceSize }).NumberOfCores
+    }
+    $MaximumCores = ($VMCoresArray | Measure-Object -Maximum).Maximum
+
+    # Calculate timeout depending on VM size.
+    # We're adding timeout of 10 minutes (default timeout) + 1 minute/10 cores (additional timeout).
+    # So For D64 VM, timeout = 10 + int[64/10] = 16 minutes.
+    # M128 VM, timeout = 10 + int[128/10] = 23 minutes.
+    $Timeout = New-Timespan -Minutes ([int]($MaximumCores / 10) + 10)
+    $sw = [diagnostics.stopwatch]::StartNew()
+    foreach ($vmData in $AllVMData) {
+        $vm = Get-AzVM -ResourceGroupName $vmData.ResourceGroupName -Name $vmData.RoleName -Status
+        while (($vm.Statuses[-1].Code -ne "PowerState/running") -and ($sw.elapsed -lt $Timeout)) {
+            Write-LogInfo "VM $($vmData.RoleName) is in $($vm.Statuses[-1].Code) state, still not in running state"
+            Start-Sleep -Seconds 20
+            $vm = Get-AzVM -ResourceGroupName $vmData.ResourceGroupName -Name $vmData.RoleName -Status
+        }
+    }
+    if (!($sw.elapsed -lt $Timeout)) {
+        Write-LogErr "VMs are not in PowerState/running status after $Timeout minutes (estimated timespan based on maximum NumberOfCores of VM size)"
+        return $false
+    }
+    else {
+        $vmData = Get-AllDeploymentData -ResourceGroups $AllVMData.ResourceGroupName -PatternOfResourceNamePrefix $AllVMData.RoleName
+        $AllVMData.PublicIP = $vmData.PublicIP
+
+        if ((Is-VmAlive -AllVMDataObject $AllVMData -MaxRetryCount 10) -eq "True") {
+            return $true
+        }
         return $false
     }
 }

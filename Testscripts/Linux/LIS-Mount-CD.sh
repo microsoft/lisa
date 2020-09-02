@@ -31,10 +31,9 @@ fi
 #
 # Check if the CDROM module is loaded
 #
-if [[ -x $(which lsb_release 2>/dev/null) ]]; then
-    os_VENDOR=$(lsb_release -i -s)
-fi
-if [ "$os_VENDOR" != "Ubuntu" ] && [ "$os_VENDOR" != "Debian" ]; then
+config_path=$(get_bootconfig_path)
+
+if grep CONFIG_ATA_PIIX=m $config_path; then
     CD=$(lsmod | grep 'ata_piix\|isofs')
     if [[ $CD != "" ]] ; then
         module=$(echo "$CD" | cut -d ' ' -f1)
@@ -46,14 +45,16 @@ if [ "$os_VENDOR" != "Ubuntu" ] && [ "$os_VENDOR" != "Debian" ]; then
         sts=$?
         if [ 0 -ne ${sts} ]; then
             LogMsg "Unable to load ata_piix module"
-            LogMsg "Aborting test."
             SetTestStateFailed
             exit 0
         else
             LogMsg "ata_piix module loaded inside the VM"
         fi
     fi
+elif grep CONFIG_ATA_PIIX=y $config_path; then
+    LogMsg "ata_piix module is built-in in VM"
 fi
+
 sleep 1
 LogMsg "Mount the CDROM"
 for drive in $(ls /dev/sr*)
@@ -69,7 +70,6 @@ sts=$?
 if [ 0 -ne ${sts} ]; then
     LogMsg "Unable to mount the CDROM"
     LogMsg "Mount CDROM failed: ${sts}"
-    LogMsg "Aborting test."
     SetTestStateFailed
     exit 0
 else
@@ -97,7 +97,6 @@ sts=$?
 if [ 0 -ne ${sts} ]; then
     LogMsg "Unable to unmount the CDROM"
     LogMsg "umount failed: ${sts}"
-    LogMsg "Aborting test."
     SetTestStateFailed
     exit 0
 else

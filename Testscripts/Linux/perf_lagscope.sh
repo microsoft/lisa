@@ -111,9 +111,10 @@ LogMsg "Starting server."
 ssh root@"${server}" "${cmd} -r${testServerIP}" &
 sleep 10
 LogMsg "lagscope client running..."
-# Run lagscope with histogram of per-iteration latency values, length of interval is 1 and capture first histogram value at 40th interval
-# to capture total 98 intervals. for more info refer: https://github.com/microsoft/lagscope
-ssh root@"${client}" "${cmd} -s${testServerIP} -i0 -n${pingIteration} -H -P -a40 -l1 -c98 > /tmp/lagscope-n${pingIteration}-output.txt"
+# Run lagscope with histogram of per-iteration latency values, length of interval is 15 and capture first histogram value at 30th interval
+# to capture total 30 intervals. for more info refer: https://github.com/microsoft/lagscope
+# With -R option, we can dump raw latencies into csv file
+ssh root@"${client}" "${cmd} -s${testServerIP} -i0 -n${pingIteration} -H -P -a30 -l15 -c30 -RLatency-$(date +%Y%m%d-%H%M).csv > /tmp/lagscope-n${pingIteration}-output.txt"
 ssh root@"${server}" 'killall lagscope'
 ssh root@"${client}" 'killall lagscope'
 LogMsg "Test finished."

@@ -3632,7 +3632,7 @@ function Run_SSHCommand()
 	done
 }
 
-get_AvailableDisks() {
+function get_AvailableDisks() {
 	for disk in $(lsblk | grep "sd[a-z].*disk" | cut -d ' ' -f1); do
 		if [ $(df | grep -c $disk) -eq 0 ]; then
 			echo $disk
@@ -3640,7 +3640,7 @@ get_AvailableDisks() {
 	done
 }
 
-delete_partition() {
+function delete_partition() {
 	all_disks=$(get_AvailableDisks)
 
 	declare -A TEST_DICT
@@ -3720,4 +3720,47 @@ function mount_disk() {
 			check_exit_status "Mounting disk ${driveName}${c} on $MountName" "exit"
 		done
 	done
+}
+
+function get_bootconfig_path() {
+	config_path="/boot/config-$(uname -r)"
+	if [[ $(detect_linux_distribution) == clear-linux-os ]]; then
+		config_path="/usr/lib/kernel/config-$(uname -r)"
+	elif [[ $(detect_linux_distribution) == coreos ]];then
+		config_path="/usr/boot/config-$(uname -r)"
+	fi
+	echo "$config_path"
+}
+
+# check if lsvmbus exists, or the running kernel does not match installed version of linux-tools
+# If lsvmbus doesn't exist, lsvmbus will be installed.
+# If installation is failed, the script will be exited.
+function Check_lsvmbus()
+{
+	lsvmbus_path=$(which lsvmbus)
+	if [[ -z "$lsvmbus_path" ]] || ! $lsvmbus_path > /dev/null 2>&1; then
+		install_package wget
+		wget https://raw.githubusercontent.com/torvalds/linux/master/tools/hv/lsvmbus
+		chmod +x lsvmbus
+		if [[ "$DISTRO" =~ "coreos" ]]; then
+			export PATH=$PATH:/usr/share/oem/python/bin/
+			lsvmbus_path="./lsvmbus"
+		else
+			mv lsvmbus /usr/sbin
+			lsvmbus_path=$(which lsvmbus)
+		fi
+	fi
+
+	if [ -z "$lsvmbus_path" ]; then
+		LogErr "lsvmbus tool not found!"
+		SetTestStateFailed
+		exit 0
+	fi
+
+	# lsvmbus requires python
+	which python || [ -f /usr/libexec/platform-python ] && ln -s /usr/libexec/platform-python /sbin/python || which python3 && ln -s $(which python3) /sbin/python
+	if ! which python; then
+		update_repos
+		install_package python
+	fi
 }

@@ -11,9 +11,17 @@ function Main {
     $resultArr = @()
     try {
         $testResult = $null
+        $count = 0
         $diskSizeinGB = $TestParams.DiskSize
         $virtualMachine = Get-AzVM -ResourceGroupName $AllVMData.ResourceGroupName -Name $AllVMData.RoleName
-        $diskCount = (Get-AzVMSize -Location $AllVMData.Location | Where-Object {$_.Name -eq $AllVMData.InstanceSize}).MaxDataDiskCount
+        $azVmSize = Get-AzVMSize -Location $AllVMData.Location | Where-Object {$_.Name -eq $AllVMData.InstanceSize}
+        if (!$azVmSize) {
+            throw "Could not find VM Size information for $($AllVMData.InstanceSize)."
+        }
+        $diskCount = $azVmSize.MaxDataDiskCount
+        if (!$diskCount -or $diskCount -eq 0) {
+            throw "MaxDataDiskCount of current VM Size $($AllVMData.InstanceSize) is not acceptable."
+        }
         $storageProfile = (Get-AzVM -ResourceGroupName $AllVMData.ResourceGroupName -Name $AllVMData.RoleName).StorageProfile
         Write-Debug "Found max data disk $diskCount in the system"
         Write-LogInfo "Serial Addition and Removal of Data Disks"

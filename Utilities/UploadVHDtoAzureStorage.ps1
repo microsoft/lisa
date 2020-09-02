@@ -25,7 +25,18 @@ if (!$global:LogFileName){
 }
 Get-ChildItem .\Libraries -Recurse | Where-Object { $_.FullName.EndsWith(".psm1") } | ForEach-Object { Import-Module $_.FullName -Force -Global -DisableNameChecking }
 
-$StorageAccountName = Get-StorageAccountFromRegion -Region $Region -StorageAccount $StorageAccount
+$regionStorageMapping = [xml](Get-Content "$PSScriptRoot\..\XML\RegionAndStorageAccounts.xml")
+if ($StorageAccount) {
+	if ($StorageAccount -imatch "^ExistingStorage_Standard") {
+		$StorageAccountName = $regionStorageMapping.AllRegions.$Region.StandardStorage
+	}
+	elseif ($StorageAccount -imatch "^ExistingStorage_Premium") {
+		$StorageAccountName = $regionStorageMapping.AllRegions.$Region.PremiumStorage
+	}
+}
+else {
+	$StorageAccountName = $regionStorageMapping.AllRegions.$Region.StandardStorage
+}
 
 $ExitCode = 1
 try

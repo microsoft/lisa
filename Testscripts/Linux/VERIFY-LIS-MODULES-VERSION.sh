@@ -43,10 +43,7 @@ case $DISTRO in
         fi
 
         skip_modules=()
-        config_path="/boot/config-$(uname -r)"
-        if [[ $(detect_linux_distribution) == clear-linux-os ]]; then
-            config_path="/usr/lib/kernel/config-$(uname -r)"
-        fi
+        config_path=$(get_bootconfig_path)
         LogMsg "Set the configuration path to $config_path"
 
         declare -A config_modulesDic

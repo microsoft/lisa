@@ -27,26 +27,7 @@ if [[ $? -gt 0 ]]; then
 fi
 
 # check if lsvmbus exists, or the running kernel does not match installed version of linux-tools
-lsvmbus_path=$(which lsvmbus)
-if [[ -z "$lsvmbus_path" ]] || ! $lsvmbus_path > /dev/null 2>&1; then
-    install_package wget
-    wget https://raw.githubusercontent.com/torvalds/linux/master/tools/hv/lsvmbus
-    chmod +x lsvmbus
-    if [[ "$DISTRO" =~ "coreos" ]]; then
-        export PATH=$PATH:/usr/share/oem/python/bin/
-        lsvmbus_path="./lsvmbus"
-    else
-        mv lsvmbus /usr/sbin
-        lsvmbus_path=$(which lsvmbus)
-    fi
-fi
-
-if [ -z "$lsvmbus_path" ]; then
-    LogErr "lsvmbus tool not found!"
-    SetTestStateFailed
-    exit 0
-fi
-
+Check_lsvmbus
 
 # Get the system path to the Heartbeat device on the VMBus
 sys_path=$(lsvmbus -vv | grep -A4 Heartbeat | grep path | awk '{ print $3 }')

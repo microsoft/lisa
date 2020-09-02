@@ -40,6 +40,10 @@ Class AzureController : TestController
 	[void] ParseAndValidateParameters([Hashtable]$ParamTable) {
 		$parameterErrors = ([TestController]$this).ParseAndValidateParameters($ParamTable)
 
+		if ($this.TestLocation) {
+			$this.TestLocation = $this.TestLocation.Replace('"', "").ToLower()
+			$this.SyncEquivalentCustomParameters("TestLocation", $this.TestLocation)
+		}
 		if (!$this.RGIdentifier) {
 			$parameterErrors += "-RGIdentifier is not set"
 		}
@@ -203,13 +207,14 @@ Class AzureController : TestController
 		$this.SSHPrivateKey = $azureConfig.TestCredentials.sshPrivateKey
 
 		# global variables: StorageAccount, TestLocation
-		if ($this.TestLocation) {
+		if ($this.TestLocation -and ($this.TestLocation.Trim(", ").Split(",").Trim().Count -eq 1)) {
 			if ( $this.StorageAccount -imatch "^ExistingStorage_Standard" ) {
 				$azureConfig.Subscription.ARMStorageAccount = $RegionAndStorageMap.AllRegions.$($this.TestLocation).StandardStorage
 				Write-LogInfo "Selecting existing standard storage account in $($this.TestLocation) - $($azureConfig.Subscription.ARMStorageAccount)"
 			}
 			elseif ( $this.StorageAccount -imatch "^ExistingStorage_Premium" ) {
 				$azureConfig.Subscription.ARMStorageAccount = $RegionAndStorageMap.AllRegions.$($this.TestLocation).PremiumStorage
+				$this.SyncEquivalentCustomParameters("StorageAccountType", "Premium_LRS")
 				Write-LogInfo "Selecting existing premium storage account in $($this.TestLocation) - $($azureConfig.Subscription.ARMStorageAccount)"
 			}
 			elseif ($this.StorageAccount -and ($this.StorageAccount -inotmatch "^Auto_Complete_RG=.+")) {
@@ -228,30 +233,64 @@ Class AzureController : TestController
 				$azureConfig.Subscription.ARMStorageAccount = $RegionAndStorageMap.AllRegions.$($this.TestLocation).StandardStorage
 				Write-LogInfo "Auto selecting storage account : $($azureConfig.Subscription.ARMStorageAccount) as per your test region."
 			}
+
+			# Restore $this.OsVHD to full URI with target storage account and container info, when '-OsVHD' is just provided with file BaseName and '-TargeLocation' is a single region
+			if ($this.OsVHD -and $this.OsVHD -inotmatch "/") {
+				$this.OsVHD = 'http://{0}.blob.core.windows.net/vhds/{1}' -f $azureConfig.Subscription.ARMStorageAccount, $this.OsVHD
+				$this.SyncEquivalentCustomParameters("OsVHD", $this.OsVHD)
+			}
 		}
 		else {
-			# Parameter '-TestLocation' is null, to avoid null exception, auto selecting the first standard storage account
-			# per storage accounts from .\XML\RegionAndStorageAccounts.xml (or copied from secrets xml file)
-			# this will be updated after auto selected the proper TestLocation/Region for each test on Azure platform
-			$azureConfig.Subscription.ARMStorageAccount = $RegionAndStorageMap.AllRegions.ChildNodes[0].StandardStorage
+			if ($this.StorageAccount -imatch "^ExistingStorage_Premium") {
+				$azureConfig.Subscription.ARMStorageAccount = $RegionAndStorageMap.AllRegions.ChildNodes[0].PremiumStorage
+				$this.SyncEquivalentCustomParameters("StorageAccountType", "Premium_LRS")
+			}
+			elseif ($this.StorageAccount -and ($this.StorageAccount -inotmatch "^ExistingStorage_Standard") -and ($this.StorageAccount -inotmatch "^Auto_Complete_RG=.+")) {
+				# $this.StorageAccount should be some exact name of Storage Account
+				$sc = Get-AzStorageAccount | Where-Object {$_.StorageAccountName -eq $this.StorageAccount}
+				if (!$sc) {
+					Throw "Provided storage account $($this.StorageAccount) does not exist, abort testing."
+				}
+				if ($sc.Sku.Name -eq "Premium_LRS") {
+					$this.SyncEquivalentCustomParameters("StorageAccountType", "Premium_LRS")
+				}
+				if(!$this.TestLocation) {
+					Write-LogWarn "'-TestLocation' parameter is empty, choose the storage account '$($this.StorageAccount)' location '$($sc.Location)' as default TestLocation"
+					$this.TestLocation = $sc.Location
+					$this.SyncEquivalentCustomParameters("TestLocation", $this.TestLocation)
+				}
+				$azureConfig.Subscription.ARMStorageAccount = $this.StorageAccount.Trim()
+				# Restore $this.OsVHD to full URI with target storage account and container info, when '-OsVHD' is just provided with file BaseName and '-TargeLocation' is a single region
+				if ($this.OsVHD -and $this.OsVHD -inotmatch "/") {
+					$this.OsVHD = 'http://{0}.blob.core.windows.net/vhds/{1}' -f $azureConfig.Subscription.ARMStorageAccount, $this.OsVHD
+					$this.SyncEquivalentCustomParameters("OsVHD", $this.OsVHD)
+				}
+			}
+			else {
+				# Parameter '-TestLocation' is null or $this.StorageAccount -imatch "^ExistingStorage_Standard", by default, select the first standard storage account
+				# per storage accounts from .\XML\RegionAndStorageAccounts.xml (or copied from secrets xml file)
+				# this will be updated after auto selected the proper TestLocation/Region for each test on Azure platform
+				$azureConfig.Subscription.ARMStorageAccount = $RegionAndStorageMap.AllRegions.ChildNodes[0].StandardStorage
+			}
 		}
 
 		if ($this.ResultDBTable) {
 			$azureConfig.ResultsDatabase.dbtable = ($this.ResultDBTable).Trim()
-			Write-LogInfo "ResultDBTable : $($this.ResultDBTable) added to GlobalConfig.Global.HyperV.ResultsDatabase.dbtable"
+			Write-LogInfo "ResultDBTable : $($this.ResultDBTable) added to GlobalConfig.Global.Azure.ResultsDatabase.dbtable"
 		}
 		if ($this.ResultDBTestTag) {
 			$azureConfig.ResultsDatabase.testTag = ($this.ResultDBTestTag).Trim()
-			Write-LogInfo "ResultDBTestTag: $($this.ResultDBTestTag) added to GlobalConfig.Global.HyperV.ResultsDatabase.testTag"
+			Write-LogInfo "ResultDBTestTag: $($this.ResultDBTestTag) added to GlobalConfig.Global.Azure.ResultsDatabase.testTag"
 		}
 
 		Write-LogInfo "------------------------------------------------------------------"
 
 		$SelectedSubscription = Set-AzContext -SubscriptionId $azureConfig.Subscription.SubscriptionID
+		$azureConfig.Subscription.AccountType = $SelectedSubscription.Account.Type
 		$subIDSplitted = ($SelectedSubscription.Subscription.SubscriptionId).Split("-")
 		Write-LogInfo "SubscriptionName       : $($SelectedSubscription.Subscription.Name)"
 		Write-LogInfo "SubscriptionId         : $($subIDSplitted[0])-xxxx-xxxx-xxxx-$($subIDSplitted[4])"
-		Write-LogInfo "User                   : $($SelectedSubscription.Account.Id)"
+		Write-LogInfo "AccountId              : $($SelectedSubscription.Account.Id)"
 		Write-LogInfo "ServiceEndpoint        : $($SelectedSubscription.Environment.ActiveDirectoryServiceEndpointResourceId)"
 		Write-LogInfo "CurrentStorageAccount  : $($azureConfig.Subscription.ARMStorageAccount)"
 
@@ -266,59 +305,6 @@ Class AzureController : TestController
 
 		if (!$global:AllTestVMSizes) {
 			Set-Variable -Name AllTestVMSizes -Value @{} -Option ReadOnly -Scope Global
-		}
-	}
-
-	[void] PrepareTestImage() {
-		#If Base OS VHD is present in another storage account, then copy to test storage account first.
-		if ($this.OsVHD) {
-			$ARMStorageAccount = $this.GlobalConfig.Global.Azure.Subscription.ARMStorageAccount
-			if ($ARMStorageAccount -imatch "^NewStorage_") {
-				Throw "LISAv2 only supports copying VHDs to existing storage account.`n
-				Please use <ARMStorageAccount>Auto_Complete_RG=XXXResourceGroupName<ARMStorageAccount> or `n
-				<ARMStorageAccount>Existing_Storage_Standard<ARMStorageAccount> `n
-				<ARMStorageAccount>Existing_Storage_Premium<ARMStorageAccount>"
-			}
-			$useSASURL = $false
-			if (($this.OsVHD -imatch 'sp=') -and ($this.OsVHD -imatch 'sig=')) {
-				$useSASURL = $true
-			}
-
-			if (!$useSASURL -and ($this.OsVHD -inotmatch "/")) {
-				$this.OsVHD = 'http://{0}.blob.core.windows.net/vhds/{1}' -f $ARMStorageAccount, $this.OsVHD
-			}
-
-			#Check if the test storage account is same as VHD's original storage account.
-			$givenVHDStorageAccount = $this.OsVHD.Replace("https://","").Replace("http://","").Split(".")[0]
-			$sourceContainer =  $this.OsVHD.Split("/")[$this.OsVHD.Split("/").Count - 2]
-			$vhdName = $this.OsVHD.Split("?")[0].split('/')[-1]
-
-			if ($givenVHDStorageAccount -ne $ARMStorageAccount) {
-				Write-LogInfo "Your test VHD is not in target storage account ($ARMStorageAccount)."
-				Write-LogInfo "Your VHD will be copied to $ARMStorageAccount now."
-
-				#Copy the VHD to current storage account.
-				#Check if the OsVHD is a SasUrl
-				if ($useSASURL) {
-					$copyStatus = Copy-VHDToAnotherStorageAccount -SasUrl $this.OsVHD -destinationStorageAccount $ARMStorageAccount -destinationStorageContainer "vhds" -vhdName $vhdName
-					$this.OsVHD = 'http://{0}.blob.core.windows.net/vhds/{1}' -f $ARMStorageAccount, $vhdName
-				} else {
-					$copyStatus = Copy-VHDToAnotherStorageAccount -sourceStorageAccount $givenVHDStorageAccount -sourceStorageContainer $sourceContainer -destinationStorageAccount $ARMStorageAccount -destinationStorageContainer "vhds" -vhdName $vhdName
-				}
-				if (!$copyStatus) {
-					Throw "Failed to copy the VHD to $ARMStorageAccount"
-				}
-			} else {
-				$sc = Get-AzStorageAccount | Where-Object {$_.StorageAccountName -eq $ARMStorageAccount}
-				$storageKey = (Get-AzStorageAccountKey -ResourceGroupName $sc.ResourceGroupName -Name $ARMStorageAccount)[0].Value
-				$context = New-AzStorageContext -StorageAccountName $ARMStorageAccount -StorageAccountKey $storageKey
-				$blob = Get-AzStorageBlob -Blob $vhdName -Container $sourceContainer -Context $context -ErrorAction Ignore
-				if (!$blob) {
-					Throw "Provided VHD not existed, abort testing."
-				}
-			}
-			Set-Variable -Name BaseOsVHD -Value $this.OsVHD -Scope Global
-			Write-LogInfo "New Base VHD name - $($this.OsVHD)"
 		}
 	}
 
@@ -366,13 +352,25 @@ Class AzureController : TestController
 			#   and from ARM template constraint, there's no Generation property to be applied when deploying with Gallery image with (Publisher, Provider, SKU, Version)
 			Add-SetupConfig -AllTests $AllTests -ConfigName "VMGeneration" -ConfigValue $this.CustomParams["VMGeneration"] -DefaultConfigValue "1" -Force $this.ForceCustom
 		}
+		if ($this.CustomParams["StorageAccountType"]) {
+			Add-SetupConfig -AllTests $AllTests -ConfigName "StorageAccountType" -ConfigValue $this.CustomParams["StorageAccountType"] -Force $this.ForceCustom
+		}
+		if ($this.CustomParams["SetupType"]) {
+			Add-SetupConfig -AllTests $AllTests -ConfigName "SetupType" -ConfigValue $this.CustomParams["SetupType"] -Force $this.ForceCustom
+		}
+		if ($this.CustomParams["SecureBoot"] -imatch "^(true|false)$") {
+			Add-SetupConfig -AllTests $AllTests -ConfigName "SecureBoot" -ConfigValue $this.CustomParams["SecureBoot"].ToLower() -Force $this.ForceCustom
+		}
+		if ($this.CustomParams["vTPM"] -imatch "^(true|false)$") {
+			Add-SetupConfig -AllTests $AllTests -ConfigName "vTPM" -ConfigValue $this.CustomParams["vTPM"].ToLower() -Force $this.ForceCustom
+		}
 
 		foreach ($test in $AllTests) {
 			# Put test case to hashtable, per setupType,OverrideVMSize,networking,diskType,osDiskType,switchName
 			$key = "$($test.SetupConfig.SetupType),$($test.SetupConfig.OverrideVMSize),$($test.SetupConfig.Networking),$($test.SetupConfig.DiskType)," +
 				"$($test.SetupConfig.OSDiskType),$($test.SetupConfig.SwitchName),$($test.SetupConfig.ImageType)," +
 				"$($test.SetupConfig.OSType),$($test.SetupConfig.StorageAccountType),$($test.SetupConfig.TestLocation)," +
-				"$($test.SetupConfig.ARMImageName),$($test.SetupConfig.OsVHD),$($test.SetupConfig.VMGeneration)"
+				"$($test.SetupConfig.ARMImageName),$($test.SetupConfig.OsVHD),$($test.SetupConfig.VMGeneration),$($test.SetupConfig.SecureBoot),$($test.SetupConfig.vTPM)"
 			if ($test.SetupConfig.SetupType) {
 				if ($SetupTypeToTestCases.ContainsKey($key)) {
 					$SetupTypeToTestCases[$key] += $test

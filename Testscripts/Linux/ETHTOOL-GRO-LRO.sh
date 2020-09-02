@@ -96,9 +96,9 @@ for (( i = 0 ; i < 2 ; i++ )); do
     fi
 done
 
-GetPlatform
-# Disable/Enable LRO (HyperV only)
-if [[ $PLATFORM == "HyperV" ]];then
+LogMsg "Check - support to update lro or not by filter keyword 'fix' from the line of large-receive-offload."
+lro_output=$(ethtool -k "${SYNTH_NET_INTERFACES[@]}" | grep -i large-receive-offload | grep -i fixed)
+if [[ $? != 0 ]];then
     for (( i = 0 ; i < 2 ; i++ )); do
         # Show LRO status
         sts=$(ethtool -k "${SYNTH_NET_INTERFACES[@]}" 2>&1 | grep large-receive-offload | awk {'print $2'})
@@ -127,7 +127,7 @@ if [[ $PLATFORM == "HyperV" ]];then
         fi
     done
 else
-    LogMsg "Azure doesn't support changing LRO. Skip."
+    LogMsg "lro is fixed, can't set value for it, lro output is - $lro_output"
 fi
 
 SetTestStateCompleted

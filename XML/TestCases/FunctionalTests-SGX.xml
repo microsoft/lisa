@@ -12,9 +12,9 @@
     <SetupConfig>
       <TestLocation>uksouth</TestLocation>
       <SetupType>OneVM</SetupType>
-      <OverrideVMSize>Standard_DC2s_v2</OverrideVMSize>
+      <OverrideVMSize>Standard_DC2s_v2,=~Standard_DC[0-9]+s_v2</OverrideVMSize>
       <VMGeneration>2</VMGeneration>
-      <ARMImageName>Canonical UbuntuServer 18_04-lts-gen2 latest</ARMImageName>
+      <ARMImageName>=~UbuntuServer.*gen2</ARMImageName>
     </SetupConfig>
   </test>
 </TestCases>

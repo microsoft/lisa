@@ -855,9 +855,31 @@
     </SetupConfig>
   </test>
   <test>
-    <testName>PERF-XDP-TCP-RX-DROP-SINGLECORE</testName>
+    <testName>PERF-SCHEDULER</testName>
+    <testScript>PERF-SCHEDULER.ps1</testScript>
+    <files>.\Testscripts\Linux\utils.sh,.\Testscripts\Linux\perf_scheduler.sh</files>
+    <TestParameters>
+      <param>MSG_THREADS=SCHBENCH_MSG_THREADS</param>
+      <param>RUNTIME=SCHBENCH_RUNTIME</param>
+      <param>SLEEPTIME=SCHBENCH_SLEEPTIME</param>
+      <param>CPUTIME=SCHBENCH_CPUTIME</param>
+      <param>DATASIZE=HACKBENCH_DATASIZE</param>
+      <param>LOOPS=HACKBENCH_LOOPS</param>
+    </TestParameters>
+    <Platform>Azure,HyperV</Platform>
+    <Category>Performance</Category>
+    <Area>BENCHMARK</Area>
+    <Tags>benchmark,scheduler</Tags>
+    <Priority>2</Priority>
+    <SetupConfig>
+      <SetupType>OneVM</SetupType>
+      <OverrideVMSize>Standard_D16s_v3</OverrideVMSize>
+    </SetupConfig>
+  </test>
+  <test>
+    <testName>PERF-XDP-RX-DROP-SINGLECORE</testName>
     <testScript>PERF-XDP-RX-DROP.ps1</testScript>
-    <files>.\Testscripts\Linux\utils.sh,.\Testscripts\Linux\XDPDumpSetup.sh,.\Testscripts\Linux\pktgenSetup.sh</files>
+    <files>.\Testscripts\Linux\utils.sh,.\Testscripts\Linux\XDPDumpSetup.sh,.\Testscripts\Linux\XDPUtils.sh,.\Testscripts\Linux\pktgenSetup.sh</files>
     <TestParameters>
       <param>cores=single</param>
     </TestParameters>
@@ -873,9 +895,9 @@
     </SetupConfig>
   </test>
   <test>
-    <testName>PERF-XDP-TCP-RX-DROP-MULTICORE</testName>
+    <testName>PERF-XDP-RX-DROP-MULTICORE</testName>
     <testScript>PERF-XDP-RX-DROP.ps1</testScript>
-    <files>.\Testscripts\Linux\utils.sh,.\Testscripts\Linux\XDPDumpSetup.sh,.\Testscripts\Linux\pktgenSetup.sh</files>
+    <files>.\Testscripts\Linux\utils.sh,.\Testscripts\Linux\XDPDumpSetup.sh,.\Testscripts\Linux\XDPUtils.sh,.\Testscripts\Linux\pktgenSetup.sh</files>
     <TestParameters>
       <param>cores=multi</param>
     </TestParameters>
@@ -908,4 +930,40 @@
       <Networking>SRIOV</Networking>
     </SetupConfig>
    </test>
+   <test>
+    <testName>PERF-XDP-TX-FORWARD-MULTICORE</testName>
+    <testScript>PERF-XDP-TX-FORWARD.ps1</testScript>
+    <files>.\Testscripts\Linux\utils.sh,.\Testscripts\Linux\XDPUtils.sh,.\Testscripts\Linux\XDPDumpSetup.sh,.\Testscripts\Linux\XDPForwardingTest.sh</files>
+    <TestParameters>
+      <param>cores=multi</param>
+    </TestParameters>
+    <Platform>Azure</Platform>
+    <Category>Performance</Category>
+    <Area>NETWORK</Area>
+    <Tags>xdp</Tags>
+    <Priority>3</Priority>
+    <SetupConfig>
+      <SetupType>ThreeVM2NIC</SetupType>
+      <OverrideVMSize>Standard_D64_v3</OverrideVMSize>
+      <Networking>SRIOV</Networking>
+    </SetupConfig>
+  </test>
+  <test>
+    <testName>PERF-XDP-TX-FORWARD-SINGLECORE</testName>
+    <testScript>PERF-XDP-TX-FORWARD.ps1</testScript>
+    <files>.\Testscripts\Linux\utils.sh,.\Testscripts\Linux\XDPUtils.sh,.\Testscripts\Linux\XDPDumpSetup.sh,.\Testscripts\Linux\XDPForwardingTest.sh</files>
+    <TestParameters>
+      <param>cores=single</param>
+    </TestParameters>
+    <Platform>Azure</Platform>
+    <Category>Performance</Category>
+    <Area>NETWORK</Area>
+    <Tags>xdp</Tags>
+    <Priority>3</Priority>
+    <SetupConfig>
+      <SetupType>ThreeVM2NIC</SetupType>
+      <OverrideVMSize>Standard_D64_v3</OverrideVMSize>
+      <Networking>SRIOV</Networking>
+    </SetupConfig>
+  </test>
 </TestCases>
