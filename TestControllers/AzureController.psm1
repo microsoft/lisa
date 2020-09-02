@@ -214,6 +214,7 @@ Class AzureController : TestController
 			}
 			elseif ( $this.StorageAccount -imatch "^ExistingStorage_Premium" ) {
 				$azureConfig.Subscription.ARMStorageAccount = $RegionAndStorageMap.AllRegions.$($this.TestLocation).PremiumStorage
+				$this.SyncEquivalentCustomParameters("StorageAccountType", "Premium_LRS")
 				Write-LogInfo "Selecting existing premium storage account in $($this.TestLocation) - $($azureConfig.Subscription.ARMStorageAccount)"
 			}
 			elseif ($this.StorageAccount -and ($this.StorageAccount -inotmatch "^Auto_Complete_RG=.+")) {
@@ -232,12 +233,45 @@ Class AzureController : TestController
 				$azureConfig.Subscription.ARMStorageAccount = $RegionAndStorageMap.AllRegions.$($this.TestLocation).StandardStorage
 				Write-LogInfo "Auto selecting storage account : $($azureConfig.Subscription.ARMStorageAccount) as per your test region."
 			}
+
+			# Restore $this.OsVHD to full URI with target storage account and container info, when '-OsVHD' is just provided with file BaseName and '-TargeLocation' is a single region
+			if ($this.OsVHD -and $this.OsVHD -inotmatch "/") {
+				$this.OsVHD = 'http://{0}.blob.core.windows.net/vhds/{1}' -f $azureConfig.Subscription.ARMStorageAccount, $this.OsVHD
+				$this.SyncEquivalentCustomParameters("OsVHD", $this.OsVHD)
+			}
 		}
 		else {
-			# Parameter '-TestLocation' is null, to avoid null exception, auto selecting the first standard storage account
-			# per storage accounts from .\XML\RegionAndStorageAccounts.xml (or copied from secrets xml file)
-			# this will be updated after auto selected the proper TestLocation/Region for each test on Azure platform
-			$azureConfig.Subscription.ARMStorageAccount = $RegionAndStorageMap.AllRegions.ChildNodes[0].StandardStorage
+			if ($this.StorageAccount -imatch "^ExistingStorage_Premium") {
+				$azureConfig.Subscription.ARMStorageAccount = $RegionAndStorageMap.AllRegions.ChildNodes[0].PremiumStorage
+				$this.SyncEquivalentCustomParameters("StorageAccountType", "Premium_LRS")
+			}
+			elseif ($this.StorageAccount -and ($this.StorageAccount -inotmatch "^ExistingStorage_Standard") -and ($this.StorageAccount -inotmatch "^Auto_Complete_RG=.+")) {
+				# $this.StorageAccount should be some exact name of Storage Account
+				$sc = Get-AzStorageAccount | Where-Object {$_.StorageAccountName -eq $this.StorageAccount}
+				if (!$sc) {
+					Throw "Provided storage account $($this.StorageAccount) does not exist, abort testing."
+				}
+				if ($sc.Sku.Name -eq "Premium_LRS") {
+					$this.SyncEquivalentCustomParameters("StorageAccountType", "Premium_LRS")
+				}
+				if(!$this.TestLocation) {
+					Write-LogWarn "'-TestLocation' parameter is empty, choose the storage account '$($this.StorageAccount)' location '$($sc.Location)' as default TestLocation"
+					$this.TestLocation = $sc.Location
+					$this.SyncEquivalentCustomParameters("TestLocation", $this.TestLocation)
+				}
+				$azureConfig.Subscription.ARMStorageAccount = $this.StorageAccount.Trim()
+				# Restore $this.OsVHD to full URI with target storage account and container info, when '-OsVHD' is just provided with file BaseName and '-TargeLocation' is a single region
+				if ($this.OsVHD -and $this.OsVHD -inotmatch "/") {
+					$this.OsVHD = 'http://{0}.blob.core.windows.net/vhds/{1}' -f $azureConfig.Subscription.ARMStorageAccount, $this.OsVHD
+					$this.SyncEquivalentCustomParameters("OsVHD", $this.OsVHD)
+				}
+			}
+			else {
+				# Parameter '-TestLocation' is null or $this.StorageAccount -imatch "^ExistingStorage_Standard", by default, select the first standard storage account
+				# per storage accounts from .\XML\RegionAndStorageAccounts.xml (or copied from secrets xml file)
+				# this will be updated after auto selected the proper TestLocation/Region for each test on Azure platform
+				$azureConfig.Subscription.ARMStorageAccount = $RegionAndStorageMap.AllRegions.ChildNodes[0].StandardStorage
+			}
 		}
 
 		if ($this.ResultDBTable) {
@@ -252,10 +286,11 @@ Class AzureController : TestController
 		Write-LogInfo "------------------------------------------------------------------"
 
 		$SelectedSubscription = Set-AzContext -SubscriptionId $azureConfig.Subscription.SubscriptionID
+		$azureConfig.Subscription.AccountType = $SelectedSubscription.Account.Type
 		$subIDSplitted = ($SelectedSubscription.Subscription.SubscriptionId).Split("-")
 		Write-LogInfo "SubscriptionName       : $($SelectedSubscription.Subscription.Name)"
 		Write-LogInfo "SubscriptionId         : $($subIDSplitted[0])-xxxx-xxxx-xxxx-$($subIDSplitted[4])"
-		Write-LogInfo "User                   : $($SelectedSubscription.Account.Id)"
+		Write-LogInfo "AccountId              : $($SelectedSubscription.Account.Id)"
 		Write-LogInfo "ServiceEndpoint        : $($SelectedSubscription.Environment.ActiveDirectoryServiceEndpointResourceId)"
 		Write-LogInfo "CurrentStorageAccount  : $($azureConfig.Subscription.ARMStorageAccount)"
 
@@ -317,13 +352,25 @@ Class AzureController : TestController
 			#   and from ARM template constraint, there's no Generation property to be applied when deploying with Gallery image with (Publisher, Provider, SKU, Version)
 			Add-SetupConfig -AllTests $AllTests -ConfigName "VMGeneration" -ConfigValue $this.CustomParams["VMGeneration"] -DefaultConfigValue "1" -Force $this.ForceCustom
 		}
+		if ($this.CustomParams["StorageAccountType"]) {
+			Add-SetupConfig -AllTests $AllTests -ConfigName "StorageAccountType" -ConfigValue $this.CustomParams["StorageAccountType"] -Force $this.ForceCustom
+		}
+		if ($this.CustomParams["SetupType"]) {
+			Add-SetupConfig -AllTests $AllTests -ConfigName "SetupType" -ConfigValue $this.CustomParams["SetupType"] -Force $this.ForceCustom
+		}
+		if ($this.CustomParams["SecureBoot"] -imatch "^(true|false)$") {
+			Add-SetupConfig -AllTests $AllTests -ConfigName "SecureBoot" -ConfigValue $this.CustomParams["SecureBoot"].ToLower() -Force $this.ForceCustom
+		}
+		if ($this.CustomParams["vTPM"] -imatch "^(true|false)$") {
+			Add-SetupConfig -AllTests $AllTests -ConfigName "vTPM" -ConfigValue $this.CustomParams["vTPM"].ToLower() -Force $this.ForceCustom
+		}
 
 		foreach ($test in $AllTests) {
 			# Put test case to hashtable, per setupType,OverrideVMSize,networking,diskType,osDiskType,switchName
 			$key = "$($test.SetupConfig.SetupType),$($test.SetupConfig.OverrideVMSize),$($test.SetupConfig.Networking),$($test.SetupConfig.DiskType)," +
 				"$($test.SetupConfig.OSDiskType),$($test.SetupConfig.SwitchName),$($test.SetupConfig.ImageType)," +
 				"$($test.SetupConfig.OSType),$($test.SetupConfig.StorageAccountType),$($test.SetupConfig.TestLocation)," +
-				"$($test.SetupConfig.ARMImageName),$($test.SetupConfig.OsVHD),$($test.SetupConfig.VMGeneration)"
+				"$($test.SetupConfig.ARMImageName),$($test.SetupConfig.OsVHD),$($test.SetupConfig.VMGeneration),$($test.SetupConfig.SecureBoot),$($test.SetupConfig.vTPM)"
 			if ($test.SetupConfig.SetupType) {
 				if ($SetupTypeToTestCases.ContainsKey($key)) {
 					$SetupTypeToTestCases[$key] += $test

@@ -320,8 +320,9 @@ Function Trim-ErrorLogMessage($text) {
 		$splitByPeriod = $text.split(".")
 		if ($splitByPeriod.Count -gt 1) {
 			$maxLength -= $splitByPeriod[$splitByPeriod.Count - 1].Length
+			$text = $text.Substring(0,$maxLength) + ".."
 		}
-		$text = $text.Substring(0,$maxLength) + ".."
+		$text = $text.Replace("'","""")
 	}
 	return $text + "`r`n"
 }

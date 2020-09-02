@@ -36,9 +36,8 @@ Function Measure-SubscriptionCapabilities() {
 		}
 
 		Set-Variable -Name SubscriptionVMResourceSkus -Option ReadOnly -Scope script `
-			-Value (Get-AzComputeResourceSku | Where-Object { $_.ResourceType.Contains("virtualMachines") -and ($_.Restrictions.Type -notcontains 'Location')} | Select-Object Name, @{l = "Location"; e = { $_.Locations[0] } }, Family, Restrictions, Capabilities | Where-Object { $regionScopeFromUser -cmatch "$($_.Location)" })
-		$avRegions = $SubscriptionVMResourceSkus | Group-Object Location | Select-Object -ExpandProperty Name
-		Set-Variable -Name TestableLocations -Option ReadOnly -Scope script -Value ($avRegions | Where-Object { $regionScopeFromUser -contains $_ })
+			-Value (Get-AzComputeResourceSku | Where-Object { $_.ResourceType.Contains("virtualMachines") -and ($_.Restrictions.Type -notcontains 'Location')} | Select-Object Name, @{l = "Location"; e = { $_.Locations[0] } }, Family, Restrictions, Capabilities | Where-Object { $regionScopeFromUser -contains "$($_.Location)" })
+		Set-Variable -Name TestableLocations -Option ReadOnly -Scope script -Value ($SubscriptionVMResourceSkus | Group-Object Location | Select-Object -ExpandProperty Name)
 	}
 
 	Write-LogInfo "Measure vCPUs, Family, and AvailableLocations for each test VM Size..."
@@ -355,11 +354,11 @@ Function PrepareAutoCompleteStorageAccounts ($storageAccountsRGName, $XMLSecretF
 				foreach ($skuKey in $RSAMapping[$regionKey].Keys) {
 					$skuTypeNode = $AzureSecretXml.CreateElement($skuKey)
 					$skuTypeNode.InnerText = $RSAMapping[$regionKey][$skuKey].StorageAccountName
-					$regionNode.AppendChild($skuTypeNode)
+					$null = $regionNode.AppendChild($skuTypeNode)
 				}
-				$rasANode.AppendChild($regionNode)
+				$null = $rasANode.AppendChild($regionNode)
 			}
-			$AzureSecretXml.secrets.AppendChild($rasANode)
+			$null = $AzureSecretXml.secrets.AppendChild($rasANode)
 			$AzureSecretXml.Save($AzureSecretFile)
 		}
 	}
@@ -1126,6 +1125,17 @@ Function Invoke-AllResourceGroupDeployments($SetupTypeData, $CurrentTestData, $R
 		Write-LogInfo "Added Load Balancer."
 		#endregion
 
+		# Check boolean SetupConfig values
+		foreach ($boolSetting in @("SecureBoot", "vTPM")) {
+			if ($CurrentTestData.SetupConfig.$boolSetting -imatch "^(true|false)$") {
+				$CurrentTestData.SetupConfig.$boolSetting = $CurrentTestData.SetupConfig.$boolSetting.ToLower()
+			}
+			elseif ($CurrentTestData.SetupConfig.$boolSetting) {
+				$CurrentTestData.SetupConfig.$boolSetting = $null
+				Write-LogErr "SetupConfig.$boolSetting is not expected true|false"
+			}
+		}
+
 		$vmAdded = $false
 		$role = 0
 		foreach ( $newVM in $RGXMLData.VirtualMachine) {
@@ -1334,7 +1344,7 @@ Function Invoke-AllResourceGroupDeployments($SetupTypeData, $CurrentTestData, $R
 			#region virtualMachines
 			Write-LogInfo "Adding Virtual Machine $vmName"
 			Add-Content -Value "$($indents[2]){" -Path $jsonFile
-			Add-Content -Value "$($indents[3])^apiVersion^: ^2018-06-01^," -Path $jsonFile
+			Add-Content -Value "$($indents[3])^apiVersion^: ^2020-06-01^," -Path $jsonFile
 			Add-Content -Value "$($indents[3])^type^: ^Microsoft.Compute/virtualMachines^," -Path $jsonFile
 			Add-Content -Value "$($indents[3])^name^: ^$vmName^," -Path $jsonFile
 			Add-Content -Value "$($indents[3])^location^: ^[variables('location')]^," -Path $jsonFile
@@ -1380,6 +1390,27 @@ Function Invoke-AllResourceGroupDeployments($SetupTypeData, $CurrentTestData, $R
 			Add-Content -Value "$($indents[4]){" -Path $jsonFile
 			Add-Content -Value "$($indents[5])^vmSize^: ^$instanceSize^" -Path $jsonFile
 			Add-Content -Value "$($indents[4])}," -Path $jsonFile
+			#endregion
+
+			#region Security Profile
+			if ($CurrentTestData.SetupConfig.SecureBoot -or $CurrentTestData.SetupConfig.vTPM) {
+				Add-Content -Value "$($indents[4])^securityProfile^: " -Path $jsonFile
+				Add-Content -Value "$($indents[4]){" -Path $jsonFile
+				Add-Content -Value "$($indents[5])^uefiSettings^: " -Path $jsonFile
+				Add-Content -Value "$($indents[5]){" -Path $jsonFile
+				if ($CurrentTestData.SetupConfig.SecureBoot -and !$CurrentTestData.SetupConfig.vTPM) {
+					Add-Content -Value "$($indents[6])^secureBootEnabled^: ^$($CurrentTestData.SetupConfig.SecureBoot)^" -Path $jsonFile
+				}
+				elseif ($CurrentTestData.SetupConfig.vTPM -and !$CurrentTestData.SetupConfig.SecureBoot) {
+					Add-Content -Value "$($indents[6])^vTPMEnabled^: ^$($CurrentTestData.SetupConfig.vTPM)^" -Path $jsonFile
+				}
+				else {
+					Add-Content -Value "$($indents[6])^secureBootEnabled^: ^$($CurrentTestData.SetupConfig.SecureBoot)^," -Path $jsonFile
+					Add-Content -Value "$($indents[6])^vTPMEnabled^: ^$($CurrentTestData.SetupConfig.vTPM)^" -Path $jsonFile
+				}
+				Add-Content -Value "$($indents[5])}" -Path $jsonFile
+				Add-Content -Value "$($indents[4])}," -Path $jsonFile
+			}
 			#endregion
 
 			if ( !($UseSpecializedImage) ) {
@@ -2849,6 +2880,14 @@ function Add-AzureAccountFromSecretsFile {
 }
 
 Function Upload-AzureBootAndDeploymentDataToDB ($DeploymentTime, $AllVMData, $CurrentTestData) {
+	# Get the Database data
+	$dataSource = $Global:XMLSecrets.secrets.DatabaseServer
+	$dbuser = $Global:XMLSecrets.secrets.DatabaseUser
+	$dbpassword = $Global:XMLSecrets.secrets.DatabasePassword
+	$database = $Global:XMLSecrets.secrets.DatabaseName
+	if (!($dataSource -and $dbuser -and $dbpassword -and $database)) {
+		return
+	}
 	try {
 		$TextIdentifiers = [xml](Get-Content -Path "$PSScriptRoot\..\XML\Other\text-identifiers.xml")
 		$walaStartIdentifier = ""
@@ -2862,12 +2901,6 @@ Function Upload-AzureBootAndDeploymentDataToDB ($DeploymentTime, $AllVMData, $Cu
 		# Get the subscription data
 		$SubscriptionID = $Global:XMLSecrets.secrets.SubscriptionID
 		$SubscriptionName = $Global:XMLSecrets.secrets.SubscriptionName
-
-		# Get the Database data
-		$dataSource = $Global:XMLSecrets.secrets.DatabaseServer
-		$dbuser = $Global:XMLSecrets.secrets.DatabaseUser
-		$dbpassword = $Global:XMLSecrets.secrets.DatabasePassword
-		$database = $Global:XMLSecrets.secrets.DatabaseName
 
 		# Set the Database table
 		$dataTableName = "LinuxDeploymentAndBootData"
@@ -2907,22 +2940,23 @@ Function Upload-AzureBootAndDeploymentDataToDB ($DeploymentTime, $AllVMData, $Cu
 			$null = Copy-RemoteFiles -downloadFrom $vmData.PublicIP -port $vmData.SSHPort -username $user -password $password -files "$($vmData.RoleName)-*.txt" -downloadTo "$LogDir" -download
 
 			# Upload files in data subfolder to Azure.
-			$destfolder = "bootPerf"
-			$containerName = "logs"
-			$blobContext = New-AzStorageContext -StorageAccountName $storageAccountName -StorageAccountKey $storageAccountKey
+			if ($storageAccountName -and $storageAccountKey) {
+				$destfolder = "bootPerf"
+				$containerName = "logs"
+				$blobContext = New-AzStorageContext -StorageAccountName $storageAccountName -StorageAccountKey $storageAccountKey
 
-			$ticks = (Get-Date).Ticks
-			$fileName = "$LogDir\$($vmData.RoleName)-waagent.log.txt"
-			$blobName = "$destfolder/$($fileName.Replace("waagent","waagent-$ticks") | Split-Path -Leaf)"
-			$null = Set-AzStorageBlobContent -File $filename -Container $containerName -Blob $blobName -Context $blobContext -Force
-			$WALAlogFile = "https://$storageAccountName.blob.core.windows.net/$containerName/$destfolder/$($fileName.Replace("waagent","waagent-$ticks") | Split-Path -Leaf)"
-			Write-LogInfo "Upload file to Azure: Success: $WALAlogFile"
-			$fileName = "$LogDir\$($vmData.RoleName)-dmesg.txt"
-			$blobName = "$destfolder/$($fileName.Replace("dmesg","dmesg-$ticks") | Split-Path -Leaf)"
-			$null = Set-AzStorageBlobContent -File $filename -Container $containerName -Blob $blobName -Context $blobContext -Force
-			$kernelLogFile = "https://$storageAccountName.blob.core.windows.net/$containerName/$destfolder/$($fileName.Replace("dmesg","dmesg-$ticks") | Split-Path -Leaf)"
-			Write-LogInfo "Upload file to Azure: Success: $kernelLogFile"
-
+				$ticks = (Get-Date).Ticks
+				$fileName = "$LogDir\$($vmData.RoleName)-waagent.log.txt"
+				$blobName = "$destfolder/$($fileName.Replace("waagent","waagent-$ticks") | Split-Path -Leaf)"
+				$null = Set-AzStorageBlobContent -File $filename -Container $containerName -Blob $blobName -Context $blobContext -Force
+				$WALAlogFile = "https://$storageAccountName.blob.core.windows.net/$containerName/$destfolder/$($fileName.Replace("waagent","waagent-$ticks") | Split-Path -Leaf)"
+				Write-LogInfo "Upload file to Azure: Success: $WALAlogFile"
+				$fileName = "$LogDir\$($vmData.RoleName)-dmesg.txt"
+				$blobName = "$destfolder/$($fileName.Replace("dmesg","dmesg-$ticks") | Split-Path -Leaf)"
+				$null = Set-AzStorageBlobContent -File $filename -Container $containerName -Blob $blobName -Context $blobContext -Force
+				$kernelLogFile = "https://$storageAccountName.blob.core.windows.net/$containerName/$destfolder/$($fileName.Replace("dmesg","dmesg-$ticks") | Split-Path -Leaf)"
+				Write-LogInfo "Upload file to Azure: Success: $kernelLogFile"
+			}
 
 			# Analyse
 			$waagentFile = "$LogDir\$($vmData.RoleName)-waagent.log.txt"

@@ -188,6 +188,10 @@ Class TestController
 				Get-LISAv2Tools -XMLSecretFile $XMLSecretFile
 				$this.UpdateXMLStringsFromSecretsFile()
 				$this.UpdateRegionAndStorageAccountsFromSecretsFile()
+				$kustoDataDLLPath = $this.XmlSecrets.secrets.KustoDataDLLPath
+				if ($kustoDataDllPath -and (Test-Path "$kustoDataDLLPath")) {
+					[System.Reflection.Assembly]::LoadFrom("$kustoDataDllPath") | Out-Null
+				}
 			} else {
 				Write-LogErr "The Secret file provided: '$XMLSecretFile' does not exist"
 			}
@@ -259,12 +263,14 @@ Class TestController
 		$collectedTCCount = $allTests.Count
 		Write-LogInfo "$collectedTCCount Test Cases have been collected"
 
-		$SetupTypes = $allTests.SetupConfig.SetupType | Sort-Object -Unique
 		foreach ($file in $SetupTypeXMLs.FullName) {
 			$setupXml = [xml]( Get-Content -Path $file)
-			foreach ($SetupType in $SetupTypes) {
-				if ($setupXml.TestSetup.$SetupType) {
-					$this.SetupTypeTable[$SetupType] = $setupXml.TestSetup.$SetupType
+			foreach ($setupTypeXml in $setupXml.SelectNodes("/TestSetup/*")) {
+				if (!$this.SetupTypeTable[$setupTypeXml.LocalName]) {
+					$this.SetupTypeTable[$setupTypeXml.LocalName] = $setupTypeXml
+				}
+				else {
+					Throw "Duplicate setup type defined with the same name: $($setupTypeXml.LocalName) from $file"
 				}
 			}
 		}
@@ -788,6 +794,9 @@ Class TestController
 					-ARMImageName $CurrentTestData.SetupConfig.ARMImageName -OsVHD $global:BaseOsVHD -BuildURL $env:BUILD_URL -TableName $dataTableName
 
 				Upload-TestResultToDatabase -SQLQuery $SQLQuery
+
+				# IngestKusto may throw exceptions or log error messages, in that case, manual configuration is needed from kusto cluster service for its table schemas mapping to exising SQL database
+				Invoke-IngestKustoFromTSQL -SQLString $SQLQuery
 			}
 			catch {
 				$line = $_.InvocationInfo.ScriptLineNumber

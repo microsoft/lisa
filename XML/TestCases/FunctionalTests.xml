@@ -871,7 +871,7 @@
     </SetupConfig>
   </test>
   <test>
-    <testName>CPU-OFFLINE-VMBUS-INTERRUPT-REASSINGMENT</testName>
+    <testName>CPU-OFFLINE-VMBUS-INTERRUPT-REASSIGNMENT</testName>
     <testScript>CPU-Offline.ps1</testScript>
     <files>.\Testscripts\Linux\utils.sh,.\Testscripts\Linux\CPUOfflineKernelBuild.sh,.\Testscripts\Linux\channel_change.sh</files>
     <TestParameters>

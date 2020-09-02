@@ -54,7 +54,7 @@ function build_test_nff_go () {
 	check_exit_status "GO env downloaded from ${nffGoEnvSrcLink} on ${1}" "exit"
 
 	# Build NFF-GO using prebuilt DPDK
-	exported_vars="RTE_SDK=${RTE_SDK} RTE_TARGET=${RTE_TARGET} GOROOT=/opt/go GOPATH=/tmp/go-fork PATH=\$GOROOT/bin:$GOPATH/bin:\$PATH"
+	exported_vars="RTE_SDK=${RTE_SDK} RTE_TARGET=${RTE_TARGET} GOROOT=/opt/go GOPATH=/tmp/go-fork PATH=\$GOROOT/bin:$GOPATH/bin:\$PATH MAKE_PAUSE=n NFF_GO_NO_BPF_SUPPORT='UNEMPTY'"
 	ssh "${1}" "cd ${NFF_GO_DIR} && eval '${exported_vars} go mod download'"
 	check_exit_status "cd ${NFF_GO_DIR} && eval '${exported_vars} go mod download' on ${1}" "exit"
 	ssh "${1}" "cd ${NFF_GO_DIR} && eval '${exported_vars} make -j'"

@@ -351,12 +351,7 @@ if [ $? -ne 0 ]; then
 	exit 0
 fi
 
-if [ -f /usr/libexec/platform-python ]; then
-	ln -s /usr/libexec/platform-python /sbin/python
-	wget https://raw.githubusercontent.com/torvalds/linux/master/tools/hv/lsvmbus
-	chmod +x lsvmbus
-	mv lsvmbus /usr/sbin
-fi
-
+# Check and install lsvmbus
+Check_lsvmbus
 SetTestStateCompleted
 exit 0

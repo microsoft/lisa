@@ -36,7 +36,7 @@ function run_dpdk_ring_latency () {
 	check_exit_status "DPDK_RING build on ${1}" "exit"
 	LogMsg "Built DPDK_RING"
 
-	ssh "${1}" "cd ${DPDK_RING_PING_PATH}/build/app && ./rping --no-huge --no-pci -n 2 -c 0xc0 -- -t ${DPDK_RING_LATENCY_RUN_TIME} > /tmp/ring-ping.log 2>&1"
+	ssh "${1}" "cd ${DPDK_RING_PING_PATH}/build && ./rping --no-huge --no-pci -n 2 -c 0xc0 -- -t ${DPDK_RING_LATENCY_RUN_TIME} > /tmp/ring-ping.log 2>&1"
 	check_exit_status "DPDK_RING run on ${1}" "exit"
 	LogMsg "Ran DPDK_RING"
 

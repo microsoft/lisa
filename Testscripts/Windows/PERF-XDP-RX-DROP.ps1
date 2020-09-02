@@ -62,6 +62,12 @@ function Main {
         Write-LogInfo "constants.sh created successfully..."
         Write-LogInfo (Get-Content -Path $constantsFile)
 
+        if ($currentTestData.SetupConfig.Networking -imatch "SRIOV") {
+            $DataPath = "SRIOV"
+        }
+        else {
+            $DataPath = "Synthetic"
+        }
         # Start XDP Installation
         $installXDPCommand = @"
 bash ./XDPDumpSetup.sh 2>&1 > ~/xdpConsoleLogs.txt
@@ -78,7 +84,7 @@ collect_VM_properties
         # IF Single core then enable single core only
         $testJob = Run-LinuxCmd -ip $receiverVMData.PublicIP -port $receiverVMData.SSHPort `
             -username $user -password $password -command "bash ./StartXDPSetup.sh" `
-            -RunInBackground -runAsSudo
+            -RunInBackground -runAsSudo -ignoreLinuxExitCode
         # Terminate process if ran more than 5 mins
         # TODO: Check max installation time for other distros when added
         $timer = 0
@@ -94,12 +100,12 @@ collect_VM_properties
         }
 
         $currentState = Run-LinuxCmd -ip $receiverVMData.PublicIP -port $receiverVMData.SSHPort `
-            -username $user -password $password -command "cat ~/state.txt" -runAsSudo
+            -username $user -password $password -command "cat state.txt" -runAsSudo
         if ($currentState -imatch "TestCompleted") {
             Write-LogInfo "Starting Pktgen validation"
             $testJobDrop = Run-LinuxCmd -ip $receiverVMData.PublicIP -port $receiverVMData.SSHPort `
                 -username $user -password $password -command "bash ./pktgenSetup.sh > ~/pktgenSetupLogs.log" `
-                -RunInBackground -runAsSudo
+                -RunInBackground -runAsSudo -ignoreLinuxExitCode
             $timer = 0
             while ((Get-Job -Id $testJobDrop).State -eq "Running") {
                 $currentStatus = Run-LinuxCmd -ip $receiverVMData.PublicIP -port $receiverVMData.SSHPort `
@@ -114,7 +120,7 @@ collect_VM_properties
             $currentStatus = Run-LinuxCmd -ip $receiverVMData.PublicIP -port $receiverVMData.SSHPort `
                     -username $user -password $password -command "tail -2 ~/pktgenSetupLogs.log | head -1" -runAsSudo
             $currentState = Run-LinuxCmd -ip $receiverVMData.PublicIP -port $receiverVMData.SSHPort `
-                -username $user -password $password -command "cat ~/state.txt" -runAsSudo
+                -username $user -password $password -command "cat state.txt" -runAsSudo
         }
 
         if ($currentState -imatch "TestCompleted") {
@@ -135,7 +141,35 @@ collect_VM_properties
         }
         Copy-RemoteFiles -downloadFrom $receiverVMData.PublicIP -port $receiverVMData.SSHPort `
             -username $user -password $password -download `
-            -downloadTo $LogDir -files "*.txt, *.log" -runAsSudo
+            -downloadTo $LogDir -files "*.txt, *.log,*.csv" -runAsSudo
+        if ( $testResult -eq "PASS" ) {
+            $TestCaseName = $GlobalConfig.Global.$TestPlatform.ResultsDatabase.testTag
+            if (!$TestCaseName) {
+                $TestCaseName = $CurrentTestData.testName
+            }
+            $reportCsv = Import-Csv -Path "$LogDir\report.csv"
+            $TestDate = $(Get-Date -Format yyyy-MM-dd)
+            $testType = "RX"
+            Write-LogInfo "Generating the performance data for database insertion."
+            $resultMap = @{}
+            $resultMap["TestCaseName"] = $TestCaseName
+            $resultMap["TestDate"] = $TestDate
+            $resultMap["HostType"] = $TestPlatform
+            $resultMap["HostBy"] = $CurrentTestData.SetupConfig.TestLocation
+            $resultMap["HostOS"] = $(Get-Content "$LogDir\VM_properties.csv" | Select-String "Host Version" | ForEach-Object { $_ -replace ",Host Version,", "" })
+            $resultMap["GuestOSType"] = "Linux"
+            $resultMap["GuestDistro"] = $(Get-Content "$LogDir\VM_properties.csv" | Select-String "OS type" | ForEach-Object { $_ -replace ",OS type,", "" })
+            $resultMap["GuestSize"] = $receiverVMData.InstanceSize
+            $resultMap["KernelVersion"] = $(Get-Content "$LogDir\VM_properties.csv" | Select-String "Kernel version" | ForEach-Object { $_ -replace ",Kernel version,", "" })
+            $resultMap["IPVersion"] = "IPv4"
+            $resultMap["XDPAction"] = $testType
+            $resultMap["DataPath"] = $DataPath
+            $resultMap["TestType"] = $reportCsv.test_type
+            $resultMap["SenderPPS"] = $reportCsv.sender_pps
+            $resultMap["NumberOfPacketsSent"] = $reportCsv.packets_sent
+            $resultMap["NumberOfPacketsReceived"] = $reportCsv.packets_received
+            $currentTestResult.TestResultData += $resultMap
+        }
     } catch {
         $ErrorMessage = $_.Exception.Message
         $ErrorLine = $_.InvocationInfo.ScriptLineNumber
@@ -147,7 +181,8 @@ collect_VM_properties
         $resultArr += $testResult
     }
     Write-LogInfo "Test result: $testResult"
-    return $testResult
+    $currentTestResult.TestResult = Get-FinalResultHeader -resultarr $resultArr
+    return $currentTestResult
 }
 
 Main

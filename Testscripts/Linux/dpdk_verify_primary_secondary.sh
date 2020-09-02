@@ -6,13 +6,12 @@
 
 HOMEDIR=$(pwd)
 export RTE_SDK="${HOMEDIR}/dpdk"
-export RTE_TARGET="x86_64-native-linuxapp-gcc"
+export RTE_TARGET="build_example"
 # shellcheck disable=SC2034
 UTIL_FILE="./utils.sh"
 # shellcheck disable=SC2034
 DPDK_UTIL_FILE="./dpdkUtils.sh"
-EXAMPLES_DIR_ROOT="examples/multi_process"
-EXAMPLES_DIR="${EXAMPLES_DIR_ROOT}/client_server_mp"
+EXAMPLES_DIR="multi_process/client_server_mp"
 
 # Source utils.sh
 . utils.sh || {
@@ -29,8 +28,10 @@ function build_test_dpdk_primary_secondary () {
 	trap "echo TestAborted > state.txt; exit 0" TERM
 	LogMsg "Configuring ${1} ${DISTRO_NAME} ${DISTRO_VERSION} for primary/secondary test..."
 
-	ssh "${1}" "cd ${RTE_SDK} && RTE_SDK=${RTE_SDK} RTE_TARGET=${RTE_TARGET} make -C ${EXAMPLES_DIR_ROOT}"
-	check_exit_status "cd ${RTE_SDK} && RTE_SDK=${RTE_SDK} RTE_TARGET=${RTE_TARGET} make -C ${EXAMPLES_DIR_ROOT}' on ${1}" "exit"
+	ssh ${1} "cd ${RTE_SDK} && meson -Dexamples=${EXAMPLES_DIR}/mp_client,${EXAMPLES_DIR}/mp_server ${RTE_TARGET}"
+	check_exit_status "cd ${RTE_SDK} && meson -Dexamples=${EXAMPLES_DIR}/mp_client,${EXAMPLES_DIR}/mp_server ${RTE_TARGET}" "exit"
+	ssh ${1} "cd ${RTE_SDK}/${RTE_TARGET} && ninja && ninja install"
+	check_exit_status "cd ${RTE_SDK}/${RTE_TARGET} && ninja && ninja install" "exit"
 
 	vf_pairs=$(get_synthetic_vf_pairs)
 	nics=$(echo "${vf_pairs}" | awk '{print $1}')
@@ -48,13 +49,13 @@ function build_test_dpdk_primary_secondary () {
 
 	LogMsg "Whitelisted PCI ids: ${whitelist_params}"
 	mp_server_log_file="./primary_secondary_server.log"
-	LogMsg "${RTE_SDK}/${EXAMPLES_DIR}/mp_server/${RTE_TARGET}/mp_server -l0-1 -n4 $whitelist_params -- -p 0x14 -n2  2>&1 > $mp_server_log_file &"
-	"${RTE_SDK}/${EXAMPLES_DIR}/mp_server/${RTE_TARGET}/mp_server" -l0-1 -n4 $whitelist_params -- -p 0x14 -n2  2>&1 > $mp_server_log_file &
+	LogMsg "${RTE_SDK}/${RTE_TARGET}/examples/dpdk-mp_server -l0-1 -n4 $whitelist_params -- -p 0x14 -n2  2>&1 > $mp_server_log_file &"
+	"${RTE_SDK}/${RTE_TARGET}/examples/dpdk-mp_server" -l0-1 -n4 $whitelist_params -- -p 0x14 -n2  2>&1 > $mp_server_log_file &
 	sleep 30
 	mp_client_log_file="./primary_secondary.log"
-	LogMsg "timeout --preserve-status 30 ${RTE_SDK}/${EXAMPLES_DIR}/mp_client/${RTE_TARGET}/mp_client -l3 \
+	LogMsg "timeout --preserve-status 30 ${RTE_SDK}/${RTE_TARGET}/examples/dpdk-mp_client -l3 \
 		-n4 --proc-type=auto $whitelist_params -- -n 0 2>&1 > $mp_client_log_file"
-	timeout --preserve-status 30 "${RTE_SDK}/${EXAMPLES_DIR}/mp_client/${RTE_TARGET}/mp_client" -l3 \
+	timeout --preserve-status 30 "${RTE_SDK}/${RTE_TARGET}/examples/dpdk-mp_client" -l3 \
 		-n4 --proc-type=auto $whitelist_params -- -n 0 2>&1 > $mp_client_log_file
 
 	test_output=$(cat $mp_client_log_file)

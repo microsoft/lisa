@@ -45,36 +45,12 @@ VCPU=$(nproc)
 LogMsg "Number of CPUs detected on VM: $VCPU"
 
 # check if lsvmbus exists, or the running kernel does not match installed version of linux-tools
+Check_lsvmbus
 lsvmbus_path=$(which lsvmbus)
-if [[ -z "$lsvmbus_path" ]] || ! $lsvmbus_path > /dev/null 2>&1; then
-    install_package wget
-    wget https://raw.githubusercontent.com/torvalds/linux/master/tools/hv/lsvmbus
-    chmod +x lsvmbus
-    if [[ "$DISTRO" =~ "coreos" ]]; then
-        export PATH=$PATH:/usr/share/oem/python/bin/
-        lsvmbus_path="./lsvmbus"
-    else
-        mv lsvmbus /usr/sbin
-        lsvmbus_path=$(which lsvmbus)
-    fi
-fi
-
-if [ -z "$lsvmbus_path" ]; then
-    LogErr "lsvmbus tool not found!"
-    SetTestStateFailed
-    exit 0
-fi
 
 GetGuestGeneration
 if [ "$os_GENERATION" -eq "1" ]; then
     tokens+=("Synthetic IDE Controller")
-fi
-
-# lsvmbus requires python
-which python || [ -f /usr/libexec/platform-python ] && ln -s /usr/libexec/platform-python /sbin/python || which python3 && ln -s $(which python3) /sbin/python
-if ! which python; then
-    update_repos
-    install_package python
 fi
 
 for token in "${tokens[@]}"; do
