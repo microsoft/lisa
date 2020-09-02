@@ -64,6 +64,55 @@ function Compare_Result {
     }
 }
 
+function Create_Database_Result {
+
+    $XDPLogDir = $args[0]
+    $TestCaseName = $args[1]
+    $XDPLogPath = "$LogDir\$XDPLogDir\lagscope-n*-output.txt"
+    $LogContents = Get-Content -Path $XDPLogPath
+    $TestDate = $(Get-Date -Format yyyy-MM-dd)
+    $matchLine = (Select-String -Path $XDPLogPath -Pattern "Average").Line
+    $minimumLat = $matchLine.Split(",").Split("=").Trim().Replace("us", "")[1]
+    $maximumLat = $matchLine.Split(",").Split("=").Trim().Replace("us", "")[3]
+    $averageLat = $matchLine.Split(",").Split("=").Trim().Replace("us", "")[5]
+    Write-LogInfo "Generating the performance data for database insertion with $XDPLogDir directory"
+    foreach ($line in $LogContents) {
+        if ($line -imatch "Interval\(usec\)") {
+            $histogramFlag = $true
+            continue;
+        }
+        if ($histogramFlag -eq $false) {
+            continue;
+        }
+        $interval = ($line.Trim() -replace '\s+', ' ').Split(" ")[0]
+        $frequency = ($line.Trim() -replace '\s+', ' ').Split(" ")[1]
+        if (($interval -match "^\d+$") -and ($frequency -match "^\d+$") -and ($interval -ne "0")) {
+            $resultMap = @{}
+            $resultMap["TestCaseName"] = $TestCaseName
+            $resultMap["TestDate"] = $TestDate
+            $resultMap["HostType"] = $TestPlatform
+            $resultMap["HostBy"] = $CurrentTestData.SetupConfig.TestLocation
+            $resultMap["HostOS"] = $(Get-Content "$LogDir\VM_properties.csv" | Select-String "Host Version" | ForEach-Object { $_ -replace ",Host Version,", "" })
+            $resultMap["GuestOSType"] = "Linux"
+            $resultMap["GuestDistro"] = $(Get-Content "$LogDir\VM_properties.csv" | Select-String "OS type" | ForEach-Object { $_ -replace ",OS type,", "" })
+            $resultMap["GuestSize"] = $receiverVMData.InstanceSize
+            $resultMap["KernelVersion"] = $(Get-Content "$LogDir\VM_properties.csv" | Select-String "Kernel version" | ForEach-Object { $_ -replace ",Kernel version,", "" })
+            $resultMap["IPVersion"] = "IPv4"
+            $resultMap["ProtocolType"] = "TCP"
+            $resultMap["DataPath"] = $XDPLogDir
+            $resultMap["MaxLatency_us"] = [Decimal]$maximumLat
+            $resultMap["AverageLatency_us"] = [Decimal]$averageLat
+            $resultMap["MinLatency_us"] = [Decimal]$minimumLat
+            #Percentile Values are not calculated yet. will be added in future
+            $resultMap["Latency95Percentile_us"] = 0
+            $resultMap["Latency99Percentile_us"] = 0
+            $resultMap["Interval_us"] = [int]$interval
+            $resultMap["Frequency"] = [int]$frequency
+            $currentTestResult.TestResultData += $resultMap
+        }
+    }
+}
+
 function Main {
     try {
         $noReceiver = $true
@@ -144,7 +193,7 @@ collect_VM_properties
         }
 
         $currentState = Run-LinuxCmd -ip $receiverVMData.PublicIP -port $receiverVMData.SSHPort `
-            -username $user -password $password -command "cat ~/state.txt" -runAsSudo
+            -username $user -password $password -command "cat state.txt" -runAsSudo
         if ($currentState -imatch "TestCompleted") {
             # Start PERF test without XDP
             $ResultDir = "$LogDir\WithoutXDP"
@@ -189,7 +238,15 @@ collect_VM_properties
         }
         Copy-RemoteFiles -downloadFrom $receiverVMData.PublicIP -port $receiverVMData.SSHPort `
             -username $user -password $password -download `
-            -downloadTo $LogDir -files "*.txt, *.log" -runAsSudo
+            -downloadTo $LogDir -files "*.txt, *.log, *.csv" -runAsSudo
+        if ($testResult -eq "PASS") {
+            $TestCaseName = $GlobalConfig.Global.$TestPlatform.ResultsDatabase.testTag
+            if (!$TestCaseName) {
+                $TestCaseName = $CurrentTestData.testName
+            }
+            Create_Database_Result "WithXDP" $TestCaseName
+            Create_Database_Result "WithoutXDP" $TestCaseName
+        }
     }
     catch {
         $ErrorMessage = $_.Exception.Message
@@ -203,7 +260,8 @@ collect_VM_properties
         $resultArr += $testResult
     }
     Write-LogInfo "Test result: $testResult"
-    return $testResult
+    $currentTestResult.TestResult = Get-FinalResultHeader -resultarr $resultArr
+    return $currentTestResult
 }
 
 Main
