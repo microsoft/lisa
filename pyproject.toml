@@ -33,6 +33,7 @@ pyls-isort = "^0.1.1"
 pyls-mypy = "^0.1.8"
 python-language-server = "^0.34.1"
 rope = "^0.17.0"
+coverage = "^5.2.1"
 
 [tool.black]
 line-length = 88
