@@ -311,7 +311,7 @@
     <Priority>1</Priority>
     <SetupConfig>
       <StorageAccountType>PERF_STORAGE_ACCOUNT_TYPE</StorageAccountType>
-      <SetupType>OneVM12Disk</SetupType>
+      <SetupType>OneVM24Disk</SetupType>
       <SetupScript>.\Testscripts\Windows\SETUP-Check-PowerPlan.ps1,.\Testscripts\Windows\AddHardDisk.ps1</SetupScript>
     </SetupConfig>
   </test>
@@ -336,7 +336,7 @@
     <Priority>1</Priority>
     <SetupConfig>
       <StorageAccountType>PERF_STORAGE_ACCOUNT_TYPE</StorageAccountType>
-      <SetupType>OneVM12Disk</SetupType>
+      <SetupType>OneVM24Disk</SetupType>
     </SetupConfig>
   </test>
   <test>
