@@ -13,7 +13,22 @@ This version (v3) is a brand new implementation in Python 3, supports running on
 
 ### Install Python 3
 
-Install [Python 3](https://www.python.org/) from Linux distribution’s package repositories, or [python.org](https://www.python.org/)
+Install [Python 3.8](https://www.python.org/) from Linux distribution’s package
+repositories, or [python.org](https://www.python.org/). We also need `gcc` and
+the `libpython` headers for the `usjon` package.
+
+On Ubuntu 18.04 and 20.04:
+
+```bash
+sudo apt install git python3.8 libpython3.8-dev python3-distutils python3-apt gcc
+```
+
+NOTE: If you are using WSL, installing Poetry on both Windows and Linux may
+cause both platforms’ versions of Poetry to be on your path, as Windows binaries
+are mapped into WSL’s `PATH`. This means that the Linux `poetry` binary _must_
+appear in your `PATH` before the Windows version, or this error will appear:
+
+> `/usr/bin/env: ‘python\r’: No such file or directory`
 
 ### Install Poetry
 
@@ -21,7 +36,7 @@ On Linux (or WSL):
 
 ```bash
 curl -sSL https://raw.githubusercontent.com/python-poetry/poetry/master/get-poetry.py | python3
-PATH=$PATH:$HOME/.poetry/bin
+source $HOME/.poetry/env
 ```
 
 On Windows (in PowerShell):
@@ -32,23 +47,30 @@ On Windows (in PowerShell):
 $env:PATH += ";$env:USERPROFILE\.poetry\bin"
 ```
 
-TEMP WORKAROUND: poetry cannot handle azure-identity package in current version (1.0.10), so install the preview version, until it's released.
+### Update Poetry
+
+This is a temporary workaround! The currently released version of Poetry
+(1.0.10) cannot handle the `azure-identity` package, so we need to install the
+preview version (1.1.0b2).
 
 ```bash
-poetry self update --preview 1.1.0a2
+poetry self update --preview 1.1.0b2
 ```
 
-Then use Poetry to install LISA v3's Python package dependencies:
+### Install Python packages
 
-```
-cd LISA
+Then use Poetry to install LISAv3's Python package dependencies:
+
+```bash
+git clone -b main https://github.com/LIS/LISAv2.git
+cd LISAv2
 poetry install
 ```
 
 To obtain the path of the Poetry virtual environment setup for LISA (where the
 isolated Python installation and packages are located), run:
 
-```
+```bash
 poetry env list --full-path
 ```
 
@@ -56,14 +78,14 @@ poetry env list --full-path
 
 Run LISAv3 using Poetry’s environment:
 
-```
-cd LISA
+```bash
 poetry run python lisa/main.py
 ```
 
 ### Editor Setup
 
-Install and enable [ShellCheck](https://github.com/koalaman/shellcheck) to find bash errors locally.
+Install and enable [ShellCheck](https://github.com/koalaman/shellcheck) to find
+bash errors locally.
 
 #### Visual Studio Code
 
