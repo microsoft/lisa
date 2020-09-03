@@ -51,9 +51,9 @@ UpdateTestState()
 RunFIO()
 {
 	UpdateTestState $ICA_TESTRUNNING
-	FILEIO="--size=${fileSize} --direct=1 --ioengine=libaio --filename=${mdVolume} --overwrite=1 "
+	FILEIO="--size=${fileSize} --ioengine=libaio --filename=${mdVolume} --overwrite=1 "
 	if [ -n "${NVME}" ]; then
-		FILEIO="--direct=1 --ioengine=libaio --filename=${nvme_namespaces} --gtod_reduce=1"
+		FILEIO="--ioengine=libaio --filename=${nvme_namespaces} --gtod_reduce=1"
 	fi
 	iteration=0
 	io_increment=128
@@ -152,9 +152,9 @@ RunFIO()
 RunStressFIO()
 {
 	UpdateTestState $ICA_TESTRUNNING
-	FILEIO="--size=${fileSize} --direct=1 --ioengine=libaio --filename=${mdVolume} --overwrite=1 "
+	FILEIO="--size=${fileSize} --ioengine=libaio --filename=${mdVolume} --overwrite=1 "
 	if [ -n "${NVME}" ]; then
-		FILEIO="--direct=1 --ioengine=libaio --filename=${nvme_namespaces} --gtod_reduce=1"
+		FILEIO="--ioengine=libaio --filename=${nvme_namespaces} --gtod_reduce=1"
 	fi
 	iteration=0
 	io_increment=4
