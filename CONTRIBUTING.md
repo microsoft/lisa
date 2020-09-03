@@ -76,23 +76,24 @@ on Windows, you will want to setup your own, perhaps using [Conda][].
 [pyenv]: https://github.com/pyenv/pyenv
 [Conda]: https://docs.conda.io/en/latest/
 
-* python: We pinned Python to version 3.8, as we will always use a Poetry
-  provided Python and not depend on a system’s packaged Python version. This
-  will avoid many headaches.
+* python: We pinned Python to version 3.8 so everyone uses the same version.
 
 * psutil: TODO @squirrelsc will document
 
 * pyyaml: TODO @squirrelsc will document
 
-* regex: TODO @squirrelsc will document
-
 * retry: TODO @squirrelsc will document
 
 * paramiko: TODO @squirrelsc will document
 
-* singleton-decorator: TODO @squirrelsc will document
-
 * spurplus: TODO @squirrelsc will document
+
+* dataclasses-json: TODO @squirrelsc will document (brings in `usjon` which
+  requires `gcc` and `libpython`)
+
+* portalocker: TODO @squirrelsc will document
+
+* azure-*: TODO @squirrelsc will document
 
 ### Developer Dependencies
 
