@@ -41,10 +41,17 @@ jobs:
           poetry install
 
       - name: Run LISAv3 hello-world
-        run: poetry run python lisa/main.py --debug
+        run: |
+          poetry run coverage erase
+          poetry run coverage run lisa/main.py --debug
 
       - name: Run unittest
-        run: poetry run python -m unittest discover lisa
+        run: |
+          poetry run coverage run --append -m unittest discover lisa
+
+      - name: calculate code coverage
+        run: |
+          poetry run coverage report --skip-empty --include=lisa*,examples*,testsuites* --omit=lisa/tests/* --precision 2
 
       - name: Run black/flake8/isort
         run: poetry run flake8
