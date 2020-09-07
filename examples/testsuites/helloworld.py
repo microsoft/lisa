@@ -1,5 +1,6 @@
 from lisa import TestCaseMetadata, TestSuite, TestSuiteMetadata
-from lisa.tools import Echo, Uname
+from lisa.operating_system import Linux
+from lisa.tools import Echo
 
 
 @TestSuiteMetadata(
@@ -24,12 +25,15 @@ class HelloWorld(TestSuite):
         self._log.info(f"node count: {len(self.environment.nodes)}")
         node = self.environment.default_node
 
-        uname = node.tools[Uname]
-        info = uname.get_linux_information()
-        self._log.info(
-            f"release: '{info.kernel_release}', version: '{info.kernel_version}', "
-            f"hardware: '{info.hardware_platform}', os: '{info.operating_system}'"
-        )
+        if node.os.is_linux:
+            assert isinstance(node.os, Linux)
+            info = node.os.info
+            self._log.info(
+                f"release: '{info.kernel_release}', version: '{info.kernel_version}', "
+                f"hardware: '{info.hardware_platform}', os: '{info.operating_system}'"
+            )
+        else:
+            self._log.info("windows operating system")
 
         # get process output directly.
         echo = node.tools[Echo]

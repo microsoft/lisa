@@ -7,9 +7,15 @@ from typing import TYPE_CHECKING, Iterable, List, Optional, TypeVar, Union, cast
 
 from lisa import schema
 from lisa.executable import Tools
-from lisa.tools import Echo, Uname
-from lisa.tools.uname import LinuxInfo
-from lisa.util import ContextMixin, LisaException, constants, fields_to_dict
+from lisa.operating_system import Linux, OperatingSystem, Windows
+from lisa.tools import Echo
+from lisa.util import (
+    ContextMixin,
+    InitializableMixin,
+    LisaException,
+    constants,
+    fields_to_dict,
+)
 from lisa.util.logger import get_logger
 from lisa.util.process import ExecutableResult, Process
 from lisa.util.shell import ConnectionInfo, LocalShell, Shell, SshShell
@@ -17,7 +23,7 @@ from lisa.util.shell import ConnectionInfo, LocalShell, Shell, SshShell
 T = TypeVar("T")
 
 
-class Node(ContextMixin):
+class Node(ContextMixin, InitializableMixin):
     def __init__(
         self,
         index: int,
@@ -25,6 +31,7 @@ class Node(ContextMixin):
         requirement: Optional[schema.NodeSpace] = None,
         is_default: bool = False,
     ) -> None:
+        super().__init__()
         self.is_default = is_default
         self.is_remote = is_remote
         self.requirement = requirement
@@ -33,14 +40,11 @@ class Node(ContextMixin):
 
         self.shell: Shell = LocalShell()
 
-        self.info: LinuxInfo = LinuxInfo()
         self.tools = Tools(self)
         self.working_path: pathlib.PurePath = pathlib.PurePath()
 
         self._connection_info: Optional[ConnectionInfo] = None
-        self._is_initialized: bool = False
-        self._is_linux: bool = True
-        self._log = get_logger("node", str(self.index))
+        self.log = get_logger("node", str(self.index))
 
     @staticmethod
     def create(
@@ -58,7 +62,7 @@ class Node(ContextMixin):
         node = Node(
             index, requirement=requirement, is_remote=is_remote, is_default=is_default
         )
-        node._log.debug(f"created, type: '{node_type}', isDefault: {is_default}")
+        node.log.debug(f"created, type: '{node_type}', isDefault: {is_default}")
         return node
 
     def set_connection_info(
@@ -108,7 +112,7 @@ class Node(ContextMixin):
         no_info_log: bool = False,
         cwd: Optional[pathlib.PurePath] = None,
     ) -> Process:
-        self._initialize()
+        self.initialize()
         return self._execute(
             cmd,
             shell=shell,
@@ -119,67 +123,48 @@ class Node(ContextMixin):
 
     @property
     def is_linux(self) -> bool:
-        self._initialize()
-        return self._is_linux
+        self.initialize()
+        return self.os.is_linux
 
     def close(self) -> None:
         self.shell.close()
 
     def _initialize(self) -> None:
-        if not self._is_initialized:
-            # prevent loop calls, set _isInitialized to True first
-            self._is_initialized = True
-            self._log.debug(f"initializing node {self.name}")
-            try:
-                self.shell.initialize()
-                uname = self.tools[Uname]
-                self.info = uname.get_linux_information(no_error_log=True)
-                if (not self.info.kernel_release) or (
-                    "Linux" not in self.info.operating_system
-                ):
-                    self._is_linux = False
-                if self._is_linux:
-                    self._log.info(
-                        f"initialized Linux node '{self.name}', "
-                        f"kernelRelease: {self.info.kernel_release}, "
-                        f"kernelVersion: {self.info.kernel_version}"
-                        f"hardwarePlatform: {self.info.hardware_platform}"
-                    )
-                else:
-                    self._log.info(f"initialized Windows node '{self.name}', ")
+        self.log.debug(f"initializing node {self.name}")
+        self.shell.initialize()
+        if self.shell.is_linux:
+            self.os: OperatingSystem = Linux(self)
+        else:
+            self.os = Windows(self)
 
-                # set working path
-                if self.is_remote:
-                    assert self.shell
-                    assert (
-                        self._connection_info
-                    ), "call setConnectionInfo before use remote node"
+        # set working path
+        if self.is_remote:
+            assert self.shell
+            assert (
+                self._connection_info
+            ), "call setConnectionInfo before use remote node"
 
-                    if self.is_linux:
-                        remote_root_path = pathlib.Path("$HOME")
-                    else:
-                        remote_root_path = pathlib.Path("%TEMP%")
-                    working_path = remote_root_path.joinpath(
-                        constants.PATH_REMOTE_ROOT, constants.RUN_LOGIC_PATH
-                    ).as_posix()
+            if self.is_linux:
+                remote_root_path = pathlib.Path("$HOME")
+            else:
+                remote_root_path = pathlib.Path("%TEMP%")
+            working_path = remote_root_path.joinpath(
+                constants.PATH_REMOTE_ROOT, constants.RUN_LOGIC_PATH
+            ).as_posix()
 
-                    # expand environment variables in path
-                    echo = self.tools[Echo]
-                    result = echo.run(working_path, shell=True)
+            # expand environment variables in path
+            echo = self.tools[Echo]
+            result = echo.run(working_path, shell=True)
 
-                    # PurePath is more reasonable here, but spurplus doesn't support it.
-                    if self.is_linux:
-                        self.working_path = pathlib.PurePosixPath(result.stdout)
-                    else:
-                        self.working_path = pathlib.PureWindowsPath(result.stdout)
-                else:
-                    self.working_path = constants.RUN_LOCAL_PATH
-                self.shell.mkdir(self.working_path, parents=True, exist_ok=True)
-                self._log.debug(f"working path is: '{self.working_path}'")
-            except Exception as identifier:
-                # initialize failed, and make sure it reverses to not initialized state
-                self._is_initialized = False
-                raise identifier
+            # PurePath is more reasonable here, but spurplus doesn't support it.
+            if self.is_linux:
+                self.working_path = pathlib.PurePosixPath(result.stdout)
+            else:
+                self.working_path = pathlib.PureWindowsPath(result.stdout)
+        else:
+            self.working_path = constants.RUN_LOCAL_PATH
+        self.shell.mkdir(self.working_path, parents=True, exist_ok=True)
+        self.log.debug(f"working path is: '{self.working_path}'")
 
     def _execute(
         self,
@@ -191,7 +176,7 @@ class Node(ContextMixin):
     ) -> Process:
         cmd_id = str(random.randint(0, 10000))
         process = Process(
-            cmd_id, self.shell, parent_logger=self._log, is_linux=self.is_linux
+            cmd_id, self.shell, parent_logger=self.log, is_linux=self.is_linux
         )
         process.start(
             cmd,
@@ -229,6 +214,7 @@ class Nodes(NodesDict):
                 else:
                     default = self._list[0]
             self._default = default
+        self._default.initialize()
         return self._default
 
     def list(self) -> Iterable[Node]:
@@ -251,6 +237,7 @@ class Nodes(NodesDict):
         if not found:
             raise KeyError(f"cannot find node {key}")
 
+        found.initialize()
         return found
 
     def __setitem__(self, key: Union[int, str], v: Node) -> None:

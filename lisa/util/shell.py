@@ -10,7 +10,7 @@ import paramiko  # type: ignore
 import spur  # type: ignore
 import spurplus  # type: ignore
 
-from lisa.util import LisaException
+from lisa.util import InitializableMixin, LisaException
 
 
 class ConnectionInfo:
@@ -89,17 +89,17 @@ class WindowsShellType(object):
         return " ".join(commands)
 
 
-class SshShell:
+class SshShell(InitializableMixin):
     def __init__(self, connection_info: ConnectionInfo) -> None:
+        super().__init__()
         self.is_remote = True
-        self._is_initialized = False
         self._connection_info = connection_info
         self._inner_shell: Optional[spur.SshShell] = None
 
         paramiko_logger = getLogger("paramiko")
         paramiko_logger.setLevel(logging.WARN)
 
-    def initialize(self) -> None:
+    def _initialize(self) -> None:
         # spur try a linux command and return error on Windows.
         # So try with paramiko firstly.
         paramiko_client = paramiko.SSHClient()
@@ -251,13 +251,13 @@ class SshShell:
         return path
 
 
-class LocalShell:
+class LocalShell(InitializableMixin):
     def __init__(self) -> None:
         super().__init__()
         self.is_remote = False
         self._inner_shell = spur.LocalShell()
 
-    def initialize(self) -> None:
+    def _initialize(self) -> None:
         if "win32" == sys.platform:
             self.is_linux = False
         else:

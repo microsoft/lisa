@@ -11,4 +11,3 @@ platform:
 testcase:
   - criteria:
       area: demo
-      category: simple

@@ -5,10 +5,11 @@ from abc import ABCMeta
 from dataclasses import dataclass
 from enum import Enum
 from functools import wraps
-from typing import TYPE_CHECKING, Any, Callable, Dict, List, Optional, Set, Type
+from typing import TYPE_CHECKING, Any, Callable, Dict, List, Optional, Type
 
 from lisa import schema, search_space
 from lisa.action import Action, ActionStatus
+from lisa.operating_system import OperatingSystem
 from lisa.util import LisaException
 from lisa.util.logger import get_logger
 from lisa.util.perf_timer import create_timer
@@ -35,6 +36,7 @@ class TestResult:
 class TestCaseRequirement(search_space.RequirementMixin):
     environment: Optional[schema.Environment] = None
     platform_type: Optional[search_space.SetSpace[schema.Platform]] = None
+    operating_system: Optional[search_space.SetSpace[OperatingSystem]] = None
 
     def check(self, capability: Any) -> search_space.ResultReason:
         assert isinstance(
@@ -62,7 +64,11 @@ class TestCaseRequirement(search_space.RequirementMixin):
         platform_type = search_space.generate_min_capaiblity(
             self.platform_type, capability.platform_type
         )
-        result = TestCaseSchema(environment=environment, platform_type=platform_type)
+        result = TestCaseSchema(
+            environment=environment,
+            platform_type=platform_type,
+            operating_system=self.operating_system,
+        )
 
         return result
 
@@ -71,6 +77,7 @@ def simple_requirement(
     min_count: int = 1,
     node: Optional[schema.NodeSpace] = None,
     platform_type: Optional[search_space.SetSpace[schema.Platform]] = None,
+    os: Optional[search_space.SetSpace[OperatingSystem]] = None,
 ) -> TestCaseRequirement:
     """
     define a simple requirement to support most test cases.
@@ -91,7 +98,9 @@ def simple_requirement(
             )
         ]
     return TestCaseRequirement(
-        environment=schema.Environment(requirements=nodes), platform_type=platform_type,
+        environment=schema.Environment(requirements=nodes),
+        platform_type=platform_type,
+        operating_system=os,
     )
 
 
@@ -204,10 +213,6 @@ class TestSuite(Action, unittest.TestCase, metaclass=ABCMeta):
         self._should_stop = False
         self._log = get_logger("suite", metadata.name)
 
-    @property
-    def skiprun(self) -> bool:
-        return False
-
     def before_suite(self) -> None:
         pass
 
@@ -225,14 +230,15 @@ class TestSuite(Action, unittest.TestCase, metaclass=ABCMeta):
         return "TestSuite"
 
     async def start(self) -> None:
-        if self.skiprun:
-            self._log.info("skipped on this run")
-            for case_result in self.case_results:
-                case_result.status = TestStatus.SKIPPED
-            return
+        suite_error_message = ""
+        is_suite_continue = True
 
         timer = create_timer()
-        self.before_suite()
+        try:
+            self.before_suite()
+        except Exception as identifier:
+            suite_error_message = f"before_suite: {identifier}"
+            is_suite_continue = False
         self._log.debug(f"before_suite end with {timer}")
 
         #  replace to case's logger temporarily
@@ -243,17 +249,23 @@ class TestSuite(Action, unittest.TestCase, metaclass=ABCMeta):
             self._log = get_logger("case", f"{case_result.case.full_name}")
 
             self._log.info("started")
-            is_continue: bool = True
+            is_continue: bool = is_suite_continue
             total_timer = create_timer()
 
-            timer = create_timer()
-            try:
-                self.before_case()
-            except Exception as identifier:
-                self._log.error("before_case failed", exc_info=identifier)
-                is_continue = False
-            case_result.elapsed = timer.elapsed()
-            self._log.debug(f"before_case end with {timer}")
+            if is_continue:
+                timer = create_timer()
+                try:
+                    self.before_case()
+                except Exception as identifier:
+                    self._log.error("before_case: ", exc_info=identifier)
+                    case_result.status = TestStatus.SKIPPED
+                    case_result.message = f"before_case: {identifier}"
+                    is_continue = False
+                case_result.elapsed = timer.elapsed()
+                self._log.debug(f"before_case end with {timer}")
+            else:
+                case_result.status = TestStatus.SKIPPED
+                case_result.message = suite_error_message
 
             if is_continue:
                 timer = create_timer()
@@ -263,17 +275,15 @@ class TestSuite(Action, unittest.TestCase, metaclass=ABCMeta):
                 except Exception as identifier:
                     self._log.error("failed", exc_info=identifier)
                     case_result.status = TestStatus.FAILED
-                    case_result.message = str(identifier)
+                    case_result.message = f"failed: {identifier}"
                 case_result.elapsed = timer.elapsed()
                 self._log.debug(f"method end with {timer}")
-            else:
-                case_result.status = TestStatus.SKIPPED
-                case_result.message = "skipped as before_case failed"
 
             timer = create_timer()
             try:
                 self.after_case()
             except Exception as identifier:
+                # after case doesn't impact test case result.
                 self._log.error("after_case failed", exc_info=identifier)
             self._log.debug(f"after_case end with {timer}")
 
@@ -281,6 +291,7 @@ class TestSuite(Action, unittest.TestCase, metaclass=ABCMeta):
             self._log.info(
                 f"result: {case_result.status.name}, " f"elapsed: {total_timer}"
             )
+
             if self._should_stop:
                 self._log.info("received stop message, stop run")
                 self.set_status(ActionStatus.STOPPED)
@@ -288,7 +299,11 @@ class TestSuite(Action, unittest.TestCase, metaclass=ABCMeta):
 
         self._log = suite_log
         timer = create_timer()
-        self.after_suite()
+        try:
+            self.after_suite()
+        except Exception as identifier:
+            # after_suite doesn't impact test case result, and can continue
+            self._log.error("after_suite failed", exc_info=identifier)
         self._log.debug(f"after_suite end with {timer}")
 
     async def stop(self) -> None:
@@ -363,11 +378,13 @@ class TestCaseSchema:
     """
 
     environment: schema.Environment
-    platform_type: Optional[Set[schema.Platform]]
+    platform_type: Optional[search_space.SetSpace[schema.Platform]]
+    operating_system: Optional[search_space.SetSpace[OperatingSystem]]
 
     def __eq__(self, other: object) -> bool:
         assert isinstance(other, type(self)), f"actual: {type(other)}"
         return (
             self.environment == other.environment
             and self.platform_type == other.platform_type
+            and self.operating_system == other.operating_system
         )

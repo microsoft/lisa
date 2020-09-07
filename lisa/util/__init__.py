@@ -1,3 +1,4 @@
+from abc import abstractmethod
 from pathlib import Path
 from typing import Any, Dict, Iterable, List, Type, TypeVar
 
@@ -17,6 +18,24 @@ class ContextMixin:
                 self._context, context_type
             ), f"actual: {type(self._context)}"
         return self._context
+
+
+class InitializableMixin:
+    def __init__(self) -> None:
+        self._is_initialized: bool = False
+
+    @abstractmethod
+    def _initialize(self) -> None:
+        raise NotImplementedError()
+
+    def initialize(self) -> None:
+        if not self._is_initialized:
+            try:
+                self._is_initialized = True
+                self._initialize()
+            except Exception as identifier:
+                self._is_initialized = False
+                raise identifier
 
 
 def get_public_key_data(private_key_file_path: str) -> str:
