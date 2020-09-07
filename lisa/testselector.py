@@ -17,7 +17,6 @@ def select_testcases(
     """
     based on filters to select test cases. If filters are None, return all cases.
     """
-    results: List[TestCaseData] = []
     log = _get_logger()
     if init_cases:
         full_list: Dict[str, TestCaseMetadata] = dict()
@@ -36,12 +35,13 @@ def select_testcases(
                 )
             else:
                 log.debug(f"skip disabled rule: {filter}")
-        log.info(f"selected cases count: {len(list(selected.values()))}")
-        results = list(selected.values())
+        results: List[TestCaseData] = list(selected.values())
     else:
+        results = []
         for metadata in full_list.values():
             results.append(TestCaseData(metadata))
 
+    log.info(f"selected cases count: {len(results)}")
     return results
 
 

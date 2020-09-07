@@ -1,7 +1,7 @@
 from typing import Any, List
 from unittest import TestCase
 
-from lisa.parameter_parser.runbook import validate
+from lisa.parameter_parser.runbook import validate_data
 from lisa.testselector import select_testcases
 from lisa.testsuite import (
     TestCaseData,
@@ -154,7 +154,7 @@ class SelectorTestCase(TestCase):
     def _select_and_check(
         self, case_runbook: List[Any], expected_descriptions: List[str]
     ) -> List[TestCaseData]:
-        runbook = validate({constants.TESTCASE: case_runbook})
+        runbook = validate_data({constants.TESTCASE: case_runbook})
         case_metadatas = self._generate_metadata()
         selected = select_testcases(runbook.testcase, case_metadatas)
         self.assertListEqual(
