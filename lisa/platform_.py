@@ -6,6 +6,7 @@ from functools import partial
 from typing import TYPE_CHECKING, Any, List, Optional, Type, cast
 
 from lisa import schema
+from lisa.environment import Environments
 from lisa.util import InitializableMixin, LisaException, constants
 from lisa.util.logger import get_logger
 
@@ -15,15 +16,45 @@ if TYPE_CHECKING:
 _get_init_logger = partial(get_logger, "init", "platform")
 
 
+class WaitMoreResourceError(Exception):
+    pass
+
+
 class Platform(ABC, InitializableMixin):
     def __init__(self) -> None:
         super().__init__()
-        self._log = get_logger("platform", self.platform_type())
+        self.log = get_logger("platform", self.platform_type())
 
     @classmethod
     @abstractmethod
     def platform_type(cls) -> str:
         raise NotImplementedError()
+
+    @abstractmethod
+    def _prepare_environment(self, environment: Environment) -> None:
+        """
+        prepare platform specified context and priority
+        """
+        raise NotImplementedError()
+
+    @abstractmethod
+    def _deploy_environment(self, environment: Environment) -> None:
+        raise NotImplementedError()
+
+    @abstractmethod
+    def _delete_environment(self, environment: Environment) -> None:
+        raise NotImplementedError()
+
+    def prepare_environments(self, environments: Environments) -> None:
+        """
+        return prioritized requirements
+        """
+        if not self._is_initialized:
+            self.log.debug("initializing...")
+            self.initialize()
+            self.log.debug("initialized")
+        for environment in environments.values():
+            self._prepare_environment(environment)
 
     @property
     def platform_schema(self) -> Optional[Type[Any]]:
@@ -43,38 +74,24 @@ class Platform(ABC, InitializableMixin):
         """
         pass
 
-    @abstractmethod
-    def _request_environment(self, environment: Environment) -> Environment:
-        raise NotImplementedError()
-
-    @abstractmethod
-    def _delete_environment(self, environment: Environment) -> None:
-        raise NotImplementedError()
-
     def config(self, key: str, value: Any) -> None:
         if key == constants.CONFIG_RUNBOOK:
             # store platform runbook.
             self._runbook = cast(schema.Platform, value)
         self._config(key, value)
 
-    def request_environment(self, environment: Environment) -> Environment:
-        if not self._is_initialized:
-            self._log.debug("initializing...")
-            self.initialize()
-            self._log.debug("initialized")
-
-        self._log.info(f"requesting environment {environment.name}")
-        environment = self._request_environment(environment)
-        environment.is_ready = True
-        self._log.info(f"requested environment {environment.name}")
-        return environment
+    def deploy_environment(self, environment: Environment) -> None:
+        self.log.info(f"requesting environment {environment.name}")
+        self._deploy_environment(environment)
+        environment.initialize()
+        self.log.info(f"requested environment {environment.name}")
 
     def delete_environment(self, environment: Environment) -> None:
-        self._log.debug(f"environment {environment.name} deleting")
+        self.log.debug(f"environment {environment.name} deleting")
         environment.close()
         self._delete_environment(environment)
         environment.is_ready = False
-        self._log.debug(f"environment {environment.name} deleted")
+        self.log.debug(f"environment {environment.name} deleted")
 
 
 if TYPE_CHECKING:

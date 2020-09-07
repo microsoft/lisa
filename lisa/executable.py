@@ -5,7 +5,7 @@ from abc import ABC, abstractmethod
 from hashlib import sha256
 from typing import TYPE_CHECKING, Dict, List, Optional, Type, TypeVar, Union, cast
 
-from lisa.util import LisaException, constants
+from lisa.util import InitializableMixin, LisaException, constants
 from lisa.util.logger import get_logger
 from lisa.util.perf_timer import create_timer
 from lisa.util.process import ExecutableResult, Process
@@ -17,7 +17,7 @@ if TYPE_CHECKING:
 T = TypeVar("T")
 
 
-class Tool(ABC):
+class Tool(ABC, InitializableMixin):
     """
     The base class, which wraps an executable, package, or scripts on a node.
     A tool can be installed, and execute on a node. When a tool is needed, call
@@ -34,7 +34,7 @@ class Tool(ABC):
     abstract method, includes,
     can_install: specify if a tool can be installed or not. If a tool is not builtin, it
                 must implement this method.
-    _install_internal: If a tool is not builtin, it must implement this method. This
+    _install: If a tool is not builtin, it must implement this method. This
                      method needs to install a tool, and make sure it can be detected
                      by isInstalledInternal.
 
@@ -54,9 +54,10 @@ class Tool(ABC):
         It's not recommended to replace this __init__ method. Anything need to be
         initialized, should be in initialize() method.
         """
+        super().__init__()
         self.node: Node = node
         # triple states, None means not checked.
-        self._is_installed: Optional[bool] = None
+        self._exists: Optional[bool] = None
 
     @property
     @abstractmethod
@@ -76,7 +77,27 @@ class Tool(ABC):
         """
         raise NotImplementedError()
 
-    def _install_internal(self) -> bool:
+    @classmethod
+    def _windows_tool(cls) -> Optional[Type[Tool]]:
+        """
+        return a windows version tool class, if it's needed
+        """
+        return None
+
+    @classmethod
+    def create(cls, node: Node) -> Tool:
+        """
+        if there is a windows version tool, return the windows instance.
+        override this method if richer creation factory is needed.
+        """
+        tool_cls = cls
+        if not node.is_linux:
+            windows_tool = cls._windows_tool()
+            if windows_tool:
+                tool_cls = windows_tool
+        return tool_cls(node)
+
+    def _install(self) -> bool:
         """
         Execute installation process like build, install from packages. If other tools
         are dependented, specify them in dependencies. Other tools can be used here,
@@ -84,7 +105,7 @@ class Tool(ABC):
         """
         raise NotImplementedError()
 
-    def initialize(self) -> None:
+    def _initialize(self) -> None:
         """
         Declare and initialize variables here, or some time costing initialization.
         This method is called before other methods, when initialing on a node.
@@ -107,8 +128,7 @@ class Tool(ABC):
         """
         return self.__class__.__name__.lower()
 
-    @property
-    def _is_installed_internal(self) -> bool:
+    def _check_exists(self) -> bool:
         """
         Default implementation to check if a tool exists. This method is called by
         isInstalled, and cached result. Builtin tools can override it can return True
@@ -121,11 +141,11 @@ class Tool(ABC):
         result = self.node.execute(
             f"{where_command} {self.command}", shell=True, no_info_log=True
         )
-        self._is_installed = result.exit_code == 0
-        return self._is_installed
+        self._exists = result.exit_code == 0
+        return self._exists
 
     @property
-    def is_installed(self) -> bool:
+    def exists(self) -> bool:
         """
         Return if a tool installed. In most cases, overriding inInstalledInternal is
         enough. But if want to disable cached result and check tool every time,
@@ -133,9 +153,9 @@ class Tool(ABC):
         necessary.
         """
         # the check may need extra cost, so cache it's result.
-        if self._is_installed is None:
-            self._is_installed = self._is_installed_internal
-        return self._is_installed
+        if self._exists is None:
+            self._exists = self._check_exists()
+        return self._exists
 
     def install(self) -> bool:
         """
@@ -145,14 +165,14 @@ class Tool(ABC):
         # check dependencies
         for dependency in self.dependencies:
             self.node.tools[dependency]
-        return self._install_internal()
+        return self._install()
 
     def run_async(
         self,
         parameters: str = "",
         shell: bool = False,
         no_error_log: bool = False,
-        no_info_log: bool = False,
+        no_info_log: bool = True,
         cwd: Optional[pathlib.PurePath] = None,
     ) -> Process:
         """
@@ -172,7 +192,7 @@ class Tool(ABC):
         parameters: str = "",
         shell: bool = False,
         no_error_log: bool = False,
-        no_info_log: bool = False,
+        no_info_log: bool = True,
         cwd: Optional[pathlib.PurePath] = None,
     ) -> ExecutableResult:
         """
@@ -238,7 +258,7 @@ class CustomScript(Tool):
         parameters: str = "",
         shell: bool = False,
         no_error_log: bool = False,
-        no_info_log: bool = False,
+        no_info_log: bool = True,
         cwd: Optional[pathlib.PurePath] = None,
     ) -> Process:
         if cwd is not None:
@@ -261,7 +281,7 @@ class CustomScript(Tool):
         parameters: str = "",
         shell: bool = False,
         no_error_log: bool = False,
-        no_info_log: bool = False,
+        no_info_log: bool = True,
         cwd: Optional[pathlib.PurePath] = None,
     ) -> ExecutableResult:
         process = self.run_async(
@@ -286,9 +306,8 @@ class CustomScript(Tool):
     def can_install(self) -> bool:
         return True
 
-    @property
-    def _is_installed_internal(self) -> bool:
-        # the underlying 'isInstalledInternal' doesn't work for script
+    def _check_exists(self) -> bool:
+        # the underlying '_check_exists' doesn't work for script
         # but once it's cached in node, it won't be copied again.
         return False
 
@@ -411,11 +430,11 @@ class Tools:
                 )
             else:
                 cast_tool_type = cast(Type[Tool], tool_type)
-                tool = cast_tool_type(self._node)
+                tool = cast_tool_type.create(self._node)
 
             tool.initialize()
 
-            if not tool.is_installed:
+            if not tool.exists:
                 tool_log.debug("not installed")
                 if tool.can_install:
                     tool_log.debug("installing")

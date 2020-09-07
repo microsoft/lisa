@@ -21,8 +21,8 @@ testcase:
       area: network
       category: network
       priority: 0
-      # tag is a simple way to include test cases within same topic.
-      tag: vf
+      # tags is a simple way to include test cases within same topic.
+      tags: vf
     # force to select. If any reason test cases are dropped, fail the run.
     selectAction: forceInclude
     name: network

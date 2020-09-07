@@ -1,6 +1,6 @@
 from lisa import TestCaseMetadata, TestSuite, TestSuiteMetadata
 from lisa.operating_system import Linux
-from lisa.tools import Echo
+from lisa.tools import Echo, Uname
 
 
 @TestSuiteMetadata(
@@ -22,25 +22,25 @@ class HelloWorld(TestSuite):
         priority=1,
     )
     def hello(self) -> None:
-        self._log.info(f"node count: {len(self.environment.nodes)}")
+        self.log.info(f"node count: {len(self.environment.nodes)}")
         node = self.environment.default_node
 
         if node.os.is_linux:
             assert isinstance(node.os, Linux)
-            info = node.os.info
-            self._log.info(
+            info = node.tools[Uname].get_linux_information()
+            self.log.info(
                 f"release: '{info.kernel_release}', version: '{info.kernel_version}', "
                 f"hardware: '{info.hardware_platform}', os: '{info.operating_system}'"
             )
         else:
-            self._log.info("windows operating system")
+            self.log.info("windows operating system")
 
         # get process output directly.
         echo = node.tools[Echo]
         result = echo.run("hello world!")
-        self._log.info(f"stdout of node: '{result.stdout}'")
-        self._log.info(f"stderr of node: '{result.stderr}'")
-        self._log.info(f"exitCode of node: '{result.exit_code}'")
+        self.log.info(f"stdout of node: '{result.stdout}'")
+        self.log.info(f"stderr of node: '{result.stderr}'")
+        self.log.info(f"exitCode of node: '{result.exit_code}'")
 
     @TestCaseMetadata(
         description="""
@@ -52,17 +52,17 @@ class HelloWorld(TestSuite):
         node = self.environment.default_node
         # use it once like this way before use short cut
         node.tools[Echo]
-        self._log.info(f"stdout of node: '{node.tools.echo('bye!')}'")
+        self.log.info(f"stdout of node: '{node.tools.echo('bye!')}'")
 
     def before_suite(self) -> None:
-        self._log.info("setup my test suite")
-        self._log.info(f"see my code at {__file__}")
+        self.log.info("setup my test suite")
+        self.log.info(f"see my code at {__file__}")
 
     def after_suite(self) -> None:
-        self._log.info("clean up my test suite")
+        self.log.info("clean up my test suite")
 
     def before_case(self) -> None:
-        self._log.info("before test case")
+        self.log.info("before test case")
 
     def after_case(self) -> None:
-        self._log.info("after test case")
+        self.log.info("after test case")

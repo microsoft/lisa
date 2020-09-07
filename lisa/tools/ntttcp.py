@@ -18,19 +18,16 @@ class Ntttcp(Tool):
 
     @property
     def can_install(self) -> bool:
-        can_install = False
-        if self.node.is_linux:
-            can_install = True
-        return can_install
+        return True
 
-    def _install_internal(self) -> bool:
+    def _install(self) -> bool:
         tool_path = self.get_tool_path()
-        self.node.shell.mkdir(tool_path)
+        self.node.shell.mkdir(tool_path, exist_ok=True)
         git = self.node.tools[Git]
         git.clone(self.repo, tool_path)
         code_path = tool_path.joinpath("ntttcp-for-linux/src")
         self.node.execute("make && sudo make install", shell=True, cwd=code_path)
-        return self._is_installed_internal
+        return self._check_exists()
 
     def help(self) -> ExecutableResult:
         return self.run("-h")

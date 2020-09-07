@@ -11,8 +11,8 @@ from lisa.search_space import (
     SetSpace,
     check,
     check_countspace,
-    generate_min_capaiblity,
-    generate_min_capaiblity_countspace,
+    generate_min_capability,
+    generate_min_capability_countspace,
 )
 from lisa.util import LisaException
 from lisa.util.logger import get_logger
@@ -33,10 +33,10 @@ class MockItem(RequirementMixin):
         assert isinstance(capability, MockItem), f"actual: {type(capability)}"
         return check_countspace(self.number, capability.number)
 
-    def _generate_min_capaiblity(self, capability: Any) -> MockSchema:
+    def _generate_min_capability(self, capability: Any) -> MockSchema:
         result = MockSchema()
         assert isinstance(capability, MockItem), f"actual: {type(capability)}"
-        result.number = generate_min_capaiblity_countspace(
+        result.number = generate_min_capability_countspace(
             self.number, capability.number
         )
 
@@ -160,12 +160,12 @@ class SearchSpaceTestCase(unittest.TestCase):
             ],
         )
 
-    def test_generate_min_capaiblity_not_supported(self) -> None:
+    def test_generate_min_capability_not_supported(self) -> None:
         requirement = IntRange(min=5)
         capability = IntRange(max=4)
 
         with self.assertRaises(expected_exception=LisaException) as cm:
-            requirement.generate_min_capaiblity(capability)
+            requirement.generate_min_capability(capability)
         self.assertIn("doesn't support", str(cm.exception))
 
     def test_int_range_validation(self) -> None:
@@ -203,7 +203,7 @@ class SearchSpaceTestCase(unittest.TestCase):
                     )
 
                     if expected_meet[r_index][c_index]:
-                        actual_min = requirement.generate_min_capaiblity(capability)
+                        actual_min = requirement.generate_min_capability(capability)
                         if expected_min[r_index][c_index] != actual_min:
                             self._log.info(extra_msg)
                             self._log.info(
@@ -225,7 +225,7 @@ class SearchSpaceTestCase(unittest.TestCase):
                         extra_msg=extra_msg,
                     )
                     if expected_meet[r_index][c_index]:
-                        actual_min = generate_min_capaiblity_countspace(
+                        actual_min = generate_min_capability_countspace(
                             requirement, capability  # type:ignore
                         )
                         if expected_min[r_index][c_index] != actual_min:
@@ -241,7 +241,7 @@ class SearchSpaceTestCase(unittest.TestCase):
                     )
 
                     if expected_meet[r_index][c_index]:
-                        actual_min = generate_min_capaiblity(
+                        actual_min = generate_min_capability(
                             requirement, capability  # type:ignore
                         )
                         self.assertEqual(

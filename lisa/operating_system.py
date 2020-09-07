@@ -1,17 +1,14 @@
 from typing import TYPE_CHECKING, Any
 
-from lisa.util.logger import get_logger
-
 if TYPE_CHECKING:
     from lisa.node import Node
 
 
 class OperatingSystem:
-    def __init__(self, node: Any) -> None:
+    def __init__(self, node: Any, is_linux: bool) -> None:
         super().__init__()
         self._node: Node = node
-        self._log = get_logger("os", parent=node.log)
-        self._is_linux = False
+        self._is_linux = is_linux
 
     @property
     def is_windows(self) -> bool:

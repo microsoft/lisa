@@ -1,21 +1,11 @@
 from dataclasses import dataclass, field
-from dataclasses import fields as dataclass_fields
-from typing import (
-    Any,
-    Callable,
-    ClassVar,
-    Dict,
-    List,
-    Optional,
-    Type,
-    TypeVar,
-    Union,
-    cast,
-)
+from typing import Any, Callable, Dict, List, Optional, Type, TypeVar, Union, cast
 
 from dataclasses_json import (  # type: ignore
+    CatchAll,
     DataClassJsonMixin,
     LetterCase,
+    Undefined,
     config,
     dataclass_json,
 )
@@ -114,7 +104,11 @@ class ListableValidator(validate.Validator):
         return value
 
 
+@dataclass_json(letter_case=LetterCase.CAMEL, undefined=Undefined.INCLUDE)
+@dataclass
 class ExtendableSchemaMixin:
+    extend_schemas: CatchAll = None
+
     def get_extended_runbook(
         self, runbook_type: Type[T], field_name: str = ""
     ) -> Optional[T]:
@@ -122,26 +116,27 @@ class ExtendableSchemaMixin:
         runbook_type: type of runbook
         field_name: the field name which stores the data, if it's "", get it from type
         """
-        assert issubclass(
-            runbook_type, DataClassJsonMixin
-        ), "runbook_type must annotate from DataClassJsonMixin"
-        if not field_name:
-            assert hasattr(self, constants.TYPE), (
-                f"cannot find type attr on '{runbook_type.__name__}'."
-                f"either set field_name or make sure type attr exists."
-            )
-            field_name = getattr(self, constants.TYPE)
-        assert hasattr(self, field_name), f"cannot find attr '{field_name}'"
+        if not hasattr(self, "__extended_runbook"):
+            assert issubclass(
+                runbook_type, DataClassJsonMixin
+            ), "runbook_type must annotate from DataClassJsonMixin"
+            if not field_name:
+                assert hasattr(self, constants.TYPE), (
+                    f"cannot find type attr on '{runbook_type.__name__}'."
+                    f"either set field_name or make sure type attr exists."
+                )
+                field_name = getattr(self, constants.TYPE)
 
-        customized_runbook = getattr(self, field_name)
-        if customized_runbook is not None and not isinstance(
-            customized_runbook, runbook_type
-        ):
-            raise LisaException(
-                f"extended type mismatch, expected type: {runbook_type} "
-                f"data type: {type(customized_runbook)}"
-            )
-        return customized_runbook
+            if self.extend_schemas and field_name in self.extend_schemas:
+                self.__extended_runbook: Optional[
+                    T
+                ] = runbook_type.schema().load(  # type:ignore
+                    self.extend_schemas[field_name]
+                )
+            else:
+                self.__extended_runbook = None
+
+        return self.__extended_runbook
 
 
 @dataclass_json(letter_case=LetterCase.CAMEL)
@@ -284,77 +279,6 @@ class Notifier:
     )
 
 
-@dataclass_json(letter_case=LetterCase.CAMEL)
-@dataclass
-class LocalNode:
-    type: str = field(
-        default=constants.ENVIRONMENTS_NODES_LOCAL,
-        metadata=metadata(
-            required=True,
-            validate=validate.OneOf([constants.ENVIRONMENTS_NODES_LOCAL]),
-        ),
-    )
-    name: str = ""
-    is_default: bool = field(default=False)
-
-
-@dataclass_json(letter_case=LetterCase.CAMEL)
-@dataclass
-class RemoteNode:
-    type: str = field(
-        default=constants.ENVIRONMENTS_NODES_REMOTE,
-        metadata=metadata(
-            required=True,
-            validate=validate.OneOf([constants.ENVIRONMENTS_NODES_REMOTE]),
-        ),
-    )
-    name: str = ""
-    is_default: bool = field(default=False)
-    address: str = ""
-    port: int = field(
-        default=1, metadata=metadata(validate=validate.Range(min=1, max=65535))
-    )
-    public_address: str = ""
-    public_port: int = field(
-        default=1,
-        metadata=metadata(
-            data_key="publicPort", validate=validate.Range(min=1, max=65535)
-        ),
-    )
-    username: str = field(default="", metadata=metadata(required=True))
-    password: str = ""
-    private_key_file: str = ""
-
-    def __post_init__(self, *args: Any, **kwargs: Any) -> None:
-        add_secret(self.address)
-        add_secret(self.public_address)
-        add_secret(str(self.public_port))
-        add_secret(self.username, PATTERN_HEADTAIL)
-        add_secret(self.password)
-        add_secret(self.private_key_file)
-
-        if not self.address and not self.public_address:
-            raise LisaException(
-                "at least one of address and publicAddress need to be set"
-            )
-        elif not self.address:
-            self.address = self.public_address
-        elif not self.public_address:
-            self.public_address = self.address
-
-        if not self.port and not self.public_port:
-            raise LisaException("at least one of port and publicPort need to be set")
-        elif not self.port:
-            self.port = self.public_port
-        elif not self.public_port:
-            self.public_port = self.port
-
-        if not self.password and not self.private_key_file:
-            raise LisaException(
-                "at least one of password and privateKeyFile need to be set"
-            )
-
-
 FEATURE_NAME_RDMA = "RDMA"
 
 
@@ -370,7 +294,7 @@ class Features:
     RDMA = Feature(name=FEATURE_NAME_RDMA)
 
 
-@dataclass_json(letter_case=LetterCase.CAMEL)
+@dataclass_json(letter_case=LetterCase.CAMEL, undefined=Undefined.INCLUDE)
 @dataclass
 class NodeSpace(search_space.RequirementMixin, ExtendableSchemaMixin):
     type: str = field(
@@ -400,7 +324,7 @@ class NodeSpace(search_space.RequirementMixin, ExtendableSchemaMixin):
         metadata=metadata(data_key="nicCount", validate=validate.Range(min=1)),
     )
     gpu_count: search_space.CountSpace = field(
-        default=None,
+        default=search_space.IntRange(min=0),
         metadata=metadata(data_key="gpuCount", validate=validate.Range(min=0)),
     )
     # all features on requirement should be included.
@@ -440,6 +364,8 @@ class NodeSpace(search_space.RequirementMixin, ExtendableSchemaMixin):
 
     def __repr__(self) -> str:
         return (
+            f"type:{self.type}, name:{self.name}, "
+            f"is_default:{self.is_default}, artifact:{self.artifact}, "
             f"count:{self.node_count}, core:{self.core_count}, "
             f"mem:{self.memory_mb}, nic:{self.nic_count}, gpu:{self.gpu_count}, "
             f"f:{self.features}, ef:{self.excluded_features}"
@@ -539,7 +465,7 @@ class NodeSpace(search_space.RequirementMixin, ExtendableSchemaMixin):
 
         return node
 
-    def _generate_min_capaiblity(self, capability: Any) -> Any:
+    def _generate_min_capability(self, capability: Any) -> Any:
         min_value = NodeSpace()
         assert isinstance(capability, NodeSpace), f"actual: {type(capability)}"
 
@@ -551,31 +477,31 @@ class NodeSpace(search_space.RequirementMixin, ExtendableSchemaMixin):
                 # capability can have more node
                 min_value.node_count = capability.node_count
             else:
-                min_value.node_count = search_space.generate_min_capaiblity_countspace(
+                min_value.node_count = search_space.generate_min_capability_countspace(
                     self.node_count, capability.node_count
                 )
         else:
             raise LisaException("node_count cannot be zero")
         if self.core_count or capability.core_count:
-            min_value.core_count = search_space.generate_min_capaiblity_countspace(
+            min_value.core_count = search_space.generate_min_capability_countspace(
                 self.core_count, capability.core_count
             )
         else:
             raise LisaException("core_count cannot be zero")
         if self.memory_mb or capability.memory_mb:
-            min_value.memory_mb = search_space.generate_min_capaiblity_countspace(
+            min_value.memory_mb = search_space.generate_min_capability_countspace(
                 self.memory_mb, capability.memory_mb
             )
         else:
             raise LisaException("memory_mb cannot be zero")
         if self.nic_count or capability.nic_count:
-            min_value.nic_count = search_space.generate_min_capaiblity_countspace(
+            min_value.nic_count = search_space.generate_min_capability_countspace(
                 self.nic_count, capability.nic_count
             )
         else:
             raise LisaException("nic_count cannot be zero")
         if self.gpu_count or capability.gpu_count:
-            min_value.gpu_count = search_space.generate_min_capaiblity_countspace(
+            min_value.gpu_count = search_space.generate_min_capability_countspace(
                 self.gpu_count, capability.gpu_count
             )
         else:
@@ -593,7 +519,144 @@ class NodeSpace(search_space.RequirementMixin, ExtendableSchemaMixin):
 
 @dataclass_json(letter_case=LetterCase.CAMEL)
 @dataclass
-class Environment(search_space.RequirementMixin):
+class LocalNode:
+    type: str = field(
+        default=constants.ENVIRONMENTS_NODES_LOCAL,
+        metadata=metadata(
+            required=True,
+            validate=validate.OneOf([constants.ENVIRONMENTS_NODES_LOCAL]),
+        ),
+    )
+    name: str = ""
+    is_default: bool = field(default=False)
+    capability: NodeSpace = field(default=NodeSpace(node_count=1))
+
+
+@dataclass_json(letter_case=LetterCase.CAMEL)
+@dataclass
+class RemoteNode:
+    type: str = field(
+        default=constants.ENVIRONMENTS_NODES_REMOTE,
+        metadata=metadata(
+            required=True,
+            validate=validate.OneOf([constants.ENVIRONMENTS_NODES_REMOTE]),
+        ),
+    )
+    name: str = ""
+    is_default: bool = field(default=False)
+    address: str = ""
+    port: int = field(
+        default=22, metadata=metadata(validate=validate.Range(min=1, max=65535))
+    )
+    public_address: str = ""
+    public_port: int = field(
+        default=22,
+        metadata=metadata(
+            data_key="publicPort", validate=validate.Range(min=1, max=65535)
+        ),
+    )
+    username: str = field(default="", metadata=metadata(required=True))
+    password: str = ""
+    private_key_file: str = ""
+    capability: NodeSpace = field(default=NodeSpace(node_count=1))
+
+    def __post_init__(self, *args: Any, **kwargs: Any) -> None:
+        add_secret(self.address)
+        add_secret(self.public_address)
+        add_secret(self.username, PATTERN_HEADTAIL)
+        add_secret(self.password)
+        add_secret(self.private_key_file)
+
+        if not self.address and not self.public_address:
+            raise LisaException(
+                "at least one of address and publicAddress need to be set"
+            )
+        elif not self.address:
+            self.address = self.public_address
+        elif not self.public_address:
+            self.public_address = self.address
+
+        if not self.port and not self.public_port:
+            raise LisaException("at least one of port and publicPort need to be set")
+        elif not self.port:
+            self.port = self.public_port
+        elif not self.public_port:
+            self.public_port = self.port
+
+        if not self.password and not self.private_key_file:
+            raise LisaException(
+                "at least one of password and privateKeyFile need to be set"
+            )
+
+
+@dataclass_json(letter_case=LetterCase.CAMEL)
+@dataclass
+class EnvironmentSpace(search_space.RequirementMixin):
+    topology: str = field(
+        default=constants.ENVIRONMENTS_SUBNET,
+        metadata=metadata(validate=validate.OneOf([constants.ENVIRONMENTS_SUBNET])),
+    )
+    nodes: List[NodeSpace] = field(default_factory=list)
+
+    def __eq__(self, other: Any) -> bool:
+        assert isinstance(other, EnvironmentSpace), f"actual: {type(other)}"
+
+        # ignore name on comparison, so env can be merged.
+        result = self.topology == other.topology and search_space.equal_list(
+            self.nodes, other.nodes
+        )
+        return result
+
+    def check(self, capability: Any) -> search_space.ResultReason:
+        assert isinstance(capability, EnvironmentSpace), f"actual: {type(capability)}"
+        result = search_space.ResultReason()
+        if not capability.nodes:
+            result.add_reason("nodes shouldn't be None or empty")
+        else:
+            if self.nodes:
+                for index, current_req in enumerate(self.nodes):
+                    if len(capability.nodes) == 1:
+                        current_cap = capability.nodes[0]
+                    else:
+                        current_cap = capability.nodes[index]
+                    result.merge(
+                        search_space.check(current_req, current_cap), str(index),
+                    )
+                    if not result.result:
+                        break
+
+        return result
+
+    @classmethod
+    def from_value(cls, value: Any) -> Any:
+        assert isinstance(value, EnvironmentSpace), f"actual: {type(value)}"
+        env = EnvironmentSpace()
+        env.nodes = value.nodes
+        if value.nodes:
+            env.nodes = list()
+            for value_capability in value.nodes:
+                env.nodes.append(NodeSpace.from_value(value_capability))
+
+        return env
+
+    def _generate_min_capability(self, capability: Any) -> Any:
+        env = EnvironmentSpace(topology=self.topology)
+        assert isinstance(capability, EnvironmentSpace), f"actual: {type(capability)}"
+        assert capability.nodes
+        for index, current_req in enumerate(self.nodes):
+            if len(capability.nodes) == 1:
+                current_cap = capability.nodes[0]
+            else:
+                current_cap = capability.nodes[index]
+
+            env.nodes.append(current_req.generate_min_capability(current_cap))
+
+        return env
+
+
+@dataclass_json(letter_case=LetterCase.CAMEL)
+@dataclass
+class Environment:
     name: str = field(default="")
     topology: str = field(
         default=constants.ENVIRONMENTS_SUBNET,
@@ -602,12 +665,14 @@ class Environment(search_space.RequirementMixin):
     nodes_raw: Optional[List[Any]] = field(
         default=None, metadata=metadata(data_key=constants.NODES),
     )
-    requirements: Optional[List[NodeSpace]] = None
+    nodes_requirement: Optional[List[NodeSpace]] = None
+    capability: EnvironmentSpace = field(default_factory=EnvironmentSpace)
 
     def __post_init__(self, *args: Any, **kwargs: Any) -> None:
         self.nodes: Optional[List[Union[LocalNode, RemoteNode]]] = None
         if self.nodes_raw is not None:
             self.nodes = []
+            self.capability.topology = self.topology
             for node_raw in self.nodes_raw:
                 node_type = node_raw[constants.TYPE]
                 if node_type == constants.ENVIRONMENTS_NODES_LOCAL:
@@ -619,78 +684,22 @@ class Environment(search_space.RequirementMixin):
                     if self.nodes is None:
                         self.nodes = []
                     self.nodes.append(node)
+                    self.capability.nodes.append(node.capability)
                 elif node_type == constants.ENVIRONMENTS_NODES_REMOTE:
                     node = RemoteNode.schema().load(node_raw)  # type:ignore
                     if self.nodes is None:
                         self.nodes = []
                     self.nodes.append(node)
+                    self.capability.nodes.append(node.capability)
                 elif node_type == constants.ENVIRONMENTS_NODES_REQUIREMENT:
                     node_requirement = NodeSpace.schema().load(node_raw)  # type:ignore
-                    if self.requirements is None:
-                        self.requirements = []
-                    self.requirements.append(node_requirement)
+                    if self.nodes_requirement is None:
+                        self.nodes_requirement = []
+                    self.nodes_requirement.append(node_requirement)
+                    self.capability.nodes.append(node_requirement)
                 else:
                     raise LisaException(f"unknown node type '{node_type}': {node_raw}")
-
-    def __eq__(self, other: object) -> bool:
-        assert isinstance(other, type(self)), f"actual: {type(other)}"
-        result = self.name == other.name and self.topology == other.topology
-        result = result and search_space.equal_list(self.nodes, other.nodes)
-        result = result and search_space.equal_list(
-            self.requirements, other.requirements
-        )
-        return result
-
-    def check(self, capability: Any) -> search_space.ResultReason:
-        assert isinstance(capability, Environment), f"actual: {type(capability)}"
-        result = search_space.ResultReason()
-        if not capability.requirements:
-            result.add_reason("capbility shouldn't be None or empty")
-        else:
-            if self.requirements:
-                for index, current_req in enumerate(self.requirements):
-                    if len(capability.requirements) == 1:
-                        current_cap = capability.requirements[0]
-                    else:
-                        current_cap = capability.requirements[index]
-                    result.merge(
-                        search_space.check(current_req, current_cap), str(index),
-                    )
-                    if not result.result:
-                        break
-
-        return result
-
-    @classmethod
-    def from_value(cls, value: Any) -> Any:
-        assert isinstance(value, Environment), f"actual: {type(value)}"
-        env = Environment()
-        env.nodes = value.nodes
-        if value.requirements:
-            env.requirements = list()
-            for value_requirement in value.requirements:
-                env.requirements.append(NodeSpace.from_value(value_requirement))
-
-        return env
-
-    def _generate_min_capaiblity(self, capability: Any) -> Any:
-        env = Environment()
-        assert isinstance(capability, Environment), f"actual: {type(capability)}"
-        env.nodes = self.nodes
-        if self.requirements:
-            env.requirements = []
-            assert capability.requirements
-            for index, current_req in enumerate(self.requirements):
-                if len(capability.requirements) == 1:
-                    current_cap = capability.requirements[0]
-                else:
-                    current_cap = capability.requirements[index]
-
-                env.requirements.append(
-                    current_req.generate_min_capaiblity(current_cap)
-                )
-
-        return env
+            self.nodes_raw = None
 
 
 @dataclass_json(letter_case=LetterCase.CAMEL)
@@ -700,21 +709,17 @@ class EnvironmentRoot:
         default=1,
         metadata=metadata(data_key="maxConcurrency", validate=validate.Range(min=1)),
     )
+    allow_create: bool = True
     warn_as_error: bool = field(default=False)
     environments: List[Environment] = field(default_factory=list)
 
 
-@dataclass_json(letter_case=LetterCase.CAMEL)
+@dataclass_json(letter_case=LetterCase.CAMEL, undefined=Undefined.INCLUDE)
 @dataclass
 class Platform(ExtendableSchemaMixin):
     type: str = field(
-        default=constants.PLATFORM_READY,
-        metadata=metadata(
-            required=True, validate=validate.OneOf([constants.PLATFORM_READY]),
-        ),
+        default=constants.PLATFORM_READY, metadata=metadata(required=True),
     )
-
-    supported_types: ClassVar[List[str]] = [constants.PLATFORM_READY]
 
     admin_username: str = "lisatest"
     admin_password: str = ""
@@ -727,20 +732,6 @@ class Platform(ExtendableSchemaMixin):
         add_secret(self.admin_username, PATTERN_HEADTAIL)
         add_secret(self.admin_password)
         add_secret(self.admin_private_key_file)
-
-        platform_fields = dataclass_fields(self)
-        # get type field to analyze if mismatch type info is set.
-        for platform_field in platform_fields:
-            value = getattr(self, platform_field.name)
-            if (
-                value is not None
-                and platform_field.name in self.supported_types
-                and platform_field.name != self.type
-            ):
-                raise LisaException(
-                    f"platform type '{self.type}' and extension "
-                    f"'{platform_field.name}' mismatch"
-                )
 
         if self.type != constants.PLATFORM_READY:
             if self.admin_password and self.admin_private_key_file:
@@ -772,8 +763,8 @@ class Criteria:
             validate=ListableValidator(int, validate.Range(min=0, max=3))
         ),
     )
-    # tag is a simple way to include test cases within same topic.
-    tag: Optional[Union[str, List[str]]] = field(
+    # tags is a simple way to include test cases within same topic.
+    tags: Optional[Union[str, List[str]]] = field(
         default=None, metadata=metadata(validate=ListableValidator(str))
     )
 
@@ -842,7 +833,7 @@ class Runbook:
 
     def __post_init__(self, *args: Any, **kwargs: Any) -> None:
         if not self.platform:
-            self.platform = [Platform(constants.PLATFORM_READY)]
+            self.platform = [Platform(type=constants.PLATFORM_READY)]
 
         if not self.testcase:
-            self.testcase = [TestCase("test", Criteria(area="demo"))]
+            self.testcase = [TestCase(name="test", criteria=Criteria(area="demo"))]

@@ -3,7 +3,7 @@ from functools import partial
 from typing import Callable, Dict, List, Mapping, Optional, Pattern, Set, Union, cast
 
 from lisa import schema
-from lisa.testsuite import TestCaseData, TestCaseMetadata, get_cases_metadata
+from lisa.testsuite import TestCaseMetadata, TestCaseRuntimeData, get_cases_metadata
 from lisa.util import LisaException, constants, set_filtered_fields
 from lisa.util.logger import get_logger
 
@@ -13,7 +13,7 @@ _get_logger = partial(get_logger, "init", "selector")
 def select_testcases(
     filters: Optional[List[schema.TestCase]] = None,
     init_cases: Optional[List[TestCaseMetadata]] = None,
-) -> List[TestCaseData]:
+) -> List[TestCaseRuntimeData]:
     """
     based on filters to select test cases. If filters are None, return all cases.
     """
@@ -25,7 +25,7 @@ def select_testcases(
     else:
         full_list = get_cases_metadata()
     if filters:
-        selected: Dict[str, TestCaseData] = dict()
+        selected: Dict[str, TestCaseRuntimeData] = dict()
         force_included: Set[str] = set()
         force_excluded: Set[str] = set()
         for filter in filters:
@@ -35,18 +35,27 @@ def select_testcases(
                 )
             else:
                 log.debug(f"skip disabled rule: {filter}")
-        results: List[TestCaseData] = list(selected.values())
+        results: List[TestCaseRuntimeData] = []
+        for case in selected.values():
+            times = case.times
+            for index in range(times):
+                if index == 0:
+                    results.append(case)
+                else:
+                    results.append(case.clone())
     else:
         results = []
         for metadata in full_list.values():
-            results.append(TestCaseData(metadata))
+            results.append(TestCaseRuntimeData(metadata))
 
     log.info(f"selected cases count: {len(results)}")
     return results
 
 
 def _match_string(
-    case: Union[TestCaseData, TestCaseMetadata], pattern: Pattern[str], attr_name: str,
+    case: Union[TestCaseRuntimeData, TestCaseMetadata],
+    pattern: Pattern[str],
+    attr_name: str,
 ) -> bool:
     content = cast(str, getattr(case, attr_name))
     match = pattern.fullmatch(content)
@@ -54,7 +63,7 @@ def _match_string(
 
 
 def _match_priority(
-    case: Union[TestCaseData, TestCaseMetadata], pattern: Union[int, List[int]]
+    case: Union[TestCaseRuntimeData, TestCaseMetadata], pattern: Union[int, List[int]]
 ) -> bool:
     priority = case.priority
     is_matched: bool = False
@@ -65,8 +74,9 @@ def _match_priority(
     return is_matched
 
 
-def _match_tag(
-    case: Union[TestCaseData, TestCaseMetadata], criteria_tags: Union[str, List[str]]
+def _match_tags(
+    case: Union[TestCaseRuntimeData, TestCaseMetadata],
+    criteria_tags: Union[str, List[str]],
 ) -> bool:
     case_tags = case.tags
     is_matched: bool = False
@@ -78,23 +88,23 @@ def _match_tag(
 
 
 def _match_cases(
-    candidates: Mapping[str, Union[TestCaseData, TestCaseMetadata]],
-    patterns: List[Callable[[Union[TestCaseData, TestCaseMetadata]], bool]],
-) -> Dict[str, TestCaseData]:
-    changed_cases: Dict[str, TestCaseData] = dict()
+    candidates: Mapping[str, Union[TestCaseRuntimeData, TestCaseMetadata]],
+    patterns: List[Callable[[Union[TestCaseRuntimeData, TestCaseMetadata]], bool]],
+) -> Dict[str, TestCaseRuntimeData]:
+    changed_cases: Dict[str, TestCaseRuntimeData] = dict()
 
     for candidate_name in candidates:
         candidate = candidates[candidate_name]
         is_matched = all(pattern(candidate) for pattern in patterns)
         if is_matched:
             if isinstance(candidate, TestCaseMetadata):
-                candidate = TestCaseData(candidate)
+                candidate = TestCaseRuntimeData(candidate)
             changed_cases[candidate_name] = candidate
     return changed_cases
 
 
 def _apply_settings(
-    applied_case_data: TestCaseData, case_runbook: schema.TestCase, action: str
+    applied_case_data: TestCaseRuntimeData, case_runbook: schema.TestCase, action: str
 ) -> None:
     fields = [
         constants.TESTCASE_TIMES,
@@ -131,15 +141,15 @@ def _force_check(
 
 def _apply_filter(
     case_runbook: schema.TestCase,
-    current_selected: Dict[str, TestCaseData],
+    current_selected: Dict[str, TestCaseRuntimeData],
     force_included: Set[str],
     force_excluded: Set[str],
     full_list: Dict[str, TestCaseMetadata],
-) -> Dict[str, TestCaseData]:
+) -> Dict[str, TestCaseRuntimeData]:
 
     log = _get_logger()
     # initialize criterias
-    patterns: List[Callable[[Union[TestCaseData, TestCaseMetadata]], bool]] = []
+    patterns: List[Callable[[Union[TestCaseRuntimeData, TestCaseMetadata]], bool]] = []
     criterias_runbook = case_runbook.criteria
     assert criterias_runbook, "test case criteria cannot be None"
     criterias_runbook_dict = criterias_runbook.__dict__
@@ -161,16 +171,16 @@ def _apply_filter(
                 Union[int, List[int]], criterias_runbook_dict[runbook_key]
             )
             patterns.append(partial(_match_priority, pattern=priority_pattern))
-        elif runbook_key == constants.TESTCASE_CRITERIA_TAG:
+        elif runbook_key == constants.TESTCASE_CRITERIA_TAGS:
             tag_pattern = cast(
                 Union[str, List[str]], criterias_runbook_dict[runbook_key]
             )
-            patterns.append(partial(_match_tag, criteria_tags=tag_pattern))
+            patterns.append(partial(_match_tags, criteria_tags=tag_pattern))
         else:
             raise LisaException(f"unknown criteria key: {runbook_key}")
 
     # match by select Action:
-    changed_cases: Dict[str, TestCaseData] = dict()
+    changed_cases: Dict[str, TestCaseRuntimeData] = dict()
     is_force = case_runbook.select_action in [
         constants.TESTCASE_SELECT_ACTION_FORCE_INCLUDE,
         constants.TESTCASE_SELECT_ACTION_FORCE_EXCLUDE,

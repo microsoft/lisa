@@ -4,19 +4,19 @@ from unittest import TestCase
 from lisa.parameter_parser.runbook import validate_data
 from lisa.testselector import select_testcases
 from lisa.testsuite import (
-    TestCaseData,
     TestCaseMetadata,
+    TestCaseRuntimeData,
     TestSuiteMetadata,
-    _cases,
-    _suites,
+    get_cases_metadata,
+    get_suites_metadata,
 )
 from lisa.util import LisaException, constants
 
 
 class SelectorTestCase(TestCase):
     def setUp(self) -> None:
-        _cases.clear()
-        _suites.clear()
+        get_cases_metadata().clear()
+        get_suites_metadata().clear()
 
     def test_no_case_selected(self) -> None:
         runbook = [{constants.TESTCASE_CRITERIA: {"area": "demo"}}]
@@ -24,8 +24,8 @@ class SelectorTestCase(TestCase):
 
     def test_skip_not_enabled(self) -> None:
         runbook = [
-            {constants.TESTCASE_CRITERIA: {"tag": "t2"}, constants.ENABLE: False},
-            {constants.TESTCASE_CRITERIA: {"tag": "t3"}},
+            {constants.TESTCASE_CRITERIA: {"tags": "t2"}, constants.ENABLE: False},
+            {constants.TESTCASE_CRITERIA: {"tags": "t3"}},
         ]
         self._select_and_check(runbook, ["ut3"])
 
@@ -34,15 +34,15 @@ class SelectorTestCase(TestCase):
         self._select_and_check(runbook, ["ut1"])
 
     def test_select_by_tag(self) -> None:
-        runbook = [{constants.TESTCASE_CRITERIA: {"tag": "t1"}}]
+        runbook = [{constants.TESTCASE_CRITERIA: {"tags": "t1"}}]
         self._select_and_check(runbook, ["ut1", "ut2"])
 
     def test_select_by_one_of_tag(self) -> None:
-        runbook = [{constants.TESTCASE_CRITERIA: {"tag": ["t1", "t3"]}}]
+        runbook = [{constants.TESTCASE_CRITERIA: {"tags": ["t1", "t3"]}}]
         self._select_and_check(runbook, ["ut1", "ut2", "ut3"])
 
     def test_select_by_two_rules(self) -> None:
-        runbook = [{constants.TESTCASE_CRITERIA: {"tag": ["t1", "t3"], "area": "a1"}}]
+        runbook = [{constants.TESTCASE_CRITERIA: {"tags": ["t1", "t3"], "area": "a1"}}]
         self._select_and_check(runbook, ["ut1", "ut2"])
 
     def test_select_by_two_criteria(self) -> None:
@@ -54,7 +54,7 @@ class SelectorTestCase(TestCase):
 
     def test_select_then_drop(self) -> None:
         runbook = [
-            {constants.TESTCASE_CRITERIA: {"tag": "t1"}},
+            {constants.TESTCASE_CRITERIA: {"tags": "t1"}},
             {
                 constants.TESTCASE_CRITERIA: {"name": "mock_ut2"},
                 constants.TESTCASE_SELECT_ACTION: "exclude",
@@ -64,19 +64,19 @@ class SelectorTestCase(TestCase):
 
     def test_select_drop_select(self) -> None:
         runbook = [
-            {constants.TESTCASE_CRITERIA: {"tag": "t1"}},
+            {constants.TESTCASE_CRITERIA: {"tags": "t1"}},
             {
                 constants.TESTCASE_CRITERIA: {"name": "mock_ut2"},
                 constants.TESTCASE_SELECT_ACTION: "exclude",
             },
-            {constants.TESTCASE_CRITERIA: {"tag": "t1"}},
+            {constants.TESTCASE_CRITERIA: {"tags": "t1"}},
         ]
         self._select_and_check(runbook, ["ut1", "ut2"])
 
     def test_select_force_include(self) -> None:
         runbook = [
             {
-                constants.TESTCASE_CRITERIA: {"tag": "t1"},
+                constants.TESTCASE_CRITERIA: {"tags": "t1"},
                 constants.TESTCASE_SELECT_ACTION: "forceInclude",
             },
             {
@@ -89,7 +89,7 @@ class SelectorTestCase(TestCase):
     def test_select_force_conflict(self) -> None:
         runbook = [
             {
-                constants.TESTCASE_CRITERIA: {"tag": "t1"},
+                constants.TESTCASE_CRITERIA: {"tags": "t1"},
                 constants.TESTCASE_SELECT_ACTION: "forceInclude",
             },
             {
@@ -105,7 +105,7 @@ class SelectorTestCase(TestCase):
     def test_select_force_conflict_exclude(self) -> None:
         runbook = [
             {
-                constants.TESTCASE_CRITERIA: {"tag": "t1"},
+                constants.TESTCASE_CRITERIA: {"tags": "t1"},
                 constants.TESTCASE_SELECT_ACTION: "include",
             },
             {
@@ -113,7 +113,7 @@ class SelectorTestCase(TestCase):
                 constants.TESTCASE_SELECT_ACTION: "forceExclude",
             },
             {
-                constants.TESTCASE_CRITERIA: {"tag": "t1"},
+                constants.TESTCASE_CRITERIA: {"tags": "t1"},
                 constants.TESTCASE_SELECT_ACTION: "forceInclude",
             },
         ]
@@ -124,36 +124,50 @@ class SelectorTestCase(TestCase):
 
     def test_select_with_setting(self) -> None:
         runbook = [
-            {constants.TESTCASE_CRITERIA: {"tag": "t1"}, "times": 2},
+            {constants.TESTCASE_CRITERIA: {"tags": "t1"}, "retry": 2},
         ]
         selected = self._select_and_check(runbook, ["ut1", "ut2"])
 
-        self.assertListEqual([2, 2], [case.times for case in selected])
+        self.assertListEqual([2, 2], [case.retry for case in selected])
 
-    def test_select_with_setting_none(self) -> None:
+    def test_select_with_times(self) -> None:
         runbook = [
-            {constants.TESTCASE_CRITERIA: {"tag": "t1"}},
+            {constants.TESTCASE_CRITERIA: {"tags": "t1"}},
             {
                 constants.TESTCASE_CRITERIA: {"name": "mock_ut2"},
                 "times": 2,
                 constants.TESTCASE_SELECT_ACTION: "none",
             },
         ]
+        selected = self._select_and_check(runbook, ["ut1", "ut2", "ut2"])
+
+        self.assertListEqual([1, 2, 2], [case.times for case in selected])
+        self.assertListEqual([0, 0, 0], [case.retry for case in selected])
+
+    def test_select_with_setting_none(self) -> None:
+        runbook = [
+            {constants.TESTCASE_CRITERIA: {"tags": "t1"}},
+            {
+                constants.TESTCASE_CRITERIA: {"name": "mock_ut2"},
+                "retry": 2,
+                constants.TESTCASE_SELECT_ACTION: "none",
+            },
+        ]
         selected = self._select_and_check(runbook, ["ut1", "ut2"])
-        self.assertListEqual([1, 2], [case.times for case in selected])
+        self.assertListEqual([0, 2], [case.retry for case in selected])
 
     def test_select_with_diff_setting(self) -> None:
         runbook = [
-            {constants.TESTCASE_CRITERIA: {"tag": "t1"}, "times": 2},
-            {constants.TESTCASE_CRITERIA: {"name": "mock_ut2"}, "times": 3},
+            {constants.TESTCASE_CRITERIA: {"tags": "t1"}, "retry": 2},
+            {constants.TESTCASE_CRITERIA: {"name": "mock_ut2"}, "retry": 3},
         ]
         selected = self._select_and_check(runbook, ["ut1", "ut2"])
 
-        self.assertListEqual([2, 3], [case.times for case in selected])
+        self.assertListEqual([2, 3], [case.retry for case in selected])
 
     def _select_and_check(
         self, case_runbook: List[Any], expected_descriptions: List[str]
-    ) -> List[TestCaseData]:
+    ) -> List[TestCaseRuntimeData]:
         runbook = validate_data({constants.TESTCASE: case_runbook})
         case_metadatas = self._generate_metadata()
         selected = select_testcases(runbook.testcase, case_metadatas)

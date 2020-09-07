@@ -24,14 +24,12 @@ class Uname(Tool):
         # uname's result suppose not be changed frequently,
         #  so cache it for performance.
         self.has_result: bool = False
-        self.is_linux: bool = True
 
     @property
     def command(self) -> str:
         return "uname"
 
-    @property
-    def _is_installed_internal(self) -> bool:
+    def _check_exists(self) -> bool:
         return True
 
     def get_linux_information(
@@ -43,7 +41,6 @@ class Uname(Tool):
 
             if cmd_result.exit_code != 0:
                 self.result = UnameResult(False, "", "", "", "")
-                self._is_linux = False
             else:
                 match_result = self._key_info_pattern.fullmatch(cmd_result.stdout)
                 if not match_result:
