@@ -35,15 +35,26 @@ function Hugepage_Setup() {
 		exit 1
 	fi
 
-	LogMsg "Huge page setup is running"
-	ssh "${1}" "mkdir -p /mnt/huge && mkdir -p /mnt/huge-1G"
-	LogMsg "creating huge page directory status: $?"
-	ssh "${1}" "mount -t hugetlbfs nodev /mnt/huge && mount -t hugetlbfs nodev /mnt/huge-1G -o 'pagesize=1G'"
-	check_exit_status "Huge pages are mounted on ${1}" "exit"
-	ssh "${1}" "echo 4096 > /sys/devices/system/node/node0/hugepages/hugepages-2048kB/nr_hugepages"
-	check_exit_status "4KB huge pages are configured on ${1}" "exit"
-	ssh "${1}" "echo 1 > /sys/devices/system/node/node0/hugepages/hugepages-1048576kB/nr_hugepages"
-	check_exit_status "1GB huge pages are configured on ${1}" "exit"
+	if [ -z "${2}" ]; then
+		LogMsg "Huge page setup is running"
+		ssh "${1}" "mkdir -p /mnt/huge && mkdir -p /mnt/huge-1G"
+		LogMsg "creating huge page directory status: $?"
+		ssh "${1}" "mount -t hugetlbfs nodev /mnt/huge && mount -t hugetlbfs nodev /mnt/huge-1G -o 'pagesize=1G'"
+		check_exit_status "Huge pages are mounted on ${1}" "exit"
+	fi
+	if [[ "reset" == "${2}" ]]; then
+		ssh "${1}" "echo 0 > /sys/devices/system/node/node0/hugepages/hugepages-2048kB/nr_hugepages"
+		check_exit_status "4KB huge pages are reset on ${1}" "exit"
+		ssh "${1}" "echo 0 > /sys/devices/system/node/node0/hugepages/hugepages-1048576kB/nr_hugepages"
+		check_exit_status "1GB huge pages are reset on ${1}" "exit"
+	else
+		ssh "${1}" "echo 4096 > /sys/devices/system/node/node0/hugepages/hugepages-2048kB/nr_hugepages"
+		check_exit_status "4KB huge pages are configured on ${1}" "exit"
+		ssh "${1}" "echo 1 > /sys/devices/system/node/node0/hugepages/hugepages-1048576kB/nr_hugepages"
+		check_exit_status "1GB huge pages are configured on ${1}" "exit"
+	fi
+	LogMsg "Huge page setup complete:"
+	ssh "${1}" "grep -i huge /proc/meminfo && ls /mnt/"
 }
 
 # Requires:
@@ -189,9 +200,13 @@ function Install_Dpdk () {
 			if [ $? -eq 0 ]; then
 				packages+=("elfutils-libelf-devel")
 			fi
-			# Required as meson is dependent on python36
-			ssh "${1}" "yum install -y rh-python36 ninja-build"
-			ssh "${1}" 'PATH=$PATH:/opt/rh/rh-python36/root/usr/bin/ && pip install --upgrade pip && pip install meson'
+			if [ "${DISTRO_NAME}" = "rhel" ]; then
+				# Required as meson is dependent on python36
+				ssh "${1}" "yum install -y rh-python36 ninja-build"
+				ssh "${1}" 'PATH=$PATH:/opt/rh/rh-python36/root/usr/bin/ && pip install --upgrade pip && pip install meson'
+			else
+				packages+=(meson)
+			fi
 			;;
 		ubuntu|debian)
 			ssh "${1}" "until dpkg --force-all --configure -a; sleep 10; do echo 'Trying again...'; done"
@@ -326,6 +341,9 @@ function Install_Dpdk () {
 		echo "Calling testcase provided Dpdk_Configure(1) on ${1}"
 		if [[ ${DISTRO_NAME} == rhel || ${DISTRO_NAME} == centos ]]; then
 			ssh ${1} "cd ${LIS_HOME}/${DPDK_DIR} && PATH=$PATH:/opt/rh/rh-python36/root/usr/bin/ && meson build"
+			# For Distros like RHEL, /usr/local not in default paths. Ref: DPDK Installation Documents
+			ssh ${1} " echo '/usr/local/lib64' >> /etc/ld.so.conf"
+			ssh ${1} " echo '/usr/local/lib' >> /etc/ld.so.conf"
 		else
 			ssh ${1} "cd ${LIS_HOME}/${DPDK_DIR} && meson build"
 		fi
@@ -340,6 +358,9 @@ function Install_Dpdk () {
 		check_exit_status "${1} CONFIG_RTE_LIBRTE_MLX5_PMD=y" "exit"
 		if [[ ${DISTRO_NAME} == rhel || ${DISTRO_NAME} == centos ]]; then
 			ssh ${1} "cd ${LIS_HOME}/${DPDK_DIR} && PATH=$PATH:/opt/rh/rh-python36/root/usr/bin/ && meson ${RTE_TARGET}"
+			# For Distros like RHEL, /usr/local not in default paths. Ref: DPDK Installation Documents
+			ssh ${1} " echo '/usr/local/lib64' >> /etc/ld.so.conf"
+			ssh ${1} " echo '/usr/local/lib' >> /etc/ld.so.conf"
 		else
 			ssh ${1} "cd ${LIS_HOME}/${DPDK_DIR} && meson ${RTE_TARGET}"
 		fi
