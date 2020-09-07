@@ -6,7 +6,7 @@ from functools import partial
 from typing import TYPE_CHECKING, Any, List, Optional, Type, cast
 
 from lisa import schema
-from lisa.util import LisaException, constants
+from lisa.util import InitializableMixin, LisaException, constants
 from lisa.util.logger import get_logger
 
 if TYPE_CHECKING:
@@ -15,10 +15,10 @@ if TYPE_CHECKING:
 _get_init_logger = partial(get_logger, "init", "platform")
 
 
-class Platform(ABC):
+class Platform(ABC, InitializableMixin):
     def __init__(self) -> None:
+        super().__init__()
         self._log = get_logger("platform", self.platform_type())
-        self.__is_initialized = False
 
     @classmethod
     @abstractmethod
@@ -58,10 +58,9 @@ class Platform(ABC):
         self._config(key, value)
 
     def request_environment(self, environment: Environment) -> Environment:
-        if not self.__is_initialized:
+        if not self._is_initialized:
             self._log.debug("initializing...")
-            self._initialize()
-            self._is_initialized = True
+            self.initialize()
             self._log.debug("initialized")
 
         self._log.info(f"requesting environment {environment.name}")

@@ -90,7 +90,7 @@ class LogWriter(object):
 
     def write(self, message: str) -> None:
         self._buffer = "".join([self._buffer, message])
-        if "\n" in message or "\r" in message:
+        if "\n" in message:
             self.flush()
 
     def flush(self) -> None:

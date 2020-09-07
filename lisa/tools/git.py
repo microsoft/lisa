@@ -14,4 +14,5 @@ class Git(Tool):
         return False
 
     def clone(self, url: str, cwd: pathlib.PurePath) -> None:
-        self.run(f"clone {url}", cwd=cwd)
+        # git print to stderr for normal info, so set no_error_log to True.
+        self.run(f"clone {url}", cwd=cwd, no_error_log=True)

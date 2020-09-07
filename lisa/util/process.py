@@ -94,6 +94,9 @@ class Process:
             f"cwd: {cwd_path}"
         )
 
+        if new_envs is None:
+            new_envs = {}
+
         try:
             self._timer = create_timer()
             self._process = self._shell.spawn(

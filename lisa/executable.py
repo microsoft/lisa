@@ -372,11 +372,9 @@ class CustomScriptBuilder:
         self.name = f"custom_{command_identifier}_{hash_result.hexdigest()}".lower()
 
     def build(self, node: Node) -> CustomScript:
-        script = CustomScript(
+        return CustomScript(
             self.name, node, self._local_rootpath, self._files, self._command
         )
-        script.initialize()
-        return script
 
 
 class Tools:
@@ -401,8 +399,8 @@ class Tools:
         tool = self._cache.get(tool_key)
         if tool is None:
             # the Tool is not installed on current node, try to install it.
-            tool_log = get_logger("tool", tool_key, self._node._log)
-            tool_log.debug("is initializing")
+            tool_log = get_logger("tool", tool_key, self._node.log)
+            tool_log.debug("initializing")
 
             if isinstance(tool_type, CustomScriptBuilder):
                 tool = tool_type.build(self._node)
@@ -414,7 +412,8 @@ class Tools:
             else:
                 cast_tool_type = cast(Type[Tool], tool_type)
                 tool = cast_tool_type(self._node)
-                tool.initialize()
+
+            tool.initialize()
 
             if not tool.is_installed:
                 tool_log.debug("not installed")
@@ -422,9 +421,9 @@ class Tools:
                     tool_log.debug("installing")
                     timer = create_timer()
                     is_success = tool.install()
-                    tool_log.debug(f"installed in {timer}")
                     if not is_success:
-                        raise LisaException("install failed")
+                        raise LisaException(f"install '{tool.name}' failed")
+                    tool_log.debug(f"installed in {timer}")
                 else:
                     raise LisaException(
                         "doesn't support install on "

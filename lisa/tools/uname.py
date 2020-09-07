@@ -6,7 +6,8 @@ from lisa.util import LisaException
 
 
 @dataclass
-class LinuxInfo:
+class UnameResult:
+    has_result: bool
     kernel_release: str = ""
     kernel_version: str = ""
     hardware_platform: str = ""
@@ -24,7 +25,6 @@ class Uname(Tool):
         #  so cache it for performance.
         self.has_result: bool = False
         self.is_linux: bool = True
-        self.info: LinuxInfo = LinuxInfo()
 
     @property
     def command(self) -> str:
@@ -36,19 +36,22 @@ class Uname(Tool):
 
     def get_linux_information(
         self, force: bool = False, no_error_log: bool = False
-    ) -> LinuxInfo:
+    ) -> UnameResult:
+        self.initialize()
         if (not self.has_result) or force:
             cmd_result = self.run("-vrio", no_error_log=no_error_log, no_info_log=True)
 
             if cmd_result.exit_code != 0:
-                self.is_linux = False
+                self.result = UnameResult(False, "", "", "", "")
+                self._is_linux = False
             else:
                 match_result = self._key_info_pattern.fullmatch(cmd_result.stdout)
                 if not match_result:
                     raise LisaException(
                         f"no result matched, stdout: '{cmd_result.stdout}'"
                     )
-                self.info = LinuxInfo(
+                self.result = UnameResult(
+                    has_result=True,
                     kernel_release=match_result.group("release"),
                     kernel_version=match_result.group("version"),
                     hardware_platform=match_result.group("platform"),
@@ -56,4 +59,4 @@ class Uname(Tool):
                 )
             self.has_result = True
 
-        return self.info
+        return self.result

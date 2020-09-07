@@ -8,16 +8,11 @@ from lisa.executable import CustomScript, CustomScriptBuilder
     area="demo",
     category="simple",
     description="""
-    This test suite run a script
+    This test suite run a script on linux
     """,
     tags=["demo"],
 )
 class WithScript(TestSuite):
-    @property
-    def skiprun(self) -> bool:
-        node = self.environment.default_node
-        return not node.is_linux
-
     def before_suite(self) -> None:
         self._echo_script = CustomScriptBuilder(
             Path(__file__).parent.joinpath("scripts"), ["echo.sh"]
