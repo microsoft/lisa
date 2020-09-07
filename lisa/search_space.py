@@ -22,19 +22,27 @@ class ResultReason:
 
     def add_reason(self, reason: str, name: str = "") -> None:
         self.result = False
-        if name:
-            self.reasons.append(f"{self._prefix}/{name}: {reason}")
-        else:
-            self.reasons.append(f"{self._prefix}: {reason}")
+
+        if not any(reason in x for x in self.reasons):
+            if ":" in reason:
+                sep = "/"
+            else:
+                sep = ": "
+            if name and self._prefix:
+                reason = f"{self._prefix}/{name}{sep}{reason}"
+            elif name:
+                reason = f"{name}{sep}{reason}"
+            elif self._prefix:
+                reason = f"{self._prefix}{sep}{reason}"
+            else:
+                pass
+            self.reasons.append(reason)
 
     def merge(self, sub_result: Any, name: str = "") -> None:
         assert isinstance(sub_result, ResultReason), f"actual: {type(sub_result)}"
         self.result = self.result and sub_result.result
         for reason in sub_result.reasons:
-            if name:
-                self.reasons.append(f"{self._prefix}/{name}{reason}")
-            else:
-                self.reasons.append(f"{self._prefix}{reason}")
+            self.add_reason(reason, name)
 
 
 class RequirementMixin:
@@ -43,16 +51,16 @@ class RequirementMixin:
         raise NotImplementedError()
 
     @abstractmethod
-    def _generate_min_capaiblity(self, capability: Any) -> Any:
+    def _generate_min_capability(self, capability: Any) -> Any:
         raise NotImplementedError()
 
-    def generate_min_capaiblity(self, capability: Any) -> Any:
+    def generate_min_capability(self, capability: Any) -> Any:
         check_result = self.check(capability)
         if not check_result.result:
             raise LisaException(
                 "cannot get min value, capability doesn't support requirement"
             )
-        return self._generate_min_capaiblity(capability)
+        return self._generate_min_capability(capability)
 
 
 T_SEARCH_SPACE = TypeVar("T_SEARCH_SPACE", bound=RequirementMixin)
@@ -134,7 +142,7 @@ class IntRange(RequirementMixin):
 
         return result
 
-    def _generate_min_capaiblity(self, capability: Any) -> int:
+    def _generate_min_capability(self, capability: Any) -> int:
         if isinstance(capability, int):
             result: int = capability
         elif isinstance(capability, IntRange):
@@ -148,7 +156,7 @@ class IntRange(RequirementMixin):
             for cap_item in capability:
                 temp_result = self.check(cap_item)
                 if temp_result.result:
-                    temp_min = self.generate_min_capaiblity(cap_item)
+                    temp_min = self.generate_min_capability(cap_item)
                     result = min(temp_min, result)
 
         return result
@@ -207,15 +215,12 @@ class SetSpace(RequirementMixin, Set[T]):
                         f"capability: '{capability}', "
                     )
             else:
-                if len(self.intersection(capability)) > 0:
-                    result.add_reason(
-                        "requirements is exclusive, but capability include "
-                        f"some options, requirements: '{self}', "
-                        f"capability: '{capability}'"
-                    )
+                inter_set = self.intersection(capability)
+                if len(inter_set) > 0:
+                    result.add_reason(f"requirements excludes {inter_set}")
         return result
 
-    def _generate_min_capaiblity(self, capability: Any) -> Optional[Set[T]]:
+    def _generate_min_capability(self, capability: Any) -> Optional[Set[T]]:
         result = None
         if self.is_allow_set and len(self) > 0:
             result = self
@@ -273,7 +278,7 @@ def check_countspace(requirement: CountSpace, capability: CountSpace) -> ResultR
     return result
 
 
-def generate_min_capaiblity_countspace(
+def generate_min_capability_countspace(
     requirement: CountSpace, capability: CountSpace
 ) -> int:
     check_result = check_countspace(requirement, capability)
@@ -290,14 +295,14 @@ def generate_min_capaiblity_countspace(
     if isinstance(requirement, int):
         result = requirement
     elif isinstance(requirement, IntRange):
-        result = requirement.generate_min_capaiblity(capability)
+        result = requirement.generate_min_capability(capability)
     else:
         assert isinstance(requirement, list), f"actual: {type(requirement)}"
         result = sys.maxsize
         for req_item in requirement:
             temp_result = req_item.check(capability)
             if temp_result.result:
-                temp_min = req_item.generate_min_capaiblity(capability)
+                temp_min = req_item.generate_min_capability(capability)
                 result = min(result, temp_min)
 
     return result
@@ -327,7 +332,7 @@ def check(
     return result
 
 
-def generate_min_capaiblity(
+def generate_min_capability(
     requirement: Union[T_SEARCH_SPACE, List[T_SEARCH_SPACE], None],
     capability: Union[T_SEARCH_SPACE, List[T_SEARCH_SPACE], None],
 ) -> Any:
@@ -346,7 +351,7 @@ def generate_min_capaiblity(
         for req_item in requirement:
             temp_result = req_item.check(capability)
             if temp_result.result:
-                temp_min = req_item.generate_min_capaiblity(capability)
+                temp_min = req_item.generate_min_capability(capability)
                 if result is None:
                     result = temp_min
                 else:
@@ -354,7 +359,7 @@ def generate_min_capaiblity(
                     # It can be improvied by impelment __eq__, __lt__ functions.
                     result = min(result, temp_min)
     elif requirement is not None:
-        result = requirement.generate_min_capaiblity(capability)
+        result = requirement.generate_min_capability(capability)
 
     return result
 
@@ -368,3 +373,26 @@ def equal_list(first: Optional[List[Any]], second: Optional[List[Any]]) -> bool:
             f_item == second[index] for index, f_item in enumerate(first)
         )
     return result
+
+
+def create_set_space(
+    included_set: Optional[Iterable[T]],
+    excluded_set: Optional[Iterable[T]],
+    name: str = "",
+) -> Optional[SetSpace[T]]:
+
+    if included_set and excluded_set:
+        raise LisaException(f"cannot set both included and excluded {name}")
+    if included_set or excluded_set:
+        set_space: Optional[SetSpace[T]] = SetSpace()
+        assert set_space is not None
+        if included_set:
+            set_space.is_allow_set = True
+            set_space.update(included_set)
+        else:
+            assert excluded_set
+            set_space.is_allow_set = False
+            set_space.update(excluded_set)
+    else:
+        set_space = None
+    return set_space

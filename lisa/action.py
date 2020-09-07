@@ -5,6 +5,7 @@ from enum import Enum
 
 from lisa.util import LisaException
 from lisa.util.logger import get_logger
+from lisa.util.perf_timer import create_timer
 
 ActionStatus = Enum(
     "ActionStatus",
@@ -26,10 +27,11 @@ ActionStatus = Enum(
 class Action(metaclass=ABCMeta):
     def __init__(self) -> None:
         self.name: str = self.__class__.__name__
+        self.log = get_logger("Action")
 
         self.__status = ActionStatus.UNINITIALIZED
         self.__is_started = False
-        self._log = get_logger("Action")
+        self.__timer = create_timer()
 
     def config(self, key: str, value: object) -> None:
         pass
@@ -61,9 +63,11 @@ class Action(metaclass=ABCMeta):
 
     def set_status(self, status: ActionStatus) -> None:
         if self.__status != status:
-            self._log.info(
-                f"{self.name} status changed from {self.__status.name} to {status.name}"
+            self.log.info(
+                f"{self.name} status changed from {self.__status.name} "
+                f"to {status.name} with {self.__timer}"
             )
+            self.__timer = create_timer()
         self.__status = status
 
     def validate_started(self) -> None:

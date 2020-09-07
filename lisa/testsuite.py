@@ -5,12 +5,14 @@ from abc import ABCMeta
 from dataclasses import dataclass
 from enum import Enum
 from functools import wraps
-from typing import TYPE_CHECKING, Any, Callable, Dict, List, Optional, Type
+from typing import TYPE_CHECKING, Any, Callable, Dict, List, Optional, Type, Union
+
+from retry.api import retry_call  # type: ignore
 
 from lisa import schema, search_space
 from lisa.action import Action, ActionStatus
 from lisa.operating_system import OperatingSystem
-from lisa.util import LisaException
+from lisa.util import LisaException, constants, set_filtered_fields
 from lisa.util.logger import get_logger
 from lisa.util.perf_timer import create_timer
 
@@ -18,89 +20,95 @@ if TYPE_CHECKING:
     from lisa.environment import Environment
 
 
-TestStatus = Enum("TestStatus", ["NOTRUN", "RUNNING", "FAILED", "PASSED", "SKIPPED"])
+TestStatus = Enum(
+    "TestStatus", ["NOTRUN", "RUNNING", "FAILED", "PASSED", "SKIPPED", "ATTEMPTED"]
+)
 
-_suites: Dict[str, TestSuiteMetadata] = dict()
-_cases: Dict[str, TestCaseMetadata] = dict()
+_all_suites: Dict[str, TestSuiteMetadata] = dict()
+_all_cases: Dict[str, TestCaseMetadata] = dict()
 
 
 @dataclass
 class TestResult:
-    case: TestCaseData
+    runtime_data: TestCaseRuntimeData
     status: TestStatus = TestStatus.NOTRUN
     elapsed: float = 0
     message: str = ""
+    check_results: Optional[search_space.ResultReason] = None
+
+    @property
+    def can_run(self) -> bool:
+        return self.status == TestStatus.NOTRUN
+
+    def set_status(
+        self, new_status: TestStatus, message: Union[str, List[str]]
+    ) -> None:
+        self.status = new_status
+        if message:
+            if isinstance(message, str):
+                message = [message]
+            if self.message:
+                message.insert(0, self.message)
+            self.message = "\n".join(message)
+
+    def check_environment(
+        self, environment: Environment, save_reason: bool = False
+    ) -> bool:
+        requirement = self.runtime_data.metadata.requirement
+        assert requirement.environment
+        check_result = requirement.environment.check(environment.capability)
+        if check_result.result and requirement.os_type and environment.is_ready:
+            for node in environment.nodes.list():
+                node_os_capability = search_space.SetSpace[Type[OperatingSystem]](
+                    is_allow_set=True, items=[type(node.os)]
+                )
+                check_result.merge(
+                    requirement.os_type.check(node_os_capability), "os_type"
+                )
+                if not check_result.result:
+                    break
+        if save_reason:
+            if self.check_results:
+                self.check_results.merge(check_result)
+            else:
+                self.check_results = check_result
+        return check_result.result
 
 
 @dataclass
-class TestCaseRequirement(search_space.RequirementMixin):
-    environment: Optional[schema.Environment] = None
-    platform_type: Optional[search_space.SetSpace[schema.Platform]] = None
-    operating_system: Optional[search_space.SetSpace[OperatingSystem]] = None
-
-    def check(self, capability: Any) -> search_space.ResultReason:
-        assert isinstance(
-            capability, TestCaseRequirement
-        ), f"actual: {type(capability)}"
-        result = search_space.ResultReason()
-        result.merge(
-            search_space.check(self.environment, capability.environment),
-            name="environment",
-        )
-        result.merge(
-            search_space.check(self.platform_type, capability.platform_type),
-            name="platform_type",
-        )
-
-        return result
-
-    def _generate_min_capaiblity(self, capability: Any) -> Any:
-        assert isinstance(
-            capability, TestCaseRequirement
-        ), f"actual: {type(capability)}"
-        environment = search_space.generate_min_capaiblity(
-            self.environment, capability.environment
-        )
-        platform_type = search_space.generate_min_capaiblity(
-            self.platform_type, capability.platform_type
-        )
-        result = TestCaseSchema(
-            environment=environment,
-            platform_type=platform_type,
-            operating_system=self.operating_system,
-        )
-
-        return result
+class TestCaseRequirement:
+    environment: Optional[schema.EnvironmentSpace] = None
+    platform_type: Optional[search_space.SetSpace[str]] = None
+    os_type: Optional[search_space.SetSpace[Type[OperatingSystem]]] = None
 
 
 def simple_requirement(
     min_count: int = 1,
     node: Optional[schema.NodeSpace] = None,
-    platform_type: Optional[search_space.SetSpace[schema.Platform]] = None,
-    os: Optional[search_space.SetSpace[OperatingSystem]] = None,
+    supported_platform_type: Optional[List[str]] = None,
+    unsupported_platform_type: Optional[List[str]] = None,
+    supported_os: Optional[List[Type[OperatingSystem]]] = None,
+    unsupported_os: Optional[List[Type[OperatingSystem]]] = None,
 ) -> TestCaseRequirement:
     """
     define a simple requirement to support most test cases.
     """
     if node:
         node.node_count = search_space.IntRange(min=min_count)
-        nodes: Optional[List[schema.NodeSpace]] = [node]
+        nodes: List[schema.NodeSpace] = [node]
     else:
-        nodes = [
-            schema.NodeSpace(
-                node_count=search_space.IntRange(min=min_count),
-                core_count=None,
-                memory_mb=None,
-                nic_count=None,
-                gpu_count=None,
-                features=None,
-                excluded_features=None,
-            )
-        ]
+        nodes = [schema.NodeSpace(node_count=search_space.IntRange(min=min_count))]
+
+    platform_types = search_space.create_set_space(
+        supported_platform_type, unsupported_platform_type, "platform type"
+    )
+
+    os = search_space.create_set_space(supported_os, unsupported_os, "operating system")
+
     return TestCaseRequirement(
-        environment=schema.Environment(requirements=nodes),
-        platform_type=platform_type,
-        operating_system=os,
+        environment=schema.EnvironmentSpace(nodes=nodes),
+        platform_type=platform_types,
+        os_type=os,
     )
 
 
@@ -181,7 +189,7 @@ class TestCaseMetadata:
         self.suite: TestSuiteMetadata = suite
 
 
-class TestCaseData:
+class TestCaseRuntimeData:
     def __init__(self, metadata: TestCaseMetadata):
         self.metadata = metadata
 
@@ -198,6 +206,19 @@ class TestCaseData:
         assert self.metadata
         return getattr(self.metadata, key)
 
+    def clone(self) -> TestCaseRuntimeData:
+        cloned = TestCaseRuntimeData(self.metadata)
+        fields = [
+            constants.TESTCASE_SELECT_ACTION,
+            constants.TESTCASE_TIMES,
+            constants.TESTCASE_RETRY,
+            constants.TESTCASE_USE_NEW_ENVIRONMENT,
+            constants.TESTCASE_IGNORE_FAILURE,
+            constants.ENVIRONMENT,
+        ]
+        set_filtered_fields(self, cloned, fields)
+        return cloned
+
 
 class TestSuite(Action, unittest.TestCase, metaclass=ABCMeta):
     def __init__(
@@ -211,7 +232,7 @@ class TestSuite(Action, unittest.TestCase, metaclass=ABCMeta):
         self.case_results = case_results
         self._metadata = metadata
         self._should_stop = False
-        self._log = get_logger("suite", metadata.name)
+        self.log = get_logger("suite", metadata.name)
 
     def before_suite(self) -> None:
         pass
@@ -239,30 +260,35 @@ class TestSuite(Action, unittest.TestCase, metaclass=ABCMeta):
         except Exception as identifier:
             suite_error_message = f"before_suite: {identifier}"
             is_suite_continue = False
-        self._log.debug(f"before_suite end with {timer}")
+        self.log.debug(f"before_suite end with {timer}")
 
         #  replace to case's logger temporarily
-        suite_log = self._log
+        suite_log = self.log
         for case_result in self.case_results:
-            case_name = case_result.case.name
+            case_name = case_result.runtime_data.name
             test_method = getattr(self, case_name)
-            self._log = get_logger("case", f"{case_result.case.full_name}")
+            self.log = get_logger("case", f"{case_result.runtime_data.full_name}")
 
-            self._log.info("started")
+            self.log.info("started")
             is_continue: bool = is_suite_continue
             total_timer = create_timer()
 
             if is_continue:
                 timer = create_timer()
                 try:
-                    self.before_case()
+                    retry_call(
+                        self.before_case,
+                        exceptions=Exception,
+                        tries=case_result.runtime_data.retry + 1,
+                        logger=self.log,
+                    )
                 except Exception as identifier:
-                    self._log.error("before_case: ", exc_info=identifier)
+                    self.log.error("before_case: ", exc_info=identifier)
                     case_result.status = TestStatus.SKIPPED
                     case_result.message = f"before_case: {identifier}"
                     is_continue = False
                 case_result.elapsed = timer.elapsed()
-                self._log.debug(f"before_case end with {timer}")
+                self.log.debug(f"before_case end with {timer}")
             else:
                 case_result.status = TestStatus.SKIPPED
                 case_result.message = suite_error_message
@@ -270,41 +296,56 @@ class TestSuite(Action, unittest.TestCase, metaclass=ABCMeta):
             if is_continue:
                 timer = create_timer()
                 try:
-                    test_method()
+                    retry_call(
+                        test_method,
+                        exceptions=Exception,
+                        tries=case_result.runtime_data.retry + 1,
+                        logger=self.log,
+                    )
                     case_result.status = TestStatus.PASSED
                 except Exception as identifier:
-                    self._log.error("failed", exc_info=identifier)
-                    case_result.status = TestStatus.FAILED
-                    case_result.message = f"failed: {identifier}"
+                    if case_result.runtime_data.ignore_failure:
+                        self.log.info(f"failed and ignored: {identifier}")
+                        case_result.status = TestStatus.ATTEMPTED
+                        case_result.message = f"{identifier}"
+                    else:
+                        self.log.error("failed", exc_info=identifier)
+                        case_result.status = TestStatus.FAILED
+                        case_result.message = f"failed: {identifier}"
                 case_result.elapsed = timer.elapsed()
-                self._log.debug(f"method end with {timer}")
+                self.log.debug(f"method end with {timer}")
 
             timer = create_timer()
             try:
-                self.after_case()
+                retry_call(
+                    self.after_case,
+                    exceptions=Exception,
+                    tries=case_result.runtime_data.retry + 1,
+                    logger=self.log,
+                )
             except Exception as identifier:
                 # after case doesn't impact test case result.
-                self._log.error("after_case failed", exc_info=identifier)
-            self._log.debug(f"after_case end with {timer}")
+                self.log.error("after_case failed", exc_info=identifier)
+            self.log.debug(f"after_case end with {timer}")
 
             case_result.elapsed = total_timer.elapsed()
-            self._log.info(
+            self.log.info(
                 f"result: {case_result.status.name}, " f"elapsed: {total_timer}"
             )
 
             if self._should_stop:
-                self._log.info("received stop message, stop run")
+                self.log.info("received stop message, stop run")
                 self.set_status(ActionStatus.STOPPED)
                 break
 
-        self._log = suite_log
+        self.log = suite_log
         timer = create_timer()
         try:
             self.after_suite()
         except Exception as identifier:
             # after_suite doesn't impact test case result, and can continue
-            self._log.error("after_suite failed", exc_info=identifier)
-        self._log.debug(f"after_suite end with {timer}")
+            self.log.error("after_suite failed", exc_info=identifier)
+        self.log.debug(f"after_suite end with {timer}")
 
     async def stop(self) -> None:
         self.set_status(ActionStatus.STOPPING)
@@ -315,11 +356,11 @@ class TestSuite(Action, unittest.TestCase, metaclass=ABCMeta):
 
 
 def get_suites_metadata() -> Dict[str, TestSuiteMetadata]:
-    return _suites
+    return _all_suites
 
 
 def get_cases_metadata() -> Dict[str, TestCaseMetadata]:
-    return _cases
+    return _all_cases
 
 
 def _add_suite_metadata(metadata: TestSuiteMetadata) -> None:
@@ -327,14 +368,14 @@ def _add_suite_metadata(metadata: TestSuiteMetadata) -> None:
         key = metadata.name
     else:
         key = metadata.test_class.__name__
-    exist_metadata = _suites.get(key)
+    exist_metadata = _all_suites.get(key)
     if exist_metadata is None:
-        _suites[key] = metadata
+        _all_suites[key] = metadata
     else:
         raise LisaException(f"duplicate test class name: {key}")
 
     class_prefix = f"{key}."
-    for test_case in _cases.values():
+    for test_case in _all_cases.values():
         if test_case.full_name.startswith(class_prefix):
             _add_case_to_suite(metadata, test_case)
     log = get_logger("init", "test")
@@ -347,8 +388,8 @@ def _add_suite_metadata(metadata: TestSuiteMetadata) -> None:
 def _add_case_metadata(metadata: TestCaseMetadata) -> None:
 
     full_name = metadata.full_name
-    if _cases.get(full_name) is None:
-        _cases[full_name] = metadata
+    if _all_cases.get(full_name) is None:
+        _all_cases[full_name] = metadata
     else:
         raise LisaException(f"duplicate test class name: {full_name}")
 
@@ -357,7 +398,7 @@ def _add_case_metadata(metadata: TestCaseMetadata) -> None:
     # in case logic is changed, so keep this logic
     #   to make two collection consistent.
     class_name = full_name.split(".")[0]
-    test_suite = _suites.get(class_name)
+    test_suite = _all_suites.get(class_name)
     if test_suite:
         log = get_logger("init", "test")
         log.debug(f"add case '{metadata.name}' to suite '{test_suite.name}'")
@@ -369,22 +410,3 @@ def _add_case_to_suite(
 ) -> None:
     test_case.suite = test_suite
     test_suite.cases.append(test_case)
-
-
-@dataclass
-class TestCaseSchema:
-    """
-    for UT
-    """
-
-    environment: schema.Environment
-    platform_type: Optional[search_space.SetSpace[schema.Platform]]
-    operating_system: Optional[search_space.SetSpace[OperatingSystem]]
-
-    def __eq__(self, other: object) -> bool:
-        assert isinstance(other, type(self)), f"actual: {type(other)}"
-        return (
-            self.environment == other.environment
-            and self.platform_type == other.platform_type
-            and self.operating_system == other.operating_system
-        )

@@ -251,7 +251,11 @@ class AzurePlatform(Platform):
     def node_schema(self) -> Optional[Type[Any]]:
         return AzureNodeSchema
 
-    def _request_environment(self, environment: Environment) -> Environment:
+    def _prepare_environment(self, environment: Environment) -> None:
+        # TODO: wait to support load from vm capability
+        environment.priority = 0
+
+    def _deploy_environment(self, environment: Environment) -> None:
         assert self._rm_client
         assert self._azure_runbook
 
@@ -270,18 +274,18 @@ class AzurePlatform(Platform):
 
         environment_context.resource_group_name = resource_group_name
         if self._azure_runbook.dry_run:
-            self._log.info(f"dry_run: {self._azure_runbook.dry_run}")
+            self.log.info(f"dry_run: {self._azure_runbook.dry_run}")
         else:
             try:
                 if self._azure_runbook.deploy:
-                    self._log.info(
+                    self.log.info(
                         f"creating or updating resource group: {resource_group_name}"
                     )
                     self._rm_client.resource_groups.create_or_update(
                         resource_group_name, {"location": self._azure_runbook.location}
                     )
                 else:
-                    self._log.info(f"reusing resource group: {resource_group_name}")
+                    self.log.info(f"reusing resource group: {resource_group_name}")
 
                 deployment_parameters = self._create_deployment_parameters(
                     resource_group_name, environment
@@ -296,8 +300,7 @@ class AzurePlatform(Platform):
             except Exception as identifier:
                 self._delete_environment(environment)
                 raise identifier
-
-        return environment
+        environment.is_ready = True
 
     def _delete_environment(self, environment: Environment) -> None:
         environment_context = environment.get_context(EnvironmentContext)
@@ -311,7 +314,7 @@ class AzurePlatform(Platform):
             and not self._azure_runbook.dry_run
         ):
             assert self._rm_client
-            self._log.info(
+            self.log.info(
                 f"deleting resource group: {resource_group_name}, "
                 f"wait: {self._azure_runbook.wait_delete}"
             )
@@ -323,9 +326,9 @@ class AzurePlatform(Platform):
                 if result:
                     raise LisaException(f"error on deleting resource group: {result}")
             else:
-                self._log.debug("not wait deleting")
+                self.log.debug("not wait deleting")
         else:
-            self._log.info(f"skipped to delete resource group: {resource_group_name}")
+            self.log.info(f"skipped to delete resource group: {resource_group_name}")
 
     def _initialize(self) -> None:
         # set needed environment variables for authentication
@@ -349,7 +352,7 @@ class AzurePlatform(Platform):
             raise LisaException(
                 f"cannot find subscription id: '{self._subscription_id}'"
             )
-        self._log.info(f"connected to subscription: '{subscription.display_name}'")
+        self.log.info(f"connected to subscription: '{subscription.display_name}'")
 
         self._rm_client = ResourceManagementClient(
             credential=self._credential, subscription_id=self._subscription_id
@@ -382,17 +385,17 @@ class AzurePlatform(Platform):
             # refresh cached locations every 5 days.
             if delta.days < 5:
                 should_refresh = False
-                self._log.debug(
+                self.log.debug(
                     f"{location}: cache used: {location_data.updated_time}, "
                     f"sku count: {len(location_data.skus)}"
                 )
             else:
-                self._log.debug(
+                self.log.debug(
                     f"{location}: cache timeout: {location_data.updated_time},"
                     f"sku count: {len(location_data.skus)}"
                 )
         else:
-            self._log.debug(f"{location}: no cache found")
+            self.log.debug(f"{location}: no cache found")
         if should_refresh:
             compute_client = ComputeManagementClient(
                 credential=self._credential, subscription_id=self._subscription_id
@@ -414,14 +417,14 @@ class AzurePlatform(Platform):
                                 continue
                             all_skus.append(sku)
                     except Exception as identifier:
-                        self._log.error(f"unknown sku: {sku}")
+                        self.log.error(f"unknown sku: {sku}")
                         raise identifier
             location_data = AzureLocation(location=location, skus_list=all_skus)
             locations_data[location_data.location] = location_data
             with open(cached_file_name, "w") as f:
                 locations_data.serialize()
                 json.dump(locations_data.to_dict(), f)  # type: ignore
-            self._log.debug(
+            self.log.debug(
                 f"{location_data.location}: new data, "
                 f"sku: {len(location_data.skus_list)}"
             )
@@ -432,10 +435,10 @@ class AzurePlatform(Platform):
     def _create_deployment_parameters(
         self, resource_group_name: str, environment: Environment
     ) -> Dict[str, Any]:
-        assert environment.requirements, "env data cannot be None"
-        requirements = environment.requirements
+        assert environment.runbook, "env data cannot be None"
+        assert environment.runbook.nodes_requirement, "node requirement cannot be None"
 
-        self._log.debug("creating deployment")
+        self.log.debug("creating deployment")
         # construct parameters
         arm_parameters = AzureArmParameter()
         arm_parameters.admin_username = self._runbook.admin_username
@@ -449,7 +452,7 @@ class AzurePlatform(Platform):
         arm_parameters.location = self._azure_runbook.location
 
         nodes_parameters: List[AzureArmParameterNode] = []
-        for node_space in requirements:
+        for node_space in environment.runbook.nodes_requirement:
             assert isinstance(
                 node_space, schema.NodeSpace
             ), f"actual: {type(node_space)}"
@@ -483,7 +486,7 @@ class AzurePlatform(Platform):
         template = self._load_template()
         parameters = arm_parameters.to_dict()  # type:ignore
         parameters = {k: {"value": v} for k, v in parameters.items()}
-        self._log.debug(f"parameters: {parameters}")
+        self.log.debug(f"parameters: {parameters}")
         deployment_properties = DeploymentProperties(
             mode=DeploymentMode.incremental, template=template, parameters=parameters,
         )
@@ -496,7 +499,7 @@ class AzurePlatform(Platform):
 
     def _validate_template(self, deployment_parameters: Dict[str, Any]) -> None:
         resource_group_name = deployment_parameters[AZURE_RG_NAME_KEY]
-        self._log.debug("validating deployment")
+        self.log.debug("validating deployment")
 
         validate_operation: Any = None
         deployments = self._rm_client.deployments
@@ -514,14 +517,14 @@ class AzurePlatform(Platform):
                 if deployment.properties.provisioning_state == "Failed":
                     errors = deployment.properties.error.details
                     for error in errors:
-                        self._log.error(f"failed: {error.code}, {error.message}")
+                        self.log.error(f"failed: {error.code}, {error.message}")
             raise identifier
 
         assert result is None, f"validate error: {result}"
 
     def _deploy(self, deployment_parameters: Dict[str, Any]) -> None:
         resource_group_name = deployment_parameters[AZURE_RG_NAME_KEY]
-        self._log.info(f"deploying {resource_group_name}")
+        self.log.info(f"deploying {resource_group_name}")
 
         deployment_operation: Any = None
         deployments = self._rm_client.deployments
@@ -539,7 +542,7 @@ class AzurePlatform(Platform):
                 if deployment.properties.provisioning_state == "Failed":
                     errors = deployment.properties.error.details
                     for error in errors:
-                        self._log.error(f"failed: {error.code}, {error.message}")
+                        self.log.error(f"failed: {error.code}, {error.message}")
             raise identifier
 
     def _initialize_nodes(self, environment: Environment) -> None:

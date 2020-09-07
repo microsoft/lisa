@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import pathlib
 import random
-from collections import UserDict
+from collections import UserDict, ValuesView
 from typing import TYPE_CHECKING, Iterable, List, Optional, TypeVar, Union, cast
 
 from lisa import schema
@@ -27,14 +27,14 @@ class Node(ContextMixin, InitializableMixin):
     def __init__(
         self,
         index: int,
+        capability: schema.NodeSpace,
         is_remote: bool = True,
-        requirement: Optional[schema.NodeSpace] = None,
         is_default: bool = False,
     ) -> None:
         super().__init__()
         self.is_default = is_default
         self.is_remote = is_remote
-        self.requirement = requirement
+        self.capability = capability
         self.name: str = ""
         self.index = index
 
@@ -49,7 +49,7 @@ class Node(ContextMixin, InitializableMixin):
     @staticmethod
     def create(
         index: int,
-        requirement: Optional[schema.NodeSpace] = None,
+        capability: schema.NodeSpace,
         node_type: str = constants.ENVIRONMENTS_NODES_REMOTE,
         is_default: bool = False,
     ) -> Node:
@@ -60,7 +60,7 @@ class Node(ContextMixin, InitializableMixin):
         else:
             raise LisaException(f"unsupported node_type '{node_type}'")
         node = Node(
-            index, requirement=requirement, is_remote=is_remote, is_default=is_default
+            index, capability=capability, is_remote=is_remote, is_default=is_default
         )
         node.log.debug(f"created, type: '{node_type}', isDefault: {is_default}")
         return node
@@ -221,6 +221,9 @@ class Nodes(NodesDict):
         for node in self._list:
             yield node
 
+    def values(self) -> ValuesView[Node]:
+        raise NotImplementedError("use list() instead")
+
     def __getitem__(self, key: Union[int, str]) -> Node:
         found = None
         if not self._list:
@@ -246,6 +249,10 @@ class Nodes(NodesDict):
     def __len__(self) -> int:
         return len(self._list)
 
+    def initialize(self) -> None:
+        for node in self._list:
+            node.initialize()
+
     def close(self) -> None:
         for node in self._list:
             node.close()
@@ -256,6 +263,7 @@ class Nodes(NodesDict):
         ), f"actual: {type(node_runbook)}"
         node = Node.create(
             len(self._list),
+            capability=node_runbook.capability,
             node_type=node_runbook.type,
             is_default=node_runbook.is_default,
         )
@@ -270,6 +278,7 @@ class Nodes(NodesDict):
 
         node = Node.create(
             len(self._list),
+            capability=node_runbook.capability,
             node_type=node_runbook.type,
             is_default=node_runbook.is_default,
         )
@@ -291,17 +300,17 @@ class Nodes(NodesDict):
 
     def from_requirement(self, node_requirement: schema.NodeSpace) -> List[Node]:
         min_requirement = cast(
-            schema.NodeSpace, node_requirement.generate_min_capaiblity(node_requirement)
+            schema.NodeSpace, node_requirement.generate_min_capability(node_requirement)
         )
         assert isinstance(min_requirement.node_count, int), (
-            f"must be int after generate_min_capaiblity, "
+            f"must be int after generate_min_capability, "
             f"actual: {min_requirement.node_count}"
         )
         nodes: List[Node] = []
         for _ in range(min_requirement.node_count):
             node = Node.create(
                 len(self._list),
-                requirement=node_requirement,
+                capability=min_requirement,
                 node_type=constants.ENVIRONMENTS_NODES_REMOTE,
                 is_default=node_requirement.is_default,
             )

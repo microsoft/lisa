@@ -9,6 +9,7 @@ from typing import Any, Dict, List, Mapping, Optional, Sequence, Union, cast
 import paramiko  # type: ignore
 import spur  # type: ignore
 import spurplus  # type: ignore
+from retry import retry  # type: ignore
 
 from lisa.util import InitializableMixin, LisaException
 
@@ -89,6 +90,17 @@ class WindowsShellType(object):
         return " ".join(commands)
 
 
+@retry(Exception, tries=12, delay=5, logger=None)  # type: ignore
+def connect(client: paramiko.SSHClient, connection_info: ConnectionInfo) -> None:
+    client.connect(
+        hostname=connection_info.address,
+        port=connection_info.port,
+        username=connection_info.username,
+        password=connection_info.password,
+        key_filename=connection_info.private_key_file,
+    )
+
+
 class SshShell(InitializableMixin):
     def __init__(self, connection_info: ConnectionInfo) -> None:
         super().__init__()
@@ -105,13 +117,7 @@ class SshShell(InitializableMixin):
         paramiko_client = paramiko.SSHClient()
         paramiko_client.set_missing_host_key_policy(paramiko.AutoAddPolicy())
         try:
-            paramiko_client.connect(
-                hostname=self._connection_info.address,
-                port=self._connection_info.port,
-                username=self._connection_info.username,
-                password=self._connection_info.password,
-                key_filename=self._connection_info.private_key_file,
-            )
+            connect(paramiko_client, self._connection_info)
         except Exception as identifier:
             raise LisaException(f"connect to server failed: {identifier}")
         _, stdout, _ = paramiko_client.exec_command("cmd")

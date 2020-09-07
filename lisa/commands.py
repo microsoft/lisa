@@ -6,7 +6,7 @@ from typing import Iterable, Optional, cast
 from lisa.parameter_parser.runbook import load as load_runbook
 from lisa.test_runner.lisarunner import LISARunner
 from lisa.testselector import select_testcases
-from lisa.testsuite import TestCaseData
+from lisa.testsuite import TestCaseRuntimeData
 from lisa.util import LisaException, constants
 from lisa.util.logger import get_logger
 
@@ -33,7 +33,7 @@ def list_start(args: Namespace) -> None:
     log = _get_init_logger("list")
     if args.type == constants.LIST_CASE:
         if list_all:
-            cases: Iterable[TestCaseData] = select_testcases()
+            cases: Iterable[TestCaseRuntimeData] = select_testcases()
         else:
             cases = select_testcases(runbook.testcase)
         for case_data in cases:
