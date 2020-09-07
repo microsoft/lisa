@@ -1,15 +1,11 @@
-from typing import Dict, Iterable, List, Optional, cast
+from typing import Any, Dict, List, Optional, cast
 
+from lisa import schema
 from lisa.action import Action, ActionStatus
 from lisa.environment import Environment, environments
-from lisa.platform_ import Platform
-from lisa.testsuite import (
-    TestCaseData,
-    TestResult,
-    TestStatus,
-    TestSuite,
-    TestSuiteMetadata,
-)
+from lisa.platform_ import platforms
+from lisa.testselector import select_testcases
+from lisa.testsuite import TestResult, TestStatus, TestSuite, TestSuiteMetadata
 from lisa.util import constants
 from lisa.util.logger import get_logger
 
@@ -23,22 +19,23 @@ class LISARunner(Action):
 
     @property
     def typename(self) -> str:
-        return "LISAv2"
+        return "LISA"
 
-    def config(self, key: str, value: object) -> None:
-        if key == constants.CONFIG_PLATFORM:
-            self.platform = cast(Platform, value)
-        if key == constants.CONFIG_TEST_CASES:
-            self.cases = cast(Iterable[TestCaseData], value)
+    def config(self, key: str, value: Any) -> None:
+        if key == constants.CONFIG_RUNBOOK:
+            self._runbook = cast(schema.Runbook, value)
 
     async def start(self) -> None:
         await super().start()
         self.set_status(ActionStatus.RUNNING)
 
+        test_cases = select_testcases(self._runbook.testcase)
+        platform = platforms.default
+
         # select test cases
         test_results: List[TestResult] = []
         test_suites: Dict[TestSuiteMetadata, List[TestResult]] = dict()
-        for test_case_data in self.cases:
+        for test_case_data in test_cases:
             test_result = TestResult(case=test_case_data)
             test_results.append(test_result)
             test_suite_cases = test_suites.get(test_case_data.metadata.suite, [])
@@ -49,7 +46,7 @@ class LISARunner(Action):
         cloned_environment = environments.default.clone()
         environment: Optional[Environment] = None
         try:
-            environment = self.platform.request_environment(cloned_environment)
+            environment = platform.request_environment(cloned_environment)
 
             self._log.info(f"start running {len(test_results)} cases")
             for test_suite_metadata in test_suites:
@@ -84,7 +81,7 @@ class LISARunner(Action):
             self.set_status(ActionStatus.SUCCESS)
         finally:
             if environment:
-                self.platform.delete_environment(environment)
+                platform.delete_environment(environment)
 
     async def stop(self) -> None:
         super().stop()

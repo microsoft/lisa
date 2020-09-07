@@ -3,8 +3,6 @@ from pathlib import Path, PurePath
 
 # config types
 CONFIG_RUNBOOK = "runbook"
-CONFIG_PLATFORM = "platform"
-CONFIG_TEST_CASES = "testcases"
 
 RUN_ID = ""
 RUN_NAME = ""
