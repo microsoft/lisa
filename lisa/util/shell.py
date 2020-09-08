@@ -1,15 +1,20 @@
 import logging
 import os
 import shutil
+import sys
+from functools import partial
 from logging import getLogger
 from pathlib import Path, PurePath
-from typing import Any, Mapping, Optional, Sequence, Union, cast
+from typing import Any, Dict, List, Mapping, Optional, Sequence, Union, cast
 
 import paramiko  # type: ignore
 import spur  # type: ignore
 import spurplus  # type: ignore
 
 from lisa.util import LisaException
+from lisa.util.logger import get_logger
+
+_get_logger = partial(get_logger, "shell")
 
 
 class ConnectionInfo:
@@ -44,25 +49,93 @@ class ConnectionInfo:
             raise LisaException("username must be set")
 
 
+class WindowsShellType(object):
+    supports_which = False
+
+    def generate_run_command(
+        self,
+        command_args: List[str],
+        store_pid: bool = False,
+        cwd: Optional[str] = None,
+        update_env: Optional[Dict[str, str]] = None,
+        new_process_group: bool = False,
+    ) -> str:
+        commands = []
+
+        if store_pid:
+            commands.append(
+                'powershell "(gwmi win32_process|? processid -eq $pid).parentprocessid"'
+                " &&"
+            )
+
+        if cwd is not None:
+            commands.append(f"cd {cwd} 2>&1 && echo spur-cd: 0 ")
+            commands.append("|| echo spur-cd: 1 && exit 1 &")
+
+        if update_env:
+            update_env_commands = [
+                "set {0}={1}".format(key, value) for key, value in update_env.items()
+            ]
+            commands += f"{'; '.join(update_env_commands)}; "
+
+        if cwd is not None:
+            commands.append(f"pushd {cwd} & ")
+            commands.append(" ".join(command_args))
+            commands.append(" & popd")
+        else:
+            commands.append(" ".join(command_args))
+        result = " ".join(commands)
+
+        log = _get_logger()
+        log.debug(f"command: {result}")
+
+        return result
+
+
 class SshShell:
     def __init__(self, connection_info: ConnectionInfo) -> None:
         self.is_remote = True
         self._is_initialized = False
         self._connection_info = connection_info
-        self._inner_shell: Optional[spurplus.SshShell] = None
+        self._inner_shell: Optional[spur.SshShell] = None
 
+        self._log = _get_logger()
         paramiko_logger = getLogger("paramiko")
         paramiko_logger.setLevel(logging.WARN)
 
     def initialize(self) -> None:
-        self._inner_shell = spurplus.connect_with_retries(
-            self._connection_info.address,
+        paramiko_client = paramiko.SSHClient()
+        paramiko_client.set_missing_host_key_policy(paramiko.AutoAddPolicy())
+        paramiko_client.connect(
+            hostname=self._connection_info.address,
             port=self._connection_info.port,
-            username=self._connection_info.username,
             password=self._connection_info.password,
-            private_key_file=self._connection_info.private_key_file,
-            missing_host_key=spur.ssh.MissingHostKey.accept,
+            key_filename=self._connection_info.private_key_file,
         )
+        spur_kwargs = {
+            "hostname": self._connection_info.address,
+            "username": self._connection_info.username,
+            "password": self._connection_info.password,
+            "port": self._connection_info.port,
+            "private_key_file": self._connection_info.private_key_file,
+            "missing_host_key": spur.ssh.MissingHostKey.accept,
+            "connect_timeout": 10,
+        }
+
+        _, stdout, _ = paramiko_client.exec_command("cmd")
+        stdout_content = stdout.read().decode("utf-8")
+        if stdout_content and "Windows" in stdout_content:
+            self.is_linux = False
+            spur_ssh_shell = spur.SshShell(shell_type=WindowsShellType(), **spur_kwargs)
+            sftp = spurplus.sftp.ReconnectingSFTP(
+                sftp_opener=spur_ssh_shell._open_sftp_client
+            )
+            self._inner_shell = spurplus.SshShell(
+                spur_ssh_shell=spur_ssh_shell, sftp=sftp
+            )
+        else:
+            self.is_linux = True
+            self._inner_shell = spurplus.connect_with_retries(**spur_kwargs)
 
     def close(self) -> None:
         if self._inner_shell:
@@ -78,7 +151,7 @@ class SshShell:
         stderr: Any = None,
         encoding: str = "utf-8",
         use_pty: bool = False,
-        allow_error: bool = False,
+        allow_error: bool = True,
     ) -> Any:
         assert self._inner_shell
         return self._inner_shell.spawn(
@@ -174,11 +247,15 @@ class SshShell:
 
 class LocalShell:
     def __init__(self) -> None:
+        super().__init__()
         self.is_remote = False
         self._inner_shell = spur.LocalShell()
 
     def initialize(self) -> None:
-        pass
+        if "win32" == sys.platform:
+            self.is_linux = False
+        else:
+            self.is_linux = True
 
     def close(self) -> None:
         pass
