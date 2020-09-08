@@ -78,7 +78,7 @@ class WindowsShellType(object):
             update_env_commands = [
                 "set {0}={1}".format(key, value) for key, value in update_env.items()
             ]
-            commands += f"{'; '.join(update_env_commands)}; "
+            commands += f"{'& '.join(update_env_commands)}& "
 
         if cwd is not None:
             commands.append(f"pushd {cwd} & ")
