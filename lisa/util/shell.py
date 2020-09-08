@@ -2,7 +2,6 @@ import logging
 import os
 import shutil
 import sys
-from functools import partial
 from logging import getLogger
 from pathlib import Path, PurePath
 from typing import Any, Dict, List, Mapping, Optional, Sequence, Union, cast
@@ -12,9 +11,6 @@ import spur  # type: ignore
 import spurplus  # type: ignore
 
 from lisa.util import LisaException
-from lisa.util.logger import get_logger
-
-_get_logger = partial(get_logger, "shell")
 
 
 class ConnectionInfo:
@@ -50,6 +46,12 @@ class ConnectionInfo:
 
 
 class WindowsShellType(object):
+    """
+    Windows command generator
+    Support get pid, set envs, and cwd
+    Doesn't support kill, it needs overwrite spur.SshShell
+    """
+
     supports_which = False
 
     def generate_run_command(
@@ -84,12 +86,7 @@ class WindowsShellType(object):
             commands.append(" & popd")
         else:
             commands.append(" ".join(command_args))
-        result = " ".join(commands)
-
-        log = _get_logger()
-        log.debug(f"command: {result}")
-
-        return result
+        return " ".join(commands)
 
 
 class SshShell:
@@ -99,43 +96,52 @@ class SshShell:
         self._connection_info = connection_info
         self._inner_shell: Optional[spur.SshShell] = None
 
-        self._log = _get_logger()
         paramiko_logger = getLogger("paramiko")
         paramiko_logger.setLevel(logging.WARN)
 
     def initialize(self) -> None:
+        # spur try a linux command and return error on Windows.
+        # So try with paramiko firstly.
         paramiko_client = paramiko.SSHClient()
         paramiko_client.set_missing_host_key_policy(paramiko.AutoAddPolicy())
-        paramiko_client.connect(
-            hostname=self._connection_info.address,
-            port=self._connection_info.port,
-            password=self._connection_info.password,
-            key_filename=self._connection_info.private_key_file,
-        )
+        try:
+            paramiko_client.connect(
+                hostname=self._connection_info.address,
+                port=self._connection_info.port,
+                username=self._connection_info.username,
+                password=self._connection_info.password,
+                key_filename=self._connection_info.private_key_file,
+            )
+        except Exception as identifier:
+            raise LisaException(f"connect to server failed: {identifier}")
+        _, stdout, _ = paramiko_client.exec_command("cmd")
+
         spur_kwargs = {
             "hostname": self._connection_info.address,
+            "port": self._connection_info.port,
             "username": self._connection_info.username,
             "password": self._connection_info.password,
-            "port": self._connection_info.port,
             "private_key_file": self._connection_info.private_key_file,
             "missing_host_key": spur.ssh.MissingHostKey.accept,
             "connect_timeout": 10,
         }
 
-        _, stdout, _ = paramiko_client.exec_command("cmd")
-        stdout_content = stdout.read().decode("utf-8")
+        # Some windows doesn't end the text stream, so read first line only.
+        # it's  enough to detect os.
+        stdout_content = stdout.readline()
+
         if stdout_content and "Windows" in stdout_content:
             self.is_linux = False
-            spur_ssh_shell = spur.SshShell(shell_type=WindowsShellType(), **spur_kwargs)
-            sftp = spurplus.sftp.ReconnectingSFTP(
-                sftp_opener=spur_ssh_shell._open_sftp_client
-            )
-            self._inner_shell = spurplus.SshShell(
-                spur_ssh_shell=spur_ssh_shell, sftp=sftp
-            )
+            shell_type = WindowsShellType()
         else:
             self.is_linux = True
-            self._inner_shell = spurplus.connect_with_retries(**spur_kwargs)
+            shell_type = spur.SshShell.ShellTypes.sh
+
+        spur_ssh_shell = spur.SshShell(shell_type=shell_type, **spur_kwargs)
+        sftp = spurplus.sftp.ReconnectingSFTP(
+            sftp_opener=spur_ssh_shell._open_sftp_client
+        )
+        self._inner_shell = spurplus.SshShell(spur_ssh_shell=spur_ssh_shell, sftp=sftp)
 
     def close(self) -> None:
         if self._inner_shell:
