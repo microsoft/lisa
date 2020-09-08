@@ -135,7 +135,7 @@ class SshShell:
             shell_type = WindowsShellType()
         else:
             self.is_linux = True
-            shell_type = spur.SshShell.ShellTypes.sh
+            shell_type = spur.ssh.ShellTypes.sh
 
         spur_ssh_shell = spur.SshShell(shell_type=shell_type, **spur_kwargs)
         sftp = spurplus.sftp.ReconnectingSFTP(
