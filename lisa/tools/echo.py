@@ -4,10 +4,7 @@ from lisa.executable import Tool
 class Echo(Tool):
     @property
     def command(self) -> str:
-        command = "echo"
-        if not self.node.is_linux:
-            command = "cmd /c echo"
-        return command
+        return "echo"
 
     @property
     def _is_installed_internal(self) -> bool:
