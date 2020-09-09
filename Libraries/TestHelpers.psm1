@@ -795,12 +795,18 @@ Function Get-SSHKey ($XMLSecretFile) {
 		if ($privateSSHKey) {
 			$sshKeyPath = $privateSSHKey
 		}
+		$headerAuthInfo = $xmlSecret.secrets.RequestHeader
 	}
 	if ($privateSSHKey) {
 		if ($privateSSHKey -match "^(http|https)://") {
 			$WebClient = New-Object System.Net.WebClient
-			$privateSSHKeyName = $privateSSHKey.Split('?')[0].Split('/')[-1]
 			try {
+				if ($headerAuthInfo) {
+					$privateSSHKeyName = $privateSSHKey.Split('&')[0].Split('=')[-1]
+					$WebClient.Headers['Authorization'] = "Basic $headerAuthInfo"
+				} else {
+					$privateSSHKeyName = $privateSSHKey.Split('?')[0].Split('/')[-1]
+				}
 				$WebClient.DownloadFile("$privateSSHKey", "$temp_Folder/$privateSSHKeyName")
 			} catch {
 				Throw "Failed to download from $privateSSHKey, please double check the path."
