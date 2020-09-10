@@ -107,7 +107,7 @@ class LISARunner(Action):
 
                 if not environment.is_ready:
                     self._log.warn(
-                        f"environment {environment.name} is not requested successfully"
+                        f"environment {environment.name} is not deployed successfully"
                     )
                     continue
 

@@ -58,7 +58,7 @@ def main() -> None:
 
         args.func(args)
     finally:
-        log.info(f"finished in {total_timer}")
+        log.info(f"completed in {total_timer}")
 
 
 if __name__ == "__main__":
