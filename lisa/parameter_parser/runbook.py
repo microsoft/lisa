@@ -41,11 +41,11 @@ def _load_data(path: Path) -> Any:
 
 
 def _load_extends(base_path: Path, extends_runbook: schema.Extension) -> None:
-    for p in extends_runbook.paths:
+    for index, p in enumerate(extends_runbook.paths):
         path = PurePath(p)
         if not path.is_absolute():
             path = base_path.joinpath(path)
-        import_module(Path(path))
+        import_module(Path(path), index=index)
 
 
 def validate_data(data: Any) -> schema.Runbook:
