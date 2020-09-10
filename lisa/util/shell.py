@@ -121,6 +121,7 @@ class SshShell(InitializableMixin):
         except Exception as identifier:
             raise LisaException(f"connect to server failed: {identifier}")
         _, stdout, _ = paramiko_client.exec_command("cmd")
+        paramiko_client.close()
 
         spur_kwargs = {
             "hostname": self._connection_info.address,

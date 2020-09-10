@@ -171,9 +171,9 @@ class LISARunner(Action):
             result_count_dict[result.status] = result_count
 
         self._log.info("result summary")
-        self._log.info(f"    TOTAL\t: {len(selected_case_results)}")
+        self._log.info(f"  TOTAL      : {len(selected_case_results)}")
         for key in TestStatus:
-            self._log.info(f"    {key.name}\t: {result_count_dict.get(key, 0)}")
+            self._log.info(f"    {key.name:<9}: {result_count_dict.get(key, 0)}")
 
         # delete enviroment after run
         self.set_status(ActionStatus.SUCCESS)

@@ -95,7 +95,7 @@ class LogWriter(object):
 
     def flush(self) -> None:
         if len(self._buffer) > 0:
-            self._log.log(self._level, self._buffer.strip("\r\n"))
+            self._log.lines(self._level, self._buffer.strip("\r\n"))
             self._buffer = ""
 
     def close(self) -> None:

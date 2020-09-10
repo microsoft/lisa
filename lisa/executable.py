@@ -84,6 +84,14 @@ class Tool(ABC, InitializableMixin):
         """
         return None
 
+    @property
+    def package_name(self) -> str:
+        """
+        return package name,
+        it may be different with command or different platform.
+        """
+        return self.command
+
     @classmethod
     def create(cls, node: Node) -> Tool:
         """
@@ -218,7 +226,7 @@ class Tool(ABC, InitializableMixin):
         parameters: str = "",
         shell: bool = False,
         no_error_log: bool = False,
-        no_info_log: bool = False,
+        no_info_log: bool = True,
         cwd: Optional[pathlib.PurePath] = None,
     ) -> ExecutableResult:
         return self.run(
@@ -445,7 +453,7 @@ class Tools:
                     tool_log.debug(f"installed in {timer}")
                 else:
                     raise LisaException(
-                        "doesn't support install on "
+                        f"doesn't support install {tool.name} on "
                         f"Node({self._node.index}), "
                         f"Linux({self._node.is_linux}), "
                         f"Remote({self._node.is_remote})"

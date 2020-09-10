@@ -1,14 +1,13 @@
-import pathlib
 from typing import cast
 
 from lisa.executable import Tool
 from lisa.operating_system import Linux
 
 
-class Git(Tool):
+class Gcc(Tool):
     @property
     def command(self) -> str:
-        return "git"
+        return "gcc"
 
     @property
     def can_install(self) -> bool:
@@ -16,9 +15,5 @@ class Git(Tool):
 
     def _install(self) -> bool:
         linux_os: Linux = cast(Linux, self.node.os)
-        linux_os.install_packages([self])
+        linux_os.install_packages("gcc")
         return self._check_exists()
-
-    def clone(self, url: str, cwd: pathlib.PurePath) -> None:
-        # git print to stderr for normal info, so set no_error_log to True.
-        self.run(f"clone {url}", cwd=cwd, no_error_log=True)

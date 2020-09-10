@@ -9,6 +9,7 @@ from retry import retry  # type: ignore
 from lisa.parameter_parser.argparser import parse_args
 from lisa.util import constants
 from lisa.util.logger import get_logger, set_level, set_log_file
+from lisa.util.perf_timer import create_timer
 
 
 @retry(FileExistsError, tries=10, delay=0)  # type: ignore
@@ -23,37 +24,41 @@ def create_run_path(root_path: Path) -> Path:
 
 
 def main() -> None:
-    runtime_root = Path("runtime").absolute()
+    total_timer = create_timer()
+    try:
+        runtime_root = Path("runtime").absolute()
 
-    constants.CACHE_PATH = runtime_root.joinpath("cache")
-    constants.CACHE_PATH.mkdir(parents=True, exist_ok=True)
-    # create run root path
-    runs_path = runtime_root.joinpath("runs")
-    logic_path = create_run_path(runs_path)
-    local_path = runs_path.joinpath(logic_path)
-    local_path.mkdir(parents=True)
+        constants.CACHE_PATH = runtime_root.joinpath("cache")
+        constants.CACHE_PATH.mkdir(parents=True, exist_ok=True)
+        # create run root path
+        runs_path = runtime_root.joinpath("runs")
+        logic_path = create_run_path(runs_path)
+        local_path = runs_path.joinpath(logic_path)
+        local_path.mkdir(parents=True)
 
-    constants.RUN_ID = logic_path.name
-    constants.RUN_LOCAL_PATH = local_path
-    constants.RUN_LOGIC_PATH = logic_path
+        constants.RUN_ID = logic_path.name
+        constants.RUN_LOCAL_PATH = local_path
+        constants.RUN_LOGIC_PATH = logic_path
 
-    args = parse_args()
+        args = parse_args()
 
-    set_log_file(f"{local_path}/lisa-host.log")
+        set_log_file(f"{local_path}/lisa-host.log")
 
-    log = get_logger()
-    log.info(f"Python version: {sys.version}")
-    log.info(f"local time: {datetime.now().astimezone()}")
-    log.info(f"command line args: {sys.argv}")
-    log.info(f"run local path: {runtime_root}")
+        log = get_logger()
+        log.info(f"Python version: {sys.version}")
+        log.info(f"local time: {datetime.now().astimezone()}")
+        log.info(f"command line args: {sys.argv}")
+        log.info(f"run local path: {runtime_root}")
 
-    if args.debug:
-        log_level = DEBUG
-    else:
-        log_level = INFO
-    set_level(log_level)
+        if args.debug:
+            log_level = DEBUG
+        else:
+            log_level = INFO
+        set_level(log_level)
 
-    args.func(args)
+        args.func(args)
+    finally:
+        log.info(f"finished in {total_timer}")
 
 
 if __name__ == "__main__":

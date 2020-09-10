@@ -30,16 +30,12 @@ class ExecutableResult:
 
 class Process:
     def __init__(
-        self,
-        id_: str,
-        shell: Shell,
-        parent_logger: Optional[Logger] = None,
-        is_linux: bool = True,
+        self, id_: str, shell: Shell, parent_logger: Optional[Logger] = None,
     ) -> None:
         # the shell can be LocalShell or SshShell
         self._shell = shell
         self._id_ = id_
-        self._is_linux = is_linux
+        self._is_linux = shell.is_linux
         self._running: bool = False
         self._log = get_logger("cmd", id_, parent=parent_logger)
 
