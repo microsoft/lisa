@@ -124,7 +124,7 @@ testPmdParser ()
 	mv "$HOMEDIR"/dpdkTestPmd.csv "$HOMEDIR"/dpdkTestPmd-$(date +"%m%d%Y-%H%M%S").csv
 	DpdkVersion=$(testpmd -v 2>&1 | grep DPDK | tr ":" "\n" | sed 's/^ //g' | sed "s/'//g" | tail -1)
 	logFiles=($(ls "$LOGDIR"/*.log))
-	echo "DpdkVersion,TestMode,Cores,MaxRxPps,TxPps,RxPps,FwdPps,TxBytes,RxBytes,FwdBytes,TxPackets,RxPackets,FwdPackets,TxPacketSize,RxPacketSize" > "$testpmdCsvFile"
+	echo "DpdkVersion,poll_mode_driver,TestMode,Cores,MaxRxPps,TxPps,RxPps,FwdPps,TxBytes,RxBytes,FwdBytes,TxPackets,RxPackets,FwdPackets,TxPacketSize,RxPacketSize" > "$testpmdCsvFile"
 	fileCount=0
 	while [ "x${logFiles[$fileCount]}" != "x" ]
 	do
@@ -224,13 +224,13 @@ testPmdParser ()
 		echo $rxonly_Txbytes_Avg $rxonly_Txpackets_Avg
 		Tx_Pkt_Size=$((rxonly_Txbytes_Avg/rxonly_Txpackets_Avg))
 		Rx_Pkt_Size=$((rxonly_Rxbytes_Avg/rxonly_Rxpackets_Avg))
-		echo "$DpdkVersion,$rxonly_mode,$cores,$rxonly_Rxpps_Max,$rxonly_Txpps_Avg,$rxonly_Rxpps_Avg,$rxonly_RTxpps_Avg,$rxonly_Txbytes_Avg,$rxonly_Rxbytes_Avg,$rxonly_RTxbytes_Avg,$rxonly_Txpackets_Avg,$rxonly_Rxpackets_Avg,$rxonly_RTxpackets_Avg,$Tx_Pkt_Size,$Rx_Pkt_Size" >> "$testpmdCsvFile"
+		echo "$DpdkVersion,${pmd},$rxonly_mode,$cores,$rxonly_Rxpps_Max,$rxonly_Txpps_Avg,$rxonly_Rxpps_Avg,$rxonly_RTxpps_Avg,$rxonly_Txbytes_Avg,$rxonly_Rxbytes_Avg,$rxonly_RTxbytes_Avg,$rxonly_Txpackets_Avg,$rxonly_Rxpackets_Avg,$rxonly_RTxpackets_Avg,$Tx_Pkt_Size,$Rx_Pkt_Size" >> "$testpmdCsvFile"
 	fi
 	if [ $io_mode == "io" ];then
 		LogMsg "$io_mode pushing to csv file"
 		Tx_Pkt_Size=$((io_Txbytes_Avg/io_Txpackets_Avg))
 		Rx_Pkt_Size=$((io_Rxbytes_Avg/io_Rxpackets_Avg))
-		echo "$DpdkVersion,$io_mode,$cores,$io_Rxpps_Max,$io_Txpps_Avg,$io_Rxpps_Avg,$io_RTxpps_Avg,$io_Txbytes_Avg,$io_Rxbytes_Avg,$io_RTxbytes_Avg,$io_Txpackets_Avg,$io_Rxpackets_Avg,$io_RTxpackets_Avg,$Tx_Pkt_Size,$Rx_Pkt_Size" >> "$testpmdCsvFile"
+		echo "$DpdkVersion,${pmd},$io_mode,$cores,$io_Rxpps_Max,$io_Txpps_Avg,$io_Rxpps_Avg,$io_RTxpps_Avg,$io_Txbytes_Avg,$io_Rxbytes_Avg,$io_RTxbytes_Avg,$io_Txpackets_Avg,$io_Rxpackets_Avg,$io_RTxpackets_Avg,$Tx_Pkt_Size,$Rx_Pkt_Size" >> "$testpmdCsvFile"
 	fi
 }
 

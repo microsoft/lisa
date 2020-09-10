@@ -307,6 +307,7 @@ collect_VM_properties
 				if ($mode.test_mode) {
 					$resultMap["TestMode"] = $mode.test_mode
 				}
+				$resultMap["PollModeDriver"] = $mode.poll_mode_driver
 				$resultMap["Cores"] = [int32]($mode.core)
 				$resultMap["Max_Rxpps"] = [int64]($mode.max_rx_pps)
 				$resultMap["Txpps"] = [int64]($mode.tx_pps_avg)

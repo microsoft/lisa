@@ -232,7 +232,7 @@ function Install_Dpdk () {
 				packages+=(kernel-default-devel)
 			fi
 			packages+=(libnuma-devel numactl librdmacm1 rdma-core-devel libmnl-devel pkg-config)
-			# default meson in SUSE 15-SP1 is 0.46 & required is 0.47. Installing it manually
+			# default meson in SUSE 15-SP1 is 0.46 & required is 0.47. Installing it separately
 			ssh "${1}" "zypper install -y ninja"
 			ssh "${1}" "rpm -ivh https://download.opensuse.org/repositories/openSUSE:/Leap:/15.2/standard/noarch/meson-0.54.2-lp152.1.1.noarch.rpm"
 			;;
