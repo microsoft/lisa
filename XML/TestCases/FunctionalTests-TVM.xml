@@ -2,7 +2,7 @@
   <test>
     <testName>TVM-TEST-SECUREBOOT-COMPATIBILITY</testName>
     <testScript>TVM-TestSecureBootCompatibility.sh</testScript>
-    <files>.\Testscripts\Linux\TVM-TestSecureBootCompatibility.sh,.\Testscripts\Linux\utils.sh,.\Tools\sbinfo</files>
+    <files>.\Testscripts\Linux\TVM-TestSecureBootCompatibility.sh,.\Testscripts\Linux\utils.sh</files>
     <Platform>Azure</Platform>
     <Category>Functional</Category>
     <Area>TVM</Area>
