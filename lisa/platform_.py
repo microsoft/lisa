@@ -9,6 +9,7 @@ from lisa import schema
 from lisa.environment import Environments
 from lisa.util import InitializableMixin, LisaException, constants
 from lisa.util.logger import get_logger
+from lisa.util.perf_timer import create_timer
 
 if TYPE_CHECKING:
     from lisa.environment import Environment
@@ -82,9 +83,10 @@ class Platform(ABC, InitializableMixin):
 
     def deploy_environment(self, environment: Environment) -> None:
         self.log.info(f"requesting environment {environment.name}")
+        timer = create_timer()
         self._deploy_environment(environment)
         environment.initialize()
-        self.log.info(f"requested environment {environment.name}")
+        self.log.info(f"requested environment {environment.name} with {timer}")
 
     def delete_environment(self, environment: Environment) -> None:
         self.log.debug(f"environment {environment.name} deleting")
