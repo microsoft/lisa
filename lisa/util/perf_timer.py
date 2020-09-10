@@ -18,8 +18,11 @@ class Timer:
             self._elapsed = timer() - self.start
         return self._elapsed
 
+    def elapsed_text(self, stop: bool = True) -> str:
+        return f"{self.elapsed(stop):.3f} sec"
+
     def __str__(self) -> str:
-        return f"{self.elapsed():.3f} sec"
+        return f"{self.elapsed_text()}"
 
 
 def create_timer() -> Timer:

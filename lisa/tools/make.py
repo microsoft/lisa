@@ -1,14 +1,17 @@
-import pathlib
+from pathlib import PurePath
 from typing import cast
 
 from lisa.executable import Tool
 from lisa.operating_system import Linux
+from lisa.tools import Gcc
 
 
-class Git(Tool):
+class Make(Tool):
+    repo = "https://github.com/microsoft/ntttcp-for-linux"
+
     @property
     def command(self) -> str:
-        return "git"
+        return "make"
 
     @property
     def can_install(self) -> bool:
@@ -16,9 +19,8 @@ class Git(Tool):
 
     def _install(self) -> bool:
         linux_os: Linux = cast(Linux, self.node.os)
-        linux_os.install_packages([self])
+        linux_os.install_packages([self, Gcc])
         return self._check_exists()
 
-    def clone(self, url: str, cwd: pathlib.PurePath) -> None:
-        # git print to stderr for normal info, so set no_error_log to True.
-        self.run(f"clone {url}", cwd=cwd, no_error_log=True)
+    def make_and_install(self, cwd: PurePath) -> None:
+        self.run("&& sudo make install", shell=True, cwd=cwd)

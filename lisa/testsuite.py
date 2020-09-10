@@ -220,13 +220,14 @@ class TestCaseRuntimeData:
         return cloned
 
 
-class TestSuite(Action, unittest.TestCase, metaclass=ABCMeta):
+class TestSuite(unittest.TestCase, Action, metaclass=ABCMeta):
     def __init__(
         self,
         environment: Environment,
         case_results: List[TestResult],
         metadata: TestSuiteMetadata,
     ) -> None:
+        super().__init__()
         self.environment = environment
         # test cases to run, must be a test method in this class.
         self.case_results = case_results

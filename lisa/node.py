@@ -7,7 +7,7 @@ from typing import TYPE_CHECKING, Iterable, List, Optional, TypeVar, Union, cast
 
 from lisa import schema
 from lisa.executable import Tools
-from lisa.operating_system import Linux, OperatingSystem, Windows
+from lisa.operating_system import OperatingSystem
 from lisa.tools import Echo
 from lisa.util import (
     ContextMixin,
@@ -30,6 +30,7 @@ class Node(ContextMixin, InitializableMixin):
         capability: schema.NodeSpace,
         is_remote: bool = True,
         is_default: bool = False,
+        logger_name: str = "node",
     ) -> None:
         super().__init__()
         self.is_default = is_default
@@ -44,7 +45,7 @@ class Node(ContextMixin, InitializableMixin):
         self.working_path: pathlib.PurePath = pathlib.PurePath()
 
         self._connection_info: Optional[ConnectionInfo] = None
-        self.log = get_logger("node", str(self.index))
+        self.log = get_logger(logger_name, str(self.index))
 
     @staticmethod
     def create(
@@ -52,6 +53,7 @@ class Node(ContextMixin, InitializableMixin):
         capability: schema.NodeSpace,
         node_type: str = constants.ENVIRONMENTS_NODES_REMOTE,
         is_default: bool = False,
+        logger_name: str = "node",
     ) -> Node:
         if node_type == constants.ENVIRONMENTS_NODES_REMOTE:
             is_remote = True
@@ -60,7 +62,11 @@ class Node(ContextMixin, InitializableMixin):
         else:
             raise LisaException(f"unsupported node_type '{node_type}'")
         node = Node(
-            index, capability=capability, is_remote=is_remote, is_default=is_default
+            index,
+            capability=capability,
+            is_remote=is_remote,
+            is_default=is_default,
+            logger_name=logger_name,
         )
         node.log.debug(f"created, type: '{node_type}', isDefault: {is_default}")
         return node
@@ -92,7 +98,7 @@ class Node(ContextMixin, InitializableMixin):
         cmd: str,
         shell: bool = False,
         no_error_log: bool = False,
-        no_info_log: bool = False,
+        no_info_log: bool = True,
         cwd: Optional[pathlib.PurePath] = None,
     ) -> ExecutableResult:
         process = self.execute_async(
@@ -109,7 +115,7 @@ class Node(ContextMixin, InitializableMixin):
         cmd: str,
         shell: bool = False,
         no_error_log: bool = False,
-        no_info_log: bool = False,
+        no_info_log: bool = True,
         cwd: Optional[pathlib.PurePath] = None,
     ) -> Process:
         self.initialize()
@@ -132,10 +138,7 @@ class Node(ContextMixin, InitializableMixin):
     def _initialize(self) -> None:
         self.log.debug(f"initializing node {self.name}")
         self.shell.initialize()
-        if self.shell.is_linux:
-            self.os: OperatingSystem = Linux(self)
-        else:
-            self.os = Windows(self)
+        self.os: OperatingSystem = OperatingSystem.create(self)
 
         # set working path
         if self.is_remote:
@@ -175,9 +178,7 @@ class Node(ContextMixin, InitializableMixin):
         cwd: Optional[pathlib.PurePath] = None,
     ) -> Process:
         cmd_id = str(random.randint(0, 10000))
-        process = Process(
-            cmd_id, self.shell, parent_logger=self.log, is_linux=self.is_linux
-        )
+        process = Process(cmd_id, self.shell, parent_logger=self.log)
         process.start(
             cmd,
             shell=shell,
@@ -257,7 +258,9 @@ class Nodes(NodesDict):
         for node in self._list:
             node.close()
 
-    def from_local(self, node_runbook: schema.LocalNode) -> Node:
+    def from_local(
+        self, node_runbook: schema.LocalNode, logger_name: str = "node",
+    ) -> Node:
         assert isinstance(
             node_runbook, schema.LocalNode
         ), f"actual: {type(node_runbook)}"
@@ -266,12 +269,15 @@ class Nodes(NodesDict):
             capability=node_runbook.capability,
             node_type=node_runbook.type,
             is_default=node_runbook.is_default,
+            logger_name=logger_name,
         )
         self._list.append(node)
 
         return node
 
-    def from_remote(self, node_runbook: schema.RemoteNode) -> Optional[Node]:
+    def from_remote(
+        self, node_runbook: schema.RemoteNode, logger_name: str = "node",
+    ) -> Optional[Node]:
         assert isinstance(
             node_runbook, schema.RemoteNode
         ), f"actual: {type(node_runbook)}"
@@ -281,6 +287,7 @@ class Nodes(NodesDict):
             capability=node_runbook.capability,
             node_type=node_runbook.type,
             is_default=node_runbook.is_default,
+            logger_name=logger_name,
         )
         self._list.append(node)
 

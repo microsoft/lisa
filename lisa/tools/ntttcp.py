@@ -1,7 +1,7 @@
 from typing import List, Type
 
 from lisa.executable import Tool
-from lisa.tools import Git
+from lisa.tools import Git, Make
 from lisa.util.process import ExecutableResult
 
 
@@ -10,7 +10,7 @@ class Ntttcp(Tool):
 
     @property
     def dependencies(self) -> List[Type[Tool]]:
-        return [Git]
+        return [Git, Make]
 
     @property
     def command(self) -> str:
@@ -25,8 +25,9 @@ class Ntttcp(Tool):
         self.node.shell.mkdir(tool_path, exist_ok=True)
         git = self.node.tools[Git]
         git.clone(self.repo, tool_path)
+        make = self.node.tools[Make]
         code_path = tool_path.joinpath("ntttcp-for-linux/src")
-        self.node.execute("make && sudo make install", shell=True, cwd=code_path)
+        make.make_and_install(cwd=code_path)
         return self._check_exists()
 
     def help(self) -> ExecutableResult:

@@ -16,7 +16,7 @@ from lisa.tools import Lscpu, Ntttcp
 class MutipleNodesDemo(TestSuite):
     @TestCaseMetadata(
         description="""
-        this test case send and receive data by ntttcp
+        This test case send and receive data by ntttcp
         """,
         priority=1,
     )
@@ -43,5 +43,7 @@ class MutipleNodesDemo(TestSuite):
         ntttcp_client = client_node.tools[Ntttcp]
 
         server_process = ntttcp_server.run_async("-P 1 -t 5 -e")
-        ntttcp_client.run(f"-s {server_node.internal_address} -P 1 -n 1 -t 5 -W 1")
+        ntttcp_client.run(
+            f"-s {server_node.internal_address} -P 1 -n 1 -t 5 -W 1", no_info_log=False
+        )
         server_process.wait_result()

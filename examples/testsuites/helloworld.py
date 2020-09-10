@@ -37,10 +37,11 @@ class HelloWorld(TestSuite):
 
         # get process output directly.
         echo = node.tools[Echo]
-        result = echo.run("hello world!")
-        self.log.info(f"stdout of node: '{result.stdout}'")
-        self.log.info(f"stderr of node: '{result.stderr}'")
-        self.log.info(f"exitCode of node: '{result.exit_code}'")
+        hello_world = "hello world!"
+        result = echo.run(hello_world)
+        self.assertEquals(hello_world, result.stdout)
+        self.assertEquals("", result.stderr)
+        self.assertEqual(0, result.exit_code)
 
     @TestCaseMetadata(
         description="""
@@ -52,7 +53,7 @@ class HelloWorld(TestSuite):
         node = self.environment.default_node
         # use it once like this way before use short cut
         node.tools[Echo]
-        self.log.info(f"stdout of node: '{node.tools.echo('bye!')}'")
+        self.assertEqual("bye!", str(node.tools.echo("bye!")))
 
     def before_suite(self) -> None:
         self.log.info("setup my test suite")
