@@ -13,6 +13,5 @@ UploadStatusFile*
 Tools/kvp_*
 Tools/jq
 Tools/gawk
-Tools/sbinfo
 DownloadedFiles*
 constants.sh
