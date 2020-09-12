@@ -2379,14 +2379,12 @@ function install_fio () {
 			which fio
 			if [ $? -ne 0 ]; then
 				LogMsg "Info: fio is not available in repository. So, Installing fio using rpm"
-				fio_url="$PACKAGE_BLOB_LOCATION/fio-sles-x86_64.rpm"
-				fio_file="fio-sles-x86_64.rpm"
-				curl -o $fio_file $fio_url
-				LogMsg "zypper --no-gpg-checks --non-interactive --gpg-auto-import-keys install $fio_file"
-				zypper --no-gpg-checks --non-interactive --gpg-auto-import-keys install $fio_file
+				# fio is back to default repo in SLES 15 SP1
+				LogMsg "zypper install -y fio"
+				zypper install -y fio
 				which fio
 				if [ $? -ne 0 ]; then
-					LogErr "Error: Unable to install fio from source/rpm"
+					LogErr "Error: Unable to install fio from zypper repo"
 					return 1
 				fi
 			else
