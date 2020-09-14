@@ -23,8 +23,8 @@ class Logger(logging.Logger):
             content = content.splitlines(False)
         elif isinstance(content, dict):
             temp_content: List[str] = []
-            for key in content:
-                temp_content.append(f"{key}: {content[key]}")
+            for key, value in content.items():
+                temp_content.append(f"{key}: {value}")
             content = temp_content
         for line in content:
             if prefix:
@@ -95,7 +95,7 @@ class LogWriter(object):
 
     def flush(self) -> None:
         if len(self._buffer) > 0:
-            self._log.lines(self._level, self._buffer.strip("\r\n"))
+            self._log.lines(self._level, self._buffer)
             self._buffer = ""
 
     def close(self) -> None:
@@ -104,19 +104,24 @@ class LogWriter(object):
 
 _get_root_logger = partial(logging.getLogger, DEFAULT_LOG_NAME)
 
-_format = "%(asctime)s.%(msecs)03d[%(levelname)-.1s]%(name)s %(message)s"
-_datefmt = "%m%d %H:%M:%S"
+_format = logging.Formatter(
+    fmt="%(asctime)s.%(msecs)03d[%(levelname)-.1s]%(name)s %(message)s",
+    datefmt="%m%d %H:%M:%S",
+)
+
+_console_handler = logging.StreamHandler()
 
 
 def init_loggger() -> None:
-    logging.basicConfig(
-        level=logging.INFO,
-        format=_format,
-        datefmt=_datefmt,
-        handlers=[logging.StreamHandler()],
-    )
     logging.Formatter.converter = time.gmtime
     logging.setLoggerClass(Logger)
+    logging.root.handlers = []
+
+    root_logger = _get_root_logger()
+    root_logger.setLevel(logging.DEBUG)
+    root_logger.addHandler(_console_handler)
+
+    _console_handler.setFormatter(_format)
 
     stdout_logger = get_logger("stdout")
     stderr_logger = get_logger("stderr")
@@ -127,14 +132,14 @@ def init_loggger() -> None:
 def set_log_file(path: str) -> None:
     root_logger = _get_root_logger()
     file_handler = logging.FileHandler(path)
-    file_handler.setLevel(root_logger.level)
-    file_handler.setFormatter(logging.Formatter(fmt=_format, datefmt=_datefmt))
+    # always include details in log file
+    file_handler.setLevel(logging.DEBUG)
+    file_handler.setFormatter(_format)
     root_logger.addHandler(file_handler)
 
 
 def set_level(level: int) -> None:
-    root_logger = _get_root_logger()
-    root_logger.setLevel(level)
+    _console_handler.setLevel(level)
 
 
 def get_logger(

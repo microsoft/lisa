@@ -34,6 +34,7 @@ class TestResult:
     status: TestStatus = TestStatus.NOTRUN
     elapsed: float = 0
     message: str = ""
+    assigned_env: str = ""
     check_results: Optional[search_space.ResultReason] = None
 
     @property
@@ -306,15 +307,15 @@ class TestSuite(unittest.TestCase, Action, metaclass=ABCMeta):
                     case_result.status = TestStatus.PASSED
                 except Exception as identifier:
                     if case_result.runtime_data.ignore_failure:
-                        self.log.info(f"failed and ignored: {identifier}")
+                        self.log.info(f"case failed and ignored: {identifier}")
                         case_result.status = TestStatus.ATTEMPTED
                         case_result.message = f"{identifier}"
                     else:
-                        self.log.error("failed", exc_info=identifier)
+                        self.log.error("case failed", exc_info=identifier)
                         case_result.status = TestStatus.FAILED
                         case_result.message = f"failed: {identifier}"
                 case_result.elapsed = timer.elapsed()
-                self.log.debug(f"method end with {timer}")
+                self.log.debug(f"case end with {timer}")
 
             timer = create_timer()
             try:

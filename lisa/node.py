@@ -305,7 +305,7 @@ class Nodes(NodesDict):
 
         return node
 
-    def from_requirement(self, node_requirement: schema.NodeSpace) -> List[Node]:
+    def from_requirement(self, node_requirement: schema.NodeSpace) -> Node:
         min_requirement = cast(
             schema.NodeSpace, node_requirement.generate_min_capability(node_requirement)
         )
@@ -313,14 +313,13 @@ class Nodes(NodesDict):
             f"must be int after generate_min_capability, "
             f"actual: {min_requirement.node_count}"
         )
-        nodes: List[Node] = []
-        for _ in range(min_requirement.node_count):
-            node = Node.create(
-                len(self._list),
-                capability=min_requirement,
-                node_type=constants.ENVIRONMENTS_NODES_REMOTE,
-                is_default=node_requirement.is_default,
-            )
-            nodes.append(node)
-            self._list.append(node)
-        return nodes
+        # node count should be expanded in platform already
+        assert min_requirement.node_count == 1, f"actual: {min_requirement.node_count}"
+        node = Node.create(
+            len(self._list),
+            capability=min_requirement,
+            node_type=constants.ENVIRONMENTS_NODES_REMOTE,
+            is_default=node_requirement.is_default,
+        )
+        self._list.append(node)
+        return node

@@ -24,7 +24,7 @@ class Lscpu(Tool):
 
     def get_core_count(self, force: bool = False) -> int:
         if self._core_count is None or force:
-            result = self.run(no_info_log=True)
+            result = self.run()
             matched = self.__pattern_cores_per_socket.findall(result.stdout)
             assert len(matched) == 1, "cores per socket should have exact one line"
             core_per_socket = int(matched[0])
@@ -42,8 +42,8 @@ class WindowsLscpu(Lscpu):
 
     def get_core_count(self, force: bool = False) -> int:
         if self._core_count is None or force:
-            result = self.run("NumberOfCores", no_info_log=True)
+            result = self.run("ThreadCount")
             lines = result.stdout.splitlines(keepends=False)
-            assert "NumberOfCores" == lines[0]
-            self._core_count = int(lines[1])
+            assert "ThreadCount" == lines[0].strip(), f"actual: '{lines[0]}'"
+            self._core_count = int(lines[2].strip())
         return self._core_count

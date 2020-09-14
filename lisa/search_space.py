@@ -58,7 +58,8 @@ class RequirementMixin:
         check_result = self.check(capability)
         if not check_result.result:
             raise LisaException(
-                "cannot get min value, capability doesn't support requirement"
+                "cannot get min value, capability doesn't support requirement:"
+                f"{check_result.reasons}"
             )
         return self._generate_min_capability(capability)
 
@@ -117,7 +118,7 @@ class IntRange(RequirementMixin):
             elif isinstance(capability, int):
                 if capability < self.min:
                     result.add_reason(
-                        f"capability ({capability}) is "
+                        f"capability({capability}) is "
                         f"smaller than requirement min({self.min})"
                     )
                 elif capability > self.max:
@@ -127,7 +128,7 @@ class IntRange(RequirementMixin):
                     )
                 elif capability == self.max and not self.max_inclusive:
                     result.add_reason(
-                        f"capability ({capability}) equals "
+                        f"capability({capability}) equals "
                         f"to requirement max({self.max}), but "
                         f"requirement is not max_inclusive"
                     )
@@ -163,6 +164,28 @@ class IntRange(RequirementMixin):
 
 
 CountSpace = Union[int, List[IntRange], IntRange, None]
+
+
+def decode_count_space(data: Any) -> Any:
+    """
+    CountSpace is complex to marshmallow, so it needs customized decode.
+    Anyway, marshmallow can encode it correctly.
+    """
+    decoded_data: CountSpace = None
+    if data is None or isinstance(data, int) or isinstance(data, IntRange):
+        decoded_data = data
+    elif isinstance(data, list):
+        decoded_data = []
+        for item in data:
+            if isinstance(item, dict):
+                decoded_data.append(IntRange.schema().load(item))  # type: ignore
+            else:
+                assert isinstance(item, IntRange), f"actual: {type(item)}"
+                decoded_data.append(item)
+    else:
+        assert isinstance(data, dict), f"actual: {type(data)}"
+        decoded_data = IntRange.schema().load(data)  # type: ignore
+    return decoded_data
 
 
 def _one_of_matched(
