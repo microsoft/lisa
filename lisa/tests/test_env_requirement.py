@@ -23,14 +23,6 @@ class TestCaseSchema:
     platform_type: Optional[SetSpace[Type[schema.Platform]]]
     operating_system: Optional[SetSpace[Type[OperatingSystem]]]
 
-    def __eq__(self, other: object) -> bool:
-        assert isinstance(other, TestCaseSchema), f"actual: {type(other)}"
-        return (
-            self.environment == other.environment
-            and self.platform_type == other.platform_type
-            and self.operating_system == other.operating_system
-        )
-
 
 @dataclass
 class UtTestCaseRequirement(TestCaseRequirement, RequirementMixin):
@@ -107,26 +99,10 @@ class RequirementTestCase(SearchSpaceTestCase):
             }
         )
         n4g1 = n4g1.generate_min_capability(n4g1)
-        n24 = schema.NodeSpace.schema().load(  # type:ignore
-            {
-                "type": constants.ENVIRONMENTS_NODES_REQUIREMENT,
-                "nodeCount": 2,
-                "coreCount": 4,
-            }
-        )
-        n24 = n24.generate_min_capability(n24)
         n6 = schema.NodeSpace.schema().load(  # type:ignore
             {"type": constants.ENVIRONMENTS_NODES_REQUIREMENT, "coreCount": 6}
         )
         n6 = n6.generate_min_capability(n6)
-        n26 = schema.NodeSpace.schema().load(  # type:ignore
-            {
-                "type": constants.ENVIRONMENTS_NODES_REQUIREMENT,
-                "nodeCount": 2,
-                "coreCount": 6,
-            }
-        )
-        n26 = n26.generate_min_capability(n26)
         n6g2 = schema.NodeSpace.schema().load(  # type:ignore
             {
                 "type": constants.ENVIRONMENTS_NODES_REQUIREMENT,
@@ -158,7 +134,7 @@ class RequirementTestCase(SearchSpaceTestCase):
         s14g1 = partial_testcase_schema(environment=schema.EnvironmentSpace())
         s14g1.environment.nodes = [n4g1]
         s24 = partial_testcase_schema(environment=schema.EnvironmentSpace())
-        s24.environment.nodes = [n24]
+        s24.environment.nodes = [n4, n4]
         s16 = partial_testcase_schema(environment=schema.EnvironmentSpace())
         s16.environment.nodes = [n6]
         s16g2 = partial_testcase_schema(environment=schema.EnvironmentSpace())
@@ -168,7 +144,7 @@ class RequirementTestCase(SearchSpaceTestCase):
         s110 = partial_testcase_schema(environment=schema.EnvironmentSpace())
         s110.environment.nodes = [n10]
         s2i6 = partial_testcase_schema(environment=schema.EnvironmentSpace())
-        s2i6.environment.nodes = [n26]
+        s2i6.environment.nodes = [n6, n6]
         s266 = partial_testcase_schema(environment=schema.EnvironmentSpace())
         s266.environment.nodes = [n6, n6]
         s2610 = partial_testcase_schema(environment=schema.EnvironmentSpace())
@@ -181,16 +157,16 @@ class RequirementTestCase(SearchSpaceTestCase):
                 [True, True, True, True, True, True, True, True, True],
                 [True, True, True, True, True, True, True, True, True],
                 [True, True, True, True, False, True, True, True, False],
-                [True, False, False, False, False, True, False, False, False],
+                [False, False, False, False, False, True, True, False, False],
                 [True, True, True, True, False, True, True, True, False],
                 [True, False, True, False, False, False, False, False, False],
             ],
             expected_min=[
-                [s11, s16, s16, s16g2, s110, s2i6, s16, s16, s110],
-                [s11, s16, s16, s16g2, s110, s2i6, s16, s16, s110],
-                [s14, s16, s16, s16g2, False, s2i6, s16, s16, False],
-                [s24, False, False, False, False, s2i6, False, False, False],
-                [s16, s16, s16, s16g2, False, s2i6, s16, s16, False],
+                [s11, s16, s16, s16g2, s110, s16, s16, s16, s110],
+                [s11, s16, s16, s16g2, s110, s16, s16, s16, s110],
+                [s14, s16, s16, s16g2, False, s16, s16, s16, False],
+                [False, False, False, False, False, s2i6, s2i6, False, False],
+                [s16, s16, s16, s16g2, False, s16, s16, s16, False],
                 [s14g1, False, s16g1, False, False, False, False, False, False],
             ],
             requirements=[

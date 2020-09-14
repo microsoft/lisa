@@ -8,7 +8,7 @@ from typing import TYPE_CHECKING, Any, List, Optional, Type, cast
 from lisa import schema
 from lisa.environment import Environments
 from lisa.util import InitializableMixin, LisaException, constants
-from lisa.util.logger import get_logger
+from lisa.util.logger import Logger, get_logger
 from lisa.util.perf_timer import create_timer
 
 if TYPE_CHECKING:
@@ -24,7 +24,7 @@ class WaitMoreResourceError(Exception):
 class Platform(ABC, InitializableMixin):
     def __init__(self) -> None:
         super().__init__()
-        self.log = get_logger("platform", self.platform_type())
+        self._log = get_logger("", self.platform_type())
 
     @classmethod
     @abstractmethod
@@ -32,30 +32,49 @@ class Platform(ABC, InitializableMixin):
         raise NotImplementedError()
 
     @abstractmethod
-    def _prepare_environment(self, environment: Environment) -> None:
+    def _prepare_environment(self, environment: Environment, log: Logger) -> bool:
         """
-        prepare platform specified context and priority
+        What to be prepared for an environment
+        1. check if platform can meet requirement of this environment
+        2. if #1 is yes, specified platform context,
+            so that the environment can be created in deploy phase
+            with same spec as prepared.
+        3. set cost for environment priority.
+
+        return True, if environment can be deployed. False, if cannot.
         """
         raise NotImplementedError()
 
     @abstractmethod
-    def _deploy_environment(self, environment: Environment) -> None:
+    def _deploy_environment(self, environment: Environment, log: Logger) -> None:
         raise NotImplementedError()
 
     @abstractmethod
-    def _delete_environment(self, environment: Environment) -> None:
+    def _delete_environment(self, environment: Environment, log: Logger) -> None:
         raise NotImplementedError()
 
-    def prepare_environments(self, environments: Environments) -> None:
+    def prepare_environments(self, environments: Environments) -> List[Environment]:
         """
-        return prioritized requirements
+        return prioritized requirements.
+            user defined environment is higher priority than test cases,
+            and then lower cost is prior to higher.
         """
-        if not self._is_initialized:
-            self.log.debug("initializing...")
-            self.initialize()
-            self.log.debug("initialized")
+        self.initialize()
+
+        prepared_environments: List[Environment] = []
         for environment in environments.values():
-            self._prepare_environment(environment)
+            log = get_logger(f"prepare[{environment.name}]", parent=self._log)
+            is_success = self._prepare_environment(environment, log)
+            if is_success:
+                prepared_environments.append(environment)
+            else:
+                log.debug("dropped since no fit capability found")
+
+        # sort by environment source and cost cases
+        # user defined should be higher priority than test cases' requirement
+        prepared_environments.sort(key=lambda x: (not x.is_predefined, x.cost))
+
+        return prepared_environments
 
     @property
     def platform_schema(self) -> Optional[Type[Any]]:
@@ -78,22 +97,25 @@ class Platform(ABC, InitializableMixin):
     def config(self, key: str, value: Any) -> None:
         if key == constants.CONFIG_RUNBOOK:
             # store platform runbook.
-            self._runbook = cast(schema.Platform, value)
+            self._runbook: schema.Platform = value
         self._config(key, value)
 
     def deploy_environment(self, environment: Environment) -> None:
-        self.log.info(f"requesting environment {environment.name}")
+        log = get_logger(f"deploy[{environment.name}]", parent=self._log)
+        log.info("depolying")
         timer = create_timer()
-        self._deploy_environment(environment)
+        self._deploy_environment(environment, log)
+        log.debug("initializing environment")
         environment.initialize()
-        self.log.info(f"requested environment {environment.name} with {timer}")
+        log.info(f"deployed with {timer}")
 
     def delete_environment(self, environment: Environment) -> None:
-        self.log.debug(f"environment {environment.name} deleting")
+        log = get_logger(f"del[{environment.name}]", parent=self._log)
+        log.debug("deleting")
         environment.close()
-        self._delete_environment(environment)
+        self._delete_environment(environment, log)
         environment.is_ready = False
-        self.log.debug(f"environment {environment.name} deleted")
+        log.debug("deleted")
 
 
 if TYPE_CHECKING:

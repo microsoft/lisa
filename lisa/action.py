@@ -63,7 +63,7 @@ class Action(metaclass=ABCMeta):
 
     def set_status(self, status: ActionStatus) -> None:
         if self.__status != status:
-            self.log.info(
+            self.log.debug(
                 f"{self.name} status changed from {self.__status.name} "
                 f"to {status.name} with {self.__timer}"
             )

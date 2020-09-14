@@ -25,6 +25,7 @@ def create_run_path(root_path: Path) -> Path:
 
 def main() -> None:
     total_timer = create_timer()
+    log = get_logger()
     try:
         runtime_root = Path("runtime").absolute()
 
@@ -42,19 +43,18 @@ def main() -> None:
 
         args = parse_args()
 
-        set_log_file(f"{local_path}/lisa-host.log")
-
-        log = get_logger()
-        log.info(f"Python version: {sys.version}")
-        log.info(f"local time: {datetime.now().astimezone()}")
-        log.info(f"command line args: {sys.argv}")
-        log.info(f"run local path: {runtime_root}")
-
         if args.debug:
             log_level = DEBUG
         else:
             log_level = INFO
         set_level(log_level)
+
+        set_log_file(f"{local_path}/lisa-host.log")
+
+        log.info(f"Python version: {sys.version}")
+        log.info(f"local time: {datetime.now().astimezone()}")
+        log.info(f"command line args: {sys.argv}")
+        log.info(f"run local path: {runtime_root}")
 
         args.func(args)
     finally:

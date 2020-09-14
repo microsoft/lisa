@@ -67,9 +67,14 @@ class Windows(OperatingSystem):
 class Linux(OperatingSystem):
     def __init__(self, node: Any) -> None:
         super().__init__(node, is_linux=True)
+        self.__first_time_installation: bool = True
 
     def _install_packages(self, packages: Union[List[str]]) -> None:
         raise NotImplementedError()
+
+    def _initialize_package_installation(self) -> None:
+        # sub os can override it, but it's optional
+        pass
 
     def install_packages(
         self, packages: Union[str, Tool, Type[Tool], List[Union[str, Tool, Type[Tool]]]]
@@ -90,19 +95,20 @@ class Linux(OperatingSystem):
                 # So they can be installed together.
                 tool = item.create(self._node)
                 package_names.append(tool.package_name)
+        if self.__first_time_installation:
+            self.__first_time_installation = False
+            self._initialize_package_installation()
         self._install_packages(package_names)
 
 
 class Ubuntu(Linux):
     def __init__(self, node: Any) -> None:
         super().__init__(node)
-        self._first_time: bool = True
+
+    def _initialize_package_installation(self) -> None:
+        self._node.execute("sudo apt-get update")
 
     def _install_packages(self, packages: Union[List[str]]) -> None:
-        if self._first_time:
-            self._first_time = False
-            self._node.execute("sudo apt-get update")
-
         command = (
             f"sudo DEBIAN_FRONTEND=noninteractive "
             f"apt-get -y install {' '.join(packages)}"
@@ -116,10 +122,6 @@ class CentOs(Linux):
         self._first_time: bool = True
 
     def _install_packages(self, packages: Union[List[str]]) -> None:
-        if self._first_time:
-            self._first_time = False
-            self._node.execute("sudo yum update")
-
         self._node.execute(
             f"sudo DEBIAN_FRONTEND=noninteractive yum install -y {' '.join(packages)}"
         )

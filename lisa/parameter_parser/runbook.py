@@ -57,7 +57,7 @@ def validate_data(data: Any) -> schema.Runbook:
     runbook = cast(schema.Runbook, _schema.load(data))
 
     log = _get_init_logger()
-    log.debug(f"final runbook: {runbook.to_dict()}")  # type: ignore
+    log.debug(f"merged runbook: {runbook.to_dict()}")  # type: ignore
 
     return runbook
 

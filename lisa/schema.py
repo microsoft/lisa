@@ -1,3 +1,4 @@
+import copy
 from dataclasses import dataclass, field
 from typing import Any, Callable, Dict, List, Optional, Type, TypeVar, Union, cast
 
@@ -107,16 +108,14 @@ class ListableValidator(validate.Validator):
 @dataclass_json(letter_case=LetterCase.CAMEL, undefined=Undefined.INCLUDE)
 @dataclass
 class ExtendableSchemaMixin:
-    extend_schemas: CatchAll = None
+    extended_schemas: CatchAll = field(default_factory=dict)
 
-    def get_extended_runbook(
-        self, runbook_type: Type[T], field_name: str = ""
-    ) -> Optional[T]:
+    def get_extended_runbook(self, runbook_type: Type[T], field_name: str = "") -> T:
         """
         runbook_type: type of runbook
         field_name: the field name which stores the data, if it's "", get it from type
         """
-        if not hasattr(self, "__extended_runbook"):
+        if not hasattr(self, "_extended_runbook"):
             assert issubclass(
                 runbook_type, DataClassJsonMixin
             ), "runbook_type must annotate from DataClassJsonMixin"
@@ -127,16 +126,23 @@ class ExtendableSchemaMixin:
                 )
                 field_name = getattr(self, constants.TYPE)
 
-            if self.extend_schemas and field_name in self.extend_schemas:
-                self.__extended_runbook: Optional[
-                    T
-                ] = runbook_type.schema().load(  # type:ignore
-                    self.extend_schemas[field_name]
+            if self.extended_schemas and field_name in self.extended_schemas:
+                self._extended_runbook: T = runbook_type.schema().load(  # type:ignore
+                    self.extended_schemas[field_name]
                 )
             else:
-                self.__extended_runbook = None
+                # value may be filled outside, so hold and return an object.
+                self._extended_runbook = runbook_type()
 
-        return self.__extended_runbook
+        return self._extended_runbook
+
+    def __repr__(self) -> str:
+        result = ""
+        if hasattr(self, "_extended_runbook"):
+            result = f"ext:{self._extended_runbook}"
+        elif self.extended_schemas:
+            result = f"ext:{self.extended_schemas}"
+        return result
 
 
 @dataclass_json(letter_case=LetterCase.CAMEL)
@@ -309,66 +315,64 @@ class NodeSpace(search_space.RequirementMixin, ExtendableSchemaMixin):
     # optional, if there is only one artifact.
     artifact: str = field(default="")
     node_count: search_space.CountSpace = field(
-        default=search_space.IntRange(min=1), metadata=metadata(data_key="nodeCount"),
+        default=search_space.IntRange(min=1),
+        metadata=metadata(
+            data_key="nodeCount", decoder=search_space.decode_count_space
+        ),
     )
     core_count: search_space.CountSpace = field(
         default=search_space.IntRange(min=1),
-        metadata=metadata(data_key="coreCount", validate=validate.Range(min=1)),
+        metadata=metadata(
+            data_key="coreCount", decoder=search_space.decode_count_space
+        ),
     )
     memory_mb: search_space.CountSpace = field(
         default=search_space.IntRange(min=512),
-        metadata=metadata(data_key="memoryMb", validate=validate.Range(min=512)),
+        metadata=metadata(data_key="memoryMb", decoder=search_space.decode_count_space),
+    )
+    disk_count: search_space.CountSpace = field(
+        default=search_space.IntRange(min=1),
+        metadata=metadata(
+            data_key="diskCount", decoder=search_space.decode_count_space
+        ),
     )
     nic_count: search_space.CountSpace = field(
         default=search_space.IntRange(min=1),
-        metadata=metadata(data_key="nicCount", validate=validate.Range(min=1)),
+        metadata=metadata(data_key="nicCount", decoder=search_space.decode_count_space),
     )
     gpu_count: search_space.CountSpace = field(
         default=search_space.IntRange(min=0),
-        metadata=metadata(data_key="gpuCount", validate=validate.Range(min=0)),
+        metadata=metadata(data_key="gpuCount", decoder=search_space.decode_count_space),
     )
     # all features on requirement should be included.
     # all features on capability can be included.
     features: Optional[search_space.SetSpace[Feature]] = field(
-        default=None, metadata=metadata()
+        default=None, metadata=metadata(data_key="features", allow_none=True),
     )
     # set by requirements
     # capability's is ignored
     excluded_features: Optional[search_space.SetSpace[Feature]] = field(
-        default=None, metadata=metadata(data_key="excludedFeatures")
+        default=None, metadata=metadata(data_key="excludedFeatures", allow_none=True),
     )
 
     def __post_init__(self, *args: Any, **kwargs: Any) -> None:
-        if self.features:
+        if self.features is not None:
             self.features.is_allow_set = True
-        if self.excluded_features:
+        if self.excluded_features is not None:
             self.excluded_features.is_allow_set = False
 
-    def __eq__(self, other: object) -> bool:
-        assert isinstance(other, NodeSpace), f"actual: {type(other)}"
-
-        result = (
-            self.type == other.type
-            and self.name == other.name
-            and self.is_default == other.is_default
-            and self.artifact == other.artifact
-            and self.node_count == other.node_count
-            and self.core_count == other.core_count
-            and self.memory_mb == other.memory_mb
-            and self.nic_count == other.nic_count
-            and self.gpu_count == other.gpu_count
-            and self.features == other.features
-            and self.excluded_features == other.excluded_features
-        )
-        return result
-
     def __repr__(self) -> str:
+        """
+        override it for shorter text
+        """
         return (
-            f"type:{self.type}, name:{self.name}, "
-            f"is_default:{self.is_default}, artifact:{self.artifact}, "
-            f"count:{self.node_count}, core:{self.core_count}, "
-            f"mem:{self.memory_mb}, nic:{self.nic_count}, gpu:{self.gpu_count}, "
-            f"f:{self.features}, ef:{self.excluded_features}"
+            f"type:{self.type},name:{self.name},"
+            f"default:{self.is_default},artifact:{self.artifact},"
+            f"count:{self.node_count},core:{self.core_count},"
+            f"mem:{self.memory_mb},disk:{self.disk_count},"
+            f"nic:{self.nic_count},gpu:{self.gpu_count},"
+            f"f:{self.features},ef:{self.excluded_features},"
+            f"{super().__repr__()}"
         )
 
     def check(self, capability: Any) -> search_space.ResultReason:
@@ -397,10 +401,12 @@ class NodeSpace(search_space.RequirementMixin, ExtendableSchemaMixin):
             not capability.node_count
             or not capability.core_count
             or not capability.memory_mb
+            or not capability.disk_count
             or not capability.nic_count
         ):
             result.add_reason(
-                "node_count, core_count, memory_mb, nic_count shouldn't be None"
+                "node_count, core_count, memory_mb, disk_count, nic_count "
+                "shouldn't be None or zero."
             )
 
         if isinstance(self.node_count, int) and isinstance(capability.node_count, int):
@@ -424,6 +430,10 @@ class NodeSpace(search_space.RequirementMixin, ExtendableSchemaMixin):
             "memory_mb",
         )
         result.merge(
+            search_space.check_countspace(self.disk_count, capability.disk_count),
+            "disk_count",
+        )
+        result.merge(
             search_space.check_countspace(self.nic_count, capability.nic_count),
             "nic_count",
         )
@@ -434,9 +444,9 @@ class NodeSpace(search_space.RequirementMixin, ExtendableSchemaMixin):
         result.merge(
             search_space.check(self.features, capability.features), "features",
         )
-        if self.excluded_features is not None:
+        if self.excluded_features:
             result.merge(
-                search_space.check(self.excluded_features, must_included_capability),
+                self.excluded_features.check(must_included_capability),
                 "excluded_features",
             )
 
@@ -449,6 +459,7 @@ class NodeSpace(search_space.RequirementMixin, ExtendableSchemaMixin):
         node.node_count = value.node_count
         node.core_count = value.core_count
         node.memory_mb = value.memory_mb
+        node.disk_count = value.disk_count
         node.nic_count = value.nic_count
         node.gpu_count = value.gpu_count
 
@@ -465,12 +476,25 @@ class NodeSpace(search_space.RequirementMixin, ExtendableSchemaMixin):
 
         return node
 
+    def expand_by_node_count(self) -> List[Any]:
+        # expand node count in requirement to one,
+        # so that's easy to compare equalation later.
+        expanded_requirements: List[NodeSpace] = []
+        node_count = search_space.generate_min_capability_countspace(
+            self.node_count, self.node_count
+        )
+        for _ in range(node_count):
+            expanded_copy = copy.copy(self)
+            expanded_copy.node_count = 1
+            expanded_requirements.append(expanded_copy)
+        return expanded_requirements
+
     def _generate_min_capability(self, capability: Any) -> Any:
-        min_value = NodeSpace()
+        # copy to keep extended schema
+        min_value: NodeSpace = copy.copy(self)
         assert isinstance(capability, NodeSpace), f"actual: {type(capability)}"
 
         if self.node_count or capability.node_count:
-
             if isinstance(self.node_count, int) and isinstance(
                 capability.node_count, int
             ):
@@ -494,6 +518,12 @@ class NodeSpace(search_space.RequirementMixin, ExtendableSchemaMixin):
             )
         else:
             raise LisaException("memory_mb cannot be zero")
+        if self.disk_count or capability.disk_count:
+            min_value.disk_count = search_space.generate_min_capability_countspace(
+                self.disk_count, capability.disk_count
+            )
+        else:
+            raise LisaException("disk_count cannot be zero")
         if self.nic_count or capability.nic_count:
             min_value.nic_count = search_space.generate_min_capability_countspace(
                 self.nic_count, capability.nic_count
@@ -507,7 +537,7 @@ class NodeSpace(search_space.RequirementMixin, ExtendableSchemaMixin):
         else:
             min_value.gpu_count = 0
 
-        min_value.features = search_space.SetSpace[Feature]()
+        min_value.features = search_space.SetSpace[Feature](is_allow_set=True)
         if self.features:
             min_value.features.update(self.features)
         if self.excluded_features:
@@ -598,27 +628,24 @@ class EnvironmentSpace(search_space.RequirementMixin):
     )
     nodes: List[NodeSpace] = field(default_factory=list)
 
-    def __eq__(self, other: Any) -> bool:
-        assert isinstance(other, EnvironmentSpace), f"actual: {type(other)}"
-
-        # ignore name on comparison, so env can be merged.
-        result = self.topology == other.topology and search_space.equal_list(
-            self.nodes, other.nodes
-        )
-        return result
+    def __post_init__(self, *args: Any, **kwargs: Any) -> None:
+        self._expand_node_space()
 
     def check(self, capability: Any) -> search_space.ResultReason:
         assert isinstance(capability, EnvironmentSpace), f"actual: {type(capability)}"
         result = search_space.ResultReason()
         if not capability.nodes:
-            result.add_reason("nodes shouldn't be None or empty")
+            result.add_reason("no node instance found")
+        elif len(self.nodes) > len(capability.nodes):
+            result.add_reason(
+                f"no enough nodes, "
+                f"capability: {len(capability.nodes)}, "
+                f"requirement: {len(self.nodes)}"
+            )
         else:
             if self.nodes:
                 for index, current_req in enumerate(self.nodes):
-                    if len(capability.nodes) == 1:
-                        current_cap = capability.nodes[0]
-                    else:
-                        current_cap = capability.nodes[index]
+                    current_cap = capability.nodes[index]
                     result.merge(
                         search_space.check(current_req, current_cap), str(index),
                     )
@@ -653,6 +680,13 @@ class EnvironmentSpace(search_space.RequirementMixin):
 
         return env
 
+    def _expand_node_space(self) -> None:
+        if self.nodes:
+            expanded_requirements: List[NodeSpace] = []
+            for node in self.nodes:
+                expanded_requirements.extend(node.expand_by_node_count())
+            self.nodes = expanded_requirements
+
 
 @dataclass_json(letter_case=LetterCase.CAMEL)
 @dataclass
@@ -666,13 +700,11 @@ class Environment:
         default=None, metadata=metadata(data_key=constants.NODES),
     )
     nodes_requirement: Optional[List[NodeSpace]] = None
-    capability: EnvironmentSpace = field(default_factory=EnvironmentSpace)
 
     def __post_init__(self, *args: Any, **kwargs: Any) -> None:
         self.nodes: Optional[List[Union[LocalNode, RemoteNode]]] = None
         if self.nodes_raw is not None:
             self.nodes = []
-            self.capability.topology = self.topology
             for node_raw in self.nodes_raw:
                 node_type = node_raw[constants.TYPE]
                 if node_type == constants.ENVIRONMENTS_NODES_LOCAL:
@@ -684,19 +716,19 @@ class Environment:
                     if self.nodes is None:
                         self.nodes = []
                     self.nodes.append(node)
-                    self.capability.nodes.append(node.capability)
                 elif node_type == constants.ENVIRONMENTS_NODES_REMOTE:
                     node = RemoteNode.schema().load(node_raw)  # type:ignore
                     if self.nodes is None:
                         self.nodes = []
                     self.nodes.append(node)
-                    self.capability.nodes.append(node.capability)
                 elif node_type == constants.ENVIRONMENTS_NODES_REQUIREMENT:
-                    node_requirement = NodeSpace.schema().load(node_raw)  # type:ignore
+                    original_req: NodeSpace = NodeSpace.schema().load(  # type:ignore
+                        node_raw
+                    )
+                    expanded_req = original_req.expand_by_node_count()
                     if self.nodes_requirement is None:
                         self.nodes_requirement = []
-                    self.nodes_requirement.append(node_requirement)
-                    self.capability.nodes.append(node_requirement)
+                    self.nodes_requirement.extend(expanded_req)
                 else:
                     raise LisaException(f"unknown node type '{node_type}': {node_raw}")
             self.nodes_raw = None

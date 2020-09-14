@@ -19,20 +19,21 @@ _get_init_logger = partial(get_logger, "init", "env")
 
 
 class Environment(ContextMixin, InitializableMixin):
-    def __init__(self, warn_as_error: bool) -> None:
+    def __init__(self, is_predefined: bool, warn_as_error: bool) -> None:
         super().__init__()
 
         self.nodes: Nodes = Nodes()
         self.name: str = ""
 
         self.is_ready: bool = False
+        self.is_predefined: bool = is_predefined
         self.platform: Optional[Platform] = None
-        # priority uses to plan order of request it.
-        # cheaper env can be run earlier to run more cases.
+        # cost uses to plan order of environments.
+        # cheaper env can fit cases earlier to run more cases on it.
         # 1. smaller is higher priority, it can be index of candidate environment
-        # 2. -1 means not supported.
-        self.priority: int = -1
-        # original runbook which this environment supports
+        # 2. 0 means no cost.
+        self.cost: int = 0
+        # original runbook or generated from test case which this environment supports
         self.runbook: schema.Environment
         self._capability: Optional[schema.EnvironmentSpace] = None
         self.warn_as_error = warn_as_error
@@ -47,10 +48,12 @@ class Environment(ContextMixin, InitializableMixin):
         self.nodes.initialize()
 
     @classmethod
-    def from_runbook(
-        cls, runbook: schema.Environment, warn_as_error: bool
+    def create(
+        cls, runbook: schema.Environment, is_predefined: bool, warn_as_error: bool
     ) -> Environment:
-        environment = Environment(warn_as_error)
+        environment = Environment(
+            is_predefined=is_predefined, warn_as_error=warn_as_error
+        )
         environment.name = runbook.name
 
         has_default_node = False
@@ -80,15 +83,6 @@ class Environment(ContextMixin, InitializableMixin):
 
     def close(self) -> None:
         self.nodes.close()
-
-    def clone(self) -> Environment:
-        cloned = Environment(self.warn_as_error)
-        cloned.runbook = copy.deepcopy(self.runbook)
-        cloned.nodes = self.nodes
-        cloned.platform = self.platform
-        cloned.name = f"inst_{self.name}"
-        cloned._log = get_logger("env", self.name)
-        return cloned
 
     @property
     def capability(self) -> schema.EnvironmentSpace:
@@ -147,24 +141,30 @@ class Environments(EnvironmentsDict):
         self, requirement: schema.EnvironmentSpace
     ) -> Optional[Environment]:
         runbook = schema.Environment(
-            topology=requirement.topology,
-            nodes_requirement=requirement.nodes,
-            capability=requirement,
+            topology=requirement.topology, nodes_requirement=requirement.nodes,
         )
-        log = _get_init_logger()
-        log.debug(f"found new requirement: {requirement}")
-        return self.from_runbook(runbook)
+        return self.from_runbook(
+            runbook=runbook, name=f"req_{len(self.keys())}", is_original_runbook=False
+        )
 
-    def from_runbook(self, runbook: schema.Environment) -> Optional[Environment]:
+    def from_runbook(
+        self, runbook: schema.Environment, name: str, is_original_runbook: bool
+    ) -> Optional[Environment]:
+        assert runbook
+        assert name
         env: Optional[Environment] = None
         if self.allow_create:
-            env = Environment.from_runbook(runbook, self.warn_as_error)
-            if not env.name:
-                env.name = f"req_{len(self.keys())}"
-                runbook.name = env.name
-            self[env.name] = env
+            # make a copy, so that modification on env won't impact test case
+            copied_runbook = copy.copy(runbook)
+            copied_runbook.name = name
+            env = Environment.create(
+                runbook=copied_runbook,
+                is_predefined=is_original_runbook,
+                warn_as_error=self.warn_as_error,
+            )
+            self[name] = env
             log = _get_init_logger()
-            log.debug(f"create environment {env.name}: {env.runbook}")
+            log.debug(f"created {env.name}: {env.runbook}")
         return env
 
 
@@ -178,12 +178,12 @@ def load_environments(root_runbook: Optional[schema.EnvironmentRoot],) -> Enviro
 
         environments_runbook = root_runbook.environments
         for environment_runbook in environments_runbook:
-            environment = Environment.from_runbook(
-                environment_runbook, environments.warn_as_error
+            env = environments.from_runbook(
+                runbook=environment_runbook,
+                name=f"runbook_{len(environments)}",
+                is_original_runbook=True,
             )
-            if not environment.name:
-                environment.name = f"runbook_{len(environments)}"
-            environments[environment.name] = environment
+            assert env, "created from runbook shouldn't be None"
     else:
         environments = Environments()
 
