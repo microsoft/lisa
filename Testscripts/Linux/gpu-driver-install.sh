@@ -352,6 +352,6 @@ if [ $? -ne 0 ]; then
 fi
 
 # Check and install lsvmbus
-Check_lsvmbus
+check_lsvmbus
 SetTestStateCompleted
 exit 0

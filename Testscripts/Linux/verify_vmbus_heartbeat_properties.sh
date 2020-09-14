@@ -27,7 +27,7 @@ if [[ $? -gt 0 ]]; then
 fi
 
 # check if lsvmbus exists, or the running kernel does not match installed version of linux-tools
-Check_lsvmbus
+check_lsvmbus
 
 # Get the system path to the Heartbeat device on the VMBus
 sys_path=$(lsvmbus -vv | grep -A4 Heartbeat | grep path | awk '{ print $3 }')

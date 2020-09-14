@@ -3735,8 +3735,7 @@ function get_bootconfig_path() {
 # check if lsvmbus exists, or the running kernel does not match installed version of linux-tools
 # If lsvmbus doesn't exist, lsvmbus will be installed.
 # If installation is failed, the script will be exited.
-function Check_lsvmbus()
-{
+function check_lsvmbus() {
 	lsvmbus_path=$(which lsvmbus)
 	if [[ -z "$lsvmbus_path" ]] || ! $lsvmbus_path > /dev/null 2>&1; then
 		install_package wget
@@ -3762,5 +3761,24 @@ function Check_lsvmbus()
 	if ! which python; then
 		update_repos
 		install_package python
+	fi
+}
+
+# Check if this VM is IB over ND, IB over SR-IOV or non-HPC VM.
+# Return 0, if VM is IB over ND.
+# Return 1, if VM is IB over SR-IOV.
+# Return 2, if VM is non HPC VM.
+# Return 3, if unknown.
+function is_hpc_vm() {
+	if [ -d /sys/class/infiniband/ ]; then
+		if [ -n "$(lspci | grep "Virtual Function")" ] && [ -n "$(dmesg | grep "IB Infiniband driver")" ]; then
+			return 1
+		elif [ -n "$(dmesg | grep hvnd_try_bind_nic)" ]; then
+			return 0
+		else
+			return 3
+		fi
+	else
+		return 2
 	fi
 }
