@@ -45,7 +45,7 @@ VCPU=$(nproc)
 LogMsg "Number of CPUs detected on VM: $VCPU"
 
 # check if lsvmbus exists, or the running kernel does not match installed version of linux-tools
-Check_lsvmbus
+check_lsvmbus
 lsvmbus_path=$(which lsvmbus)
 
 GetGuestGeneration
