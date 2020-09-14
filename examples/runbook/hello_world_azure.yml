@@ -1,0 +1,15 @@
+name: remote try
+extension:
+  paths:
+    - "../testsuites"
+platform:
+  - type: azure
+    adminPrivateKeyFile: $(adminPrivateKeyFile)
+    azure:
+      servicePrincipalTenantId: $(servicePrincipalTenantId)
+      servicePrincipalClientId: $(servicePrincipalClientId)
+      servicePrincipalKey: $(servicePrincipalKey)
+      subscriptionId: $(subscriptionId)
+testcase:
+  - criteria:
+      area: demo
