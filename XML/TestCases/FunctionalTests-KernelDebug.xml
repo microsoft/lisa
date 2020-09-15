@@ -12,4 +12,17 @@
             <SetupType>OneVM</SetupType>
         </SetupConfig>
     </test>
+    <test>
+        <testName>VERIFY-HPC-VM</testName>
+        <testScript>VERIFY-HPC-VM.ps1</testScript>
+        <files>.\Testscripts\Linux\check_IB_SRIOV.sh,.\Testscripts\Linux\utils.sh</files>
+        <Platform>Azure</Platform>
+        <Category>Functional</Category>
+        <Area>CORE</Area>
+        <Tags>rdma</Tags>
+        <Priority>1</Priority>
+        <SetupConfig>
+            <SetupType>OneVM</SetupType>
+        </SetupConfig>
+    </test>
 </TestCases>
