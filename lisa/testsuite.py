@@ -28,6 +28,10 @@ _all_suites: Dict[str, TestSuiteMetadata] = dict()
 _all_cases: Dict[str, TestCaseMetadata] = dict()
 
 
+class SkipTestCaseException(LisaException):
+    pass
+
+
 @dataclass
 class TestResult:
     runtime_data: TestCaseRuntimeData
