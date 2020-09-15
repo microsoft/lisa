@@ -276,11 +276,13 @@ class AzurePlatform(Platform):
             if existing_location:
                 locations = [existing_location]
             else:
-                locations = list(self._eligable_capabilities.keys())
+                locations = LOCATIONS
 
             # check eligab locations
             found_or_skipped = False
             for location_name in locations:
+                predefined_cost = 0
+                predefined_caps = [None] * node_count
                 for req_index, req in enumerate(nodes_requirement):
                     found_or_skipped = False
                     node_runbook = req.get_extended_runbook(AzureNodeSchema, AZURE)
@@ -314,10 +316,14 @@ class AzurePlatform(Platform):
                     if not found_or_skipped:
                         # if not found any, skip and try next location
                         break
+                if found_or_skipped:
+                    # if found all, skip other locations
+                    break
             if not found_or_skipped:
                 # no location meet requirement
                 raise LisaException(
-                    f"cannot find predefined vm size [{node_runbook.vm_size}]"
+                    f"cannot find predefined vm size [{node_runbook.vm_size}] "
+                    f"in location [{locations}]"
                 )
             for location_name, location_caps in self._eligable_capabilities.items():
                 # in each location, all node must be found
