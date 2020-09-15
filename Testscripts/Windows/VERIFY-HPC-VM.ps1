@@ -23,8 +23,6 @@ function Main {
 	param($AllVMData, $TestParams)
 	$currentTestResult = Create-TestResultObject
 	try {
-		$testResult = $resultFail
-
 		#region Generate constants.sh
 		Write-LogInfo "Generating constants.sh ..."
 		$constantsFile = "$LogDir\constants.sh"
@@ -36,7 +34,15 @@ function Main {
 		#end region
 
 		Copy-RemoteFiles -uploadTo $AllVMData.PublicIP -port $AllVMData.SSHPort -files $currentTestData.files -username $user -password $password -upload
-		$testResult = Run-LinuxCmd -ip $AllVMData.PublicIP -port $AllVMData.SSHPort -username $user -password $password -command "bash /home/$user/check_IB_SRIOV.sh"
+		Start-Sleep -Seconds 3
+		$result = Run-LinuxCmd -ip $AllVMData.PublicIP -port $AllVMData.SSHPort -username $user -password $password -command "bash ./check_IB_SRIOV.sh" -runAsSudo
+		Write-LogDbg "$result"
+		$result = Run-LinuxCmd -ip $AllVMData.PublicIP -port $AllVMData.SSHPort -username $user -password $password -command "cat state.txt" -runAsSudo
+		Write-LogDbg "$result"
+		if ($result -eq "TestCompleted") {
+			Write-LogInfo "Verified HPC driver and its requirement in the VM"
+			$testResult = $resultPass
+		}
 		Copy-RemoteFiles -downloadFrom $AllVMData.PublicIP -port $AllVMData.SSHPort -username $user -password $password -download -downloadTo $LogDir -files "*.log"
 	} catch {
 		$ErrorMessage =  $_.Exception.Message
@@ -48,7 +54,7 @@ function Main {
 		}
 	}
 
-	Write-LogInfo "Test result: $testResult"
+	#Write-LogInfo "Test result: $testResult"
 	return $testResult
 }
 
