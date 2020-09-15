@@ -549,6 +549,13 @@ class NodeSpace(search_space.RequirementMixin, ExtendableSchemaMixin):
 
 @dataclass_json(letter_case=LetterCase.CAMEL)
 @dataclass
+class Capability(NodeSpace):
+    type: str = constants.ENVIRONMENTS_NODES_CAPABILITY
+    node_count = 1
+
+
+@dataclass_json(letter_case=LetterCase.CAMEL)
+@dataclass
 class LocalNode:
     type: str = field(
         default=constants.ENVIRONMENTS_NODES_LOCAL,
@@ -559,7 +566,7 @@ class LocalNode:
     )
     name: str = ""
     is_default: bool = field(default=False)
-    capability: NodeSpace = field(default=NodeSpace(node_count=1))
+    capability: Capability = field(default_factory=Capability)
 
 
 @dataclass_json(letter_case=LetterCase.CAMEL)
@@ -588,7 +595,7 @@ class RemoteNode:
     username: str = field(default="", metadata=metadata(required=True))
     password: str = ""
     private_key_file: str = ""
-    capability: NodeSpace = field(default=NodeSpace(node_count=1))
+    capability: Capability = field(default_factory=Capability)
 
     def __post_init__(self, *args: Any, **kwargs: Any) -> None:
         add_secret(self.address)
