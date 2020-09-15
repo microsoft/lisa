@@ -31,7 +31,7 @@ function Main() {
 
 	if [ $_type == "2" ]; then
 		LogMsg "This VM is non-HPC VM. No further testing."
-		SetTestStateAborted
+		SetTestStateSkipped
 		exit 0
 	fi
 
