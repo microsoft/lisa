@@ -9,8 +9,8 @@ RUN_NAME = ""
 
 RUNBOOK_PATH: Path
 CACHE_PATH: Path
-RUN_LOCAL_PATH: Path
-RUN_LOGIC_PATH: PurePath
+RUN_LOCAL_PATH: Path = Path()
+RUN_LOGIC_PATH: PurePath = PurePath()
 
 # path related
 PATH_REMOTE_ROOT = "lisa_working"
@@ -44,6 +44,7 @@ VARIABLE = "variable"
 
 ENVIRONMENT = "environment"
 ENVIRONMENTS = "environments"
+ENVIRONMENTS_NODES_CAPABILITY = "capability"
 ENVIRONMENTS_NODES_REQUIREMENT = "requirement"
 ENVIRONMENTS_NODES_REMOTE = "remote"
 ENVIRONMENTS_NODES_LOCAL = "local"
