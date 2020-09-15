@@ -21,7 +21,6 @@ param([object] $AllVmData, [string]$TestParams)
 
 function Main {
 	param($AllVMData, $TestParams)
-	$currentTestResult = Create-TestResultObject
 	try {
 		#region Generate constants.sh
 		Write-LogInfo "Generating constants.sh ..."
