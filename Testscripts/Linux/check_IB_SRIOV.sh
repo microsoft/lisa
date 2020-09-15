@@ -57,7 +57,7 @@ function Main() {
 		fi
 
 		if [ $_type == "1" ]; then
-			LogMsg "The waagent detects IB over SR-ION because of no Nd driver version. Verify it loads inbox or MLX out-of-tree driver loading for IB interface"
+			LogMsg "The waagent detects IB over SR-IOV because of no Nd driver version. Verify it loads inbox or MLX out-of-tree driver loading for IB interface"
 			output=$(dmesg | grep 'Mellanox Connect-IB Infiniband driver')
 			if [ -z "$output" ]; then
 				LogErr "Failed to find SR-IOV driver for IB interface"

@@ -22,16 +22,6 @@ param([object] $AllVmData, [string]$TestParams)
 function Main {
 	param($AllVMData, $TestParams)
 	try {
-		#region Generate constants.sh
-		Write-LogInfo "Generating constants.sh ..."
-		$constantsFile = "$LogDir\constants.sh"
-		foreach ($TestParam in $CurrentTestData.TestParameters.param) {
-			Add-Content -Value "$TestParam" -Path $constantsFile
-			Write-LogInfo "$TestParam added to constants.sh"
-		}
-		Write-LogInfo "constants.sh created successfully..."
-		#end region
-
 		Copy-RemoteFiles -uploadTo $AllVMData.PublicIP -port $AllVMData.SSHPort -files $currentTestData.files -username $user -password $password -upload
 		Start-Sleep -Seconds 3
 		$result = Run-LinuxCmd -ip $AllVMData.PublicIP -port $AllVMData.SSHPort -username $user -password $password -command "bash ./check_IB_SRIOV.sh" -runAsSudo
