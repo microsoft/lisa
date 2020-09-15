@@ -53,7 +53,6 @@ function Main {
 		}
 	}
 
-	#Write-LogInfo "Test result: $testResult"
 	return $testResult
 }
 
