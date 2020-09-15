@@ -17,6 +17,8 @@
 	4. Hibernate the VM, and verify the VM status
 	5. Resume the VM and verify the VM status.
 	6. Verify no kernel panic or call trace
+	7. [SRIOV]Verify the tx_queue count and interrupts count are not changed
+	8. [SRIOV]Verify the TX/RX packets keep increasing after resuming
 #>
 
 param([object] $AllVmData, [string]$TestParams)
@@ -292,19 +294,41 @@ install_package "ethtool"
 		if ($vfname -ne '') {
 			$tx_queue_count2 = Run-LinuxCmd -ip $AllVMData.PublicIP -port $AllVMData.SSHPort -username $user -password $password -command "ethtool -l ${vfname} | grep -i tx | tail -n 1 | cut -d ':' -f 2 | tr -d '[:space:]'" -runAsSudo
 			$interrupt_count2 = Run-LinuxCmd -ip $AllVMData.PublicIP -port $AllVMData.SSHPort -username $user -password $password -command "cat /proc/interrupts | grep -i mlx | grep -i msi | wc -l" -runAsSudo
-		}
-		if ($tx_queue_count1 -ne $tx_queue_count2) {
-			Write-LogErr "Before hibernation, Tx queue count - $tx_queue_count1. After waking up, Tx queue count - $tx_queue_count2"
-			throw "Tx queue counts changed after waking up."
-		} else {
-			Write-LogInfo "Successfully verified Tx queue count matching in Current hardware settings."
-		}
 
-		if ($interrupt_count1 -ne $interrupt_count2) {
-			Write-LogErr "Before hibernation, MSI interrupts of mlx driver - $interrupt_count1. After waking up, MSI interrupts of mlx driver - $interrupt_count2"
-			throw "MSI interrupt counts changed after waking up."
+			if ($tx_queue_count1 -ne $tx_queue_count2) {
+				Write-LogErr "Before hibernation, Tx queue count - $tx_queue_count1. After waking up, Tx queue count - $tx_queue_count2"
+				throw "Tx queue counts changed after waking up."
+			} else {
+				Write-LogInfo "Successfully verified Tx queue count matching in Current hardware settings."
+			}
+
+			if ($interrupt_count1 -ne $interrupt_count2) {
+				Write-LogErr "Before hibernation, MSI interrupts of mlx driver - $interrupt_count1. After waking up, MSI interrupts of mlx driver - $interrupt_count2"
+				throw "MSI interrupt counts changed after waking up."
+			} else {
+				Write-LogInfo "Successfully verified MSI interrupt counts matching"
+			}
+
+			# Verify the TX/RX packets keep increasing after waking up
+			$tx_packets_first = Run-LinuxCmd -ip $AllVMData.PublicIP -port $AllVMData.SSHPort -username $user -password $password -command "ethtool -S ${vfname} | grep tx_packets: | awk '{print `$2}'" -runAsSudo
+			$rx_packets_first = Run-LinuxCmd -ip $AllVMData.PublicIP -port $AllVMData.SSHPort -username $user -password $password -command "ethtool -S ${vfname} | grep rx_packets: | awk '{print `$2}'" -runAsSudo
+			Start-Sleep -s 10
+			$tx_packets_second = Run-LinuxCmd -ip $AllVMData.PublicIP -port $AllVMData.SSHPort -username $user -password $password -command "ethtool -S ${vfname} | grep tx_packets: | awk '{print `$2}'" -runAsSudo
+			$rx_packets_second = Run-LinuxCmd -ip $AllVMData.PublicIP -port $AllVMData.SSHPort -username $user -password $password -command "ethtool -S ${vfname} | grep rx_packets: | awk '{print `$2}'" -runAsSudo
+			if ($tx_packets_first -ge $tx_packets_second) {
+				Write-LogErr "First collected TX packets: $tx_packets_first. Second collected TX packets: $tx_packets_second"
+				throw "TX packets stopped increasing after waking up."
+			} else {
+				Write-LogInfo "Successfully verified TX packets increasing"
+			}
+			if ($rx_packets_first -ge $rx_packets_second) {
+				Write-LogErr "First collected RX packets: $rx_packets_first. Second collected RX packets: $rx_packets_second"
+				throw "RX packets stopped increasing after waking up."
+			} else {
+				Write-LogInfo "Successfully verified RX packets increasing"
+			}
 		} else {
-			Write-LogInfo "Successfully verified MSI interrupt counts matching"
+			Write-LogInfo "No VF NIC found. Skip VF verification."
 		}
 
 		$testResult = $resultPass
