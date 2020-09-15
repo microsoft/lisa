@@ -238,9 +238,17 @@ class SetSpace(RequirementMixin, Set[T]):
                         f"capability: '{capability}', "
                     )
             else:
-                inter_set = self.intersection(capability)
+                inter_set: Set[Any] = self.intersection(capability)
                 if len(inter_set) > 0:
-                    result.add_reason(f"requirements excludes {inter_set}")
+                    names: List[str] = []
+                    for item in inter_set:
+                        if isinstance(item, type):
+                            names.append(item.__name__)
+                        elif isinstance(item, object):
+                            names.append(item.__class__.__name__)
+                        else:
+                            names.append(item)
+                    result.add_reason(f"requirements excludes {names}")
         return result
 
     def _generate_min_capability(self, capability: Any) -> Optional[Set[T]]:
