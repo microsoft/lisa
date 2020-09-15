@@ -2,10 +2,19 @@
 # Licensed under the Apache License.
 <#
 .Synopsis
-	
+Check the VM has proper IB driver setup.
 
 .Description
-	
+This test verified the HPC has IB over ND or SR-IOV.
+For general purpose VMs, this VM will abort.
+This script uses the function call, is_hpc_vm from utils.sh.
+This functions returns 0, if VM is IB over ND.
+Return 1, if VM is IB over SR-IOV.
+Return 2, if VM is non HPC VM.
+Return 3, if unknown.
+
+TODO: post-LIS installation in ND-based VM
+
 #>
 
 param([object] $AllVmData, [string]$TestParams)
@@ -15,7 +24,7 @@ function Main {
 	$currentTestResult = Create-TestResultObject
 	try {
 		$testResult = $resultFail
-		
+
 		#region Generate constants.sh
 		Write-LogInfo "Generating constants.sh ..."
 		$constantsFile = "$LogDir\constants.sh"
@@ -24,30 +33,11 @@ function Main {
 			Write-LogInfo "$TestParam added to constants.sh"
 		}
 		Write-LogInfo "constants.sh created successfully..."
-		#endregion
+		#end region
 
-		# Getting queue counts and interrupt counts after resuming.
-		$vfname = Run-LinuxCmd -ip $AllVMData.PublicIP -port $AllVMData.SSHPort -username $user -password $password -command "bash /home/$user/getvf.sh" -runAsSudo
-		if ($vfname -ne '') {
-			$tx_queue_count2 = Run-LinuxCmd -ip $AllVMData.PublicIP -port $AllVMData.SSHPort -username $user -password $password -command "ethtool -l ${vfname} | grep -i tx | tail -n 1 | cut -d ':' -f 2 | tr -d '[:space:]'" -runAsSudo
-			$interrupt_count2 = Run-LinuxCmd -ip $AllVMData.PublicIP -port $AllVMData.SSHPort -username $user -password $password -command "cat /proc/interrupts | grep -i mlx | grep -i msi | wc -l" -runAsSudo
-		}
-		if ($tx_queue_count1 -ne $tx_queue_count2) {
-			Write-LogErr "Before hibernation, Tx queue count - $tx_queue_count1. After waking up, Tx queue count - $tx_queue_count2"
-			throw "Tx queue counts changed after waking up."
-		} else {
-			Write-LogInfo "Successfully verified Tx queue count matching in Current hardware settings."
-		}
-
-		if ($interrupt_count1 -ne $interrupt_count2) {
-			Write-LogErr "Before hibernation, MSI interrupts of mlx driver - $interrupt_count1. After waking up, MSI interrupts of mlx driver - $interrupt_count2"
-			throw "MSI interrupt counts changed after waking up."
-		} else {
-			Write-LogInfo "Successfully verified MSI interrupt counts matching"
-		}
-
-		$testResult = $resultPass
-		Copy-RemoteFiles -downloadFrom $AllVMData.PublicIP -port $AllVMData.SSHPort -username $user -password $password -download -downloadTo $LogDir -files "*.log" -runAsSudo
+		Copy-RemoteFiles -uploadTo $AllVMData.PublicIP -port $AllVMData.SSHPort -files $currentTestData.files -username $user -password $password -upload
+		$testResult = Run-LinuxCmd -ip $AllVMData.PublicIP -port $AllVMData.SSHPort -username $user -password $password -command "bash /home/$user/check_IB_SRIOV.sh"
+		Copy-RemoteFiles -downloadFrom $AllVMData.PublicIP -port $AllVMData.SSHPort -username $user -password $password -download -downloadTo $LogDir -files "*.log"
 	} catch {
 		$ErrorMessage =  $_.Exception.Message
 		$ErrorLine = $_.InvocationInfo.ScriptLineNumber
@@ -56,11 +46,10 @@ function Main {
 		if (!$testResult) {
 			$testResult = $resultAborted
 		}
-		$resultArr = $testResult
 	}
 
-	$currentTestResult.TestResult = Get-FinalResultHeader -resultarr $resultArr
-	return $currentTestResult
+	Write-LogInfo "Test result: $testResult"
+	return $testResult
 }
 
 Main -AllVmData $AllVmData -CurrentTestData $CurrentTestData
