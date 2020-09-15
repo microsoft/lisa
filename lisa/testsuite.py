@@ -176,7 +176,7 @@ class TestCaseMetadata:
             self.requirement = requirement
 
     def __getattr__(self, key: str) -> Any:
-        # inherit any attributes of metadata
+        # inherit all attributes of test suite
         assert self.suite, "suite is not set before use metadata"
         return getattr(self.suite, key)
 
@@ -210,7 +210,7 @@ class TestCaseRuntimeData:
         self.environment_name: str = ""
 
     def __getattr__(self, key: str) -> Any:
-        # inherit any attributes of metadata
+        # inherit all attributes of metadata
         assert self.metadata
         return getattr(self.metadata, key)
 
