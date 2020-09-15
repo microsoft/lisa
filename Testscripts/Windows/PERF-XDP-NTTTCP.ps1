@@ -3,60 +3,68 @@
 
 <#
 .Description
-    This script deploys the VM and verifies there are no regression in Network Latency caused
-    by XDP. We achieve this by comparing lagscope results.
+    This script deploys the VM and Verifies there are no regression in Network Performance due
+    to XDP by comparing ntttcp results.
 #>
 
 param([object] $AllVmData,
     [object] $CurrentTestData)
 
 $iFaceName = "eth1"
-# Threshold value (40%) is calculated by analyzing 10 samples of latency values with and w/o XDP
-$thresholdValue = 1.4
+$thresholdThroughput = 0.90
 
-function Run_Lagscope_PERF {
+function Run_NTTTCP_PERF {
     $ResultDir = $args[0]
-    Write-LogInfo "Starting lagscope perf test"
+    Write-LogInfo "Starting ntttcp perf test"
     $testJob = Run-LinuxCmd -ip $receiverVMData.PublicIP -port $receiverVMData.SSHPort `
-        -username $user -password $password -command "./perf_lagscope.sh &> ~/lagscopeConsoleLogs.txt" `
+        -username $user -password $password -command "./perf_ntttcp.sh &> ~/ntttcpConsoleLogs.txt" `
         -RunInBackground -runAsSudo
     while ((Get-Job -Id $testJob).State -eq "Running") {
         $currentStatus = Run-LinuxCmd -ip $receiverVMData.PublicIP -port $receiverVMData.SSHPort `
-            -username $user -password $password -command "tail -2 ~/lagscopeConsoleLogs.txt | head -1" -runAsSudo
+            -username $user -password $password -command "tail -2 ~/ntttcpConsoleLogs.txt | head -1" -runAsSudo
         Write-LogInfo "Current Test Status: $currentStatus"
         Wait-Time -seconds 20
     }
     # Copy result
     Copy-RemoteFiles -downloadFrom $receiverVMData.PublicIP -port $receiverVMData.SSHPort `
         -username $user -password $password -download `
-        -downloadTo $ResultDir -files "/tmp/lagscope-n*.txt" -runAsSudo
+        -downloadTo $ResultDir -files "~/ntttcp-tcp-test-logs/report.*" -runAsSudo
 }
 
-function Compare_Result {
+function Compare_NTTTCP_Result {
+    $beforeDirPath = Join-Path -Path $args[0] -ChildPath 'report.csv'
+    $afterDirPath = Join-Path -Path $args[1] -ChildPath 'report.csv'
 
-    Write-LogInfo "Comparing lagscope results"
-    $beforeDirPath = Join-Path -Path $args[0] -ChildPath "lagscope-n*-output.txt"
-    $afterDirPath = Join-Path -Path $args[1] -ChildPath "lagscope-n*-output.txt"
-    $avgLatency = 'default'
-    $avgLatencyXDP = 'default'
-    try {
-        $matchLine = (Select-String -Path $beforeDirPath -Pattern "Average").Line
-        $avgLatency = $matchLine.Split(",").Split("=").Trim().Replace("us", "")[5]
-        $avgLatency = $avgLatency / 1
-        $matchLineXDP = (Select-String -Path $afterDirPath -Pattern "Average").Line
-        $avgLatencyXDP = $matchLineXDP.Split(",").Split("=").Trim().Replace("us", "")[5]
-        $avgLatencyXDP = $avgLatencyXDP / 1
+    Write-LogInfo "Importing CSV from path $afterDirPath"
+    $csvWithXDP = Import-Csv -Path $afterDirPath
+    Write-LogInfo "Importing CSV from path $beforePath"
+    $csvWithoutXDP = Import-Csv -Path $beforeDirPath
+    $testFailedFlag = $false
+    if ( ($csvWithXDP).Count -ne ($csvWithoutXDP).Count) {
+        Throw "NTTTCP did not executed properly. Different number of lines in report.csv `
+                Lines in Report with XDP: $($csvWithXDP.count) and Report without XDP: $($csvWithoutXDP.count)"
+    }
 
-        $currentTestResult.TestSummary += New-ResultSummary -testResult $avgLatency -metaData "Without XDP Average Latency" -checkValues "PASS,FAIL,ABORTED" -testName $currentTestData.testName
-        $currentTestResult.TestSummary += New-ResultSummary -testResult $avgLatencyXDP -metaData "With XDP Average Latency" -checkValues "PASS,FAIL,ABORTED" -testName $currentTestData.testName
+    for ($itr = 0; $itr -lt ($csvWithXDP).Count; $itr++) {
+        # Compare throughput
+        Write-LogInfo "Throughput for $([math]::Pow(2,$itr)) connections"
+        $thrWithoutXDP = $csvWithoutXDP[$itr].throughput_in_Gbps
+        $thrWithtXDP = $csvWithXDP[$itr].throughput_in_Gbps
+        $currentTestResult.TestSummary += New-ResultSummary -testResult $thrWithoutXDP -metaData "Without XDP Throughput $([math]::Pow(2,$itr)) connections" -checkValues "PASS,FAIL,ABORTED" -testName $currentTestData.testName
+        $currentTestResult.TestSummary += New-ResultSummary -testResult $thrWithtXDP -metaData "With XDP Throughput $([math]::Pow(2,$itr)) connections" -checkValues "PASS,FAIL,ABORTED" -testName $currentTestData.testName
+        $thresholdLimit = [math]::Floor([double]($thrWithoutXDP * $thresholdThroughput))
+        if ($thrWithtXDP -lt $thresholdLimit) {
+            Write-LogErr "Throughput With XDP running $ThrWithXDP is less than `
+                threshold % of throughput without XDP $thrWithoutXDP"
+            $testFailedFlag = $true
+        }
+        else {
+            Write-LogInfo "Throughput with XDP running $ThrWithXDP is `
+                greater than threshold % of throughput without XDP $thrWithoutXDPs"
+        }
+
     }
-    catch {
-        $currentTestResult.TestSummary += New-ResultSummary -testResult "Error in parsing logs." -metaData "LAGSCOPE" -checkValues "PASS,FAIL,ABORTED" -testName $currentTestData.testName
-    }
-    $thresholdLatency = $avgLatency * $thresholdValue
-    Write-LogInfo "Average XDP value: $avgLatencyXDP Average w/o XDP value: $avgLatency & threshold: $thresholdLatency"
-    if ($avgLatencyXDP -gt $thresholdLatency) {
-        Write-LogErr "Average Latency with XDP $avgLatencyXDP is greater than threshold $thresholdLatency"
+    if ($testFailedFlag) {
         return $false
     }
     else {
@@ -64,52 +72,41 @@ function Compare_Result {
     }
 }
 
+
 function Create_Database_Result {
 
     $XDPLogDir = $args[0]
     $TestCaseName = $args[1]
-    $XDPLogPath = "$LogDir\$XDPLogDir\lagscope-n*-output.txt"
-    $LogContents = Get-Content -Path $XDPLogPath
+    $LogContents = Get-Content -Path "$LogDir\$XDPLogDir\report.log"
     $TestDate = $(Get-Date -Format yyyy-MM-dd)
-    $matchLine = (Select-String -Path $XDPLogPath -Pattern "Average").Line
-    $minimumLat = $matchLine.Split(",").Split("=").Trim().Replace("us", "")[1]
-    $maximumLat = $matchLine.Split(",").Split("=").Trim().Replace("us", "")[3]
-    $averageLat = $matchLine.Split(",").Split("=").Trim().Replace("us", "")[5]
+    $testType = "TCP"
     Write-LogInfo "Generating the performance data for database insertion with $XDPLogDir directory"
-    foreach ($line in $LogContents) {
-        if ($line -imatch "Interval\(usec\)") {
-            $histogramFlag = $true
-            continue;
-        }
-        if ($histogramFlag -eq $false) {
-            continue;
-        }
-        $interval = ($line.Trim() -replace '\s+', ' ').Split(" ")[0]
-        $frequency = ($line.Trim() -replace '\s+', ' ').Split(" ")[1]
-        if (($interval -match "^\d+$") -and ($frequency -match "^\d+$") -and ($interval -ne "0")) {
-            $resultMap = @{}
-            $resultMap["TestCaseName"] = $TestCaseName
-            $resultMap["TestDate"] = $TestDate
-            $resultMap["HostType"] = $TestPlatform
-            $resultMap["HostBy"] = $CurrentTestData.SetupConfig.TestLocation
-            $resultMap["HostOS"] = $(Get-Content "$LogDir\VM_properties.csv" | Select-String "Host Version" | ForEach-Object { $_ -replace ",Host Version,", "" })
-            $resultMap["GuestOSType"] = "Linux"
-            $resultMap["GuestDistro"] = $(Get-Content "$LogDir\VM_properties.csv" | Select-String "OS type" | ForEach-Object { $_ -replace ",OS type,", "" })
-            $resultMap["GuestSize"] = $receiverVMData.InstanceSize
-            $resultMap["KernelVersion"] = $(Get-Content "$LogDir\VM_properties.csv" | Select-String "Kernel version" | ForEach-Object { $_ -replace ",Kernel version,", "" })
-            $resultMap["IPVersion"] = "IPv4"
-            $resultMap["ProtocolType"] = "TCP"
-            $resultMap["DataPath"] = $XDPLogDir
-            $resultMap["MaxLatency_us"] = [Decimal]$maximumLat
-            $resultMap["AverageLatency_us"] = [Decimal]$averageLat
-            $resultMap["MinLatency_us"] = [Decimal]$minimumLat
-            #Percentile Values are not calculated yet. will be added in future
-            $resultMap["Latency95Percentile_us"] = 0
-            $resultMap["Latency99Percentile_us"] = 0
-            $resultMap["Interval_us"] = [int]$interval
-            $resultMap["Frequency"] = [int]$frequency
-            $currentTestResult.TestResultData += $resultMap
-        }
+    for ($i = 1; $i -lt $LogContents.Count; $i++) {
+        $Line = $LogContents[$i].Trim() -split '\s+'
+        $resultMap = @{}
+        $resultMap["TestCaseName"] = $TestCaseName
+        $resultMap["TestDate"] = $TestDate
+        $resultMap["HostType"] = $TestPlatform
+        $resultMap["HostBy"] = $CurrentTestData.SetupConfig.TestLocation
+        $resultMap["HostOS"] = $(Get-Content "$LogDir\VM_properties.csv" | Select-String "Host Version" | ForEach-Object { $_ -replace ",Host Version,", "" })
+        $resultMap["GuestOSType"] = "Linux"
+        $resultMap["GuestDistro"] = $(Get-Content "$LogDir\VM_properties.csv" | Select-String "OS type" | ForEach-Object { $_ -replace ",OS type,", "" })
+        $resultMap["GuestSize"] = $receiverVMData.InstanceSize
+        $resultMap["KernelVersion"] = $(Get-Content "$LogDir\VM_properties.csv" | Select-String "Kernel version" | ForEach-Object { $_ -replace ",Kernel version,", "" })
+        $resultMap["IPVersion"] = "IPv4"
+        $resultMap["ProtocolType"] = $testType
+        $resultMap["DataPath"] = $XDPLogDir
+        $resultMap["NumberOfConnections"] = $($Line[0])
+        $resultMap["Throughput_Gbps"] = $($Line[1])
+        $resultMap["SenderCyclesPerByte"] = $($Line[2])
+        $resultMap["ReceiverCyclesPerByte"] = $($Line[3])
+        $resultMap["Latency_ms"] = $($Line[4])
+        $resultMap["TXpackets"] = $($Line[5])
+        $resultMap["RXpackets"] = $($Line[6])
+        $resultMap["PktsInterrupts"] = $($Line[7])
+        $resultMap["ConnectionsCreatedTime"] = $($Line[8])
+        $resultMap["RetransSegments"] = $($Line[9])
+        $currentTestResult.TestResultData += $resultMap
     }
 }
 
@@ -154,8 +151,8 @@ function Main {
         Set-Content -Value "#Generated by Azure Automation." -Path $constantsFile
         Add-Content -Value "ip=$($receiverVMData.InternalIP)" -Path $constantsFile
         Add-Content -Value "client=$($receiverVMData.InternalIP)" -Path $constantsFile
-        Add-Content -Value "server=$($senderVMData.InternalIP)" -Path $constantsFile
-        Add-Content -Value "testServerIP=$($senderVMData.SecondInternalIP)" -Path $constantsFile
+        # Giving server IP as secondary to run NTTTCP on secondary NIC.
+        Add-Content -Value "server=$($senderVMData.SecondInternalIP)" -Path $constantsFile
         Add-Content -Value "nicName=$iFaceName" -Path $constantsFile
         foreach ($param in $currentTestData.TestParameters.param) {
             Add-Content -Value "$param" -Path $constantsFile
@@ -177,7 +174,7 @@ collect_VM_properties
             -username $user -password $password -upload -runAsSudo
         $testJob = Run-LinuxCmd -ip $receiverVMData.PublicIP -port $receiverVMData.SSHPort `
             -username $user -password $password -command "bash ./StartXDPSetup.sh" `
-            -RunInBackground -runAsSudo -ignoreLinuxExitCode
+            -RunInBackground -runAsSudo
         # Terminate process if ran more than 5 mins
         # TODO: Check max installation time for other distros when added
         $timer = 0
@@ -194,30 +191,32 @@ collect_VM_properties
 
         $currentState = Run-LinuxCmd -ip $receiverVMData.PublicIP -port $receiverVMData.SSHPort `
             -username $user -password $password -command "cat state.txt" -runAsSudo
-        if ($currentState -imatch "TestCompleted") {
+        if ($currentState -imatch "Completed") {
             # Start PERF test without XDP
             $ResultDir = "$LogDir\WithoutXDP"
             New-Item -Path $ResultDir -ItemType Directory -Force | Out-Null
-            Run_Lagscope_PERF $ResultDir
+            Run_NTTTCP_PERF $ResultDir
 
             # Start XDPDump on client
-            # https://lore.kernel.org/lkml/1579558957-62496-3-git-send-email-haiyangz@microsoft.com/t/
-            Write-LogDbg "XDP program cannot run with LRO (RSC) enabled, disable LRO before running XDP"
-            $xdp_command = "ethtool -K $iFaceName lro off && cd ~/bpf-samples/xdpdump && ./xdpdump -i $iFaceName > ~/xdpdumpoutPERF.txt 2>&1"
-            $testJobXDP = Run-LinuxCmd -ip $receiverVMData.PublicIP -port $receiverVMData.SSHPort -username $user -password $password -command $xdp_command -RunInBackground -runAsSudo -ignoreLinuxExitCode
+            $xdp_build = "cd ~/bpf-samples/xdpdump && make clean &&  CFLAGS='-D __PERF__ -I../libbpf/src/root/usr/include' make"
+            $testJobXDP = Run-LinuxCmd -ip $receiverVMData.PublicIP -port $receiverVMData.SSHPort -username $user `
+                -password $password -command $xdp_build -runAsSudo
+            $xdp_command = "cd ~/bpf-samples/xdpdump && ./xdpdump -i $iFaceName > ~/xdpdumpoutPERF.txt"
+            $testJobXDP = Run-LinuxCmd -ip $receiverVMData.PublicIP -port $receiverVMData.SSHPort -username $user `
+                -password $password -command $xdp_command -RunInBackground -runAsSudo
             Write-LogInfo "XDP Dump process started with id: $testJobXDP"
 
-            # Start PERF test with XDP
+            # Run server client of ntttcp
             $ResultDirXDP = "$LogDir\WithXDP"
             New-Item -Path $ResultDirXDP -ItemType Directory -Force | Out-Null
-            Run_Lagscope_PERF $ResultDirXDP
+            Run_NTTTCP_PERF $ResultDirXDP
             # collect and compare result
-            if (Compare_Result $ResultDir $ResultDirXDP) {
+            if (Compare_NTTTCP_Result $ResultDir $ResultDirXDP) {
                 Write-LogInfo "Test Completed"
                 $testResult = "PASS"
             }
             else {
-                Write-LogErr "Test failed. Lantency result below threshold."
+                Write-LogErr "Test failed. Throughput result below threshold."
                 $testResult = "FAIL"
             }
         }
@@ -226,7 +225,7 @@ collect_VM_properties
             $testResult = "ABORTED"
         }
         elseif ($currentState -imatch "TestSkipped") {
-            Write-LogErr "Test Skipped. Last known status: $currentStatus"
+            Write-LogErr "Test Skipped. Last known status: $currentStatus."
             $testResult = "SKIPPED"
         }
         elseif ($currentState -imatch "TestFailed") {
@@ -234,12 +233,13 @@ collect_VM_properties
             $testResult = "FAIL"
         }
         else {
-            Write-LogErr "Test execution is not successful, check test logs in VM."
+            Write-LogErr "Test execution is not successful, check test logs in VM. Last known status: $currentStatus."
             $testResult = "ABORTED"
         }
         Copy-RemoteFiles -downloadFrom $receiverVMData.PublicIP -port $receiverVMData.SSHPort `
             -username $user -password $password -download `
-            -downloadTo $LogDir -files "*.txt, *.log, *.csv" -runAsSudo
+            -downloadTo $LogDir -files "*.csv, *.txt, *.log" -runAsSudo
+
         if ($testResult -eq "PASS") {
             $TestCaseName = $GlobalConfig.Global.$TestPlatform.ResultsDatabase.testTag
             if (!$TestCaseName) {

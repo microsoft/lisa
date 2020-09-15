@@ -913,6 +913,28 @@
     </SetupConfig>
   </test>
   <test>
+    <testName>PERF-XDP-TCP-NTTTCP</testName>
+    <testScript>PERF-XDP-NTTTCP.ps1</testScript>
+    <files>.\Testscripts\Linux\utils.sh,.\Testscripts\Linux\XDPDumpSetup.sh,.\Testscripts\Linux\perf_ntttcp.sh</files>
+    <TestParameters>
+        <param>testDuration=NTTTCP_RUNTIME_IN_SECONDS</param>
+        <param>testType=tcp</param>
+        <param>testConnections=NTTTCP_TCP_CONNECTIONS</param>
+        <param>ntttcpVersion=NTTTCP_VERSION</param>
+        <param>lagscopeVersion=LAGSCOPE_VERSION</param>
+    </TestParameters>
+    <Platform>Azure</Platform>
+    <Category>Performance</Category>
+    <Area>XDP</Area>
+    <Tags>xdp,network,hv_netvsc,sriov</Tags>
+    <Priority>3</Priority>
+    <SetupConfig>
+      <setupType>TwoVM2NIC</setupType>
+      <OverrideVMSize>Standard_D64_v3</OverrideVMSize>
+      <Networking>SRIOV</Networking>
+    </SetupConfig>
+  </test>
+  <test>
     <testName>PERF-XDP-TCP-LATENCY</testName>
     <testScript>PERF-XDP-TCP-LATENCY.ps1</testScript>
     <files>.\Testscripts\Linux\utils.sh,.\Testscripts\Linux\XDPDumpSetup.sh,.\Testscripts\Linux\perf_lagscope.sh</files>

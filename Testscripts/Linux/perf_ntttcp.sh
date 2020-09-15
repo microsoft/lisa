@@ -54,7 +54,6 @@ if [ ! "${client}" ]; then
 	UpdateTestState $ICA_TESTABORTED
 	exit 1
 fi
-
 if [ ! "${testDuration}" ]; then
 	errMsg="Please add/provide value for testDuration in constants.sh. testDuration=60"
 	LogMsg "${errMsg}"
@@ -215,7 +214,7 @@ Get_VFName()
 	# -K changed into --show-nic-packets, -I changed into --show-dev-interrupts in master branch
 	if [ $currentVersion ] && ( [ $currentVersion \> "1.4.0" ] || [ $currentVersion == "1.4.0" ] || [ $currentVersion == "master" ] ); then
 		vf_interface=$(ssh "$ip" lshw -c network -businfo | grep -i "Virtual Function" | awk '{print $2}')
-		if [ $vf_interface ]; then
+		if [[ $vf_interface ]]; then
 			if [[ $currentVersion == "master" ]]; then
 				ntttcp_cmd="$ntttcp_cmd --show-nic-packets $vf_interface --show-dev-interrupts mlx"
 			else
@@ -238,11 +237,11 @@ Run_Ntttcp()
 	data_loss=0
 	Kill_Process "${server}" ntttcp
 	Kill_Process "${client}" ntttcp
-	
+
 	# Disable firewalld
 	Run_SSHCommand "${client}" "service firewalld stop"
 	Run_SSHCommand "${server}" "service firewalld stop"
-	
+
 	Run_SSHCommand "${server}" "mkdir -p ${log_folder}"
 	Run_SSHCommand "${client}" "mkdir -p ${log_folder}"
 	result_file="${log_folder}/report.csv"
@@ -283,7 +282,7 @@ Run_Ntttcp()
 			tx_log_prefix="sender-${testType}-${bufferLength}k-p${num_threads_P}X${num_threads_n}.log"
 			rx_log_prefix="receiver-${testType}-${bufferLength}k-p${num_threads_P}X${num_threads_n}.log"
 			run_msg="Running ${testType} ${bufferLength}k Test: $current_test_threads connections : $num_threads_P X $num_threads_n X $client_count clients"
-			server_ntttcp_cmd="ulimit -n 204800 && ${ntttcp_cmd} -u -b ${bufferLength}k -P ${num_threads_P} -t ${testDuration} -e -W 1 -C 1"
+			server_ntttcp_cmd="ulimit -n 204800 && ${ntttcp_cmd} -r${server} -u -b ${bufferLength}k -P ${num_threads_P} -t ${testDuration} -e -W 1 -C 1"
 			if [[ "$mode" == "multi-clients" ]];
 			then
 				server_ntttcp_cmd+=" -M"
@@ -293,7 +292,7 @@ Run_Ntttcp()
 			tx_log_prefix="sender-${testType}-p${num_threads_P}X${num_threads_n}.log"
 			rx_log_prefix="receiver-${testType}-p${num_threads_P}X${num_threads_n}.log"
 			run_msg="Running ${testType} Test: $current_test_threads connections : $num_threads_P X $num_threads_n X $client_count clients"
-			server_ntttcp_cmd="ulimit -n 204800 && ${ntttcp_cmd} -P ${num_threads_P} -t ${testDuration} -e -W 1 -C 1"
+			server_ntttcp_cmd="ulimit -n 204800 && ${ntttcp_cmd} -r${server} -P ${num_threads_P} -t ${testDuration} -e -W 1 -C 1"
 			if [[ "$mode" == "multi-clients" ]];
 			then
 				server_ntttcp_cmd+=" -M"
