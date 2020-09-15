@@ -85,6 +85,7 @@ class TestCaseRequirement:
 
 def simple_requirement(
     min_count: int = 1,
+    min_nic_count: int = 1,
     node: Optional[schema.NodeSpace] = None,
     supported_platform_type: Optional[List[str]] = None,
     unsupported_platform_type: Optional[List[str]] = None,
@@ -96,9 +97,15 @@ def simple_requirement(
     """
     if node:
         node.node_count = search_space.IntRange(min=min_count)
+        node.nic_count = search_space.IntRange(min=min_nic_count)
         nodes: List[schema.NodeSpace] = [node]
     else:
-        nodes = [schema.NodeSpace(node_count=search_space.IntRange(min=min_count))]
+        nodes = [
+            schema.NodeSpace(
+                node_count=search_space.IntRange(min=min_count),
+                nic_count=search_space.IntRange(min=min_nic_count),
+            )
+        ]
 
     platform_types = search_space.create_set_space(
         supported_platform_type, unsupported_platform_type, "platform type"
