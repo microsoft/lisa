@@ -2,6 +2,9 @@
 #
 # Copyright (c) Microsoft Corporation. All rights reserved.
 # Licensed under the Apache License.
+# This script checks HPC VM prerequitions like waagent config, IB over ND HPC VM and IB over SR-IOV HPC
+# VM have different conditions to prove their setting right. Use the common library function call, and
+# get the HPC VM type. It also checks if there is anything missing in HPC VM requirements.
 ########################################################################################################
 # Source utils.sh
 . utils.sh || {
