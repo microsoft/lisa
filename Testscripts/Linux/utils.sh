@@ -3803,8 +3803,10 @@ function check_lsvmbus() {
 # Return 1, if VM is IB over SR-IOV.
 # Return 2, if VM is non HPC VM.
 # Return 3, if unknown.
+# Ubuntu is used for HPC SKU but manual configuration required. It's exceptional.
 function is_hpc_vm() {
-	if [ -d /sys/class/infiniband/ ]; then
+	GetDistro
+	if [ -d /sys/class/infiniband/ ] && [[ $DISTRO != "ubuntu"* ]]; then
 		if [ -n "$(lspci | grep "Virtual Function")" ] && [ -n "$(dmesg | grep "IB Infiniband driver")" ]; then
 			return 1
 		elif [ -n "$(dmesg | grep hvnd_try_bind_nic)" ]; then
