@@ -31,6 +31,8 @@ function Main {
 		if ($result -eq "TestCompleted") {
 			Write-LogInfo "Verified HPC driver and its requirement in the VM"
 			$testResult = $resultPass
+		} else {
+			throw "check_IB_SRIOV.sh did not finish successfully. Please check out the log for details."
 		}
 		Copy-RemoteFiles -downloadFrom $AllVMData.PublicIP -port $AllVMData.SSHPort -username $user -password $password -download -downloadTo $LogDir -files "*.log"
 	} catch {
