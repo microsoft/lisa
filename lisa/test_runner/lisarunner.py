@@ -1,9 +1,9 @@
-from typing import Any, Dict, List, Optional, cast
+from typing import Any, Dict, List, Optional
 
 from lisa import schema
 from lisa.action import Action, ActionStatus
 from lisa.environment import Environment, Environments, load_environments
-from lisa.platform_ import WaitMoreResourceError, platforms
+from lisa.platform_ import WaitMoreResourceError, load_platform
 from lisa.testselector import select_testcases
 from lisa.testsuite import (
     TestCaseRequirement,
@@ -30,7 +30,7 @@ class LISARunner(Action):
 
     def config(self, key: str, value: Any) -> None:
         if key == constants.CONFIG_RUNBOOK:
-            self._runbook = cast(schema.Runbook, value)
+            self._runbook: schema.Runbook = value
 
     async def start(self) -> None:
         await super().start()
@@ -45,7 +45,7 @@ class LISARunner(Action):
         # load predefined environments
         candidate_environments = load_environments(self._runbook.environment)
 
-        platform = platforms.default
+        platform = load_platform(self._runbook.platform)
         # get environment requirements
         self._merge_test_requirements(
             test_results=selected_test_results,

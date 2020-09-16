@@ -6,7 +6,7 @@ from dataclasses import dataclass, field
 from datetime import datetime
 from functools import lru_cache
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Type, Union
+from typing import Any, Dict, List, Optional, Union
 
 from azure.identity import DefaultAzureCredential  # type: ignore
 from azure.mgmt.compute import ComputeManagementClient  # type: ignore
@@ -216,14 +216,6 @@ class AzurePlatform(Platform):
     @classmethod
     def platform_type(cls) -> str:
         return AZURE
-
-    @property
-    def platform_schema(self) -> Optional[Type[Any]]:
-        return AzurePlatformSchema
-
-    @property
-    def node_schema(self) -> Optional[Type[Any]]:
-        return AzureNodeSchema
 
     def _prepare_environment(self, environment: Environment, log: Logger) -> bool:
         """

@@ -29,6 +29,9 @@ def import_module(
         file_name = file.stem
         if file_name.startswith("__"):
             continue
+        # skip test files
+        if "tests" == file.parent.stem and file_name.startswith("test_"):
+            continue
 
         dir_name = file.parent
         local_package_path = dir_name.relative_to(package_dir)

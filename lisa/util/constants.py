@@ -58,7 +58,7 @@ ENVIRONMENTS_NODES_REMOTE_PRIVATE_KEY_FILE = "private_key_file"
 
 PLATFORM = "platform"
 PLATFORM_READY = "ready"
-
+PLATFORM_MOCK = "mock"
 
 TESTCASE = "testcase"
 
