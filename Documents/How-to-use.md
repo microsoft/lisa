@@ -53,7 +53,6 @@ If you add a custom test menu, you will need to re-build the Jenkins menu, and t
                     such as dependency package inaccessible, repo access issue, or no result from Get-VM commands, for example.
                 $resultSkipped: SKIPPED
                     ; It's the case the test bypassed the procedure like unsupported distro or kernel versions. It comes with invalid condition or procedures.
-                $IsWindowsImage: Whether the test image is Windows
 
             ii. For Azure
                 $ARMImageName: The ARM image name

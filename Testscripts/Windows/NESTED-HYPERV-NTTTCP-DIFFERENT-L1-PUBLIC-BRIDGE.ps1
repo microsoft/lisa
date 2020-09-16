@@ -138,6 +138,7 @@ function Create-NestedVMNode()
 	Add-Member -InputObject $objNode -MemberType NoteProperty -Name PublicIP -Value $null -Force
 	Add-Member -InputObject $objNode -MemberType NoteProperty -Name RoleName -Value $null -Force
 	Add-Member -InputObject $objNode -MemberType NoteProperty -Name SSHPort -Value 22 -Force
+	Add-Member -InputObject $objNode -MemberType NoteProperty -Name IsWindows -Value $false -Force
 	return $objNode
 }
 
@@ -294,9 +295,7 @@ function Main () {
 			$allDeployedNestedVMs += $NestedVMNode
 			$NestedVMNode = ""
 		}
-		Set-Variable -Name IsWindowsImage -Value $false -Scope Global
 		Is-VmAlive $allDeployedNestedVMs
-		Set-Variable -Name IsWindowsImage -Value $true -Scope Global
 
 		Remove-PSSession -Session $serverSession
 		Remove-PSSession -Session $clientSession

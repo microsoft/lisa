@@ -424,6 +424,7 @@
     <Priority>2</Priority>
     <SetupConfig>
       <OSType>Windows</OSType>
+      <ARMImageName>MicrosoftWindowsServer windowsserver 2019-Datacenter latest,=~windowsserver</ARMImageName>
       <SetupType>OneVM1DiskNested</SetupType>
     </SetupConfig>
   </test>
@@ -459,6 +460,7 @@
     <Priority>2</Priority>
     <SetupConfig>
       <OSType>Windows</OSType>
+      <ARMImageName>MicrosoftWindowsServer windowsserver 2019-Datacenter latest,=~windowsserver</ARMImageName>
       <SetupType>OneVM6DiskNested</SetupType>
     </SetupConfig>
   </test>
@@ -573,6 +575,7 @@
     <Priority>2</Priority>
     <SetupConfig>
       <OSType>Windows</OSType>
+      <ARMImageName>MicrosoftWindowsServer windowsserver 2019-Datacenter latest,=~windowsserver</ARMImageName>
       <SetupType>TwoVMNested</SetupType>
     </SetupConfig>
   </test>
