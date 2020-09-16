@@ -22,7 +22,7 @@ class Timer:
         return f"{self.elapsed(stop):.3f} sec"
 
     def __str__(self) -> str:
-        return f"{self.elapsed_text()}"
+        return self.elapsed_text()
 
 
 def create_timer() -> Timer:

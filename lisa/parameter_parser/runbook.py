@@ -7,7 +7,6 @@ import yaml
 from marshmallow import Schema
 
 from lisa import schema
-from lisa.platform_ import initialize_platforms, load_platforms
 from lisa.util import constants
 from lisa.util.logger import get_logger
 from lisa.util.module import import_module
@@ -79,8 +78,6 @@ def load(args: Namespace) -> schema.Runbook:
         )
         _load_extends(path.parent, extends_runbook)
 
-    initialize_platforms()
-
     # load arg variables
     variables: Dict[str, Any] = dict()
     load_from_runbook(data, variables)
@@ -93,9 +90,6 @@ def load(args: Namespace) -> schema.Runbook:
 
     # validate runbook, after extensions loaded
     runbook = validate_data(data)
-
-    # load platform runbook
-    load_platforms(runbook.platform)
 
     log = _get_init_logger()
     constants.RUN_NAME = f"lisa_{runbook.name}_{constants.RUN_ID}"

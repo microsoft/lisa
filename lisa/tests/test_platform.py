@@ -1,0 +1,152 @@
+from typing import cast
+from unittest.case import TestCase
+
+from lisa import schema
+from lisa.environment import Environment, Environments, load_environments
+from lisa.platform_ import Platform, load_platform
+from lisa.tests.test_environment import generate_runbook as generate_env_runbook
+from lisa.util import LisaException, constants
+from lisa.util.logger import Logger
+
+
+class MockPlatform(Platform):
+    @classmethod
+    def platform_type(cls) -> str:
+        return constants.PLATFORM_MOCK
+
+    def set_test_config(
+        self, return_prepared: bool = True, deploy_success: bool = True,
+    ) -> None:
+        self.return_prepared = return_prepared
+        self.deploy_success = deploy_success
+
+    def _prepare_environment(self, environment: Environment, log: Logger) -> bool:
+        return self.return_prepared
+
+    def _deploy_environment(self, environment: Environment, log: Logger) -> None:
+        if not self.deploy_success:
+            raise LisaException("mock deploy failed")
+        if self.return_prepared and environment.runbook.nodes_requirement:
+            requirements = environment.runbook.nodes_requirement
+            for node_space in requirements:
+                environment.nodes.from_requirement(node_requirement=node_space)
+        environment.is_ready = True
+
+    def _delete_environment(self, environment: Environment, log: Logger) -> None:
+        self.delete_called = True
+
+
+def generate_platform(
+    reserve_environment: bool = False,
+    admin_password: str = "donot use for real",
+    admin_key_file: str = "",
+) -> MockPlatform:
+    runbook_data = {
+        constants.TYPE: constants.PLATFORM_MOCK,
+        "reserveEnvironment": reserve_environment,
+        "adminPassword": admin_password,
+        "adminPrivateKeyFile": admin_key_file,
+    }
+    runbook = schema.Platform.schema().load(runbook_data)  # type: ignore
+    platform = load_platform([runbook])
+
+    return cast(MockPlatform, platform)
+
+
+def generate_environments() -> Environments:
+    envs_runbook = generate_env_runbook(local=True, requirement=True)
+    envs = load_environments(envs_runbook)
+
+    return envs
+
+
+class PlatformTestCase(TestCase):
+    def test_prepared_env_not_success_dropped(self) -> None:
+        platform = generate_platform()
+        platform.set_test_config(return_prepared=False)
+        envs = generate_environments()
+        self.assertEqual(2, len(envs))
+        prepared_environments = platform.prepare_environments(envs)
+        self.assertEqual(0, len(prepared_environments))
+
+    def test_prepared_env_success(self) -> None:
+        platform = generate_platform()
+        platform.set_test_config(return_prepared=True)
+        envs = generate_environments()
+        self.assertEqual(2, len(envs))
+        prepared_environments = platform.prepare_environments(envs)
+        self.assertEqual(2, len(prepared_environments))
+
+    def test_prepared_env_sorted_predefined_first(self) -> None:
+        platform = generate_platform()
+        platform.set_test_config()
+        envs = generate_environments()
+
+        # verify init as expected
+        self.assertListEqual(["runbook_0", "runbook_1"], [x for x in envs])
+        self.assertListEqual([True, True], [x.is_predefined for x in envs.values()])
+
+        # verify stable sort
+        envs["runbook_1"].is_predefined = False
+        prepared_environments = platform.prepare_environments(envs)
+        self.assertListEqual(
+            ["runbook_0", "runbook_1"], [x.name for x in prepared_environments]
+        )
+        self.assertListEqual(
+            [True, False], [x.is_predefined for x in prepared_environments]
+        )
+
+        # verify reverse sort
+        envs["runbook_0"].is_predefined = False
+        envs["runbook_1"].is_predefined = True
+        prepared_environments = platform.prepare_environments(envs)
+        self.assertListEqual(
+            ["runbook_1", "runbook_0"], [x.name for x in prepared_environments],
+        )
+        self.assertListEqual(
+            [True, False], [x.is_predefined for x in prepared_environments]
+        )
+
+    def test_prepared_env_sorted_by_cost(self) -> None:
+        platform = generate_platform()
+        envs = generate_environments()
+        platform.set_test_config()
+
+        self.assertListEqual(["runbook_0", "runbook_1"], [x for x in envs])
+        self.assertListEqual([0, 0], [x.cost for x in envs.values()])
+
+        envs["runbook_0"].cost = 1
+        envs["runbook_1"].cost = 2
+        prepared_environments = platform.prepare_environments(envs)
+        self.assertListEqual(
+            ["runbook_0", "runbook_1"], [x.name for x in prepared_environments]
+        )
+        self.assertListEqual([1, 2], [x.cost for x in prepared_environments])
+
+        envs["runbook_0"].cost = 2
+        envs["runbook_1"].cost = 1
+        prepared_environments = platform.prepare_environments(envs)
+        self.assertListEqual(
+            ["runbook_1", "runbook_0"], [x.name for x in prepared_environments]
+        )
+        self.assertListEqual([1, 2], [x.cost for x in prepared_environments])
+
+    def test_prepared_env_deploy_failed(self) -> None:
+        platform = generate_platform()
+        envs = generate_environments()
+        platform.set_test_config(deploy_success=False)
+        for env in envs.values():
+            with self.assertRaises(LisaException) as cm:
+                platform.deploy_environment(env)
+            self.assertEqual("mock deploy failed", str(cm.exception))
+
+    def test_prepared_env_deleted_not_ready(self) -> None:
+        platform = generate_platform()
+        envs = generate_environments()
+        platform.set_test_config()
+        for env in envs.values():
+            env._is_initialized = True
+            platform.deploy_environment(env)
+            self.assertEqual(True, env.is_ready)
+            platform.delete_environment(env)
+            self.assertEqual(False, env.is_ready)

@@ -53,9 +53,25 @@ class Platform(ABC, InitializableMixin):
     def _delete_environment(self, environment: Environment, log: Logger) -> None:
         raise NotImplementedError()
 
+    def _config(self, key: str, value: object) -> None:
+        pass
+
+    def _initialize(self) -> None:
+        """
+        Uses to do some initialization work.
+        It will be called when first environment is requested.
+        """
+        pass
+
+    def config(self, key: str, value: Any) -> None:
+        if key == constants.CONFIG_RUNBOOK:
+            # store platform runbook.
+            self._runbook: schema.Platform = value
+        self._config(key, value)
+
     def prepare_environments(self, environments: Environments) -> List[Environment]:
         """
-        return prioritized requirements.
+        return prioritized environments.
             user defined environment is higher priority than test cases,
             and then lower cost is prior to higher.
         """
@@ -75,30 +91,6 @@ class Platform(ABC, InitializableMixin):
         prepared_environments.sort(key=lambda x: (not x.is_predefined, x.cost))
 
         return prepared_environments
-
-    @property
-    def platform_schema(self) -> Optional[Type[Any]]:
-        return None
-
-    @property
-    def node_schema(self) -> Optional[Type[Any]]:
-        return None
-
-    def _config(self, key: str, value: object) -> None:
-        pass
-
-    def _initialize(self) -> None:
-        """
-        Uses to do some initialization work.
-        It will be called when first environment is requested.
-        """
-        pass
-
-    def config(self, key: str, value: Any) -> None:
-        if key == constants.CONFIG_RUNBOOK:
-            # store platform runbook.
-            self._runbook: schema.Platform = value
-        self._config(key, value)
 
     def deploy_environment(self, environment: Environment) -> None:
         log = get_logger(f"deploy[{environment.name}]", parent=self._log)
@@ -140,21 +132,34 @@ class Platforms(PlatformsDict):
 
     def register_platform(self, platform: Type[Platform]) -> None:
         platform_type = platform.platform_type()
-        if platforms.get(platform_type) is None:
-            platforms[platform_type] = platform()
+        if self.get(platform_type) is None:
+            self[platform_type] = platform()
         else:
             raise LisaException(
                 f"platform '{platform_type}' exists, cannot be registered again"
             )
 
 
-def load_platforms(platforms_runbook: List[schema.Platform]) -> None:
+def _load_sub_platforms() -> Platforms:
+    platforms = Platforms()
+    for sub_class in Platform.__subclasses__():
+        platform_class = cast(Type[Platform], sub_class)
+        platforms.register_platform(platform_class)
+    log = _get_init_logger()
+    log.debug(
+        f"registered platforms: " f"[{', '.join([name for name in platforms.keys()])}]"
+    )
+    return platforms
+
+
+def load_platform(platforms_runbook: List[schema.Platform]) -> Platform:
     log = _get_init_logger()
     # we may extend it later to support multiple platforms
     platform_count = len(platforms_runbook)
     if platform_count != 1:
         raise LisaException("There must be 1 and only 1 platform")
 
+    platforms = _load_sub_platforms()
     default_platform: Optional[Platform] = None
     for platform_runbook in platforms_runbook:
         platform_type = platform_runbook.type
@@ -168,17 +173,4 @@ def load_platforms(platforms_runbook: List[schema.Platform]) -> None:
             log.info(f"activated platform '{platform_type}'")
         platform.config(constants.CONFIG_RUNBOOK, platform_runbook)
     assert default_platform
-    platforms.default = default_platform
-
-
-def initialize_platforms() -> None:
-    for sub_class in Platform.__subclasses__():
-        platform_class = cast(Type[Platform], sub_class)
-        platforms.register_platform(platform_class)
-    log = _get_init_logger()
-    log.debug(
-        f"registered platforms: " f"[{', '.join([name for name in platforms.keys()])}]"
-    )
-
-
-platforms = Platforms()
+    return default_platform
