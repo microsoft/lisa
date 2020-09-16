@@ -2735,6 +2735,40 @@ function install_memcached () {
 	fi
 }
 
+# Install MariaDB and sysbench required packages
+function install_mariadb() {
+	LogMsg "Detected $DISTRO_NAME $DISTRO_VERSION; installing required packages of mariadb and sysbench"
+	update_repos
+	case "$DISTRO_NAME" in
+		oracle|rhel|centos)
+			install_epel
+			install_package "make git sysstat gcc automake openssl-devel libtool wget \
+							mariadb mariadb-devel mariadb-server"
+			;;
+		ubuntu|debian)
+			dpkg_configure
+			DEBIAN_FRONTEND=noninteractive apt-get install -y make sysstat mysql-client*
+			DEBIAN_FRONTEND=noninteractive apt-get install -y mariadb-server pkg-config git automake libtool libmysqlclient-dev -o Acquire::ForceIPv4=true
+			exit_status=$?
+			message="Install MariaDB test dependency packages"
+			if [ $exit_status -ne 0 ]; then				
+				echo "$message faild (exit code: $exit_status)"
+				UpdateSummary "$message faild (exit code: $exit_status)"
+				SetTestStateAborted
+			else
+				echo "$message success"
+				UpdateSummary "$message: Success"
+			fi
+			;;
+		*)
+			LogErr "Unsupported distribution"
+			return 1
+	esac
+	if [ $? -ne 0 ]; then
+		return 1
+	fi
+}
+
 function build_netperf () {
 	rm -rf lagscope
 	wget https://github.com/HewlettPackard/netperf/archive/netperf-2.7.0.tar.gz

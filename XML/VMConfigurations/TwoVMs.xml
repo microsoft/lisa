@@ -138,6 +138,42 @@
             </VirtualMachine>
         </ResourceGroup>
     </TwoVM2Host>
+    <TwoVM2Host1Disk>
+        <isDeployed>NO</isDeployed>
+        <ResourceGroup>
+            <VirtualMachine>
+                <InstanceSize>Standard_DS15_v2</InstanceSize>
+                <RoleName></RoleName>
+                <EndPoints>
+                    <Name>SSH</Name>
+                    <Protocol>tcp</Protocol>
+                    <LocalPort>22</LocalPort>
+                    <PublicPort>1111</PublicPort>
+                </EndPoints>
+                <DataDisk>
+                    <LUN>0</LUN>
+                    <DiskSizeInGB>1023</DiskSizeInGB>
+                    <HostCaching>None</HostCaching>
+                </DataDisk>
+            </VirtualMachine>
+            <VirtualMachine>
+                <DeployOnDifferentHyperVHost>yes</DeployOnDifferentHyperVHost>
+                <InstanceSize>Standard_DS15_v2</InstanceSize>
+                <RoleName></RoleName>
+                <EndPoints>
+                    <Name>SSH</Name>
+                    <Protocol>tcp</Protocol>
+                    <LocalPort>22</LocalPort>
+                    <PublicPort>1112</PublicPort>
+                </EndPoints>
+                <DataDisk>
+                    <LUN>0</LUN>
+                    <DiskSizeInGB>1023</DiskSizeInGB>
+                    <HostCaching>None</HostCaching>
+                </DataDisk>
+            </VirtualMachine>
+        </ResourceGroup>
+    </TwoVM2Host1Disk>
     <TwoVM2Host1Dep>
         <isDeployed>NO</isDeployed>
         <ResourceGroup>

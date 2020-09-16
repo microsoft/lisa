@@ -769,6 +769,26 @@
     </SetupConfig>
   </test>
   <test>
+    <testName>PERF-MARIADB-BENCHMARK</testName>
+    <testScript>PERF-TWOVM-MIDDLEWARE-BENCHMARK.ps1</testScript>
+    <runSetupScriptOnlyOnce>yes</runSetupScriptOnlyOnce>
+    <files>.\Testscripts\Linux\utils.sh,.\Testscripts\Linux\perf_mariadb.sh</files>
+    <TestParameters>
+        <param>THREADS=MARIADB_THREADS</param>
+        <param>MAX_TIME=300</param>
+    </TestParameters>
+    <Platform>Azure,HyperV</Platform>
+    <Category>Performance</Category>
+    <Area>BENCHMARK</Area>
+    <Tags>benchmark,mariadb,sriov</Tags>
+    <Priority>2</Priority>
+    <SetupConfig>
+      <Networking>SRIOV</Networking>
+      <SetupType>TwoVM2Host1Disk</SetupType>
+      <SetupScript>.\Testscripts\Windows\SETUP-Check-PowerPlan.ps1,.\Testscripts\Windows\SETUP-PERF-Add-NIC.ps1</SetupScript>
+    </SetupConfig>
+  </test>
+  <test>
     <testName>PERF-APACHE-BENCHMARK-SRIOV</testName>
     <testScript>PERF-TWOVM-MIDDLEWARE-BENCHMARK.ps1</testScript>
     <runSetupScriptOnlyOnce>yes</runSetupScriptOnlyOnce>
