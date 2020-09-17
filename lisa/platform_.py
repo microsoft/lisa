@@ -132,12 +132,17 @@ class Platforms(PlatformsDict):
 
     def register_platform(self, platform: Type[Platform]) -> None:
         platform_type = platform.platform_type()
-        if self.get(platform_type) is None:
-            self[platform_type] = platform()
-        else:
-            raise LisaException(
-                f"platform '{platform_type}' exists, cannot be registered again"
+        exist_platform = self.get(platform_type)
+        if exist_platform:
+            # so far, it happens on ut only. As global variables are used in ut,
+            # it's # important to use first registered.
+            log = _get_init_logger()
+            log.warning(
+                f"ignore to register [{platform_type}] platform again. "
+                f"new: [{platform}], exist: [{exist_platform}]"
             )
+        else:
+            self[platform_type] = platform()
 
 
 def _load_sub_platforms() -> Platforms:

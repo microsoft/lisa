@@ -1,6 +1,6 @@
 from typing import Any, Dict, List, Optional
 
-from lisa import schema
+from lisa import schema, search_space
 from lisa.action import Action, ActionStatus
 from lisa.environment import Environment, Environments, load_environments
 from lisa.platform_ import WaitMoreResourceError, load_platform
@@ -17,16 +17,12 @@ from lisa.util import constants
 from lisa.util.logger import get_logger
 
 
-class LISARunner(Action):
+class LisaRunner(Action):
     def __init__(self) -> None:
         super().__init__()
         self.exitCode = None
 
         self._log = get_logger("runner")
-
-    @property
-    def typename(self) -> str:
-        return "LISA"
 
     def config(self, key: str, value: Any) -> None:
         if key == constants.CONFIG_RUNBOOK:
@@ -91,14 +87,14 @@ class LISARunner(Action):
                 try:
                     platform.deploy_environment(environment)
                 except WaitMoreResourceError as identifier:
-                    self._log.warn(
+                    self._log.warning(
                         f"[{environment.name}] waiting for more resource: "
                         f"{identifier}, skip assiging case"
                     )
                     continue
 
                 if not environment.is_ready:
-                    self._log.warn(
+                    self._log.warning(
                         f"[{environment.name}] is not deployed successfully, "
                         f"skip assiging case"
                     )
@@ -147,11 +143,11 @@ class LISARunner(Action):
         # not run as there is no fit environment.
         for case in can_run_results:
             if case.can_run:
-                assert case.check_results
-                case.set_status(
-                    TestStatus.SKIPPED,
-                    f"no environment meet requirement: {case.check_results.reasons}",
-                )
+                reasons = "no available environment"
+                if case.check_results and case.check_results.reasons:
+                    reasons = f"{reasons}: {case.check_results.reasons}"
+
+                case.set_status(TestStatus.SKIPPED, reasons)
 
         result_count_dict: Dict[TestStatus, int] = dict()
         for test_result in selected_test_results:
@@ -168,8 +164,10 @@ class LISARunner(Action):
         for key in TestStatus:
             self._log.info(f"    {key.name:<9}: {result_count_dict.get(key, 0)}")
 
-        # delete enviroment after run
         self.set_status(ActionStatus.SUCCESS)
+
+        # for UT testability
+        self._latest_test_results = selected_test_results
 
     async def stop(self) -> None:
         super().stop()
@@ -188,13 +186,7 @@ class LISARunner(Action):
         )
         for case in cases:
             case.assigned_env = environment.name
-        try:
-            await test_suite.start()
-        except Exception as identifier:
-            self._log.error(f"suite[{suite_metadata.name}] failed: {identifier}")
-            for case in cases:
-                if case.can_run:
-                    case.set_status(TestStatus.SKIPPED, "test suite setup failed")
+        await test_suite.start()
 
     def _create_test_results(
         self, cases: List[TestCaseRuntimeData]
@@ -210,12 +202,16 @@ class LISARunner(Action):
         existing_environments: Environments,
         platform_type: str,
     ) -> None:
+        assert platform_type
+        platform_type_set = search_space.SetSpace[str](
+            is_allow_set=True, items=[platform_type]
+        )
         for test_result in test_results:
             test_req: TestCaseRequirement = test_result.runtime_data.requirement
 
             # check if there is playform requirement on test case
-            if test_req.platform_type:
-                check_result = test_req.platform_type.check(platform_type)
+            if test_req.platform_type and len(test_req.platform_type) > 0:
+                check_result = test_req.platform_type.check(platform_type_set)
                 if not check_result.result:
                     test_result.set_status(TestStatus.SKIPPED, check_result.reasons)
 

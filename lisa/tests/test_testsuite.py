@@ -21,8 +21,23 @@ from lisa.testsuite import (
 )
 from lisa.util import LisaException, constants
 
+# for other UTs
+fail_on_before_suite = False
+fail_on_after_suite = False
+fail_on_before_case = False
+fail_on_after_case = False
+fail_case_count = 0
+
 
 class MockTestSuite(TestSuite):
+    def __init__(self, *args: Any, **kwargs: Any) -> None:
+        super().__init__(*args, **kwargs)
+        self.fail_on_before_suite = fail_on_before_suite
+        self.fail_on_after_suite = fail_on_after_suite
+        self.fail_on_before_case = fail_on_before_case
+        self.fail_on_after_case = fail_on_after_case
+        self.fail_case_count = fail_case_count
+
     def set_fail_phase(
         self,
         fail_on_before_suite: bool = False,
@@ -67,7 +82,7 @@ class MockTestSuite2(TestSuite):
         pass
 
 
-def cleanup_metadata() -> None:
+def cleanup_cases_metadata() -> None:
     get_cases_metadata().clear()
     get_suites_metadata().clear()
 
@@ -132,7 +147,7 @@ class TestSuiteTestCase(TestCase):
         return test_suite
 
     def setUp(self) -> None:
-        cleanup_metadata()
+        cleanup_cases_metadata()
 
     def test_expanded_nodespace(self) -> None:
         cases = generate_cases_metadata()

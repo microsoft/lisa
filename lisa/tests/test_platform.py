@@ -1,38 +1,72 @@
-from typing import cast
+from typing import List
 from unittest.case import TestCase
 
 from lisa import schema
 from lisa.environment import Environment, Environments, load_environments
-from lisa.platform_ import Platform, load_platform
+from lisa.platform_ import Platform, WaitMoreResourceError, load_platform
 from lisa.tests.test_environment import generate_runbook as generate_env_runbook
 from lisa.util import LisaException, constants
 from lisa.util.logger import Logger
 
+# for other UT to set value
+return_prepared = True
+deploy_success = True
+deploy_is_ready = True
+wait_more_resource_error = False
+prepared_envs: List[str] = []
+deployed_envs: List[str] = []
+deleted_envs: List[str] = []
+
 
 class MockPlatform(Platform):
+    def __init__(self) -> None:
+        super().__init__()
+        prepared_envs.clear()
+        deployed_envs.clear()
+        deleted_envs.clear()
+        self.set_test_config(
+            return_prepared=return_prepared,
+            deploy_success=deploy_success,
+            deploy_is_ready=deploy_is_ready,
+            wait_more_resource_error=wait_more_resource_error,
+        )
+
     @classmethod
     def platform_type(cls) -> str:
         return constants.PLATFORM_MOCK
 
     def set_test_config(
-        self, return_prepared: bool = True, deploy_success: bool = True,
+        self,
+        return_prepared: bool = True,
+        deploy_success: bool = True,
+        deploy_is_ready: bool = True,
+        wait_more_resource_error: bool = False,
     ) -> None:
         self.return_prepared = return_prepared
         self.deploy_success = deploy_success
+        self.deploy_is_ready = deploy_is_ready
+        self.wait_more_resource_error = wait_more_resource_error
 
     def _prepare_environment(self, environment: Environment, log: Logger) -> bool:
+        prepared_envs.append(environment.name)
         return self.return_prepared
 
     def _deploy_environment(self, environment: Environment, log: Logger) -> None:
+        if self.wait_more_resource_error:
+            raise WaitMoreResourceError("wait more resource")
         if not self.deploy_success:
             raise LisaException("mock deploy failed")
         if self.return_prepared and environment.runbook.nodes_requirement:
             requirements = environment.runbook.nodes_requirement
             for node_space in requirements:
-                environment.nodes.from_requirement(node_requirement=node_space)
-        environment.is_ready = True
+                min_value = node_space.generate_min_capability(node_space)
+                environment.nodes.from_requirement(node_requirement=min_value)
+        deployed_envs.append(environment.name)
+        environment._is_initialized = True
+        environment.is_ready = self.deploy_is_ready
 
     def _delete_environment(self, environment: Environment, log: Logger) -> None:
+        deleted_envs.append(environment.name)
         self.delete_called = True
 
 
@@ -49,8 +83,13 @@ def generate_platform(
     }
     runbook = schema.Platform.schema().load(runbook_data)  # type: ignore
     platform = load_platform([runbook])
-
-    return cast(MockPlatform, platform)
+    try:
+        assert isinstance(platform, MockPlatform), f"actual: {type(platform)}"
+    except AssertionError:
+        # as UT imported from tests package, instaed of from lisa.tests package
+        # ignore by assign type from current package
+        platform = MockPlatform()
+    return platform
 
 
 def generate_environments() -> Environments:
@@ -145,7 +184,6 @@ class PlatformTestCase(TestCase):
         envs = generate_environments()
         platform.set_test_config()
         for env in envs.values():
-            env._is_initialized = True
             platform.deploy_environment(env)
             self.assertEqual(True, env.is_ready)
             platform.delete_environment(env)

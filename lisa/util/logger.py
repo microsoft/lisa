@@ -79,7 +79,7 @@ class Logger(logging.Logger):
         if raise_error:
             raise LisaException(message)
         else:
-            self.warn(message)
+            self.warning(message)
 
 
 class LogWriter(object):

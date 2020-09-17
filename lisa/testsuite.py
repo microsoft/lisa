@@ -11,6 +11,7 @@ from retry.api import retry_call  # type: ignore
 
 from lisa import schema, search_space
 from lisa.action import Action, ActionStatus
+from lisa.environment import EnvironmentSpace
 from lisa.operating_system import OperatingSystem
 from lisa.util import LisaException, constants, set_filtered_fields
 from lisa.util.logger import get_logger
@@ -82,7 +83,7 @@ class TestResult:
 
 @dataclass
 class TestCaseRequirement:
-    environment: Optional[schema.EnvironmentSpace] = None
+    environment: Optional[EnvironmentSpace] = None
     platform_type: Optional[search_space.SetSpace[str]] = None
     os_type: Optional[search_space.SetSpace[Type[OperatingSystem]]] = None
 
@@ -118,7 +119,7 @@ def simple_requirement(
     os = search_space.create_set_space(supported_os, unsupported_os, "operating system")
 
     return TestCaseRequirement(
-        environment=schema.EnvironmentSpace(nodes=nodes),
+        environment=EnvironmentSpace(nodes=nodes),
         platform_type=platform_types,
         os_type=os,
     )
@@ -259,10 +260,6 @@ class TestSuite(unittest.TestCase, Action, metaclass=ABCMeta):
     def after_case(self) -> None:
         pass
 
-    @property
-    def typename(self) -> str:
-        return "TestSuite"
-
     async def start(self) -> None:
         suite_error_message = ""
         is_suite_continue = True
@@ -385,7 +382,10 @@ def _add_suite_metadata(metadata: TestSuiteMetadata) -> None:
     if exist_metadata is None:
         _all_suites[key] = metadata
     else:
-        raise LisaException(f"duplicate test class name: {key}")
+        raise LisaException(
+            f"duplicate test class name: {key}, "
+            f"new: [{metadata}], exists: [{exist_metadata}]"
+        )
 
     class_prefix = f"{key}."
     for test_case in _all_cases.values():

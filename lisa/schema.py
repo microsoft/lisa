@@ -361,6 +361,20 @@ class NodeSpace(search_space.RequirementMixin, ExtendableSchemaMixin):
         if self.excluded_features is not None:
             self.excluded_features.is_allow_set = False
 
+    def __eq__(self, o: object) -> bool:
+        assert isinstance(o, NodeSpace), f"actual: {type(o)}"
+        return (
+            self.type == o.type
+            and self.node_count == o.node_count
+            and self.core_count == o.core_count
+            and self.memory_mb == o.memory_mb
+            and self.disk_count == o.disk_count
+            and self.nic_count == o.nic_count
+            and self.gpu_count == o.gpu_count
+            and self.features == o.features
+            and self.excluded_features == o.excluded_features
+        )
+
     def __repr__(self) -> str:
         """
         override it for shorter text
@@ -550,8 +564,11 @@ class NodeSpace(search_space.RequirementMixin, ExtendableSchemaMixin):
 @dataclass_json(letter_case=LetterCase.CAMEL)
 @dataclass
 class Capability(NodeSpace):
-    type: str = constants.ENVIRONMENTS_NODES_CAPABILITY
-    node_count = 1
+    type: str = constants.ENVIRONMENTS_NODES_REQUIREMENT
+
+    def __post_init__(self, *args: Any, **kwargs: Any) -> None:
+        super().__post_init__(*args, **kwargs)
+        self.node_count = 1
 
 
 @dataclass_json(letter_case=LetterCase.CAMEL)
@@ -624,75 +641,6 @@ class RemoteNode:
             raise LisaException(
                 "at least one of password and privateKeyFile need to be set"
             )
-
-
-@dataclass_json(letter_case=LetterCase.CAMEL)
-@dataclass
-class EnvironmentSpace(search_space.RequirementMixin):
-    topology: str = field(
-        default=constants.ENVIRONMENTS_SUBNET,
-        metadata=metadata(validate=validate.OneOf([constants.ENVIRONMENTS_SUBNET])),
-    )
-    nodes: List[NodeSpace] = field(default_factory=list)
-
-    def __post_init__(self, *args: Any, **kwargs: Any) -> None:
-        self._expand_node_space()
-
-    def check(self, capability: Any) -> search_space.ResultReason:
-        assert isinstance(capability, EnvironmentSpace), f"actual: {type(capability)}"
-        result = search_space.ResultReason()
-        if not capability.nodes:
-            result.add_reason("no node instance found")
-        elif len(self.nodes) > len(capability.nodes):
-            result.add_reason(
-                f"no enough nodes, "
-                f"capability: {len(capability.nodes)}, "
-                f"requirement: {len(self.nodes)}"
-            )
-        else:
-            if self.nodes:
-                for index, current_req in enumerate(self.nodes):
-                    current_cap = capability.nodes[index]
-                    result.merge(
-                        search_space.check(current_req, current_cap), str(index),
-                    )
-                    if not result.result:
-                        break
-
-        return result
-
-    @classmethod
-    def from_value(cls, value: Any) -> Any:
-        assert isinstance(value, EnvironmentSpace), f"actual: {type(value)}"
-        env = EnvironmentSpace()
-        env.nodes = value.nodes
-        if value.nodes:
-            env.nodes = list()
-            for value_capability in value.nodes:
-                env.nodes.append(NodeSpace.from_value(value_capability))
-
-        return env
-
-    def _generate_min_capability(self, capability: Any) -> Any:
-        env = EnvironmentSpace(topology=self.topology)
-        assert isinstance(capability, EnvironmentSpace), f"actual: {type(capability)}"
-        assert capability.nodes
-        for index, current_req in enumerate(self.nodes):
-            if len(capability.nodes) == 1:
-                current_cap = capability.nodes[0]
-            else:
-                current_cap = capability.nodes[index]
-
-            env.nodes.append(current_req.generate_min_capability(current_cap))
-
-        return env
-
-    def _expand_node_space(self) -> None:
-        if self.nodes:
-            expanded_requirements: List[NodeSpace] = []
-            for node in self.nodes:
-                expanded_requirements.extend(node.expand_by_node_count())
-            self.nodes = expanded_requirements
 
 
 @dataclass_json(letter_case=LetterCase.CAMEL)

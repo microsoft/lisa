@@ -1,12 +1,12 @@
 from unittest import TestCase
 
-from lisa.tests.test_testsuite import cleanup_metadata, select_and_check
+from lisa.tests.test_testsuite import cleanup_cases_metadata, select_and_check
 from lisa.util import LisaException, constants
 
 
 class SelectorTestCase(TestCase):
     def setUp(self) -> None:
-        cleanup_metadata()
+        cleanup_cases_metadata()
 
     def test_no_case_selected(self) -> None:
         runbook = [{constants.TESTCASE_CRITERIA: {"area": "demo"}}]
