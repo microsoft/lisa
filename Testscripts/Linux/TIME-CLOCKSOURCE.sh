@@ -33,7 +33,7 @@ CheckSource()
 		exit 0
 	else
 		__file_content=$(cat $current_clocksource)
-		if [[ $__file_content == "$clocksource" ]]; then
+		if [[ $__file_content == *"$clocksource" ]]; then
 			LogMsg "Test successful. Proper file was found. Clocksource file content is $__file_content"
 		else
 			LogErr "Test failed. Proper file was NOT found."
@@ -105,11 +105,11 @@ function UnbindCurrentSource()
 #
 GetDistro
 case $DISTRO in
-	redhat_6 | centos_6)
+	redhat_6 | centos_6 | redhat_7 | centos_7)
 		LogMsg "WARNING: $DISTRO does not support unbind current clocksource, only check"
 		CheckSource
 		;;
-	redhat_7|redhat_8|centos_7|centos_8|fedora*|clear-linux-os)
+	redhat_8 |centos_8|fedora*|clear-linux-os)
 		CheckSource
 		UnbindCurrentSource
 		;;
