@@ -26,6 +26,9 @@ Schema is dealt with three components,
 """
 
 
+T = TypeVar("T")
+
+
 def metadata(
     field_function: Optional[Callable[..., Any]] = None, *args: Any, **kwargs: Any
 ) -> Any:
@@ -47,17 +50,12 @@ def metadata(
     )
 
 
-T_REQUIREMENT = TypeVar("T_REQUIREMENT", bound=search_space.RequirementMixin)
-T = TypeVar("T", bound=DataClassJsonMixin)
-U = TypeVar("U")
-
-
 class ListableValidator(validate.Validator):
     default_message = ""
 
     def __init__(
         self,
-        value_type: U,
+        value_type: type,
         value_validator: Optional[
             Union[validate.Validator, List[validate.Validator]]
         ] = None,

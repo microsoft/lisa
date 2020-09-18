@@ -119,7 +119,11 @@ class SshShell(InitializableMixin):
         try:
             connect(paramiko_client, self._connection_info)
         except Exception as identifier:
-            raise LisaException(f"connect to server failed: {identifier}")
+            raise LisaException(
+                f"connect to server "
+                f"[{self._connection_info.address}:{self._connection_info.port}]"
+                f" failed: {identifier}"
+            )
         _, stdout, _ = paramiko_client.exec_command("cmd")
         paramiko_client.close()
 
