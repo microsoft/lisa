@@ -122,7 +122,7 @@ class Process:
 
         if timeout < timer.elapsed():
             if self._process is not None:
-                self._log.warn(f"timeout in {timeout} sec, and killed")
+                self._log.warning(f"timeout in {timeout} sec, and killed")
             self.kill()
 
         if not isinstance(self._process, ExecutableResult):

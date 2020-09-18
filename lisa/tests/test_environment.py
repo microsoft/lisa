@@ -41,7 +41,7 @@ def generate_runbook(
                 "nodeCount": 2,
                 "coreCount": 8,
                 "diskCount": {"min": 1},
-                "nicCount": {"max": 1},
+                "nicCount": {"min": 1, "max": 1},
             }
         )
     if is_single_env:
@@ -106,7 +106,9 @@ class EnvironmentTestCase(TestCase):
         self.assertEqual(2, len(env_cap.nodes))
         self.assertEqual(8, env_cap.nodes[0].core_count)
         self.assertEqual(search_space.IntRange(min=1), env_cap.nodes[0].disk_count)
-        self.assertEqual(search_space.IntRange(max=1), env_cap.nodes[0].nic_count)
+        self.assertEqual(
+            search_space.IntRange(min=1, max=1), env_cap.nodes[0].nic_count
+        )
 
     def test_create_from_requirement(self) -> None:
         requirement = simple_requirement(min_count=2)
@@ -116,6 +118,10 @@ class EnvironmentTestCase(TestCase):
         env = envs.get_or_create(requirement=env_requirement)
         assert env
         self.assertEqual(1, len(envs))
+
+        requirement = simple_requirement(min_count=2)
+        env_requirement = requirement.environment
+        assert env_requirement
         env = envs.get_or_create(requirement=env_requirement)
         self.assertEqual(1, len(envs), "get or create again won't create new")
         assert env

@@ -3,6 +3,7 @@ from functools import partial
 from typing import Any, List, Optional, Type
 
 from lisa import schema
+from lisa.environment import EnvironmentSpace
 from lisa.operating_system import OperatingSystem
 from lisa.search_space import (
     IntRange,
@@ -19,7 +20,7 @@ from lisa.util import constants
 
 @dataclass
 class TestCaseSchema:
-    environment: schema.EnvironmentSpace
+    environment: EnvironmentSpace
     platform_type: Optional[SetSpace[Type[schema.Platform]]]
     operating_system: Optional[SetSpace[Type[OperatingSystem]]]
 
@@ -127,29 +128,29 @@ class RequirementTestCase(SearchSpaceTestCase):
         partial_testcase_schema = partial(
             TestCaseSchema, platform_type=None, operating_system=None,
         )
-        s11 = partial_testcase_schema(environment=schema.EnvironmentSpace())
+        s11 = partial_testcase_schema(environment=EnvironmentSpace())
         s11.environment.nodes = [n1]
-        s14 = partial_testcase_schema(environment=schema.EnvironmentSpace())
+        s14 = partial_testcase_schema(environment=EnvironmentSpace())
         s14.environment.nodes = [n4]
-        s14g1 = partial_testcase_schema(environment=schema.EnvironmentSpace())
+        s14g1 = partial_testcase_schema(environment=EnvironmentSpace())
         s14g1.environment.nodes = [n4g1]
-        s24 = partial_testcase_schema(environment=schema.EnvironmentSpace())
+        s24 = partial_testcase_schema(environment=EnvironmentSpace())
         s24.environment.nodes = [n4, n4]
-        s16 = partial_testcase_schema(environment=schema.EnvironmentSpace())
+        s16 = partial_testcase_schema(environment=EnvironmentSpace())
         s16.environment.nodes = [n6]
-        s16g2 = partial_testcase_schema(environment=schema.EnvironmentSpace())
+        s16g2 = partial_testcase_schema(environment=EnvironmentSpace())
         s16g2.environment.nodes = [n6g2]
-        s16g1 = partial_testcase_schema(environment=schema.EnvironmentSpace())
+        s16g1 = partial_testcase_schema(environment=EnvironmentSpace())
         s16g1.environment.nodes = [n6g1]
-        s110 = partial_testcase_schema(environment=schema.EnvironmentSpace())
+        s110 = partial_testcase_schema(environment=EnvironmentSpace())
         s110.environment.nodes = [n10]
-        s2i6 = partial_testcase_schema(environment=schema.EnvironmentSpace())
+        s2i6 = partial_testcase_schema(environment=EnvironmentSpace())
         s2i6.environment.nodes = [n6, n6]
-        s266 = partial_testcase_schema(environment=schema.EnvironmentSpace())
+        s266 = partial_testcase_schema(environment=EnvironmentSpace())
         s266.environment.nodes = [n6, n6]
-        s2610 = partial_testcase_schema(environment=schema.EnvironmentSpace())
+        s2610 = partial_testcase_schema(environment=EnvironmentSpace())
         s2610.environment.nodes = [n6, n10]
-        s2106 = partial_testcase_schema(environment=schema.EnvironmentSpace())
+        s2106 = partial_testcase_schema(environment=EnvironmentSpace())
         s2106.environment.nodes = [n10, n6]
 
         self._verify_matrix(
@@ -177,7 +178,7 @@ class RequirementTestCase(SearchSpaceTestCase):
                     min_count=2, node=schema.NodeSpace(core_count=IntRange(4, 8))
                 ),
                 UtTestCaseRequirement(
-                    environment=schema.EnvironmentSpace(
+                    environment=EnvironmentSpace(
                         nodes=[schema.NodeSpace(core_count=6, node_count=1)]
                     )
                 ),
@@ -189,14 +190,14 @@ class RequirementTestCase(SearchSpaceTestCase):
             capabilities=[
                 ut_simple_requirement(),
                 UtTestCaseRequirement(
-                    environment=schema.EnvironmentSpace(
+                    environment=EnvironmentSpace(
                         nodes=[
                             schema.NodeSpace(core_count=6, node_count=1, gpu_count=0)
                         ]
                     )
                 ),
                 UtTestCaseRequirement(
-                    environment=schema.EnvironmentSpace(
+                    environment=EnvironmentSpace(
                         nodes=[
                             schema.NodeSpace(
                                 node_count=1, core_count=6, gpu_count=IntRange(max=2)
@@ -205,28 +206,28 @@ class RequirementTestCase(SearchSpaceTestCase):
                     )
                 ),
                 UtTestCaseRequirement(
-                    environment=schema.EnvironmentSpace(
+                    environment=EnvironmentSpace(
                         nodes=[
                             schema.NodeSpace(node_count=1, core_count=6, gpu_count=2)
                         ]
                     )
                 ),
                 UtTestCaseRequirement(
-                    environment=schema.EnvironmentSpace(
+                    environment=EnvironmentSpace(
                         nodes=[
                             schema.NodeSpace(core_count=10, node_count=1, gpu_count=0)
                         ]
                     )
                 ),
                 UtTestCaseRequirement(
-                    environment=schema.EnvironmentSpace(
+                    environment=EnvironmentSpace(
                         nodes=[
                             schema.NodeSpace(core_count=6, node_count=2, gpu_count=0)
                         ]
                     )
                 ),
                 UtTestCaseRequirement(
-                    environment=schema.EnvironmentSpace(
+                    environment=EnvironmentSpace(
                         nodes=[
                             schema.NodeSpace(core_count=6, node_count=1, gpu_count=0),
                             schema.NodeSpace(core_count=6, node_count=1, gpu_count=0),
@@ -234,7 +235,7 @@ class RequirementTestCase(SearchSpaceTestCase):
                     )
                 ),
                 UtTestCaseRequirement(
-                    environment=schema.EnvironmentSpace(
+                    environment=EnvironmentSpace(
                         nodes=[
                             schema.NodeSpace(core_count=6, node_count=1, gpu_count=0),
                             schema.NodeSpace(core_count=10, node_count=1, gpu_count=0),
@@ -242,7 +243,7 @@ class RequirementTestCase(SearchSpaceTestCase):
                     )
                 ),
                 UtTestCaseRequirement(
-                    environment=schema.EnvironmentSpace(
+                    environment=EnvironmentSpace(
                         nodes=[
                             schema.NodeSpace(core_count=10, node_count=1, gpu_count=0),
                             schema.NodeSpace(core_count=6, node_count=1, gpu_count=0),

@@ -36,11 +36,6 @@ class Action(metaclass=ABCMeta):
     def config(self, key: str, value: object) -> None:
         pass
 
-    @property
-    @abstractmethod
-    def typename(self) -> str:
-        raise NotImplementedError()
-
     @abstractmethod
     async def start(self) -> None:
         self.__is_started = True

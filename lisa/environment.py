@@ -2,12 +2,16 @@ from __future__ import annotations
 
 import copy
 from collections import UserDict
+from dataclasses import dataclass, field
 from functools import partial
-from typing import TYPE_CHECKING, Optional
+from typing import TYPE_CHECKING, Any, List, Optional
 
-from lisa import schema
+from dataclasses_json import LetterCase, dataclass_json  # type: ignore
+from marshmallow import validate
+
+from lisa import schema, search_space
 from lisa.node import Nodes
-from lisa.util import ContextMixin, InitializableMixin, LisaException
+from lisa.util import ContextMixin, InitializableMixin, LisaException, constants
 from lisa.util.logger import get_logger
 
 if TYPE_CHECKING:
@@ -16,6 +20,89 @@ if TYPE_CHECKING:
 
 
 _get_init_logger = partial(get_logger, "init", "env")
+
+
+@dataclass_json(letter_case=LetterCase.CAMEL)
+@dataclass
+class EnvironmentSpace(search_space.RequirementMixin):
+    """
+    Search space of an environment. It uses to
+    1. Specify test suite requirement, see TestCaseRequirement
+    2. Describe capability of an environment, see Environment.capability
+    """
+
+    topology: str = field(
+        default=constants.ENVIRONMENTS_SUBNET,
+        metadata=schema.metadata(
+            validate=validate.OneOf([constants.ENVIRONMENTS_SUBNET])
+        ),
+    )
+    nodes: List[schema.NodeSpace] = field(default_factory=list)
+
+    def __post_init__(self, *args: Any, **kwargs: Any) -> None:
+        self._expand_node_space()
+
+    def __eq__(self, o: object) -> bool:
+        assert isinstance(o, EnvironmentSpace), f"actual: {type(o)}"
+        return self.topology == o.topology and search_space.equal_list(
+            self.nodes, o.nodes
+        )
+
+    def check(self, capability: Any) -> search_space.ResultReason:
+        assert isinstance(capability, EnvironmentSpace), f"actual: {type(capability)}"
+        result = search_space.ResultReason()
+        if not capability.nodes:
+            result.add_reason("no node instance found")
+        elif len(self.nodes) > len(capability.nodes):
+            result.add_reason(
+                f"no enough nodes, "
+                f"capability: {len(capability.nodes)}, "
+                f"requirement: {len(self.nodes)}"
+            )
+        else:
+            if self.nodes:
+                for index, current_req in enumerate(self.nodes):
+                    current_cap = capability.nodes[index]
+                    result.merge(
+                        search_space.check(current_req, current_cap), str(index),
+                    )
+                    if not result.result:
+                        break
+
+        return result
+
+    @classmethod
+    def from_value(cls, value: Any) -> Any:
+        assert isinstance(value, EnvironmentSpace), f"actual: {type(value)}"
+        env = EnvironmentSpace()
+        env.nodes = value.nodes
+        if value.nodes:
+            env.nodes = list()
+            for value_capability in value.nodes:
+                env.nodes.append(schema.NodeSpace.from_value(value_capability))
+
+        return env
+
+    def _generate_min_capability(self, capability: Any) -> Any:
+        env = EnvironmentSpace(topology=self.topology)
+        assert isinstance(capability, EnvironmentSpace), f"actual: {type(capability)}"
+        assert capability.nodes
+        for index, current_req in enumerate(self.nodes):
+            if len(capability.nodes) == 1:
+                current_cap = capability.nodes[0]
+            else:
+                current_cap = capability.nodes[index]
+
+            env.nodes.append(current_req.generate_min_capability(current_cap))
+
+        return env
+
+    def _expand_node_space(self) -> None:
+        if self.nodes:
+            expanded_requirements: List[schema.NodeSpace] = []
+            for node in self.nodes:
+                expanded_requirements.extend(node.expand_by_node_count())
+            self.nodes = expanded_requirements
 
 
 class Environment(ContextMixin, InitializableMixin):
@@ -35,7 +122,7 @@ class Environment(ContextMixin, InitializableMixin):
         self.cost: int = 0
         # original runbook or generated from test case which this environment supports
         self.runbook: schema.Environment
-        self._capability: Optional[schema.EnvironmentSpace] = None
+        self._capability: Optional[EnvironmentSpace] = None
         self.warn_as_error = warn_as_error
         self._default_node: Optional[Node] = None
         self._log = get_logger("env", self.name)
@@ -85,10 +172,10 @@ class Environment(ContextMixin, InitializableMixin):
         self.nodes.close()
 
     @property
-    def capability(self) -> schema.EnvironmentSpace:
+    def capability(self) -> EnvironmentSpace:
         # merge existing node to capability
         if self._capability is None:
-            result = schema.EnvironmentSpace(topology=self.runbook.topology)
+            result = EnvironmentSpace(topology=self.runbook.topology)
             for node in self.nodes.list():
                 result.nodes.append(node.capability)
             if not self.is_ready and self.runbook.nodes_requirement:
@@ -124,9 +211,7 @@ class Environments(EnvironmentsDict):
         self.max_concurrency = max_concurrency
         self.allow_create = allow_create
 
-    def get_or_create(
-        self, requirement: schema.EnvironmentSpace
-    ) -> Optional[Environment]:
+    def get_or_create(self, requirement: EnvironmentSpace) -> Optional[Environment]:
         result: Optional[Environment] = None
         for environment in self.values():
             # find exact match, or create a new one.
@@ -137,9 +222,7 @@ class Environments(EnvironmentsDict):
             result = self.from_requirement(requirement)
         return result
 
-    def from_requirement(
-        self, requirement: schema.EnvironmentSpace
-    ) -> Optional[Environment]:
+    def from_requirement(self, requirement: EnvironmentSpace) -> Optional[Environment]:
         runbook = schema.Environment(
             topology=requirement.topology, nodes_requirement=requirement.nodes,
         )

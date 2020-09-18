@@ -4,7 +4,7 @@ from argparse import Namespace
 from typing import Iterable, Optional, cast
 
 from lisa.parameter_parser.runbook import load as load_runbook
-from lisa.test_runner.lisarunner import LISARunner
+from lisa.test_runner.lisarunner import LisaRunner
 from lisa.testselector import select_testcases
 from lisa.testsuite import TestCaseRuntimeData
 from lisa.util import LisaException, constants
@@ -16,7 +16,7 @@ _get_init_logger = functools.partial(get_logger, "init")
 def run(args: Namespace) -> None:
     runbook = load_runbook(args)
 
-    runner = LISARunner()
+    runner = LisaRunner()
     runner.config(constants.CONFIG_RUNBOOK, runbook)
     awaitable = runner.start()
     asyncio.run(awaitable)
