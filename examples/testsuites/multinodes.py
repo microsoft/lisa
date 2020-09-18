@@ -32,7 +32,7 @@ class MutipleNodesDemo(TestSuite):
         description="""
         this test case send and receive data by ntttcp
         """,
-        priority=1,
+        priority=2,
     )
     def send_receive(self) -> None:
         self.log.info(f"node count: {len(self.environment.nodes)}")
@@ -43,7 +43,17 @@ class MutipleNodesDemo(TestSuite):
         ntttcp_client = client_node.tools[Ntttcp]
 
         server_process = ntttcp_server.run_async("-P 1 -t 5 -e")
-        ntttcp_client.run(
+        client_result = ntttcp_client.run(
             f"-s {server_node.internal_address} -P 1 -n 1 -t 5 -W 1", no_info_log=False
         )
-        server_process.wait_result()
+        server_result = server_process.wait_result(timeout=10)
+        self.assertEqual(
+            0,
+            client_result.exit_code,
+            f"client exit code [{client_result.exit_code}] should be 0.",
+        )
+        self.assertEqual(
+            0,
+            server_result.exit_code,
+            f"server exit code [{server_result.exit_code}] should be 0.",
+        )

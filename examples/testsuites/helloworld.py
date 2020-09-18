@@ -19,7 +19,7 @@ class HelloWorld(TestSuite):
             1. get system info
             2. echo hello world!
         """,
-        priority=1,
+        priority=0,
     )
     def hello(self) -> None:
         self.log.info(f"node count: {len(self.environment.nodes)}")
@@ -47,7 +47,7 @@ class HelloWorld(TestSuite):
         description="""
         demonstrate a simple way to run command in one line.
         """,
-        priority=2,
+        priority=1,
     )
     def bye(self) -> None:
         node = self.environment.default_node

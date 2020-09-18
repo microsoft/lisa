@@ -140,42 +140,132 @@
             }
         },
         {
-            "apiVersion": "2020-05-01",
-            "type": "Microsoft.Network/networkInterfaces",
+            "type": "Microsoft.Resources/deployments",
+            "apiVersion": "2019-10-01",
             "copy": {
-                "name": "nicCopy",
+                "name": "vmCopy",
                 "count": "[variables('nodeCount')]"
             },
-            "name": "[concat(variables('nodes')[copyIndex('nicCopy')]['name'], '-nic')]",
-            "location": "[variables('location')]",
+            "name": "[concat(variables('nodes')[copyIndex('vmCopy')]['name'],'-networkInterfaces')]",
             "dependsOn": [
                 "[resourceId('Microsoft.Network/publicIPAddresses/', variables('publicIPv4AddressName'))]",
                 "[variables('vnetId')]",
                 "[variables('lbId')]"
             ],
             "properties": {
-                "ipConfigurations": [
-                    {
-                        "name": "IPv4Config",
-                        "properties": {
-                            "privateIPAddressVersion": "IPv4",
-                            "loadBalancerBackendAddressPools": [
-                                {
-                                    "id": "[concat(variables('lbId'), '/backendAddressPools/BackendPoolIPv4')]"
-                                }
-                            ],
-                            "loadBalancerInboundNatRules": [
-                                {
-                                    "id": "[concat(variables('lbId'), '/inboundNatRules/', variables('nodes')[copyIndex('nicCopy')]['name'], '-ssh')]"
-                                }
-                            ],
-                            "subnet": {
-                                "id": "[variables('defaultSubnetId')]"
-                            },
-                            "privateIPAllocationMethod": "Dynamic"
-                        }
+                "expressionEvaluationOptions": {
+                    "scope": "inner"
+                },
+                "parameters": {
+                    "vmName": {
+                        "value": "[variables('nodes')[copyIndex('vmCopy')]['name']]"
+                    },
+                    "nicCount": {
+                        "value": "[variables('nodes')[copyIndex('vmCopy')]['nicCount']]"
+                    },
+                    "location": {
+                        "value": "[variables('location')]"
+                    },
+                    "lbId": {
+                        "value": "[variables('lbId')]"
+                    },
+                    "defaultSubnetId": {
+                        "value": "[variables('defaultSubnetId')]"
                     }
-                ]
+                },
+                "mode": "Incremental",
+                "template": {
+                    "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+                    "contentVersion": "1.0.0.0",
+                    "parameters": {
+                        "vmName": {
+                            "type": "string"
+                        },
+                        "nicCount": {
+                            "type": "int"
+                        },
+                        "location": {
+                            "type": "string"
+                        },
+                        "lbId": {
+                            "type": "string"
+                        },
+                        "defaultSubnetId": {
+                            "type": "string"
+                        }
+                    },
+                    "resources": [
+                        {
+                            "apiVersion": "2020-05-01",
+                            "type": "Microsoft.Network/networkInterfaces",
+                            "copy": {
+                                "name": "nicCopy",
+                                "count": "[parameters('nicCount')]"
+                            },
+                            "name": "[concat(parameters('vmName'), '-nic-', copyIndex('nicCopy'))]",
+                            "location": "[parameters('location')]",
+                            "properties": {
+                                "ipConfigurations": [
+                                    {
+                                        "name": "IPv4Config",
+                                        "properties": {
+                                            "privateIPAddressVersion": "IPv4",
+                                            "loadBalancerBackendAddressPools": "[if(equals(0, copyIndex('nicCopy')), network.getlbAddressIds(parameters('lbId')), json('null'))]",
+                                            "loadBalancerInboundNatRules": "[if(equals(0, copyIndex('nicCopy')), network.getNatRules(parameters('lbId'), parameters('vmName')), json('null'))]",
+                                            "subnet": {
+                                                "id": "[parameters('defaultSubnetId')]"
+                                            },
+                                            "privateIPAllocationMethod": "Dynamic"
+                                        }
+                                    }
+                                ]
+                            }
+                        }
+                    ],
+                    "functions": [
+                        {
+                            "namespace": "network",
+                            "members": {
+                                "getlbAddressIds": {
+                                    "parameters": [
+                                        {
+                                            "name": "lbId",
+                                            "type": "string"
+                                        }
+                                    ],
+                                    "output": {
+                                        "type": "array",
+                                        "value": [
+                                            {
+                                                "id": "[concat(parameters('lbId'), '/backendAddressPools/BackendPoolIPv4')]"
+                                            }
+                                        ]
+                                    }
+                                },
+                                "getNatRules": {
+                                    "parameters": [
+                                        {
+                                            "name": "lbId",
+                                            "type": "string"
+                                        },
+                                        {
+                                            "name": "vmName",
+                                            "type": "string"
+                                        }
+                                    ],
+                                    "output": {
+                                        "type": "array",
+                                        "value": [
+                                            {
+                                                "id": "[concat(parameters('lbId'), '/inboundNatRules/', parameters('vmName'), '-ssh')]"
+                                            }
+                                        ]
+                                    }
+                                }
+                            }
+                        }
+                    ]
+                }
             }
         },
         {
@@ -212,8 +302,8 @@
             "tags": { "RG": "[variables('resourceGroupName')]" },
             "dependsOn": [
                 "[resourceId('Microsoft.Compute/availabilitySets', variables('availabilitySetName'))]",
-                "[resourceId('Microsoft.Network/networkInterfaces', concat(variables('nodes')[copyIndex('vmCopy')]['name'], '-nic'))]",
-                "[resourceId('Microsoft.Compute/images', concat(variables('nodes')[copyIndex('vmCopy')]['name'], '-image'))]"
+                "[resourceId('Microsoft.Compute/images', concat(variables('nodes')[copyIndex('vmCopy')]['name'], '-image'))]",
+                "[concat(variables('nodes')[copyIndex('vmCopy')]['name'],'-networkInterfaces')]"
             ],
             "properties": {
                 "availabilitySet": {
@@ -240,9 +330,16 @@
                     }
                 },
                 "networkProfile": {
-                    "networkInterfaces": [
+                    "copy": [
                         {
-                            "id": "[resourceId('Microsoft.Network/networkInterfaces', concat(variables('nodes')[copyIndex('vmCopy')]['name'], '-nic'))]"
+                            "name": "networkInterfaces",
+                            "count": "[variables('nodes')[copyIndex('vmCopy')]['nicCount']]",
+                            "input": {
+                                "id": "[resourceId('Microsoft.Network/networkInterfaces', concat(variables('nodes')[copyIndex('vmCopy')]['name'], '-nic-', copyIndex('networkInterfaces')))]",
+                                "properties": {
+                                    "primary": "[if(equals(copyIndex('networkInterfaces'),0), json('true'), json('false'))]"
+                                }
+                            }
                         }
                     ]
                 },

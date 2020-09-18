@@ -8,6 +8,7 @@ from functools import lru_cache
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Union
 
+from azure.core.exceptions import HttpResponseError
 from azure.identity import DefaultAzureCredential  # type: ignore
 from azure.mgmt.compute import ComputeManagementClient  # type: ignore
 from azure.mgmt.compute.models import ResourceSku, VirtualMachine  # type: ignore
@@ -33,7 +34,6 @@ from lisa.platform_ import Platform
 from lisa.secret import PATTERN_GUID, PATTERN_HEADTAIL, add_secret
 from lisa.util import LisaException, constants, get_public_key_data
 from lisa.util.logger import Logger
-from lisa.util.perf_timer import create_timer
 
 AZURE = "azure"
 
@@ -52,7 +52,7 @@ RESOURCE_GROUP_LOCATION = "westus2"
 RESOURCE_ID_LB = "lisa-loadBalancer"
 RESOURCE_ID_PUBLIC_IP = "lisa-publicIPv4Address"
 RESOURCE_ID_PORT_POSTFIX = "-ssh"
-RESOURCE_ID_NIC_POSTFIX = "-nic"
+RESOURCE_ID_NIC_PATTERN = re.compile(r"([\w]+-[\d]+)-nic-0")
 
 
 @dataclass_json(letter_case=LetterCase.CAMEL)
@@ -84,7 +84,7 @@ class AzureLocation:
 
 @dataclass_json(letter_case=LetterCase.CAMEL)
 @dataclass
-class AzureArmParameterGallery:
+class AzureVmGallerySchema:
     publisher: str = "Canonical"
     offer: str = "UbuntuServer"
     sku: str = "18.04-LTS"
@@ -93,17 +93,16 @@ class AzureArmParameterGallery:
 
 @dataclass_json(letter_case=LetterCase.CAMEL)
 @dataclass
-class AzureArmParameterNode:
+class AzureNodeSchema:
     name: str = ""
-    vm_size: str = "Standard_A1_v2"
-    gallery: Optional[AzureArmParameterGallery] = None
-    vhd: Optional[str] = None
+    vm_size: str = ""
+    location: str = ""
+    gallery: Optional[AzureVmGallerySchema] = None
+    vhd: str = ""
+    nic_count: int = 1
 
     def __post_init__(self, *args: Any, **kwargs: Any) -> None:
-        if self.gallery is None and self.vhd is None:
-            raise LisaException("either gallery or vhd must be set one")
-        elif self.gallery and self.vhd:
-            raise LisaException("only one of gallery or vhd should be set")
+        add_secret(self.vhd)
 
 
 @dataclass_json(letter_case=LetterCase.CAMEL)
@@ -113,7 +112,7 @@ class AzureArmParameter:
     admin_username: str = ""
     admin_password: str = ""
     admin_key_data: str = ""
-    nodes: List[AzureArmParameterNode] = field(default_factory=list)
+    nodes: List[AzureNodeSchema] = field(default_factory=list)
 
     def __post_init__(self, *args: Any, **kwargs: Any) -> None:
         add_secret(self.admin_username, PATTERN_HEADTAIL)
@@ -181,17 +180,6 @@ class AzurePlatformSchema:
             self.locations = LOCATIONS
 
 
-@dataclass_json(letter_case=LetterCase.CAMEL)
-@dataclass
-class AzureNodeSchema:
-    vm_size: str = field(default="")
-    location: str = field(default="")
-    vhd: str = ""
-
-    def __post_init__(self, *args: Any, **kwargs: Any) -> None:
-        add_secret(self.vhd)
-
-
 @dataclass
 class EnvironmentContext:
     resource_group_name: str = ""
@@ -212,6 +200,7 @@ class AzurePlatform(Platform):
         self._credential: DefaultAzureCredential = None
         self._enviornment_counter = 0
         self._eligable_capabilities: Optional[Dict[str, List[AzureCapability]]] = None
+        self._locations_data_cache: Optional[Dict[str, AzureLocation]] = None
 
     @classmethod
     def platform_type(cls) -> str:
@@ -270,7 +259,7 @@ class AzurePlatform(Platform):
             else:
                 locations = LOCATIONS
 
-            # check eligab locations
+            # check eligible locations
             found_or_skipped = False
             for location_name in locations:
                 predefined_cost = 0
@@ -291,7 +280,9 @@ class AzurePlatform(Platform):
                         if azure_cap.vm_size == node_runbook.vm_size:
                             predefined_cost += azure_cap.estimated_cost
 
-                            min_cap = req.generate_min_capability(azure_cap.capability)
+                            min_cap: schema.NodeSpace = req.generate_min_capability(
+                                azure_cap.capability
+                            )
                             # apply azure specified values
                             # they will pass into arm template
                             min_runbook = min_cap.get_extended_runbook(
@@ -300,6 +291,8 @@ class AzurePlatform(Platform):
                             # the location may not be set
                             min_runbook.location = location_name
                             min_runbook.vm_size = azure_cap.vm_size
+                            assert isinstance(min_cap.nic_count, int)
+                            min_runbook.nic_count = min_cap.nic_count
                             if not existing_location:
                                 existing_location = location_name
                             predefined_caps[req_index] = min_cap
@@ -327,8 +320,8 @@ class AzurePlatform(Platform):
                     continue
 
                 estimated_cost: int = 0
-                for azure_cap in location_caps:
-                    for req_index, req in enumerate(nodes_requirement):
+                for req_index, req in enumerate(nodes_requirement):
+                    for azure_cap in location_caps:
                         if found_capabilities[req_index]:
                             # found, so skipped
                             continue
@@ -348,10 +341,15 @@ class AzurePlatform(Platform):
                                     f"must be same as "
                                     f"cap location [{azure_cap.location}]"
                                 )
-                            else:
-                                node_runbook.location = azure_cap.location
+
+                            # will pass into arm template
+                            node_runbook.location = azure_cap.location
                             if not node_runbook.vm_size:
                                 node_runbook.vm_size = azure_cap.vm_size
+                            assert isinstance(
+                                min_cap.nic_count, int
+                            ), f"actual: {min_cap.nic_count}"
+                            node_runbook.nic_count = min_cap.nic_count
 
                             estimated_cost += azure_cap.estimated_cost
 
@@ -492,12 +490,10 @@ class AzurePlatform(Platform):
             template = json.load(f)
         return template
 
-    @lru_cache
     @retry(tries=2)  # type: ignore
-    def _get_location_info(self, location: str, log: Logger) -> AzureLocation:
-        cached_file_name = constants.CACHE_PATH.joinpath("azure_locations.json")
-        should_refresh: bool = True
-        location_data: Optional[AzureLocation] = None
+    def _load_location_info_from_file(
+        self, cached_file_name: Path, log: Logger
+    ) -> Dict[str, AzureLocation]:
         if cached_file_name.exists():
             try:
                 with open(cached_file_name, "r") as f:
@@ -514,9 +510,21 @@ class AzurePlatform(Platform):
                 log.debug("error on loading cache, delete cache and retry.")
                 cached_file_name.unlink()
                 raise identifier
-            location_data = locations_data.get(location)
         else:
             locations_data = dict()
+        return locations_data
+
+    def _get_location_info(self, location: str, log: Logger) -> AzureLocation:
+        cached_file_name = constants.CACHE_PATH.joinpath("azure_locations.json")
+        should_refresh: bool = True
+        if not self._locations_data_cache:
+            self._locations_data_cache = self._load_location_info_from_file(
+                cached_file_name=cached_file_name, log=log
+            )
+        assert self._locations_data_cache
+        location_data: Optional[AzureLocation] = self._locations_data_cache.get(
+            location
+        )
 
         if location_data:
             delta = datetime.now() - location_data.updated_time
@@ -577,11 +585,11 @@ class AzurePlatform(Platform):
                         log.error(f"unknown sku: {sku_obj}")
                         raise identifier
             location_data = AzureLocation(location=location, capabilities=all_skus)
-            locations_data[location_data.location] = location_data
+            self._locations_data_cache[location_data.location] = location_data
             log.debug(f"{location}: saving to disk")
             with open(cached_file_name, "w") as f:
                 saved_data: Dict[str, Any] = dict()
-                for name, value in locations_data.items():
+                for name, value in self._locations_data_cache.items():
                     saved_data[name] = value.to_dict()  # type: ignore
                 json.dump(saved_data, f)
             log.debug(
@@ -610,31 +618,40 @@ class AzurePlatform(Platform):
             arm_parameters.admin_password = self._runbook.admin_password
         assert self._azure_runbook
 
-        nodes_parameters: List[AzureArmParameterNode] = []
+        nodes_parameters: List[AzureNodeSchema] = []
         for node_space in environment.runbook.nodes_requirement:
             assert isinstance(
                 node_space, schema.NodeSpace
             ), f"actual: {type(node_space)}"
-            azure_node_runbook = node_space.get_extended_runbook(
+            azure_node_runbook: AzureNodeSchema = node_space.get_extended_runbook(
                 AzureNodeSchema, field_name=AZURE
             )
 
             # init node
             node = environment.nodes.from_requirement(node_space)
-            gallery = AzureArmParameterGallery()
-            node_arm_parameter = AzureArmParameterNode(gallery=gallery)
-            node_arm_parameter.name = f"node-{len(nodes_parameters)}"
-            if azure_node_runbook:
-                if azure_node_runbook.vm_size:
-                    node_arm_parameter.vm_size = azure_node_runbook.vm_size
-                if azure_node_runbook.vhd:
-                    node_arm_parameter.vhd = azure_node_runbook.vhd
-                    node_arm_parameter.gallery = None
-            nodes_parameters.append(node_arm_parameter)
+            if not azure_node_runbook.name:
+                azure_node_runbook.name = f"node-{len(nodes_parameters)}"
+            if not azure_node_runbook.vm_size:
+                raise LisaException("vm_size is not detected before deploy")
+            if not azure_node_runbook.location:
+                raise LisaException("location is not detected before deploy")
+            if azure_node_runbook.nic_count <= 0:
+                raise LisaException(
+                    f"nic_count need at least 1, but {azure_node_runbook.nic_count}"
+                )
+            if azure_node_runbook.vhd:
+                # vhd is higher priority
+                azure_node_runbook.gallery = None
+            elif not azure_node_runbook.gallery:
+                # set to default gallery, if nothing secified
+                azure_node_runbook.gallery = AzureVmGallerySchema()
+            nodes_parameters.append(azure_node_runbook)
 
+            # save vm's information into node
             node_context = node.get_context(NodeContext)
             # vm's name, use to find it from azure
-            node_context.vm_name = node_arm_parameter.name
+            node_context.vm_name = azure_node_runbook.name
+            # ssh related information will be filled back once vm is created
             node_context.username = arm_parameters.admin_username
             node_context.password = arm_parameters.admin_password
             node_context.private_key_file = self._runbook.admin_private_key_file
@@ -672,20 +689,35 @@ class AzurePlatform(Platform):
             if result:
                 raise LisaException(f"deploy failed: {result}")
         except Exception as identifier:
+            error_messages: List[str] = [str(identifier)]
+
+            # default error message is too general in most case,
+            # so check for more details.
             if validate_operation:
+                # validate_operation returned, it means deployments created
+                # successfuly. so check errors from deployments by name.
                 deployment = deployments.get(resource_group_name, AZURE_DEPLOYMENT_NAME)
                 # log more details for troubleshooting
                 if deployment.properties.provisioning_state == "Failed":
-                    errors = deployment.properties.error.details
-                    for error in errors:
-                        log.error(f"failed: {error.code}, {error.message}")
-            raise identifier
+                    if deployment.properties.error.details:
+                        error_messages = [
+                            f"{x.code}, {x.message}"
+                            for x in deployment.properties.error.details
+                        ]
+            elif isinstance(identifier, HttpResponseError) and identifier.error:
+                # no validate_operation returned, the message may include
+                # some errors, so check details
+                if identifier.error.details:
+                    error_messages = [
+                        f"{x.code}, {x.message}" for x in identifier.error.details
+                    ]
+
+            raise LisaException("\n".join(error_messages))
 
         assert result is None, f"validate error: {result}"
 
     def _deploy(self, deployment_parameters: Dict[str, Any], log: Logger) -> None:
         resource_group_name = deployment_parameters[AZURE_RG_NAME_KEY]
-        timer = create_timer()
         log.info(f"deploying {resource_group_name}")
 
         deployment_operation: Any = None
@@ -697,16 +729,13 @@ class AzurePlatform(Platform):
             result = deployment_operation.wait()
             if result:
                 raise LisaException(f"deploy failed: {result}")
-        except Exception as identifier:
-            if deployment_operation:
-                deployment = deployments.get(resource_group_name, AZURE_DEPLOYMENT_NAME)
-                # log more details for troubleshooting
-                if deployment.properties.provisioning_state == "Failed":
-                    errors = deployment.properties.error.details
-                    for error in errors:
-                        log.error(f"failed: {error.code}, {error.message}")
-            raise identifier
-        log.info(f"deployed with {timer}")
+        except HttpResponseError as identifier:
+            assert identifier.error
+            error_messages = [
+                f"{x.code}, {x.message}" for x in identifier.error.details
+            ]
+            # original message may not be friendly, refine it.
+            raise LisaException("\n".join(error_messages))
 
     def _initialize_nodes(self, environment: Environment) -> None:
 
@@ -745,8 +774,12 @@ class AzurePlatform(Platform):
             environment_context.resource_group_name
         )
         for nic in network_interfaces:
-            name = nic.name[: -len(RESOURCE_ID_NIC_POSTFIX)]
-            nic_map[name] = nic
+            # nic name is like node-0-nic-2, get vm name part for later pick
+            # only find primary nic, which is ended by -nic-0
+            node_name_from_nic = RESOURCE_ID_NIC_PATTERN.findall(nic.name)
+            if node_name_from_nic:
+                name = node_name_from_nic[0]
+                nic_map[name] = nic
 
         # get public IP
         public_ip_address = network_client.public_ip_addresses.get(
