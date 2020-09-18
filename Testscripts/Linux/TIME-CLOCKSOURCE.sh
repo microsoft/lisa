@@ -32,7 +32,7 @@ CheckSource()
 	clocksource="hyperv_clocksource_tsc_page"
 	mj=$(echo $DISTRO_VERSION | cut -d '.' -f 1)
 	mn=$(echo $DISTRO_VERSION | cut -d '.' -f 2)
-	if [[ $mj == 6 && $mn < 9 ]]; then
+	if [[ $DISTRO_NAME == "centos" || $DISTRO_NAME == "rhel"]] && [[$mj == 6 && $mn < 9 ]]; then
 		clocksource="hyperv_clocksource"
 	fi
 	if ! [[ $(find $current_clocksource -type f -size +0M) ]]; then
