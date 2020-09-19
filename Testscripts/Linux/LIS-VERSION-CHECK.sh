@@ -71,7 +71,8 @@ then
     exit 0
 else
     version=$(modinfo "hv_vmbus" | grep version: | head -1 | awk '{print $2}')
-    for i in 5 6 7
+	# no verification of LIS version in RHEL 5.x or CentOS 5.x. EOL in Azure.
+    for i in 6 7
     do
         rm -rf hv_compat.h
         wget https://raw.githubusercontent.com/LIS/lis-next/"$version"/hv-rhel$i.x/hv/include/linux/hv_compat.h
