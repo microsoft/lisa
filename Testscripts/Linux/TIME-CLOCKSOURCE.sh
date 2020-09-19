@@ -26,14 +26,22 @@ UtilsInit
 CheckSource()
 {
 	current_clocksource="/sys/devices/system/clocksource/clocksource0/current_clocksource"
+	# Microsoft LIS installed version has lis_hyperv_clocksource_tsc_page
+	# Without Microsoft LIS, hyperv_clocksource_tsc_page
+	# CentOS 6.8 or older versions, hyperv_clocksource 
 	clocksource="hyperv_clocksource_tsc_page"
+	mj=$(echo "$DISTRO_VERSION" | cut -d '.' -f 1)
+	mn=$(echo "$DISTRO_VERSION" | cut -d '.' -f 2)
+	if [[ $DISTRO_NAME == "centos" || $DISTRO_NAME == "rhel" ]] && [[ $mj -lt 7 && $mn -lt 9 ]]; then
+		clocksource="hyperv_clocksource"
+	fi
 	if ! [[ $(find $current_clocksource -type f -size +0M) ]]; then
 		LogErr "Test Failed. No file was found current_clocksource greater than 0M."
 		SetTestStateFailed
 		exit 0
 	else
 		__file_content=$(cat $current_clocksource)
-		if [[ $__file_content == "$clocksource" ]]; then
+		if [[ $__file_content == *"$clocksource" ]]; then
 			LogMsg "Test successful. Proper file was found. Clocksource file content is $__file_content"
 		else
 			LogErr "Test failed. Proper file was NOT found."
@@ -105,11 +113,11 @@ function UnbindCurrentSource()
 #
 GetDistro
 case $DISTRO in
-	redhat_6 | centos_6)
+	redhat_6 | centos_6 | redhat_7 | centos_7)
 		LogMsg "WARNING: $DISTRO does not support unbind current clocksource, only check"
 		CheckSource
 		;;
-	redhat_7|redhat_8|centos_7|centos_8|fedora*|clear-linux-os)
+	redhat_8 |centos_8|fedora*|clear-linux-os)
 		CheckSource
 		UnbindCurrentSource
 		;;
