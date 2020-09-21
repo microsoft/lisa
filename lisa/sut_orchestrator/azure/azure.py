@@ -199,7 +199,7 @@ class AzurePlatform(Platform):
         super().__init__()
         self._credential: DefaultAzureCredential = None
         self._enviornment_counter = 0
-        self._eligable_capabilities: Optional[Dict[str, List[AzureCapability]]] = None
+        self._eligible_capabilities: Optional[Dict[str, List[AzureCapability]]] = None
         self._locations_data_cache: Optional[Dict[str, AzureLocation]] = None
 
     @classmethod
@@ -210,7 +210,7 @@ class AzurePlatform(Platform):
         """
         Main flow
 
-        _initialize_eligable_vm_sizes for all environments.
+        _initialize_eligible_vm_sizes for all environments.
         1. load location, vm size patterns firstly.
         2. load avaiablbe vm sizes for each location.
         3. match vm sizes by pattern.
@@ -233,7 +233,7 @@ class AzurePlatform(Platform):
             existing_location: str = ""
             predefined_cost: int = 0
 
-            assert self._eligable_capabilities
+            assert self._eligible_capabilities
 
             # check locations
             for req in nodes_requirement:
@@ -310,7 +310,7 @@ class AzurePlatform(Platform):
                     f"cannot find predefined vm size [{node_runbook.vm_size}] "
                     f"in location [{locations}]"
                 )
-            for location_name, location_caps in self._eligable_capabilities.items():
+            for location_name, location_caps in self._eligible_capabilities.items():
                 # in each location, all node must be found
                 # fill them as None and check after meeted capability
                 found_capabilities: List[Any] = list(predefined_caps)
@@ -481,7 +481,7 @@ class AzurePlatform(Platform):
         self._rm_client = ResourceManagementClient(
             credential=self._credential, subscription_id=self._subscription_id
         )
-        self._initialize_eligable_vm_sizes(self._log)
+        self._initialize_eligible_vm_sizes(self._log)
 
     @lru_cache
     def _load_template(self) -> Any:
@@ -843,12 +843,12 @@ class AzurePlatform(Platform):
 
         return node_space
 
-    def _initialize_eligable_vm_sizes(self, log: Logger) -> None:
-        # load eligable vm sizes
+    def _initialize_eligible_vm_sizes(self, log: Logger) -> None:
+        # load eligible vm sizes
         # 1. location is selected
         # 2. vm size supported in current location
         # 3. vm size match predefined pattern
-        if self._eligable_capabilities is None:
+        if self._eligible_capabilities is None:
             assert self._azure_runbook
             if isinstance(self._azure_runbook.locations, str):
                 location_names = [self._azure_runbook.locations]
@@ -885,4 +885,4 @@ class AzurePlatform(Platform):
                     )
                     location_capabilities.extend(level_capabilities)
                 available_capabilities[location_name] = location_capabilities
-            self._eligable_capabilities = available_capabilities
+            self._eligible_capabilities = available_capabilities
