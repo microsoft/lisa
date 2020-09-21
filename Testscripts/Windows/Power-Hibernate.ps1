@@ -21,7 +21,7 @@
 	8. [SRIOV]Verify the TX/RX packets keep increasing after resuming
 #>
 
-param([object] $AllVmData, [string]$TestParams)
+param([object] $AllVmData, [object]$TestParams)
 
 function Main {
 	param($AllVMData, $TestParams)
@@ -180,6 +180,92 @@ install_package "ethtool"
 			}
 			#endregion
 
+			# Install GPU driver (for POWER-HIBERNATE-GPU case)
+			if ($TestParams.CUDADriverVersion) {
+				$currentTestResult = Create-TestResultObject
+				$resultArr = @()
+				$testScript = "gpu-driver-install.sh"
+				$driverLoaded = $nul
+
+				# This covers NV and NVv3 series
+				if ($allVMData.InstanceSize -imatch "Standard_NV") {
+					$driver = "GRID"
+					Write-LogDbg "Verfied this instance is with GRID device driver"
+				# NC and ND series use CUDA
+				} elseif ($allVMData.InstanceSize -imatch "Standard_NC" -or $allVMData.InstanceSize -imatch "Standard_ND") {
+					$driver = "CUDA"
+					Write-LogDbg "Verified this instance is with CUDA device driver"
+				} else {
+					Write-LogErr "Azure VM size $($allVMData.InstanceSize) not supported in automation!"
+					$currentTestResult.TestResult = Get-FinalResultHeader -resultarr "ABORTED"
+					return $currentTestResult
+				}
+				$currentTestResult.TestSummary += New-ResultSummary -metaData "Using nVidia driver" -testName $CurrentTestData.testName -testResult $driver
+				$cmdAddConstants = "echo -e `"driver=$($driver)`" >> constants.sh"
+				Run-LinuxCmd -username $user -password $password -ip $allVMData.PublicIP -port $allVMData.SSHPort `
+					-command $cmdAddConstants | Out-Null
+				Write-LogDbg "Added GPU driver name to constants.sh file"
+
+				# Start the test script
+				Run-LinuxCmd -ip $allVMData.PublicIP -port $allVMData.SSHPort -username $user `
+					-password $password -command "bash /home/$user/${testscript}" -runMaxAllowedTime 1800 -ignoreLinuxExitCode -runAsSudo | Out-Null
+				Write-LogDbg "Ran test script $testscript in the Guest OS"
+
+				$installState = Run-LinuxCmd -ip $allVMData.PublicIP -port $allVMData.SSHPort -username $user `
+					-password $password -command "cat /home/$user/state.txt"
+				Write-LogDbg "Found installState: $installState"
+
+				if ($installState -eq "TestSkipped") {
+					$currentTestResult.TestResult = Get-FinalResultHeader -resultarr "SKIPPED"
+					return $currentTestResult
+				}
+
+				if ($installState -imatch "TestAborted") {
+					Write-LogErr "GPU drivers installation aborted"
+					$currentTestResult.TestResult = Get-FinalResultHeader -resultarr "ABORTED"
+					Collect-Logs
+					return $currentTestResult
+				}
+
+				if ($installState -ne "TestCompleted") {
+					Write-LogErr "Unable to install the GPU drivers!"
+					$currentTestResult.TestResult = Get-FinalResultHeader -resultarr "FAIL"
+					Collect-Logs
+					return $currentTestResult
+				}
+
+				# If CUDA, enable persistent mode, or cannot get GPU interrupts
+				if ($driver -eq "CUDA") {
+					Run-LinuxCmd -ip $AllVMData.PublicIP -port $AllVMData.SSHPort -username $user -password $password -command "systemctl enable nvidia-persistenced" -runAsSudo
+				}
+				# Restart VM to load the driver and run validation
+				if (-not $TestProvider.RestartAllDeployments($allVMData)) {
+					Write-LogErr "Unable to connect to VM after restart!"
+					$currentTestResult.TestResult = Get-FinalResultHeader -resultarr "ABORTED"
+					return $currentTestResult
+				}
+				# Mandatory to have the nvidia driver loaded after restart
+				$driverLoaded = Run-LinuxCmd -username $user -password $password -ip $allVMData.PublicIP `
+					-port $allVMData.SSHPort -command "lsmod | grep nvidia" -ignoreLinuxExitCode
+				if ($null -eq $driverLoaded) {
+					Write-LogErr "GPU driver is not loaded after VM restart!"
+					$currentTestResult.TestResult = Get-FinalResultHeader -resultarr "FAIL"
+					Collect-Logs
+					return $currentTestResult
+				}
+				# Verify nvidia-smi validation
+				$nvidiasmi = Run-LinuxCmd -ip $allVMData.PublicIP -port $allVMData.SSHPort `
+					-username $user -password $password "nvidia-smi" -ignoreLinuxExitCode -runAsSudo
+				Write-LogInfo "nvidiasmi output:"
+				Write-LogInfo "$nvidiasmi"
+				if ( $nvidiasmi ) {
+					Write-LogInfo "Successfully fetched the nvidia-smi command result"
+				} else {
+					Write-LogErr "Failed to fetch the nvidia-smi command result"
+					throw "Fail to execute nvidia-smi before hibernation"
+				}
+			}
+
 			# Getting queue counts and interrupt counts before hibernation
 			$vfname = Run-LinuxCmd -ip $AllVMData.PublicIP -port $AllVMData.SSHPort -username $user -password $password -command "bash /home/$user/getvf.sh" -runAsSudo
 			if ( $vfname -ne '' ) {
@@ -210,9 +296,36 @@ install_package "ethtool"
 				throw "Did not verify the VM status stopped after hibernation starts"
 			}
 
+			# For POWER-HIBERNATE-SRIOV-DEALLOCATE case
+			if ($TestParams.deallocate_vm) {
+				Stop-AzVM -Name $vmName -ResourceGroupName $rgName -Force | Out-Null
+				Write-LogInfo "VM is deallocated."
+			}
+
 			# Resume the VM
 			Start-AzVM -Name $vmName -ResourceGroupName $rgName -NoWait | Out-Null
 			Write-LogInfo "Waked up the VM $vmName in Resource Group $rgName and continue checking its status in every 15 seconds until 57 minutes timeout"
+
+			# Get PublicIP if the VM has been deallocated
+			if ($TestParams.deallocate_vm) {
+				$timeout = New-Timespan -Minutes 20
+				$sw = [diagnostics.stopwatch]::StartNew()
+				$publicIpName = (Get-AzResource -ResourceGroupName $rgName -ResourceType "Microsoft.Network/publicIPAddresses").Name | select -Last 1
+				while ($sw.elapsed -lt $timeout) {
+					Wait-Time -seconds 15
+					$AllVmData.PublicIp = (Get-AzPublicIpAddress -ResourceGroupName $rgName -Name $publicIpName).IpAddress
+					if ($AllVmData.PublicIp -ne "Not Assigned") {
+						break
+					} else {
+						Write-LogInfo "VM Public IP is not assigned. Waiting for 15 seconds..."
+					}
+				}
+				if ($AllVmData.PublicIp -eq "Not Assigned") {
+					Write-LogErr "Cannot get new Public IP address. Abort the test."
+					$testResult = $resultAborted
+					throw "Cannot get new Public IP address"
+				}
+			}
 
 			# Wait for VM resume for 57 min-timeout
 			$timeout = New-Timespan -Minutes 57
@@ -220,12 +333,12 @@ install_package "ethtool"
 			$vmCount = $AllVMData.Count
 			while ($sw.elapsed -lt $timeout) {
 				Wait-Time -seconds 15
-				$state = Run-LinuxCmd -ip $AllVMData[0].PublicIP -port $AllVMData[0].SSHPort -username $user -password $password -command "date > /dev/null; echo $?"
+				$state = Run-LinuxCmd -ip $AllVMData.PublicIP -port $AllVMData.SSHPort -username $user -password $password -command "date > /dev/null; echo $?"
 				Write-LogDbg "state is $state"
 				if ($state) {
 					# Wait for 10 seconds for syslog sync after resume.
 					Start-Sleep -s 10
-					Write-LogInfo "VM $($AllVMData[0].RoleName) resumed successfully"
+					Write-LogInfo "VM $($AllVMData.RoleName) resumed successfully"
 					$vmCount--
 					break
 				} else {
@@ -283,6 +396,33 @@ install_package "ethtool"
 				} else {
 					Write-LogInfo "Successfully found Power Management log in dmesg"
 				}
+			}
+
+			# Verify GPU driver status and MSI interrupts (for POWER-HIBERNATE-GPU case)
+			if ($TestParams.CUDADriverVersion) {
+				$nvidiasmi = Run-LinuxCmd -ip $allVMData.PublicIP -port $allVMData.SSHPort `
+					-username $user -password $password "nvidia-smi" -ignoreLinuxExitCode -runAsSudo
+				Write-LogInfo "nvidia-smi output:"
+				Write-LogInfo "$nvidiasmi"
+				if ( $nvidiasmi ) {
+					Write-LogInfo "Successfully fetched the nvidia-smi command result"
+				} else {
+					Write-LogErr "Failed to fetch the nvidia-smi command result"
+					throw "Fail to execute nvidia-smi after waking up"
+				}
+			}
+			# Verify MSI interrupts keep increasing after waking up
+			$msi_interrupt_value1 = Run-LinuxCmd -ip $AllVMData.PublicIP -port $AllVMData.SSHPort -username $user -password $password `
+				-command "cat /proc/interrupts | grep msi -i | awk '{c=0;for(i=2;i<2+`"'`$(nproc)'`";++i){c+=`$i};print c}' | awk '{SUM+=`$1}END{print SUM}'" -runAsSudo
+			Start-Sleep -s 10
+			$msi_interrupt_value2 = Run-LinuxCmd -ip $AllVMData.PublicIP -port $AllVMData.SSHPort -username $user -password $password `
+				-command "cat /proc/interrupts | grep msi -i | awk '{c=0;for(i=2;i<2+`"'`$(nproc)'`";++i){c+=`$i};print c}' | awk '{SUM+=`$1}END{print SUM}'" -runAsSudo
+			if ($msi_interrupt_value1 -le $msi_interrupt_value2) {
+				Write-LogErr "First check, MSI interrupts - $msi_interrupt_value1. Second check, MSI interrupts of nvidia driver - $msi_interrupt_value2"
+				throw "GPU MSI interrupt stop increasing after waking up."
+			} else {
+				Write-LogInfo "First check, MSI interrupts of nvidia driver - $msi_interrupt_value1. Second check, MSI interrupts of nvidia driver - $msi_interrupt_value2"
+				Write-LogInfo "Successfully verified GPU MSI interrupt keep increasing after waking up"
 			}
 		}
 
@@ -345,4 +485,4 @@ install_package "ethtool"
 	return $currentTestResult
 }
 
-Main -AllVmData $AllVmData -CurrentTestData $CurrentTestData
+Main -AllVmData $AllVmData -CurrentTestData $CurrentTestData -TestParams (ConvertFrom-StringData $TestParams.Replace(";","`n"))

@@ -28,25 +28,39 @@ grid_driver="https://go.microsoft.com/fwlink/?linkid=874272"
 
 #######################################################################
 function skip_test() {
-	if [[ $driver == "CUDA" ]] && ([[ $DISTRO == *"suse"* ]] || [[ $DISTRO == "redhat_8" ]] || [[ $DISTRO == *"debian"* ]]); then
-		LogMsg "$DISTRO not supported. Skip the test."
-		SetTestStateSkipped
-		exit 0
+	unsupport_flag=0
+	GetDistro
+	if [[ $driver == "CUDA" ]]; then
+	    if [[ $DISTRO == *"suse"* ]] || [[ $DISTRO == *"debian"* ]]; then
+			unsupport_flag=1
+		fi
+		if [[ $DISTRO == "redhat_8" ]]; then
+			# RHEL 8.0 - 8.2 should be skipped
+			_minor_ver=$(echo $VERSION_ID | cut -d'.' -f 2)
+			if [ $_minor_ver -lt 3 ]; then
+				unsupport_flag=1
+			fi
+		fi
 	fi
 
 	# https://docs.microsoft.com/en-us/azure/virtual-machines/linux/n-series-driver-setup
 	# Only support Ubuntu 16.04 LTS, 18.04 LTS, RHEL/CentOS 7.0 ~ 7.7, SLES 12 SP2
 	# Azure HPC team defines GRID driver support scope.
 	if [[ $driver == "GRID" ]]; then
-		support_distro="redhat_7 centos_7 ubuntu_x suse_12"
-		unsupport_flag=0
-		GetDistro
+		support_distro="redhat_7 centos_7 redhat_8 ubuntu_x suse_12"
 		source /etc/os-release
 		if [[ "$support_distro" == *"$DISTRO"* ]]; then
 			if [[ $DISTRO == "redhat_7" ]]; then
 				# RHEL 7.8 should be skipped
 				_minor_ver=$(echo $VERSION_ID | cut -d'.' -f 2)
 				if [ $_minor_ver -gt 7 ]; then
+					unsupport_flag=1
+				fi
+			fi
+			if [[ $DISTRO == "redhat_8" ]]; then
+				# RHEL 8.0 - 8.2 should be skipped
+				_minor_ver=$(echo $VERSION_ID | cut -d'.' -f 2)
+				if [ $_minor_ver -lt 3 ]; then
 					unsupport_flag=1
 				fi
 			fi
@@ -75,7 +89,7 @@ function skip_test() {
 			unsupport_flag=1
 		fi
 		if [ $unsupport_flag = 1 ]; then
-			LogErr "$DISTRO not supported. Skip the test."
+			LogErr "$DISTRO or minor version is not supported. Skip the test."
 			SetTestStateSkipped
 			exit 0
 		fi
@@ -85,21 +99,9 @@ function skip_test() {
 function InstallCUDADrivers() {
 	LogMsg "Starting CUDA driver installation"
 	case $DISTRO in
-	redhat_7|centos_7)
-		CUDA_REPO_PKG="cuda-repo-rhel7-$CUDADriverVersion.x86_64.rpm"
-		LogMsg "Using $CUDA_REPO_PKG"
-
-		wget http://developer.download.nvidia.com/compute/cuda/repos/rhel7/x86_64/"$CUDA_REPO_PKG" -O /tmp/"$CUDA_REPO_PKG"
-		if [ $? -ne 0 ]; then
-			LogErr "Failed to download $CUDA_REPO_PKG"
-			SetTestStateAborted
-			return 1
-		else
-			LogMsg "Successfully downloaded the $CUDA_REPO_PKG file in /tmp directory"
-		fi
-
-		rpm -ivh /tmp/"$CUDA_REPO_PKG"
-		LogMsg "Installed the rpm package, $CUDA_REPO_PKG"
+	redhat_7|centos_7|redhat_8)
+		wget https://developer.download.nvidia.cn/compute/cuda/repos/rhel${DISTRO#*_}/x86_64/cuda-rhel${DISTRO#*_}.repo -O /etc/yum.repos.d/cuda-rhel${DISTRO#*_}.repo
+		LogMsg "Downloaded the cuda repo cuda-rhel${DISTRO#*_}.repo"
 		yum --nogpgcheck -y install cuda-drivers > $HOME/install_drivers.log 2>&1
 		if [ $? -ne 0 ]; then
 			LogErr "Failed to install the cuda-drivers!"
@@ -196,6 +198,11 @@ function install_gpu_requirements() {
 
 	case $DISTRO in
 		redhat_7|centos_7|redhat_8)
+			# Unload nouveau driver to prevent blocking driver installation
+			# https://access.redhat.com/solutions/1155663
+			rmmod nouveau
+			LogMsg "Unload nouveau driver"
+
 			if [[ $DISTRO == "centos_7" ]]; then
 				# for all releases that are moved into vault.centos.org
 				# we have to update the repositories first
