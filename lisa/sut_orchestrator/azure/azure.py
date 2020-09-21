@@ -222,9 +222,10 @@ class AzurePlatform(Platform):
         4. get min capability for each match
         """
 
-        is_success: bool = False
+        is_success: bool = True
 
         if environment.runbook.nodes_requirement:
+            is_success = False
             nodes_requirement = environment.runbook.nodes_requirement
             node_count = len(nodes_requirement)
             # fills predefined locations here.
