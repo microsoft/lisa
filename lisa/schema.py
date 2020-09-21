@@ -502,8 +502,8 @@ class NodeSpace(search_space.RequirementMixin, ExtendableSchemaMixin):
         return expanded_requirements
 
     def _generate_min_capability(self, capability: Any) -> Any:
-        # copy to keep extended schema
-        min_value: NodeSpace = copy.copy(self)
+        # copy to duplicate extended schema
+        min_value: NodeSpace = copy.deepcopy(self)
         assert isinstance(capability, NodeSpace), f"actual: {type(capability)}"
 
         if self.node_count or capability.node_count:
