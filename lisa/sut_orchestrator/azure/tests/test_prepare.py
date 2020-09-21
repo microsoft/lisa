@@ -1,0 +1,366 @@
+from pathlib import Path
+from typing import Any, Dict, List, Optional
+from unittest.case import TestCase
+
+from azure.mgmt.compute.models import ResourceSku  # type: ignore
+
+from lisa import schema, search_space
+from lisa.environment import Environment
+from lisa.sut_orchestrator.azure import azure
+from lisa.util import LisaException, constants
+from lisa.util.logger import get_logger
+
+
+class AzurePrepareTestCase(TestCase):
+    @classmethod
+    def setUpClass(cls) -> None:
+        constants.CACHE_PATH = Path(__file__).parent
+
+    def setUp(self) -> None:
+        self._log = get_logger("test", "azure")
+
+        platform_runbook = schema.Platform()
+        self._platform = azure.AzurePlatform()
+        self._platform.config(constants.CONFIG_RUNBOOK, platform_runbook)
+        self._platform._azure_runbook = azure.AzurePlatformSchema()
+        self._platform._initialize_eligible_vm_sizes(self._log)
+
+    def test_load_capability(self) -> None:
+        # capability can be loaded correct
+        # expected test data is from json file
+        assert self._platform._locations_data_cache
+        resource_sku: Dict[str, Any] = ResourceSku.from_dict(
+            {
+                "resource_type": "virtualMachines",
+                "name": "Standard_NV48s_v3",
+                "tier": "Standard",
+                "size": "NV48s_v3",
+                "family": "standardNVSv3Family",
+                "locations": ["eastus2"],
+                "location_info": [
+                    {"location": "eastus2", "zones": ["3"], "zone_details": []}
+                ],
+                "capabilities": [
+                    {"name": "MaxResourceVolumeMB", "value": "1376256"},
+                    {"name": "OSVhdSizeMB", "value": "1047552"},
+                    {"name": "vCPUs", "value": "48"},
+                    {"name": "MemoryGB", "value": "448"},
+                    {"name": "vCPUsAvailable", "value": "48"},
+                    {"name": "GPUs", "value": "4"},
+                    {"name": "vCPUsPerCore", "value": "2"},
+                    {"name": "MaxDataDiskCount", "value": "32"},
+                    {"name": "EncryptionAtHostSupported", "value": "True"},
+                    {"name": "AcceleratedNetworkingEnabled", "value": "False"},
+                    {"name": "MaxNetworkInterfaces", "value": "8"},
+                ],
+                "restrictions": [],
+            }
+        )
+        node = self._platform._resource_sku_to_capability("eastus2", resource_sku)
+        self.assertEqual(48, node.core_count)
+        self.assertEqual(458752, node.memory_mb)
+        self.assertEqual(search_space.IntRange(min=0, max=8), node.nic_count)
+        self.assertEqual(search_space.IntRange(min=0, max=32), node.disk_count)
+        self.assertEqual(4, node.gpu_count)
+
+    def test_not_eligible_dropped(self) -> None:
+        # if a location is not eligible, it should be dropped.
+        # if a vm size is not eligible, it should be dropped.
+        self.verify_exists_vm_size("westus2", "Standard_M208ms_v2", True)
+        assert self._platform._locations_data_cache
+        self.assertTrue("notreal" in self._platform._locations_data_cache)
+
+        assert self._platform._eligible_capabilities
+        self.verify_eligible_vm_size("westus2", "Standard_M208ms_v2", False)
+        self.assertFalse("notreal" in self._platform._eligible_capabilities)
+
+    def test_no_requirement(self) -> None:
+        # if there is no requirement, return success
+        env = self.load_environment(node_req_count=0)
+        self.verify_prepared_nodes(
+            expected_result=True,
+            expected_locations=[],
+            expected_vm_sizes=[],
+            expected_cost=0,
+            environment=env,
+        )
+
+    def test_predefined_2nd_location(self) -> None:
+        # location predefined in eastus2, so all prepared skip westus2
+        env = self.load_environment(node_req_count=2)
+        self.verify_prepared_nodes(
+            expected_result=True,
+            expected_locations=["westus2", "westus2"],
+            expected_vm_sizes=["Standard_DS1_v2", "Standard_DS1_v2"],
+            expected_cost=2,
+            environment=env,
+        )
+
+        env = self.load_environment(node_req_count=2)
+        self.set_node_runbook(env, 1, location="eastus2")
+        self.verify_prepared_nodes(
+            expected_result=True,
+            expected_locations=["eastus2", "eastus2"],
+            expected_vm_sizes=["Standard_DS1_v2", "Standard_DS1_v2"],
+            expected_cost=2,
+            environment=env,
+        )
+
+    def test_predefiend_only_size(self) -> None:
+        # predefined an eastus2 vm size, so all are to eastus2
+        env = self.load_environment(node_req_count=2)
+        self.set_node_runbook(env, 1, location="", vm_size="Standard_B1ls")
+        self.verify_prepared_nodes(
+            expected_result=True,
+            expected_locations=["eastus2", "eastus2"],
+            expected_vm_sizes=["Standard_DS1_v2", "Standard_B1ls"],
+            expected_cost=2,
+            environment=env,
+        )
+
+    def test_predefined_with_3_nic(self) -> None:
+        # 3 nic cannot be met by Standard_DS1_v2, as it support at most 2 nics
+        # the code path of predefined and normal is different, so test it twice
+        env = self.load_environment(node_req_count=1)
+        assert env.runbook.nodes_requirement
+        env.runbook.nodes_requirement.append(schema.NodeSpace(nic_count=3))
+        self.set_node_runbook(env, 1, location="eastus2")
+        self.verify_prepared_nodes(
+            expected_result=True,
+            expected_locations=["eastus2", "eastus2"],
+            expected_vm_sizes=["Standard_DS1_v2", "Standard_DS15_v2"],
+            expected_cost=21,
+            environment=env,
+        )
+
+    def test_predefiend_inconsistent_location_failed(self) -> None:
+        # two locations westus2, and eastus2 predefined, so failed.
+        env = self.load_environment(node_req_count=2)
+        self.set_node_runbook(env, 0, location="eastus2")
+        self.set_node_runbook(env, 1, location="westus2")
+        with self.assertRaises(LisaException) as cm:
+            self._platform._prepare_environment(env, self._log)
+        message = (
+            "predefined node must be in same location, "
+            "previous: eastus2, found: westus2"
+        )
+        self.assertEqual(message, str(cm.exception)[0 : len(message)])
+
+    def test_no_predefined_location_use_default_locations(self) -> None:
+        # no predefined location found, use default location list
+        env = self.load_environment(node_req_count=1)
+        self.verify_prepared_nodes(
+            expected_result=True,
+            expected_locations=["westus2"],
+            expected_vm_sizes=["Standard_DS1_v2"],
+            expected_cost=1,
+            environment=env,
+        )
+
+    def test_use_predefined_vm_size(self) -> None:
+        # there is predefined vm size, and out of default scope, but use it
+        env = self.load_environment(node_req_count=1)
+        self.set_node_runbook(env, 0, location="", vm_size="Standard_NV48s_v3")
+        # 448: 48 cores + 100 * 4 gpus
+        self.verify_prepared_nodes(
+            expected_result=True,
+            expected_locations=["eastus2"],
+            expected_vm_sizes=["Standard_NV48s_v3"],
+            expected_cost=448,
+            environment=env,
+        )
+
+    def test_predefiend_not_found_vm_size(self) -> None:
+        # vm size is not found
+        env = self.load_environment(node_req_count=1)
+        self.set_node_runbook(env, 0, location="", vm_size="not_exist")
+        with self.assertRaises(LisaException) as cm:
+            self._platform._prepare_environment(env, self._log)
+        message = "cannot find predefined vm size [not_exist] in location"
+        self.assertEqual(message, str(cm.exception)[0 : len(message)])
+
+    def test_predefined_wont_be_override(self) -> None:
+        # predefined node won't be overrided in loop
+        env = self.load_environment(node_req_count=3)
+        self.set_node_runbook(env, 1, location="", vm_size="Standard_A8_v2")
+        self.set_node_runbook(env, 2, location="eastus2", vm_size="")
+        self.verify_prepared_nodes(
+            expected_result=True,
+            expected_locations=["eastus2", "eastus2", "eastus2"],
+            expected_vm_sizes=["Standard_DS1_v2", "Standard_A8_v2", "Standard_DS1_v2"],
+            expected_cost=10,
+            environment=env,
+        )
+
+    def test_normal_req_in_same_location(self) -> None:
+        # normal requirement will be in same location of predefined
+        env = self.load_environment(node_req_count=2)
+        self.set_node_runbook(env, 1, location="eastus2", vm_size="")
+        self.verify_prepared_nodes(
+            expected_result=True,
+            expected_locations=["eastus2", "eastus2"],
+            expected_vm_sizes=["Standard_DS1_v2", "Standard_DS1_v2"],
+            expected_cost=2,
+            environment=env,
+        )
+
+    def test_count_normal_cost(self) -> None:
+        # predefined vm size also count the cost
+        env = self.load_environment(node_req_count=2)
+        self.verify_prepared_nodes(
+            expected_result=True,
+            expected_locations=["westus2", "westus2"],
+            expected_vm_sizes=["Standard_DS1_v2", "Standard_DS1_v2"],
+            expected_cost=2,
+            environment=env,
+        )
+
+    def test_normal_may_fit_2nd_location(self) -> None:
+        # normal req may fit into 2nd loaction, as 1st location not meet requirement
+        env = self.load_environment(node_req_count=1)
+        assert env.runbook.nodes_requirement
+        env.runbook.nodes_requirement.append(
+            schema.NodeSpace(memory_mb=search_space.IntRange(min=143360))
+        )
+        self.verify_prepared_nodes(
+            expected_result=True,
+            expected_locations=["eastus2", "eastus2"],
+            expected_vm_sizes=["Standard_DS1_v2", "Standard_DS15_v2"],
+            expected_cost=21,
+            environment=env,
+        )
+
+    def test_normal_may_fit_2nd_batch_vm(self) -> None:
+        # fit 2nd batch of candidates
+        env = self.load_environment(node_req_count=1)
+        assert env.runbook.nodes_requirement
+        env.runbook.nodes_requirement.append(
+            schema.NodeSpace(core_count=8, memory_mb=16384)
+        )
+        self.verify_prepared_nodes(
+            expected_result=True,
+            expected_locations=["eastus2", "eastus2"],
+            expected_vm_sizes=["Standard_DS1_v2", "Standard_A8_v2"],
+            expected_cost=9,
+            environment=env,
+        )
+
+    def test_normal_with_3_nic(self) -> None:
+        # 3 nic cannot be met by Standard_DS1_v2, as it support at most 2 nics
+        # the code path of predefined and normal is different, so test it twice
+        env = self.load_environment(node_req_count=1)
+        assert env.runbook.nodes_requirement
+        env.runbook.nodes_requirement.append(schema.NodeSpace(nic_count=3))
+        self.verify_prepared_nodes(
+            expected_result=True,
+            expected_locations=["eastus2", "eastus2"],
+            expected_vm_sizes=["Standard_DS1_v2", "Standard_DS15_v2"],
+            expected_cost=21,
+            environment=env,
+        )
+
+    def verify_exists_vm_size(
+        self, location: str, vm_size: str, expect_exists: bool
+    ) -> Optional[azure.AzureCapability]:
+        result = None
+        location_info = self._platform._get_location_info(location, self._log)
+        self.assertEqual(
+            expect_exists,
+            any([x.vm_size == vm_size for x in location_info.capabilities]),
+        )
+        if expect_exists:
+            result = next(x for x in location_info.capabilities if x.vm_size == vm_size)
+        return result
+
+    def verify_eligible_vm_size(
+        self, location: str, vm_size: str, expect_exists: bool
+    ) -> Optional[azure.AzureCapability]:
+        result = None
+        assert self._platform._eligible_capabilities
+        self.assertEqual(
+            expect_exists,
+            any(
+                [
+                    x.vm_size == vm_size
+                    for x in self._platform._eligible_capabilities[location]
+                ]
+            ),
+        )
+        if expect_exists:
+            result = next(
+                x
+                for x in self._platform._eligible_capabilities[location]
+                if x.vm_size == vm_size
+            )
+        return result
+
+    def load_environment(self, node_req_count: int = 2,) -> Environment:
+        environment = Environment(is_predefined=True, warn_as_error=False)
+        environment.runbook = schema.Environment()
+        if node_req_count > 0:
+            environment.runbook.nodes_requirement = []
+
+            for _ in range(node_req_count):
+                node_req = schema.NodeSpace()
+                _ = node_req.get_extended_runbook(azure.AzureNodeSchema, azure.AZURE)
+                environment.runbook.nodes_requirement.append(node_req)
+
+        return environment
+
+    def set_node_runbook(
+        self,
+        environment: Environment,
+        index: int,
+        location: str = "",
+        vm_size: str = "",
+    ) -> None:
+        assert environment.runbook.nodes_requirement
+        node_runbook = environment.runbook.nodes_requirement[
+            index
+        ].get_extended_runbook(azure.AzureNodeSchema, azure.AZURE)
+        node_runbook.location = location
+        node_runbook.vm_size = vm_size
+
+    def verify_prepared_nodes(
+        self,
+        expected_result: bool,
+        expected_locations: List[str],
+        expected_vm_sizes: List[str],
+        expected_cost: int,
+        environment: Environment,
+    ) -> None:
+        actual_result = self._platform._prepare_environment(environment, self._log)
+        self.assertEqual(expected_result, actual_result)
+
+        if expected_locations:
+            assert environment.runbook.nodes_requirement
+
+            # get node runbook for validating
+            nodes_runbook = [
+                x.get_extended_runbook(azure.AzureNodeSchema, azure.AZURE)
+                for x in environment.runbook.nodes_requirement
+            ]
+
+            self.assertListEqual(
+                expected_locations, [x.location for x in nodes_runbook],
+            )
+            self.assertListEqual(
+                expected_vm_sizes, [x.vm_size for x in nodes_runbook],
+            )
+
+            # all cap values must be covered to specified int value, not space
+            for node_cap in environment.runbook.nodes_requirement:
+                assert node_cap
+                self.assertIsInstance(node_cap.core_count, int)
+                self.assertIsInstance(node_cap.memory_mb, int)
+                self.assertIsInstance(node_cap.disk_count, int)
+                self.assertIsInstance(node_cap.nic_count, int)
+                self.assertIsInstance(node_cap.gpu_count, int)
+
+                self.assertLessEqual(1, node_cap.core_count)
+                self.assertLessEqual(512, node_cap.memory_mb)
+                self.assertLessEqual(0, node_cap.disk_count)
+                self.assertLessEqual(1, node_cap.nic_count)
+                self.assertLessEqual(0, node_cap.gpu_count)
+
+        self.assertEqual(expected_cost, environment.cost)
