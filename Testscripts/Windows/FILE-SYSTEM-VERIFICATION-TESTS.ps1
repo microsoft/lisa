@@ -7,6 +7,8 @@
 #     - It will start xfstesting.sh. Max allowed run time is 3 hours.
 #     - If state.txt is in TestRunning state after 3 hours, it will
 #     abort the test.
+#       Target distro guideline - https://t.ly/4fmT
+#       Ubuntu 16.04+, RHEL/CentOS 7.5+, Debian 10+, SLES 12 SP2+
 #######################################################################
 param([object] $AllVmData,
       [object] $CurrentTestData
