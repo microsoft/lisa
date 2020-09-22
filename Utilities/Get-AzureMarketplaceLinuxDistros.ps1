@@ -13,14 +13,14 @@ param
 	[string] $ResultFolder = "DistroResults"
 )
 
-function Update-DeletedImages($Date, $Location) {
+function Update-DeletedImages($Date, $Location, $Publisher) {
 	$server = $XmlSecrets.secrets.DatabaseServer
 	$dbuser = $XmlSecrets.secrets.DatabaseUser
 	$dbpassword = $XmlSecrets.secrets.DatabasePassword
 	$database = $XmlSecrets.secrets.DatabaseName
 	
 	# Query if the image exists in the database
-	$sqlQuery = "SELECT ID from $TableName where LastCheckedDate <= '$($Date.AddDays(-$CheckInternalInDays))' and IsAvailable = 1 and Location='$Location'"
+	$sqlQuery = "SELECT ID from $TableName where LastCheckedDate <= '$($Date.AddDays(-$CheckInternalInDays))' and IsAvailable = 1 and Location='$Location' and Publisher='$Publisher'"
 
 	$connectionString = "Server=$server;uid=$dbuser; pwd=$dbpassword;Database=$database;Encrypt=yes;TrustServerCertificate=no;Connection Timeout=30;"
 	$connection = New-Object System.Data.SqlClient.SqlConnection
@@ -154,8 +154,8 @@ foreach ($locName in $allRegions) {
 				}
 			}
 		}
+		Update-DeletedImages -Date $date -Location $locName -Publisher $pubName
 	}
-	Update-DeletedImages -Date $date -Location $locName
 }
 
 if (!(Test-Path $ResultFolder))
