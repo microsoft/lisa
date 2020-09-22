@@ -21,7 +21,7 @@ class Tool(ABC, InitializableMixin):
     """
     The base class, which wraps an executable, package, or scripts on a node.
     A tool can be installed, and execute on a node. When a tool is needed, call
-    Tool[] to get one object. The Tool[] checks if it's installed. If it's
+    Tools[] to get one object. The Tools[] checks if it's installed. If it's
     not installed, then check if it can be installed, and then install or fail.
     After the tool instance returned, the run/Async of the tool will call
     execute/Async of node. So that the command passes to current node.
@@ -414,9 +414,19 @@ class Tools:
         self._cache: Dict[str, Tool] = dict()
 
     def __getattr__(self, key: str) -> Tool:
+        """
+        for shortcut access like node.tools.echo.call_method()
+        """
         return self.__getitem__(key)
 
     def __getitem__(self, tool_type: Union[Type[T], CustomScriptBuilder, str]) -> T:
+        """
+        return a typed subclass of tool or script builder.
+
+        for example,
+        echo_tool = node.tools[Echo]
+        echo_tool.run("hello")
+        """
         if tool_type is CustomScriptBuilder:
             raise LisaException(
                 "CustomScriptBuilder should call build to create a script instance"
