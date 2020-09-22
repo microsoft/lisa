@@ -20,7 +20,7 @@ function Update-DeletedImages($Date, $Location, $Publisher) {
 	$database = $XmlSecrets.secrets.DatabaseName
 	
 	# Query if the image exists in the database
-	$sqlQuery = "SELECT ID from $TableName where LastCheckedDate <= '$($Date.AddDays(-$CheckInternalInDays))' and IsAvailable = 1 and Location='$Location' and Publisher='$Publisher'"
+	$sqlQuery = "SELECT ID from $TableName where LastCheckedDate < '$($Date.AddDays(-$CheckInternalInDays))' and IsAvailable = 1 and Location='$Location' and Publisher='$Publisher'"
 
 	$connectionString = "Server=$server;uid=$dbuser; pwd=$dbpassword;Database=$database;Encrypt=yes;TrustServerCertificate=no;Connection Timeout=30;"
 	$connection = New-Object System.Data.SqlClient.SqlConnection
