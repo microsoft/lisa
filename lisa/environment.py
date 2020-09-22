@@ -72,18 +72,6 @@ class EnvironmentSpace(search_space.RequirementMixin):
 
         return result
 
-    @classmethod
-    def from_value(cls, value: Any) -> Any:
-        assert isinstance(value, EnvironmentSpace), f"actual: {type(value)}"
-        env = EnvironmentSpace()
-        env.nodes = value.nodes
-        if value.nodes:
-            env.nodes = list()
-            for value_capability in value.nodes:
-                env.nodes.append(schema.NodeSpace.from_value(value_capability))
-
-        return env
-
     def _generate_min_capability(self, capability: Any) -> Any:
         env = EnvironmentSpace(topology=self.topology)
         assert isinstance(capability, EnvironmentSpace), f"actual: {type(capability)}"

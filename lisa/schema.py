@@ -471,30 +471,6 @@ class NodeSpace(search_space.RequirementMixin, ExtendableSchemaMixin):
 
         return result
 
-    @classmethod
-    def from_value(cls, value: Any) -> Any:
-        assert isinstance(value, NodeSpace), f"actual: {type(value)}"
-        node = NodeSpace()
-        node.node_count = value.node_count
-        node.core_count = value.core_count
-        node.memory_mb = value.memory_mb
-        node.disk_count = value.disk_count
-        node.nic_count = value.nic_count
-        node.gpu_count = value.gpu_count
-
-        if value.features:
-            for feature in value.features:
-                if feature.enabled or feature.can_disable:
-                    if not node.features:
-                        node.features = search_space.SetSpace[Feature]()
-                    node.features.add(feature)
-                else:
-                    if not node.excluded_features:
-                        node.excluded_features = search_space.SetSpace[Feature]()
-                    node.excluded_features.add(feature)
-
-        return node
-
     def expand_by_node_count(self) -> List[Any]:
         # expand node count in requirement to one,
         # so that's easy to compare equalation later.
