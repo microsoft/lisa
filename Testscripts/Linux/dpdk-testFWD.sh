@@ -145,7 +145,7 @@ function Testfwd_Parser() {
 		fi
 	done
 
-	echo "${dpdk_version},${core},${tx_pps_avg},${fwdrx_pps_avg},${fwdtx_pps_avg},${rx_pps_avg}" >> "${testfwd_csv_file}"
+	echo "${dpdk_version},${pmd},${core},${tx_pps_avg},${fwdrx_pps_avg},${fwdtx_pps_avg},${rx_pps_avg}" >> "${testfwd_csv_file}"
 }
 
 function Run_Testcase() {
@@ -167,7 +167,7 @@ function Run_Testcase() {
 
 	LogMsg "Starting testfwd parser"
 	local csv_file=$(Create_Csv)
-	echo "dpdk_version,core,tx_pps_avg,fwdrx_pps_avg,fwdtx_pps_avg,rx_pps_avg" > "${csv_file}"
+	echo "dpdk_version,poll_mode_driver,core,tx_pps_avg,fwdrx_pps_avg,fwdtx_pps_avg,rx_pps_avg" > "${csv_file}"
 	for core in "${CORES[@]}"; do
 		Testfwd_Parser ${core} "${csv_file}"
 	done

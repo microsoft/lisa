@@ -157,6 +157,7 @@ collect_VM_properties
 				$resultMap["DataPath"] = $DataPath
 				$resultMap["DPDKVersion"] = $mode.DpdkVersion
 				$resultMap["TestMode"] = $mode.TestMode
+				$resultMap["PollModeDriver"] = $mode.poll_mode_driver
 				$resultMap["Cores"] = [int32]($mode.Cores)
 				$resultMap["Max_Rxpps"] = [int64]($mode.MaxRxPps)
 				$resultMap["Txpps"] = [int64]($mode.TxPps)

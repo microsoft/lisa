@@ -51,19 +51,6 @@ echo -e "serverNIC1ip=${serverIPs[1]}\nserverNIC2ip=${serverIPs[2]}\nclientNIC1i
 echo "server-vm : eth0 : ${server} : eth1 : ${serverNIC1ip} eth2 : ${serverNIC2ip}"
 echo "client-vm : eth0 : ${client} : eth1 : ${clientNIC1ip} eth2 : ${clientNIC2ip}"
 
-function checkCmdExitStatus ()
-{
-	exit_status=$?
-	cmd=$1
-	if [ $exit_status -ne 0 ]; then
-		echo "$cmd: FAILED (exit code: $exit_status)"
-		SetTestStateAborted
-		exit $exit_status
-	else
-		echo "$cmd: SUCCESS"
-	fi
-}
-
 runTestPmd()
 {
 	SetTestStateRunning
@@ -71,9 +58,9 @@ runTestPmd()
 	mkdir -p "$LOGDIR"
 	cores=1
 	ssh "${server}" "mkdir -p $LOGDIR"
-	ssh "${server}" "mkdir -p  /mnt/huge; mkdir -p  /mnt/huge-1G; mount -t hugetlbfs nodev /mnt/huge && mount -t hugetlbfs nodev /mnt/huge-1G -o 'pagesize=1G' && echo 4096 > /sys/devices/system/node/node0/hugepages/hugepages-2048kB/nr_hugepages && echo 1 > /sys/devices/system/node/node0/hugepages/hugepages-1048576kB/nr_hugepages && grep -i hug /proc/meminfo"
-	mkdir -p  /mnt/huge; mkdir -p  /mnt/huge-1G; mount -t hugetlbfs nodev /mnt/huge && mount -t hugetlbfs nodev /mnt/huge-1G -o 'pagesize=1G' && echo 4096 > /sys/devices/system/node/node0/hugepages/hugepages-2048kB/nr_hugepages && echo 1 > /sys/devices/system/node/node0/hugepages/hugepages-1048576kB/nr_hugepages && grep -i hug /proc/meminfo
 
+	. ${DPDK_UTIL_FILE} && Hugepage_Setup ${client}
+	. ${DPDK_UTIL_FILE} && Hugepage_Setup ${server}
 	vf_name_client=$(ssh "${client}" ". utils.sh && get_vf_name 'eth1'")
 	pci_info_client=$(ssh "${client}" "ethtool -i $vf_name_client | grep bus-info |  cut -d' ' -f2-")
 	LogMsg "pci_info_client $pci_info_client"
@@ -94,41 +81,37 @@ runTestPmd()
 	# Check testpmd --no-pci if it triggers a kernel crash
 	# SIGKILL(9) is required, as the --no-pci makes testpmd hang
 	# although SIGINT is sent.
-	echo 4096 > /sys/devices/system/node/node0/hugepages/hugepages-2048kB/nr_hugepages \
-		&& echo 1 > /sys/devices/system/node/node0/hugepages/hugepages-1048576kB/nr_hugepages \
-		&&  modprobe -a ib_uverbs mlx4_en mlx4_core mlx4_ib; \
+	# TODO: check nic version and then include drivers: mlx4/mlx5.
+	modprobe -a ib_uverbs mlx4_en mlx4_core mlx4_ib; \
 		timeout --kill-after 10 10 dpdk-testpmd --no-pci -m 1024 -c 0x3 -- -i --total-num-mbufs=16384 --coremask=0x2 --rxq=1 --txq=1
 
 	for testmode in $modes; do
 		LogMsg "TestPmd is starting on ${serverNIC1ip} with ${testmode} mode, duration ${testDuration} secs"
-		ssh "${server}" "echo 4096 > /sys/devices/system/node/node0/hugepages/hugepages-2048kB/nr_hugepages && echo 1 > /sys/devices/system/node/node0/hugepages/hugepages-1048576kB/nr_hugepages &&  mount -a && modprobe -a ib_uverbs mlx4_en mlx4_core mlx4_ib;timeout 30 dpdk-testpmd -l 1-3 -n 2 -w $pci_info_server ${vdev} -- --port-topology=chained --nb-cores 1 --forward-mode=${testmode}  --stats-period 1" 2>&1 > "$HOMEDIR"/dpdkVersion.txt
-		ssh "${server}" "pkill dpdk-testpmd"
-		sleep 60
-		ssh "${server}" "echo 0 > /sys/devices/system/node/node0/hugepages/hugepages-2048kB/nr_hugepages"
-		serverTestPmdCmd="echo 4096 > /sys/devices/system/node/node0/hugepages/hugepages-2048kB/nr_hugepages && echo 1 > /sys/devices/system/node/node0/hugepages/hugepages-1048576kB/nr_hugepages &&  mount -a && modprobe -a ib_uverbs mlx4_en mlx4_core mlx4_ib;timeout ${testDuration} dpdk-testpmd -l 0-1 -w $pci_info_server ${vdev} -- --port-topology=chained --nb-cores 1 --txq 1 --rxq 1 --mbcache=512 --txd=4096 --rxd=4096 --forward-mode=${testmode}  --stats-period 1"
-		echo "$serverTestPmdCmd"
+		Hugepage_Setup ${server} "set"
+		serverTestPmdCmd="modprobe -a ib_uverbs mlx4_en mlx4_core mlx4_ib;timeout ${testDuration} dpdk-testpmd -l 0-1 -w $pci_info_server ${vdev} -- --port-topology=chained --nb-cores 1 --txq 1 --rxq 1 --mbcache=512 --txd=4096 --rxd=4096 --forward-mode=${testmode}  --stats-period 1"
+		LogMsg "Server Testpmd Command: $serverTestPmdCmd"
 		ssh "${server}" "$serverTestPmdCmd" 2>&1 > "$LOGDIR"/dpdk-testpmd-"${testmode}"-receiver-$(date +"%m%d%Y-%H%M%S").log &
-		checkCmdExitStatus "TestPmd started on ${serverNIC1ip} with ${testmode} mode, duration ${testDuration} secs"
-		LogMsg "Configure huge pages on ${client}"
+		check_exit_status "TestPmd started on ${serverNIC1ip} with ${testmode} mode, duration ${testDuration} secs" "aborted"
 
 		LogMsg "TestPmd is starting on ${clientNIC1ip} with txonly mode, duration ${testDuration} secs"
+		LogMsg "timeout ${testDuration} dpdk-testpmd -l 0-1 -w $pci_info_client ${vdev} -- --port-topology=chained --nb-cores 1 --txq 1 --rxq 1 --mbcache=512 --txd=4096 --rxd=4096 --forward-mode=txonly --stats-period 1 ${trx_rx_ips} 2>&1 >> $LOGDIR/dpdk-testpmd-${testmode}-sender.log &"
 
-		echo "timeout ${testDuration} dpdk-testpmd -l 0-1 -w $pci_info_client ${vdev} -- --port-topology=chained --nb-cores 1 --txq 1 --rxq 1 --mbcache=512 --txd=4096 --rxd=4096 --forward-mode=txonly --stats-period 1 ${trx_rx_ips} 2>&1 >> $LOGDIR/dpdk-testpmd-${testmode}-sender.log &"
-		echo 4096 > /sys/devices/system/node/node0/hugepages/hugepages-2048kB/nr_hugepages \
-			&& echo 1 > /sys/devices/system/node/node0/hugepages/hugepages-1048576kB/nr_hugepages \
-			&& modprobe -a ib_uverbs mlx4_en mlx4_core mlx4_ib
+		Hugepage_Setup ${client} "set"
+		# Replace modprobe command with Modprobe_setup
+		modprobe -a ib_uverbs mlx4_en mlx4_core mlx4_ib
 		timeout "${testDuration}" dpdk-testpmd -l 0-1 -w ${pci_info_client} ${vdev} -- \
 			--port-topology=chained --nb-cores 1 --txq 1 --rxq 1 --mbcache=512 --txd=4096 --rxd=4096 \
 			--forward-mode=txonly --stats-period 1 ${trx_rx_ips} 2>&1 > "$LOGDIR"/dpdk-testpmd-"${testmode}"-sender-$(date +"%m%d%Y-%H%M%S").log &
-		checkCmdExitStatus "TestPmd started on ${clientNIC1ip} with txonly mode, duration ${testDuration} secs"
+		check_exit_status "TestPmd started on ${clientNIC1ip} with txonly mode, duration ${testDuration} secs" "aborted"
 		sleep "${testDuration}"
-		LogMsg "reset used huge pages"
-		echo 0 > /sys/devices/system/node/node0/hugepages/hugepages-2048kB/nr_hugepages \
-			&& echo 0 > /sys/devices/system/node/node0/hugepages/hugepages-1048576kB/nr_hugepages \
-			&& grep -i hug /proc/meminfo
-		ssh "${server}" "echo 0 > /sys/devices/system/node/node0/hugepages/hugepages-2048kB/nr_hugepages && echo 0 > /sys/devices/system/node/node0/hugepages/hugepages-1048576kB/nr_hugepages && grep -i hug /proc/meminfo"
 		pkill dpdk-testpmd
 		ssh "${server}" "pkill dpdk-testpmd"
+
+		LogMsg "Reset used huge pages"
+		Hugepage_Setup "${client}" "reset"
+		Hugepage_Setup "${server}" "reset"
+
+		LogMsg "Wait 60 sec for exiting testpmd"
 		sleep 60
 		LogMsg "TestPmd execution for ${testmode} mode is COMPLETED"
 	done
@@ -141,7 +124,7 @@ testPmdParser ()
 	mv "$HOMEDIR"/dpdkTestPmd.csv "$HOMEDIR"/dpdkTestPmd-$(date +"%m%d%Y-%H%M%S").csv
 	DpdkVersion=$(testpmd -v 2>&1 | grep DPDK | tr ":" "\n" | sed 's/^ //g' | sed "s/'//g" | tail -1)
 	logFiles=($(ls "$LOGDIR"/*.log))
-	echo "DpdkVersion,TestMode,Cores,MaxRxPps,TxPps,RxPps,FwdPps,TxBytes,RxBytes,FwdBytes,TxPackets,RxPackets,FwdPackets,TxPacketSize,RxPacketSize" > "$testpmdCsvFile"
+	echo "DpdkVersion,poll_mode_driver,TestMode,Cores,MaxRxPps,TxPps,RxPps,FwdPps,TxBytes,RxBytes,FwdBytes,TxPackets,RxPackets,FwdPackets,TxPacketSize,RxPacketSize" > "$testpmdCsvFile"
 	fileCount=0
 	while [ "x${logFiles[$fileCount]}" != "x" ]
 	do
@@ -241,13 +224,13 @@ testPmdParser ()
 		echo $rxonly_Txbytes_Avg $rxonly_Txpackets_Avg
 		Tx_Pkt_Size=$((rxonly_Txbytes_Avg/rxonly_Txpackets_Avg))
 		Rx_Pkt_Size=$((rxonly_Rxbytes_Avg/rxonly_Rxpackets_Avg))
-		echo "$DpdkVersion,$rxonly_mode,$cores,$rxonly_Rxpps_Max,$rxonly_Txpps_Avg,$rxonly_Rxpps_Avg,$rxonly_RTxpps_Avg,$rxonly_Txbytes_Avg,$rxonly_Rxbytes_Avg,$rxonly_RTxbytes_Avg,$rxonly_Txpackets_Avg,$rxonly_Rxpackets_Avg,$rxonly_RTxpackets_Avg,$Tx_Pkt_Size,$Rx_Pkt_Size" >> "$testpmdCsvFile"
+		echo "$DpdkVersion,${pmd},$rxonly_mode,$cores,$rxonly_Rxpps_Max,$rxonly_Txpps_Avg,$rxonly_Rxpps_Avg,$rxonly_RTxpps_Avg,$rxonly_Txbytes_Avg,$rxonly_Rxbytes_Avg,$rxonly_RTxbytes_Avg,$rxonly_Txpackets_Avg,$rxonly_Rxpackets_Avg,$rxonly_RTxpackets_Avg,$Tx_Pkt_Size,$Rx_Pkt_Size" >> "$testpmdCsvFile"
 	fi
 	if [ $io_mode == "io" ];then
 		LogMsg "$io_mode pushing to csv file"
 		Tx_Pkt_Size=$((io_Txbytes_Avg/io_Txpackets_Avg))
 		Rx_Pkt_Size=$((io_Rxbytes_Avg/io_Rxpackets_Avg))
-		echo "$DpdkVersion,$io_mode,$cores,$io_Rxpps_Max,$io_Txpps_Avg,$io_Rxpps_Avg,$io_RTxpps_Avg,$io_Txbytes_Avg,$io_Rxbytes_Avg,$io_RTxbytes_Avg,$io_Txpackets_Avg,$io_Rxpackets_Avg,$io_RTxpackets_Avg,$Tx_Pkt_Size,$Rx_Pkt_Size" >> "$testpmdCsvFile"
+		echo "$DpdkVersion,${pmd},$io_mode,$cores,$io_Rxpps_Max,$io_Txpps_Avg,$io_Rxpps_Avg,$io_RTxpps_Avg,$io_Txbytes_Avg,$io_Rxbytes_Avg,$io_RTxbytes_Avg,$io_Txpackets_Avg,$io_Rxpackets_Avg,$io_RTxpackets_Avg,$Tx_Pkt_Size,$Rx_Pkt_Size" >> "$testpmdCsvFile"
 	fi
 }
 
@@ -256,16 +239,16 @@ DPDK_DIR="dpdk"
 LogMsg "Initial DPDK source directory: ${DPDK_DIR}"
 
 ./dpdkSetup.sh
-checkCmdExitStatus "DPDK Setup"
+check_exit_status "DPDK Setup" "aborted"
 LogMsg "*********INFO: Starting TestPmd test execution with DPDK ${dpdkVersion}*********"
 runTestPmd
-checkCmdExitStatus "TestPmd execution"
+check_exit_status "TestPmd execution" "aborted"
 LogMsg "Collecting testpmd logs from server-vm ${server}"
 mv  DpdkTestPmdLogs.tar.gz  DpdkTestPmdLogs-$(date +"%m%d%Y-%H%M%S").tar.gz
 tar -cvzf DpdkTestPmdLogs.tar.gz DpdkTestPmdLogs/
 LogMsg "*********INFO: Starting TestPmd results parser execution*********"
 testPmdParser
-checkCmdExitStatus "Parser execution"
+check_exit_status "Parser execution" "aborted"
 LogMsg "*********INFO: TestPmd RESULTS*********"
 column -s, -t "$testpmdCsvFile"
 LogMsg "*********INFO: DPDK TestPmd script execution reach END. Completed !!!*********"

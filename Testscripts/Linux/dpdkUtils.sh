@@ -35,15 +35,26 @@ function Hugepage_Setup() {
 		exit 1
 	fi
 
-	LogMsg "Huge page setup is running"
-	ssh "${1}" "mkdir -p /mnt/huge && mkdir -p /mnt/huge-1G"
-	LogMsg "creating huge page directory status: $?"
-	ssh "${1}" "mount -t hugetlbfs nodev /mnt/huge && mount -t hugetlbfs nodev /mnt/huge-1G -o 'pagesize=1G'"
-	check_exit_status "Huge pages are mounted on ${1}" "exit"
-	ssh "${1}" "echo 4096 > /sys/devices/system/node/node0/hugepages/hugepages-2048kB/nr_hugepages"
-	check_exit_status "4KB huge pages are configured on ${1}" "exit"
-	ssh "${1}" "echo 1 > /sys/devices/system/node/node0/hugepages/hugepages-1048576kB/nr_hugepages"
-	check_exit_status "1GB huge pages are configured on ${1}" "exit"
+	if [ -z "${2}" ]; then
+		LogMsg "Huge page setup is running"
+		ssh "${1}" "mkdir -p /mnt/huge && mkdir -p /mnt/huge-1G"
+		LogMsg "creating huge page directory status: $?"
+		ssh "${1}" "mount -t hugetlbfs nodev /mnt/huge && mount -t hugetlbfs nodev /mnt/huge-1G -o 'pagesize=1G'"
+		check_exit_status "Huge pages are mounted on ${1}" "exit"
+	fi
+	if [[ "reset" == "${2}" ]]; then
+		ssh "${1}" "echo 0 > /sys/devices/system/node/node0/hugepages/hugepages-2048kB/nr_hugepages"
+		check_exit_status "4KB huge pages are reset on ${1}" "exit"
+		ssh "${1}" "echo 0 > /sys/devices/system/node/node0/hugepages/hugepages-1048576kB/nr_hugepages"
+		check_exit_status "1GB huge pages are reset on ${1}" "exit"
+	else
+		ssh "${1}" "echo 4096 > /sys/devices/system/node/node0/hugepages/hugepages-2048kB/nr_hugepages"
+		check_exit_status "4KB huge pages are configured on ${1}" "exit"
+		ssh "${1}" "echo 1 > /sys/devices/system/node/node0/hugepages/hugepages-1048576kB/nr_hugepages"
+		check_exit_status "1GB huge pages are configured on ${1}" "exit"
+	fi
+	LogMsg "Huge page setup complete:"
+	ssh "${1}" "grep -i huge /proc/meminfo && ls /mnt/"
 }
 
 # Requires:
@@ -164,7 +175,9 @@ function Install_Dpdk () {
 	packages=(gcc make git tar wget dos2unix psmisc make)
 	case "${DISTRO_NAME}" in
 		oracle|rhel|centos)
-			ssh "${1}" ". utils.sh && install_epel"
+			if ! ([ "${DISTRO_NAME}" = "rhel" ] && [[ ${DISTRO_VERSION} == *"8."* ]]) ;then
+				ssh "${1}" ". utils.sh && install_epel"
+			fi
 			ssh "${1}" "yum -y groupinstall 'Infiniband Support' && dracut --add-drivers 'mlx4_en mlx4_ib mlx5_ib' -f && systemctl enable rdma"
 			check_exit_status "Install Infiniband Support on ${1}" "exit"
 			devel_source=(  "7.5=http://vault.centos.org/7.5.1804/updates/x86_64/Packages/kernel-devel-$(uname -r).rpm"
@@ -179,7 +192,7 @@ function Install_Dpdk () {
 					ssh "${1}" "rpm -ivh $VALUE"
 				fi
 			done
-			packages+=(kernel-devel-$(uname -r) numactl-devel.x86_64 librdmacm-devel meson pkgconfig)
+			packages+=(kernel-devel-$(uname -r) numactl-devel.x86_64 librdmacm-devel pkgconfig)
 			ssh "${1}" "yum makecache"
 			check_package "libmnl-devel"
 			if [ $? -eq 0 ]; then
@@ -188,6 +201,20 @@ function Install_Dpdk () {
 			check_package "elfutils-libelf-devel"
 			if [ $? -eq 0 ]; then
 				packages+=("elfutils-libelf-devel")
+			fi
+			if [ "${DISTRO_NAME}" = "rhel" ]; then
+				# meson requires ninja-build and python-devel to be installed. [ninja-build ref: https://pkgs.org/download/ninja-build]
+				if [[ ${DISTRO_VERSION} == *"8."* ]]; then
+					ssh "${1}" ". utils.sh && install_package python3-devel"
+					ssh "${1}" "rpm -ivh http://mirror.centos.org/centos/8/PowerTools/x86_64/os/Packages/ninja-build-1.8.2-1.el8.x86_64.rpm"
+					ssh "${1}" "rpm -ivh http://mirror.centos.org/centos/8/PowerTools/x86_64/os/Packages/meson-0.49.2-1.el8.noarch.rpm"
+				else
+					# Required as meson is dependent on python36
+					ssh "${1}" ". utils.sh && install_package rh-python36 ninja-build"
+					ssh "${1}" 'PATH=$PATH:/opt/rh/rh-python36/root/usr/bin/ && pip install --upgrade pip && pip install meson'
+				fi
+			else
+				packages+=(meson)
 			fi
 			;;
 		ubuntu|debian)
@@ -213,7 +240,10 @@ function Install_Dpdk () {
 			else
 				packages+=(kernel-default-devel)
 			fi
-			packages+=(libnuma-devel numactl librdmacm1 rdma-core-devel libmnl-devel meson pkg-config)
+			packages+=(libnuma-devel numactl librdmacm1 rdma-core-devel libmnl-devel pkg-config)
+			# default meson in SUSE 15-SP1 is 0.46 & required is 0.47. Installing it separately
+			ssh "${1}" ". utils.sh && install_package ninja"
+			ssh "${1}" "rpm -ivh https://download.opensuse.org/repositories/openSUSE:/Leap:/15.2/standard/noarch/meson-0.54.2-lp152.1.1.noarch.rpm"
 			;;
 		*)
 			echo "Unknown distribution"
@@ -318,8 +348,11 @@ function Install_Dpdk () {
 	LogMsg "MLX_PMD flag enabling on ${1}"
 	if type Dpdk_Configure > /dev/null; then
 		echo "Calling testcase provided Dpdk_Configure(1) on ${1}"
-		ssh ${1} "cd ${LIS_HOME}/${DPDK_DIR} && meson build"
-		#ssh ${1} "sed -ri 's,(MLX._PMD=)n,\1y,' ${LIS_HOME}/${DPDK_DIR}/build/.config"
+		if [[ ${DISTRO_NAME} == rhel ]] && ! [[ ${DISTRO_VERSION} == *"8."* ]]; then
+			ssh ${1} "cd ${LIS_HOME}/${DPDK_DIR} && PATH=$PATH:/opt/rh/rh-python36/root/usr/bin/ && meson build"
+		else
+			ssh ${1} "cd ${LIS_HOME}/${DPDK_DIR} && meson build"
+		fi
 		# shellcheck disable=SC2034
 		ssh ${1} ". constants.sh; . utils.sh; . dpdkUtils.sh; cd ${LIS_HOME}/${DPDK_DIR}; $(typeset -f Dpdk_Configure); DPDK_DIR=${DPDK_DIR} LIS_HOME=${LIS_HOME} Dpdk_Configure ${1}"
 		ssh ${1} "cd ${LIS_HOME}/${DPDK_DIR}/build && ninja && ninja install && ldconfig"
@@ -329,11 +362,20 @@ function Install_Dpdk () {
 		check_exit_status "${1} CONFIG_RTE_LIBRTE_MLX4_PMD=y" "exit"
 		ssh "${1}" "sed -i 's/^CONFIG_RTE_LIBRTE_MLX5_PMD=n/CONFIG_RTE_LIBRTE_MLX5_PMD=y/g' $RTE_SDK/config/common_base"
 		check_exit_status "${1} CONFIG_RTE_LIBRTE_MLX5_PMD=y" "exit"
-		ssh "${1}" "cd $RTE_SDK && meson $RTE_TARGET"
+		if [[ ${DISTRO_NAME} == rhel ]] && ! [[ ${DISTRO_VERSION} == *"8."* ]]; then
+			ssh ${1} "cd ${LIS_HOME}/${DPDK_DIR} && PATH=$PATH:/opt/rh/rh-python36/root/usr/bin/ && meson ${RTE_TARGET}"
+		else
+			ssh ${1} "cd ${LIS_HOME}/${DPDK_DIR} && meson ${RTE_TARGET}"
+		fi
 		ssh "${1}" "cd $RTE_SDK/$RTE_TARGET && ninja 2>&1 && ninja install 2>&1 && ldconfig"
 		check_exit_status "dpdk build on ${1}" "exit"
 	fi
-
+	if [[ ${DISTRO_NAME} == rhel || ${DISTRO_NAME} == centos ]]; then
+		# For Distros like RHEL, /usr/local not in default paths. Ref: DPDK Installation Documents
+		ssh ${1} " echo '/usr/local/lib64' >> /etc/ld.so.conf"
+		ssh ${1} " echo '/usr/local/lib' >> /etc/ld.so.conf"
+		ssh ${1} "ldconfig"
+	fi
 	LogMsg "Finished installing dpdk on ${1}"
 }
 

@@ -159,7 +159,7 @@ function Testpmd_Parser() {
 	done
 	tx_packet_size=$((tx_bytes_avg/tx_packets_avg))
 	rx_packet_size=$((rx_bytes_avg/rx_packets_avg))
-	echo "${dpdk_version},${test_mode},${core},${rx_pps_Max},${tx_pps_avg},${rx_pps_avg},${fwdtx_pps_avg},${tx_bytes_avg},${rx_bytes_avg},${fwdtx_bytes_avg},${tx_packets_avg},${rx_packets_avg},${fwdtx_packets_avg},${tx_packet_size},${rx_packet_size}" >> "${testpmd_csv_file}"
+	echo "${dpdk_version},${pmd},${test_mode},${core},${rx_pps_Max},${tx_pps_avg},${rx_pps_avg},${fwdtx_pps_avg},${tx_bytes_avg},${rx_bytes_avg},${fwdtx_bytes_avg},${tx_packets_avg},${rx_packets_avg},${fwdtx_packets_avg},${tx_packet_size},${rx_packet_size}" >> "${testpmd_csv_file}"
 }
 
 function Run_Testcase() {
@@ -186,7 +186,7 @@ function Run_Testcase() {
 
 	LogMsg "Starting testpmd parser"
 	local csv_file=$(Create_Csv)
-	echo "dpdk_version,test_mode,core,max_rx_pps,tx_pps_avg,rx_pps_avg,fwdtx_pps_avg,tx_bytes,rx_bytes,fwd_bytes,tx_packets,rx_packets,fwd_packets,tx_packet_size,rx_packet_size" > "${csv_file}"
+	echo "dpdk_version,poll_mode_driver,test_mode,core,max_rx_pps,tx_pps_avg,rx_pps_avg,fwdtx_pps_avg,tx_bytes,rx_bytes,fwd_bytes,tx_packets,rx_packets,fwd_packets,tx_packet_size,rx_packet_size" > "${csv_file}"
 	for core in "${CORES[@]}"; do
 		for test_mode in ${MODES}; do
 			Testpmd_Parser ${core} "${test_mode}" "${csv_file}"
