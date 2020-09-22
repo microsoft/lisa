@@ -287,21 +287,6 @@ class Notifier:
     )
 
 
-FEATURE_NAME_RDMA = "RDMA"
-
-
-@dataclass_json(letter_case=LetterCase.CAMEL)
-@dataclass
-class Feature:
-    name: str = ""
-    enabled: bool = True
-    can_disable: bool = False
-
-
-class Features:
-    RDMA = Feature(name=FEATURE_NAME_RDMA)
-
-
 @dataclass_json(letter_case=LetterCase.CAMEL, undefined=Undefined.INCLUDE)
 @dataclass
 class NodeSpace(search_space.RequirementMixin, ExtendableSchemaMixin):
@@ -348,13 +333,13 @@ class NodeSpace(search_space.RequirementMixin, ExtendableSchemaMixin):
     )
     # all features on requirement should be included.
     # all features on capability can be included.
-    features: Optional[search_space.SetSpace[Feature]] = field(
+    features: Optional[search_space.SetSpace[str]] = field(
         default=None,
         metadata=metadata(data_key="features", allow_none=True),
     )
     # set by requirements
     # capability's is ignored
-    excluded_features: Optional[search_space.SetSpace[Feature]] = field(
+    excluded_features: Optional[search_space.SetSpace[str]] = field(
         default=None,
         metadata=metadata(data_key="excludedFeatures", allow_none=True),
     )
@@ -407,14 +392,6 @@ class NodeSpace(search_space.RequirementMixin, ExtendableSchemaMixin):
 
         assert isinstance(capability, NodeSpace), f"actual: {type(capability)}"
 
-        must_included_capability: Optional[search_space.SetSpace[Feature]] = None
-
-        if capability.features and self.excluded_features:
-            must_included_capability = search_space.SetSpace[Feature]()
-            for feature in capability.features:
-                if feature.enabled and feature.can_disable is False:
-                    must_included_capability.add(feature)
-
         if (
             not capability.node_count
             or not capability.core_count
@@ -465,7 +442,7 @@ class NodeSpace(search_space.RequirementMixin, ExtendableSchemaMixin):
         )
         if self.excluded_features:
             result.merge(
-                self.excluded_features.check(must_included_capability),
+                self.excluded_features.check(capability.features),
                 "excluded_features",
             )
 
@@ -532,13 +509,12 @@ class NodeSpace(search_space.RequirementMixin, ExtendableSchemaMixin):
         else:
             min_value.gpu_count = 0
 
-        min_value.features = search_space.SetSpace[Feature](is_allow_set=True)
         if self.features:
+            min_value.features = search_space.SetSpace[str](is_allow_set=True)
             min_value.features.update(self.features)
         if self.excluded_features:
-            for excluded_feature in self.excluded_features:
-                excluded_feature.enabled = False
-                min_value.features.add(excluded_feature)
+            min_value.excluded_features = search_space.SetSpace[str](is_allow_set=False)
+            min_value.excluded_features.update(self.excluded_features)
         return min_value
 
 
