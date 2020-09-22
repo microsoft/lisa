@@ -39,8 +39,8 @@ class HelloWorld(TestSuite):
         echo = node.tools[Echo]
         hello_world = "hello world!"
         result = echo.run(hello_world)
-        self.assertEquals(hello_world, result.stdout)
-        self.assertEquals("", result.stderr)
+        self.assertEqual(hello_world, result.stdout)
+        self.assertEqual("", result.stderr)
         self.assertEqual(0, result.exit_code)
 
     @TestCaseMetadata(
