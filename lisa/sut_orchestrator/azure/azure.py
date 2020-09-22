@@ -827,8 +827,8 @@ class AzurePlatform(Platform):
             memory_mb=0,
             nic_count=0,
             gpu_count=0,
-            features=search_space.SetSpace[schema.Feature](is_allow_set=True),
-            excluded_features=search_space.SetSpace[schema.Feature](is_allow_set=False),
+            features=search_space.SetSpace[str](is_allow_set=True),
+            excluded_features=search_space.SetSpace[str](is_allow_set=False),
         )
         node_space.name = f"{location}_{resource_sku.name}"
         for sku_capability in resource_sku.capabilities:
