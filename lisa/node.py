@@ -87,7 +87,11 @@ class Node(ContextMixin, InitializableMixin):
             )
 
         self._connection_info = ConnectionInfo(
-            public_address, public_port, username, password, private_key_file,
+            public_address,
+            public_port,
+            username,
+            password,
+            private_key_file,
         )
         self.shell = SshShell(self._connection_info)
         self.internal_address = address
@@ -259,7 +263,9 @@ class Nodes(NodesDict):
             node.close()
 
     def from_local(
-        self, node_runbook: schema.LocalNode, logger_name: str = "node",
+        self,
+        node_runbook: schema.LocalNode,
+        logger_name: str = "node",
     ) -> Node:
         assert isinstance(
             node_runbook, schema.LocalNode
@@ -276,7 +282,9 @@ class Nodes(NodesDict):
         return node
 
     def from_remote(
-        self, node_runbook: schema.RemoteNode, logger_name: str = "node",
+        self,
+        node_runbook: schema.RemoteNode,
+        logger_name: str = "node",
     ) -> Optional[Node]:
         assert isinstance(
             node_runbook, schema.RemoteNode

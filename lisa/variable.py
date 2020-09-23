@@ -76,7 +76,9 @@ def load_from_runbook(runbook_data: Any, current_variables: Dict[str, Any]) -> N
 
 
 def load_from_file(
-    file_name: str, current_variables: Dict[str, Any], is_secret: bool = False,
+    file_name: str,
+    current_variables: Dict[str, Any],
+    is_secret: bool = False,
 ) -> None:
     if is_secret:
         secret.add_secret(file_name)

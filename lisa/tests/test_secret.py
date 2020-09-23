@@ -45,7 +45,9 @@ class SecretTestCase(TestCase):
 
     def test_fallback(self) -> None:
         add_secret(
-            "test1", mask=re.compile(r"^doesn't match$"), sub=r"*****",
+            "test1",
+            mask=re.compile(r"^doesn't match$"),
+            sub=r"*****",
         )
         result = mask("my test1 test2 not")
         self.assertEqual(result, "my ***** test2 not")

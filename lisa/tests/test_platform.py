@@ -140,7 +140,8 @@ class PlatformTestCase(TestCase):
         envs["runbook_1"].is_predefined = True
         prepared_environments = platform.prepare_environments(envs)
         self.assertListEqual(
-            ["runbook_1", "runbook_0"], [x.name for x in prepared_environments],
+            ["runbook_1", "runbook_0"],
+            [x.name for x in prepared_environments],
         )
         self.assertListEqual(
             [True, False], [x.is_predefined for x in prepared_environments]

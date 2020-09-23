@@ -211,7 +211,9 @@ class SetSpace(RequirementMixin, Set[T]):
     is_allow_set: bool = False
 
     def __init__(
-        self, is_allow_set: Optional[bool] = None, items: Optional[Iterable[T]] = None,
+        self,
+        is_allow_set: Optional[bool] = None,
+        items: Optional[Iterable[T]] = None,
     ) -> None:
         if items:
             self.update(items)

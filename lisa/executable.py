@@ -192,7 +192,11 @@ class Tool(ABC, InitializableMixin):
         else:
             command = self.command
         return self.node.execute_async(
-            command, shell, no_error_log=no_error_log, cwd=cwd, no_info_log=no_info_log,
+            command,
+            shell,
+            no_error_log=no_error_log,
+            cwd=cwd,
+            no_info_log=no_info_log,
         )
 
     def run(
@@ -348,8 +352,8 @@ class CustomScript(Tool):
 
 class CustomScriptBuilder:
     """
-        With CustomScriptBuilder, provides variables is enough to use like a tool
-        It needs some special handling in tool.py, but not much.
+    With CustomScriptBuilder, provides variables is enough to use like a tool
+    It needs some special handling in tool.py, but not much.
     """
 
     def __init__(

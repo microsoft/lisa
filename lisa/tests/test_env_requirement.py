@@ -33,7 +33,8 @@ class UtTestCaseRequirement(TestCaseRequirement, RequirementMixin):
         ), f"actual: {type(capability)}"
         result = ResultReason()
         result.merge(
-            check(self.environment, capability.environment), name="environment",
+            check(self.environment, capability.environment),
+            name="environment",
         )
 
         return result
@@ -126,7 +127,9 @@ class RequirementTestCase(SearchSpaceTestCase):
         n10 = n10.generate_min_capability(n10)
 
         partial_testcase_schema = partial(
-            TestCaseSchema, platform_type=None, operating_system=None,
+            TestCaseSchema,
+            platform_type=None,
+            operating_system=None,
         )
         s11 = partial_testcase_schema(environment=EnvironmentSpace())
         s11.environment.nodes = [n1]

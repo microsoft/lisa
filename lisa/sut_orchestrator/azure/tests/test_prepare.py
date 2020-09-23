@@ -294,7 +294,10 @@ class AzurePrepareTestCase(TestCase):
             )
         return result
 
-    def load_environment(self, node_req_count: int = 2,) -> Environment:
+    def load_environment(
+        self,
+        node_req_count: int = 2,
+    ) -> Environment:
         environment = Environment(is_predefined=True, warn_as_error=False)
         environment.runbook = schema.Environment()
         if node_req_count > 0:
@@ -342,10 +345,12 @@ class AzurePrepareTestCase(TestCase):
             ]
 
             self.assertListEqual(
-                expected_locations, [x.location for x in nodes_runbook],
+                expected_locations,
+                [x.location for x in nodes_runbook],
             )
             self.assertListEqual(
-                expected_vm_sizes, [x.vm_size for x in nodes_runbook],
+                expected_vm_sizes,
+                [x.vm_size for x in nodes_runbook],
             )
 
             # all cap values must be covered to specified int value, not space

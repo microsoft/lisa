@@ -179,7 +179,8 @@ class Parent:
 
     path: str = field(default="", metadata=metadata(required=True))
     strategy: List[Strategy] = field(
-        default_factory=list, metadata=metadata(required=True),
+        default_factory=list,
+        metadata=metadata(required=True),
     )
 
 
@@ -251,7 +252,8 @@ class Variable:
 @dataclass
 class ArtifactLocation:
     type: str = field(
-        default="", metadata=metadata(required=True, validate=validate.OneOf([])),
+        default="",
+        metadata=metadata(required=True, validate=validate.OneOf([])),
     )
     path: str = field(default="", metadata=metadata(required=True))
 
@@ -265,7 +267,8 @@ class Artifact:
     # name is optional. artifacts can be referred by name or index.
     name: str = ""
     type: str = field(
-        default="", metadata=metadata(required=True, validate=validate.OneOf([])),
+        default="",
+        metadata=metadata(required=True, validate=validate.OneOf([])),
     )
     locations: List[ArtifactLocation] = field(default_factory=list)
 
@@ -279,7 +282,8 @@ class Notifier:
     """
 
     type: str = field(
-        default="", metadata=metadata(required=True, validate=validate.OneOf([])),
+        default="",
+        metadata=metadata(required=True, validate=validate.OneOf([])),
     )
 
 
@@ -345,12 +349,14 @@ class NodeSpace(search_space.RequirementMixin, ExtendableSchemaMixin):
     # all features on requirement should be included.
     # all features on capability can be included.
     features: Optional[search_space.SetSpace[Feature]] = field(
-        default=None, metadata=metadata(data_key="features", allow_none=True),
+        default=None,
+        metadata=metadata(data_key="features", allow_none=True),
     )
     # set by requirements
     # capability's is ignored
     excluded_features: Optional[search_space.SetSpace[Feature]] = field(
-        default=None, metadata=metadata(data_key="excludedFeatures", allow_none=True),
+        default=None,
+        metadata=metadata(data_key="excludedFeatures", allow_none=True),
     )
 
     def __post_init__(self, *args: Any, **kwargs: Any) -> None:
@@ -454,7 +460,8 @@ class NodeSpace(search_space.RequirementMixin, ExtendableSchemaMixin):
             "gpu_count",
         )
         result.merge(
-            search_space.check(self.features, capability.features), "features",
+            search_space.check(self.features, capability.features),
+            "features",
         )
         if self.excluded_features:
             result.merge(
@@ -650,7 +657,8 @@ class Environment:
         metadata=metadata(validate=validate.OneOf([constants.ENVIRONMENTS_SUBNET])),
     )
     nodes_raw: Optional[List[Any]] = field(
-        default=None, metadata=metadata(data_key=constants.NODES),
+        default=None,
+        metadata=metadata(data_key=constants.NODES),
     )
     nodes_requirement: Optional[List[NodeSpace]] = None
 
@@ -703,7 +711,8 @@ class EnvironmentRoot:
 @dataclass
 class Platform(ExtendableSchemaMixin):
     type: str = field(
-        default=constants.PLATFORM_READY, metadata=metadata(required=True),
+        default=constants.PLATFORM_READY,
+        metadata=metadata(required=True),
     )
 
     admin_username: str = "lisatest"
