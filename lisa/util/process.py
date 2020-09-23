@@ -3,18 +3,13 @@ import pathlib
 import shlex
 import time
 from dataclasses import dataclass
-from typing import TYPE_CHECKING, Dict, Optional, Type
+from typing import Dict, Optional
 
 from spur.errors import NoSuchCommandError  # type: ignore
 
 from lisa.util.logger import Logger, LogWriter, get_logger
 from lisa.util.perf_timer import create_timer
 from lisa.util.shell import Shell
-
-if TYPE_CHECKING:
-    BaseExceptionType = Type[BaseException]
-else:
-    BaseExceptionType = bool
 
 
 @dataclass
