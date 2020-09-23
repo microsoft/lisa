@@ -2,8 +2,7 @@ from __future__ import annotations
 
 import pathlib
 import random
-from collections import UserDict, ValuesView
-from typing import TYPE_CHECKING, Iterable, List, Optional, TypeVar, Union, cast
+from typing import Iterable, List, Optional, TypeVar, Union, cast
 
 from lisa import schema
 from lisa.executable import Tools
@@ -193,13 +192,7 @@ class Node(ContextMixin, InitializableMixin):
         return process
 
 
-if TYPE_CHECKING:
-    NodesDict = UserDict[str, Node]
-else:
-    NodesDict = UserDict
-
-
-class Nodes(NodesDict):
+class Nodes:
     def __init__(self) -> None:
         super().__init__()
         self._default: Optional[Node] = None
@@ -226,9 +219,6 @@ class Nodes(NodesDict):
         for node in self._list:
             yield node
 
-    def values(self) -> ValuesView[Node]:
-        raise NotImplementedError("use list() instead")
-
     def __getitem__(self, key: Union[int, str]) -> Node:
         found = None
         if not self._list:
@@ -249,7 +239,7 @@ class Nodes(NodesDict):
         return found
 
     def __setitem__(self, key: Union[int, str], v: Node) -> None:
-        raise NotImplementedError("don't set node directly, call create_by_*")
+        raise NotImplementedError("don't set node directly, call from_*")
 
     def __len__(self) -> int:
         return len(self._list)
