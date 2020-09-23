@@ -170,12 +170,23 @@ ConfigureCIFS() {
 
 Main() {
     # Get VM kernel version. Recommend to 3.12 or later for SMB3.0 in Azure.
-    mj=$(uname -r | cut -d '-'  -f1 | cut -d '.' -f 1)
-    mn=$(uname -r | cut -d '-'  -f1 | cut -d '.' -f 2)
-    if [ $mj -lt 4 ] && [ $mn -lt 12 ]; then
-        LogErr "Recommended kernel version of SMB3.0 is 3.12 or later version"
-        SetTestStateSkipped
-        exit 0
+    # However, we passed this test in CentOS/RHEL 7.6 or later.
+    if [[ $DISTRO_NAME == "centos" || $DISTRO_NAME == "rhel" ]]; then
+        dj=$(echo $DISTRO_VERSION | cut -d "." -f 1)
+        dn=$(echo $DISTRO_VERSION | cut -d "." -f 2)
+        if [ $dj -le 7 ] && [ $dn -lt 6 ]; then
+            LogErr "Recommended distro version is RHEL/CentOS 7.6 or later"
+            SetTestStateSkipped
+            exit 0
+        fi
+    else
+        mj=$(uname -r | cut -d '-'  -f1 | cut -d '.' -f 1)
+        mn=$(uname -r | cut -d '-'  -f1 | cut -d '.' -f 2)
+        if [ $mj -lt 4 ] && [ $mn -lt 12 ]; then
+            LogErr "Recommended kernel version of SMB3.0 is 3.12 or later version"
+            SetTestStateSkipped
+            exit 0
+        fi
     fi
 
     if [ -e ${XFSTestConfigFile} ]; then
