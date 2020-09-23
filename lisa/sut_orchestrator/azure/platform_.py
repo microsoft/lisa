@@ -10,7 +10,6 @@ from typing import Any, Dict, List, Optional, Type, Union
 
 from azure.core.exceptions import HttpResponseError
 from azure.identity import DefaultAzureCredential  # type: ignore
-from azure.mgmt.compute import ComputeManagementClient  # type: ignore
 from azure.mgmt.compute.models import ResourceSku, VirtualMachine  # type: ignore
 from azure.mgmt.network import NetworkManagementClient  # type: ignore
 from azure.mgmt.network.models import InboundNatRule, NetworkInterface  # type: ignore
@@ -36,7 +35,13 @@ from lisa.secret import PATTERN_GUID, PATTERN_HEADTAIL, add_secret
 from lisa.util import LisaException, constants, get_public_key_data
 from lisa.util.logger import Logger
 
-AZURE = "azure"
+from .common import (
+    AZURE,
+    get_compute_client,
+    get_environment_context,
+    get_node_context,
+    wait_operation,
+)
 
 # used by azure
 AZURE_DEPLOYMENT_NAME = "lisa_default_deployment_script"
@@ -182,24 +187,10 @@ class AzurePlatformSchema:
             self.locations = LOCATIONS
 
 
-@dataclass
-class EnvironmentContext:
-    resource_group_name: str = ""
-    resource_group_is_created: bool = False
-
-
-@dataclass
-class NodeContext:
-    vm_name: str = ""
-    username: str = ""
-    password: str = ""
-    private_key_file: str = ""
-
-
 class AzurePlatform(Platform):
     def __init__(self) -> None:
         super().__init__()
-        self._credential: DefaultAzureCredential = None
+        self.credential: DefaultAzureCredential = None
         self._enviornment_counter = 0
         self._eligible_capabilities: Optional[Dict[str, List[AzureCapability]]] = None
         self._locations_data_cache: Optional[Dict[str, AzureLocation]] = None
@@ -384,7 +375,7 @@ class AzurePlatform(Platform):
         assert self._rm_client
         assert self._azure_runbook
 
-        environment_context = environment.get_context(EnvironmentContext)
+        environment_context = get_environment_context(environment=environment)
         if self._azure_runbook.resource_group_name:
             resource_group_name = self._azure_runbook.resource_group_name
         else:
@@ -427,7 +418,7 @@ class AzurePlatform(Platform):
         environment.is_ready = True
 
     def _delete_environment(self, environment: Environment, log: Logger) -> None:
-        environment_context = environment.get_context(EnvironmentContext)
+        environment_context = get_environment_context(environment=environment)
         resource_group_name = environment_context.resource_group_name
         assert resource_group_name
         assert self._azure_runbook
@@ -457,7 +448,7 @@ class AzurePlatform(Platform):
                 resource_group_name
             )
             if self._azure_runbook.wait_delete:
-                result = delete_operation.wait()
+                result = wait_operation(delete_operation)
                 if result:
                     raise LisaException(f"error on deleting resource group: {result}")
             else:
@@ -476,20 +467,20 @@ class AzurePlatform(Platform):
         os.environ["AZURE_CLIENT_ID"] = azure_runbook.service_principal_client_id
         os.environ["AZURE_CLIENT_SECRET"] = azure_runbook.service_principal_key
 
-        self._credential = DefaultAzureCredential()
+        self.credential = DefaultAzureCredential()
 
-        self._sub_client = SubscriptionClient(self._credential)
+        self._sub_client = SubscriptionClient(self.credential)
 
-        self._subscription_id = azure_runbook.subscription_id
-        subscription = self._sub_client.subscriptions.get(self._subscription_id)
+        self.subscription_id = azure_runbook.subscription_id
+        subscription = self._sub_client.subscriptions.get(self.subscription_id)
         if not subscription:
             raise LisaException(
-                f"cannot find subscription id: '{self._subscription_id}'"
+                f"cannot find subscription id: '{self.subscription_id}'"
             )
         self._log.info(f"connected to subscription: '{subscription.display_name}'")
 
         self._rm_client = ResourceManagementClient(
-            credential=self._credential, subscription_id=self._subscription_id
+            credential=self.credential, subscription_id=self.subscription_id
         )
         self._initialize_eligible_vm_sizes(self._log)
 
@@ -531,7 +522,7 @@ class AzurePlatform(Platform):
             self._locations_data_cache = self._load_location_info_from_file(
                 cached_file_name=cached_file_name, log=log
             )
-        assert self._locations_data_cache
+        assert self._locations_data_cache is not None
         location_data: Optional[AzureLocation] = self._locations_data_cache.get(
             location
         )
@@ -553,9 +544,7 @@ class AzurePlatform(Platform):
         else:
             log.debug(f"{location}: no cache found")
         if should_refresh:
-            compute_client = ComputeManagementClient(
-                credential=self._credential, subscription_id=self._subscription_id
-            )
+            compute_client = get_compute_client(self)
 
             log.debug(f"{location}: querying")
             all_skus: List[AzureCapability] = []
@@ -628,6 +617,7 @@ class AzurePlatform(Platform):
             arm_parameters.admin_password = self._runbook.admin_password
         assert self._azure_runbook
 
+        environment_context = get_environment_context(environment=environment)
         nodes_parameters: List[AzureNodeSchema] = []
         for node_space in environment.runbook.nodes_requirement:
             assert isinstance(
@@ -658,7 +648,8 @@ class AzurePlatform(Platform):
             nodes_parameters.append(azure_node_runbook)
 
             # save vm's information into node
-            node_context = node.get_context(NodeContext)
+            node_context = get_node_context(node)
+            node_context.resource_group_name = environment_context.resource_group_name
             # vm's name, use to find it from azure
             node_context.vm_name = azure_node_runbook.name
             # ssh related information will be filled back once vm is created
@@ -697,7 +688,7 @@ class AzurePlatform(Platform):
             validate_operation = self._rm_client.deployments.begin_validate(
                 **deployment_parameters
             )
-            result = validate_operation.wait()
+            result = wait_operation(validate_operation)
             if result:
                 raise LisaException(f"deploy failed: {result}")
         except Exception as identifier:
@@ -738,7 +729,7 @@ class AzurePlatform(Platform):
             deployment_operation = deployments.begin_create_or_update(
                 **deployment_parameters
             )
-            result = deployment_operation.wait()
+            result = wait_operation(deployment_operation)
             if result:
                 raise LisaException(f"deploy failed: {result}")
         except HttpResponseError as identifier:
@@ -753,13 +744,11 @@ class AzurePlatform(Platform):
 
         node_context_map: Dict[str, Node] = dict()
         for node in environment.nodes.list():
-            node_context = node.get_context(NodeContext)
+            node_context = get_node_context(node)
             node_context_map[node_context.vm_name] = node
 
-        compute_client = ComputeManagementClient(
-            credential=self._credential, subscription_id=self._subscription_id
-        )
-        environment_context = environment.get_context(EnvironmentContext)
+        compute_client = get_compute_client(self)
+        environment_context = get_environment_context(environment=environment)
         vms_map: Dict[str, VirtualMachine] = dict()
         vms = compute_client.virtual_machines.list(
             environment_context.resource_group_name
@@ -768,7 +757,7 @@ class AzurePlatform(Platform):
             vms_map[vm.name] = vm
 
         network_client = NetworkManagementClient(
-            credential=self._credential, subscription_id=self._subscription_id
+            credential=self.credential, subscription_id=self.subscription_id
         )
 
         # load port mappings
@@ -799,7 +788,7 @@ class AzurePlatform(Platform):
         ).ip_address
 
         for vm_name, node in node_context_map.items():
-            node_context = node.get_context(NodeContext)
+            node_context = get_node_context(node)
             vm = vms_map.get(vm_name, None)
             if not vm:
                 raise LisaException(
