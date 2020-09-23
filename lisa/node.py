@@ -6,6 +6,7 @@ from typing import Iterable, List, Optional, TypeVar, Union, cast
 
 from lisa import schema
 from lisa.executable import Tools
+from lisa.feature import Features
 from lisa.operating_system import OperatingSystem
 from lisa.tools import Echo
 from lisa.util import (
@@ -40,6 +41,8 @@ class Node(ContextMixin, InitializableMixin):
 
         self.shell: Shell = LocalShell()
 
+        # will be initialized by platform
+        self.features: Features
         self.tools = Tools(self)
         self.working_path: pathlib.PurePath = pathlib.PurePath()
 

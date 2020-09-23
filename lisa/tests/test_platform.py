@@ -1,8 +1,9 @@
-from typing import List
+from typing import List, Type
 from unittest.case import TestCase
 
 from lisa import schema
 from lisa.environment import Environment, Environments, load_environments
+from lisa.feature import Feature
 from lisa.platform_ import Platform, WaitMoreResourceError, load_platform
 from lisa.tests.test_environment import generate_runbook as generate_env_runbook
 from lisa.util import LisaException, constants
@@ -34,6 +35,10 @@ class MockPlatform(Platform):
     @classmethod
     def platform_type(cls) -> str:
         return constants.PLATFORM_MOCK
+
+    @classmethod
+    def supported_features(cls) -> List[Type[Feature]]:
+        return []
 
     def set_test_config(
         self,
