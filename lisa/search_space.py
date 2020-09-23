@@ -220,6 +220,12 @@ class SetSpace(RequirementMixin, Set[T]):
         if is_allow_set is not None:
             self.is_allow_set = is_allow_set
 
+    def __repr__(self) -> str:
+        return (
+            f"allowed:{self.is_allow_set},"
+            f"items:[{','.join([str(x) for x in self])}]"
+        )
+
     def check(self, capability: Any) -> ResultReason:
         result = ResultReason()
         if self.is_allow_set and len(self) > 0 and not capability:
@@ -348,7 +354,9 @@ def check(
     result = ResultReason()
     if requirement is not None:
         if capability is None:
-            result.add_reason("capability shouldn't be None")
+            result.add_reason(
+                f"capability shouldn't be None, requirement: [{requirement}]"
+            )
         elif isinstance(requirement, (list)):
             supported = False
             for req_item in requirement:
