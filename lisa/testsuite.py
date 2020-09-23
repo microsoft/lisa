@@ -12,6 +12,7 @@ from retry.api import retry_call  # type: ignore
 from lisa import schema, search_space
 from lisa.action import Action, ActionStatus
 from lisa.environment import EnvironmentSpace
+from lisa.feature import Feature
 from lisa.operating_system import OperatingSystem
 from lisa.util import LisaException, constants, set_filtered_fields
 from lisa.util.logger import get_logger
@@ -98,21 +99,28 @@ def simple_requirement(
     unsupported_platform_type: Optional[List[str]] = None,
     supported_os: Optional[List[Type[OperatingSystem]]] = None,
     unsupported_os: Optional[List[Type[OperatingSystem]]] = None,
+    supported_features: Optional[List[Type[Feature]]] = None,
+    unsupported_features: Optional[List[Type[Feature]]] = None,
 ) -> TestCaseRequirement:
     """
     define a simple requirement to support most test cases.
     """
-    if node:
-        node.node_count = search_space.IntRange(min=min_count)
-        node.nic_count = search_space.IntRange(min=min_nic_count)
-        nodes: List[schema.NodeSpace] = [node]
-    else:
-        nodes = [
-            schema.NodeSpace(
-                node_count=search_space.IntRange(min=min_count),
-                nic_count=search_space.IntRange(min=min_nic_count),
-            )
-        ]
+    if node is None:
+        node = schema.NodeSpace()
+
+    node.node_count = search_space.IntRange(min=min_count)
+    node.nic_count = search_space.IntRange(min=min_nic_count)
+    if supported_features:
+        node.features = search_space.SetSpace[str](
+            is_allow_set=True,
+            items=[x.name() for x in supported_features],
+        )
+    if unsupported_features:
+        node.excluded_features = search_space.SetSpace[str](
+            is_allow_set=False,
+            items=[x.name() for x in unsupported_features],
+        )
+    nodes: List[schema.NodeSpace] = [node]
 
     platform_types = search_space.create_set_space(
         supported_platform_type, unsupported_platform_type, "platform type"
