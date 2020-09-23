@@ -157,6 +157,9 @@ class SshShell(InitializableMixin):
     def close(self) -> None:
         if self._inner_shell:
             self._inner_shell.close()
+            # after closed, can be reconnect
+            self._inner_shell = None
+            self._is_initialized = False
 
     def spawn(
         self,
@@ -170,6 +173,7 @@ class SshShell(InitializableMixin):
         use_pty: bool = False,
         allow_error: bool = True,
     ) -> Any:
+        self.initialize()
         assert self._inner_shell
         return self._inner_shell.spawn(
             command=command,
@@ -191,25 +195,30 @@ class SshShell(InitializableMixin):
         exist_ok: bool = False,
     ) -> None:
         path_str = self._purepath_to_str(path)
+        self.initialize()
         assert self._inner_shell
         self._inner_shell.mkdir(path_str, mode=mode, parents=parents, exist_ok=exist_ok)
 
     def exists(self, path: PurePath) -> bool:
+        self.initialize()
         assert self._inner_shell
         path_str = self._purepath_to_str(path)
         return cast(bool, self._inner_shell.exists(path_str))
 
     def remove(self, path: PurePath, recursive: bool = False) -> None:
+        self.initialize()
         assert self._inner_shell
         path_str = self._purepath_to_str(path)
         self._inner_shell.remove(path_str, recursive)
 
     def chmod(self, path: PurePath, mode: int) -> None:
+        self.initialize()
         assert self._inner_shell
         path_str = self._purepath_to_str(path)
         self._inner_shell.chmod(path_str, mode)
 
     def stat(self, path: PurePath) -> os.stat_result:
+        self.initialize()
         assert self._inner_shell
         path_str = self._purepath_to_str(path)
         sftp_attributes: paramiko.SFTPAttributes = self._inner_shell.stat(path_str)
@@ -224,28 +233,33 @@ class SshShell(InitializableMixin):
         return result
 
     def is_dir(self, path: PurePath) -> bool:
+        self.initialize()
         assert self._inner_shell
         path_str = self._purepath_to_str(path)
         return cast(bool, self._inner_shell.is_dir(path_str))
 
     def is_symlink(self, path: PurePath) -> bool:
+        self.initialize()
         assert self._inner_shell
         path_str = self._purepath_to_str(path)
         return cast(bool, self._inner_shell.is_symlink(path_str))
 
     def symlink(self, source: PurePath, destination: PurePath) -> None:
+        self.initialize()
         assert self._inner_shell
         source_str = self._purepath_to_str(source)
         destination_str = self._purepath_to_str(destination)
         self._inner_shell.symlink(source_str, destination_str)
 
     def chown(self, path: PurePath, uid: int, gid: int) -> None:
+        self.initialize()
         assert self._inner_shell
         path_str = self._purepath_to_str(path)
         self._inner_shell.chown(path_str, uid, gid)
 
     def copy(self, local_path: PurePath, node_path: PurePath) -> None:
         self.mkdir(node_path.parent, parents=True, exist_ok=True)
+        self.initialize()
         assert self._inner_shell
         local_path_str = self._purepath_to_str(local_path)
         node_path_str = self._purepath_to_str(node_path)
