@@ -21,19 +21,19 @@ azure-mgmt-compute = {version = "^17.0.0-beta.1", allow-prereleases = true}
 azure-mgmt-network = {version = "^16.0.0-beta.1", allow-prereleases = true}
 
 [tool.poetry.dev-dependencies]
-black = "^19.10b0"
+black = "^20.8b1"
 flake8 = "^3.8.3"
 flake8-black = "^0.2.1"
 flake8-bugbear = "^20.1.4"
 flake8-isort = "^4.0.0"
-isort = "^5.4.2"
+isort = "^5.5.3"
 mypy = "^0.782"
 pyls-black = "^0.4.6"
-pyls-isort = "^0.1.1"
+pyls-isort = "^0.2.0"
 pyls-mypy = "^0.1.8"
-python-language-server = "^0.34.1"
+python-language-server = "^0.35.1"
 rope = "^0.17.0"
-coverage = "^5.2.1"
+coverage = "^5.3"
 
 [tool.black]
 line-length = 88
