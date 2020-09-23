@@ -543,6 +543,11 @@ Function Invoke-AllResourceGroupDeployments($SetupTypeData, $CurrentTestData, $R
 			$offer = $imageInfo[1]
 			$sku = $imageInfo[2]
 			$version = $imageInfo[3]
+			$terms = Get-AzMarketplaceTerms -Publisher $publisher -Product $offer -Name $sku -ErrorAction SilentlyContinue
+			if ($terms -and !$terms.Accepted) {
+				Write-LogInfo "Accept terms for Publisher $publisher, Product $offer, Name $sku"
+				$terms | Set-AzMarketplaceTerms -Accept | Out-Null
+			}
 		}
 
 		$vmCount = 0
@@ -1348,13 +1353,19 @@ Function Invoke-AllResourceGroupDeployments($SetupTypeData, $CurrentTestData, $R
 			Add-Content -Value "$($indents[3])^type^: ^Microsoft.Compute/virtualMachines^," -Path $jsonFile
 			Add-Content -Value "$($indents[3])^name^: ^$vmName^," -Path $jsonFile
 			Add-Content -Value "$($indents[3])^location^: ^[variables('location')]^," -Path $jsonFile
-			if ($publisher -imatch "clear-linux-project") {
-				Write-LogInfo "  Adding plan information for clear-linux.."
+			if ($version -ne "latest") {
+				$used_image = Get-AzVMImage -Location $Location -PublisherName $publisher -Offer $offer -Skus $sku -Version $version
+			} else {
+				$used_image = Get-AzVMImage -Location $Location -PublisherName $publisher -Offer $offer -Skus $sku
+				$used_image = Get-AzVMImage -Location $Location -PublisherName $publisher -Offer $offer -Skus $sku -Version $used_image[-1].Version
+			}
+			if ($used_image.PurchasePlan) {
+				Write-LogInfo "  Adding plan information: plan name - $($used_image.PurchasePlan.Name), product - $($used_image.PurchasePlan.Product), publisher -$($used_image.PurchasePlan.Publisher)."
 				Add-Content -Value "$($indents[3])^plan^:" -Path $jsonFile
 				Add-Content -Value "$($indents[3]){" -Path $jsonFile
-				Add-Content -Value "$($indents[4])^name^: ^$sku^," -Path $jsonFile
-				Add-Content -Value "$($indents[4])^product^: ^clear-linux-os^," -Path $jsonFile
-				Add-Content -Value "$($indents[4])^publisher^: ^clear-linux-project^" -Path $jsonFile
+				Add-Content -Value "$($indents[4])^name^: ^$($used_image.PurchasePlan.Name)^," -Path $jsonFile
+				Add-Content -Value "$($indents[4])^product^: ^$($used_image.PurchasePlan.Product)^," -Path $jsonFile
+				Add-Content -Value "$($indents[4])^publisher^: ^$($used_image.PurchasePlan.Publisher)^" -Path $jsonFile
 				Add-Content -Value "$($indents[3])}," -Path $jsonFile
 			}
 			Add-Content -Value "$($indents[3])^tags^: {^TestID^: ^$TestID^}," -Path $jsonFile
@@ -1593,6 +1604,24 @@ Function Invoke-AllResourceGroupDeployments($SetupTypeData, $CurrentTestData, $R
 						Write-LogInfo "Added unmanaged $($dataDisk.DiskSizeInGB)GB Datadisk to $($dataDisk.LUN)."
 					}
 					$dataDiskAdded = $true
+				}
+			}
+			foreach ( $dataDisk in $used_image.DataDiskImages ) {
+				if ( $dataDisk.LUN -ge 0 ) {
+					if ( $dataDiskAdded ) {
+						Add-Content -Value "$($indents[6])," -Path $jsonFile
+					}
+					Add-Content -Value "$($indents[6]){" -Path $jsonFile
+					Add-Content -Value "$($indents[7])^name^: ^$vmName-disk-lun-$($dataDisk.LUN)^," -Path $jsonFile
+					Add-Content -Value "$($indents[7])^diskSizeGB^: ^1024^," -Path $jsonFile
+					Add-Content -Value "$($indents[7])^lun^: ^$($dataDisk.LUN)^," -Path $jsonFile
+					Add-Content -Value "$($indents[7])^createOption^: ^FromImage^," -Path $jsonFile
+					Add-Content -Value "$($indents[7])^caching^: ^ReadOnly^," -Path $jsonFile
+					Add-Content -Value "$($indents[7])^managedDisk^:" -Path $jsonFile
+					Add-Content -Value "$($indents[7]){" -Path $jsonFile
+					Add-Content -Value "$($indents[8])^storageAccountType^: ^$StorageAccountType^" -Path $jsonFile
+					Add-Content -Value "$($indents[7])}" -Path $jsonFile
+					Add-Content -Value "$($indents[6])}" -Path $jsonFile
 				}
 			}
 			Add-Content -Value "$($indents[5])]" -Path $jsonFile
