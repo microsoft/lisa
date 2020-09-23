@@ -65,8 +65,10 @@ class TestResult:
         check_result = requirement.environment.check(environment.capability)
         if check_result.result and requirement.os_type and environment.is_ready:
             for node in environment.nodes.list():
+                # use __mro__ to match any super types.
+                # for example, Ubuntu satisifies Linux
                 node_os_capability = search_space.SetSpace[Type[OperatingSystem]](
-                    is_allow_set=True, items=[type(node.os)]
+                    is_allow_set=True, items=type(node.os).__mro__
                 )
                 check_result.merge(
                     requirement.os_type.check(node_os_capability), "os_type"
