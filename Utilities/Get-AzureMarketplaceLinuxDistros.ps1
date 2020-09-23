@@ -1,5 +1,4 @@
 # Copyright (c) Microsoft Corporation
-
 # Description: This script collect all distro images from all Azure regions
 
 param
@@ -109,6 +108,8 @@ $date = (Get-Date).ToUniversalTime()
 $sqlQuery = ""
 $count = 0
 $allRegions = Get-AzLocation | select -ExpandProperty Location | where {!$RegionArrayInScope -or ($RegionArrayInScope -contains $_)}
+# EUAP regions are not returned by Get-AzLocation
+$allRegions += ($RegionArrayInScope -imatch "euap")
 foreach ($locName in $allRegions) {
 	Write-Host "processing $locName"
 	if (!$RegionDistros.$locName) {
