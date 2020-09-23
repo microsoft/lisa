@@ -139,13 +139,14 @@ def _force_check(
     return is_skip
 
 
-def _apply_filter(
+def _apply_filter(  # noqa: C901
     case_runbook: schema.TestCase,
     current_selected: Dict[str, TestCaseRuntimeData],
     force_included: Set[str],
     force_excluded: Set[str],
     full_list: Dict[str, TestCaseMetadata],
 ) -> Dict[str, TestCaseRuntimeData]:
+    # TODO: Reduce this function's complexity and remove the disabled warning.
 
     log = _get_logger()
     # initialize criterias

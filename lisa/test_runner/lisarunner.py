@@ -28,7 +28,8 @@ class LisaRunner(Action):
         if key == constants.CONFIG_RUNBOOK:
             self._runbook: schema.Runbook = value
 
-    async def start(self) -> None:
+    async def start(self) -> None:  # noqa: C901
+        # TODO: Reduce this function's complexity and remove the disabled warning.
         await super().start()
         self.set_status(ActionStatus.RUNNING)
 

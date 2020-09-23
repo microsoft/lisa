@@ -207,7 +207,10 @@ class AzurePlatform(Platform):
     def platform_type(cls) -> str:
         return AZURE
 
-    def _prepare_environment(self, environment: Environment, log: Logger) -> bool:
+    def _prepare_environment(  # noqa: C901
+        self, environment: Environment, log: Logger
+    ) -> bool:
+        # TODO: Reduce this function's complexity and remove the disabled warning.
         """
         Main flow
 

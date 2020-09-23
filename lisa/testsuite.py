@@ -260,7 +260,8 @@ class TestSuite(unittest.TestCase, Action, metaclass=ABCMeta):
     def after_case(self) -> None:
         pass
 
-    async def start(self) -> None:
+    async def start(self) -> None:  # noqa: C901
+        # TODO: Reduce this function's complexity and remove the disabled warning.
         suite_error_message = ""
         is_suite_continue = True
 
