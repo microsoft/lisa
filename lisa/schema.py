@@ -335,13 +335,21 @@ class NodeSpace(search_space.RequirementMixin, ExtendableSchemaMixin):
     # all features on capability can be included.
     features: Optional[search_space.SetSpace[str]] = field(
         default=None,
-        metadata=metadata(data_key="features", allow_none=True),
+        metadata=metadata(
+            data_key="features",
+            decoder=search_space.decode_set_space,
+            allow_none=True,
+        ),
     )
     # set by requirements
     # capability's is ignored
     excluded_features: Optional[search_space.SetSpace[str]] = field(
         default=None,
-        metadata=metadata(data_key="excludedFeatures", allow_none=True),
+        metadata=metadata(
+            data_key="excludedFeatures",
+            decoder=search_space.decode_set_space,
+            allow_none=True,
+        ),
     )
 
     def __post_init__(self, *args: Any, **kwargs: Any) -> None:

@@ -209,12 +209,14 @@ def _one_of_matched(
 @dataclass
 class SetSpace(RequirementMixin, Set[T]):
     is_allow_set: bool = False
+    items: List[Any] = field(default_factory=list)
 
     def __init__(
         self,
         is_allow_set: Optional[bool] = None,
         items: Optional[Iterable[T]] = None,
     ) -> None:
+        self.items: List[T] = []
         if items:
             self.update(items)
         if is_allow_set is not None:
@@ -225,6 +227,9 @@ class SetSpace(RequirementMixin, Set[T]):
             f"allowed:{self.is_allow_set},"
             f"items:[{','.join([str(x) for x in self])}]"
         )
+
+    def __post_init__(self, *args: Any, **kwargs: Any) -> None:
+        self.update(self.items)
 
     def check(self, capability: Any) -> ResultReason:
         result = ResultReason()
@@ -265,6 +270,25 @@ class SetSpace(RequirementMixin, Set[T]):
             result = self
 
         return result
+
+    def add(self, element: T) -> None:
+        super().add(element)
+        self.items.append(element)
+
+    def update(self, *s: Iterable[T]) -> None:
+        super().update(*s)
+        self.items.extend(*s)
+
+
+def decode_set_space(data: Any) -> Any:
+    """
+    not sure what's reason, __post_init__ won't be called automatically.
+    So write this decoder to force it's called on deserializing
+    """
+    result = None
+    if data:
+        result = SetSpace.schema().load(data)  # type: ignore
+    return result
 
 
 def check_countspace(requirement: CountSpace, capability: CountSpace) -> ResultReason:
