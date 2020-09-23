@@ -35,6 +35,7 @@ from lisa.secret import PATTERN_GUID, PATTERN_HEADTAIL, add_secret
 from lisa.util import LisaException, constants, get_public_key_data
 from lisa.util.logger import Logger
 
+from . import features
 from .common import (
     AZURE,
     get_compute_client,
@@ -201,7 +202,7 @@ class AzurePlatform(Platform):
 
     @classmethod
     def supported_features(cls) -> List[Type[Feature]]:
-        return []
+        return [features.StartStop]
 
     def _prepare_environment(  # noqa: C901
         self, environment: Environment, log: Logger
@@ -841,6 +842,10 @@ class AzurePlatform(Platform):
                 )
             elif name == "GPUs":
                 node_space.gpu_count = int(sku_capability.value)
+
+        # all node support start/stop
+        node_space.features = search_space.SetSpace[str](is_allow_set=True)
+        node_space.features.add(features.StartStop.name())
 
         return node_space
 
