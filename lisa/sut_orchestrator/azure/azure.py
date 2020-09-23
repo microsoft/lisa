@@ -6,7 +6,7 @@ from dataclasses import dataclass, field
 from datetime import datetime
 from functools import lru_cache
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Union
+from typing import Any, Dict, List, Optional, Type, Union
 
 from azure.core.exceptions import HttpResponseError
 from azure.identity import DefaultAzureCredential  # type: ignore
@@ -29,6 +29,7 @@ from retry import retry  # type: ignore
 
 from lisa import schema, search_space
 from lisa.environment import Environment
+from lisa.feature import Feature
 from lisa.node import Node
 from lisa.platform_ import Platform
 from lisa.secret import PATTERN_GUID, PATTERN_HEADTAIL, add_secret
@@ -206,6 +207,10 @@ class AzurePlatform(Platform):
     @classmethod
     def platform_type(cls) -> str:
         return AZURE
+
+    @classmethod
+    def supported_features(cls) -> List[Type[Feature]]:
+        return []
 
     def _prepare_environment(  # noqa: C901
         self, environment: Environment, log: Logger

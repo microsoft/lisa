@@ -1,4 +1,7 @@
+from typing import List, Type
+
 from lisa.environment import Environment
+from lisa.feature import Feature
 from lisa.platform_ import Platform
 from lisa.util import constants
 from lisa.util.logger import Logger
@@ -8,6 +11,10 @@ class ReadyPlatform(Platform):
     @classmethod
     def platform_type(cls) -> str:
         return constants.PLATFORM_READY
+
+    @classmethod
+    def supported_features(cls) -> List[Type[Feature]]:
+        return []
 
     def _prepare_environment(self, environment: Environment, log: Logger) -> bool:
         if environment.runbook.nodes_requirement:

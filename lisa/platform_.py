@@ -7,6 +7,7 @@ from typing import TYPE_CHECKING, Any, List, Optional, Type, cast
 
 from lisa import schema
 from lisa.environment import Environments
+from lisa.feature import Feature, Features
 from lisa.util import InitializableMixin, LisaException, constants
 from lisa.util.logger import Logger, get_logger
 from lisa.util.perf_timer import create_timer
@@ -29,6 +30,20 @@ class Platform(ABC, InitializableMixin):
     @classmethod
     @abstractmethod
     def platform_type(cls) -> str:
+        raise NotImplementedError()
+
+    @classmethod
+    @abstractmethod
+    def supported_features(cls) -> List[Type[Feature]]:
+        """
+        Indicates which feature classes should be used to instance a feature.
+
+        For example, StartStop needs platform implemention, and LISA doesn't know which
+        type uses to start/stop for Azure. So Azure platform needs to return a type
+        like azure.StartStop. The azure.StartStop use same feature string as
+        lisa.features.StartStop. When test cases reference a feature by string, it can
+        be instanced to azure.StartStop.
+        """
         raise NotImplementedError()
 
     @abstractmethod
@@ -99,6 +114,10 @@ class Platform(ABC, InitializableMixin):
         self._deploy_environment(environment, log)
         log.debug("initializing environment")
         environment.initialize()
+        # initialize features
+        # features may need platform, so create it in platform
+        for node in environment.nodes.list():
+            node.features = Features(node, self)
         log.info(f"deployed with {timer}")
 
     def delete_environment(self, environment: Environment) -> None:
