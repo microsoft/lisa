@@ -69,7 +69,9 @@ class VariableTestCase(TestCase):
 
     def test_in_secret_file(self) -> None:
         self._test_files(
-            "variable_secret.yml", False, {},
+            "variable_secret.yml",
+            False,
+            {},
         )
 
     def test_in_runbook_format_file(self) -> None:

@@ -64,7 +64,8 @@ class EnvironmentSpace(search_space.RequirementMixin):
                 for index, current_req in enumerate(self.nodes):
                     current_cap = capability.nodes[index]
                     result.merge(
-                        search_space.check(current_req, current_cap), str(index),
+                        search_space.check(current_req, current_cap),
+                        str(index),
                     )
                     if not result.result:
                         break
@@ -224,7 +225,8 @@ class Environments(EnvironmentsDict):
 
     def from_requirement(self, requirement: EnvironmentSpace) -> Optional[Environment]:
         runbook = schema.Environment(
-            topology=requirement.topology, nodes_requirement=requirement.nodes,
+            topology=requirement.topology,
+            nodes_requirement=requirement.nodes,
         )
         return self.from_runbook(
             runbook=runbook, name=f"req_{len(self.keys())}", is_original_runbook=False
@@ -251,7 +253,9 @@ class Environments(EnvironmentsDict):
         return env
 
 
-def load_environments(root_runbook: Optional[schema.EnvironmentRoot],) -> Environments:
+def load_environments(
+    root_runbook: Optional[schema.EnvironmentRoot],
+) -> Environments:
     if root_runbook:
         environments = Environments(
             warn_as_error=root_runbook.warn_as_error,

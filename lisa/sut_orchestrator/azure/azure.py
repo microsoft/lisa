@@ -141,7 +141,8 @@ class AzurePlatformSchema:
     subscription_id: str = field(
         default="",
         metadata=schema.metadata(
-            data_key="subscriptionId", validate=validate.Regexp(constants.GUID_REGEXP),
+            data_key="subscriptionId",
+            validate=validate.Regexp(constants.GUID_REGEXP),
         ),
     )
 
@@ -665,7 +666,9 @@ class AzurePlatform(Platform):
         parameters = {k: {"value": v} for k, v in parameters.items()}
         log.debug(f"parameters: {parameters}")
         deployment_properties = DeploymentProperties(
-            mode=DeploymentMode.incremental, template=template, parameters=parameters,
+            mode=DeploymentMode.incremental,
+            template=template,
+            parameters=parameters,
         )
 
         return {

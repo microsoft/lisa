@@ -89,7 +89,11 @@ def cleanup_cases_metadata() -> None:
 
 def generate_cases_metadata() -> List[TestCaseMetadata]:
     ut_cases = [
-        TestCaseMetadata("ut1", 0, requirement=simple_requirement(min_count=2),),
+        TestCaseMetadata(
+            "ut1",
+            0,
+            requirement=simple_requirement(min_count=2),
+        ),
         TestCaseMetadata("ut2", 1),
         TestCaseMetadata("ut3", 2),
     ]
@@ -364,5 +368,6 @@ class TestSuiteTestCase(TestCase):
         assert result.check_results
         self.assertTrue(result.check_results.result)
         self.assertListEqual(
-            [], result.check_results.reasons,
+            [],
+            result.check_results.reasons,
         )

@@ -52,7 +52,8 @@ class LisaRunnerTestCase(TestCase):
         env_runbook = generate_env_runbook(is_single_env=False)
         envs = load_environments(env_runbook)
         self.assertListEqual(
-            [], [x for x in envs],
+            [],
+            [x for x in envs],
         )
         runner = generate_lisarunner(None)
         test_results = generate_cases_result()
@@ -63,7 +64,8 @@ class LisaRunnerTestCase(TestCase):
         )
         # 3 cases create 3 envs
         self.assertListEqual(
-            ["req_0", "req_1", "req_2"], [x for x in envs],
+            ["req_0", "req_1", "req_2"],
+            [x for x in envs],
         )
         self.verify_test_results(
             expected_envs=["", "", ""],
@@ -78,7 +80,8 @@ class LisaRunnerTestCase(TestCase):
         env_runbook = generate_env_runbook(remote=True)
         envs = load_environments(env_runbook)
         self.assertListEqual(
-            ["runbook_0"], [x for x in envs],
+            ["runbook_0"],
+            [x for x in envs],
         )
 
         runner = generate_lisarunner(env_runbook)
@@ -91,7 +94,8 @@ class LisaRunnerTestCase(TestCase):
 
         # 3 cases created only two req, as simple req meets on runbook_0
         self.assertListEqual(
-            ["runbook_0", "req_1", "req_2"], [x for x in envs],
+            ["runbook_0", "req_1", "req_2"],
+            [x for x in envs],
         )
         self.assertListEqual(
             [TestStatus.NOTRUN, TestStatus.NOTRUN, TestStatus.NOTRUN],
@@ -105,7 +109,8 @@ class LisaRunnerTestCase(TestCase):
         env_runbook = generate_env_runbook(remote=True)
         envs = load_environments(env_runbook)
         self.assertListEqual(
-            ["runbook_0"], [x for x in envs],
+            ["runbook_0"],
+            [x for x in envs],
         )
         runner = generate_lisarunner(env_runbook)
         test_results = generate_cases_result()
@@ -118,7 +123,8 @@ class LisaRunnerTestCase(TestCase):
         )
         # every case need a new environment, so created 3
         self.assertListEqual(
-            ["runbook_0", "req_1", "req_2", "req_3"], [x for x in envs],
+            ["runbook_0", "req_1", "req_2", "req_3"],
+            [x for x in envs],
         )
         self.verify_test_results(
             expected_envs=["", "", ""],
@@ -134,7 +140,8 @@ class LisaRunnerTestCase(TestCase):
         env_runbook.allow_create = False
         envs = load_environments(env_runbook)
         self.assertListEqual(
-            [], [x for x in envs],
+            [],
+            [x for x in envs],
         )
         runner = generate_lisarunner(None)
         test_results = generate_cases_result()
@@ -144,7 +151,8 @@ class LisaRunnerTestCase(TestCase):
             platform_type=constants.PLATFORM_MOCK,
         )
         self.assertListEqual(
-            [], [x for x in envs],
+            [],
+            [x for x in envs],
         )
 
         not_allow_new_message = (
@@ -173,7 +181,8 @@ class LisaRunnerTestCase(TestCase):
         env_runbook = generate_env_runbook(is_single_env=False)
         envs = load_environments(env_runbook)
         self.assertListEqual(
-            [], [x for x in envs],
+            [],
+            [x for x in envs],
         )
         runner = generate_lisarunner(None)
         test_results = generate_cases_result()
@@ -413,10 +422,12 @@ class LisaRunnerTestCase(TestCase):
         test_results: List[TestResult],
     ) -> None:
         self.assertListEqual(
-            expected_envs, [x.assigned_env for x in test_results],
+            expected_envs,
+            [x.assigned_env for x in test_results],
         )
         self.assertListEqual(
-            expected_status, [x.status for x in test_results],
+            expected_status,
+            [x.status for x in test_results],
         )
         # compare it's begin with
         actual_messages = [
@@ -424,7 +435,8 @@ class LisaRunnerTestCase(TestCase):
             for index, expected in enumerate(expected_message)
         ]
         self.assertListEqual(
-            expected_message, actual_messages,
+            expected_message,
+            actual_messages,
         )
 
     def verify_env_results(
@@ -434,11 +446,14 @@ class LisaRunnerTestCase(TestCase):
         expected_deleted_envs: List[str],
     ) -> None:
         self.assertListEqual(
-            expected_prepared, [x for x in prepared_envs],
+            expected_prepared,
+            [x for x in prepared_envs],
         )
         self.assertListEqual(
-            expected_deployed_envs, [x for x in deployed_envs],
+            expected_deployed_envs,
+            [x for x in deployed_envs],
         )
         self.assertListEqual(
-            expected_deleted_envs, [x for x in deleted_envs],
+            expected_deleted_envs,
+            [x for x in deleted_envs],
         )

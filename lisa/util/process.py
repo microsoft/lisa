@@ -30,7 +30,10 @@ class ExecutableResult:
 
 class Process:
     def __init__(
-        self, id_: str, shell: Shell, parent_logger: Optional[Logger] = None,
+        self,
+        id_: str,
+        shell: Shell,
+        parent_logger: Optional[Logger] = None,
     ) -> None:
         # the shell can be LocalShell or SshShell
         self._shell = shell
@@ -49,7 +52,7 @@ class Process:
         no_info_log: bool = False,
     ) -> None:
         """
-            command include all parameters also.
+        command include all parameters also.
         """
         stdout_level = logging.INFO
         stderr_level = logging.ERROR

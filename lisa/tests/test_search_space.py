@@ -249,7 +249,10 @@ class SearchSpaceTestCase(unittest.TestCase):
                         )
 
     def _assert_check(
-        self, expected_meet: bool, result: ResultReason, extra_msg: str = "",
+        self,
+        expected_meet: bool,
+        result: ResultReason,
+        extra_msg: str = "",
     ) -> None:
         msg = f"expected result: {expected_meet}, actual: {result.result}"
         if extra_msg:

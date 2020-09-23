@@ -182,7 +182,9 @@ class LisaRunner(Action):
         assert cases
         suite_metadata = cases[0].runtime_data.metadata.suite
         test_suite: TestSuite = suite_metadata.test_class(
-            environment, cases, suite_metadata,
+            environment,
+            cases,
+            suite_metadata,
         )
         for case in cases:
             case.assigned_env = environment.name
