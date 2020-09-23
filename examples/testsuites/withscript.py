@@ -40,11 +40,13 @@ class WithScript(TestSuite):
         timer2 = create_timer()
         result2 = script.run()
         self.assertEqual(result1.stdout, result2.stdout)
-        self.assertGreater(
-            timer1.elapsed(),
-            timer2.elapsed(),
-            "the second time should be faster, without uploading",
-        )
+        if node.is_remote:
+            # the timer will be significant different on a remote node.
+            self.assertGreater(
+                timer1.elapsed(),
+                timer2.elapsed(),
+                "the second time should be faster, without uploading",
+            )
         self.log.info(
             f"second run finished within {timer2}, total: {timer1.elapsed_text(False)}"
         )
