@@ -91,14 +91,23 @@ class WindowsShellType(object):
 
 
 @retry(Exception, tries=12, delay=5, logger=None)  # type: ignore
-def connect(client: paramiko.SSHClient, connection_info: ConnectionInfo) -> None:
-    client.connect(
+def try_connect(connection_info: ConnectionInfo) -> Any:
+    # spur always run a linux command and will fail on Windows.
+    # So try with paramiko firstly.
+    paramiko_client = paramiko.SSHClient()
+    paramiko_client.set_missing_host_key_policy(paramiko.AutoAddPolicy())
+
+    paramiko_client.connect(
         hostname=connection_info.address,
         port=connection_info.port,
         username=connection_info.username,
         password=connection_info.password,
         key_filename=connection_info.private_key_file,
     )
+    _, stdout, _ = paramiko_client.exec_command("cmd")
+    paramiko_client.close()
+
+    return stdout
 
 
 class SshShell(InitializableMixin):
@@ -112,20 +121,26 @@ class SshShell(InitializableMixin):
         paramiko_logger.setLevel(logging.WARN)
 
     def _initialize(self) -> None:
-        # spur try a linux command and return error on Windows.
-        # So try with paramiko firstly.
-        paramiko_client = paramiko.SSHClient()
-        paramiko_client.set_missing_host_key_policy(paramiko.AutoAddPolicy())
         try:
-            connect(paramiko_client, self._connection_info)
+            stdout = try_connect(self._connection_info)
         except Exception as identifier:
             raise LisaException(
                 f"connect to server "
                 f"[{self._connection_info.address}:{self._connection_info.port}]"
                 f" failed: {identifier}"
             )
-        _, stdout, _ = paramiko_client.exec_command("cmd")
-        paramiko_client.close()
+
+        # Some windows doesn't end the text stream, so read first line only.
+        # it's  enough to detect os.
+        stdout_content = stdout.readline()
+        stdout.close()
+
+        if stdout_content and "Windows" in stdout_content:
+            self.is_linux = False
+            shell_type = WindowsShellType()
+        else:
+            self.is_linux = True
+            shell_type = spur.ssh.ShellTypes.sh
 
         spur_kwargs = {
             "hostname": self._connection_info.address,
@@ -136,17 +151,6 @@ class SshShell(InitializableMixin):
             "missing_host_key": spur.ssh.MissingHostKey.accept,
             "connect_timeout": 10,
         }
-
-        # Some windows doesn't end the text stream, so read first line only.
-        # it's  enough to detect os.
-        stdout_content = stdout.readline()
-
-        if stdout_content and "Windows" in stdout_content:
-            self.is_linux = False
-            shell_type = WindowsShellType()
-        else:
-            self.is_linux = True
-            shell_type = spur.ssh.ShellTypes.sh
 
         spur_ssh_shell = spur.SshShell(shell_type=shell_type, **spur_kwargs)
         sftp = spurplus.sftp.ReconnectingSFTP(
