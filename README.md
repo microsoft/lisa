@@ -76,6 +76,29 @@ Run LISAv3 using Poetry’s environment:
 poetry run python lisa/main.py
 ```
 
+### Make
+
+We now also have a GNU Makefile that automates some tasks. Try:
+```bash
+# Install Python packages
+make setup
+
+# Run LISAv3
+make run
+
+# Run unit tests
+make test
+
+# Run syntactic, semantic, formatting and type checkers
+make check
+
+# Generate coverage report (slow, reruns LISAv3 and tests)
+make coverage
+
+# Print current Python virtualenv
+make venv
+```
+
 ### Editor Setup
 
 Install and enable [ShellCheck](https://github.com/koalaman/shellcheck) to find

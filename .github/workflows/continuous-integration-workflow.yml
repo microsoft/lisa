@@ -37,27 +37,19 @@ jobs:
           echo "::add-path::$env:USERPROFILE\.poetry\bin"
 
       - name: Install Python dependencies
-        run: |
-          poetry install
+        run: make setup
 
       - name: Run LISAv3 hello-world
-        run: |
-          poetry run coverage erase
-          poetry run coverage run lisa/main.py --debug
+        run: make run
 
-      - name: Run unittest
-        run: |
-          poetry run coverage run --append -m unittest discover lisa
+      - name: Run unit tests
+        run: make test
 
-      - name: calculate code coverage
-        run: |
-          poetry run coverage report --skip-empty --include=lisa*,examples*,testsuites* --omit=lisa/tests/* --precision 2
+      - name: Calculate code coverage
+        run: make coverage
 
-      - name: Run black/flake8/isort
-        run: poetry run flake8
-
-      - name: Run mypy static type checking
-        run: poetry run mypy --strict --namespace-packages .
+      - name: Run black/flake8/isort/mypy
+        run: make check
 
       - name: Run ShellCheck
         if: runner.os == 'Linux'
