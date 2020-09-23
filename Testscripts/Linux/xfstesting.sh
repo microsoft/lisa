@@ -169,6 +169,15 @@ ConfigureCIFS() {
 }
 
 Main() {
+    # Get VM kernel version. Recommend to 3.12 or later for SMB3.0 in Azure.
+    mj=$(uname -r | cut -d '-'  -f1 | cut -d '.' -f 1)
+    mn=$(uname -r | cut -d '-'  -f1 | cut -d '.' -f 2)
+    if [ $mj -lt 4 ] && [ $mn -lt 12 ]; then
+        LogErr "Recommended kernel version of SMB3.0 is 3.12 or later version"
+        SetTestStateSkipped
+        exit 0
+    fi
+
     if [ -e ${XFSTestConfigFile} ]; then
         LogMsg "${XFSTestConfigFile} file is present."
     else

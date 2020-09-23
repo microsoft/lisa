@@ -9,6 +9,7 @@
 #     abort the test.
 #       Target distro guideline - https://t.ly/4fmT
 #       Ubuntu 16.04+, RHEL/CentOS 7.5+, Debian 10+, SLES 12 SP2+
+#       Samba SMB 3.0 recommendation - https://t.ly/MAxp
 #######################################################################
 param([object] $AllVmData,
       [object] $CurrentTestData
