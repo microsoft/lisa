@@ -26,25 +26,29 @@ UtilsInit
 CheckSource()
 {
 	current_clocksource="/sys/devices/system/clocksource/clocksource0/current_clocksource"
-	# Microsoft LIS installed version has lis_hyperv_clocksource_tsc_page
-	# Without Microsoft LIS, hyperv_clocksource_tsc_page
-	# CentOS 6.8 or older versions, hyperv_clocksource 
-	clocksource="hyperv_clocksource_tsc_page"
+
+	# Microsoft LIS installed version has lis_hv_clocksource_tsc_page
+	# Without Microsoft LIS, hv_clocksource_tsc_page
+	# CentOS 6.8 or older versions, hyperv_clocksource
+	clocksource="hv_clocksource_tsc_page"
 	mj=$(echo "$DISTRO_VERSION" | cut -d '.' -f 1)
 	mn=$(echo "$DISTRO_VERSION" | cut -d '.' -f 2)
 	if [[ $DISTRO_NAME == "centos" || $DISTRO_NAME == "rhel" ]] && [[ $mj -lt 7 && $mn -lt 9 ]]; then
 		clocksource="hyperv_clocksource"
 	fi
+	LogMsg "clocksource: $clocksource"
+
 	if ! [[ $(find $current_clocksource -type f -size +0M) ]]; then
 		LogErr "Test Failed. No file was found current_clocksource greater than 0M."
 		SetTestStateFailed
 		exit 0
 	else
 		__file_content=$(cat $current_clocksource)
+		LogMsg "Found currect_clocksource $__file_content in $current_clocksource"
 		if [[ $__file_content == *"$clocksource" ]]; then
 			LogMsg "Test successful. Proper file was found. Clocksource file content is $__file_content"
 		else
-			LogErr "Test failed. Proper file was NOT found."
+			LogErr "Test failed. Proper file was NOT found. Expected $clocksource, found $__file_content"
 			SetTestStateFailed
 			exit 0
 		fi
@@ -66,11 +70,12 @@ CheckSource()
 	else
 		__dmesg_output=$(grep -rnw '/var/log' -e "clocksource $clocksource" --ignore-case)
 	fi
+	LogMsg "dmesg log search result: $__dmesg_output"
 	if [[ -n $__dmesg_output ]]
 	then
-		LogMsg "Test successful. dmesg contains log - clocksource $__dmesg_output"
+		LogMsg "Test successful. dmesg contains log - $__dmesg_output"
 	else
-		LogErr "Test failed. dmesg does not contain log - clocksource $__dmesg_output"
+		LogErr "Test failed. dmesg does not contain log - $__dmesg_output"
 		SetTestStateFailed
 		exit 0
 	fi
@@ -82,6 +87,7 @@ function UnbindCurrentSource()
 	if echo $clocksource > $unbind_file
 	then
 		_clocksource=$(cat /sys/devices/system/clocksource/clocksource0/current_clocksource)
+		LogMsg "Found _clocksource: $_clocksource"
 		retryTime=1
 		maxRetryTimes=20
 		while [ $retryTime -le $maxRetryTimes ]
@@ -98,7 +104,7 @@ function UnbindCurrentSource()
 		if [ -n "$val" ] && [ "$_clocksource" == "acpi_pm" ]; then
 			LogMsg "Test successful. After unbind, current clocksource is $_clocksource"
 		else
-			LogErr "Test failed. After unbind, current clocksource is $_clocksource"
+			LogErr "Test failed. After unbind, current clocksource is $_clocksource. Expected acpi_pm"
 			SetTestStateFailed
 			exit 0
 		fi
