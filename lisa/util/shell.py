@@ -120,7 +120,7 @@ class SshShell(InitializableMixin):
         paramiko_logger = getLogger("paramiko")
         paramiko_logger.setLevel(logging.WARN)
 
-    def _initialize(self) -> None:
+    def _initialize(self, *args: Any, **kwargs: Any) -> None:
         try:
             stdout = try_connect(self._connection_info)
         except Exception as identifier:
@@ -286,7 +286,7 @@ class LocalShell(InitializableMixin):
         self.is_remote = False
         self._inner_shell = spur.LocalShell()
 
-    def _initialize(self) -> None:
+    def _initialize(self, *args: Any, **kwargs: Any) -> None:
         if "win32" == sys.platform:
             self.is_linux = False
         else:

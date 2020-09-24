@@ -116,7 +116,7 @@ class Environment(ContextMixin, InitializableMixin):
         self._default_node: Optional[Node] = None
         self._log = get_logger("env", self.name)
 
-    def _initialize(self) -> None:
+    def _initialize(self, *args: Any, **kwargs: Any) -> None:
         if not self.is_ready:
             raise LisaException("environment is not ready, cannot be initialized")
         # environment is ready, refresh latest capability

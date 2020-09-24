@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import pathlib
 import random
-from typing import Iterable, List, Optional, TypeVar, Union, cast
+from typing import Any, Iterable, List, Optional, TypeVar, Union, cast
 
 from lisa import schema
 from lisa.executable import Tools
@@ -141,7 +141,7 @@ class Node(ContextMixin, InitializableMixin):
     def close(self) -> None:
         self.shell.close()
 
-    def _initialize(self) -> None:
+    def _initialize(self, *args: Any, **kwargs: Any) -> None:
         self.log.debug(f"initializing node {self.name}")
         self.shell.initialize()
         self.os: OperatingSystem = OperatingSystem.create(self)

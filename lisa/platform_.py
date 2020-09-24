@@ -68,7 +68,7 @@ class Platform(ABC, InitializableMixin):
     def _delete_environment(self, environment: Environment, log: Logger) -> None:
         raise NotImplementedError()
 
-    def _initialize(self) -> None:
+    def _initialize(self, *args: Any, **kwargs: Any) -> None:
         """
         Uses to do some initialization work.
         It will be called when first environment is requested.
