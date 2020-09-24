@@ -15,7 +15,7 @@ class StartStop(BaseStartStop):
     def _restart(self, wait: bool = True) -> Any:
         return self._execute(wait, "begin_restart")
 
-    def _initialize(self) -> None:
+    def _initialize(self, *args: Any, **kwargs: Any) -> None:
         node_context = get_node_context(self._node)
         self._vm_name = node_context.vm_name
         self._resource_group_name = node_context.resource_group_name

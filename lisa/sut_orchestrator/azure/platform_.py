@@ -455,7 +455,7 @@ class AzurePlatform(Platform):
             else:
                 log.debug("not wait deleting")
 
-    def _initialize(self) -> None:
+    def _initialize(self, *args: Any, **kwargs: Any) -> None:
         # set needed environment variables for authentication
         azure_runbook = self._runbook.get_extended_runbook(AzurePlatformSchema)
         assert azure_runbook, "platform runbook cannot be empty"

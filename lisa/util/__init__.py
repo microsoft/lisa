@@ -21,18 +21,29 @@ class ContextMixin:
 
 
 class InitializableMixin:
+    """
+    This mixin uses to do one time but delay initilization work.
+
+    __init__ shouldn't do time costing work as most design recommendation. But
+    something may be done let an object works. _initialize uses to call for one time
+    initialization. If an object is initialized, it do nothing.
+    """
+
     def __init__(self) -> None:
         self._is_initialized: bool = False
 
     @abstractmethod
-    def _initialize(self) -> None:
+    def _initialize(self, *args: Any, **kwargs: Any) -> None:
         raise NotImplementedError()
 
-    def initialize(self) -> None:
+    def initialize(self, *args: Any, **kwargs: Any) -> None:
+        """
+        This is for caller, do not override it.
+        """
         if not self._is_initialized:
             try:
                 self._is_initialized = True
-                self._initialize()
+                self._initialize(*args, **kwargs)
             except Exception as identifier:
                 self._is_initialized = False
                 raise identifier

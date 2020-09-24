@@ -1,5 +1,6 @@
 import re
 from dataclasses import dataclass
+from typing import Any
 
 from lisa.executable import Tool
 from lisa.util import LisaException
@@ -20,7 +21,7 @@ class Uname(Tool):
         r"(?P<os>[\w\W]+?)$"
     )
 
-    def initialize(self) -> None:
+    def _initialize(self, *args: Any, **kwargs: Any) -> None:
         # uname's result suppose not be changed frequently,
         #  so cache it for performance.
         self.has_result: bool = False

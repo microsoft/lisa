@@ -3,7 +3,7 @@ from __future__ import annotations
 import pathlib
 from abc import ABC, abstractmethod
 from hashlib import sha256
-from typing import TYPE_CHECKING, Dict, List, Optional, Type, TypeVar, Union, cast
+from typing import TYPE_CHECKING, Any, Dict, List, Optional, Type, TypeVar, Union, cast
 
 from lisa.util import InitializableMixin, LisaException, constants
 from lisa.util.logger import get_logger
@@ -113,7 +113,7 @@ class Tool(ABC, InitializableMixin):
         """
         raise NotImplementedError()
 
-    def _initialize(self) -> None:
+    def _initialize(self, *args: Any, **kwargs: Any) -> None:
         """
         Declare and initialize variables here, or some time costing initialization.
         This method is called before other methods, when initialing on a node.

@@ -29,7 +29,7 @@ class Feature(InitializableMixin):
     def can_disable(cls) -> bool:
         raise NotImplementedError()
 
-    def _initialize(self) -> None:
+    def _initialize(self, *args: Any, **kwargs: Any) -> None:
         pass
 
 
