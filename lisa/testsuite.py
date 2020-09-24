@@ -387,7 +387,7 @@ class TestSuite(Action, metaclass=ABCMeta):
 
             if self._should_stop:
                 self.log.info("received stop message, stop run")
-                self.set_status(ActionStatus.STOPPED)
+                self.status = ActionStatus.STOPPED
                 break
 
         self.log = suite_log
@@ -400,7 +400,7 @@ class TestSuite(Action, metaclass=ABCMeta):
         self.log.debug(f"after_suite end with {timer}")
 
     async def stop(self) -> None:
-        self.set_status(ActionStatus.STOPPING)
+        self.status = ActionStatus.STOPPING
         self._should_stop = True
 
     async def close(self) -> None:

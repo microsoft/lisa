@@ -27,7 +27,7 @@ class LisaRunner(Action):
     async def start(self) -> None:  # noqa: C901
         # TODO: Reduce this function's complexity and remove the disabled warning.
         await super().start()
-        self.set_status(ActionStatus.RUNNING)
+        self.status = ActionStatus.RUNNING
 
         # select test cases
         selected_test_cases = select_testcases(self._runbook.testcase)
@@ -169,7 +169,7 @@ class LisaRunner(Action):
                 continue
             self._log.info(f"    {key.name:<9}: {count}")
 
-        self.set_status(ActionStatus.SUCCESS)
+        self.status = ActionStatus.SUCCESS
 
         # pass failed count to exit code
         self.exit_code = result_count_dict.get(TestStatus.FAILED, 0)

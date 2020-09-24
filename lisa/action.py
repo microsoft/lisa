@@ -47,7 +47,7 @@ class Action(metaclass=ABCMeta):
     @abstractmethod
     async def start(self) -> None:
         self.__is_started = True
-        self.set_status(ActionStatus.RUNNING)
+        self.status = ActionStatus.RUNNING
 
     @abstractmethod
     async def stop(self) -> None:
@@ -57,25 +57,28 @@ class Action(metaclass=ABCMeta):
     async def close(self) -> None:
         self.validate_started()
 
-    def get_status(self) -> ActionStatus:
+    @property
+    def status(self) -> ActionStatus:
+        """The Action's current state, for example, 'UNINITIALIZED'."""
         return self.__status
 
-    def set_status(self, status: ActionStatus) -> None:
-        if self.__status != status:
+    @status.setter
+    def status(self, value: ActionStatus) -> None:
+        if self.__status != value:
             self.log.debug(
                 f"{self.name} status changed from {self.__status.name} "
-                f"to {status.name} with {self.__timer}"
+                f"to {value.name} with {self.__timer}"
             )
             self.__total += self.__timer.elapsed()
             message = ActionMessage(
                 elapsed=self.__timer.elapsed(),
                 sub_type=self.name,
-                status=status,
+                status=value,
                 total_elapsed=self.__total,
             )
             notifier.notify(message=message)
             self.__timer = create_timer()
-        self.__status = status
+            self.__status = value
 
     def validate_started(self) -> None:
         if not self.__is_started:
