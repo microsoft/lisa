@@ -7,6 +7,9 @@
 # The L3 cache must be mapped to the socket for each of the NUMA nodes.
 # An incorrect mapping would be for the L3 cache to be assigned on per VM core.
 
+# Exception: https://t.ly/x8k3
+# if numa=off is defined in /proc/cmdline and kernel version is earlier than 2.6.37,
+# the test will be skipped.
 . utils.sh || {
     echo "unable to source utils.sh!"
     echo "TestAborted" > state.txt
@@ -17,6 +20,18 @@ UtilsInit
 
 if ! which lscpu; then
     install_package util-linux
+fi
+
+kj=$(uname -r | cut -d '-' -f 1 | cut -d '.' -f 1)
+kn=$(uname -r | cut -d '-' -f 1 | cut -d '.' -f 2)
+kr=$(uname -r | cut -d '-' -f 1 | cut -d '.' -f 3)
+if [[ $(cat /proc/cmdline | grep numa=off) ]]; then
+    LogMsg "Found numa=off in /proc/cmdline. Checking the kernel version."
+    if [[ $kj -le 2 && $kn -le 6 && $kr -le 37 ]]; then
+        LogErr "This kernel has numa=off in boot parameter and its kernel version is earlier than 2.6.37. No support for NUMA setting. https://t.ly/x8k3"
+        SetTestStateSkipped
+        exit 0
+    fi
 fi
 
 lscpu --extended=cpu,node,socket,cache > lscpu.log
