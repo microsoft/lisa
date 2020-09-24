@@ -27,10 +27,10 @@ CheckSource()
 {
 	current_clocksource="/sys/devices/system/clocksource/clocksource0/current_clocksource"
 
-	# Microsoft LIS installed version has lis_hv_clocksource_tsc_page
-	# Without Microsoft LIS, hv_clocksource_tsc_page
+	# Microsoft LIS installed version has lis_hyperv_clocksource_tsc_page
+	# Without Microsoft LIS, hyperv_clocksource_tsc_page
 	# CentOS 6.8 or older versions, hyperv_clocksource
-	clocksource="hv_clocksource_tsc_page"
+	clocksource="hyperv_clocksource_tsc_page"
 	mj=$(echo "$DISTRO_VERSION" | cut -d '.' -f 1)
 	mn=$(echo "$DISTRO_VERSION" | cut -d '.' -f 2)
 	if [[ $DISTRO_NAME == "centos" || $DISTRO_NAME == "rhel" ]] && [[ $mj -lt 7 && $mn -lt 9 ]]; then
