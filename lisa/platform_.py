@@ -68,9 +68,6 @@ class Platform(ABC, InitializableMixin):
     def _delete_environment(self, environment: Environment, log: Logger) -> None:
         raise NotImplementedError()
 
-    def _config(self, key: str, value: object) -> None:
-        pass
-
     def _initialize(self) -> None:
         """
         Uses to do some initialization work.
@@ -82,7 +79,6 @@ class Platform(ABC, InitializableMixin):
         if key == constants.CONFIG_RUNBOOK:
             # store platform runbook.
             self._runbook: schema.Platform = value
-        self._config(key, value)
 
     def prepare_environments(self, environments: Environments) -> List[Environment]:
         """

@@ -1,4 +1,4 @@
-from typing import Any, Dict, List, Optional
+from typing import Dict, List, Optional
 
 from lisa import schema, search_space
 from lisa.action import Action, ActionStatus
@@ -13,20 +13,16 @@ from lisa.testsuite import (
     TestSuite,
     TestSuiteMetadata,
 )
-from lisa.util import constants
 from lisa.util.logger import get_logger
 
 
 class LisaRunner(Action):
-    def __init__(self) -> None:
+    def __init__(self, runbook: schema.Runbook) -> None:
         super().__init__()
         self.exitCode = None
 
+        self._runbook = runbook
         self._log = get_logger("runner")
-
-    def config(self, key: str, value: Any) -> None:
-        if key == constants.CONFIG_RUNBOOK:
-            self._runbook: schema.Runbook = value
 
     async def start(self) -> None:  # noqa: C901
         # TODO: Reduce this function's complexity and remove the disabled warning.
