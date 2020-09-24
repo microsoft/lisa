@@ -27,13 +27,13 @@ jobs:
       - name: Install Poetry for Linux
         if: runner.os == 'Linux'
         run: |
-          curl -sSL https://raw.githubusercontent.com/python-poetry/poetry/master/get-poetry.py | python - --preview --version 1.1.0b2
+          curl -sSL https://raw.githubusercontent.com/python-poetry/poetry/master/get-poetry.py | python - --preview --version 1.1.0b4
           echo "::add-path::$HOME/.poetry/bin"
 
       - name: Install Poetry for Windows
         if: runner.os == 'Windows'
         run: |
-          (Invoke-WebRequest -Uri https://raw.githubusercontent.com/python-poetry/poetry/master/get-poetry.py -UseBasicParsing).Content | python - --preview --version 1.1.0b2
+          (Invoke-WebRequest -Uri https://raw.githubusercontent.com/python-poetry/poetry/master/get-poetry.py -UseBasicParsing).Content | python - --preview --version 1.1.0b4
           echo "::add-path::$env:USERPROFILE\.poetry\bin"
 
       - name: Install Python dependencies
