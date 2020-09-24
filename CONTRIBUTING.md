@@ -19,8 +19,11 @@ short summary of the most important parts:
   such as `id_`.
 * Always use `self` for the first argument to instance methods.
 * Always use `cls` for the first argument to class methods.
-* Use one leading underscore only for non-public methods and instance variables,
-  such as `_data`.
+* One leading underscore like `_data` is for non-public methods and instance
+  variables. And it can be used by sub-classes. If it won't be used in
+  sub-classes, use like `__data`.
+* If there is a pair of `get_x` and `set_x` methods, they should instead be a
+  proper property, which is easy to do with the built-in `@property` decorator.
 * Constants should be `CAPITALIZED_SNAKE_CASE`.
 * When importing a function, try to avoid renaming it with `import as` because
   it introduces cognitive overhead to track yet another name.
