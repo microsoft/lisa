@@ -39,15 +39,15 @@ class Action(metaclass=ABCMeta):
         self.name: str = self.__class__.__name__
         self.log = get_logger("Action")
 
-        self.__status = ActionStatus.UNINITIALIZED
-        self.__is_started = False
-        self.__timer = create_timer()
-        self.__total: float = 0
+        self._status = ActionStatus.UNINITIALIZED
+        self._is_started = False
+        self._timer = create_timer()
+        self._total: float = 0
 
     @abstractmethod
     async def start(self) -> None:
-        self.__is_started = True
-        self.set_status(ActionStatus.RUNNING)
+        self._is_started = True
+        self.status = ActionStatus.RUNNING
 
     @abstractmethod
     async def stop(self) -> None:
@@ -57,26 +57,29 @@ class Action(metaclass=ABCMeta):
     async def close(self) -> None:
         self.validate_started()
 
-    def get_status(self) -> ActionStatus:
-        return self.__status
+    @property
+    def status(self) -> ActionStatus:
+        """The Action's current state, for example, 'UNINITIALIZED'."""
+        return self._status
 
-    def set_status(self, status: ActionStatus) -> None:
-        if self.__status != status:
+    @status.setter
+    def status(self, value: ActionStatus) -> None:
+        if self._status != value:
             self.log.debug(
-                f"{self.name} status changed from {self.__status.name} "
-                f"to {status.name} with {self.__timer}"
+                f"{self.name} status changed from {self._status.name} "
+                f"to {value.name} with {self._timer}"
             )
-            self.__total += self.__timer.elapsed()
+            self._total += self._timer.elapsed()
             message = ActionMessage(
-                elapsed=self.__timer.elapsed(),
+                elapsed=self._timer.elapsed(),
                 sub_type=self.name,
-                status=status,
-                total_elapsed=self.__total,
+                status=value,
+                total_elapsed=self._total,
             )
             notifier.notify(message=message)
-            self.__timer = create_timer()
-        self.__status = status
+            self._timer = create_timer()
+            self._status = value
 
     def validate_started(self) -> None:
-        if not self.__is_started:
+        if not self._is_started:
             raise LisaException(f"action[{self.name}] is not started yet.")
