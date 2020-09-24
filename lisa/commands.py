@@ -16,8 +16,7 @@ _get_init_logger = functools.partial(get_logger, "init")
 def run(args: Namespace) -> None:
     runbook = load_runbook(args)
 
-    runner = LisaRunner()
-    runner.config(constants.CONFIG_RUNBOOK, runbook)
+    runner = LisaRunner(runbook)
     awaitable = runner.start()
     asyncio.run(awaitable)
 

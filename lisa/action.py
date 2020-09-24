@@ -33,9 +33,6 @@ class Action(metaclass=ABCMeta):
         self.__is_started = False
         self.__timer = create_timer()
 
-    def config(self, key: str, value: object) -> None:
-        pass
-
     @abstractmethod
     async def start(self) -> None:
         self.__is_started = True
@@ -48,10 +45,6 @@ class Action(metaclass=ABCMeta):
     @abstractmethod
     async def close(self) -> None:
         self.validate_started()
-
-    @property
-    def prerequisites(self) -> None:
-        return None
 
     def get_status(self) -> ActionStatus:
         return self.__status
