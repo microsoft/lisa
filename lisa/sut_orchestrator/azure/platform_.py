@@ -741,7 +741,7 @@ class AzurePlatform(Platform):
                 errors.extend(self._parse_detail_errors(detail))
         else:
             try:
-                # it returns json string in message sometime
+                # it returns serialized json string in message sometime
                 parsed_error = json.loads(
                     error.message, object_hook=lambda x: SimpleNamespace(**x)
                 )
