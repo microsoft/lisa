@@ -221,7 +221,7 @@ class Environments(EnvironmentsDict):
         assert runbook
         assert name
         env: Optional[Environment] = None
-        if self.allow_create:
+        if is_original_runbook or self.allow_create:
             # make a copy, so that modification on env won't impact test case
             copied_runbook = copy.copy(runbook)
             copied_runbook.name = name
