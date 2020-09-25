@@ -39,7 +39,7 @@ function verify_vmbus_interrupts() {
     # It is not mandatory to have the Hyper-V interrupts present
     # Skip test execution if these are not showing up
     #
-    if ! [[ $(grep 'hyperv\|Hypervisor' /proc/interrupts) ]]; then
+    if ! [[ $(grep -q 'hyperv\|Hypervisor' /proc/interrupts) ]]; then
         UpdateSummary "Hyper-V interrupts are not recorded, abort test."
         SetTestStateAborted
         exit 0
@@ -48,12 +48,12 @@ function verify_vmbus_interrupts() {
     #
     # Verify if VMBUS interrupts are processed by all CPUs
     #
-    while read line
+    while read -r line
     do
         if [[ ($line = *hyperv* ) || ( $line = *Hypervisor* ) ]]; then
-            for (( core=0; core<=$cpu_count-1; core++ ))
+            for (( core=0; core<=${cpu_count-1}; core++ ))
             do
-                intrCount=$(echo "$line" | xargs echo |cut -f $(( $core+2 )) -d ' ')
+                intrCount=$(echo "$line" | xargs echo | cut -f $(( ${core+2} )) -d ' ')
                 if [ "$intrCount" -ne 0 ]; then
                     (( nonCPU0inter++ ))
                     UpdateSummary "CPU core ${core} is processing VMBUS interrupts."
@@ -62,7 +62,7 @@ function verify_vmbus_interrupts() {
         fi
     done < "/proc/interrupts"
 
-    if [ $nonCPU0inter -eq 0 ]; then
+    if [[ $nonCPU0inter -eq 0 ]]; then
         LogErr "No CPU core is processing VMBUS interrupts!"
         SetTestStateFailed
         exit 0
