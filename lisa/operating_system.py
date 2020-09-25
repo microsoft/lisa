@@ -31,14 +31,24 @@ class OperatingSystem:
             lsb_output = typed_node.execute("lsb_release -d")
             if lsb_output.stdout:
                 os_info = cls.__lsb_release_pattern.findall(lsb_output.stdout)
-                if os_info and os_info[0] == "Ubuntu":
-                    result = Ubuntu(typed_node)
+                if os_info:
+                    if os_info[0] == "Ubuntu":
+                        result = Ubuntu(typed_node)
+                    elif os_info[0] == "Debian":
+                        result = Debian(typed_node)
             if not result:
                 os_release_output = typed_node.execute("cat /etc/os-release")
                 if os_release_output.stdout:
                     os_info = cls.__os_release_pattern.findall(os_release_output.stdout)
-                    if os_info and os_info[0] == "CentOS":
-                        result = CentOs(typed_node)
+                    if os_info:
+                        if os_info[0] == "CentOS":
+                            result = CentOs(typed_node)
+                        elif os_info[0] == "RHEL":
+                            result = Redhat(typed_node)
+                        elif os_info[0] == "SLES":
+                            result = Suse(typed_node)
+                        elif os_info[0] == "Oracle":
+                            result = Oracle(typed_node)
             if not result:
                 raise LisaException(
                     f"unknown linux distro {lsb_output.stdout}\n"
@@ -67,7 +77,7 @@ class Windows(OperatingSystem):
 class Linux(OperatingSystem):
     def __init__(self, node: Any) -> None:
         super().__init__(node, is_linux=True)
-        self.__first_time_installation: bool = True
+        self._first_time_installation: bool = True
 
     def _install_packages(self, packages: Union[List[str]]) -> None:
         raise NotImplementedError()
@@ -95,16 +105,13 @@ class Linux(OperatingSystem):
                 # So they can be installed together.
                 tool = item.create(self._node)
                 package_names.append(tool.package_name)
-        if self.__first_time_installation:
-            self.__first_time_installation = False
+        if self._first_time_installation:
+            self._first_time_installation = False
             self._initialize_package_installation()
         self._install_packages(package_names)
 
 
 class Ubuntu(Linux):
-    def __init__(self, node: Any) -> None:
-        super().__init__(node)
-
     def _initialize_package_installation(self) -> None:
         self._node.execute("sudo apt-get update")
 
@@ -116,12 +123,29 @@ class Ubuntu(Linux):
         self._node.execute(command)
 
 
-class CentOs(Linux):
-    def __init__(self, node: Any) -> None:
-        super().__init__(node)
-        self._first_time: bool = True
+class Debian(Ubuntu):
+    pass
 
+
+class Redhat(Linux):
     def _install_packages(self, packages: Union[List[str]]) -> None:
         self._node.execute(
             f"sudo DEBIAN_FRONTEND=noninteractive yum install -y {' '.join(packages)}"
         )
+
+
+class CentOs(Redhat):
+    pass
+
+
+class Oracle(Redhat):
+    pass
+
+
+class Suse(Linux):
+    def _initialize_package_installation(self) -> None:
+        self._node.execute("zypper --non-interactive --gpg-auto-import-keys update")
+
+    def _install_packages(self, packages: Union[List[str]]) -> None:
+        command = f"sudo zypper --non-interactive in  {' '.join(packages)}"
+        self._node.execute(command)
