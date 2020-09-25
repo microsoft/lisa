@@ -58,6 +58,7 @@ class Tool(ABC, InitializableMixin):
         self.node: Node = node
         # triple states, None means not checked.
         self._exists: Optional[bool] = None
+        self._log = get_logger("tool", self.name, self.node.log)
 
     @property
     @abstractmethod
