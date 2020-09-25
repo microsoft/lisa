@@ -120,6 +120,7 @@ class AzureArmParameter:
     admin_username: str = ""
     admin_password: str = ""
     admin_key_data: str = ""
+    availability_set_tags: Dict[str, str] = field(default_factory=dict)
     nodes: List[AzureNodeSchema] = field(default_factory=list)
 
     def __post_init__(self, *args: Any, **kwargs: Any) -> None:
@@ -155,6 +156,7 @@ class AzurePlatformSchema:
     )
 
     resource_group_name: str = field(default="")
+    availability_set_tags: Optional[Dict[str, str]] = field(default=None)
     locations: Optional[Union[str, List[str]]] = field(default=None)
 
     log_level: str = field(
@@ -619,6 +621,10 @@ class AzurePlatform(Platform):
             arm_parameters.admin_password = self._runbook.admin_password
         assert self._azure_runbook
 
+        if self._azure_runbook.availability_set_tags:
+            arm_parameters.availability_set_tags.update(
+                self._azure_runbook.availability_set_tags
+            )
         environment_context = get_environment_context(environment=environment)
         nodes_parameters: List[AzureNodeSchema] = []
         for node_space in environment.runbook.nodes_requirement:
