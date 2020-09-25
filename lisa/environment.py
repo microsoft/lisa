@@ -111,7 +111,6 @@ class Environment(ContextMixin, InitializableMixin):
         self.cost: int = 0
         # original runbook or generated from test case which this environment supports
         self.runbook: schema.Environment
-        self._capability: Optional[EnvironmentSpace] = None
         self.warn_as_error = warn_as_error
         self._default_node: Optional[Node] = None
         self._log = get_logger("env", self.name)
@@ -120,7 +119,6 @@ class Environment(ContextMixin, InitializableMixin):
         if not self.is_ready:
             raise LisaException("environment is not ready, cannot be initialized")
         # environment is ready, refresh latest capability
-        self._capability = None
         self.nodes.initialize()
 
     @classmethod
@@ -162,15 +160,12 @@ class Environment(ContextMixin, InitializableMixin):
 
     @property
     def capability(self) -> EnvironmentSpace:
-        # merge existing node to capability
-        if self._capability is None:
-            result = EnvironmentSpace(topology=self.runbook.topology)
-            for node in self.nodes.list():
-                result.nodes.append(node.capability)
-            if not self.is_ready and self.runbook.nodes_requirement:
-                result.nodes.extend(self.runbook.nodes_requirement)
-            self._capability = result
-        return self._capability
+        result = EnvironmentSpace(topology=self.runbook.topology)
+        for node in self.nodes.list():
+            result.nodes.append(node.capability)
+        if not self.is_ready and self.runbook.nodes_requirement:
+            result.nodes.extend(self.runbook.nodes_requirement)
+        return result
 
     def __validate_single_default(
         self, has_default: bool, is_default: Optional[bool]
