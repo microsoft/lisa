@@ -6,6 +6,7 @@ from dataclasses import dataclass, field
 from datetime import datetime
 from functools import lru_cache
 from pathlib import Path
+from types import SimpleNamespace
 from typing import Any, Dict, List, Optional, Type, Union
 
 from azure.core.exceptions import HttpResponseError
@@ -701,20 +702,14 @@ class AzurePlatform(Platform):
                 # validate_operation returned, it means deployments created
                 # successfuly. so check errors from deployments by name.
                 deployment = deployments.get(resource_group_name, AZURE_DEPLOYMENT_NAME)
-                # log more details for troubleshooting
                 if deployment.properties.provisioning_state == "Failed":
-                    if deployment.properties.error.details:
-                        error_messages = [
-                            f"{x.code}, {x.message}"
-                            for x in deployment.properties.error.details
-                        ]
+                    error_messages = self._parse_detail_errors(
+                        deployment.properties.error
+                    )
             elif isinstance(identifier, HttpResponseError) and identifier.error:
                 # no validate_operation returned, the message may include
                 # some errors, so check details
-                if identifier.error.details:
-                    error_messages = [
-                        f"{x.code}, {x.message}" for x in identifier.error.details
-                    ]
+                error_messages = self._parse_detail_errors(identifier.error)
 
             raise LisaException("\n".join(error_messages))
 
@@ -735,11 +730,26 @@ class AzurePlatform(Platform):
                 raise LisaException(f"deploy failed: {result}")
         except HttpResponseError as identifier:
             assert identifier.error
-            error_messages = [
-                f"{x.code}, {x.message}" for x in identifier.error.details
-            ]
-            # original message may not be friendly, refine it.
+            error_messages = self._parse_detail_errors(identifier.error)
             raise LisaException("\n".join(error_messages))
+
+    def _parse_detail_errors(self, error: Any) -> List[str]:
+        # original message may be a summary, get lowest level details.
+        if hasattr(error, "details") and error.details:
+            errors: List[str] = []
+            for detail in error.details:
+                errors.extend(self._parse_detail_errors(detail))
+        else:
+            try:
+                # it returns json string in message sometime
+                parsed_error = json.loads(
+                    error.message, object_hook=lambda x: SimpleNamespace(**x)
+                )
+                errors = self._parse_detail_errors(parsed_error.error)
+            except Exception:
+                # load failed, it should be a real error message string
+                errors = [f"{error.code}: {error.message}"]
+        return errors
 
     def _initialize_nodes(self, environment: Environment) -> None:
 
