@@ -9,6 +9,10 @@ PATTERN_HEADTAIL = (
     re.compile(r"^([\w])[\W\w]+([\w])$"),
     r"\1****\2",
 )
+PATTERN_FILENAME = (
+    re.compile(r"^[^.]*?[\\/]?(.)[^\\/]*?(.[.]?[^.]*)$"),
+    r"\1***\2",
+)
 
 patterns = {"guid": PATTERN_GUID, "headtail": PATTERN_HEADTAIL}
 
