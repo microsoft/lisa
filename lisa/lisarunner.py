@@ -219,17 +219,6 @@ class LisaRunner(Action):
                 # if case need a new env to run, force to create one.
                 # if not, get or create one.
                 if test_result.runtime_data.use_new_environment:
-                    environment = existing_environments.from_requirement(
-                        test_req.environment
-                    )
+                    existing_environments.from_requirement(test_req.environment)
                 else:
-                    environment = existing_environments.get_or_create(
-                        test_req.environment
-                    )
-
-                if environment is None:
-                    test_result.set_status(
-                        TestStatus.SKIPPED,
-                        "not found fit environment, "
-                        "and not allow to create new environment",
-                    )
+                    existing_environments.get_or_create(test_req.environment)

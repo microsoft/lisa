@@ -134,7 +134,7 @@ class LisaRunnerTestCase(TestCase):
 
     def test_merge_req_not_allow_create(self) -> None:
         # force to use existing env, not to create new.
-        # this case doesn't provide predefined env, so all cases skipped.
+        # this case doesn't provide predefined env, but no case skipped on this stage.
         env_runbook = generate_env_runbook(is_single_env=False)
         env_runbook.allow_create = False
         envs = load_environments(env_runbook)
@@ -154,21 +154,14 @@ class LisaRunnerTestCase(TestCase):
             [x for x in envs],
         )
 
-        not_allow_new_message = (
-            "not found fit environment, and not allow to create new environment"
-        )
         self.verify_test_results(
             expected_envs=["", "", ""],
             expected_status=[
-                TestStatus.SKIPPED,
-                TestStatus.SKIPPED,
-                TestStatus.SKIPPED,
+                TestStatus.NOTRUN,
+                TestStatus.NOTRUN,
+                TestStatus.NOTRUN,
             ],
-            expected_message=[
-                not_allow_new_message,
-                not_allow_new_message,
-                not_allow_new_message,
-            ],
+            expected_message=["", "", ""],
             test_results=test_results,
         )
 
