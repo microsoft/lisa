@@ -517,12 +517,12 @@ class NodeSpace(search_space.RequirementMixin, ExtendableSchemaMixin):
         else:
             min_value.gpu_count = 0
 
-        if self.features:
+        if capability.features:
             min_value.features = search_space.SetSpace[str](is_allow_set=True)
-            min_value.features.update(self.features)
-        if self.excluded_features:
+            min_value.features.update(capability.features)
+        if capability.excluded_features:
             min_value.excluded_features = search_space.SetSpace[str](is_allow_set=False)
-            min_value.excluded_features.update(self.excluded_features)
+            min_value.excluded_features.update(capability.excluded_features)
         return min_value
 
 
