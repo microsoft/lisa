@@ -84,11 +84,12 @@ def load_from_file(
         secret.add_secret(file_name)
 
     path = constants.RUNBOOK_PATH.joinpath(file_name)
-    if not path.exists:
-        raise FileNotFoundError(path)
 
     if path.suffix.lower() not in [".yaml", ".yml"]:
         raise LisaException("variable support only yaml and yml")
+
+    if not path.exists():
+        raise FileNotFoundError(f"cannot find variable file: {path}")
 
     with open(path, "r") as fp:
         raw_variables = yaml.safe_load(fp)
