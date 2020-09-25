@@ -134,10 +134,12 @@ class Process:
                 proces_result.return_code,
                 self._timer.elapsed(),
             )
+            # cache for future queries, in case it's queried twice.
+            self._process = result
         else:
             result = self._process
 
-        self._log.debug(f"executed with {self._timer}")
+        self._log.debug(f"waited with {self._timer}")
         return result
 
     def kill(self) -> None:
