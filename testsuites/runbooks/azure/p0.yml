@@ -1,0 +1,21 @@
+name: azure p0
+extension:
+  paths:
+    - "../../basic"
+variable:
+  - file: secret.yml
+    isSecret: true
+environment:
+  maxConcurrency: 1
+  warnAsError: false
+platform:
+  - type: azure
+    adminPrivateKeyFile: $(adminPrivateKeyFile)
+    azure:
+      servicePrincipalTenantId: $(servicePrincipalTenantId)
+      servicePrincipalClientId: $(servicePrincipalClientId)
+      servicePrincipalKey: $(servicePrincipalKey)
+      subscriptionId: $(subscriptionId)
+testcase:
+  - criteria:
+      priority: 0
