@@ -342,12 +342,6 @@
                             }
                         }
                     ]
-                },
-                "diagnosticsProfile": {
-                    "bootDiagnostics": {
-                        "enabled": true,
-                        "storageUri": "[reference(resourceId('default-storage-westus2', 'Microsoft.Storage/storageAccounts', 'lisav2westus2'), '2015-06-15').primaryEndpoints['blob']]"
-                    }
                 }
             }
         }
