@@ -39,7 +39,7 @@ function verify_vmbus_interrupts() {
     # It is not mandatory to have the Hyper-V interrupts present
     # Skip test execution if these are not showing up
     #
-    if ! [[ $(grep -q 'hyperv\|Hypervisor' /proc/interrupts) ]]; then
+    if ! [[ $(grep 'hyperv\|Hypervisor' /proc/interrupts) ]]; then
         UpdateSummary "Hyper-V interrupts are not recorded, abort test."
         SetTestStateAborted
         exit 0
