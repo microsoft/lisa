@@ -53,7 +53,7 @@ function verify_vmbus_interrupts() {
         if [[ ($line = *hyperv* ) || ( $line = *Hypervisor* ) ]]; then
             for (( core=0; core<=${cpu_count-1}; core++ ))
             do
-                intrCount=$(echo "$line" | xargs echo | cut -f $(( ${core+2} )) -d ' ')
+                intrCount=$(echo "$line" | xargs echo | cut -f $(( $core+2 )) -d ' ')
                 if [ "$intrCount" -ne 0 ]; then
                     (( nonCPU0inter++ ))
                     UpdateSummary "CPU core ${core} is processing VMBUS interrupts."
