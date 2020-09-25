@@ -30,7 +30,7 @@ def replace_variables(data: Any, variables: Dict[str, Any]) -> Any:
                 data = variables[lower_variable_name]
             else:
                 raise LisaException(
-                    f"cannot find variable {variable_name}, make sure it's defined"
+                    f"cannot find variable '{variable_name}', make sure it's defined"
                 )
 
     return data
@@ -81,7 +81,7 @@ def load_from_file(
     is_secret: bool = False,
 ) -> None:
     if is_secret:
-        secret.add_secret(file_name)
+        secret.add_secret(file_name, secret.PATTERN_FILENAME)
 
     path = constants.RUNBOOK_PATH.joinpath(file_name)
 
