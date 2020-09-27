@@ -40,15 +40,9 @@
         }
     },
     "variables": {
-        "nodes": "[parameters('nodes')]",
         "nodeCount": "[length(parameters('nodes'))]",
-        "location": "[parameters('location')]",
         "resourceGroupName": "[resourceGroup().name]",
         "publicIPv4AddressName": "lisa-publicIPv4Address",
-        "adminUserName": "[parameters('adminUserName')]",
-        "adminPassword": "[parameters('adminPassword')]",
-        "adminKeyData": "[parameters('adminKeyData')]",
-        "availabilitySetTags": "[parameters('availabilitySetTags')]",
         "virtualNetworkName": "lisa-virtualNetwork",
         "defaultSubnet": "lisa-subnetForPrimaryNIC",
         "availabilitySetName": "lisa-availabilitySet",
@@ -63,8 +57,8 @@
             "apiVersion": "2019-07-01",
             "type": "Microsoft.Compute/availabilitySets",
             "name": "[variables('availabilitySetName')]",
-            "location": "[variables('location')]",
-            "tags": "[variables('availabilitySetTags')]",
+            "location": "[parameters('location')]",
+            "tags": "[parameters('availabilitySetTags')]",
             "sku": {
                 "name": "Aligned"
             },
@@ -77,7 +71,7 @@
             "apiVersion": "2020-05-01",
             "type": "Microsoft.Network/loadBalancers",
             "name": "[variables('lbName')]",
-            "location": "[variables('location')]",
+            "location": "[parameters('location')]",
             "dependsOn": [
                 "[resourceId('Microsoft.Network/publicIPAddresses/', variables('publicIPv4AddressName'))]"
             ],
@@ -102,7 +96,7 @@
                         "name": "inboundNatRules",
                         "count": "[variables('nodeCount')]",
                         "input": {
-                            "name": "[concat(variables('nodes')[copyIndex('inboundNatRules')]['name'], '-ssh')]",
+                            "name": "[concat(parameters('nodes')[copyIndex('inboundNatRules')]['name'], '-ssh')]",
                             "properties": {
                                 "frontendIPConfiguration": {
                                     "id": "[variables('frontEndIPv4ConfigID')]"
@@ -120,7 +114,7 @@
         {
             "apiVersion": "2020-05-01",
             "type": "Microsoft.Network/publicIPAddresses",
-            "location": "[variables('location')]",
+            "location": "[parameters('location')]",
             "name": "[variables('publicIPv4AddressName')]",
             "properties": {
                 "publicIPAllocationMethod": "Dynamic"
@@ -130,7 +124,7 @@
             "apiVersion": "2020-05-01",
             "type": "Microsoft.Network/virtualNetworks",
             "name": "[variables('virtualNetworkName')]",
-            "location": "[variables('location')]",
+            "location": "[parameters('location')]",
             "properties": {
                 "addressSpace": {
                     "addressPrefixes": [
@@ -154,7 +148,7 @@
                 "name": "vmCopy",
                 "count": "[variables('nodeCount')]"
             },
-            "name": "[concat(variables('nodes')[copyIndex('vmCopy')]['name'],'-networkInterfaces')]",
+            "name": "[concat(parameters('nodes')[copyIndex('vmCopy')]['name'],'-networkInterfaces')]",
             "dependsOn": [
                 "[resourceId('Microsoft.Network/publicIPAddresses/', variables('publicIPv4AddressName'))]",
                 "[variables('vnetId')]",
@@ -166,13 +160,13 @@
                 },
                 "parameters": {
                     "vmName": {
-                        "value": "[variables('nodes')[copyIndex('vmCopy')]['name']]"
+                        "value": "[parameters('nodes')[copyIndex('vmCopy')]['name']]"
                     },
                     "nicCount": {
-                        "value": "[variables('nodes')[copyIndex('vmCopy')]['nicCount']]"
+                        "value": "[parameters('nodes')[copyIndex('vmCopy')]['nicCount']]"
                     },
                     "location": {
-                        "value": "[variables('location')]"
+                        "value": "[parameters('location')]"
                     },
                     "lbId": {
                         "value": "[variables('lbId')]"
@@ -283,15 +277,15 @@
                 "name": "imageCopy",
                 "count": "[variables('nodeCount')]"
             },
-            "condition": "[not(empty(variables('nodes')[copyIndex('imageCopy')]['vhd']))]",
-            "name": "[concat(variables('nodes')[copyIndex('imageCopy')]['name'], '-image')]",
-            "location": "[variables('location')]",
+            "condition": "[not(empty(parameters('nodes')[copyIndex('imageCopy')]['vhd']))]",
+            "name": "[concat(parameters('nodes')[copyIndex('imageCopy')]['name'], '-image')]",
+            "location": "[parameters('location')]",
             "properties": {
                 "storageProfile": {
                     "osDisk": {
                         "osType": "Linux",
                         "osState": "Generalized",
-                        "blobUri": "[variables('nodes')[copyIndex('imageCopy')]['vhd']]",
+                        "blobUri": "[parameters('nodes')[copyIndex('imageCopy')]['vhd']]",
                         "storageAccountType": "Standard_LRS"
                     }
                 },
@@ -305,31 +299,31 @@
                 "name": "vmCopy",
                 "count": "[variables('nodeCount')]"
             },
-            "name": "[variables('nodes')[copyIndex('vmCopy')]['name']]",
-            "location": "[variables('location')]",
+            "name": "[parameters('nodes')[copyIndex('vmCopy')]['name']]",
+            "location": "[parameters('location')]",
             "tags": { "RG": "[variables('resourceGroupName')]" },
             "dependsOn": [
                 "[resourceId('Microsoft.Compute/availabilitySets', variables('availabilitySetName'))]",
-                "[resourceId('Microsoft.Compute/images', concat(variables('nodes')[copyIndex('vmCopy')]['name'], '-image'))]",
-                "[concat(variables('nodes')[copyIndex('vmCopy')]['name'],'-networkInterfaces')]"
+                "[resourceId('Microsoft.Compute/images', concat(parameters('nodes')[copyIndex('vmCopy')]['name'], '-image'))]",
+                "[concat(parameters('nodes')[copyIndex('vmCopy')]['name'],'-networkInterfaces')]"
             ],
             "properties": {
                 "availabilitySet": {
                     "id": "[resourceId('Microsoft.Compute/availabilitySets',variables('availabilitySetName'))]"
                 },
                 "hardwareProfile": {
-                    "vmSize": "[variables('nodes')[copyIndex('vmCopy')]['vmSize']]"
+                    "vmSize": "[parameters('nodes')[copyIndex('vmCopy')]['vmSize']]"
                 },
                 "osProfile": {
-                    "computername": "[variables('nodes')[copyIndex('vmCopy')]['name']]",
-                    "adminUsername": "[variables('adminUserName')]",
-                    "adminPassword": "[if(empty(variables('adminKeyData')), variables('adminPassword'), json('null'))]",
-                    "linuxConfiguration": "[if(empty(variables('adminKeyData')), json('null'), lisa.getLinuxConfiguration(concat('/home/', variables('adminUserName'), '/.ssh/authorized_keys'), variables('adminKeyData')))]"
+                    "computername": "[parameters('nodes')[copyIndex('vmCopy')]['name']]",
+                    "adminUsername": "[parameters('adminUserName')]",
+                    "adminPassword": "[if(empty(parameters('adminKeyData')), parameters('adminPassword'), json('null'))]",
+                    "linuxConfiguration": "[if(empty(parameters('adminKeyData')), json('null'), lisa.getLinuxConfiguration(concat('/home/', parameters('adminUserName'), '/.ssh/authorized_keys'), parameters('adminKeyData')))]"
                 },
                 "storageProfile": {
-                    "imageReference": "[if(not(empty(variables('nodes')[copyIndex('vmCopy')]['vhd'])), lisa.getOsDiskVhd(variables('nodes')[copyIndex('vmCopy')]['name']), lisa.getOsDiskGallery(variables('nodes')[copyIndex('vmCopy')]))]",
+                    "imageReference": "[if(not(empty(parameters('nodes')[copyIndex('vmCopy')]['vhd'])), lisa.getOsDiskVhd(parameters('nodes')[copyIndex('vmCopy')]['name']), lisa.getOsDiskGallery(parameters('nodes')[copyIndex('vmCopy')]))]",
                     "osDisk": {
-                        "name": "[concat(variables('nodes')[copyIndex('vmCopy')]['name'], '-osDisk')]",
+                        "name": "[concat(parameters('nodes')[copyIndex('vmCopy')]['name'], '-osDisk')]",
                         "managedDisk": {
                             "storageAccountType": "Standard_LRS"
                         },
@@ -341,9 +335,9 @@
                     "copy": [
                         {
                             "name": "networkInterfaces",
-                            "count": "[variables('nodes')[copyIndex('vmCopy')]['nicCount']]",
+                            "count": "[parameters('nodes')[copyIndex('vmCopy')]['nicCount']]",
                             "input": {
-                                "id": "[resourceId('Microsoft.Network/networkInterfaces', concat(variables('nodes')[copyIndex('vmCopy')]['name'], '-nic-', copyIndex('networkInterfaces')))]",
+                                "id": "[resourceId('Microsoft.Network/networkInterfaces', concat(parameters('nodes')[copyIndex('vmCopy')]['name'], '-nic-', copyIndex('networkInterfaces')))]",
                                 "properties": {
                                     "primary": "[if(equals(copyIndex('networkInterfaces'),0), json('true'), json('false'))]"
                                 }
