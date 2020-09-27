@@ -30,9 +30,6 @@ def _load_data(path: Path) -> Any:
 
     log = _get_init_logger()
     log.info(f"load runbook from: {path}")
-    if not path.exists():
-        raise FileNotFoundError(path)
-
     with open(path, "r") as file:
         data = yaml.safe_load(file)
 
