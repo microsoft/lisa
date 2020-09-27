@@ -776,6 +776,9 @@ class TestCase:
 class Runbook:
     # run name prefix to help grouping results and put it in title.
     name: str = "not_named"
+    test_project: str = ""
+    test_pass: str = ""
+    tags: Optional[List[str]] = None
     parent: Optional[List[Parent]] = field(default=None)
     extension: Optional[Extension] = field(default=None)
     variable: Optional[List[Variable]] = field(default=None)
