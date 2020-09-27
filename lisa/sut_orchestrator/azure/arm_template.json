@@ -37,6 +37,12 @@
             "metadata": {
                 "description": "tags of availability set"
             }
+        },
+        "availabilitySetProperties": {
+            "type": "object",
+            "metadata": {
+                "description": "properties of availability set"
+            }
         }
     },
     "variables": {
@@ -62,10 +68,7 @@
             "sku": {
                 "name": "Aligned"
             },
-            "properties": {
-                "platformFaultDomainCount": 2,
-                "platformUpdateDomainCount": 5
-            }
+            "properties": "[parameters('availabilitySetProperties')]"
         },
         {
             "apiVersion": "2020-05-01",
