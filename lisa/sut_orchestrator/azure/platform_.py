@@ -33,7 +33,7 @@ from lisa.feature import Feature
 from lisa.node import Node
 from lisa.platform_ import Platform
 from lisa.secret import PATTERN_GUID, PATTERN_HEADTAIL, add_secret
-from lisa.util import LisaException, constants, get_public_key_data
+from lisa.util import LisaException, constants, get_public_key_data, set_filtered_fields
 from lisa.util.logger import Logger
 
 from . import features
@@ -121,12 +121,19 @@ class AzureArmParameter:
     admin_password: str = ""
     admin_key_data: str = ""
     availability_set_tags: Dict[str, str] = field(default_factory=dict)
+    availability_set_properties: Dict[str, Any] = field(default_factory=dict)
     nodes: List[AzureNodeSchema] = field(default_factory=list)
 
     def __post_init__(self, *args: Any, **kwargs: Any) -> None:
         add_secret(self.admin_username, PATTERN_HEADTAIL)
         add_secret(self.admin_password)
         add_secret(self.admin_key_data)
+
+        if not self.availability_set_properties:
+            self.availability_set_properties: Dict[str, Any] = {
+                "platformFaultDomainCount": 1,
+                "platformUpdateDomainCount": 1,
+            }
 
 
 @dataclass_json(letter_case=LetterCase.CAMEL)
@@ -157,6 +164,7 @@ class AzurePlatformSchema:
 
     resource_group_name: str = field(default="")
     availability_set_tags: Optional[Dict[str, str]] = field(default=None)
+    availability_set_properties: Optional[Dict[str, Any]] = field(default=None)
     locations: Optional[Union[str, List[str]]] = field(default=None)
 
     log_level: str = field(
@@ -612,6 +620,12 @@ class AzurePlatform(Platform):
         log.debug("creating deployment")
         # construct parameters
         arm_parameters = AzureArmParameter()
+        copied_fields = [
+            "availability_set_tags",
+            "availability_set_properties",
+        ]
+        set_filtered_fields(self._azure_runbook, arm_parameters, copied_fields)
+
         arm_parameters.admin_username = self._runbook.admin_username
         if self._runbook.admin_private_key_file:
             arm_parameters.admin_key_data = get_public_key_data(
@@ -619,12 +633,7 @@ class AzurePlatform(Platform):
             )
         else:
             arm_parameters.admin_password = self._runbook.admin_password
-        assert self._azure_runbook
 
-        if self._azure_runbook.availability_set_tags:
-            arm_parameters.availability_set_tags.update(
-                self._azure_runbook.availability_set_tags
-            )
         environment_context = get_environment_context(environment=environment)
         nodes_parameters: List[AzureNodeSchema] = []
         for node_space in environment.runbook.nodes_requirement:
