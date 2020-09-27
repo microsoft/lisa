@@ -88,11 +88,11 @@ def load_from_file(
     if path.suffix.lower() not in [".yaml", ".yml"]:
         raise LisaException("variable support only yaml and yml")
 
-    if not path.exists():
+    try:
+        with open(path, "r") as fp:
+            raw_variables = yaml.safe_load(fp)
+    except FileNotFoundError:
         raise FileNotFoundError(f"cannot find variable file: {path}")
-
-    with open(path, "r") as fp:
-        raw_variables = yaml.safe_load(fp)
     if not isinstance(raw_variables, Dict):
         raise LisaException("variable file must be dict")
 
