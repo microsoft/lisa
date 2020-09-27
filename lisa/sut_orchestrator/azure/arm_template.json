@@ -303,7 +303,7 @@
                 "count": "[variables('nodeCount')]"
             },
             "name": "[parameters('nodes')[copyIndex('vmCopy')]['name']]",
-            "location": "[parameters('location')]",
+            "location": "[parameters('nodes')[copyIndex('vmCopy')]['location']]",
             "tags": { "RG": "[variables('resourceGroupName')]" },
             "dependsOn": [
                 "[resourceId('Microsoft.Compute/availabilitySets', variables('availabilitySetName'))]",

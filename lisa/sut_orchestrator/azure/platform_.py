@@ -116,7 +116,7 @@ class AzureNodeSchema:
 @dataclass_json(letter_case=LetterCase.CAMEL)
 @dataclass
 class AzureArmParameter:
-    location: str = "westus2"
+    location: str = ""
     admin_username: str = ""
     admin_password: str = ""
     admin_key_data: str = ""
@@ -663,6 +663,10 @@ class AzurePlatform(Platform):
                 # set to default gallery, if nothing secified
                 azure_node_runbook.gallery = AzureVmGallerySchema()
             nodes_parameters.append(azure_node_runbook)
+
+            if not arm_parameters.location:
+                # take first one's location
+                arm_parameters.location = azure_node_runbook.location
 
             # save vm's information into node
             node_context = get_node_context(node)
