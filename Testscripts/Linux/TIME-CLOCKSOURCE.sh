@@ -17,7 +17,7 @@
 	exit 0
 }
 
-# Source constants file and initialize most common variables
+# Source constants file and initialize most common variables.
 UtilsInit
 
 #
@@ -27,10 +27,10 @@ CheckSource()
 {
 	current_clocksource="/sys/devices/system/clocksource/clocksource0/current_clocksource"
 
-	# Microsoft LIS installed version has lis_hyperv_clocksource_tsc_page,
-	#	lis_hv_clocksource_tsc_page
-	# Without Microsoft LIS, hyperv_clocksource_tsc_page or hv_clocksource_tsc_page
-	# CentOS 7.0 or older versions has hyperv_clocksource
+	# Microsoft LIS installed version has lis_hyperv_clocksource_tsc_page or
+	#	lis_hv_clocksource_tsc_page.
+	# Without Microsoft LIS, hyperv_clocksource_tsc_page or hv_clocksource_tsc_page.
+	# CentOS 7.0 or older versions has hyperv_clocksource.
 	clocksource="v_clocksource_tsc_page"
 	source /etc/os-release
 	if [[ $DISTRO_NAME == "centos" || $DISTRO_NAME == "rhel" ]] && (($(echo "$VERSION_ID < 7.1" | bc -l))) || [[ $DISTRO == "redhat_6" || $DISTRO == "centos_6" ]]; then
