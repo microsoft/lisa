@@ -50,9 +50,11 @@ function verify_vmbus_interrupts() {
     #
     while read -r line
     do
+        LogMsg "Debug - reading a line $line"
         if [[ ($line = *hyperv* ) || ( $line = *Hypervisor* ) ]]; then
-            for (( core=0; core<=${cpu_count-1}; core++ ))
+            for (( core=0; core<=$((cpu_count-1)); core++ ))
             do
+                LogMsg "Debug - checking the core count $core"
                 intrCount=$(echo "$line" | xargs echo | cut -f $(( $core+2 )) -d ' ')
                 if [ "$intrCount" -ne 0 ]; then
                     (( nonCPU0inter++ ))
