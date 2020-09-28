@@ -187,7 +187,7 @@ class LisaRunner(Action):
             suite_metadata,
         )
         for case in cases:
-            case.assigned_env = environment.name
+            case.env = environment.name
         await test_suite.start()
 
     def _create_test_results(

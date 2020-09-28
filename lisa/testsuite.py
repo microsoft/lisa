@@ -9,7 +9,7 @@ from typing import TYPE_CHECKING, Any, Callable, Dict, List, Optional, Type, Uni
 
 from retry.api import retry_call  # type: ignore
 
-from lisa import schema, search_space
+from lisa import notifier, schema, search_space
 from lisa.action import Action, ActionStatus
 from lisa.environment import EnvironmentSpace
 from lisa.feature import Feature
@@ -35,12 +35,20 @@ class SkipTestCaseException(LisaException):
 
 
 @dataclass
+class TestResultMessage(notifier.MessageBase):
+    type: str = "TestResult"
+    status: TestStatus = TestStatus.NOTRUN
+    message: str = ""
+    env: str = ""
+
+
+@dataclass
 class TestResult:
     runtime_data: TestCaseRuntimeData
     status: TestStatus = TestStatus.NOTRUN
     elapsed: float = 0
     message: str = ""
-    assigned_env: str = ""
+    env: str = ""
     check_results: Optional[search_space.ResultReason] = None
 
     @property
@@ -50,13 +58,19 @@ class TestResult:
     def set_status(
         self, new_status: TestStatus, message: Union[str, List[str]]
     ) -> None:
-        self.status = new_status
         if message:
             if isinstance(message, str):
                 message = [message]
             if self.message:
                 message.insert(0, self.message)
             self.message = "\n".join(message)
+        if self.status != new_status:
+            self.status = new_status
+
+            fields = ["status", "elapsed", "message", "env"]
+            result_message = TestResultMessage()
+            set_filtered_fields(self, result_message, fields=fields)
+            notifier.notify(result_message)
 
     def check_environment(
         self, environment: Environment, save_reason: bool = False
@@ -305,14 +319,14 @@ class TestSuite(unittest.TestCase, Action, metaclass=ABCMeta):
                     )
                 except Exception as identifier:
                     self.log.error("before_case: ", exc_info=identifier)
-                    case_result.status = TestStatus.SKIPPED
-                    case_result.message = f"before_case: {identifier}"
+                    case_result.set_status(
+                        TestStatus.SKIPPED, f"before_case: {identifier}"
+                    )
                     is_continue = False
                 case_result.elapsed = timer.elapsed()
                 self.log.debug(f"before_case end with {timer}")
             else:
-                case_result.status = TestStatus.SKIPPED
-                case_result.message = suite_error_message
+                case_result.set_status(TestStatus.SKIPPED, suite_error_message)
 
             if is_continue:
                 timer = create_timer()
@@ -323,16 +337,16 @@ class TestSuite(unittest.TestCase, Action, metaclass=ABCMeta):
                         tries=case_result.runtime_data.retry + 1,
                         logger=self.log,
                     )
-                    case_result.status = TestStatus.PASSED
+                    case_result.set_status(TestStatus.PASSED, "")
                 except Exception as identifier:
                     if case_result.runtime_data.ignore_failure:
                         self.log.info(f"case failed and ignored: {identifier}")
-                        case_result.status = TestStatus.ATTEMPTED
-                        case_result.message = f"{identifier}"
+                        case_result.set_status(TestStatus.ATTEMPTED, f"{identifier}")
                     else:
                         self.log.error("case failed", exc_info=identifier)
-                        case_result.status = TestStatus.FAILED
-                        case_result.message = f"failed: {identifier}"
+                        case_result.set_status(
+                            TestStatus.FAILED, f"failed: {identifier}"
+                        )
                 case_result.elapsed = timer.elapsed()
                 self.log.debug(f"case end with {timer}")
 
