@@ -145,6 +145,12 @@ class ExtendableSchemaMixin:
 
 @dataclass_json(letter_case=LetterCase.CAMEL)
 @dataclass
+class TypedSchema:
+    type: str = ""
+
+
+@dataclass_json(letter_case=LetterCase.CAMEL)
+@dataclass
 class Strategy:
     """
     for simple merge, this part is optional.
@@ -250,7 +256,7 @@ class Variable:
 
 @dataclass_json(letter_case=LetterCase.CAMEL)
 @dataclass
-class ArtifactLocation:
+class ArtifactLocation(TypedSchema):
     type: str = field(
         default="",
         metadata=metadata(required=True, validate=validate.OneOf([])),
@@ -263,33 +269,26 @@ class ArtifactLocation:
 
 @dataclass_json(letter_case=LetterCase.CAMEL)
 @dataclass
-class Artifact:
+class Artifact(TypedSchema):
     # name is optional. artifacts can be referred by name or index.
     name: str = ""
-    type: str = field(
-        default="",
-        metadata=metadata(required=True, validate=validate.OneOf([])),
-    )
     locations: List[ArtifactLocation] = field(default_factory=list)
 
 
 @dataclass_json(letter_case=LetterCase.CAMEL)
 @dataclass
-class Notifier:
+class Notifier(TypedSchema):
     """
     it sends test progress and results to any place wanted.
     detail types are defined in notifier itself, allowed items are handled in code.
     """
 
-    type: str = field(
-        default="",
-        metadata=metadata(required=True, validate=validate.OneOf([])),
-    )
+    pass
 
 
 @dataclass_json(letter_case=LetterCase.CAMEL, undefined=Undefined.INCLUDE)
 @dataclass
-class NodeSpace(search_space.RequirementMixin, ExtendableSchemaMixin):
+class NodeSpace(search_space.RequirementMixin, TypedSchema, ExtendableSchemaMixin):
     type: str = field(
         default=constants.ENVIRONMENTS_NODES_REQUIREMENT,
         metadata=metadata(
@@ -538,7 +537,7 @@ class Capability(NodeSpace):
 
 @dataclass_json(letter_case=LetterCase.CAMEL)
 @dataclass
-class LocalNode:
+class LocalNode(TypedSchema):
     type: str = field(
         default=constants.ENVIRONMENTS_NODES_LOCAL,
         metadata=metadata(
@@ -553,7 +552,7 @@ class LocalNode:
 
 @dataclass_json(letter_case=LetterCase.CAMEL)
 @dataclass
-class RemoteNode:
+class RemoteNode(TypedSchema):
     type: str = field(
         default=constants.ENVIRONMENTS_NODES_REMOTE,
         metadata=metadata(
@@ -669,7 +668,7 @@ class EnvironmentRoot:
 
 @dataclass_json(letter_case=LetterCase.CAMEL, undefined=Undefined.INCLUDE)
 @dataclass
-class Platform(ExtendableSchemaMixin):
+class Platform(TypedSchema, ExtendableSchemaMixin):
     type: str = field(
         default=constants.PLATFORM_READY,
         metadata=metadata(required=True),
