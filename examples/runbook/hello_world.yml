@@ -5,6 +5,8 @@ environment:
   environments:
     - nodes:
         - type: local
+notifier:
+  - type: console
 testcase:
   - criteria:
       area: demo
