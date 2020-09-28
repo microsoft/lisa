@@ -253,13 +253,13 @@ class CustomScript(Tool):
         command: Optional[str] = None,
         dependencies: Optional[List[Type[Tool]]] = None,
     ) -> None:
+        self._name = name
+        self._command = command
+
         super().__init__(node)
         self._local_path = local_path
         self._files = files
         self._cwd: Union[pathlib.PurePath, pathlib.Path]
-
-        self._name = name
-        self._command = command
 
         if dependencies:
             self._dependencies = dependencies
