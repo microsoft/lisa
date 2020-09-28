@@ -69,7 +69,7 @@ if [[ "$sts" = *"Operation not supported"* ]]; then
     LogErr "Operation not supported."
     kernel_version=$(uname -rs)
     LogErr "Configure the RSS hash key from ethtool is not supported on $kernel_version"
-    SetTestStateFailed
+    SetTestStateSkipped
     exit 0
 elif [[ "$sts" = *"Invalid argument"* ]]; then
     LogErr "$sts"
