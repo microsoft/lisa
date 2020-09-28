@@ -1,14 +1,12 @@
 from __future__ import annotations
 
-from abc import ABC, abstractmethod
-from collections import UserDict
 from functools import partial
-from typing import TYPE_CHECKING, Any, List, Optional, Type, cast
+from typing import TYPE_CHECKING, Any, List, Type
 
 from lisa import schema
 from lisa.environment import Environments
 from lisa.feature import Feature, Features
-from lisa.util import InitializableMixin, LisaException, constants
+from lisa.util import InitializableMixin, LisaException, subclasses
 from lisa.util.logger import Logger, get_logger
 from lisa.util.perf_timer import create_timer
 
@@ -22,18 +20,16 @@ class WaitMoreResourceError(Exception):
     pass
 
 
-class Platform(ABC, InitializableMixin):
-    def __init__(self) -> None:
-        super().__init__()
-        self._log = get_logger("", self.platform_type())
+class Platform(subclasses.BaseClassWithRunbook, InitializableMixin):
+    def __init__(self, runbook: schema.Platform) -> None:
+        super().__init__(runbook)
+        self._log = get_logger("", self.type_name())
 
     @classmethod
-    @abstractmethod
-    def platform_type(cls) -> str:
-        raise NotImplementedError()
+    def type_schema(cls) -> Type[schema.TypedSchema]:
+        return schema.Platform
 
     @classmethod
-    @abstractmethod
     def supported_features(cls) -> List[Type[Feature]]:
         """
         Indicates which feature classes should be used to instance a feature.
@@ -46,7 +42,12 @@ class Platform(ABC, InitializableMixin):
         """
         raise NotImplementedError()
 
-    @abstractmethod
+    def _initialize(self, *args: Any, **kwargs: Any) -> None:
+        """
+        platform specified initialization
+        """
+        pass
+
     def _prepare_environment(self, environment: Environment, log: Logger) -> bool:
         """
         What to be prepared for an environment
@@ -60,25 +61,11 @@ class Platform(ABC, InitializableMixin):
         """
         raise NotImplementedError()
 
-    @abstractmethod
     def _deploy_environment(self, environment: Environment, log: Logger) -> None:
         raise NotImplementedError()
 
-    @abstractmethod
     def _delete_environment(self, environment: Environment, log: Logger) -> None:
         raise NotImplementedError()
-
-    def _initialize(self, *args: Any, **kwargs: Any) -> None:
-        """
-        Uses to do some initialization work.
-        It will be called when first environment is requested.
-        """
-        pass
-
-    def config(self, key: str, value: Any) -> None:
-        if key == constants.CONFIG_RUNBOOK:
-            # store platform runbook.
-            self._runbook: schema.Platform = value
 
     def prepare_environments(self, environments: Environments) -> List[Environment]:
         """
@@ -125,53 +112,6 @@ class Platform(ABC, InitializableMixin):
         log.debug("deleted")
 
 
-if TYPE_CHECKING:
-    PlatformsDict = UserDict[str, Platform]
-else:
-    PlatformsDict = UserDict
-
-
-class Platforms(PlatformsDict):
-    def __init__(self) -> None:
-        super().__init__()
-        self._default: Optional[Platform] = None
-
-    @property
-    def default(self) -> Platform:
-        assert self._default
-        return self._default
-
-    @default.setter
-    def default(self, value: Platform) -> None:
-        self._default = value
-
-    def register_platform(self, platform: Type[Platform]) -> None:
-        platform_type = platform.platform_type()
-        exist_platform = self.get(platform_type)
-        if exist_platform:
-            # so far, it happens on ut only. As global variables are used in ut,
-            # it's # important to use first registered.
-            log = _get_init_logger()
-            log.warning(
-                f"ignore to register [{platform_type}] platform again. "
-                f"new: [{platform}], exist: [{exist_platform}]"
-            )
-        else:
-            self[platform_type] = platform()
-
-
-def _load_sub_platforms() -> Platforms:
-    platforms = Platforms()
-    for sub_class in Platform.__subclasses__():
-        platform_class = cast(Type[Platform], sub_class)
-        platforms.register_platform(platform_class)
-    log = _get_init_logger()
-    log.debug(
-        f"registered platforms: " f"[{', '.join([name for name in platforms.keys()])}]"
-    )
-    return platforms
-
-
 def load_platform(platforms_runbook: List[schema.Platform]) -> Platform:
     log = _get_init_logger()
     # we may extend it later to support multiple platforms
@@ -179,18 +119,8 @@ def load_platform(platforms_runbook: List[schema.Platform]) -> Platform:
     if platform_count != 1:
         raise LisaException("There must be 1 and only 1 platform")
 
-    platforms = _load_sub_platforms()
-    default_platform: Optional[Platform] = None
-    for platform_runbook in platforms_runbook:
-        platform_type = platform_runbook.type
+    factory = subclasses.Factory[Platform](Platform)
+    default_platform: Platform = factory.create_by_runbook(platforms_runbook[0])
+    log.info(f"activated platform '{default_platform.type_name()}'")
 
-        platform = platforms.get(platform_type)
-        if platform is None:
-            raise LisaException(f"cannot find platform type '{platform_type}'")
-
-        if default_platform is None:
-            default_platform = platform
-            log.info(f"activated platform '{platform_type}'")
-        platform.config(constants.CONFIG_RUNBOOK, platform_runbook)
-    assert default_platform
     return default_platform
