@@ -123,19 +123,7 @@ case $DISTRO in
 		LogMsg "WARNING: $DISTRO does not support unbind current clocksource, only check"
 		CheckSource
 		;;
-	redhat_8 |centos_8|fedora*|clear-linux-os)
-		CheckSource
-		UnbindCurrentSource
-		;;
-	ubuntu*)
-		CheckSource
-		UnbindCurrentSource
-		;;
-	suse*)
-		CheckSource
-		UnbindCurrentSource
-		;;
-	coreos*)
+	redhat_8 |centos_8|fedora*|clear-linux-os|ubunut*|suse*|coreos*)
 		CheckSource
 		UnbindCurrentSource
 		;;
