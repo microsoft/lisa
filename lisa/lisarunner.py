@@ -43,7 +43,7 @@ class LisaRunner(Action):
         self._merge_test_requirements(
             test_results=selected_test_results,
             existing_environments=candidate_environments,
-            platform_type=platform.platform_type(),
+            platform_type=platform.type_name(),
         )
 
         # there may not need to handle requirements, if all environment are predefined

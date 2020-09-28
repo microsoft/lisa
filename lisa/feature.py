@@ -53,7 +53,7 @@ class Features:
             if not registered_feature_type:
                 raise LisaException(
                     f"feature [{feature_name}] isn't supported on "
-                    f"platform [{self._platform.platform_type()}]"
+                    f"platform [{self._platform.type_name()}]"
                 )
             feature = registered_feature_type(self._node, self._platform)
             # not sure why mypy error on this call, have to add type: ignore

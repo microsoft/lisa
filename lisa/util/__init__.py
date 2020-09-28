@@ -1,4 +1,3 @@
-from abc import abstractmethod
 from pathlib import Path
 from typing import Any, Dict, Iterable, List, Type, TypeVar
 
@@ -30,9 +29,9 @@ class InitializableMixin:
     """
 
     def __init__(self) -> None:
+        super().__init__()
         self._is_initialized: bool = False
 
-    @abstractmethod
     def _initialize(self, *args: Any, **kwargs: Any) -> None:
         raise NotImplementedError()
 

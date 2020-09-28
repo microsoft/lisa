@@ -20,8 +20,8 @@ deleted_envs: List[str] = []
 
 
 class MockPlatform(Platform):
-    def __init__(self) -> None:
-        super().__init__()
+    def __init__(self, runbook: schema.Platform) -> None:
+        super().__init__(runbook=runbook)
         prepared_envs.clear()
         deployed_envs.clear()
         deleted_envs.clear()
@@ -33,7 +33,7 @@ class MockPlatform(Platform):
         )
 
     @classmethod
-    def platform_type(cls) -> str:
+    def type_name(cls) -> str:
         return constants.PLATFORM_MOCK
 
     @classmethod
@@ -93,7 +93,7 @@ def generate_platform(
     except AssertionError:
         # as UT imported from tests package, instaed of from lisa.tests package
         # ignore by assign type from current package
-        platform = MockPlatform()
+        platform = MockPlatform(runbook)
     return platform
 
 

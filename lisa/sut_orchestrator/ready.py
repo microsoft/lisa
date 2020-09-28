@@ -9,7 +9,7 @@ from lisa.util.logger import Logger
 
 class ReadyPlatform(Platform):
     @classmethod
-    def platform_type(cls) -> str:
+    def type_name(cls) -> str:
         return constants.PLATFORM_READY
 
     @classmethod

@@ -200,15 +200,15 @@ class AzurePlatformSchema:
 
 
 class AzurePlatform(Platform):
-    def __init__(self) -> None:
-        super().__init__()
+    def __init__(self, runbook: schema.Platform) -> None:
+        super().__init__(runbook=runbook)
         self.credential: DefaultAzureCredential = None
         self._enviornment_counter = 0
         self._eligible_capabilities: Optional[Dict[str, List[AzureCapability]]] = None
         self._locations_data_cache: Optional[Dict[str, AzureLocation]] = None
 
     @classmethod
-    def platform_type(cls) -> str:
+    def type_name(cls) -> str:
         return AZURE
 
     @classmethod

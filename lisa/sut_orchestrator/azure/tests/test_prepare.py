@@ -22,8 +22,7 @@ class AzurePrepareTestCase(TestCase):
         self._log = get_logger("test", "azure")
 
         platform_runbook = schema.Platform()
-        self._platform = azure.AzurePlatform()
-        self._platform.config(constants.CONFIG_RUNBOOK, platform_runbook)
+        self._platform = azure.AzurePlatform(platform_runbook)
         self._platform._azure_runbook = azure.AzurePlatformSchema()
         self._platform._initialize_eligible_vm_sizes(self._log)
 
