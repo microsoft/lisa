@@ -128,9 +128,8 @@ case $DISTRO in
 		UnbindCurrentSource
 		;;
 	*)
-		msg="ERROR: Distro '$DISTRO' not supported"
-		LogMsg "${msg}"
-		SetTestStateFailed
+		LogErr "Distro '$DISTRO' not supported"
+		SetTestStateAborted
 		exit 0
 		;;
 esac
