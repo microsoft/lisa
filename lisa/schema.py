@@ -275,7 +275,7 @@ class Artifact(TypedSchema):
     locations: List[ArtifactLocation] = field(default_factory=list)
 
 
-@dataclass_json(letter_case=LetterCase.CAMEL)
+@dataclass_json(letter_case=LetterCase.CAMEL, undefined=Undefined.INCLUDE)
 @dataclass
 class Notifier(TypedSchema):
     """
@@ -283,7 +283,7 @@ class Notifier(TypedSchema):
     detail types are defined in notifier itself, allowed items are handled in code.
     """
 
-    pass
+    delay_parsed: CatchAll = field(default_factory=dict)
 
 
 @dataclass_json(letter_case=LetterCase.CAMEL, undefined=Undefined.INCLUDE)
