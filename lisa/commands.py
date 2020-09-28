@@ -13,20 +13,22 @@ from lisa.util.logger import get_logger
 _get_init_logger = functools.partial(get_logger, "init")
 
 
-def run(args: Namespace) -> None:
+def run(args: Namespace) -> int:
     runbook = load_runbook(args)
 
     runner = LisaRunner(runbook)
     awaitable = runner.start()
     asyncio.run(awaitable)
+    return runner.exit_code
 
 
 # check runbook
-def check(args: Namespace) -> None:
+def check(args: Namespace) -> int:
     load_runbook(args)
+    return 0
 
 
-def list_start(args: Namespace) -> None:
+def list_start(args: Namespace) -> int:
     runbook = load_runbook(args)
     list_all = cast(Optional[bool], args.list_all)
     log = _get_init_logger("list")
@@ -46,3 +48,4 @@ def list_start(args: Namespace) -> None:
     else:
         raise LisaException(f"unknown list type '{args.type}'")
     log.info("list information here")
+    return 0

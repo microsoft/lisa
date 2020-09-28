@@ -19,7 +19,7 @@ from lisa.util.logger import get_logger
 class LisaRunner(Action):
     def __init__(self, runbook: schema.Runbook) -> None:
         super().__init__()
-        self.exitCode = None
+        self.exit_code: int = 0
 
         self._runbook = runbook
         self._log = get_logger("runner")
@@ -162,6 +162,9 @@ class LisaRunner(Action):
             self._log.info(f"    {key.name:<9}: {result_count_dict.get(key, 0)}")
 
         self.set_status(ActionStatus.SUCCESS)
+
+        # pass failed count to exit code
+        self.exit_code = result_count_dict.get(TestStatus.FAILED, 0)
 
         # for UT testability
         self._latest_test_results = selected_test_results
