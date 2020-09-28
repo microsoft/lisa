@@ -3,6 +3,7 @@ import functools
 from argparse import Namespace
 from typing import Iterable, Optional, cast
 
+from lisa import notifier
 from lisa.lisarunner import LisaRunner
 from lisa.parameter_parser.runbook import load as load_runbook
 from lisa.testselector import select_testcases
@@ -16,9 +17,15 @@ _get_init_logger = functools.partial(get_logger, "init")
 def run(args: Namespace) -> int:
     runbook = load_runbook(args)
 
-    runner = LisaRunner(runbook)
-    awaitable = runner.start()
-    asyncio.run(awaitable)
+    if runbook.notifier:
+        notifier.initialize(runbooks=runbook.notifier)
+    try:
+        runner = LisaRunner(runbook)
+        awaitable = runner.start()
+        asyncio.run(awaitable)
+    finally:
+        notifier.finalize()
+
     return runner.exit_code
 
 
