@@ -109,7 +109,9 @@ $sqlQuery = ""
 $count = 0
 $allRegions = Get-AzLocation | select -ExpandProperty Location | where {!$RegionArrayInScope -or ($RegionArrayInScope -contains $_)}
 # EUAP regions are not returned by Get-AzLocation
-$allRegions += ($RegionArrayInScope -imatch "euap")
+if ($RegionArrayInScope -imatch "euap") {
+	$allRegions += ($RegionArrayInScope -imatch "euap")
+}
 foreach ($locName in $allRegions) {
 	Write-Host "processing $locName"
 	if (!$RegionDistros.$locName) {
