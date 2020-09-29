@@ -30,6 +30,9 @@ class Feature(InitializableMixin):
         raise NotImplementedError()
 
     def _initialize(self, *args: Any, **kwargs: Any) -> None:
+        """
+        override for initializating
+        """
         pass
 
 
