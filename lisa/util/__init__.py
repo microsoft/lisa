@@ -33,6 +33,9 @@ class InitializableMixin:
         self._is_initialized: bool = False
 
     def _initialize(self, *args: Any, **kwargs: Any) -> None:
+        """
+        override for initialization logic. This mixin makes sure it's called only once.
+        """
         raise NotImplementedError()
 
     def initialize(self, *args: Any, **kwargs: Any) -> None:
