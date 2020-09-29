@@ -36,7 +36,7 @@ CheckResults()
             ;;
     esac
     action="$2"
-    sts=$(ethtool -k "${SYNTH_NET_INTERFACES[@]}" 2>&1 | grep $feature | awk {'print $2'})
+    sts=$(ethtool -k "${INTERFACE}" 2>&1 | grep $feature | awk {'print $2'})
     if [ "$action" == "disabled" ] && [ "$sts" == "on" ]; then
         LogMsg "$feature NOT disabled."
         SetTestStateFailed
@@ -68,67 +68,72 @@ if ! GetSynthNetInterfaces; then
     exit 0
 fi
 
-for (( i = 0 ; i < 2 ; i++ )); do
-    # Show GRO status
-    sts=$(ethtool -k "${SYNTH_NET_INTERFACES[@]}" 2>&1 | grep generic-receive-offload | awk {'print $2'})
-    if [[ "$sts" == "on" ]];then
-        # Disable GRO
-        if ! ethtool -K "${SYNTH_NET_INTERFACES[@]}" gro off >/dev/null 2>&1;then
-            LogMsg "Cannot disable generic-receive-offload."
-            SetTestStateFailed
-            exit 0
-        fi
-        # Check if is disabled
-        CheckResults "gro" "disabled"
-    elif [[ "$sts" == "off" ]];then
-        # Enable GRO
-        if ! ethtool -K "${SYNTH_NET_INTERFACES[@]}" gro on >/dev/null 2>&1;then
-            LogMsg "Cannot enable generic-receive-offload."
-            SetTestStateFailed
-            exit 0
-        fi
-        # Check if is enabled
-        CheckResults "gro" "enabled"
-    else
-        LogMsg "Cannot get status of generic-receive-offload."
-        SetTestStateFailed
-        exit 0
-    fi
-done
-
-LogMsg "Check - support to update lro or not by filter keyword 'fix' from the line of large-receive-offload."
-lro_output=$(ethtool -k "${SYNTH_NET_INTERFACES[@]}" | grep -i large-receive-offload | grep -i fixed)
-if [[ $? != 0 ]];then
+INTERFACE=""
+for ifc in "${SYNTH_NET_INTERFACES[@]}";do
+    INTERFACE="${ifc}"
+    LogMsg "Validating interface... ${INTERFACE}"
     for (( i = 0 ; i < 2 ; i++ )); do
-        # Show LRO status
-        sts=$(ethtool -k "${SYNTH_NET_INTERFACES[@]}" 2>&1 | grep large-receive-offload | awk {'print $2'})
+        # Show GRO status
+        sts=$(ethtool -k "${INTERFACE}" 2>&1 | grep generic-receive-offload | awk {'print $2'})
         if [[ "$sts" == "on" ]];then
-            # Disable LRO
-            if ! ethtool -K "${SYNTH_NET_INTERFACES[@]}" lro off >/dev/null 2>&1;then
-                LogMsg "Cannot disable large-receive-offload."
+            # Disable GRO
+            if ! ethtool -K "${INTERFACE}" gro off >/dev/null 2>&1;then
+                LogMsg "Cannot disable generic-receive-offload."
                 SetTestStateFailed
                 exit 0
             fi
             # Check if is disabled
-            CheckResults "lro" "disabled"
+            CheckResults "gro" "disabled"
         elif [[ "$sts" == "off" ]];then
-            # Enable LRO
-            if ! ethtool -K "${SYNTH_NET_INTERFACES[@]}" lro on >/dev/null 2>&1;then
-                LogMsg "Cannot enable large-receive-offload."
+            # Enable GRO
+            if ! ethtool -K "${INTERFACE}" gro on >/dev/null 2>&1;then
+                LogMsg "Cannot enable generic-receive-offload."
                 SetTestStateFailed
                 exit 0
             fi
             # Check if is enabled
-            CheckResults "lro" "enabled"
+            CheckResults "gro" "enabled"
         else
-            LogMsg "Cannot get status of large-receive-offload."
+            LogMsg "Cannot get status of generic-receive-offload."
             SetTestStateFailed
             exit 0
         fi
     done
-else
-    LogMsg "lro is fixed, can't set value for it, lro output is - $lro_output"
-fi
+
+    LogMsg "Check - support to update lro or not by filter keyword 'fix' from the line of large-receive-offload."
+    lro_output=$(ethtool -k "${INTERFACE}" | grep -i large-receive-offload | grep -i fixed)
+    if [[ $? != 0 ]];then
+        for (( i = 0 ; i < 2 ; i++ )); do
+            # Show LRO status
+            sts=$(ethtool -k "${INTERFACE}" 2>&1 | grep large-receive-offload | awk {'print $2'})
+            if [[ "$sts" == "on" ]];then
+                # Disable LRO
+                if ! ethtool -K "${INTERFACE}" lro off >/dev/null 2>&1;then
+                    LogMsg "Cannot disable large-receive-offload."
+                    SetTestStateFailed
+                    exit 0
+                fi
+                # Check if is disabled
+                CheckResults "lro" "disabled"
+            elif [[ "$sts" == "off" ]];then
+                # Enable LRO
+                if ! ethtool -K "${INTERFACE}" lro on >/dev/null 2>&1;then
+                    LogMsg "Cannot enable large-receive-offload."
+                    SetTestStateFailed
+                    exit 0
+                fi
+                # Check if is enabled
+                CheckResults "lro" "enabled"
+            else
+                LogMsg "Cannot get status of large-receive-offload."
+                SetTestStateFailed
+                exit 0
+            fi
+        done
+    else
+        LogMsg "lro is fixed, can't set value for it, lro output is - $lro_output"
+    fi
+done
 
 SetTestStateCompleted
 exit 0
