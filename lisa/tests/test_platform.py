@@ -54,6 +54,12 @@ class MockPlatform(Platform):
 
     def _prepare_environment(self, environment: Environment, log: Logger) -> bool:
         prepared_envs.append(environment.name)
+        requirements = environment.runbook.nodes_requirement
+        if self.return_prepared and requirements:
+            min_capabilities: List[schema.NodeSpace] = []
+            for node_space in requirements:
+                min_capabilities.append(node_space.generate_min_capability(node_space))
+            environment.runbook.nodes_requirement = min_capabilities
         return self.return_prepared
 
     def _deploy_environment(self, environment: Environment, log: Logger) -> None:
@@ -64,8 +70,7 @@ class MockPlatform(Platform):
         if self.return_prepared and environment.runbook.nodes_requirement:
             requirements = environment.runbook.nodes_requirement
             for node_space in requirements:
-                min_value = node_space.generate_min_capability(node_space)
-                environment.nodes.from_requirement(node_requirement=min_value)
+                environment.nodes.from_requirement(node_requirement=node_space)
         deployed_envs.append(environment.name)
         environment._is_initialized = True
         environment.is_ready = self.deploy_is_ready
