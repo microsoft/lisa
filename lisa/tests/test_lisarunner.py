@@ -254,11 +254,11 @@ class LisaRunnerTestCase(TestCase):
         asyncio.run(runner.start())
         self.verify_env_results(
             expected_prepared=["runbook_0", "req_1", "req_2", "req_3"],
-            expected_deployed_envs=["runbook_0", "req_1", "req_2"],
-            expected_deleted_envs=["runbook_0", "req_1", "req_2"],
+            expected_deployed_envs=["runbook_0", "req_1", "req_3"],
+            expected_deleted_envs=["runbook_0", "req_1", "req_3"],
         )
         self.verify_test_results(
-            expected_envs=["runbook_0", "req_1", "req_2"],
+            expected_envs=["runbook_0", "req_1", "req_3"],
             expected_status=[TestStatus.PASSED, TestStatus.PASSED, TestStatus.PASSED],
             expected_message=["", "", ""],
             test_results=runner._latest_test_results,
