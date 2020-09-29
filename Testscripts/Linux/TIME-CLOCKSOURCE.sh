@@ -17,7 +17,7 @@
 	exit 0
 }
 
-# Source constants file and initialize most common variables
+# Source constants file and initialize most common variables.
 UtilsInit
 
 #
@@ -25,18 +25,19 @@ UtilsInit
 #
 CheckSource()
 {
+	LogMsg "Running CheckSource"
 	current_clocksource="/sys/devices/system/clocksource/clocksource0/current_clocksource"
 
-	# Microsoft LIS installed version has lis_hyperv_clocksource_tsc_page
-	# Without Microsoft LIS, hyperv_clocksource_tsc_page
-	# CentOS 6.8 or older versions, hyperv_clocksource
-	clocksource="hyperv_clocksource_tsc_page"
-	mj=$(echo "$DISTRO_VERSION" | cut -d '.' -f 1)
-	mn=$(echo "$DISTRO_VERSION" | cut -d '.' -f 2)
-	if [[ $DISTRO_NAME == "centos" || $DISTRO_NAME == "rhel" ]] && [[ $mj -lt 7 && $mn -lt 9 ]]; then
+	# Microsoft LIS installed version has lis_hyperv_clocksource_tsc_page or
+	#	lis_hv_clocksource_tsc_page.
+	# Without Microsoft LIS, hyperv_clocksource_tsc_page or hv_clocksource_tsc_page.
+	# CentOS 7.0 or older versions has hyperv_clocksource.
+	clocksource="v_clocksource_tsc_page"
+	source /etc/os-release
+	if [[ $DISTRO_NAME == "centos" || $DISTRO_NAME == "rhel" ]] && (($(echo "$VERSION_ID < 7.1" | bc -l))) || [[ $DISTRO == "redhat_6" || $DISTRO == "centos_6" ]]; then
 		clocksource="hyperv_clocksource"
 	fi
-	LogMsg "clocksource: $clocksource"
+	LogMsg "Temporary clocksource: $clocksource"
 
 	if ! [[ $(find $current_clocksource -type f -size +0M) ]]; then
 		LogErr "Test Failed. No file was found current_clocksource greater than 0M."
@@ -45,8 +46,9 @@ CheckSource()
 	else
 		__file_content=$(cat $current_clocksource)
 		LogMsg "Found currect_clocksource $__file_content in $current_clocksource"
-		if [[ $__file_content == *"$clocksource" ]]; then
+		if [[ $__file_content == *"$clocksource"* ]]; then
 			LogMsg "Test successful. Proper file was found. Clocksource file content is $__file_content"
+			clocksource=$__file_content
 		else
 			LogErr "Test failed. Proper file was NOT found. Expected $clocksource, found $__file_content"
 			SetTestStateFailed
@@ -82,8 +84,9 @@ CheckSource()
 }
 function UnbindCurrentSource()
 {
+	LogMsg "Running UnbindCurrentSource"
 	unbind_file="/sys/devices/system/clocksource/clocksource0/unbind_clocksource"
-	clocksource="hyperv_clocksource_tsc_page"
+	LogMsg "Assign $clocksource to $unbind_file"
 	if echo $clocksource > $unbind_file
 	then
 		_clocksource=$(cat /sys/devices/system/clocksource/clocksource0/current_clocksource)
@@ -117,32 +120,18 @@ function UnbindCurrentSource()
 #
 # MAIN SCRIPT
 #
-GetDistro
 case $DISTRO in
-	redhat_6 | centos_6 | redhat_7 | centos_7)
-		LogMsg "WARNING: $DISTRO does not support unbind current clocksource, only check"
+	redhat_6 | centos_6 | redhat_7 | centos_7 | debian*)
+		LogMsg "WARNING: $DISTRO does not support unbinding the current clocksource, only check sourcing"
 		CheckSource
 		;;
-	redhat_8 |centos_8|fedora*|clear-linux-os)
-		CheckSource
-		UnbindCurrentSource
-		;;
-	ubuntu*|debian*)
-		CheckSource
-		UnbindCurrentSource
-		;;
-	suse* )
-		CheckSource
-		UnbindCurrentSource
-		;;
-	coreos* )
+	redhat_8 |centos_8|fedora*|clear-linux-os|ubunut*|suse*|coreos*)
 		CheckSource
 		UnbindCurrentSource
 		;;
 	*)
-		msg="ERROR: Distro '$DISTRO' not supported"
-		LogMsg "${msg}"
-		SetTestStateFailed
+		LogErr "Distro '$DISTRO' not supported"
+		SetTestStateAborted
 		exit 0
 		;;
 esac
