@@ -25,6 +25,7 @@ UtilsInit
 #
 CheckSource()
 {
+	LogMsg "Running CheckSource"
 	current_clocksource="/sys/devices/system/clocksource/clocksource0/current_clocksource"
 
 	# Microsoft LIS installed version has lis_hyperv_clocksource_tsc_page or
@@ -83,6 +84,7 @@ CheckSource()
 }
 function UnbindCurrentSource()
 {
+	LogMsg "Running UnbindCurrentSource"
 	unbind_file="/sys/devices/system/clocksource/clocksource0/unbind_clocksource"
 	LogMsg "Assign $clocksource to $unbind_file"
 	if echo $clocksource > $unbind_file
@@ -120,7 +122,7 @@ function UnbindCurrentSource()
 #
 case $DISTRO in
 	redhat_6 | centos_6 | redhat_7 | centos_7 | debian*)
-		LogMsg "WARNING: $DISTRO does not support unbind current clocksource, only check"
+		LogMsg "WARNING: $DISTRO does not support unbinding the current clocksource, only check sourcing"
 		CheckSource
 		;;
 	redhat_8 |centos_8|fedora*|clear-linux-os|ubunut*|suse*|coreos*)
