@@ -32,6 +32,12 @@ function Update-DeletedImages($Date, $Location, $Publisher) {
 	while ($reader.Read()) {
 		$id = $reader.GetValue($reader.GetOrdinal("ID"))
 		$sqlQuery += "Update $tableName Set LastCheckedDate='$date', IsAvailable=0, DeletedOn='$date' where ID=$id;"
+		$count++
+		if ($count -ge 20) {
+			Upload-TestResultToDatabase -SQLQuery $sqlQuery.Trim(";")
+			$sqlQuery = ""
+			$count = 0
+		}
 	}
 	if ($sqlQuery) {
 		Upload-TestResultToDatabase -SQLQuery $sqlQuery.Trim(";")
