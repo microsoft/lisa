@@ -1,3 +1,4 @@
+import asyncio
 import sys
 import traceback
 from datetime import datetime
@@ -23,7 +24,7 @@ def create_run_path(root_path: Path) -> Path:
     return run_path
 
 
-def main() -> int:
+async def main() -> int:
     total_timer = create_timer()
     log = get_logger()
     exit_code: int = 0
@@ -57,7 +58,7 @@ def main() -> int:
         log.debug(f"command line args: {sys.argv}")
         log.info(f"run local path: {runtime_root}")
 
-        exit_code = args.func(args)
+        exit_code = await args.func(args)
         assert isinstance(exit_code, int), f"actual: {type(exit_code)}"
     finally:
         log.info(f"completed in {total_timer}")
@@ -68,7 +69,8 @@ def main() -> int:
 if __name__ == "__main__":
     exit_code = 0
     try:
-        exit_code = main()
+        # TODO: Turn off debugging when we ship this.
+        exit_code = asyncio.run(main(), debug=True)
     except Exception as exception:
         exit_code = -1
         log = get_logger()

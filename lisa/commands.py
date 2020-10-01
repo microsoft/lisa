@@ -1,4 +1,3 @@
-import asyncio
 import functools
 from argparse import Namespace
 from typing import Iterable, Optional, cast
@@ -14,15 +13,14 @@ from lisa.util.logger import get_logger
 _get_init_logger = functools.partial(get_logger, "init")
 
 
-def run(args: Namespace) -> int:
+async def run(args: Namespace) -> int:
     runbook = load_runbook(args)
 
     if runbook.notifier:
         notifier.initialize(runbooks=runbook.notifier)
     try:
         runner = LisaRunner(runbook)
-        awaitable = runner.start()
-        asyncio.run(awaitable)
+        await runner.start()
     finally:
         notifier.finalize()
 
@@ -30,12 +28,12 @@ def run(args: Namespace) -> int:
 
 
 # check runbook
-def check(args: Namespace) -> int:
+async def check(args: Namespace) -> int:
     load_runbook(args)
     return 0
 
 
-def list_start(args: Namespace) -> int:
+async def list_start(args: Namespace) -> int:
     runbook = load_runbook(args)
     list_all = cast(Optional[bool], args.list_all)
     log = _get_init_logger("list")

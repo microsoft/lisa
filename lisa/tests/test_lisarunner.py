@@ -1,6 +1,5 @@
-import asyncio
 from typing import List, Optional
-from unittest.case import TestCase
+from unittest import IsolatedAsyncioTestCase
 
 from lisa import schema
 from lisa.environment import load_environments
@@ -38,7 +37,7 @@ def generate_lisarunner(
     return runner
 
 
-class LisaRunnerTestCase(TestCase):
+class LisaRunnerTestCase(IsolatedAsyncioTestCase):
     def tearDown(self) -> None:
         cleanup_cases_metadata()
         test_platform.return_prepared = True
@@ -205,7 +204,7 @@ class LisaRunnerTestCase(TestCase):
             test_results=test_results,
         )
 
-    def test_fit_a_predefined_env(self) -> None:
+    async def test_fit_a_predefined_env(self) -> None:
         # predefined env can run case in below condition.
         # 1. with predefined env of 1 simple node, so ut2 don't need a new env
         # 2. ut3 need 8 cores, and predefined env target to meet all core requirement,
@@ -213,7 +212,7 @@ class LisaRunnerTestCase(TestCase):
         generate_cases_metadata()
         env_runbook = generate_env_runbook(is_single_env=True, remote=True)
         runner = generate_lisarunner(env_runbook)
-        asyncio.run(runner.start())
+        await runner.start()
         self.verify_env_results(
             expected_prepared=["customized_0", "generated_1", "generated_2"],
             expected_deployed_envs=["customized_0", "generated_1"],
@@ -226,13 +225,13 @@ class LisaRunnerTestCase(TestCase):
             test_results=runner._latest_test_results,
         )
 
-    def test_fit_a_bigger_env(self) -> None:
+    async def test_fit_a_bigger_env(self) -> None:
         # similar with test_fit_a_predefined_env, but predefined 2 nodes,
         # it doesn't equal to any case req, but reusable for all cases.
         generate_cases_metadata()
         env_runbook = generate_env_runbook(is_single_env=True, local=True, remote=True)
         runner = generate_lisarunner(env_runbook)
-        asyncio.run(runner.start())
+        await runner.start()
         self.verify_env_results(
             expected_prepared=[
                 "customized_0",
@@ -250,13 +249,13 @@ class LisaRunnerTestCase(TestCase):
             test_results=runner._latest_test_results,
         )
 
-    def test_case_new_env_run_only_1_needed(self) -> None:
+    async def test_case_new_env_run_only_1_needed(self) -> None:
         # same predefined env as test_fit_a_bigger_env,
         # but all case want to run on a new env
         generate_cases_metadata()
         env_runbook = generate_env_runbook(is_single_env=True, local=True, remote=True)
         runner = generate_lisarunner(env_runbook, case_use_new_env=True)
-        asyncio.run(runner.start())
+        await runner.start()
         self.verify_env_results(
             expected_prepared=[
                 "customized_0",
@@ -274,13 +273,13 @@ class LisaRunnerTestCase(TestCase):
             test_results=runner._latest_test_results,
         )
 
-    def test_no_needed_env(self) -> None:
+    async def test_no_needed_env(self) -> None:
         # two 1 node env predefined, but only customized_0 go to deploy
         # no cases assigned to customized_1, as fit cases run on customized_0 already
         generate_cases_metadata()
         env_runbook = generate_env_runbook(local=True, remote=True)
         runner = generate_lisarunner(env_runbook)
-        asyncio.run(runner.start())
+        await runner.start()
         self.verify_env_results(
             expected_prepared=[
                 "customized_0",
@@ -298,7 +297,7 @@ class LisaRunnerTestCase(TestCase):
             test_results=runner._latest_test_results,
         )
 
-    def test_deploy_no_more_resource(self) -> None:
+    async def test_deploy_no_more_resource(self) -> None:
         # platform may see no more resource, like no azure quota.
         # cases skipped due to this.
         # In future, will add retry on wait more resource.
@@ -306,7 +305,7 @@ class LisaRunnerTestCase(TestCase):
         generate_cases_metadata()
         env_runbook = generate_env_runbook(is_single_env=True, local=True)
         runner = generate_lisarunner(env_runbook)
-        asyncio.run(runner.start())
+        await runner.start()
 
         self.verify_env_results(
             expected_prepared=[
@@ -334,13 +333,13 @@ class LisaRunnerTestCase(TestCase):
             test_results=runner._latest_test_results,
         )
 
-    def test_skipped_on_suite_failure(self) -> None:
+    async def test_skipped_on_suite_failure(self) -> None:
         # first two cases skipped due to test suite setup failed
         test_testsuite.fail_on_before_suite = True
         generate_cases_metadata()
         env_runbook = generate_env_runbook(is_single_env=True, local=True, remote=True)
         runner = generate_lisarunner(env_runbook)
-        asyncio.run(runner.start())
+        await runner.start()
         self.verify_env_results(
             expected_prepared=[
                 "customized_0",
@@ -363,13 +362,13 @@ class LisaRunnerTestCase(TestCase):
             test_results=runner._latest_test_results,
         )
 
-    def test_env_skipped_no_prepared_env(self) -> None:
+    async def test_env_skipped_no_prepared_env(self) -> None:
         # test env not prepared, so test cases cannot find an env to run
         test_platform.return_prepared = False
         generate_cases_metadata()
         env_runbook = generate_env_runbook(is_single_env=True, local=True, remote=True)
         runner = generate_lisarunner(env_runbook)
-        asyncio.run(runner.start())
+        await runner.start()
         self.verify_env_results(
             expected_prepared=[
                 "customized_0",
@@ -392,14 +391,14 @@ class LisaRunnerTestCase(TestCase):
             test_results=runner._latest_test_results,
         )
 
-    def test_env_skipped_not_ready(self) -> None:
+    async def test_env_skipped_not_ready(self) -> None:
         # env prepared, but not deployed to ready.
         # so no cases can run
         test_platform.deploy_is_ready = False
         generate_cases_metadata()
         env_runbook = generate_env_runbook(is_single_env=True, local=True, remote=True)
         runner = generate_lisarunner(env_runbook)
-        asyncio.run(runner.start())
+        await runner.start()
         self.verify_env_results(
             expected_prepared=[
                 "customized_0",
@@ -427,12 +426,12 @@ class LisaRunnerTestCase(TestCase):
             test_results=runner._latest_test_results,
         )
 
-    def test_env_skipped_no_case(self) -> None:
+    async def test_env_skipped_no_case(self) -> None:
         # no case found, as not call generate_case_metadata
         # in this case, not deploy any env
         env_runbook = generate_env_runbook(is_single_env=True, remote=True)
         runner = generate_lisarunner(env_runbook)
-        asyncio.run(runner.start())
+        await runner.start()
         # still prepare predefined, but not deploy
         self.verify_env_results(
             expected_prepared=["customized_0"],
