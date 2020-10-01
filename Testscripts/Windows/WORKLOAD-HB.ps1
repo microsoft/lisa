@@ -42,7 +42,7 @@ function Main {
 			$timeout = New-Timespan -Minutes $maxWorkRunWaitMin
 			$sw = [diagnostics.stopwatch]::StartNew()
 			if ($isNetworkWorkloadEnable -eq 1) {
-				Run-LinuxCmd -ip $AllVMData[1].PublicIP -port $AllVMData[1].SSHPort -username $user -password $password -command "iperf -s -D" -RunInBackground -runAsSudo
+				Run-LinuxCmd -ip $AllVMData[1].PublicIP -port $AllVMData[1].SSHPort -username $user -password $password -command "iperf3 -s -D" -RunInBackground -runAsSudo
 			}
 			Run-LinuxCmd -ip $AllVMData[0].PublicIP -port $AllVMData[0].SSHPort -username $user -password $password -command "bash ./workCommand.sh" -RunInBackground -runAsSudo
 			Wait-Time -seconds 5
@@ -69,7 +69,7 @@ function Main {
 		$maxVMHibernateWaitMin = 30
 		$maxVMWakeupMin = 40
 		$maxKernelCompileMin = 90
-		$azureSyncSecond = 30
+		$azureSyncSecond = 60
 		$isStorageWorkloadEnable = 0
 		$isNetworkWorkloadEnable = 0
 		$isMemoryWorkloadEnable = 0
@@ -154,7 +154,7 @@ SetTestStateCompleted
 			$workCommand = @"
 source utils.sh
 SetTestStateRunning
-iperf -c $targetIPAddress -t 300 -P 8 > workload.json
+iperf3 -c $targetIPAddress -t 300 -P 8 > workload.json
 SetTestStateCompleted
 "@
 			Set-Content "$LogDir\workCommand.sh" $workCommand
@@ -176,7 +176,8 @@ echo disk > /sys/power/state
 		$setupcommand = @"
 source utils.sh
 update_repos
-install_package "fio iperf ethtool stress-ng"
+install_package "fio iperf3 ethtool stress-ng"
+if [ $? ]
 "@
 		Set-Content "$LogDir\setup.sh" $setupcommand
 		#endregion
@@ -323,16 +324,16 @@ install_package "fio iperf ethtool stress-ng"
 
 		# Check the system log if it shows Power Management log
 		"hibernation entry", "hibernation exit" | ForEach-Object {
-			$pm_log_filter = Run-LinuxCmd -ip $AllVMData[0].PublicIP -port $AllVMData[0].SSHPort -username $user -password $password -command "cat /var/log/syslog | grep -i '$_'" -ignoreLinuxExitCode:$true
+			$pm_log_filter = Run-LinuxCmd -ip $AllVMData[0].PublicIP -port $AllVMData[0].SSHPort -username $user -password $password -command "source utils.sh; found_sys_log '$_';echo $?" -ignoreLinuxExitCode:$true
 			Write-LogInfo "Searching the keyword: $_"
-			if ($pm_log_filter -eq "") {
+			if ($pm_log_filter -eq "0") {
 				Write-LogErr "Could not find Power Management log in dmesg"
 				throw "Missing PM logging in dmesg"
 			} else {
 				Write-LogInfo "Successfully found Power Management log in dmesg"
-				Write-LogInfo $pm_log_filter
 			}
 		}
+
 
 		if (($isStorageWorkloadEnable -eq 1) -or ($isNetworkWorkloadEnable -eq 1)) {
 			Start-WorkLoad "afterhb"

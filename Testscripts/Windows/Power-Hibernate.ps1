@@ -71,7 +71,7 @@ function Main {
 		Write-LogInfo "Updated the VM with a new data disk"
 		Write-LogInfo "Waiting for 30 seconds for configuration sync"
 		# Wait for disk sync with Azure host
-		Start-Sleep -s 30
+		Start-Sleep -s 60
 
 		# Verify the new data disk addition
 		if ($ret_val.IsSuccessStatusCode) {
@@ -275,16 +275,13 @@ install_package "ethtool"
 
 			# Check the system log if it shows Power Management log
 			"hibernation entry", "hibernation exit" | ForEach-Object {
-				if (($global:detectedDistro -imatch "CENTOS") -or ($global:detectedDistro -imatch "REDHAT") ) {
-					$pm_log_filter = Run-LinuxCmd -ip $AllVMData.PublicIP -port $AllVMData.SSHPort -username $user -password $password -command "dmesg | grep -i '$_'" -runAsSudo -ignoreLinuxExitCode:$true
-				} else {
-					$pm_log_filter = Run-LinuxCmd -ip $AllVMData.PublicIP -port $AllVMData.SSHPort -username $user -password $password -command "cat /var/log/syslog | grep -i '$_'" -runAsSudo -ignoreLinuxExitCode:$true
-				}
+				$pm_log_filter = Run-LinuxCmd -ip $AllVMData[0].PublicIP -port $AllVMData[0].SSHPort -username $user -password $password -command "source utils.sh; found_sys_log '$_';echo $?" -ignoreLinuxExitCode:$true
 				Write-LogInfo "Searching the keyword: $_"
-				if ($pm_log_filter -eq "") {
-					throw "Missing PM logging in both syslog and dmesg. Failed to find $_"
+				if ($pm_log_filter -eq "0") {
+					Write-LogErr "Could not find Power Management log in dmesg"
+					throw "Missing PM logging in dmesg"
 				} else {
-					Write-LogInfo "Successfully found Power Management log, $_"
+					Write-LogInfo "Successfully found Power Management log in dmesg"
 				}
 			}
 		}
