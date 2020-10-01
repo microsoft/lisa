@@ -8,11 +8,11 @@ setup:
 
 # Run LISAv3
 run:
-	@poetry run python lisa/main.py --debug
+	@poetry run python -X dev lisa/main.py --debug
 
 # Run unit tests
 test:
-	@poetry run python -m unittest discover lisa
+	@poetry run python -X dev -m unittest discover lisa
 
 # Generate coverage report (slow, reruns LISAv3 and tests)
 coverage:
