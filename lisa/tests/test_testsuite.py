@@ -1,6 +1,5 @@
-import asyncio
 from typing import Any, List
-from unittest import TestCase
+from unittest import IsolatedAsyncioTestCase, TestCase
 
 from lisa import schema
 from lisa.environment import load_environments
@@ -134,7 +133,7 @@ def select_and_check(
     return selected
 
 
-class TestSuiteTestCase(TestCase):
+class TestSuiteTestCase(IsolatedAsyncioTestCase):
     def generate_suite_instance(self) -> MockTestSuite:
         case_results = generate_cases_result()
         case_results = case_results[:2]
@@ -196,42 +195,42 @@ class TestSuiteTestCase(TestCase):
             else:
                 self.assertEqual(False, result.can_run)
 
-    def test_skip_before_suite_failed(self) -> None:
+    async def test_skip_before_suite_failed(self) -> None:
         test_suite = self.generate_suite_instance()
         test_suite.set_fail_phase(fail_on_before_suite=True)
-        asyncio.run(test_suite.start())
+        await test_suite.start()
         for result in test_suite.case_results:
             self.assertEqual(TestStatus.SKIPPED, result.status)
             self.assertEqual("before_suite: failed", result.message)
 
-    def test_pass_after_suite_failed(self) -> None:
+    async def test_pass_after_suite_failed(self) -> None:
         test_suite = self.generate_suite_instance()
         test_suite.set_fail_phase(fail_on_after_suite=True)
-        asyncio.run(test_suite.start())
+        await test_suite.start()
         for result in test_suite.case_results:
             self.assertEqual(TestStatus.PASSED, result.status)
             self.assertEqual("", result.message)
 
-    def test_skip_before_case_failed(self) -> None:
+    async def test_skip_before_case_failed(self) -> None:
         test_suite = self.generate_suite_instance()
         test_suite.set_fail_phase(fail_on_before_case=True)
-        asyncio.run(test_suite.start())
+        await test_suite.start()
         for result in test_suite.case_results:
             self.assertEqual(TestStatus.SKIPPED, result.status)
             self.assertEqual("before_case: failed", result.message)
 
-    def test_pass_after_case_failed(self) -> None:
+    async def test_pass_after_case_failed(self) -> None:
         test_suite = self.generate_suite_instance()
         test_suite.set_fail_phase(fail_on_after_case=True)
-        asyncio.run(test_suite.start())
+        await test_suite.start()
         for result in test_suite.case_results:
             self.assertEqual(TestStatus.PASSED, result.status)
             self.assertEqual("", result.message)
 
-    def test_skip_case_failed(self) -> None:
+    async def test_skip_case_failed(self) -> None:
         test_suite = self.generate_suite_instance()
         test_suite.set_fail_phase(fail_case_count=1)
-        asyncio.run(test_suite.start())
+        await test_suite.start()
         result = test_suite.case_results[0]
         self.assertEqual(TestStatus.FAILED, result.status)
         self.assertEqual("failed: mock_ut1 failed", result.message)
@@ -239,36 +238,36 @@ class TestSuiteTestCase(TestCase):
         self.assertEqual(TestStatus.PASSED, result.status)
         self.assertEqual("", result.message)
 
-    def test_retry_passed(self) -> None:
+    async def test_retry_passed(self) -> None:
         test_suite = self.generate_suite_instance()
         test_suite.set_fail_phase(fail_case_count=1)
         result = test_suite.case_results[0]
         result.runtime_data.retry = 1
-        asyncio.run(test_suite.start())
+        await test_suite.start()
         self.assertEqual(TestStatus.PASSED, result.status)
         self.assertEqual("", result.message)
         result = test_suite.case_results[1]
         self.assertEqual(TestStatus.PASSED, result.status)
         self.assertEqual("", result.message)
 
-    def test_retry_notenough_failed(self) -> None:
+    async def test_retry_notenough_failed(self) -> None:
         test_suite = self.generate_suite_instance()
         test_suite.set_fail_phase(fail_case_count=2)
         result = test_suite.case_results[0]
         result.runtime_data.retry = 1
-        asyncio.run(test_suite.start())
+        await test_suite.start()
         self.assertEqual(TestStatus.FAILED, result.status)
         self.assertEqual("failed: mock_ut1 failed", result.message)
         result = test_suite.case_results[1]
         self.assertEqual(TestStatus.PASSED, result.status)
         self.assertEqual("", result.message)
 
-    def test_attempt_ignore_failure(self) -> None:
+    async def test_attempt_ignore_failure(self) -> None:
         test_suite = self.generate_suite_instance()
         test_suite.set_fail_phase(fail_case_count=2)
         result = test_suite.case_results[0]
         result.runtime_data.ignore_failure = True
-        asyncio.run(test_suite.start())
+        await test_suite.start()
         self.assertEqual(TestStatus.ATTEMPTED, result.status)
         self.assertEqual("mock_ut1 failed", result.message)
         result = test_suite.case_results[1]
