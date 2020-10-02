@@ -34,7 +34,7 @@ function Main {
 		$testResult = $resultFail
 		$isStorageWorkloadEnable = 0
 		$isNetworkWorkloadEnable = 0
-		$azureSyncSecond = 30
+		$azureSyncSecond = 60
 
 		# Find the local test script
 		foreach ($TestScript in $CurrentTestData.files) {

@@ -61,7 +61,7 @@ function Main {
 		Write-LogInfo "Updated the VM with a new data disk"
 		Write-LogInfo "Waiting for 30 seconds for configuration sync"
 		# Wait for disk sync with Azure host
-		Start-Sleep -seconds 30
+		Start-Sleep -seconds 60
 
 		# Verify the new data disk addition
 		if ($ret_val.IsSuccessStatusCode) {
@@ -265,14 +265,13 @@ fi
 
 		# Check the system log if it shows Power Management log
 		"hibernation entry", "hibernation exit" | ForEach-Object {
-			$pm_log_filter = Run-LinuxCmd -ip $AllVMData[0].PublicIP -port $AllVMData[0].SSHPort -username $user -password $password -command "cat /var/log/syslog | grep -i '$_'" -ignoreLinuxExitCode:$true
+			$pm_log_filter = Run-LinuxCmd -ip $AllVMData[0].PublicIP -port $AllVMData[0].SSHPort -username $user -password $password -command "source utils.sh; found_sys_log '$_';echo $?" -ignoreLinuxExitCode:$true
 			Write-LogInfo "Searching the keyword: $_"
-			if ($pm_log_filter -eq "") {
+			if ($pm_log_filter -eq "0") {
 				Write-LogErr "Could not find Power Management log in dmesg"
 				throw "Missing PM logging in dmesg"
 			} else {
 				Write-LogInfo "Successfully found Power Management log in dmesg"
-				Write-LogInfo $pm_log_filter
 			}
 		}
 

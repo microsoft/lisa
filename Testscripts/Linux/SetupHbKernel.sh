@@ -40,7 +40,7 @@ function Main() {
 	else
 		linux_path=/usr/src/linux
 	fi
-
+	
 	# Prepare swap space
 	for key in n p 1 2048 '' t 82 p w
 	do
@@ -50,6 +50,9 @@ function Main() {
 
 	cat keys.txt | fdisk /dev/sdc
 	LogMsg "$?: Executed fdisk command"
+	# Need to wait for system complete the swap disk update.
+	LogMsg "Waiting 10 seconds for swap disk update"
+	sleep 10
 	ret=$(ls /dev/sd*)
 	LogMsg "$?: List out /dev/sd* - $ret"
 
@@ -58,6 +61,8 @@ function Main() {
 
 	swapon /dev/sdc1
 	LogMsg "$?: Enabled the swap space"
+	# Wait 2 seconds for swap disk enabling
+	sleep 2
 	ret=$(swapon -s)
 	LogMsg "$?: Show the swap on information - $ret"
 
@@ -74,7 +79,7 @@ function Main() {
 	echo $sw_uuid none swap sw 0 0 >> /etc/fstab
 	LogMsg "$?: Updated /etc/fstab file with swap uuid information"
 	ret=$(cat /etc/fstab)
-	LogMsg "$?: Displayed the contents in /etc/fstab"
+	LogMsg "$?: Displayed the updated contents in /etc/fstab"
 
 	if [[ $hb_url != "" ]]; then
 		LogMsg "Starting Hibernation required packages and kernel build in the VM"
@@ -115,25 +120,35 @@ function Main() {
 		git checkout $hb_branch
 		LogMsg "$?: Changed to $hb_branch"
 
-		if [[ "$DISTRO" =~ "redhat" || "$DISTRO" =~ "centos" ]];then
-			cp /boot/config* $linux_path/.config
-			# Commented out CONFIG_SYSTEM_TRUSTED_KEY parameter for redhat kernel compilation
-			sed -i -e "s/CONFIG_MODULE_SIG_KEY=/#CONFIG_MODULE_SIG_KEY=/g" $linux_path/.config
-			sed -i -e "s/CONFIG_SYSTEM_TRUSTED_KEYRING=/#CONFIG_SYSTEM_TRUSTED_KEYRING=/g" $linux_path/.config
-			sed -i -e "s/CONFIG_SYSTEM_TRUSTED_KEYS=/#CONFIG_SYSTEM_TRUSTED_KEYS=/g" $linux_path/.config
-			sed -i -e "s/CONFIG_DEBUG_INFO_BTF=/#CONFIG_DEBUG_INFO_BTF=/g" $linux_path/.config
+		cp /boot/config-$(uname -r) $linux_path/.config
+		LogMsg "$?: Copied the default config file, config-$(uname -r) to $linux_path"
 
-			grubby_output=$(grubby --default-kernel)
-			LogMsg "grubby default-kernel output - $grubby_output"
+		if [[ -f "$linux_path/.config" ]]; then
+			LogMsg "Successfully copied the config file to $linux_path"
 		else
-			cp /boot/config*-azure $linux_path/.config
+			LogErr "Failed to copy the config file. Abort the test"
+			SetTestStateAborted
+			exit 0
 		fi
-		LogMsg "$?: Copied the default config file from /boot"
-
 		yes '' | make oldconfig
 		LogMsg "$?: Did oldconfig make file"
 
-		make -j $(getconf _NPROCESSORS_ONLN)
+		if [[ "$DISTRO" =~ "redhat" || "$DISTRO" =~ "centos" ]];then
+			# Commented out CONFIG_SYSTEM_TRUSTED_KEY parameter for redhat kernel compilation
+			sed -i -e "s/CONFIG_MODULE_SIG_KEY=/#CONFIG_MODULE_SIG_KEY=/g" $linux_path/.config
+			LogMsg "$?: Commented out CONFIG_MODULE_SIG_KEY"
+			sed -i -e "s/CONFIG_SYSTEM_TRUSTED_KEYRING=/#CONFIG_SYSTEM_TRUSTED_KEYRING=/g" $linux_path/.config
+			LogMsg "$?: Commented out CONFIG_SYSTEM_TRUSTED_KEYRING"
+			sed -i -e "s/CONFIG_SYSTEM_TRUSTED_KEYS=/#CONFIG_SYSTEM_TRUSTED_KEYS=/g" $linux_path/.config
+			LogMsg "$?: Commented out CONFIG_SYSTEM_TRUSTED_KEYS"
+			sed -i -e "s/CONFIG_DEBUG_INFO_BTF=/#CONFIG_DEBUG_INFO_BTF=/g" $linux_path/.config
+			LogMsg "$?: Commented out CONFIG_DEBUG_INFO_BTF"
+
+			grubby_output=$(grubby --default-kernel)
+			LogMsg "$?: grubby default-kernel output - $grubby_output"
+		fi
+
+		yes '' | make -j $(getconf _NPROCESSORS_ONLN)
 		LogMsg "$?: Compiled the source codes"
 
 		make modules_install
@@ -143,7 +158,7 @@ function Main() {
 		LogMsg "$?: Install new kernel"
 
 		cd $base_dir
-	
+
 		# Append the test log to the main log files.
 		if [ -f $linux_path/TestExecution.log ]; then
 			cat $linux_path/TestExecution.log >> $base_dir/TestExecution.log
@@ -193,8 +208,8 @@ function Main() {
 			fi
 		fi
 		# grub2-mkconfig shows the image build problem in RHEL/CentOS, so we use alternative.
-		#grub2-mkconfig -o ${grub_cfg}
-		#LogMsg "$?: Run grub2-mkconfig -o ${grub_cfg}"
+		grub2-mkconfig -o ${grub_cfg}
+		LogMsg "$?: Run grub2-mkconfig -o ${grub_cfg}"
 
 		# If downstream kernel, use the current kernel
 		if [[ $hb_url == "" ]]; then
@@ -209,7 +224,7 @@ function Main() {
 			grubby --args="$original_args resume=$sw_uuid" --update-kernel=$vmlinux_file
 			
 			grubby --set-default=$vmlinux_file
-			LogMsg "Set $vmlinux_file to the default kernel"
+			LogMsg "$?: Set $vmlinux_file to the default kernel"
 			
 			new_args=$(grubby --info=ALL)
 			LogMsg "Updated grubby output $new_args"
