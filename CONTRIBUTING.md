@@ -22,6 +22,8 @@ short summary of the most important parts:
 * Use one leading underscore only for non-public methods and instance variables,
   such as `_data`.
 * Constants should be `CAPITALIZED_SNAKE_CASE`.
+* When importing a function, try to avoid renaming it with `import as` because
+  it introduces cognitive overhead to track yet another name.
 
 When in doubt, adhere to existing conventions, or check the style guide.
 
