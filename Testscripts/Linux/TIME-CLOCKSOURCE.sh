@@ -28,15 +28,24 @@ CheckSource()
 	LogMsg "Running CheckSource"
 	current_clocksource="/sys/devices/system/clocksource/clocksource0/current_clocksource"
 
-	# Microsoft LIS installed version has lis_hyperv_clocksource_tsc_page or
-	#	lis_hv_clocksource_tsc_page.
-	# Without Microsoft LIS, hyperv_clocksource_tsc_page or hv_clocksource_tsc_page.
-	# CentOS 7.0 or older versions has hyperv_clocksource.
-	clocksource="v_clocksource_tsc_page"
-	source /etc/os-release
-	if [[ $DISTRO_NAME == "centos" || $DISTRO_NAME == "rhel" ]] && (($(echo "$VERSION_ID < 7.1" | bc -l))) || [[ $DISTRO == "redhat_6" || $DISTRO == "centos_6" ]]; then
-		clocksource="hyperv_clocksource"
+	# Microsoft LIS installed guest RH6.X, RH7.0-RH7.4 has lis_hv_clocksource_tsc_page
+	# Without Microsoft LIS:
+	# 1. RH6.X (<6.9) & RH7.X (<7.2) has clocksource_tsc_page
+	# 2. All other guest distro variant has hyperv_clocksource_tsc_page
+	clocksource="hyperv_clocksource_tsc_page"
+	mj=$(echo "$DISTRO_VERSION" | cut -d '.' -f 1)
+	mn=$(echo "$DISTRO_VERSION" | cut -d '.' -f 2)
+
+	if [[ $DISTRO_NAME == "centos" || $DISTRO_NAME == "rhel" || $DISTRO_NAME == "oracle" ]];then
+		# Check LIS drivers are installed
+		if rpm -qa | grep kmod-microsoft > /dev/null; then
+			[[ $mj -eq 7 && $mn -lt 5 ]] && clocksource="lis_hv_clocksource_tsc_page"
+		else
+			# Without LIS, RH6.X (<6.9) & RH7.X (<7.2) has hyperv_clocksource
+			[[ ($mj -eq 7 && $mn -lt 2) || ($mj -eq 6 && $mn -lt 9) ]] && clocksource="hyperv_clocksource"
+		fi
 	fi
+
 	LogMsg "Temporary clocksource: $clocksource"
 
 	if ! [[ $(find $current_clocksource -type f -size +0M) ]]; then
@@ -46,7 +55,7 @@ CheckSource()
 	else
 		__file_content=$(cat $current_clocksource)
 		LogMsg "Found currect_clocksource $__file_content in $current_clocksource"
-		if [[ $__file_content == *"$clocksource"* ]]; then
+		if [[ $__file_content == "$clocksource" ]]; then
 			LogMsg "Test successful. Proper file was found. Clocksource file content is $__file_content"
 			clocksource=$__file_content
 		else
