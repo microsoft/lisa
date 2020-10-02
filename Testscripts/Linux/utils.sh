@@ -3822,9 +3822,9 @@ function is_hpc_vm() {
 # Return the string from the dmesg, messages or syslog
 # Depending on distro, system logs are different.
 # if found, return 1. Otherwise, 0.
-function found_sys_log() {	
+function found_sys_log() {
 	if [ -f /var/log/messages ]; then
-		ret=$(sudo cat /var/log/messages | grep -i "$1")
+		_ret=$(sudo cat /var/log/messages | grep -i "$1")
 	elif [ -f /var/log/syslog ]; then
 		_ret=$(sudo cat /var/log/syslog | grep -i "$1")
 	else
