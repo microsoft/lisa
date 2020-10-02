@@ -11,7 +11,7 @@ param([object] $AllVmData,
     [object] $CurrentTestData)
 
 # This function will add or remove VF from VM
-function Set-VF {
+function Set_VF {
     $vmData = $args[0]
     $accNetFlag = $args[1]
     # Additional NIC on the VMs are named with a keyword "Extra"
@@ -111,9 +111,9 @@ collect_VM_properties
                 -command $xdp_command -RunInBackground -runAsSudo -ignoreLinuxExitCode
 
             Wait-Time -seconds 10
-            Set-VF $receiverVMData $false
+            Set_VF $receiverVMData $false
             Wait-Time -seconds 20
-            Set-VF $receiverVMData $true
+            Set_VF $receiverVMData $true
             Wait-Time -seconds 10
             # Kill and verify XDP unloaded successfully
             if ((Get-Job -Id $testJob).State -eq "Running") {
