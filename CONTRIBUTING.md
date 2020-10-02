@@ -252,6 +252,18 @@ Python world. If you make it through even some of these guides, you will be well
 on your way to being a “Pythonista” (a Python developer) writing “Pythonic”
 (canonically correct Python) code left and right.
 
+### Async IO
+
+With Python 3.4, the Async IO pattern found in languages such as C# and Go is
+available through the keywords `async` and `await`, along with the Python module
+`asyncio`. Please read [Async IO in Python: A Complete
+Walkthrough](https://realpython.com/async-io-python/) to understand at a high
+level how asynchronous programming works. As of Python 3.7, One major “gotcha”
+is that `asyncio.run(...)` should be used [exactly once in
+`main`](https://docs.python.org/3/library/asyncio-task.html), it starts the
+event loop. Everything else should be a coroutine or task which the event loop
+schedules.
+
 ## Future Sections
 
 Just a collection of reminders for the author to expand on later.
