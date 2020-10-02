@@ -36,33 +36,34 @@ def support_variable(parser: ArgumentParser) -> None:
 
 
 def parse_args() -> Namespace:
-    # parse args run function.
+    """This wraps Python's 'ArgumentParser' to setup our CLI."""
     parser = ArgumentParser()
     support_debug(parser)
     support_runbook(parser, required=False)
     support_variable(parser)
 
+    # Default to ‘run’ when no subcommand is given.
+    parser.set_defaults(func=commands.run)
+
     subparsers = parser.add_subparsers(dest="cmd", required=False)
+
+    # Entry point for ‘run’.
     run_parser = subparsers.add_parser("run")
     run_parser.set_defaults(func=commands.run)
-    support_runbook(run_parser)
-    support_variable(run_parser)
 
+    # Entry point for ‘list-start’.
     list_parser = subparsers.add_parser(constants.LIST)
     list_parser.set_defaults(func=commands.list_start)
     list_parser.add_argument("--type", "-t", dest="type", choices=["case"])
     list_parser.add_argument("--all", "-a", dest="list_all", action="store_true")
-    support_runbook(list_parser)
-    support_variable(list_parser)
 
+    # Entry point for ‘check’.
     check_parser = subparsers.add_parser("check")
     check_parser.set_defaults(func=commands.check)
-    support_runbook(check_parser)
-    support_variable(check_parser)
-
-    parser.set_defaults(func=commands.run)
 
     for sub_parser in subparsers.choices.values():
+        support_runbook(sub_parser)
+        support_variable(sub_parser)
         support_debug(sub_parser)
 
     return parser.parse_args()
