@@ -1,7 +1,6 @@
-from argparse import Namespace
 from functools import partial
 from pathlib import Path, PurePath
-from typing import Any, Dict, Optional, cast
+from typing import Any, Dict, List, Optional, cast
 
 import yaml
 from marshmallow import Schema
@@ -58,13 +57,13 @@ def validate_data(data: Any) -> schema.Runbook:
     return runbook
 
 
-def load(args: Namespace) -> schema.Runbook:
+def load_runbook(path: Path, user_variables: Optional[List[str]]) -> schema.Runbook:
+    """Loads a runbook given a user-supplied path and set of variables."""
     # make sure extension in lisa is loaded
     base_module_path = Path(__file__).parent.parent
     import_module(base_module_path, logDetails=False)
 
     # merge all parameters
-    path = Path(args.runbook).absolute()
     data = _load_data(path)
     constants.RUNBOOK_PATH = path.parent
 
@@ -73,14 +72,14 @@ def load(args: Namespace) -> schema.Runbook:
         extends_runbook = schema.Extension.schema().load(  # type:ignore
             data[constants.EXTENSION]
         )
-        _load_extends(path.parent, extends_runbook)
+        _load_extends(constants.RUNBOOK_PATH, extends_runbook)
 
     # load arg variables
     variables: Dict[str, Any] = dict()
+    # TODO: This is all side-effect driven and needs to be fixed.
     load_from_runbook(data, variables)
     load_from_env(variables)
-    if hasattr(args, "variables"):
-        load_from_pairs(args.variables, variables)
+    load_from_pairs(user_variables, variables)
 
     # replace variables:
     data = replace_variables(data, variables)
