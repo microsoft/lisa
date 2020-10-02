@@ -1,4 +1,5 @@
 from argparse import ArgumentParser, Namespace
+from pathlib import Path
 
 from lisa import commands
 from lisa.util import constants
@@ -8,10 +9,10 @@ def support_runbook(parser: ArgumentParser, required: bool = True) -> None:
     parser.add_argument(
         "--runbook",
         "-r",
+        type=Path,
         required=required,
-        dest="runbook",
-        help="runbook of this run",
-        default="examples/runbook/hello_world.yml",
+        help="Path to the runbook",
+        default=Path("examples/runbook/hello_world.yml").absolute(),
     )
 
 
@@ -21,7 +22,7 @@ def support_debug(parser: ArgumentParser) -> None:
         "-d",
         dest="debug",
         action="store_true",
-        help="set log level to debug",
+        help="Set log level to debug",
     )
 
 
@@ -31,7 +32,7 @@ def support_variable(parser: ArgumentParser) -> None:
         "-v",
         dest="variables",
         action="append",
-        help="define variable from command line. format is NAME:VALUE",
+        help="Define one or more variables with 'NAME:VALUE'",
     )
 
 

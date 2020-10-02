@@ -4,7 +4,7 @@ from typing import Iterable, Optional, cast
 
 from lisa import notifier
 from lisa.lisarunner import LisaRunner
-from lisa.parameter_parser.runbook import load as load_runbook
+from lisa.parameter_parser.runbook import load_runbook
 from lisa.testselector import select_testcases
 from lisa.testsuite import TestCaseRuntimeData
 from lisa.util import LisaException, constants
@@ -14,7 +14,7 @@ _get_init_logger = functools.partial(get_logger, "init")
 
 
 async def run(args: Namespace) -> int:
-    runbook = load_runbook(args)
+    runbook = load_runbook(args.runbook, args.variables)
 
     if runbook.notifier:
         notifier.initialize(runbooks=runbook.notifier)
@@ -29,12 +29,12 @@ async def run(args: Namespace) -> int:
 
 # check runbook
 async def check(args: Namespace) -> int:
-    load_runbook(args)
+    load_runbook(args.runbook, args.variables)
     return 0
 
 
 async def list_start(args: Namespace) -> int:
-    runbook = load_runbook(args)
+    runbook = load_runbook(args.runbook, args.variables)
     list_all = cast(Optional[bool], args.list_all)
     log = _get_init_logger("list")
     if args.type == constants.LIST_CASE:
