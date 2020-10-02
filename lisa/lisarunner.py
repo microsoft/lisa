@@ -1,7 +1,6 @@
 from typing import Dict, List, Optional
 
 from lisa import schema, search_space
-from lisa.action import Action, ActionStatus
 from lisa.environment import Environment, Environments, load_environments
 from lisa.platform_ import WaitMoreResourceError, load_platform
 from lisa.testselector import select_testcases
@@ -16,18 +15,14 @@ from lisa.testsuite import (
 from lisa.util.logger import get_logger
 
 
-class LisaRunner(Action):
+class LisaRunner:
     def __init__(self, runbook: schema.Runbook) -> None:
-        super().__init__()
         self.exit_code: int = 0
-
         self._runbook = runbook
         self._log = get_logger("runner")
 
     async def start(self) -> None:  # noqa: C901
         # TODO: Reduce this function's complexity and remove the disabled warning.
-        await super().start()
-        self.status = ActionStatus.RUNNING
 
         # select test cases
         selected_test_cases = select_testcases(self._runbook.testcase)
@@ -161,19 +156,11 @@ class LisaRunner(Action):
         for key in TestStatus:
             self._log.info(f"    {key.name:<9}: {result_count_dict.get(key, 0)}")
 
-        self.status = ActionStatus.SUCCESS
-
         # pass failed count to exit code
         self.exit_code = result_count_dict.get(TestStatus.FAILED, 0)
 
         # for UT testability
         self._latest_test_results = selected_test_results
-
-    async def stop(self) -> None:
-        super().stop()
-
-    async def close(self) -> None:
-        super().close()
 
     async def _run_suite(
         self, environment: Environment, cases: List[TestResult]
