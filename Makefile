@@ -1,6 +1,6 @@
 # This Makefile simply automates all our tasks. Its use is optional.
 
-all: setup run check
+all: setup run test check
 
 # Install Python packages
 setup:
@@ -12,7 +12,7 @@ run:
 
 # Run unit tests
 test:
-	@poetry run python -X dev -m unittest discover lisa
+	@poetry run python -X dev -m unittest discover -v lisa
 
 # Generate coverage report (slow, reruns LISAv3 and tests)
 coverage:
