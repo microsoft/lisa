@@ -3818,3 +3818,20 @@ function is_hpc_vm() {
 		return 2
 	fi
 }
+
+# Get name of additional synthetic interface
+function get_extra_synth_nic {
+    local ignore_if=$(ip route | grep default | awk '{print $5}')
+    local interfaces=$(ls /sys/class/net | grep -v lo | grep -v ${ignore_if})
+
+    local synth_ifs=""
+    for interface in ${interfaces}; do
+        # alternative is, but then must always know driver name
+        # readlink -f /sys/class/net/<interface>/device/driver/
+        local bus_addr=$(ethtool -i ${interface} | grep bus-info | awk '{print $2}')
+        if [ -z "${bus_addr}" ]; then
+            synth_ifs="${synth_ifs} ${interface}"
+        fi
+    done
+    echo "${synth_ifs}"
+}
