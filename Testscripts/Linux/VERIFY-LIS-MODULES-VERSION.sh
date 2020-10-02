@@ -91,7 +91,7 @@ case $DISTRO in
             LogMsg "The current LIS installation state: none"
             LogErr "Test Skipped because of no LIS installation"
             SetTestStateSkipped
-            exit 1
+            exit 0
         fi
         LogMsg "RPM availability in the system: $rpmAvailable"
 
@@ -100,7 +100,7 @@ case $DISTRO in
             if check_version_greater_equal $DISTRO_VERSION $min_supported_distro_version ; then
                 HYPERV_MODULES+=('pci_hyperv')
                 pci_module=$(lsmod | grep pci_hyperv)
-                if [ -z $pci_module ]; then
+                if [[ -z "${pci_module}" ]]; then
                     modprobe pci_hyperv
                     LogMsg "pci_hyperv module loaded"
                 fi
@@ -109,7 +109,7 @@ case $DISTRO in
                 if check_version_greater_equal $expected_lis_version $min_supported_LIS_version ; then
                     HYPERV_MODULES+=('mlx4_en')
                     mlx4_module=$(lsmod | grep mlx4_en)
-                    if [ -z $mlx4_module ]; then
+                    if [[ -z "$mlx4_module" ]]; then
                         modprobe mlx4_en
                         LogMsg "mlx4_en module loaded"
                     fi
@@ -127,13 +127,13 @@ case $DISTRO in
                 if [ "$rpmAvailable" = true ] && [ ! -z "$isLISInstalled" ]; then
                     version=$(modinfo "$module" | grep version: | head -1 | awk '{print $2}')
                     LogMsg "$module module version: ${version}"
-                    if [ "$module" == "mlx4_en" && "$MLNX_VERSION" != "$version" ] ;then
+                    if [[ "$module" == "mlx4_en" && "$MLNX_VERSION" != "$version" ]] ;then
                         LogErr "Status: $module $version did not match to the build one, $MLNX_VERSION"
                         exit_code=$((exit_code+1))
                     else
                         continue
                     fi
-                    if [ "$expected_lis_version" != "$version" ] ;then
+                    if [[ "$expected_lis_version" != "$version" ]] ;then
                         LogErr "Status: $module $version did not match to the build one, $expected_lis_version"
                         exit_code=$((exit_code+1))
                     else
@@ -157,16 +157,14 @@ case $DISTRO in
         if [ 0 -eq $exit_code ]; then
             LogMsg "Exiting with state: $__LIS_TESTCOMPLETED."
             SetTestStateCompleted
-            exit 0
         else
             LogMsg "Exiting with state: $__LIS_TESTABORTED."
             SetTestStateAborted
-            exit 1
         fi
     ;;
     *)
         LogErr "$DISTRO is not supported in this test"
         SetTestStateSkipped
-        exit 0
     ;;
 esac
+exit 0

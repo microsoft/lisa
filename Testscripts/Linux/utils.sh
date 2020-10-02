@@ -3835,3 +3835,21 @@ function get_extra_synth_nic {
     done
     echo "${synth_ifs}"
 }
+
+# Return the string from the dmesg, messages or syslog
+# Depending on distro, system logs are different.
+# if found, return 1. Otherwise, 0.
+function found_sys_log() {
+	if [ -f /var/log/messages ]; then
+		_ret=$(sudo cat /var/log/messages | grep -i "$1")
+	elif [ -f /var/log/syslog ]; then
+		_ret=$(sudo cat /var/log/syslog | grep -i "$1")
+	else
+		_ret=$(sudo dmesg | grep -i "$1")
+	fi
+	if [[ "$_ret" == *"$1"* ]]; then
+		return 1
+	else
+		return 0
+	fi
+}

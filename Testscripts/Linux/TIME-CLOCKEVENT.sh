@@ -96,7 +96,20 @@ case $DISTRO in
         SetTestStateSkipped
         exit 0
         ;;
-    redhat_7|redhat_8|centos_7|centos_8|fedora*|clear-linux-os)
+    redhat_7|centos_7)
+        mj=$(echo "$DISTRO_VERSION" | cut -d '.' -f 1)
+        mn=$(echo "$DISTRO_VERSION" | cut -d '.' -f 2)
+        if [[ $mj -eq 7 && $mn -lt 3 ]];then
+            LogMsg "WARNING: $DISTRO $mj.$mn does not support Hyper-V clockevent."
+            SetTestStateSkipped
+            exit 0
+        else
+            CheckClockEvent
+            CheckTimerInfo
+            UnbindClockEvent
+        fi
+        ;;
+    redhat_8|centos_8|fedora*|clear-linux-os)
         CheckClockEvent
         CheckTimerInfo
         UnbindClockEvent

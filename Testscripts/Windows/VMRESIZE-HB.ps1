@@ -67,7 +67,7 @@ function Main {
 		Write-LogInfo "Updated the VM with a new data disk"
 		Write-LogInfo "Waiting for 30 seconds for configuration sync"
 		# Wait for disk sync with Azure host
-		Start-Sleep -s 30
+		Start-Sleep -s 60
 
 		# Verify the new data disk addition
 		if ($ret_val.IsSuccessStatusCode) {
@@ -227,16 +227,16 @@ echo disk > /sys/power/state
 		}
 
 		# Check the system log if it shows Power Management log
-		"Hibernate inconsistent memory map detected", "Image mismatch: architecture specific data", "Failed to load image, recovering" | ForEach-Object {
-			$pm_log_filter = Run-LinuxCmd -ip $AllVMData.PublicIP -port $AllVMData.SSHPort -username $user -password $password -command "cat /var/log/syslog | grep -i '$_'" -ignoreLinuxExitCode:$true
+		"hibernation entry", "hibernation exit" | ForEach-Object {
+			$pm_log_filter = Run-LinuxCmd -ip $AllVMData[0].PublicIP -port $AllVMData[0].SSHPort -username $user -password $password -command "source utils.sh; found_sys_log '$_';echo $?" -ignoreLinuxExitCode:$true
 			Write-LogInfo "Searching the keyword: $_"
-			if ($pm_log_filter -eq "") {
-				throw "Missing the expected log in syslog"
+			if ($pm_log_filter -eq "0") {
+				Write-LogErr "Could not find Power Management log in dmesg"
+				throw "Missing PM logging in dmesg"
 			} else {
-				Write-LogInfo "Successfully found syslog log in dmesg - $pm_log_filter"
+				Write-LogInfo "Successfully found Power Management log in dmesg"
 			}
 		}
-
 		$testResult = $resultPass
 	} catch {
 		$ErrorMessage =  $_.Exception.Message
