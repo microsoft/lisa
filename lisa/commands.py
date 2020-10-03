@@ -3,8 +3,8 @@ from argparse import Namespace
 from typing import Iterable, Optional, cast
 
 from lisa import notifier
-from lisa.lisarunner import Runner
 from lisa.parameter_parser.runbook import load_runbook
+from lisa.runner import Runner
 from lisa.testselector import select_testcases
 from lisa.testsuite import TestCaseRuntimeData
 from lisa.util import LisaException, constants

@@ -14,6 +14,8 @@ return_prepared = True
 deploy_success = True
 deploy_is_ready = True
 wait_more_resource_error = False
+# TODO: Um... this breaks things because of an implicit alphabetical
+# dependency where if this runs before `RunnerTestCase` they fail.
 prepared_envs: List[str] = []
 deployed_envs: List[str] = []
 deleted_envs: List[str] = []

@@ -3,7 +3,7 @@ from unittest import IsolatedAsyncioTestCase
 
 from lisa import schema
 from lisa.environment import load_environments
-from lisa.lisarunner import Runner
+from lisa.runner import Runner
 from lisa.tests import test_platform, test_testsuite
 from lisa.tests.test_environment import generate_runbook as generate_env_runbook
 from lisa.tests.test_platform import deleted_envs, deployed_envs, prepared_envs
