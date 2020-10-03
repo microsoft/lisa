@@ -220,7 +220,7 @@ class TestCaseMetadata:
             self.requirement = requirement
 
     def __getattr__(self, key: str) -> Any:
-        # inherit all attributes of test suite
+        # return attributes of test suite, if it's not redefined in case level
         assert self.suite, "suite is not set before use metadata"
         return getattr(self.suite, key)
 
@@ -254,7 +254,7 @@ class TestCaseRuntimeData:
         self.environment_name: str = ""
 
     def __getattr__(self, key: str) -> Any:
-        # inherit all attributes of metadata
+        # return attributes of metadata for convenient
         assert self.metadata
         return getattr(self.metadata, key)
 
@@ -299,8 +299,10 @@ class TestSuite(Action, metaclass=ABCMeta):
     def after_case(self) -> None:
         pass
 
+    # TODO: This entire function is one long string of side-effects.
+    # We need to reduce this function's complexity to remove the
+    # disabled warning, and not rely solely on side effects.
     async def start(self) -> None:  # noqa: C901
-        # TODO: Reduce this function's complexity and remove the disabled warning.
         suite_error_message = ""
         is_suite_continue = True
 
