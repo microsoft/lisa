@@ -41,6 +41,8 @@ class TestResultMessage(notifier.MessageBase):
     env: str = ""
 
 
+# TODO: We’re shadowing `unittest.TestResult` and may just want to
+# reuse it, especially if we’ve been inspired by it so much.
 @dataclass
 class TestResult:
     runtime_data: TestCaseRuntimeData
@@ -200,9 +202,15 @@ class TestCaseMetadata:
     ) -> None:
         self.priority = priority
         self.description = description
+        # TODO: Because this class is pseudo-inherited through
+        # attribute abuse, this optionally defined attribute causes a
+        # lot of typing headaches.
         if requirement:
             self.requirement = requirement
 
+    # TODO: This implies that we should actually subclass (inherit)
+    # `TestSuiteMetadata`, with some way of instantiating this class
+    # from an instance of that class.
     def __getattr__(self, key: str) -> Any:
         # inherit all attributes of test suite
         assert self.suite, "suite is not set before use metadata"
@@ -237,6 +245,9 @@ class TestCaseRuntimeData:
         self.ignore_failure: bool = False
         self.environment_name: str = ""
 
+    # TODO: This implies that we should actually subclass (inherit)
+    # `TestCaseMetaData`, with some way of instantiating this class
+    # from an instance of that class.
     def __getattr__(self, key: str) -> Any:
         # inherit all attributes of metadata
         assert self.metadata
@@ -283,8 +294,11 @@ class TestSuite(unittest.TestCase, metaclass=ABCMeta):
     def after_case(self) -> None:
         pass
 
+    # TODO: This entire function is one long string of side-effects.
+    # We need to reduce this function's complexity to remove the
+    # disabled warning, and not rely solely on side effects. Perhaps
+    # we actually just want to reuse `unittest.TestCase.run()`?
     async def start(self) -> None:  # noqa: C901
-        # TODO: Reduce this function's complexity and remove the disabled warning.
         suite_error_message = ""
         is_suite_continue = True
 

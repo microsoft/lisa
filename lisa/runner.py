@@ -6,7 +6,6 @@ from lisa.platform_ import WaitMoreResourceError, load_platform
 from lisa.testselector import select_testcases
 from lisa.testsuite import (
     TestCaseRequirement,
-    TestCaseRuntimeData,
     TestResult,
     TestStatus,
     TestSuite,
@@ -21,14 +20,16 @@ class Runner:
         self._runbook = runbook
         self._log = get_logger("runner")
 
+    # TODO: This entire function is one long string of side-effects.
+    # We need to reduce this function's complexity to remove the
+    # disabled warning, and not rely solely on side effects.
     async def run(self) -> None:  # noqa: C901
-        # TODO: Reduce this function's complexity and remove the disabled warning.
-
         # select test cases
         selected_test_cases = select_testcases(self._runbook.testcase)
 
-        # create test results
-        selected_test_results = self._create_test_results(selected_test_cases)
+        selected_test_results = [
+            TestResult(runtime_data=case) for case in selected_test_cases
+        ]
 
         # load predefined environments
         candidate_environments = load_environments(self._runbook.environment)
@@ -176,14 +177,6 @@ class Runner:
         for case in cases:
             case.env = environment.name
         await test_suite.start()
-
-    def _create_test_results(
-        self, cases: List[TestCaseRuntimeData]
-    ) -> List[TestResult]:
-        test_results: List[TestResult] = []
-        for x in cases:
-            test_results.append(TestResult(runtime_data=x))
-        return test_results
 
     def _merge_test_requirements(
         self,
