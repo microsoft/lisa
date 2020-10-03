@@ -3,7 +3,7 @@ from argparse import Namespace
 from typing import Iterable, Optional, cast
 
 from lisa import notifier
-from lisa.lisarunner import LisaRunner
+from lisa.lisarunner import Runner
 from lisa.parameter_parser.runbook import load_runbook
 from lisa.testselector import select_testcases
 from lisa.testsuite import TestCaseRuntimeData
@@ -19,7 +19,7 @@ async def run(args: Namespace) -> int:
     if runbook.notifier:
         notifier.initialize(runbooks=runbook.notifier)
     try:
-        runner = LisaRunner(runbook)
+        runner = Runner(runbook)
         await runner.start()
     finally:
         notifier.finalize()
