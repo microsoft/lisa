@@ -20,7 +20,7 @@ async def run(args: Namespace) -> int:
         notifier.initialize(runbooks=runbook.notifier)
     try:
         runner = Runner(runbook)
-        await runner.start()
+        await runner.run()
     finally:
         notifier.finalize()
 

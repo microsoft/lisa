@@ -212,7 +212,7 @@ class RunnerTestCase(IsolatedAsyncioTestCase):
         generate_cases_metadata()
         env_runbook = generate_env_runbook(is_single_env=True, remote=True)
         runner = generate_runner(env_runbook)
-        await runner.start()
+        await runner.run()
         self.verify_env_results(
             expected_prepared=["runbook_0", "req_1", "req_2"],
             expected_deployed_envs=["runbook_0", "req_1"],
@@ -231,7 +231,7 @@ class RunnerTestCase(IsolatedAsyncioTestCase):
         generate_cases_metadata()
         env_runbook = generate_env_runbook(is_single_env=True, local=True, remote=True)
         runner = generate_runner(env_runbook)
-        await runner.start()
+        await runner.run()
         self.verify_env_results(
             expected_prepared=["runbook_0", "req_1", "req_2", "req_3"],
             expected_deployed_envs=["runbook_0"],
@@ -250,7 +250,7 @@ class RunnerTestCase(IsolatedAsyncioTestCase):
         generate_cases_metadata()
         env_runbook = generate_env_runbook(is_single_env=True, local=True, remote=True)
         runner = generate_runner(env_runbook, case_use_new_env=True)
-        await runner.start()
+        await runner.run()
         self.verify_env_results(
             expected_prepared=["runbook_0", "req_1", "req_2", "req_3"],
             expected_deployed_envs=["runbook_0", "req_1", "req_3"],
@@ -269,7 +269,7 @@ class RunnerTestCase(IsolatedAsyncioTestCase):
         generate_cases_metadata()
         env_runbook = generate_env_runbook(local=True, remote=True)
         runner = generate_runner(env_runbook)
-        await runner.start()
+        await runner.run()
         self.verify_env_results(
             expected_prepared=["runbook_0", "runbook_1", "req_2", "req_3"],
             expected_deployed_envs=["runbook_0", "req_2"],
@@ -290,7 +290,7 @@ class RunnerTestCase(IsolatedAsyncioTestCase):
         generate_cases_metadata()
         env_runbook = generate_env_runbook(is_single_env=True, local=True)
         runner = generate_runner(env_runbook)
-        await runner.start()
+        await runner.run()
 
         self.verify_env_results(
             expected_prepared=["runbook_0", "req_1", "req_2", "req_3"],
@@ -319,7 +319,7 @@ class RunnerTestCase(IsolatedAsyncioTestCase):
         generate_cases_metadata()
         env_runbook = generate_env_runbook(is_single_env=True, local=True, remote=True)
         runner = generate_runner(env_runbook)
-        await runner.start()
+        await runner.run()
         self.verify_env_results(
             expected_prepared=["runbook_0", "req_1", "req_2", "req_3"],
             expected_deployed_envs=["runbook_0"],
@@ -343,7 +343,7 @@ class RunnerTestCase(IsolatedAsyncioTestCase):
         generate_cases_metadata()
         env_runbook = generate_env_runbook(is_single_env=True, local=True, remote=True)
         runner = generate_runner(env_runbook)
-        await runner.start()
+        await runner.run()
         self.verify_env_results(
             expected_prepared=["runbook_0", "req_1", "req_2", "req_3"],
             expected_deployed_envs=[],
@@ -368,7 +368,7 @@ class RunnerTestCase(IsolatedAsyncioTestCase):
         generate_cases_metadata()
         env_runbook = generate_env_runbook(is_single_env=True, local=True, remote=True)
         runner = generate_runner(env_runbook)
-        await runner.start()
+        await runner.run()
         self.verify_env_results(
             expected_prepared=["runbook_0", "req_1", "req_2", "req_3"],
             expected_deployed_envs=["runbook_0", "req_1", "req_2", "req_3"],
@@ -391,7 +391,7 @@ class RunnerTestCase(IsolatedAsyncioTestCase):
         # in this case, not deploy any env
         env_runbook = generate_env_runbook(is_single_env=True, remote=True)
         runner = generate_runner(env_runbook)
-        await runner.start()
+        await runner.run()
         # still prepare predefined, but not deploy
         self.verify_env_results(
             expected_prepared=["runbook_0"],

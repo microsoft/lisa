@@ -21,7 +21,7 @@ class Runner:
         self._runbook = runbook
         self._log = get_logger("runner")
 
-    async def start(self) -> None:  # noqa: C901
+    async def run(self) -> None:  # noqa: C901
         # TODO: Reduce this function's complexity and remove the disabled warning.
 
         # select test cases
