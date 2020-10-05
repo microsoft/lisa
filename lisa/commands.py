@@ -2,11 +2,11 @@ import functools
 from argparse import Namespace
 from typing import Iterable, Optional, cast
 
+import lisa.runner
 from lisa import notifier
 from lisa.parameter_parser.runbook import load_runbook
-from lisa.runner import Runner
 from lisa.testselector import select_testcases
-from lisa.testsuite import TestCaseRuntimeData
+from lisa.testsuite import TestCaseRuntimeData, TestStatus
 from lisa.util import LisaException, constants
 from lisa.util.logger import get_logger
 
@@ -18,13 +18,13 @@ async def run(args: Namespace) -> int:
 
     if runbook.notifier:
         notifier.initialize(runbooks=runbook.notifier)
+
     try:
-        runner = Runner(runbook)
-        await runner.run()
+        results = await lisa.runner.run(runbook)
     finally:
         notifier.finalize()
 
-    return runner.exit_code
+    return sum(1 for x in results if x.status == TestStatus.FAILED)
 
 
 # check runbook

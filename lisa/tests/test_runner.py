@@ -1,9 +1,9 @@
 from typing import List, Optional
 from unittest import IsolatedAsyncioTestCase
 
+import lisa.runner
 from lisa import schema
 from lisa.environment import load_environments
-from lisa.runner import Runner
 from lisa.tests import test_platform, test_testsuite
 from lisa.tests.test_environment import generate_runbook as generate_env_runbook
 from lisa.tests.test_platform import deleted_envs, deployed_envs, prepared_envs
@@ -16,9 +16,9 @@ from lisa.testsuite import TestResult, TestStatus, simple_requirement
 from lisa.util import constants
 
 
-def generate_runner(
+def generate_test_runbook(
     env_runbook: Optional[schema.EnvironmentRoot] = None, case_use_new_env: bool = False
-) -> Runner:
+) -> schema.Runbook:
     runbook = schema.Runbook(
         platform=[
             schema.Platform(type=constants.PLATFORM_MOCK, admin_password="not use it")
@@ -32,9 +32,7 @@ def generate_runner(
     )
     if env_runbook:
         runbook.environment = env_runbook
-    runner = Runner(runbook)
-
-    return runner
+    return runbook
 
 
 class RunnerTestCase(IsolatedAsyncioTestCase):
@@ -53,9 +51,8 @@ class RunnerTestCase(IsolatedAsyncioTestCase):
             [],
             [x for x in envs],
         )
-        runner = generate_runner(None)
         test_results = generate_cases_result()
-        runner._merge_test_requirements(
+        lisa.runner._merge_test_requirements(
             test_results=test_results,
             existing_environments=envs,
             platform_type=constants.PLATFORM_MOCK,
@@ -81,10 +78,8 @@ class RunnerTestCase(IsolatedAsyncioTestCase):
             ["runbook_0"],
             [x for x in envs],
         )
-
-        runner = generate_runner(env_runbook)
         test_results = generate_cases_result()
-        runner._merge_test_requirements(
+        lisa.runner._merge_test_requirements(
             test_results=test_results,
             existing_environments=envs,
             platform_type=constants.PLATFORM_MOCK,
@@ -110,11 +105,10 @@ class RunnerTestCase(IsolatedAsyncioTestCase):
             ["runbook_0"],
             [x for x in envs],
         )
-        runner = generate_runner(env_runbook)
         test_results = generate_cases_result()
         for test_result in test_results:
             test_result.runtime_data.use_new_environment = True
-        runner._merge_test_requirements(
+        lisa.runner._merge_test_requirements(
             test_results=test_results,
             existing_environments=envs,
             platform_type=constants.PLATFORM_MOCK,
@@ -141,9 +135,8 @@ class RunnerTestCase(IsolatedAsyncioTestCase):
             [],
             [x for x in envs],
         )
-        runner = generate_runner(None)
         test_results = generate_cases_result()
-        runner._merge_test_requirements(
+        lisa.runner._merge_test_requirements(
             test_results=test_results,
             existing_environments=envs,
             platform_type=constants.PLATFORM_MOCK,
@@ -152,7 +145,6 @@ class RunnerTestCase(IsolatedAsyncioTestCase):
             [],
             [x for x in envs],
         )
-
         self.verify_test_results(
             expected_envs=["", "", ""],
             expected_status=[
@@ -175,19 +167,17 @@ class RunnerTestCase(IsolatedAsyncioTestCase):
             [],
             [x for x in envs],
         )
-        runner = generate_runner(None)
         test_results = generate_cases_result()
         for test_result in test_results:
             metadata = test_result.runtime_data.metadata
             metadata.requirement = simple_requirement(
                 supported_platform_type=["notexists"]
             )
-        runner._merge_test_requirements(
+        lisa.runner._merge_test_requirements(
             test_results=test_results,
             existing_environments=envs,
             platform_type=constants.PLATFORM_MOCK,
         )
-
         platform_unsupported = "capability cannot support some of requirement"
         self.verify_test_results(
             expected_envs=["", "", ""],
@@ -211,8 +201,8 @@ class RunnerTestCase(IsolatedAsyncioTestCase):
         #    so it can run any case with core requirements.
         generate_cases_metadata()
         env_runbook = generate_env_runbook(is_single_env=True, remote=True)
-        runner = generate_runner(env_runbook)
-        await runner.run()
+        runbook = generate_test_runbook(env_runbook)
+        results = await lisa.runner.run(runbook)
         self.verify_env_results(
             expected_prepared=["runbook_0", "req_1", "req_2"],
             expected_deployed_envs=["runbook_0", "req_1"],
@@ -222,7 +212,7 @@ class RunnerTestCase(IsolatedAsyncioTestCase):
             expected_envs=["req_1", "runbook_0", "runbook_0"],
             expected_status=[TestStatus.PASSED, TestStatus.PASSED, TestStatus.PASSED],
             expected_message=["", "", ""],
-            test_results=runner._latest_test_results,
+            test_results=results,
         )
 
     async def test_fit_a_bigger_env(self) -> None:
@@ -230,8 +220,8 @@ class RunnerTestCase(IsolatedAsyncioTestCase):
         # it doesn't equal to any case req, but reusable for all cases.
         generate_cases_metadata()
         env_runbook = generate_env_runbook(is_single_env=True, local=True, remote=True)
-        runner = generate_runner(env_runbook)
-        await runner.run()
+        runbook = generate_test_runbook(env_runbook)
+        results = await lisa.runner.run(runbook)
         self.verify_env_results(
             expected_prepared=["runbook_0", "req_1", "req_2", "req_3"],
             expected_deployed_envs=["runbook_0"],
@@ -241,7 +231,7 @@ class RunnerTestCase(IsolatedAsyncioTestCase):
             expected_envs=["runbook_0", "runbook_0", "runbook_0"],
             expected_status=[TestStatus.PASSED, TestStatus.PASSED, TestStatus.PASSED],
             expected_message=["", "", ""],
-            test_results=runner._latest_test_results,
+            test_results=results,
         )
 
     async def test_case_new_env_run_only_1_needed(self) -> None:
@@ -249,8 +239,8 @@ class RunnerTestCase(IsolatedAsyncioTestCase):
         # but all case want to run on a new env
         generate_cases_metadata()
         env_runbook = generate_env_runbook(is_single_env=True, local=True, remote=True)
-        runner = generate_runner(env_runbook, case_use_new_env=True)
-        await runner.run()
+        runbook = generate_test_runbook(env_runbook, case_use_new_env=True)
+        results = await lisa.runner.run(runbook)
         self.verify_env_results(
             expected_prepared=["runbook_0", "req_1", "req_2", "req_3"],
             expected_deployed_envs=["runbook_0", "req_1", "req_3"],
@@ -260,7 +250,7 @@ class RunnerTestCase(IsolatedAsyncioTestCase):
             expected_envs=["runbook_0", "req_1", "req_3"],
             expected_status=[TestStatus.PASSED, TestStatus.PASSED, TestStatus.PASSED],
             expected_message=["", "", ""],
-            test_results=runner._latest_test_results,
+            test_results=results,
         )
 
     async def test_no_needed_env(self) -> None:
@@ -268,8 +258,8 @@ class RunnerTestCase(IsolatedAsyncioTestCase):
         # no cases assigned to runbook_1, as fit cases run on runbook_0 already
         generate_cases_metadata()
         env_runbook = generate_env_runbook(local=True, remote=True)
-        runner = generate_runner(env_runbook)
-        await runner.run()
+        runbook = generate_test_runbook(env_runbook)
+        results = await lisa.runner.run(runbook)
         self.verify_env_results(
             expected_prepared=["runbook_0", "runbook_1", "req_2", "req_3"],
             expected_deployed_envs=["runbook_0", "req_2"],
@@ -279,7 +269,7 @@ class RunnerTestCase(IsolatedAsyncioTestCase):
             expected_envs=["req_2", "runbook_0", "runbook_0"],
             expected_status=[TestStatus.PASSED, TestStatus.PASSED, TestStatus.PASSED],
             expected_message=["", "", ""],
-            test_results=runner._latest_test_results,
+            test_results=results,
         )
 
     async def test_deploy_no_more_resource(self) -> None:
@@ -289,8 +279,8 @@ class RunnerTestCase(IsolatedAsyncioTestCase):
         test_platform.wait_more_resource_error = True
         generate_cases_metadata()
         env_runbook = generate_env_runbook(is_single_env=True, local=True)
-        runner = generate_runner(env_runbook)
-        await runner.run()
+        runbook = generate_test_runbook(env_runbook)
+        results = await lisa.runner.run(runbook)
 
         self.verify_env_results(
             expected_prepared=["runbook_0", "req_1", "req_2", "req_3"],
@@ -310,7 +300,7 @@ class RunnerTestCase(IsolatedAsyncioTestCase):
                 before_suite_failed,
                 before_suite_failed,
             ],
-            test_results=runner._latest_test_results,
+            test_results=results,
         )
 
     async def test_skipped_on_suite_failure(self) -> None:
@@ -318,8 +308,8 @@ class RunnerTestCase(IsolatedAsyncioTestCase):
         test_testsuite.fail_on_before_suite = True
         generate_cases_metadata()
         env_runbook = generate_env_runbook(is_single_env=True, local=True, remote=True)
-        runner = generate_runner(env_runbook)
-        await runner.run()
+        runbook = generate_test_runbook(env_runbook)
+        results = await lisa.runner.run(runbook)
         self.verify_env_results(
             expected_prepared=["runbook_0", "req_1", "req_2", "req_3"],
             expected_deployed_envs=["runbook_0"],
@@ -334,7 +324,7 @@ class RunnerTestCase(IsolatedAsyncioTestCase):
                 TestStatus.PASSED,
             ],
             expected_message=[before_suite_failed, before_suite_failed, ""],
-            test_results=runner._latest_test_results,
+            test_results=results,
         )
 
     async def test_env_skipped_no_prepared_env(self) -> None:
@@ -342,8 +332,8 @@ class RunnerTestCase(IsolatedAsyncioTestCase):
         test_platform.return_prepared = False
         generate_cases_metadata()
         env_runbook = generate_env_runbook(is_single_env=True, local=True, remote=True)
-        runner = generate_runner(env_runbook)
-        await runner.run()
+        runbook = generate_test_runbook(env_runbook)
+        results = await lisa.runner.run(runbook)
         self.verify_env_results(
             expected_prepared=["runbook_0", "req_1", "req_2", "req_3"],
             expected_deployed_envs=[],
@@ -358,7 +348,7 @@ class RunnerTestCase(IsolatedAsyncioTestCase):
                 TestStatus.SKIPPED,
             ],
             expected_message=[no_avaiable_env, no_avaiable_env, no_avaiable_env],
-            test_results=runner._latest_test_results,
+            test_results=results,
         )
 
     async def test_env_skipped_not_ready(self) -> None:
@@ -367,8 +357,8 @@ class RunnerTestCase(IsolatedAsyncioTestCase):
         test_platform.deploy_is_ready = False
         generate_cases_metadata()
         env_runbook = generate_env_runbook(is_single_env=True, local=True, remote=True)
-        runner = generate_runner(env_runbook)
-        await runner.run()
+        runbook = generate_test_runbook(env_runbook)
+        results = await lisa.runner.run(runbook)
         self.verify_env_results(
             expected_prepared=["runbook_0", "req_1", "req_2", "req_3"],
             expected_deployed_envs=["runbook_0", "req_1", "req_2", "req_3"],
@@ -383,15 +373,15 @@ class RunnerTestCase(IsolatedAsyncioTestCase):
                 TestStatus.SKIPPED,
             ],
             expected_message=[no_avaiable_env, no_avaiable_env, no_avaiable_env],
-            test_results=runner._latest_test_results,
+            test_results=results,
         )
 
     async def test_env_skipped_no_case(self) -> None:
         # no case found, as not call generate_case_metadata
         # in this case, not deploy any env
         env_runbook = generate_env_runbook(is_single_env=True, remote=True)
-        runner = generate_runner(env_runbook)
-        await runner.run()
+        runbook = generate_test_runbook(env_runbook)
+        results = await lisa.runner.run(runbook)
         # still prepare predefined, but not deploy
         self.verify_env_results(
             expected_prepared=["runbook_0"],
@@ -402,7 +392,7 @@ class RunnerTestCase(IsolatedAsyncioTestCase):
             expected_envs=[],
             expected_status=[],
             expected_message=[],
-            test_results=runner._latest_test_results,
+            test_results=results,
         )
 
     def verify_test_results(
