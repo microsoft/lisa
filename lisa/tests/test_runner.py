@@ -1,11 +1,11 @@
-from typing import List, Optional
+from typing import Any, List
 from unittest import IsolatedAsyncioTestCase
 
 import lisa.runner
 from lisa import schema
 from lisa.environment import load_environments
 from lisa.tests import test_platform, test_testsuite
-from lisa.tests.test_environment import generate_runbook as generate_env_runbook
+from lisa.tests.test_environment import generate_runbook
 from lisa.tests.test_platform import deleted_envs, deployed_envs, prepared_envs
 from lisa.tests.test_testsuite import (
     cleanup_cases_metadata,
@@ -17,9 +17,10 @@ from lisa.util import constants
 
 
 def generate_test_runbook(
-    env_runbook: Optional[schema.EnvironmentRoot] = None, case_use_new_env: bool = False
+    case_use_new_env: bool = False, **kwargs: Any
 ) -> schema.Runbook:
-    runbook = schema.Runbook(
+    """This wraps `generate_runbook` with a mock platform and test case."""
+    return schema.Runbook(
         platform=[
             schema.Platform(type=constants.PLATFORM_MOCK, admin_password="not use it")
         ],
@@ -29,10 +30,8 @@ def generate_test_runbook(
                 use_new_environment=case_use_new_env,
             )
         ],
+        environment=generate_runbook(**kwargs),
     )
-    if env_runbook:
-        runbook.environment = env_runbook
-    return runbook
 
 
 class RunnerTestCase(IsolatedAsyncioTestCase):
@@ -45,8 +44,7 @@ class RunnerTestCase(IsolatedAsyncioTestCase):
 
     def test_merge_req_create_on_new(self) -> None:
         # if no predefined envs, can generate from requirement
-        env_runbook = generate_env_runbook(is_single_env=False)
-        envs = load_environments(env_runbook)
+        envs = load_environments(generate_runbook(is_single_env=False))
         self.assertListEqual(
             [],
             [x for x in envs],
@@ -72,8 +70,7 @@ class RunnerTestCase(IsolatedAsyncioTestCase):
     def test_merge_req_run_not_create_on_equal(self) -> None:
         # when merging requirement from test cases,
         # it won't create new, if predefined exact match test case needs
-        env_runbook = generate_env_runbook(remote=True)
-        envs = load_environments(env_runbook)
+        envs = load_environments(generate_runbook(remote=True))
         self.assertListEqual(
             ["runbook_0"],
             [x for x in envs],
@@ -99,8 +96,7 @@ class RunnerTestCase(IsolatedAsyncioTestCase):
         # same runbook as test_merge_req_run_not_create_on_equal
         # but all 3 cases asks a new env, so create 3 envs
         # note, when running cases, predefined env will be treat as a new env.
-        env_runbook = generate_env_runbook(remote=True)
-        envs = load_environments(env_runbook)
+        envs = load_environments(generate_runbook(remote=True))
         self.assertListEqual(
             ["runbook_0"],
             [x for x in envs],
@@ -128,9 +124,9 @@ class RunnerTestCase(IsolatedAsyncioTestCase):
     def test_merge_req_not_allow_create(self) -> None:
         # force to use existing env, not to create new.
         # this case doesn't provide predefined env, but no case skipped on this stage.
-        env_runbook = generate_env_runbook(is_single_env=False)
-        env_runbook.allow_create = False
-        envs = load_environments(env_runbook)
+        runbook = generate_runbook(is_single_env=False)
+        runbook.allow_create = False
+        envs = load_environments(runbook)
         self.assertListEqual(
             [],
             [x for x in envs],
@@ -161,8 +157,7 @@ class RunnerTestCase(IsolatedAsyncioTestCase):
         # for example, some case run on azure only.
         # platform check happens in runner, so this case is here
         # a simple check is enough. More covered by search_space.SetSpace
-        env_runbook = generate_env_runbook(is_single_env=False)
-        envs = load_environments(env_runbook)
+        envs = load_environments(generate_runbook(is_single_env=False))
         self.assertListEqual(
             [],
             [x for x in envs],
@@ -200,8 +195,7 @@ class RunnerTestCase(IsolatedAsyncioTestCase):
         # 2. ut3 need 8 cores, and predefined env target to meet all core requirement,
         #    so it can run any case with core requirements.
         generate_cases_metadata()
-        env_runbook = generate_env_runbook(is_single_env=True, remote=True)
-        runbook = generate_test_runbook(env_runbook)
+        runbook = generate_test_runbook(is_single_env=True, remote=True)
         results = await lisa.runner.run(runbook)
         self.verify_env_results(
             expected_prepared=["runbook_0", "req_1", "req_2"],
@@ -219,8 +213,7 @@ class RunnerTestCase(IsolatedAsyncioTestCase):
         # similar with test_fit_a_predefined_env, but predefined 2 nodes,
         # it doesn't equal to any case req, but reusable for all cases.
         generate_cases_metadata()
-        env_runbook = generate_env_runbook(is_single_env=True, local=True, remote=True)
-        runbook = generate_test_runbook(env_runbook)
+        runbook = generate_test_runbook(is_single_env=True, local=True, remote=True)
         results = await lisa.runner.run(runbook)
         self.verify_env_results(
             expected_prepared=["runbook_0", "req_1", "req_2", "req_3"],
@@ -238,8 +231,9 @@ class RunnerTestCase(IsolatedAsyncioTestCase):
         # same predefined env as test_fit_a_bigger_env,
         # but all case want to run on a new env
         generate_cases_metadata()
-        env_runbook = generate_env_runbook(is_single_env=True, local=True, remote=True)
-        runbook = generate_test_runbook(env_runbook, case_use_new_env=True)
+        runbook = generate_test_runbook(
+            case_use_new_env=True, is_single_env=True, local=True, remote=True
+        )
         results = await lisa.runner.run(runbook)
         self.verify_env_results(
             expected_prepared=["runbook_0", "req_1", "req_2", "req_3"],
@@ -257,8 +251,7 @@ class RunnerTestCase(IsolatedAsyncioTestCase):
         # two 1 node env predefined, but only runbook_0 go to deploy
         # no cases assigned to runbook_1, as fit cases run on runbook_0 already
         generate_cases_metadata()
-        env_runbook = generate_env_runbook(local=True, remote=True)
-        runbook = generate_test_runbook(env_runbook)
+        runbook = generate_test_runbook(local=True, remote=True)
         results = await lisa.runner.run(runbook)
         self.verify_env_results(
             expected_prepared=["runbook_0", "runbook_1", "req_2", "req_3"],
@@ -278,8 +271,7 @@ class RunnerTestCase(IsolatedAsyncioTestCase):
         # In future, will add retry on wait more resource.
         test_platform.wait_more_resource_error = True
         generate_cases_metadata()
-        env_runbook = generate_env_runbook(is_single_env=True, local=True)
-        runbook = generate_test_runbook(env_runbook)
+        runbook = generate_test_runbook(is_single_env=True, local=True)
         results = await lisa.runner.run(runbook)
 
         self.verify_env_results(
@@ -307,8 +299,7 @@ class RunnerTestCase(IsolatedAsyncioTestCase):
         # first two cases skipped due to test suite setup failed
         test_testsuite.fail_on_before_suite = True
         generate_cases_metadata()
-        env_runbook = generate_env_runbook(is_single_env=True, local=True, remote=True)
-        runbook = generate_test_runbook(env_runbook)
+        runbook = generate_test_runbook(is_single_env=True, local=True, remote=True)
         results = await lisa.runner.run(runbook)
         self.verify_env_results(
             expected_prepared=["runbook_0", "req_1", "req_2", "req_3"],
@@ -331,8 +322,7 @@ class RunnerTestCase(IsolatedAsyncioTestCase):
         # test env not prepared, so test cases cannot find an env to run
         test_platform.return_prepared = False
         generate_cases_metadata()
-        env_runbook = generate_env_runbook(is_single_env=True, local=True, remote=True)
-        runbook = generate_test_runbook(env_runbook)
+        runbook = generate_test_runbook(is_single_env=True, local=True, remote=True)
         results = await lisa.runner.run(runbook)
         self.verify_env_results(
             expected_prepared=["runbook_0", "req_1", "req_2", "req_3"],
@@ -356,8 +346,7 @@ class RunnerTestCase(IsolatedAsyncioTestCase):
         # so no cases can run
         test_platform.deploy_is_ready = False
         generate_cases_metadata()
-        env_runbook = generate_env_runbook(is_single_env=True, local=True, remote=True)
-        runbook = generate_test_runbook(env_runbook)
+        runbook = generate_test_runbook(is_single_env=True, local=True, remote=True)
         results = await lisa.runner.run(runbook)
         self.verify_env_results(
             expected_prepared=["runbook_0", "req_1", "req_2", "req_3"],
@@ -379,8 +368,7 @@ class RunnerTestCase(IsolatedAsyncioTestCase):
     async def test_env_skipped_no_case(self) -> None:
         # no case found, as not call generate_case_metadata
         # in this case, not deploy any env
-        env_runbook = generate_env_runbook(is_single_env=True, remote=True)
-        runbook = generate_test_runbook(env_runbook)
+        runbook = generate_test_runbook(is_single_env=True, remote=True)
         results = await lisa.runner.run(runbook)
         # still prepare predefined, but not deploy
         self.verify_env_results(
