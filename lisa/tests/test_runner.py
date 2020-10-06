@@ -21,7 +21,7 @@ def generate_runner(
     platform_schema: Optional[test_platform.MockPlatformSchema] = None,
 ) -> Runner:
     platform_runbook = schema.Platform(
-        type=constants.PLATFORM_MOCK, admin_password="not use it"
+        type=constants.PLATFORM_MOCK, admin_password="do-not-use"
     )
     if platform_schema:
         platform_runbook.extended_schemas = {
@@ -45,7 +45,7 @@ def generate_runner(
 
 class RunnerTestCase(IsolatedAsyncioTestCase):
     def tearDown(self) -> None:
-        cleanup_cases_metadata()
+        cleanup_cases_metadata()  # Necessary side effects!
 
     def test_merge_req_create_on_new(self) -> None:
         # if no predefined envs, can generate from requirement
@@ -62,10 +62,10 @@ class RunnerTestCase(IsolatedAsyncioTestCase):
             existing_environments=envs,
             platform_type=constants.PLATFORM_MOCK,
         )
-        # 3 cases create 3 envs
+        # 3 cases create 3 environments.
         self.assertListEqual(
             ["generated_0", "generated_1", "generated_2"],
-            [x for x in envs],
+            list(envs),
         )
         self.verify_test_results(
             expected_envs=["", "", ""],
@@ -81,7 +81,7 @@ class RunnerTestCase(IsolatedAsyncioTestCase):
         envs = load_environments(env_runbook)
         self.assertListEqual(
             ["customized_0"],
-            [x for x in envs],
+            list(envs),
         )
 
         runner = generate_runner(env_runbook)
@@ -91,11 +91,11 @@ class RunnerTestCase(IsolatedAsyncioTestCase):
             existing_environments=envs,
             platform_type=constants.PLATFORM_MOCK,
         )
-
-        # 3 cases created only two req, as simple req meets on customized_0
+        # 3 cases created only two required environments, as the
+        # simple requirement was met by runbook_0.
         self.assertListEqual(
             ["customized_0", "generated_1", "generated_2"],
-            [x for x in envs],
+            list(envs),
         )
         self.assertListEqual(
             [TestStatus.NOTRUN, TestStatus.NOTRUN, TestStatus.NOTRUN],
@@ -110,7 +110,7 @@ class RunnerTestCase(IsolatedAsyncioTestCase):
         envs = load_environments(env_runbook)
         self.assertListEqual(
             ["customized_0"],
-            [x for x in envs],
+            list(envs),
         )
         runner = generate_runner(env_runbook)
         test_results = generate_cases_result()
@@ -121,10 +121,10 @@ class RunnerTestCase(IsolatedAsyncioTestCase):
             existing_environments=envs,
             platform_type=constants.PLATFORM_MOCK,
         )
-        # every case need a new environment, so created 3
+        # All 3 cases needed a new environment, so it created 3.
         self.assertListEqual(
             ["customized_0", "generated_1", "generated_2", "generated_3"],
-            [x for x in envs],
+            list(envs),
         )
         self.verify_test_results(
             expected_envs=["", "", ""],
@@ -141,7 +141,7 @@ class RunnerTestCase(IsolatedAsyncioTestCase):
         envs = load_environments(env_runbook)
         self.assertListEqual(
             [],
-            [x for x in envs],
+            list(envs),
         )
         runner = generate_runner(None)
         test_results = generate_cases_result()
@@ -152,7 +152,7 @@ class RunnerTestCase(IsolatedAsyncioTestCase):
         )
         self.assertListEqual(
             [],
-            [x for x in envs],
+            list(envs),
         )
 
         self.verify_test_results(
@@ -175,21 +175,20 @@ class RunnerTestCase(IsolatedAsyncioTestCase):
         envs = load_environments(env_runbook)
         self.assertListEqual(
             [],
-            [x for x in envs],
+            list(envs),
         )
         runner = generate_runner(None)
         test_results = generate_cases_result()
         for test_result in test_results:
             metadata = test_result.runtime_data.metadata
             metadata.requirement = simple_requirement(
-                supported_platform_type=["notexists"]
+                supported_platform_type=["does-not-exist"]
             )
         runner._merge_test_requirements(
             test_results=test_results,
             existing_environments=envs,
             platform_type=constants.PLATFORM_MOCK,
         )
-
         platform_unsupported = "capability cannot support some of requirement"
         self.verify_test_results(
             expected_envs=["", "", ""],
@@ -231,6 +230,7 @@ class RunnerTestCase(IsolatedAsyncioTestCase):
     async def test_fit_a_bigger_env(self) -> None:
         # similar with test_fit_a_predefined_env, but predefined 2 nodes,
         # it doesn't equal to any case req, but reusable for all cases.
+
         generate_cases_metadata()
         env_runbook = generate_env_runbook(is_single_env=True, local=True, remote=True)
         runner = generate_runner(env_runbook)
@@ -281,6 +281,7 @@ class RunnerTestCase(IsolatedAsyncioTestCase):
     async def test_no_needed_env(self) -> None:
         # two 1 node env predefined, but only customized_0 go to deploy
         # no cases assigned to customized_1, as fit cases run on customized_0 already
+
         generate_cases_metadata()
         env_runbook = generate_env_runbook(local=True, remote=True)
         runner = generate_runner(env_runbook)
@@ -342,7 +343,7 @@ class RunnerTestCase(IsolatedAsyncioTestCase):
         )
 
     async def test_skipped_on_suite_failure(self) -> None:
-        # first two cases skipped due to test suite setup failed
+        # First two tests were skipped because the setup is made to fail.
         test_testsuite.fail_on_before_suite = True
         generate_cases_metadata()
         env_runbook = generate_env_runbook(is_single_env=True, local=True, remote=True)
@@ -359,6 +360,7 @@ class RunnerTestCase(IsolatedAsyncioTestCase):
             expected_deleted_envs=["customized_0"],
             runner=runner,
         )
+
         before_suite_failed = "before_suite: failed"
         self.verify_test_results(
             expected_envs=["customized_0", "customized_0", "customized_0"],
@@ -390,7 +392,8 @@ class RunnerTestCase(IsolatedAsyncioTestCase):
             expected_deleted_envs=[],
             runner=runner,
         )
-        no_avaiable_env = "no available environment"
+
+        no_available_env = "no available environment"
         self.verify_test_results(
             expected_envs=["", "", ""],
             expected_status=[
@@ -398,7 +401,7 @@ class RunnerTestCase(IsolatedAsyncioTestCase):
                 TestStatus.SKIPPED,
                 TestStatus.SKIPPED,
             ],
-            expected_message=[no_avaiable_env, no_avaiable_env, no_avaiable_env],
+            expected_message=[no_available_env, no_available_env, no_available_env],
             test_results=runner._latest_test_results,
         )
 
@@ -427,7 +430,7 @@ class RunnerTestCase(IsolatedAsyncioTestCase):
             expected_deleted_envs=[],
             runner=runner,
         )
-        no_avaiable_env = "no available environment"
+        no_available_env = "no available environment"
         self.verify_test_results(
             expected_envs=["", "", ""],
             expected_status=[
@@ -435,7 +438,7 @@ class RunnerTestCase(IsolatedAsyncioTestCase):
                 TestStatus.SKIPPED,
                 TestStatus.SKIPPED,
             ],
-            expected_message=[no_avaiable_env, no_avaiable_env, no_avaiable_env],
+            expected_message=[no_available_env, no_available_env, no_available_env],
             test_results=runner._latest_test_results,
         )
 
@@ -500,13 +503,13 @@ class RunnerTestCase(IsolatedAsyncioTestCase):
 
         self.assertListEqual(
             expected_prepared,
-            [x for x in platform_test_data.prepared_envs],
+            list(platform_test_data.prepared_envs),
         )
         self.assertListEqual(
             expected_deployed_envs,
-            [x for x in platform_test_data.deployed_envs],
+            list(platform_test_data.deployed_envs),
         )
         self.assertListEqual(
             expected_deleted_envs,
-            [x for x in platform_test_data.deleted_envs],
+            list(platform_test_data.deleted_envs),
         )
