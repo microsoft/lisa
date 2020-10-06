@@ -11,7 +11,7 @@ param([object] $AllVmData,
     [object] $CurrentTestData)
 
 # This function will add or remove VF from VM
-function Set_VF {
+function Enable_Disable_VF {
     $vmData = $args[0]
     $accNetFlag = $args[1]
     # Additional NIC on the VMs are named with a keyword "Extra"
@@ -28,6 +28,7 @@ function Set_VF {
         Throw "Error while setting Accelerated Networing to $accNetFlag"
     }
 }
+
 function Main {
     try {
         $noReceiver = $true
@@ -99,22 +100,68 @@ collect_VM_properties
         $currentState = Run-LinuxCmd -ip $receiverVMData.PublicIP -port $receiverVMData.SSHPort `
             -username $user -password $password -command "cat state.txt" -runAsSudo
         if ($currentState -imatch "TestCompleted") {
-            Write-LogInfo "XDPSetup successfully ran on $($receiverVMDAta.RoleName)"
-            # Start ping and xdpdump
-            $ping_command = "ping -I $iFaceName -c 300 $($senderVMData.SecondInternalIP) > ~/pingOut$LogSuffix.txt"
-            Write-LogInfo "Starting command: $ping_command on $($receiverVMData.RoleName)"
-            Run-LinuxCmd -ip $receiverVMData.PublicIP -port $receiverVMData.SSHPort -username $user -password $password `
-                -command $ping_command -RunInBackground -runAsSudo
-            Write-LogDbg "XDP program cannot run with LRO (RSC) enabled, disable LRO before running XDP"
+            Write-LogInfo "XDPSetup successfully ran on $($receiverVMData.RoleName)"
+            $vfName = Run-LinuxCmd -ip $receiverVMData.PublicIP -port $receiverVMData.SSHPort -username $user -password $password `
+                    -command "source ./XDPUtils.sh; get_vf_name ${iFaceName}" -runAsSudo
+            $cmdGetRxpktsSyn = "cat /sys/class/net/${iFaceName}/statistics/rx_packets"
+            $cmdGetRxpktsVF = "cat /sys/class/net/${vfName}/statistics/rx_packets"
+
+            # packetgen setup
+            Run-LinuxCmd -ip $senderVMData.PublicIP -port $senderVMData.SSHPort `
+                -username $user -password $password -command "source ./XDPUtils.sh; download_pktgen_scripts $($senderVMData.InternalIP) `$HOME fix" -runAsSudo
+            $receiverSecondMAC = Run-LinuxCmd -ip $receiverVMData.PublicIP -port $receiverVMData.SSHPort `
+                -username $user -password $password -command "ip link show ${iFaceName} | grep ether | awk '{print `$2}'" -runAsSudo
+
+            Write-LogDbg "XDP program cannot run with LRO (RSC) enabled, disable LRO and starting XDPDump"
             $xdp_command = "ethtool -K $iFaceName lro off && cd ~/bpf-samples/xdpdump && ./xdpdump -i $iFaceName > ~/xdpdumpout_VFTest.txt 2>&1"
             $testJob = Run-LinuxCmd -ip $receiverVMData.PublicIP -port $receiverVMData.SSHPort -username $user -password $password `
                 -command $xdp_command -RunInBackground -runAsSudo -ignoreLinuxExitCode
+            Run-LinuxCmd -ip $senderVMData.PublicIP -port $senderVMData.SSHPort -username $user -password $password `
+                -command "cd `$HOME && ./pktgen_sample.sh -i ${iFaceName} -m ${receiverSecondMAC} -d $($receiverVMData.SecondInternalIP) -v -n 20000000" `
+                -RunInBackground -runAsSudo
 
             Wait-Time -seconds 10
-            Set_VF $receiverVMData $false
-            Wait-Time -seconds 20
-            Set_VF $receiverVMData $true
+            [int]$synPktsBefore = Run-LinuxCmd -ip $receiverVMData.PublicIP -port $receiverVMData.SSHPort -username $user -password $password `
+                    -command $cmdGetRxpktsSyn -runAsSudo
+            [int]$vfPktsBefore = Run-LinuxCmd -ip $receiverVMData.PublicIP -port $receiverVMData.SSHPort -username $user -password $password `
+                    -command $cmdGetRxpktsVF -runAsSudo
+            Write-LogInfo "With VF attached packet count: Synth: ${synPktsBefore} VF: ${vfPktsBefore}"
+
+            [int]$startMs = (Get-Date).Second
+            Enable_Disable_VF $receiverVMData $false
+            [int]$endMs = (Get-Date).Second
+            Write-LogDbg "Time elapsed for Turning acc networking off is $($endMs - $startMs)"
+            Wait-Time -seconds 60
+            if ((Get-Job -Id $testJob).State -eq "Running") {
+                Write-LogInfo "XDPDump program is running"
+            }
+            [int]$synPktsBetwn = Run-LinuxCmd -ip $receiverVMData.PublicIP -port $receiverVMData.SSHPort -username $user -password $password `
+                    -command $cmdGetRxpktsSyn -runAsSudo
+            Write-LogInfo "After VF removed packet count: Synth: ${synPktsBetwn}"
+            # Check if synthetic has taken the load or not
+            if ( ${synPktsBetwn} -gt ${synPktsBefore} ){
+                Write-LogInfo "XDP fall back to Synthetic network"
+            }
+            else {
+                Write-LogErr "XDP did not fall back to synthetic network"
+            }
+
+            [int]$startMs = (Get-Date).Second
+            Enable_Disable_VF $receiverVMData $true
+            [int]$endMs = (Get-Date).Second
+            Write-LogDbg "Time elapsed for Turning acc networking on is $($endMs - $startMs)"
             Wait-Time -seconds 10
+            [int]$synPktsAfter = Run-LinuxCmd -ip $receiverVMData.PublicIP -port $receiverVMData.SSHPort -username $user -password $password `
+                    -command $cmdGetRxpktsSyn -runAsSudo
+            [int]$vfPktsAfter = Run-LinuxCmd -ip $receiverVMData.PublicIP -port $receiverVMData.SSHPort -username $user -password $password `
+                    -command $cmdGetRxpktsVF -runAsSudo
+            Write-LogInfo "With VF attached packet count: Synth: ${synPktsAfter} VF: ${vfPktsAfter}"
+            # Check if VF is included in the XDP path after reattachment
+            if ( ${synPktsAfter} -gt ${synPktsBetwn} -and ${vfPktsAfter} -eq 0 ){
+                Write-LogErr "XDP did not include VF path"
+                Throw "XDP is not executed on VF after reattach"
+            }
+
             # Kill and verify XDP unloaded successfully
             if ((Get-Job -Id $testJob).State -eq "Running") {
                 Run-LinuxCmd -ip $receiverVMData.PublicIP -port $receiverVMData.SSHPort -username $user -password $password `

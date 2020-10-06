@@ -127,7 +127,7 @@
   <test>
     <testName>VERIFY-XDP-VF-HOT-REMOVE</testName>
     <testScript>VERIFY-VF-HOT-REMOVE-XDP.ps1</testScript>
-    <files>.\Testscripts\Linux\utils.sh,.\Testscripts\Linux\XDPDumpSetup.sh</files>
+    <files>.\Testscripts\Linux\utils.sh,.\Testscripts\Linux\XDPDumpSetup.sh,.\Testscripts\Linux\XDPUtils.sh</files>
     <Platform>Azure</Platform>
     <Category>Functional</Category>
     <Area>XDP</Area>
