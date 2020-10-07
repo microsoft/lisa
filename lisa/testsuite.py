@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-from abc import ABCMeta
 from dataclasses import dataclass, field
 from enum import Enum
 from functools import wraps
@@ -271,7 +270,7 @@ class TestCaseRuntimeData:
         return cloned
 
 
-class TestSuite(Action, metaclass=ABCMeta):
+class TestSuite(Action):
     def __init__(
         self,
         environment: Environment,
