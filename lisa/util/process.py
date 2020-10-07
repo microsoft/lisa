@@ -5,6 +5,7 @@ import time
 from dataclasses import dataclass
 from typing import Dict, Optional
 
+import spur  # type: ignore
 from spur.errors import NoSuchCommandError  # type: ignore
 
 from lisa.util.logger import Logger, LogWriter, get_logger
@@ -23,6 +24,7 @@ class ExecutableResult:
         return self.stdout
 
 
+# TODO: So much cleanup here. It was using duck typing.
 class Process:
     def __init__(
         self,
@@ -36,6 +38,8 @@ class Process:
         self._is_linux = shell.is_linux
         self._running: bool = False
         self._log = get_logger("cmd", id_, parent=parent_logger)
+        self._process: Optional[spur.local.LocalProcess] = None
+        self._result: Optional[ExecutableResult] = None
 
     def start(
         self,
@@ -107,7 +111,7 @@ class Process:
         except (FileNotFoundError, NoSuchCommandError) as identifier:
             # FileNotFoundError: not found command on Windows
             # NoSuchCommandError: not found command on remote Linux
-            self._process = ExecutableResult(
+            self._result = ExecutableResult(
                 "", identifier.strerror, 1, self._timer.elapsed()
             )
             self._log.debug(f"not found command: {identifier}")
@@ -123,30 +127,29 @@ class Process:
                 self._log.warning(f"timeout in {timeout} sec, and killed")
             self.kill()
 
-        if not isinstance(self._process, ExecutableResult):
+        if self._result is None:
+            # if not isinstance(self._process, ExecutableResult):
             assert self._process
             proces_result = self._process.wait_for_result()
             self.stdout_writer.close()
             self.stderr_writer.close()
-            result: ExecutableResult = ExecutableResult(
+            # cache for future queries, in case it's queried twice.
+            self._result = ExecutableResult(
                 proces_result.output.strip(),
                 proces_result.stderr_output.strip(),
                 proces_result.return_code,
                 self._timer.elapsed(),
             )
-            # cache for future queries, in case it's queried twice.
-            self._process = result
-        else:
-            result = self._process
+            self._process = None
 
         self._log.debug(f"waited with {self._timer}")
-        return result
+        return self._result
 
     def kill(self) -> None:
-        if self._process and not isinstance(self._process, ExecutableResult):
+        if self._process:
             self._process.send_signal(9)
 
     def is_running(self) -> bool:
-        if self._running:
+        if self._running and self._process:
             self._running = self._process.is_running()
         return self._running
