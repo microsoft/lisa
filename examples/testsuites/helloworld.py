@@ -1,4 +1,4 @@
-from lisa import LisaTestCase, TestCaseMetadata, TestSuiteMetadata
+from lisa import LisaTestCase, LisaTestMetadata, TestSuiteMetadata
 from lisa.operating_system import Linux
 from lisa.tools import Echo, Uname
 
@@ -13,7 +13,7 @@ from lisa.tools import Echo, Uname
     tags=["demo"],
 )
 class HelloWorld(LisaTestCase):
-    @TestCaseMetadata(
+    @LisaTestMetadata(
         description="""
         this test case use default node to
             1. get system info
@@ -43,7 +43,7 @@ class HelloWorld(LisaTestCase):
         self.assertEqual("", result.stderr)
         self.assertEqual(0, result.exit_code)
 
-    @TestCaseMetadata(
+    @LisaTestMetadata(
         description="""
         demonstrate a simple way to run command in one line.
         """,

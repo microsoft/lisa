@@ -26,7 +26,7 @@ TestStatus = Enum(
 )
 
 _all_suites: Dict[str, TestSuiteMetadata] = dict()
-_all_cases: Dict[str, TestCaseMetadata] = dict()
+_all_cases: Dict[str, LisaTestMetadata] = dict()
 
 
 class SkipTestCaseException(LisaException):
@@ -164,7 +164,7 @@ class TestSuiteMetadata:
         requirement: TestCaseRequirement = DEFAULT_REQUIREMENT,
     ) -> None:
         self.name = name
-        self.cases: List[TestCaseMetadata] = []
+        self.cases: List[LisaTestMetadata] = []
 
         self.area = area
         self.category = category
@@ -193,7 +193,9 @@ class TestSuiteMetadata:
         return wrapper
 
 
-class TestCaseMetadata:
+class LisaTestMetadata:
+    """This decorator supplies metadata for each test."""
+
     def __init__(
         self,
         description: str,
@@ -201,6 +203,8 @@ class TestCaseMetadata:
         requirement: Optional[TestCaseRequirement] = None,
     ) -> None:
         self.priority = priority
+        # TODO: Each test description should be from its docstring,
+        # not here.
         self.description = description
         # TODO: Because this class is pseudo-inherited through
         # attribute abuse, this optionally defined attribute causes a
@@ -234,7 +238,7 @@ class TestCaseMetadata:
 
 
 class TestCaseRuntimeData:
-    def __init__(self, metadata: TestCaseMetadata):
+    def __init__(self, metadata: LisaTestMetadata):
         self.metadata = metadata
 
         # all runtime setting fields
@@ -406,7 +410,7 @@ def get_suites_metadata() -> Dict[str, TestSuiteMetadata]:
     return _all_suites
 
 
-def get_cases_metadata() -> Dict[str, TestCaseMetadata]:
+def get_cases_metadata() -> Dict[str, LisaTestMetadata]:
     return _all_cases
 
 
@@ -435,7 +439,7 @@ def _add_suite_metadata(metadata: TestSuiteMetadata) -> None:
     )
 
 
-def _add_case_metadata(metadata: TestCaseMetadata) -> None:
+def _add_case_metadata(metadata: LisaTestMetadata) -> None:
 
     full_name = metadata.full_name
     if _all_cases.get(full_name) is None:
@@ -456,7 +460,7 @@ def _add_case_metadata(metadata: TestCaseMetadata) -> None:
 
 
 def _add_case_to_suite(
-    test_suite: TestSuiteMetadata, test_case: TestCaseMetadata
+    test_suite: TestSuiteMetadata, test_case: LisaTestMetadata
 ) -> None:
     test_case.suite = test_suite
     test_suite.cases.append(test_case)

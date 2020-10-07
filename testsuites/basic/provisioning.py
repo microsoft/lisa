@@ -1,4 +1,4 @@
-from lisa import LisaTestCase, TestCaseMetadata, TestSuiteMetadata
+from lisa import LisaTestCase, LisaTestMetadata, TestSuiteMetadata
 from lisa.features import StartStop
 from lisa.testsuite import simple_requirement
 from lisa.tools import Dmesg
@@ -14,7 +14,7 @@ from lisa.util.perf_timer import create_timer
     tags=[],
 )
 class Provisioning(LisaTestCase):
-    @TestCaseMetadata(
+    @LisaTestMetadata(
         description="""
         this test uses to restart a node, and compare dmesg output.
         the case fails on any panic in kernel

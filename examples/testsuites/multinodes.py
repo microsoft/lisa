@@ -1,4 +1,4 @@
-from lisa import LisaTestCase, TestCaseMetadata, TestSuiteMetadata
+from lisa import LisaTestCase, LisaTestMetadata, TestSuiteMetadata
 from lisa.testsuite import simple_requirement
 from lisa.tools import Lscpu, Ntttcp
 
@@ -14,7 +14,7 @@ from lisa.tools import Lscpu, Ntttcp
     requirement=simple_requirement(min_count=2),
 )
 class MutipleNodesDemo(LisaTestCase):
-    @TestCaseMetadata(
+    @LisaTestMetadata(
         description="""
         This test case send and receive data by ntttcp
         """,
@@ -28,7 +28,7 @@ class MutipleNodesDemo(LisaTestCase):
             core_count = lscpu.get_core_count()
             self.log.info(f"index: {node.index}, core_count: {core_count}")
 
-    @TestCaseMetadata(
+    @LisaTestMetadata(
         description="""
         this test case send and receive data by ntttcp
         """,

@@ -1,6 +1,6 @@
 from pathlib import Path
 
-from lisa import LisaTestCase, TestCaseMetadata, TestSuiteMetadata
+from lisa import LisaTestCase, LisaTestMetadata, TestSuiteMetadata
 from lisa.executable import CustomScript, CustomScriptBuilder
 from lisa.operating_system import Windows
 from lisa.testsuite import simple_requirement
@@ -21,7 +21,7 @@ class WithScript(LisaTestCase):
             Path(__file__).parent.joinpath("scripts"), ["echo.sh"]
         )
 
-    @TestCaseMetadata(
+    @LisaTestMetadata(
         description="""
         this test case run script on a linux node, and demostrate
         1. how to use customized script on tested node.
