@@ -177,7 +177,7 @@ class SshShell(InitializableMixin):
         encoding: str = "utf-8",
         use_pty: bool = False,
         allow_error: bool = True,
-    ) -> Any:
+    ) -> spur.ssh.SshProcess:
         self.initialize()
         assert self._inner_shell
         return self._inner_shell.spawn(
@@ -307,7 +307,7 @@ class LocalShell(InitializableMixin):
         encoding: str = "utf-8",
         use_pty: bool = False,
         allow_error: bool = False,
-    ) -> Any:
+    ) -> spur.local.LocalProcess:
         return self._inner_shell.spawn(
             command=command,
             update_env=update_env,
