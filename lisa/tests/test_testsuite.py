@@ -136,7 +136,7 @@ class TestSuiteTestCase(IsolatedAsyncioTestCase):
     def generate_suite_instance(self) -> MockTestSuite:
         case_results = generate_cases_result()
         case_results = case_results[:2]
-        suite_metadata = case_results[0].runtime_data.metadata.suite
+        suite_metadata = case_results[0].runtime_data.metadata.case
         runbook = generate_runbook(is_single_env=True, local=True, remote=True)
         envs = load_environments(runbook)
         self.default_env = list(envs.values())[0]
@@ -167,14 +167,14 @@ class TestSuiteTestCase(IsolatedAsyncioTestCase):
         case2_found = False
         for case in cases:
             assert case.requirement.environment
-            assert case.suite.requirement.environment
+            assert case.case.requirement.environment
             if case.name == "mock_ut1":
                 self.assertEqual(2, len(case.requirement.environment.nodes))
-                self.assertEqual(1, len(case.suite.requirement.environment.nodes))
+                self.assertEqual(1, len(case.case.requirement.environment.nodes))
                 case1_found = True
             if case.name == "mock_ut2":
                 self.assertEqual(1, len(case.requirement.environment.nodes))
-                self.assertEqual(1, len(case.suite.requirement.environment.nodes))
+                self.assertEqual(1, len(case.case.requirement.environment.nodes))
                 case2_found = True
         self.assertEqual(True, case1_found)
         self.assertEqual(True, case2_found)

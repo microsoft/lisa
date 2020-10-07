@@ -47,7 +47,7 @@ async def run(runbook: schema.Runbook) -> List[TestResult]:  # noqa: C901
         try:
             is_needed: bool = False
             can_run_results = [x for x in can_run_results if x.can_run]
-            can_run_results.sort(key=lambda x: x.runtime_data.metadata.suite.name)
+            can_run_results.sort(key=lambda x: x.runtime_data.metadata.case.name)
             new_env_can_run_results = [
                 x for x in can_run_results if x.runtime_data.use_new_environment
             ]
@@ -92,12 +92,12 @@ async def run(runbook: schema.Runbook) -> List[TestResult]:  # noqa: C901
             # try a case need new environment firstly
             for new_env_result in new_env_can_run_results:
                 if new_env_result.check_environment(environment, True):
-                    await _run_suite(environment=environment, cases=[new_env_result])
+                    await _run_tests(environment=environment, tests=[new_env_result])
                     break
 
-            # grouped test results by test suite.
+            # grouped test results by test case.
             grouped_cases: List[TestResult] = []
-            current_test_suite: Optional[LisaTestCaseMetadata] = None
+            current_case: Optional[LisaTestCaseMetadata] = None
             for test_result in can_run_results:
                 if (
                     test_result.can_run
@@ -105,31 +105,31 @@ async def run(runbook: schema.Runbook) -> List[TestResult]:  # noqa: C901
                     and not test_result.runtime_data.use_new_environment
                 ):
                     if (
-                        test_result.runtime_data.metadata.suite != current_test_suite
+                        test_result.runtime_data.metadata.case != current_case
                         and grouped_cases
                     ):
                         # run last batch cases
-                        await _run_suite(environment=environment, cases=grouped_cases)
+                        await _run_tests(environment=environment, tests=grouped_cases)
                         grouped_cases = []
 
                     # append new test cases
-                    current_test_suite = test_result.runtime_data.metadata.suite
+                    current_case = test_result.runtime_data.metadata.case
                     grouped_cases.append(test_result)
 
             if grouped_cases:
-                await _run_suite(environment=environment, cases=grouped_cases)
+                await _run_tests(environment=environment, tests=grouped_cases)
         finally:
             if environment and environment.is_ready:
                 platform.delete_environment(environment)
 
     # not run as there is no fit environment.
-    for case in can_run_results:
-        if case.can_run:
+    for test in can_run_results:
+        if test.can_run:
             reasons = "no available environment"
-            if case.check_results and case.check_results.reasons:
-                reasons = f"{reasons}: {case.check_results.reasons}"
+            if test.check_results and test.check_results.reasons:
+                reasons = f"{reasons}: {test.check_results.reasons}"
 
-            case.set_status(TestStatus.SKIPPED, reasons)
+            test.set_status(TestStatus.SKIPPED, reasons)
 
     result_count_dict: Dict[TestStatus, int] = dict()
     for test_result in selected_test_results:
@@ -149,18 +149,17 @@ async def run(runbook: schema.Runbook) -> List[TestResult]:  # noqa: C901
     return selected_test_results
 
 
-async def _run_suite(environment: Environment, cases: List[TestResult]) -> None:
-
-    assert cases
-    suite_metadata = cases[0].runtime_data.metadata.suite
-    test_suite: LisaTestCase = suite_metadata.test_class(
+async def _run_tests(environment: Environment, tests: List[TestResult]) -> None:
+    assert tests
+    case_metadata = tests[0].runtime_data.metadata.case
+    test_case: LisaTestCase = case_metadata.test_class(
         environment,
-        cases,
-        suite_metadata,
+        tests,
+        case_metadata,
     )
-    for case in cases:
-        case.env = environment.name
-    await test_suite.start()
+    for test in tests:
+        test.env = environment.name
+    await test_case.start()
 
 
 def _merge_test_requirements(

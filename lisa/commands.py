@@ -44,7 +44,7 @@ async def list_start(args: Namespace) -> int:
             cases = select_testcases(runbook.testcase)
         for case_data in cases:
             log.info(
-                f"case: {case_data.name}, suite: {case_data.metadata.suite.name}, "
+                f"test: {case_data.name}, case: {case_data.metadata.case.name}, "
                 f"area: {case_data.suite.area}, "
                 f"category: {case_data.suite.category}, "
                 f"tags: {','.join(case_data.suite.tags)}, "

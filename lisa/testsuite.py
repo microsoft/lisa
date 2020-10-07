@@ -222,8 +222,8 @@ class LisaTestMetadata:
     # from an instance of that class.
     def __getattr__(self, key: str) -> Any:
         # inherit all attributes of test suite
-        assert self.suite, "suite is not set before use metadata"
-        return getattr(self.suite, key)
+        assert self.case, "suite is not set before use metadata"
+        return getattr(self.case, key)
 
     def __call__(self, func: Callable[..., None]) -> Callable[..., None]:
         self.name = func.__name__
@@ -238,8 +238,8 @@ class LisaTestMetadata:
 
         return wrapper
 
-    def set_suite(self, suite: LisaTestCaseMetadata) -> None:
-        self.suite: LisaTestCaseMetadata = suite
+    def set_case(self, case: LisaTestCaseMetadata) -> None:
+        self.case: LisaTestCaseMetadata = case
 
 
 class TestCaseRuntimeData:
@@ -468,5 +468,5 @@ def _add_lisa_test_metadata(metadata: LisaTestMetadata) -> None:
 
 
 def _add_test_to_case(case: LisaTestCaseMetadata, test: LisaTestMetadata) -> None:
-    test.suite = case
+    test.case = case
     case.cases.append(test)
