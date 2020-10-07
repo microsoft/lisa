@@ -1,6 +1,7 @@
 import logging
 import pathlib
 import shlex
+import subprocess
 import time
 from dataclasses import dataclass
 from typing import Dict, Optional
@@ -140,6 +141,17 @@ class Process:
                 proces_result.return_code,
                 self._timer.elapsed(),
             )
+            # TODO: The spur library is not very good and leaves open
+            # resources (probably due to it starting the process with
+            # `bufsize=0`). We need to replace it, but for now, we
+            # manually close the leaks.
+            popen: subprocess.Popen[str] = self._process._subprocess
+            if popen.stdin:
+                popen.stdin.close()
+            if popen.stdout:
+                popen.stdout.close()
+            if popen.stderr:
+                popen.stderr.close()
             self._process = None
 
         self._log.debug(f"waited with {self._timer}")
