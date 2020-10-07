@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import unittest
-from abc import ABCMeta
 from dataclasses import dataclass
 from enum import Enum
 from functools import wraps
@@ -276,7 +275,7 @@ class TestCaseRuntimeData:
         return cloned
 
 
-class LisaTestCase(unittest.TestCase, metaclass=ABCMeta):
+class LisaTestCase(unittest.TestCase):
     """This class wraps the unittest module's 'TestCase' class.
 
     It should be used in the same way, where non-abstract methods
