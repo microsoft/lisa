@@ -155,7 +155,7 @@ Scenario 2 : You need to run all the performance tests quickly.
 	</Parameter>
 	<Parameter>
 		<ReplaceThis>INFINIBAND_INTEL_MPI_SETTINGS_ND</ReplaceThis>
-		<ReplaceWith>-env I_MPI_FABRICS ofi -env SECS_PER_SAMPLE=600</ReplaceWith>
+		<ReplaceWith>-env I_MPI_FABRICS dapl -env I_MPI_DAPL_PROVIDER=ofa-v2-ib0 -env SECS_PER_SAMPLE=600</ReplaceWith>
 	</Parameter>
 	<Parameter>
 		<ReplaceThis>INFINIBAND_IBM_MPI_SETTINGS_TCP</ReplaceThis>

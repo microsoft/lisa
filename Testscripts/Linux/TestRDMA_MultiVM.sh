@@ -742,11 +742,7 @@ function Main() {
 		LogMsg "ND test skipped ibv_ping_pong test"
 	fi
 
-	if [[ $is_nd == "no" ]]; then
-		non_shm_mpi_settings=$(echo $mpi_settings | sed 's/shm://')
-	else
-		non_shm_mpi_settings=$mpi_settings
-	fi
+	non_shm_mpi_settings=$(echo $mpi_settings | sed 's/shm://')
 	imb_ping_pong_path=$(find / -name ping_pong)
 	imb_mpi1_path=$(find / -name IMB-MPI1 | head -n 1)
 	imb_rma_path=$(find / -name IMB-RMA | head -n 1)
