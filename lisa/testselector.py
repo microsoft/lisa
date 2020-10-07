@@ -4,7 +4,7 @@ from typing import Callable, Dict, List, Mapping, Optional, Pattern, Set, Union,
 
 import lisa.testsuite
 from lisa import schema
-from lisa.testsuite import LisaTestMetadata, TestCaseRuntimeData
+from lisa.testsuite import LisaTestMetadata, LisaTestRuntimeData
 from lisa.util import LisaException, constants, set_filtered_fields
 from lisa.util.logger import get_logger
 
@@ -14,7 +14,7 @@ _get_logger = partial(get_logger, "init", "selector")
 def select_testcases(
     filters: Optional[List[schema.TestCase]] = None,
     init_cases: Optional[List[LisaTestMetadata]] = None,
-) -> List[TestCaseRuntimeData]:
+) -> List[LisaTestRuntimeData]:
     """
     based on filters to select test cases. If filters are None, return all cases.
     """
@@ -26,7 +26,7 @@ def select_testcases(
     else:
         full_list = lisa.testsuite.lisa_tests_metadata
     if filters:
-        selected: Dict[str, TestCaseRuntimeData] = dict()
+        selected: Dict[str, LisaTestRuntimeData] = dict()
         force_included: Set[str] = set()
         force_excluded: Set[str] = set()
         for filter in filters:
@@ -36,7 +36,7 @@ def select_testcases(
                 )
             else:
                 log.debug(f"skip disabled rule: {filter}")
-        results: List[TestCaseRuntimeData] = []
+        results: List[LisaTestRuntimeData] = []
         for case in selected.values():
             times = case.times
             for index in range(times):
@@ -47,14 +47,14 @@ def select_testcases(
     else:
         results = []
         for metadata in full_list.values():
-            results.append(TestCaseRuntimeData(metadata))
+            results.append(LisaTestRuntimeData(metadata))
 
     log.info(f"selected cases count: {len(results)}")
     return results
 
 
 def _match_string(
-    case: Union[TestCaseRuntimeData, LisaTestMetadata],
+    case: Union[LisaTestRuntimeData, LisaTestMetadata],
     pattern: Pattern[str],
     attr_name: str,
 ) -> bool:
@@ -64,7 +64,7 @@ def _match_string(
 
 
 def _match_priority(
-    case: Union[TestCaseRuntimeData, LisaTestMetadata], pattern: Union[int, List[int]]
+    case: Union[LisaTestRuntimeData, LisaTestMetadata], pattern: Union[int, List[int]]
 ) -> bool:
     priority = case.priority
     is_matched: bool = False
@@ -76,7 +76,7 @@ def _match_priority(
 
 
 def _match_tags(
-    case: Union[TestCaseRuntimeData, LisaTestMetadata],
+    case: Union[LisaTestRuntimeData, LisaTestMetadata],
     criteria_tags: Union[str, List[str]],
 ) -> bool:
     case_tags = case.tags
@@ -89,23 +89,23 @@ def _match_tags(
 
 
 def _match_cases(
-    candidates: Mapping[str, Union[TestCaseRuntimeData, LisaTestMetadata]],
-    patterns: List[Callable[[Union[TestCaseRuntimeData, LisaTestMetadata]], bool]],
-) -> Dict[str, TestCaseRuntimeData]:
-    changed_cases: Dict[str, TestCaseRuntimeData] = dict()
+    candidates: Mapping[str, Union[LisaTestRuntimeData, LisaTestMetadata]],
+    patterns: List[Callable[[Union[LisaTestRuntimeData, LisaTestMetadata]], bool]],
+) -> Dict[str, LisaTestRuntimeData]:
+    changed_cases: Dict[str, LisaTestRuntimeData] = dict()
 
     for candidate_name in candidates:
         candidate = candidates[candidate_name]
         is_matched = all(pattern(candidate) for pattern in patterns)
         if is_matched:
             if isinstance(candidate, LisaTestMetadata):
-                candidate = TestCaseRuntimeData(candidate)
+                candidate = LisaTestRuntimeData(candidate)
             changed_cases[candidate_name] = candidate
     return changed_cases
 
 
 def _apply_settings(
-    applied_case_data: TestCaseRuntimeData, case_runbook: schema.TestCase, action: str
+    applied_case_data: LisaTestRuntimeData, case_runbook: schema.TestCase, action: str
 ) -> None:
     fields = [
         constants.TESTCASE_TIMES,
@@ -142,16 +142,16 @@ def _force_check(
 
 def _apply_filter(  # noqa: C901
     case_runbook: schema.TestCase,
-    current_selected: Dict[str, TestCaseRuntimeData],
+    current_selected: Dict[str, LisaTestRuntimeData],
     force_included: Set[str],
     force_excluded: Set[str],
     full_list: Dict[str, LisaTestMetadata],
-) -> Dict[str, TestCaseRuntimeData]:
+) -> Dict[str, LisaTestRuntimeData]:
     # TODO: Reduce this function's complexity and remove the disabled warning.
 
     log = _get_logger()
     # initialize criterias
-    patterns: List[Callable[[Union[TestCaseRuntimeData, LisaTestMetadata]], bool]] = []
+    patterns: List[Callable[[Union[LisaTestRuntimeData, LisaTestMetadata]], bool]] = []
     criterias_runbook = case_runbook.criteria
     assert criterias_runbook, "test case criteria cannot be None"
     criterias_runbook_dict = criterias_runbook.__dict__
@@ -182,7 +182,7 @@ def _apply_filter(  # noqa: C901
             raise LisaException(f"unknown criteria key: {runbook_key}")
 
     # match by select Action:
-    changed_cases: Dict[str, TestCaseRuntimeData] = dict()
+    changed_cases: Dict[str, LisaTestRuntimeData] = dict()
     is_force = case_runbook.select_action in [
         constants.TESTCASE_SELECT_ACTION_FORCE_INCLUDE,
         constants.TESTCASE_SELECT_ACTION_FORCE_EXCLUDE,

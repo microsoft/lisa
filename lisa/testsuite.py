@@ -44,7 +44,7 @@ class TestResultMessage(notifier.MessageBase):
 # reuse it, especially if we’ve been inspired by it so much.
 @dataclass
 class TestResult:
-    runtime_data: TestCaseRuntimeData
+    runtime_data: LisaTestRuntimeData
     status: TestStatus = TestStatus.NOTRUN
     elapsed: float = 0
     message: str = ""
@@ -241,7 +241,7 @@ class LisaTestMetadata:
         self.case: LisaTestCaseMetadata = case
 
 
-class TestCaseRuntimeData:
+class LisaTestRuntimeData:
     def __init__(self, metadata: LisaTestMetadata):
         self.metadata = metadata
 
@@ -261,8 +261,8 @@ class TestCaseRuntimeData:
         assert self.metadata
         return getattr(self.metadata, key)
 
-    def clone(self) -> TestCaseRuntimeData:
-        cloned = TestCaseRuntimeData(self.metadata)
+    def clone(self) -> LisaTestRuntimeData:
+        cloned = LisaTestRuntimeData(self.metadata)
         fields = [
             constants.TESTCASE_SELECT_ACTION,
             constants.TESTCASE_TIMES,

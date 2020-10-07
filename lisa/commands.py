@@ -6,7 +6,7 @@ import lisa.runner
 from lisa import notifier
 from lisa.parameter_parser.runbook import load_runbook
 from lisa.testselector import select_testcases
-from lisa.testsuite import TestCaseRuntimeData, TestStatus
+from lisa.testsuite import LisaTestRuntimeData, TestStatus
 from lisa.util import LisaException, constants
 from lisa.util.logger import get_logger
 
@@ -39,7 +39,7 @@ async def list_start(args: Namespace) -> int:
     log = _get_init_logger("list")
     if args.type == constants.LIST_CASE:
         if list_all:
-            cases: Iterable[TestCaseRuntimeData] = select_testcases()
+            cases: Iterable[LisaTestRuntimeData] = select_testcases()
         else:
             cases = select_testcases(runbook.testcase)
         for case_data in cases:

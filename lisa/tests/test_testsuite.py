@@ -12,7 +12,7 @@ from lisa.testsuite import (
     LisaTestCase,
     LisaTestCaseMetadata,
     LisaTestMetadata,
-    TestCaseRuntimeData,
+    LisaTestRuntimeData,
     TestResult,
     TestStatus,
     simple_requirement,
@@ -116,14 +116,14 @@ def generate_cases_metadata() -> List[LisaTestMetadata]:
 def generate_cases_result() -> List[TestResult]:
     case_metadata = generate_cases_metadata()
 
-    case_results = [TestResult(TestCaseRuntimeData(x)) for x in case_metadata]
+    case_results = [TestResult(LisaTestRuntimeData(x)) for x in case_metadata]
 
     return case_results
 
 
 def select_and_check(
     ut: TestCase, case_runbook: List[Any], expected_descriptions: List[str]
-) -> List[TestCaseRuntimeData]:
+) -> List[LisaTestRuntimeData]:
     runbook = validate_data({constants.TESTCASE: case_runbook})
     case_metadatas = generate_cases_metadata()
     selected = select_testcases(runbook.testcase, case_metadatas)
