@@ -25,8 +25,8 @@ TestStatus = Enum(
     "TestStatus", ["NOTRUN", "RUNNING", "FAILED", "PASSED", "SKIPPED", "ATTEMPTED"]
 )
 
-_all_suites: Dict[str, LisaTestCaseMetadata] = dict()
-_all_cases: Dict[str, LisaTestMetadata] = dict()
+lisa_test_cases_metadata: Dict[str, LisaTestCaseMetadata] = dict()
+lisa_tests_metadata: Dict[str, LisaTestMetadata] = dict()
 
 
 class SkipTestCaseException(LisaException):
@@ -184,7 +184,7 @@ class LisaTestCaseMetadata:
         self.test_class = test_class
         if not self.name:
             self.name = test_class.__name__
-        _add_suite_metadata(self)
+        _add_lisa_test_case_metadata(self)
 
         @wraps(self.test_class)
         def wrapper(
@@ -230,7 +230,7 @@ class LisaTestMetadata:
         self.full_name = func.__qualname__
 
         self._func = func
-        _add_case_metadata(self)
+        _add_lisa_test_metadata(self)
 
         @wraps(self._func)
         def wrapper(*args: object) -> None:
@@ -411,32 +411,28 @@ class LisaTestCase(unittest.TestCase, metaclass=ABCMeta):
         self.log.debug(f"after_suite end with {timer}")
 
 
-def get_suites_metadata() -> Dict[str, LisaTestCaseMetadata]:
-    return _all_suites
+def _add_lisa_test_case_metadata(metadata: LisaTestCaseMetadata) -> None:
+    """Add the metadata to the test case and matching tests.
 
-
-def get_cases_metadata() -> Dict[str, LisaTestMetadata]:
-    return _all_cases
-
-
-def _add_suite_metadata(metadata: LisaTestCaseMetadata) -> None:
+    Errors if there is a collision.
+    """
+    # TODO: We should only use the class name as the key.
     if metadata.name:
         key = metadata.name
     else:
         key = metadata.test_class.__name__
-    exist_metadata = _all_suites.get(key)
-    if exist_metadata is None:
-        _all_suites[key] = metadata
+    if key not in lisa_test_cases_metadata:
+        lisa_test_cases_metadata[key] = metadata
     else:
         raise LisaException(
             f"duplicate test class name: {key}, "
-            f"new: [{metadata}], exists: [{exist_metadata}]"
+            f"'{metadata}' would replace '{lisa_test_cases_metadata[key]}'"
         )
 
     class_prefix = f"{key}."
-    for test_case in _all_cases.values():
-        if test_case.full_name.startswith(class_prefix):
-            _add_case_to_suite(metadata, test_case)
+    for test in lisa_tests_metadata.values():
+        if test.full_name.startswith(class_prefix):
+            _add_test_to_case(metadata, test)
     log = get_logger("init", "test")
     log.info(
         f"registered test suite '{key}' "
@@ -444,28 +440,33 @@ def _add_suite_metadata(metadata: LisaTestCaseMetadata) -> None:
     )
 
 
-def _add_case_metadata(metadata: LisaTestMetadata) -> None:
+def _add_lisa_test_metadata(metadata: LisaTestMetadata) -> None:
+    """Add the metadata to the test itself.
 
-    full_name = metadata.full_name
-    if _all_cases.get(full_name) is None:
-        _all_cases[full_name] = metadata
+    Errors if there is a collision. Also adds the test to the test
+    case.
+
+    """
+
+    if metadata.full_name not in lisa_tests_metadata:
+        lisa_tests_metadata[metadata.full_name] = metadata
     else:
-        raise LisaException(f"duplicate test class name: {full_name}")
+        raise LisaException(f"duplicate test class name: {metadata.full_name}")
 
     # this should be None in current observation.
     # the methods are loadded prior to test class
     # in case logic is changed, so keep this logic
     #   to make two collection consistent.
-    class_name = full_name.split(".")[0]
-    test_suite = _all_suites.get(class_name)
-    if test_suite:
+    prefix = metadata.full_name.split(".")[0]
+    if prefix in lisa_test_cases_metadata:
         log = get_logger("init", "test")
-        log.debug(f"add case '{metadata.name}' to suite '{test_suite.name}'")
-        _add_case_to_suite(test_suite, metadata)
+        log.debug(
+            f"add case '{metadata.name}' to "
+            f"suite '{lisa_test_cases_metadata[prefix].name}'"
+        )
+        _add_test_to_case(lisa_test_cases_metadata[prefix], metadata)
 
 
-def _add_case_to_suite(
-    test_suite: LisaTestCaseMetadata, test_case: LisaTestMetadata
-) -> None:
-    test_case.suite = test_suite
-    test_suite.cases.append(test_case)
+def _add_test_to_case(case: LisaTestCaseMetadata, test: LisaTestMetadata) -> None:
+    test.suite = case
+    case.cases.append(test)

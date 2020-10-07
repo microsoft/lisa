@@ -1,6 +1,7 @@
 from typing import Any, List
 from unittest import IsolatedAsyncioTestCase, TestCase
 
+import lisa.testsuite
 from lisa import schema
 from lisa.environment import load_environments
 from lisa.operating_system import Linux, Windows
@@ -14,8 +15,6 @@ from lisa.testsuite import (
     TestCaseRuntimeData,
     TestResult,
     TestStatus,
-    get_cases_metadata,
-    get_suites_metadata,
     simple_requirement,
 )
 from lisa.util import LisaException, constants
@@ -82,8 +81,8 @@ class MockTestSuite2(LisaTestCase):
 
 
 def cleanup_cases_metadata() -> None:
-    get_cases_metadata().clear()
-    get_suites_metadata().clear()
+    lisa.testsuite.lisa_tests_metadata.clear()
+    lisa.testsuite.lisa_test_cases_metadata.clear()
 
 
 def generate_cases_metadata() -> List[LisaTestMetadata]:

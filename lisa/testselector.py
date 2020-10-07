@@ -2,8 +2,9 @@ import re
 from functools import partial
 from typing import Callable, Dict, List, Mapping, Optional, Pattern, Set, Union, cast
 
+import lisa.testsuite
 from lisa import schema
-from lisa.testsuite import LisaTestMetadata, TestCaseRuntimeData, get_cases_metadata
+from lisa.testsuite import LisaTestMetadata, TestCaseRuntimeData
 from lisa.util import LisaException, constants, set_filtered_fields
 from lisa.util.logger import get_logger
 
@@ -23,7 +24,7 @@ def select_testcases(
         for item in init_cases:
             full_list[item.full_name] = item
     else:
-        full_list = get_cases_metadata()
+        full_list = lisa.testsuite.lisa_tests_metadata
     if filters:
         selected: Dict[str, TestCaseRuntimeData] = dict()
         force_included: Set[str] = set()
