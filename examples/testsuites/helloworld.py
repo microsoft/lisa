@@ -1,9 +1,9 @@
-from lisa import LisaTestCase, LisaTestMetadata, TestSuiteMetadata
+from lisa import LisaTestCase, LisaTestCaseMetadata, LisaTestMetadata
 from lisa.operating_system import Linux
 from lisa.tools import Echo, Uname
 
 
-@TestSuiteMetadata(
+@LisaTestCaseMetadata(
     area="demo",
     category="simple",
     description="""

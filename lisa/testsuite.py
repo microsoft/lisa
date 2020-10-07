@@ -25,7 +25,7 @@ TestStatus = Enum(
     "TestStatus", ["NOTRUN", "RUNNING", "FAILED", "PASSED", "SKIPPED", "ATTEMPTED"]
 )
 
-_all_suites: Dict[str, TestSuiteMetadata] = dict()
+_all_suites: Dict[str, LisaTestCaseMetadata] = dict()
 _all_cases: Dict[str, LisaTestMetadata] = dict()
 
 
@@ -153,7 +153,9 @@ def simple_requirement(
 DEFAULT_REQUIREMENT = simple_requirement()
 
 
-class TestSuiteMetadata:
+class LisaTestCaseMetadata:
+    """This decorator supplies metadata for each case of tests."""
+
     def __init__(
         self,
         area: str,
@@ -163,6 +165,7 @@ class TestSuiteMetadata:
         name: str = "",
         requirement: TestCaseRequirement = DEFAULT_REQUIREMENT,
     ) -> None:
+        # TODO: The name should be the test case’s class name.
         self.name = name
         self.cases: List[LisaTestMetadata] = []
 
@@ -172,6 +175,8 @@ class TestSuiteMetadata:
             self.tags = tags
         else:
             self.tags = []
+        # TODO: Each test case description should be from its
+        # docstring, not here.
         self.description = description
         self.requirement = requirement
 
@@ -186,7 +191,7 @@ class TestSuiteMetadata:
             test_class: Type[LisaTestCase],
             environment: Environment,
             cases: List[TestResult],
-            metadata: TestSuiteMetadata,
+            metadata: LisaTestCaseMetadata,
         ) -> LisaTestCase:
             return test_class(environment, cases, metadata)
 
@@ -233,8 +238,8 @@ class LisaTestMetadata:
 
         return wrapper
 
-    def set_suite(self, suite: TestSuiteMetadata) -> None:
-        self.suite: TestSuiteMetadata = suite
+    def set_suite(self, suite: LisaTestCaseMetadata) -> None:
+        self.suite: LisaTestCaseMetadata = suite
 
 
 class TestCaseRuntimeData:
@@ -283,7 +288,7 @@ class LisaTestCase(unittest.TestCase, metaclass=ABCMeta):
         self,
         environment: Environment,
         case_results: List[TestResult],
-        metadata: TestSuiteMetadata,
+        metadata: LisaTestCaseMetadata,
     ) -> None:
         super().__init__()
         self.environment = environment
@@ -406,7 +411,7 @@ class LisaTestCase(unittest.TestCase, metaclass=ABCMeta):
         self.log.debug(f"after_suite end with {timer}")
 
 
-def get_suites_metadata() -> Dict[str, TestSuiteMetadata]:
+def get_suites_metadata() -> Dict[str, LisaTestCaseMetadata]:
     return _all_suites
 
 
@@ -414,7 +419,7 @@ def get_cases_metadata() -> Dict[str, LisaTestMetadata]:
     return _all_cases
 
 
-def _add_suite_metadata(metadata: TestSuiteMetadata) -> None:
+def _add_suite_metadata(metadata: LisaTestCaseMetadata) -> None:
     if metadata.name:
         key = metadata.name
     else:
@@ -460,7 +465,7 @@ def _add_case_metadata(metadata: LisaTestMetadata) -> None:
 
 
 def _add_case_to_suite(
-    test_suite: TestSuiteMetadata, test_case: LisaTestMetadata
+    test_suite: LisaTestCaseMetadata, test_case: LisaTestMetadata
 ) -> None:
     test_case.suite = test_suite
     test_suite.cases.append(test_case)

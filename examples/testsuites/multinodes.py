@@ -1,9 +1,9 @@
-from lisa import LisaTestCase, LisaTestMetadata, TestSuiteMetadata
+from lisa import LisaTestCase, LisaTestCaseMetadata, LisaTestMetadata
 from lisa.testsuite import simple_requirement
 from lisa.tools import Lscpu, Ntttcp
 
 
-@TestSuiteMetadata(
+@LisaTestCaseMetadata(
     area="demo",
     category="demo",
     description="""

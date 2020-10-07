@@ -1,13 +1,13 @@
 from pathlib import Path
 
-from lisa import LisaTestCase, LisaTestMetadata, TestSuiteMetadata
+from lisa import LisaTestCase, LisaTestCaseMetadata, LisaTestMetadata
 from lisa.executable import CustomScript, CustomScriptBuilder
 from lisa.operating_system import Windows
 from lisa.testsuite import simple_requirement
 from lisa.util.perf_timer import create_timer
 
 
-@TestSuiteMetadata(
+@LisaTestCaseMetadata(
     area="demo",
     category="simple",
     description="""

@@ -9,11 +9,11 @@ from lisa.tests.test_environment import generate_runbook
 from lisa.testselector import select_testcases
 from lisa.testsuite import (
     LisaTestCase,
+    LisaTestCaseMetadata,
     LisaTestMetadata,
     TestCaseRuntimeData,
     TestResult,
     TestStatus,
-    TestSuiteMetadata,
     get_cases_metadata,
     get_suites_metadata,
     simple_requirement,
@@ -96,12 +96,12 @@ def generate_cases_metadata() -> List[LisaTestMetadata]:
         LisaTestMetadata("ut2", 1),
         LisaTestMetadata("ut3", 2),
     ]
-    suite_metadata1 = TestSuiteMetadata("a1", "c1", "des1", ["t1", "t2"])
+    suite_metadata1 = LisaTestCaseMetadata("a1", "c1", "des1", ["t1", "t2"])
     suite_metadata1(MockTestSuite)
     ut_cases[0](MockTestSuite.mock_ut1)
     ut_cases[1](MockTestSuite.mock_ut2)
 
-    suite_metadata2 = TestSuiteMetadata(
+    suite_metadata2 = LisaTestCaseMetadata(
         "a2",
         "c2",
         "des2",

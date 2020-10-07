@@ -1,11 +1,11 @@
-from lisa import LisaTestCase, LisaTestMetadata, TestSuiteMetadata
+from lisa import LisaTestCase, LisaTestCaseMetadata, LisaTestMetadata
 from lisa.features import StartStop
 from lisa.testsuite import simple_requirement
 from lisa.tools import Dmesg
 from lisa.util.perf_timer import create_timer
 
 
-@TestSuiteMetadata(
+@LisaTestCaseMetadata(
     area="provisioning",
     category="functional",
     description="""

@@ -6,10 +6,10 @@ from lisa.platform_ import WaitMoreResourceError, load_platform
 from lisa.testselector import select_testcases
 from lisa.testsuite import (
     LisaTestCase,
+    LisaTestCaseMetadata,
     TestCaseRequirement,
     TestResult,
     TestStatus,
-    TestSuiteMetadata,
 )
 from lisa.util.logger import get_logger
 
@@ -97,7 +97,7 @@ async def run(runbook: schema.Runbook) -> List[TestResult]:  # noqa: C901
 
             # grouped test results by test suite.
             grouped_cases: List[TestResult] = []
-            current_test_suite: Optional[TestSuiteMetadata] = None
+            current_test_suite: Optional[LisaTestCaseMetadata] = None
             for test_result in can_run_results:
                 if (
                     test_result.can_run
