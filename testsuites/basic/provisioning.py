@@ -1,4 +1,4 @@
-from lisa import TestCaseMetadata, TestSuite, TestSuiteMetadata
+from lisa import LisaTestCase, TestCaseMetadata, TestSuiteMetadata
 from lisa.features import StartStop
 from lisa.testsuite import simple_requirement
 from lisa.tools import Dmesg
@@ -13,7 +13,7 @@ from lisa.util.perf_timer import create_timer
     """,
     tags=[],
 )
-class Provisioning(TestSuite):
+class Provisioning(LisaTestCase):
     @TestCaseMetadata(
         description="""
         this test uses to restart a node, and compare dmesg output.

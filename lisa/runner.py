@@ -5,10 +5,10 @@ from lisa.environment import Environment, Environments, load_environments
 from lisa.platform_ import WaitMoreResourceError, load_platform
 from lisa.testselector import select_testcases
 from lisa.testsuite import (
+    LisaTestCase,
     TestCaseRequirement,
     TestResult,
     TestStatus,
-    TestSuite,
     TestSuiteMetadata,
 )
 from lisa.util.logger import get_logger
@@ -153,7 +153,7 @@ async def _run_suite(environment: Environment, cases: List[TestResult]) -> None:
 
     assert cases
     suite_metadata = cases[0].runtime_data.metadata.suite
-    test_suite: TestSuite = suite_metadata.test_class(
+    test_suite: LisaTestCase = suite_metadata.test_class(
         environment,
         cases,
         suite_metadata,

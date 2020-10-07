@@ -175,7 +175,7 @@ class TestSuiteMetadata:
         self.description = description
         self.requirement = requirement
 
-    def __call__(self, test_class: Type[TestSuite]) -> Callable[..., object]:
+    def __call__(self, test_class: Type[LisaTestCase]) -> Callable[..., object]:
         self.test_class = test_class
         if not self.name:
             self.name = test_class.__name__
@@ -183,11 +183,11 @@ class TestSuiteMetadata:
 
         @wraps(self.test_class)
         def wrapper(
-            test_class: Type[TestSuite],
+            test_class: Type[LisaTestCase],
             environment: Environment,
             cases: List[TestResult],
             metadata: TestSuiteMetadata,
-        ) -> TestSuite:
+        ) -> LisaTestCase:
             return test_class(environment, cases, metadata)
 
         return wrapper
@@ -267,7 +267,14 @@ class TestCaseRuntimeData:
         return cloned
 
 
-class TestSuite(unittest.TestCase, metaclass=ABCMeta):
+class LisaTestCase(unittest.TestCase, metaclass=ABCMeta):
+    """This class wraps the unittest module's 'TestCase' class.
+
+    It should be used in the same way, where non-abstract methods
+    represent unit tests, usually prefixed with `test_`.
+
+    """
+
     def __init__(
         self,
         environment: Environment,

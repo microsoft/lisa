@@ -26,6 +26,9 @@ short summary of the most important parts:
 * Constants should be `CAPITALIZED_SNAKE_CASE`.
 * When importing a function, try to avoid renaming it with `import as` because
   it introduces cognitive overhead to track yet another name.
+* When deriving another module’s class (such as `unittest.TestCase`), reuse the
+  class name to avoid confusion, such as `LisaTestCase`, instead of introducing
+  a different connotation like `TestSuite`.
 
 When in doubt, adhere to existing conventions, or check the style guide.
 

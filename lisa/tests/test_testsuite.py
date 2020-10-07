@@ -8,11 +8,11 @@ from lisa.parameter_parser.runbook import validate_data
 from lisa.tests.test_environment import generate_runbook
 from lisa.testselector import select_testcases
 from lisa.testsuite import (
+    LisaTestCase,
     TestCaseMetadata,
     TestCaseRuntimeData,
     TestResult,
     TestStatus,
-    TestSuite,
     TestSuiteMetadata,
     get_cases_metadata,
     get_suites_metadata,
@@ -28,7 +28,7 @@ fail_on_after_case = False
 fail_case_count = 0
 
 
-class MockTestSuite(TestSuite):
+class MockTestSuite(LisaTestCase):
     def __init__(self, *args: Any, **kwargs: Any) -> None:
         super().__init__(*args, **kwargs)
         self.fail_on_before_suite = fail_on_before_suite
@@ -76,7 +76,7 @@ class MockTestSuite(TestSuite):
         pass
 
 
-class MockTestSuite2(TestSuite):
+class MockTestSuite2(LisaTestCase):
     def mock_ut3(self) -> None:
         pass
 

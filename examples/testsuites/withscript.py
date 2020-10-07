@@ -1,6 +1,6 @@
 from pathlib import Path
 
-from lisa import TestCaseMetadata, TestSuite, TestSuiteMetadata
+from lisa import LisaTestCase, TestCaseMetadata, TestSuiteMetadata
 from lisa.executable import CustomScript, CustomScriptBuilder
 from lisa.operating_system import Windows
 from lisa.testsuite import simple_requirement
@@ -15,7 +15,7 @@ from lisa.util.perf_timer import create_timer
     """,
     tags=["demo"],
 )
-class WithScript(TestSuite):
+class WithScript(LisaTestCase):
     def before_suite(self) -> None:
         self._echo_script = CustomScriptBuilder(
             Path(__file__).parent.joinpath("scripts"), ["echo.sh"]

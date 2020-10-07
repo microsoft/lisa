@@ -1,4 +1,4 @@
-from lisa import TestCaseMetadata, TestSuite, TestSuiteMetadata
+from lisa import LisaTestCase, TestCaseMetadata, TestSuiteMetadata
 from lisa.operating_system import Linux
 from lisa.tools import Echo, Uname
 
@@ -12,7 +12,7 @@ from lisa.tools import Echo, Uname
     """,
     tags=["demo"],
 )
-class HelloWorld(TestSuite):
+class HelloWorld(LisaTestCase):
     @TestCaseMetadata(
         description="""
         this test case use default node to

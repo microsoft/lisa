@@ -1,4 +1,4 @@
-from lisa import TestCaseMetadata, TestSuite, TestSuiteMetadata
+from lisa import LisaTestCase, TestCaseMetadata, TestSuiteMetadata
 from lisa.testsuite import simple_requirement
 from lisa.tools import Lscpu, Ntttcp
 
@@ -13,7 +13,7 @@ from lisa.tools import Lscpu, Ntttcp
     tags=["demo", "multinode"],
     requirement=simple_requirement(min_count=2),
 )
-class MutipleNodesDemo(TestSuite):
+class MutipleNodesDemo(LisaTestCase):
     @TestCaseMetadata(
         description="""
         This test case send and receive data by ntttcp
