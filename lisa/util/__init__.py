@@ -67,6 +67,7 @@ def get_public_key_data(private_key_file_path: str) -> str:
     return public_key_data
 
 
+# TODO: Why do we need this?
 def fields_to_dict(src: Any, fields: Iterable[str]) -> Dict[str, Any]:
     """
     copy field values form src to dest, if it's not None
@@ -82,6 +83,7 @@ def fields_to_dict(src: Any, fields: Iterable[str]) -> Dict[str, Any]:
     return result
 
 
+# TODO: Why do we need this?
 def set_filtered_fields(src: Any, dest: Any, fields: List[str]) -> None:
     """
     copy field values form src to dest, if it's not None

@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import unittest
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from enum import Enum
 from functools import wraps
 from typing import TYPE_CHECKING, Any, Callable, Dict, List, Optional, Type, Union
@@ -152,32 +152,19 @@ def simple_requirement(
 DEFAULT_REQUIREMENT = simple_requirement()
 
 
+@dataclass
 class LisaTestCaseMetadata:
     """This decorator supplies metadata for each case of tests."""
 
-    def __init__(
-        self,
-        area: str,
-        category: str,
-        description: str,
-        tags: List[str],
-        name: str = "",
-        requirement: TestCaseRequirement = DEFAULT_REQUIREMENT,
-    ) -> None:
-        # TODO: The name should be the test case’s class name.
-        self.name = name
-        self.cases: List[LisaTestMetadata] = []
-
-        self.area = area
-        self.category = category
-        if tags:
-            self.tags = tags
-        else:
-            self.tags = []
-        # TODO: Each test case description should be from its
-        # docstring, not here.
-        self.description = description
-        self.requirement = requirement
+    area: str
+    category: str
+    # TODO: Each description should be from the docstring instead.
+    description: str
+    tags: List[str] = field(default_factory=list)
+    # TODO: The name should be the test case’s class name.
+    name: str = ""
+    requirement: TestCaseRequirement = DEFAULT_REQUIREMENT
+    cases: List[LisaTestMetadata] = field(default_factory=list)
 
     def __call__(self, test_class: Type[LisaTestCase]) -> Callable[..., object]:
         self.test_class = test_class
@@ -237,21 +224,23 @@ class LisaTestMetadata:
 
         return wrapper
 
+    # TODO: Currently set by `_add_test_to_case`, want to set
+    # automatically here.
     def set_case(self, case: LisaTestCaseMetadata) -> None:
         self.case: LisaTestCaseMetadata = case
 
 
+@dataclass
 class LisaTestRuntimeData:
-    def __init__(self, metadata: LisaTestMetadata):
-        self.metadata = metadata
+    """This adds runtime data to tests."""
 
-        # all runtime setting fields
-        self.select_action: str = ""
-        self.times: int = 1
-        self.retry: int = 0
-        self.use_new_environment: bool = False
-        self.ignore_failure: bool = False
-        self.environment_name: str = ""
+    metadata: LisaTestMetadata
+    select_action: str = ""
+    times: int = 1
+    retry: int = 0
+    use_new_environment: bool = False
+    ignore_failure: bool = False
+    environment_name: str = ""
 
     # TODO: This implies that we should actually subclass (inherit)
     # `TestCaseMetaData`, with some way of instantiating this class
