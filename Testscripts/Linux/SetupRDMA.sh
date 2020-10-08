@@ -629,7 +629,7 @@ function Main() {
 		Verify_File $benchmark_bin
 	fi
 
-	if [[ $benchmark_type == "OMB" && $$mpi_type != "mvapich" ]]; then
+	if [[ $benchmark_type == "OMB" && $mpi_type != "mvapich" ]]; then
 		currentDir=$(pwd)
 		cd ~
 		LogMsg "Proceeding OSU MPI Benchmark (OMB) test installation"
