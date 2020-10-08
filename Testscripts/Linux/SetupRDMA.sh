@@ -86,13 +86,13 @@ function Main() {
 		echo 8 > /etc/yum/vars/releasever
 		LogMsg "$?: Applied a mitigation for $DISTRO to /etc/yum/vars/releasever"
 	fi
-	# CentOS-HPC 7.6 or older versions only support ND device.
+	# CentOS-HPC 7.5 or older versions only support ND device. This lis-next has a bug.
 	# https://github.com/LIS/lis-next/blob/master/hv-rhel7.x/hv/Makefile#L20
 	mj=$(echo "$DISTRO_VERSION" | cut -d '.' -f 1)
 	mn=$(echo "$DISTRO_VERSION" | cut -d '.' -f 2)
 
-	if [[ $is_nd == "yes" && $DISTRO == 'centos_7' && $mj -eq 7 && $mn -gt 6 ]]; then
-		LogErr "ND test only support CentOS-HPC 7.6 or earlier version. Abort!"
+	if [[ $is_nd == "yes" && $DISTRO == 'centos_7' && $mj -eq 7 && $mn -gt 5 ]]; then
+		LogErr "ND test only support CentOS-HPC 7.5 or earlier version. Abort!"
 		SetTestStateAborted
 		exit 0
 	fi
