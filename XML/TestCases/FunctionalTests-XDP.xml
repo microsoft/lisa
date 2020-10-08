@@ -124,4 +124,19 @@
       <OverrideVMSize>Standard_DS4_v2</OverrideVMSize>
     </SetupConfig>
   </test>
+  <test>
+    <testName>VERIFY-XDP-VF-HOT-REMOVE</testName>
+    <testScript>VERIFY-VF-HOT-REMOVE-XDP.ps1</testScript>
+    <files>.\Testscripts\Linux\utils.sh,.\Testscripts\Linux\XDPDumpSetup.sh,.\Testscripts\Linux\XDPUtils.sh</files>
+    <Platform>Azure</Platform>
+    <Category>Functional</Category>
+    <Area>XDP</Area>
+    <Tags>xdp,network,hv_netvsc,sriov</Tags>
+    <Priority>2</Priority>
+    <SetupConfig>
+      <Networking>SRIOV</Networking>
+      <SetupType>TwoVM2NIC</SetupType>
+      <OverrideVMSize>Standard_DS4_v2</OverrideVMSize>
+    </SetupConfig>
+  </test>
 </TestCases>

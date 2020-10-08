@@ -63,9 +63,14 @@ function calculate_packets_forward(){
 function download_pktgen_scripts(){
     local ip=$1
     local dir=$2
-    local cores=$3
-    if [ "${cores}" = "multi" ];then
+    local type=$3
+    # type indicates script type: multi threaded and single threaded, Fix: single threaded with constant PPS to send packets
+    if [ "${type}" = "multi" ];then
         ssh $ip "wget https://git.kernel.org/pub/scm/linux/kernel/git/stable/linux.git/plain/samples/pktgen/pktgen_sample05_flow_per_thread.sh?h=v5.7.8 -O ${dir}/pktgen_sample.sh"
+    elif [ "${type}" = "fix" ];then
+        ssh $ip "wget https://git.kernel.org/pub/scm/linux/kernel/git/stable/linux.git/plain/samples/pktgen/pktgen_sample01_simple.sh?h=v5.7.8 -O ${dir}/pktgen_sample.sh"
+        # insert fix rate packet transferring 50Kpps
+        ssh $ip "sed -i '82i pg_set \$DEV \"ratep 50000\"' ${dir}/pktgen_sample.sh"
     else
         ssh $ip "wget https://git.kernel.org/pub/scm/linux/kernel/git/stable/linux.git/plain/samples/pktgen/pktgen_sample01_simple.sh?h=v5.7.8 -O ${dir}/pktgen_sample.sh"
     fi
