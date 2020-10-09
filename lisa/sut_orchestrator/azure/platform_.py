@@ -33,7 +33,14 @@ from lisa.feature import Feature
 from lisa.node import Node
 from lisa.platform_ import Platform
 from lisa.secret import PATTERN_GUID, PATTERN_HEADTAIL, add_secret
-from lisa.util import LisaException, constants, get_public_key_data, set_filtered_fields
+from lisa.tools import Dmesg, Modinfo
+from lisa.util import (
+    LisaException,
+    constants,
+    find_patterns_in_lines,
+    get_public_key_data,
+    set_filtered_fields,
+)
 from lisa.util.logger import Logger
 
 from . import features
@@ -199,6 +206,23 @@ class AzurePlatformSchema:
 
         if not self.locations:
             self.locations = LOCATIONS
+
+
+HOST_VERSION_PATTERN = re.compile(r"Hyper-V Host Build:([^\n;]*)")
+
+
+def _get_node_information(node: Node, information: Dict[str, str]) -> None:
+    if node.is_linux:
+        dmesg = node.tools[Dmesg]
+        matched_host_version = find_patterns_in_lines(
+            dmesg.get_output(), [HOST_VERSION_PATTERN]
+        )
+        information["host_version"] = (
+            matched_host_version[0][0] if matched_host_version[0] else ""
+        )
+
+        modinfo = node.tools[Modinfo]
+        information["lis_version"] = modinfo.get_version("hv_vmbus")
 
 
 class AzurePlatform(Platform):
@@ -842,6 +866,7 @@ class AzurePlatform(Platform):
                 password=node_context.password,
                 private_key_file=node_context.private_key_file,
             )
+            node.add_node_information_hook(_get_node_information)
 
     def _resource_sku_to_capability(
         self, location: str, resource_sku: ResourceSku

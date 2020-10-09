@@ -415,7 +415,10 @@ class LisaRunnerTestCase(TestCase):
     ) -> None:
         self.assertListEqual(
             expected_envs,
-            [x.env for x in test_results],
+            [
+                x.environment.name if x.environment is not None else ""
+                for x in test_results
+            ],
         )
         self.assertListEqual(
             expected_status,
