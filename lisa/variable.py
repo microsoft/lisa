@@ -125,7 +125,7 @@ def load_from_variable_entry(
 
     assert isinstance(name, str), f"actual: {type(name)}"
     mask_pattern_name = ""
-    if type(raw_value) in [str, int, bool]:
+    if type(raw_value) in [str, int, bool, float]:
         value = raw_value
     else:
         if isinstance(raw_value, dict):
