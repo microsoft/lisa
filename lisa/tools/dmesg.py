@@ -33,6 +33,10 @@ class Dmesg(Tool):
     def _check_exists(self) -> bool:
         return True
 
+    def get_output(self, force_run: bool = False) -> str:
+        command_output = self._run(force_run=force_run)
+        return command_output.stdout
+
     def check_kernel_panic(
         self, force_run: bool = False, throw_error: bool = True
     ) -> str:
