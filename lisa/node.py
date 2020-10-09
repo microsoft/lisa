@@ -173,7 +173,7 @@ class Node(ContextMixin, InitializableMixin):
             assert self.shell
             assert (
                 self._connection_info
-            ), "call setConnectionInfo before use remote node"
+            ), "don't call setConnectionInfo before use remote node"
 
             if self.is_linux:
                 remote_root_path = pathlib.Path("$HOME")
@@ -237,7 +237,6 @@ class Nodes:
                 else:
                     default = self._list[0]
             self._default = default
-        self._default.initialize()
         return self._default
 
     def list(self) -> Iterable[Node]:
@@ -260,7 +259,6 @@ class Nodes:
         if not found:
             raise KeyError(f"cannot find node {key}")
 
-        found.initialize()
         return found
 
     def __setitem__(self, key: Union[int, str], v: Node) -> None:
