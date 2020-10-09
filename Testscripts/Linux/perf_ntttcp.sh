@@ -315,7 +315,7 @@ Run_Ntttcp()
 		Kill_Process "${server}" ntttcp
 		Kill_Process "${client}" ntttcp
 		LogMsg "ServerCmd: $server_ntttcp_cmd > ${log_folder}/ntttcp-${rx_log_prefix}"
-		ssh "${server}" "${server_ntttcp_cmd} > ${log_folder}/ntttcp-${rx_log_prefix} &" &
+		ssh "${server}" "nohup ${server_ntttcp_cmd} > ${log_folder}/ntttcp-${rx_log_prefix} &" &
 		Kill_Process "${server}" lagscope
 		Run_SSHCommand "${server}" "${lagscope_cmd} -r" &
 		Kill_Process "${server}" dstat

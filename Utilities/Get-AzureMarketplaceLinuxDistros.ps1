@@ -73,6 +73,7 @@ function Update-DatabaseRecord($Publisher, $Offer, $Sku, $Version, $Date, $Locat
 	Upload-TestResultToDatabase -SQLQuery $sqlQuery
 }
 
+$LogFileName = "GetAllLinuxDistros-$($Location.Replace(',','-')).log"
 #Load libraries
 if (!$global:LogFileName) {
 	Set-Variable -Name LogFileName -Value $LogFileName -Scope Global -Force
@@ -172,9 +173,9 @@ if (!(Test-Path $ResultFolder))
 }
 
 $count = $DistroRegions.Keys.Count
-$PublisherArrayInScope | % {
-	$pubName = $_
-	$DistroRegions.GetEnumerator() | where-object {$_.Name -imatch "^$pubName"} | sort Name | Select-Object @{l="DistroName";e={$_.Name.Trim()}}   | out-file -FilePath "$ResultFolder/${pubName}_Distros.txt"
+$allRegions | % {
+	$loc = $_
+	$RegionDistros.GetEnumerator() | where-object {$_.Name -imatch "^$loc"} | sort Name | Select-Object @{l="Location";e={$_.Name.Trim()}} | out-file -FilePath "$ResultFolder/${loc}_Distros.txt"
 }
 $Path = "$ResultFolder/AllLinuxDistros_" + (Get-Date).ToString("yyyyMMdd_hhmmss") + ".csv" 
 $DistroRegions.GetEnumerator() | sort Name | Select-Object Name, @{l = "Location"; e = { $_.Value } } | Export-Csv -Path $Path -NoTypeInformation -Force
