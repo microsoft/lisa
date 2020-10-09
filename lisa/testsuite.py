@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import unittest
 from abc import ABCMeta
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from enum import Enum
 from functools import wraps
 from typing import TYPE_CHECKING, Any, Callable, Dict, List, Optional, Type, Union
@@ -39,7 +39,7 @@ class TestResultMessage(notifier.MessageBase):
     type: str = "TestResult"
     status: TestStatus = TestStatus.NOTRUN
     message: str = ""
-    env: str = ""
+    environment_information: Dict[str, str] = field(default_factory=dict)
 
 
 @dataclass
@@ -48,7 +48,7 @@ class TestResult:
     status: TestStatus = TestStatus.NOTRUN
     elapsed: float = 0
     message: str = ""
-    env: str = ""
+    environment: Optional[Environment] = None
     check_results: Optional[search_space.ResultReason] = None
 
     @property
@@ -67,9 +67,17 @@ class TestResult:
         if self.status != new_status:
             self.status = new_status
 
-            fields = ["status", "elapsed", "message", "env"]
+            fields = ["status", "elapsed", "message"]
             result_message = TestResultMessage()
             set_filtered_fields(self, result_message, fields=fields)
+
+            # get information of default node, and send to notifier.
+            if self.environment:
+                environment_information = (
+                    self.environment.default_node.get_node_information()
+                )
+                result_message.environment_information.update(environment_information)
+                result_message.environment_information["name"] = self.environment.name
             notifier.notify(result_message)
 
     def check_environment(
