@@ -103,7 +103,7 @@ class LisaRunner(Action):
                 for new_env_result in new_env_can_run_results:
                     if new_env_result.check_environment(environment, True):
                         await self._run_suite(
-                            environment=environment, cases=[new_env_result]
+                            environment=environment, results=[new_env_result]
                         )
                         break
 
@@ -123,7 +123,7 @@ class LisaRunner(Action):
                         ):
                             # run last batch cases
                             await self._run_suite(
-                                environment=environment, cases=grouped_cases
+                                environment=environment, results=grouped_cases
                             )
                             grouped_cases = []
 
@@ -132,7 +132,9 @@ class LisaRunner(Action):
                         grouped_cases.append(test_result)
 
                 if grouped_cases:
-                    await self._run_suite(environment=environment, cases=grouped_cases)
+                    await self._run_suite(
+                        environment=environment, results=grouped_cases
+                    )
             finally:
                 if environment and environment.is_ready:
                     platform.delete_environment(environment)
@@ -176,18 +178,18 @@ class LisaRunner(Action):
         super().close()
 
     async def _run_suite(
-        self, environment: Environment, cases: List[TestResult]
+        self, environment: Environment, results: List[TestResult]
     ) -> None:
 
-        assert cases
-        suite_metadata = cases[0].runtime_data.metadata.suite
+        assert results
+        suite_metadata = results[0].runtime_data.metadata.suite
         test_suite: TestSuite = suite_metadata.test_class(
             environment,
-            cases,
+            results,
             suite_metadata,
         )
-        for case in cases:
-            case.env = environment.name
+        for result in results:
+            result.environment = environment
         await test_suite.start()
 
     def _create_test_results(

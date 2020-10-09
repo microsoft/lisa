@@ -2,13 +2,13 @@ from __future__ import annotations
 
 import pathlib
 import random
-from typing import Any, Iterable, List, Optional, TypeVar, Union, cast
+from typing import Any, Callable, Dict, Iterable, List, Optional, TypeVar, Union, cast
 
 from lisa import schema
 from lisa.executable import Tools
 from lisa.feature import Features
 from lisa.operating_system import OperatingSystem
-from lisa.tools import Echo
+from lisa.tools import Echo, Uname
 from lisa.util import (
     ContextMixin,
     InitializableMixin,
@@ -21,6 +21,15 @@ from lisa.util.process import ExecutableResult, Process
 from lisa.util.shell import ConnectionInfo, LocalShell, Shell, SshShell
 
 T = TypeVar("T")
+
+
+def _get_node_information(node: Node, information: Dict[str, str]) -> None:
+    if node.is_linux:
+        uname = node.tools[Uname]
+        linux_information = uname.get_linux_information()
+        fields = ["hardware_platform", "kernel_version"]
+        information_dict = fields_to_dict(linux_information, fields=fields)
+        information.update(information_dict)
 
 
 class Node(ContextMixin, InitializableMixin):
@@ -45,9 +54,11 @@ class Node(ContextMixin, InitializableMixin):
         self.features: Features
         self.tools = Tools(self)
         self.working_path: pathlib.PurePath = pathlib.PurePath()
+        self.log = get_logger(logger_name, str(self.index))
 
         self._connection_info: Optional[ConnectionInfo] = None
-        self.log = get_logger(logger_name, str(self.index))
+        self._node_information_hooks: List[Callable[[Node, Dict[str, str]], None]] = []
+        self.add_node_information_hook(_get_node_information)
 
     @staticmethod
     def create(
@@ -140,6 +151,17 @@ class Node(ContextMixin, InitializableMixin):
 
     def close(self) -> None:
         self.shell.close()
+
+    def get_node_information(self) -> Dict[str, str]:
+        result: Dict[str, str] = {}
+        for hook in self._node_information_hooks:
+            hook(self, result)
+        return result
+
+    def add_node_information_hook(
+        self, callback: Callable[[Node, Dict[str, str]], None]
+    ) -> None:
+        self._node_information_hooks.append(callback)
 
     def _initialize(self, *args: Any, **kwargs: Any) -> None:
         self.log.debug(f"initializing node {self.name}")

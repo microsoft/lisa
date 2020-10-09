@@ -71,6 +71,9 @@ class MockPlatform(Platform):
             requirements = environment.runbook.nodes_requirement
             for node_space in requirements:
                 environment.nodes.from_requirement(node_requirement=node_space)
+        for node in environment.nodes.list():
+            # prevent real calls
+            node._node_information_hooks.clear()
         deployed_envs.append(environment.name)
         environment._is_initialized = True
         environment.is_ready = self.deploy_is_ready
