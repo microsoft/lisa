@@ -473,6 +473,17 @@ mypy = {version = ">=0.700", markers = "python_version >= \"3.8\""}
 pytest = ">=3.5"
 
 [[package]]
+name = "pytest-timeout"
+version = "1.4.2"
+description = "py.test plugin to abort hanging tests"
+category = "main"
+optional = false
+python-versions = "*"
+
+[package.dependencies]
+pytest = ">=3.6.0"
+
+[[package]]
 name = "python-jsonrpc-server"
 version = "0.4.0"
 description = "JSON RPC 2.0 server library"
@@ -587,7 +598,7 @@ python-versions = ">=3.6"
 [metadata]
 lock-version = "1.1"
 python-versions = "^3.8"
-content-hash = "40a1da4f76e519932e1c86deaa81cb3331cc282c37ff78f39607936730cbb322"
+content-hash = "307896057c574edcbf704e9060caabb3eb14b01c06ba841b8de5c7715ce86ecb"
 
 [metadata.files]
 appdirs = [
@@ -829,6 +840,10 @@ pytest-flake8 = [
 pytest-mypy = [
     {file = "pytest-mypy-0.7.0.tar.gz", hash = "sha256:5a667d9a2b66bf98b3a494411f221923a6e2c3eafbe771104951aaec8985673d"},
     {file = "pytest_mypy-0.7.0-py3-none-any.whl", hash = "sha256:e0505ace48d2b19fe686366fce6b4a2ac0d090423736bb6aa2e39554d18974b7"},
+]
+pytest-timeout = [
+    {file = "pytest-timeout-1.4.2.tar.gz", hash = "sha256:20b3113cf6e4e80ce2d403b6fb56e9e1b871b510259206d40ff8d609f48bda76"},
+    {file = "pytest_timeout-1.4.2-py2.py3-none-any.whl", hash = "sha256:541d7aa19b9a6b4e475c759fd6073ef43d7cdc9a92d95644c260076eb257a063"},
 ]
 python-jsonrpc-server = [
     {file = "python-jsonrpc-server-0.4.0.tar.gz", hash = "sha256:62c543e541f101ec5b57dc654efc212d2c2e3ea47ff6f54b2e7dcb36ecf20595"},
