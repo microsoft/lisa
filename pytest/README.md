@@ -78,9 +78,17 @@ Other test specific requirements, such as installing software and daemons,
 downloading files from remote storage, or checking the state of our Bash test
 scripts, would similarly be implemented via fixtures and shared among tests.
 
-### Alternatives considered
+### Test result output
 
-## pytest-xdist
+Instead of writing our own test result output, we can leverage existing plugins.
+For instance, there already exists
+[pytest-azurepipelines](https://pypi.org/project/pytest-azurepipelines/) which
+transforms results into the format consumed by ADO. It has over 90,000 downloads
+a month. We don’t need to rewrite this.
+
+## Alternatives considered
+
+### pytest-xdist
 
 With the [pytest-xdist plugin](https://github.com/pytest-dev/pytest-xdist) there
 already exists support for running a folder of tests on an arbitrary remote host
