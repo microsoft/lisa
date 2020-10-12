@@ -79,9 +79,7 @@ Other test specific requirements, such as installing software and daemons or
 downloading files from remote storage, would similarly be implemented via
 fixtures and shared among tests.
 
-Note that Paramiko is less complex (smaller library footprint) than Fabric, but
-is a bit more difficult to use, and doesn’t support reading existing SSH config
-files, nor does it support “ProxyJump” which we use heavily.
+### Alternatives considered
 
 ## pytest-xdist
 
@@ -103,3 +101,54 @@ create those nodes.
 However, this is only one approach, and we may prefer to run the Python code on
 the user’s machine, with pytest-lisa instead providing the previously mentioned
 node fixtures, default marks, and requirements logic.
+
+## Paramiko instead of Fabric
+
+The Paramiko library is less complex (smaller library footprint) than Fabric, as
+the latter wraps the former, but it is a bit more difficult to use, and doesn’t
+support reading existing SSH config files, nor does it support “ProxyJump” which
+we use heavily. Fabric instead provides a clean high-level interface for
+existing shell commands, handling all the connection abstractions for us.
+
+It looked a like this:
+
+```python
+from pathlib import Path
+from typing import List
+
+from paramiko import SSHClient
+
+import pytest
+
+@pytest.fixture
+def node() -> SSHClient:
+    with SSHClient() as client:
+        client.load_system_host_keys()
+        client.connect(hostname="...")
+        yield client
+
+
+def test_lis_version(node: SSHClient) -> None:
+    with node.open_sftp() as sftp:
+        for f in ["utils.sh", "LIS-VERSION-CHECK.sh"]:
+            sftp.put(LINUX_SCRIPTS / f, f)
+        _, stdout, stderr = node.exec_command("./LIS-VERSION-CHECK.sh")
+        sftp.get("state.txt", "state.txt")
+    with Path("state.txt").open as f:
+        assert f.readline() == "TestCompleted"
+```
+## StringIO
+
+For `Node.cat()` it would seem we could use `StringIO` like so:
+
+```python
+from io import StringIO
+
+with StringIO() as result:
+    node.get("state.txt", result)
+    assert result.getvalue().strip() == "TestCompleted"
+```
+
+However, the data returned by Paramiko is in bytes, which in Python 3 are not
+equivalent to strings, hence the existing implementation which uses `BytesIO`
+and decodes the bytes to a string.
