@@ -21,6 +21,7 @@ class Node(Connection):
 @pytest.fixture
 def node(request: _pytest.fixtures.FixtureRequest) -> Iterator[Node]:
     """Yields a safe remote Node on which to run commands."""
+    # TODO: If test has ‘deploy’ marker, do so.
     config = Config(
         overrides={
             "run": {
@@ -35,7 +36,7 @@ def node(request: _pytest.fixtures.FixtureRequest) -> Iterator[Node]:
     )
     # Get the host from the test’s marker.
     host = "localhost"
-    marker = request.node.get_closest_marker("host")
+    marker = request.node.get_closest_marker("connect")
     if marker is not None:
         host = marker.args[0]
     with Node(host, config=config, inline_ssh_env=True) as n:
