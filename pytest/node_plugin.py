@@ -21,7 +21,21 @@ class Node(Connection):
 @pytest.fixture
 def node(request: _pytest.fixtures.FixtureRequest) -> Iterator[Node]:
     """Yields a safe remote Node on which to run commands."""
-    # TODO: If test has ‘deploy’ marker, do so.
+    # TODO: The deploy and connect markers should be mutually
+    # exclusive.
+    host = "localhost"
+
+    # Deploy a node.
+    deploy_marker = request.node.get_closest_marker("deploy")
+    if deploy_marker:
+        pass
+
+    # Get the host from the test’s marker.
+    connect_marker = request.node.get_closest_marker("connect")
+    if connect_marker:
+        host = connect_marker.args[0]
+
+    # Yield the configured Node connection.
     config = Config(
         overrides={
             "run": {
@@ -34,10 +48,5 @@ def node(request: _pytest.fixtures.FixtureRequest) -> Iterator[Node]:
             }
         }
     )
-    # Get the host from the test’s marker.
-    host = "localhost"
-    marker = request.node.get_closest_marker("connect")
-    if marker is not None:
-        host = marker.args[0]
     with Node(host, config=config, inline_ssh_env=True) as n:
         yield n
