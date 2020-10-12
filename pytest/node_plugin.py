@@ -2,6 +2,7 @@
 from io import BytesIO
 from typing import Iterator
 
+import _pytest
 from fabric import Config, Connection  # type: ignore
 
 import pytest
@@ -17,9 +18,8 @@ class Node(Connection):
             return buf.getvalue().decode("utf-8").strip()
 
 
-# TODO: Make the hostname a parameter.
 @pytest.fixture
-def node() -> Iterator[Node]:
+def node(request: _pytest.fixtures.FixtureRequest) -> Iterator[Node]:
     """Yields a safe remote Node on which to run commands."""
     config = Config(
         overrides={
@@ -33,5 +33,10 @@ def node() -> Iterator[Node]:
             }
         }
     )
-    with Node("centos", config=config, inline_ssh_env=True) as n:
+    # Get the host from the test’s marker.
+    host = "localhost"
+    marker = request.node.get_closest_marker("host")
+    if marker is not None:
+        host = marker.args[0]
+    with Node(host, config=config, inline_ssh_env=True) as n:
         yield n
