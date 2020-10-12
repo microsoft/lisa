@@ -69,15 +69,14 @@ implement (with more as found to be required):
 Our abstraction would leverage
 [Fabric](https://docs.fabfile.org/en/stable/index.html), which uses
 [paramiko](https://docs.paramiko.org/en/stable/) underneath, directly to
-implement the SSH commands, and it would use existing modules to deploy
-[Azure](https://aka.ms/azsdk/python/all) and AWS nodes. We would need implement
-specific logic for Hyper-V and similar platforms where APIs do not currently
-exist, and this would be the bulk of our work instead of rewriting a unit test
-framework.
+implement the SSH commands. For deployment logic, it would use existing Python APIs to deploy
+[Azure](https://aka.ms/azsdk/python/all) nodes, and for Hyper-V (and other
+virtualization platforms), it would use
+[libvirt](https://libvirt.org/python.html).
 
-Other test specific requirements, such as installing software and daemons or
-downloading files from remote storage, would similarly be implemented via
-fixtures and shared among tests.
+Other test specific requirements, such as installing software and daemons,
+downloading files from remote storage, or checking the state of our Bash test
+scripts, would similarly be implemented via fixtures and shared among tests.
 
 ### Alternatives considered
 
