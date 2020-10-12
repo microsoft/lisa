@@ -1,11 +1,13 @@
 """Runs 'LIS-Tests.xml' using Pytest."""
 from pathlib import Path
 
+import pytest
 from node_plugin import Node
 
 LINUX_SCRIPTS = Path("../Testscripts/Linux")
 
 
+@pytest.mark.host("centos")  # type: ignore
 def test_lis_driver_version(node: Node) -> None:
     # TODO: Include “utils.sh” automatically? Or something...
     for f in ["utils.sh", "LIS-VERSION-CHECK.sh"]:
