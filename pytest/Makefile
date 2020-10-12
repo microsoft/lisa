@@ -6,7 +6,7 @@ setup:
 
 # Run Pytest
 run:
-	@poetry run python -X dev -m pytest --flake8 --mypy -rA
+	@poetry run python -X dev -X tracemalloc -m pytest --flake8 --mypy -rA --tb=short
 
 # Print current Python virtualenv
 venv:
