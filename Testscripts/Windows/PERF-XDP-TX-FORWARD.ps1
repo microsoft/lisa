@@ -40,6 +40,15 @@ function Main {
         foreach ($param in $currentTestData.TestParameters.param) {
             Add-Content -Value "$param" -Path $constantsFile
         }
+        # Add modes according to testcase
+        if ( $CurrentTestData.testName -match "TX" ){
+            Add-Content -Value "modes=(xdp)" -Path $constantsFile
+            $packetCount=10000000
+        }
+        else {
+            Add-Content -Value "modes=(xdp iptables)" -Path $constantsFile
+            $packetCount=50000000
+        }
         Write-LogInfo "constants.sh created successfully..."
         Write-LogInfo (Get-Content -Path $constantsFile)
 
@@ -51,7 +60,7 @@ function Main {
         }
         # Start XDP Installation
         $installXDPCommand = @"
-bash ./XDPForwardingTest.sh 2>&1 > ~/xdpConsoleLogs.txt
+bash ./XDPForwardingTest.sh ${packetCount} 2>&1 > ~/xdpConsoleLogs.txt
 . utils.sh
 collect_VM_properties
 "@
@@ -112,25 +121,27 @@ collect_VM_properties
             $TestDate = $(Get-Date -Format yyyy-MM-dd)
             $testType = "TX"
             Write-LogInfo "Generating the performance data for database insertion."
-            $resultMap = @{}
-            $resultMap["TestCaseName"] = $TestCaseName
-            $resultMap["TestDate"] = $TestDate
-            $resultMap["HostType"] = $TestPlatform
-            $resultMap["HostBy"] = $CurrentTestData.SetupConfig.TestLocation
-            $resultMap["HostOS"] = $(Get-Content "$LogDir\VM_properties.csv" | Select-String "Host Version" | ForEach-Object { $_ -replace ",Host Version,", "" })
-            $resultMap["GuestOSType"] = "Linux"
-            $resultMap["GuestDistro"] = $(Get-Content "$LogDir\VM_properties.csv" | Select-String "OS type" | ForEach-Object { $_ -replace ",OS type,", "" })
-            $resultMap["GuestSize"] = $masterVM.InstanceSize
-            $resultMap["KernelVersion"] = $(Get-Content "$LogDir\VM_properties.csv" | Select-String "Kernel version" | ForEach-Object { $_ -replace ",Kernel version,", "" })
-            $resultMap["IPVersion"] = "IPv4"
-            $resultMap["XDPAction"] = $testType
-            $resultMap["DataPath"] = $DataPath
-            $resultMap["TestType"] = $reportCsv.test_type
-            $resultMap["SenderPPS"] = $reportCsv.sender_pps
-            $resultMap["NumberOfPacketsSent"] = $reportCsv.packets_sent
-            $resultMap["NumberOfPacketsForwarded"] = $reportCsv.packets_forwarded
-            $resultMap["NumberOfPacketsReceived"] = $reportCsv.packets_received
-            $currentTestResult.TestResultData += $resultMap
+            foreach ($mode in $reportCsv) {
+                $resultMap = @{}
+                $resultMap["TestCaseName"] = $TestCaseName
+                $resultMap["TestDate"] = $TestDate
+                $resultMap["HostType"] = $TestPlatform
+                $resultMap["HostBy"] = $CurrentTestData.SetupConfig.TestLocation
+                $resultMap["HostOS"] = $(Get-Content "$LogDir\VM_properties.csv" | Select-String "Host Version" | ForEach-Object { $_ -replace ",Host Version,", "" })
+                $resultMap["GuestOSType"] = "Linux"
+                $resultMap["GuestDistro"] = $(Get-Content "$LogDir\VM_properties.csv" | Select-String "OS type" | ForEach-Object { $_ -replace ",OS type,", "" })
+                $resultMap["GuestSize"] = $masterVM.InstanceSize
+                $resultMap["KernelVersion"] = $(Get-Content "$LogDir\VM_properties.csv" | Select-String "Kernel version" | ForEach-Object { $_ -replace ",Kernel version,", "" })
+                $resultMap["IPVersion"] = "IPv4"
+                $resultMap["XDPAction"] = $testType
+                $resultMap["DataPath"] = $mode.data_path
+                $resultMap["TestType"] = $mode.test_type
+                $resultMap["SenderPPS"] = $mode.sender_pps
+                $resultMap["NumberOfPacketsSent"] = $mode.packets_sent
+                $resultMap["NumberOfPacketsForwarded"] = $mode.packets_forwarded
+                $resultMap["NumberOfPacketsReceived"] = $mode.packets_received
+                $currentTestResult.TestResultData += $resultMap
+            }
         }
     }
     catch {
