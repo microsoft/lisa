@@ -52,12 +52,6 @@ function Main {
         Write-LogInfo "constants.sh created successfully..."
         Write-LogInfo (Get-Content -Path $constantsFile)
 
-        if ($currentTestData.SetupConfig.Networking -imatch "SRIOV") {
-            $DataPath = "SRIOV"
-        }
-        else {
-            $DataPath = "Synthetic"
-        }
         # Start XDP Installation
         $installXDPCommand = @"
 bash ./XDPForwardingTest.sh ${packetCount} 2>&1 > ~/xdpConsoleLogs.txt
