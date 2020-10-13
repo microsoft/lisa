@@ -488,23 +488,27 @@ function Main() {
 	# It's safer to obtain pkeys in the test script because some distros
 	# may require a reboot after the IB setup is completed
 	# Find the correct partition key for IB communicating with other VM
-	if [ -z ${MPI_IB_PKEY+x} ]; then
-		firstkey=$(cat /sys/class/infiniband/mlx5_0/ports/1/pkeys/0)
-		LogMsg "Getting the first key $firstkey"
-		secondkey=$(cat /sys/class/infiniband/mlx5_0/ports/1/pkeys/1)
-		LogMsg "Getting the second key $secondkey"
+	if [[ $is_nd == "no" ]]; then
+		if [ -z ${MPI_IB_PKEY+x} ]; then
+			firstkey=$(cat /sys/class/infiniband/mlx5_0/ports/1/pkeys/0)
+			LogMsg "Getting the first key $firstkey"
+			secondkey=$(cat /sys/class/infiniband/mlx5_0/ports/1/pkeys/1)
+			LogMsg "Getting the second key $secondkey"
 
-		# Assign the bigger number to MPI_IB_PKEY
-		if [ $((firstkey - secondkey)) -gt 0 ]; then
-			export MPI_IB_PKEY=$firstkey
-			echo "MPI_IB_PKEY=$firstkey" >> /root/constants.sh
+			# Assign the bigger number to MPI_IB_PKEY
+			if [ $((firstkey - secondkey)) -gt 0 ]; then
+				export MPI_IB_PKEY=$firstkey
+				echo "MPI_IB_PKEY=$firstkey" >> /root/constants.sh
+			else
+				export MPI_IB_PKEY=$secondkey
+				echo "MPI_IB_PKEY=$secondkey" >> /root/constants.sh
+			fi
+			LogMsg "Setting MPI_IB_PKEY to $MPI_IB_PKEY and copying it into constants.sh file"
 		else
-			export MPI_IB_PKEY=$secondkey
-			echo "MPI_IB_PKEY=$secondkey" >> /root/constants.sh
+			LogMsg "pkey is already present in constants.sh"
 		fi
-		LogMsg "Setting MPI_IB_PKEY to $MPI_IB_PKEY and copying it into constants.sh file"
 	else
-		LogMsg "pkey is already present in constants.sh"
+		LogMsg "Skipped MPI_IB_PKEY query step in ND device"
 	fi
 
 	for vm in $master $slaves_array; do
@@ -543,7 +547,11 @@ function Main() {
 	# ib kernel modules verification
 	# mlx5_ib, rdma_cm, rdma_ucm, ib_ipoib, ib_umad shall be loaded in kernel
 	final_module_load_status=0
-	kernel_modules="mlx5_ib rdma_cm rdma_ucm ib_ipoib ib_umad"
+	if [[ $is_nd == "yes" ]]; then
+		kernel_modules="rdma_cm rdma_ucm ib_ipoib ib_umad"
+	else
+		kernel_modules="mlx5_ib rdma_cm rdma_ucm ib_ipoib ib_umad"
+	fi
 
 	for vm in $master $slaves_array; do
 	LogMsg "Checking kernel modules in $vm"
@@ -565,14 +573,19 @@ function Main() {
 	# ############################################################################################################
 	# ibv_devinfo verifies PORT STATE
 	# PORT_ACTIVE (4) is expected. If PORT_DOWN (1), it fails
+	# wait 5-second for port establishment
+	if [[ $is_nd == "yes" ]]; then
+		# ND device loading takes time.
+		LogMsg "Waiting 60 seconds for ND interface load"
+		sleep 60
+	fi
 	ib_port_state_down_cnt=0
 	min_port_state_up_cnt=0
 	for vm in $master $slaves_array; do
 		min_port_state_up_cnt=$(($min_port_state_up_cnt + 1))
 		ssh root@${vm} "ibv_devinfo > /root/IMB-PORT_STATE_${vm}.txt"
 		port_state=$(ssh root@${vm} "ibv_devinfo | grep -i state")
-		port_state=$(echo $port_state | cut -d ' ' -f2)
-		if [ "$port_state" == "PORT_ACTIVE" ]; then
+		if [[ "$port_state" == *"PORT_ACTIVE"* ]]; then
 			LogMsg "$vm ib port is up - Succeeded; $port_state"
 		else
 			LogErr "$vm ib port is down; $port_state"
@@ -649,79 +662,84 @@ function Main() {
 	final_pingpong_state=0
 	found_ib0_interface=1
 
-	# Getting ib0 interface address and store in constants.sh
-	slaves_array=$(echo ${slaves} | tr ',' ' ')
-	for vm in $master $slaves_array; do
-		ib0=$(ssh root@${vm} ip addr show ib0 | awk -F ' *|:' '/inet /{print $3}' | cut -d / -f 1)
-		if [[ $? -eq 0 && $ib0 ]]; then
-			LogMsg "Successfully queried ib0 interface address, $ib0 from ${vm}."
-		else
-			LogErr "Failed to query ib0 interface address, $ib0 from ${vm}."
-			final_pingpong_state=$(($final_pingpong_state + 1))
-			found_ib0_interface=0
-		fi
-		LogMsg "Logging ib0_$vm value: $ib0"
-		vm_id=$(echo $vm | sed -r 's!/.*!!; s!.*\.!!')
-		echo ib0_$vm_id=$ib0 >> /root/constants.sh
-		export ib0_$vm_id=$ib0
-	done
+	if [[ $is_nd == "no" ]]; then
+		# Getting ib0 interface address and store in constants.sh
+		slaves_array=$(echo ${slaves} | tr ',' ' ')
+		ib_name=ib0
+		for vm in $master $slaves_array; do
+			ib0=$(ssh root@${vm} ip addr show $ib_name | awk -F ' *|:' '/inet /{print $3}' | cut -d / -f 1)
+			if [[ $? -eq 0 && $ib0 ]]; then
+				LogMsg "Successfully queried $ib_name interface address, $ib0 from ${vm}."
+			else
+				LogErr "Failed to query $ib_name interface address, $ib0 from ${vm}."
+				final_pingpong_state=$(($final_pingpong_state + 1))
+				found_ib0_interface=0
+			fi
+			LogMsg "Logging ib0_$vm value: $ib0"
+			vm_id=$(echo $vm | sed -r 's!/.*!!; s!.*\.!!')
+			echo ib0_$vm_id=$ib0 >> /root/constants.sh
+			export ib0_$vm_id=$ib0
+		done
 
-	# Define ibv_ pingpong commands in the array
-	declare -a ping_cmds=("ibv_rc_pingpong" "ibv_uc_pingpong" "ibv_ud_pingpong")
+		# Define ibv_ pingpong commands in the array
+		declare -a ping_cmds=("ibv_rc_pingpong" "ibv_uc_pingpong" "ibv_ud_pingpong")
 
-	if [ $found_ib0_interface = 1 ]; then
-		for ping_cmd in "${ping_cmds[@]}"; do
-			for vm1 in $master $slaves_array; do
-				for vm2 in $slaves_array $master; do
-					if [[ "$vm1" == "$vm2" ]]; then
-						# Skip self-ping test case
-						break
-					fi
-					# Define pingpong test log file name
-					log_file=IMB-"$ping_cmd"-output-$vm1-$vm2.txt
-					LogMsg "Run $ping_cmd from $vm2 to $vm1"
-					LogMsg "  Start $ping_cmd in server VM $vm1 first"
-					retries=0
-					while [ $retries -lt 3 ]; do
-						ssh root@${vm1} "$ping_cmd" &
-						LogMsg "  $?"
-						sleep 1
-						vm1_id=ib0_$(echo $vm1 | sed -r 's!/.*!!; s!.*\.!!')
-						LogMsg "  Start $ping_cmd in client VM, $vm2 to ${!vm1_id}"
-						ssh root@${vm2} "$ping_cmd ${!vm1_id} > /root/$log_file"
-						pingpong_state=$?
-						LogMsg "  $pingpong_state"
+		if [ $found_ib0_interface = 1 ]; then
+			for ping_cmd in "${ping_cmds[@]}"; do
+				for vm1 in $master $slaves_array; do
+					for vm2 in $slaves_array $master; do
+						if [[ "$vm1" == "$vm2" ]]; then
+							# Skip self-ping test case
+							break
+						fi
+						# Define pingpong test log file name
+						log_file=IMB-"$ping_cmd"-output-$vm1-$vm2.txt
+						LogMsg "Run $ping_cmd from $vm2 to $vm1"
+						LogMsg "  Start $ping_cmd in server VM $vm1 first"
+						retries=0
+						while [ $retries -lt 3 ]; do
+							ssh root@${vm1} "$ping_cmd" &
+							LogMsg "  $?"
+							sleep 1
+							vm1_id=ib0_$(echo $vm1 | sed -r 's!/.*!!; s!.*\.!!')
+							LogMsg "  Start $ping_cmd in client VM, $vm2 to ${!vm1_id}"
+							ssh root@${vm2} "$ping_cmd ${!vm1_id} > /root/$log_file"
+							pingpong_state=$?
+							LogMsg "  $pingpong_state"
 
-						sleep 1
-						scp root@${vm2}:/root/$log_file .
-						pingpong_result=$(cat $log_file | grep -i Mbit | cut -d ' ' -f7)
-						if [ $pingpong_state -eq 0 ] && [ $pingpong_result > 0 ]; then
-							LogMsg "$ping_cmd test execution successful"
-							LogMsg "$ping_cmd result $pingpong_result in $vm1-$vm2 - Succeeded."
-							retries=4
-						else
-							sleep 10
-							let retries=retries+1
+							sleep 1
+							scp root@${vm2}:/root/$log_file .
+							pingpong_result=$(cat $log_file | grep -i Mbit | cut -d ' ' -f7)
+							if [ $pingpong_state -eq 0 ] && [ $pingpong_result > 0 ]; then
+								LogMsg "$ping_cmd test execution successful"
+								LogMsg "$ping_cmd result $pingpong_result in $vm1-$vm2 - Succeeded."
+								retries=4
+							else
+								sleep 10
+								let retries=retries+1
+							fi
+						done
+						if [ $pingpong_state -ne 0 ] || (($(echo "$pingpong_result <= 0" | bc -l))); then
+							LogErr "$ping_cmd test execution failed"
+							LogErr "$ping_cmd result $pingpong_result in $vm1-$vm2 - Failed"
+							final_pingpong_state=$(($final_pingpong_state + 1))
 						fi
 					done
-					if [ $pingpong_state -ne 0 ] || (($(echo "$pingpong_result <= 0" | bc -l))); then
-						LogErr "$ping_cmd test execution failed"
-						LogErr "$ping_cmd result $pingpong_result in $vm1-$vm2 - Failed"
-						final_pingpong_state=$(($final_pingpong_state + 1))
-					fi
 				done
 			done
-		done
-	fi
+		fi
 
-	if [ $final_pingpong_state -ne 0 ]; then
-		LogErr "ibv_ping_pong test failed in some VMs. Aborting further tests."
-		SetTestStateFailed
-		Collect_Logs
-		LogErr "INFINIBAND_VERIFICATION_FAILED_IBV_PINGPONG"
-		exit 0
+		if [ $final_pingpong_state -ne 0 ]; then
+			LogErr "ibv_ping_pong test failed in some VMs. Aborting further tests."
+			SetTestStateFailed
+			Collect_Logs
+			LogErr "INFINIBAND_VERIFICATION_FAILED_IBV_PINGPONG"
+			exit 0
+		else
+			LogMsg "INFINIBAND_VERIFICATION_SUCCESS_IBV_PINGPONG"
+		fi
 	else
-		LogMsg "INFINIBAND_VERIFICATION_SUCCESS_IBV_PINGPONG"
+		LogMsg "ND test skipped ibv_ping_pong test"
 	fi
 
 	non_shm_mpi_settings=$(echo $mpi_settings | sed 's/shm://')

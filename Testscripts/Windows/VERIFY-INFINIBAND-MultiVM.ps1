@@ -79,6 +79,12 @@ function Main {
 			return "SKIPPED"
 		}
 
+		# IBM Platform MPI shows 32-bit binary complexity in Ubuntu
+		if (@("UBUNTU").contains($global:detectedDistro) -and ($MpiType -eq "ibm")) {
+			Write-LogInfo "$($global:detectedDistro) is not supported IBM Platform MPI! Test skipped!"
+			return "SKIPPED"
+		}
+
 		$VM_Size = ($ServerVMData.InstanceSize -split "_")[1] -replace "[^0-9]",''
 		Write-LogInfo "Getting VM instance size: $VM_Size"
 		#region CONFIGURE VMs for TEST
@@ -157,6 +163,9 @@ function Main {
 			if ($TestParam -imatch "quicktest_only") {
 				$QuickTestOnly = [string]($TestParam.Replace("quicktest_only=", "").Trim('"'))
 			}
+			if ($TestParam -imatch "is_nd") {
+				$IsNDTest = [string]($TestParam.Replace("is_nd=", "").Trim('"'))
+			}
 		}
 		Add-Content -Value "master=`"$($ServerVMData.InternalIP)`"" -Path $constantsFile
 		Write-LogInfo "master=$($ServerVMData.InternalIP) added to constants.sh"
@@ -164,8 +173,18 @@ function Main {
 		Write-LogInfo "slaves=$SlaveInternalIPs added to constants.sh"
 		Add-Content -Value "VM_Size=`"$VM_Size`"" -Path $constantsFile
 		Write-LogInfo "VM_Size=$VM_Size added to constants.sh"
-		Add-Content -Value "quicktestonly=`"$QuickTestOnly`"" -Path $constantsFile
-		Write-LogInfo "quicktestonly=$QuickTestOnly added to constants.sh"
+		if ($IsNDTest -eq $null) {
+			$IsNDTest = "no"
+		}
+
+		# Abort, ND test only support A8,A9, H16, H16r and H16mr.
+		if (($IsNDTest -eq "yes") -and ($ServerVMData.InstanceSize -notmatch "Standard_H16(r|mr)*$") -and ($ServerVMData.InstanceSize -notmatch "Standard_A[8|9]")) {
+			throw "$ServerVMData.InstanceSize does not support ND test."
+		}
+
+		if (($IsNDTest -eq "yes") -and ($global:detectedDistro -notmatch "CENTOS")) {
+			throw "Non CentOS-HPC VM, $global:detectedDistro, support ND test."
+		}
 
 		Write-LogInfo "constants.sh created successfully..."
 		#endregion
@@ -176,12 +195,6 @@ function Main {
 				-files "$constantsFile,$($CurrentTestData.files)" -username $superUser -password $password -upload
 		}
 		#endregion
-
-		# IBM Platform MPI shows 32-bit binary complexity in Ubuntu
-		if (@("UBUNTU").contains($global:detectedDistro) -and ($MpiType -eq "ibm")) {
-			Write-LogInfo "$($global:detectedDistro) is not supported IBM Platform MPI! Test skipped!"
-			return "SKIPPED"
-		}
 
 		if ($installOFEDFromExtension) {
 			foreach ($VMData in $AllVMData) {
@@ -246,7 +259,9 @@ function Main {
 		$TestProvider.RestartAllDeployments($AllVMData)
 
 		# In some cases, IB will not be initialized after reboot
-		Resolve-UninitializedIB
+		if ($IsNDTest -eq "no") {
+			Resolve-UninitializedIB
+		}
 		$TotalSuccessCount = 0
 		$Iteration = 0
 		do {
@@ -354,20 +369,24 @@ function Main {
 				$pattern = "INFINIBAND_VERIFICATION_SUCCESS_IBV_PINGPONG"
 				Write-LogInfo "Analyzing $logFileName"
 				$metaData = "InfiniBand-Verification-$Iteration-$TempName : IBV_PINGPONG"
-				$SuccessLogs = Select-String -Path $logFileName -Pattern $pattern
-				if ($SuccessLogs.Count -eq 1) {
-					$currentResult = $resultPass
+				if ( $IsNDTest -eq "yes" ) {
+					$currentResult = $resultSkipped
 				} else {
-					# Get the actual tests that failed and output them
-					$failedPingPongIBV = Select-String -Path $logFileName -Pattern '(_pingpong.*Failed)'
-					foreach ($failedTest in $failedPingPongIBV) {
-						Write-LogErr "$($failedTest.Line.Split()[-7..-1])"
+					$SuccessLogs = Select-String -Path $logFileName -Pattern $pattern
+					if ($SuccessLogs.Count -eq 1) {
+						$currentResult = $resultPass
+					} else {
+						# Get the actual tests that failed and output them
+						$failedPingPongIBV = Select-String -Path $logFileName -Pattern '(_pingpong.*Failed)'
+						foreach ($failedTest in $failedPingPongIBV) {
+							Write-LogErr "$($failedTest.Line.Split()[-7..-1])"
+						}
+						$currentResult = $resultFail
 					}
-					$currentResult = $resultFail
 				}
 				Write-LogInfo "$pattern : $currentResult"
 				$CurrentTestResult.TestSummary += New-ResultSummary -testResult $currentResult -metaData $metaData `
-					-checkValues "PASS,FAIL,ABORTED" -testName $CurrentTestData.testName
+					-checkValues "PASS,FAIL,ABORTED,SKIPPED" -testName $CurrentTestData.testName
 				#endregion
 
 				if ($BenchmarkType -eq "IMB") {
@@ -541,7 +560,9 @@ function Main {
 				if ($testResult -eq "PASS") {
 					$TestProvider.RestartAllDeployments($AllVMData)
 					# In some cases, IB will not be initialized after reboot
-					Resolve-UninitializedIB
+					if ($IsNDTest -eq "no") {
+						Resolve-UninitializedIB
+					}
 					$RemainingRebootIterations -= 1
 				} else {
 					Write-LogErr "Stopping the test due to failures."

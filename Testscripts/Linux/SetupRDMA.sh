@@ -86,6 +86,17 @@ function Main() {
 		echo 8 > /etc/yum/vars/releasever
 		LogMsg "$?: Applied a mitigation for $DISTRO to /etc/yum/vars/releasever"
 	fi
+	# CentOS-HPC 7.5 or older versions only support ND device. This lis-next has a bug.
+	# https://github.com/LIS/lis-next/blob/master/hv-rhel7.x/hv/Makefile#L20
+	mj=$(echo "$DISTRO_VERSION" | cut -d '.' -f 1)
+	mn=$(echo "$DISTRO_VERSION" | cut -d '.' -f 2)
+
+	if [[ $is_nd == "yes" && $DISTRO == 'centos_7' && $mj -eq 7 && $mn -gt 5 ]]; then
+		LogErr "ND test only support CentOS-HPC 7.5 or earlier version. Abort!"
+		SetTestStateAborted
+		exit 0
+	fi
+
 	LogMsg "Starting RDMA required packages and software setup in VM"
 	update_repos
 	# Install common packages
@@ -618,7 +629,7 @@ function Main() {
 		Verify_File $benchmark_bin
 	fi
 
-	if [ $benchmark_type == "OMB" && $$mpi_type != "mvapich" ]; then
+	if [[ $benchmark_type == "OMB" && $mpi_type != "mvapich" ]]; then
 		currentDir=$(pwd)
 		cd ~
 		LogMsg "Proceeding OSU MPI Benchmark (OMB) test installation"
