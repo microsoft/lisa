@@ -240,7 +240,7 @@ function Main {
         } else {
             $MaxFioStuckAttempts = 10
         }
-        
+
         while ((Get-Job -Id $testJob).State -eq "Running") {
             $currentStatus = Run-LinuxCmd -ip $allVMData.PublicIP -port $allVMData.SSHPort `
                 -username "root" -password $password -command "tail -1 fioConsoleLogs.txt" `
