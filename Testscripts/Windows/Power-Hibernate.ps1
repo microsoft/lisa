@@ -21,7 +21,7 @@
 	8. [SRIOV]Verify the TX/RX packets keep increasing after resuming
 #>
 
-param([object] $AllVmData, [string]$TestParams)
+param([object] $AllVmData, [object]$TestParams)
 
 function Main {
 	param($AllVMData, $TestParams)
@@ -210,9 +210,36 @@ install_package "ethtool"
 				throw "Did not verify the VM status stopped after hibernation starts"
 			}
 
+			# For POWER-HIBERNATE-SRIOV-DEALLOCATE case
+			if ($TestParams.deallocate_vm) {
+				Stop-AzVM -Name $vmName -ResourceGroupName $rgName -Force | Out-Null
+				Write-LogInfo "VM is deallocated."
+			}
+
 			# Resume the VM
 			Start-AzVM -Name $vmName -ResourceGroupName $rgName -NoWait | Out-Null
 			Write-LogInfo "Waked up the VM $vmName in Resource Group $rgName and continue checking its status in every 15 seconds until 57 minutes timeout"
+
+			# Get PublicIP if the VM has been deallocated
+			if ($TestParams.deallocate_vm) {
+				$timeout = New-Timespan -Minutes 20
+				$sw = [diagnostics.stopwatch]::StartNew()
+				$publicIpName = (Get-AzResource -ResourceGroupName $rgName -ResourceType "Microsoft.Network/publicIPAddresses").Name | select -Last 1
+				while ($sw.elapsed -lt $timeout) {
+					Wait-Time -seconds 15
+					$AllVmData.PublicIp = (Get-AzPublicIpAddress -ResourceGroupName $rgName -Name $publicIpName).IpAddress
+					if ($AllVmData.PublicIp -ne "Not Assigned") {
+						break
+					} else {
+						Write-LogInfo "VM Public IP is not assigned. Waiting for 15 seconds..."
+					}
+				}
+				if ($AllVmData.PublicIp -eq "Not Assigned") {
+					Write-LogErr "Cannot get new Public IP address. Abort the test."
+					$testResult = $resultAborted
+					throw "Cannot get new Public IP address"
+				}
+			}
 
 			# Wait for VM resume for 57 min-timeout
 			$timeout = New-Timespan -Minutes 57
@@ -345,4 +372,4 @@ install_package "ethtool"
 	return $currentTestResult
 }
 
-Main -AllVmData $AllVmData -CurrentTestData $CurrentTestData
+Main -AllVmData $AllVmData -CurrentTestData $CurrentTestData -TestParams (ConvertFrom-StringData $TestParams.Replace(";","`n"))

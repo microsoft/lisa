@@ -56,6 +56,26 @@
     </SetupConfig>
   </test>
   <test>
+    <testName>POWER-HIBERNATE-SRIOV-DEALLOCATE</testName>
+    <testScript>Power-Hibernate.ps1</testScript>
+    <files>.\Testscripts\Linux\utils.sh,.\Testscripts\Linux\SetupHbKernel.sh</files>
+    <TestParameters>
+      <param>hb_url=HB_CUSTOM_KERNEL_URL</param>
+      <param>hb_branch=HB_CUSTOM_KERNEL_BRANCH</param>
+      <param>deallocate_vm=True</param>
+    </TestParameters>
+    <Platform>Azure</Platform>
+    <Category>Functional</Category>
+    <Area>POWER</Area>
+    <Tags>power,sriov</Tags>
+    <Priority>3</Priority>
+    <SetupConfig>
+      <Networking>SRIOV</Networking>
+      <SetupType>OneVM</SetupType>
+      <OverrideVMSize>Standard_D8s_v3</OverrideVMSize>
+    </SetupConfig>
+  </test>
+  <test>
     <testName>POWER-NETWORK-WORKLOAD-HIBERNATE</testName>
     <testScript>WORKLOAD-HB.ps1</testScript>
     <files>.\Testscripts\Linux\utils.sh,.\Testscripts\Linux\SetupHbKernel.sh</files>
