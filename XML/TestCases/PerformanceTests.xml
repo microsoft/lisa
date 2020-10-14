@@ -1009,6 +1009,24 @@
     </SetupConfig>
   </test>
   <test>
+    <testName>PERF-XDP-FORWARD-COMPARISON</testName>
+    <testScript>PERF-XDP-TX-FORWARD.ps1</testScript>
+    <files>.\Testscripts\Linux\utils.sh,.\Testscripts\Linux\XDPUtils.sh,.\Testscripts\Linux\XDPDumpSetup.sh,.\Testscripts\Linux\XDPForwardingTest.sh</files>
+    <TestParameters>
+      <param>cores=single</param>
+    </TestParameters>
+    <Platform>Azure</Platform>
+    <Category>Performance</Category>
+    <Area>NETWORK</Area>
+    <Tags>xdp</Tags>
+    <Priority>3</Priority>
+    <SetupConfig>
+      <SetupType>ThreeVM2NIC</SetupType>
+      <OverrideVMSize>Standard_D64_v3</OverrideVMSize>
+      <Networking>SRIOV</Networking>
+    </SetupConfig>
+  </test>
+  <test>
     <testName>PERF-STORAGE-DISK-IO</testName>
     <testScript>PERF-STORAGE-MULTIDISK-RAID0-FIO.ps1</testScript>
     <files>.\Testscripts\Linux\utils.sh,.\Testscripts\Linux\perf_fio.sh,.\Testscripts\Linux\fio_jason_parser.sh,.\Testscripts\Linux\JSON.awk,.\Tools\gawk</files>
