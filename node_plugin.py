@@ -1,13 +1,12 @@
 """Pytest plugin implementing a Node fixture for running remote commands."""
 import json
 from io import BytesIO
-from typing import Dict, Iterator
+from typing import Dict, Iterator, Optional, Tuple
 from uuid import uuid4
 
 import _pytest
 import invoke  # type: ignore
 from fabric import Config, Connection  # type: ignore
-from invoke.runners import Result  # type: ignore
 
 import pytest
 
@@ -25,19 +24,32 @@ def install_az_cli() -> None:
 
 
 def deploy_vm(
-    name: str,
+    request: _pytest.fixtures.FixtureRequest,
     location: str = "westus2",
     vm_image: str = "UbuntuLTS",
     vm_size: str = "Standard_DS1_v2",
     setup: str = "",
     networking: str = "",
-) -> str:
+) -> Tuple[str, Dict[str, str]]:
+
+    key = f"{location}/{vm_image}/{vm_size}"
+    name: Optional[str] = request.config.cache.get(key, None)
+    if name:
+        result: Dict[str, str] = request.config.cache.get(name, {})
+        assert result, "There was a cache problem, use --cache-clear and try again."
+        return name, result
+
+    name = f"pytest-{uuid4()}"
+    request.config.cache.set(key, name)
+
     install_az_cli()
+
     invoke.run(
         f"az group create --name {name}-rg --location {location}",
         echo=True,
         in_stream=False,
     )
+
     vm_command = [
         "az vm create",
         f"--resource-group {name}-rg",
@@ -48,17 +60,20 @@ def deploy_vm(
     ]
     if networking == "SRIOV":
         vm_command.append("--accelerated-networking true")
-    vm_result: Result = invoke.run(
-        " ".join(vm_command),
-        echo=True,
-        in_stream=False,
+
+    result: Dict[str, str] = json.loads(
+        invoke.run(
+            " ".join(vm_command),
+            echo=True,
+            in_stream=False,
+        ).stdout
     )
-    vm_data: Dict[str, str] = json.loads(vm_result.stdout)
-    return vm_data["publicIpAddress"]
+    request.config.cache.set(name, result)
+    return name, result
 
 
 def delete_vm(name: str) -> None:
-    invoke.run(f"az group delete --name {name}-rg --yes", echo=True)
+    invoke.run(f"az group delete --name {name}-rg --yes", echo=True, in_stream=False)
 
 
 class Node(Connection):
@@ -71,23 +86,24 @@ class Node(Connection):
             return buf.getvalue().decode("utf-8").strip()
 
 
-# TODO: Scope this to a module.
 @pytest.fixture
 def node(request: _pytest.fixtures.FixtureRequest) -> Iterator[Node]:
     """Yields a safe remote Node on which to run commands."""
+
     # TODO: The deploy and connect markers should be mutually
     # exclusive.
     host = "localhost"
 
     # Deploy a node.
-    name = f"pytest-{uuid4()}"
     deploy_marker = request.node.get_closest_marker("deploy")
     if deploy_marker:
-        host = deploy_vm(name, **deploy_marker.kwargs)
+        name, result = deploy_vm(request, **deploy_marker.kwargs)
+        host = result["publicIpAddress"]
 
     # Get the host from the test’s marker.
     connect_marker = request.node.get_closest_marker("connect")
     if connect_marker:
+        name = "local"
         host = connect_marker.args[0]
 
     # Yield the configured Node connection.
@@ -103,9 +119,11 @@ def node(request: _pytest.fixtures.FixtureRequest) -> Iterator[Node]:
             }
         }
     )
-    print(f"Host is {host}")
+
     with Node(host, config=config, inline_ssh_env=True) as n:
         yield n
+
     # Clean up!
-    if deploy_marker:
+    # TODO: This logic is wrong.
+    if request.config.getoption("cacheclear") and name:
         delete_vm(name)
