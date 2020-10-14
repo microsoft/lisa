@@ -94,6 +94,7 @@ function Main {
     #Check the VMs heartbeat again
     Enable-VMIntegrationService -ComputerName $HvServer -VMName $VMName -Name "Heartbeat"
     $hb = Get-VMIntegrationService -VMName $VMName -ComputerName $HvServer -Name "Heartbeat"
+    Start-Sleep -seconds 5
     if ($($hb.Enabled) -eq "True" -And $($vm.Heartbeat) -eq "OkApplicationsUnknown") {
         Write-LogInfo "Heartbeat detected again"
         return "PASS"
