@@ -1,7 +1,7 @@
 """Pytest plugin implementing a Node fixture for running remote commands."""
 import json
 from io import BytesIO
-from typing import Iterator
+from typing import Dict, Iterator
 from uuid import uuid4
 
 import _pytest
@@ -26,11 +26,11 @@ def install_az_cli() -> None:
 
 def deploy_vm(
     name: str,
-    location="westus2",
-    vm_image="UbuntuLTS",
-    vm_size="Standard_DS1_v2",
-    setup="",
-    networking="",
+    location: str = "westus2",
+    vm_image: str = "UbuntuLTS",
+    vm_size: str = "Standard_DS1_v2",
+    setup: str = "",
+    networking: str = "",
 ) -> str:
     install_az_cli()
     invoke.run(
@@ -53,7 +53,7 @@ def deploy_vm(
         echo=True,
         in_stream=False,
     )
-    vm_data = json.loads(vm_result.stdout)
+    vm_data: Dict[str, str] = json.loads(vm_result.stdout)
     return vm_data["publicIpAddress"]
 
 
