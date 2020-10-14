@@ -60,7 +60,11 @@ RunFIO()
 	fi
 	iteration=0
 	io_increment=128
-	NUM_JOBS=(1 1 2 2 4 4)
+	if [ $type == "disk" ]; then
+		NUM_JOBS=(1 1 2 2 4 4)
+	else
+		NUM_JOBS=(1 1 2 2 4 4 8 8 8 8 8 8)
+	fi
 
 	# Log Config
 	mkdir $HOMEDIR/FIOLog/jsonLog
