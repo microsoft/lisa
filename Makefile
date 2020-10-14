@@ -1,4 +1,4 @@
-all: setup run
+all: setup test run
 
 # Install Python packages
 setup:
@@ -6,7 +6,11 @@ setup:
 
 # Run Pytest
 run:
-	@poetry run python -X dev -X tracemalloc -m pytest --flake8 --mypy -rA --tb=short
+	@poetry run python -m pytest --setup-show -rA --tb=short
+
+# Run semantic analysis
+test:
+	@poetry run python -X dev -X tracemalloc -m pytest --flake8 --mypy -m 'flake8 or mypy'
 
 # Print current Python virtualenv
 venv:
