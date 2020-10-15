@@ -1,0 +1,46 @@
+name: CI Workflow for LISAv3 via Pytest
+
+on:
+  push:
+    branches:
+      - andschwa/*
+  pull_request:
+    branches:
+      - master
+
+jobs:
+  build:
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: [ubuntu-20.04, windows-2019]
+      fail-fast: false
+    steps:
+      - name: Checkout repository to $GITHUB_WORKSPACE
+        uses: actions/checkout@v2
+
+      - name: Setup bootstrap Python
+        uses: actions/setup-python@v2
+        with:
+          python-version: "3.8"
+
+      - name: Install Poetry for Linux
+        if: runner.os == 'Linux'
+        run: |
+          curl -sSL https://raw.githubusercontent.com/python-poetry/poetry/master/get-poetry.py | python - --preview --version 1.1.0b4
+          echo "::add-path::$HOME/.poetry/bin"
+
+      - name: Install Poetry for Windows
+        if: runner.os == 'Windows'
+        run: |
+          (Invoke-WebRequest -Uri https://raw.githubusercontent.com/python-poetry/poetry/master/get-poetry.py -UseBasicParsing).Content | python - --preview --version 1.1.0b4
+          echo "::add-path::$env:USERPROFILE\.poetry\bin"
+
+      - name: Install Python dependencies
+        run: cd pytest && make setup
+
+      - name: Run self tests
+        run: cd pytest && make test
+
+      - name: Run semantic analysis
+        run: cd pytest && make check
