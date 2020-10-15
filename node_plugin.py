@@ -5,19 +5,40 @@ from typing import Dict, Iterator, Optional, Tuple
 from uuid import uuid4
 
 import _pytest
-import invoke  # type: ignore
-from fabric import Config, Connection  # type: ignore
+from fabric import Connection  # type: ignore
+from invoke import Config, Context  # type: ignore
 
 import pytest
 
+# Setup a sane configuration for local and remote commands.
+config = Config(
+    overrides={
+        "run": {
+            # Show each command as its run.
+            "echo": True,
+            # Disable stdin forwarding.
+            "in_stream": False,
+            # Set PATH since it’s not a login shell.
+            "env": {
+                "PATH": "/sbin:/usr/sbin:/usr/local/sbin:/bin:/usr/bin:/usr/local/bin"
+            },
+            # Don’t let remote commands take longer than a minute
+            # (unless later overridden).
+            "timeout": 60,
+        }
+    }
+)
+
+# Provide a configured local Invoke context for running commands
+# before establishing a connection. (Use like `local.run(...)`).
+local = Context(config=config)
+
 
 def install_az_cli() -> None:
-    if not invoke.run("which az", warn=True, echo=False, in_stream=False):
+    if not local.run("which az", warn=True, echo=False):
         # TODO: Use Invoke for pipes.
-        invoke.run(
+        local.run(
             "curl -sL https://aka.ms/InstallAzureCLIDeb | sudo bash",
-            echo=True,
-            in_stream=False,
         )
         # TODO: Login with service principal (az login) and set
         # default subscription (az account set -s) using secrets.
@@ -44,10 +65,8 @@ def deploy_vm(
 
     install_az_cli()
 
-    invoke.run(
+    local.run(
         f"az group create -n {name}-rg --location {location}",
-        echo=True,
-        in_stream=False,
     )
 
     vm_command = [
@@ -65,10 +84,8 @@ def deploy_vm(
         vm_command.append("--accelerated-networking true")
 
     result: Dict[str, str] = json.loads(
-        invoke.run(
+        local.run(
             " ".join(vm_command),
-            echo=True,
-            in_stream=False,
         ).stdout
     )
     request.config.cache.set(name, result)
@@ -76,7 +93,7 @@ def deploy_vm(
 
 
 def delete_vm(name: str) -> None:
-    invoke.run(f"az group delete -n {name}-rg --yes", echo=True, in_stream=False)
+    local.run(f"az group delete -n {name}-rg --yes")
 
 
 class Node(Connection):
@@ -122,24 +139,6 @@ def node(request: _pytest.fixtures.FixtureRequest) -> Iterator[Node]:
         host = connect_marker.args[0]
 
     # Yield the configured Node connection.
-    config = Config(
-        overrides={
-            "run": {
-                # Show each command as its run.
-                "echo": True,
-                # Disable stdin forwarding.
-                "in_stream": False,
-                # Set PATH since it’s not a login shell.
-                "env": {
-                    "PATH": "/sbin:/usr/sbin:/usr/local/sbin:/bin:/usr/bin:/usr/local/bin"
-                },
-                # Don’t let remote commands take longer than a minute
-                # (unless later overridden).
-                "timeout": 60,
-            }
-        }
-    )
-
     with Node(host, config=config, inline_ssh_env=True) as n:
         n.name = name
         yield n
