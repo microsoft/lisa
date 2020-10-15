@@ -1,4 +1,5 @@
 """Runs a 'smoke' test for an Azure Linux VM deployment."""
+import platform
 import socket
 
 from invoke.runners import Result  # type: ignore
@@ -25,8 +26,10 @@ def test_smoke(node: Node) -> None:
     SSH failures DO NOT fail this test.
     TODO: Log warnings instead of printing.
     """
+    # TODO: Move to ‘Node.ping()’
+    ping_flag = "-c 1" if platform.system() == "Linux" else "-n 1"
     # TODO: Can’t ping by default, need to enable.
-    ping1_result: Result = node.local(f"ping {node.host} -c 1", warn=True)
+    ping1_result: Result = node.local(f"ping {ping_flag} {node.host}", warn=True)
 
     try:
         node.run("uptime")  # If SSH fails, we catch it.
@@ -36,7 +39,7 @@ def test_smoke(node: Node) -> None:
         node.platform_restart()
 
     # Try pinging and SSH again.
-    ping2_result: Result = node.local(f"ping {node.host} -c 1", warn=True)
+    ping2_result: Result = node.local(f"ping {ping_flag} {node.host}", warn=True)
 
     try:
         node.run("uptime")
