@@ -5,34 +5,35 @@ from typing import Dict, Iterator, Optional, Tuple
 from uuid import uuid4
 
 import _pytest
+import fabric
+import invoke
 from fabric import Connection  # type: ignore
-from invoke import Config, Context  # type: ignore
+from invoke import Context  # type: ignore
 from invoke.runners import Result  # type: ignore
 
 import pytest
 
-# Setup a sane configuration for local and remote commands.
-config = Config(
-    overrides={
-        "run": {
-            # Show each command as its run.
-            "echo": True,
-            # Disable stdin forwarding.
-            "in_stream": False,
-            # Set PATH since it’s not a login shell.
-            "env": {
-                "PATH": "/sbin:/usr/sbin:/usr/local/sbin:/bin:/usr/bin:/usr/local/bin"
-            },
-            # Don’t let remote commands take longer than five minutes
-            # (unless later overridden). This is to prevent hangs.
-            "timeout": 300,
-        }
+# Setup a sane configuration for local and remote commands. Note that
+# the defaults between Fabric and Invoke are different, so we use
+# their Config classes explicitly.
+config = {
+    "run": {
+        # Show each command as its run.
+        "echo": True,
+        # Disable stdin forwarding.
+        "in_stream": False,
+        # Set PATH since it’s not a login shell.
+        "env": {"PATH": "/sbin:/usr/sbin:/usr/local/sbin:/bin:/usr/bin:/usr/local/bin"},
+        # Don’t let remote commands take longer than five minutes
+        # (unless later overridden). This is to prevent hangs.
+        "timeout": 300,
     }
-)
+}
 
 # Provide a configured local Invoke context for running commands
 # before establishing a connection. (Use like `local.run(...)`).
-local = Context(config=config)
+invoke_config = invoke.Config(overrides=config)
+local = Context(config=invoke_config)
 
 
 def check_az_cli() -> None:
@@ -155,7 +156,8 @@ def node(request: _pytest.fixtures.FixtureRequest) -> Iterator[Node]:
         host = connect_marker.args[0]
 
     # Yield the configured Node connection.
-    with Node(host, config=config, inline_ssh_env=True) as n:
+    fabric_config = fabric.Config(overrides=config)
+    with Node(host, config=fabric_config, inline_ssh_env=True) as n:
         n.name = name
         yield n
 
