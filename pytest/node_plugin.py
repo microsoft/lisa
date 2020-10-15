@@ -141,6 +141,7 @@ def node(request: _pytest.fixtures.FixtureRequest) -> Iterator[Node]:
 
     # TODO: The deploy and connect markers should be mutually
     # exclusive.
+    name = "local"
     host = "localhost"
 
     # Deploy a node.
@@ -152,8 +153,8 @@ def node(request: _pytest.fixtures.FixtureRequest) -> Iterator[Node]:
     # Get the host from the test’s marker.
     connect_marker = request.node.get_closest_marker("connect")
     if connect_marker:
-        name = "local"
         host = connect_marker.args[0]
+        name = host
 
     # Yield the configured Node connection.
     fabric_config = fabric.Config(overrides=config)

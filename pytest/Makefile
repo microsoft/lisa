@@ -8,8 +8,12 @@ setup:
 run:
 	@poetry run python -m pytest -rA --capture=tee-sys --tb=short
 
-# Run semantic analysis
+# Run local tests
 test:
+	@poetry run python -m pytest -rA --capture=tee-sys --tb=short selftests/
+
+# Run semantic analysis
+check:
 	@poetry run python -X dev -X tracemalloc -m pytest --flake8 --mypy -m 'flake8 or mypy'
 
 smoke:
