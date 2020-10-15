@@ -45,18 +45,21 @@ def deploy_vm(
     install_az_cli()
 
     invoke.run(
-        f"az group create --name {name}-rg --location {location}",
+        f"az group create -n {name}-rg --location {location}",
         echo=True,
         in_stream=False,
     )
 
     vm_command = [
         "az vm create",
-        f"--resource-group {name}-rg",
-        f"--name {name}",
+        f"-g {name}-rg",
+        f"-n {name}",
         f"--image {vm_image}",
         f"--size {vm_size}",
         "--generate-ssh-keys",
+        # TODO: Create unique boot diagnostics storage account.
+        # `az storage account create -g {name}-rg -n pytestbootdiag`
+        f"--boot-diagnostics-storage pytestbootdiag",
     ]
     if networking == "SRIOV":
         vm_command.append("--accelerated-networking true")
@@ -73,7 +76,7 @@ def deploy_vm(
 
 
 def delete_vm(name: str) -> None:
-    invoke.run(f"az group delete --name {name}-rg --yes", echo=True, in_stream=False)
+    invoke.run(f"az group delete -n {name}-rg --yes", echo=True, in_stream=False)
 
 
 class Node(Connection):
