@@ -6,14 +6,14 @@ setup:
 
 # Run Pytest
 run:
-	@poetry run python -m pytest --setup-show -rA --tb=short
+	@poetry run python -m pytest -rA --capture=tee-sys --tb=short
 
 # Run semantic analysis
 test:
 	@poetry run python -X dev -X tracemalloc -m pytest --flake8 --mypy -m 'flake8 or mypy'
 
 smoke:
-	@poetry run python -m pytest -rA -k smoke
+	@poetry run python -m pytest -rA --capture=tee-sys -k smoke
 
 # Print current Python virtualenv
 venv:
