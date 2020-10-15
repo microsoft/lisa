@@ -7,6 +7,7 @@ from uuid import uuid4
 import _pytest
 from fabric import Connection  # type: ignore
 from invoke import Config, Context  # type: ignore
+from invoke.runners import Result  # type: ignore
 
 import pytest
 
@@ -34,14 +35,19 @@ config = Config(
 local = Context(config=config)
 
 
-def install_az_cli() -> None:
-    if not local.run("which az", warn=True, echo=False):
+def check_az_cli() -> None:
+    if not local.run("which az", warn=True):
         # TODO: Use Invoke for pipes.
         local.run(
             "curl -sL https://aka.ms/InstallAzureCLIDeb | sudo bash",
         )
-        # TODO: Login with service principal (az login) and set
-        # default subscription (az account set -s) using secrets.
+
+    # TODO: Login with service principal (az login) and set
+    # default subscription (az account set -s) using secrets.
+    account: Result = local.run("az account show")
+    assert account.ok, "Please `az login`!"
+    subs = json.loads(account.stdout)
+    assert subs["isDefault"], "Please `az account set -s <subscription>`!"
 
 
 def create_boot_storage(location: str) -> str:
@@ -74,7 +80,7 @@ def deploy_vm(
     name = f"pytest-{uuid4()}"
     request.config.cache.set(key, name)
 
-    install_az_cli()
+    check_az_cli()
     boot_storage = create_boot_storage(location)
 
     local.run(
