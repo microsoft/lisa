@@ -22,13 +22,12 @@ config = {
         "echo": True,
         # Disable stdin forwarding.
         "in_stream": False,
-        # Set PATH since it’s not a login shell.
-        "env": {"PATH": "/sbin:/usr/sbin:/usr/local/sbin:/bin:/usr/bin:/usr/local/bin"},
         # Don’t let remote commands take longer than five minutes
         # (unless later overridden). This is to prevent hangs.
         "timeout": 300,
     }
 }
+
 
 # Provide a configured local Invoke context for running commands
 # before establishing a connection. (Use like `local.run(...)`).
@@ -114,6 +113,10 @@ class Node(Connection):
 
     name: str
 
+    def local(self, *args, **kwargs):
+        """This patches Fabric's 'local()' function to ignore SSH environment."""
+        return super(Connection, self).run(replace_env=False, env={}, *args, **kwargs)
+
     def get_boot_diagnostics(self):
         """Gets the serial console logs."""
         return self.local(
@@ -153,7 +156,12 @@ def node(request: _pytest.fixtures.FixtureRequest) -> Iterator[Node]:
         name = host
 
     # Yield the configured Node connection.
-    fabric_config = fabric.Config(overrides=config)
+    ssh_config = config.copy()
+    ssh_config["run"]["env"] = {
+        # Set PATH since it’s not a login shell.
+        "PATH": "/sbin:/usr/sbin:/usr/local/sbin:/bin:/usr/bin:/usr/local/bin"
+    }
+    fabric_config = fabric.Config(overrides=ssh_config)
     with Node(host, config=fabric_config, inline_ssh_env=True) as n:
         n.name = name
         yield n
