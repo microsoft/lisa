@@ -23,9 +23,9 @@ config = Config(
             "env": {
                 "PATH": "/sbin:/usr/sbin:/usr/local/sbin:/bin:/usr/bin:/usr/local/bin"
             },
-            # Don’t let remote commands take longer than a minute
-            # (unless later overridden).
-            "timeout": 60,
+            # Don’t let remote commands take longer than five minutes
+            # (unless later overridden). This is to prevent hangs.
+            "timeout": 300,
         }
     }
 )
