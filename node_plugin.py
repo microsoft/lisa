@@ -44,6 +44,17 @@ def install_az_cli() -> None:
         # default subscription (az account set -s) using secrets.
 
 
+def create_boot_storage(location: str) -> str:
+    """Create a separate resource group and storage account for boot diagnostics."""
+    account = "pytestbootdiag"
+    # This command always exits with 0 but returns a string.
+    if local.run("az group exists -n pytest-lisa").stdout.strip() == "false":
+        local.run(f"az group create -n pytest-lisa --location {location}")
+    if not local.run(f"az storage account show -g pytest-lisa -n {account}", warn=True):
+        local.run(f"az storage account create -g pytest-lisa -n {account}")
+    return account
+
+
 def deploy_vm(
     request: _pytest.fixtures.FixtureRequest,
     location: str = "westus2",
@@ -64,6 +75,7 @@ def deploy_vm(
     request.config.cache.set(key, name)
 
     install_az_cli()
+    boot_storage = create_boot_storage(location)
 
     local.run(
         f"az group create -n {name}-rg --location {location}",
@@ -75,10 +87,8 @@ def deploy_vm(
         f"-n {name}",
         f"--image {vm_image}",
         f"--size {vm_size}",
+        f"--boot-diagnostics-storage {boot_storage}",
         "--generate-ssh-keys",
-        # TODO: Create unique boot diagnostics storage account.
-        # `az storage account create -g {name}-rg -n pytestbootdiag`
-        f"--boot-diagnostics-storage pytestbootdiag",
     ]
     if networking == "SRIOV":
         vm_command.append("--accelerated-networking true")
