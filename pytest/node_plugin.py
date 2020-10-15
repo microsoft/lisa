@@ -133,6 +133,9 @@ def node(request: _pytest.fixtures.FixtureRequest) -> Iterator[Node]:
                 "env": {
                     "PATH": "/sbin:/usr/sbin:/usr/local/sbin:/bin:/usr/bin:/usr/local/bin"
                 },
+                # Don’t let remote commands take longer than a minute
+                # (unless later overridden).
+                "timeout": 60,
             }
         }
     )
