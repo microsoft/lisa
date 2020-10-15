@@ -118,7 +118,9 @@ def node(request: _pytest.fixtures.FixtureRequest) -> Iterator[Node]:
                 # Disable stdin forwarding.
                 "in_stream": False,
                 # Set PATH since it’s not a login shell.
-                "env": {"PATH": "$PATH:/usr/local/sbin:/usr/sbin"},
+                "env": {
+                    "PATH": "/sbin:/usr/sbin:/usr/local/sbin:/bin:/usr/bin:/usr/local/bin"
+                },
             }
         }
     )
