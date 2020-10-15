@@ -37,12 +37,8 @@ local = Context(config=invoke_config)
 
 
 def check_az_cli() -> None:
-    if not local.run("which az", warn=True):
-        # TODO: Use Invoke for pipes.
-        local.run(
-            "curl -sL https://aka.ms/InstallAzureCLIDeb | sudo bash",
-        )
-
+    # E.g. on Ubuntu: `curl -sL https://aka.ms/InstallAzureCLIDeb | sudo bash`
+    assert local.run("az --version", warn=True), "Please install the `az` CLI!"
     # TODO: Login with service principal (az login) and set
     # default subscription (az account set -s) using secrets.
     account: Result = local.run("az account show")
