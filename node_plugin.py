@@ -82,6 +82,18 @@ def delete_vm(name: str) -> None:
 class Node(Connection):
     """Extends 'fabric.Connection' with our own utilities."""
 
+    name: str
+
+    def get_boot_diagnostics(self):
+        """Gets the serial console logs."""
+        return self.local(
+            f"az vm boot-diagnostics get-boot-log -n {self.name} -g {self.name}-rg"
+        )
+
+    def platform_restart(self):
+        """TODO: Should this '--force' and redeploy?"""
+        return self.local(f"az vm restart -n {self.name} -g {self.name}-rg")
+
     def cat(self, path: str) -> str:
         """Gets the value of a remote file without a temporary file."""
         with BytesIO() as buf:
@@ -126,6 +138,7 @@ def node(request: _pytest.fixtures.FixtureRequest) -> Iterator[Node]:
     )
 
     with Node(host, config=config, inline_ssh_env=True) as n:
+        n.name = name
         yield n
 
     # Clean up!
