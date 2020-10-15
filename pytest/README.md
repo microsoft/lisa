@@ -66,12 +66,12 @@ implement (with more as found to be required):
 * Run a command (perhaps asynchronously) on the node using SSH
 * Download and upload files to the node (with retries and timeouts)
 
-Our abstraction would leverage
+Our abstraction leverages
 [Fabric](https://docs.fabfile.org/en/stable/index.html), which uses
 [paramiko](https://docs.paramiko.org/en/stable/) underneath, directly to
-implement the SSH commands. For deployment logic, it would use existing Python APIs to deploy
-[Azure](https://aka.ms/azsdk/python/all) nodes, and for Hyper-V (and other
-virtualization platforms), it would use
+implement the SSH commands. For deployment logic, it uses the [`az`
+CLI](https://aka.ms/azureclidocs), wrapped by Fabric. For Hyper-V (and other
+virtualization platforms), it could use
 [libvirt](https://libvirt.org/python.html).
 
 Other test specific requirements, such as installing software and daemons,
@@ -87,6 +87,16 @@ transforms results into the format consumed by ADO. It has over 90,000 downloads
 a month. We don’t need to rewrite this.
 
 ## Alternatives considered
+
+### Azure Python APIs instead of `az` CLI
+
+We do not use the [Azure Python APIs](https://aka.ms/azsdk/python/all) directly
+because they are more complicated (and less documented) than the `az` CLI. Given
+Fabric (and its underlying Invoke library), the CLI becomes incredibly easy to
+work with. The `az` CLI lead developer states that they have [feature
+parity](https://stackoverflow.com/a/50005660/1028665) and that the CLI is more
+straightforward to use. Considering our ease-of-maintenance requirement, this
+seems the apt choice.
 
 ### pytest-xdist
 
