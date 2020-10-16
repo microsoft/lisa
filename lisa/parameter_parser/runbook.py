@@ -90,5 +90,5 @@ def load(args: Namespace) -> schema.Runbook:
 
     log = _get_init_logger()
     constants.RUN_NAME = f"lisa_{runbook.name}_{constants.RUN_ID}"
-    log.info(f"run name is {constants.RUN_NAME}")
+    log.info(f"run name is '{constants.RUN_NAME}'")
     return runbook
