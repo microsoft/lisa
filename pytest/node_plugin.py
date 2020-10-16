@@ -115,9 +115,8 @@ def deploy_vm(
 
 def delete_vm(name: str) -> None:
     """Delete the entire allocated resource group."""
-    # TODO: Maybe don’t wait for this command to complete.
     logging.info(f"Deleting resource group '{name}-rg'")
-    local.run(f"az group delete -n {name}-rg --yes")
+    local.run(f"az group delete -n {name}-rg --yes --no-wait")
 
 
 class Node(Connection):
@@ -148,6 +147,8 @@ class Node(Connection):
             return buf.getvalue().decode("utf-8").strip()
 
 
+# TODO: The fixtures need to be fixed up since we now have a pair, one
+# for each scope. They need documentation and de-duplication too.
 @pytest.fixture(scope="function")
 def node(request: FixtureRequest) -> Iterator[Node]:
     key, name, host, data, fabric_config = get_node(request)
@@ -158,9 +159,9 @@ def node(request: FixtureRequest) -> Iterator[Node]:
 
     # Clean up!
     if not request.config.getoption("keep_vms") and key:
-        delete_vm(name)
         assert request.config.cache is not None
         request.config.cache.set(key, None)
+        delete_vm(name)
 
 
 @pytest.fixture(scope="class")
@@ -174,9 +175,9 @@ def class_node(request: FixtureRequest) -> Iterator[None]:
 
     # Clean up!
     if not request.config.getoption("keep_vms") and key:
-        delete_vm(name)
         assert request.config.cache is not None
         request.config.cache.set(key, None)
+        delete_vm(name)
 
 
 def get_node(
