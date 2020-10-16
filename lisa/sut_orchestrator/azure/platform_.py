@@ -50,8 +50,10 @@ AZURE_DEPLOYMENT_NAME = "lisa_default_deployment_script"
 AZURE_RG_NAME_KEY = "resource_group_name"
 
 VM_SIZE_FALLBACK_LEVELS = [
-    re.compile(r"Standard_DS(\d)+_v2"),
-    re.compile(r"Standard_A(\d)+"),
+    # exclude Standard_DS1_v2, because one core is too slow,
+    # and doesn't work in some distro
+    re.compile(r"Standard_DS((?!1)[\d]{1}|[\d]{2,})_v2"),
+    re.compile(r"Standard_A((?!1)[\d]{1}|[\d]{2,})"),
 ]
 LOCATIONS = ["westus2", "eastus2"]
 RESOURCE_GROUP_LOCATION = "westus2"
@@ -736,7 +738,7 @@ class AzurePlatform(Platform):
 
     def _deploy(self, deployment_parameters: Dict[str, Any], log: Logger) -> None:
         resource_group_name = deployment_parameters[AZURE_RG_NAME_KEY]
-        log.info(f"deploying {resource_group_name}")
+        log.info(f"deploying in resource group: '{resource_group_name}'")
 
         deployment_operation: Any = None
         deployments = self._rm_client.deployments
