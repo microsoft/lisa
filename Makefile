@@ -16,6 +16,9 @@ test:
 check:
 	@poetry run python -X dev -X tracemalloc -m pytest --flake8 --mypy -m 'flake8 or mypy'
 
+clean:
+	@poetry run python -m pytest --cache-clear --setup-plan
+
 smoke:
 	@poetry run python -m pytest --quiet --junit-xml=tests.xml --tb=no -rA --show-capture=log -k smoke
 
