@@ -92,7 +92,7 @@ class Platform(subclasses.BaseClassWithRunbook, InitializableMixin):
 
     def deploy_environment(self, environment: Environment) -> None:
         log = get_logger(f"deploy[{environment.name}]", parent=self._log)
-        log.info("depolying")
+        log.info(f"deploying environment: {environment.name}")
         timer = create_timer()
         self._deploy_environment(environment, log)
         log.debug("initializing environment")
