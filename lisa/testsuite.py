@@ -304,7 +304,9 @@ class TestSuite(unittest.TestCase, Action, metaclass=ABCMeta):
             test_method = getattr(self, case_name)
             self.log = get_logger("case", f"{case_result.runtime_data.full_name}")
 
-            self.log.info("started")
+            self.log.info(
+                f"test case '{case_result.runtime_data.full_name}' is running"
+            )
             is_continue: bool = is_suite_continue
             total_timer = create_timer()
 

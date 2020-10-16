@@ -35,16 +35,21 @@ class MutipleNodesDemo(TestSuite):
         priority=2,
     )
     def send_receive(self) -> None:
-        self.log.info(f"node count: {len(self.environment.nodes)}")
         server_node = self.environment.nodes[0]
+        self.log.info(
+            f"server: {server_node.internal_address}:{server_node.internal_port}"
+        )
         client_node = self.environment.nodes[1]
+        self.log.info(
+            f"client: {client_node.internal_address}:{client_node.internal_port}"
+        )
 
         ntttcp_server = server_node.tools[Ntttcp]
         ntttcp_client = client_node.tools[Ntttcp]
 
         server_process = ntttcp_server.run_async("-P 1 -t 5 -e")
         client_result = ntttcp_client.run(
-            f"-s {server_node.internal_address} -P 1 -n 1 -t 5 -W 1", no_info_log=False
+            f"-s {server_node.internal_address} -P 1 -n 1 -t 5 -W 1"
         )
         server_result = server_process.wait_result(timeout=10)
         self.assertEqual(

@@ -146,10 +146,11 @@ class LisaRunner(Action):
 
                 case.set_status(TestStatus.SKIPPED, reasons)
 
+        self._log.info("________________________________________")
         result_count_dict: Dict[TestStatus, int] = dict()
         for test_result in selected_test_results:
             self._log.info(
-                f"{test_result.runtime_data.metadata.full_name:>30}: "
+                f"{test_result.runtime_data.metadata.full_name:>50}: "
                 f"{test_result.status.name:<8} {test_result.message}"
             )
             result_count = result_count_dict.get(test_result.status, 0)

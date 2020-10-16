@@ -54,7 +54,7 @@ def main() -> int:
 
         log.info(f"Python version: {sys.version}")
         log.info(f"local time: {datetime.now().astimezone()}")
-        log.info(f"command line args: {sys.argv}")
+        log.debug(f"command line args: {sys.argv}")
         log.info(f"run local path: {runtime_root}")
 
         exit_code = args.func(args)

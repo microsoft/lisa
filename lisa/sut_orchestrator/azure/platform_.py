@@ -678,6 +678,8 @@ class AzurePlatform(Platform):
             node_context.password = arm_parameters.admin_password
             node_context.private_key_file = self._runbook.admin_private_key_file
 
+            log.info(f"vm setting: {azure_node_runbook}")
+
         arm_parameters.nodes = nodes_parameters
 
         # load template
@@ -736,7 +738,7 @@ class AzurePlatform(Platform):
 
     def _deploy(self, deployment_parameters: Dict[str, Any], log: Logger) -> None:
         resource_group_name = deployment_parameters[AZURE_RG_NAME_KEY]
-        log.info(f"deploying {resource_group_name}")
+        log.info(f"resource group '{resource_group_name}' deployment is in progress...")
 
         deployment_operation: Any = None
         deployments = self._rm_client.deployments
@@ -830,6 +832,8 @@ class AzurePlatform(Platform):
             address = nic.ip_configurations[0].private_ip_address
             port = nat_rule.backend_port
             public_port = nat_rule.frontend_port
+            if not node.name:
+                node.name = vm_name
             node.set_connection_info(
                 address=address,
                 port=port,

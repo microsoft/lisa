@@ -48,7 +48,16 @@ def select_testcases(
         for metadata in full_list.values():
             results.append(TestCaseRuntimeData(metadata))
 
-    log.info(f"selected cases count: {len(results)}")
+    log.info(f"selected count: {len(results)}")
+    for result in results:
+        metadata = result.metadata
+        log.info(
+            f"{metadata.full_name}, "
+            f"area: {metadata.suite.area}, "
+            f"category: {metadata.suite.category}, "
+            f"tags: {metadata.tags}, "
+            f"priority: {metadata.priority}"
+        )
     return results
 
 
