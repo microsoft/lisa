@@ -17,7 +17,7 @@ check:
 	@poetry run python -X dev -X tracemalloc -m pytest --flake8 --mypy -m 'flake8 or mypy'
 
 smoke:
-	@poetry run python -m pytest -rA --capture=tee-sys -k smoke
+	@poetry run python -m pytest --quiet --junit-xml=tests.xml --tb=no -rA --show-capture=log -k smoke
 
 # Print current Python virtualenv
 venv:
