@@ -54,6 +54,14 @@ class MutipleNodesDemo(TestSuite):
             f"-s {server_node.internal_address} -P 1 -n 1 -t 5 -W 1"
         )
         server_result = server_process.wait_result(timeout=10)
+        self.log.info(
+            f"server throughput: "
+            f"{ntttcp_server.get_throughput(server_result.stdout)}"
+        )
+        self.log.info(
+            f"client throughput: "
+            f"{ntttcp_client.get_throughput(client_result.stdout)}"
+        )
         asserts.assert_equal(
             0,
             client_result.exit_code,
