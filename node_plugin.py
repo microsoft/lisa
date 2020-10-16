@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import json
+import logging
 import typing
 from io import BytesIO
 from uuid import uuid4
@@ -50,8 +51,11 @@ def check_az_cli() -> None:
     # default subscription (az account set -s) using secrets.
     account: Result = local.run("az account show")
     assert account.ok, "Please `az login`!"
-    subs = json.loads(account.stdout)
-    assert subs["isDefault"], "Please `az account set -s <subscription>`!"
+    sub = json.loads(account.stdout)
+    assert sub["isDefault"], "Please `az account set -s <subscription>`!"
+    logging.info(
+        f"Using account '{sub['user']['name']}' with subscription '{sub['name']}'"
+    )
 
 
 def create_boot_storage(location: str) -> str:
@@ -85,9 +89,12 @@ def deploy_vm(
     check_az_cli()
     boot_storage = create_boot_storage(location)
 
-    local.run(
-        f"az group create -n {name}-rg --location {location}",
+    logging.info(
+        f"Deploying VM to resource group '{name}-rg' in '{location}' "
+        "with image '{vm_image}' and size '{vm_size}'"
     )
+
+    local.run(f"az group create -n {name}-rg --location {location}")
 
     vm_command = [
         "az vm create",
@@ -109,6 +116,7 @@ def deploy_vm(
 def delete_vm(name: str) -> None:
     """Delete the entire allocated resource group."""
     # TODO: Maybe don’t wait for this command to complete.
+    logging.info(f"Deleting resource group '{name}-rg'")
     local.run(f"az group delete -n {name}-rg --yes")
 
 
@@ -164,7 +172,9 @@ def node(request: FixtureRequest) -> Iterator[Node]:
         key = "/".join(["node"] + list(filter(None, deploy_marker.kwargs.values())))
         assert request.config.cache is not None
         data = request.config.cache.get(key, None)
-        if not data:
+        if data:
+            logging.info(f"Reusing node for cached key '{key}'")
+        else:
             # Cache miss, deploy new node...
             name = f"pytest-{uuid4()}"
             host, data = deploy_vm(name, **deploy_marker.kwargs)
