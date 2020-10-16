@@ -1,18 +1,24 @@
 """Pytest plugin implementing a Node fixture for running remote commands."""
+from __future__ import annotations
+
 import json
+import typing
 from io import BytesIO
-from typing import Any, Dict, Iterator, Optional, Tuple
 from uuid import uuid4
 
-import _pytest
 import fabric  # type: ignore
 import invoke  # type: ignore
 from fabric import Connection
 from invoke import Context
 from invoke.runners import Result  # type: ignore
-from tenacity import retry, stop_after_delay, wait_exponential
+from tenacity import retry, stop_after_delay, wait_exponential  # type: ignore
 
 import pytest
+
+if typing.TYPE_CHECKING:
+    from typing import Any, Dict, Iterator, Optional, Tuple
+
+    from _pytest.fixtures import FixtureRequest
 
 # Setup a sane configuration for local and remote commands. Note that
 # the defaults between Fabric and Invoke are different, so we use
@@ -135,7 +141,7 @@ class Node(Connection):
 
 
 @pytest.fixture
-def node(request: _pytest.fixtures.FixtureRequest) -> Iterator[Node]:
+def node(request: FixtureRequest) -> Iterator[Node]:
     """Yields a safe remote Node on which to run commands.
 
     TODO: Currently this also manages the caching of the deployed VMs.
@@ -156,14 +162,15 @@ def node(request: _pytest.fixtures.FixtureRequest) -> Iterator[Node]:
     if deploy_marker:
         # NOTE: https://docs.pytest.org/en/stable/cache.html
         key = "/".join(["node"] + list(filter(None, deploy_marker.kwargs.values())))
-        data = request.config.cache.get(key, None)  # type: ignore
+        assert request.config.cache is not None
+        data = request.config.cache.get(key, None)
         if not data:
             # Cache miss, deploy new node...
             name = f"pytest-{uuid4()}"
             host, data = deploy_vm(name, **deploy_marker.kwargs)
             data["name"] = name
             data["host"] = host
-            request.config.cache.set(key, data)  # type: ignore
+            request.config.cache.set(key, data)
         name = data["name"]
         host = data["host"]
     elif connect_marker:
@@ -177,8 +184,8 @@ def node(request: _pytest.fixtures.FixtureRequest) -> Iterator[Node]:
         name = host
 
     # Yield the configured Node connection.
-    ssh_config = config.copy()
-    ssh_config["run"]["env"] = {  # type: ignore
+    ssh_config: Dict[str, Any] = config.copy()
+    ssh_config["run"]["env"] = {
         # Set PATH since it’s not a login shell.
         "PATH": "/sbin:/usr/sbin:/usr/local/sbin:/bin:/usr/bin:/usr/local/bin"
     }
@@ -191,4 +198,5 @@ def node(request: _pytest.fixtures.FixtureRequest) -> Iterator[Node]:
     # Clean up!
     if not request.config.getoption("keep_vms") and key:
         delete_vm(name)
-        request.config.cache.set(key, None)  # type: ignore
+        assert request.config.cache is not None
+        request.config.cache.set(key, None)
