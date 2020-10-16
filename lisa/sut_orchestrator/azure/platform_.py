@@ -680,6 +680,7 @@ class AzurePlatform(Platform):
             node_context.password = arm_parameters.admin_password
             node_context.private_key_file = self._runbook.admin_private_key_file
 
+        log.info(f"deploy nodes: {nodes_parameters}")
         arm_parameters.nodes = nodes_parameters
 
         # load template
