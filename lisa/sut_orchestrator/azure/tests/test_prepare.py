@@ -92,8 +92,8 @@ class AzurePrepareTestCase(TestCase):
         self.verify_prepared_nodes(
             expected_result=True,
             expected_locations=["westus2", "westus2"],
-            expected_vm_sizes=["Standard_DS1_v2", "Standard_DS1_v2"],
-            expected_cost=2,
+            expected_vm_sizes=["Standard_DS2_v2", "Standard_DS2_v2"],
+            expected_cost=4,
             environment=env,
         )
 
@@ -102,8 +102,8 @@ class AzurePrepareTestCase(TestCase):
         self.verify_prepared_nodes(
             expected_result=True,
             expected_locations=["eastus2", "eastus2"],
-            expected_vm_sizes=["Standard_DS1_v2", "Standard_DS1_v2"],
-            expected_cost=2,
+            expected_vm_sizes=["Standard_DS2_v2", "Standard_DS2_v2"],
+            expected_cost=4,
             environment=env,
         )
 
@@ -114,13 +114,13 @@ class AzurePrepareTestCase(TestCase):
         self.verify_prepared_nodes(
             expected_result=True,
             expected_locations=["eastus2", "eastus2"],
-            expected_vm_sizes=["Standard_DS1_v2", "Standard_B1ls"],
-            expected_cost=2,
+            expected_vm_sizes=["Standard_DS2_v2", "Standard_B1ls"],
+            expected_cost=3,
             environment=env,
         )
 
     def test_predefined_with_3_nic(self) -> None:
-        # 3 nic cannot be met by Standard_DS1_v2, as it support at most 2 nics
+        # 3 nic cannot be met by Standard_DS2_v2, as it support at most 2 nics
         # the code path of predefined and normal is different, so test it twice
         env = self.load_environment(node_req_count=1)
         assert env.runbook.nodes_requirement
@@ -129,8 +129,8 @@ class AzurePrepareTestCase(TestCase):
         self.verify_prepared_nodes(
             expected_result=True,
             expected_locations=["eastus2", "eastus2"],
-            expected_vm_sizes=["Standard_DS1_v2", "Standard_DS15_v2"],
-            expected_cost=21,
+            expected_vm_sizes=["Standard_DS2_v2", "Standard_DS15_v2"],
+            expected_cost=22,
             environment=env,
         )
 
@@ -153,8 +153,8 @@ class AzurePrepareTestCase(TestCase):
         self.verify_prepared_nodes(
             expected_result=True,
             expected_locations=["westus2"],
-            expected_vm_sizes=["Standard_DS1_v2"],
-            expected_cost=1,
+            expected_vm_sizes=["Standard_DS2_v2"],
+            expected_cost=2,
             environment=env,
         )
 
@@ -188,8 +188,8 @@ class AzurePrepareTestCase(TestCase):
         self.verify_prepared_nodes(
             expected_result=True,
             expected_locations=["eastus2", "eastus2", "eastus2"],
-            expected_vm_sizes=["Standard_DS1_v2", "Standard_A8_v2", "Standard_DS1_v2"],
-            expected_cost=10,
+            expected_vm_sizes=["Standard_DS2_v2", "Standard_A8_v2", "Standard_DS2_v2"],
+            expected_cost=12,
             environment=env,
         )
 
@@ -200,8 +200,8 @@ class AzurePrepareTestCase(TestCase):
         self.verify_prepared_nodes(
             expected_result=True,
             expected_locations=["eastus2", "eastus2"],
-            expected_vm_sizes=["Standard_DS1_v2", "Standard_DS1_v2"],
-            expected_cost=2,
+            expected_vm_sizes=["Standard_DS2_v2", "Standard_DS2_v2"],
+            expected_cost=4,
             environment=env,
         )
 
@@ -211,8 +211,8 @@ class AzurePrepareTestCase(TestCase):
         self.verify_prepared_nodes(
             expected_result=True,
             expected_locations=["westus2", "westus2"],
-            expected_vm_sizes=["Standard_DS1_v2", "Standard_DS1_v2"],
-            expected_cost=2,
+            expected_vm_sizes=["Standard_DS2_v2", "Standard_DS2_v2"],
+            expected_cost=4,
             environment=env,
         )
 
@@ -226,8 +226,8 @@ class AzurePrepareTestCase(TestCase):
         self.verify_prepared_nodes(
             expected_result=True,
             expected_locations=["eastus2", "eastus2"],
-            expected_vm_sizes=["Standard_DS1_v2", "Standard_DS15_v2"],
-            expected_cost=21,
+            expected_vm_sizes=["Standard_DS2_v2", "Standard_DS15_v2"],
+            expected_cost=22,
             environment=env,
         )
 
@@ -241,13 +241,13 @@ class AzurePrepareTestCase(TestCase):
         self.verify_prepared_nodes(
             expected_result=True,
             expected_locations=["eastus2", "eastus2"],
-            expected_vm_sizes=["Standard_DS1_v2", "Standard_A8_v2"],
-            expected_cost=9,
+            expected_vm_sizes=["Standard_DS2_v2", "Standard_A8_v2"],
+            expected_cost=10,
             environment=env,
         )
 
     def test_normal_with_3_nic(self) -> None:
-        # 3 nic cannot be met by Standard_DS1_v2, as it support at most 2 nics
+        # 3 nic cannot be met by Standard_DS2_v2, as it support at most 2 nics
         # the code path of predefined and normal is different, so test it twice
         env = self.load_environment(node_req_count=1)
         assert env.runbook.nodes_requirement
@@ -255,8 +255,8 @@ class AzurePrepareTestCase(TestCase):
         self.verify_prepared_nodes(
             expected_result=True,
             expected_locations=["eastus2", "eastus2"],
-            expected_vm_sizes=["Standard_DS1_v2", "Standard_DS15_v2"],
-            expected_cost=21,
+            expected_vm_sizes=["Standard_DS2_v2", "Standard_DS15_v2"],
+            expected_cost=22,
             environment=env,
         )
 
