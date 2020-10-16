@@ -1,14 +1,14 @@
 """Pytest plugin implementing a Node fixture for running remote commands."""
 import json
 from io import BytesIO
-from typing import Dict, Iterator, Optional, Tuple
+from typing import Any, Dict, Iterator, Optional, Tuple
 from uuid import uuid4
 
 import _pytest
-import fabric
-import invoke
-from fabric import Connection  # type: ignore
-from invoke import Context  # type: ignore
+import fabric  # type: ignore
+import invoke  # type: ignore
+from fabric import Connection
+from invoke import Context
 from invoke.runners import Result  # type: ignore
 
 import pytest
@@ -67,14 +67,15 @@ def deploy_vm(
 ) -> Tuple[str, Dict[str, str]]:
 
     key = f"{location}/{vm_image}/{vm_size}"
-    name: Optional[str] = request.config.cache.get(key, None)
+    name: Optional[str] = request.config.cache.get(key, None)  # type: ignore
+    result: Dict[str, str] = dict()
     if name:
-        result: Dict[str, str] = request.config.cache.get(name, {})
+        result = request.config.cache.get(name, {})  # type: ignore
         assert result, "There was a cache problem, use --cache-clear and try again."
         return name, result
 
     name = f"pytest-{uuid4()}"
-    request.config.cache.set(key, name)
+    request.config.cache.set(key, name)  # type: ignore
 
     check_az_cli()
     boot_storage = create_boot_storage(location)
@@ -95,12 +96,12 @@ def deploy_vm(
     if networking == "SRIOV":
         vm_command.append("--accelerated-networking true")
 
-    result: Dict[str, str] = json.loads(
+    result = json.loads(
         local.run(
             " ".join(vm_command),
         ).stdout
     )
-    request.config.cache.set(name, result)
+    request.config.cache.set(name, result)  # type: ignore
     return name, result
 
 
@@ -113,17 +114,17 @@ class Node(Connection):
 
     name: str
 
-    def local(self, *args, **kwargs):
+    def local(self, *args: Any, **kwargs: Any) -> Result:
         """This patches Fabric's 'local()' function to ignore SSH environment."""
         return super(Connection, self).run(replace_env=False, env={}, *args, **kwargs)
 
-    def get_boot_diagnostics(self):
+    def get_boot_diagnostics(self) -> Result:
         """Gets the serial console logs."""
         return self.local(
             f"az vm boot-diagnostics get-boot-log -n {self.name} -g {self.name}-rg"
         )
 
-    def platform_restart(self):
+    def platform_restart(self) -> Result:
         """TODO: Should this '--force' and redeploy?"""
         return self.local(f"az vm restart -n {self.name} -g {self.name}-rg")
 
@@ -157,7 +158,7 @@ def node(request: _pytest.fixtures.FixtureRequest) -> Iterator[Node]:
 
     # Yield the configured Node connection.
     ssh_config = config.copy()
-    ssh_config["run"]["env"] = {
+    ssh_config["run"]["env"] = {  # type: ignore
         # Set PATH since it’s not a login shell.
         "PATH": "/sbin:/usr/sbin:/usr/local/sbin:/bin:/usr/bin:/usr/local/bin"
     }

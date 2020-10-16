@@ -3,7 +3,7 @@ import platform
 import socket
 
 from invoke.runners import Result  # type: ignore
-from paramiko import SSHException
+from paramiko import SSHException  # type: ignore
 
 import pytest
 from node_plugin import Node
