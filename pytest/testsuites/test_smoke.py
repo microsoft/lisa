@@ -2,10 +2,10 @@
 import logging
 import platform
 import socket
-import time
 
 from invoke.runners import Result  # type: ignore
 from paramiko import SSHException  # type: ignore
+from tenacity import Retrying, stop_after_delay, wait_exponential  # type: ignore
 
 import pytest
 from node_plugin import Node
@@ -43,16 +43,24 @@ class TestSmoke:
         except (TimeoutError, SSHException, socket.error) as e:
             logging.warning(f"SSH failed '{e}', using platform to reboot")
             self.n.platform_restart()
-        logging.info("Waiting 10 seconds for reboot to finish")
-        time.sleep(10)
         assert r.exited == -1, "While SSH worked, reboot failed"
 
     def test_ping_2(self) -> None:
-        r: Result = self.n.local(f"ping {self.ping_flag} {self.n.host}", warn=True)
-        assert r.ok, f"Pinging {self.n.host} failed"
+        for attempt in Retrying(
+            wait=wait_exponential(), stop=stop_after_delay(30)
+        ):  # type: ignore
+            with attempt:
+                r: Result = self.n.local(
+                    f"ping {self.ping_flag} {self.n.host}", warn=True
+                )
+                assert r.ok, f"Pinging {self.n.host} failed"
 
     def test_ssh_2(self) -> None:
-        self.n.run("uptime")
+        for attempt in Retrying(
+            wait=wait_exponential(), stop=stop_after_delay(30)
+        ):  # type: ignore
+            with attempt:
+                self.n.run("uptime")
 
     def test_serial_log(self) -> None:
         self.n.get_boot_diagnostics()
