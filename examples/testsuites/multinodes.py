@@ -35,9 +35,14 @@ class MutipleNodesDemo(TestSuite):
         priority=2,
     )
     def send_receive(self) -> None:
-        self.log.info(f"found {len(self.environment.nodes)} node")
         server_node = self.environment.nodes[0]
+        self.log.info(
+            f"server: {server_node.internal_address}:{server_node.internal_port}"
+        )
         client_node = self.environment.nodes[1]
+        self.log.info(
+            f"client: {client_node.internal_address}:{client_node.internal_port}"
+        )
 
         ntttcp_server = server_node.tools[Ntttcp]
         ntttcp_client = client_node.tools[Ntttcp]

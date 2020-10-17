@@ -164,16 +164,20 @@ class Node(ContextMixin, InitializableMixin):
         self._node_information_hooks.append(callback)
 
     def _initialize(self, *args: Any, **kwargs: Any) -> None:
-        self.log.debug(f"initializing node {self.name}")
+        if self.is_remote:
+            assert (
+                self._connection_info
+            ), "call setConnectionInfo before use remote node"
+            address = f"{self._connection_info.address}:{self._connection_info.port}"
+        else:
+            address = "localhost"
+        self.log.info(f"initializing node '{self.name}' {address}")
         self.shell.initialize()
         self.os: OperatingSystem = OperatingSystem.create(self)
 
         # set working path
         if self.is_remote:
             assert self.shell
-            assert (
-                self._connection_info
-            ), "don't call setConnectionInfo before use remote node"
 
             if self.is_linux:
                 remote_root_path = pathlib.Path("$HOME")

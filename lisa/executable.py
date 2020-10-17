@@ -442,7 +442,7 @@ class Tools:
         if tool is None:
             # the Tool is not installed on current node, try to install it.
             tool_log = get_logger("tool", tool_key, self._node.log)
-            tool_log.debug("initializing")
+            tool_log.debug(f"initializing {tool_key}")
 
             if isinstance(tool_type, CustomScriptBuilder):
                 tool = tool_type.build(self._node)
@@ -458,9 +458,9 @@ class Tools:
             tool.initialize()
 
             if not tool.exists:
-                tool_log.debug("not installed")
+                tool_log.debug(f"'{tool.name}' not installed")
                 if tool.can_install:
-                    tool_log.debug("installing")
+                    tool_log.info(f"{tool.name} is installing")
                     timer = create_timer()
                     is_success = tool.install()
                     if not is_success:
