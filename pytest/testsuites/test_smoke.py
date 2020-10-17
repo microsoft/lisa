@@ -31,7 +31,6 @@ class TestSmoke:
 
     def test_ping_1(self) -> None:
         # TODO: Can’t ping by default, need to enable.
-        logging.warning("Expecting ping to fail because it's not enabled yet")
         r: Result = self.n.local(f"ping {self.ping_flag} {self.n.host}", warn=True)
         assert r.ok, f"Pinging {self.n.host} failed"
 
@@ -51,7 +50,6 @@ class TestSmoke:
 
     def test_ping_2(self) -> None:
         # TODO: Can’t ping by default, need to enable.
-        logging.warning("Expecting ping to fail for the same reason as above")
         r: Result = self.n.local(f"ping {self.ping_flag} {self.n.host}", warn=True)
         assert r.ok, f"Pinging {self.n.host} failed"
 

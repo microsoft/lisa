@@ -20,7 +20,7 @@ clean:
 	@poetry run python -m pytest --cache-clear --setup-plan
 
 smoke:
-	@poetry run python -m pytest --quiet --junit-xml=tests.xml --tb=no -rA --show-capture=log -k smoke
+	@poetry run python -m pytest --quiet --junit-xml=tests.xml --tb=line --show-capture=log -k smoke
 
 # Print current Python virtualenv
 venv:
