@@ -69,6 +69,27 @@ def create_boot_storage(location: str) -> str:
     return account
 
 
+def allow_ping(name: str) -> None:
+    """Create NSG rules to enable ICMP ping.
+
+    ICMP ping is disallowed by the Azure load balancer by default, but
+    there’s strong debate about if this is necessary, and our tests
+    like to check if the host is up using ping, so we create inbound
+    and outbound rules in the VM's network security group to allow it.
+
+    """
+    try:
+        for d in ["Inbound", "Outbound"]:
+            local.run(
+                f"az network nsg rule create --name allow{d}ICMP "
+                f"--nsg-name {name}NSG --priority 100 --resource-group {name}-rg "
+                f"--access Allow --direction '{d}' --protocol Icmp "
+                "--source-port-ranges '*' --destination-port-ranges '*'"
+            )
+    except Exception as e:
+        logging.warning(f"Failed to create ICMP allow rules in NSG due to '{e}'")
+
+
 def deploy_vm(
     name: str,
     location: str = "westus2",
@@ -108,11 +129,16 @@ def deploy_vm(
         f"--boot-diagnostics-storage {boot_storage}",
         "--generate-ssh-keys",
     ]
+    # TODO: Support setting up to NICs.
     if networking == "SRIOV":
         vm_command.append("--accelerated-networking true")
 
     data: Dict[str, str] = json.loads(local.run(" ".join(vm_command)).stdout)
     host = data["publicIpAddress"]
+
+    allow_ping(name)
+    # TODO: Enable auto-shutdown 4 hours from deployment.
+
     return host, data
 
 

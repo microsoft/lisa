@@ -30,7 +30,6 @@ class TestSmoke:
     ping_flag = "-c 1" if platform.system() == "Linux" else "-n 1"
 
     def test_ping_1(self) -> None:
-        # TODO: Can’t ping by default, need to enable.
         r: Result = self.n.local(f"ping {self.ping_flag} {self.n.host}", warn=True)
         assert r.ok, f"Pinging {self.n.host} failed"
 
@@ -49,7 +48,6 @@ class TestSmoke:
         assert r.exited == -1, "While SSH worked, reboot failed"
 
     def test_ping_2(self) -> None:
-        # TODO: Can’t ping by default, need to enable.
         r: Result = self.n.local(f"ping {self.ping_flag} {self.n.host}", warn=True)
         assert r.ok, f"Pinging {self.n.host} failed"
 
