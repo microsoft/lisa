@@ -162,7 +162,12 @@ class LisaRunner(Action):
         self._log.info("test result summary")
         self._log.info(f"  TOTAL      : {len(selected_test_results)}")
         for key in TestStatus:
-            self._log.info(f"    {key.name:<9}: {result_count_dict.get(key, 0)}")
+            count = result_count_dict.get(key, 0)
+            if key == TestStatus.ATTEMPTED and count == 0:
+                # attempted is confusing, if user don't know it.
+                # so hide it, if there is no attempted cases.
+                continue
+            self._log.info(f"    {key.name:<9}: {count}")
 
         self.set_status(ActionStatus.SUCCESS)
 
