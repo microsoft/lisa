@@ -90,8 +90,11 @@ def deploy_vm(
     boot_storage = create_boot_storage(location)
 
     logging.info(
-        f"Deploying VM to resource group '{name}-rg' in '{location}' "
-        f"with image '{vm_image}' and size '{vm_size}'"
+        f"""Deploying VM...
+    Resource Group:	'{name}-rg'
+    Region:		'{location}'
+    Image:		'{vm_image}'
+    Size:		'{vm_size}'"""
     )
 
     local.run(f"az group create -n {name}-rg --location {location}")
@@ -171,6 +174,14 @@ def class_node(request: FixtureRequest) -> Iterator[None]:
         n.name = name
         n.data = data
         request.cls.n = n
+        logging.info(f"Using VM at: '{host}'")
+        try:
+            r: Result = n.run("uname -r")
+        except Exception as e:
+            logging.warning(f"Kernel Version: Unknown due to '{e}'")
+        else:
+            assert r.ok
+            logging.info(f"Kernel Version: '{r.stdout.strip()}'")
         yield
 
     # Clean up!
