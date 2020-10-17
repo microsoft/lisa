@@ -22,6 +22,8 @@ def pytest_addoption(parser: Parser) -> None:
         default=False,
         help="Keeps deployed VMs cached between test runs, useful for developers.",
     )
+    # TODO: Add “--lisa” (and “--debug” etc.) options which set up our
+    # defaults, instead of encoding them in the Makefile
 
 
 LINUX_SCRIPTS = Path("../Testscripts/Linux")
