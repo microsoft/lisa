@@ -30,11 +30,13 @@ class MutipleNodesDemo(TestSuite):
 
     @TestCaseMetadata(
         description="""
-        this test case send and receive data by ntttcp
+        demo how to test network throughput with ntttcp
         """,
         priority=2,
     )
-    def send_receive(self) -> None:
+    def perf_network_tcp_ipv4_throughput_ntttcp_synthetic_singleconnection(
+        self,
+    ) -> None:
         server_node = self.environment.nodes[0]
         self.log.info(
             f"server: {server_node.internal_address}:{server_node.internal_port}"

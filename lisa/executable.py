@@ -172,6 +172,8 @@ class Tool(ABC, InitializableMixin):
         be overrided.
         """
         # check dependencies
+        if self.dependencies:
+            self._log.info("installing dependencies")
         for dependency in self.dependencies:
             self.node.tools[dependency]
         return self._install()
@@ -460,7 +462,7 @@ class Tools:
             if not tool.exists:
                 tool_log.debug(f"'{tool.name}' not installed")
                 if tool.can_install:
-                    tool_log.info(f"{tool.name} is installing")
+                    tool_log.debug(f"{tool.name} is installing")
                     timer = create_timer()
                     is_success = tool.install()
                     if not is_success:

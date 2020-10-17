@@ -212,7 +212,9 @@ class Environments(EnvironmentsDict):
             nodes_requirement=requirement.nodes,
         )
         return self.from_runbook(
-            runbook=runbook, name=f"req_{len(self.keys())}", is_original_runbook=False
+            runbook=runbook,
+            name=f"genarated_{len(self.keys())}",
+            is_original_runbook=False,
         )
 
     def from_runbook(
@@ -250,7 +252,7 @@ def load_environments(
         for environment_runbook in environments_runbook:
             env = environments.from_runbook(
                 runbook=environment_runbook,
-                name=f"runbook_{len(environments)}",
+                name=f"customized_{len(environments)}",
                 is_original_runbook=True,
             )
             assert env, "created from runbook shouldn't be None"
