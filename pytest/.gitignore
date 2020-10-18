@@ -1,0 +1,4 @@
+# Pytest report files
+/*.xml
+/*.html
+/assets
