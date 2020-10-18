@@ -5,7 +5,7 @@ import socket
 
 from invoke.runners import Result  # type: ignore
 from paramiko import SSHException  # type: ignore
-from tenacity import Retrying, stop_after_delay, wait_exponential  # type: ignore
+from tenacity import Retrying, stop_after_attempt, wait_exponential  # type: ignore
 
 import pytest
 from node_plugin import Node
@@ -47,7 +47,7 @@ class TestSmoke:
 
     def test_ping_2(self) -> None:
         for attempt in Retrying(
-            wait=wait_exponential(), stop=stop_after_delay(30)
+            wait=wait_exponential(), stop=stop_after_attempt(5)
         ):  # type: ignore
             with attempt:
                 r: Result = self.n.local(
@@ -57,7 +57,7 @@ class TestSmoke:
 
     def test_ssh_2(self) -> None:
         for attempt in Retrying(
-            wait=wait_exponential(), stop=stop_after_delay(30)
+            wait=wait_exponential(), stop=stop_after_attempt(5)
         ):  # type: ignore
             with attempt:
                 self.n.run("uptime")
