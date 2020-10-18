@@ -26,4 +26,8 @@ def pytest_addoption(parser: Parser) -> None:
     # defaults, instead of encoding them in the Makefile
 
 
+def pytest_html_report_title(report):  # type: ignore
+    report.title = "LISAv3 (Using Pytest) Results"
+
+
 LINUX_SCRIPTS = Path("../Testscripts/Linux")
