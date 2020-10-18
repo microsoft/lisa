@@ -12,7 +12,6 @@ import invoke  # type: ignore
 from fabric import Connection
 from invoke import Context
 from invoke.runners import Result  # type: ignore
-from tenacity import retry, stop_after_delay, wait_exponential  # type: ignore
 
 import pytest
 
@@ -158,7 +157,6 @@ class Node(Connection):
         """This patches Fabric's 'local()' function to ignore SSH environment."""
         return super(Connection, self).run(replace_env=False, env={}, *args, **kwargs)
 
-    @retry(wait=wait_exponential(), stop=stop_after_delay(60))
     def get_boot_diagnostics(self) -> Result:
         """Gets the serial console logs."""
         return self.local(
