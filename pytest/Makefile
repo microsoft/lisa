@@ -10,17 +10,17 @@ run:
 
 # Run local tests
 test:
-	@poetry run python -m pytest -rA --capture=tee-sys --tb=short selftests/
+	@poetry run python -m pytest --html=test.html -rA --capture=tee-sys --tb=short selftests/
 
 # Run semantic analysis
 check:
-	@poetry run python -X dev -X tracemalloc -m pytest --flake8 --mypy -m 'flake8 or mypy'
+	@poetry run python -X dev -X tracemalloc -m pytest --html=check.html --flake8 --mypy -m 'flake8 or mypy'
 
 clean:
 	@poetry run python -m pytest --cache-clear --setup-plan
 
 smoke:
-	@poetry run python -m pytest --quiet --junit-xml=tests.xml --tb=line --show-capture=log -k smoke
+	@poetry run python -m pytest --quiet --html=smoke.html --self-contained-html --tb=line --show-capture=log -k smoke
 
 # Print current Python virtualenv
 venv:
