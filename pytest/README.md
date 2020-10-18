@@ -119,7 +119,7 @@ However, this is only one approach, and we may prefer to run the Python code on
 the user’s machine, with pytest-lisa instead providing the previously mentioned
 node fixtures, default marks, and requirements logic.
 
-## Paramiko instead of Fabric
+### Paramiko instead of Fabric
 
 The Paramiko library is less complex (smaller library footprint) than Fabric, as
 the latter wraps the former, but it is a bit more difficult to use, and doesn’t
@@ -154,7 +154,8 @@ def test_lis_version(node: SSHClient) -> None:
     with Path("state.txt").open as f:
         assert f.readline() == "TestCompleted"
 ```
-## StringIO
+
+### StringIO
 
 For `Node.cat()` it would seem we could use `StringIO` like so:
 
@@ -169,3 +170,14 @@ with StringIO() as result:
 However, the data returned by Paramiko is in bytes, which in Python 3 are not
 equivalent to strings, hence the existing implementation which uses `BytesIO`
 and decodes the bytes to a string.
+
+### pytest-rerunfailures instead of Tenacity
+
+Due to an open
+[bug](https://github.com/pytest-dev/pytest-rerunfailures/issues/51) this popular
+Pytest plugin is incompatible with module/class/session fixtures. What this
+means is given a class of tests with a class fixture (say a shared `Node`), if
+the last test is marked as flaky and is rerun, the class fixture is unexpectedly
+torn down and then the test is rerun. That is, the rerun happens too late, and
+the test is then performed against a new `Node`. So while slightly more verbose,
+we’re back to using [Tenacity](https://github.com/jd/tenacity).
