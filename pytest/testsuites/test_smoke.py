@@ -5,7 +5,6 @@ import socket
 
 from invoke.runners import Result  # type: ignore
 from paramiko import SSHException  # type: ignore
-from tenacity import Retrying, stop_after_delay, wait_exponential  # type: ignore
 
 import pytest
 from node_plugin import Node
@@ -29,10 +28,12 @@ class TestSmoke:
     # TODO: Move to ‘Node.ping()’
     ping_flag = "-c 1" if platform.system() == "Linux" else "-n 1"
 
+    @pytest.mark.flaky(reruns=5, reruns_delay=5)
     def test_ping_1(self) -> None:
         r: Result = self.n.local(f"ping {self.ping_flag} {self.n.host}", warn=True)
         assert r.ok, f"Pinging {self.n.host} failed"
 
+    @pytest.mark.flaky(reruns=5, reruns_delay=5)
     def test_ssh_1(self) -> None:
         self.n.run("uptime")
 
@@ -45,22 +46,15 @@ class TestSmoke:
             self.n.platform_restart()
         assert r.exited == -1, "While SSH worked, reboot failed"
 
+    @pytest.mark.flaky(reruns=5, reruns_delay=5)
     def test_ping_2(self) -> None:
-        for attempt in Retrying(
-            wait=wait_exponential(), stop=stop_after_delay(30)
-        ):  # type: ignore
-            with attempt:
-                r: Result = self.n.local(
-                    f"ping {self.ping_flag} {self.n.host}", warn=True
-                )
-                assert r.ok, f"Pinging {self.n.host} failed"
+        r: Result = self.n.local(f"ping {self.ping_flag} {self.n.host}", warn=True)
+        assert r.ok, f"Pinging {self.n.host} failed"
 
+    @pytest.mark.flaky(reruns=5, reruns_delay=5)
     def test_ssh_2(self) -> None:
-        for attempt in Retrying(
-            wait=wait_exponential(), stop=stop_after_delay(30)
-        ):  # type: ignore
-            with attempt:
-                self.n.run("uptime")
+        self.n.run("uptime")
 
+    @pytest.mark.flaky(reruns=5, reruns_delay=5)
     def test_serial_log(self) -> None:
         self.n.get_boot_diagnostics()
