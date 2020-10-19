@@ -32,28 +32,25 @@ appear in your `PATH` before the Windows version, or this error will appear:
 
 ### Install Poetry
 
-This is a temporary workaround! The currently released version of Poetry
-(1.0.10) cannot handle the `azure-identity` package, so we need to install the
-preview version (1.1.0b4).
-
 On Linux (or WSL):
 
 ```bash
-curl -sSL https://raw.githubusercontent.com/python-poetry/poetry/master/get-poetry.py | python3 - --preview --version 1.1.0b4
+curl -sSL https://raw.githubusercontent.com/python-poetry/poetry/master/get-poetry.py | python3 - --preview --version 1.1.3
 source $HOME/.poetry/env
 ```
 
 On Windows (in PowerShell):
 
 ```powershell
-(Invoke-WebRequest -Uri https://raw.githubusercontent.com/python-poetry/poetry/master/get-poetry.py -UseBasicParsing).Content | python - --preview --version 1.1.0b4
+(Invoke-WebRequest -Uri https://raw.githubusercontent.com/python-poetry/poetry/master/get-poetry.py -UseBasicParsing).Content | python - --preview --version 1.1.3
 # the path can be added to system, so it applies to every terminal.
 $env:PATH += ";$env:USERPROFILE\.poetry\bin"
 ```
 
 If you already have Poetry installed, you can update it like:
+
 ```bash
-poetry self update --preview 1.1.0b4
+poetry self update 1.1.3
 ```
 
 ### Install Python packages
