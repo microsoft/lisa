@@ -132,25 +132,25 @@ class PlatformTestCase(TestCase):
         envs = generate_environments()
 
         # verify init as expected
-        self.assertListEqual(["runbook_0", "runbook_1"], [x for x in envs])
+        self.assertListEqual(["customized_0", "customized_1"], [x for x in envs])
         self.assertListEqual([True, True], [x.is_predefined for x in envs.values()])
 
         # verify stable sort
-        envs["runbook_1"].is_predefined = False
+        envs["customized_1"].is_predefined = False
         prepared_environments = platform.prepare_environments(envs)
         self.assertListEqual(
-            ["runbook_0", "runbook_1"], [x.name for x in prepared_environments]
+            ["customized_0", "customized_1"], [x.name for x in prepared_environments]
         )
         self.assertListEqual(
             [True, False], [x.is_predefined for x in prepared_environments]
         )
 
         # verify reverse sort
-        envs["runbook_0"].is_predefined = False
-        envs["runbook_1"].is_predefined = True
+        envs["customized_0"].is_predefined = False
+        envs["customized_1"].is_predefined = True
         prepared_environments = platform.prepare_environments(envs)
         self.assertListEqual(
-            ["runbook_1", "runbook_0"],
+            ["customized_1", "customized_0"],
             [x.name for x in prepared_environments],
         )
         self.assertListEqual(
@@ -162,22 +162,22 @@ class PlatformTestCase(TestCase):
         envs = generate_environments()
         platform.set_test_config()
 
-        self.assertListEqual(["runbook_0", "runbook_1"], [x for x in envs])
+        self.assertListEqual(["customized_0", "customized_1"], [x for x in envs])
         self.assertListEqual([0, 0], [x.cost for x in envs.values()])
 
-        envs["runbook_0"].cost = 1
-        envs["runbook_1"].cost = 2
+        envs["customized_0"].cost = 1
+        envs["customized_1"].cost = 2
         prepared_environments = platform.prepare_environments(envs)
         self.assertListEqual(
-            ["runbook_0", "runbook_1"], [x.name for x in prepared_environments]
+            ["customized_0", "customized_1"], [x.name for x in prepared_environments]
         )
         self.assertListEqual([1, 2], [x.cost for x in prepared_environments])
 
-        envs["runbook_0"].cost = 2
-        envs["runbook_1"].cost = 1
+        envs["customized_0"].cost = 2
+        envs["customized_1"].cost = 1
         prepared_environments = platform.prepare_environments(envs)
         self.assertListEqual(
-            ["runbook_1", "runbook_0"], [x.name for x in prepared_environments]
+            ["customized_1", "customized_0"], [x.name for x in prepared_environments]
         )
         self.assertListEqual([1, 2], [x.cost for x in prepared_environments])
 
