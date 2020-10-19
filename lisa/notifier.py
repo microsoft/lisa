@@ -12,7 +12,7 @@ class MessageBase:
     elapsed: float = 0
 
 
-class Notifier(subclasses.BaseClassWithRunbook, InitializableMixin):
+class Notifier(subclasses.BaseClassWithRunbookMixin, InitializableMixin):
     def __init__(self, runbook: schema.TypedSchema) -> None:
         super().__init__(runbook=runbook)
         self._log = get_logger("notifier", self.__class__.__name__)

@@ -20,7 +20,7 @@ class WaitMoreResourceError(Exception):
     pass
 
 
-class Platform(subclasses.BaseClassWithRunbook, InitializableMixin):
+class Platform(subclasses.BaseClassWithRunbookMixin, InitializableMixin):
     def __init__(self, runbook: schema.Platform) -> None:
         super().__init__(runbook)
         self._log = get_logger("", self.type_name())

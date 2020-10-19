@@ -6,13 +6,13 @@ from lisa.util import InitializableMixin, LisaException
 from lisa.util.logger import get_logger
 
 
-class BaseClass:
+class BaseClassMixin:
     @classmethod
     def type_name(cls) -> str:
         raise NotImplementedError()
 
 
-class BaseClassWithRunbook(BaseClass):
+class BaseClassWithRunbookMixin(BaseClassMixin):
     def __init__(self, runbook: schema.TypedSchema) -> None:
         super().__init__()
         if self.type_schema() != type(runbook):
@@ -28,7 +28,7 @@ class BaseClassWithRunbook(BaseClass):
         raise NotImplementedError()
 
 
-T_BASECLASS = TypeVar("T_BASECLASS", bound=BaseClass)
+T_BASECLASS = TypeVar("T_BASECLASS", bound=BaseClassMixin)
 
 
 if TYPE_CHECKING:
@@ -77,10 +77,10 @@ class Factory(InitializableMixin, Generic[T_BASECLASS], SubClassTypeDict):
             raise LisaException(
                 f"cannot find subclass '{runbook.type}' for runbook {runbook}"
             )
-        sub_type_with_runbook = cast(Type[BaseClassWithRunbook], sub_type)
+        sub_type_with_runbook = cast(Type[BaseClassWithRunbookMixin], sub_type)
         sub_object = sub_type_with_runbook(runbook)
         assert isinstance(
-            sub_object, BaseClassWithRunbook
+            sub_object, BaseClassWithRunbookMixin
         ), f"actual: {type(sub_object)}"
 
         return cast(T_BASECLASS, sub_object)
