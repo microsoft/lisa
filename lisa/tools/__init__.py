@@ -7,7 +7,9 @@ from .lscpu import Lscpu
 from .make import Make
 from .modinfo import Modinfo
 from .ntttcp import Ntttcp
+from .reboot import Reboot
 from .uname import Uname
+from .uptime import Uptime
 
 __all__ = [
     "Cat",
@@ -19,5 +21,7 @@ __all__ = [
     "Make",
     "Modinfo",
     "Ntttcp",
+    "Reboot",
     "Uname",
+    "Uptime",
 ]
