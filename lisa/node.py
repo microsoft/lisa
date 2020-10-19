@@ -8,7 +8,7 @@ from lisa import schema
 from lisa.executable import Tools
 from lisa.feature import Features
 from lisa.operating_system import OperatingSystem
-from lisa.tools import Echo, Uname
+from lisa.tools import Echo, Reboot, Uname
 from lisa.util import (
     ContextMixin,
     InitializableMixin,
@@ -109,6 +109,9 @@ class Node(ContextMixin, InitializableMixin):
         self.shell = SshShell(self._connection_info)
         self.internal_address = address
         self.internal_port = port
+
+    def reboot(self) -> None:
+        self.tools[Reboot].reboot()
 
     def execute(
         self,
