@@ -59,7 +59,6 @@ class Features:
                     f"platform [{self._platform.type_name()}]"
                 )
             feature = registered_feature_type(self._node, self._platform)
-            # not sure why mypy error on this call, have to add type: ignore
             feature.initialize()
             self._cache[feature_type.name()] = feature
 
