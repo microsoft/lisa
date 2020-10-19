@@ -52,7 +52,7 @@
     <SetupConfig>
       <Networking>SRIOV</Networking>
       <SetupType>OneVM</SetupType>
-      <OverrideVMSize>Standard_D8s_v3</OverrideVMSize>
+      <OverrideVMSize>Standard_D16as_v4</OverrideVMSize>
     </SetupConfig>
   </test>
   <test>

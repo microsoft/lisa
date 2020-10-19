@@ -308,21 +308,13 @@ install_package "ethtool"
 
 			# Verify the TX/RX packets keep increasing after waking up
 			$tx_packets_first = Run-LinuxCmd -ip $AllVMData.PublicIP -port $AllVMData.SSHPort -username $user -password $password -command "ethtool -S ${vfname} | grep tx_packets: | awk '{print `$2}'" -runAsSudo
-			$rx_packets_first = Run-LinuxCmd -ip $AllVMData.PublicIP -port $AllVMData.SSHPort -username $user -password $password -command "ethtool -S ${vfname} | grep rx_packets: | awk '{print `$2}'" -runAsSudo
 			Start-Sleep -s 10
 			$tx_packets_second = Run-LinuxCmd -ip $AllVMData.PublicIP -port $AllVMData.SSHPort -username $user -password $password -command "ethtool -S ${vfname} | grep tx_packets: | awk '{print `$2}'" -runAsSudo
-			$rx_packets_second = Run-LinuxCmd -ip $AllVMData.PublicIP -port $AllVMData.SSHPort -username $user -password $password -command "ethtool -S ${vfname} | grep rx_packets: | awk '{print `$2}'" -runAsSudo
 			if ($tx_packets_first -ge $tx_packets_second) {
 				Write-LogErr "First collected TX packets: $tx_packets_first. Second collected TX packets: $tx_packets_second"
 				throw "TX packets stopped increasing after waking up."
 			} else {
 				Write-LogInfo "Successfully verified TX packets increasing"
-			}
-			if ($rx_packets_first -ge $rx_packets_second) {
-				Write-LogErr "First collected RX packets: $rx_packets_first. Second collected RX packets: $rx_packets_second"
-				throw "RX packets stopped increasing after waking up."
-			} else {
-				Write-LogInfo "Successfully verified RX packets increasing"
 			}
 		} else {
 			Write-LogInfo "No VF NIC found. Skip VF verification."
