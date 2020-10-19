@@ -80,17 +80,17 @@ function Run_Testfwd() {
 	# start receiver and fowarder in advance so testpmd comes up easily
 	local fwd_recv_duration=$(expr "${test_duration}" + 5)
 
-	local receiver_testfwd_cmd="$(Create_Timed_Testpmd_Cmd "${fwd_recv_duration}" "${core}" "${receiver_busaddr}" "${receiver_iface}" "${pmd}" rxonly)"
+	local receiver_testfwd_cmd="$(Create_Timed_Testpmd_Cmd "${fwd_recv_duration}" "${core}" "${receiver_busaddr}" "${receiver_iface}" rxonly "${pmd}")"
 	LogMsg "${receiver_testfwd_cmd}"
 	ssh "${receiver}" "${receiver_testfwd_cmd}" 2>&1 > "${LOG_DIR}"/dpdk-testfwd-receiver-"${core}"-core-$(date +"%m%d%Y-%H%M%S").log &
 
-	local forwarder_testfwd_cmd="$(Create_Timed_Testpmd_Cmd "${fwd_recv_duration}" "${core}" "${forwarder_busaddr}" "${forwarder_iface}" "${pmd}" mac)"
+	local forwarder_testfwd_cmd="$(Create_Timed_Testpmd_Cmd "${fwd_recv_duration}" "${core}" "${forwarder_busaddr}" "${forwarder_iface}" mac "${pmd}")"
 	LogMsg "${forwarder_testfwd_cmd}"
 	ssh "${forwarder}" "${forwarder_testfwd_cmd}" 2>&1 > "${LOG_DIR}"/dpdk-testfwd-forwarder-"${core}"-core-$(date +"%m%d%Y-%H%M%S").log &
 
 	sleep 5
 
-	local sender_testfwd_cmd="$(Create_Timed_Testpmd_Cmd "${test_duration}" "${core}" "${sender_busaddr}" "${sender_iface}" "${pmd}" txonly "${trx_rx_ips}")"
+	local sender_testfwd_cmd="$(Create_Timed_Testpmd_Cmd "${test_duration}" "${core}" "${sender_busaddr}" "${sender_iface}" txonly "${pmd}" "${trx_rx_ips}")"
 	LogMsg "${sender_testfwd_cmd}"
 	eval "${sender_testfwd_cmd} 2>&1 > ${LOG_DIR}/dpdk-testfwd-sender-${core}-core-$(date +"%m%d%Y-%H%M%S").log &"
 	sleep "${test_duration}"
