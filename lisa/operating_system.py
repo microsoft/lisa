@@ -1,20 +1,25 @@
 import re
 from functools import partial
-from typing import TYPE_CHECKING, Any, List, Optional, Type, Union
+from typing import TYPE_CHECKING, Any, List, Optional, Pattern, Type, Union
 
 from lisa.executable import Tool
-from lisa.util import LisaException
+from lisa.util import LisaException, get_matched_str
 from lisa.util.logger import get_logger
+from lisa.util.subclasses import BaseClassMixin, Factory
 
 if TYPE_CHECKING:
     from lisa.node import Node
+
 
 _get_init_logger = partial(get_logger, name="os")
 
 
 class OperatingSystem:
     __lsb_release_pattern = re.compile(r"^Description:[ \t]+([\w]+)[ ]+")
-    __os_release_pattern = re.compile(r"^NAME=\"?([\w]+)[^\" ]*\"?", re.M)
+    __os_release_pattern_name = re.compile(r"^NAME=\"?([\w]+)[^\" ]*\"?", re.M)
+    __os_release_pattern_id = re.compile(r"^ID=\"?([\w]+)[^\"\n ]*\"?$", re.M)
+
+    __linux_factory: Optional[Factory[Any]] = None
 
     def __init__(self, node: Any, is_linux: bool) -> None:
         super().__init__()
@@ -27,32 +32,52 @@ class OperatingSystem:
         typed_node: Node = node
         log = _get_init_logger(parent=typed_node.log)
         result: Optional[OperatingSystem] = None
+
         if typed_node.shell.is_linux:
-            lsb_output = typed_node.execute("lsb_release -d")
-            if lsb_output.stdout:
-                os_info = cls.__lsb_release_pattern.findall(lsb_output.stdout)
-                if os_info:
-                    if os_info[0] == "Ubuntu":
-                        result = Ubuntu(typed_node)
-                    elif os_info[0] == "Debian":
-                        result = Debian(typed_node)
-            if not result:
-                os_release_output = typed_node.execute("cat /etc/os-release")
-                if os_release_output.stdout:
-                    os_info = cls.__os_release_pattern.findall(os_release_output.stdout)
-                    if os_info:
-                        if os_info[0] == "CentOS":
-                            result = CentOs(typed_node)
-                        elif os_info[0] == "RHEL":
-                            result = Redhat(typed_node)
-                        elif os_info[0] == "SLES":
-                            result = Suse(typed_node)
-                        elif os_info[0] == "Oracle":
-                            result = Oracle(typed_node)
+            # delay create factory to make sure it's late than loading extensions
+            if cls.__linux_factory is None:
+                cls.__linux_factory = Factory[Linux](Linux)
+                cls.__linux_factory.initialize()
+            # cast type for easy to use
+            linux_factory: Factory[Linux] = cls.__linux_factory
+            lsb_release_output = typed_node.execute("lsb_release -d", no_error_log=True)
+            os_release_output = typed_node.execute(
+                "cat /etc/os-release", no_error_log=True
+            )
+
+            os_infos: List[str] = [
+                x
+                for x in [
+                    get_matched_str(
+                        lsb_release_output.stdout, cls.__lsb_release_pattern
+                    ),
+                    get_matched_str(
+                        os_release_output.stdout, cls.__os_release_pattern_name
+                    ),
+                    get_matched_str(
+                        os_release_output.stdout, cls.__os_release_pattern_id
+                    ),
+                ]
+                if x
+            ]
+            if not os_infos:
+                raise LisaException("cannot find linux os info")
+
+            for os_info_item in os_infos:
+                matched = False
+                for sub_type in linux_factory.values():
+                    linux_type: Type[Linux] = sub_type
+                    pattern = linux_type.name_pattern()
+                    if pattern.findall(os_info_item):
+                        result = linux_type(typed_node)
+                        matched = True
+                        break
+                if matched:
+                    break
+
             if not result:
                 raise LisaException(
-                    f"unknown linux distro {lsb_output.stdout}\n"
-                    f" {os_release_output.stdout}\n"
+                    f"unknown linux distro names '{os_infos}', "
                     f"support it in operating_system"
                 )
         else:
@@ -74,10 +99,18 @@ class Windows(OperatingSystem):
         super().__init__(node, is_linux=False)
 
 
-class Linux(OperatingSystem):
+class Linux(OperatingSystem, BaseClassMixin):
     def __init__(self, node: Any) -> None:
         super().__init__(node, is_linux=True)
         self._first_time_installation: bool = True
+
+    @classmethod
+    def type_name(cls) -> str:
+        return cls.__name__
+
+    @classmethod
+    def name_pattern(cls) -> Pattern[str]:
+        return re.compile(f"^{cls.type_name()}$")
 
     def _install_packages(self, packages: Union[List[str]]) -> None:
         raise NotImplementedError()
@@ -135,7 +168,9 @@ class Redhat(Linux):
 
 
 class CentOs(Redhat):
-    pass
+    @classmethod
+    def name_pattern(cls) -> Pattern[str]:
+        return re.compile("^CentOS$")
 
 
 class Oracle(Redhat):
@@ -143,6 +178,10 @@ class Oracle(Redhat):
 
 
 class Suse(Linux):
+    @classmethod
+    def name_pattern(cls) -> Pattern[str]:
+        return re.compile("^SLES$")
+
     def _initialize_package_installation(self) -> None:
         self._node.execute("zypper --non-interactive --gpg-auto-import-keys update")
 
