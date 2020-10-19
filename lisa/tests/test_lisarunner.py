@@ -63,7 +63,7 @@ class LisaRunnerTestCase(TestCase):
         )
         # 3 cases create 3 envs
         self.assertListEqual(
-            ["req_0", "req_1", "req_2"],
+            ["generated_0", "generated_1", "generated_2"],
             [x for x in envs],
         )
         self.verify_test_results(
@@ -79,7 +79,7 @@ class LisaRunnerTestCase(TestCase):
         env_runbook = generate_env_runbook(remote=True)
         envs = load_environments(env_runbook)
         self.assertListEqual(
-            ["runbook_0"],
+            ["customized_0"],
             [x for x in envs],
         )
 
@@ -91,9 +91,9 @@ class LisaRunnerTestCase(TestCase):
             platform_type=constants.PLATFORM_MOCK,
         )
 
-        # 3 cases created only two req, as simple req meets on runbook_0
+        # 3 cases created only two req, as simple req meets on customized_0
         self.assertListEqual(
-            ["runbook_0", "req_1", "req_2"],
+            ["customized_0", "generated_1", "generated_2"],
             [x for x in envs],
         )
         self.assertListEqual(
@@ -108,7 +108,7 @@ class LisaRunnerTestCase(TestCase):
         env_runbook = generate_env_runbook(remote=True)
         envs = load_environments(env_runbook)
         self.assertListEqual(
-            ["runbook_0"],
+            ["customized_0"],
             [x for x in envs],
         )
         runner = generate_lisarunner(env_runbook)
@@ -122,7 +122,7 @@ class LisaRunnerTestCase(TestCase):
         )
         # every case need a new environment, so created 3
         self.assertListEqual(
-            ["runbook_0", "req_1", "req_2", "req_3"],
+            ["customized_0", "generated_1", "generated_2", "generated_3"],
             [x for x in envs],
         )
         self.verify_test_results(
@@ -215,12 +215,12 @@ class LisaRunnerTestCase(TestCase):
         runner = generate_lisarunner(env_runbook)
         asyncio.run(runner.start())
         self.verify_env_results(
-            expected_prepared=["runbook_0", "req_1", "req_2"],
-            expected_deployed_envs=["runbook_0", "req_1"],
-            expected_deleted_envs=["runbook_0", "req_1"],
+            expected_prepared=["customized_0", "generated_1", "generated_2"],
+            expected_deployed_envs=["customized_0", "generated_1"],
+            expected_deleted_envs=["customized_0", "generated_1"],
         )
         self.verify_test_results(
-            expected_envs=["req_1", "runbook_0", "runbook_0"],
+            expected_envs=["generated_1", "customized_0", "customized_0"],
             expected_status=[TestStatus.PASSED, TestStatus.PASSED, TestStatus.PASSED],
             expected_message=["", "", ""],
             test_results=runner._latest_test_results,
@@ -234,12 +234,17 @@ class LisaRunnerTestCase(TestCase):
         runner = generate_lisarunner(env_runbook)
         asyncio.run(runner.start())
         self.verify_env_results(
-            expected_prepared=["runbook_0", "req_1", "req_2", "req_3"],
-            expected_deployed_envs=["runbook_0"],
-            expected_deleted_envs=["runbook_0"],
+            expected_prepared=[
+                "customized_0",
+                "generated_1",
+                "generated_2",
+                "generated_3",
+            ],
+            expected_deployed_envs=["customized_0"],
+            expected_deleted_envs=["customized_0"],
         )
         self.verify_test_results(
-            expected_envs=["runbook_0", "runbook_0", "runbook_0"],
+            expected_envs=["customized_0", "customized_0", "customized_0"],
             expected_status=[TestStatus.PASSED, TestStatus.PASSED, TestStatus.PASSED],
             expected_message=["", "", ""],
             test_results=runner._latest_test_results,
@@ -253,31 +258,41 @@ class LisaRunnerTestCase(TestCase):
         runner = generate_lisarunner(env_runbook, case_use_new_env=True)
         asyncio.run(runner.start())
         self.verify_env_results(
-            expected_prepared=["runbook_0", "req_1", "req_2", "req_3"],
-            expected_deployed_envs=["runbook_0", "req_1", "req_3"],
-            expected_deleted_envs=["runbook_0", "req_1", "req_3"],
+            expected_prepared=[
+                "customized_0",
+                "generated_1",
+                "generated_2",
+                "generated_3",
+            ],
+            expected_deployed_envs=["customized_0", "generated_1", "generated_3"],
+            expected_deleted_envs=["customized_0", "generated_1", "generated_3"],
         )
         self.verify_test_results(
-            expected_envs=["runbook_0", "req_1", "req_3"],
+            expected_envs=["customized_0", "generated_1", "generated_3"],
             expected_status=[TestStatus.PASSED, TestStatus.PASSED, TestStatus.PASSED],
             expected_message=["", "", ""],
             test_results=runner._latest_test_results,
         )
 
     def test_no_needed_env(self) -> None:
-        # two 1 node env predefined, but only runbook_0 go to deploy
-        # no cases assigned to runbook_1, as fit cases run on runbook_0 already
+        # two 1 node env predefined, but only customized_0 go to deploy
+        # no cases assigned to customized_1, as fit cases run on customized_0 already
         generate_cases_metadata()
         env_runbook = generate_env_runbook(local=True, remote=True)
         runner = generate_lisarunner(env_runbook)
         asyncio.run(runner.start())
         self.verify_env_results(
-            expected_prepared=["runbook_0", "runbook_1", "req_2", "req_3"],
-            expected_deployed_envs=["runbook_0", "req_2"],
-            expected_deleted_envs=["runbook_0", "req_2"],
+            expected_prepared=[
+                "customized_0",
+                "customized_1",
+                "generated_2",
+                "generated_3",
+            ],
+            expected_deployed_envs=["customized_0", "generated_2"],
+            expected_deleted_envs=["customized_0", "generated_2"],
         )
         self.verify_test_results(
-            expected_envs=["req_2", "runbook_0", "runbook_0"],
+            expected_envs=["generated_2", "customized_0", "customized_0"],
             expected_status=[TestStatus.PASSED, TestStatus.PASSED, TestStatus.PASSED],
             expected_message=["", "", ""],
             test_results=runner._latest_test_results,
@@ -294,7 +309,12 @@ class LisaRunnerTestCase(TestCase):
         asyncio.run(runner.start())
 
         self.verify_env_results(
-            expected_prepared=["runbook_0", "req_1", "req_2", "req_3"],
+            expected_prepared=[
+                "customized_0",
+                "generated_1",
+                "generated_2",
+                "generated_3",
+            ],
             expected_deployed_envs=[],
             expected_deleted_envs=[],
         )
@@ -322,13 +342,18 @@ class LisaRunnerTestCase(TestCase):
         runner = generate_lisarunner(env_runbook)
         asyncio.run(runner.start())
         self.verify_env_results(
-            expected_prepared=["runbook_0", "req_1", "req_2", "req_3"],
-            expected_deployed_envs=["runbook_0"],
-            expected_deleted_envs=["runbook_0"],
+            expected_prepared=[
+                "customized_0",
+                "generated_1",
+                "generated_2",
+                "generated_3",
+            ],
+            expected_deployed_envs=["customized_0"],
+            expected_deleted_envs=["customized_0"],
         )
         before_suite_failed = "before_suite: failed"
         self.verify_test_results(
-            expected_envs=["runbook_0", "runbook_0", "runbook_0"],
+            expected_envs=["customized_0", "customized_0", "customized_0"],
             expected_status=[
                 TestStatus.SKIPPED,
                 TestStatus.SKIPPED,
@@ -346,7 +371,12 @@ class LisaRunnerTestCase(TestCase):
         runner = generate_lisarunner(env_runbook)
         asyncio.run(runner.start())
         self.verify_env_results(
-            expected_prepared=["runbook_0", "req_1", "req_2", "req_3"],
+            expected_prepared=[
+                "customized_0",
+                "generated_1",
+                "generated_2",
+                "generated_3",
+            ],
             expected_deployed_envs=[],
             expected_deleted_envs=[],
         )
@@ -371,8 +401,18 @@ class LisaRunnerTestCase(TestCase):
         runner = generate_lisarunner(env_runbook)
         asyncio.run(runner.start())
         self.verify_env_results(
-            expected_prepared=["runbook_0", "req_1", "req_2", "req_3"],
-            expected_deployed_envs=["runbook_0", "req_1", "req_2", "req_3"],
+            expected_prepared=[
+                "customized_0",
+                "generated_1",
+                "generated_2",
+                "generated_3",
+            ],
+            expected_deployed_envs=[
+                "customized_0",
+                "generated_1",
+                "generated_2",
+                "generated_3",
+            ],
             expected_deleted_envs=[],
         )
         no_avaiable_env = "no available environment"
@@ -395,7 +435,7 @@ class LisaRunnerTestCase(TestCase):
         asyncio.run(runner.start())
         # still prepare predefined, but not deploy
         self.verify_env_results(
-            expected_prepared=["runbook_0"],
+            expected_prepared=["customized_0"],
             expected_deployed_envs=[],
             expected_deleted_envs=[],
         )
