@@ -48,7 +48,9 @@ function Main() {
 	done
 	LogMsg "Generated the keys.txt file for fdisk commanding"
 
-	cat keys.txt | fdisk /dev/sdc
+	# Get the latest device name which should be the new attached data disk
+	data_dev=$(ls /dev/sd*[a-z] | sort -r | head -1)
+	cat keys.txt | fdisk ${data_dev}
 	LogMsg "$?: Executed fdisk command"
 	# Need to wait for system complete the swap disk update.
 	LogMsg "Waiting 10 seconds for swap disk update"
@@ -56,10 +58,10 @@ function Main() {
 	ret=$(ls /dev/sd*)
 	LogMsg "$?: List out /dev/sd* - $ret"
 
-	mkswap /dev/sdc1
+	mkswap ${data_dev}1
 	LogMsg "$?: Set up the swap space"
 
-	swapon /dev/sdc1
+	swapon ${data_dev}1
 	LogMsg "$?: Enabled the swap space"
 	# Wait 2 seconds for swap disk enabling
 	sleep 2
