@@ -33,7 +33,7 @@
       <param>mvapich_mpi=MVAPICH_MPI_DOWNLOAD</param>
       <param>intel_mpi_benchmark=INTEL_MPI_BENCHMARK_DOWNLOAD</param>
       <param>walaagent_repo=WALAAgent_REPO</param>
-      <param>quicktest_only=QUICKTEST_ONLY</param>
+      <param>quicktest_only=no</param>
       <param>is_nd=no</param>
     </TestParameters>
     <Platform>Azure</Platform>
@@ -78,7 +78,7 @@
       <param>mvapich_mpi=MVAPICH_MPI_DOWNLOAD</param>
       <param>intel_mpi_benchmark=INTEL_MPI_BENCHMARK_DOWNLOAD</param>
       <param>walaagent_repo=WALAAgent_REPO</param>
-      <param>quicktest_only=QUICKTEST_ONLY</param>
+      <param>quicktest_only=no</param>
       <param>is_nd=no</param>
     </TestParameters>
     <Platform>Azure</Platform>
@@ -124,7 +124,7 @@
       <param>mvapich_mpi=MVAPICH_MPI_DOWNLOAD</param>
       <param>intel_mpi_benchmark=INTEL_MPI_BENCHMARK_DOWNLOAD</param>
       <param>walaagent_repo=WALAAgent_REPO</param>
-      <param>quicktest_only=QUICKTEST_ONLY</param>
+      <param>quicktest_only=no</param>
       <param>is_nd=no</param>
     </TestParameters>
     <Platform>Azure</Platform>
@@ -169,7 +169,7 @@
       <param>mvapich_mpi=MVAPICH_MPI_DOWNLOAD</param>
       <param>intel_mpi_benchmark=INTEL_MPI_BENCHMARK_DOWNLOAD</param>
       <param>walaagent_repo=WALAAgent_REPO</param>
-      <param>quicktest_only=QUICKTEST_ONLY</param>
+      <param>quicktest_only=no</param>
       <param>is_nd=no</param>
     </TestParameters>
     <Platform>Azure</Platform>
@@ -215,7 +215,7 @@
 			<param>hpcx_mpi_inbox=HPCX_PARTIAL_LINK_INBOX</param>
 			<param>intel_mpi_benchmark=INTEL_MPI_BENCHMARK_DOWNLOAD</param>
 			<param>walaagent_repo=WALAAgent_REPO</param>
-			<param>quicktest_only=QUICKTEST_ONLY</param>
+			<param>quicktest_only=no</param>
 		</TestParameters>
 		<Platform>Azure</Platform>
 		<Category>Functional</Category>
@@ -255,7 +255,7 @@
 			<param>hpcx_mpi_inbox=HPCX_PARTIAL_LINK_INBOX</param>
 			<param>intel_mpi_benchmark=INTEL_MPI_BENCHMARK_DOWNLOAD</param>
 			<param>walaagent_repo=WALAAgent_REPO</param>
-			<param>quicktest_only=QUICKTEST_ONLY</param>
+			<param>quicktest_only=no</param>
 		</TestParameters>
 		<Platform>Azure</Platform>
 		<Category>Functional</Category>
@@ -296,7 +296,7 @@
       <param>mvapich_mpi=MVAPICH_MPI_DOWNLOAD</param>
       <param>intel_mpi_benchmark=INTEL_MPI_BENCHMARK_DOWNLOAD</param>
       <param>walaagent_repo=WALAAgent_REPO</param>
-      <param>quicktest_only=QUICKTEST_ONLY</param>
+      <param>quicktest_only=no</param>
       <param>is_nd=no</param>
     </TestParameters>
     <Platform>Azure</Platform>
@@ -341,7 +341,7 @@
       <param>mvapich_mpi=MVAPICH_MPI_DOWNLOAD</param>
       <param>intel_mpi_benchmark=INTEL_MPI_BENCHMARK_DOWNLOAD</param>
       <param>walaagent_repo=WALAAgent_REPO</param>
-      <param>quicktest_only=QUICKTEST_ONLY</param>
+      <param>quicktest_only=no</param>
       <param>is_nd=no</param>
     </TestParameters>
     <Platform>Azure</Platform>
@@ -387,7 +387,7 @@
       <param>mvapich_mpi=MVAPICH_MPI_DOWNLOAD</param>
       <param>intel_mpi_benchmark=INTEL_MPI_BENCHMARK_DOWNLOAD</param>
       <param>walaagent_repo=WALAAgent_REPO</param>
-      <param>quicktest_only=QUICKTEST_ONLY</param>
+      <param>quicktest_only=no</param>
       <param>is_nd=no</param>
     </TestParameters>
     <Platform>Azure</Platform>
@@ -432,7 +432,7 @@
       <param>mvapich_mpi=MVAPICH_MPI_DOWNLOAD</param>
       <param>intel_mpi_benchmark=INTEL_MPI_BENCHMARK_DOWNLOAD</param>
       <param>walaagent_repo=WALAAgent_REPO</param>
-      <param>quicktest_only=QUICKTEST_ONLY</param>
+      <param>quicktest_only=no</param>
       <param>is_nd=no</param>
     </TestParameters>
     <Platform>Azure</Platform>
