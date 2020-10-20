@@ -119,6 +119,8 @@ However, this is only one approach, and we may prefer to run the Python code on
 the user’s machine, with pytest-lisa instead providing the previously mentioned
 node fixtures, default marks, and requirements logic.
 
+Note that pytest-dist can still be useful for locally running tests in parallel.
+
 ### Paramiko instead of Fabric
 
 The Paramiko library is less complex (smaller library footprint) than Fabric, as
@@ -171,7 +173,7 @@ However, the data returned by Paramiko is in bytes, which in Python 3 are not
 equivalent to strings, hence the existing implementation which uses `BytesIO`
 and decodes the bytes to a string.
 
-### pytest-rerunfailures instead of Tenacity
+### Tenacity instead of pytest-rerunfailures
 
 Due to an open
 [bug](https://github.com/pytest-dev/pytest-rerunfailures/issues/51) this popular
@@ -181,3 +183,15 @@ the last test is marked as flaky and is rerun, the class fixture is unexpectedly
 torn down and then the test is rerun. That is, the rerun happens too late, and
 the test is then performed against a new `Node`. So while slightly more verbose,
 we’re back to using [Tenacity](https://github.com/jd/tenacity).
+
+### Function per test instead of class
+
+An option I explored to make an “executive summary” of the smoke test was to use
+a class where each functionality was tested as individual function (meaning they
+could fail independently without failing the whole smoke test), accompanied by a
+class-scoped node fixture. This had its advantages, however, it was difficult to
+parameterize and also overly verbose. We should instead keep each test as Pytest
+intends: as a function. This allows the fixtures to be written in a simpler
+manner (not rely on caching between functions) and allows parameterization using
+the built-in decorator
+[`@pytest.mark.parametrize`](https://docs.pytest.org/en/stable/parametrize.html).
