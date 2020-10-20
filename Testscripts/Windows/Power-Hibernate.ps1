@@ -269,6 +269,7 @@ install_package "ethtool"
 				Write-LogErr "Found Call Trace or Fatal error in dmesg"
 				# The throw statement is commented out because this is linux-next, so there is high chance to get call trace from other issue. For now, only print the error.
 				# throw "Call trace in dmesg"
+				Write-LogDbg $calltrace_filter
 			} else {
 				Write-LogInfo "Not found Call Trace and Fatal error in dmesg"
 			}
@@ -289,6 +290,7 @@ install_package "ethtool"
 		# Getting queue counts and interrupt counts after resuming.
 		$vfname = Run-LinuxCmd -ip $AllVMData.PublicIP -port $AllVMData.SSHPort -username $user -password $password -command "bash /home/$user/getvf.sh" -runAsSudo
 		if ($vfname -ne '') {
+			Write-LogDbg "Found VF NIC $vfname. Continue VF verification"
 			$tx_queue_count2 = Run-LinuxCmd -ip $AllVMData.PublicIP -port $AllVMData.SSHPort -username $user -password $password -command "ethtool -l ${vfname} | grep -i tx | tail -n 1 | cut -d ':' -f 2 | tr -d '[:space:]'" -runAsSudo
 			$interrupt_count2 = Run-LinuxCmd -ip $AllVMData.PublicIP -port $AllVMData.SSHPort -username $user -password $password -command "cat /proc/interrupts | grep -i mlx | grep -i msi | wc -l" -runAsSudo
 
