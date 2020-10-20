@@ -51,13 +51,20 @@ UpdateTestState()
 RunFIO()
 {
 	UpdateTestState $ICA_TESTRUNNING
+	if [ $type == "disk" ]; then
+		mdVolume="/dev/sdc"
+	fi
 	FILEIO="--size=${fileSize} --direct=1 --ioengine=libaio --filename=${mdVolume} --overwrite=1 "
 	if [ -n "${NVME}" ]; then
 		FILEIO="--direct=1 --ioengine=libaio --filename=${nvme_namespaces} --gtod_reduce=1"
 	fi
 	iteration=0
 	io_increment=128
-	NUM_JOBS=(1 1 2 2 4 4 8 8 8 8 8 8)
+	if [ $type == "disk" ]; then
+		NUM_JOBS=(1 1 2 2 4 4)
+	else
+		NUM_JOBS=(1 1 2 2 4 4 8 8 8 8 8 8)
+	fi
 
 	# Log Config
 	mkdir $HOMEDIR/FIOLog/jsonLog

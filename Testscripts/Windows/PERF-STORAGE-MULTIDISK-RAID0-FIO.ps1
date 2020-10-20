@@ -235,11 +235,16 @@ function Main {
 
         Write-LogInfo "Monitoring test run..."
         $FioStuckCounter = 0
-        $MaxFioStuckAttempts = 10
+        if ($CurrentTestData.TestParameters.param.Contains("type=disk")) {
+            $MaxFioStuckAttempts = 30
+        } else {
+            $MaxFioStuckAttempts = 10
+        }
+
         while ((Get-Job -Id $testJob).State -eq "Running") {
             $currentStatus = Run-LinuxCmd -ip $allVMData.PublicIP -port $allVMData.SSHPort `
                 -username "root" -password $password -command "tail -1 fioConsoleLogs.txt" `
-                -runAsSudo
+                -runAsSudo -runMaxAllowedTime 6000
             Write-LogInfo "Current Test Status: $currentStatus"
             if ($currentStatus -imatch "Doing forceful exit of this job") {
                 $FioStuckCounter++
@@ -250,7 +255,7 @@ function Main {
                 $FioStuckCounter = 0
             }
 
-            Wait-Time -seconds 20
+            Wait-Time -seconds 30
         }
 
         Write-LogInfo "Checking test run status..."

@@ -2226,7 +2226,7 @@ function install_epel () {
 					epel_rpm_url="https://dl.fedoraproject.org/pub/epel/epel-release-latest-6.noarch.rpm"
 				elif [[ $DISTRO_VERSION =~ ^7\. ]]; then
 					epel_rpm_url="https://dl.fedoraproject.org/pub/epel/epel-release-latest-7.noarch.rpm"
-				elif [[ $DISTRO_VERSION =~ ^8\. ]]; then
+				elif [[ $DISTRO_VERSION == "8.0" ]]; then
 					epel_rpm_url="https://dl.fedoraproject.org/pub/epel/epel-release-latest-8.noarch.rpm"
 				else
 					LogErr "Unsupported version to install epel repository"
@@ -2368,6 +2368,7 @@ function install_fio () {
 
 		sles|sle_hpc)
 			if [[ $DISTRO_VERSION =~ 12|15* ]]; then
+				zypper refresh
 				add_sles_benchmark_repo
 				zypper --no-gpg-checks --non-interactive --gpg-auto-import-keys install wget mdadm blktrace libaio1 sysstat bc
 				zypper --no-gpg-checks --non-interactive --gpg-auto-import-keys install fio
@@ -2378,15 +2379,16 @@ function install_fio () {
 			# FIO is not available in the repository of SLES 15
 			which fio
 			if [ $? -ne 0 ]; then
-				LogMsg "Info: fio is not available in repository. So, Installing fio using rpm"
-				fio_url="$PACKAGE_BLOB_LOCATION/fio-sles-x86_64.rpm"
-				fio_file="fio-sles-x86_64.rpm"
-				curl -o $fio_file $fio_url
-				LogMsg "zypper --no-gpg-checks --non-interactive --gpg-auto-import-keys install $fio_file"
-				zypper --no-gpg-checks --non-interactive --gpg-auto-import-keys install $fio_file
+				LogMsg "fio is not installed\n Build it from source code now..."
+				fio_version="3.13"
+				wget https://github.com/axboe/fio/archive/fio-${fio_version}.tar.gz
+				tar xvf fio-${fio_version}.tar.gz
+				pushd fio-fio-${fio_version} && ./configure && make && make install
+				popd
+				yes | cp -f /usr/local/bin/fio /bin/
 				which fio
 				if [ $? -ne 0 ]; then
-					LogErr "Error: Unable to install fio from source/rpm"
+					LogErr "Error: Unable to install fio from zypper repo"
 					return 1
 				fi
 			else
