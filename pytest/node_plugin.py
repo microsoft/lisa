@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import json
 import logging
+import platform
 import typing
 from io import BytesIO
 from uuid import uuid4
@@ -12,7 +13,7 @@ import invoke  # type: ignore
 from fabric import Connection
 from invoke import Context
 from invoke.runners import Result  # type: ignore
-from tenacity import retry, stop_after_attempt, wait_exponential  # type: ignore
+from tenacity import retry, stop_after_delay, wait_exponential  # type: ignore
 
 import pytest
 
@@ -158,12 +159,17 @@ class Node(Connection):
         """This patches Fabric's 'local()' function to ignore SSH environment."""
         return super(Connection, self).run(replace_env=False, env={}, *args, **kwargs)
 
-    @retry(wait=wait_exponential(), stop=stop_after_attempt(5))
+    @retry(wait=wait_exponential(), stop=stop_after_delay(60))
     def get_boot_diagnostics(self) -> Result:
         """Gets the serial console logs."""
         return self.local(
             f"az vm boot-diagnostics get-boot-log -n {self.name} -g {self.name}-rg"
         )
+
+    @retry(wait=wait_exponential(), stop=stop_after_delay(30))
+    def ping(self, **kwargs: Any) -> Result:
+        flag = "-c 1" if platform.system() == "Linux" else "-n 1"
+        return self.local(f"ping {flag} {self.host}", **kwargs)
 
     def platform_restart(self) -> Result:
         """TODO: Should this '--force' and redeploy?"""
