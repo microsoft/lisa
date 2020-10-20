@@ -308,7 +308,7 @@ install_package "ethtool"
 
 			# Verify the TX/RX packets keep increasing after waking up
 			$tx_packets_first = Run-LinuxCmd -ip $AllVMData.PublicIP -port $AllVMData.SSHPort -username $user -password $password -command "ethtool -S ${vfname} | grep tx_packets: | awk '{print `$2}'" -runAsSudo
-			Start-Sleep -s 10
+			Run-LinuxCmd -ip $AllVMData.PublicIP -port $AllVMData.SSHPort -username $user -password $password -command "wget --timeout=10 http://www.google.com" -ignoreLinuxExitCode:$true
 			$tx_packets_second = Run-LinuxCmd -ip $AllVMData.PublicIP -port $AllVMData.SSHPort -username $user -password $password -command "ethtool -S ${vfname} | grep tx_packets: | awk '{print `$2}'" -runAsSudo
 			if ($tx_packets_first -ge $tx_packets_second) {
 				Write-LogErr "First collected TX packets: $tx_packets_first. Second collected TX packets: $tx_packets_second"
