@@ -269,6 +269,7 @@ install_package "ethtool"
 				Write-LogErr "Found Call Trace or Fatal error in dmesg"
 				# The throw statement is commented out because this is linux-next, so there is high chance to get call trace from other issue. For now, only print the error.
 				# throw "Call trace in dmesg"
+				Write-LogDbg $calltrace_filter
 			} else {
 				Write-LogInfo "Not found Call Trace and Fatal error in dmesg"
 			}
@@ -289,6 +290,7 @@ install_package "ethtool"
 		# Getting queue counts and interrupt counts after resuming.
 		$vfname = Run-LinuxCmd -ip $AllVMData.PublicIP -port $AllVMData.SSHPort -username $user -password $password -command "bash /home/$user/getvf.sh" -runAsSudo
 		if ($vfname -ne '') {
+			Write-LogDbg "Found VF NIC $vfname. Continue VF verification"
 			$tx_queue_count2 = Run-LinuxCmd -ip $AllVMData.PublicIP -port $AllVMData.SSHPort -username $user -password $password -command "ethtool -l ${vfname} | grep -i tx | tail -n 1 | cut -d ':' -f 2 | tr -d '[:space:]'" -runAsSudo
 			$interrupt_count2 = Run-LinuxCmd -ip $AllVMData.PublicIP -port $AllVMData.SSHPort -username $user -password $password -command "cat /proc/interrupts | grep -i mlx | grep -i msi | wc -l" -runAsSudo
 
@@ -308,21 +310,13 @@ install_package "ethtool"
 
 			# Verify the TX/RX packets keep increasing after waking up
 			$tx_packets_first = Run-LinuxCmd -ip $AllVMData.PublicIP -port $AllVMData.SSHPort -username $user -password $password -command "ethtool -S ${vfname} | grep tx_packets: | awk '{print `$2}'" -runAsSudo
-			$rx_packets_first = Run-LinuxCmd -ip $AllVMData.PublicIP -port $AllVMData.SSHPort -username $user -password $password -command "ethtool -S ${vfname} | grep rx_packets: | awk '{print `$2}'" -runAsSudo
-			Start-Sleep -s 10
+			Run-LinuxCmd -ip $AllVMData.PublicIP -port $AllVMData.SSHPort -username $user -password $password -command "wget --timeout=10 http://www.google.com" -ignoreLinuxExitCode:$true
 			$tx_packets_second = Run-LinuxCmd -ip $AllVMData.PublicIP -port $AllVMData.SSHPort -username $user -password $password -command "ethtool -S ${vfname} | grep tx_packets: | awk '{print `$2}'" -runAsSudo
-			$rx_packets_second = Run-LinuxCmd -ip $AllVMData.PublicIP -port $AllVMData.SSHPort -username $user -password $password -command "ethtool -S ${vfname} | grep rx_packets: | awk '{print `$2}'" -runAsSudo
 			if ($tx_packets_first -ge $tx_packets_second) {
 				Write-LogErr "First collected TX packets: $tx_packets_first. Second collected TX packets: $tx_packets_second"
 				throw "TX packets stopped increasing after waking up."
 			} else {
 				Write-LogInfo "Successfully verified TX packets increasing"
-			}
-			if ($rx_packets_first -ge $rx_packets_second) {
-				Write-LogErr "First collected RX packets: $rx_packets_first. Second collected RX packets: $rx_packets_second"
-				throw "RX packets stopped increasing after waking up."
-			} else {
-				Write-LogInfo "Successfully verified RX packets increasing"
 			}
 		} else {
 			Write-LogInfo "No VF NIC found. Skip VF verification."
