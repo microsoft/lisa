@@ -46,7 +46,7 @@ def test_smoke(urn: str, node: Node) -> None:
 
     try:
         logging.info("SSHing before reboot...")
-        ssh1: Result = node.run("uptime", warn=True)
+        node.open()
     except ssh_errors as e:
         logging.warning(f"SSH before reboot failed: '{e}'")
 
@@ -66,7 +66,7 @@ def test_smoke(urn: str, node: Node) -> None:
 
     try:
         logging.info("SSHing after reboot...")
-        ssh2: Result = node.run("uptime", warn=True)
+        node.open()
     except ssh_errors as e:
         logging.warning(f"SSH after reboot failed: '{e}'")
 
@@ -74,8 +74,4 @@ def test_smoke(urn: str, node: Node) -> None:
     node.get_boot_diagnostics()
 
     assert ping1.ok, f"Pinging {node.host} before reboot failed"
-    if not ssh1.ok:
-        logging.warning(f"SSH command '{ssh1.command}' before reboot failed")
     assert ping2.ok, f"Pinging {node.host} after reboot failed"
-    if not ssh2.ok:
-        logging.warning(f"SSH command '{ssh2.command}' after reboot failed")
