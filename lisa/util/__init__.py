@@ -105,3 +105,13 @@ def find_patterns_in_lines(lines: str, patterns: List[Pattern[str]]) -> List[Lis
             if not results[index]:
                 results[index] = pattern.findall(line)
     return results
+
+
+def get_matched_str(content: str, pattern: Pattern[str]) -> str:
+    result: str = ""
+    if content:
+        matched_item = pattern.findall(content)
+        if matched_item:
+            # if something matched, it's like ['matched']
+            result = matched_item[0]
+    return result
