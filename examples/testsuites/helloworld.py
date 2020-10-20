@@ -1,3 +1,5 @@
+import asserts
+
 from lisa import TestCaseMetadata, TestSuite, TestSuiteMetadata
 from lisa.operating_system import Linux
 from lisa.tools import Echo, Uname
@@ -39,9 +41,9 @@ class HelloWorld(TestSuite):
         echo = node.tools[Echo]
         hello_world = "hello world!"
         result = echo.run(hello_world)
-        self.assertEqual(hello_world, result.stdout)
-        self.assertEqual("", result.stderr)
-        self.assertEqual(0, result.exit_code)
+        asserts.assert_equal(hello_world, result.stdout)
+        asserts.assert_equal("", result.stderr)
+        asserts.assert_equal(0, result.exit_code)
 
     @TestCaseMetadata(
         description="""
@@ -53,7 +55,7 @@ class HelloWorld(TestSuite):
         node = self.environment.default_node
         # use it once like this way before use short cut
         node.tools[Echo]
-        self.assertEqual("bye!", str(node.tools.echo("bye!")))
+        asserts.assert_equal("bye!", str(node.tools.echo("bye!")))
 
     def before_suite(self) -> None:
         self.log.info("setup my test suite")

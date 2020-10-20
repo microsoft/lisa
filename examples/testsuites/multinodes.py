@@ -1,3 +1,5 @@
+import asserts
+
 from lisa import TestCaseMetadata, TestSuite, TestSuiteMetadata
 from lisa.testsuite import simple_requirement
 from lisa.tools import Lscpu, Ntttcp
@@ -47,12 +49,12 @@ class MutipleNodesDemo(TestSuite):
             f"-s {server_node.internal_address} -P 1 -n 1 -t 5 -W 1", no_info_log=False
         )
         server_result = server_process.wait_result(timeout=10)
-        self.assertEqual(
+        asserts.assert_equal(
             0,
             client_result.exit_code,
             f"client exit code [{client_result.exit_code}] should be 0.",
         )
-        self.assertEqual(
+        asserts.assert_equal(
             0,
             server_result.exit_code,
             f"server exit code [{server_result.exit_code}] should be 0.",
