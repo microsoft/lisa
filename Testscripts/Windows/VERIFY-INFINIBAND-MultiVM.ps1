@@ -472,12 +472,14 @@ function Main {
 					if ($ImbRmaTestIterations -ge 1) {
 						$logFileName = "$LogDir\InfiniBand-Verification-$Iteration-$TempName\TestExecution.log"
 						$pattern = "INFINIBAND_VERIFICATION_SUCCESS_IMB_RMA_ALLNODES"
+						$patternSkipped = "INFINIBAND_VERIFICATION_SKIPPED_IMB_RMA_ALLNODES"
 						Write-LogInfo "Analyzing $logFileName"
 						$metaData = "InfiniBand-Verification-$Iteration-$TempName : IMB-RMA"
 						$SuccessLogs = Select-String -Path $logFileName -Pattern $pattern
+						$SkippedLogs = Select-String -Path $logFileName -Pattern $patternSkipped
 						if ($SuccessLogs.Count -eq 1) {
 							$currentResult = $resultPass
-						} elseif ($QuickTestOnly -eq "yes") {
+						} elseif (($SkippedLogs.Count -eq 1) -or ($QuickTestOnly -eq "yes")) {
 							$currentResult = "SKIPPED"
 						} else {
 							$currentResult = $resultFail
@@ -492,12 +494,14 @@ function Main {
 					if ($ImbNbcTestIterations -ge 1) {
 						$logFileName = "$LogDir\InfiniBand-Verification-$Iteration-$TempName\TestExecution.log"
 						$pattern = "INFINIBAND_VERIFICATION_SUCCESS_IMB_NBC_ALLNODES"
+						$patternSkipped = "INFINIBAND_VERIFICATION_SKIPPED_IMB_NBC_ALLNODES"
 						Write-LogInfo "Analyzing $logFileName"
 						$metaData = "InfiniBand-Verification-$Iteration-$TempName : IMB-NBC"
 						$SuccessLogs = Select-String -Path $logFileName -Pattern $pattern
+						$SkippedLogs = Select-String -Path $logFileName -Pattern $patternSkipped
 						if ($SuccessLogs.Count -eq 1) {
 							$currentResult = $resultPass
-						} elseif ($QuickTestOnly -eq "yes") {
+						} elseif (($SkippedLogs.Count -eq 1) -or ($QuickTestOnly -eq "yes")) {
 							$currentResult = "SKIPPED"
 						} else {
 							$currentResult = $resultFail
@@ -514,11 +518,14 @@ function Main {
 						$pattern = "INFINIBAND_VERIFICATION_SUCCESS_OMB_P2P_ALLNODES"
 						Write-LogInfo "Analyzing $logFileName"
 						$metaData = "InfiniBand-Verification-$Iteration-$TempName : OMB-P2P"
-						$SucessLogs = Select-String -Path $logFileName -Pattern $pattern
-						if($SucessLogs.Count -eq 1) {
-								$currentResult = $resultPass
+						$SuccessLogs = Select-String -Path $logFileName -Pattern $pattern
+						$SkippedLogs = Select-String -Path $logFileName -Pattern $patternSkipped
+						if ($SuccessLogs.Count -eq 1) {
+							$currentResult = $resultPass
+						} elseif (($SkippedLogs.Count -eq 1) -or ($QuickTestOnly -eq "yes")) {
+							$currentResult = "SKIPPED"
 						} else {
-								$currentResult = $resultFail
+							$currentResult = $resultFail
 						}
 						Write-LogInfo "$pattern : $currentResult"
 						$CurrentTestResult.TestSummary += New-ResultSummary -testResult $currentResult -metaData $metaData `
