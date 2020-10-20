@@ -120,6 +120,12 @@ def deploy_vm(
     )
 
     local.run(f"az group create -n {name}-rg --location {location}")
+    # TODO: Accept EULA terms when necessary. Like:
+    #
+    # local.run(f"az vm image terms accept --urn {vm_image}")
+    #
+    # However, this command fails unless the terms exist and have yet
+    # to be accepted.
 
     vm_command = [
         "az vm create",
@@ -166,7 +172,7 @@ class Node(Connection):
             f"az vm boot-diagnostics get-boot-log -n {self.name} -g {self.name}-rg"
         )
 
-    @retry(wait=wait_exponential(), stop=stop_after_delay(30))
+    @retry(wait=wait_exponential(), stop=stop_after_delay(60))
     def ping(self, **kwargs: Any) -> Result:
         flag = "-c 1" if platform.system() == "Linux" else "-n 1"
         return self.local(f"ping {flag} {self.host}", **kwargs)
@@ -199,6 +205,7 @@ def node(request: FixtureRequest) -> Iterator[Node]:
         delete_vm(name)
 
 
+# TODO: Delete this and resurrect at a later date if we need it again.
 @pytest.fixture(scope="class")
 def class_node(request: FixtureRequest) -> Iterator[None]:
     key, name, host, data, fabric_config = get_node(request)
@@ -278,4 +285,5 @@ def get_node(
         "PATH": "/sbin:/usr/sbin:/usr/local/sbin:/bin:/usr/bin:/usr/local/bin"
     }
     fabric_config = fabric.Config(overrides=ssh_config)
+    logging.info(f"Using VM at: '{host}'")
     return key, name, host, data, fabric_config
