@@ -62,12 +62,12 @@ function Main {
 		Write-LogInfo "Analyzing $logFileName"
 		$metaData = "InfiniBand-Verification-$Iteration-$TempName : $Tag"
 		$SuccessLogs = Select-String -Path $logFileName -Pattern $Pattern
-		if ( $SkippedPattern != $null ) {
+		if ( $null -ne $SkippedPattern ) {
 			$SkippedLogs = Select-String -Path $logFileName -Pattern $SkippedPattern
 		}
 		if ($SuccessLogs.Count -eq 1) {
 			$currentResult = $resultPass
-		} elseif (($SkippedLogs.Count -eq 1) -or ($QuickTestOnly -eq "yes")) {
+		} elseif (($SkippedLogs.Count -eq 1) -or ($global:QuickTestOnly -eq "yes")) {
 			$currentResult = $resultSkipped
 		} else {
 			$currentResult = $resultFail
