@@ -1,5 +1,5 @@
 from pathlib import Path
-from typing import Any, Dict, Iterable, List, Type, TypeVar
+from typing import Any, Dict, Iterable, List, Pattern, Type, TypeVar
 
 T = TypeVar("T")
 
@@ -96,3 +96,13 @@ def set_filtered_fields(src: Any, dest: Any, fields: List[str]) -> None:
             raise LisaException(f"field {field_name} doesn't exist on src")
         if field_value is not None:
             setattr(dest, field_name, field_value)
+
+
+def get_matched_str(content: str, pattern: Pattern[str]) -> str:
+    result: str = ""
+    if content:
+        matched_item = pattern.findall(content)
+        if matched_item:
+            # if something matched, it's like ['matched']
+            result = matched_item[0]
+    return result
