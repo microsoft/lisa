@@ -518,7 +518,7 @@ function Main {
 						$pattern = "INFINIBAND_VERIFICATION_SUCCESS_OMB_P2P_ALLNODES"
 						Write-LogInfo "Analyzing $logFileName"
 						$metaData = "InfiniBand-Verification-$Iteration-$TempName : OMB-P2P"
-						$SucessLogs = Select-String -Path $logFileName -Pattern $pattern
+						$SuccessLogs = Select-String -Path $logFileName -Pattern $pattern
 						$SkippedLogs = Select-String -Path $logFileName -Pattern $patternSkipped
 						if ($SuccessLogs.Count -eq 1) {
 							$currentResult = $resultPass
