@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import unittest
 from abc import ABCMeta
 from dataclasses import dataclass
 from enum import Enum
@@ -257,7 +256,7 @@ class TestCaseRuntimeData:
         return cloned
 
 
-class TestSuite(unittest.TestCase, Action, metaclass=ABCMeta):
+class TestSuite(Action, metaclass=ABCMeta):
     def __init__(
         self,
         environment: Environment,

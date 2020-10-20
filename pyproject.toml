@@ -19,6 +19,7 @@ azure-identity = {version = "^1.4.0", allow-prereleases = true}
 azure-mgmt-resource = {version = "^15.0.0-beta.1", allow-prereleases = true}
 azure-mgmt-compute = {version = "^17.0.0-beta.1", allow-prereleases = true}
 azure-mgmt-network = {version = "^16.0.0-beta.1", allow-prereleases = true}
+asserts = "^0.11.0"
 
 [tool.poetry.dev-dependencies]
 black = "^20.8b1"
