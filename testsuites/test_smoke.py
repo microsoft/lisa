@@ -1,19 +1,16 @@
 """Runs a 'smoke' test for an Azure Linux VM deployment."""
 import logging
-import platform
 import socket
 
 from invoke.runners import Result  # type: ignore
 from paramiko import SSHException  # type: ignore
-from tenacity import Retrying, stop_after_attempt, wait_exponential  # type: ignore
 
 import pytest
 from node_plugin import Node
 
 
 @pytest.mark.deploy(setup="OneVM", vm_size="Standard_DS2_v2")
-@pytest.mark.usefixtures("class_node")
-class TestSmoke:
+def test_smoke(urn: str, node: Node) -> None:
     """Check that a VM can be deployed and is responsive.
 
     1. Deploy the VM (via 'node' fixture) and log it.
@@ -22,45 +19,50 @@ class TestSmoke:
     4. Attempt to reboot via SSH, otherwise use the platform.
     5. Fetch the serial console logs.
 
+    For commands where we expect a possible non-zero exit code, we
+    pass 'warn=True' to prevent it from throwing 'UnexpectedExit' and
+    we instead check its result at the end.
+
+    SSH failures DO NOT fail this test.
+
     """
+    logging.info("Pinging before reboot...")
+    ping1: Result = node.ping(warn=True)
 
-    n: Node
+    ssh_errors = (TimeoutError, SSHException, socket.error)
 
-    # TODO: Move to ‘Node.ping()’
-    ping_flag = "-c 1" if platform.system() == "Linux" else "-n 1"
+    try:
+        logging.info("SSHing before reboot...")
+        ssh1: Result = node.run("uptime", warn=True)
+    except ssh_errors as e:
+        logging.warning(f"SSH before reboot failed: '{e}'")
 
-    def test_ping_1(self) -> None:
-        r: Result = self.n.local(f"ping {self.ping_flag} {self.n.host}", warn=True)
-        assert r.ok, f"Pinging {self.n.host} failed"
+    try:
+        logging.info("Rebooting...")
+        # If this succeeds, we should expect the exit code to be -1
+        reboot: Result = node.sudo("reboot", warn=True)
+    except ssh_errors as e:
+        logging.warning(f"SSH failed, using platform to reboot: '{e}'")
+        node.platform_restart()
+    else:
+        if reboot.exited != -1:
+            logging.warning("While SSH worked, 'reboot' command failed")
 
-    def test_ssh_1(self) -> None:
-        self.n.run("uptime")
+    logging.info("Pinging after reboot...")
+    ping2: Result = node.ping(warn=True)
 
-    def test_reboot(self) -> None:
-        try:
-            # If this succeeds, we should expect the exit code to be -1
-            r: Result = self.n.sudo("reboot", warn=True)
-        except (TimeoutError, SSHException, socket.error) as e:
-            logging.warning(f"SSH failed '{e}', using platform to reboot")
-            self.n.platform_restart()
-        assert r.exited == -1, "While SSH worked, reboot failed"
+    try:
+        logging.info("SSHing after reboot...")
+        ssh2: Result = node.run("uptime", warn=True)
+    except ssh_errors as e:
+        logging.warning(f"SSH after reboot failed: '{e}'")
 
-    def test_ping_2(self) -> None:
-        for attempt in Retrying(
-            wait=wait_exponential(), stop=stop_after_attempt(5)
-        ):  # type: ignore
-            with attempt:
-                r: Result = self.n.local(
-                    f"ping {self.ping_flag} {self.n.host}", warn=True
-                )
-                assert r.ok, f"Pinging {self.n.host} failed"
+    logging.info("Retrieving boot diagnostics...")
+    node.get_boot_diagnostics()
 
-    def test_ssh_2(self) -> None:
-        for attempt in Retrying(
-            wait=wait_exponential(), stop=stop_after_attempt(5)
-        ):  # type: ignore
-            with attempt:
-                self.n.run("uptime")
-
-    def test_serial_log(self) -> None:
-        self.n.get_boot_diagnostics()
+    assert ping1.ok, f"Pinging {node.host} before reboot failed"
+    if not ssh1.ok:
+        logging.warning(f"SSH command '{ssh1.command}' before reboot failed")
+    assert ping2.ok, f"Pinging {node.host} after reboot failed"
+    if not ssh2.ok:
+        logging.warning(f"SSH command '{ssh2.command}' after reboot failed")
