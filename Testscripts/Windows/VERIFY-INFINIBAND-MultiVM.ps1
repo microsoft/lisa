@@ -37,7 +37,7 @@ function Main {
 		$CurrentTestData
 	)
 	$resultArr = @()
-	$currentTestResult = Create-TestResultObject
+	$global:CurrentTestResult = Create-TestResultObject
 	# Define two different users in run-time
 	$superUser="root"
 
@@ -410,7 +410,7 @@ function Main {
 					$currentResult = $resultFail
 				}
 				Write-LogInfo "$pattern : $currentResult"
-				$CurrentTestResult.TestSummary += New-ResultSummary -testResult $currentResult -metaData $metaData `
+				$global:CurrentTestResult.TestSummary += New-ResultSummary -testResult $currentResult -metaData $metaData `
 					-checkValues "PASS,FAIL,ABORTED" -testName $CurrentTestData.testName
 				#endregion
 
@@ -434,18 +434,18 @@ function Main {
 					}
 				}
 				Write-LogInfo "$pattern : $currentResult"
-				$CurrentTestResult.TestSummary += New-ResultSummary -testResult $currentResult -metaData $metaData `
+				$global:CurrentTestResult.TestSummary += New-ResultSummary -testResult $currentResult -metaData $metaData `
 					-checkValues "PASS,FAIL,ABORTED,SKIPPED" -testName $CurrentTestData.testName
 				#endregion
 
 				if ($BenchmarkType -eq "IMB") {
 					#region Check MPI pingpong intranode tests
-					Checking_Result "INFINIBAND_VERIFICATION_SUCCESS_IMB_MPI1_INTRANODE" "IMB PingPong Intranode"
+					Checking_Result "INFINIBAND_VERIFICATION_SUCCESS_IMB_MPI1_INTRANODE" "IMB PingPong Intranode" "INFINIBAND_VERIFICATION_SKIPPED_IMB_MPI1_INTRANODE"
 					#endregion
 
 					#region Check MPI1 all nodes tests
 					if ($ImbMpiTestIterations -ge 1) {
-						Checking_Result "INFINIBAND_VERIFICATION_SUCCESS_IMB_MPI1_ALLNODES" "IMB-MPI1"
+						Checking_Result "INFINIBAND_VERIFICATION_SUCCESS_IMB_MPI1_ALLNODES" "IMB-MPI1" "INFINIBAND_VERIFICATION_SKIPPED_IMB_MPI1_ALLNODES"
 					}
 					#endregion
 
@@ -542,8 +542,8 @@ function Main {
 		}
 		$resultArr = $testResult
 	}
-	$CurrentTestResult.TestResult = Get-FinalResultHeader -resultarr $resultArr
-	return $CurrentTestResult
+	$global:CurrentTestResult.TestResult = Get-FinalResultHeader -resultarr $resultArr
+	return $global:CurrentTestResult
 }
 
 Main -AllVmData $AllVmData -CurrentTestData $CurrentTestData
