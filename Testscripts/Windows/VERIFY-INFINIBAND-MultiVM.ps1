@@ -41,6 +41,42 @@ function Main {
 	# Define two different users in run-time
 	$superUser="root"
 
+	function Checking_Result {
+		param (
+			[Parameter(Mandatory=$true,
+			ParameterSetName="")]
+			[String[]]
+			$Pattern,
+			[Parameter(Mandatory=$true,
+			ParameterSetName="")]
+			[String[]]
+			$Tag,
+			[Parameter(Mandatory=$false,
+			ParameterSetName=$null)]
+			[String[]]
+			$SkippedPattern
+		)
+
+		$logFileName = "$LogDir\InfiniBand-Verification-$Iteration-$TempName\TestExecution.log"
+
+		Write-LogInfo "Analyzing $logFileName"
+		$metaData = "InfiniBand-Verification-$Iteration-$TempName : $Tag"
+		$SuccessLogs = Select-String -Path $logFileName -Pattern $Pattern
+		if ( $SkippedPattern != $null ) {
+			$SkippedLogs = Select-String -Path $logFileName -Pattern $SkippedPattern
+		}
+		if ($SuccessLogs.Count -eq 1) {
+			$currentResult = $resultPass
+		} elseif (($SkippedLogs.Count -eq 1) -or ($QuickTestOnly -eq "yes")) {
+			$currentResult = $resultSkipped
+		} else {
+			$currentResult = $resultFail
+		}
+		Write-LogInfo "$Pattern : $currentResult"
+		$global:CurrentTestResult.TestSummary += New-ResultSummary -testResult $currentResult -metaData $metaData `
+			-checkValues "PASS,FAIL,ABORTED,SKIPPED" -testName $global:CurrentTestData.testName
+	}
+
 	try {
 		$NoServer = $true
 		$NoClient = $true
@@ -116,6 +152,19 @@ function Main {
 		#region Generate constants.sh
 		# We need to add extra parameters to constants.sh file apart from parameter properties defined in XML.
 		# Hence, we are generating constants.sh file again in test script.
+		$ExpectedSuccessCount = 1
+		$ImbMpiTestIterations = 1
+		$ImbRmaTestIterations = 1
+		$ImbNbcTestIterations = 1
+		$ImbP2pTestIterations = 1
+		$ImbIoTestIterations = 1
+		$OmbP2PTestIterations = 1
+		$InfinibandNic = "eth0"
+		$MpiType = ""
+		$BenchmarkType = "IMB"
+		$installOFEDFromExtension = $false
+		$QuickTestOnly = "no"
+		$IsNDTest = "no"
 
 		Write-LogInfo "Generating constants.sh ..."
 		$constantsFile = "$LogDir\constants.sh"
@@ -391,145 +440,42 @@ function Main {
 
 				if ($BenchmarkType -eq "IMB") {
 					#region Check MPI pingpong intranode tests
-					$logFileName = "$LogDir\InfiniBand-Verification-$Iteration-$TempName\TestExecution.log"
-					$pattern = "INFINIBAND_VERIFICATION_SUCCESS_IMB_MPI1_INTRANODE"
-					Write-LogInfo "Analyzing $logFileName"
-					$metaData = "InfiniBand-Verification-$Iteration-$TempName :IMB PingPong Intranode"
-					$SuccessLogs = Select-String -Path $logFileName -Pattern $pattern
-					if ($SuccessLogs.Count -eq 1) {
-						$currentResult = $resultPass
-					} else {
-						$currentResult = $resultFail
-					}
-					Write-LogInfo "$pattern : $currentResult"
-					$CurrentTestResult.TestSummary += New-ResultSummary -testResult $currentResult -metaData $metaData `
-						-checkValues "PASS,FAIL,ABORTED" -testName $CurrentTestData.testName
+					Checking_Result "INFINIBAND_VERIFICATION_SUCCESS_IMB_MPI1_INTRANODE" "IMB PingPong Intranode"
 					#endregion
 
 					#region Check MPI1 all nodes tests
 					if ($ImbMpiTestIterations -ge 1) {
-						$logFileName = "$LogDir\InfiniBand-Verification-$Iteration-$TempName\TestExecution.log"
-						$pattern = "INFINIBAND_VERIFICATION_SUCCESS_IMB_MPI1_ALLNODES"
-						Write-LogInfo "Analyzing $logFileName"
-						$metaData = "InfiniBand-Verification-$Iteration-$TempName : IMB-MPI1"
-						$SuccessLogs = Select-String -Path $logFileName -Pattern $pattern
-						if ($SuccessLogs.Count -eq 1) {
-							$currentResult = $resultPass
-						} else {
-							$currentResult = $resultFail
-						}
-						Write-LogInfo "$pattern : $currentResult"
-						$CurrentTestResult.TestSummary += New-ResultSummary -testResult $currentResult -metaData $metaData `
-							-checkValues "PASS,FAIL,ABORTED" -testName $CurrentTestData.testName
+						Checking_Result "INFINIBAND_VERIFICATION_SUCCESS_IMB_MPI1_ALLNODES" "IMB-MPI1"
 					}
 					#endregion
 
 					#region Check IMB P2P all nodes tests
 					if ($ImbP2pTestIterations -ge 1) {
-						$logFileName = "$LogDir\InfiniBand-Verification-$Iteration-$TempName\TestExecution.log"
-						$pattern = "INFINIBAND_VERIFICATION_SUCCESS_IMB_P2P_ALLNODES"
-						$patternSkipped = "INFINIBAND_VERIFICATION_SKIPPED_IMB_P2P_ALLNODES"
-						Write-LogInfo "Analyzing $logFileName"
-						$metaData = "InfiniBand-Verification-$Iteration-$TempName : IMB-P2P"
-						$SuccessLogs = Select-String -Path $logFileName -Pattern $pattern
-						$SkippedLogs = Select-String -Path $logFileName -Pattern $patternSkipped
-						if ($SuccessLogs.Count -eq 1) {
-							$currentResult = $resultPass
-						} elseif (($SkippedLogs.Count -eq 1) -or ($QuickTestOnly -eq "yes")) {
-							$currentResult = "SKIPPED"
-						} else {
-							$currentResult = $resultFail
-						}
-						Write-LogInfo "$pattern : $currentResult"
-						$CurrentTestResult.TestSummary += New-ResultSummary -testResult $currentResult -metaData $metaData `
-							-checkValues "PASS,FAIL,ABORTED" -testName $CurrentTestData.testName
+						Checking_Result "INFINIBAND_VERIFICATION_SUCCESS_IMB_P2P_ALLNODES" "IMB-P2P" "INFINIBAND_VERIFICATION_SKIPPED_IMB_P2P_ALLNODES"
 					}
 					#endregion
 
 					#region Check IO all nodes tests
 					if ($ImbIoTestIterations -ge 1) {
-						$logFileName = "$LogDir\InfiniBand-Verification-$Iteration-$TempName\TestExecution.log"
-						$pattern = "INFINIBAND_VERIFICATION_SUCCESS_IMB_IO_ALLNODES"
-						$patternSkipped = "INFINIBAND_VERIFICATION_SKIPPED_IMB_IO_ALLNODES"
-						Write-LogInfo "Analyzing $logFileName"
-						$metaData = "InfiniBand-Verification-$Iteration-$TempName : IMB-IO"
-						$SuccessLogs = Select-String -Path $logFileName -Pattern $pattern
-						$SkippedLogs = Select-String -Path $logFileName -Pattern $patternSkipped
-						if ($SuccessLogs.Count -eq 1) {
-							$currentResult = $resultPass
-						} elseif (($SkippedLogs.Count -eq 1) -or ($QuickTestOnly -eq "yes")) {
-							$currentResult = "SKIPPED"
-						} else {
-							$currentResult = $resultFail
-						}
-						Write-LogInfo "$pattern : $currentResult"
-						$CurrentTestResult.TestSummary += New-ResultSummary -testResult $currentResult -metaData $metaData `
-							-checkValues "PASS,FAIL,ABORTED" -testName $CurrentTestData.testName
+						Checking_Result "INFINIBAND_VERIFICATION_SUCCESS_IMB_IO_ALLNODES" "IMB-IO" "INFINIBAND_VERIFICATION_SKIPPED_IMB_IO_ALLNODES"
 					}
 					#endregion
 
 					#region Check RMA all nodes tests
 					if ($ImbRmaTestIterations -ge 1) {
-						$logFileName = "$LogDir\InfiniBand-Verification-$Iteration-$TempName\TestExecution.log"
-						$pattern = "INFINIBAND_VERIFICATION_SUCCESS_IMB_RMA_ALLNODES"
-						$patternSkipped = "INFINIBAND_VERIFICATION_SKIPPED_IMB_RMA_ALLNODES"
-						Write-LogInfo "Analyzing $logFileName"
-						$metaData = "InfiniBand-Verification-$Iteration-$TempName : IMB-RMA"
-						$SuccessLogs = Select-String -Path $logFileName -Pattern $pattern
-						$SkippedLogs = Select-String -Path $logFileName -Pattern $patternSkipped
-						if ($SuccessLogs.Count -eq 1) {
-							$currentResult = $resultPass
-						} elseif (($SkippedLogs.Count -eq 1) -or ($QuickTestOnly -eq "yes")) {
-							$currentResult = "SKIPPED"
-						} else {
-							$currentResult = $resultFail
-						}
-						Write-LogInfo "$pattern : $currentResult"
-						$CurrentTestResult.TestSummary += New-ResultSummary -testResult $currentResult -metaData $metaData `
-							-checkValues "PASS,FAIL,ABORTED" -testName $CurrentTestData.testName
+						Checking_Result "INFINIBAND_VERIFICATION_SUCCESS_IMB_RMA_ALLNODES" "IMB-RMA" "INFINIBAND_VERIFICATION_SKIPPED_IMB_RMA_ALLNODES"
 					}
 					#endregion
 
 					#region Check NBC all nodes tests
 					if ($ImbNbcTestIterations -ge 1) {
-						$logFileName = "$LogDir\InfiniBand-Verification-$Iteration-$TempName\TestExecution.log"
-						$pattern = "INFINIBAND_VERIFICATION_SUCCESS_IMB_NBC_ALLNODES"
-						$patternSkipped = "INFINIBAND_VERIFICATION_SKIPPED_IMB_NBC_ALLNODES"
-						Write-LogInfo "Analyzing $logFileName"
-						$metaData = "InfiniBand-Verification-$Iteration-$TempName : IMB-NBC"
-						$SuccessLogs = Select-String -Path $logFileName -Pattern $pattern
-						$SkippedLogs = Select-String -Path $logFileName -Pattern $patternSkipped
-						if ($SuccessLogs.Count -eq 1) {
-							$currentResult = $resultPass
-						} elseif (($SkippedLogs.Count -eq 1) -or ($QuickTestOnly -eq "yes")) {
-							$currentResult = "SKIPPED"
-						} else {
-							$currentResult = $resultFail
-						}
-						Write-LogInfo "$pattern : $currentResult"
-						$CurrentTestResult.TestSummary += New-ResultSummary -testResult $currentResult -metaData $metaData `
-							-checkValues "PASS,FAIL,ABORTED" -testName $CurrentTestData.testName
+						Checking_Result "INFINIBAND_VERIFICATION_SUCCESS_IMB_NBC_ALLNODES" "IMB-NBC" "INFINIBAND_VERIFICATION_SKIPPED_IMB_NBC_ALLNODES"
 					}
 					#endregion
 				} elseif ($BenchmarkType -eq "OMB") {
 					#region Check OMB P2P all nodes tests
 					if ($OmbP2PTestIterations -ge 1) {
-						$logFileName = "$LogDir\InfiniBand-Verification-$Iteration-$TempName\TestExecution.log"
-						$pattern = "INFINIBAND_VERIFICATION_SUCCESS_OMB_P2P_ALLNODES"
-						Write-LogInfo "Analyzing $logFileName"
-						$metaData = "InfiniBand-Verification-$Iteration-$TempName : OMB-P2P"
-						$SuccessLogs = Select-String -Path $logFileName -Pattern $pattern
-						$SkippedLogs = Select-String -Path $logFileName -Pattern $patternSkipped
-						if ($SuccessLogs.Count -eq 1) {
-							$currentResult = $resultPass
-						} elseif (($SkippedLogs.Count -eq 1) -or ($QuickTestOnly -eq "yes")) {
-							$currentResult = "SKIPPED"
-						} else {
-							$currentResult = $resultFail
-						}
-						Write-LogInfo "$pattern : $currentResult"
-						$CurrentTestResult.TestSummary += New-ResultSummary -testResult $currentResult -metaData $metaData `
-							-checkValues "PASS,FAIL,ABORTED" -testName $CurrentTestData.testName
+						Checking_Result "INFINIBAND_VERIFICATION_SUCCESS_OMB_P2P_ALLNODES" "OMB-P2P" "INFINIBAND_VERIFICATION_SKIPPED_OMB_P2P_ALLNODES"
 					}
 					#endregion
 				}
