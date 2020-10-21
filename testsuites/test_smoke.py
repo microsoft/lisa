@@ -1,6 +1,7 @@
 """Runs a 'smoke' test for an Azure Linux VM deployment."""
 import logging
 import socket
+import time
 
 from invoke.runners import CommandTimedOut, Result, UnexpectedExit  # type: ignore
 from paramiko import SSHException  # type: ignore
@@ -40,7 +41,11 @@ def test_smoke(urn: str, node: Node) -> None:
 
     """
     logging.info("Pinging before reboot...")
-    ping1: Result = node.ping(warn=True)
+    ping1 = Result()
+    try:
+        ping1 = node.ping()
+    except UnexpectedExit:
+        logging.warning(f"Pinging {node.host} before reboot failed")
 
     ssh_errors = (TimeoutError, CommandTimedOut, SSHException, socket.error)
 
@@ -64,8 +69,15 @@ def test_smoke(urn: str, node: Node) -> None:
         if reboot_exit != -1:
             logging.warning("While SSH worked, 'reboot' command failed")
 
+    logging.info("Sleeping for 10 seconds after reboot...")
+    time.sleep(10)
+
     logging.info("Pinging after reboot...")
-    ping2: Result = node.ping(warn=True)
+    ping2 = Result()
+    try:
+        ping2 = node.ping()
+    except UnexpectedExit:
+        logging.warning(f"Pinging {node.host} after reboot failed")
 
     try:
         logging.info("SSHing after reboot...")
@@ -74,10 +86,13 @@ def test_smoke(urn: str, node: Node) -> None:
         logging.warning(f"SSH after reboot failed: '{e}'")
 
     logging.info("Retrieving boot diagnostics...")
-    if node.get_boot_diagnostics(warn=True).ok:
-        logging.info("See full report for boot diagnostics.")
-    else:
+    try:
+        node.get_boot_diagnostics()
+    except UnexpectedExit:
         logging.warning("Retrieving boot diagnostics failed.")
+    else:
+        logging.info("See full report for boot diagnostics.")
 
-    assert ping1.ok, f"Pinging {node.host} before reboot failed"
-    assert ping2.ok, f"Pinging {node.host} after reboot failed"
+    # NOTE: The test criteria is to fail only if ping fails.
+    assert ping1.ok
+    assert ping2.ok
