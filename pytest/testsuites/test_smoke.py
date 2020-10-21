@@ -24,6 +24,7 @@ params = [
 
 
 @pytest.mark.parametrize("urn", params)
+@pytest.mark.flaky(reruns=1)
 def test_smoke(urn: str, node: Node) -> None:
     """Check that a VM can be deployed and is responsive.
 
