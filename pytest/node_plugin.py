@@ -13,7 +13,7 @@ import invoke  # type: ignore
 from fabric import Connection
 from invoke import Context
 from invoke.runners import Result  # type: ignore
-from tenacity import retry, stop_after_delay, wait_exponential  # type: ignore
+from tenacity import retry, stop_after_attempt, wait_exponential  # type: ignore
 
 import pytest
 
@@ -33,7 +33,7 @@ config = {
         "in_stream": False,
         # Don’t let remote commands take longer than five minutes
         # (unless later overridden). This is to prevent hangs.
-        "command_timeout": 300,
+        "command_timeout": 1200,
     }
 }
 
@@ -165,17 +165,18 @@ class Node(Connection):
         """This patches Fabric's 'local()' function to ignore SSH environment."""
         return super(Connection, self).run(replace_env=False, env={}, *args, **kwargs)
 
-    @retry(wait=wait_exponential(), stop=stop_after_delay(60))
-    def get_boot_diagnostics(self) -> Result:
+    @retry(reraise=True, wait=wait_exponential(), stop=stop_after_attempt(3))
+    def get_boot_diagnostics(self, **kwargs: Any) -> Result:
         """Gets the serial console logs."""
         # NOTE: Some images can cause the `az` CLI to crash because
         # their logs aren’t UTF-8 encoded. I’ve filed a bug:
         # https://github.com/Azure/azure-cli/issues/15590
         return self.local(
-            f"az vm boot-diagnostics get-boot-log -n {self.name} -g {self.name}-rg"
+            f"az vm boot-diagnostics get-boot-log -n {self.name} -g {self.name}-rg",
+            **kwargs,
         )
 
-    @retry(wait=wait_exponential(), stop=stop_after_delay(60))
+    @retry(reraise=True, wait=wait_exponential(), stop=stop_after_attempt(3))
     def ping(self, **kwargs: Any) -> Result:
         flag = "-c 1" if platform.system() == "Linux" else "-n 1"
         return self.local(f"ping {flag} {self.host}", **kwargs)
