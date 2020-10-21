@@ -34,10 +34,10 @@ jobs:
           echo "::add-path::$env:USERPROFILE\.poetry\bin"
 
       - name: Install Python dependencies
-        run: cd pytest && make setup
+        run: make setup
 
       - name: Run self tests
-        run: cd pytest && make test
+        run: make test
 
       - name: Run semantic analysis
-        run: cd pytest && make check
+        run: make check
