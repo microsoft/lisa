@@ -213,7 +213,7 @@ class Environments(EnvironmentsDict):
         )
         return self.from_runbook(
             runbook=runbook,
-            name=f"genarated_{len(self.keys())}",
+            name=f"generated_{len(self.keys())}",
             is_original_runbook=False,
         )
 

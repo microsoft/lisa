@@ -86,7 +86,7 @@ class EnvironmentTestCase(TestCase):
         runbook = generate_runbook(local=True, requirement=True)
         envs = load_environments(runbook)
         self.assertEqual(2, len(envs))
-        env = envs.get("runbook_0")
+        env = envs.get("customized_0")
         assert env
         for node in env.nodes.list():
             # mock initializing
@@ -100,7 +100,7 @@ class EnvironmentTestCase(TestCase):
         self.assertEqual(search_space.IntRange(min=1), env_cap.nodes[0].disk_count)
 
         # test pure node_requirement
-        env = envs.get("runbook_1")
+        env = envs.get("customized_1")
         assert env
         env_cap = env.capability
         self.assertEqual(2, len(env_cap.nodes))

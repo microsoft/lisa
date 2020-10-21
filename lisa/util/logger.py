@@ -105,7 +105,7 @@ class LogWriter(object):
 _get_root_logger = partial(logging.getLogger, DEFAULT_LOG_NAME)
 
 _format = logging.Formatter(
-    fmt="%(asctime)s.%(msecs)03d %(levelname)s %(name)s %(message)s",
+    fmt="%(asctime)s.%(msecs)03d [%(levelname)s] %(name)s %(message)s",
     datefmt="%Y-%m-%d %H:%M:%S",
 )
 
