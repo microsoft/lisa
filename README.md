@@ -173,17 +173,6 @@ However, the data returned by Paramiko is in bytes, which in Python 3 are not
 equivalent to strings, hence the existing implementation which uses `BytesIO`
 and decodes the bytes to a string.
 
-### Tenacity instead of pytest-rerunfailures
-
-Due to an open
-[bug](https://github.com/pytest-dev/pytest-rerunfailures/issues/51) this popular
-Pytest plugin is incompatible with module/class/session fixtures. What this
-means is given a class of tests with a class fixture (say a shared `Node`), if
-the last test is marked as flaky and is rerun, the class fixture is unexpectedly
-torn down and then the test is rerun. That is, the rerun happens too late, and
-the test is then performed against a new `Node`. So while slightly more verbose,
-we’re back to using [Tenacity](https://github.com/jd/tenacity).
-
 ### Function per test instead of class
 
 An option I explored to make an “executive summary” of the smoke test was to use
@@ -195,3 +184,26 @@ intends: as a function. This allows the fixtures to be written in a simpler
 manner (not rely on caching between functions) and allows parameterization using
 the built-in decorator
 [`@pytest.mark.parametrize`](https://docs.pytest.org/en/stable/parametrize.html).
+
+### Tenacity _and_ pytest-rerunfailures
+
+Due to an open
+[bug](https://github.com/pytest-dev/pytest-rerunfailures/issues/51) this popular
+Pytest plugin is incompatible with module/class/session fixtures. What this
+means is given a class of tests with a class fixture (say a shared `Node`), if
+the last test is marked as flaky and is rerun, the class fixture is unexpectedly
+torn down and then the test is rerun. That is, the rerun happens too late, and
+the test is then performed against a new `Node`. For this reason, to use this
+plugin effectively tests would need to be contained to one function per test,
+but as written above, that seems to be the best route.
+
+However, this plugin is otherwise very useful for marking tests as flaky, and is
+already integrated with pytest-html such that reruns are reported correctly in
+the report.
+
+For instances where particular parts of code are flaky and need to be rerun,
+such as `ping`, we use the modern Python retry library,
+[Tenacity](https://github.com/jd/tenacity), which has easy-to-use decorators to
+retry functions (and context managers to use within functions), as well as good
+wait and timeout support. The `ping()` function currently uses it with
+exponential back-off to great effect.
