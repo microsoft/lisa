@@ -18,6 +18,7 @@
 supported_kernels=(ppa proposed proposed-azure proposed-edge latest
                     linuxnext netnext upstream-stable)
 tarDestination="./linux-source"
+packageDir=$(pwd)
 # Source utils.sh
 . utils.sh || {
     echo "ERROR: unable to source utils.sh!"
@@ -214,6 +215,8 @@ function InstallKernel() {
     if [[ $CustomKernel = *tar.gz || $CustomKernel = *.tar ]]; then
         mkdir -p $tarDestination
         tar -xf "${CustomKernel#$LOCAL_FILE_PREFIX}" -C $tarDestination --strip-components=1
+        tarDir=${tarDestination#*/}
+        packageDir=${packageDir}/${tarDir}
         CustomKernel="$(Get_Kernel_Name)"
     fi
 
@@ -337,14 +340,14 @@ function InstallKernel() {
         if [[ "${customKernelFilesUnExpanded}" == *'*.deb'* ]]; then
             CheckInstallLockUbuntu
             apt-get remove -y linux-cloud-tools-common
-            image_file=$(ls -1 *image* | grep -v "dbg" | sed -n 1p)
+            image_file=$(ls -1 ${packageDir}/*image* | grep -v "dbg" | sed -n 1p)
         else
-            image_file=$(ls -1 *.deb* | grep -v "dbg" | sed -n 1p)
+            image_file=$(ls -1 ${packageDir}/*.deb* | grep -v "dbg" | sed -n 1p)
         fi
 
         LogMsg "Installing ${image_file}"
         CheckInstallLockUbuntu
-        eval "dpkg -i --force-overwrite *.deb >> $LOG_FILE 2>&1"
+        eval "dpkg -i --force-overwrite ${packageDir}/*.deb >> $LOG_FILE 2>&1"
         eval "apt install -f -y >> $LOG_FILE 2>&1"
         kernelInstallStatus=$?
 
@@ -373,7 +376,7 @@ function InstallKernel() {
         else
             LogMsg "CUSTOM_KERNEL_SUCCESS"
             DEBIAN_FRONTEND=noninteractive apt -y remove linux-image-$(uname -r)
-            rm -rf *.deb
+            rm -rf ${packageDir}/*.deb
             SetTestStateCompleted
         fi
     elif [[ $CustomKernel == *.rpm ]]; then
