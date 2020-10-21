@@ -21,7 +21,7 @@ function check_lis_version
 		LogMsg "Detected version and Source version are same"
 	else
 		LogMsg "Detected version and Source version are different"
-		updateSummary "LIS version check is failed"
+		UpdateSummary "LIS version check is failed"
 		SetTestStateFailed
 		exit 0
 	fi
@@ -40,7 +40,7 @@ function check_lis_version_hex()
 		LogMsg "Detected version and Source version are same for hex value"
 	else
 		LogMsg "Detected version and Source version are different for hex value"
-		updateSummary "LIS hex version check failed"
+		UpdateSummary "LIS hex version check failed"
 		SetTestStateFailed
 		exit 0
 	fi
