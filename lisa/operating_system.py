@@ -40,8 +40,10 @@ class OperatingSystem:
                 cls.__linux_factory.initialize()
             # cast type for easy to use
             linux_factory: Factory[Linux] = cls.__linux_factory
-            lsb_release_output = typed_node.execute("lsb_release -d")
-            os_release_output = typed_node.execute("cat /etc/os-release")
+            lsb_release_output = typed_node.execute("lsb_release -d", no_error_log=True)
+            os_release_output = typed_node.execute(
+                "cat /etc/os-release", no_error_log=True
+            )
 
             os_infos: List[str] = [
                 x
