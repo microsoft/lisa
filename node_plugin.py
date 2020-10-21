@@ -33,7 +33,7 @@ config = {
         "in_stream": False,
         # Don’t let remote commands take longer than five minutes
         # (unless later overridden). This is to prevent hangs.
-        "timeout": 300,
+        "command_timeout": 300,
     }
 }
 
@@ -168,6 +168,9 @@ class Node(Connection):
     @retry(wait=wait_exponential(), stop=stop_after_delay(60))
     def get_boot_diagnostics(self) -> Result:
         """Gets the serial console logs."""
+        # NOTE: Some images can cause the `az` CLI to crash because
+        # their logs aren’t UTF-8 encoded. I’ve filed a bug:
+        # https://github.com/Azure/azure-cli/issues/15590
         return self.local(
             f"az vm boot-diagnostics get-boot-log -n {self.name} -g {self.name}-rg"
         )
