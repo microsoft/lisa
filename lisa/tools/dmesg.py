@@ -52,7 +52,11 @@ class Dmesg(Tool):
                         break
         result = "\n".join(panic_lines)
         if result:
-            error_message = f"dmesg error:\n{result}"
+            # log first line only, in case it's too long
+            error_message = (
+                f"dmesg error with {len(result)} lines, "
+                f"first line: '{panic_lines[0]}'"
+            )
             if throw_error:
                 raise LisaException(error_message)
             else:
