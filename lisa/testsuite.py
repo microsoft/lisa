@@ -97,7 +97,7 @@ class TestResult:
         return check_result.result
 
     def _send_result_message(self) -> None:
-        fields = ["status", "elapsed", "message"]
+        fields = ["status", "elapsed"]
         result_message = TestResultMessage()
         set_filtered_fields(self, result_message, fields=fields)
 
@@ -108,6 +108,7 @@ class TestResult:
             )
             result_message.environment_information.update(environment_information)
             result_message.environment_information["name"] = self.environment.name
+        result_message.message = self.message[0:200] if self.message else ""
         result_message.name = self.runtime_data.metadata.full_name
         notifier.notify(result_message)
 
