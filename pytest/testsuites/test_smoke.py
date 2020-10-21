@@ -2,7 +2,7 @@
 import logging
 import socket
 
-from invoke.runners import Result  # type: ignore
+from invoke.runners import CommandTimedOut, Result, UnexpectedExit  # type: ignore
 from paramiko import SSHException  # type: ignore
 
 import pytest
@@ -42,7 +42,7 @@ def test_smoke(urn: str, node: Node) -> None:
     logging.info("Pinging before reboot...")
     ping1: Result = node.ping(warn=True)
 
-    ssh_errors = (TimeoutError, SSHException, socket.error)
+    ssh_errors = (TimeoutError, CommandTimedOut, SSHException, socket.error)
 
     try:
         logging.info("SSHing before reboot...")
@@ -50,15 +50,18 @@ def test_smoke(urn: str, node: Node) -> None:
     except ssh_errors as e:
         logging.warning(f"SSH before reboot failed: '{e}'")
 
+    reboot_exit = 0
     try:
         logging.info("Rebooting...")
         # If this succeeds, we should expect the exit code to be -1
-        reboot: Result = node.sudo("reboot", warn=True)
+        reboot_exit = node.sudo("reboot", timeout=5).exited
     except ssh_errors as e:
         logging.warning(f"SSH failed, using platform to reboot: '{e}'")
         node.platform_restart()
-    else:
-        if reboot.exited != -1:
+    except UnexpectedExit:
+        # TODO: How do we differentiate reboot working and the SSH
+        # connection disconnecting for other reasons?
+        if reboot_exit != -1:
             logging.warning("While SSH worked, 'reboot' command failed")
 
     logging.info("Pinging after reboot...")
@@ -71,7 +74,10 @@ def test_smoke(urn: str, node: Node) -> None:
         logging.warning(f"SSH after reboot failed: '{e}'")
 
     logging.info("Retrieving boot diagnostics...")
-    node.get_boot_diagnostics()
+    if node.get_boot_diagnostics(warn=True).ok:
+        logging.info("See full report for boot diagnostics.")
+    else:
+        logging.warning("Retrieving boot diagnostics failed.")
 
     assert ping1.ok, f"Pinging {node.host} before reboot failed"
     assert ping2.ok, f"Pinging {node.host} after reboot failed"
