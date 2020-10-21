@@ -1,18 +1,18 @@
 from collections import UserDict
-from typing import TYPE_CHECKING, Any, Generic, Type, TypeVar, cast
+from typing import TYPE_CHECKING, Any, Generic, Iterable, Type, TypeVar, cast
 
 from lisa import schema
 from lisa.util import InitializableMixin, LisaException
 from lisa.util.logger import get_logger
 
 
-class BaseClass:
+class BaseClassMixin:
     @classmethod
     def type_name(cls) -> str:
         raise NotImplementedError()
 
 
-class BaseClassWithRunbook(BaseClass):
+class BaseClassWithRunbookMixin(BaseClassMixin):
     def __init__(self, runbook: schema.TypedSchema) -> None:
         super().__init__()
         if self.type_schema() != type(runbook):
@@ -28,7 +28,7 @@ class BaseClassWithRunbook(BaseClass):
         raise NotImplementedError()
 
 
-T_BASECLASS = TypeVar("T_BASECLASS", bound=BaseClass)
+T_BASECLASS = TypeVar("T_BASECLASS", bound=BaseClassMixin)
 
 
 if TYPE_CHECKING:
@@ -46,7 +46,7 @@ class Factory(InitializableMixin, Generic[T_BASECLASS], SubClassTypeDict):
     def _initialize(self, *args: Any, **kwargs: Any) -> None:
         # initialize types from subclasses.
         # each type should be unique in code, or there is warning message.
-        for subclass_type in self._base_type.__subclasses__():
+        for subclass_type in self._get_subclasses(self._base_type):
             subclass_type_name = subclass_type.type_name()
             exists_type = self.get(subclass_type_name)
             if exists_type:
@@ -77,10 +77,18 @@ class Factory(InitializableMixin, Generic[T_BASECLASS], SubClassTypeDict):
             raise LisaException(
                 f"cannot find subclass '{runbook.type}' for runbook {runbook}"
             )
-        sub_type_with_runbook = cast(Type[BaseClassWithRunbook], sub_type)
+        sub_type_with_runbook = cast(Type[BaseClassWithRunbookMixin], sub_type)
         sub_object = sub_type_with_runbook(runbook)
         assert isinstance(
-            sub_object, BaseClassWithRunbook
+            sub_object, BaseClassWithRunbookMixin
         ), f"actual: {type(sub_object)}"
 
         return cast(T_BASECLASS, sub_object)
+
+    def _get_subclasses(
+        self, type: Type[BaseClassMixin]
+    ) -> Iterable[Type[BaseClassMixin]]:
+        # recursive loop subclasses of subclasses
+        for subclass_type in type.__subclasses__():
+            yield subclass_type
+            yield from self._get_subclasses(subclass_type)
