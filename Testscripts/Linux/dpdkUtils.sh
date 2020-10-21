@@ -358,10 +358,6 @@ function Install_Dpdk () {
 		ssh ${1} "cd ${LIS_HOME}/${DPDK_DIR}/build && ninja && ninja install && ldconfig"
 		check_exit_status "dpdk build on ${1}" "exit"
 	else
-		ssh "${1}" "sed -i 's/^CONFIG_RTE_LIBRTE_MLX4_PMD=n/CONFIG_RTE_LIBRTE_MLX4_PMD=y/g' $RTE_SDK/config/common_base"
-		check_exit_status "${1} CONFIG_RTE_LIBRTE_MLX4_PMD=y" "exit"
-		ssh "${1}" "sed -i 's/^CONFIG_RTE_LIBRTE_MLX5_PMD=n/CONFIG_RTE_LIBRTE_MLX5_PMD=y/g' $RTE_SDK/config/common_base"
-		check_exit_status "${1} CONFIG_RTE_LIBRTE_MLX5_PMD=y" "exit"
 		if [[ ${DISTRO_NAME} == rhel ]] && ! [[ ${DISTRO_VERSION} == *"8."* ]]; then
 			ssh ${1} "cd ${LIS_HOME}/${DPDK_DIR} && PATH=$PATH:/opt/rh/rh-python36/root/usr/bin/ && meson ${RTE_TARGET}"
 		else
