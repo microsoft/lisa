@@ -93,7 +93,7 @@ def allow_ping(name: str) -> None:
 
 def deploy_vm(
     name: str,
-    location: str = "westus2",
+    location: str = "eastus2",
     vm_image: str = "UbuntuLTS",
     vm_size: str = "Standard_DS1_v2",
     setup: str = "",
