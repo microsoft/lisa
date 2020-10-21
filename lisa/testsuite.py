@@ -67,9 +67,11 @@ class TestResult:
         if self.status != new_status:
             self.status = new_status
 
-            fields = ["status", "elapsed", "message", "env"]
+            fields = ["status", "elapsed", "env"]
             result_message = TestResultMessage()
             set_filtered_fields(self, result_message, fields=fields)
+            # prevent message is too long to read
+            result_message.message = self.message[0:200] if self.message else ""
             notifier.notify(result_message)
 
     def check_environment(
