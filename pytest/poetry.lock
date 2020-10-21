@@ -496,6 +496,17 @@ mypy = {version = ">=0.700", markers = "python_version >= \"3.8\""}
 pytest = ">=3.5"
 
 [[package]]
+name = "pytest-rerunfailures"
+version = "9.1.1"
+description = "pytest plugin to re-run tests to eliminate flaky failures"
+category = "main"
+optional = false
+python-versions = ">=3.5"
+
+[package.dependencies]
+pytest = ">=5.0"
+
+[[package]]
 name = "pytest-timeout"
 version = "1.4.2"
 description = "py.test plugin to abort hanging tests"
@@ -635,7 +646,7 @@ python-versions = ">=3.6"
 [metadata]
 lock-version = "1.1"
 python-versions = "^3.8"
-content-hash = "b46f526aeb728c87b2bb8e3cfb91d66634e9c81e82c0f70c2e48045eba56c915"
+content-hash = "d41a721b35ca455e53b898026dcd034d40c64d8837141393e335d4829e293c71"
 
 [metadata.files]
 appdirs = [
@@ -885,6 +896,10 @@ pytest-metadata = [
 pytest-mypy = [
     {file = "pytest-mypy-0.7.0.tar.gz", hash = "sha256:5a667d9a2b66bf98b3a494411f221923a6e2c3eafbe771104951aaec8985673d"},
     {file = "pytest_mypy-0.7.0-py3-none-any.whl", hash = "sha256:e0505ace48d2b19fe686366fce6b4a2ac0d090423736bb6aa2e39554d18974b7"},
+]
+pytest-rerunfailures = [
+    {file = "pytest-rerunfailures-9.1.1.tar.gz", hash = "sha256:1cb11a17fc121b3918414eb5eaf314ee325f2e693ac7cb3f6abf7560790827f2"},
+    {file = "pytest_rerunfailures-9.1.1-py3-none-any.whl", hash = "sha256:2eb7d0ad651761fbe80e064b0fd415cf6730cdbc53c16a145fd84b66143e609f"},
 ]
 pytest-timeout = [
     {file = "pytest-timeout-1.4.2.tar.gz", hash = "sha256:20b3113cf6e4e80ce2d403b6fb56e9e1b871b510259206d40ff8d609f48bda76"},
