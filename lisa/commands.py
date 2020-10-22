@@ -21,7 +21,7 @@ def run(args: Namespace) -> int:
     if runbook.notifier:
         notifier.initialize(runbooks=runbook.notifier)
     run_message = notifier.TestRunMessage(
-        status=constants.RUN_STATUS_RUNNING,
+        status=constants.RUN_STATUS_INITIALIZING,
         test_project=runbook.test_project,
         test_pass=runbook.test_pass,
         run_name=constants.RUN_NAME,
@@ -39,10 +39,6 @@ def run(args: Namespace) -> int:
     finally:
         run_message = notifier.TestRunMessage(
             status=run_status,
-            test_project=runbook.test_project,
-            test_pass=runbook.test_pass,
-            run_name=constants.RUN_NAME,
-            tags=runbook.tags,
             elapsed=run_timer.elapsed(),
         )
         notifier.notify(run_message)

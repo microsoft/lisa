@@ -1,6 +1,6 @@
 from typing import Dict, List, Optional
 
-from lisa import schema, search_space
+from lisa import notifier, schema, search_space
 from lisa.action import Action, ActionStatus
 from lisa.environment import Environment, Environments, load_environments
 from lisa.platform_ import WaitMoreResourceError, load_platform
@@ -13,6 +13,7 @@ from lisa.testsuite import (
     TestSuite,
     TestSuiteMetadata,
 )
+from lisa.util import constants
 from lisa.util.logger import get_logger
 
 
@@ -48,6 +49,11 @@ class LisaRunner(Action):
 
         # there may not need to handle requirements, if all environment are predefined
         prepared_environments = platform.prepare_environments(candidate_environments)
+
+        run_message = notifier.TestRunMessage(
+            status=constants.RUN_STATUS_RUNNING,
+        )
+        notifier.notify(run_message)
 
         can_run_results = selected_test_results
         # request environment then run test s
