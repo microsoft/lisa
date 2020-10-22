@@ -31,6 +31,11 @@ TYPE = "type"
 IS_DEFAULT = "isDefault"
 ENABLE = "enable"
 
+# run status
+RUN_STATUS_RUNNING = "RUNNING"
+RUN_STATUS_SUCCESS = "SUCCESS"
+RUN_STATUS_FAILED = "FAILED"
+
 # by level
 OPERATION_REMOVE = "remove"
 OPERATION_ADD = "add"
