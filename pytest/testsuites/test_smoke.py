@@ -23,6 +23,7 @@ params = [
 ]
 
 
+@pytest.mark.lisa(priority=0)
 @pytest.mark.parametrize("urn", params)
 @pytest.mark.flaky(reruns=1)
 def test_smoke(urn: str, node: Node) -> None:

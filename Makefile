@@ -19,6 +19,8 @@ check:
 clean:
 	cd pytest && poetry run python -m pytest --cache-clear --setup-plan
 
+yaml:
+	cd pytest && poetry run python -m pytest --collect-only --playbook=criteria.yaml
 smoke:
 	cd pytest && poetry run python -m pytest --quiet --html=smoke.html --self-contained-html --tb=line --show-capture=log -k smoke
 
