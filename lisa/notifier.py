@@ -1,5 +1,5 @@
 from dataclasses import dataclass
-from typing import Any, Dict, List, Type
+from typing import Any, Dict, List, Optional, Type
 
 from lisa import schema
 from lisa.util import InitializableMixin, subclasses
@@ -10,6 +10,16 @@ from lisa.util.logger import get_logger
 class MessageBase:
     type: str = ""
     elapsed: float = 0
+
+
+@dataclass
+class TestRunMessage(MessageBase):
+    type: str = "TestRun"
+    status: str = ""
+    test_project: str = ""
+    test_pass: str = ""
+    tags: Optional[List[str]] = None
+    run_name: str = ""
 
 
 class Notifier(subclasses.BaseClassWithRunbook, InitializableMixin):

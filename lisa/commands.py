@@ -10,6 +10,7 @@ from lisa.testselector import select_testcases
 from lisa.testsuite import TestCaseRuntimeData
 from lisa.util import LisaException, constants
 from lisa.util.logger import get_logger
+from lisa.util.perf_timer import create_timer
 
 _get_init_logger = functools.partial(get_logger, "init")
 
@@ -19,11 +20,32 @@ def run(args: Namespace) -> int:
 
     if runbook.notifier:
         notifier.initialize(runbooks=runbook.notifier)
+    run_message = notifier.TestRunMessage(
+        status=constants.RUN_STATUS_RUNNING,
+        test_project=runbook.test_project,
+        test_pass=runbook.test_pass,
+        run_name=constants.RUN_NAME,
+        tags=runbook.tags,
+    )
+    notifier.notify(run_message)
+
+    run_status = constants.RUN_STATUS_FAILED
+    run_timer = create_timer()
     try:
         runner = LisaRunner(runbook)
         awaitable = runner.start()
         asyncio.run(awaitable)
+        run_status = constants.RUN_STATUS_SUCCESS
     finally:
+        run_message = notifier.TestRunMessage(
+            status=run_status,
+            test_project=runbook.test_project,
+            test_pass=runbook.test_pass,
+            run_name=constants.RUN_NAME,
+            tags=runbook.tags,
+            elapsed=run_timer.elapsed(),
+        )
+        notifier.notify(run_message)
         notifier.finalize()
 
     return runner.exit_code
