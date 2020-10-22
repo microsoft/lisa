@@ -1,5 +1,6 @@
 from dataclasses import dataclass
-from typing import Any, Dict, List, Type
+from enum import Enum
+from typing import Any, Dict, List, Optional, Type
 
 from lisa import schema
 from lisa.util import InitializableMixin, subclasses
@@ -10,6 +11,27 @@ from lisa.util.logger import get_logger
 class MessageBase:
     type: str = ""
     elapsed: float = 0
+
+
+TestRunStatus = Enum(
+    "TestRunStatus",
+    [
+        "INITIALIZING",
+        "RUNNING",
+        "SUCCESS",
+        "FAILED",
+    ],
+)
+
+
+@dataclass
+class TestRunMessage(MessageBase):
+    type: str = "TestRun"
+    status: TestRunStatus = TestRunStatus.INITIALIZING
+    test_project: str = ""
+    test_pass: str = ""
+    tags: Optional[List[str]] = None
+    run_name: str = ""
 
 
 class Notifier(subclasses.BaseClassWithRunbookMixin, InitializableMixin):

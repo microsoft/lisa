@@ -36,4 +36,4 @@ class Console(notifier.Notifier):
         )
 
     def _subscribed_message_type(self) -> List[Type[notifier.MessageBase]]:
-        return [TestResultMessage]
+        return [TestResultMessage, notifier.TestRunMessage]
