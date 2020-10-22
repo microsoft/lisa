@@ -36,6 +36,7 @@ class SkipTestCaseException(LisaException):
 @dataclass
 class TestResultMessage(notifier.MessageBase):
     type: str = "TestResult"
+    name: str = ""
     status: TestStatus = TestStatus.NOTRUN
     message: str = ""
     environment_information: Dict[str, str] = field(default_factory=dict)
@@ -77,6 +78,7 @@ class TestResult:
                 )
                 result_message.environment_information.update(environment_information)
                 result_message.environment_information["name"] = self.environment.name
+            result_message.name = self.runtime_data.metadata.full_name
             notifier.notify(result_message)
 
     def check_environment(
