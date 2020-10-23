@@ -105,12 +105,28 @@ class AzureNodeSchema:
     name: str = ""
     vm_size: str = ""
     location: str = ""
-    gallery: Optional[AzureVmGallerySchema] = None
+    gallery: Optional[Union[AzureVmGallerySchema, str]] = None
     vhd: str = ""
     nic_count: int = 1
 
     def __post_init__(self, *args: Any, **kwargs: Any) -> None:
         add_secret(self.vhd)
+
+        if isinstance(self.gallery, str):
+            gallery = re.split(r"[:\s]+", self.gallery.strip())
+
+            if len(gallery) == 4:
+                self.gallery = AzureVmGallerySchema(
+                    gallery[0], gallery[1], gallery[2], gallery[3]
+                )
+            else:
+                raise LisaException(
+                    f"Invalid value for the provided gallery "
+                    f"parameter: '{self.gallery}'."
+                    f"The gallery parameter should be in the format: "
+                    f"'<Publisher> <Offer> <Sku> <Version>' "
+                    f"or '<Publisher>:<Offer>:<Sku>:<Version>'"
+                )
 
 
 @dataclass_json(letter_case=LetterCase.CAMEL)
