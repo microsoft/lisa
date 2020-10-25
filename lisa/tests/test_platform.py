@@ -1,5 +1,8 @@
-from typing import List, Type
+from dataclasses import dataclass, field
+from typing import Any, List, Type
 from unittest.case import TestCase
+
+from dataclasses_json import LetterCase, dataclass_json  # type: ignore
 
 from lisa import schema
 from lisa.environment import Environment, Environments, load_environments
@@ -9,28 +12,28 @@ from lisa.tests.test_environment import generate_runbook as generate_env_runbook
 from lisa.util import LisaException, constants
 from lisa.util.logger import Logger
 
-# for other UT to set value
-return_prepared = True
-deploy_success = True
-deploy_is_ready = True
-wait_more_resource_error = False
-prepared_envs: List[str] = []
-deployed_envs: List[str] = []
-deleted_envs: List[str] = []
+
+@dataclass
+class MockPlatformTestData:
+    prepared_envs: List[str] = field(default_factory=list)
+    deployed_envs: List[str] = field(default_factory=list)
+    deleted_envs: List[str] = field(default_factory=list)
+
+
+@dataclass_json(letter_case=LetterCase.CAMEL)
+@dataclass
+class MockPlatformSchema:
+    # for other UT to set value
+    return_prepared: bool = True
+    deploy_success: bool = True
+    deploy_is_ready: bool = True
+    wait_more_resource_error: bool = False
 
 
 class MockPlatform(Platform):
     def __init__(self, runbook: schema.Platform) -> None:
         super().__init__(runbook=runbook)
-        prepared_envs.clear()
-        deployed_envs.clear()
-        deleted_envs.clear()
-        self.set_test_config(
-            return_prepared=return_prepared,
-            deploy_success=deploy_success,
-            deploy_is_ready=deploy_is_ready,
-            wait_more_resource_error=wait_more_resource_error,
-        )
+        self.test_data = MockPlatformTestData()
 
     @classmethod
     def type_name(cls) -> str:
@@ -47,39 +50,45 @@ class MockPlatform(Platform):
         deploy_is_ready: bool = True,
         wait_more_resource_error: bool = False,
     ) -> None:
-        self.return_prepared = return_prepared
-        self.deploy_success = deploy_success
-        self.deploy_is_ready = deploy_is_ready
-        self.wait_more_resource_error = wait_more_resource_error
+        self.initialize()
+        self._mock_runbook.return_prepared = return_prepared
+        self._mock_runbook.deploy_success = deploy_success
+        self._mock_runbook.deploy_is_ready = deploy_is_ready
+        self._mock_runbook.wait_more_resource_error = wait_more_resource_error
+
+    def _initialize(self, *args: Any, **kwargs: Any) -> None:
+        self._mock_runbook: MockPlatformSchema = self._runbook.get_extended_runbook(
+            MockPlatformSchema, constants.PLATFORM_MOCK
+        )
 
     def _prepare_environment(self, environment: Environment, log: Logger) -> bool:
-        prepared_envs.append(environment.name)
+        self.test_data.prepared_envs.append(environment.name)
         requirements = environment.runbook.nodes_requirement
-        if self.return_prepared and requirements:
+        if self._mock_runbook.return_prepared and requirements:
             min_capabilities: List[schema.NodeSpace] = []
             for node_space in requirements:
                 min_capabilities.append(node_space.generate_min_capability(node_space))
             environment.runbook.nodes_requirement = min_capabilities
-        return self.return_prepared
+        return self._mock_runbook.return_prepared
 
     def _deploy_environment(self, environment: Environment, log: Logger) -> None:
-        if self.wait_more_resource_error:
+        if self._mock_runbook.wait_more_resource_error:
             raise WaitMoreResourceError("wait more resource")
-        if not self.deploy_success:
+        if not self._mock_runbook.deploy_success:
             raise LisaException("mock deploy failed")
-        if self.return_prepared and environment.runbook.nodes_requirement:
+        if self._mock_runbook.return_prepared and environment.runbook.nodes_requirement:
             requirements = environment.runbook.nodes_requirement
             for node_space in requirements:
                 environment.nodes.from_requirement(node_requirement=node_space)
         for node in environment.nodes.list():
             # prevent real calls
             node._node_information_hooks.clear()
-        deployed_envs.append(environment.name)
+        self.test_data.deployed_envs.append(environment.name)
         environment._is_initialized = True
-        environment.is_ready = self.deploy_is_ready
+        environment.is_ready = self._mock_runbook.deploy_is_ready
 
     def _delete_environment(self, environment: Environment, log: Logger) -> None:
-        deleted_envs.append(environment.name)
+        self.test_data.deleted_envs.append(environment.name)
         self.delete_called = True
 
 
