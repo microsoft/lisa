@@ -175,6 +175,7 @@ class LisaRunner(Action):
         self.exit_code = result_count_dict.get(TestStatus.FAILED, 0)
 
         # for UT testability
+        self._latest_platform = platform
         self._latest_test_results = selected_test_results
 
     async def stop(self) -> None:

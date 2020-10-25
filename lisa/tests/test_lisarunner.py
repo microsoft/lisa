@@ -1,4 +1,4 @@
-from typing import List, Optional
+from typing import List, Optional, cast
 from unittest import IsolatedAsyncioTestCase
 
 from lisa import schema
@@ -6,7 +6,6 @@ from lisa.environment import load_environments
 from lisa.lisarunner import LisaRunner
 from lisa.tests import test_platform, test_testsuite
 from lisa.tests.test_environment import generate_runbook as generate_env_runbook
-from lisa.tests.test_platform import deleted_envs, deployed_envs, prepared_envs
 from lisa.tests.test_testsuite import (
     cleanup_cases_metadata,
     generate_cases_metadata,
@@ -17,12 +16,19 @@ from lisa.util import constants
 
 
 def generate_lisarunner(
-    env_runbook: Optional[schema.EnvironmentRoot] = None, case_use_new_env: bool = False
+    env_runbook: Optional[schema.EnvironmentRoot] = None,
+    case_use_new_env: bool = False,
+    platform_schema: Optional[test_platform.MockPlatformSchema] = None,
 ) -> LisaRunner:
+    platform_runbook = schema.Platform(
+        type=constants.PLATFORM_MOCK, admin_password="not use it"
+    )
+    if platform_schema:
+        platform_runbook.extended_schemas = {
+            constants.PLATFORM_MOCK: platform_schema.to_dict()  # type:ignore
+        }
     runbook = schema.Runbook(
-        platform=[
-            schema.Platform(type=constants.PLATFORM_MOCK, admin_password="not use it")
-        ],
+        platform=[platform_runbook],
         testcase=[
             schema.TestCase(
                 criteria=schema.Criteria(priority=[0, 1, 2]),
@@ -40,10 +46,6 @@ def generate_lisarunner(
 class LisaRunnerTestCase(IsolatedAsyncioTestCase):
     def tearDown(self) -> None:
         cleanup_cases_metadata()
-        test_platform.return_prepared = True
-        test_platform.deploy_is_ready = True
-        test_platform.deploy_success = True
-        test_platform.wait_more_resource_error = False
 
     def test_merge_req_create_on_new(self) -> None:
         # if no predefined envs, can generate from requirement
@@ -217,6 +219,7 @@ class LisaRunnerTestCase(IsolatedAsyncioTestCase):
             expected_prepared=["customized_0", "generated_1", "generated_2"],
             expected_deployed_envs=["customized_0", "generated_1"],
             expected_deleted_envs=["customized_0", "generated_1"],
+            runner=runner,
         )
         self.verify_test_results(
             expected_envs=["generated_1", "customized_0", "customized_0"],
@@ -241,6 +244,7 @@ class LisaRunnerTestCase(IsolatedAsyncioTestCase):
             ],
             expected_deployed_envs=["customized_0"],
             expected_deleted_envs=["customized_0"],
+            runner=runner,
         )
         self.verify_test_results(
             expected_envs=["customized_0", "customized_0", "customized_0"],
@@ -265,6 +269,7 @@ class LisaRunnerTestCase(IsolatedAsyncioTestCase):
             ],
             expected_deployed_envs=["customized_0", "generated_1", "generated_3"],
             expected_deleted_envs=["customized_0", "generated_1", "generated_3"],
+            runner=runner,
         )
         self.verify_test_results(
             expected_envs=["customized_0", "generated_1", "generated_3"],
@@ -289,6 +294,7 @@ class LisaRunnerTestCase(IsolatedAsyncioTestCase):
             ],
             expected_deployed_envs=["customized_0", "generated_2"],
             expected_deleted_envs=["customized_0", "generated_2"],
+            runner=runner,
         )
         self.verify_test_results(
             expected_envs=["generated_2", "customized_0", "customized_0"],
@@ -301,10 +307,11 @@ class LisaRunnerTestCase(IsolatedAsyncioTestCase):
         # platform may see no more resource, like no azure quota.
         # cases skipped due to this.
         # In future, will add retry on wait more resource.
-        test_platform.wait_more_resource_error = True
+        platform_schema = test_platform.MockPlatformSchema()
+        platform_schema.wait_more_resource_error = True
         generate_cases_metadata()
         env_runbook = generate_env_runbook(is_single_env=True, local=True)
-        runner = generate_lisarunner(env_runbook)
+        runner = generate_lisarunner(env_runbook, platform_schema=platform_schema)
         await runner.start()
 
         self.verify_env_results(
@@ -316,6 +323,7 @@ class LisaRunnerTestCase(IsolatedAsyncioTestCase):
             ],
             expected_deployed_envs=[],
             expected_deleted_envs=[],
+            runner=runner,
         )
         before_suite_failed = "no available environment"
         self.verify_test_results(
@@ -349,6 +357,7 @@ class LisaRunnerTestCase(IsolatedAsyncioTestCase):
             ],
             expected_deployed_envs=["customized_0"],
             expected_deleted_envs=["customized_0"],
+            runner=runner,
         )
         before_suite_failed = "before_suite: failed"
         self.verify_test_results(
@@ -364,10 +373,11 @@ class LisaRunnerTestCase(IsolatedAsyncioTestCase):
 
     async def test_env_skipped_no_prepared_env(self) -> None:
         # test env not prepared, so test cases cannot find an env to run
-        test_platform.return_prepared = False
+        platform_schema = test_platform.MockPlatformSchema()
+        platform_schema.return_prepared = False
         generate_cases_metadata()
         env_runbook = generate_env_runbook(is_single_env=True, local=True, remote=True)
-        runner = generate_lisarunner(env_runbook)
+        runner = generate_lisarunner(env_runbook, platform_schema=platform_schema)
         await runner.start()
         self.verify_env_results(
             expected_prepared=[
@@ -378,6 +388,7 @@ class LisaRunnerTestCase(IsolatedAsyncioTestCase):
             ],
             expected_deployed_envs=[],
             expected_deleted_envs=[],
+            runner=runner,
         )
         no_avaiable_env = "no available environment"
         self.verify_test_results(
@@ -394,10 +405,11 @@ class LisaRunnerTestCase(IsolatedAsyncioTestCase):
     async def test_env_skipped_not_ready(self) -> None:
         # env prepared, but not deployed to ready.
         # so no cases can run
-        test_platform.deploy_is_ready = False
+        platform_schema = test_platform.MockPlatformSchema()
+        platform_schema.deploy_is_ready = False
         generate_cases_metadata()
         env_runbook = generate_env_runbook(is_single_env=True, local=True, remote=True)
-        runner = generate_lisarunner(env_runbook)
+        runner = generate_lisarunner(env_runbook, platform_schema=platform_schema)
         await runner.start()
         self.verify_env_results(
             expected_prepared=[
@@ -413,6 +425,7 @@ class LisaRunnerTestCase(IsolatedAsyncioTestCase):
                 "generated_3",
             ],
             expected_deleted_envs=[],
+            runner=runner,
         )
         no_avaiable_env = "no available environment"
         self.verify_test_results(
@@ -437,6 +450,7 @@ class LisaRunnerTestCase(IsolatedAsyncioTestCase):
             expected_prepared=["customized_0"],
             expected_deployed_envs=[],
             expected_deleted_envs=[],
+            runner=runner,
         )
         self.verify_test_results(
             expected_envs=[],
@@ -452,6 +466,7 @@ class LisaRunnerTestCase(IsolatedAsyncioTestCase):
         expected_message: List[str],
         test_results: List[TestResult],
     ) -> None:
+
         self.assertListEqual(
             expected_envs,
             [
@@ -478,16 +493,20 @@ class LisaRunnerTestCase(IsolatedAsyncioTestCase):
         expected_prepared: List[str],
         expected_deployed_envs: List[str],
         expected_deleted_envs: List[str],
+        runner: LisaRunner,
     ) -> None:
+        platform = cast(test_platform.MockPlatform, runner._latest_platform)
+        platform_test_data = platform.test_data
+
         self.assertListEqual(
             expected_prepared,
-            [x for x in prepared_envs],
+            [x for x in platform_test_data.prepared_envs],
         )
         self.assertListEqual(
             expected_deployed_envs,
-            [x for x in deployed_envs],
+            [x for x in platform_test_data.deployed_envs],
         )
         self.assertListEqual(
             expected_deleted_envs,
-            [x for x in deleted_envs],
+            [x for x in platform_test_data.deleted_envs],
         )
