@@ -1,5 +1,6 @@
 import os
 import re
+from dataclasses import dataclass
 from typing import Any, Dict, List, Optional, Union, cast
 
 import yaml
@@ -14,7 +15,13 @@ _ENV_START = "LISA_"
 _SECRET_ENV_START = "S_LISA_"
 
 
-def replace_variables(data: Any, variables: Dict[str, Any]) -> Any:
+@dataclass
+class VariableEntry:
+    data: Any
+    is_used: bool = False
+
+
+def replace_variables(data: Any, variables: Dict[str, VariableEntry]) -> Any:
     if isinstance(data, dict):
         for key, value in data.items():
             data[key] = replace_variables(value, variables)
@@ -27,7 +34,9 @@ def replace_variables(data: Any, variables: Dict[str, Any]) -> Any:
             variable_name = matches[1]
             lower_variable_name = variable_name.lower()
             if lower_variable_name in variables:
-                data = variables[lower_variable_name]
+                entry = variables[lower_variable_name]
+                entry.is_used = True
+                data = entry.data
             else:
                 raise LisaException(
                     f"cannot find variable '{variable_name}', make sure it's defined"
@@ -57,7 +66,9 @@ def load_from_env(current_variables: Dict[str, Any]) -> None:
             )
 
 
-def load_from_runbook(runbook_data: Any, current_variables: Dict[str, Any]) -> None:
+def load_from_runbook(
+    runbook_data: Any, current_variables: Dict[str, VariableEntry]
+) -> None:
     if constants.VARIABLE in runbook_data:
         variable_entries = schema.Variable.schema().load(  # type:ignore
             runbook_data[constants.VARIABLE], many=True
@@ -77,7 +88,7 @@ def load_from_runbook(runbook_data: Any, current_variables: Dict[str, Any]) -> N
 
 def load_from_file(
     file_name: str,
-    current_variables: Dict[str, Any],
+    current_variables: Dict[str, VariableEntry],
     is_secret: bool = False,
 ) -> None:
     if is_secret:
@@ -103,7 +114,7 @@ def load_from_file(
 
 
 def load_from_pairs(
-    pairs: Optional[List[str]], current_variables: Dict[str, Any]
+    pairs: Optional[List[str]], current_variables: Dict[str, VariableEntry]
 ) -> None:
     if pairs is None:
         return
@@ -119,7 +130,7 @@ def load_from_pairs(
 def load_from_variable_entry(
     name: str,
     raw_value: Any,
-    current_variables: Dict[str, Any],
+    current_variables: Dict[str, VariableEntry],
     is_secret: bool = False,
 ) -> None:
 
@@ -148,12 +159,12 @@ def load_from_variable_entry(
 def _add_variable(
     key: str,
     value: Any,
-    current_variables: Dict[str, Any],
+    current_variables: Dict[str, VariableEntry],
     is_secret: bool = False,
     mask_pattern_name: str = "",
 ) -> None:
     key = key.lower()
-    current_variables[key] = value
+    current_variables[key] = VariableEntry(value)
     pattern = None
     if is_secret:
         if mask_pattern_name:
