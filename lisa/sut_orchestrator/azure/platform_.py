@@ -13,7 +13,7 @@ from azure.core.exceptions import HttpResponseError
 from azure.identity import DefaultAzureCredential  # type: ignore
 from azure.mgmt.compute.models import ResourceSku, VirtualMachine  # type: ignore
 from azure.mgmt.network import NetworkManagementClient  # type: ignore
-from azure.mgmt.network.models import InboundNatRule, NetworkInterface  # type: ignore
+from azure.mgmt.network.models import NetworkInterface, PublicIPAddress  # type: ignore
 from azure.mgmt.resource import (  # type: ignore
     ResourceManagementClient,
     SubscriptionClient,
@@ -66,10 +66,9 @@ LOCATIONS = ["westus2", "eastus2"]
 RESOURCE_GROUP_LOCATION = "westus2"
 
 # names in arm template, they should be changed with template together.
-RESOURCE_ID_LB = "lisa-loadBalancer"
-RESOURCE_ID_PUBLIC_IP = "lisa-publicIPv4Address"
 RESOURCE_ID_PORT_POSTFIX = "-ssh"
 RESOURCE_ID_NIC_PATTERN = re.compile(r"([\w]+-[\d]+)-nic-0")
+RESOURCE_ID_PUBLIC_IP_PATTERN = re.compile(r"([\w]+-[\d]+)-public-ip")
 
 
 @dataclass_json(letter_case=LetterCase.CAMEL)
@@ -465,7 +464,6 @@ class AzurePlatform(Platform):
 
                 # Even skipped deploy, try best to initialize nodes
                 self._initialize_nodes(environment)
-
             except Exception as identifier:
                 self._delete_environment(environment, log)
                 raise identifier
@@ -834,15 +832,6 @@ class AzurePlatform(Platform):
             credential=self.credential, subscription_id=self.subscription_id
         )
 
-        # load port mappings
-        nat_rules_map: Dict[str, InboundNatRule] = dict()
-        load_balancing = network_client.load_balancers.get(
-            environment_context.resource_group_name, RESOURCE_ID_LB
-        )
-        for rule in load_balancing.inbound_nat_rules:
-            name = rule.name[: -len(RESOURCE_ID_PORT_POSTFIX)]
-            nat_rules_map[name] = rule
-
         # load nics
         nic_map: Dict[str, NetworkInterface] = dict()
         network_interfaces = network_client.network_interfaces.list(
@@ -857,9 +846,19 @@ class AzurePlatform(Platform):
                 nic_map[name] = nic
 
         # get public IP
-        public_ip_address = network_client.public_ip_addresses.get(
-            environment_context.resource_group_name, RESOURCE_ID_PUBLIC_IP
-        ).ip_address
+        public_ip_addresses = network_client.public_ip_addresses.list(
+            environment_context.resource_group_name
+        )
+        public_ip_map: Dict[str, PublicIPAddress] = dict()
+        for ip_address in public_ip_addresses:
+            # nic name is like node-0-nic-2, get vm name part for later pick
+            # only find primary nic, which is ended by -nic-0
+            node_name_from_public_ip = RESOURCE_ID_PUBLIC_IP_PATTERN.findall(
+                ip_address.name
+            )
+            if node_name_from_public_ip:
+                name = node_name_from_public_ip[0]
+                public_ip_map[name] = ip_address
 
         for vm_name, node in node_context_map.items():
             node_context = get_node_context(node)
@@ -869,18 +868,16 @@ class AzurePlatform(Platform):
                     f"cannot find vm: '{vm_name}', make sure deployment is correct."
                 )
             nic = nic_map[vm_name]
-            nat_rule = nat_rules_map[vm_name]
+            public_ip = public_ip_map[vm_name]
 
             address = nic.ip_configurations[0].private_ip_address
-            port = nat_rule.backend_port
-            public_port = nat_rule.frontend_port
             if not node.name:
                 node.name = vm_name
             node.set_connection_info(
                 address=address,
-                port=port,
-                public_address=public_ip_address,
-                public_port=public_port,
+                port=22,
+                public_address=public_ip.ip_address,
+                public_port=22,
                 username=node_context.username,
                 password=node_context.password,
                 private_key_file=node_context.private_key_file,
