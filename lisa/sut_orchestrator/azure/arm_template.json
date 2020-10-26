@@ -48,15 +48,11 @@
     "variables": {
         "nodeCount": "[length(parameters('nodes'))]",
         "resourceGroupName": "[resourceGroup().name]",
-        "publicIPv4AddressName": "lisa-publicIPv4Address",
         "virtualNetworkName": "lisa-virtualNetwork",
         "defaultSubnet": "lisa-subnetForPrimaryNIC",
         "availabilitySetName": "lisa-availabilitySet",
-        "lbName": "lisa-loadBalancer",
         "defaultSubnetId": "[concat(variables('vnetId'),'/subnets/', variables('defaultSubnet'))]",
-        "vnetId": "[resourceId('Microsoft.Network/virtualNetworks/', variables('virtualNetworkName'))]",
-        "lbId": "[resourceId('Microsoft.Network/loadBalancers/', variables('lbName'))]",
-        "frontEndIPv4ConfigID": "[concat(variables('lbId'),'/frontendIPConfigurations/LoadBalancerFrontEndIPv4')]"
+        "vnetId": "[resourceId('Microsoft.Network/virtualNetworks/', variables('virtualNetworkName'))]"
     },
     "resources": [
         {
@@ -72,53 +68,13 @@
         },
         {
             "apiVersion": "2020-05-01",
-            "type": "Microsoft.Network/loadBalancers",
-            "name": "[variables('lbName')]",
-            "location": "[parameters('location')]",
-            "dependsOn": [
-                "[resourceId('Microsoft.Network/publicIPAddresses/', variables('publicIPv4AddressName'))]"
-            ],
-            "properties": {
-                "frontendIPConfigurations": [
-                    {
-                        "name": "LoadBalancerFrontEndIPv4",
-                        "properties": {
-                            "publicIPAddress": {
-                                "id": "[resourceId('Microsoft.Network/publicIPAddresses', variables('publicIPv4AddressName'))]"
-                            }
-                        }
-                    }
-                ],
-                "backendAddressPools": [
-                    {
-                        "name": "BackendPoolIPv4"
-                    }
-                ],
-                "copy": [
-                    {
-                        "name": "inboundNatRules",
-                        "count": "[variables('nodeCount')]",
-                        "input": {
-                            "name": "[concat(parameters('nodes')[copyIndex('inboundNatRules')]['name'], '-ssh')]",
-                            "properties": {
-                                "frontendIPConfiguration": {
-                                    "id": "[variables('frontEndIPv4ConfigID')]"
-                                },
-                                "protocol": "tcp",
-                                "frontendPort": "[add(1111, copyIndex('inboundNatRules'))]",
-                                "backendPort": "22",
-                                "enableFloatingIP": false
-                            }
-                        }
-                    }
-                ]
-            }
-        },
-        {
-            "apiVersion": "2020-05-01",
             "type": "Microsoft.Network/publicIPAddresses",
             "location": "[parameters('location')]",
-            "name": "[variables('publicIPv4AddressName')]",
+            "name": "[concat(parameters('nodes')[copyIndex('vmCopy')]['name'],'-public-ip')]",
+            "copy": {
+                "name": "vmCopy",
+                "count": "[variables('nodeCount')]"
+            },
             "properties": {
                 "publicIPAllocationMethod": "Dynamic"
             }
@@ -153,9 +109,8 @@
             },
             "name": "[concat(parameters('nodes')[copyIndex('vmCopy')]['name'],'-networkInterfaces')]",
             "dependsOn": [
-                "[resourceId('Microsoft.Network/publicIPAddresses/', variables('publicIPv4AddressName'))]",
-                "[variables('vnetId')]",
-                "[variables('lbId')]"
+                "[resourceId('Microsoft.Network/publicIPAddresses/', concat(parameters('nodes')[copyIndex('vmCopy')]['name'],'-public-ip'))]",
+                "[variables('vnetId')]"
             ],
             "properties": {
                 "expressionEvaluationOptions": {
@@ -170,9 +125,6 @@
                     },
                     "location": {
                         "value": "[parameters('location')]"
-                    },
-                    "lbId": {
-                        "value": "[variables('lbId')]"
                     },
                     "defaultSubnetId": {
                         "value": "[variables('defaultSubnetId')]"
@@ -190,9 +142,6 @@
                             "type": "int"
                         },
                         "location": {
-                            "type": "string"
-                        },
-                        "lbId": {
                             "type": "string"
                         },
                         "defaultSubnetId": {
@@ -215,8 +164,7 @@
                                         "name": "IPv4Config",
                                         "properties": {
                                             "privateIPAddressVersion": "IPv4",
-                                            "loadBalancerBackendAddressPools": "[if(equals(0, copyIndex('nicCopy')), network.getlbAddressIds(parameters('lbId')), json('null'))]",
-                                            "loadBalancerInboundNatRules": "[if(equals(0, copyIndex('nicCopy')), network.getNatRules(parameters('lbId'), parameters('vmName')), json('null'))]",
+                                            "publicIPAddress": "[if(equals(0, copyIndex('nicCopy')), network.getPublicIpAddress(parameters('vmName')), json('null'))]",
                                             "subnet": {
                                                 "id": "[parameters('defaultSubnetId')]"
                                             },
@@ -231,40 +179,18 @@
                         {
                             "namespace": "network",
                             "members": {
-                                "getlbAddressIds": {
+                                "getPublicIpAddress": {
                                     "parameters": [
-                                        {
-                                            "name": "lbId",
-                                            "type": "string"
-                                        }
-                                    ],
-                                    "output": {
-                                        "type": "array",
-                                        "value": [
-                                            {
-                                                "id": "[concat(parameters('lbId'), '/backendAddressPools/BackendPoolIPv4')]"
-                                            }
-                                        ]
-                                    }
-                                },
-                                "getNatRules": {
-                                    "parameters": [
-                                        {
-                                            "name": "lbId",
-                                            "type": "string"
-                                        },
                                         {
                                             "name": "vmName",
                                             "type": "string"
                                         }
                                     ],
                                     "output": {
-                                        "type": "array",
-                                        "value": [
-                                            {
-                                                "id": "[concat(parameters('lbId'), '/inboundNatRules/', parameters('vmName'), '-ssh')]"
-                                            }
-                                        ]
+                                        "type": "object",
+                                        "value": {
+                                            "id": "[resourceId('Microsoft.Network/publicIPAddresses/', concat(parameters('vmName'),'-public-ip'))]"
+                                        }
                                     }
                                 }
                             }
