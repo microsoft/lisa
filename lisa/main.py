@@ -69,8 +69,7 @@ async def main() -> int:
 if __name__ == "__main__":
     exit_code = 0
     try:
-        # TODO: Turn off debugging when we ship this.
-        exit_code = asyncio.run(main(), debug=True)
+        exit_code = asyncio.run(main())
     except Exception as exception:
         exit_code = -1
         log = get_logger()
