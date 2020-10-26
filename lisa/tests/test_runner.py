@@ -3,7 +3,7 @@ from unittest import IsolatedAsyncioTestCase
 
 from lisa import schema
 from lisa.environment import load_environments
-from lisa.lisarunner import LisaRunner
+from lisa.runner import Runner
 from lisa.tests import test_platform, test_testsuite
 from lisa.tests.test_environment import generate_runbook as generate_env_runbook
 from lisa.tests.test_testsuite import (
@@ -15,11 +15,11 @@ from lisa.testsuite import TestResult, TestStatus, simple_requirement
 from lisa.util import constants
 
 
-def generate_lisarunner(
+def generate_runner(
     env_runbook: Optional[schema.EnvironmentRoot] = None,
     case_use_new_env: bool = False,
     platform_schema: Optional[test_platform.MockPlatformSchema] = None,
-) -> LisaRunner:
+) -> Runner:
     platform_runbook = schema.Platform(
         type=constants.PLATFORM_MOCK, admin_password="not use it"
     )
@@ -38,12 +38,12 @@ def generate_lisarunner(
     )
     if env_runbook:
         runbook.environment = env_runbook
-    runner = LisaRunner(runbook)
+    runner = Runner(runbook)
 
     return runner
 
 
-class LisaRunnerTestCase(IsolatedAsyncioTestCase):
+class RunnerTestCase(IsolatedAsyncioTestCase):
     def tearDown(self) -> None:
         cleanup_cases_metadata()
 
@@ -55,7 +55,7 @@ class LisaRunnerTestCase(IsolatedAsyncioTestCase):
             [],
             [x for x in envs],
         )
-        runner = generate_lisarunner(None)
+        runner = generate_runner(None)
         test_results = generate_cases_result()
         runner._merge_test_requirements(
             test_results=test_results,
@@ -84,7 +84,7 @@ class LisaRunnerTestCase(IsolatedAsyncioTestCase):
             [x for x in envs],
         )
 
-        runner = generate_lisarunner(env_runbook)
+        runner = generate_runner(env_runbook)
         test_results = generate_cases_result()
         runner._merge_test_requirements(
             test_results=test_results,
@@ -112,7 +112,7 @@ class LisaRunnerTestCase(IsolatedAsyncioTestCase):
             ["customized_0"],
             [x for x in envs],
         )
-        runner = generate_lisarunner(env_runbook)
+        runner = generate_runner(env_runbook)
         test_results = generate_cases_result()
         for test_result in test_results:
             test_result.runtime_data.use_new_environment = True
@@ -143,7 +143,7 @@ class LisaRunnerTestCase(IsolatedAsyncioTestCase):
             [],
             [x for x in envs],
         )
-        runner = generate_lisarunner(None)
+        runner = generate_runner(None)
         test_results = generate_cases_result()
         runner._merge_test_requirements(
             test_results=test_results,
@@ -177,7 +177,7 @@ class LisaRunnerTestCase(IsolatedAsyncioTestCase):
             [],
             [x for x in envs],
         )
-        runner = generate_lisarunner(None)
+        runner = generate_runner(None)
         test_results = generate_cases_result()
         for test_result in test_results:
             metadata = test_result.runtime_data.metadata
@@ -213,7 +213,7 @@ class LisaRunnerTestCase(IsolatedAsyncioTestCase):
         #    so it can run any case with core requirements.
         generate_cases_metadata()
         env_runbook = generate_env_runbook(is_single_env=True, remote=True)
-        runner = generate_lisarunner(env_runbook)
+        runner = generate_runner(env_runbook)
         await runner.start()
         self.verify_env_results(
             expected_prepared=["customized_0", "generated_1", "generated_2"],
@@ -233,7 +233,7 @@ class LisaRunnerTestCase(IsolatedAsyncioTestCase):
         # it doesn't equal to any case req, but reusable for all cases.
         generate_cases_metadata()
         env_runbook = generate_env_runbook(is_single_env=True, local=True, remote=True)
-        runner = generate_lisarunner(env_runbook)
+        runner = generate_runner(env_runbook)
         await runner.start()
         self.verify_env_results(
             expected_prepared=[
@@ -258,7 +258,7 @@ class LisaRunnerTestCase(IsolatedAsyncioTestCase):
         # but all case want to run on a new env
         generate_cases_metadata()
         env_runbook = generate_env_runbook(is_single_env=True, local=True, remote=True)
-        runner = generate_lisarunner(env_runbook, case_use_new_env=True)
+        runner = generate_runner(env_runbook, case_use_new_env=True)
         await runner.start()
         self.verify_env_results(
             expected_prepared=[
@@ -283,7 +283,7 @@ class LisaRunnerTestCase(IsolatedAsyncioTestCase):
         # no cases assigned to customized_1, as fit cases run on customized_0 already
         generate_cases_metadata()
         env_runbook = generate_env_runbook(local=True, remote=True)
-        runner = generate_lisarunner(env_runbook)
+        runner = generate_runner(env_runbook)
         await runner.start()
         self.verify_env_results(
             expected_prepared=[
@@ -311,7 +311,7 @@ class LisaRunnerTestCase(IsolatedAsyncioTestCase):
         platform_schema.wait_more_resource_error = True
         generate_cases_metadata()
         env_runbook = generate_env_runbook(is_single_env=True, local=True)
-        runner = generate_lisarunner(env_runbook, platform_schema=platform_schema)
+        runner = generate_runner(env_runbook, platform_schema=platform_schema)
         await runner.start()
 
         self.verify_env_results(
@@ -346,7 +346,7 @@ class LisaRunnerTestCase(IsolatedAsyncioTestCase):
         test_testsuite.fail_on_before_suite = True
         generate_cases_metadata()
         env_runbook = generate_env_runbook(is_single_env=True, local=True, remote=True)
-        runner = generate_lisarunner(env_runbook)
+        runner = generate_runner(env_runbook)
         await runner.start()
         self.verify_env_results(
             expected_prepared=[
@@ -377,7 +377,7 @@ class LisaRunnerTestCase(IsolatedAsyncioTestCase):
         platform_schema.return_prepared = False
         generate_cases_metadata()
         env_runbook = generate_env_runbook(is_single_env=True, local=True, remote=True)
-        runner = generate_lisarunner(env_runbook, platform_schema=platform_schema)
+        runner = generate_runner(env_runbook, platform_schema=platform_schema)
         await runner.start()
         self.verify_env_results(
             expected_prepared=[
@@ -409,7 +409,7 @@ class LisaRunnerTestCase(IsolatedAsyncioTestCase):
         platform_schema.deploy_is_ready = False
         generate_cases_metadata()
         env_runbook = generate_env_runbook(is_single_env=True, local=True, remote=True)
-        runner = generate_lisarunner(env_runbook, platform_schema=platform_schema)
+        runner = generate_runner(env_runbook, platform_schema=platform_schema)
         await runner.start()
         self.verify_env_results(
             expected_prepared=[
@@ -443,7 +443,7 @@ class LisaRunnerTestCase(IsolatedAsyncioTestCase):
         # no case found, as not call generate_case_metadata
         # in this case, not deploy any env
         env_runbook = generate_env_runbook(is_single_env=True, remote=True)
-        runner = generate_lisarunner(env_runbook)
+        runner = generate_runner(env_runbook)
         await runner.start()
         # still prepare predefined, but not deploy
         self.verify_env_results(
@@ -493,7 +493,7 @@ class LisaRunnerTestCase(IsolatedAsyncioTestCase):
         expected_prepared: List[str],
         expected_deployed_envs: List[str],
         expected_deleted_envs: List[str],
-        runner: LisaRunner,
+        runner: Runner,
     ) -> None:
         platform = cast(test_platform.MockPlatform, runner._latest_platform)
         platform_test_data = platform.test_data
