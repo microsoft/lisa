@@ -214,6 +214,8 @@ class TestCaseMetadata:
         priority: int = 2,
         requirement: Optional[TestCaseRequirement] = None,
     ) -> None:
+        self.suite: TestSuiteMetadata
+
         self.priority = priority
         self.description = description
         if requirement:
@@ -236,9 +238,6 @@ class TestCaseMetadata:
             func(*args)
 
         return wrapper
-
-    def set_suite(self, suite: TestSuiteMetadata) -> None:
-        self.suite: TestSuiteMetadata = suite
 
 
 class TestCaseRuntimeData:
