@@ -16,7 +16,7 @@ from lisa.testsuite import (
 from lisa.util.logger import get_logger
 
 
-class LisaRunner(Action):
+class Runner(Action):
     def __init__(self, runbook: schema.Runbook) -> None:
         super().__init__()
         self.exit_code: int = 0
