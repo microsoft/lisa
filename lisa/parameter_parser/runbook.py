@@ -10,6 +10,7 @@ from lisa.util import constants
 from lisa.util.logger import get_logger
 from lisa.util.module import import_module
 from lisa.variable import (
+    VariableEntry,
     load_from_env,
     load_from_pairs,
     load_from_runbook,
@@ -75,7 +76,7 @@ def load_runbook(path: Path, user_variables: Optional[List[str]]) -> schema.Runb
         _load_extends(constants.RUNBOOK_PATH, extends_runbook)
 
     # load arg variables
-    variables: Dict[str, Any] = dict()
+    variables: Dict[str, VariableEntry] = dict()
     # TODO: This is all side-effect driven and needs to be fixed.
     load_from_runbook(data, variables)
     load_from_env(variables)
@@ -83,6 +84,12 @@ def load_runbook(path: Path, user_variables: Optional[List[str]]) -> schema.Runb
 
     # replace variables:
     data = replace_variables(data, variables)
+
+    # log message for unused variables, it's helpful to see which variable is not used.
+    log = _get_init_logger()
+    unused_keys = [key for key, value in variables.items() if not value.is_used]
+    if unused_keys:
+        log.debug(f"variables {unused_keys} are not used.")
 
     # validate runbook, after extensions loaded
     runbook = validate_data(data)

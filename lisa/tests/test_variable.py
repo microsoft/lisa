@@ -188,6 +188,15 @@ class VariableTestCase(TestCase):
         self.assertIsInstance(cm.exception, LisaException)
         self.assertIn("cannot find variable", str(cm.exception))
 
+    def test_variable_not_used(self) -> None:
+        variables = self._get_default_variables()
+        variables["unused"] = variable.VariableEntry("value")
+        self.assertFalse(variables["unused"].is_used)
+        self.assertFalse(variables["normalvalue"].is_used)
+        self._replace_and_validate(variables, {"normalEntry": "original"})
+        self.assertFalse(variables["unused"].is_used)
+        self.assertTrue(variables["normalvalue"].is_used)
+
     def test_invalid_file_extension(self) -> None:
         variables = self._get_default_variables()
         with self.assertRaises(LisaException) as cm:
@@ -219,13 +228,13 @@ class VariableTestCase(TestCase):
         return data
 
     def _verify_secret(
-        self, variables: Dict[str, Any], secrets: Dict[str, str]
+        self, variables: Dict[str, variable.VariableEntry], secrets: Dict[str, str]
     ) -> None:
         log = get_logger()
         copied_variables = dict(variables)
         for secret_name, expected_value in secrets.items():
             secret_name = secret_name.lower()
-            value = copied_variables[secret_name]
+            value = copied_variables[secret_name].data
             del copied_variables[secret_name]
             with self.assertLogs("LISA") as cm:
                 log.info(f"MUST_SECRET[{value}]")
@@ -244,30 +253,30 @@ class VariableTestCase(TestCase):
                 f"key: {key}, value: {unsecret_value} shouldn't be secret",
             )
 
-    def _get_default_variables(self) -> Dict[str, str]:
+    def _get_default_variables(self) -> Dict[str, variable.VariableEntry]:
         data = {
-            "normalvalue": "original",
-            "normalentry": "original",
-            "secretguid": "original",
-            "secretint": "original",
-            "secretheadtail": "original",
+            "normalvalue": variable.VariableEntry("original"),
+            "normalentry": variable.VariableEntry("original"),
+            "secretguid": variable.VariableEntry("original"),
+            "secretint": variable.VariableEntry("original"),
+            "secretheadtail": variable.VariableEntry("original"),
         }
         return data
 
     def _replace_and_validate(
-        self, variables: Dict[str, str], secrets: Dict[str, str]
+        self, variables: Dict[str, variable.VariableEntry], secrets: Dict[str, str]
     ) -> Dict[str, Any]:
         data = variable.replace_variables(self._get_default_data(), variables=variables)
         assert isinstance(data, dict), f"actual: {type(data)}"
         self.assertDictEqual(
             {
                 "keep": "normal",
-                "normalEntry": variables["normalentry"],
-                "headtail": variables["secretheadtail"],
-                "nested": {"normal_value": variables["normalvalue"]},
+                "normalEntry": variables["normalentry"].data,
+                "headtail": variables["secretheadtail"].data,
+                "nested": {"normal_value": variables["normalvalue"].data},
                 "list": [
-                    variables["secretguid"],
-                    {"dictInList": variables["secretint"]},
+                    variables["secretguid"].data,
+                    {"dictInList": variables["secretint"].data},
                 ],
             },
             data,
