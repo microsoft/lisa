@@ -78,7 +78,7 @@ function Create-TestResultObject()
 }
 
 # Upload a single file
-function Upload-RemoteFile($uploadTo, $port, $file, $username, $password, $usePrivateKey, $maxRetry) {
+function Upload-RemoteFile($uploadTo, $port, $file, $username, $password, $usePrivateKey, $pscpTimeout = 90, $maxRetry) {
 	$retry=1
 	if (!$maxRetry) {
 		$maxRetry = 10
@@ -116,10 +116,9 @@ function Upload-RemoteFile($uploadTo, $port, $file, $username, $password, $usePr
 			Start-Sleep -Milliseconds 100
 			$uploadJobStatus = Get-Job -Id $uploadJob.Id
 			$uploadTimout = $false
-			$pscpStuckTimeout = 90
 			while (( $uploadJobStatus.State -eq "Running" ) -and ( !$uploadTimout )) {
 				$now = Get-Date
-				if (($now - $uploadStartTime).TotalSeconds -gt $pscpStuckTimeout) {
+				if (($now - $uploadStartTime).TotalSeconds -gt $pscpTimeout) {
 					# We're handling here a very rare condition where VM is open to establish the TCP connection (ping is working)
 					# but, VM is not responding to SSH client. This behavior results in permanent hung of SSH client with below logs.
 					#     Looking up host "xxx.xxx.xxx.xxx" for SSH connection
@@ -132,7 +131,7 @@ function Upload-RemoteFile($uploadTo, $port, $file, $username, $password, $usePr
 					$uploadJobStatusConsole = [string](Receive-Job -Id $uploadJob.Id 2>&1)
 					if ($uploadJobStatusConsole) { $uploadJobStatusConsole = $uploadJobStatusConsole.TrimEnd() }
 					if ($uploadJobStatusConsole -and $uploadJobStatusConsole.Split("`n")[-1] -imatch "We claim version") {
-						Throw ".\Tools\pscp is stuck for $pscpStuckTimeout seconds. Aborting upload."
+						Throw ".\Tools\pscp is stuck for $pscpTimeout seconds. Aborting upload."
 					}
 				}
 				if ( ($now - $uploadStartTime).TotalSeconds -gt 600 ) {
@@ -262,7 +261,7 @@ function Download-RemoteFile($downloadFrom, $downloadTo, $port, $file, $username
 }
 
 # Upload or download files to/from remote VMs
-Function Copy-RemoteFiles($uploadTo, $downloadFrom, $downloadTo, $port, $files, $username, $password, [switch]$upload, [switch]$download, [switch]$usePrivateKey, [switch]$doNotCompress, $maxRetry) {
+Function Copy-RemoteFiles($uploadTo, $downloadFrom, $downloadTo, $port, $files, $username, $password, [switch]$upload, [switch]$download, [switch]$usePrivateKey, [switch]$doNotCompress, $pscpTimeout = 90, $maxRetry) {
 	if (!$files) {
 		Write-LogErr "No file(s) to copy."
 		return
@@ -293,7 +292,7 @@ Function Copy-RemoteFiles($uploadTo, $downloadFrom, $downloadTo, $port, $files, 
 			$fileList = @($tarFileName)
 		}
 		foreach ($file in $fileList) {
-			Upload-RemoteFile -uploadTo $uploadTo -port $port -file $file -username $username -password $password -UsePrivateKey $UsePrivateKey $maxRetry
+			Upload-RemoteFile -uploadTo $uploadTo -port $port -file $file -username $username -password $password -UsePrivateKey $UsePrivateKey -pscpTimeout $pscpTimeout $maxRetry
 		}
 		if ($doCompress) {
 			Write-LogDbg "Removing compressed file : $tarFileName"
