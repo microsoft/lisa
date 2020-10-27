@@ -43,18 +43,18 @@ function Main {
         # Add modes according to testcase
         if ( $CurrentTestData.testName -match "TX" ){
             Add-Content -Value "modes=(xdp)" -Path $constantsFile
-            $packetCount=10000000
+            $testDuration=15
         }
         else {
             Add-Content -Value "modes=(xdp iptables)" -Path $constantsFile
-            $packetCount=50000000
+            $testDuration=50
         }
         Write-LogInfo "constants.sh created successfully..."
         Write-LogInfo (Get-Content -Path $constantsFile)
 
         # Start XDP Installation
         $installXDPCommand = @"
-bash ./XDPForwardingTest.sh ${packetCount} 2>&1 > ~/xdpConsoleLogs.txt
+bash ./XDPForwardingTest.sh ${testDuration} 2>&1 > ~/xdpConsoleLogs.txt
 . utils.sh
 collect_VM_properties
 "@

@@ -11,7 +11,18 @@
 
 
 nicName='eth1'
-packetFwdThreshold=90
+packetFwdThreshold=50
+
+# This function is called from dpdk_install function to configure ips.
+function Dpdk_Configure() {
+        if [ -z "${1}" ]; then
+                LogErr "ERROR: Must provide install_ip to Dpdk_Configure"
+                SetTestStateAborted
+                exit 1
+        fi
+        Testpmd_Ip_Setup "SRC" "${senderSecondIP}"
+        Testpmd_Ip_Setup "DST" "${forwarderSecondIP}"
+}
 
 function convert_MAC_to_HEXArray(){
     while IFS=':' read -ra ADDR; do
@@ -83,16 +94,25 @@ XDPUTIL_FILE="./XDPUtils.sh"
     exit 0
 }
 
+DPDKUTIL_FILE="./dpdkUtils.sh"
+
+# Source DPDKUtils.sh
+. ${DPDKUTIL_FILE} || {
+    LogMsg "ERROR: unable to source ${DPDKUTIL_FILE}!"
+    SetTestStateAborted
+    exit 0
+}
+
 # Source constants file and initialize most common variables
 UtilsInit
 # Script start from here
 # check for parameters
 if [ -z "${1}" ]; then
-	LogErr "Please give arg: packetCount"
+	LogErr "Please give arg: test_duration"
 	SetTestStateAborted
 	exit 0
 fi
-packetCount=$1
+test_duration=$1
 
 LogMsg "*********INFO: Script execution Started********"
 LogMsg "forwarder : ${forwarder}"
@@ -107,12 +127,18 @@ SetTestStateRunning
 configure_XDPDUMP_TX
 
 LogMsg "XDP Setup Completed"
+# As LIS_HOME/constants.sh variables are not present at /root. It is needed by dpdk scripts.
+cp ${LIS_HOME}/constants.sh /root/constants.sh
 
-# Setup pktgen on Sender
-LogMsg "Configure pktgen on ${sender}"
-pktgenDir=~/pktgen
-ssh ${sender} "mkdir -p ${pktgenDir}"
-download_pktgen_scripts ${sender} ${pktgenDir} ${cores}
+# Huge Page Setup
+Install_Dpdk "${sender}"
+check_exit_status "DPDK Setup on ${sender}" "exit"
+Hugepage_Setup "${sender}"
+check_exit_status "Huge page Setup on ${sender}" "exit"
+Modprobe_Setup "${sender}"
+check_exit_status "Modprobe setup on ${sender}"
+LogMsg "DPDK Setup is Completed"
+
 # Configure XDP_TX on Forwarder
 LogMsg "Build XDPDump with TX Action on ${forwarder}"
 ssh ${forwarder} "cd bpf-samples/xdpdump && make clean && CFLAGS='-D __TX_FWD__ -D __PERF__ -I../libbpf/src/root/usr/include' make"
@@ -122,10 +148,10 @@ LogMsg "Build XDPDump with DROP Action on ${receiver}"
 ssh ${receiver} "cd bpf-samples/xdpdump && make clean && CFLAGS='-D __PERF_DROP__ -D __PERF__ -I../libbpf/src/root/usr/include' make"
 check_exit_status "Build xdpdump with DROP Action on ${receiver}"
 
-echo "test_type,data_path,sender_pps,packets_sent,packets_forwarded,packets_received" > report.csv
+echo "test_type,data_path,sender_pps,packets_sent,packets_forwarded,packets_received,cpu_ideal" > report.csv
 pps_array=()
 packets_received=()
-for mode in ${modes[@]}; do
+for mode in ${modes[*]}; do
 	LogMsg "Running Mode: $mode"
 	# Calculate packet drops before tests
 	packetDropBefore=$(ssh ${receiver} ". XDPUtils.sh && calculate_packets_drop ${nicName}")
@@ -136,6 +162,8 @@ for mode in ${modes[@]}; do
 	fi
 	LogMsg "Before test, Packet forward count on ${forwarder} is ${pktForwardBefore}"
 
+	beforeCPU=$(ssh ${forwarder} 'head -1 /proc/stat')
+	LogMsg "CPU Utilization for ${forwarder} is ${beforeCPU}"
 	# Start XDPDump on receiver
 	start_xdpdump ${receiver} ${nicName}
 	# Start XDPDump on forwarder
@@ -143,26 +171,33 @@ for mode in ${modes[@]}; do
 		start_xdpdump ${forwarder} ${nicName}
 	else
 		# Start Iptable commands
-		#start_ip_table_forwarding ${forwarder} ${nicName}
 		ip_forward=$(ssh ${forwarder} "sysctl net.ipv4.ip_forward | cut -d'=' -f 2")
 		if [ $ip_forward == 0 ]; then
 			LogMsg "Setting ip forward in sysctl"
 			ssh ${forwarder} "sysctl -w net.ipv4.ip_forward=1"
 		fi
-		#iptables -t nat -A PREROUTING -i eth1 -p udp --dport 9 -j DNAT --to 10.0.1.6:9999
 		receiverIP=$((ssh $receiver "/sbin/ifconfig ${nicName} | grep 'inet' | cut -d: -f2") | awk '{print $2}')
 
-		ssh ${forwarder} "iptables -t nat -A PREROUTING -i ${nicName} -p udp --dport 9 -j DNAT --to ${receiverIP}:9999"
+		ssh ${forwarder} "iptables -t nat -A PREROUTING -i ${nicName} -p udp -j DNAT --to-destination ${receiverIP}:9999"
 		ssh ${forwarder} "iptables -t nat -A POSTROUTING -j MASQUERADE"
 		LogMsg "${forwarder} vm setup completed for ip tables"
 	fi
 
 	# Start pktgen on Sender
 	forwarderSecondMAC=$((ssh ${forwarder} "ip link show ${nicName}") | grep ether | awk '{print $2}')
-	LogMsg "Starting pktgen on ${sender}"
-	start_pktgen ${sender} ${cores} ${pktgenDir} ${nicName} ${forwarderSecondMAC} ${forwarderSecondIP} ${packetCount}
-	sleep 5
-	# Kill XDPDump on reciever & forwarder
+	LogMsg "Starting dpdk-testpmd on ${sender}"
+	core=1
+	trx_rx_ips=$(Get_Trx_Rx_Ip_Flags "${forwarder}")
+	vfName=$(get_vf_name ${nicName})
+	sender_busaddr=$(ethtool -i ${vfName} | grep bus-info | awk '{print $2}')
+
+	sender_testfwd_cmd="$(Create_Timed_Testpmd_Cmd "${test_duration}" "${core}" "${sender_busaddr}" "${nicName}" txonly "failsafe" "${trx_rx_ips}")"
+	LogMsg "${sender_testfwd_cmd}"
+	testpmd_filename="${LIS_HOME}/dpdk-testfwd-sender-${core}-core-$(date +"%m%d%Y-%H%M%S").log"
+	eval "${sender_testfwd_cmd} 2>&1 > ${testpmd_filename} &"
+	sleep "${test_duration}"
+
+	killall dpdk-testpmd
 	LogMsg "Killing xdpdump on receiver and forwarder"
 	ssh ${receiver} "killall xdpdump"
 	if [ $mode == "xdp" ];then
@@ -181,38 +216,34 @@ for mode in ${modes[@]}; do
 		LogMsg "After test, Packet forward count on ${forwarder} is ${pktForward}"
 	fi
 
-	pps=$(echo $pktgenResult | grep -oh '[0-9]*pps' | cut -d'p' -f 1)
-	if [ $? -ne 0 ]; then
-	    LogErr "Problem in running pktgen. No PPS found. Please check logs."
-	    SetTestStateAborted
-	    exit 0
-	fi
-	LogMsg "Sender PPS for ${mode}: ${pps}"
+	# parse testpmd output to get pps and number of packets
+	tx_pps_arr=($(grep Tx-pps: "${testpmd_filename}" | awk '{print $2}'))
+	tx_pkts_arr=($(grep TX-packets: "${testpmd_filename}" | awk '{print $2}'))
+	packetCount=${tx_pkts_arr[-1]}
+	pps=$(( ($(printf '%b + ' "${tx_pps_arr[@]}"\\c)) / ${#tx_pps_arr[@]} ))
+
+	LogMsg "Sender ${mode}: PPS: ${pps} & Packets: ${packetCount}"
 	pps_array+=( $pps )
 	LogMsg "Forwarder forwarded ${pktForward} packets and Receiver received ${packetDrop} packets"
+	packets_received+=( $packetDrop )
+	beforeCPUi=$(echo ${beforeCPU} | cut -d' ' -f2)
+	afterCPUi=$(echo ${afterCPU} | cut -d' ' -f2)
+	cpuUsage=$(( afterCPUi - beforeCPUi ))
+	echo "${cores},${mode},${pps},${packetCount},${pktForward},${packetDrop},${cpuUsage}" >> report.csv
 	# threshold value check
 	fwdLimit=$(( packetCount*packetFwdThreshold/100 ))
-	if [ $packetDrop -lt $fwdLimit ]; then
-	    LogErr "receiver did not receive enough packets for ${mode} mode. Receiver received ${packetDrop} which is lower than threshold" \
-		    "of ${packetFwdThreshold}% of ${packetCount}. Please check logs"
-	    SetTestStateFailed
-	    exit 0
+	if [ $mode == "xdp" ] && [ $packetDrop -lt $fwdLimit ]; then
+		LogErr "receiver did not receive enough packets for ${mode} mode. Receiver received ${packetDrop} which is lower than threshold" \
+			"of ${packetFwdThreshold}% of ${packetCount}. Please check logs"
+		if [ ${#modes[*]} -eq 1 ]; then
+			SetTestStateFailed
+			exit 0
+		fi
 	fi
-	packets_received+=( $packetDrop )
-	echo "${cores},${mode},${pps},${packetCount},${pktForward},${packetDrop}" >> report.csv
 done
 LogMsg "Testcase successfully completed"
 
-if [ ${#pps_array[@]} -eq 1 ]; then
-	if [ $pps -ge 1000000 ]; then
-		LogMsg "pps is greater than 1 Mpps"
-		SetTestStateCompleted
-	else
-		LogErr "pps is lower than 1 Mpps"
-		SetTestStateFailed
-		exit 0
-	fi
-elif [ ${#pps_array[@]} -eq 2 ]; then
+if [ ${#pps_array[@]} -eq 2 ]; then
 	pps_diff=$((pps_array[0]-pps_array[1]))
 	LogMsg "PPS Difference between two modes is ${pps_diff#-}"
 	pkts_rec_diff=$((packets_received[0]-packets_received[1]))

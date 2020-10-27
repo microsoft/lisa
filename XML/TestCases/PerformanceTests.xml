@@ -978,6 +978,7 @@
     <files>.\Testscripts\Linux\utils.sh,.\Testscripts\Linux\XDPUtils.sh,.\Testscripts\Linux\XDPDumpSetup.sh,.\Testscripts\Linux\XDPForwardingTest.sh</files>
     <TestParameters>
       <param>cores=multi</param>
+      <param>dpdkSrcLink="DPDK_SOURCE_URL"</param>
     </TestParameters>
     <Platform>Azure</Platform>
     <Category>Performance</Category>
@@ -996,6 +997,7 @@
     <files>.\Testscripts\Linux\utils.sh,.\Testscripts\Linux\XDPUtils.sh,.\Testscripts\Linux\XDPDumpSetup.sh,.\Testscripts\Linux\XDPForwardingTest.sh</files>
     <TestParameters>
       <param>cores=single</param>
+      <param>dpdkSrcLink="DPDK_SOURCE_URL"</param>
     </TestParameters>
     <Platform>Azure</Platform>
     <Category>Performance</Category>
@@ -1011,9 +1013,9 @@
   <test>
     <testName>PERF-XDP-FORWARD-COMPARISON</testName>
     <testScript>PERF-XDP-TX-FORWARD.ps1</testScript>
-    <files>.\Testscripts\Linux\utils.sh,.\Testscripts\Linux\XDPUtils.sh,.\Testscripts\Linux\XDPDumpSetup.sh,.\Testscripts\Linux\XDPForwardingTest.sh</files>
+    <files>.\Testscripts\Linux\utils.sh,.\Testscripts\Linux\XDPUtils.sh,.\Testscripts\Linux\XDPDumpSetup.sh,.\Testscripts\Linux\XDPForwardingTest.sh,.\Testscripts\Linux\dpdkUtils.sh</files>
     <TestParameters>
-      <param>cores=single</param>
+      <param>dpdkSrcLink="DPDK_SOURCE_URL"</param>
     </TestParameters>
     <Platform>Azure</Platform>
     <Category>Performance</Category>
