@@ -62,7 +62,18 @@ VM_SIZE_FALLBACK_LEVELS = [
     re.compile(r"Standard_DS((?!1)[\d]{1}|[\d]{2,})_v2"),
     re.compile(r"Standard_A((?!1)[\d]{1}|[\d]{2,})"),
 ]
-LOCATIONS = ["westus2", "eastus2"]
+LOCATIONS = [
+    "westus2",
+    "eastus2",
+    "southeastasia",
+    "eastus",
+    "southcentralus",
+    "northeurope",
+    "westeurope",
+    "brazilsouth",
+    "australiaeast",
+    "uksouth",
+]
 RESOURCE_GROUP_LOCATION = "westus2"
 
 # names in arm template, they should be changed with template together.

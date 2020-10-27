@@ -1307,6 +1307,46 @@
             }
         ]
     },
+    "southeastasia": {
+        "updatedTime": "9999-09-21T12:16:46.895330",
+        "location": "southeastasia",
+        "capabilities": []
+    },
+    "eastus": {
+        "updatedTime": "9999-09-21T12:16:46.895330",
+        "location": "eastus",
+        "capabilities": []
+    },
+    "southcentralus": {
+        "updatedTime": "9999-09-21T12:16:46.895330",
+        "location": "southcentralus",
+        "capabilities": []
+    },
+    "northeurope": {
+        "updatedTime": "9999-09-21T12:16:46.895330",
+        "location": "northeurope",
+        "capabilities": []
+    },
+    "westeurope": {
+        "updatedTime": "9999-09-21T12:16:46.895330",
+        "location": "westeurope",
+        "capabilities": []
+    },
+    "brazilsouth": {
+        "updatedTime": "9999-09-21T12:16:46.895330",
+        "location": "brazilsouth",
+        "capabilities": []
+    },
+    "australiaeast": {
+        "updatedTime": "9999-09-21T12:16:46.895330",
+        "location": "australiaeast",
+        "capabilities": []
+    },
+    "uksouth": {
+        "updatedTime": "9999-09-21T12:16:46.895330",
+        "location": "uksouth",
+        "capabilities": []
+    },
     "notreal": {
         "updatedTime": "9999-09-21T12:16:46.895330",
         "location": "notreal",
