@@ -178,6 +178,7 @@ class Node(Connection):
 
     @retry(reraise=True, wait=wait_exponential(), stop=stop_after_attempt(3))
     def ping(self, **kwargs: Any) -> Result:
+        """Ping the node from the local system in a cross-platform manner."""
         flag = "-c 1" if platform.system() == "Linux" else "-n 1"
         return self.local(f"ping {flag} {self.host}", **kwargs)
 
