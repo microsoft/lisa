@@ -1,7 +1,5 @@
 from typing import Any
 
-from spur.ssh import ConnectionError  # type: ignore
-
 from lisa.executable import Tool
 from lisa.util.perf_timer import create_timer
 
@@ -27,15 +25,13 @@ class Reboot(Tool):
         current_boot_time = last_boot_time
         self._log.debug(f"rebooting with boot time: {last_boot_time}")
         self.node.execute_async(f"sudo {self.command}")
-        self.node.shell.close()
         while (
             last_boot_time >= current_boot_time and timer.elapsed(False) < self.time_out
         ):
-            self.node.shell.close()
             try:
+                self.node.shell.close()
                 current_boot_time = who.last_boot()
-            except ConnectionError as identifier:
+            except Exception as identifier:
                 # error is ignorable, as ssh may be closed suddenly.
                 self._log.debug(f"ignorable ssh exception: {identifier}")
-                pass
             self._log.debug(f"reconnected with uptime: {current_boot_time}")
