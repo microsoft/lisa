@@ -53,7 +53,6 @@ from .common import (
 )
 
 # used by azure
-AZURE_DEPLOYMENT_NAME = "lisa_default_deployment_script"
 AZURE_RG_NAME_KEY = "resource_group_name"
 
 VM_SIZE_FALLBACK_LEVELS = [
@@ -151,6 +150,8 @@ class AzureNodeSchema:
 @dataclass_json(letter_case=LetterCase.CAMEL)
 @dataclass
 class AzureArmParameter:
+    resource_group_name: str = ""
+    resource_group_location: str = ""
     location: str = ""
     admin_username: str = ""
     admin_password: str = ""
@@ -454,17 +455,8 @@ class AzurePlatform(Platform):
         if self._azure_runbook.dry_run:
             log.info(f"dry_run: {self._azure_runbook.dry_run}")
         else:
+            log.info(f"used resource group: {resource_group_name}")
             try:
-                if self._azure_runbook.deploy:
-                    log.info(
-                        f"creating or updating resource group: {resource_group_name}"
-                    )
-                    self._rm_client.resource_groups.create_or_update(
-                        resource_group_name, {"location": RESOURCE_GROUP_LOCATION}
-                    )
-                else:
-                    log.info(f"reusing resource group: {resource_group_name}")
-
                 deployment_parameters = self._create_deployment_parameters(
                     resource_group_name, environment, log
                 )
@@ -507,10 +499,14 @@ class AzurePlatform(Platform):
                 f"deleting resource group: {resource_group_name}, "
                 f"wait: {self._azure_runbook.wait_delete}"
             )
-            delete_operation = self._rm_client.resource_groups.begin_delete(
-                resource_group_name
-            )
-            if self._azure_runbook.wait_delete:
+            delete_operation: Any = None
+            try:
+                delete_operation = self._rm_client.resource_groups.begin_delete(
+                    resource_group_name
+                )
+            except Exception as indentifer:
+                log.debug(f"exception on delete resource group: {indentifer}")
+            if delete_operation and self._azure_runbook.wait_delete:
                 result = wait_operation(delete_operation)
                 if result:
                     raise LisaException(f"error on deleting resource group: {result}")
@@ -519,7 +515,9 @@ class AzurePlatform(Platform):
 
     def _initialize(self, *args: Any, **kwargs: Any) -> None:
         # set needed environment variables for authentication
-        azure_runbook = self._runbook.get_extended_runbook(AzurePlatformSchema)
+        azure_runbook: AzurePlatformSchema = self._runbook.get_extended_runbook(
+            AzurePlatformSchema
+        )
         assert azure_runbook, "platform runbook cannot be empty"
         self._azure_runbook = azure_runbook
 
@@ -686,6 +684,8 @@ class AzurePlatform(Platform):
             arm_parameters.admin_password = self._runbook.admin_password
 
         environment_context = get_environment_context(environment=environment)
+        arm_parameters.resource_group_name = environment_context.resource_group_name
+        arm_parameters.resource_group_location = RESOURCE_GROUP_LOCATION
         nodes_parameters: List[AzureNodeSchema] = []
         for node_space in environment.runbook.nodes_requirement:
             assert isinstance(
@@ -745,22 +745,26 @@ class AzurePlatform(Platform):
         )
 
         return {
-            AZURE_RG_NAME_KEY: resource_group_name,
-            "deployment_name": AZURE_DEPLOYMENT_NAME,
-            "parameters": Deployment(properties=deployment_properties),
+            # deployment name must be different, or there may be concurrent issue.
+            # the max name is 64 charactors, so take end part if it's too long.
+            "deployment_name": f"lisa_deploy_"
+            f"{environment_context.resource_group_name[-50:]}",
+            "parameters": Deployment(
+                location=RESOURCE_GROUP_LOCATION, properties=deployment_properties
+            ),
         }
 
     def _validate_template(
         self, deployment_parameters: Dict[str, Any], log: Logger
     ) -> None:
-        resource_group_name = deployment_parameters[AZURE_RG_NAME_KEY]
         log.debug("validating deployment")
 
         validate_operation: Any = None
-        deployments = self._rm_client.deployments
         try:
-            validate_operation = self._rm_client.deployments.begin_validate(
-                **deployment_parameters
+            validate_operation = (
+                self._rm_client.deployments.begin_validate_at_subscription_scope(
+                    **deployment_parameters
+                )
             )
             result = wait_operation(validate_operation)
             if result:
@@ -768,17 +772,7 @@ class AzurePlatform(Platform):
         except Exception as identifier:
             error_messages: List[str] = [str(identifier)]
 
-            # default error message is too general in most case,
-            # so check for more details.
-            if validate_operation:
-                # validate_operation returned, it means deployments created
-                # successfuly. so check errors from deployments by name.
-                deployment = deployments.get(resource_group_name, AZURE_DEPLOYMENT_NAME)
-                if deployment.properties.provisioning_state == "Failed":
-                    error_messages = self._parse_detail_errors(
-                        deployment.properties.error
-                    )
-            elif isinstance(identifier, HttpResponseError) and identifier.error:
+            if isinstance(identifier, HttpResponseError) and identifier.error:
                 # no validate_operation returned, the message may include
                 # some errors, so check details
                 error_messages = self._parse_detail_errors(identifier.error)
@@ -788,14 +782,15 @@ class AzurePlatform(Platform):
         assert result is None, f"validate error: {result}"
 
     def _deploy(self, deployment_parameters: Dict[str, Any], log: Logger) -> None:
-        resource_group_name = deployment_parameters[AZURE_RG_NAME_KEY]
-        log.info(f"resource group '{resource_group_name}' deployment is in progress...")
+        log.info("deployment is in progress...")
 
         deployment_operation: Any = None
         deployments = self._rm_client.deployments
         try:
-            deployment_operation = deployments.begin_create_or_update(
-                **deployment_parameters
+            deployment_operation = (
+                deployments.begin_create_or_update_at_subscription_scope(
+                    **deployment_parameters
+                )
             )
             result = wait_operation(deployment_operation)
             if result:
