@@ -978,4 +978,17 @@
       <setupScript>.\Testscripts\Windows\SETUP-NET-Add-NIC.ps1</setupScript>
     </SetupConfig>
   </test>
+  <test>
+    <testName>GUI-GNOME-SHELL</testName>
+    <testScript>GUI-GNOME-SHELL.sh</testScript>
+    <files>.\TestScripts\Linux\GUI-GNOME-SHELL.sh,.\TestScripts\Linux\utils.sh</files>
+    <Platform>HyperV</Platform>
+    <Category>Functional</Category>
+    <Area>CORE</Area>
+    <Tags>boot</Tags>
+    <Priority>2</Priority>
+    <SetupConfig>
+      <SetupType>OneVM</SetupType>
+    </SetupConfig>
+  </test>
 </TestCases>
