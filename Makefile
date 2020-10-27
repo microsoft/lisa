@@ -5,24 +5,28 @@ setup:
 	cd pytest && poetry install --no-ansi --remove-untracked
 
 # Run Pytest
-run:
-	cd pytest && poetry run python -m pytest -rA --capture=tee-sys --tb=short
+run: setup
+	cd pytest && poetry run pytest
 
 # Run local tests
-test:
-	cd pytest && poetry run python -m pytest --html=test.html -rA --capture=tee-sys --tb=short selftests/
+test: setup
+	cd pytest && poetry run pytest --debug selftests/
 
 # Run semantic analysis
-check:
-	cd pytest && poetry run python -X dev -X tracemalloc -m pytest --html=check.html --flake8 --mypy -m 'flake8 or mypy'
+check: setup
+	cd pytest && poetry run pytest --check
 
+# Clear cache and show when each fixture would be setup and torn down.
 clean:
-	cd pytest && poetry run python -m pytest --cache-clear --setup-plan
+	cd pytest && poetry run pytest --cache-clear --setup-plan
 
+# Demonstrate test selection via YAML playbook.
 yaml:
-	cd pytest && poetry run python -m pytest --collect-only --playbook=criteria.yaml
+	cd pytest && poetry run pytest --collect-only --playbook=criteria.yaml
+
+# Run the smoke test demo.
 smoke:
-	cd pytest && poetry run python -m pytest --quiet --html=smoke.html --self-contained-html --tb=line --show-capture=log -k smoke
+	cd pytest && poetry run pytest --demo -k smoke
 
 # Print current Python virtualenv
 venv:

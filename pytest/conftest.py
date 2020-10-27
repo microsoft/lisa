@@ -17,7 +17,7 @@ except ImportError:
     from yaml import Loader  # type: ignore
 
 if typing.TYPE_CHECKING:
-    from typing import List, Optional
+    from typing import Any, Dict, List, Optional
 
     from _pytest.config import Config
     from _pytest.config.argparsing import Parser
@@ -33,17 +33,36 @@ def pytest_addoption(parser: Parser) -> None:
     https://docs.pytest.org/en/latest/example/simple.html
 
     """
-    # TODO: Add “--lisa” (and “--debug” etc.) options which set up our
-    # defaults, instead of encoding them in the Makefile
-    parser.addoption(
-        "--keep-vms",
-        action="store_true",
-        default=False,
-        help="Keeps deployed VMs cached between test runs, useful for developers.",
-    )
-    parser.addoption(
-        "--playbook", type=Path, help="Path to playbook of test selection criteria."
-    )
+    parser.addoption("--keep-vms", action="store_true", help="Keeps deployed VMs.")
+    parser.addoption("--check", action="store_true", help="Run semantic analysis.")
+    parser.addoption("--demo", action="store_true", help="Run in demo mode.")
+    parser.addoption("--playbook", type=Path, help="Path to test playbook.")
+
+
+def pytest_configure(config: Config) -> None:
+    """Set default configurations passed on custom flags."""
+    # Search ‘_pytest’ for ‘addoption’ to find these.
+    options: Dict[str, Any] = {}  # See ‘pytest.ini’ for defaults.
+    if config.getoption("--check"):
+        options.update(
+            {
+                "flake8": True,
+                "mypy": True,
+                "markexpr": "flake8 or mypy",
+                "reportchars": "fE",
+            }
+        )
+    if config.getoption("--demo"):
+        options.update(
+            {
+                "html": "demo.html",
+                "no_header": True,
+                "showcapture": "log",
+                "tb": "line",
+            }
+        )
+    for attr, value in options.items():
+        setattr(config.option, attr, value)
 
 
 def pytest_collection_modifyitems(
