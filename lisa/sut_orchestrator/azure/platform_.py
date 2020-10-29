@@ -124,24 +124,37 @@ class AzureNodeSchema:
     name: str = ""
     vm_size: str = ""
     location: str = ""
-    gallery: Optional[Union[AzureVmGallerySchema, str]] = None
+    gallery_raw: Optional[Union[Dict[Any, Any], str]] = field(
+        default=None, metadata=schema.metadata(data_key="gallery")
+    )
     vhd: str = ""
     nic_count: int = 1
 
     def __post_init__(self, *args: Any, **kwargs: Any) -> None:
         add_secret(self.vhd)
 
-        if isinstance(self.gallery, str):
-            gallery = re.split(r"[:\s]+", self.gallery.strip())
+        if isinstance(self.gallery_raw, dict):
+            self.gallery: Optional[
+                AzureVmGallerySchema
+            ] = AzureVmGallerySchema.schema().load(  # type: ignore
+                self.gallery_raw
+            )
+            self.gallery_raw = self.gallery.to_dict()  # type: ignore
+        elif self.gallery_raw:
+            assert isinstance(
+                self.gallery_raw, str
+            ), f"actual: {type(self.gallery_raw)}"
+            gallery = re.split(r"[:\s]+", self.gallery_raw.strip())
 
             if len(gallery) == 4:
                 self.gallery = AzureVmGallerySchema(
                     gallery[0], gallery[1], gallery[2], gallery[3]
                 )
+                self.gallery_raw = self.gallery.to_dict()  # type: ignore
             else:
                 raise LisaException(
                     f"Invalid value for the provided gallery "
-                    f"parameter: '{self.gallery}'."
+                    f"parameter: '{self.gallery_raw}'."
                     f"The gallery parameter should be in the format: "
                     f"'<Publisher> <Offer> <Sku> <Version>' "
                     f"or '<Publisher>:<Offer>:<Sku>:<Version>'"
