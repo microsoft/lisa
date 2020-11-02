@@ -9,7 +9,7 @@ from lisa.util import LisaException
 @dataclass
 class UnameResult:
     has_result: bool
-    kernel_release: str = ""
+    uname_version: str = ""
     kernel_version: str = ""
     hardware_platform: str = ""
     operating_system: str = ""
@@ -17,7 +17,7 @@ class UnameResult:
 
 class Uname(Tool):
     _key_info_pattern = re.compile(
-        r"(?P<release>[^ ]*?) (?P<version>[\w\W]*) (?P<platform>[\w\W]+?) "
+        r"(?P<kernel_version>[^ ]*?) (?P<uname_version>[\w\W]*) (?P<platform>[\w\W]+?) "
         r"(?P<os>[\w\W]+?)$"
     )
 
@@ -50,8 +50,8 @@ class Uname(Tool):
                     )
                 self.result = UnameResult(
                     has_result=True,
-                    kernel_release=match_result.group("release"),
-                    kernel_version=match_result.group("version"),
+                    kernel_version=match_result.group("kernel_version"),
+                    uname_version=match_result.group("uname_version"),
                     hardware_platform=match_result.group("platform"),
                     operating_system=match_result.group("os"),
                 )

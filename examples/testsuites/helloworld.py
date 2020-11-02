@@ -31,7 +31,7 @@ class HelloWorld(TestSuite):
             assert isinstance(node.os, Linux)
             info = node.tools[Uname].get_linux_information()
             self.log.info(
-                f"release: '{info.kernel_release}', version: '{info.kernel_version}', "
+                f"release: '{info.uname_version}', version: '{info.kernel_version}', "
                 f"hardware: '{info.hardware_platform}', os: '{info.operating_system}'"
             )
         else:
