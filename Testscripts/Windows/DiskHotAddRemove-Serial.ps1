@@ -23,8 +23,7 @@ function Main {
             throw "MaxDataDiskCount of current VM Size $($AllVMData.InstanceSize) is not acceptable."
         }
         $storageProfile = (Get-AzVM -ResourceGroupName $AllVMData.ResourceGroupName -Name $AllVMData.RoleName).StorageProfile
-        Write-Debug "Found max data disk $diskCount in the system"
-        Write-LogInfo "Serial Addition and Removal of Data Disks"
+        Write-LogInfo "Serial Addition and Removal of max Data Disks [$diskCount] to the VM"
         $verifiedDiskCount = 0
         While ($count -lt $diskCount) {
             $count += 1

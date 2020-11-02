@@ -209,6 +209,8 @@ Please follow the steps mentioned at [here](https://docs.microsoft.com/en-us/azu
 
     * The test parameters of `-ARMImageName`, `-TestLocation`, `-OverrideVMSize` are semantically equivalent to be used as CustomParameters like `'Network=xxx;OSType=yyy;DiskType=mmm;ImageType=nnn'`. For example, `-ARMImageName "Redhat RHEL 7.7 Latest,Canonical UbuntuServer 18.04-LTS Latest"` has the same effect as `-CustomParameters "ARMImageName=Redhat RHEL 7.7 Latest,Canonical UbuntuServer 18.04-LTS Latest"` in LISAv2.
 
+    * The switch test parameters `-RunInParallel` will start multiple processes to Run-LISAv2 in parallel on Azure platform. By default, the number of LISAv2 jobs in parallel will be 'numberoflogicalprocessors' of the current Orchestrator machine (or vCPU number of the Orchestrator VM) divided by 2. Another optional parameter `-TotalCountInParallel` can be used to set the expected processes total count, if user does not prefer the default value. Note, other platforms except Azure may not support `-RunInParallel` successfully, because they may depends on various specific platform settings.
+
    a. Provide all parameters to Run-LisaV2.ps1
 
         .\Run-LisaV2.ps1 -TestPlatform "Azure" [-TestLocation "<Azure Region>(,<Azure Region>)..."] -RGIdentifier "<Identifier of the resource group>" [-ARMImageName "<publisher offer SKU version>(,<publisher offer SKU version>)..." | -OsVHD "<VHD from storage account>" ] [OverrideVMSize "<Azure_Vm_Size>(,<Azure_Vm_Size>)..."] [[-TestCategory "<Test Catogry from Jenkins pipeline>" | -TestArea "<Test Area from Jenkins pipeline>"]* | -TestTag "<A Tag from Jenkins pipeline>" | -TestNames "<Test cases separated by comma>"]"

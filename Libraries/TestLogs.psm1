@@ -27,23 +27,23 @@
 Function Write-Log() {
 	param
 	(
-		[ValidateSet('INFO','WARN','ERROR','DEBUG', IgnoreCase = $false)]
+		[ValidateSet('INFO', 'WARN', 'ERROR', 'DEBUG', IgnoreCase = $false)]
 		[string]$logLevel,
 		[string]$text
 	)
 
 	if ($password) {
-		$text = $text.Replace($password,"******")
+		$text = $text.Replace($password, "******")
 	}
 	$now = [Datetime]::Now.ToUniversalTime().ToString("MM/dd/yyyy HH:mm:ss")
 	$logType = $logLevel.PadRight(5, ' ')
 	$finalMessage = "$now : [$logType] $text"
 	$fgColor = "White"
 	switch ($logLevel) {
-		"INFO"	{$fgColor = "White"; continue}
-		"WARN"	{$fgColor = "Yellow"; continue}
-		"ERROR"	{$fgColor = "Red"; continue}
-		"DEBUG"	{$fgColor = "DarkGray"; continue}
+		"INFO"	{ $fgColor = "White"; continue }
+		"WARN"	{ $fgColor = "Yellow"; continue }
+		"ERROR"	{ $fgColor = "Red"; continue }
+		"DEBUG"	{ $fgColor = "DarkGray"; continue }
 	}
 	Write-Host $finalMessage -ForegroundColor $fgColor
 
@@ -52,7 +52,8 @@ Function Write-Log() {
 			if (!(Test-Path $LogDir)) {
 				New-Item -ItemType Directory -Force -Path $LogDir | Out-Null
 			}
-		} else {
+		}
+		else {
 			$LogDir = $env:TEMP
 		}
 		if (!$LogFileName) {
@@ -63,7 +64,8 @@ Function Write-Log() {
 			New-Item -path $LogDir -name $LogFileName -type "file" | Out-Null
 		}
 		Add-Content -Value $finalMessage -Path $LogFileFullPath -Force
-	} catch {
+	}
+	catch {
 		Write-Output "[LOG FILE EXCEPTION] : $now : $text"
 	}
 }
@@ -104,31 +106,38 @@ function Collect-TestLogs {
 	# Note: This is a temporary solution until a standard is decided
 	# for what string py/sh scripts return
 	$resultTranslation = @{"TestCompleted" = $global:ResultPass;
-							"TestSkipped" = $global:ResultSkipped;
-							"TestFailed" = $global:ResultFail;
-							"TestAborted" = $global:ResultAborted;
-						}
+		"TestSkipped"                         = $global:ResultSkipped;
+		"TestFailed"                          = $global:ResultFail;
+		"TestAborted"                         = $global:ResultAborted;
+	}
 
 	$currentTestResult = Create-TestResultObject
 
 	if ($TestType -eq "sh") {
 		$filesTocopy = "./state.txt, ./*summary.log, ./TestExecution.log, ./TestExecutionError.log"
 		Copy-RemoteFiles -download -downloadFrom $PublicIP -downloadTo $LogsDestination `
-			 -Port $SSHPort -Username $Username -password $Password `
-			 -files $filesTocopy
+			-Port $SSHPort -Username $Username -password $Password `
+			-files $filesTocopy
 		$summary = Get-Content (Join-Path $LogDir "summary.log")
 		$testState = Get-Content (Join-Path $LogDir "state.txt")
 		# If test has timed out state.txt will contain TestRunning
-		if ($testState -eq "TestRunning"){
+		if ($testState -eq "TestRunning") {
 			$currentTestResult.TestResult = $global:ResultAborted
-		} else {
+		}
+		else {
 			$currentTestResult.TestResult = $resultTranslation[$testState]
 		}
-	} elseif ($TestType -eq "py") {
+		if (!$currentTestResult.TestSummary -and $summary) {
+			$summary | ForEach-Object {
+				$currentTestResult.TestSummary += New-ResultSummary -testResult ($_ -replace '{(.*)}', '[$1]')
+			}
+		}
+	}
+	elseif ($TestType -eq "py") {
 		$filesTocopy = "./state.txt, ./Summary.log, ./${TestName}_summary.log"
 		Copy-RemoteFiles -download -downloadFrom $PublicIP -downloadTo $LogsDestination `
-			 -Port $SSHPort -Username $Username -password $Password `
-			 -files $filesTocopy
+			-Port $SSHPort -Username $Username -password $Password `
+			-files $filesTocopy
 		$summary = Get-Content (Join-Path $LogDir "Summary.log")
 		$currentTestResult.TestResult = $summary
 	}
@@ -157,7 +166,8 @@ function Collect-CustomLogFile {
 	if (Check-FileInLinuxGuest -ipv4 $PublicIP -vmPassword $Password -vmPort $SSHPort -vmUserName $Username -fileName $FileName) {
 		Copy-RemoteFiles -download -downloadFrom $PublicIP -files $FileName `
 			-downloadTo $LogsDestination -port $SSHPort -username $Username -password $Password
-	} else {
+	}
+	else {
 		Write-LogWarn "${fileName} does not exist on VM."
 	}
 }
@@ -172,10 +182,12 @@ Function Compare-OsLogs($InitialLogFilePath, $FinalLogFilePath, $LogStatusFilePa
 			if (-not $finalLogs) {
 				Write-LogInfo "Initial and final logs are both empty"
 				return $true
-			} else {
+			}
+			else {
 				$initialLogs = @("This is a dummy log for object comparison")
 			}
-		} elseif (-not $finalLogs) {
+		}
+		elseif (-not $finalLogs) {
 			Write-LogInfo "Final log is empty"
 			return $true
 		}
@@ -185,10 +197,11 @@ Function Compare-OsLogs($InitialLogFilePath, $FinalLogFilePath, $LogStatusFilePa
 			$msg = "Initial and Final Logs have same content"
 			Write-LogInfo $msg
 			Set-Content -Value $msg -Path $LogStatusFilePath
-		} else {
+		}
+		else {
 			$errorCount = 0
 			$msg = "Following lines were added in the logs during execution of test."
-			$patternStr = $ErrorMatchPatten.Replace('|','/')
+			$patternStr = $ErrorMatchPatten.Replace('|', '/')
 			Set-Content -Value $msg -Path $LogStatusFilePath
 			Add-Content -Value "-------------------------------START----------------------------------" -Path $LogStatusFilePath
 			foreach ($line in $fileDiff) {
@@ -211,11 +224,10 @@ Function Compare-OsLogs($InitialLogFilePath, $FinalLogFilePath, $LogStatusFilePa
 			}
 		}
 	}
-	catch
-	{
+	catch {
 		$line = $_.InvocationInfo.ScriptLineNumber
-		$script_name = ($_.InvocationInfo.ScriptName).Replace($PWD,".")
-		$ErrorMessage =  $_.Exception.Message
+		$script_name = ($_.InvocationInfo.ScriptName).Replace($PWD, ".")
+		$ErrorMessage = $_.Exception.Message
 		Write-LogErr "EXCEPTION: $ErrorMessage"
 		Write-LogErr "Calling function - $($MyInvocation.MyCommand)."
 		Write-LogErr "Source: Line $line in script $script_name."
@@ -224,10 +236,8 @@ Function Compare-OsLogs($InitialLogFilePath, $FinalLogFilePath, $LogStatusFilePa
 }
 
 
-Function Check-KernelLogs($allVMData, $vmUser, $vmPassword)
-{
-	try
-	{
+Function Check-KernelLogs($allVMData, $vmUser, $vmPassword) {
+	try {
 		$errorLines = @()
 		$errorLines += "Call Trace"
 		$errorLines += "rcu_sched self-detected stall on CPU"
@@ -243,10 +253,10 @@ Function Check-KernelLogs($allVMData, $vmUser, $vmPassword)
 		$retValue = $false
 		foreach ($VM in $allVMData) {
 			$vmErrors = 0
-			$BootLogDir="$Logdir\$($VM.RoleName)"
+			$BootLogDir = "$Logdir\$($VM.RoleName)"
 			mkdir $BootLogDir -Force | Out-Null
 			Write-LogInfo "Collecting $($VM.RoleName) VM Kernel Logs.."
-			$currentKernelLogFile="$BootLogDir\CurrentKernelLogs.txt"
+			$currentKernelLogFile = "$BootLogDir\CurrentKernelLogs.txt"
 			$Null = Run-LinuxCmd -ip $VM.PublicIP -port $VM.SSHPort -username $vmUser -password $vmPassword -command "dmesg > ./CurrentKernelLogs.txt" -runAsSudo
 			$Null = Copy-RemoteFiles -download -downloadFrom $VM.PublicIP -port $VM.SSHPort -files "./CurrentKernelLogs.txt" -downloadTo $BootLogDir -username $vmUser -password $vmPassword
 			Write-LogInfo "$($VM.RoleName): Kernel logs collected successfully."
@@ -267,17 +277,20 @@ Function Check-KernelLogs($allVMData, $vmUser, $vmPassword)
 			if ( $vmErrors -eq 0 ) {
 				Write-LogInfo "$($VM.RoleName) : No issue found from the kernel logs."
 				$retValue = $true
-			} else {
+			}
+			else {
 				Write-LogErr "$($VM.RoleName) : $vmErrors errors found."
 				$retValue = $false
 			}
 		}
 		if ( $totalErrors -eq 0 ) {
 			$retValue = $true
-		} else {
+		}
+		else {
 			$retValue = $false
 		}
-	} catch {
+	}
+	catch {
 		$retValue = $false
 	}
 	return $retValue
@@ -299,8 +312,9 @@ Function Get-SystemDetailLogs($AllVMData, $User, $Password) {
 			if ($TestPlatform -eq "Azure") {
 				Rename-Item -Path "$LogDir\$LisLogFile" -NewName ("LIS-Logs-" + $testVM.RoleName + ".tgz") -Force
 			}
-		} catch {
-			$ErrorMessage =  $_.Exception.Message
+		}
+		catch {
+			$ErrorMessage = $_.Exception.Message
 			Write-LogErr "EXCEPTION : $ErrorMessage"
 			Write-LogErr "Unable to collect logs from IP : $testIP PORT : $testPort"
 		}
@@ -308,21 +322,7 @@ Function Get-SystemDetailLogs($AllVMData, $User, $Password) {
 }
 
 Function Trim-ErrorLogMessage($text) {
-	<#	.SYNOPSIS
-		Given an error text, it trims the text to 160 characters and adds "...".
-		If there is phrase affected by the trim, it also removes the phrase.
-		In all scenarios, it adds new line characters at the end.
-	#>
-
-	$maxLength = 160
-	if ($text.Length -ge $maxLength) {
-		$text = $text.Substring(0,$maxLength)
-		$splitByPeriod = $text.split(".")
-		if ($splitByPeriod.Count -gt 1) {
-			$maxLength -= $splitByPeriod[$splitByPeriod.Count - 1].Length
-			$text = $text.Substring(0,$maxLength) + ".."
-		}
-		$text = $text.Replace("'","""")
-	}
+	# Trim, avoid SQL insert syntax error
+	$text = ($text -replace "{|}", " ").Replace("'", """")
 	return $text + "`r`n"
 }

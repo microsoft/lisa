@@ -118,13 +118,17 @@ Param(
 
 	[string] $ResultDBTable = "",
 	[string] $ResultDBTestTag = "",
+	[string] $TestPassID = "",
 
 	[switch] $ExitWithZero,
 	[switch] $ForceCustom,
-	[switch] $ReuseVMOnFailure
+	[switch] $ReuseVMOnFailure,
+	[switch] $RunInParallel,
+	[int]    $TotalCountInParallel,
+	[string] $TestIdInParallel
 )
 
-
+Set-Location $PSScriptRoot
 $CURRENT_DIR = Split-Path -Parent $MyInvocation.MyCommand.Path
 Import-Module "${CURRENT_DIR}\LISAv2-Framework" -Force
 
@@ -142,7 +146,13 @@ $MyInvocation.MyCommand.Parameters.Keys | ForEach-Object {
 $params["Verbose"] = $PSCmdlet.MyInvocation.BoundParameters["Verbose"]
 
 try {
-	Start-LISAv2 @params
+	if ($RunInParallel) {
+		$params["ExitWithZero"] = $params.RunInParallel
+		Start-LISAv2 @params -ParamsInParallel $params
+	}
+	else {
+		Start-LISAv2 @params
+	}
 	exit 0
 } catch {
 	exit 1

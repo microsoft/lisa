@@ -58,7 +58,7 @@ function verify_vmbus_interrupts() {
                 intrCount=$(echo "$line" | xargs echo | cut -f $(( $core+2 )) -d ' ')
                 if [ "$intrCount" -ne 0 ]; then
                     (( nonCPU0inter++ ))
-                    UpdateSummary "CPU core ${core} is processing VMBUS interrupts."
+                    LogMsg "CPU core ${core} is processing VMBUS interrupts."
                 fi
             done
         fi

@@ -14,6 +14,8 @@ if (Get-Module $moduleName -ErrorAction SilentlyContinue) {
 
 function Get-AzVM {}
 
+function Get-LISAStorageAccount {}
+
 function Get-AzStorageAccount {}
 
 function Get-AzStorageAccountKey {}
@@ -29,7 +31,7 @@ Describe "Test if module ${moduleName} is valid" {
 Describe "Test Get-AzureBootDiagnostics" {
     Mock Get-AzVM -Verifiable -ModuleName $moduleName { return @{"BootDiagnostics"=@{"SerialConsoleLogBlobUri" = "http://fake.fakepath.com/blob/blobpath"}} }
     Mock Write-LogInfo -Verifiable -ModuleName $moduleName { return }
-    Mock Get-AzStorageAccount -Verifiable -ModuleName $moduleName { return @{"StorageAccountName" = "fake"; "ResourceGroupName" = "fake_rg"}}
+    Mock Get-LISAStorageAccount -Verifiable -ModuleName $moduleName { return @{"StorageAccountName" = "fake"; "ResourceGroupName" = "fake_rg"}}
     Mock Get-AzStorageAccountKey -Verifiable -ModuleName $moduleName { throw "fail"}
 
     It "Should not find an AzureVmKernelPanic" {

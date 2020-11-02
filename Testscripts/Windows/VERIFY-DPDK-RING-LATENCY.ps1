@@ -132,7 +132,7 @@ collect_VM_properties
 			Wait-Time -Seconds $timeout
 			$retries++
 		}
-		Get-Job -Id $testJob | Stop-Job -ErrorAction SilentlyContinue
+		Get-Job -Id $testJob | Remove-Job -Force -ErrorAction SilentlyContinue
 		$dpdkRingLatencyStatus = Run-LinuxCmd -ip $clientVMData.PublicIP -port $clientVMData.SSHPort `
 			-username $superUser -password $password -command "cat /root/state.txt"
 		$testResult = Get-TestStatus $dpdkRingLatencyStatus

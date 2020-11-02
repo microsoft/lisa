@@ -5,16 +5,6 @@ param([String] $TestParams,
       [object] $AllVmData,
       [object] $CurrentTestData)
 
-function Start-AzureVmNetwork {
-    if ($TestPlatform -eq "Azure") {
-        Add-Content restartNetwork.txt 'modprobe hv_netvsc; ip link set eth0 down; ip link set eth0 up; dhclient -r; dhclient'
-        Invoke-AzureRmVMRunCommand  -ResourceGroupName $AllVMData.ResourceGroupName `
-            -Name $AllVMData.RoleName -CommandId "RunShellScript" `
-            -ScriptPath restartNetwork.txt
-        Remove-Item restartNetwork.txt -Force
-    }
-}
-
 function Check-Result {
     param (
         [String] $VmIp,
@@ -42,14 +32,9 @@ function Check-Result {
         $attempts++
         $isVmAlive = Is-VmAlive -AllVMDataObject $AllVMData -MaxRetryCount 5
         if ($isVmAlive -eq "True") {
-            if ($global:sshPrivateKey) {
-                $sshKey = $global:sshPrivateKey
-                $TestConnection = .\Tools\plink.exe -C -batch -i $sshKey -P $VMPort $User@$VmIp "echo Connected"
-            } else {
-                $TestConnection = .\Tools\plink.exe -C -batch -pw $Password -P $VMPort $User@$VmIp "echo Connected"
-            }
+            $TestConnection = Run-LinuxCmd -ip $VmIp -port $VMPort -username $User -password $Password -command "echo Connected"
             if ($TestConnection -eq "Connected") {
-                $state = Run-LinuxCmd -ip $VmIp -port $VMPort -username $User -password $Password -command "cat state.txt" -ignoreLinuxExitCode:$true
+                $state = Run-LinuxCmd -ip $VmIp -port $VMPort -username $User -password $Password -command "cat state.txt" -ignoreLinuxExitCode
                 if (-not $state) {
                     if ($TestPlatform -eq "HyperV" -and (Get-VMIntegrationService $VMName -ComputerName $HvServer | `
                         Where-Object {$_.name -eq "Heartbeat"}).PrimaryStatusDescription `
@@ -82,7 +67,6 @@ function Check-Result {
         }
     }
     if ($sw.elapsed -ge $timeout) {
-        Start-AzureVmNetwork
         Write-LogErr "Test has timed out. After 3 hours, state file couldn't be read!"
     }
     Collect-TestLogs -LogsDestination $LogDir -ScriptName `
