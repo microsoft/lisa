@@ -2,9 +2,12 @@ from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any
 
 from azure.mgmt.compute import ComputeManagementClient  # type: ignore
+from azure.mgmt.marketplaceordering import MarketplaceOrderingAgreements  # type: ignore
 
 from lisa.environment import Environment
 from lisa.node import Node
+
+from .cred_wrapper import CredentialWrapper
 
 if TYPE_CHECKING:
     from .platform_ import AzurePlatform
@@ -33,6 +36,14 @@ def get_compute_client(platform: Any) -> ComputeManagementClient:
     azure_platform: AzurePlatform = platform
     return ComputeManagementClient(
         credential=azure_platform.credential,
+        subscription_id=azure_platform.subscription_id,
+    )
+
+
+def get_marketplace_ordering_client(platform: Any) -> MarketplaceOrderingAgreements:
+    azure_platform: AzurePlatform = platform
+    return MarketplaceOrderingAgreements(
+        credentials=CredentialWrapper(azure_platform.credential),
         subscription_id=azure_platform.subscription_id,
     )
 

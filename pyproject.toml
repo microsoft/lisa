@@ -18,6 +18,7 @@ portalocker = "^1.7.1"
 azure-identity = {version = "^1.4.0", allow-prereleases = true}
 azure-mgmt-resource = {version = "^15.0.0-beta.1", allow-prereleases = true}
 azure-mgmt-compute = {version = "^17.0.0-beta.1", allow-prereleases = true}
+azure-mgmt-marketplaceordering = {version = "^0.2.1", allow-prereleases = true}
 azure-mgmt-network = {version = "^16.0.0-beta.1", allow-prereleases = true}
 asserts = "^0.11.0"
 
