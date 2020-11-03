@@ -62,7 +62,7 @@ from .common import (
 # used by azure
 AZURE_RG_NAME_KEY = "resource_group_name"
 
-VM_SIZE_FALLBACK_LEVELS = [
+VM_SIZE_FALLBACK_PATTERNS = [
     # exclude Standard_DS1_v2, because one core is too slow,
     # and doesn't work in some distro
     re.compile(r"Standard_DS((?!1)[\d]{1}|[\d]{2,})_v2"),
@@ -309,7 +309,7 @@ class AzurePlatform(Platform):
         super().__init__(runbook=runbook)
         self.credential: DefaultAzureCredential = None
         self._enviornment_counter = 0
-        self._eligible_capabilities: Optional[Dict[str, List[AzureCapability]]] = None
+        self._eligible_capabilities: Dict[str, List[AzureCapability]] = dict()
         self._locations_data_cache: Dict[str, AzureLocation] = dict()
 
     @classmethod
@@ -327,7 +327,6 @@ class AzurePlatform(Platform):
         """
         Main flow
 
-        _initialize_eligible_vm_sizes for all environments.
         1. load location, vm size patterns firstly.
         2. load avaiablbe vm sizes for each location.
         3. match vm sizes by pattern.
@@ -350,8 +349,6 @@ class AzurePlatform(Platform):
             # make sure all vms are in same location.
             existing_location: str = ""
             predefined_cost: int = 0
-
-            assert self._eligible_capabilities
 
             # check locations
             for req in nodes_requirement:
@@ -428,7 +425,7 @@ class AzurePlatform(Platform):
                     f"cannot find predefined vm size [{node_runbook.vm_size}] "
                     f"in location [{locations}]"
                 )
-            for location_name, location_caps in self._eligible_capabilities.items():
+            for location_name in locations:
                 # in each location, all node must be found
                 # fill them as None and check after meeted capability
                 found_capabilities: List[Any] = list(predefined_caps)
@@ -438,6 +435,7 @@ class AzurePlatform(Platform):
                     continue
 
                 estimated_cost: int = 0
+                location_caps = self._get_eligible_vm_sizes(location_name, log)
                 for req_index, req in enumerate(nodes_requirement):
                     for azure_cap in location_caps:
                         if found_capabilities[req_index]:
@@ -595,7 +593,6 @@ class AzurePlatform(Platform):
         self._rm_client = ResourceManagementClient(
             credential=self.credential, subscription_id=self.subscription_id
         )
-        self._initialize_eligible_vm_sizes(self._log)
 
     @lru_cache
     def _load_template(self) -> Any:
@@ -978,49 +975,36 @@ class AzurePlatform(Platform):
 
         return node_space
 
-    def _initialize_eligible_vm_sizes(self, log: Logger) -> None:
+    def _get_eligible_vm_sizes(
+        self, location: str, log: Logger
+    ) -> List[AzureCapability]:
         # load eligible vm sizes
-        # 1. location is selected
-        # 2. vm size supported in current location
-        # 3. vm size match predefined pattern
-        if self._eligible_capabilities is None:
-            assert self._azure_runbook
-            if isinstance(self._azure_runbook.locations, str):
-                location_names = [self._azure_runbook.locations]
-            else:
-                assert isinstance(
-                    self._azure_runbook.locations, list
-                ), f"actual: {type(self._azure_runbook.locations)}"
-                location_names = self._azure_runbook.locations
+        # 1. vm size supported in current location
+        # 2. vm size match predefined pattern
 
-            available_capabilities: Dict[str, List[AzureCapability]] = dict()
+        location_capabilities: List[AzureCapability] = []
 
-            # loop all locations
-            for location_name in location_names:
-                location_capabilities: List[AzureCapability] = []
-                location_info: AzureLocation = self._get_location_info(
-                    location_name, log
+        if location not in self._eligible_capabilities:
+            location_info: AzureLocation = self._get_location_info(location, log)
+            # loop all fall back levels
+            for fallback_pattern in VM_SIZE_FALLBACK_PATTERNS:
+                level_capabilities: List[AzureCapability] = []
+
+                # loop all capabilities
+                for capability in location_info.capabilities:
+                    if fallback_pattern.match(capability.vm_size):
+                        level_capabilities.append(capability)
+
+                # sort by rough cost
+                level_capabilities.sort(key=lambda x: (x.estimated_cost))
+                log.debug(
+                    f"{location}, pattern '{fallback_pattern.pattern}'"
+                    f" {len(level_capabilities)} candidates: "
+                    f"{[x.vm_size for x in level_capabilities]}"
                 )
-
-                # loop all fall back levels
-                for fallback_pattern in VM_SIZE_FALLBACK_LEVELS:
-                    level_capabilities: List[AzureCapability] = []
-
-                    # loop all capabilities
-                    for capability in location_info.capabilities:
-                        if fallback_pattern.match(capability.vm_size):
-                            level_capabilities.append(capability)
-
-                    # sort by rough cost
-                    level_capabilities.sort(key=lambda x: (x.estimated_cost))
-                    log.debug(
-                        f"{location_name}, pattern '{fallback_pattern.pattern}'"
-                        f" {len(level_capabilities)} candidates: "
-                        f"{[x.vm_size for x in level_capabilities]}"
-                    )
-                    location_capabilities.extend(level_capabilities)
-                available_capabilities[location_name] = location_capabilities
-            self._eligible_capabilities = available_capabilities
+                location_capabilities.extend(level_capabilities)
+            self._eligible_capabilities[location] = location_capabilities
+        return self._eligible_capabilities[location]
 
     def _process_gallery_image_plan(
         self, location: str, gallery: AzureVmGallerySchema

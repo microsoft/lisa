@@ -24,7 +24,11 @@ class AzurePrepareTestCase(TestCase):
         platform_runbook = schema.Platform()
         self._platform = azure.AzurePlatform(platform_runbook)
         self._platform._azure_runbook = azure.AzurePlatformSchema()
-        self._platform._initialize_eligible_vm_sizes(self._log)
+
+        # trigger data to be cached
+        locations = ["westus2", "eastus2", "notreal"]
+        for location in locations:
+            self._platform._get_eligible_vm_sizes(location, self._log)
 
     def test_load_capability(self) -> None:
         # capability can be loaded correct
@@ -73,7 +77,8 @@ class AzurePrepareTestCase(TestCase):
 
         assert self._platform._eligible_capabilities
         self.verify_eligible_vm_size("westus2", "Standard_M208ms_v2", False)
-        self.assertFalse("notreal" in self._platform._eligible_capabilities)
+        self.assertTrue("notreal" in self._platform._eligible_capabilities)
+        self.assertFalse(self._platform._eligible_capabilities["notreal"])
 
     def test_no_requirement(self) -> None:
         # if there is no requirement, return success
