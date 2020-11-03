@@ -1,3 +1,5 @@
+import logging
+import traceback
 from typing import Dict, List, Optional
 
 from lisa import notifier, schema, search_space
@@ -61,7 +63,6 @@ class Runner(Action):
         # request environment then run test s
         for environment in prepared_environments:
             try:
-                is_needed: bool = False
                 can_run_results = [x for x in can_run_results if x.can_run]
                 can_run_results.sort(key=lambda x: x.runtime_data.metadata.suite.name)
                 new_env_can_run_results = [
@@ -76,13 +77,16 @@ class Runner(Action):
                     break
 
                 # check if any test need this environment
-                if any(
-                    case.can_run and case.check_environment(environment, True)
-                    for case in can_run_results
-                ):
-                    is_needed = True
+                picked_result = next(
+                    (
+                        case
+                        for case in can_run_results
+                        if case.can_run and case.check_environment(environment, True)
+                    ),
+                    None,
+                )
 
-                if not is_needed:
+                if picked_result is None:
                     self._log.debug(
                         f"env[{environment.name}] skipped "
                         f"as not meet any case requirement"
@@ -95,6 +99,27 @@ class Runner(Action):
                     self._log.warning(
                         f"[{environment.name}] waiting for more resource: "
                         f"{identifier}, skip assiging case"
+                    )
+                    continue
+                except Exception as identifier:
+                    # make first fit test case fail by deployment
+                    picked_result.set_status(
+                        TestStatus.FAILED, f"deployment: {str(identifier)}"
+                    )
+                    self._log.info(
+                        f"deployment failed, attached to test case "
+                        f"'{picked_result.runtime_data.metadata.full_name}': "
+                        f"{identifier}"
+                    )
+                    self._log.lines(
+                        logging.DEBUG,
+                        "".join(
+                            traceback.format_exception(
+                                etype=type(identifier),
+                                value=identifier,
+                                tb=identifier.__traceback__,
+                            )
+                        ),
                     )
                     continue
 
