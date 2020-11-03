@@ -387,6 +387,7 @@
                             "name": "[parameters('nodes')[copyIndex('vmCopy')]['name']]",
                             "location": "[parameters('nodes')[copyIndex('vmCopy')]['location']]",
                             "tags": { "RG": "[parameters('resourceGroupName')]" },
+                            "plan": "[parameters('nodes')[copyIndex('vmCopy')]['purchasePlan']]",
                             "dependsOn": [
                                 "[resourceId('Microsoft.Compute/availabilitySets', variables('availabilitySetName'))]",
                                 "[resourceId('Microsoft.Compute/images', concat(parameters('nodes')[copyIndex('vmCopy')]['name'], '-image'))]",

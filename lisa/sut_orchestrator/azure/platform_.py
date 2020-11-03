@@ -11,7 +11,12 @@ from typing import Any, Dict, List, Optional, Type, Union
 
 from azure.core.exceptions import HttpResponseError
 from azure.identity import DefaultAzureCredential  # type: ignore
-from azure.mgmt.compute.models import ResourceSku, VirtualMachine  # type: ignore
+from azure.mgmt.compute.models import (  # type: ignore
+    PurchasePlan,
+    ResourceSku,
+    VirtualMachine,
+)
+from azure.mgmt.marketplaceordering.models import AgreementTerms  # type: ignore
 from azure.mgmt.network import NetworkManagementClient  # type: ignore
 from azure.mgmt.network.models import NetworkInterface, PublicIPAddress  # type: ignore
 from azure.mgmt.resource import (  # type: ignore
@@ -48,6 +53,7 @@ from .common import (
     AZURE,
     get_compute_client,
     get_environment_context,
+    get_marketplace_ordering_client,
     get_node_context,
     wait_operation,
 )
@@ -119,6 +125,14 @@ class AzureVmGallerySchema:
 
 @dataclass_json(letter_case=LetterCase.CAMEL)
 @dataclass
+class AzureVmPurchasePlanSchema:
+    name: str
+    product: str
+    publisher: str
+
+
+@dataclass_json(letter_case=LetterCase.CAMEL)
+@dataclass
 class AzureNodeSchema:
     name: str = ""
     vm_size: str = ""
@@ -128,6 +142,8 @@ class AzureNodeSchema:
     )
     vhd: str = ""
     nic_count: int = 1
+    # for gallery image, which need to accept terms
+    purchase_plan: Optional[AzureVmPurchasePlanSchema] = None
 
     def __post_init__(self, *args: Any, **kwargs: Any) -> None:
         add_secret(self.vhd)
@@ -138,6 +154,8 @@ class AzureNodeSchema:
             ] = AzureVmGallerySchema.schema().load(  # type: ignore
                 self.gallery_raw
             )
+            # this step makes gallery_raw is validated, and filter out any unwanted
+            # content.
             self.gallery_raw = self.gallery.to_dict()  # type: ignore
         elif self.gallery_raw:
             assert isinstance(
@@ -149,6 +167,7 @@ class AzureNodeSchema:
                 self.gallery = AzureVmGallerySchema(
                     gallery[0], gallery[1], gallery[2], gallery[3]
                 )
+                # gallery_raw is used
                 self.gallery_raw = self.gallery.to_dict()  # type: ignore
             else:
                 raise LisaException(
@@ -742,6 +761,11 @@ class AzurePlatform(Platform):
             elif not azure_node_runbook.gallery:
                 # set to default gallery, if nothing secified
                 azure_node_runbook.gallery = AzureVmGallerySchema()
+
+            if azure_node_runbook.gallery and not azure_node_runbook.purchase_plan:
+                azure_node_runbook.purchase_plan = self._process_gallery_image_plan(
+                    azure_node_runbook.location, azure_node_runbook.gallery
+                )
             nodes_parameters.append(azure_node_runbook)
 
             if not arm_parameters.location:
@@ -1000,3 +1024,57 @@ class AzurePlatform(Platform):
                     location_capabilities.extend(level_capabilities)
                 available_capabilities[location_name] = location_capabilities
             self._eligible_capabilities = available_capabilities
+
+    def _process_gallery_image_plan(
+        self, location: str, gallery: AzureVmGallerySchema
+    ) -> Optional[PurchasePlan]:
+        """
+        this method to fill plan, if a VM needs it. If don't fill it, the deployment
+        will be failed.
+
+        1. Convert latest to a specified version, which is required by get API.
+        2. Get image_info to check if there is a plan.
+        3. If there is a plan, it may need to check and accept terms.
+        """
+        compute_client = get_compute_client(self)
+        version = gallery.version.lower()
+        if version == "latest":
+            # latest doesn't work, it needs a specified version.
+            versioned_images = compute_client.virtual_machine_images.list(
+                location=location,
+                publisher_name=gallery.publisher,
+                offer=gallery.offer,
+                skus=gallery.sku,
+            )
+            # any one should be the same to get purchase plan
+            version = versioned_images[-1].name
+        image_info = compute_client.virtual_machine_images.get(
+            location=location,
+            publisher_name=gallery.publisher,
+            offer=gallery.offer,
+            skus=gallery.sku,
+            version=version,
+        )
+        plan: Optional[AzureVmPurchasePlanSchema] = None
+        if image_info.plan:
+            # if there is a plan, it may need to accept term.
+            marketplace_client = get_marketplace_ordering_client(self)
+            term: AgreementTerms = marketplace_client.marketplace_agreements.get(
+                publisher_id=gallery.publisher,
+                offer_id=gallery.offer,
+                plan_id=image_info.plan.name,
+            )
+            if term.accepted is False:
+                term.accepted = True
+                marketplace_client.marketplace_agreements.create(
+                    publisher_id=gallery.publisher,
+                    offer_id=gallery.offer,
+                    plan_id=image_info.plan.name,
+                    parameters=term,
+                )
+            plan = AzureVmPurchasePlanSchema(
+                name=image_info.plan.name,
+                product=image_info.plan.product,
+                publisher=image_info.plan.publisher,
+            )
+        return plan
