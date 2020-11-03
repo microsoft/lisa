@@ -1,0 +1,865 @@
+{
+    "updatedTime": "9999-09-21T12:16:46.895330",
+    "location": "eastus2",
+    "capabilities": [
+        {
+            "location": "eastus2",
+            "vmSize": "Standard_B1ls",
+            "capability": {
+                "type": "requirement",
+                "name": "eastus2_Standard_B1ls",
+                "isDefault": false,
+                "artifact": "",
+                "nodeCount": 1,
+                "coreCount": 1,
+                "memoryMb": 512,
+                "diskCount": {
+                    "min": 0,
+                    "max": 2,
+                    "maxInclusive": true
+                },
+                "nicCount": {
+                    "min": 0,
+                    "max": 2,
+                    "maxInclusive": true
+                },
+                "gpuCount": 0,
+                "features": {
+                    "isAllowSet": true
+                },
+                "excludedFeatures": {
+                    "isAllowSet": false
+                }
+            },
+            "estimatedCost": 1,
+            "resourceSku": {
+                "resource_type": "virtualMachines",
+                "name": "Standard_B1ls",
+                "tier": "Standard",
+                "size": "B1ls",
+                "family": "standardBSFamily",
+                "locations": [
+                    "eastus2"
+                ],
+                "location_info": [
+                    {
+                        "location": "eastus2",
+                        "zones": [
+                            "3",
+                            "2",
+                            "1"
+                        ],
+                        "zone_details": [
+                            {
+                                "capabilities": [
+                                    {
+                                        "name": "UltraSSDAvailable",
+                                        "value": "True"
+                                    }
+                                ]
+                            }
+                        ]
+                    }
+                ],
+                "capabilities": [
+                    {
+                        "name": "MaxResourceVolumeMB",
+                        "value": "4096"
+                    },
+                    {
+                        "name": "OSVhdSizeMB",
+                        "value": "1047552"
+                    },
+                    {
+                        "name": "vCPUs",
+                        "value": "1"
+                    },
+                    {
+                        "name": "HyperVGenerations",
+                        "value": "V1,V2"
+                    },
+                    {
+                        "name": "MemoryGB",
+                        "value": "0.5"
+                    },
+                    {
+                        "name": "MaxDataDiskCount",
+                        "value": "2"
+                    },
+                    {
+                        "name": "LowPriorityCapable",
+                        "value": "False"
+                    },
+                    {
+                        "name": "PremiumIO",
+                        "value": "True"
+                    },
+                    {
+                        "name": "VMDeploymentTypes",
+                        "value": "IaaS"
+                    },
+                    {
+                        "name": "CombinedTempDiskAndCachedIOPS",
+                        "value": "200"
+                    },
+                    {
+                        "name": "CombinedTempDiskAndCachedReadBytesPerSecond",
+                        "value": "10485760"
+                    },
+                    {
+                        "name": "CombinedTempDiskAndCachedWriteBytesPerSecond",
+                        "value": "10485760"
+                    },
+                    {
+                        "name": "UncachedDiskIOPS",
+                        "value": "160"
+                    },
+                    {
+                        "name": "UncachedDiskBytesPerSecond",
+                        "value": "10485760"
+                    },
+                    {
+                        "name": "EphemeralOSDiskSupported",
+                        "value": "True"
+                    },
+                    {
+                        "name": "EncryptionAtHostSupported",
+                        "value": "True"
+                    },
+                    {
+                        "name": "AcceleratedNetworkingEnabled",
+                        "value": "False"
+                    },
+                    {
+                        "name": "RdmaEnabled",
+                        "value": "False"
+                    },
+                    {
+                        "name": "MaxNetworkInterfaces",
+                        "value": "2"
+                    }
+                ],
+                "restrictions": []
+            }
+        },
+        {
+            "location": "eastus2",
+            "vmSize": "Standard_DS1_v2",
+            "capability": {
+                "type": "requirement",
+                "name": "eastus2_Standard_DS1_v2",
+                "isDefault": false,
+                "artifact": "",
+                "nodeCount": 1,
+                "coreCount": 1,
+                "memoryMb": 3584,
+                "diskCount": {
+                    "min": 0,
+                    "max": 4,
+                    "maxInclusive": true
+                },
+                "nicCount": {
+                    "min": 0,
+                    "max": 2,
+                    "maxInclusive": true
+                },
+                "gpuCount": 0,
+                "features": {
+                    "isAllowSet": true
+                },
+                "excludedFeatures": {
+                    "isAllowSet": false
+                }
+            },
+            "estimatedCost": 1,
+            "resourceSku": {
+                "resource_type": "virtualMachines",
+                "name": "Standard_DS1_v2",
+                "tier": "Standard",
+                "size": "DS1_v2",
+                "family": "standardDSv2Family",
+                "locations": [
+                    "eastus2"
+                ],
+                "location_info": [
+                    {
+                        "location": "eastus2",
+                        "zones": [
+                            "3",
+                            "2",
+                            "1"
+                        ],
+                        "zone_details": []
+                    }
+                ],
+                "capabilities": [
+                    {
+                        "name": "MaxResourceVolumeMB",
+                        "value": "7168"
+                    },
+                    {
+                        "name": "OSVhdSizeMB",
+                        "value": "1047552"
+                    },
+                    {
+                        "name": "vCPUs",
+                        "value": "1"
+                    },
+                    {
+                        "name": "HyperVGenerations",
+                        "value": "V1,V2"
+                    },
+                    {
+                        "name": "MemoryGB",
+                        "value": "3.5"
+                    },
+                    {
+                        "name": "MaxDataDiskCount",
+                        "value": "4"
+                    },
+                    {
+                        "name": "LowPriorityCapable",
+                        "value": "True"
+                    },
+                    {
+                        "name": "PremiumIO",
+                        "value": "True"
+                    },
+                    {
+                        "name": "VMDeploymentTypes",
+                        "value": "IaaS"
+                    },
+                    {
+                        "name": "vCPUsAvailable",
+                        "value": "1"
+                    },
+                    {
+                        "name": "ACUs",
+                        "value": "210"
+                    },
+                    {
+                        "name": "vCPUsPerCore",
+                        "value": "1"
+                    },
+                    {
+                        "name": "CombinedTempDiskAndCachedIOPS",
+                        "value": "4000"
+                    },
+                    {
+                        "name": "CombinedTempDiskAndCachedReadBytesPerSecond",
+                        "value": "33554432"
+                    },
+                    {
+                        "name": "CombinedTempDiskAndCachedWriteBytesPerSecond",
+                        "value": "33554432"
+                    },
+                    {
+                        "name": "CachedDiskBytes",
+                        "value": "46170898432"
+                    },
+                    {
+                        "name": "UncachedDiskIOPS",
+                        "value": "3200"
+                    },
+                    {
+                        "name": "UncachedDiskBytesPerSecond",
+                        "value": "50331648"
+                    },
+                    {
+                        "name": "EphemeralOSDiskSupported",
+                        "value": "True"
+                    },
+                    {
+                        "name": "EncryptionAtHostSupported",
+                        "value": "True"
+                    },
+                    {
+                        "name": "AcceleratedNetworkingEnabled",
+                        "value": "False"
+                    },
+                    {
+                        "name": "RdmaEnabled",
+                        "value": "False"
+                    },
+                    {
+                        "name": "MaxNetworkInterfaces",
+                        "value": "2"
+                    }
+                ],
+                "restrictions": []
+            }
+        },
+        {
+            "location": "eastus2",
+            "vmSize": "Standard_DS2_v2",
+            "capability": {
+                "type": "requirement",
+                "name": "eastus2_Standard_DS2_v2",
+                "isDefault": false,
+                "artifact": "",
+                "nodeCount": 1,
+                "coreCount": 2,
+                "memoryMb": 7168,
+                "diskCount": {
+                    "min": 0,
+                    "max": 8,
+                    "maxInclusive": true
+                },
+                "nicCount": {
+                    "min": 0,
+                    "max": 2,
+                    "maxInclusive": true
+                },
+                "gpuCount": 0,
+                "features": {
+                    "isAllowSet": true,
+                    "items": [
+                        "StartStop"
+                    ]
+                },
+                "excludedFeatures": {
+                    "isAllowSet": false,
+                    "items": []
+                }
+            },
+            "estimatedCost": 2,
+            "resourceSku": {
+                "resource_type": "virtualMachines",
+                "name": "Standard_DS2_v2",
+                "tier": "Standard",
+                "size": "DS2_v2",
+                "family": "standardDSv2Family",
+                "locations": [
+                    "eastus2"
+                ],
+                "location_info": [
+                    {
+                        "location": "eastus2",
+                        "zones": [
+                            "3",
+                            "1",
+                            "2"
+                        ],
+                        "zone_details": []
+                    }
+                ],
+                "capabilities": [
+                    {
+                        "name": "MaxResourceVolumeMB",
+                        "value": "14336"
+                    },
+                    {
+                        "name": "OSVhdSizeMB",
+                        "value": "1047552"
+                    },
+                    {
+                        "name": "vCPUs",
+                        "value": "2"
+                    },
+                    {
+                        "name": "HyperVGenerations",
+                        "value": "V1,V2"
+                    },
+                    {
+                        "name": "MemoryGB",
+                        "value": "7"
+                    },
+                    {
+                        "name": "MaxDataDiskCount",
+                        "value": "8"
+                    },
+                    {
+                        "name": "LowPriorityCapable",
+                        "value": "True"
+                    },
+                    {
+                        "name": "PremiumIO",
+                        "value": "True"
+                    },
+                    {
+                        "name": "VMDeploymentTypes",
+                        "value": "IaaS"
+                    },
+                    {
+                        "name": "vCPUsAvailable",
+                        "value": "2"
+                    },
+                    {
+                        "name": "ACUs",
+                        "value": "210"
+                    },
+                    {
+                        "name": "vCPUsPerCore",
+                        "value": "1"
+                    },
+                    {
+                        "name": "CombinedTempDiskAndCachedIOPS",
+                        "value": "8000"
+                    },
+                    {
+                        "name": "CombinedTempDiskAndCachedReadBytesPerSecond",
+                        "value": "67108864"
+                    },
+                    {
+                        "name": "CombinedTempDiskAndCachedWriteBytesPerSecond",
+                        "value": "67108864"
+                    },
+                    {
+                        "name": "CachedDiskBytes",
+                        "value": "92341796864"
+                    },
+                    {
+                        "name": "UncachedDiskIOPS",
+                        "value": "6400"
+                    },
+                    {
+                        "name": "UncachedDiskBytesPerSecond",
+                        "value": "100663296"
+                    },
+                    {
+                        "name": "EphemeralOSDiskSupported",
+                        "value": "True"
+                    },
+                    {
+                        "name": "EncryptionAtHostSupported",
+                        "value": "True"
+                    },
+                    {
+                        "name": "AcceleratedNetworkingEnabled",
+                        "value": "True"
+                    },
+                    {
+                        "name": "RdmaEnabled",
+                        "value": "False"
+                    },
+                    {
+                        "name": "MaxNetworkInterfaces",
+                        "value": "2"
+                    }
+                ],
+                "restrictions": []
+            }
+        },
+        {
+            "location": "eastus2",
+            "vmSize": "Standard_DS15_v2",
+            "capability": {
+                "type": "requirement",
+                "name": "eastus2_Standard_DS15_v2",
+                "isDefault": false,
+                "artifact": "",
+                "nodeCount": 1,
+                "coreCount": 20,
+                "memoryMb": 143360,
+                "diskCount": {
+                    "min": 0,
+                    "max": 64,
+                    "maxInclusive": true
+                },
+                "nicCount": {
+                    "min": 0,
+                    "max": 8,
+                    "maxInclusive": true
+                },
+                "gpuCount": 0,
+                "features": {
+                    "isAllowSet": true
+                },
+                "excludedFeatures": {
+                    "isAllowSet": false
+                }
+            },
+            "estimatedCost": 20,
+            "resourceSku": {
+                "resource_type": "virtualMachines",
+                "name": "Standard_DS15_v2",
+                "tier": "Standard",
+                "size": "DS15_v2",
+                "family": "standardDSv2Family",
+                "locations": [
+                    "eastus2"
+                ],
+                "location_info": [
+                    {
+                        "location": "eastus2",
+                        "zones": [
+                            "3",
+                            "2",
+                            "1"
+                        ],
+                        "zone_details": []
+                    }
+                ],
+                "capabilities": [
+                    {
+                        "name": "MaxResourceVolumeMB",
+                        "value": "286720"
+                    },
+                    {
+                        "name": "OSVhdSizeMB",
+                        "value": "1047552"
+                    },
+                    {
+                        "name": "vCPUs",
+                        "value": "20"
+                    },
+                    {
+                        "name": "HyperVGenerations",
+                        "value": "V1,V2"
+                    },
+                    {
+                        "name": "MemoryGB",
+                        "value": "140"
+                    },
+                    {
+                        "name": "MaxDataDiskCount",
+                        "value": "64"
+                    },
+                    {
+                        "name": "LowPriorityCapable",
+                        "value": "True"
+                    },
+                    {
+                        "name": "PremiumIO",
+                        "value": "True"
+                    },
+                    {
+                        "name": "VMDeploymentTypes",
+                        "value": "IaaS"
+                    },
+                    {
+                        "name": "vCPUsAvailable",
+                        "value": "20"
+                    },
+                    {
+                        "name": "ACUs",
+                        "value": "210"
+                    },
+                    {
+                        "name": "vCPUsPerCore",
+                        "value": "1"
+                    },
+                    {
+                        "name": "CombinedTempDiskAndCachedIOPS",
+                        "value": "80000"
+                    },
+                    {
+                        "name": "CombinedTempDiskAndCachedReadBytesPerSecond",
+                        "value": "671088640"
+                    },
+                    {
+                        "name": "CombinedTempDiskAndCachedWriteBytesPerSecond",
+                        "value": "671088640"
+                    },
+                    {
+                        "name": "CachedDiskBytes",
+                        "value": "773094113280"
+                    },
+                    {
+                        "name": "UncachedDiskIOPS",
+                        "value": "64000"
+                    },
+                    {
+                        "name": "UncachedDiskBytesPerSecond",
+                        "value": "1006632960"
+                    },
+                    {
+                        "name": "EphemeralOSDiskSupported",
+                        "value": "True"
+                    },
+                    {
+                        "name": "EncryptionAtHostSupported",
+                        "value": "True"
+                    },
+                    {
+                        "name": "AcceleratedNetworkingEnabled",
+                        "value": "True"
+                    },
+                    {
+                        "name": "RdmaEnabled",
+                        "value": "False"
+                    },
+                    {
+                        "name": "MaxNetworkInterfaces",
+                        "value": "8"
+                    }
+                ],
+                "restrictions": [
+                    {
+                        "type": "Zone",
+                        "values": [
+                            "eastus2"
+                        ],
+                        "restriction_info": {
+                            "locations": [
+                                "eastus2"
+                            ],
+                            "zones": [
+                                "1",
+                                "2",
+                                "3"
+                            ]
+                        },
+                        "reason_code": "NotAvailableForSubscription"
+                    }
+                ]
+            }
+        },
+        {
+            "location": "eastus2",
+            "vmSize": "Standard_A8_v2",
+            "capability": {
+                "type": "requirement",
+                "name": "eastus2_Standard_A8_v2",
+                "isDefault": false,
+                "artifact": "",
+                "nodeCount": 1,
+                "coreCount": 8,
+                "memoryMb": 16384,
+                "diskCount": {
+                    "min": 0,
+                    "max": 16,
+                    "maxInclusive": true
+                },
+                "nicCount": {
+                    "min": 0,
+                    "max": 8,
+                    "maxInclusive": true
+                },
+                "gpuCount": 0,
+                "features": {
+                    "isAllowSet": true
+                },
+                "excludedFeatures": {
+                    "isAllowSet": false
+                }
+            },
+            "estimatedCost": 8,
+            "resourceSku": {
+                "resource_type": "virtualMachines",
+                "name": "Standard_A8_v2",
+                "tier": "Standard",
+                "size": "A8_v2",
+                "family": "standardAv2Family",
+                "locations": [
+                    "eastus2"
+                ],
+                "location_info": [
+                    {
+                        "location": "eastus2",
+                        "zones": [
+                            "3",
+                            "1",
+                            "2"
+                        ],
+                        "zone_details": []
+                    }
+                ],
+                "capabilities": [
+                    {
+                        "name": "MaxResourceVolumeMB",
+                        "value": "81920"
+                    },
+                    {
+                        "name": "OSVhdSizeMB",
+                        "value": "1047552"
+                    },
+                    {
+                        "name": "vCPUs",
+                        "value": "8"
+                    },
+                    {
+                        "name": "HyperVGenerations",
+                        "value": "V1"
+                    },
+                    {
+                        "name": "MemoryGB",
+                        "value": "16"
+                    },
+                    {
+                        "name": "MaxDataDiskCount",
+                        "value": "16"
+                    },
+                    {
+                        "name": "LowPriorityCapable",
+                        "value": "True"
+                    },
+                    {
+                        "name": "PremiumIO",
+                        "value": "False"
+                    },
+                    {
+                        "name": "VMDeploymentTypes",
+                        "value": "IaaS,PaaS"
+                    },
+                    {
+                        "name": "vCPUsAvailable",
+                        "value": "8"
+                    },
+                    {
+                        "name": "ACUs",
+                        "value": "100"
+                    },
+                    {
+                        "name": "vCPUsPerCore",
+                        "value": "1"
+                    },
+                    {
+                        "name": "CombinedTempDiskAndCachedIOPS",
+                        "value": "8000"
+                    },
+                    {
+                        "name": "CombinedTempDiskAndCachedReadBytesPerSecond",
+                        "value": "167772160"
+                    },
+                    {
+                        "name": "CombinedTempDiskAndCachedWriteBytesPerSecond",
+                        "value": "83886080"
+                    },
+                    {
+                        "name": "EphemeralOSDiskSupported",
+                        "value": "False"
+                    },
+                    {
+                        "name": "EncryptionAtHostSupported",
+                        "value": "False"
+                    },
+                    {
+                        "name": "AcceleratedNetworkingEnabled",
+                        "value": "False"
+                    },
+                    {
+                        "name": "RdmaEnabled",
+                        "value": "False"
+                    },
+                    {
+                        "name": "MaxNetworkInterfaces",
+                        "value": "8"
+                    }
+                ],
+                "restrictions": []
+            }
+        },
+        {
+            "location": "eastus2",
+            "vmSize": "Standard_NV48s_v3",
+            "capability": {
+                "type": "requirement",
+                "name": "eastus2_Standard_NV48s_v3",
+                "isDefault": false,
+                "artifact": "",
+                "nodeCount": 1,
+                "coreCount": 48,
+                "memoryMb": 458752,
+                "diskCount": {
+                    "min": 0,
+                    "max": 32,
+                    "maxInclusive": true
+                },
+                "nicCount": {
+                    "min": 0,
+                    "max": 8,
+                    "maxInclusive": true
+                },
+                "gpuCount": 4,
+                "features": {
+                    "isAllowSet": true
+                },
+                "excludedFeatures": {
+                    "isAllowSet": false
+                }
+            },
+            "estimatedCost": 448,
+            "resourceSku": {
+                "resource_type": "virtualMachines",
+                "name": "Standard_NV48s_v3",
+                "tier": "Standard",
+                "size": "NV48s_v3",
+                "family": "standardNVSv3Family",
+                "locations": [
+                    "eastus2"
+                ],
+                "location_info": [
+                    {
+                        "location": "eastus2",
+                        "zones": [
+                            "3"
+                        ],
+                        "zone_details": []
+                    }
+                ],
+                "capabilities": [
+                    {
+                        "name": "MaxResourceVolumeMB",
+                        "value": "1376256"
+                    },
+                    {
+                        "name": "OSVhdSizeMB",
+                        "value": "1047552"
+                    },
+                    {
+                        "name": "vCPUs",
+                        "value": "48"
+                    },
+                    {
+                        "name": "HyperVGenerations",
+                        "value": "V1,V2"
+                    },
+                    {
+                        "name": "MemoryGB",
+                        "value": "448"
+                    },
+                    {
+                        "name": "MaxDataDiskCount",
+                        "value": "32"
+                    },
+                    {
+                        "name": "LowPriorityCapable",
+                        "value": "True"
+                    },
+                    {
+                        "name": "PremiumIO",
+                        "value": "True"
+                    },
+                    {
+                        "name": "VMDeploymentTypes",
+                        "value": "IaaS"
+                    },
+                    {
+                        "name": "vCPUsAvailable",
+                        "value": "48"
+                    },
+                    {
+                        "name": "GPUs",
+                        "value": "4"
+                    },
+                    {
+                        "name": "vCPUsPerCore",
+                        "value": "2"
+                    },
+                    {
+                        "name": "EphemeralOSDiskSupported",
+                        "value": "True"
+                    },
+                    {
+                        "name": "EncryptionAtHostSupported",
+                        "value": "True"
+                    },
+                    {
+                        "name": "AcceleratedNetworkingEnabled",
+                        "value": "False"
+                    },
+                    {
+                        "name": "RdmaEnabled",
+                        "value": "False"
+                    },
+                    {
+                        "name": "MaxNetworkInterfaces",
+                        "value": "8"
+                    }
+                ],
+                "restrictions": []
+            }
+        }
+    ]
+}
