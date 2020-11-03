@@ -160,6 +160,17 @@ class AzureNodeSchema:
                     f"or '<Publisher>:<Offer>:<Sku>:<Version>'"
                 )
 
+    def get_image_name(self) -> str:
+        result = ""
+        if self.vhd:
+            result = self.vhd
+        elif self.gallery_raw:
+            assert isinstance(
+                self.gallery_raw, dict
+            ), f"actual type: {type(self.gallery_raw)}"
+            result = " ".join([x for x in self.gallery_raw.values()])
+        return result
+
 
 @dataclass_json(letter_case=LetterCase.CAMEL)
 @dataclass
@@ -262,6 +273,11 @@ def _get_node_information(node: Node, information: Dict[str, str]) -> None:
 
         modinfo = node.tools[Modinfo]
         information["lis_version"] = modinfo.get_version("hv_vmbus")
+
+        node_runbook = node.capability.get_extended_runbook(AzureNodeSchema, AZURE)
+        information["location"] = node_runbook.location
+        information["vmsize"] = node_runbook.vm_size
+        information["image"] = node_runbook.get_image_name()
 
 
 class AzurePlatform(Platform):
