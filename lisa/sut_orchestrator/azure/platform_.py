@@ -310,7 +310,7 @@ class AzurePlatform(Platform):
         self.credential: DefaultAzureCredential = None
         self._enviornment_counter = 0
         self._eligible_capabilities: Optional[Dict[str, List[AzureCapability]]] = None
-        self._locations_data_cache: Optional[Dict[str, AzureLocation]] = None
+        self._locations_data_cache: Dict[str, AzureLocation] = dict()
 
     @classmethod
     def type_name(cls) -> str:
@@ -607,38 +607,33 @@ class AzurePlatform(Platform):
     @retry(tries=2)  # type: ignore
     def _load_location_info_from_file(
         self, cached_file_name: Path, log: Logger
-    ) -> Dict[str, AzureLocation]:
+    ) -> Optional[AzureLocation]:
+        loaded_obj: Optional[AzureLocation] = None
         if cached_file_name.exists():
             try:
                 with open(cached_file_name, "r") as f:
                     loaded_data: Dict[str, Any] = json.load(f)
-                locations_data: Dict[str, AzureLocation] = dict()
-                for loc_name, loc_data in loaded_data.items():
-                    loc_obj: AzureLocation = AzureLocation.schema().load(  # type:ignore
-                        loc_data
-                    )
-                    locations_data[loc_name] = loc_obj
+                loaded_obj = AzureLocation.schema().load(  # type:ignore
+                    loaded_data
+                )
             except Exception as identifier:
                 # if schema changed, There may be exception, remove cache and retry
                 # Note: retry on this method depends on decorator
                 log.debug("error on loading cache, delete cache and retry.")
                 cached_file_name.unlink()
                 raise identifier
-        else:
-            locations_data = dict()
-        return locations_data
+        return loaded_obj
 
     def _get_location_info(self, location: str, log: Logger) -> AzureLocation:
-        cached_file_name = constants.CACHE_PATH.joinpath("azure_locations.json")
+        cached_file_name = constants.CACHE_PATH.joinpath(
+            f"azure_locations_{location}.json"
+        )
         should_refresh: bool = True
-        if not self._locations_data_cache:
-            self._locations_data_cache = self._load_location_info_from_file(
+        location_data = self._locations_data_cache.get(location, None)
+        if not location_data:
+            location_data = self._load_location_info_from_file(
                 cached_file_name=cached_file_name, log=log
             )
-        assert self._locations_data_cache is not None
-        location_data: Optional[AzureLocation] = self._locations_data_cache.get(
-            location
-        )
 
         if location_data:
             delta = datetime.now() - location_data.updated_time
@@ -700,16 +695,14 @@ class AzurePlatform(Platform):
             self._locations_data_cache[location_data.location] = location_data
             log.debug(f"{location}: saving to disk")
             with open(cached_file_name, "w") as f:
-                saved_data: Dict[str, Any] = dict()
-                for name, value in self._locations_data_cache.items():
-                    saved_data[name] = value.to_dict()  # type: ignore
-                json.dump(saved_data, f)
+                json.dump(location_data.to_dict(), f)  # type: ignore
             log.debug(
                 f"{location_data.location}: new data, "
                 f"sku: {len(location_data.capabilities)}"
             )
 
         assert location_data
+        self._locations_data_cache[location] = location_data
         return location_data
 
     def _create_deployment_parameters(
