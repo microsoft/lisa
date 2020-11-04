@@ -79,6 +79,7 @@ function Create-TestResultObject()
 
 # Upload a single file
 function Upload-RemoteFile($uploadTo, $port, $file, $username, $password, $usePrivateKey, $maxRetry) {
+	$pscpTimeout = 600
 	$retry=1
 	if (!$maxRetry) {
 		$maxRetry = 10
@@ -116,7 +117,7 @@ function Upload-RemoteFile($uploadTo, $port, $file, $username, $password, $usePr
 			Start-Sleep -Milliseconds 100
 			$uploadJobStatus = Get-Job -Id $uploadJob.Id
 			$uploadTimout = $false
-			$pscpStuckTimeout = 90
+			$pscpStuckTimeout = $pscpTimeout - 60
 			while (( $uploadJobStatus.State -eq "Running" ) -and ( !$uploadTimout )) {
 				$now = Get-Date
 				if (($now - $uploadStartTime).TotalSeconds -gt $pscpStuckTimeout) {
@@ -135,7 +136,7 @@ function Upload-RemoteFile($uploadTo, $port, $file, $username, $password, $usePr
 						Throw ".\Tools\pscp is stuck for $pscpStuckTimeout seconds. Aborting upload."
 					}
 				}
-				if ( ($now - $uploadStartTime).TotalSeconds -gt 600 ) {
+				if ( ($now - $uploadStartTime).TotalSeconds -gt $pscpTimeout ) {
 					$uploadTimout = $true
 					Write-LogErr "Upload Timout!"
 				}
