@@ -5,7 +5,7 @@
         "resourceGroupName": {
             "type": "string",
             "metadata": {
-                "description": "resource gorup name"
+                "description": "resource group name"
             }
         },
         "location": {
@@ -59,7 +59,8 @@
     },
     "variables": {
         "storageName": "[concat('lisas', substring(parameters('location'),0,min(11, length(parameters('location')))), substring(subscription().id,sub(length(subscription().id),8),8))]",
-        "sharedRGName": "lisa_shared_resource"
+        "sharedRGName": "lisa_shared_resource",
+        "storageDeploymentName": "[concat('storage-deploy-', substring(parameters('resourceGroupName'),sub(length(parameters('resourceGroupName')),22),22))]"
     },
     "resources": [
         {
@@ -72,7 +73,7 @@
         {
             "type": "Microsoft.Resources/deployments",
             "apiVersion": "2019-10-01",
-            "name": "[concat('storage-account-deployment-', parameters('location'))]",
+            "name": "[variables('storageDeploymentName')]",
             "resourceGroup": "[variables('sharedRGName')]",
             "dependsOn": [ "[variables('sharedRGName')]" ],
             "properties": {
@@ -128,7 +129,7 @@
             "resourceGroup": "[parameters('resourceGroupName')]",
             "dependsOn": [
                 "[parameters('resourceGroupName')]",
-                "[concat('storage-account-deployment-', parameters('location'))]"
+                "[variables('storageDeploymentName')]"
             ],
             "properties": {
                 "expressionEvaluationOptions": {
