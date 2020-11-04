@@ -10,7 +10,7 @@ run: setup
 
 # Run local tests
 test: setup
-	cd pytest && poetry run pytest -n 4 --setup-show selftests/
+	cd pytest && poetry run pytest -n 8 --setup-show selftests/
 
 # Run semantic analysis
 check: setup
