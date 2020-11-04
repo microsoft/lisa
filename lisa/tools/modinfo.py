@@ -7,7 +7,7 @@ from lisa.util.process import ExecutableResult
 
 
 class Modinfo(Tool):
-    __version_pattern = re.compile(r"^vermagic:[ \t]*([^ \n]*)")
+    __version_pattern = re.compile(r"^version:[ \t]*([^ \n]*)")
 
     @property
     def command(self) -> str:
