@@ -154,7 +154,7 @@ testing = ["mock (>=2.0.0,<3.0)"]
 name = "filelock"
 version = "3.0.12"
 description = "A platform independent file lock."
-category = "dev"
+category = "main"
 optional = false
 python-versions = "*"
 
@@ -705,7 +705,7 @@ python-versions = ">=3.6"
 [metadata]
 lock-version = "1.1"
 python-versions = "^3.8"
-content-hash = "6b221105c12de9baa5fda48ab1839efcb4337e94f02560942d8fa165128fd74f"
+content-hash = "ee86abdeec8b63e0ff22b16e7d9d6e8aedce399ada42a0cbe395ecd917a42703"
 
 [metadata.files]
 apipkg = [
