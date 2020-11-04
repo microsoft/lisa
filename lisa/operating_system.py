@@ -161,6 +161,10 @@ class Debian(Ubuntu):
 
 
 class Redhat(Linux):
+    @classmethod
+    def name_pattern(cls) -> Pattern[str]:
+        return re.compile("^rhel$")
+
     def _install_packages(self, packages: Union[List[str]]) -> None:
         self._node.execute(
             f"sudo DEBIAN_FRONTEND=noninteractive yum install -y {' '.join(packages)}"
