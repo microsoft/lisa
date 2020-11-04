@@ -8,6 +8,7 @@ license = "MIT License"
 [tool.poetry.dependencies]
 python = "^3.8"
 pytest = "^6.1.1"
+filelock = "^3.0.12"
 fabric = "^2.5.0"
 pytest-timeout = "^1.4.2"
 pytest-html = "^2.1.1"
