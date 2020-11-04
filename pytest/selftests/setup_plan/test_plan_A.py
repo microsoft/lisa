@@ -1,16 +1,16 @@
 import pytest
 
 
-def test_xdp_a(feature) -> None:
-    if feature != "xdp":
-        pytest.skip("Required feature missing")
+@pytest.mark.feature("xdp")
+def test_xdp_a() -> None:
+    pass
 
 
-def test_gpu_a(feature) -> None:
-    if feature != "gpu":
-        pytest.skip("Required feature missing")
+@pytest.mark.feature("gpu")
+def test_gpu_a() -> None:
+    pass
 
 
-def test_rdma_a(feature) -> None:
-    if feature != "rdma":
-        pytest.skip("Required feature missing")
+@pytest.mark.feature("rdma")
+def test_rdma_a() -> None:
+    pass
