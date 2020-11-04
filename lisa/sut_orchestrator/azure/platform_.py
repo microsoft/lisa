@@ -38,6 +38,7 @@ from lisa.feature import Feature
 from lisa.node import Node
 from lisa.platform_ import Platform
 from lisa.secret import PATTERN_GUID, PATTERN_HEADTAIL, add_secret
+from lisa.sut_orchestrator.azure.tools import Waagent
 from lisa.tools import Dmesg, Modinfo
 from lisa.util import (
     LisaException,
@@ -293,6 +294,9 @@ def _get_node_information(node: Node, information: Dict[str, str]) -> None:
 
         modinfo = node.tools[Modinfo]
         information["lis_version"] = modinfo.get_version("hv_vmbus")
+
+        waagent = node.tools[Waagent]
+        information["wala_version"] = waagent.get_version()
 
         node_runbook = node.capability.get_extended_runbook(AzureNodeSchema, AZURE)
         information["location"] = node_runbook.location
