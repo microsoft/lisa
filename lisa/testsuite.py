@@ -14,7 +14,7 @@ from lisa.feature import Feature
 from lisa.operating_system import OperatingSystem
 from lisa.util import LisaException, constants, set_filtered_fields
 from lisa.util.logger import get_logger
-from lisa.util.perf_timer import create_timer
+from lisa.util.perf_timer import Timer, create_timer
 
 if TYPE_CHECKING:
     from lisa.environment import Environment
@@ -56,6 +56,7 @@ class TestResult:
 
     def __post_init__(self, *args: Any, **kwargs: Any) -> None:
         self._send_result_message()
+        self._timer: Timer
 
     def set_status(
         self, new_status: TestStatus, message: Union[str, List[str]]
@@ -68,6 +69,8 @@ class TestResult:
             self.message = "\n".join(message)
         if self.status != new_status:
             self.status = new_status
+            if new_status == TestStatus.RUNNING:
+                self._timer = create_timer()
             self._send_result_message()
 
     def check_environment(
@@ -96,6 +99,9 @@ class TestResult:
         return check_result.result
 
     def _send_result_message(self) -> None:
+        if hasattr(self, "_timer"):
+            self.elapsed = self._timer.elapsed(False)
+
         fields = ["status", "elapsed"]
         result_message = TestResultMessage()
         set_filtered_fields(self, result_message, fields=fields)
@@ -328,6 +334,7 @@ class TestSuite(Action):
             )
             is_continue: bool = is_suite_continue
             total_timer = create_timer()
+            case_result.set_status(TestStatus.RUNNING, "")
 
             if is_continue:
                 timer = create_timer()
@@ -344,7 +351,6 @@ class TestSuite(Action):
                         TestStatus.SKIPPED, f"before_case: {identifier}"
                     )
                     is_continue = False
-                case_result.elapsed = timer.elapsed()
                 self.log.debug(f"before_case end with {timer}")
             else:
                 case_result.set_status(TestStatus.SKIPPED, suite_error_message)
@@ -368,7 +374,6 @@ class TestSuite(Action):
                         case_result.set_status(
                             TestStatus.FAILED, f"failed: {identifier}"
                         )
-                case_result.elapsed = timer.elapsed()
                 self.log.debug(f"case end with {timer}")
 
             timer = create_timer()
@@ -384,7 +389,6 @@ class TestSuite(Action):
                 self.log.error("after_case failed", exc_info=identifier)
             self.log.debug(f"after_case end with {timer}")
 
-            case_result.elapsed = total_timer.elapsed()
             self.log.info(
                 f"result: {case_result.status.name}, " f"elapsed: {total_timer}"
             )
