@@ -58,7 +58,7 @@ class Dmesg(Tool):
         if result:
             # log first line only, in case it's too long
             error_message = (
-                f"dmesg error with {len(result)} lines, "
+                f"dmesg error with {len(panic_lines)} lines, "
                 f"first line: '{panic_lines[0]}'"
             )
             if throw_error:
