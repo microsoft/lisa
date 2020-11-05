@@ -3,6 +3,7 @@ from __future__ import annotations
 import copy
 from collections import UserDict
 from dataclasses import dataclass, field
+from enum import Enum
 from functools import partial
 from typing import TYPE_CHECKING, Any, List, Optional
 
@@ -20,6 +21,23 @@ if TYPE_CHECKING:
 
 
 _get_init_logger = partial(get_logger, "init", "env")
+
+
+EnvironmentStatus = Enum(
+    "EnvironmentStatus",
+    [
+        # just created, no operation
+        "New",
+        # prepared by platform, but may not be deployed
+        "Prepared",
+        # deployed, and platform says success
+        "Deployed",
+        # intialized and connected via SSH
+        "Connected",
+        # deleted by platform
+        "Deleted",
+    ],
+)
 
 
 @dataclass_json(letter_case=LetterCase.CAMEL)
@@ -114,12 +132,22 @@ class Environment(ContextMixin, InitializableMixin):
         self.warn_as_error = warn_as_error
         self._default_node: Optional[Node] = None
         self._log = get_logger("env", self.name)
+        self.status: EnvironmentStatus = EnvironmentStatus.New
 
     def _initialize(self, *args: Any, **kwargs: Any) -> None:
         if not self.is_ready:
             raise LisaException("environment is not ready, cannot be initialized")
         # environment is ready, refresh latest capability
         self.nodes.initialize()
+        self.status = EnvironmentStatus.Connected
+
+    @property
+    def status(self) -> EnvironmentStatus:
+        return self._status
+
+    @status.setter
+    def status(self, value: EnvironmentStatus) -> None:
+        self._status = value
 
     @classmethod
     def create(
