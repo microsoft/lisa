@@ -4,7 +4,12 @@ from typing import Dict, List, Optional
 
 from lisa import notifier, schema, search_space
 from lisa.action import Action, ActionStatus
-from lisa.environment import Environment, Environments, load_environments
+from lisa.environment import (
+    Environment,
+    Environments,
+    EnvironmentStatus,
+    load_environments,
+)
 from lisa.platform_ import WaitMoreResourceError, load_platform
 from lisa.testselector import select_testcases
 from lisa.testsuite import (
@@ -131,6 +136,13 @@ class Runner(Action):
                     )
                     continue
 
+                assert (
+                    environment.status == EnvironmentStatus.Deployed
+                ), f"actual: {environment.status}"
+
+                self._log.debug(f"initializing environment: {environment.name}")
+                environment.initialize()
+
                 # once environment is ready, check updated capability
                 self._log.info(f"start running cases on {environment.name}")
                 # try a case need new environment firstly
@@ -232,6 +244,27 @@ class Runner(Action):
         for result in results:
             result.environment = environment
         await test_suite.start()
+
+    def _get_can_run_results(
+        self,
+        source_results: List[TestResult],
+        use_new_environment: Optional[bool] = None,
+        enviornment_status: Optional[EnvironmentStatus] = None,
+    ) -> List[TestResult]:
+        results = source_results
+        if use_new_environment is not None:
+            results = [
+                x
+                for x in results
+                if x.runtime_data.use_new_environment == use_new_environment
+            ]
+        if enviornment_status is not None:
+            results = [
+                x
+                for x in results
+                if x.runtime_data.metadata.requirement.environment_status
+            ]
+        return [x for x in results if x.can_run]
 
     def _merge_test_requirements(
         self,

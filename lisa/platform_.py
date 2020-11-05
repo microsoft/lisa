@@ -4,7 +4,7 @@ from functools import partial
 from typing import TYPE_CHECKING, Any, List, Type
 
 from lisa import schema
-from lisa.environment import Environments
+from lisa.environment import Environments, EnvironmentStatus
 from lisa.feature import Feature, Features
 from lisa.util import InitializableMixin, LisaException, subclasses
 from lisa.util.logger import Logger, get_logger
@@ -81,6 +81,7 @@ class Platform(subclasses.BaseClassWithRunbookMixin, InitializableMixin):
             is_success = self._prepare_environment(environment, log)
             if is_success:
                 prepared_environments.append(environment)
+                environment.status = EnvironmentStatus.Prepared
             else:
                 log.debug("dropped since no fit capability found")
 
@@ -96,6 +97,8 @@ class Platform(subclasses.BaseClassWithRunbookMixin, InitializableMixin):
         timer = create_timer()
         environment.platform = self
         self._deploy_environment(environment, log)
+        environment.status = EnvironmentStatus.Deployed
+
         log.debug(f"initializing environment: {environment.name}")
         environment.initialize()
         # initialize features
@@ -108,6 +111,7 @@ class Platform(subclasses.BaseClassWithRunbookMixin, InitializableMixin):
         log = get_logger(f"del[{environment.name}]", parent=self._log)
         log.debug("deleting")
         environment.close()
+        environment.status = EnvironmentStatus.Deleted
         self._delete_environment(environment, log)
         environment.is_ready = False
         log.debug("deleted")
