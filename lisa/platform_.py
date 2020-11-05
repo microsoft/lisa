@@ -94,8 +94,8 @@ class Platform(subclasses.BaseClassWithRunbookMixin, InitializableMixin):
         log = get_logger(f"deploy[{environment.name}]", parent=self._log)
         log.info(f"deploying environment: {environment.name}")
         timer = create_timer()
-        self._deploy_environment(environment, log)
         environment.platform = self
+        self._deploy_environment(environment, log)
         log.debug(f"initializing environment: {environment.name}")
         environment.initialize()
         # initialize features

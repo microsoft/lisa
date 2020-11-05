@@ -283,7 +283,11 @@ HOST_VERSION_PATTERN = re.compile(r"Hyper-V Host Build:([^\n;]*)")
 
 
 def _get_node_information(node: Node, information: Dict[str, str]) -> None:
-    if node.is_linux:
+    node_runbook = node.capability.get_extended_runbook(AzureNodeSchema, AZURE)
+    information["location"] = node_runbook.location
+    information["vmsize"] = node_runbook.vm_size
+    information["image"] = node_runbook.get_image_name()
+    if node.is_connected and node.is_linux:
         dmesg = node.tools[Dmesg]
         matched_host_version = find_patterns_in_lines(
             dmesg.get_output(), [HOST_VERSION_PATTERN]
@@ -297,11 +301,6 @@ def _get_node_information(node: Node, information: Dict[str, str]) -> None:
 
         waagent = node.tools[Waagent]
         information["wala_version"] = waagent.get_version()
-
-        node_runbook = node.capability.get_extended_runbook(AzureNodeSchema, AZURE)
-        information["location"] = node_runbook.location
-        information["vmsize"] = node_runbook.vm_size
-        information["image"] = node_runbook.get_image_name()
 
 
 class AzurePlatform(Platform):
@@ -749,6 +748,7 @@ class AzurePlatform(Platform):
 
             # init node
             node = environment.nodes.from_requirement(node_space)
+            node.add_node_information_hook(_get_node_information)
             if not azure_node_runbook.name:
                 azure_node_runbook.name = f"node-{len(nodes_parameters)}"
             if not azure_node_runbook.vm_size:
