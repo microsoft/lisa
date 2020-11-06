@@ -24,7 +24,7 @@ T = TypeVar("T")
 
 
 def _get_node_information(node: Node, information: Dict[str, str]) -> None:
-    if node.is_linux:
+    if node.is_connected and node.is_linux:
         uname = node.tools[Uname]
         linux_information = uname.get_linux_information()
         fields = ["hardware_platform", "kernel_version"]
@@ -47,6 +47,7 @@ class Node(ContextMixin, InitializableMixin):
         self.capability = capability
         self.name: str = ""
         self.index = index
+        self.is_connected: bool = False
 
         self.shell: Shell = LocalShell()
 
@@ -153,6 +154,7 @@ class Node(ContextMixin, InitializableMixin):
         return self.os.is_linux
 
     def close(self) -> None:
+        self.is_connected = False
         self.shell.close()
 
     def get_node_information(self) -> Dict[str, str]:
@@ -203,6 +205,7 @@ class Node(ContextMixin, InitializableMixin):
             self.working_path = constants.RUN_LOCAL_PATH
         self.shell.mkdir(self.working_path, parents=True, exist_ok=True)
         self.log.debug(f"working path is: '{self.working_path}'")
+        self.is_connected = True
 
     def _execute(
         self,

@@ -103,6 +103,7 @@ class Runner(Action):
                     continue
                 except Exception as identifier:
                     # make first fit test case fail by deployment
+                    picked_result.environment = environment
                     picked_result.set_status(
                         TestStatus.FAILED, f"deployment: {str(identifier)}"
                     )
