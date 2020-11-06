@@ -2,12 +2,6 @@
 # Copyright (c) Microsoft Corporation. All rights reserved.
 # Licensed under the Apache License.
 #
-# This program is distributed in the hope that it will be useful,
-# but WITHOUT ANY WARRANTY; without even the implied warranty of
-# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-# GNU General Public License for more details.
-#
-#
 # Sample script to run sysbench.
 # In this script, we want to bench-mark device IO performance on a mounted folder.
 # You can adapt this script to other situations easily like for stripe disks as RAID0.
