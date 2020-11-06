@@ -1,7 +1,9 @@
 """These tests are meant to run in a CI environment."""
-from node_plugin import Node
+from conftest import LISA
+from target import Target
 
 
-def test_basic(node: Node) -> None:
+@LISA
+def test_basic(target: Target) -> None:
     """Basic test which creates a Node connection to 'localhost'."""
-    node.local("echo Hello World")
+    target.local("echo Hello World")

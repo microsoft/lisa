@@ -6,27 +6,12 @@ import time
 from invoke.runners import CommandTimedOut, Result, UnexpectedExit  # type: ignore
 from paramiko import SSHException  # type: ignore
 
-import pytest
-from node_plugin import Node
-
-# TODO: This is an example of leveraging Pytest’s parameterization
-# support. We can implement a small YAML parser to read a playbook at
-# runtime to generate this instead of using the below list.
-params = [
-    pytest.param(i, marks=pytest.mark.deploy(vm_image=i, vm_size="Standard_DS2_v2"))
-    for i in [
-        "citrix:netscalervpx-130:netscalerbyol:latest",
-        "audiocodes:mediantsessionbordercontroller:mediantvirtualsbcazure:latest",
-        "credativ:Debian:9:9.0.201706190",
-        "github:github-enterprise:github-enterprise:latest",
-    ]
-]
+from azure import Azure
+from conftest import LISA
 
 
-@pytest.mark.lisa(priority=0)
-@pytest.mark.parametrize("urn", params)
-@pytest.mark.flaky(reruns=1)
-def test_smoke(urn: str, node: Node) -> None:
+@LISA(platform="Azure", priority=0, sku="Standard_DS2_v2")
+def test_smoke(target: Azure) -> None:
     """Check that a VM can be deployed and is responsive.
 
     1. Deploy the VM (via 'node' fixture) and log it.
@@ -45,15 +30,15 @@ def test_smoke(urn: str, node: Node) -> None:
     logging.info("Pinging before reboot...")
     ping1 = Result()
     try:
-        ping1 = node.ping()
+        ping1 = target.ping()
     except UnexpectedExit:
-        logging.warning(f"Pinging {node.host} before reboot failed")
+        logging.warning(f"Pinging {target.host} before reboot failed")
 
     ssh_errors = (TimeoutError, CommandTimedOut, SSHException, socket.error)
 
     try:
         logging.info("SSHing before reboot...")
-        node.open()
+        target.connection.open()
     except ssh_errors as e:
         logging.warning(f"SSH before reboot failed: '{e}'")
 
@@ -61,10 +46,10 @@ def test_smoke(urn: str, node: Node) -> None:
     try:
         logging.info("Rebooting...")
         # If this succeeds, we should expect the exit code to be -1
-        reboot_exit = node.sudo("reboot", timeout=5).exited
+        reboot_exit = target.sudo("reboot", timeout=5).exited
     except ssh_errors as e:
         logging.warning(f"SSH failed, using platform to reboot: '{e}'")
-        node.platform_restart()
+        target.platform_restart()
     except UnexpectedExit:
         # TODO: How do we differentiate reboot working and the SSH
         # connection disconnecting for other reasons?
@@ -77,19 +62,19 @@ def test_smoke(urn: str, node: Node) -> None:
     logging.info("Pinging after reboot...")
     ping2 = Result()
     try:
-        ping2 = node.ping()
+        ping2 = target.ping()
     except UnexpectedExit:
-        logging.warning(f"Pinging {node.host} after reboot failed")
+        logging.warning(f"Pinging {target.host} after reboot failed")
 
     try:
         logging.info("SSHing after reboot...")
-        node.open()
+        target.connection.open()
     except ssh_errors as e:
         logging.warning(f"SSH after reboot failed: '{e}'")
 
     logging.info("Retrieving boot diagnostics...")
     try:
-        node.get_boot_diagnostics()
+        target.get_boot_diagnostics()
     except UnexpectedExit:
         logging.warning("Retrieving boot diagnostics failed.")
     else:

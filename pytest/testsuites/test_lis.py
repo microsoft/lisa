@@ -1,19 +1,20 @@
 """Runs 'LIS-Tests.xml' using Pytest."""
-import conftest
-import pytest
-from node_plugin import Node
+from __future__ import annotations
+
+import typing
+
+if typing.TYPE_CHECKING:
+    from azure import Azure
+
+from conftest import LINUX_SCRIPTS, LISA
 
 
-@pytest.mark.lisa(
-    platform="Azure", category="Functional", area="LIS_DEPLOY", tags=["lis"], priority=0
-)
-# @pytest.mark.deploy(setup="OneVM")
-@pytest.mark.connect("centos")
-def test_lis_driver_version(node: Node) -> None:
+@LISA(platform="Azure", category="Functional", priority=0, area="LIS_DEPLOY")
+def test_lis_driver_version(target: Azure) -> None:
     # TODO: Include “utils.sh” automatically? Or something...
     for f in ["utils.sh", "LIS-VERSION-CHECK.sh"]:
-        node.put(conftest.LINUX_SCRIPTS / f)
-        node.run(f"chmod +x {f}")
-    node.sudo("yum install -y bc")
-    node.run("./LIS-VERSION-CHECK.sh")
-    assert node.cat("state.txt") == "TestCompleted"
+        target.put(LINUX_SCRIPTS / f)
+        target.run(f"chmod +x {f}")
+    target.sudo("yum install -y bc")
+    target.run("./LIS-VERSION-CHECK.sh")
+    assert target.cat("state.txt") == "TestCompleted"
