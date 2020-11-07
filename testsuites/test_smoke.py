@@ -10,7 +10,13 @@ from azure import Azure
 from conftest import LISA
 
 
-@LISA(platform="Azure", priority=0, sku="Standard_DS2_v2")
+@LISA(
+    platform="Azure",
+    category="Functional",
+    area="deploy",
+    priority=0,
+    sku="Standard_DS2_v2",
+)
 def test_smoke(target: Azure) -> None:
     """Check that a VM can be deployed and is responsive.
 

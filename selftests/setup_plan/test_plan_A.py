@@ -1,17 +1,23 @@
-from conftest import LISA
+import functools
+
+import conftest
 from target import Target
 
+LISA = functools.partial(
+    conftest.LISA, platform="Azure", category="Functional", area="self-test", priority=1
+)
 
-@LISA(platform="Azure", features="xdp")
+
+@LISA(features=["xdp"])
 def test_xdp_a(target: Target) -> None:
     pass
 
 
-@LISA(platform="Azure", features="gpu")
+@LISA(features=["gpu"])
 def test_gpu_a(target: Target) -> None:
     pass
 
 
-@LISA(platform="Azure", features="rdma")
+@LISA(features=["rdma"])
 def test_rdma_a(target: Target) -> None:
     pass
