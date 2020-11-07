@@ -5,25 +5,18 @@ https://docs.pytest.org/en/stable/writing_plugins.html
 """
 from __future__ import annotations
 
-import sys
 import typing
-from functools import partial
 from pathlib import Path
 
-import yaml
+import schema
 
 import lisa
+import playbook
+import pytest
 
 # TODO: Use importlib instead
 from azure import Azure
 from target import Target
-
-try:
-    from yaml import CLoader as Loader
-except ImportError:
-    from yaml import Loader  # type: ignore
-
-import pytest
 
 if typing.TYPE_CHECKING:
     from typing import Any, Dict, Iterator, List, Optional
@@ -77,7 +70,7 @@ def target(pool, worker_id, request: FixtureRequest) -> Iterator[Target]:
     """
     params = request.param
     marker = request.node.get_closest_marker("lisa")
-    features = marker.kwargs["features"]
+    features = set(marker.kwargs["features"])
     for t in pool:
         # TODO: Implement full feature comparison, etc. and not just
         # proof-of-concept string set comparison.
@@ -102,12 +95,20 @@ def pytest_addoption(parser: Parser) -> None:
     parser.addoption("--keep-vms", action="store_true", help="Keeps deployed VMs.")
     parser.addoption("--check", action="store_true", help="Run semantic analysis.")
     parser.addoption("--demo", action="store_true", help="Run in demo mode.")
-    parser.addoption("--targets", type=Path, help="Path to targets playbook.")
-    parser.addoption("--criteria", type=Path, help="Path to criteria playbook.")
+    parser.addoption("--playbook", type=Path, help="Path to playbook.")
 
 
 TARGETS = []
 TARGET_IDS = []
+
+
+def get_playbook(path: Optional[Path]) -> dict():
+    book = dict()
+    if not path:
+        return book
+    with open(path) as f:
+        book = playbook.schema.validate(f)
+    return book
 
 
 def pytest_configure(config: Config) -> None:
@@ -115,25 +116,12 @@ def pytest_configure(config: Config) -> None:
 
     Determines the targets based on the playbook and sets default
     configurations based user mode.
-    """
-    playbook_path: Optional[Path] = config.getoption("--targets")
-    if playbook_path:
-        playbook = dict()
-        with open(playbook_path) as f:
-            playbook = yaml.load(f, Loader=Loader)
-        for play in playbook:
-            t = play.get("target")
-            if t is None:
-                continue
-            else:
-                print(f"Parsing target {t}")
-            setup = {
-                "platform": t.get("platform", "Azure"),
-                "image": t.get("image", "UbuntuLTS"),
-                "sku": t.get("sku", "Standard_DS1_v2"),
-            }
-            TARGETS.append(setup)
-            TARGET_IDS.append("-".join(setup.values()))
+
+    configurations based user mode."""
+    book = get_playbook(config.getoption("--playbook"))
+    for t in book.get("targets"):
+        TARGETS.append(t)
+        TARGET_IDS.append(t["name"])
 
     # Search ‘_pytest’ for ‘addoption’ to find these.
     options: Dict[str, Any] = {}  # See ‘pytest.ini’ for defaults.
@@ -182,62 +170,49 @@ def pytest_collection_modifyitems(
     """
     # Validate LISA mark on every item.
     for item in items:
-        mark = item.get_closest_marker("lisa")
-        assert mark, f"{item} is missing required LISA marker!"
-        lisa.validate(mark)
+        m = item.get_closest_marker("lisa")
+        assert m, f"{item} is missing required LISA marker!"
+        try:
+            lisa.validate(m)
+        except schema.SchemaMissingKeyError as e:
+            print(f"Test {item.name} failed LISA validation {e}!")
+            items[:] = []
+            return
 
     # Optionally select tests based on a playbook.
-    playbook_path: Optional[Path] = config.getoption("--criteria")
-    new_items: List[Item] = []
-    force_exclude: List[Item] = []
+    included: List[Item] = []
+    excluded: List[Item] = []
 
-    def select_item(action: Optional[str], times: int, item: Item) -> None:
+    # TODO: Remove logging.
+    def select(item: Item, times: int, exclude: bool) -> None:
         """Includes or excludes the item as appropriate."""
-        if action == "forceExclude":
-            print(f"    Forcing exclusion of item {item}")
-            force_exclude.append(item)
+        if exclude:
+            print(f"    Excluding {item}")
+            excluded.append(item)
         else:
-            print(f"    Keeping {item} selected {times} times")
-            for _ in range(times - new_items.count(item)):
-                new_items.append(item)
+            print(f"    Including {item} {times} times")
+            for _ in range(times - included.count(item)):
+                included.append(item)
 
-    # TODO: Review, refactor, and fix logging. If we do schema
-    # validation and have reasonable defaults we can delete most of
-    # the `is not None` checks. Suggest using:
-    # https://pypi.org/project/schema/
-    if playbook_path:
-        playbook = dict()
-        with open(playbook_path) as f:
-            playbook = yaml.load(f, Loader=Loader)
-        for play in playbook:
-            criteria = play.get("criteria")
-            if criteria is None:
-                continue
-            else:
-                print(f"Parsing criteria {criteria}")
-            select_action = play.get("select_action", "forceInclude")
-            times = play.get("times", 1)
-            select = partial(select_item, select_action, times)
-
-            name = criteria.get("name")
-            priority = criteria.get("priority")
-            area = criteria.get("area")
-            for i in items:
-                marker = i.get_closest_marker("LISA")
-                args = marker.kwargs
-                if name is not None:
-                    if i.name.startswith(name):
-                        print(f"  Selecting test {i} because name is {name}!")
-                        select(i)
-                if priority is not None:
-                    if args.get("priority") == priority:
-                        print(f"  Selecting test {i} because priority is {priority}!")
-                        select(i)
-                if area and args.get("area"):
-                    if args["area"].lower() == area:
-                        print(f"  Selecting test {i} because area is {area}!")
-                        select(i)
-        items[:] = [i for i in new_items if i not in force_exclude]
+    book = get_playbook(config.getoption("--playbook"))
+    for c in book.get("criteria"):
+        print(f"Parsing criteria {c}")
+        for item in items:
+            m = item.get_closest_marker("lisa").kwargs
+            if any(
+                [
+                    c["name"] and c["name"] in item.name,
+                    c["area"] and c["area"].casefold() == m["area"].casefold(),
+                    c["category"]
+                    and c["category"].casefold() == m["category"].casefold(),
+                    c["priority"] and c["priority"] == m["priority"],
+                    c["tags"] and set(c["tags"]) <= set(m["tags"]),
+                ]
+            ):
+                select(item, c["times"], c["exclude"])
+    if not included:
+        included = items
+    items[:] = [i for i in included if i not in excluded]
 
 
 def pytest_html_report_title(report):  # type: ignore

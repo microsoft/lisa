@@ -16,7 +16,7 @@ from tenacity import retry, stop_after_attempt, wait_exponential  # type: ignore
 import lisa
 
 if typing.TYPE_CHECKING:
-    from typing import Any, Dict, Set
+    from typing import Any, Mapping, Sequence, Set
 
 
 class Target(ABC):
@@ -26,8 +26,8 @@ class Target(ABC):
 
     def __init__(
         self,
-        params: Dict[str, str],
-        features: Set[str],
+        params: Mapping[str, str],
+        features: Sequence[str],
         name: str = f"pytest-{uuid4()}",
     ):
         """If not given a name, generates one uniquely.
@@ -37,8 +37,8 @@ class Target(ABC):
         rdma, gpu, xdp.
 
         """
-        self.params: Dict[str, str] = params
-        self.features: Set[str] = features
+        self.params: Mapping[str, str] = params
+        self.features: Set[str] = set(features)
         self.name: str = name
 
         # TODO: Fix this.

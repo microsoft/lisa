@@ -1,0 +1,15 @@
+# NOTE: This is a suggested playbook example. See the schema.
+targets:
+  - name: Ubuntu
+    platform: Azure
+    image: UbuntuLTS
+    sku: Standard_DS1_v2
+  - name: Debian
+    platform: Azure
+    image: credativ:Debian:9:9.0.201706190
+  - name: GitHub
+    platform: Azure
+    image: github:github-enterprise:github-enterprise:latest
+
+criteria:
+    - name: smoke
