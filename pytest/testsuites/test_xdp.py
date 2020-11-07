@@ -1,12 +1,12 @@
 """Runs 'FunctionalTests-XDP.xml' using Pytest."""
 
 
-import conftest
 import pytest
-from node_plugin import Node
+from conftest import LINUX_SCRIPTS, LISA
+from target import Target
 
 
-@pytest.mark.lisa(
+@LISA(
     platform="Azure",
     category="Functional",
     area="XDP",
@@ -20,7 +20,7 @@ from node_plugin import Node
     vm_size="Standard_DS4_v2",
 )
 @pytest.mark.skip(reason="Not Finished")
-def test_verify_xdp_compliance(node: Node) -> None:
+def test_verify_xdp_compliance(target: Target) -> None:
     for f in [
         "utils.sh",
         "XDPDumpSetup.sh",
@@ -28,10 +28,10 @@ def test_verify_xdp_compliance(node: Node) -> None:
         "enable_passwordless_root.sh",
         "enable_root.sh",
     ]:
-        node.put(conftest.LINUX_SCRIPTS / f)
-        node.run(f"chmod +x {f}")
-    node.run("./enable_root.sh")
-    node.run("./enable_passwordless_root.sh")
-    synth_interface = node.run("source XDPUtils.sh ; get_extra_synth_nic").stdout
-    node.run(f"./XDPDumpSetup.sh {node.internal_address} {synth_interface}")
-    assert node.cat("state.txt") == "TestCompleted"
+        target.put(LINUX_SCRIPTS / f)
+        target.run(f"chmod +x {f}")
+    target.run("./enable_root.sh")
+    target.run("./enable_passwordless_root.sh")
+    synth_interface = target.run("source XDPUtils.sh ; get_extra_synth_nic").stdout
+    target.run(f"./XDPDumpSetup.sh {target.internal_address} {synth_interface}")
+    assert target.cat("state.txt") == "TestCompleted"
