@@ -10,7 +10,7 @@ run: setup
 
 # Run local tests
 test: setup
-	cd pytest && poetry run pytest --keep-vms --targets=targets.yaml --setup-show selftests/
+	cd pytest && poetry run pytest --keep-vms --playbook=playbook.yaml --setup-show selftests/
 
 # Run semantic analysis
 check: setup

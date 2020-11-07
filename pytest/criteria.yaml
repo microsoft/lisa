@@ -1,19 +1,14 @@
-# NOTE: This is a proof-of-concept ask from Chi.
-
-
-# select all p0 cases
-# for example, selected three cases: a,b,c
-- criteria:
-    priority: 0
-# drop all cases of xdp,
-# because it's not ready on a tested distro.
-# for example, droped c, so now is: a,b
-- criteria:
-    area: xdp
-    # forceExclude means not to pick up it again in next rules.
-  select_action: forceExclude
-# run smoke_test cases twice, to prove a distro stable enough
-# after this rule, the picked test cases is like a,b,b
-- criteria:
-    name: test_smoke
-  times: 2
+# NOTE: This is an adjusted proof-of-concept ask from Chi.
+criteria:
+  # select all p0 cases
+  # for example, selected three cases: a,b,c
+  - priority: 0
+  # run smoke_test cases twice, to prove a distro stable enough
+  # after this rule, the picked test cases is like a,b,b
+  - name: smoke
+    times: 2
+  # drop all cases of xdp,
+  # because it's not ready on a tested distro.
+  # for example, droped c, so now is: a,b
+  - area: xdp
+    exclude: true

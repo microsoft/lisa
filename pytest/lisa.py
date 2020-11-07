@@ -2,6 +2,8 @@ from __future__ import annotations
 
 import typing
 
+from schema import Optional, Or, Schema
+
 if typing.TYPE_CHECKING:
     from _pytest.mark.structures import Mark
 
@@ -20,29 +22,20 @@ config = {
     }
 }
 
+lisa_schema = Schema(
+    {
+        "platform": str,
+        "category": Or("Functional", "Performance", "Stress", "Community", "Longhaul"),
+        "area": str,
+        "priority": Or(0, 1, 2, 3),
+        Optional("features", default=list): [str],
+        Optional(object): object,
+    },
+    ignore_extra_keys=True,
+)
+
 
 def validate(mark: Mark):
     """Validate each test's LISA parameters."""
     assert not mark.args, "LISA marker cannot have positional arguments!"
-    args = mark.kwargs
-
-    if args.get("platform"):
-        assert type(args["platform"]) is str, "Platform must be a string!"
-
-    if args.get("priority") is not None:
-        assert type(args["priority"]) is int, "Priority must be an integer!"
-
-    if args.get("features") is not None:
-        if type(args["features"]) is str:
-            # Convert single ‘str’ argument to ‘Set[str]’
-            features = set()
-            features.add(args["features"])
-            args["features"] = features
-        elif type(args["features"]) is list:
-            # Convert ‘list’ to ‘set’
-            args["features"] = set(args["features"])
-        assert type(args["features"]) is set, "Features must be a set!"
-        for feature in args["features"]:
-            assert type(feature) is str, "Features must be strings!"
-    else:
-        args["features"] = set()
+    mark.kwargs.update(lisa_schema.validate(mark.kwargs))
