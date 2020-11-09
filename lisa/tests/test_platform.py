@@ -5,7 +5,12 @@ from unittest.case import TestCase
 from dataclasses_json import LetterCase, dataclass_json  # type: ignore
 
 from lisa import schema
-from lisa.environment import Environment, Environments, load_environments
+from lisa.environment import (
+    Environment,
+    Environments,
+    EnvironmentStatus,
+    load_environments,
+)
 from lisa.feature import Feature
 from lisa.platform_ import Platform, WaitMoreResourceError, load_platform
 from lisa.tests.test_environment import generate_runbook as generate_env_runbook
@@ -26,7 +31,7 @@ class MockPlatformSchema:
     # for other UT to set value
     return_prepared: bool = True
     deploy_success: bool = True
-    deploy_is_ready: bool = True
+    deployed_status: EnvironmentStatus = EnvironmentStatus.Deployed
     wait_more_resource_error: bool = False
 
 
@@ -47,13 +52,13 @@ class MockPlatform(Platform):
         self,
         return_prepared: bool = True,
         deploy_success: bool = True,
-        deploy_is_ready: bool = True,
+        deployed_status: EnvironmentStatus = EnvironmentStatus.Deployed,
         wait_more_resource_error: bool = False,
     ) -> None:
         self.initialize()
         self._mock_runbook.return_prepared = return_prepared
         self._mock_runbook.deploy_success = deploy_success
-        self._mock_runbook.deploy_is_ready = deploy_is_ready
+        self._mock_runbook.deployed_status = deployed_status
         self._mock_runbook.wait_more_resource_error = wait_more_resource_error
 
     def _initialize(self, *args: Any, **kwargs: Any) -> None:
@@ -83,9 +88,16 @@ class MockPlatform(Platform):
         for node in environment.nodes.list():
             # prevent real calls
             node._node_information_hooks.clear()
+            node._is_initialized = True
         self.test_data.deployed_envs.append(environment.name)
-        environment._is_initialized = True
-        environment.is_ready = self._mock_runbook.deploy_is_ready
+        if self._mock_runbook.deployed_status not in [
+            EnvironmentStatus.Deployed,
+            EnvironmentStatus.Connected,
+        ]:
+            raise LisaException(
+                f"expected status is {self._mock_runbook.deployed_status}, "
+                f"deployment should be failed"
+            )
 
     def _delete_environment(self, environment: Environment, log: Logger) -> None:
         self.test_data.deleted_envs.append(environment.name)
@@ -208,6 +220,6 @@ class PlatformTestCase(TestCase):
         platform.set_test_config()
         for env in envs.values():
             platform.deploy_environment(env)
-            self.assertEqual(True, env.is_ready)
+            self.assertEqual(EnvironmentStatus.Deployed, env.status)
             platform.delete_environment(env)
-            self.assertEqual(False, env.is_ready)
+            self.assertEqual(EnvironmentStatus.Deleted, env.status)

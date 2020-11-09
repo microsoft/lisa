@@ -519,7 +519,6 @@ class AzurePlatform(Platform):
             except Exception as identifier:
                 self._delete_environment(environment, log)
                 raise identifier
-        environment.is_ready = True
 
     def _delete_environment(self, environment: Environment, log: Logger) -> None:
         environment_context = get_environment_context(environment=environment)

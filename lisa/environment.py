@@ -119,7 +119,7 @@ class Environment(ContextMixin, InitializableMixin):
         self.nodes: Nodes = Nodes()
         self.name: str = ""
 
-        self.is_ready: bool = False
+        self.status: EnvironmentStatus = EnvironmentStatus.New
         self.is_predefined: bool = is_predefined
         self.platform: Optional[Platform] = None
         # cost uses to plan order of environments.
@@ -132,12 +132,10 @@ class Environment(ContextMixin, InitializableMixin):
         self.warn_as_error = warn_as_error
         self._default_node: Optional[Node] = None
         self._log = get_logger("env", self.name)
-        self.status: EnvironmentStatus = EnvironmentStatus.New
 
     def _initialize(self, *args: Any, **kwargs: Any) -> None:
-        if not self.is_ready:
-            raise LisaException("environment is not ready, cannot be initialized")
-        # environment is ready, refresh latest capability
+        if self.status != EnvironmentStatus.Deployed:
+            raise LisaException("environment is not deployed, cannot be initialized")
         self.nodes.initialize()
         self.status = EnvironmentStatus.Connected
 
@@ -191,7 +189,10 @@ class Environment(ContextMixin, InitializableMixin):
         result = EnvironmentSpace(topology=self.runbook.topology)
         for node in self.nodes.list():
             result.nodes.append(node.capability)
-        if not self.is_ready and self.runbook.nodes_requirement:
+        if (
+            self.status in [EnvironmentStatus.Prepared, EnvironmentStatus.New]
+            and self.runbook.nodes_requirement
+        ):
             result.nodes.extend(self.runbook.nodes_requirement)
         return result
 

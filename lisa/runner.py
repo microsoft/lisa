@@ -35,7 +35,6 @@ class Runner(Action):
     # disabled warning, and not rely solely on side effects.
     async def start(self) -> None:  # noqa: C901
         await super().start()
-        self.status = ActionStatus.RUNNING
 
         # select test cases
         selected_test_cases = select_testcases(self._runbook.testcase)
@@ -107,41 +106,33 @@ class Runner(Action):
                     )
                     continue
                 except Exception as identifier:
-                    # make first fit test case fail by deployment
-                    picked_result.environment = environment
-                    picked_result.set_status(
-                        TestStatus.FAILED, f"deployment: {str(identifier)}"
+                    self._attach_failed_environment_to_result(
+                        environment=environment,
+                        result=picked_result,
+                        exception=identifier,
                     )
                     self._log.info(
                         f"deployment failed, attached to test case "
                         f"'{picked_result.runtime_data.metadata.full_name}': "
                         f"{identifier}"
                     )
-                    self._log.lines(
-                        logging.DEBUG,
-                        "".join(
-                            traceback.format_exception(
-                                etype=type(identifier),
-                                value=identifier,
-                                tb=identifier.__traceback__,
-                            )
-                        ),
-                    )
                     continue
-
-                if not environment.is_ready:
-                    self._log.warning(
-                        f"[{environment.name}] is not deployed successfully, "
-                        f"skip assiging case"
-                    )
-                    continue
-
-                assert (
-                    environment.status == EnvironmentStatus.Deployed
-                ), f"actual: {environment.status}"
 
                 self._log.debug(f"initializing environment: {environment.name}")
-                environment.initialize()
+                try:
+                    environment.initialize()
+                except Exception as identifier:
+                    self._attach_failed_environment_to_result(
+                        environment=environment,
+                        result=picked_result,
+                        exception=identifier,
+                    )
+                    self._log.info(
+                        f"connect to nodes failed, attached to test case "
+                        f"'{picked_result.runtime_data.metadata.full_name}': "
+                        f"{identifier}"
+                    )
+                    continue
 
                 # once environment is ready, check updated capability
                 self._log.info(f"start running cases on {environment.name}")
@@ -182,7 +173,10 @@ class Runner(Action):
                         environment=environment, results=grouped_cases
                     )
             finally:
-                if environment and environment.is_ready:
+                if environment and environment.status in [
+                    EnvironmentStatus.Deployed,
+                    EnvironmentStatus.Connected,
+                ]:
                     platform.delete_environment(environment)
 
         # not run as there is no fit environment.
@@ -244,6 +238,23 @@ class Runner(Action):
         for result in results:
             result.environment = environment
         await test_suite.start()
+
+    def _attach_failed_environment_to_result(
+        self, environment: Environment, result: TestResult, exception: Exception
+    ) -> None:
+        # make first fit test case fail by deployment
+        result.environment = environment
+        result.set_status(TestStatus.FAILED, f"deployment: {str(exception)}")
+        self._log.lines(
+            logging.DEBUG,
+            "".join(
+                traceback.format_exception(
+                    etype=type(exception),
+                    value=exception,
+                    tb=exception.__traceback__,
+                )
+            ),
+        )
 
     def _get_can_run_results(
         self,
