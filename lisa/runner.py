@@ -38,9 +38,7 @@ class Runner(Action):
         selected_test_cases = select_testcases(self._runbook.testcase)
 
         # create test results
-        selected_test_results = [
-            TestResult(runtime_data=case) for case in selected_test_cases
-        ]
+        test_results = [TestResult(runtime_data=case) for case in selected_test_cases]
 
         # load predefined environments
         candidate_environments = load_environments(self._runbook.environment)
@@ -48,7 +46,7 @@ class Runner(Action):
         platform = load_platform(self._runbook.platform)
         # get environment requirements
         self._merge_test_requirements(
-            test_results=selected_test_results,
+            test_results=test_results,
             existing_environments=candidate_environments,
             platform_type=platform.type_name(),
         )
@@ -61,13 +59,12 @@ class Runner(Action):
         )
         notifier.notify(run_message)
 
-        can_run_results = selected_test_results
+        can_run_results = test_results
         # request environment then run tests
         for environment in prepared_environments:
             try:
-                can_run_results = [x for x in can_run_results if x.can_run]
+                can_run_results = self._get_can_run_results(can_run_results)
                 can_run_results.sort(key=lambda x: x.runtime_data.metadata.suite.name)
-
                 if not can_run_results:
                     # no left tests, break the loop
                     self._log.debug(
@@ -76,15 +73,9 @@ class Runner(Action):
                     continue
 
                 # check if any test need this environment
-                picked_result = next(
-                    (
-                        case
-                        for case in can_run_results
-                        if case.check_environment(environment, True)
-                    ),
-                    None,
+                picked_result = self._pick_one_result_on_environment(
+                    environment=environment, results=can_run_results
                 )
-
                 if picked_result is None:
                     self._log.debug(
                         f"env[{environment.name}] skipped "
@@ -106,21 +97,28 @@ class Runner(Action):
                         result=picked_result,
                         exception=identifier,
                     )
-                    self._log.info(
-                        f"deployment failed, attached to test case "
-                        f"'{picked_result.runtime_data.metadata.full_name}': "
-                        f"{identifier}"
-                    )
                     continue
 
                 assert (
                     environment.status == EnvironmentStatus.Deployed
                 ), f"actual: {environment.status}"
 
+                self._log.info(f"start running cases on '{environment.name}'")
+
                 # run test cases that need deployed environment
                 await self._run_cases_on_environment(
                     environment=environment, results=can_run_results
                 )
+
+                picked_result = self._pick_one_result_on_environment(
+                    environment=environment, results=can_run_results
+                )
+                if picked_result is None:
+                    self._log.debug(
+                        f"env[{environment.name}] skipped initializing, "
+                        f"since it doesn't meet any case requirement."
+                    )
+                    continue
 
                 self._log.debug(f"initializing environment: {environment.name}")
                 try:
@@ -131,21 +129,11 @@ class Runner(Action):
                         result=picked_result,
                         exception=identifier,
                     )
-                    self._log.info(
-                        f"connect to nodes failed, attached to test case "
-                        f"'{picked_result.runtime_data.metadata.full_name}': "
-                        f"{identifier}"
-                    )
                     continue
 
                 assert (
                     environment.status == EnvironmentStatus.Connected
                 ), f"actual: {environment.status}"
-
-                self._log.info(
-                    f"start running cases on '{environment.name}'"
-                    f" on status '{environment.status}'"
-                )
 
                 # run test cases that need connected environment
                 await self._run_cases_on_environment(
@@ -166,35 +154,16 @@ class Runner(Action):
 
             case.set_status(TestStatus.SKIPPED, reasons)
 
-        self._log.info("________________________________________")
-        result_count_dict: Dict[TestStatus, int] = dict()
-        for test_result in selected_test_results:
-            self._log.info(
-                f"{test_result.runtime_data.metadata.full_name:>50}: "
-                f"{test_result.status.name:<8} {test_result.message}"
-            )
-            result_count = result_count_dict.get(test_result.status, 0)
-            result_count += 1
-            result_count_dict[test_result.status] = result_count
-
-        self._log.info("test result summary")
-        self._log.info(f"  TOTAL      : {len(selected_test_results)}")
-        for key in TestStatus:
-            count = result_count_dict.get(key, 0)
-            if key == TestStatus.ATTEMPTED and count == 0:
-                # attempted is confusing, if user don't know it.
-                # so hide it, if there is no attempted cases.
-                continue
-            self._log.info(f"    {key.name:<9}: {count}")
+        self._output_results(test_results)
 
         self.status = ActionStatus.SUCCESS
 
         # pass failed count to exit code
-        self.exit_code = result_count_dict.get(TestStatus.FAILED, 0)
+        self.exit_code = sum(1 for x in test_results if x.status == TestStatus.FAILED)
 
         # for UT testability
         self._latest_platform = platform
-        self._latest_test_results = selected_test_results
+        self._latest_test_results = test_results
 
     async def stop(self) -> None:
         super().stop()
@@ -202,9 +171,26 @@ class Runner(Action):
     async def close(self) -> None:
         super().close()
 
+    def _pick_one_result_on_environment(
+        self, environment: Environment, results: List[TestResult]
+    ) -> Optional[TestResult]:
+        return next(
+            (
+                case
+                for case in self._get_can_run_results(results)
+                if case.check_environment(environment, True)
+            ),
+            None,
+        )
+
     async def _run_cases_on_environment(
         self, environment: Environment, results: List[TestResult]
     ) -> None:
+
+        self._log.debug(
+            f"start running cases on '{environment.name}', "
+            f"status {environment.status.name}"
+        )
         # try a case need new environment firstly
         if environment.is_new:
             for new_env_result in self._get_can_run_results(
@@ -272,6 +258,11 @@ class Runner(Action):
                 )
             ),
         )
+        self._log.info(
+            f"'{environment.name}' attached to test case "
+            f"'{result.runtime_data.metadata.full_name}': "
+            f"{exception}"
+        )
 
     def _get_can_run_results(
         self,
@@ -322,3 +313,25 @@ class Runner(Action):
                     existing_environments.from_requirement(test_req.environment)
                 else:
                     existing_environments.get_or_create(test_req.environment)
+
+    def _output_results(self, test_results: List[TestResult]) -> None:
+        self._log.info("________________________________________")
+        result_count_dict: Dict[TestStatus, int] = dict()
+        for test_result in test_results:
+            self._log.info(
+                f"{test_result.runtime_data.metadata.full_name:>50}: "
+                f"{test_result.status.name:<8} {test_result.message}"
+            )
+            result_count = result_count_dict.get(test_result.status, 0)
+            result_count += 1
+            result_count_dict[test_result.status] = result_count
+
+        self._log.info("test result summary")
+        self._log.info(f"  TOTAL      : {len(test_results)}")
+        for key in TestStatus:
+            count = result_count_dict.get(key, 0)
+            if key == TestStatus.ATTEMPTED and count == 0:
+                # attempted is confusing, if user don't know it.
+                # so hide it, if there is no attempted cases.
+                continue
+            self._log.info(f"    {key.name:<9}: {count}")

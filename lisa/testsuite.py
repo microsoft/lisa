@@ -144,6 +144,7 @@ def simple_requirement(
     unsupported_os: Optional[List[Type[OperatingSystem]]] = None,
     supported_features: Optional[List[Type[Feature]]] = None,
     unsupported_features: Optional[List[Type[Feature]]] = None,
+    environment_status: EnvironmentStatus = EnvironmentStatus.Connected,
 ) -> TestCaseRequirement:
     """
     define a simple requirement to support most test cases.
@@ -175,6 +176,7 @@ def simple_requirement(
         environment=EnvironmentSpace(nodes=nodes),
         platform_type=platform_types,
         os_type=os,
+        environment_status=environment_status,
     )
 
 

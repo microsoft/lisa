@@ -1,4 +1,6 @@
 from lisa import TestCaseMetadata, TestSuite, TestSuiteMetadata
+from lisa.environment import EnvironmentStatus
+from lisa.testsuite import simple_requirement
 from lisa.tools import Dmesg
 from lisa.util.perf_timer import create_timer
 
@@ -18,6 +20,7 @@ class Provisioning(TestSuite):
         the case fails on any panic in kernel
         """,
         priority=0,
+        requirement=simple_requirement(environment_status=EnvironmentStatus.Deployed),
     )
     def smoke_test(self) -> None:
         node = self.environment.default_node
