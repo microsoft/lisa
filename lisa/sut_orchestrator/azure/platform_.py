@@ -7,7 +7,7 @@ from datetime import datetime
 from functools import lru_cache
 from pathlib import Path
 from types import SimpleNamespace
-from typing import Any, Dict, List, Optional, Type, Union
+from typing import Any, Dict, List, Optional, Tuple, Type, Union
 
 from azure.core.exceptions import HttpResponseError
 from azure.identity import DefaultAzureCredential  # type: ignore
@@ -63,6 +63,7 @@ from .common import (
 )
 
 # used by azure
+AZURE_DEPLOYMENT_NAME = "lisa_default_deployment_script"
 AZURE_RG_NAME_KEY = "resource_group_name"
 AZURE_SHARED_RG_NAME = "lisa_shared_resource"
 
@@ -199,7 +200,6 @@ class AzureNodeSchema:
 @dataclass
 class AzureArmParameter:
     resource_group_name: str = ""
-    resource_group_location: str = ""
     storage_name: str = ""
     location: str = ""
     admin_username: str = ""
@@ -511,13 +511,23 @@ class AzurePlatform(Platform):
         else:
             log.info(f"used resource group: {resource_group_name}")
             try:
-                deployment_parameters = self._create_deployment_parameters(
+                if self._azure_runbook.deploy:
+                    log.info(
+                        f"creating or updating resource group: {resource_group_name}"
+                    )
+                    self._rm_client.resource_groups.create_or_update(
+                        resource_group_name, {"location": RESOURCE_GROUP_LOCATION}
+                    )
+                else:
+                    log.info(f"reusing resource group: {resource_group_name}")
+
+                location, deployment_parameters = self._create_deployment_parameters(
                     resource_group_name, environment, log
                 )
 
                 if self._azure_runbook.deploy:
                     self._validate_template(deployment_parameters, log)
-                    self._deploy(deployment_parameters, log)
+                    self._deploy(location, deployment_parameters, log)
 
                 # Even skipped deploy, try best to initialize nodes
                 self._initialize_nodes(environment)
@@ -708,7 +718,7 @@ class AzurePlatform(Platform):
 
     def _create_deployment_parameters(
         self, resource_group_name: str, environment: Environment, log: Logger
-    ) -> Dict[str, Any]:
+    ) -> Tuple[str, Dict[str, Any]]:
         assert environment.runbook, "env data cannot be None"
         assert environment.runbook.nodes_requirement, "node requirement cannot be None"
 
@@ -731,7 +741,6 @@ class AzurePlatform(Platform):
 
         environment_context = get_environment_context(environment=environment)
         arm_parameters.resource_group_name = environment_context.resource_group_name
-        arm_parameters.resource_group_location = RESOURCE_GROUP_LOCATION
         nodes_parameters: List[AzureNodeSchema] = []
         for node_space in environment.runbook.nodes_requirement:
             assert isinstance(
@@ -799,15 +808,14 @@ class AzurePlatform(Platform):
             parameters=parameters,
         )
 
-        return {
-            # deployment name must be different, or there may be concurrent issue.
-            # the max name is 64 charactors, so take end part if it's too long.
-            "deployment_name": f"lisa_deploy_"
-            f"{environment_context.resource_group_name[-50:]}",
-            "parameters": Deployment(
-                location=arm_parameters.location, properties=deployment_properties
-            ),
-        }
+        return (
+            arm_parameters.location,
+            {
+                AZURE_RG_NAME_KEY: resource_group_name,
+                "deployment_name": AZURE_DEPLOYMENT_NAME,
+                "parameters": Deployment(properties=deployment_properties),
+            },
+        )
 
     def _validate_template(
         self, deployment_parameters: Dict[str, Any], log: Logger
@@ -816,14 +824,12 @@ class AzurePlatform(Platform):
 
         validate_operation: Any = None
         try:
-            validate_operation = (
-                self._rm_client.deployments.begin_validate_at_subscription_scope(
-                    **deployment_parameters
-                )
+            validate_operation = self._rm_client.deployments.begin_validate(
+                **deployment_parameters
             )
             result = wait_operation(validate_operation)
             if result:
-                raise LisaException(f"deploy failed: {result}")
+                raise LisaException(f"validation failed: {result}")
         except Exception as identifier:
             error_messages: List[str] = [str(identifier)]
 
@@ -836,20 +842,19 @@ class AzurePlatform(Platform):
 
         assert result is None, f"validate error: {result}"
 
-    def _deploy(self, deployment_parameters: Dict[str, Any], log: Logger) -> None:
-        log.info("deployment is in progress...")
+    def _deploy(
+        self, location: str, deployment_parameters: Dict[str, Any], log: Logger
+    ) -> None:
+        resource_group_name = deployment_parameters[AZURE_RG_NAME_KEY]
+        log.info(f"resource group '{resource_group_name}' deployment is in progress...")
 
-        self._check_or_create_storage_account(
-            location=deployment_parameters["parameters"].location, log=log
-        )
+        self._check_or_create_storage_account(location=location, log=log)
 
         deployment_operation: Any = None
         deployments = self._rm_client.deployments
         try:
-            deployment_operation = (
-                deployments.begin_create_or_update_at_subscription_scope(
-                    **deployment_parameters
-                )
+            deployment_operation = deployments.begin_create_or_update(
+                **deployment_parameters
             )
             result = wait_operation(deployment_operation)
             if result:
