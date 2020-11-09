@@ -155,6 +155,19 @@ azure-mgmt-core = ">=1.2.0,<2.0.0"
 msrest = ">=0.5.0"
 
 [[package]]
+name = "azure-mgmt-storage"
+version = "16.0.0"
+description = "Microsoft Azure Storage Management Client Library for Python"
+category = "main"
+optional = false
+python-versions = "*"
+
+[package.dependencies]
+azure-common = ">=1.1,<2.0"
+azure-mgmt-core = ">=1.2.0,<2.0.0"
+msrest = ">=0.5.0"
+
+[[package]]
 name = "bcrypt"
 version = "3.2.0"
 description = "Modern password hashing for your software and your servers"
@@ -964,7 +977,7 @@ socks = ["PySocks (>=1.5.6,!=1.5.7,<2.0)"]
 [metadata]
 lock-version = "1.1"
 python-versions = "^3.8"
-content-hash = "22e17ec78556ebdada79c492c967e90c6f4b3cec0489a4655f6a33d7066fbba8"
+content-hash = "a44f707696fdb38afd23be8723eccd02e6aa375323aafaf2a995b586901a2ac8"
 
 [metadata.files]
 adal = [
@@ -1017,6 +1030,10 @@ azure-mgmt-network = [
 azure-mgmt-resource = [
     {file = "azure-mgmt-resource-15.0.0.zip", hash = "sha256:80ecb69aa21152b924edf481e4b26c641f11aa264120bc322a14284811df9c14"},
     {file = "azure_mgmt_resource-15.0.0-py2.py3-none-any.whl", hash = "sha256:15bb46ef4b197426ce7ce8080a490c997111f3f3efe9f728cf8dc420982d54a2"},
+]
+azure-mgmt-storage = [
+    {file = "azure-mgmt-storage-16.0.0.zip", hash = "sha256:2f9d714d9722b1ef4bac6563676612e6e795c4e90f6f3cd323616fdadb0a99e5"},
+    {file = "azure_mgmt_storage-16.0.0-py2.py3-none-any.whl", hash = "sha256:a819e421d50c0b58416b551d3e9e9a9cf6029714cf977ffaaee86a37572e7113"},
 ]
 bcrypt = [
     {file = "bcrypt-3.2.0-cp36-abi3-macosx_10_9_x86_64.whl", hash = "sha256:c95d4cbebffafcdd28bd28bb4e25b31c50f6da605c81ffd9ad8a3d1b2ab7b1b6"},

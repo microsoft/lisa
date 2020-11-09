@@ -3,6 +3,7 @@ from typing import TYPE_CHECKING, Any
 
 from azure.mgmt.compute import ComputeManagementClient  # type: ignore
 from azure.mgmt.marketplaceordering import MarketplaceOrderingAgreements  # type: ignore
+from azure.mgmt.storage import StorageManagementClient  # type: ignore
 
 from lisa.environment import Environment
 from lisa.node import Node
@@ -38,6 +39,21 @@ def get_compute_client(platform: Any) -> ComputeManagementClient:
         credential=azure_platform.credential,
         subscription_id=azure_platform.subscription_id,
     )
+
+
+def get_storage_client(platform: Any) -> ComputeManagementClient:
+    azure_platform: AzurePlatform = platform
+    return StorageManagementClient(
+        credential=azure_platform.credential,
+        subscription_id=azure_platform.subscription_id,
+    )
+
+
+def get_storage_account_name(platform: Any, location: str) -> str:
+    azure_platform: AzurePlatform = platform
+    subscription_id_postfix = azure_platform.subscription_id[-8:]
+    # name should be shorter than 24 charactor
+    return f"lisas{location[0:11]}{subscription_id_postfix}"
 
 
 def get_marketplace_ordering_client(platform: Any) -> MarketplaceOrderingAgreements:
