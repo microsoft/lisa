@@ -28,6 +28,7 @@ from azure.mgmt.resource.resources.models import (  # type: ignore
     DeploymentMode,
     DeploymentProperties,
 )
+from azure.mgmt.storage.models import Sku, StorageAccountCreateParameters  # type:ignore
 from dataclasses_json import LetterCase, dataclass_json  # type: ignore
 from marshmallow import fields, validate
 from retry import retry  # type: ignore
@@ -56,11 +57,14 @@ from .common import (
     get_environment_context,
     get_marketplace_ordering_client,
     get_node_context,
+    get_storage_account_name,
+    get_storage_client,
     wait_operation,
 )
 
 # used by azure
 AZURE_RG_NAME_KEY = "resource_group_name"
+AZURE_SHARED_RG_NAME = "lisa_shared_resource"
 
 VM_SIZE_FALLBACK_PATTERNS = [
     # exclude Standard_DS1_v2, because one core is too slow,
@@ -196,6 +200,7 @@ class AzureNodeSchema:
 class AzureArmParameter:
     resource_group_name: str = ""
     resource_group_location: str = ""
+    storage_name: str = ""
     location: str = ""
     admin_username: str = ""
     admin_password: str = ""
@@ -778,6 +783,9 @@ class AzurePlatform(Platform):
             log.info(f"vm setting: {azure_node_runbook}")
 
         arm_parameters.nodes = nodes_parameters
+        arm_parameters.storage_name = get_storage_account_name(
+            self, arm_parameters.location
+        )
 
         # load template
         template = self._load_template()
@@ -796,7 +804,7 @@ class AzurePlatform(Platform):
             "deployment_name": f"lisa_deploy_"
             f"{environment_context.resource_group_name[-50:]}",
             "parameters": Deployment(
-                location=RESOURCE_GROUP_LOCATION, properties=deployment_properties
+                location=arm_parameters.location, properties=deployment_properties
             ),
         }
 
@@ -829,6 +837,10 @@ class AzurePlatform(Platform):
 
     def _deploy(self, deployment_parameters: Dict[str, Any], log: Logger) -> None:
         log.info("deployment is in progress...")
+
+        self._check_or_create_storage_account(
+            location=deployment_parameters["parameters"].location, log=log
+        )
 
         deployment_operation: Any = None
         deployments = self._rm_client.deployments
@@ -1058,3 +1070,32 @@ class AzurePlatform(Platform):
                 publisher=image_info.plan.publisher,
             )
         return plan
+
+    def _check_or_create_storage_account(self, location: str, log: Logger) -> None:
+        # check and deploy storage account.
+        # storage account can be deployed inside of arm template, but if the concurrent
+        # is too big, Azure may not able to delete deployment script on time. so there
+        # will be error like below
+        # Creating the deployment 'name' would exceed the quota of '800'.
+        storage_client = get_storage_client(self)
+        storage_account_exists = True
+        account_name = get_storage_account_name(platform=self, location=location)
+        try:
+            storage_client.storage_accounts.get_properties(
+                account_name=account_name,
+                resource_group_name=AZURE_SHARED_RG_NAME,
+            )
+            log.debug(f"found storage account: {account_name}")
+        except Exception:
+            storage_account_exists = False
+        if not storage_account_exists:
+            log.debug(f"creating storage account: {account_name}")
+            parameters = StorageAccountCreateParameters(
+                sku=Sku(name="Standard_LRS"), kind="StorageV2", location=location
+            )
+            operation = storage_client.storage_accounts.begin_create(
+                resource_group_name=AZURE_SHARED_RG_NAME,
+                account_name=account_name,
+                parameters=parameters,
+            )
+            wait_operation(operation)

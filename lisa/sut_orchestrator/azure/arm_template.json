@@ -8,6 +8,12 @@
                 "description": "resource group name"
             }
         },
+        "storageName": {
+            "type": "string",
+            "metadata": {
+                "description": "storage name for boot diagnosis"
+            }
+        },
         "location": {
             "type": "string",
             "metadata": {
@@ -58,7 +64,6 @@
         }
     },
     "variables": {
-        "storageName": "[concat('lisas', substring(parameters('location'),0,min(11, length(parameters('location')))), substring(subscription().id,sub(length(subscription().id),8),8))]",
         "sharedRGName": "lisa_shared_resource",
         "storageDeploymentName": "[concat('storage-deploy-', substring(parameters('resourceGroupName'),sub(length(parameters('resourceGroupName')),22),22))]"
     },
@@ -85,7 +90,7 @@
                         "value": "[parameters('location')]"
                     },
                     "storageName": {
-                        "value": "[variables('storageName')]"
+                        "value": "[parameters('storageName')]"
                     }
                 },
                 "mode": "Incremental",
@@ -161,7 +166,7 @@
                         "value": "[parameters('availabilitySetProperties')]"
                     },
                     "storageName": {
-                        "value": "[variables('storageName')]"
+                        "value": "[parameters('storageName')]"
                     },
                     "sharedRGName": {
                         "value": "[variables('sharedRGName')]"
