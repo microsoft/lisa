@@ -108,6 +108,8 @@ class Node(ContextMixin, InitializableMixin):
             private_key_file,
         )
         self.shell = SshShell(self._connection_info)
+        self.public_address = public_address
+        self.public_port = public_port
         self.internal_address = address
         self.internal_port = port
 
