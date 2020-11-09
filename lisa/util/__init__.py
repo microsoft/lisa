@@ -8,6 +8,11 @@ class LisaException(Exception):
     pass
 
 
+# some test cases verify more than
+class PartialPassedException(Exception):
+    pass
+
+
 class ContextMixin:
     def get_context(self, context_type: Type[T]) -> T:
         if not hasattr(self, "_context"):

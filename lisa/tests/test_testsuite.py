@@ -18,13 +18,14 @@ from lisa.testsuite import (
     get_suites_metadata,
     simple_requirement,
 )
-from lisa.util import LisaException, constants
+from lisa.util import LisaException, PartialPassedException, constants
 
 # for other UTs
 fail_on_before_suite = False
 fail_on_after_suite = False
 fail_on_before_case = False
 fail_on_after_case = False
+partial_pass = False
 fail_case_count = 0
 
 
@@ -35,6 +36,7 @@ class MockTestSuite(TestSuite):
         self.fail_on_after_suite = fail_on_after_suite
         self.fail_on_before_case = fail_on_before_case
         self.fail_on_after_case = fail_on_after_case
+        self.partial_pass = partial_pass
         self.fail_case_count = fail_case_count
 
     def set_fail_phase(
@@ -43,12 +45,14 @@ class MockTestSuite(TestSuite):
         fail_on_after_suite: bool = False,
         fail_on_before_case: bool = False,
         fail_on_after_case: bool = False,
+        partial_pass: bool = False,
         fail_case_count: int = 0,
     ) -> None:
         self.fail_on_before_suite = fail_on_before_suite
         self.fail_on_after_suite = fail_on_after_suite
         self.fail_on_before_case = fail_on_before_case
         self.fail_on_after_case = fail_on_after_case
+        self.partial_pass = partial_pass
         self.fail_case_count = fail_case_count
 
     def before_suite(self) -> None:
@@ -68,6 +72,8 @@ class MockTestSuite(TestSuite):
             raise LisaException("failed")
 
     def mock_ut1(self) -> None:
+        if self.partial_pass:
+            raise PartialPassedException("mock_ut1 partial passed")
         while self.fail_case_count > 0:
             self.fail_case_count -= 1
             raise LisaException("mock_ut1 failed")
@@ -246,6 +252,17 @@ class TestSuiteTestCase(IsolatedAsyncioTestCase):
         await test_suite.start()
         self.assertEqual(TestStatus.PASSED, result.status)
         self.assertEqual("", result.message)
+        result = test_suite.case_results[1]
+        self.assertEqual(TestStatus.PASSED, result.status)
+        self.assertEqual("", result.message)
+
+    async def test_partial_passed(self) -> None:
+        test_suite = self.generate_suite_instance()
+        test_suite.set_fail_phase(partial_pass=True)
+        result = test_suite.case_results[0]
+        await test_suite.start()
+        self.assertEqual(TestStatus.PASSED, result.status)
+        self.assertEqual("partial passed: mock_ut1 partial passed", result.message)
         result = test_suite.case_results[1]
         self.assertEqual(TestStatus.PASSED, result.status)
         self.assertEqual("", result.message)
