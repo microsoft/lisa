@@ -131,7 +131,7 @@ def init_loggger() -> None:
 
 def set_log_file(path: str) -> None:
     root_logger = _get_root_logger()
-    file_handler = logging.FileHandler(path)
+    file_handler = logging.FileHandler(path, "w", "utf-8")
     # always include details in log file
     file_handler.setLevel(logging.DEBUG)
     file_handler.setFormatter(_format)
