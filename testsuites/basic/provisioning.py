@@ -23,11 +23,11 @@ class Provisioning(TestSuite):
         node = self.environment.default_node
         dmesg = node.tools[Dmesg]
 
-        dmesg.check_kernel_panic()
+        dmesg.check_kernel_errors()
 
         timer = create_timer()
         self.log.info(f"restarting {node.name}")
         node.reboot()
         self.log.info(f"node {node.name} rebooted in {timer}, trying connecting")
 
-        dmesg.check_kernel_panic(force_run=True)
+        dmesg.check_kernel_errors(force_run=True)
