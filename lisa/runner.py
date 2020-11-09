@@ -31,9 +31,7 @@ class Runner(Action):
         self._log = get_logger("runner")
 
     # TODO: This entire function is one long string of side-effects.
-    # We need to reduce this function's complexity to remove the
-    # disabled warning, and not rely solely on side effects.
-    async def start(self) -> None:  # noqa: C901
+    async def start(self) -> None:
         await super().start()
 
         # select test cases
@@ -64,28 +62,25 @@ class Runner(Action):
         notifier.notify(run_message)
 
         can_run_results = selected_test_results
-        # request environment then run test s
+        # request environment then run tests
         for environment in prepared_environments:
             try:
                 can_run_results = [x for x in can_run_results if x.can_run]
                 can_run_results.sort(key=lambda x: x.runtime_data.metadata.suite.name)
-                new_env_can_run_results = [
-                    x for x in can_run_results if x.runtime_data.use_new_environment
-                ]
 
                 if not can_run_results:
                     # no left tests, break the loop
                     self._log.debug(
                         f"no more test case to run, skip env [{environment.name}]"
                     )
-                    break
+                    continue
 
                 # check if any test need this environment
                 picked_result = next(
                     (
                         case
                         for case in can_run_results
-                        if case.can_run and case.check_environment(environment, True)
+                        if case.check_environment(environment, True)
                     ),
                     None,
                 )
@@ -118,6 +113,15 @@ class Runner(Action):
                     )
                     continue
 
+                assert (
+                    environment.status == EnvironmentStatus.Deployed
+                ), f"actual: {environment.status}"
+
+                # run test cases that need deployed environment
+                await self._run_cases_on_environment(
+                    environment=environment, results=can_run_results
+                )
+
                 self._log.debug(f"initializing environment: {environment.name}")
                 try:
                     environment.initialize()
@@ -134,44 +138,19 @@ class Runner(Action):
                     )
                     continue
 
-                # once environment is ready, check updated capability
-                self._log.info(f"start running cases on {environment.name}")
-                # try a case need new environment firstly
-                for new_env_result in new_env_can_run_results:
-                    if new_env_result.check_environment(environment, True):
-                        await self._run_suite(
-                            environment=environment, results=[new_env_result]
-                        )
-                        break
+                assert (
+                    environment.status == EnvironmentStatus.Connected
+                ), f"actual: {environment.status}"
 
-                # grouped test results by test suite.
-                grouped_cases: List[TestResult] = []
-                current_test_suite: Optional[TestSuiteMetadata] = None
-                for test_result in can_run_results:
-                    if (
-                        test_result.can_run
-                        and test_result.check_environment(environment, True)
-                        and not test_result.runtime_data.use_new_environment
-                    ):
-                        if (
-                            test_result.runtime_data.metadata.suite
-                            != current_test_suite
-                            and grouped_cases
-                        ):
-                            # run last batch cases
-                            await self._run_suite(
-                                environment=environment, results=grouped_cases
-                            )
-                            grouped_cases = []
+                self._log.info(
+                    f"start running cases on '{environment.name}'"
+                    f" on status '{environment.status}'"
+                )
 
-                        # append new test cases
-                        current_test_suite = test_result.runtime_data.metadata.suite
-                        grouped_cases.append(test_result)
-
-                if grouped_cases:
-                    await self._run_suite(
-                        environment=environment, results=grouped_cases
-                    )
+                # run test cases that need connected environment
+                await self._run_cases_on_environment(
+                    environment=environment, results=can_run_results
+                )
             finally:
                 if environment and environment.status in [
                     EnvironmentStatus.Deployed,
@@ -180,13 +159,12 @@ class Runner(Action):
                     platform.delete_environment(environment)
 
         # not run as there is no fit environment.
-        for case in can_run_results:
-            if case.can_run:
-                reasons = "no available environment"
-                if case.check_results and case.check_results.reasons:
-                    reasons = f"{reasons}: {case.check_results.reasons}"
+        for case in self._get_can_run_results(can_run_results):
+            reasons = "no available environment"
+            if case.check_results and case.check_results.reasons:
+                reasons = f"{reasons}: {case.check_results.reasons}"
 
-                case.set_status(TestStatus.SKIPPED, reasons)
+            case.set_status(TestStatus.SKIPPED, reasons)
 
         self._log.info("________________________________________")
         result_count_dict: Dict[TestStatus, int] = dict()
@@ -224,6 +202,44 @@ class Runner(Action):
     async def close(self) -> None:
         super().close()
 
+    async def _run_cases_on_environment(
+        self, environment: Environment, results: List[TestResult]
+    ) -> None:
+        # try a case need new environment firstly
+        if environment.is_new:
+            for new_env_result in self._get_can_run_results(
+                results, use_new_environment=True, enviornment_status=environment.status
+            ):
+                if new_env_result.check_environment(environment, True):
+                    await self._run_suite(
+                        environment=environment, results=[new_env_result]
+                    )
+                    break
+
+        # grouped test results by test suite.
+        grouped_cases: List[TestResult] = []
+        current_test_suite: Optional[TestSuiteMetadata] = None
+        for test_result in self._get_can_run_results(
+            results, use_new_environment=False, enviornment_status=environment.status
+        ):
+            if test_result.check_environment(environment, True):
+                if (
+                    test_result.runtime_data.metadata.suite != current_test_suite
+                    and grouped_cases
+                ):
+                    # run last batch cases
+                    await self._run_suite(
+                        environment=environment, results=grouped_cases
+                    )
+                    grouped_cases = []
+
+                # append new test cases
+                current_test_suite = test_result.runtime_data.metadata.suite
+                grouped_cases.append(test_result)
+
+        if grouped_cases:
+            await self._run_suite(environment=environment, results=grouped_cases)
+
     async def _run_suite(
         self, environment: Environment, results: List[TestResult]
     ) -> None:
@@ -237,6 +253,7 @@ class Runner(Action):
         )
         for result in results:
             result.environment = environment
+        environment.is_new = False
         await test_suite.start()
 
     def _attach_failed_environment_to_result(
@@ -262,20 +279,21 @@ class Runner(Action):
         use_new_environment: Optional[bool] = None,
         enviornment_status: Optional[EnvironmentStatus] = None,
     ) -> List[TestResult]:
-        results = source_results
-        if use_new_environment is not None:
-            results = [
-                x
-                for x in results
-                if x.runtime_data.use_new_environment == use_new_environment
-            ]
-        if enviornment_status is not None:
-            results = [
-                x
-                for x in results
-                if x.runtime_data.metadata.requirement.environment_status
-            ]
-        return [x for x in results if x.can_run]
+        results = [
+            x
+            for x in source_results
+            if x.can_run
+            and (
+                use_new_environment is None
+                or x.runtime_data.use_new_environment == use_new_environment
+            )
+            and (
+                enviornment_status is None
+                or x.runtime_data.metadata.requirement.environment_status
+                == enviornment_status
+            )
+        ]
+        return results
 
     def _merge_test_requirements(
         self,
