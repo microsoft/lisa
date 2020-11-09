@@ -9,7 +9,7 @@ from retry.api import retry_call  # type: ignore
 
 from lisa import notifier, schema, search_space
 from lisa.action import Action, ActionStatus
-from lisa.environment import EnvironmentSpace
+from lisa.environment import EnvironmentSpace, EnvironmentStatus
 from lisa.feature import Feature
 from lisa.operating_system import OperatingSystem
 from lisa.util import LisaException, constants, set_filtered_fields
@@ -79,7 +79,11 @@ class TestResult:
         requirement = self.runtime_data.metadata.requirement
         assert requirement.environment
         check_result = requirement.environment.check(environment.capability)
-        if check_result.result and requirement.os_type and environment.is_ready:
+        if (
+            check_result.result
+            and requirement.os_type
+            and environment.status == EnvironmentStatus.Connected
+        ):
             for node in environment.nodes.list():
                 # use __mro__ to match any super types.
                 # for example, Ubuntu satisifies Linux
@@ -125,6 +129,7 @@ class TestResult:
 @dataclass
 class TestCaseRequirement:
     environment: Optional[EnvironmentSpace] = None
+    environment_status: EnvironmentStatus = EnvironmentStatus.Connected
     platform_type: Optional[search_space.SetSpace[str]] = None
     os_type: Optional[search_space.SetSpace[Type[OperatingSystem]]] = None
 

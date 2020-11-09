@@ -2,7 +2,7 @@ from typing import List, Optional, cast
 from unittest import IsolatedAsyncioTestCase
 
 from lisa import schema
-from lisa.environment import load_environments
+from lisa.environment import EnvironmentStatus, load_environments
 from lisa.runner import Runner
 from lisa.tests import test_platform, test_testsuite
 from lisa.tests.test_environment import generate_runbook as generate_env_runbook
@@ -405,11 +405,11 @@ class RunnerTestCase(IsolatedAsyncioTestCase):
             test_results=runner._latest_test_results,
         )
 
-    async def test_env_skipped_not_ready(self) -> None:
-        # env prepared, but not deployed to ready.
-        # so no cases can run
+    async def test_env_deploy_failed(self) -> None:
+        # env prepared, but deployment failed
+        # so cases failed also
         platform_schema = test_platform.MockPlatformSchema()
-        platform_schema.deploy_is_ready = False
+        platform_schema.deployed_status = EnvironmentStatus.Prepared
         generate_cases_metadata()
         env_runbook = generate_env_runbook(is_single_env=True, local=True, remote=True)
         runner = generate_runner(env_runbook, platform_schema=platform_schema)
@@ -424,19 +424,18 @@ class RunnerTestCase(IsolatedAsyncioTestCase):
             expected_deployed_envs=[
                 "customized_0",
                 "generated_1",
-                "generated_2",
                 "generated_3",
             ],
             expected_deleted_envs=[],
             runner=runner,
         )
-        no_available_env = "no available environment"
+        no_available_env = "deployment: expected status is EnvironmentStatus.Prepared"
         self.verify_test_results(
-            expected_envs=["", "", ""],
+            expected_envs=["customized_0", "generated_1", "generated_3"],
             expected_status=[
-                TestStatus.SKIPPED,
-                TestStatus.SKIPPED,
-                TestStatus.SKIPPED,
+                TestStatus.FAILED,
+                TestStatus.FAILED,
+                TestStatus.FAILED,
             ],
             expected_message=[no_available_env, no_available_env, no_available_env],
             test_results=runner._latest_test_results,
@@ -504,12 +503,15 @@ class RunnerTestCase(IsolatedAsyncioTestCase):
         self.assertListEqual(
             expected_prepared,
             list(platform_test_data.prepared_envs),
+            "prepared envs inconstent",
         )
         self.assertListEqual(
             expected_deployed_envs,
             list(platform_test_data.deployed_envs),
+            "deployed envs inconstent",
         )
         self.assertListEqual(
             expected_deleted_envs,
             list(platform_test_data.deleted_envs),
+            "deleted envs inconstent",
         )

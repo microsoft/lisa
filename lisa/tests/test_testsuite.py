@@ -2,7 +2,7 @@ from typing import Any, List
 from unittest import IsolatedAsyncioTestCase, TestCase
 
 from lisa import schema
-from lisa.environment import load_environments
+from lisa.environment import EnvironmentStatus, load_environments
 from lisa.operating_system import Linux, Windows
 from lisa.parameter_parser.runbook import validate_data
 from lisa.tests.test_environment import generate_runbook
@@ -277,7 +277,8 @@ class TestSuiteTestCase(IsolatedAsyncioTestCase):
     def test_result_check_env_not_ready_os_type(self) -> None:
         test_suite = self.generate_suite_instance()
         assert self.default_env
-        self.default_env.is_ready = False
+        self.default_env.status = EnvironmentStatus.Deployed
+        self.default_env._is_initialized = True
         for node in self.default_env.nodes.list():
             node.os = Linux(node)
         for result in test_suite.case_results:
@@ -287,7 +288,8 @@ class TestSuiteTestCase(IsolatedAsyncioTestCase):
     def test_result_check_env_os_type_not_unsupported(self) -> None:
         test_suite = self.generate_suite_instance()
         assert self.default_env
-        self.default_env.is_ready = True
+        self.default_env.status = EnvironmentStatus.Connected
+        self.default_env._is_initialized = True
         case_metadata = test_suite.case_results[0].runtime_data.metadata
         case_metadata.requirement = simple_requirement(
             min_count=2, unsupported_os=[Linux]
@@ -301,7 +303,8 @@ class TestSuiteTestCase(IsolatedAsyncioTestCase):
     def test_result_check_env_os_type_unsupported(self) -> None:
         test_suite = self.generate_suite_instance()
         assert self.default_env
-        self.default_env.is_ready = True
+        self.default_env.status = EnvironmentStatus.Connected
+        self.default_env._is_initialized = True
         case_metadata = test_suite.case_results[0].runtime_data.metadata
         case_metadata.requirement = simple_requirement(
             min_count=2, unsupported_os=[Linux]
@@ -316,7 +319,8 @@ class TestSuiteTestCase(IsolatedAsyncioTestCase):
     def test_result_check_env_os_type_supported(self) -> None:
         test_suite = self.generate_suite_instance()
         assert self.default_env
-        self.default_env.is_ready = True
+        self.default_env.status = EnvironmentStatus.Connected
+        self.default_env._is_initialized = True
         case_metadata = test_suite.case_results[0].runtime_data.metadata
         case_metadata.requirement = simple_requirement(
             min_count=2, supported_os=[Linux]
@@ -330,7 +334,8 @@ class TestSuiteTestCase(IsolatedAsyncioTestCase):
     def test_result_check_env_os_type_not_supported(self) -> None:
         test_suite = self.generate_suite_instance()
         assert self.default_env
-        self.default_env.is_ready = True
+        self.default_env.status = EnvironmentStatus.Connected
+        self.default_env._is_initialized = True
         case_metadata = test_suite.case_results[0].runtime_data.metadata
         case_metadata.requirement = simple_requirement(
             min_count=2, supported_os=[Linux]
@@ -345,7 +350,7 @@ class TestSuiteTestCase(IsolatedAsyncioTestCase):
     def test_skipped_not_meet_req(self) -> None:
         test_suite = self.generate_suite_instance()
         assert self.default_env
-        self.default_env.is_ready = True
+        self.default_env.status = EnvironmentStatus.Deployed
         case_metadata = test_suite.case_results[0].runtime_data.metadata
         case_metadata.requirement = simple_requirement(min_count=3)
 

@@ -99,8 +99,6 @@ class Platform(subclasses.BaseClassWithRunbookMixin, InitializableMixin):
         self._deploy_environment(environment, log)
         environment.status = EnvironmentStatus.Deployed
 
-        log.debug(f"initializing environment: {environment.name}")
-        environment.initialize()
         # initialize features
         # features may need platform, so create it in platform
         for node in environment.nodes.list():
@@ -113,7 +111,6 @@ class Platform(subclasses.BaseClassWithRunbookMixin, InitializableMixin):
         environment.close()
         environment.status = EnvironmentStatus.Deleted
         self._delete_environment(environment, log)
-        environment.is_ready = False
         log.debug("deleted")
 
 

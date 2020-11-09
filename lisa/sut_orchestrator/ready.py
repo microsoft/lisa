@@ -30,7 +30,7 @@ class ReadyPlatform(Platform):
 
     def _deploy_environment(self, environment: Environment, log: Logger) -> None:
         # do nothing for deploy
-        environment.is_ready = True
+        pass
 
     def _delete_environment(self, environment: Environment, log: Logger) -> None:
         # ready platform doesn't support delete environment
