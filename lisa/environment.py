@@ -121,6 +121,7 @@ class Environment(ContextMixin, InitializableMixin):
 
         self.status: EnvironmentStatus = EnvironmentStatus.New
         self.is_predefined: bool = is_predefined
+        self.is_new: bool = True
         self.platform: Optional[Platform] = None
         # cost uses to plan order of environments.
         # cheaper env can fit cases earlier to run more cases on it.
