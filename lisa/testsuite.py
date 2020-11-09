@@ -12,7 +12,12 @@ from lisa.action import Action, ActionStatus
 from lisa.environment import EnvironmentSpace, EnvironmentStatus
 from lisa.feature import Feature
 from lisa.operating_system import OperatingSystem
-from lisa.util import LisaException, constants, set_filtered_fields
+from lisa.util import (
+    LisaException,
+    PartialPassedException,
+    constants,
+    set_filtered_fields,
+)
 from lisa.util.logger import get_logger
 from lisa.util.perf_timer import Timer, create_timer
 
@@ -372,6 +377,12 @@ class TestSuite(Action):
                         logger=self.log,
                     )
                     case_result.set_status(TestStatus.PASSED, "")
+                except PartialPassedException as identifier:
+                    self.log.info(f"case parial passed: {identifier}")
+                    self.log.debug("case parial passed", exc_info=identifier)
+                    case_result.set_status(
+                        TestStatus.PASSED, f"partial passed: {identifier}"
+                    )
                 except Exception as identifier:
                     if case_result.runtime_data.ignore_failure:
                         self.log.info(f"case failed and ignored: {identifier}")
