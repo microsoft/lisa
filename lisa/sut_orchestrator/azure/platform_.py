@@ -322,7 +322,7 @@ class AzurePlatform(Platform):
 
     @classmethod
     def supported_features(cls) -> List[Type[Feature]]:
-        return [features.StartStop]
+        return [features.StartStop, features.SerialConsole]
 
     def _prepare_environment(  # noqa: C901
         self, environment: Environment, log: Logger
@@ -987,7 +987,9 @@ class AzurePlatform(Platform):
 
         # all node support start/stop
         node_space.features = search_space.SetSpace[str](is_allow_set=True)
-        node_space.features.add(features.StartStop.name())
+        node_space.features.update(
+            [features.StartStop.name(), features.SerialConsole.name()]
+        )
 
         return node_space
 
