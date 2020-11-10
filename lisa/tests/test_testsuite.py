@@ -71,19 +71,19 @@ class MockTestSuite(TestSuite):
         if self.fail_on_after_case:
             raise LisaException("failed")
 
-    def mock_ut1(self) -> None:
+    def mock_ut1(self, *args: Any, **kwargs: Any) -> None:
         if self.partial_pass:
             raise PartialPassedException("mock_ut1 partial passed")
         while self.fail_case_count > 0:
             self.fail_case_count -= 1
             raise LisaException("mock_ut1 failed")
 
-    def mock_ut2(self) -> None:
+    def mock_ut2(self, *args: Any, **kwargs: Any) -> None:
         pass
 
 
 class MockTestSuite2(TestSuite):
-    def mock_ut3(self) -> None:
+    def mock_ut3(self, *args: Any, **kwargs: Any) -> None:
         pass
 
 
