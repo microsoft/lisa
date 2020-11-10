@@ -255,8 +255,12 @@ class TestCaseMetadata:
         _add_case_metadata(self)
 
         @wraps(self._func)
-        def wrapper(*args: object) -> None:
-            func(*args)
+        def wrapper(*args: Any, **kwargs: Any) -> None:
+            parameters: Dict[str, Any] = dict()
+            for name in kwargs.keys():
+                if name in func.__annotations__:
+                    parameters[name] = kwargs[name]
+            func(*args, **parameters)
 
         return wrapper
 
