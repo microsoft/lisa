@@ -10,38 +10,35 @@ from pathlib import Path
 
 from schema import SchemaMissingKeyError  # type: ignore
 
+import azure  # noqa
 import lisa
-import playbook
 import pytest
-
-# TODO: Use importlib instead
-from azure import Azure
 from target import Target
 
 if typing.TYPE_CHECKING:
-    from typing import Any, Dict, Iterator, List, Optional
+    from typing import Any, Dict, Iterator, List, Optional, Type
 
     from _pytest.config import Config
     from _pytest.config.argparsing import Parser
-    from _pytest.fixtures import FixtureRequest
+    from _pytest.fixtures import SubRequest
     from _pytest.python import Metafunc
 
     from pytest import Item, Session
 
 
 @pytest.fixture(scope="session")
-def pool(request: FixtureRequest) -> Iterator[List[Target]]:
+def pool(request: SubRequest) -> Iterator[List[Target]]:
     """This fixture tracks all deployed target resources."""
     targets: List[Target] = []
     yield targets
     for t in targets:
-        print(f"Created target: {t.features} / {t.params}")
+        print(f"Created target: {t.features} / {t.parameters}")
         if not request.config.getoption("keep_vms"):
             t.delete()
 
 
 @pytest.fixture
-def target(pool, worker_id, request: FixtureRequest) -> Iterator[Target]:
+def target(pool: List[Target], request: SubRequest) -> Iterator[Target]:
     """This fixture provides a connected target for each test.
 
     It is parametrized indirectly in 'pytest_generate_tests'.
@@ -64,19 +61,28 @@ def target(pool, worker_id, request: FixtureRequest) -> Iterator[Target]:
     their environments.
 
     """
-    params = request.param
+    import playbook
+
+    platform: Type[Target] = playbook.PLATFORMS[request.param["platform"]]
+    parameters: Dict[str, Any] = request.param["parameters"]
     marker = request.node.get_closest_marker("lisa")
     features = set(marker.kwargs["features"])
+
     for t in pool:
         # TODO: Implement full feature comparison, etc. and not just
         # proof-of-concept string set comparison.
-        if params == t.params and features <= t.features:
+        if all(
+            [
+                isinstance(t, platform),
+                t.parameters == parameters,
+                t.features >= features,
+            ]
+        ):
             yield t
             break
     else:
         # TODO: Reimplement caching.
-        # TODO: Dynamically load platform module and use it.
-        t = Azure(params, features)
+        t = platform(parameters, features)
         pool.append(t)
         yield t
     t.connection.close()
@@ -94,16 +100,34 @@ def pytest_addoption(parser: Parser) -> None:
     parser.addoption("--playbook", type=Path, help="Path to playbook.")
 
 
-TARGETS = []
-TARGET_IDS = []
+TARGETS: List[Dict[str, Any]] = []
+TARGET_IDS: List[str] = []
 
 
-def get_playbook(path: Optional[Path]) -> dict():
+def get_playbook(path: Optional[Path]) -> Dict[str, Any]:
+    """Loads and validates the playbook file.
+
+    This imports the playbook module at runtime to ensure all
+    subclasses of 'Target' (e.g. all supported platforms, including
+    those defined in arbitrary 'conftest.py' files) are defined.
+
+    """
+    import playbook
+
     book = dict()
-    if not path:
-        return book
-    with open(path) as f:
-        book = playbook.schema.validate(f)
+    if path:
+        # See https://pyyaml.org/wiki/PyYAMLDocumentation
+        import yaml
+
+        try:
+            from yaml import CLoader as Loader
+        except ImportError:
+            from yaml import Loader  # type: ignore
+
+        with open(path) as f:
+            book = playbook.schema.validate(yaml.load(f, Loader=Loader))
+    else:
+        book = playbook.schema.validate({})
     return book
 
 
@@ -115,7 +139,7 @@ def pytest_configure(config: Config) -> None:
 
     configurations based user mode."""
     book = get_playbook(config.getoption("--playbook"))
-    for t in book.get("targets"):
+    for t in book.get("targets", []):
         TARGETS.append(t)
         TARGET_IDS.append(t["name"])
 
@@ -143,16 +167,15 @@ def pytest_configure(config: Config) -> None:
         setattr(config.option, attr, value)
 
 
-def pytest_generate_tests(metafunc: Metafunc):
+def pytest_generate_tests(metafunc: Metafunc) -> None:
     """Parametrize the tests based on our inputs.
 
     Note that this hook is run for each test, so we do the file I/O in
     'pytest_configure' and save the results.
 
     """
-    # TODO: Provide a default target?
-    assert TARGETS, "No targets specified!"
     if "target" in metafunc.fixturenames:
+        assert TARGETS, "No targets specified!"
         metafunc.parametrize("target", TARGETS, True, TARGET_IDS)
 
 
@@ -189,7 +212,7 @@ def pytest_collection_modifyitems(
                 included.append(item)
 
     book = get_playbook(config.getoption("--playbook"))
-    for c in book.get("criteria"):
+    for c in book.get("criteria", []):
         print(f"Parsing criteria {c}")
         for item in items:
             marker = item.get_closest_marker("lisa")

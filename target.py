@@ -61,6 +61,16 @@ class Target(ABC):
             self.host, config=FabricConfig(overrides=config), inline_ssh_env=True
         )
 
+    # TODO: Use an abstract class property to ensure this is defined.
+    schema: Schema = Schema(None)
+
+    # @property
+    # @classmethod
+    # @abstractmethod
+    # def schema(cls) -> Schema:
+    #     """Must return the parameters schema for setup."""
+    #     ...
+
     @abstractmethod
     def deploy(self) -> str:
         """Must deploy the target resources and return hostname."""
@@ -104,3 +114,13 @@ class Target(ABC):
         with BytesIO() as buf:
             self.get(path, buf)
             return buf.getvalue().decode("utf-8").strip()
+
+
+class Local(Target):
+    schema: Schema = Schema(None)
+
+    def deploy(self) -> str:
+        return "localhost"
+
+    def delete(self) -> None:
+        pass
