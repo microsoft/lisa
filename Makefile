@@ -26,7 +26,7 @@ yaml:
 
 # Run the smoke test demo.
 smoke:
-	cd pytest && poetry run pytest --demo -k smoke
+	cd pytest && poetry run pytest --demo -n 4 --playbook=smoke.yaml
 
 # Print current Python virtualenv
 venv:

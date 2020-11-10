@@ -8,26 +8,3 @@ targets:
     parameters:
       image: UbuntuLTS
       sku: Standard_DS1_v2
-
-  - name: Debian
-    platform: Azure
-    parameters:
-      image: credativ:Debian:9:9.0.201706190
-
-  - name: GitHub
-    platform: Azure
-    parameters:
-      image: github:github-enterprise:github-enterprise:latest
-
-  - name: Citrix
-    platform: Azure
-    parameters:
-      image: citrix:netscalervpx-130:netscalerbyol:latest
-
-  - name: AudioCodes
-    platform: Azure
-    parameters:
-      image: audiocodes:mediantsessionbordercontroller:mediantvirtualsbcazure:latest
-
-criteria:
-    - name: smoke
