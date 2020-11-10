@@ -8,7 +8,7 @@ from __future__ import annotations
 import typing
 from pathlib import Path
 
-import schema
+from schema import SchemaMissingKeyError  # type: ignore
 
 import lisa
 import playbook
@@ -164,13 +164,11 @@ def pytest_collection_modifyitems(
     https://docs.pytest.org/en/latest/reference.html#pytest.hookspec.pytest_collection_modifyitems
 
     """
-    # Validate LISA mark on every item.
+    # Validate all LISA marks.
     for item in items:
-        m = item.get_closest_marker("lisa")
-        assert m, f"{item} is missing required LISA marker!"
         try:
-            lisa.validate(m)
-        except schema.SchemaMissingKeyError as e:
+            lisa.validate(item.get_closest_marker("lisa"))
+        except SchemaMissingKeyError as e:
             print(f"Test {item.name} failed LISA validation {e}!")
             items[:] = []
             return
@@ -194,15 +192,20 @@ def pytest_collection_modifyitems(
     for c in book.get("criteria"):
         print(f"Parsing criteria {c}")
         for item in items:
-            m = item.get_closest_marker("lisa").kwargs
+            marker = item.get_closest_marker("lisa")
+            if not marker:
+                # Not all tests will have the LISA marker, such as
+                # static analysis tests.
+                continue
+            i = marker.kwargs
             if any(
                 [
                     c["name"] and c["name"] in item.name,
-                    c["area"] and c["area"].casefold() == m["area"].casefold(),
+                    c["area"] and c["area"].casefold() == i["area"].casefold(),
                     c["category"]
-                    and c["category"].casefold() == m["category"].casefold(),
-                    c["priority"] and c["priority"] == m["priority"],
-                    c["tags"] and set(c["tags"]) <= set(m["tags"]),
+                    and c["category"].casefold() == i["category"].casefold(),
+                    c["priority"] and c["priority"] == i["priority"],
+                    c["tags"] and set(c["tags"]) <= set(i["tags"]),
                 ]
             ):
                 select(item, c["times"], c["exclude"])

@@ -41,7 +41,9 @@ lisa_schema = Schema(
 )
 
 
-def validate(mark: Mark):
+def validate(mark: Optional[Mark]) -> None:
     """Validate each test's LISA parameters."""
+    if not mark:
+        return
     assert not mark.args, "LISA marker cannot have positional arguments!"
     mark.kwargs.update(lisa_schema.validate(mark.kwargs))
