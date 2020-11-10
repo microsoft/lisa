@@ -3,6 +3,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from enum import Enum
 from functools import wraps
+from pathlib import Path
 from typing import TYPE_CHECKING, Any, Callable, Dict, List, Optional, Type, Union
 
 from retry.api import retry_call  # type: ignore
@@ -323,6 +324,27 @@ class TestSuite(Action):
     def after_case(self) -> None:
         pass
 
+    def _ensure_case_path(self, case_name: str, create_new: bool = True) -> Path:
+        folder_index = 0
+        while True:
+            if folder_index == 0:
+                path_name = f"{case_name}"
+            else:
+                path_name = f"{case_name}_{folder_index}"
+            path = constants.RUN_LOCAL_PATH.joinpath(path_name)
+            if not path.exists():
+                break
+            folder_index += 1
+        if create_new:
+            path.mkdir()
+        else:
+            folder_index -= 1
+            if folder_index <= 0:
+                path_name = f"{case_name}"
+            else:
+                path_name = f"{case_name}_{folder_index}"
+        return path
+
     # TODO: This entire function is one long string of side-effects.
     # We need to reduce this function's complexity to remove the
     # disabled warning, and not rely solely on side effects.
@@ -376,6 +398,7 @@ class TestSuite(Action):
                 try:
                     retry_call(
                         test_method,
+                        fkwargs={"case_name": case_name},
                         exceptions=Exception,
                         tries=case_result.runtime_data.retry + 1,
                         logger=self.log,
