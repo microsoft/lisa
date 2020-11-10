@@ -1,11 +1,17 @@
 from __future__ import annotations
 
 import typing
+from pathlib import Path
 
-from schema import Optional, Or, Schema
+from schema import Optional, Or, Schema  # type: ignore
+
+import pytest
 
 if typing.TYPE_CHECKING:
     from _pytest.mark.structures import Mark
+
+LISA = pytest.mark.lisa
+LINUX_SCRIPTS = Path("../Testscripts/Linux")
 
 # Setup a sane configuration for local and remote commands. Note that
 # the defaults between Fabric and Invoke are different, so we use
