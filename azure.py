@@ -16,24 +16,29 @@ if typing.TYPE_CHECKING:
 class Azure(Target):
     """Implements Azure-specific target methods."""
 
+    # Custom instance attribute(s).
+    internal_address: str
+
+    # A class attribute because it’s defined.
     az_ok = False
 
-    def check_az_cli(self) -> None:
+    @classmethod
+    def check_az_cli(cls) -> None:
         """Assert that the `az` CLI is installed and logged in."""
-        if Azure.az_ok:
+        if cls.az_ok:  # Shortcut if we already checked.
             return
         # E.g. on Ubuntu: `curl -sL https://aka.ms/InstallAzureCLIDeb | sudo bash`
-        assert self.local("az --version", warn=True), "Please install the `az` CLI!"
+        assert cls.local("az --version", warn=True), "Please install the `az` CLI!"
         # TODO: Login with service principal (az login) and set
         # default subscription (az account set -s) using secrets.
-        account: Result = self.local("az account show")
+        account: Result = cls.local("az account show")
         assert account.ok, "Please `az login`!"
         sub = json.loads(account.stdout)
         assert sub["isDefault"], "Please `az account set -s <subscription>`!"
         logging.info(
             f"Using account '{sub['user']['name']}' with subscription '{sub['name']}'"
         )
-        Azure.az_ok = True
+        cls.az_ok = True
 
     def create_boot_storage(self, location: str) -> str:
         """Create a separate resource group and storage account for boot diagnostics."""
@@ -59,22 +64,23 @@ class Azure(Target):
         try:
             for d in ["Inbound", "Outbound"]:
                 self.local(
-                    f"az network nsg rule create --name allow{d}ICMP "
-                    f"--nsg-name {self.name}NSG --priority 100 --resource-group {self.name}-rg "
+                    f"az network nsg rule create "
+                    f"--name allow{d}ICMP --resource-group {self.name}-rg "
+                    f"--nsg-name {self.name}NSG --priority 100  "
                     f"--access Allow --direction '{d}' --protocol Icmp "
                     "--source-port-ranges '*' --destination-port-ranges '*'"
                 )
         except Exception as e:
             logging.warning(f"Failed to create ICMP allow rules in NSG due to '{e}'")
 
-    def deploy(self):
+    def deploy(self) -> str:
         """Given deployment info, deploy a new VM."""
-        image = self.params["image"]
-        sku = self.params["sku"]
-        location = self.params.get("location", "eastus2")
-        networking = self.params.get("networking", "")
+        image = self.parameters["image"]
+        sku = self.parameters["sku"]
+        location = self.parameters["location"]
+        networking = self.parameters["networking"]
 
-        self.check_az_cli()
+        Azure.check_az_cli()
 
         logging.info(
             f"""Deploying VM...
@@ -108,9 +114,11 @@ class Azure(Target):
             vm_command.append("--accelerated-networking true")
 
         self.data = json.loads(self.local(" ".join(vm_command)).stdout)
-        self.allow_ping(self.name)
+        self.allow_ping()
         # TODO: Enable auto-shutdown 4 hours from deployment.
-        return self.data["publicIpAddress"]
+        self.internal_address = self.data["internal_address"]
+        hostname: str = self.data["publicIpAddress"]
+        return hostname
 
     def delete(self) -> None:
         """Delete the entire allocated resource group.
