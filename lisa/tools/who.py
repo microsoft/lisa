@@ -22,4 +22,10 @@ class Who(Tool):
                 f"'last' return non-zero exit code: {command_result.stderr}"
             )
         datetime_output = get_matched_str(command_result.stdout, self.last_time_pattern)
-        return datetime.fromisoformat(datetime_output)
+        try:
+            result = datetime.fromisoformat(datetime_output)
+        except ValueError:
+            # ValueError: Invalid isoformat string: 'Nov 10 20:54'
+            result = datetime.strptime(datetime_output, "%b %d %H:%M")
+
+        return result
