@@ -29,10 +29,6 @@ if typing.TYPE_CHECKING:
     from pytest import Item, Session
 
 
-LISA = pytest.mark.lisa
-LINUX_SCRIPTS = Path("../Testscripts/Linux")
-
-
 @pytest.fixture(scope="session")
 def pool(request: FixtureRequest) -> Iterator[List[Target]]:
     """This fixture tracks all deployed target resources."""

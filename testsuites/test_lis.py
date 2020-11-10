@@ -6,7 +6,7 @@ import typing
 if typing.TYPE_CHECKING:
     from azure import Azure
 
-from conftest import LINUX_SCRIPTS, LISA
+from lisa import LINUX_SCRIPTS, LISA
 
 
 @LISA(platform="Azure", category="Functional", priority=0, area="LIS_DEPLOY")

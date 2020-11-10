@@ -2,8 +2,8 @@
 
 
 import pytest
-from conftest import LINUX_SCRIPTS, LISA
-from target import Target
+from azure import Azure
+from lisa import LINUX_SCRIPTS, LISA
 
 
 @LISA(
@@ -13,14 +13,13 @@ from target import Target
     tags=["xdp", "network", "hv_netvsc", "sriov"],
     priority=0,
 )
-@pytest.mark.deploy(
-    setup="OneVM2NIC",
-    networking="SRIOV",
-    vm_image="Canonical:0001-com-ubuntu-server-focal:20_04-lts:latest",
-    vm_size="Standard_DS4_v2",
-)
+# TODO: This example is pending an update.
+# setup="OneVM2NIC",
+# networking="SRIOV",
+# vm_image="Canonical:0001-com-ubuntu-server-focal:20_04-lts:latest",
+# vm_size="Standard_DS4_v2",
 @pytest.mark.skip(reason="Not Finished")
-def test_verify_xdp_compliance(target: Target) -> None:
+def test_verify_xdp_compliance(target: Azure) -> None:
     for f in [
         "utils.sh",
         "XDPDumpSetup.sh",

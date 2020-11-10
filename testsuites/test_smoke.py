@@ -7,7 +7,7 @@ from invoke.runners import CommandTimedOut, Result, UnexpectedExit  # type: igno
 from paramiko import SSHException  # type: ignore
 
 from azure import Azure
-from conftest import LISA
+from lisa import LISA
 
 
 @LISA(

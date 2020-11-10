@@ -1,10 +1,10 @@
 import functools
 
-import conftest
+import lisa
 from target import Target
 
 LISA = functools.partial(
-    conftest.LISA, platform="Azure", category="Functional", area="self-test", priority=1
+    lisa.LISA, platform="Azure", category="Functional", area="self-test", priority=1
 )
 
 

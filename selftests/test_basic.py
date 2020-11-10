@@ -1,8 +1,6 @@
 """These tests are meant to run in a CI environment."""
-from conftest import LISA
+from lisa import LISA
 from target import Target
-
-pytestmark = []
 
 
 @LISA(platform="Local", category="Functional", area="self-test", priority=1)
