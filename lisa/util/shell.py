@@ -1,9 +1,11 @@
 import logging
 import os
 import shutil
+import socket
 import sys
 from logging import getLogger
 from pathlib import Path, PurePath
+from time import sleep
 from typing import Any, Dict, List, Mapping, Optional, Sequence, Union, cast
 
 import paramiko  # type: ignore
@@ -12,6 +14,40 @@ import spurplus  # type: ignore
 from retry import retry  # type: ignore
 
 from lisa.util import InitializableMixin, LisaException
+
+from .logger import Logger
+from .perf_timer import create_timer
+
+
+def wait_tcp_port_ready(
+    address: str, port: int, log: Optional[Logger] = None, timeout: int = 300
+) -> bool:
+    """
+    return is ready or not
+    """
+    is_ready: bool = False
+    # TODO: may need to support IPv6.
+    tcp_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    times: int = 0
+
+    timout_timer = create_timer()
+    while timout_timer.elapsed(False) < timeout:
+        try:
+            result = tcp_socket.connect_ex((address, port))
+            if result == 0:
+                is_ready = True
+                break
+            else:
+                if times % 10 == 0 and log:
+                    log.debug(
+                        f"TCP port {port} connection failed, and retrying... "
+                        f"Tried times: {times}, elapsed: {timout_timer}"
+                    )
+                sleep(1)
+                times += 1
+        finally:
+            tcp_socket.close()
+    return is_ready
 
 
 class ConnectionInfo:
@@ -91,7 +127,7 @@ class WindowsShellType(object):
 
 
 # retry strategy is the same as spurplus.connect_with_retries.
-@retry(Exception, tries=60, delay=1, logger=None)  # type: ignore
+@retry(Exception, tries=3, delay=1, logger=None)  # type: ignore
 def try_connect(connection_info: ConnectionInfo) -> Any:
     # spur always run a linux command and will fail on Windows.
     # So try with paramiko firstly.
@@ -122,13 +158,21 @@ class SshShell(InitializableMixin):
         paramiko_logger.setLevel(logging.WARN)
 
     def _initialize(self, *args: Any, **kwargs: Any) -> None:
+        is_ready = wait_tcp_port_ready(
+            self._connection_info.address, self._connection_info.port
+        )
+        if not is_ready:
+            raise LisaException(
+                f"cannot open port {self._connection_info.port} to server: "
+                f"[{self._connection_info.address}:{self._connection_info.port}]"
+            )
         try:
             stdout = try_connect(self._connection_info)
         except Exception as identifier:
             raise LisaException(
-                f"connect to server "
-                f"[{self._connection_info.address}:{self._connection_info.port}]"
-                f" failed: {identifier}"
+                f"failed to connect "
+                f"[{self._connection_info.address}:{self._connection_info.port}]: "
+                f"{identifier}"
             )
 
         # Some windows doesn't end the text stream, so read first line only.
