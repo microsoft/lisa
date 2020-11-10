@@ -44,6 +44,8 @@ class OperatingSystem:
             os_release_output = typed_node.execute(
                 "cat /etc/os-release", no_error_log=True
             )
+            # for FreeBSD
+            uname_output = typed_node.execute("uname", no_error_log=True)
 
             os_infos: List[str] = [
                 x
@@ -57,6 +59,7 @@ class OperatingSystem:
                     get_matched_str(
                         os_release_output.stdout, cls.__os_release_pattern_id
                     ),
+                    uname_output.stdout,
                 ]
                 if x
             ]
@@ -160,6 +163,10 @@ class Debian(Ubuntu):
     pass
 
 
+class FreeBSD(Linux):
+    pass
+
+
 class Redhat(Linux):
     @classmethod
     def name_pattern(cls) -> Pattern[str]:
@@ -184,7 +191,7 @@ class Oracle(Redhat):
 class Suse(Linux):
     @classmethod
     def name_pattern(cls) -> Pattern[str]:
-        return re.compile("^SLES|SUSE$")
+        return re.compile("^SLES|SUSE|sles$")
 
     def _initialize_package_installation(self) -> None:
         self._node.execute("zypper --non-interactive --gpg-auto-import-keys update")
