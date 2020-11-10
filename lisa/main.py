@@ -8,16 +8,17 @@ from pathlib import Path
 from retry import retry  # type: ignore
 
 from lisa.parameter_parser.argparser import parse_args
-from lisa.util import constants
+from lisa.util import constants, get_datetime_path
 from lisa.util.logger import get_logger, set_level, set_log_file
 from lisa.util.perf_timer import create_timer
 
 
 @retry(FileExistsError, tries=10, delay=0)  # type: ignore
 def create_run_path(root_path: Path) -> Path:
-    date = datetime.utcnow().strftime("%Y%m%d")
-    time = datetime.utcnow().strftime("%H%M%S-%f")[:-3]
-    run_path = Path(f"{date}/{date}-{time}")
+    current_time = datetime.utcnow()
+    date = current_time.strftime("%Y%m%d")
+    date_time = get_datetime_path(current_time)
+    run_path = Path(f"{date}/{date_time}")
     local_path = root_path.joinpath(run_path)
     if local_path.exists():
         raise FileExistsError(f"{local_path} exists, and not found an unique path.")

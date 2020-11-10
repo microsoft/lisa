@@ -1,5 +1,6 @@
+from datetime import datetime
 from pathlib import Path
-from typing import Any, Dict, Iterable, List, Pattern, Type, TypeVar
+from typing import Any, Dict, Iterable, List, Optional, Pattern, Type, TypeVar
 
 T = TypeVar("T")
 
@@ -54,6 +55,14 @@ class InitializableMixin:
             except Exception as identifier:
                 self._is_initialized = False
                 raise identifier
+
+
+def get_datetime_path(current: Optional[datetime] = None) -> str:
+    if current is None:
+        current = datetime.now()
+    date = current.utcnow().strftime("%Y%m%d")
+    time = current.utcnow().strftime("%H%M%S-%f")[:-3]
+    return f"{date}-{time}"
 
 
 def get_public_key_data(private_key_file_path: str) -> str:
