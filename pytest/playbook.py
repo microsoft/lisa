@@ -1,11 +1,50 @@
-import yaml
+"""Describes the YAML schema for the playbook file.
 
-try:
-    from yaml import CLoader as Loader
-except ImportError:
-    from yaml import Loader  # type: ignore
+This module should be imported at runtime such that 'PLATFORMS' is
+defined after all 'Target' subclasses have been defined.
 
-from schema import And, Optional, Schema, Use
+PLATFORMS is a mapping of platform names (strings) to the implementing
+subclass of 'Target' where each subclass defines its own 'parameters'
+schema, 'deploy' and 'delete' methods, and other platform-specific
+functionality. A 'Target' subclass need only be defined in a file
+loaded by Pytest, so a 'contest.py' file works just fine. No manual
+registration is required, it will be discovered automatically.
+
+TODO: Add field annotations, friendly error reporting, automatic case
+transformations, etc.
+
+"""
+from __future__ import annotations
+
+import typing
+
+# See https://pypi.org/project/schema/
+from schema import Optional, Or, Schema  # type: ignore
+
+from target import Target
+
+if typing.TYPE_CHECKING:
+    from typing import Mapping, Type
+
+# See https://github.com/python/mypy/issues/4717 for why we ignore the type.
+PLATFORMS: Mapping[str, Type[Target]] = {
+    cls.__name__: cls for cls in Target.__subclasses__()  # type: ignore
+}
+
+target_schema = Schema(
+    {
+        "name": str,
+        "platform": Or(*[platform for platform in PLATFORMS.keys()]),
+        # TODO: What should we do when lacking parameters? Ideally we
+        # use the platform’s defaults from its own schema, but that
+        # means this value must be set, even if to an empty dict.
+        Optional("parameters", default=dict): Or(
+            *[cls.schema for cls in PLATFORMS.values()]
+        ),
+    }
+)
+
+default_target = {"name": "Default", "platform": "Local"}
 
 criteria_schema = Schema(
     {
@@ -21,34 +60,9 @@ criteria_schema = Schema(
     }
 )
 
-# NOTE: We could have each platform register its own schema and
-# “Or(...)” them together, so this is actually quite flexible. Again,
-# so far just writing a proof-of-concept because we need to peer
-# review our design.
-target_schema = Schema(
-    {
-        # TODO: Maybe set name to image if unset.
-        "name": str,
-        # TODO: Use ‘Or([list of registered platforms])’
-        "platform": str,
-        # TODO: Maybe validate as URN or path etc.
-        Optional("image", default=None): str,
-        Optional("sku", default=None): str,
-    }
-)
-
-default_target = {"name": "Default", "platform": "Local"}
-
 schema = Schema(
-    And(
-        # NOTE: This is “magic” that automatically loads and validates
-        # YAML input. See https://pypi.org/project/schema/ and
-        # https://pyyaml.org/wiki/PyYAMLDocumentation for
-        # documentation.
-        Use(lambda x: yaml.load(x, Loader=Loader)),
-        {
-            Optional("targets", default=[default_target]): [target_schema],
-            Optional("criteria", default=list): [criteria_schema],
-        },
-    )
+    {
+        Optional("targets", default=[default_target]): [target_schema],
+        Optional("criteria", default=list): [criteria_schema],
+    }
 )
