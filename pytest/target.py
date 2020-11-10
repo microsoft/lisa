@@ -6,28 +6,34 @@ from abc import ABC, abstractmethod
 from io import BytesIO
 from uuid import uuid4
 
-from fabric import Config as FabricConfig
+from fabric import Config as FabricConfig  # type: ignore
 from fabric import Connection
-from invoke import Config as InvokeConfig
+from invoke import Config as InvokeConfig  # type: ignore
 from invoke import Context
 from invoke.runners import Result  # type: ignore
+from schema import Schema  # type: ignore
 from tenacity import retry, stop_after_attempt, wait_exponential  # type: ignore
 
 import lisa
 
 if typing.TYPE_CHECKING:
-    from typing import Any, Mapping, Sequence, Set
+    from typing import Any, Mapping, Set
 
 
 class Target(ABC):
     """Extends 'fabric.Connection' with our own utilities."""
 
-    local_context = Context(config=InvokeConfig(overrides=lisa.config))
+    # Typed instance attributes, not class attributes.
+    parameters: Mapping[str, str]
+    features: Set[str]
+    name: str
+    host: str
+    connection: Connection
 
     def __init__(
         self,
-        params: Mapping[str, str],
-        features: Sequence[str],
+        parameters: Mapping[str, str],
+        features: Set[str],
         name: str = f"pytest-{uuid4()}",
     ):
         """If not given a name, generates one uniquely.
@@ -37,15 +43,17 @@ class Target(ABC):
         rdma, gpu, xdp.
 
         """
-        self.params: Mapping[str, str] = params
-        self.features: Set[str] = set(features)
-        self.name: str = name
+        # TODO: Do we need to re-validate the parameters here?
+        self.parameters = parameters
+        self.features = features
+        self.name = name
 
-        # TODO: Fix this.
+        # TODO: Review this thoroughly as currently it depends on
+        # parameters which is side-effecty.
         self.host = self.deploy()
 
         config = lisa.config.copy()
-        config["run"]["env"] = {
+        config["run"]["env"] = {  # type: ignore
             # Set PATH since it’s not a login shell.
             "PATH": "/sbin:/usr/sbin:/usr/local/sbin:/bin:/usr/bin:/usr/local/bin"
         }
@@ -63,8 +71,11 @@ class Target(ABC):
         """Must delete the target resources."""
         ...
 
+    # A class attribute because it’s defined.
+    local_context = Context(config=InvokeConfig(overrides=lisa.config))
+
     @classmethod
-    def local(self, *args: Any, **kwargs: Any) -> Result:
+    def local(cls, *args: Any, **kwargs: Any) -> Result:
         """This patches Fabric's 'local()' function to ignore SSH environment."""
         return Target.local_context.run(*args, **kwargs)
 
