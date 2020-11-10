@@ -1,11 +1,13 @@
-import socket
-from time import sleep
+from pathlib import Path
+from typing import Optional
 
 from lisa import TestCaseMetadata, TestSuite, TestSuiteMetadata
 from lisa.environment import EnvironmentStatus
+from lisa.features import SerialConsole
 from lisa.testsuite import simple_requirement
 from lisa.util import LisaException, PartialPassedException
 from lisa.util.perf_timer import create_timer
+from lisa.util.shell import wait_tcp_port_ready
 
 
 @TestSuiteMetadata(
@@ -26,42 +28,36 @@ class Provisioning(TestSuite):
         reboot. Even not eable to reboot, it's partial passed.
         """,
         priority=0,
-        requirement=simple_requirement(environment_status=EnvironmentStatus.Deployed),
+        requirement=simple_requirement(
+            environment_status=EnvironmentStatus.Deployed,
+            supported_features=[SerialConsole],
+        ),
     )
-    def smoke_test(self) -> None:
+    def smoke_test(self, case_name: str) -> None:
         node = self.environment.default_node
-        timout_timer = create_timer()
-        # TODO: may need to support IPv6.
-        tcp_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        connected: bool = False
-        times: int = 0
-        while timout_timer.elapsed(False) < self.TIME_OUT:
-            try:
-                result = tcp_socket.connect_ex((node.public_address, node.public_port))
-                if result == 0:
-                    connected = True
-                    self.log.info(f"connected to '{node.name}'")
-                    break
-                else:
-                    if times % 10 == 0:
-                        self.log.debug(
-                            f"SSH connection failed, and retrying... "
-                            f"Tried times: {times}, elapsed: {timout_timer}"
-                        )
-                    sleep(1)
-                    times += 1
-            finally:
-                tcp_socket.close()
-        if not connected:
+        case_path: Optional[Path] = None
+
+        is_ready = wait_tcp_port_ready(
+            node.public_address, node.public_port, log=self.log, timeout=self.TIME_OUT
+        )
+        if not is_ready:
+            serial_console = node.features[SerialConsole]
+            case_path = self._ensure_case_path(case_name)
+            serial_console.check_panic(saved_path=case_path)
             raise LisaException(
-                f"cannot connect SSH to server "
-                f"{node.public_address}:{node.public_port}"
+                f"cannot connect to [{node.public_address}:{node.public_port}]"
+                f", but no panic found in serial log"
             )
 
         try:
             timer = create_timer()
             self.log.info(f"restarting {node.name}")
             node.reboot()
-            self.log.info(f"node {node.name} rebooted in {timer}, trying connecting")
+            self.log.info(f"node {node.name} rebooted in {timer}")
         except Exception as identifier:
+            if not case_path:
+                case_path = self._ensure_case_path(case_name)
+            serial_console = node.features[SerialConsole]
+            # if there is any panic, fail before parial passed
+            serial_console.check_panic(saved_path=case_path)
             raise PartialPassedException(identifier)
