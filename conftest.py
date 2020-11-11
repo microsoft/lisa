@@ -92,6 +92,7 @@ def pytest_addoption(parser: Parser) -> None:
     """Pytest hook for adding arbitrary CLI options.
 
     https://docs.pytest.org/en/latest/example/simple.html
+    https://docs.pytest.org/en/latest/reference.html#pytest.hookspec.pytest_addoption
 
     """
     parser.addoption("--keep-vms", action="store_true", help="Keeps deployed VMs.")
@@ -112,6 +113,8 @@ def get_playbook(path: Optional[Path]) -> Dict[str, Any]:
     those defined in arbitrary 'conftest.py' files) are defined.
 
     """
+    # TODO: Move to 'playbook.py' and setup 'PLATFORMS' when called so
+    # that the import can take place at any time.
     import playbook
 
     book = dict()
@@ -137,7 +140,9 @@ def pytest_configure(config: Config) -> None:
     Determines the targets based on the playbook and sets default
     configurations based user mode.
 
-    configurations based user mode."""
+    https://docs.pytest.org/en/latest/reference.html#pytest.hookspec.pytest_configure
+
+    """
     book = get_playbook(config.getoption("--playbook"))
     for t in book.get("targets", []):
         TARGETS.append(t)
@@ -172,6 +177,8 @@ def pytest_generate_tests(metafunc: Metafunc) -> None:
 
     Note that this hook is run for each test, so we do the file I/O in
     'pytest_configure' and save the results.
+
+    https://docs.pytest.org/en/latest/reference.html#pytest.hookspec.pytest_generate_tests
 
     """
     if "target" in metafunc.fixturenames:

@@ -4,7 +4,7 @@ import lisa
 from target import Target
 
 LISA = functools.partial(
-    lisa.LISA, platform="Azure", category="Functional", area="self-test", priority=1
+    lisa.LISA, platform="Custom", category="Functional", area="self-test", priority=1
 )
 
 

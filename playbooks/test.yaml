@@ -1,0 +1,5 @@
+targets:
+  - name: Local Tests
+    platform: Local
+  - name: Setup Plan
+    platform: Custom
