@@ -162,7 +162,12 @@ class Node(ContextMixin, InitializableMixin):
     def get_node_information(self) -> Dict[str, str]:
         result: Dict[str, str] = {}
         for hook in self._node_information_hooks:
-            hook(self, result)
+            try:
+                hook(self, result)
+            except Exception as identifier:
+                # the message hook shouldn't produce any error
+                # they are called on any place, and may bring uncaught exception
+                self.log.debug(f"fail on get node information: {identifier}")
         return result
 
     def add_node_information_hook(
