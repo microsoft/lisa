@@ -16,9 +16,10 @@ _get_init_logger = partial(get_logger, name="os")
 
 class OperatingSystem:
     __lsb_release_pattern = re.compile(r"^Description:[ \t]+([\w]+)[ ]+")
-    __os_release_pattern_name = re.compile(r"^NAME=\"?([\w]+)[^\" ]*\"?", re.M)
-    __os_release_pattern_id = re.compile(r"^ID=\"?([\w]+)[^\"\n ]*\"?$", re.M)
-    __redhat_release_pattern = re.compile(r"^.*\(([^ ]*).*\)$")
+    __os_release_pattern_name = re.compile(r"^NAME=\"?([^\" \n]+)[^\" \n]*\"?$", re.M)
+    __os_release_pattern_id = re.compile(r"^ID=\"?([^\" \n]+)[^\" \n]*\"?$", re.M)
+    __redhat_release_pattern_header = re.compile(r"^([^ ]*) .*$")
+    __redhat_release_pattern_bracket = re.compile(r"^.*\(([^ ]*).*\)$")
 
     __linux_factory: Optional[Factory[Any]] = None
 
@@ -57,10 +58,15 @@ class OperatingSystem:
                 if matched:
                     break
 
-            if not result:
+            if not os_infos:
+                raise LisaException(
+                    "unknown linux distro, no os info found. "
+                    "it may cause by not support basic commands like `cat`"
+                )
+            elif not result:
                 raise LisaException(
                     f"unknown linux distro names '{os_infos}', "
-                    f"support it in operating_system"
+                    f"support it in operating_system."
                 )
         else:
             result = Windows(typed_node)
@@ -89,7 +95,8 @@ class OperatingSystem:
         cmd_result = typed_node.execute(
             cmd="cat /etc/redhat-release", no_error_log=True
         )
-        yield get_matched_str(cmd_result.stdout, cls.__redhat_release_pattern)
+        yield get_matched_str(cmd_result.stdout, cls.__redhat_release_pattern_header)
+        yield get_matched_str(cmd_result.stdout, cls.__redhat_release_pattern_bracket)
 
         # for FreeBSD
         cmd_result = typed_node.execute(cmd="uname", no_error_log=True)
@@ -147,6 +154,10 @@ class Linux(OperatingSystem, BaseClassMixin):
 
 
 class Ubuntu(Linux):
+    @classmethod
+    def name_pattern(cls) -> Pattern[str]:
+        return re.compile("^Ubuntu|ubuntu$")
+
     def _initialize_package_installation(self) -> None:
         self._node.execute("sudo apt-get update")
 
@@ -159,17 +170,28 @@ class Ubuntu(Linux):
 
 
 class Debian(Ubuntu):
+    @classmethod
+    def name_pattern(cls) -> Pattern[str]:
+        return re.compile("^debian$")
+
+
+class Unix(Linux):
+    """
+    The inherits may look weird, which put Linux first.
+    Let's check later, if it need to be reversed.
+    """
+
     pass
 
 
-class FreeBSD(Linux):
+class FreeBSD(Unix):
     pass
 
 
 class Redhat(Linux):
     @classmethod
     def name_pattern(cls) -> Pattern[str]:
-        return re.compile("^rhel$")
+        return re.compile("^rhel|Red|Scientific|acronis$")
 
     def _install_packages(self, packages: Union[List[str]]) -> None:
         self._node.execute(
@@ -180,17 +202,23 @@ class Redhat(Linux):
 class CentOs(Redhat):
     @classmethod
     def name_pattern(cls) -> Pattern[str]:
-        return re.compile("^CentOS|Centos$")
+        return re.compile("^CentOS|Centos|centos$")
 
 
 class Oracle(Redhat):
     pass
 
 
+class CoreOs(Redhat):
+    @classmethod
+    def name_pattern(cls) -> Pattern[str]:
+        return re.compile("^coreos|Flatcar|flatcar$")
+
+
 class Suse(Linux):
     @classmethod
     def name_pattern(cls) -> Pattern[str]:
-        return re.compile("^SLES|SUSE|sles$")
+        return re.compile("^SLES|SUSE|sles|sle-hpc|sle_hpc$")
 
     def _initialize_package_installation(self) -> None:
         self._node.execute("zypper --non-interactive --gpg-auto-import-keys update")
@@ -198,3 +226,7 @@ class Suse(Linux):
     def _install_packages(self, packages: Union[List[str]]) -> None:
         command = f"sudo zypper --non-interactive in  {' '.join(packages)}"
         self._node.execute(command)
+
+
+class NixOS(Linux):
+    pass
