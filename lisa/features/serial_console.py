@@ -51,7 +51,7 @@ class SerialConsole(Feature):
             log_file_name = saved_path.joinpath("serial_console.log")
             with open(log_file_name, mode="wb") as f:
                 f.write(self._cached_console_log)
-        return self._cached_console_log.decode("utf-8")
+        return self._cached_console_log.decode("utf-8", errors="ignore")
 
     def check_panic(self, saved_path: Optional[Path], force_run: bool = False) -> None:
         self._node.log.debug("checking panic in serial log...")
