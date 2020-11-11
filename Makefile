@@ -10,7 +10,7 @@ run: setup
 
 # Run local tests
 test: setup
-	cd pytest && poetry run pytest --keep-vms --playbook=playbook.yaml --setup-show selftests/
+	cd pytest && poetry run pytest --verbose --playbook=playbooks/test.yaml --setup-show selftests/
 
 # Run semantic analysis
 check: setup
@@ -22,11 +22,11 @@ clean:
 
 # Demonstrate test selection via YAML playbook.
 yaml:
-	cd pytest && poetry run pytest --collect-only --playbook=criteria.yaml
+	cd pytest && poetry run pytest --collect-only --playbook=playbooks/criteria.yaml
 
 # Run the smoke test demo.
 smoke:
-	cd pytest && poetry run pytest --demo -n 4 --playbook=smoke.yaml
+	cd pytest && poetry run pytest --demo -n 4 --playbook=playbooks/smoke.yaml
 
 # Print current Python virtualenv
 venv:
