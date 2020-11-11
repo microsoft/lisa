@@ -11,6 +11,7 @@ from typing import Any, Dict, List, Mapping, Optional, Sequence, Union, cast
 import paramiko  # type: ignore
 import spur  # type: ignore
 import spurplus  # type: ignore
+from paramiko.ssh_exception import SSHException  # type: ignore
 from retry import retry  # type: ignore
 
 from lisa.util import InitializableMixin, LisaException
@@ -246,7 +247,15 @@ class SshShell(InitializableMixin):
         path_str = self._purepath_to_str(path)
         self.initialize()
         assert self._inner_shell
-        self._inner_shell.mkdir(path_str, mode=mode, parents=parents, exist_ok=exist_ok)
+        try:
+            self._inner_shell.mkdir(
+                path_str, mode=mode, parents=parents, exist_ok=exist_ok
+            )
+        except SSHException as identifier:
+            # no sftp, try commands
+            if "Channel closed." in str(identifier):
+                assert isinstance(path_str, str)
+                self.spawn(command=["mkdir", "-p", path_str])
 
     def exists(self, path: PurePath) -> bool:
         self.initialize()
