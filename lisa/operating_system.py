@@ -1,6 +1,6 @@
 import re
 from functools import partial
-from typing import TYPE_CHECKING, Any, List, Optional, Pattern, Type, Union
+from typing import TYPE_CHECKING, Any, Iterable, List, Optional, Pattern, Type, Union
 
 from lisa.executable import Tool
 from lisa.util import LisaException, get_matched_str
@@ -18,6 +18,7 @@ class OperatingSystem:
     __lsb_release_pattern = re.compile(r"^Description:[ \t]+([\w]+)[ ]+")
     __os_release_pattern_name = re.compile(r"^NAME=\"?([\w]+)[^\" ]*\"?", re.M)
     __os_release_pattern_id = re.compile(r"^ID=\"?([\w]+)[^\"\n ]*\"?$", re.M)
+    __redhat_release_pattern = re.compile(r"^.*\(([^ ]*).*\)$")
 
     __linux_factory: Optional[Factory[Any]] = None
 
@@ -40,34 +41,12 @@ class OperatingSystem:
                 cls.__linux_factory.initialize()
             # cast type for easy to use
             linux_factory: Factory[Linux] = cls.__linux_factory
-            lsb_release_output = typed_node.execute("lsb_release -d", no_error_log=True)
-            os_release_output = typed_node.execute(
-                "cat /etc/os-release", no_error_log=True
-            )
-            # for FreeBSD
-            uname_output = typed_node.execute("uname", no_error_log=True)
 
-            os_infos: List[str] = [
-                x
-                for x in [
-                    get_matched_str(
-                        lsb_release_output.stdout, cls.__lsb_release_pattern
-                    ),
-                    get_matched_str(
-                        os_release_output.stdout, cls.__os_release_pattern_name
-                    ),
-                    get_matched_str(
-                        os_release_output.stdout, cls.__os_release_pattern_id
-                    ),
-                    uname_output.stdout,
-                ]
-                if x
-            ]
-            if not os_infos:
-                raise LisaException("cannot find linux os info")
-
-            for os_info_item in os_infos:
-                matched = False
+            matched = False
+            os_infos: List[str] = []
+            for os_info_item in cls._get_detect_string(node):
+                if os_info_item:
+                    os_infos.append(os_info_item)
                 for sub_type in linux_factory.values():
                     linux_type: Type[Linux] = sub_type
                     pattern = linux_type.name_pattern()
@@ -95,6 +74,26 @@ class OperatingSystem:
     @property
     def is_linux(self) -> bool:
         return self._is_linux
+
+    @classmethod
+    def _get_detect_string(cls, node: Any) -> Iterable[str]:
+        typed_node: Node = node
+        cmd_result = typed_node.execute(cmd="lsb_release -d", no_error_log=True)
+        yield get_matched_str(cmd_result.stdout, cls.__lsb_release_pattern)
+
+        cmd_result = typed_node.execute(cmd="cat /etc/os-release", no_error_log=True)
+        yield get_matched_str(cmd_result.stdout, cls.__os_release_pattern_name)
+        yield get_matched_str(cmd_result.stdout, cls.__os_release_pattern_id)
+
+        # for RedHat, CentOS 6.x
+        cmd_result = typed_node.execute(
+            cmd="cat /etc/redhat-release", no_error_log=True
+        )
+        yield get_matched_str(cmd_result.stdout, cls.__redhat_release_pattern)
+
+        # for FreeBSD
+        cmd_result = typed_node.execute(cmd="uname", no_error_log=True)
+        yield cmd_result.stdout
 
 
 class Windows(OperatingSystem):
@@ -181,7 +180,7 @@ class Redhat(Linux):
 class CentOs(Redhat):
     @classmethod
     def name_pattern(cls) -> Pattern[str]:
-        return re.compile("^CentOS$")
+        return re.compile("^CentOS|Centos$")
 
 
 class Oracle(Redhat):
