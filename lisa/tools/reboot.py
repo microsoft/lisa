@@ -1,6 +1,7 @@
 from typing import Any
 
 from lisa.executable import Tool
+from lisa.util import LisaException
 from lisa.util.perf_timer import create_timer
 
 from .who import Who
@@ -35,3 +36,5 @@ class Reboot(Tool):
                 # error is ignorable, as ssh may be closed suddenly.
                 self._log.debug(f"ignorable ssh exception: {identifier}")
             self._log.debug(f"reconnected with uptime: {current_boot_time}")
+        if timer.elapsed() > self.time_out:
+            raise LisaException("timeout to wait reboot")
