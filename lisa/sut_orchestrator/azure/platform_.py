@@ -2,7 +2,7 @@ import json
 import logging
 import os
 import re
-from dataclasses import dataclass, field
+from dataclasses import InitVar, dataclass, field
 from datetime import datetime
 from functools import lru_cache
 from pathlib import Path
@@ -151,44 +151,56 @@ class AzureNodeSchema:
     # for gallery image, which need to accept terms
     purchase_plan: Optional[AzureVmPurchasePlanSchema] = None
 
-    def __post_init__(self, *args: Any, **kwargs: Any) -> None:
-        add_secret(self.vhd)
+    _gallery: InitVar[Optional[AzureVmGallerySchema]] = None
 
-        if isinstance(self.gallery_raw, dict):
-            self.gallery: Optional[
-                AzureVmGallerySchema
-            ] = AzureVmGallerySchema.schema().load(  # type: ignore
-                self.gallery_raw
-            )
-            # this step makes gallery_raw is validated, and filter out any unwanted
-            # content.
-            self.gallery_raw = self.gallery.to_dict()  # type: ignore
-        elif self.gallery_raw:
-            assert isinstance(
-                self.gallery_raw, str
-            ), f"actual: {type(self.gallery_raw)}"
-            gallery = re.split(r"[:\s]+", self.gallery_raw.strip())
+    @property
+    def gallery(self) -> Optional[AzureVmGallerySchema]:
+        # this is a safe guard and prevent mypy error on typing
+        if not hasattr(self, "_gallery"):
+            self._gallery: Optional[AzureVmGallerySchema] = None
+        gallery: Optional[AzureVmGallerySchema] = self._gallery
+        if not gallery:
+            if isinstance(self.gallery_raw, dict):
+                gallery = AzureVmGallerySchema.schema().load(  # type: ignore
+                    self.gallery_raw
+                )
+                # this step makes gallery_raw is validated, and filter out any unwanted
+                # content.
+                self.gallery_raw = gallery.to_dict()  # type: ignore
+            elif self.gallery_raw:
+                assert isinstance(
+                    self.gallery_raw, str
+                ), f"actual: {type(self.gallery_raw)}"
+                gallery_strings = re.split(r"[:\s]+", self.gallery_raw.strip())
 
-            if len(gallery) == 4:
-                self.gallery = AzureVmGallerySchema(
-                    gallery[0], gallery[1], gallery[2], gallery[3]
-                )
-                # gallery_raw is used
-                self.gallery_raw = self.gallery.to_dict()  # type: ignore
-            else:
-                raise LisaException(
-                    f"Invalid value for the provided gallery "
-                    f"parameter: '{self.gallery_raw}'."
-                    f"The gallery parameter should be in the format: "
-                    f"'<Publisher> <Offer> <Sku> <Version>' "
-                    f"or '<Publisher>:<Offer>:<Sku>:<Version>'"
-                )
+                if len(gallery_strings) == 4:
+                    gallery = AzureVmGallerySchema(*gallery_strings)
+                    # gallery_raw is used
+                    self.gallery_raw = gallery.to_dict()  # type: ignore
+                else:
+                    raise LisaException(
+                        f"Invalid value for the provided gallery "
+                        f"parameter: '{self.gallery_raw}'."
+                        f"The gallery parameter should be in the format: "
+                        f"'<Publisher> <Offer> <Sku> <Version>' "
+                        f"or '<Publisher>:<Offer>:<Sku>:<Version>'"
+                    )
+            self._gallery = gallery
+        return gallery
+
+    @gallery.setter
+    def gallery(self, value: Optional[AzureVmGallerySchema]) -> None:
+        self._status = value
+        if value is None:
+            self.gallery_raw = None
+        else:
+            self.gallery_raw = value.to_dict()  # type: ignore
 
     def get_image_name(self) -> str:
         result = ""
         if self.vhd:
             result = self.vhd
-        elif self.gallery_raw:
+        elif self.gallery:
             assert isinstance(
                 self.gallery_raw, dict
             ), f"actual type: {type(self.gallery_raw)}"
