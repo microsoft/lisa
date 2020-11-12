@@ -68,15 +68,16 @@ def target(pool: List[Target], request: SubRequest) -> Iterator[Target]:
     marker = request.node.get_closest_marker("lisa")
     features = set(marker.kwargs["features"])
 
+    # TODO: If `t` is not already in use, deallocate the previous
+    # target, and ensure the tests have been sorted (and so grouped)
+    # by their requirements.
     for t in pool:
         # TODO: Implement full feature comparison, etc. and not just
         # proof-of-concept string set comparison.
-        if all(
-            [
-                isinstance(t, platform),
-                t.parameters == parameters,
-                t.features >= features,
-            ]
+        if (
+            isinstance(t, platform)
+            and t.parameters == parameters
+            and t.features >= features
         ):
             yield t
             break
@@ -194,6 +195,10 @@ def pytest_collection_modifyitems(
     https://docs.pytest.org/en/latest/reference.html#pytest.hookspec.pytest_collection_modifyitems
 
     """
+    # TODO: The ‘Item’ object has a ‘user_properties’ attribute which
+    # is a list of tuples and could be used to hold the validated
+    # marker data, simplifying later usage.
+
     # Validate all LISA marks.
     for item in items:
         try:

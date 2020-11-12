@@ -1,14 +1,10 @@
 # NOTE: This is an adjusted proof-of-concept ask from Chi.
 criteria:
-  # select all p0 cases
-  # for example, selected three cases: a,b,c
+  # Select all Priority 0 tests.
   - priority: 0
-  # run smoke_test cases twice, to prove a distro stable enough
-  # after this rule, the picked test cases is like a,b,b
+  # Run tests with 'smoke' in the name twice.
   - name: smoke
     times: 2
-  # drop all cases of xdp,
-  # because it's not ready on a tested distro.
-  # for example, droped c, so now is: a,b
+  # Exclude all tests in Area "xdp"
   - area: xdp
     exclude: true

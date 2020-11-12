@@ -6,10 +6,8 @@ from abc import ABC, abstractmethod
 from io import BytesIO
 from uuid import uuid4
 
-from fabric import Config as FabricConfig  # type: ignore
-from fabric import Connection
-from invoke import Config as InvokeConfig  # type: ignore
-from invoke import Context
+import fabric  # type: ignore
+import invoke  # type: ignore
 from invoke.runners import Result  # type: ignore
 from schema import Schema  # type: ignore
 from tenacity import retry, stop_after_attempt, wait_exponential  # type: ignore
@@ -28,7 +26,7 @@ class Target(ABC):
     features: Set[str]
     name: str
     host: str
-    connection: Connection
+    conn: fabric.Connection
 
     def __init__(
         self,
@@ -57,8 +55,8 @@ class Target(ABC):
             # Set PATH since it’s not a login shell.
             "PATH": "/sbin:/usr/sbin:/usr/local/sbin:/bin:/usr/bin:/usr/local/bin"
         }
-        self.connection = Connection(
-            self.host, config=FabricConfig(overrides=config), inline_ssh_env=True
+        self.connection = fabric.Connection(
+            self.host, config=fabric.Config(overrides=config), inline_ssh_env=True
         )
 
     # TODO: Use an abstract class property to ensure this is defined.
@@ -82,15 +80,16 @@ class Target(ABC):
         ...
 
     # A class attribute because it’s defined.
-    local_context = Context(config=InvokeConfig(overrides=lisa.config))
+    local_context = invoke.Context(config=invoke.Config(overrides=lisa.config))
 
     @classmethod
     def local(cls, *args: Any, **kwargs: Any) -> Result:
         """This patches Fabric's 'local()' function to ignore SSH environment."""
         return Target.local_context.run(*args, **kwargs)
 
-    # TODO: Generate these automatically. There’s some weird bug with
-    # inheriting from ‘Connection’ that causes infinite recursion.
+    # TODO: Refactor this. We don’t want to inherit from `Connection`
+    # because that’s overly complicated. Honestly we probably just
+    # want users to call `target.conn.run()` etc.
     def run(self, *args: Any, **kwargs: Any) -> Result:
         return self.connection.run(*args, **kwargs)
 
