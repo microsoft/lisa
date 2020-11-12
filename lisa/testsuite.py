@@ -17,6 +17,7 @@ from lisa.util import (
     LisaException,
     PartialPassedException,
     constants,
+    get_datetime_path,
     set_filtered_fields,
 )
 from lisa.util.logger import get_logger
@@ -324,25 +325,13 @@ class TestSuite(Action):
     def after_case(self) -> None:
         pass
 
-    def _ensure_case_path(self, case_name: str, create_new: bool = True) -> Path:
-        folder_index = 0
+    def _create_case_log_path(self, case_name: str) -> Path:
         while True:
-            if folder_index == 0:
-                path_name = f"{case_name}"
-            else:
-                path_name = f"{case_name}_{folder_index}"
+            path_name = f"{get_datetime_path()}-{case_name}"
             path = constants.RUN_LOCAL_PATH.joinpath(path_name)
             if not path.exists():
                 break
-            folder_index += 1
-        if create_new:
-            path.mkdir()
-        else:
-            folder_index -= 1
-            if folder_index <= 0:
-                path_name = f"{case_name}"
-            else:
-                path_name = f"{case_name}_{folder_index}"
+        path.mkdir()
         return path
 
     # TODO: This entire function is one long string of side-effects.
