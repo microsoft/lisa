@@ -470,9 +470,9 @@ class Tools:
                     tool_log.debug(f"installed in {timer}")
                 else:
                     raise LisaException(
-                        f"doesn't support install {tool.name} on "
-                        f"Node({self._node.index}), "
-                        f"Linux({self._node.is_linux}), "
+                        f"doesn't support install [{tool.name}] on "
+                        f"{self._node.name}, "
+                        f"{self._node.os.__class__.__name__}, "
                         f"Remote({self._node.is_remote})"
                     )
             else:
