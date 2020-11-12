@@ -42,7 +42,7 @@ class Provisioning(TestSuite):
         )
         if not is_ready:
             serial_console = node.features[SerialConsole]
-            case_path = self._ensure_case_path(case_name)
+            case_path = self._create_case_log_path(case_name)
             serial_console.check_panic(saved_path=case_path)
             raise LisaException(
                 f"cannot connect to [{node.public_address}:{node.public_port}]"
@@ -56,7 +56,7 @@ class Provisioning(TestSuite):
             self.log.info(f"node {node.name} rebooted in {timer}")
         except Exception as identifier:
             if not case_path:
-                case_path = self._ensure_case_path(case_name)
+                case_path = self._create_case_log_path(case_name)
             serial_console = node.features[SerialConsole]
             # if there is any panic, fail before parial passed
             serial_console.check_panic(saved_path=case_path)
