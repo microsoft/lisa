@@ -58,13 +58,14 @@ class Dmesg(Tool):
         return result
 
     def _run(self, force_run: bool = True) -> ExecutableResult:
-        if not self._cached_result or force_run:
+        if self._cached_result is None or force_run:
             # sometime it need sudo, we can retry
             # so no_error_log for first time
             result = self.run(no_error_log=True)
             if result.stderr:
                 # may need sudo
                 result = self.node.execute("sudo dmesg")
+            self._cached_result = result
         else:
             result = self._cached_result
         return result
