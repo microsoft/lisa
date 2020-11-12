@@ -7,7 +7,7 @@ evaluating the feasibility of leveraging
 Please see [PR #1065](https://github.com/LIS/LISAv2/pull/1065) for a working,
 proof-of-concept prototype.
 
-Authored by Andrew Schwartzmeyer (he/him), version 0.1.0.
+Authored by Andrew Schwartzmeyer (he/him), version 0.2.0.
 
 ## Why Pytest?
 
@@ -15,10 +15,11 @@ Pytest is an [incredibly popular](https://docs.pytest.org/en/stable/talks.html)
 MIT licensed open source Python testing framework. It has a thriving community
 and plugin framework, with over 750
 [plugins](https://plugincompat.herokuapp.com/). Instead of writing (and
-therefore maintaining) yet another test framework, we would do less with more by
+therefore maintaining) yet another test framework, we would do more with less by
 reusing Pytest and existing plugins. This will allow us to focus on our unique
 problems: organizing and understanding our tests, deploying necessary resources
-(such as Azure or Hyper-V virtual machines), and analyzing our results.
+(such as Azure, Hyper-V, or bare metal machines, collectively known as
+“targets”), and analyzing our results.
 
 In fact, most of Pytest itself is implemented via [built-in
 plugins](https://docs.pytest.org/en/stable/plugins.html), providing us with many
@@ -43,23 +44,315 @@ needs very well:
 * Modular setup/teardown via fixtures
 * Incredibly customizable (as detailed above)
 
-So all the logic for describing, discovering, running, skipping based on
-requirements, and reporting results of the tests is already written and
-maintained by the greater open source community, leaving us to focus on our hard
-and specific problem: creating an abstraction to launch the necessary nodes in
-our environments. Using Pytest would also allow us the space to abstract other
+So all the logic for describing, discovering, running, skipping and reporting
+results of the tests, as well as enabling and importing users’ plugins is
+already written and maintained by the open source community. This leaves us to
+focus on our hard and specific problems: creating an abstraction to launch the
+necessary targets, organizing and publishing our tests, and reporting test
+results upstream. Using Pytest would also allow us the space to abstract other
 commonalities in our specific tests. In this way, LISAv3 could solve the
 difficulties we have at hand without creating yet another test framework.
 
-## High-Level Design Decisions
+Finally, by leveraging such a popular framework and reducing the amount of code
+we need to maintain, we drastically increase our chances of receiving pull
+requests instead of bug reports from users. This is important because despite
+our best efforts it is practically guaranteed that as adoption of LISAv3
+increases, users will want changes to be made, and we need to empower them to do
+so themselves.
 
-### What are the User Modes?
+## What are we maintaining?
 
-Because Pytest is infinitely customizable, we want to provide a few sets of
+The current proof-of-concept implementation uses the top-level `conftest.py`
+file to define our “plugin” functionality. This works, but it is not ideal. I
+believe that we will want to publish two open source Pytest plugins as packages
+on [PyPI](https://pypi.org/), the Python Package Index: `pytest-target` and
+`pytest-lisa`. We will also maintain our set of public “LISA” tests, but these
+should simply install and use our plugins.
+
+The `pytest-target` plugin should encapsulate all our logic for _how_ and _when_
+to deploy targets (local or cloud virtual machines, or bare metal machines, and
+all the associated resources), run tests on the specified targets, and delete
+the targets. This includes specifying which features and resources each test
+needs and each given target provides (such as number of cores, amount of RAM,
+and other hardware like a GPU etc.), how to deploy and delete each target based
+on its platform, and parameterization of the `target` fixture based on CLI or
+YAML file input. In fact, some tests (like networking) will require multiple
+targets at once. This plugin will need to manage resources intelligently, being
+able to optimize for both time and cost, and make it easy for tests to request
+and use various resources.
+
+The `pytest-lisa` plugin should encapsulate all our logic for how to organize
+and select tests, as well as our opinions on displaying test results. This
+includes the user modes, test metadata and inventory, test selection based on
+criteria against that metadata, required and pre-configured upstream plugins,
+and result notifiers. It will similarly support both CLI and YAML file input.
+
+We should strive to keep these plugins from depending on each other in order to
+keep their scope well-defined. In the “LISA” repository of tests we will depend
+on the two plugins and maintain additional fixtures for our tests’ unique
+requirements. Similarly, we and others may have private test repositories which
+build upon the above by defining new platform support and internal service
+integrations.
+
+## pytest-target
+
+### How are targets provided and accessed?
+
+First we need to define “target” as an instance of a system-under-test. That is,
+given some environment requirements, such an Azure image (URN) and size (SKU), a
+target would be a virtual machine deployed by `pytest-target` with SSH access
+provided to the requesting test. A target could optionally be pre-deployed and
+simply connected. Some tests may request multiple targets as well.
+
+Pytest uses [fixtures](https://docs.pytest.org/en/stable/fixture.html), which
+are the primary way of setting up test requirements. They replace less flexible
+alternatives like setup/teardown functions. It is through fixtures that we
+implement remote target setup/teardown. Our `target` fixture returns a `Target`
+instance, which currently provides:
+
+* Remote shell access via SSH
+* Data including hostname / IP address
+* Cross-platform ping functionality with exponential back-off
+* Uploading of local files to arbitrary remote destinations
+* Downloading of remote file contents into local string variable
+* Asynchronous remote command execution with promises
+
+The `Azure(Target)` subclass additionally provides:
+
+* Automatic provisioning of an Azure VM given URN and SKU
+* Allowing ICMP ping via Azure firewall rules
+* Azure platform forced reboot by API
+* Downloading boot diagnostics (serial console log) from platform
+
+The prototype demonstrates how easy it is to quickly implement these features.
+As we need more features, they can be readily added and shared among tests.
+
+The `Target` class leverages [Fabric](https://www.fabfile.org/) which is a
+popular high-level Python library for executing shell commands on remote systems
+over SSH. Underneath the covers Fabric uses
+[paramiko](https://docs.paramiko.org/en/stable/), the most popular low-level
+Python SSH library. Fabric does the heavy lifting of safely connecting and
+disconnecting from the node, executing the shell command (synchronously or
+asynchronously), reporting the exit status, gathering the stdout and stderr,
+providing stdin (or interactive auto-responses, similar to `expect`), uploading
+and downloading files, and much more. In fact, these APIs are all available and
+implemented for the local machine by the underlying
+[Inovke](https://www.pyinvoke.org/) library, which is essentially a Python
+`subprocess` wrapper with “a powerful and clean feature set.”
+
+Other test specific requirements, such as installing software and daemons,
+downloading files from remote storage, or checking the state of our Bash test
+scripts, would similarly be implemented by methods on the `Target` class or via
+additional fixtures and thus shared among tests.
+
+### How do we interact with Azure?
+
+For Azure, we currently use the [Azure CLI](https://aka.ms/azureclidocs) to
+deploy a virtual machine. For Hyper-V (and other virtualization platforms), we
+would like to use [libvirt](https://libvirt.org/python.html), and for embedded
+environments we are evaluating
+[labgrid](https://github.com/labgrid-project/labgrid).
+
+If possible, we do not want to use the [Azure Python
+APIs](https://aka.ms/azsdk/python/all) directly because they are more
+complicated (and less documented) than the [Azure
+CLI](https://aka.ms/azureclidocs). With Invoke (as discussed above), `az`
+becomes incredibly easy to work with. The Azure CLI lead developer states that
+they have [feature parity](https://stackoverflow.com/a/50005660/1028665) and
+that the CLI is more straightforward to use. Considering our ease-of-maintenance
+requirement, this seems the apt choice. If it later becomes necessary to use the
+Python APIs directly, that is, of course, still doable.
+
+### What’s the `Target` class?
+
+In version 0.1 of this design document we detailed a planned refactor of what
+was then called the `Node` class. This has since been executed with just a few
+modifications (one being the rename to `Target`, as `Node` was found to be an
+overloaded term in the context of data centers). This class and its subclasses
+are decoupled from Pytest, and are used via fixtures. It looks like this:
+
+```python
+from abc import ABC, abstractmethod
+from schema import Schema
+import fabric
+
+class Target(ABC):
+    parameters: Mapping[str, str]
+    features: Set[str]
+    name: str
+    host: str
+    conn: fabric.Connection  # Provides run, sudo, get, put etc.
+
+    def __init__(...):
+        ...
+        self.host = self.deploy()
+        self.conn = fabric.Connection(self.host)
+
+    @classmethod
+    @property
+    @abstractmethod
+    def schema(cls) -> Schema:
+        """Must return the parameters schema for setup."""
+        ...
+
+    @abstractmethod
+    def deploy(self) -> str:
+        """Must deploy the target resources and return hostname."""
+        ...
+
+    @abstractmethod
+    def delete(self) -> None:
+        """Must delete the target resources."""
+        ...
+
+    @classmethod
+    def local(...) -> Result:
+        """Runs a local shell command."""
+        ...
+```
+
+#### How are platforms implemented?
+
+Platform support is implemented by subclassing `Target` and defining the
+`schema` property, `deploy` method, `delete` method, and any platform-specific
+methods. Using the `__subclasses__` attribute of `Target` the available
+platforms and their parameter schemata are automatically gathered from users’
+own `conftest.py` files and other plugins. This enables the `target` fixture to
+dynamically instantiate a target from the gathered requirements and parameters.
+
+#### How are requirements examined?
+
+The `features` attribute is currently a set of strings and (combined with the
+parameters dictionary) was used to demonstrate how we can test if an existing
+target instance (representing a deployed machine) met a test’s requirements. It
+should be updated with a `Requirements` class that represents all physical
+attributes of the target, and a `requires` Pytest mark should be added which
+takes instances of this class. Two `Requirements` should be comparable to
+determine if one set meets (or exceeds) the other set.
+
+#### How do we share common tasks?
+
+Common tasks for targets like rebooting and pinging should be implemented on the
+`Target` class, and platform-specific tasks on the respective subclass.
+
+Methods available from `Connection` include `run()` and `sudo()` which are used
+to easily run arbitrary commands, and `get()` and `put()` to download and upload
+arbitrary files.
+
+The `cat()` method wraps `get()` and returns the file as data in a string. This
+makes test code like this possible:
+
+```python
+assert target.conn.cat("state.txt") == "TestCompleted"
+```
+
+A `reboot()` method should be added that first tries to use `sudo("reboot",
+timeout=5)` (with a short timeout to avoid a hung SSH session). It should retry
+with an exponential back-off to see if the machine has rebooted by checking
+either `uptime` or the existence of a file created before the reboot. This is to
+avoid having to `sleep()` and just guess the amount of time it takes to reboot.
+
+A `restart()` method should “power cycle” the machine using the platform’s API,
+and thus is in abstract method.
+
+Other tools and shared logic should be implemented as necessary. A major area of
+concern is the automatic and package-manager agnostic installation of necessary
+tools, much of which has been implemented previously and can be integrated.
+
+### How are targets requested and managed?
+
+We implement a pair of Pytest fixtures to provide targets. The first is the
+`pool` fixture, which looks like:
+
+```python
+@pytest.fixture(scope="session")
+def pool(request: SubRequest) -> Iterator[List[Target]]:
+    """This fixture tracks all deployed target resources."""
+    targets: List[Target] = []
+    yield targets
+    for t in targets:
+        t.delete()
+```
+
+The `pool` fixture is setup once at the beginning of the test session, at which
+point the `targets` list is then provided as input to every instance of the
+`target` fixture. While currently a list, to support optimal scheduling we will
+likely want to use a priority queue, where the priority of a target represents
+its cost (whether in terms of time or money), allowing us to provide either the
+fastest or the cheapest target to each request. Targets not in use will be
+deallocated, and all targets will be automatically deleted after the tests are
+finished (unless the user requested otherwise, in which case they’ll be cached).
+
+Note that cross-session [caching](https://docs.pytest.org/en/stable/cache.html)
+is provided by Pytest, and very easy to work with. An early prototype
+implemented a `--keep-vms` flag successfully, and this will be implemented again
+with the updated design.
+
+The second is the `target` fixture, which looks like:
+
+```python
+@pytest.fixture
+def target(pool: List[Target], request: SubRequest) -> Iterator[Target]:
+    """This fixture provides a connected target for each test."""
+    platform: Type[Target] = playbook.PLATFORMS[request.param["platform"]]
+    parameters: Dict[str, Any] = request.param["parameters"]
+    marker = request.node.get_closest_marker("lisa")
+    features = set(marker.kwargs["features"])
+
+    # TODO: If `t` is not already in use, deallocate the previous target.
+    for t in pool:
+        if isinstance(t, platform) and t.parameters == parameters and t.features >= features:
+            yield t
+            break
+    else:
+        t = platform(parameters, features)
+        pool.append(t)
+        yield t
+    t.connection.close()
+```
+
+This is obviously still an early implementation, but it is viable. By using the
+[pytest_collection_modifyitems][] hook to sort (and so group) the tests by their
+requirements, the tests would efficiently reuse targets. This fixture is
+indirectly parameterized during setup with the [pytest_generate_tests][] hook.
+Test and fixture [parameterization][] is a huge feature of Pytest. When we
+parameterize the `target` fixture for multiple targets (e.g. “Ubuntu” and
+“Debian”), Pytest automatically creates a set of tests for each target. So
+`test_smoke` turns into `test_smoke[Ubuntu]` and `test_smoke[Debian]`. This
+allows us to run a collection of tests against multiple targets with ease. These
+targets are defined in a YAML file and validated against the parameters
+collected from the previously described platform subclasses.
+
+### How are tests executed in parallel?
+
+While our original list of goals stated that we want to run tests “in parallel”
+we were not specific about what was meant, and the topic of parallelism and
+concurrency is understandably complex. We certainly don’t mean running two tests
+at once on the same target, as this would undoubtedly lead to flaky tests.
+
+Assuming that we care about a set of tests passing on a particular image and
+size combination, but not necessarily on a particular deployed instance, then we
+can run tests concurrently by deploying multiple “identical” targets and
+splitting the tests across them. The tests would still run in isolation on each
+target. This sounds hard, but actually it’s practically free with Pytest via
+[pytest-xdist][].
+
+The default `pytest-xdist` implementation simply takes the list of tests and
+runs them in a round-robin fashion with the desired number of executors. We’ve
+talked at length about being able to schedule groups of tests to run in
+particular executors and using particular targets. While there are many paths
+open to us, this plugin actually provides a hook, `pytest_xdist_make_scheduler`
+that exists specifically to “implement custom tests distribution logic.”
+
+## pytest-lisa
+
+### What are the user modes?
+
+Because Pytest is incredibly customizable, we want to provide a few sets of
 reasonable default configurations for some common scenarios. We will add a flag
-like `--mode=[dev,debug,ci,demo]` to change the default options and output of
-Pytest. Doing so is readily supported by Pytest via the `pytest_addoption` and
-`pytest_configure` hooks. We call these the provided “user modes.”
+like `--lisa-mode=[dev,debug,ci,demo]` to change the default options and output
+of Pytest. Doing so is readily supported by Pytest via the [pytest_addoption][]
+and [pytest_configure][] hooks. We call these the provided “user modes.”
 
 * The dev(eloper) mode is intended for use by test developers while writing a
   new test. It is verbose, caches the deployed VMs between runs, and generates a
@@ -78,7 +371,7 @@ Pytest. Doing so is readily supported by Pytest via the `pytest_addoption` and
 * The demo mode will show the “executive summary” (a lot like CI, but finely
   tuned for demos). For example, what `make smoke` currently shows.
 
-### How Are Tests Described?
+### How are tests described?
 
 The built-in [pytest-mark](https://docs.pytest.org/en/stable/mark.html) plugin
 already provides functionality for adding metadata to tests, where we
@@ -86,7 +379,7 @@ specifically want:
 
 * Platform: used to skip tests inapplicable to the current system-under-test
 * Category: our high-level test organization
-* Area: feature being tested (could default to module name)
+* Area: feature being tested
 * Priority: self-explanatory
 * Tags: optional additional metadata for test organization
 
@@ -98,35 +391,75 @@ It looks like this:
 ```python
 import pytest
 
-@pytest.mark.lisa(
-    platform="Azure", category="Functional", area="LIS_DEPLOY", priority=0, tags=["lis"]
-)
-def test_lis_driver_version(node: Node) -> None:
+@pytest.mark.lisa(platform="Azure", category="Functional", priority=0, area="LIS_DEPLOY")
+def test_lis_driver_version(target: Azure) -> None:
     """Checks that the installed drivers have the correct version."""
     ...
 ```
 
 This is a functional example, which takes zero implementation. With this simple
-decorator, all test collection hooks can introspect the metadata, enforce
+decorator, all test [collection hooks][] can introspect the metadata, enforce
 required parameters and set defaults, select tests based on arbitrary criteria,
 and list test coverage statistics.
 
 Note that Pytest leverages Python’s docstrings for built-in documentation (and
-can even run tests discovered in such strings, like doctest). Being just Python
-code, this decorator need not be `@pytest.mark.lisa(...)` but can trivially be
-provided as simply `@lisa(...)`.
+can even run tests discovered in such strings, like doctest). Hence we do not
+have a separate field for the test’s documentation.
+
+Being just Python code, this decorator need not be `@pytest.mark.lisa(...)` but
+can trivially be provided as simply `@LISA(...)`. In fact, we provide this in
+`lisa.py` with:
+
+```python
+LISA = pytest.mark.lisa
+
+@LISA(...)
+def test_something(...)
+```
+
+Currently we validate the parameters given to this mark during test collection,
+by using the following code, which leverages the [schema][] library:
+
+```python
+from schema import Optional, Or, Schema
+
+lisa_schema = Schema(
+    {
+        "platform": str,
+        "category": Or("Functional", "Performance", "Stress", "Community", "Longhaul"),
+        "area": str,
+        "priority": Or(0, 1, 2, 3),
+        Optional("tags", default=list): [str],
+    },
+)
+
+def validate(mark: Mark) -> None:
+    """Validate each test's LISA parameters."""
+    assert not mark.args, "LISA marker cannot have positional arguments!"
+    mark.kwargs.update(lisa_schema.validate(mark.kwargs))
+```
+
+In the future we could change `LISA` to be a function with these keyword
+arguments so that IDE auto-completion is enabled. However, this is not mandatory
+to move forward, and parameter validation is enabled succinctly with the above.
 
 This mark also does need to be repeated for each test, as marks can be scoped to
 a module, and so one line could describe defaults for every test in a file, with
-individual tests overriding parameters as needed. We may also introduce marks
-such as `@pytest.mark.slow` to allow for easier test selection.
+individual tests overriding parameters as needed.
 
-We even have a prototype
+In the current implementation, we also take a `features: List[str]` argument
+that is used to prove the concept deploying (or reusing) a target based on the
+test’s required and the target’s available sets of features. However, as we move
+forward we should define a separate `requires` mark that takes well-defined
+classes describing the minimal required resources for a test. This will be part
+of the refactor into the two Pytest plugins mentioned above.
+
+Furthermore, we have a prototype
 [generator](https://github.com/LIS/LISAv2/tree/pytest/generator) which parses
 LISAv2 XML test descriptions and generates stubs with this mark filled in
 correctly.
 
-### How Are Tests Selected?
+### How are tests selected?
 
 Pytest already allows a user to specify which exact tests to run:
 
@@ -135,28 +468,86 @@ Pytest already allows a user to specify which exact tests to run:
 * Specifying a mark expression on the CLI (e.g. `-m functional and not slow`)
 
 We can also implement any other mechanism via the
-`pytest_collection_modifyitems` hook. There’s already a
-[proof-of-concept](https://github.com/LIS/LISAv2/blob/ab01c33f1f1e1ffac7100f6a69beda07192f05bb/pytest/conftest.py#L49)
-which uses selection criteria read from a YAML file:
+[pytest_collection_modifyitems][] hook. The proof-of-concept supports gathering
+selection criteria from a YAML file:
 
 ```yaml
-# Select all Priority 0 tests
-- criteria:
-    priority: 0
-# Exclude all tests in Area "xdp"
-- criteria:
-    area: xdp
-  select_action: forceExclude
-# Run test with name `test_smoke` twice
-- criteria:
-    name: test_smoke
-  times: 2
+criteria:
+  # Select all Priority 0 tests.
+  - priority: 0
+  # Run tests with 'smoke' in the name twice.
+  - name: smoke
+    times: 2
+  # Exclude all tests in Area "xdp"
+  - area: xdp
+    exclude: true
 ```
 
-However, before we settle on the basic schema understood by the
-proof-of-concept, we should write and _review_ a full schema.
+This criteria is validated against the following [schema][]:
 
-### How Are Results Reported?
+```python
+from schema import Schema, Optional
+
+criteria_schema = Schema(
+    {
+        # TODO: Validate that these strings are valid regular
+        # expressions if we change our matching logic.
+        Optional("name", default=None): str,
+        Optional("area", default=None): str,
+        Optional("category", default=None): str,
+        Optional("priority", default=None): int,
+        Optional("tags", default=list): [str],
+        Optional("times", default=1): int,
+        Optional("exclude", default=False): bool,
+    }
+)
+```
+
+The test collection is then modified using the Pytest hook,
+[pytest_collection_modifyitems][]:
+
+```python
+def pytest_collection_modifyitems(
+    session: Session, config: Config, items: List[Item]
+) -> None:
+    included: List[Item] = []
+    excluded: List[Item] = []
+
+    def select(item: Item, times: int, exclude: bool) -> None:
+        if exclude:
+            excluded.append(item)
+        else:
+            for _ in range(times - included.count(item)):
+                included.append(item)
+
+    for c in criteria: # Where `criteria` is from the schema.
+        for item in items:
+            marker = item.get_closest_marker("lisa")
+            if not marker:
+                # Not all tests will have the LISA marker, such as
+                # static analysis tests.
+                continue
+            i = marker.kwargs
+            if any(
+                [
+                    c["name"] and c["name"] in item.name,
+                    c["area"] and c["area"].casefold() == i["area"].casefold(),
+                    c["category"]
+                    and c["category"].casefold() == i["category"].casefold(),
+                    c["priority"] and c["priority"] == i["priority"],
+                    c["tags"] and set(c["tags"]) <= set(i["tags"]),
+                ]
+            ):
+                select(item, c["times"], c["exclude"])
+    items[:] = [i for i in included if i not in excluded]
+```
+
+Because this is simply a Python list, we can also sort the tests according to
+our needs, such as by priority. If the `python-targets` plugin has already
+sorted by requirements, that’s just fine, Python’s `sorted()` built-in is
+guaranteed to be stable (meaning we can sort in multiple passes).
+
+### How are results reported?
 
 Parsing the results of a large test suite can be difficult. Fortunately, because
 Pytest is a testing framework, there already exists support for generating
@@ -173,104 +564,15 @@ community plugin
 [pytest-azurepipelines](https://pypi.org/project/pytest-azurepipelines/) which
 enhances the standard JUnit report for ADO.
 
-### How Are Nodes Provided and Accessed?
+However, we also have internal requirements to report test results throughout
+the test life cycle to a database to be consumed by other tools. In this sense,
+LISAv3 (the composition of our published plugins, tests, and fixtures) is simply
+a producer. Our repository’s `conftest.py` can implement the necessary logic
+using Pytest’s ample [test running hooks][]. In particular, the hook
+[pytest_runtest_makereport][] is called for each of the setup, call and teardown
+phases of a test. As such it can used for precisely this purpose.
 
-First we need to define “node” as an instance of a system-under-test. That is,
-given some environment requirements, such an Azure image (URN) and image (SKU),
-a node would be a virtual machine deployed by Pytest with SSH access provided to
-the tests. A node could optionally be deployed outside Pytest.
-
-Pytest uses [fixtures](https://docs.pytest.org/en/stable/fixture.html), which
-are the primary way of setting up test requirements. They replace less flexible
-alternatives like setup/teardown functions. It is through fixtures that we
-implement remote node setup/teardown. Our node fixture currently provides:
-
-* Automatic provisioning of an Azure VM given URN and SKU
-* Remote shell access via SSH
-* Data including hostname / IP address for local tools
-* Cross-platform ping functionality with exponential back-off
-* Allowing ICMP ping via Azure firewall rules
-* Platform API reboot
-* Uploading of local files to arbitrary remote destinations
-* Downloading of remote file contents into local string variable
-* Downloading boot diagnostics (serial console log) from platform
-* Asynchronous remote command execution with promises
-
-The prototype demonstrates how easy it is to quickly implement these features.
-As we need more features, they can be readily added and shared among tests.
-
-Our abstraction leverages [Fabric](https://www.fabfile.org/) which is a popular
-high-level Python library for executing shell commands on remote systems over
-SSH. Underneath the covers it uses
-[paramiko](https://docs.paramiko.org/en/stable/), the most popular low-level
-Python SSH library. Fabric does the heavy lifting of safely connecting and
-disconnecting from the node, executing the shell command (synchronously or
-asynchronously), reporting the exit status, gathering the stdout and stderr,
-providing stdin (or interactive auto-responses, similar to `expect`), uploading
-and downloading files, and much more. In fact, these APIs are all available and
-implemented for the local machine by the underlying
-[Inovke](https://www.pyinvoke.org/) library, which is essentially a Python
-`subprocess` wrapper with “a powerful and clean feature set.”
-
-Other test specific requirements, such as installing software and daemons,
-downloading files from remote storage, or checking the state of our Bash test
-scripts, would similarly be implemented by methods on the `Node` class or via
-additional fixtures and thus shared among tests.
-
-For Azure, we use the [Azure CLI](https://aka.ms/azureclidocs) to deploy a
-virtual machine. For Hyper-V (and other virtualization platforms), we would like
-to use [libvirt](https://libvirt.org/python.html), and for embedded
-environments we are evaluating
-[labgrid](https://github.com/labgrid-project/labgrid).
-
-Tests do not need to explicitly call for a node to be provided, and we do not
-need to write much code to setup this resource-provider logic. We simply define
-a `Node` class and a Pytest fixture which returns one:
-
-```python
-@pytest.fixture(scope="session")
-def node(request: FixtureRequest) -> Iterator[Node]:
-    """Return the current node for any test which requests it."""
-    with Node(<URN, SKU, etc.>) as n:
-        yield n
-
-@pytest.mark.lisa(...)
-def test_uptime(node: Node) -> None
-    """Automatically has access to the current node because of the argument."""
-    # Runs `uname` via SSH and asserts it's Linux.
-    assert node.run("uname").stdout.strip() == "Linux"
-```
-
-When created, the `Node` instance either uses a cached node or deploys a new one
-based on the given parameters (which can be provided at runtime). When the scope
-of the fixture is exited (in this example, the test session), the `Node`
-instance deletes its deployed resource unless requested not to by the user,
-which is currently controlled by the `--keep-vms` flag.
-
-To provide the parameters to the node fixture, the prototype currently
-implements a simple `@pytest.mark.deploy(...)` mark which takes `vm_image`,
-`vm_size`, etc., and it’s applied to each function. This worked for the demo,
-and proved the concept; however, we will want to provide a mechanism for
-specifying lists of environments and their required resources to the tests at
-runtime. This will likely be a YAML file that is parsed at initialization and
-used to parameterize the node fixture itself, causing all the tests to be
-executed for each environment. For more details, see the section “Where Does
-Parameterization Happen?”
-
-See the Detailed Design Decisions below for what the `Node` class looks like.
-
-#### Interaction with Azure
-
-We do not use the [Azure Python APIs](https://aka.ms/azsdk/python/all) directly
-because they are more complicated (and less documented) than the [Azure
-CLI](https://aka.ms/azureclidocs). With Invoke (as discussed above), `az`
-becomes incredibly easy to work with. The Azure CLI lead developer states that
-they have [feature parity](https://stackoverflow.com/a/50005660/1028665) and
-that the CLI is more straightforward to use. Considering our ease-of-maintenance
-requirement, this seems the apt choice. If it later becomes necessary to use the
-Python APIs directly, that is, of course, still allowed by our design.
-
-### How Are Tests Timed Out?
+### How are tests timed out?
 
 The [pytest-timeout](https://pypi.org/project/pytest-timeout/) plugin provides
 integrated timeouts via `@pytest.mark.timeout(<N seconds>)`, a configuration
@@ -278,7 +580,7 @@ file option, environment variable, and CLI flag. The Fabric library provides
 timeouts in both the configuration and per-command usage. These are already used
 to satisfaction in the prototype.
 
-### How Are Tests Organized?
+### How are tests organized?
 
 That is, what does a folder of tests map to: a platform, feature, or owner?
 
@@ -308,7 +610,7 @@ test dictates if the tests below it should be skipped. If it passes, it implies
 the tests underneath it would pass, and so skips them; but if it fails, the next
 test below it runs and so on until a passing layer is found.
 
-### How Will We Port LISAv2 Tests?
+### How will we port LISAv2 tests?
 
 Given the above, we still must decide if we want to put the engineering effort
 into porting _every_ LISAv2 test. However, the prototype started by porting the
@@ -327,31 +629,10 @@ This work needs to be done regardless of the approach we take with our framework
 (leveraging Pytest or writing our own), and it is not inconsequential work. It
 needs to be thoroughly planned and executed, and is certainly a ways off.
 
-### What Do Parallel Tests Mean?
+### How are tests and functions retried?
 
-While our original list of goals stated that we want to run tests “in parallel”
-we were not specific about what was meant, and the topic of parallelism and
-concurrency is understandably complex. We certainly don’t mean running two tests
-at once on the same node, as this would undoubtedly lead to flaky tests.
-
-Assuming that we care about a set of tests passing on a particular image and
-size combination, but not necessarily on a particular deployed instance, then we
-can run tests concurrently by deploying multiple “identical” nodes and splitting
-the tests across them. The tests would still run in isolation on each node. This
-sounds hard, but actually it’s practically free with Pytest if the node fixture
-is session scoped and we use
-[pytest-xdist](https://pypi.org/project/pytest-xdist/) as described below.
-
-It’s also unlikely that we want to write our tests using the Async I/O pattern,
-because we do not want tests to accidentally conflict with each other. While
-[pytest-asyncio](https://pypi.org/project/pytest-asyncio/) exists, our
-concurrency model is probably as described above: split the tests among multiple
-identical nodes.
-
-### How Are Tests and Functions Retried?
-
-Testing remote instances is inherently flaky, so we take a two-pronged approach
-to dealing with the flakiness.
+Testing remote targets is inherently flaky, so we take a two-pronged approach to
+dealing with the flakiness.
 
 The [pytest-rerunfailures](https://pypi.org/project/pytest-rerunfailures/)
 plugin will be used to easily mark a test itself as flaky. It has the nice
@@ -392,191 +673,29 @@ We can additionally list a test twice when modifying the items collection, as
 implemented in the criteria proof-of-concept. However, given the above
 abilities, this may not be desired.
 
-### Where Does Parameterization Happen?
+## What Else?
 
-Do we parameterize
-[tests](https://docs.pytest.org/en/stable/parametrize.html#parametrizemark) or
-[fixtures](https://docs.pytest.org/en/stable/fixture.html#fixture-parametrize)?
+There’s still a lot more to think about and design. A non-exhaustive list of
+future topics (some touched on above):
 
-This all comes down to how we want to use LISA. If we want to put a single
-system under test at a time, and run all possible tests against it, then it
-would make sense to parameterize the node fixture across the set of images to
-test. I believe this to likely be the case.
+* Tests inventory (generating statistics from metadata)
+* ARM template support (with Azure CLI)
+* Servicing Azure CLI (how stable is their API?)
+* libvirt driver support (gives us Hyper-V and more)
+* Duration reporting (built-in)
+* Self-documentation (via Pydoc)
+* Environment class design
+* Feature requests (NICs in particular)
+* Selection and targets YAML schema
+* Secret management
+* External results reporting (database and emails)
+* Embedded systems / bare metal support
+* Managing Python `logging` records
+* Managing shell command stdout/stderr
 
-A parameterized node fixture would be session-scoped. This would enable us to
-take advantage of [pytest-xdist](https://pypi.org/project/pytest-xdist/) for
-running the tests concurrently against multiple nodes, where each forked runner
-has its own node. Note that the cache key for deployed nodes will need to
-include an identifier to separate the parallel runs, but this is available.
+## What alternatives were tried?
 
-This approach would let us list a number of images and sizes (or a matrix
-combination of them) and then run all requested tests against each of those.
-However, it means that tests will need to be intelligent enough to [skip or
-xfail](https://docs.pytest.org/en/stable/skipping.html) on systems where they do
-not apply. This can be done in test code to start with. As commonalities are
-realized they can be refactored into simple, reusable feature checks.
-
-Finally, while the base (and most common) case of tests which require one node
-becomes trivially solved, we still have to deal with the edge cases of tests
-which use two or three nodes. Determining the best course of action here
-requires investigating how and when those tests are run, and if the node pair or
-triple all use the same image and size. An easy solution would be to have a test
-which requires a second or third node to simply deploy them through a
-function-scoped fixture, and tear them down at the end. This may be costly in
-terms of time if there are many of these tests and they run frequently, but for
-long “performance” tests it would be an adequate option. Alternatively, we could
-have a node pool that the session-scoped node fixture uses, where each node is
-locked while in use. While this would take more engineering effort, it means we
-could use the nodes for running tests concurrently, and “borrow” a runner when a
-test needs another.
-
-Other ideas are welcome, but what we don’t want to do is change the environment
-a user is expecting their tests to run in. I do not think that we should use a
-“least common denominator” approach that collects feature requests and deploys
-nodes which match those features, as the user will lose control over their
-environment. We still want to enumerate features so tests can check if they’re
-applicable, but the user’s environment request should be respected.
-
-Alternatively, parameterizing tests means that each test (or module, or class,
-as the fixture could no longer be session-scoped) specifies in some way (whether
-in code or read at runtime from a file) what image/size combinations it should
-run against. This generally eliminates having to check if it should skip, but
-means that running the test suite will put multiple systems under test at once,
-the results of which may be difficult to interpret. While this is a viable
-route, it means maintaining a comprehensive list of which environments each
-tests use, and I think feature-checking is more scalable.
-
-This is an open question which we need to settle as the two methods can
-technically be combined, but we will want to be careful if we do this.
-
-Regardless of approach, we will want to write and _review_ a simple YAML schema
-for specifying the system-under-test targets. As described above, the prototype
-currently reads this information from a mark, but if we move forward with the
-suggestion above, the scope of the node fixture will change to session and it
-will become parameterized. Those parameters would be set at runtime by reading a
-given YAML file.
-
-### When Do We Export a Plugin?
-
-The current prototype is simply using Pytest. All the implementation is in the files
-`conftest.py` and `node_plugin.py`, the former of which is Pytest’s default
-“user plugin” file. We likely want to create a proper `pytest-lisa` package
-which provides our marks, fixtures, command-line parameters, user modes, and
-hook modifications for reading YAML files.
-
-This requires more research as doing so is obviously not necessary but is nice.
-
-## Detailed Design Decisions
-
-This section contains truly technical specifications of our current plans to
-bring the prototype to production.
-
-### Planned `Node` Class Refactor
-
-#### Basic Shape
-
-`Node` should still subclass `fabric.Connection`. It should be a partially
-abstract class with platform-specific subclasses (Azure, libvirt, an embedded
-device, etc.). However, the initializer and context manager methods _should not_
-need to be reimplemented by a platform subclass. Most added methods like
-`ping()` and `reboot()` should also be shared. This is where static type
-checking will help.
-
-An `Environment` class will be a collection of nodes in a group, for tests which
-require multiple nodes. It is important that `Node` is self-contained and does
-not require an `Environment` instance because the base case of most tests is to
-use a `Node`.
-
-#### Caching
-
-A `Node` should be able to be cached. If `--keep-vms` is given to Pytest, it
-should not delete the deployed VM resource and should instead cache its data so
-that a subsequent invocation can connect directly to it. A `Node` should also be
-able to connect directly to a system deployed outside Pytest, reusing the cache
-hydration logic. The `init()` and `__exit__()` methods will handle checking and
-updating the cache so that this logic is shared.
-
-Note that cross-session [caching](https://docs.pytest.org/en/stable/cache.html)
-is provided by Pytest, and very easy to work with. The existing prototype
-already implements `--keep-vms`.
-
-#### Initializing
-
-The `init()` method does the following:
-
-* Takes an optional group ID (provided by Environment for instance so that it’s
-  easy to create/deploy multiple nodes into one group) to generate its name and
-  deduce its group.
-
-* Checks the cache for the node’s key.
-
-* On a cache miss, calls `deploy()` and saves the returned host to the field
-  inherited from `Connection` and the rest of the platform-specific information
-  to a `data` dictionary field. Caches the data dictionary for the node’s key.
-
-* On a cache hit, saves the cached host and data to the instance.
-
-* Calls `super()` to setup `Connection` with our default Fabric configuration.
-
-#### Deploy and Delete
-
-* The `deploy()` and `delete()` methods are abstract and implemented by
-  platform-specific node classes to actually deploy the VM. For Azure, note that
-  `deploy()` will check if the resource group exists, and if not, creates it.
-  For `delete()` it will check if it is the last VM in the group, and if so
-  deletes the group too. Again this is to keep `Environment` from being a
-  requirement.
-
-* The group ID is `pytest-{uuid4()}` (maybe with `pytest` being replaced by a
-  user- or run-specific short identifier). The ID should be returned by a static
-  method so that when an `Environment` creates a collection of nodes, it can
-  simply use the static method to generate a shared group ID.
-
-* The context manager’s `__exit__()` method calls `super()` to disconnect and
-  potentially `delete()` the VM. If it’s to be deleted, the key/value pair is
-  also removed from the cache.
-
-* Because of how Python’s context managers work, we may not need to reimplement
-  `__enter__()` but will want to check its inherited implementation.
-
-#### Common Tasks
-
-Common tasks for systems under tests like rebooting and pinging should be
-implemented on the `Node` class.
-
-* Methods inherited from `Connection` include `run()`, `sudo()` and `local()`
-  which are used to easily run arbitrary commands, and `get()` and `put()` to
-  download and upload arbitrary files.
-
-* The `cat()` method (already implemented in the prototype) wraps `get()` and
-  returns the file as data in a string. This makes test code like this possible:
-
-  ```python
-  assert node.cat("state.txt") == "TestCompleted"
-  ```
-
-* Reboot should first try to use `self.sudo("reboot", timeout=5)` (with a short
-  timeout to avoid a hung SSH session). It should retry with an exponential
-  back-off to see if the machine has rebooted by checking either `uptime` or the
-  existence of a file created before the reboot. This is to avoid having to
-  `sleep()` and just guess the amount of time it takes to reboot.
-
-* Restart should “power cycle” the machine using the platform’s API, and thus is
-  in abstract method. It should optionally be able to redeploy the node too,
-  which can be used by tests which require a completely fresh node.
-
-* Note that the `local()` method is already overridden to patch Fabric so as to
-  ignore the provided SSH environment. This demonstrates that we can easily
-  provide necessary changes to users while still leveraging the library. For
-  instance, we may want an alternative to `run()` which, instead of taking a
-  string, takes a list of arguments and quotes them correctly so as to deal with
-  difficult shell quoting edge cases.
-
-* One new method we’ve already identified is `copy_scripts()` which will copy a
-  list of scripts to the node and mark them executable. It could even be a
-  context manager which deletes the scripts when exited.
-
-## Alternatives Considered
+These are notes from things tried that did not work out, and why.
 
 ### Writing Another Framework
 
@@ -592,17 +711,16 @@ already caused this mess in the first place. I think the work of prototyping
 said new framework was valuable, as it provided insight into the eventual
 technical design of LISAv3.
 
-### Using Remote Capabilities of pytest-xdist
+### Using Remote Capabilities of `pytest-xdist`
 
-With the [pytest-xdist plugin](https://github.com/pytest-dev/pytest-xdist) there
-already exists support for running a folder of tests on an arbitrary remote host
-via SSH.
+With the [pytest-xdist][] plugin there already exists support for running a
+folder of tests on an arbitrary remote host via SSH.
 
 The LISA tests could be written as Python code suitable for running on the
 target test system, which means direct access to the system in the test code
 itself (subprocesses are still available, without having to use SSH within the
 test, but would become far less necessary), something that is not possible with
-any current prototype. Where the pytest-xdist plugin copies the package of code
+any current prototype. Where the `pytest-xdist` plugin copies the package of code
 to the target node and runs it, the pytest-lisa plugin could instantiate that
 node (boot the necessary image on a remote machine or launch a new Hyper-V or
 Azure VM, etc.) for the tests.
@@ -611,8 +729,8 @@ However, this use of pytest-dist requires full Python support on the target
 machines, and drastically changes how developers write tests. Furthermore, it
 would not support running local commands against the remote node (like ping) or
 running the test across a reboot of the node. Thus we do not want to use this
-functionality of pytest-xdist. That said, pytest-xdist will still be useful for
-running tests concurrently, as described above.
+functionality of `pytest-xdist`. That said, `pytest-xdist` will still be useful
+for running tests concurrently, as described above.
 
 ### Using Paramiko Instead of Fabric
 
@@ -668,37 +786,13 @@ However, the data returned by Paramiko is in bytes, which in Python 3 are not
 equivalent to strings, hence the existing implementation which uses `BytesIO`
 and decodes the bytes to a string.
 
-### Writing a Class of Individual Test Methods
-
-An option I explored to make an “executive summary” of the smoke test was to use
-a class where each functionality was tested as individual function (meaning they
-could fail independently without failing the whole smoke test), accompanied by a
-class-scoped node fixture. This had its advantages, however, it was difficult to
-parameterize and also overly verbose. We should instead keep each test as Pytest
-intends: as a function. This allows the fixtures to be written in a simpler
-manner (not rely on caching between functions) and allows
-[parameterization](https://docs.pytest.org/en/stable/parametrize.html) using the
-built-in decorator `@pytest.mark.parametrize`.
-
-However, this decision may be reconsidered if we session-scope and parameterize
-the `Node` fixture, in which case these issues are resolved.
-
-## What Else?
-
-There’s still a lot more to think about and design. A non-exhaustive list of
-future topics (some touched on above):
-
-* Tests inventory (generating statistics from metadata)
-* ARM template support (with Azure CLI)
-* Servicing Azure CLI (how stable is their API?)
-* libvirt driver support (gives us Hyper-V and more)
-* Duration reporting (built-in)
-* Self-documentation (via Pydoc)
-* Environment class design
-* Feature requests (NICs in particular)
-* Selection and targets YAML schema
-* Secret management
-* External results reporting (database and emails)
-* Embedded systems / bare metal support
-* Managing Python `logging` records
-* Managing shell command stdout/stderr
+[pytest-xdist]: https://github.com/pytest-dev/pytest-xdist
+[collection hooks]: https://docs.pytest.org/en/latest/reference.html#collection-hooks
+[parameterization]: https://docs.pytest.org/en/stable/parametrize.html
+[pytest_addoption]: https://docs.pytest.org/en/latest/reference.html#pytest.hookspec.pytest_addoption
+[pytest_collection_modifyitems]: https://docs.pytest.org/en/latest/reference.html#pytest.hookspec.pytest_collection_modifyitems
+[pytest_configure]: https://docs.pytest.org/en/latest/reference.html#pytest.hookspec.pytest_configure
+[pytest_generate_tests]: https://docs.pytest.org/en/latest/reference.html#pytest.hookspec.pytest_generate_tests
+[pytest_runtest_makereport]: https://docs.pytest.org/en/latest/reference.html#pytest.hookspec.pytest_runtest_makereport
+[schema]: https://pypi.org/project/schema/
+[test running hooks]: https://docs.pytest.org/en/latest/reference.html#test-running-runtest-hooks
