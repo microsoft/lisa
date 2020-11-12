@@ -15,11 +15,14 @@ _get_init_logger = partial(get_logger, name="os")
 
 
 class OperatingSystem:
-    __lsb_release_pattern = re.compile(r"^Description:[ \t]+([\w]+)[ ]+")
+    __lsb_release_pattern = re.compile(r"^Description:[ \t]+([\w]+)[ ]+$", re.M)
     __os_release_pattern_name = re.compile(r"^NAME=\"?([^\" \n]+)[^\" \n]*\"?$", re.M)
     __os_release_pattern_id = re.compile(r"^ID=\"?([^\" \n]+)[^\" \n]*\"?$", re.M)
     __redhat_release_pattern_header = re.compile(r"^([^ ]*) .*$")
     __redhat_release_pattern_bracket = re.compile(r"^.*\(([^ ]*).*\)$")
+    __debian_issue_pattern = re.compile(r"^([^ ]+) ?.*$")
+    __release_pattern = re.compile(r"^DISTRIB_ID='?([^ \n']+).*$", re.M)
+    __suse_release_pattern = re.compile(r"^(SUSE).*$", re.M)
 
     __linux_factory: Optional[Factory[Any]] = None
 
@@ -44,6 +47,7 @@ class OperatingSystem:
             linux_factory: Factory[Linux] = cls.__linux_factory
 
             matched = False
+            detected_info = ""
             os_infos: List[str] = []
             for os_info_item in cls._get_detect_string(node):
                 if os_info_item:
@@ -52,6 +56,7 @@ class OperatingSystem:
                     linux_type: Type[Linux] = sub_type
                     pattern = linux_type.name_pattern()
                     if pattern.findall(os_info_item):
+                        detected_info = os_info_item
                         result = linux_type(typed_node)
                         matched = True
                         break
@@ -70,7 +75,9 @@ class OperatingSystem:
                 )
         else:
             result = Windows(typed_node)
-        log.debug(f"detected OS: {result.__class__.__name__}")
+        log.debug(
+            f"detected OS: '{result.__class__.__name__}' by pattern '{detected_info}'"
+        )
         return result
 
     @property
@@ -101,6 +108,23 @@ class OperatingSystem:
         # for FreeBSD
         cmd_result = typed_node.execute(cmd="uname", no_error_log=True)
         yield cmd_result.stdout
+
+        # for Debian
+        cmd_result = typed_node.execute(cmd="cat /etc/issue", no_error_log=True)
+        yield get_matched_str(cmd_result.stdout, cls.__debian_issue_pattern)
+
+        # note, cat /etc/*release doesn't work in some images, so try them one by one
+        # try best for other distros, like Sapphire
+        cmd_result = typed_node.execute(cmd="cat /etc/release", no_error_log=True)
+        yield get_matched_str(cmd_result.stdout, cls.__release_pattern)
+
+        # try best for other distros, like VeloCloud
+        cmd_result = typed_node.execute(cmd="cat /etc/lsb-release", no_error_log=True)
+        yield get_matched_str(cmd_result.stdout, cls.__release_pattern)
+
+        # try best for some suse derives, like netiq
+        cmd_result = typed_node.execute(cmd="cat /etc/SuSE-release", no_error_log=True)
+        yield get_matched_str(cmd_result.stdout, cls.__suse_release_pattern)
 
 
 class Windows(OperatingSystem):
@@ -172,7 +196,7 @@ class Ubuntu(Linux):
 class Debian(Ubuntu):
     @classmethod
     def name_pattern(cls) -> Pattern[str]:
-        return re.compile("^debian$")
+        return re.compile("^debian|Forcepoint|Kali$")
 
 
 class Unix(Linux):
@@ -191,7 +215,7 @@ class FreeBSD(Unix):
 class Redhat(Linux):
     @classmethod
     def name_pattern(cls) -> Pattern[str]:
-        return re.compile("^rhel|Red|Scientific|acronis$")
+        return re.compile("^rhel|Red|Scientific|acronis|Actifio$")
 
     def _install_packages(self, packages: Union[List[str]]) -> None:
         self._node.execute(
@@ -202,7 +226,7 @@ class Redhat(Linux):
 class CentOs(Redhat):
     @classmethod
     def name_pattern(cls) -> Pattern[str]:
-        return re.compile("^CentOS|Centos|centos$")
+        return re.compile("^CentOS|Centos|centos|clear-linux-os$")
 
 
 class Oracle(Redhat):
@@ -230,3 +254,9 @@ class Suse(Linux):
 
 class NixOS(Linux):
     pass
+
+
+class OtherLinux(Linux):
+    @classmethod
+    def name_pattern(cls) -> Pattern[str]:
+        return re.compile("^Sapphire|Buildroot|OpenWrt$")
