@@ -35,15 +35,16 @@ lisa_schema = Schema(
         "area": str,
         "priority": Or(0, 1, 2, 3),
         Optional("features", default=list): [str],
+        Optional("tags", default=list): [str],
         Optional(object): object,
     },
     ignore_extra_keys=True,
 )
 
 
-def validate(mark: Optional[Mark]) -> None:
+def validate(mark: typing.Optional[Mark]) -> None:
     """Validate each test's LISA parameters."""
     if not mark:
         return
     assert not mark.args, "LISA marker cannot have positional arguments!"
-    mark.kwargs.update(lisa_schema.validate(mark.kwargs))
+    mark.kwargs.update(lisa_schema.validate(mark.kwargs))  # type: ignore
