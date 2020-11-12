@@ -164,14 +164,14 @@ class SshShell(InitializableMixin):
         )
         if not is_ready:
             raise LisaException(
-                f"cannot open port {self._connection_info.port} to server: "
+                f"cannot open SSH port {self._connection_info.port} to server: "
                 f"[{self._connection_info.address}:{self._connection_info.port}]"
             )
         try:
             stdout = try_connect(self._connection_info)
         except Exception as identifier:
             raise LisaException(
-                f"failed to connect "
+                f"failed to connect SSH "
                 f"[{self._connection_info.address}:{self._connection_info.port}]: "
                 f"{identifier}"
             )
