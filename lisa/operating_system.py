@@ -38,6 +38,7 @@ class OperatingSystem:
         log = _get_init_logger(parent=typed_node.log)
         result: Optional[OperatingSystem] = None
 
+        detected_info = ""
         if typed_node.shell.is_linux:
             # delay create factory to make sure it's late than loading extensions
             if cls.__linux_factory is None:
@@ -47,7 +48,6 @@ class OperatingSystem:
             linux_factory: Factory[Linux] = cls.__linux_factory
 
             matched = False
-            detected_info = ""
             os_infos: List[str] = []
             for os_info_item in cls._get_detect_string(node):
                 if os_info_item:
