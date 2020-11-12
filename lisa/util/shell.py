@@ -209,7 +209,7 @@ class SshShell(InitializableMixin):
             self._inner_shell.close()
             # after closed, can be reconnect
             self._inner_shell = None
-            self._is_initialized = False
+        self._is_initialized = False
 
     def spawn(
         self,

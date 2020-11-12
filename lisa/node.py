@@ -156,6 +156,7 @@ class Node(ContextMixin, InitializableMixin):
         return self.os.is_linux
 
     def close(self) -> None:
+        self.log.debug("closing node connection...")
         self.is_connected = False
         self.shell.close()
 

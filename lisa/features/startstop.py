@@ -36,7 +36,7 @@ class StartStop(Feature):
     def stop(self, wait: bool = True) -> None:
         self._log.debug("stopping")
         self._stop(wait=wait)
-        self._node.shell.close()
+        self._node.close()
 
     def start(self, wait: bool = True) -> None:
         self._log.debug("starting")
@@ -45,4 +45,4 @@ class StartStop(Feature):
     def restart(self, wait: bool = True) -> None:
         self._log.debug("restarting")
         self._restart(wait=wait)
-        self._node.shell.close()
+        self._node.close()
