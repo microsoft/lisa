@@ -30,7 +30,7 @@ class Reboot(Tool):
             last_boot_time >= current_boot_time and timer.elapsed(False) < self.time_out
         ):
             try:
-                self.node.shell.close()
+                self.node.close()
                 current_boot_time = who.last_boot()
             except Exception as identifier:
                 # error is ignorable, as ssh may be closed suddenly.
