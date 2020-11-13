@@ -15,6 +15,13 @@ class SerialConsole(Feature):
         re.compile(r"^(.*grub>.*)$", re.MULTILINE),
     ]
 
+    # ignore some return lines, which shouldn't be a panic line.
+    panic_ignorable_patterns: List[Pattern[str]] = [
+        re.compile(
+            r"^(.*ipt_CLUSTERIP: ClusterIP.*loaded successfully.*)$", re.MULTILINE
+        ),
+    ]
+
     @classmethod
     def name(cls) -> str:
         return FEATURE_NAME_SERIAL_CONSOLE
@@ -53,10 +60,25 @@ class SerialConsole(Feature):
                 f.write(self._cached_console_log)
         return self._cached_console_log.decode("utf-8", errors="ignore")
 
-    def check_panic(self, saved_path: Optional[Path], force_run: bool = False) -> None:
+    def check_panic(
+        self, saved_path: Optional[Path], stage: str = "", force_run: bool = False
+    ) -> None:
         self._node.log.debug("checking panic in serial log...")
         content: str = self.get_console_log(saved_path=saved_path, force_run=force_run)
-        result = find_patterns_in_lines(content, self.panic_patterns)
-        errors = [x for x in result if x]
-        if errors:
-            raise LisaException(f"found panic in serial log: {errors}")
+        ignored_candidates = [
+            x
+            for sublist in find_patterns_in_lines(
+                content, self.panic_ignorable_patterns
+            )
+            for x in sublist
+            if x
+        ]
+        panics = [
+            x
+            for sublist in find_patterns_in_lines(content, self.panic_patterns)
+            for x in sublist
+            if x and x not in ignored_candidates
+        ]
+
+        if panics:
+            raise LisaException(f"{stage} found panic in serial log: {panics}")

@@ -43,7 +43,7 @@ class Provisioning(TestSuite):
         if not is_ready:
             serial_console = node.features[SerialConsole]
             case_path = self._create_case_log_path(case_name)
-            serial_console.check_panic(saved_path=case_path)
+            serial_console.check_panic(saved_path=case_path, stage="bootup")
             raise LisaException(
                 f"cannot connect to [{node.public_address}:{node.public_port}]"
                 f", but no panic found in serial log"
@@ -59,5 +59,5 @@ class Provisioning(TestSuite):
                 case_path = self._create_case_log_path(case_name)
             serial_console = node.features[SerialConsole]
             # if there is any panic, fail before parial passed
-            serial_console.check_panic(saved_path=case_path)
+            serial_console.check_panic(saved_path=case_path, stage="reboot")
             raise PartialPassedException(identifier)
