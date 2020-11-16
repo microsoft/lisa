@@ -30,6 +30,10 @@ def _get_node_information(node: Node, information: Dict[str, str]) -> None:
         fields = ["hardware_platform", "kernel_version"]
         information_dict = fields_to_dict(linux_information, fields=fields)
         information.update(information_dict)
+        information["vm_generation"] = "1"
+        cmd_result = node.execute(cmd="ls -lt /sys/firmware/efi", no_error_log=True)
+        if cmd_result.exit_code == 0:
+            information["vm_generation"] = "2"
 
 
 class Node(ContextMixin, InitializableMixin):
@@ -157,7 +161,6 @@ class Node(ContextMixin, InitializableMixin):
 
     def close(self) -> None:
         self.log.debug("closing node connection...")
-        self.is_connected = False
         self.shell.close()
 
     def get_node_information(self) -> Dict[str, str]:
