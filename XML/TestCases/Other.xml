@@ -76,4 +76,22 @@
       <SetupType>long-term</SetupType>
     </SetupConfig>
   </test>
+  <test>
+    <testName>NTTTCP-MONITOR-THROUGHPUT</testName>
+    <testScript>NTTTCP-MONITOR-THROUGHPUT.ps1</testScript>
+    <files>.\Testscripts\Linux\utils.sh,.\Testscripts\Linux\ntttcp_monitor_throughput.sh</files>
+    <Platform>Azure</Platform>
+    <TestParameters>
+      <param>seconds_of_runtime=NTTTCP_MONITOR_SECS_RUNTIME</param>
+      <param>monitor_interval=NTTTCP_MONITOR_INTERVAL</param>
+      <param>tolerance=NTTTCP_MONITOR_TOLERANCE</param>
+      <param>ntttcp_version=master</param>
+    </TestParameters>
+    <Category></Category>
+    <Area></Area>
+    <Tags>ntttcp_monitor</Tags>
+    <SetupConfig>
+      <SetupType>TwoVM2Host</SetupType>
+    </SetupConfig>
+  </test>
 </TestCases>
