@@ -1,0 +1,19 @@
+[tool.poetry]
+name = "pytest-playbook"
+version = "0.1.0"
+description = "Pytest plugin for reading playbooks."
+authors = ["Andrew Schwartzmeyer <andrew@schwartzmeyer.com>"]
+license = "MIT"
+classifiers = ["Framework :: Pytest"]
+
+[tool.poetry.dependencies]
+python = "^3.7"
+pytest = "^6.1.2"
+schema = "^0.7.3"
+PyYAML = {version = "^5.3.1", optional = true}
+
+[tool.poetry.dev-dependencies]
+
+[build-system]
+requires = ["poetry-core>=1.0.0"]
+build-backend = "poetry.core.masonry.api"
