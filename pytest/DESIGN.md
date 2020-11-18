@@ -7,7 +7,7 @@ evaluating the feasibility of leveraging
 Please see [PR #1065](https://github.com/LIS/LISAv2/pull/1065) for a working,
 proof-of-concept prototype.
 
-Authored by Andrew Schwartzmeyer (he/him), version 0.2.0.
+Authored by Andrew Schwartzmeyer (he/him), version 0.3.0.
 
 ## Why Pytest?
 
@@ -40,8 +40,8 @@ needs very well:
 
 * Automatic test discovery, no boiler-plate test code
 * Useful information when a test fails (assertions are introspected)
-* Test and fixture parameterization
-* Modular setup/teardown via fixtures
+* Test and fixture [parameterization][]
+* Modular setup/teardown via [fixtures][]
 * Incredibly customizable (as detailed above)
 
 So all the logic for describing, discovering, running, skipping and reporting
@@ -89,10 +89,18 @@ and result notifiers. It will similarly support both CLI and YAML file input.
 
 We should strive to keep these plugins from depending on each other in order to
 keep their scope well-defined. In the “LISA” repository of tests we will depend
-on the two plugins and maintain additional fixtures for our tests’ unique
+on the two plugins and maintain additional [fixtures][] for our tests’ unique
 requirements. Similarly, we and others may have private test repositories which
 build upon the above by defining new platform support and internal service
-integrations.
+integrations. The built-in plugin discovery of Pytest (via `conftest.py` files)
+enables us to satisfy one of our requirements to “support plugins to orchestrate
+the test environment.”
+
+Finally, a third smaller utility plugin, `pytest-schema` may be written in order
+to share the common functionality of registering component schemata (e.g.
+platform and target parameters from `pytest-target` and selection criteria from
+`pytest-lisa`). This is somewhat of an implementation detail, but would be a
+third and lower-level library we can publish.
 
 ## pytest-target
 
@@ -104,11 +112,11 @@ target would be a virtual machine deployed by `pytest-target` with SSH access
 provided to the requesting test. A target could optionally be pre-deployed and
 simply connected. Some tests may request multiple targets as well.
 
-Pytest uses [fixtures](https://docs.pytest.org/en/stable/fixture.html), which
-are the primary way of setting up test requirements. They replace less flexible
-alternatives like setup/teardown functions. It is through fixtures that we
-implement remote target setup/teardown. Our `target` fixture returns a `Target`
-instance, which currently provides:
+Pytest uses [fixtures][], which are the primary way of setting up test
+requirements. They replace less flexible alternatives like setup/teardown
+functions. It is through fixtures that we implement remote target
+setup/teardown. Our `target` fixture returns a `Target` instance, which
+currently provides:
 
 * Remote shell access via SSH
 * Data including hostname / IP address
@@ -149,8 +157,8 @@ additional fixtures and thus shared among tests.
 
 For Azure, we currently use the [Azure CLI](https://aka.ms/azureclidocs) to
 deploy a virtual machine. For Hyper-V (and other virtualization platforms), we
-would like to use [libvirt](https://libvirt.org/python.html), and for embedded
-environments we are evaluating
+would like to use [libvirt](https://libvirt.org/python.html), and for embedded /
+bare metal environments we are evaluating
 [labgrid](https://github.com/labgrid-project/labgrid).
 
 If possible, we do not want to use the [Azure Python
@@ -160,8 +168,17 @@ CLI](https://aka.ms/azureclidocs). With Invoke (as discussed above), `az`
 becomes incredibly easy to work with. The Azure CLI lead developer states that
 they have [feature parity](https://stackoverflow.com/a/50005660/1028665) and
 that the CLI is more straightforward to use. Considering our ease-of-maintenance
-requirement, this seems the apt choice. If it later becomes necessary to use the
-Python APIs directly, that is, of course, still doable.
+requirement, this seems the apt choice, especially since the Azure CLI supports
+deploying resources with [ARM
+templates](https://docs.microsoft.com/en-us/azure/azure-resource-manager/templates/deploy-cli).
+If it later becomes necessary to use the Python APIs directly, that is, of
+course, still doable (and we can reuse existing code doing it).
+
+On the topic of “servicing” the Azure CLI, its developers state that “at command
+level, packages only upgrading the PATCH version guarantee backward
+compatibility.” The tool is also intended to be used in scripts, so servicing
+would amount to documenting the tested version and having the Azure class check
+that it’s compatible before using it (or warning and then trying its best).
 
 ### What’s the `Target` class?
 
@@ -220,6 +237,51 @@ platforms and their parameter schemata are automatically gathered from users’
 own `conftest.py` files and other plugins. This enables the `target` fixture to
 dynamically instantiate a target from the gathered requirements and parameters.
 
+For example, the `Azure(Target)` class defines its required parameters using the
+[schema][] library like this:
+
+```python
+from schema import Optional, Schema
+from target import Target
+
+class Azure(Target):
+    ...
+    schema: Schema = Schema(
+        {
+            # TODO: Maybe validate as URN or path etc.
+            "image": str,
+            Optional("sku", default="Standard_DS1_v2"): str,
+            Optional("location", default="eastus2"): str,
+            Optional("networking", default=""): str,
+        }
+    )
+```
+
+In the YAML playbook, a set of Azure targets can then be defined like this:
+
+```yaml
+targets:
+  - name: Debian
+    platform: Azure
+    parameters:
+      image: credativ:Debian:9:9.0.201706190
+      location: westus2
+
+  - name: Ubuntu
+    platform: Azure
+    parameters:
+      image: UbuntuLTS
+      sku: Standard_DS3_v2
+```
+
+These targets are then used to parameterize the `target` fixture in the
+[pytest_generate_tests][] hook (see below for more details).
+
+This demonstrated how we can have platforms define their own schema and register
+that schema automatically. A pending update to this is to have two schemata per
+`Target` subclass: target-level and platform-level (the former is what’s
+demonstrated above, the latter would be common settings, such as subscription).
+
 #### How are requirements examined?
 
 The `features` attribute is currently a set of strings and (combined with the
@@ -228,7 +290,8 @@ target instance (representing a deployed machine) met a test’s requirements. I
 should be updated with a `Requirements` class that represents all physical
 attributes of the target, and a `requires` Pytest mark should be added which
 takes instances of this class. Two `Requirements` should be comparable to
-determine if one set meets (or exceeds) the other set.
+determine if one set meets (or exceeds) the other set. Existing code that does
+this can be reused here.
 
 #### How do we share common tasks?
 
@@ -257,7 +320,7 @@ and thus is in abstract method.
 
 Other tools and shared logic should be implemented as necessary. A major area of
 concern is the automatic and package-manager agnostic installation of necessary
-tools, much of which has been implemented previously and can be integrated.
+tools, much of which has been implemented previously and can be reused.
 
 ### How are targets requested and managed?
 
@@ -323,6 +386,44 @@ allows us to run a collection of tests against multiple targets with ease. These
 targets are defined in a YAML file and validated against the parameters
 collected from the previously described platform subclasses.
 
+The entire implementation looks like so:
+
+```python
+TARGETS: List[Dict[str, Any]] = []
+TARGET_IDS: List[str] = []
+
+def pytest_configure(config: Config) -> None:
+    book = get_playbook(config.getoption("--playbook"))
+    for t in book.get("targets", []):
+        TARGETS.append(t)
+        TARGET_IDS.append(t["name"])
+
+def pytest_generate_tests(metafunc: Metafunc) -> None:
+    if "target" in metafunc.fixturenames:
+        assert TARGETS, "No targets specified!"
+        metafunc.parametrize("target", TARGETS, True, TARGET_IDS)
+```
+
+The function `get_playbook()` only imports the [PyYAML][] library, opens the
+playbook file `f` within a context manager, and returns
+`playbook.schema.validate(yaml.load(f))`. This is leveraging Pytest’s existing
+parameterization technology to achieve one of our “test entrance” goals of
+requesting environments with a YAML playbook, and one of our “test parameter
+validation” goals of validating platforms before executing tests so that we can
+fail fast if a target has insufficient information to be setup. Parsing the same
+parameters from a CLI can also be implemented.
+
+Finally, once the `target` fixture has returned a working and sanity-checked
+environment to the requesting test, the test is capable of examining any and all
+attributes of the `Target` and quickly marking itself as skipped, expected to
+fail, or failed before executing the body of the test. Our static type checking
+enables developers to ensure that the platform they requested supports all
+methods and fields they use by annotating the test’s `target` parameter with the
+expected platform type (or types). Ensuring the effectiveness of this type
+checking will require us to carefully update our platform implementations, and
+not rely on arbitrary objects of data. (For example, add an `internal_address`
+field to `Azure`, don’t just look up `data["internal_address"]`.)
+
 ### How are tests executed in parallel?
 
 While our original list of goals stated that we want to run tests “in parallel”
@@ -344,6 +445,11 @@ particular executors and using particular targets. While there are many paths
 open to us, this plugin actually provides a hook, `pytest_xdist_make_scheduler`
 that exists specifically to “implement custom tests distribution logic.”
 
+Figuring out the requirements of our test scheduler and designing the best
+algorithm will require further discussion and design review. For the purposes of
+moving forward, we are not blocked, as the eventual implementation can be
+dropped in-place with minimal effort.
+
 ## pytest-lisa
 
 ### What are the user modes?
@@ -352,7 +458,10 @@ Because Pytest is incredibly customizable, we want to provide a few sets of
 reasonable default configurations for some common scenarios. We will add a flag
 like `--lisa-mode=[dev,debug,ci,demo]` to change the default options and output
 of Pytest. Doing so is readily supported by Pytest via the [pytest_addoption][]
-and [pytest_configure][] hooks. We call these the provided “user modes.”
+and [pytest_configure][] hooks. We call these the provided “user modes.” Note
+that by “output” we mean not just logging (because that implies the Python
+`logger` module, which Pytest allows full control over) but also commands’
+stdout and stderr as well as Pytest-provided information.
 
 * The dev(eloper) mode is intended for use by test developers while writing a
   new test. It is verbose, caches the deployed VMs between runs, and generates a
@@ -400,11 +509,15 @@ def test_lis_driver_version(target: Azure) -> None:
 This is a functional example, which takes zero implementation. With this simple
 decorator, all test [collection hooks][] can introspect the metadata, enforce
 required parameters and set defaults, select tests based on arbitrary criteria,
-and list test coverage statistics.
+and list test coverage statistics (test inventory). Designing and implementing
+the test inventory algorithm is still under development, but it’s tractable.
 
 Note that Pytest leverages Python’s docstrings for built-in documentation (and
 can even run tests discovered in such strings, like doctest). Hence we do not
-have a separate field for the test’s documentation.
+have a separate field for the test’s documentation. As long as we continue to
+follow the practice of using docstrings for our modules, classes, and functions,
+we can automatically use [pydoc](https://docs.python.org/3/library/pydoc.html)
+to generate full documentation for each plugin and test.
 
 Being just Python code, this decorator need not be `@pytest.mark.lisa(...)` but
 can trivially be provided as simply `@LISA(...)`. In fact, we provide this in
@@ -441,7 +554,8 @@ def validate(mark: Mark) -> None:
 
 In the future we could change `LISA` to be a function with these keyword
 arguments so that IDE auto-completion is enabled. However, this is not mandatory
-to move forward, and parameter validation is enabled succinctly with the above.
+to move forward, and parameter validation is enabled succinctly with the above,
+which satisfies one of our “test parameter validation” requirements.
 
 This mark also does need to be repeated for each test, as marks can be scoped to
 a module, and so one line could describe defaults for every test in a file, with
@@ -452,7 +566,10 @@ that is used to prove the concept deploying (or reusing) a target based on the
 test’s required and the target’s available sets of features. However, as we move
 forward we should define a separate `requires` mark that takes well-defined
 classes describing the minimal required resources for a test. This will be part
-of the refactor into the two Pytest plugins mentioned above.
+of the refactor into the two Pytest plugins mentioned above. Coupled with the
+test’s requested `target` fixture being parameterized (see discussion in
+`pytest-target`) this demonstrates at least one way we can satisfy our “test run
+planner/scheduler” requirement.
 
 Furthermore, we have a prototype
 [generator](https://github.com/LIS/LISAv2/tree/pytest/generator) which parses
@@ -542,6 +659,10 @@ def pytest_collection_modifyitems(
     items[:] = [i for i in included if i not in excluded]
 ```
 
+Together, the CLI support and YAML playbook satisfy one of our “test entrance”
+requirements. We can also generate our own binary called `lisa` which simply
+delegates to Pytest, if we really want to do so.
+
 Because this is simply a Python list, we can also sort the tests according to
 our needs, such as by priority. If the `python-targets` plugin has already
 sorted by requirements, that’s just fine, Python’s `sorted()` built-in is
@@ -564,13 +685,34 @@ community plugin
 [pytest-azurepipelines](https://pypi.org/project/pytest-azurepipelines/) which
 enhances the standard JUnit report for ADO.
 
+One of our requirements is to support the lookup of previous tests’ execution
+metrics, such as recorded performance metrics and duration, so that performance
+tests can check regressions. This is the perfect example of carrying a small
+fixture which provides access to our internal database and is dynamically added
+to our tests when run internally, and the tests can lookup and record whatever
+they need through the fixture.
+
 However, we also have internal requirements to report test results throughout
-the test life cycle to a database to be consumed by other tools. In this sense,
-LISAv3 (the composition of our published plugins, tests, and fixtures) is simply
-a producer. Our repository’s `conftest.py` can implement the necessary logic
-using Pytest’s ample [test running hooks][]. In particular, the hook
-[pytest_runtest_makereport][] is called for each of the setup, call and teardown
-phases of a test. As such it can used for precisely this purpose.
+the test life cycle to a database (the “result manager” and “progress tracker”)
+to be consumed by other tools. In this sense, LISAv3 (the composition of our
+published plugins, tests, and fixtures) is simply a producer, and the consumers
+can parse the test results, send emails, archive the collected logs, update a
+GUI display of test progress, etc. Our repository’s `conftest.py` can implement
+the necessary logic using Pytest’s ample [test running hooks][]. In particular,
+the hook [pytest_runtest_makereport][] is called for each of the setup, call and
+teardown phases of a test. As such it can used for precisely this purpose.
+
+### How is setup, run, and cleanup handled?
+
+Pytest strives to require minimal boiler-plate code. Thus the classic
+“xunit-style” of defining a class with setup and teardown functions in addition
+to test functions is not recommended (nor necessary). Generally Pytest expects
+[fixtures][] to be used for dependency injection (which is what setup/teardown
+functions usually do). For users that really want the classic style, it is
+nonetheless fully
+[supported](https://docs.pytest.org/en/stable/xunit_setup.html) and documented
+(and can be applied at the module, class, and method scopes). Thus our “test
+runner” requirement is satisfied.
 
 ### How are tests timed out?
 
@@ -578,7 +720,9 @@ The [pytest-timeout](https://pypi.org/project/pytest-timeout/) plugin provides
 integrated timeouts via `@pytest.mark.timeout(<N seconds>)`, a configuration
 file option, environment variable, and CLI flag. The Fabric library provides
 timeouts in both the configuration and per-command usage. These are already used
-to satisfaction in the prototype.
+to satisfaction in the prototype. Additionally, Pytest has built-in support for
+measuring the duration of each fixture’s setup and teardown and each test (it’s
+simply the `--durations` and `--durations-min` flags).
 
 ### How are tests organized?
 
@@ -645,10 +789,10 @@ def test_something_flaky(...):
     ...
 ```
 
-> Note that there is an open
-> [bug](https://github.com/pytest-dev/pytest-rerunfailures/issues/51) in this
-> plugin which can cause issues with fixtures using scopes other than “function”
-> but it can be worked around.
+Note that there is an open
+[bug](https://github.com/pytest-dev/pytest-rerunfailures/issues/51) in this
+plugin which can cause issues with fixtures using scopes other than “function”
+but it can be worked around.
 
 The [Tenacity](https://tenacity.readthedocs.io/en/latest/) library should be
 used to retry flaky functions that are not tests, such as downloading boot
@@ -673,25 +817,62 @@ We can additionally list a test twice when modifying the items collection, as
 implemented in the criteria proof-of-concept. However, given the above
 abilities, this may not be desired.
 
+## What does the “flow” of Pytest look-like?
+
+This is best described in Pythonic pseudo-code, where the context manager
+encapsulates each scope and the for loop encapsulates processing:
+
+```python
+pool_fixture: a session-scoped context manager
+target_fixture: a function-scoped context  manager
+items: a collection of tests
+targets: a collection of targets
+criteria: a collection of test selection criteria
+
+def pytest_addoption(parser):
+    """Add CLI options etc."""
+    parser.addoption("--playbook", type=Path)
+
+pytest_addoption(parser) # Pytest fills in parser.
+
+def pytest_configure(config):
+    """Setup the run's configuration."""
+    targets = playbook.get_targets()
+    criteria = playbook.get_criteria()
+
+pytest_configure(config) # Pytest fills in config.
+
+# pytest_generate_tests(metafunc) does this:
+for test_metafunc in metafuncs:
+    for target in targets:
+        # items is tests * targets in size
+        items.append(test_metafunc[target])
+
+# pytest_collection_modifyitems(session, config, items) does this:
+for test in items:
+    validate(test)
+    include_or_exclude(test, criteria)
+
+# finally, each executor/session does this:
+session_items = items.split() # based on scheduler algorithm
+with pool_fixture as pool:
+    # the fixture has setup a pool to track the deployed targets
+    for test_function in session_items:
+        with target_fixture as target:
+            # the fixture has found or deployed an appropriate target
+            test_function(target)
+```
+
 ## What Else?
 
 There’s still a lot more to think about and design. A non-exhaustive list of
 future topics (some touched on above):
 
 * Tests inventory (generating statistics from metadata)
-* ARM template support (with Azure CLI)
-* Servicing Azure CLI (how stable is their API?)
-* libvirt driver support (gives us Hyper-V and more)
-* Duration reporting (built-in)
-* Self-documentation (via Pydoc)
-* Environment class design
-* Feature requests (NICs in particular)
-* Selection and targets YAML schema
+* Environment / multiple targets class design
+* Feature/requirement requests (NICs in particular)
+* Custom test scheduler algorithm
 * Secret management
-* External results reporting (database and emails)
-* Embedded systems / bare metal support
-* Managing Python `logging` records
-* Managing shell command stdout/stderr
 
 ## What alternatives were tried?
 
@@ -786,9 +967,11 @@ However, the data returned by Paramiko is in bytes, which in Python 3 are not
 equivalent to strings, hence the existing implementation which uses `BytesIO`
 and decodes the bytes to a string.
 
-[pytest-xdist]: https://github.com/pytest-dev/pytest-xdist
+[PyYAML]: https://pyyaml.org/wiki/PyYAMLDocumentation
 [collection hooks]: https://docs.pytest.org/en/latest/reference.html#collection-hooks
+[fixtures]: https://docs.pytest.org/en/stable/fixture.html
 [parameterization]: https://docs.pytest.org/en/stable/parametrize.html
+[pytest-xdist]: https://github.com/pytest-dev/pytest-xdist
 [pytest_addoption]: https://docs.pytest.org/en/latest/reference.html#pytest.hookspec.pytest_addoption
 [pytest_collection_modifyitems]: https://docs.pytest.org/en/latest/reference.html#pytest.hookspec.pytest_collection_modifyitems
 [pytest_configure]: https://docs.pytest.org/en/latest/reference.html#pytest.hookspec.pytest_configure
