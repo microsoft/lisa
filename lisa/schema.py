@@ -1,5 +1,6 @@
 import copy
 from dataclasses import dataclass, field
+from enum import Enum
 from typing import Any, Callable, Dict, List, Optional, Type, TypeVar, Union, cast
 
 from dataclasses_json import (  # type: ignore
@@ -27,6 +28,7 @@ Schema is dealt with three components,
 
 
 T = TypeVar("T")
+ReserveEnvStatus = Enum("ReserveEnvStatus", ["no", "always", "failed"])
 
 
 def metadata(
@@ -678,13 +680,13 @@ class Platform(TypedSchema, ExtendableSchemaMixin):
     admin_password: str = ""
     admin_private_key_file: str = ""
 
-    # True means not to delete an environment, even it's created by lisa
-    reserve_environment: bool = False
+    # no/False: means to delete the environment regardless case fail or pass
+    # yes/always/True: means to keep the environment regardless case fail or pass
+    reserve_environment: Optional[Union[str, bool]] = False
 
     def __post_init__(self, *args: Any, **kwargs: Any) -> None:
         add_secret(self.admin_username, PATTERN_HEADTAIL)
         add_secret(self.admin_password)
-        add_secret(self.admin_private_key_file)
 
         if self.type != constants.PLATFORM_READY:
             if self.admin_password and self.admin_private_key_file:
@@ -694,6 +696,14 @@ class Platform(TypedSchema, ExtendableSchemaMixin):
             elif not self.admin_password and not self.admin_private_key_file:
                 raise LisaException(
                     "one of admin_password and admin_private_key_file must be set"
+                )
+
+        if isinstance(self.reserve_environment, str):
+            self.reserve_environment = self.reserve_environment.lower()
+            allow_list = [x for x in ReserveEnvStatus.__members__.keys()]
+            if self.reserve_environment not in allow_list:
+                raise LisaException(
+                    f"reserve_environment only can be set as one of {allow_list}"
                 )
 
 
