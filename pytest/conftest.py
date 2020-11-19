@@ -6,9 +6,11 @@ https://docs.pytest.org/en/stable/writing_plugins.html
 from __future__ import annotations
 
 import typing
-from pathlib import Path
 
-from schema import SchemaMissingKeyError  # type: ignore
+import pytest_playbook
+
+# See https://pypi.org/project/schema/
+from schema import Optional, Or, Schema, SchemaMissingKeyError  # type: ignore
 
 import azure  # noqa
 import lisa
@@ -16,7 +18,7 @@ import pytest
 from target import Target
 
 if typing.TYPE_CHECKING:
-    from typing import Any, Dict, Iterator, List, Optional, Type
+    from typing import Any, Dict, Iterator, List, Type
 
     from _pytest.config import Config
     from _pytest.config.argparsing import Parser
@@ -24,6 +26,8 @@ if typing.TYPE_CHECKING:
     from _pytest.python import Metafunc
 
     from pytest import Item, Session
+
+pytest_plugins = ["playbook"]
 
 
 @pytest.fixture(scope="session")
@@ -61,9 +65,7 @@ def target(pool: List[Target], request: SubRequest) -> Iterator[Target]:
     their environments.
 
     """
-    import playbook
-
-    platform: Type[Target] = playbook.PLATFORMS[request.param["platform"]]
+    platform: Type[Target] = platforms[request.param["platform"]]
     parameters: Dict[str, Any] = request.param["parameters"]
     marker = request.node.get_closest_marker("lisa")
     features = set(marker.kwargs["features"])
@@ -99,56 +101,80 @@ def pytest_addoption(parser: Parser) -> None:
     parser.addoption("--keep-vms", action="store_true", help="Keeps deployed VMs.")
     parser.addoption("--check", action="store_true", help="Run semantic analysis.")
     parser.addoption("--demo", action="store_true", help="Run in demo mode.")
-    parser.addoption("--playbook", type=Path, help="Path to playbook.")
 
 
-TARGETS: List[Dict[str, Any]] = []
-TARGET_IDS: List[str] = []
+platforms: Dict[str, Type[Target]] = dict()
 
 
-def get_playbook(path: Optional[Path]) -> Dict[str, Any]:
-    """Loads and validates the playbook file.
+def pytest_playbook_schema(schema: Dict[Any, Any], config: Config) -> None:
+    """Describes the YAML schema for the playbook file.
 
-    This imports the playbook module at runtime to ensure all
-    subclasses of 'Target' (e.g. all supported platforms, including
-    those defined in arbitrary 'conftest.py' files) are defined.
+    'platforms' is a mapping of platform names (strings) to the
+    implementing subclass of 'Target' where each subclass defines its
+    own 'parameters' schema, 'deploy' and 'delete' methods, and other
+    platform-specific functionality. A 'Target' subclass need only be
+    defined in a file loaded by Pytest, so a 'contest.py' file works
+    just fine. No manual subclass of 'Target' where each subc ass
+    defines its own 'parameters' schema, 'deploy' and 'delete'
+    methods, and other platform-specific functionality. A 'Target'
+    subclass need only be defined in a file loaded by Pytest, so a 'c
+
+    TODO: Add field annotations, friendly error reporting, automatic
+    case transformations, etc.
 
     """
-    # TODO: Move to 'playbook.py' and setup 'PLATFORMS' when called so
-    # that the import can take place at any time.
-    import playbook
+    global platforms
+    platforms = {cls.__name__: cls for cls in Target.__subclasses__()}  # type: ignore
+    target_schema = Schema(
+        {
+            "name": str,
+            "platform": Or(*[platform for platform in platforms.keys()]),
+            # TODO: What should we do when lacking parameters? Ideally we
+            # use the platform’s defaults from its own schema, but that
+            # means this value must be set, even if to an empty dict.
+            Optional("parameters", default=dict): Or(
+                *[cls.schema for cls in platforms.values()]
+            ),
+        }
+    )
 
-    book = dict()
-    if path:
-        # See https://pyyaml.org/wiki/PyYAMLDocumentation
-        import yaml
+    default_target = {"name": "Default", "platform": "Local"}
 
-        try:
-            from yaml import CLoader as Loader
-        except ImportError:
-            from yaml import Loader  # type: ignore
+    criteria_schema = Schema(
+        {
+            # TODO: Validate that these strings are valid regular
+            # expressions if we change our matching logic.
+            Optional("name", default=None): str,
+            Optional("area", default=None): str,
+            Optional("category", default=None): str,
+            Optional("priority", default=None): int,
+            Optional("tags", default=list): [str],
+            Optional("times", default=1): int,
+            Optional("exclude", default=False): bool,
+        }
+    )
 
-        with open(path) as f:
-            book = playbook.schema.validate(yaml.load(f, Loader=Loader))
-    else:
-        book = playbook.schema.validate({})
-    return book
+    schema[Optional("targets", default=[default_target])] = [target_schema]
+    schema[Optional("criteria", default=list)] = [criteria_schema]
+
+
+targets: List[Dict[str, Any]] = []
+target_ids: List[str] = []
+
+
+def pytest_sessionstart(session: Session) -> None:
+    """Determines the targets based on the playbook."""
+    for t in pytest_playbook.playbook.get("targets", []):
+        targets.append(t)
+        target_ids.append(t["name"])
 
 
 def pytest_configure(config: Config) -> None:
     """Parse provided user inputs to setup configuration.
 
-    Determines the targets based on the playbook and sets default
-    configurations based user mode.
-
     https://docs.pytest.org/en/latest/reference.html#pytest.hookspec.pytest_configure
 
     """
-    book = get_playbook(config.getoption("--playbook"))
-    for t in book.get("targets", []):
-        TARGETS.append(t)
-        TARGET_IDS.append(t["name"])
-
     # Search ‘_pytest’ for ‘addoption’ to find these.
     options: Dict[str, Any] = {}  # See ‘pytest.ini’ for defaults.
     if config.getoption("--check"):
@@ -183,8 +209,7 @@ def pytest_generate_tests(metafunc: Metafunc) -> None:
 
     """
     if "target" in metafunc.fixturenames:
-        assert TARGETS, "No targets specified!"
-        metafunc.parametrize("target", TARGETS, True, TARGET_IDS)
+        metafunc.parametrize("target", targets, True, target_ids)
 
 
 def pytest_collection_modifyitems(
@@ -223,8 +248,7 @@ def pytest_collection_modifyitems(
             for _ in range(times - included.count(item)):
                 included.append(item)
 
-    book = get_playbook(config.getoption("--playbook"))
-    for c in book.get("criteria", []):
+    for c in pytest_playbook.playbook.get("criteria", []):
         print(f"Parsing criteria {c}")
         for item in items:
             marker = item.get_closest_marker("lisa")
