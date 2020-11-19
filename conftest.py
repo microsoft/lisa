@@ -7,7 +7,7 @@ from __future__ import annotations
 
 import typing
 
-import pytest_playbook
+import playbook
 
 # See https://pypi.org/project/schema/
 from schema import Optional, Or, Schema, SchemaMissingKeyError  # type: ignore
@@ -164,7 +164,7 @@ target_ids: List[str] = []
 
 def pytest_sessionstart(session: Session) -> None:
     """Determines the targets based on the playbook."""
-    for t in pytest_playbook.playbook.get("targets", []):
+    for t in playbook.playbook.get("targets", []):
         targets.append(t)
         target_ids.append(t["name"])
 
@@ -248,7 +248,7 @@ def pytest_collection_modifyitems(
             for _ in range(times - included.count(item)):
                 included.append(item)
 
-    for c in pytest_playbook.playbook.get("criteria", []):
+    for c in playbook.playbook.get("criteria", []):
         print(f"Parsing criteria {c}")
         for item in items:
             marker = item.get_closest_marker("lisa")
