@@ -538,6 +538,24 @@ mypy = {version = ">=0.700", markers = "python_version >= \"3.8\""}
 pytest = ">=3.5"
 
 [[package]]
+name = "pytest-playbook"
+version = "0.1.0"
+description = "Pytest plugin for reading playbooks."
+category = "main"
+optional = false
+python-versions = "^3.7"
+develop = true
+
+[package.dependencies]
+pytest = "^6.1.2"
+PyYAML = "^5.3.1"
+schema = "^0.7.3"
+
+[package.source]
+type = "directory"
+url = "pytest-playbook"
+
+[[package]]
 name = "pytest-rerunfailures"
 version = "9.1.1"
 description = "pytest plugin to re-run tests to eliminate flaky failures"
@@ -724,7 +742,7 @@ python-versions = ">=3.6"
 [metadata]
 lock-version = "1.1"
 python-versions = "^3.8"
-content-hash = "ff9d853cf9f58598aa01e465e2c673172b9e573fd7a8569bf29236348884c748"
+content-hash = "6b1d924f0bc47c51bc55daa27f1c15c0dfb72b4902625f2577ef75c6d3ab992f"
 
 [metadata.files]
 apipkg = [
@@ -991,6 +1009,7 @@ pytest-mypy = [
     {file = "pytest-mypy-0.7.0.tar.gz", hash = "sha256:5a667d9a2b66bf98b3a494411f221923a6e2c3eafbe771104951aaec8985673d"},
     {file = "pytest_mypy-0.7.0-py3-none-any.whl", hash = "sha256:e0505ace48d2b19fe686366fce6b4a2ac0d090423736bb6aa2e39554d18974b7"},
 ]
+pytest-playbook = []
 pytest-rerunfailures = [
     {file = "pytest-rerunfailures-9.1.1.tar.gz", hash = "sha256:1cb11a17fc121b3918414eb5eaf314ee325f2e693ac7cb3f6abf7560790827f2"},
     {file = "pytest_rerunfailures-9.1.1-py3-none-any.whl", hash = "sha256:2eb7d0ad651761fbe80e064b0fd415cf6730cdbc53c16a145fd84b66143e609f"},
