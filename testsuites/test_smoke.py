@@ -11,9 +11,8 @@ import socket
 import time
 
 from invoke.runners import CommandTimedOut, Result, UnexpectedExit  # type: ignore
-from paramiko import SSHException  # type: ignore
-
 from lisa import LISA
+from paramiko import SSHException  # type: ignore
 
 
 @LISA(

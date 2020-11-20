@@ -7,7 +7,9 @@ if typing.TYPE_CHECKING:
     from target import Azure
 
 import pytest
-from lisa import LINUX_SCRIPTS, LISA
+from lisa import LISA
+
+from conftest import LINUX_SCRIPTS
 
 
 @LISA(
