@@ -1,7 +1,12 @@
+from __future__ import annotations
+
 import functools
+import typing
+
+if typing.TYPE_CHECKING:
+    from target import Target
 
 import lisa
-from target import Target
 
 LISA = functools.partial(
     lisa.LISA, platform="Custom", category="Functional", area="self-test", priority=1

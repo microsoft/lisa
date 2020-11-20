@@ -1,5 +1,4 @@
 from schema import Schema  # type: ignore
-
 from target import Target
 
 
