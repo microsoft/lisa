@@ -162,7 +162,7 @@ testing = ["mock (>=2.0.0,<3.0)"]
 name = "filelock"
 version = "3.0.12"
 description = "A platform independent file lock."
-category = "main"
+category = "dev"
 optional = false
 python-versions = "*"
 
@@ -175,6 +175,7 @@ optional = false
 python-versions = "!=3.0.*,!=3.1.*,!=3.2.*,!=3.3.*,>=2.7"
 
 [package.dependencies]
+importlib-metadata = {version = "*", markers = "python_version < \"3.8\""}
 mccabe = ">=0.6.0,<0.7.0"
 pycodestyle = ">=2.6.0a1,<2.7.0"
 pyflakes = ">=2.2.0,<2.3.0"
@@ -218,6 +219,21 @@ testfixtures = ">=6.8.0,<7"
 
 [package.extras]
 test = ["pytest (>=4.0.2,<6)", "toml"]
+
+[[package]]
+name = "importlib-metadata"
+version = "2.0.0"
+description = "Read metadata from Python packages"
+category = "main"
+optional = false
+python-versions = "!=3.0.*,!=3.1.*,!=3.2.*,!=3.3.*,!=3.4.*,>=2.7"
+
+[package.dependencies]
+zipp = ">=0.5"
+
+[package.extras]
+docs = ["sphinx", "rst.linker"]
+testing = ["packaging", "pep517", "importlib-resources (>=1.3)"]
 
 [[package]]
 name = "iniconfig"
@@ -353,6 +369,9 @@ category = "main"
 optional = false
 python-versions = ">=2.7, !=3.0.*, !=3.1.*, !=3.2.*, !=3.3.*"
 
+[package.dependencies]
+importlib-metadata = {version = ">=0.12", markers = "python_version < \"3.8\""}
+
 [package.extras]
 dev = ["pre-commit", "tox"]
 
@@ -467,6 +486,7 @@ python-versions = ">=3.5"
 atomicwrites = {version = ">=1.0", markers = "sys_platform == \"win32\""}
 attrs = ">=17.4.0"
 colorama = {version = "*", markers = "sys_platform == \"win32\""}
+importlib-metadata = {version = ">=0.12", markers = "python_version < \"3.8\""}
 iniconfig = "*"
 packaging = "*"
 pluggy = ">=0.12,<1.0"
@@ -553,7 +573,10 @@ python-versions = ">=3.5"
 
 [package.dependencies]
 filelock = ">=3.0"
-mypy = {version = ">=0.700", markers = "python_version >= \"3.8\""}
+mypy = [
+    {version = ">=0.500", markers = "python_version < \"3.8\""},
+    {version = ">=0.700", markers = "python_version >= \"3.8\""},
+]
 pytest = ">=3.5"
 
 [[package]]
@@ -778,10 +801,22 @@ category = "dev"
 optional = false
 python-versions = ">=3.6"
 
+[[package]]
+name = "zipp"
+version = "3.4.0"
+description = "Backport of pathlib-compatible object wrapper for zip files"
+category = "main"
+optional = false
+python-versions = ">=3.6"
+
+[package.extras]
+docs = ["sphinx", "jaraco.packaging (>=3.2)", "rst.linker (>=1.9)"]
+testing = ["pytest (>=3.5,!=3.7.3)", "pytest-checkdocs (>=1.2.3)", "pytest-flake8", "pytest-cov", "jaraco.test (>=3.2.0)", "jaraco.itertools", "func-timeout", "pytest-black (>=0.3.7)", "pytest-mypy"]
+
 [metadata]
 lock-version = "1.1"
-python-versions = "^3.8"
-content-hash = "709c5ad614869a72de95d29708421298cd94048f6c5a4f2a2d00e83c8abccf37"
+python-versions = "^3.7"
+content-hash = "2446fb23de7593ab9aed977563ed514f029bfed67f5f69e102c72ff994e2bed6"
 
 [metadata.files]
 apipkg = [
@@ -912,6 +947,10 @@ flake8-bugbear = [
 flake8-isort = [
     {file = "flake8-isort-4.0.0.tar.gz", hash = "sha256:2b91300f4f1926b396c2c90185844eb1a3d5ec39ea6138832d119da0a208f4d9"},
     {file = "flake8_isort-4.0.0-py2.py3-none-any.whl", hash = "sha256:729cd6ef9ba3659512dee337687c05d79c78e1215fdf921ed67e5fe46cce2f3c"},
+]
+importlib-metadata = [
+    {file = "importlib_metadata-2.0.0-py2.py3-none-any.whl", hash = "sha256:cefa1a2f919b866c5beb7c9f7b0ebb4061f30a8a9bf16d609b000e2dfaceb9c3"},
+    {file = "importlib_metadata-2.0.0.tar.gz", hash = "sha256:77a540690e24b0305878c37ffd421785a6f7e53c8b5720d211b211de8d0e95da"},
 ]
 iniconfig = [
     {file = "iniconfig-1.1.1-py2.py3-none-any.whl", hash = "sha256:011e24c64b7f47f6ebd835bb12a743f2fbe9a26d4cecaa7f53bc4f35ee9da8b3"},
@@ -1200,4 +1239,8 @@ ujson = [
     {file = "ujson-4.0.1-cp39-cp39-manylinux2014_aarch64.whl", hash = "sha256:2b2d9264ac76aeb11f590f7a1ccff0689ba1313adacbb6d38d3b15f21a392897"},
     {file = "ujson-4.0.1-cp39-cp39-win_amd64.whl", hash = "sha256:f8a60928737a9a47e692fcd661ef2b5d75ba22c7c930025bd95e338f2a6e15bc"},
     {file = "ujson-4.0.1.tar.gz", hash = "sha256:26cf6241b36ff5ce4539ae687b6b02673109c5e3efc96148806a7873eaa229d3"},
+]
+zipp = [
+    {file = "zipp-3.4.0-py3-none-any.whl", hash = "sha256:102c24ef8f171fd729d46599845e95c7ab894a4cf45f5de11a44cc7444fb1108"},
+    {file = "zipp-3.4.0.tar.gz", hash = "sha256:ed5eee1974372595f9e416cc7bbeeb12335201d8081ca8a0743c954d4446e5cb"},
 ]
