@@ -1,4 +1,17 @@
-"""Provides and parameterizes the `pool` and `target` fixtures."""
+"""Provides and parameterizes the `pool` and `target` fixtures.
+
+TODO
+====
+* Provide a `targets` fixture for tests which use more than one target
+  at a time.
+* Deallocate targets when switching to a new target.
+* Use richer feature/requirements comparison for targets.
+* Add `pytest.mark.target` instead of LISA mark for target
+  requirements.
+* Reimplement caching of targets between runs.
+* Improve schema with annotations, error messages, etc.
+
+"""
 from __future__ import annotations
 
 import typing
