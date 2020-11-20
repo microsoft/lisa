@@ -22,7 +22,7 @@ TODO
 * Provide test metadata statistics via a command-line flag.
 * Improve schemata with annotations, error messages, etc.
 * Assert every test has a LISA marker.
-* Register custom marker.
+* Remove 'features' from marker.
 
 """
 from __future__ import annotations
@@ -41,6 +41,22 @@ if typing.TYPE_CHECKING:
     from pytest import Item, Session
 
 LISA = pytest.mark.lisa
+
+
+def pytest_configure(config: Config) -> None:
+    """Pytest hook to perform initial configuration.
+
+    We're registering our custom marker so that it passes
+    `--strict-markers`.
+
+    """
+    config.addinivalue_line(
+        "markers",
+        (
+            "lisa(platform, category, area, priority, features, tags): "
+            "Annotate a test with metadata."
+        ),
+    )
 
 
 def pytest_playbook_schema(schema: Dict[Any, Any]) -> None:
