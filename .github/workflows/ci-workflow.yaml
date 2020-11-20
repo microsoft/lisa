@@ -7,11 +7,12 @@ on:
 
 jobs:
   build:
-    runs-on: ${{ matrix.os }}
     strategy:
       matrix:
         os: [ubuntu-20.04, windows-2019]
+        python-version: [3.7, 3.8, 3.9]
       fail-fast: false
+    runs-on: ${{ matrix.os }}
     steps:
       - name: Checkout repository to $GITHUB_WORKSPACE
         uses: actions/checkout@v2
@@ -19,18 +20,18 @@ jobs:
       - name: Setup bootstrap Python
         uses: actions/setup-python@v2
         with:
-          python-version: "3.8"
+          python-version: ${{ matrix.python-version }}
 
       - name: Install Poetry for Linux
         if: runner.os == 'Linux'
         run: |
-          curl -sSL https://raw.githubusercontent.com/python-poetry/poetry/master/get-poetry.py | python - --preview --version 1.1.0b4
+          curl -sSL https://raw.githubusercontent.com/python-poetry/poetry/master/get-poetry.py | python
           echo "$HOME/.poetry/bin" >> $GITHUB_PATH
 
       - name: Install Poetry for Windows
         if: runner.os == 'Windows'
         run: |
-          (Invoke-WebRequest -Uri https://raw.githubusercontent.com/python-poetry/poetry/master/get-poetry.py -UseBasicParsing).Content | python - --preview --version 1.1.0b4
+          (Invoke-WebRequest -Uri https://raw.githubusercontent.com/python-poetry/poetry/master/get-poetry.py -UseBasicParsing).Content | python
           echo "$env:USERPROFILE\.poetry\bin" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
 
       - name: Install Python dependencies
