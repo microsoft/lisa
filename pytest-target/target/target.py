@@ -59,15 +59,19 @@ class Target(ABC):
             self.host, config=fabric.Config(overrides=config), inline_ssh_env=True
         )
 
-    # TODO: Use an abstract class property to ensure this is defined.
-    schema: Schema = Schema(None)
+    # NOTE: This ought to be a property, but the combination of
+    # @classmethod, @property, and @abstractmethod is only supported
+    # in Python 3.9 and up.
+    @classmethod
+    @abstractmethod
+    def schema(cls) -> Schema:
+        """Must return a schema for expected instance parameters.
 
-    # @property
-    # @classmethod
-    # @abstractmethod
-    # def schema(cls) -> Schema:
-    #     """Must return the parameters schema for setup."""
-    #     ...
+        TODO: This schema is used for each instance. We may want to
+        define platform-level shared schemata too.
+
+        """
+        ...
 
     @abstractmethod
     def deploy(self) -> str:
@@ -116,7 +120,9 @@ class Target(ABC):
 
 
 class Local(Target):
-    schema: Schema = Schema(None)
+    @classmethod
+    def schema(cls) -> Schema:
+        return Schema(None)
 
     def deploy(self) -> str:
         return "localhost"

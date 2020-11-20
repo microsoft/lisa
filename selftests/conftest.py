@@ -3,11 +3,9 @@ from target import Target
 
 
 class Custom(Target):
-    schema: Schema = Schema(None)
-    # @property
-    # @classmethod
-    # def schema(cls) -> Schema:
-    #     return Schema()
+    @classmethod
+    def schema(cls) -> Schema:
+        return Schema(None)
 
     def deploy(self) -> str:
         return "localhost"
