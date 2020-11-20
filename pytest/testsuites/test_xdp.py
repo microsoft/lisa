@@ -1,8 +1,12 @@
 """Runs 'FunctionalTests-XDP.xml' using Pytest."""
+from __future__ import annotations
 
+import typing
+
+if typing.TYPE_CHECKING:
+    from target import Azure
 
 import pytest
-from azure import Azure
 from lisa import LINUX_SCRIPTS, LISA
 
 

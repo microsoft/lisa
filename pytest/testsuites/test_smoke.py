@@ -1,4 +1,11 @@
 """Runs a 'smoke' test for an Azure Linux VM deployment."""
+from __future__ import annotations
+
+import typing
+
+if typing.TYPE_CHECKING:
+    from target import Azure
+
 import logging
 import socket
 import time
@@ -6,7 +13,6 @@ import time
 from invoke.runners import CommandTimedOut, Result, UnexpectedExit  # type: ignore
 from paramiko import SSHException  # type: ignore
 
-from azure import Azure
 from lisa import LISA
 
 

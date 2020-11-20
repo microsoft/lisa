@@ -4,7 +4,7 @@ from __future__ import annotations
 import typing
 
 if typing.TYPE_CHECKING:
-    from azure import Azure
+    from target import Azure
 
 from lisa import LINUX_SCRIPTS, LISA
 
