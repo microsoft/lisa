@@ -52,7 +52,7 @@ def pytest_playbook_schema(schema: Dict[Any, Any]) -> None:
             # use the platform’s defaults from its own schema, but that
             # means this value must be set, even if to an empty dict.
             Optional("parameters", default=dict): Or(
-                *[cls.schema for cls in platforms.values()]
+                *[cls.schema() for cls in platforms.values()]
             ),
         }
     )
