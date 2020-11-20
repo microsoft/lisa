@@ -21,7 +21,7 @@ import typing
 from pathlib import Path
 
 import yaml  # TODO: Optionally load yaml.
-from schema import Schema  # type: ignore
+from schema import Schema, SchemaMissingKeyError  # type: ignore
 
 # See https://pyyaml.org/wiki/PyYAMLDocumentation
 try:
@@ -93,6 +93,9 @@ def pytest_configure(config: Config) -> None:
     config.hook.pytest_playbook_schema(schema=schema, config=config)
 
     global playbook
-    with open(path) as f:
-        # TODO: Handle ‘SchemaMissingKeyError’.
-        playbook = Schema(schema).validate(yaml.load(f, Loader=Loader))
+    try:
+        with open(path) as f:
+            data = yaml.load(f, Loader=Loader)
+        playbook = Schema(schema).validate(data)
+    except (yaml.YAMLError, SchemaMissingKeyError, OSError) as e:
+        pytest.exit(f"Error loading playbook '{path}': {e}")
