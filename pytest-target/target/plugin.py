@@ -131,7 +131,7 @@ def target(pool: List[Target], request: SubRequest) -> Iterator[Target]:
         t = platform(f"pytest-{uuid4()}", parameters, features)
         pool.append(t)
         yield t
-    t.connection.close()
+    t.conn.close()
 
 
 targets: List[Dict[str, Any]] = []

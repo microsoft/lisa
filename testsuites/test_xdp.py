@@ -33,10 +33,10 @@ def test_verify_xdp_compliance(target: Azure) -> None:
         "enable_passwordless_root.sh",
         "enable_root.sh",
     ]:
-        target.put(LINUX_SCRIPTS / f)
-        target.run(f"chmod +x {f}")
-    target.run("./enable_root.sh")
-    target.run("./enable_passwordless_root.sh")
-    synth_interface = target.run("source XDPUtils.sh ; get_extra_synth_nic").stdout
-    target.run(f"./XDPDumpSetup.sh {target.internal_address} {synth_interface}")
+        target.conn.put(LINUX_SCRIPTS / f)
+        target.conn.run(f"chmod +x {f}")
+    target.conn.run("./enable_root.sh")
+    target.conn.run("./enable_passwordless_root.sh")
+    synth_interface = target.conn.run("source XDPUtils.sh ; get_extra_synth_nic").stdout
+    target.conn.run(f"./XDPDumpSetup.sh {target.internal_address} {synth_interface}")
     assert target.cat("state.txt") == "TestCompleted"

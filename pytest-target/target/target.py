@@ -24,7 +24,6 @@ class Target(ABC):
     features: Set[str]
     name: str
     host: str
-    # TODO:  Use `self.conn` and remove forwarding methods.
     conn: fabric.Connection
 
     # Setup a sane configuration for local and remote commands. Note
@@ -69,7 +68,7 @@ class Target(ABC):
             # Set PATH since it’s not a login shell.
             "PATH": "/sbin:/usr/sbin:/usr/local/sbin:/bin:/usr/bin:/usr/local/bin"
         }
-        self.connection = fabric.Connection(
+        self.conn = fabric.Connection(
             self.host,
             config=fabric.Config(overrides=fabric_config),
             inline_ssh_env=True,
@@ -107,21 +106,6 @@ class Target(ABC):
         """This patches Fabric's 'local()' function to ignore SSH environment."""
         return Target.local_context.run(*args, **kwargs)
 
-    # TODO: Refactor this. We don’t want to inherit from `Connection`
-    # because that’s overly complicated. Honestly we probably just
-    # want users to call `target.conn.run()` etc.
-    def run(self, *args: Any, **kwargs: Any) -> Result:
-        return self.connection.run(*args, **kwargs)
-
-    def sudo(self, *args: Any, **kwargs: Any) -> Result:
-        return self.connection.sudo(*args, **kwargs)
-
-    def get(self, *args: Any, **kwargs: Any) -> Result:
-        return self.connection.get(*args, **kwargs)
-
-    def put(self, *args: Any, **kwargs: Any) -> Result:
-        return self.connection.put(*args, **kwargs)
-
     @retry(reraise=True, wait=wait_exponential(), stop=stop_after_attempt(3))
     def ping(self, **kwargs: Any) -> Result:
         """Ping the node from the local system in a cross-platform manner."""
@@ -131,7 +115,7 @@ class Target(ABC):
     def cat(self, path: str) -> str:
         """Gets the value of a remote file without a temporary file."""
         with BytesIO() as buf:
-            self.get(path, buf)
+            self.conn.get(path, buf)
             return buf.getvalue().decode("utf-8").strip()
 
 
