@@ -5,12 +5,19 @@ description = "Pytest plugin for Linux Integration Services Automation (LISA)."
 authors = ["Andrew Schwartzmeyer <andrew@schwartzmeyer.com>"]
 license = "MIT"
 classifiers = ["Framework :: Pytest"]
+packages = [{include = "lisa.py"}]
 
 [tool.poetry.dependencies]
 python = "^3.7"
 pytest = "^6.1.2"
+pytest-playbook = {path = "../pytest-playbook", develop = true}
+pytest-target = {path = "../pytest-target", develop = true}
+schema = "^0.7.3"
 
 [tool.poetry.dev-dependencies]
+
+[tool.poetry.plugins]
+pytest11 = {lisa = "lisa"}
 
 [build-system]
 requires = ["poetry-core>=1.0.0"]

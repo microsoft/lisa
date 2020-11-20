@@ -514,6 +514,25 @@ pytest = ">=5.0"
 pytest-metadata = "*"
 
 [[package]]
+name = "pytest-lisa"
+version = "0.1.0"
+description = "Pytest plugin for Linux Integration Services Automation (LISA)."
+category = "main"
+optional = false
+python-versions = "^3.7"
+develop = true
+
+[package.dependencies]
+pytest = "^6.1.2"
+pytest-playbook = "0.1.0"
+pytest-target = "0.1.0"
+schema = "^0.7.3"
+
+[package.source]
+type = "directory"
+url = "pytest-lisa"
+
+[[package]]
 name = "pytest-metadata"
 version = "1.10.0"
 description = "pytest plugin for test session metadata"
@@ -762,7 +781,7 @@ python-versions = ">=3.6"
 [metadata]
 lock-version = "1.1"
 python-versions = "^3.8"
-content-hash = "86fba290150f934a1cd430ea0e34d7a847bf084fac1b3d5ca356e4f919707cef"
+content-hash = "709c5ad614869a72de95d29708421298cd94048f6c5a4f2a2d00e83c8abccf37"
 
 [metadata.files]
 apipkg = [
@@ -1021,6 +1040,7 @@ pytest-html = [
     {file = "pytest-html-2.1.1.tar.gz", hash = "sha256:6a4ac391e105e391208e3eb9bd294a60dd336447fd8e1acddff3a6de7f4e57c5"},
     {file = "pytest_html-2.1.1-py2.py3-none-any.whl", hash = "sha256:9e4817e8be8ddde62e8653c8934d0f296b605da3d2277a052f762c56a8b32df2"},
 ]
+pytest-lisa = []
 pytest-metadata = [
     {file = "pytest-metadata-1.10.0.tar.gz", hash = "sha256:b7e6e0a45adacb17a03a97bf7a2ef60cc1f4e172bcce9732ce5e814191932315"},
     {file = "pytest_metadata-1.10.0-py2.py3-none-any.whl", hash = "sha256:fcbcc5781aee450107c620c79c57e50796b6777b82b3c504be9cbc3017201169"},

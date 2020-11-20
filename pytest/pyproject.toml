@@ -1,7 +1,7 @@
 [tool.poetry]
-name = "pytest-lisa"
+name = "LISA"
 version = "0.1.0"
-description = "LISA plugin for pytest"
+description = "Linux Integration Services Automation (LISA)"
 authors = ["Andrew Schwartzmeyer <andrew@schwartzmeyer.com>"]
 license = "MIT License"
 
@@ -13,9 +13,7 @@ pytest-timeout = "^1.4.2"
 pytest-html = "^2.1.1"
 pytest-rerunfailures = "^9.1.1"
 pytest-xdist = "^2.1.0"
-schema = "^0.7.3"
-pytest-playbook = {path = "pytest-playbook", develop = true}
-pytest-target = {path = "pytest-target", develop = true}
+pytest-lisa = {path = "pytest-lisa", develop = true}
 
 [tool.poetry.dev-dependencies]
 black = "^20.8b1"
