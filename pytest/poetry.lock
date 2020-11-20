@@ -567,6 +567,26 @@ python-versions = ">=3.5"
 pytest = ">=5.0"
 
 [[package]]
+name = "pytest-target"
+version = "0.1.0"
+description = "Pytest plugin for remote target orchestration."
+category = "main"
+optional = false
+python-versions = "^3.7"
+develop = true
+
+[package.dependencies]
+fabric = "^2.5.0"
+invoke = "^1.4.1"
+pytest = "^6.1.2"
+pytest-playbook = "0.1.0"
+tenacity = "^6.2.0"
+
+[package.source]
+type = "directory"
+url = "pytest-target"
+
+[[package]]
 name = "pytest-timeout"
 version = "1.4.2"
 description = "py.test plugin to abort hanging tests"
@@ -742,7 +762,7 @@ python-versions = ">=3.6"
 [metadata]
 lock-version = "1.1"
 python-versions = "^3.8"
-content-hash = "6b1d924f0bc47c51bc55daa27f1c15c0dfb72b4902625f2577ef75c6d3ab992f"
+content-hash = "86fba290150f934a1cd430ea0e34d7a847bf084fac1b3d5ca356e4f919707cef"
 
 [metadata.files]
 apipkg = [
@@ -1014,6 +1034,7 @@ pytest-rerunfailures = [
     {file = "pytest-rerunfailures-9.1.1.tar.gz", hash = "sha256:1cb11a17fc121b3918414eb5eaf314ee325f2e693ac7cb3f6abf7560790827f2"},
     {file = "pytest_rerunfailures-9.1.1-py3-none-any.whl", hash = "sha256:2eb7d0ad651761fbe80e064b0fd415cf6730cdbc53c16a145fd84b66143e609f"},
 ]
+pytest-target = []
 pytest-timeout = [
     {file = "pytest-timeout-1.4.2.tar.gz", hash = "sha256:20b3113cf6e4e80ce2d403b6fb56e9e1b871b510259206d40ff8d609f48bda76"},
     {file = "pytest_timeout-1.4.2-py2.py3-none-any.whl", hash = "sha256:541d7aa19b9a6b4e475c759fd6073ef43d7cdc9a92d95644c260076eb257a063"},

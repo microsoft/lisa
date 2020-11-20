@@ -1,3 +1,4 @@
+"""Provides the abstract base `Target` class."""
 from __future__ import annotations
 
 import platform
