@@ -1,5 +1,5 @@
 from dataclasses import dataclass, field
-from typing import Any, List, Type
+from typing import Any, List, Optional, Type, Union
 from unittest.case import TestCase
 
 from dataclasses_json import LetterCase, dataclass_json  # type: ignore
@@ -105,7 +105,7 @@ class MockPlatform(Platform):
 
 
 def generate_platform(
-    reserve_environment: bool = False,
+    reserve_environment: Optional[Union[str, bool]] = False,
     admin_password: str = "donot use for real",
     admin_key_file: str = "",
 ) -> MockPlatform:
