@@ -1,4 +1,10 @@
-# Pytest report files
-/*.xml
+*$py.class
+*.py[cod]
+*.so
+.mypy_cache/
+.pytest_cache/
 /*.html
-/assets
+/*.xml
+/assets/
+__pycache__/
+dist/
