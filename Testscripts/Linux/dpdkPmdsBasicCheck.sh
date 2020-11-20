@@ -107,7 +107,14 @@ runTestPmd()
 	esac
 	LogMsg "TestPmd is starting with ${pmd} PMD"
 
-	cmd="echo 'stop' | dpdk-testpmd -l 0-1 ${whitelist} ${vdev} -- -i --port-topology=chained --nb-cores 1"
+	testpmd_cmd="dpdk-testpmd"
+	which $testpmd_cmd > /dev/null 2>&1 || testpmd_cmd="testpmd"
+	which $testpmd_cmd > /dev/null 2>&1 || {
+		LogErr "ERROR: No dpdk testpmd command found. Exit!"
+		SetTestStateAborted
+		exit 0
+	}
+	cmd="echo 'stop' | $testpmd_cmd -l 0-1 ${whitelist} ${vdev} -- -i --port-topology=chained --nb-cores 1"
 	LogMsg "$cmd"
 	eval "$cmd" > $LOGDIR/$pmd.log 2>&1
 	checkCmdExitStatus "TestPmd with ${pmd} execution"
