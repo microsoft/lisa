@@ -49,7 +49,7 @@ def test_smoke(target: Azure) -> None:
 
     try:
         logging.info("SSHing before reboot...")
-        target.connection.open()
+        target.conn.open()
     except ssh_errors as e:
         logging.warning(f"SSH before reboot failed: '{e}'")
 
@@ -57,7 +57,7 @@ def test_smoke(target: Azure) -> None:
     try:
         logging.info("Rebooting...")
         # If this succeeds, we should expect the exit code to be -1
-        reboot_exit = target.sudo("reboot", timeout=5).exited
+        reboot_exit = target.conn.sudo("reboot", timeout=5).exited
     except ssh_errors as e:
         logging.warning(f"SSH failed, using platform to reboot: '{e}'")
         target.platform_restart()
@@ -79,7 +79,7 @@ def test_smoke(target: Azure) -> None:
 
     try:
         logging.info("SSHing after reboot...")
-        target.connection.open()
+        target.conn.open()
     except ssh_errors as e:
         logging.warning(f"SSH after reboot failed: '{e}'")
 
