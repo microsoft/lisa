@@ -625,6 +625,7 @@ function Testpmd_Multiple_Tx_Flows_Setup() {
 function Testpmd_Macfwd_To_Dest() {
 	local dpdk_version=$(Get_DPDK_Version "${LIS_HOME}/${DPDK_DIR}")
 	local dpdk_version_changed_mac_fwd="19.08"
+	local dpdk_version_changed_mac_fwd2="20.11"
 
 	local ptr_code="struct ipv4_hdr *ipv4_hdr;"
 	local offload_code="ol_flags |= PKT_TX_IP_CKSUM; ol_flags |= PKT_TX_IPV4;"
@@ -640,9 +641,15 @@ function Testpmd_Macfwd_To_Dest() {
 		LogMsg "Using legacy forwarding code insertion"
 	fi
 
+	# TODO: Replace line number updates with actual code
 	sed -i "53i ${ptr_code}" app/test-pmd/macfwd.c
-	sed -i "90i ${offload_code}" app/test-pmd/macfwd.c
-	sed -i "101i ${dst_addr_code}" app/test-pmd/macfwd.c
+	if [[ ! $(printf "${dpdk_version_changed_mac_fwd2}\n${dpdk_version}" | sort -V | head -n1) == "${dpdk_version}" ]]; then
+		sed -i "82i ${offload_code}" app/test-pmd/macfwd.c
+		sed -i "93i ${dst_addr_code}" app/test-pmd/macfwd.c
+	else
+		sed -i "90i ${offload_code}" app/test-pmd/macfwd.c
+		sed -i "101i ${dst_addr_code}" app/test-pmd/macfwd.c
+	fi
 }
 
 function Get_DPDK_Version() {
