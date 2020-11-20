@@ -24,6 +24,7 @@ class Target(ABC):
     features: Set[str]
     name: str
     host: str
+    # TODO:  Use `self.conn` and remove forwarding methods.
     conn: fabric.Connection
 
     # Setup a sane configuration for local and remote commands. Note
