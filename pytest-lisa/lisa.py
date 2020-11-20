@@ -27,6 +27,7 @@ TODO
 """
 from __future__ import annotations
 
+import sys
 import typing
 
 import playbook
@@ -41,6 +42,11 @@ if typing.TYPE_CHECKING:
     from pytest import Item, Session
 
 LISA = pytest.mark.lisa
+
+
+def main() -> None:
+    """Wrapper function so we can have a `lisa` binary."""
+    sys.exit(pytest.main())
 
 
 def pytest_configure(config: Config) -> None:
