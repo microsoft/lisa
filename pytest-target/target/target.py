@@ -1,10 +1,10 @@
+"""Provides the abstract base `Target` class."""
 from __future__ import annotations
 
 import platform
 import typing
 from abc import ABC, abstractmethod
 from io import BytesIO
-from uuid import uuid4
 
 import fabric  # type: ignore
 import invoke  # type: ignore
@@ -30,21 +30,21 @@ class Target(ABC):
 
     def __init__(
         self,
+        name: str,
         parameters: Mapping[str, str],
         features: Set[str],
-        name: str = f"pytest-{uuid4()}",
     ):
-        """If not given a name, generates one uniquely.
+        """Requires a unique name.
 
         Name is a unique identifier for the group of associated
         resources. Features is a list of requirements such as sriov,
-        rdma, gpu, xdp.
+        rdma, gpu, xdp. Parameters are used by `deploy()`.
 
         """
+        self.name = name
         # TODO: Do we need to re-validate the parameters here?
         self.parameters = parameters
         self.features = features
-        self.name = name
 
         # TODO: Review this thoroughly as currently it depends on
         # parameters which is side-effecty.

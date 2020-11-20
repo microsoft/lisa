@@ -1,3 +1,4 @@
+"""Provides an `Azure(Target)` implementation using the Azure CLI."""
 from __future__ import annotations
 
 import json
@@ -6,9 +7,8 @@ import typing
 
 from invoke.runners import Result  # type: ignore
 from schema import Optional, Schema  # type: ignore
+from target.target import Target
 from tenacity import retry, stop_after_attempt, wait_exponential  # type: ignore
-
-from target import Target
 
 if typing.TYPE_CHECKING:
     from typing import Any
