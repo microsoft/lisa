@@ -12,8 +12,6 @@ from invoke.runners import Result  # type: ignore
 from schema import Schema  # type: ignore
 from tenacity import retry, stop_after_attempt, wait_exponential  # type: ignore
 
-import lisa
-
 if typing.TYPE_CHECKING:
     from typing import Any, Mapping, Set
 
@@ -27,6 +25,21 @@ class Target(ABC):
     name: str
     host: str
     conn: fabric.Connection
+
+    # Setup a sane configuration for local and remote commands. Note
+    # that the defaults between Fabric and Invoke are different, so we
+    # use their Config classes explicitly later.
+    config = {
+        "run": {
+            # Show each command as its run.
+            "echo": True,
+            # Disable stdin forwarding.
+            "in_stream": False,
+            # Don’t let remote commands take longer than five minutes
+            # (unless later overridden). This is to prevent hangs.
+            "command_timeout": 1200,
+        }
+    }
 
     def __init__(
         self,
@@ -50,13 +63,15 @@ class Target(ABC):
         # parameters which is side-effecty.
         self.host = self.deploy()
 
-        config = lisa.config.copy()
-        config["run"]["env"] = {  # type: ignore
+        fabric_config = self.config.copy()
+        fabric_config["run"]["env"] = {  # type: ignore
             # Set PATH since it’s not a login shell.
             "PATH": "/sbin:/usr/sbin:/usr/local/sbin:/bin:/usr/bin:/usr/local/bin"
         }
         self.connection = fabric.Connection(
-            self.host, config=fabric.Config(overrides=config), inline_ssh_env=True
+            self.host,
+            config=fabric.Config(overrides=fabric_config),
+            inline_ssh_env=True,
         )
 
     # NOTE: This ought to be a property, but the combination of
@@ -84,7 +99,7 @@ class Target(ABC):
         ...
 
     # A class attribute because it’s defined.
-    local_context = invoke.Context(config=invoke.Config(overrides=lisa.config))
+    local_context = invoke.Context(config=invoke.Config(overrides=config))
 
     @classmethod
     def local(cls, *args: Any, **kwargs: Any) -> Result:
