@@ -19,6 +19,9 @@ schema = "^0.7.3"
 [tool.poetry.plugins]
 pytest11 = {lisa = "lisa"}
 
+[tool.poetry.scripts]
+lisa = "lisa:main"
+
 [build-system]
 requires = ["poetry-core>=1.0.0"]
 build-backend = "poetry.core.masonry.api"
