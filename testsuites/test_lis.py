@@ -13,6 +13,7 @@ from conftest import LINUX_SCRIPTS
 
 
 @LISA(platform="Azure", category="Functional", priority=0, area="LIS_DEPLOY")
+@pytest.mark.skip(reason="Scripts missing")
 def test_lis_driver_version(target: Azure) -> None:
     """Checks that the installed drivers have the correct version."""
     # TODO: Include “utils.sh” automatically? Or something...
