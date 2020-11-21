@@ -9,8 +9,6 @@ if typing.TYPE_CHECKING:
 import pytest
 from lisa import LISA
 
-from conftest import LINUX_SCRIPTS
-
 
 @LISA(
     platform="Azure",
@@ -33,7 +31,7 @@ def test_verify_xdp_compliance(target: Azure) -> None:
         "enable_passwordless_root.sh",
         "enable_root.sh",
     ]:
-        target.conn.put(LINUX_SCRIPTS / f)
+        target.conn.put(f)
         target.conn.run(f"chmod +x {f}")
     target.conn.run("./enable_root.sh")
     target.conn.run("./enable_passwordless_root.sh")
