@@ -524,6 +524,7 @@ function Create_Testpmd_Cmd() {
 
 	# partial strings to concat
 	local testpmd="dpdk-testpmd"
+	export PATH="/usr/local/bin:${PATH}"
 	local eal_opts=""
 	case "$pmd" in
 		netvsc)
