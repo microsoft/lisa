@@ -1,9 +1,12 @@
+from datetime import timedelta
+from time import sleep
 from typing import Any
 
 from lisa.executable import Tool
 from lisa.util import LisaException
 from lisa.util.perf_timer import create_timer
 
+from .date import Date
 from .who import Who
 
 
@@ -24,6 +27,20 @@ class Reboot(Tool):
         timer = create_timer()
         last_boot_time = who.last_boot()
         current_boot_time = last_boot_time
+        date = self.node.tools[Date]
+
+        # who -b returns time without seconds.
+        # so if the node rebooted in one minute, the who -b is not changed.
+        # The reboot will wait forever.
+        # in this case, verify the time is wait enough to prevent this problem.
+        current_delta = date.current() - current_boot_time
+        while current_delta < timedelta(minutes=1):
+            # wait until one minute
+            wait_seconds = 60 - current_delta.seconds + 1
+            self._log.debug(f"waiting {wait_seconds} seconds before rebooting")
+            sleep(wait_seconds)
+            current_delta = date.current() - current_boot_time
+
         self._log.debug(f"rebooting with boot time: {last_boot_time}")
         self.node.execute_async(f"sudo {self.command}")
         while (
