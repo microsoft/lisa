@@ -1,4 +1,5 @@
 from .cat import Cat
+from .date import Date
 from .dmesg import Dmesg
 from .echo import Echo
 from .gcc import Gcc
@@ -13,6 +14,7 @@ from .who import Who
 
 __all__ = [
     "Cat",
+    "Date",
     "Dmesg",
     "Echo",
     "Gcc",
