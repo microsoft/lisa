@@ -209,6 +209,7 @@ class Tool(ABC, InitializableMixin):
         no_error_log: bool = False,
         no_info_log: bool = True,
         cwd: Optional[pathlib.PurePath] = None,
+        timeout: int = 600,
     ) -> ExecutableResult:
         """
         Run a process and wait for result.
@@ -220,7 +221,7 @@ class Tool(ABC, InitializableMixin):
             no_info_log=no_info_log,
             cwd=cwd,
         )
-        return process.wait_result()
+        return process.wait_result(timeout=timeout)
 
     def get_tool_path(self) -> pathlib.PurePath:
         """
@@ -298,6 +299,7 @@ class CustomScript(Tool):
         no_error_log: bool = False,
         no_info_log: bool = True,
         cwd: Optional[pathlib.PurePath] = None,
+        timeout: int = 600,
     ) -> ExecutableResult:
         process = self.run_async(
             parameters=parameters,
@@ -306,7 +308,7 @@ class CustomScript(Tool):
             no_info_log=no_info_log,
             cwd=cwd,
         )
-        return process.wait_result()
+        return process.wait_result(timeout=timeout)
 
     @property
     def name(self) -> str:

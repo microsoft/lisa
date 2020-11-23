@@ -127,6 +127,7 @@ class Node(ContextMixin, InitializableMixin):
         no_error_log: bool = False,
         no_info_log: bool = True,
         cwd: Optional[pathlib.PurePath] = None,
+        timeout: int = 600,
     ) -> ExecutableResult:
         process = self.execute_async(
             cmd,
@@ -135,7 +136,7 @@ class Node(ContextMixin, InitializableMixin):
             no_info_log=no_info_log,
             cwd=cwd,
         )
-        return process.wait_result()
+        return process.wait_result(timeout=timeout)
 
     def execute_async(
         self,

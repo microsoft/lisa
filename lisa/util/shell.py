@@ -141,6 +141,7 @@ def try_connect(connection_info: ConnectionInfo) -> Any:
         username=connection_info.username,
         password=connection_info.password,
         key_filename=connection_info.private_key_file,
+        banner_timeout=10,
     )
     _, stdout, _ = paramiko_client.exec_command("cmd")
     paramiko_client.close()
