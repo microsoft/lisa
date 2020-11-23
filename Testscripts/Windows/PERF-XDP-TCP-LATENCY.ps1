@@ -203,7 +203,7 @@ collect_VM_properties
             # Start XDPDump on client
             # https://lore.kernel.org/lkml/1579558957-62496-3-git-send-email-haiyangz@microsoft.com/t/
             Write-LogDbg "XDP program cannot run with LRO (RSC) enabled, disable LRO before running XDP"
-            $xdp_command = "ethtool -K $iFaceName lro off && cd ~/bpf-samples/xdpdump && ./xdpdump -i $iFaceName > ~/xdpdumpoutPERF.txt 2>&1"
+            $xdp_command = "ethtool -K $iFaceName lro off && cd /root/bpf-samples/xdpdump && ./xdpdump -i $iFaceName > ~/xdpdumpoutPERF.txt 2>&1"
             $testJobXDP = Run-LinuxCmd -ip $receiverVMData.PublicIP -port $receiverVMData.SSHPort -username $user -password $password -command $xdp_command -RunInBackground -runAsSudo -ignoreLinuxExitCode
             Write-LogInfo "XDP Dump process started with id: $testJobXDP"
 

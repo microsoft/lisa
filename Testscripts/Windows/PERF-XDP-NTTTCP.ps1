@@ -198,10 +198,10 @@ collect_VM_properties
             Run_NTTTCP_PERF $ResultDir
 
             # Start XDPDump on client
-            $xdp_build = "cd ~/bpf-samples/xdpdump && make clean &&  CFLAGS='-D __PERF__ -I../libbpf/src/root/usr/include' make"
+            $xdp_build = "cd /root/bpf-samples/xdpdump && make clean &&  CFLAGS='-D __PERF__ -I../libbpf/src/root/usr/include' make"
             $testJobXDP = Run-LinuxCmd -ip $receiverVMData.PublicIP -port $receiverVMData.SSHPort -username $user `
                 -password $password -command $xdp_build -runAsSudo
-            $xdp_command = "cd ~/bpf-samples/xdpdump && ./xdpdump -i $iFaceName > ~/xdpdumpoutPERF.txt"
+            $xdp_command = "cd /root/bpf-samples/xdpdump && ./xdpdump -i $iFaceName > ~/xdpdumpoutPERF.txt"
             $testJobXDP = Run-LinuxCmd -ip $receiverVMData.PublicIP -port $receiverVMData.SSHPort -username $user `
                 -password $password -command $xdp_command -RunInBackground -runAsSudo
             Write-LogInfo "XDP Dump process started with id: $testJobXDP"
