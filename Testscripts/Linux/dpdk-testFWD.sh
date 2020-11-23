@@ -133,19 +133,32 @@ function Testfwd_Parser() {
 		if [[ "${file}" =~ "receiver" ]]; then
 			local rx_pps_arr=($(grep Rx-pps: "${file}" | awk '{print $2}'))
 			local rx_pps_avg=$(( ($(printf '%b + ' "${rx_pps_arr[@]}"\\c)) / ${#rx_pps_arr[@]} ))
+			local rx_bytes_arr=($(cat "${file}" | grep TX-bytes: | rev | awk '{print $1}' | rev))
+			local rx_bytes_avg=$(($(expr $(printf '%b + ' "${rx_bytes_arr[@]::${#rx_bytes_arr[@]}}"\\c))/${#rx_bytes_arr[@]}))
+			local rx_packets_arr=($(cat "${file}" | grep TX-packets: | awk '{print $2}'))
+			local rx_packets_avg=$(($(expr $(printf '%b + ' "${rx_packets_arr[@]::${#rx_packets_arr[@]}}"\\c))/${#rx_packets_arr[@]}))
 		elif [[ "${file}" =~ "forwarder" ]]; then
 			local fwdrx_pps_arr=($(grep Rx-pps: "${file}" | awk '{print $2}'))
 			local fwdrx_pps_avg=$(( ($(printf '%b + ' "${fwdrx_pps_arr[@]}"\\c)) / ${#fwdrx_pps_arr[@]} ))
 
 			local fwdtx_pps_arr=($(grep Tx-pps: "${file}" | awk '{print $2}'))
 			local fwdtx_pps_avg=$(( ($(printf '%b + ' "${fwdtx_pps_arr[@]}"\\c)) / ${#fwdtx_pps_arr[@]} ))
+			local fwdtx_bytes_arr=($(cat "${file}" | grep TX-bytes: | rev | awk '{print $1}' | rev))
+			local fwdtx_bytes_avg=$(($(expr $(printf '%b + ' "${fwdtx_bytes_arr[@]::${#fwdtx_bytes_arr[@]}}"\\c))/${#fwdtx_bytes_arr[@]}))
+			local fwdtx_packets_arr=($(cat "${file}" | grep TX-packets: | awk '{print $2}'))
+			local fwdtx_packets_avg=$(($(expr $(printf '%b + ' "${fwdtx_packets_arr[@]::${#fwdtx_packets_arr[@]}}"\\c))/${#fwdtx_packets_arr[@]}))
 		elif [[ "${file}" =~ "sender" ]]; then
 			local tx_pps_arr=($(grep Tx-pps: "${file}" | awk '{print $2}'))
 			local tx_pps_avg=$(( ($(printf '%b + ' "${tx_pps_arr[@]}"\\c)) / ${#tx_pps_arr[@]} ))
+			local tx_bytes_arr=($(cat "${file}" | grep TX-bytes: | rev | awk '{print $1}' | rev))
+			local tx_bytes_avg=$(($(expr $(printf '%b + ' "${tx_bytes_arr[@]::${#tx_bytes_arr[@]}}"\\c))/${#tx_bytes_arr[@]}))
+			local tx_packets_arr=($(cat "${file}" | grep TX-packets: | awk '{print $2}'))
+			local tx_packets_avg=$(($(expr $(printf '%b + ' "${tx_packets_arr[@]::${#tx_packets_arr[@]}}"\\c))/${#tx_packets_arr[@]}))
 		fi
 	done
-
-	echo "${dpdk_version},${pmd},${core},${tx_pps_avg},${fwdrx_pps_avg},${fwdtx_pps_avg},${rx_pps_avg}" >> "${testfwd_csv_file}"
+	tx_packet_size=$((tx_bytes_avg/tx_packets_avg))
+	rx_packet_size=$((rx_bytes_avg/rx_packets_avg))
+	echo "${dpdk_version},${pmd},fwd,${core},${tx_pps_avg},${fwdrx_pps_avg},${fwdtx_pps_avg},${rx_pps_avg},${tx_bytes_avg},${rx_bytes_avg},${fwdtx_bytes_avg},${tx_packets_avg},${rx_packets_avg},${fwdtx_packets_avg},${tx_packet_size},${rx_packet_size}" >> "${testfwd_csv_file}"
 }
 
 function Run_Testcase() {
@@ -167,7 +180,7 @@ function Run_Testcase() {
 
 	LogMsg "Starting testfwd parser"
 	local csv_file=$(Create_Csv)
-	echo "dpdk_version,poll_mode_driver,core,tx_pps_avg,fwdrx_pps_avg,fwdtx_pps_avg,rx_pps_avg" > "${csv_file}"
+	echo "dpdk_version,poll_mode_driver,test_mode,core,tx_pps_avg,fwdrx_pps_avg,fwdtx_pps_avg,rx_pps_avg,tx_bytes,rx_bytes,fwd_bytes,tx_packets,rx_packets,fwd_packets,tx_packet_size,rx_packet_size" > "${csv_file}"
 	for core in "${CORES[@]}"; do
 		Testfwd_Parser ${core} "${csv_file}"
 	done
