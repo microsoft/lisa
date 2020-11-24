@@ -4,6 +4,8 @@ version = "0.1.0"
 description = "Linux Integration Services Automation (LISA)"
 authors = ["Andrew Schwartzmeyer <andrew@schwartzmeyer.com>"]
 license = "MIT License"
+include = [".md", "playbooks/*.yaml"]
+packages = [{include = "*.py"}, {include = "testsuites"}]
 
 [tool.poetry.dependencies]
 python = "^3.7"

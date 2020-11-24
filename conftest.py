@@ -12,8 +12,6 @@ import typing
 if typing.TYPE_CHECKING:
     from pytest_html.plugin import HTMLReport  # type: ignore
 
-pytest_plugins = ["playbook", "target", "lisa"]
-
 
 def pytest_html_report_title(report: HTMLReport) -> None:
     """Set HTML report title."""
