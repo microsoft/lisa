@@ -15,6 +15,7 @@ CONTAINER_NAME="dotnetapp"
 CONTAINER_IMAGE_NAME="dotnetimage"
 
 STRING_IDENTIFIER="Hello World"
+SDK_VERSION="3.1"
 
 # Function to check the Dotnet package support
 CheckDotnetSDKSupport() {
@@ -48,7 +49,11 @@ InstallDotnetSDK() {
                 apt-get update
                 apt-get install apt-transport-https
                 apt-get update
-                apt-get install -y dotnet-sdk-3.1
+                # The latest dotnet-sdk version is 2.2 in Ubuntu 14.04
+                if [[ $os_RELEASE = '14.04' ]]; then
+                    SDK_VERSION="2.2"
+                fi
+                apt-get install -y dotnet-sdk-${SDK_VERSION}
                 ret=$?
             else
                 ret=2
@@ -96,9 +101,9 @@ CompileDotnetApplication() {
 # Function to generate docker file
 GenerateDockerFile() {
 cat << EOF > $DOCKER_FILENAME
-FROM mcr.microsoft.com/dotnet/core/sdk:3.1
+FROM mcr.microsoft.com/dotnet/core/sdk:${SDK_VERSION}
 
-COPY app/bin/Release/netcoreapp3.1/publish/ app/
+COPY app/bin/Release/netcoreapp${SDK_VERSION}/publish/ app/
 WORKDIR /app
 
 ENTRYPOINT ["dotnet", "helloworld.dll"]
