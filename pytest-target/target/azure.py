@@ -127,10 +127,10 @@ class Azure(Target):
             vm_command.append("--accelerated-networking true")
 
         self.data = json.loads(self.local(" ".join(vm_command)).stdout)
+        hostname: str = self.data["publicIpAddress"]
+        self.internal_address = self.data["privateIpAddress"]
         self.allow_ping()
         # TODO: Enable auto-shutdown 4 hours from deployment.
-        self.internal_address = self.data["internal_address"]
-        hostname: str = self.data["publicIpAddress"]
         return hostname
 
     def delete(self) -> None:
