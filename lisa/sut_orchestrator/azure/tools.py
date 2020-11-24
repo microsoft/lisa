@@ -20,5 +20,8 @@ class Waagent(Tool):
 
     def get_version(self) -> str:
         result = self.run("-version")
+        if result.exit_code != 0:
+            self._command = "/usr/sbin/waagent"
+            result = self.run("-version")
         found_version = find_patterns_in_lines(result.stdout, [self.__version_pattern])
         return found_version[0][0] if found_version[0] else ""
