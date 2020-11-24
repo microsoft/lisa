@@ -27,6 +27,7 @@ class Who(Tool):
             result = datetime.fromisoformat(datetime_output)
         except ValueError:
             # ValueError: Invalid isoformat string: 'Nov 10 20:54'
-            result = datetime.strptime(datetime_output, "%b %d %H:%M")
+            datetime_with_year = f"{datetime_output} {datetime.utcnow().year}"
+            result = datetime.strptime(datetime_with_year, "%b %d %H:%M %Y")
 
         return result
