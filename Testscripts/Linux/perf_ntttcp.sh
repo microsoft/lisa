@@ -213,7 +213,13 @@ Get_VFName()
 	# The -K and -I options are supported if the ntttcp version is greater than 1.4.0, or equal to 1.4.0
 	# -K changed into --show-nic-packets, -I changed into --show-dev-interrupts in master branch
 	if [ $currentVersion ] && ( [ $currentVersion \> "1.4.0" ] || [ $currentVersion == "1.4.0" ] || [ $currentVersion == "master" ] ); then
-		vf_interface=$(ssh "$ip" lshw -c network -businfo | grep -i "Virtual Function" | awk '{print $2}')
+		if [[ -d /sys/firmware/efi ]]; then
+		# This is the case of VM gen 2
+			vf_interface=$(find /sys/devices/* -name "*${nicName}" | grep pci | sed 's/\// /g' | awk '{print $11}')
+		else
+		# VM gen 1 case
+			vf_interface=$(find /sys/devices/* -name "*${nicName}" | grep pci | sed 's/\// /g' | awk '{print $12}')
+		fi
 		if [[ $vf_interface ]]; then
 			if [[ $currentVersion == "master" ]]; then
 				ntttcp_cmd="$ntttcp_cmd --show-nic-packets $vf_interface --show-dev-interrupts mlx"

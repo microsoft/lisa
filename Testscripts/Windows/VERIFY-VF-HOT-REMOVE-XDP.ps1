@@ -113,7 +113,7 @@ collect_VM_properties
                 -username $user -password $password -command "ip link show ${iFaceName} | grep ether | awk '{print `$2}'" -runAsSudo
 
             Write-LogDbg "XDP program cannot run with LRO (RSC) enabled, disable LRO and starting XDPDump"
-            $xdp_command = "ethtool -K $iFaceName lro off && cd ~/bpf-samples/xdpdump && ./xdpdump -i $iFaceName > ~/xdpdumpout_VFTest.txt 2>&1"
+            $xdp_command = "ethtool -K $iFaceName lro off && cd /root/bpf-samples/xdpdump && ./xdpdump -i $iFaceName > ~/xdpdumpout_VFTest.txt 2>&1"
             $testJob = Run-LinuxCmd -ip $receiverVMData.PublicIP -port $receiverVMData.SSHPort -username $user -password $password `
                 -command $xdp_command -RunInBackground -runAsSudo -ignoreLinuxExitCode
             Run-LinuxCmd -ip $senderVMData.PublicIP -port $senderVMData.SSHPort -username $user -password $password `
