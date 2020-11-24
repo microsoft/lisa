@@ -218,7 +218,7 @@ class SshShell(InitializableMixin):
         stdout: Any = None,
         stderr: Any = None,
         encoding: str = "utf-8",
-        use_pty: bool = False,
+        use_pty: bool = True,
         allow_error: bool = True,
     ) -> spur.ssh.SshProcess:
         self.initialize()
