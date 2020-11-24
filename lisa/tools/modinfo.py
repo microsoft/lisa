@@ -36,7 +36,9 @@ class Modinfo(Tool):
                 # CentOS may not include the path when started,
                 # specify path and try again.
                 self._command = "/usr/sbin/modinfo"
-                cached_result = self.run(mod_name)
+                cached_result = self.run(
+                    mod_name, no_info_log=no_info_log, no_error_log=no_error_log
+                )
             self._cached_result[mod_name] = cached_result
         return cached_result.stdout
 

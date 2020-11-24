@@ -5,6 +5,7 @@ from typing import Any
 from lisa.executable import Tool
 from lisa.util import LisaException
 from lisa.util.perf_timer import create_timer
+from lisa.util.process import ExecutableResult
 
 from .date import Date
 from .who import Who
@@ -43,7 +44,13 @@ class Reboot(Tool):
             current_delta = date.current() - current_boot_time
 
         self._log.debug(f"rebooting with boot time: {last_boot_time}")
-        self.node.execute_async(f"sudo {self.command}")
+        try:
+            reboot_result: ExecutableResult = self.node.execute(f"sudo {self.command}")
+            if reboot_result.stderr:
+                self.node.execute_async(f"sudo /usr/sbin/{self.command}")
+        except Exception as identifier:
+            # it doesn't matter to exceptions here. The system may reboot fast
+            self._log.debug(f"ignorable exception on rebooting: {identifier}")
         while (
             last_boot_time >= current_boot_time and timer.elapsed(False) < self.time_out
         ):
