@@ -26,8 +26,7 @@
 ###############################################################################################
 
 
-Class TestProvider
-{
+Class TestProvider {
 	[string] $CustomKernel
 	[string] $CustomLIS
 	[bool]   $ReuseVmOnFailure = $false
@@ -35,13 +34,13 @@ Class TestProvider
 	[object] DeployVMs([xml] $GlobalConfig, [object] $SetupTypeData, [object] $TestCaseData, [string] $TestLocation, [string] $RGIdentifier, [bool] $UseExistingRG, [string] $ResourceCleanup) {
 		return @{
 			"VmData" = $null;
-			"Error" = $null
+			"Error"  = $null
 		}
 	}
 
 	[void] RunSetup($VmData, $CurrentTestData, $TestParameters, $ApplyCheckPoint) {}
 
-	[void] RunTestCaseCleanup ($AllVMData, $CurrentTestData, $CurrentTestResult, $CollectVMLogs, $RemoveFiles, $User, $Password, $SetupTypeData, $TestParameters){
+	[void] RunTestCaseCleanup ($AllVMData, $CurrentTestData, $CurrentTestResult, $CollectVMLogs, $RemoveFiles, $User, $Password, $SetupTypeData, $TestParameters) {
 		# Remove running background jobs
 		Write-LogInfo "Start to do cleanup for case $($CurrentTestData.testName)"
 		$currentTestBackgroundJobs = Get-Content $global:LogDir\CurrentTestBackgroundJobs.txt -ErrorAction SilentlyContinue

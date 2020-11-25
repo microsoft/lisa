@@ -66,7 +66,7 @@ Function Import-TestParameters($ParametersFile)
 #
 Function Select-TestCases($TestXMLs, $TestCategory, $TestArea, $TestNames, $TestTag, $TestPriority, $ExcludeTests, $TestSetup)
 {
-    $AllLisaTests =  [System.Collections.ArrayList]@()
+    $AllLisaTests =  [System.Collections.ArrayList]::new()
     $WildCards = @('^','.','[',']','?','+','*')
     $ExcludedTestsCount = 0
     $testCategoryArray = $testAreaArray = $testNamesArray = $testTagArray = $testPriorityArray = $testSetupTypeArray = $excludedTestsArray = @()
@@ -197,7 +197,7 @@ Function Select-TestCases($TestXMLs, $TestCategory, $TestArea, $TestNames, $Test
     if ($ExcludeTests) {
         Write-LogInfo "$ExcludedTestsCount Test Cases have been excluded"
     }
-    return ,$AllLisaTests
+    return ,[System.Collections.ArrayList]@($AllLisaTests | Sort-Object -Property @{Expression = {if ($_.Priority) {$_.Priority} else {'9'}}}, TestName)
 }
 
 Function Add-SetupConfig {
@@ -260,7 +260,7 @@ Function Add-SetupConfig {
     $ConfigValue = $ConfigValue.Trim()
     if ($ConfigValue) {
         $messageKeySet = @{}
-        $expandedConfigValues = @($ConfigValue.Trim("$SplitBy ").Split($SplitBy).Trim())
+        $expandedConfigValues = @($ConfigValue.Trim("$SplitBy ").Split($SplitBy).Trim() | Sort-Object)
         if ($expandedConfigValues.Count -gt 1) {
             $updatedTests = [System.Collections.ArrayList]@()
             foreach ($singleConfigValue in $expandedConfigValues) {
@@ -282,7 +282,7 @@ Function Add-SetupConfig {
                         }
                         else {
                             $clonedTest = ([System.Xml.XmlElement]$singleTest).CloneNode($true)
-                            $clonedTest.SetupConfig.$ConfigName = $singleConfigValue
+                            $clonedTest.SetupConfig.$ConfigName = [string]$singleConfigValue
                             $null = $clonedTests.Add($clonedTest)
                         }
                     }
@@ -311,7 +311,7 @@ Function Add-SetupConfig {
                         $null = $toBeSkippedTests.Add($singleTest)
                     }
                     else {
-                        $singleTest.SetupConfig.$ConfigName = $ConfigValue
+                        $singleTest.SetupConfig.$ConfigName = [string]$ConfigValue
                     }
                 }
             }
@@ -330,12 +330,12 @@ Function Add-SetupConfig {
         foreach ($singleTest in $AllTests) {
             # If there's pre-defined value in TestXml, let's expand and apply as custom setup for current TestCase only
             if ($singleTest.SetupConfig.$ConfigName) {
-                $originalConfigValueArr = @($singleTest.SetupConfig.$ConfigName.Trim("$SplitBy ").Split($SplitBy).Trim()) -inotmatch "^=~"
+                $originalConfigValueArr = @($singleTest.SetupConfig.$ConfigName.Trim("$SplitBy ").Split($SplitBy).Trim() | Where-Object {$_ -inotmatch "^=~"} | Sort-Object)
                 if ($originalConfigValueArr.Count -gt 1) {
                     $null = $toBeSkippedTests.Add($singleTest)
                     foreach ($singleConfigValue in $originalConfigValueArr) {
                         $clonedTest = ([System.Xml.XmlElement]$singleTest).CloneNode($true)
-                        $clonedTest.SetupConfig.$ConfigName = $singleConfigValue
+                        $clonedTest.SetupConfig.$ConfigName = [string]$singleConfigValue
                         $null = $toBeAddedTests.Add($clonedTest)
                     }
                     $messageKey = "$ConfigName,$($singleTest.TestName),$($singleTest.SetupConfig.$ConfigName)"
@@ -345,12 +345,12 @@ Function Add-SetupConfig {
                     }
                 }
                 elseif ($originalConfigValueArr.Count -eq 1) {
-                    $singleTest.SetupConfig.$ConfigName = $originalConfigValueArr[0]
+                    $singleTest.SetupConfig.$ConfigName = [string]$originalConfigValueArr[0]
                 }
                 elseif ($originalConfigValueArr.Count -eq 0) {
                     # Keep silent for ConfigName that all starts with '=~', silent with no warning message, and try the $DefaultConfigValue
                     if (!(&$IfNotContains -OriginalConfigValue "$($singleTest.SetupConfig.$ConfigName)" -ToBeCheckedConfigValue "$DefaultConfigValue" -SplitBy $SplitBy)) {
-                        $singleTest.SetupConfig.$ConfigName = $DefaultConfigValue
+                        $singleTest.SetupConfig.$ConfigName = [string]$DefaultConfigValue
                     }
                     else {
                         # if none of pattern matches the DefaultConfigValue, skip this TestCase
@@ -733,7 +733,7 @@ function Install-CustomKernel ($CustomKernel, $allVMData, [switch]$RestartAfterU
 						Write-LogInfo "Package Installation Status for $($job.RoleName) : $currentStatus"
 						$packageInstallJobsRunning = $true
 						if ($currentStatus -imatch $kernelMatchSuccess) {
-							Stop-Job -Id $job.ID -Confirm:$false -ErrorAction SilentlyContinue
+							Remove-Job -Id $job.ID -Force -ErrorAction SilentlyContinue
 						}
 					} else {
 						if ( !(Test-Path -Path "$LogDir\$($job.RoleName)-build-CustomKernel.txt" ) ) {
@@ -2467,13 +2467,15 @@ Function Wait-AzVMBackRunningWithTimeOut($AllVMData, [scriptblock]$AzVMScript) {
             $vm = Get-AzVM -ResourceGroupName $vmData.ResourceGroupName -Name $vmData.RoleName -Status
         }
     }
-    if (!($sw.elapsed -lt $Timeout)) {
+    if ($sw.elapsed -ge $Timeout) {
         Write-LogErr "VMs are not in PowerState/running status after $Timeout minutes (estimated timespan based on maximum NumberOfCores of VM size)"
         return $false
     }
     else {
-        $vmData = Get-AllDeploymentData -ResourceGroups $AllVMData.ResourceGroupName -PatternOfResourceNamePrefix $AllVMData.RoleName
-        $AllVMData.PublicIP = $vmData.PublicIP
+        $VMDataWithPublicIP = Get-AllDeploymentData -ResourceGroups $AllVMData.ResourceGroupName
+        foreach ($vmData in $AllVMData) {
+            $vmData.PublicIP = ($VMDataWithPublicIP | Where-Object {$_.RoleName -eq $vmData.RoleName}).PublicIP
+        }
 
         if ((Is-VmAlive -AllVMDataObject $AllVMData -MaxRetryCount 10) -eq "True") {
             return $true

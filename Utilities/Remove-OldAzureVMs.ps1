@@ -111,14 +111,30 @@ foreach ($rg in $AllLISAv2RGs) {
             $counter -= 1
         }
     } else {
-        $rgTimeStamp = $($rg.ResourceGroupName).Split("-")[$($rg.ResourceGroupName).Split("-").Count - 1]
-        if ($rgTimeStamp) {
-            if ($rg.ResourceGroupName -imatch "ICA-RG-") {
-                $rgTimeStamp = [datetime]([long]($("$rgTimeStamp" + "000000")))
+        $rgTimeStamp = [datetime]::MinValue
+        $creationTimeTag = $rg.Tags.CreationTime
+        if ($creationTimeTag) {
+            [datetime]::TryParse($creationTimeTag, [ref]$rgTimeStamp) | Out-Null
+        }
+        if ($rgTimeStamp -eq [datetime]::MinValue) {
+            $rgNameTimeAppendix = $($rg.ResourceGroupName).Split("-") | Select-Object -Last 1
+            if ($rgNameTimeAppendix) {
+                if ($rg.ResourceGroupName -imatch "LISAv2-") {
+                    if (![datetime]::TryParseExact($rgNameTimeAppendix, "yyyyMMddHHmmss", $null, [System.Globalization.DateTimeStyles]::None, [ref]$rgTimeStamp)) {
+                        [datetime]::TryParseExact($rgNameTimeAppendix, "MMddHHmmss", $null, [System.Globalization.DateTimeStyles]::None, [ref]$rgTimeStamp) | Out-Null
+                    }
+                }
+                if (($rgTimeStamp -eq [datetime]::MinValue) -and ($rg.ResourceGroupName -imatch "ICA-RG-")) {
+                    try {
+                        $rgTimeStamp = [datetime]([long]($("${rgNameTimeAppendix}000000")))
+                    }
+                    catch {
+                        Write-Host "$counter. $($rg.ResourceGroupName) - Could not parse/convert resource group Creation Time Stamp from Resource Group Name [${rgNameTimeAppendix}000000]"
+                    }
+                }
             }
-            if ($rg.ResourceGroupName -imatch "LISAv2-") {
-                $rgTimeStamp = [datetime]::ParseExact($rgTimeStamp, "yyyyMMddHHmmss", $null)
-            }
+        }
+        if ($rgTimeStamp -ne [datetime]::MinValue) {
             $elaplsedDays = ($($currentTimeStamp - $rgTimeStamp)).Days
             if ($elaplsedDays -gt $CleanupAgeInDays) {
                 Write-Host "$counter. $($rg.ResourceGroupName) - $elaplsedDays days old. Will be removed."
@@ -140,7 +156,7 @@ foreach ($rg in $AllLISAv2RGs) {
             }
         }
         else {
-            Write-Host "$counter. $($rg.ResourceGroupName) - more than 14 days old. Will be removed."
+            Write-Host "$counter. $($rg.ResourceGroupName) - Could not get resource group CreationTime. Will be removed."
             $cleanupRGs += $rg.ResourceGroupName
         }
     }
@@ -178,7 +194,7 @@ $cleanupRGScriptBlock = {
                 #VHD URL example - http://storageaccountname.blob.core.windows.net/vhds/vhdname.vhd
                 if ($osDiskUri) {
                     $osDiskContainerName = $osDiskUri.Split('/')[-2]
-                    $osDiskStorageAcct = Get-AzStorageAccount | where { $_.StorageAccountName -eq $osDiskUri.Split('/')[2].Split('.')[0] }
+                    $osDiskStorageAcct = Get-AzStorageAccount | Where-Object { $_.StorageAccountName -eq $osDiskUri.Split('/')[2].Split('.')[0] }
                     Write-Host "Remove unmanaged OS disk $osDiskUri"
                     $osDiskStorageAcct | Remove-AzStorageBlob -Container $osDiskContainerName -Blob $osDiskUri.Split('/')[-1]
                 } else {

@@ -428,7 +428,8 @@ Class TestSummary
 		$this.TextSummary += "{0, 5} $(ConvertFrom-SetupConfig -SetupConfig $TestData.SetupConfig), $(&$GetKernelInfoForTestCase)`r`n" -f " "
 		if ($TestSummary) {
 			@($TestSummary.Split([string[]]"<br />", [StringSplitOptions]::None).Trim()) | ForEach-Object {
-				$this.TextSummary += "{0, 5} $_`r`n" -f " "
+				$summarySection = $_ -replace "{|}", " "
+				$this.TextSummary += "{0, 5} $summarySection`r`n" -f " "
 			}
 		}
 		if ($TestSummary) {

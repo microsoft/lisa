@@ -137,12 +137,12 @@ Function Install-CustomScript($AzureSecretsFile, $FileUris, $CommandToRun, $Time
 			Write-LogErr $_.Exception
 		}
 	}
-	$jobs | Wait-Job -Timeout $Timeout
+	$jobs | Wait-Job -Timeout $Timeout | Out-Null
 	foreach ($job in $jobs) {
 		$state = $job.State
 		if ($state -eq "Running") {
 			$state = "Timeout"
-			Stop-Job -Job $job
+			Remove-Job -Job $job -Force -ErrorAction SilentlyContinue
 		}
 		if ($state -eq "Timeout" -or $state -eq "Failed") {
 			$vmsExtensionInstalledFailed += $jobIdToVM[$job.Id]

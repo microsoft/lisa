@@ -34,23 +34,23 @@ ChangeMTU $net_interface 2048
 ChangeMTU $net_interface 4096
 
 # Get NIC statistics using ethtool
-LogMsg "Getting NIC statistics with ethtool" >> ~/summary.log
+LogMsg "Getting NIC statistics with ethtool"
 stats=$(ethtool -S $net_interface)
 if [ $? -ne 0 ]; then
     LogErr "Failed to get NIC statistics with ethtool !" >> ~/summary.log
     SetTestStateFailed
     exit 0
 else
-    LogMsg "$stats" >> ~/summary.log
+    LogMsg "$stats"
 fi
-LogMsg "Getting NIC statistics per CPU with ethtool" >> ~/summary.log
+LogMsg "Getting NIC statistics per CPU with ethtool"
 statspcup=$(ethtool -S $net_interface | grep 'queue_')
 if [ $? -ne 0 ]; then
     LogErr "Failed to get NIC statistics per CPU with ethtool !" >> ~/summary.log
     SetTestStateFailed
     exit 0
 else
-    LogMsg "$statspcup" >> ~/summary.log
+    LogMsg "$statspcup"
 fi
 
 SetTestStateCompleted
