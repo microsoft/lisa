@@ -161,7 +161,7 @@ collect_VM_properties
 		$sriovStatus = Set-SRIOVInVMs -AllVMData $AllVMData -Disable
 		$clientVMData.PublicIP = $AllVMData.PublicIP[0]
 		if ($sriovStatus -eq $true) {
-			Write-LogInfo "SRIOV is disabaled"
+			Write-LogInfo "SRIOV is disabled"
 			$syntheticTest = Invoke-DpdkTestPmd
 			if ($syntheticTest -eq $true){
 				$syntheticResult = Import-Csv -Path $currentDir\dpdkTestPmd.csv
