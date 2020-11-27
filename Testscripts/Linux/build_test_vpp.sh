@@ -107,7 +107,7 @@ function build_test_vpp () {
 	sleep 10
 
 	# VPP Azure interfaces show as fortygigabit interfaces
-	vpp_hardware=$(ssh "${1}" vppctl show int | grep -iv 'local' | grep -i 'GigabitEthernet')
+	vpp_hardware=$(ssh "${1}" vppctl show int | grep -iv 'local' | grep -E 'GigabitEthernet|VirtualFunctionEthernet')
 	if [[ "${vpp_hardware}" != "" ]]; then
 		LogMsg "VPP interfaces found: ${vpp_hardware[@]}"
 		SetTestStateCompleted

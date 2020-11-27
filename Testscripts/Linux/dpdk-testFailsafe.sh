@@ -141,11 +141,11 @@ function Testfailsafe_Parser() {
 
 	local trimmed_prefix="trimmed-forwarder"
 	local trimmed_log="${LOG_DIR}/${trimmed_prefix}.log"
-	tail -n +11 "${LOG_DIR}"/dpdk-testfailsafe-forwarder.log > "${trimmed_log}"
+	cat "${LOG_DIR}"/dpdk-testfailsafe-forwarder.log > "${trimmed_log}"
 
 	sed -e '/device removal event/,$d' "${trimmed_log}" > "${LOG_DIR}"/${trimmed_prefix}-before-revoke.log
 	sed -e '1,/device removal event/d' "${trimmed_log}" | sed -e '/EAL:.*probe driver:.*net_mlx./,$d' > "${LOG_DIR}"/${trimmed_prefix}-during-revoke.log
-	sed -e '1,/EAL:.*probe driver:.*net_mlx./d' "${trimmed_log}" > "${LOG_DIR}"/${trimmed_prefix}-after-enable.log
+	sed -e '1,/EAL:.*probe.*driver:.*mlx.*./d' "${trimmed_log}" > "${LOG_DIR}"/${trimmed_prefix}-after-enable.log
 
 	local log_files=$(ls "${LOG_DIR}"/*.log | grep "${trimmed_prefix}")
 	LogMsg "Parsing testfailsafe"
