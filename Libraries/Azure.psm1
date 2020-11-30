@@ -228,8 +228,8 @@ Function Assert-ResourceLimitationForDeployment($RGXMLData, [ref]$TargetLocation
 
 Function Move-OsVHDToStorageAccount($OriginalOsVHD, $TargetStorageAccount) {
 	$sourceStorageAccount = $OriginalOsVHD.Replace("https://", "").Replace("http://", "").Split(".")[0]
-	$sourceContainer = $OriginalOsVHD.Split("/")[$OriginalOsVHD.Split("/").Count - 2]
-	$vhdName = $OriginalOsVHD.Split("?")[0].split('/')[-1]
+	$sourceContainer = $OriginalOsVHD.Split("/")[3]
+	$vhdName = ($OriginalOsVHD.Split("?")[0] -split("/$sourceContainer/"))[-1]
 
 	$targetOsVHD = 'http://{0}.blob.core.windows.net/vhds/{1}' -f $TargetStorageAccount, $vhdName
 
@@ -298,7 +298,8 @@ Function Select-StorageAccountByTestLocation($CurrentTestData, [string]$Location
 			$CurrentTestData.SetupConfig.OsVHD = $updatedOsVHD
 		}
 		else {
-			$vhdName = $CurrentTestData.SetupConfig.OsVHD.Split("?")[0].split('/')[-1]
+			$sourceContainer = $CurrentTestData.SetupConfig.OsVHD.Split("/")[3]
+			$vhdName = ($CurrentTestData.SetupConfig.OsVHD.Split("?")[0] -split("/$sourceContainer/"))[-1]
 			Write-LogInfo "VHD '$vhdName' had ever been copied to '$targetStorageAccount', skip copying again"
 			$CurrentTestData.SetupConfig.OsVHD = 'http://{0}.blob.core.windows.net/vhds/{1}' -f $targetStorageAccount, $vhdName
 		}
@@ -1680,7 +1681,8 @@ Function Invoke-AllResourceGroupDeployments($SetupTypeData, $CurrentTestData, $R
 	Write-LogInfo "Current test setup: $($SetupTypeData.Name)"
 	$osVHDName = ""
 	if ($CurrentTestData.SetupConfig.OsVHD) {
-		$osVHDName = $CurrentTestData.SetupConfig.OsVHD.Split("?")[0].split('/')[-1]
+		$sourceContainer = $CurrentTestData.SetupConfig.OsVHD.Split("/")[3]
+		$osVHDName = ($CurrentTestData.SetupConfig.OsVHD.Split("?")[0] -split("/$sourceContainer/"))[-1]
 	}
 	$osImage = $CurrentTestData.SetupConfig.ARMImageName
 	$location = $CurrentTestData.SetupConfig.TestLocation
