@@ -356,13 +356,13 @@ Function Get-AvailableExecutionFolder([string] $username, [string] $password, [s
 		$plinkJob = Start-Job -ScriptBlock {
 			Set-Location $args[0];
 			if ($Using:usePrivateKey) {
-				$output = Write-Output "y" | .\Tools\plink.exe -C -v -i $args[1] -P $Using:port "$Using:username@$Using:ip" "sudo -S bash -c 'if [ ! -d /home/$Using:username ]; then mkdir -p /home/$Using:username; chown -R $($args[2])}: /home/$Using:username; fi; if [ -d /home/$Using:username ]; then echo EXIST; else echo NOTEXIST; fi;'" 2> $null
+				$output = Write-Output "y" | .\Tools\plink.exe -ssh -C -v -i $args[1] -P $Using:port "$Using:username@$Using:ip" "sudo -S bash -c 'if [ ! -d /home/$Using:username ]; then mkdir -p /home/$Using:username; chown -R $($args[2])}: /home/$Using:username; fi; if [ -d /home/$Using:username ]; then echo EXIST; else echo NOTEXIST; fi;'" 2> $null
 			}
 			else {
-				$output = Write-Output "y" | .\Tools\plink.exe -C -v -pw $args[1] -P $Using:port "$Using:username@$Using:ip" "sudo -S bash -c 'if [ ! -d /home/$Using:username ]; then mkdir -p /home/$Using:username; chown -R $($args[2])}: /home/$Using:username; fi; if [ -d /home/$Using:username ]; then echo EXIST; else echo NOTEXIST; fi;'" 2> $null
+				$output = Write-Output "y" | .\Tools\plink.exe -ssh -C -v -pw $args[1] -P $Using:port "$Using:username@$Using:ip" "echo $Using:password | sudo -S bash -c 'if [ ! -d /home/$Using:username ]; then mkdir -p /home/$Using:username; chown -R $($args[2])}: /home/$Using:username; fi; if [ -d /home/$Using:username ]; then echo EXIST; else echo NOTEXIST; fi;'" 2> $null
 			}
 			Write-Output $output
-		} -ArgumentList $PWD, $credential, $user
+		} -ArgumentList $PWD, $credential, $username
 		$plinkJob | Wait-Job -Timeout $pLinkJobTimeoutInSeconds | Out-Null
 
 		if ($plinkJob.State -eq "Running") {
