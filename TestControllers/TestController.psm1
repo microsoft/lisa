@@ -479,7 +479,7 @@ Class TestController {
 				Write-LogInfo "==> Run test setup script if defined."
 				$this.TestProvider.RunSetup($VmData, $CurrentTestData, $testParameters, $ApplyCheckpoint)
 
-				if (($CurrentTestData.SetupConfig.OSType -notcontains "Windows") -and ($this.CustomParams.VerifyKernelLogs -eq "True")) {
+				if ($CurrentTestData.SetupConfig.OSType -notcontains "Windows") {
 					Write-LogInfo "==> Check the target machine kernel log."
 					$this.GetAndCompareOsLogs($VmData, "Initial")
 				}
@@ -541,9 +541,9 @@ Class TestController {
 			}
 
 			if ($CurrentTestData.SetupConfig.OSType -notcontains "Windows") {
-				if ($this.CustomParams.VerifyKernelLogs -eq "True") {
+				if ($testParameters["SkipVerifyKernelLogs"] -ne "True") {
 					$ret = $this.GetAndCompareOsLogs($VmData, "Final")
-					if (($ret -eq $false) -and ($currentTestResult.TestResult -eq $global:ResultPass)) {
+					if (($testParameters["FailForLogCheck"] -eq "True") -and ($ret -eq $false) -and ($currentTestResult.TestResult -eq $global:ResultPass)) {
 						$currentTestResult.TestResult = $global:ResultFail
 						Write-LogErr "Test $($CurrentTestData.TestName) fails for log check"
 						$currentTestResult.testSummary += New-ResultSummary -testResult "Test fails for log check"
