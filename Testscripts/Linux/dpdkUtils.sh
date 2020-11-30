@@ -532,10 +532,10 @@ function Create_Testpmd_Cmd() {
 			echo $NET_UUID > /sys/bus/vmbus/drivers/uio_hv_generic/new_id &>/dev/null
 			echo $DEV_UUID > /sys/bus/vmbus/drivers/hv_netvsc/unbind &>/dev/null
 			echo $DEV_UUID > /sys/bus/vmbus/drivers/uio_hv_generic/bind &>/dev/null
-			eal_opts="-l 0-${core} -w ${busaddr} --"
+			eal_opts="-l 0-${core} -a ${busaddr} --"
 			;;
 		failsafe)
-			eal_opts="-l 0-${core} -w ${busaddr} --vdev='net_vdev_netvsc0,iface=${iface}' --"
+			eal_opts="-l 0-${core} -a ${busaddr} --vdev='net_vdev_netvsc0,iface=${iface}' --"
 			;;
 		*)
 			LogMsg "Not supported PMD $pmd. Abort."

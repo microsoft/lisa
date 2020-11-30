@@ -59,7 +59,7 @@ function checkCmdExitStatus ()
 		SetTestStateAborted
 		exit $exit_status
 	else
-		echo "$cmd: SUCCESS" 
+		echo "$cmd: SUCCESS"
 	fi
 }
 
@@ -67,7 +67,7 @@ runTestPmd()
 {
 	pmd=$1
 	LogMsg "*********INFO: Starting TestPmd test execution with ${pmd} PMD*********"
-	whitelist="-w ${bus_info}"
+	whitelist="-a ${bus_info}"
 	case "$pmd" in
 		mlx*)
 			vdev=""

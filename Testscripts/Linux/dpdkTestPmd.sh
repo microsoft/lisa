@@ -88,18 +88,18 @@ runTestPmd()
 	for testmode in $modes; do
 		LogMsg "TestPmd is starting on ${serverNIC1ip} with ${testmode} mode, duration ${testDuration} secs"
 		Hugepage_Setup ${server} "set"
-		serverTestPmdCmd="modprobe -a ib_uverbs mlx4_en mlx4_core mlx4_ib;timeout ${testDuration} dpdk-testpmd -l 0-1 -w $pci_info_server ${vdev} -- --port-topology=chained --nb-cores 1 --txq 1 --rxq 1 --mbcache=512 --txd=4096 --rxd=4096 --forward-mode=${testmode}  --stats-period 1"
+		serverTestPmdCmd="modprobe -a ib_uverbs mlx4_en mlx4_core mlx4_ib;timeout ${testDuration} dpdk-testpmd -l 0-1 -a $pci_info_server ${vdev} -- --port-topology=chained --nb-cores 1 --txq 1 --rxq 1 --mbcache=512 --txd=4096 --rxd=4096 --forward-mode=${testmode}  --stats-period 1"
 		LogMsg "Server Testpmd Command: $serverTestPmdCmd"
 		ssh "${server}" "$serverTestPmdCmd" 2>&1 > "$LOGDIR"/dpdk-testpmd-"${testmode}"-receiver-$(date +"%m%d%Y-%H%M%S").log &
 		check_exit_status "TestPmd started on ${serverNIC1ip} with ${testmode} mode, duration ${testDuration} secs" "aborted"
 
 		LogMsg "TestPmd is starting on ${clientNIC1ip} with txonly mode, duration ${testDuration} secs"
-		LogMsg "timeout ${testDuration} dpdk-testpmd -l 0-1 -w $pci_info_client ${vdev} -- --port-topology=chained --nb-cores 1 --txq 1 --rxq 1 --mbcache=512 --txd=4096 --rxd=4096 --forward-mode=txonly --stats-period 1 ${trx_rx_ips} 2>&1 >> $LOGDIR/dpdk-testpmd-${testmode}-sender.log &"
+		LogMsg "timeout ${testDuration} dpdk-testpmd -l 0-1 -a $pci_info_client ${vdev} -- --port-topology=chained --nb-cores 1 --txq 1 --rxq 1 --mbcache=512 --txd=4096 --rxd=4096 --forward-mode=txonly --stats-period 1 ${trx_rx_ips} 2>&1 >> $LOGDIR/dpdk-testpmd-${testmode}-sender.log &"
 
 		Hugepage_Setup ${client} "set"
 		# Replace modprobe command with Modprobe_setup
 		modprobe -a ib_uverbs mlx4_en mlx4_core mlx4_ib
-		timeout "${testDuration}" dpdk-testpmd -l 0-1 -w ${pci_info_client} ${vdev} -- \
+		timeout "${testDuration}" dpdk-testpmd -l 0-1 -a ${pci_info_client} ${vdev} -- \
 			--port-topology=chained --nb-cores 1 --txq 1 --rxq 1 --mbcache=512 --txd=4096 --rxd=4096 \
 			--forward-mode=txonly --stats-period 1 ${trx_rx_ips} 2>&1 > "$LOGDIR"/dpdk-testpmd-"${testmode}"-sender-$(date +"%m%d%Y-%H%M%S").log &
 		check_exit_status "TestPmd started on ${clientNIC1ip} with txonly mode, duration ${testDuration} secs" "aborted"
