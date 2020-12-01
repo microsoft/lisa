@@ -202,7 +202,7 @@ function Install_Dpdk () {
 			if [ $? -eq 0 ]; then
 				packages+=("elfutils-libelf-devel")
 			fi
-			if [ "${DISTRO_NAME}" = "rhel" ]; then
+			if [[ "${DISTRO_NAME}" = "rhel" ]]; then
 				# meson requires ninja-build and python-devel to be installed. [ninja-build ref: https://pkgs.org/download/ninja-build]
 				if [[ ${DISTRO_VERSION} == *"8."* ]]; then
 					ssh "${1}" ". utils.sh && install_package python3-devel"
@@ -214,7 +214,11 @@ function Install_Dpdk () {
 					ssh "${1}" 'PATH=$PATH:/opt/rh/rh-python36/root/usr/bin/ && pip install --upgrade pip && pip install meson'
 				fi
 			else
-				packages+=(meson)
+				if [[ "${DISTRO_NAME}" = "centos" && ${DISTRO_VERSION} == *"8."* ]]; then
+					dnf --enablerepo=PowerTools install -y meson
+				else
+					packages+=(meson)
+				fi
 			fi
 			;;
 		ubuntu|debian)
