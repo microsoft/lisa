@@ -524,6 +524,7 @@ function Create_Testpmd_Cmd() {
 	# partial strings to concat
 	local testpmd="dpdk-testpmd"
 	local eal_opts=""
+	local eal_debug_opts="--log-level=eal,debug --log-level=mlx,debug"
 	case "$pmd" in
 		netvsc)
 			DEV_UUID=$(basename $(readlink /sys/class/net/eth1/device))
@@ -532,10 +533,10 @@ function Create_Testpmd_Cmd() {
 			echo $NET_UUID > /sys/bus/vmbus/drivers/uio_hv_generic/new_id &>/dev/null
 			echo $DEV_UUID > /sys/bus/vmbus/drivers/hv_netvsc/unbind &>/dev/null
 			echo $DEV_UUID > /sys/bus/vmbus/drivers/uio_hv_generic/bind &>/dev/null
-			eal_opts="-l 0-${core} -a ${busaddr} --"
+			eal_opts="-l 0-${core} -a ${busaddr} ${eal_debug_opts} --log-level=netvsc,debug --"
 			;;
 		failsafe)
-			eal_opts="-l 0-${core} -a ${busaddr} --vdev='net_vdev_netvsc0,iface=${iface}' --"
+			eal_opts="-l 0-${core} -a ${busaddr} --vdev='net_vdev_netvsc0,iface=${iface}' ${eal_debug_opts} --log-level=failsafe,debug --"
 			;;
 		*)
 			LogMsg "Not supported PMD $pmd. Abort."
