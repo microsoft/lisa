@@ -511,8 +511,8 @@ function Create_Testpmd_Cmd() {
 		exit 1
 	fi
 
-	if [ -z "${DPDK_DIR}" ]; then
-		LogErr "ERROR: DPDK_DIR must be defined before calling Create_Testpmd_Cmd()"
+	if [ -z "${LIS_HOME}" -o -z "${DPDK_DIR}" ]; then
+		LogErr "ERROR: DPDK_DIR and LIS_HOME must be defined before calling Create_Testpmd_Cmd()"
 		SetTestStateAborted
 		exit 1
 	fi
@@ -524,10 +524,16 @@ function Create_Testpmd_Cmd() {
 	local pmd="${5}"
 	local additional_params="${6}"
 
-
+	local dpdk_version=$(Get_DPDK_Version "${LIS_HOME}/${DPDK_DIR}")
+	local pci_param="-w ${busaddr}"
+	local dpdk_version_changed="20.11"
+	if [[ ! $(printf "${dpdk_version_changed}\n${dpdk_version}" | sort -V | head -n1) == "${dpdk_version}" ]]; then
+		pci_param="-a ${busaddr}"
+	fi
 	# partial strings to concat
 	local testpmd="dpdk-testpmd"
 	local eal_opts=""
+	local eal_debug_opts="--log-level=eal,debug --log-level=mlx,debug"
 	case "$pmd" in
 		netvsc)
 			DEV_UUID=$(basename $(readlink /sys/class/net/eth1/device))
@@ -536,10 +542,10 @@ function Create_Testpmd_Cmd() {
 			echo $NET_UUID > /sys/bus/vmbus/drivers/uio_hv_generic/new_id &>/dev/null
 			echo $DEV_UUID > /sys/bus/vmbus/drivers/hv_netvsc/unbind &>/dev/null
 			echo $DEV_UUID > /sys/bus/vmbus/drivers/uio_hv_generic/bind &>/dev/null
-			eal_opts="-l 0-${core} -w ${busaddr} --"
+			eal_opts="-l 0-${core} ${pci_param} ${eal_debug_opts} --log-level=netvsc,debug --"
 			;;
 		failsafe)
-			eal_opts="-l 0-${core} -w ${busaddr} --vdev='net_vdev_netvsc0,iface=${iface}' --"
+			eal_opts="-l 0-${core} ${pci_param} --vdev='net_vdev_netvsc0,iface=${iface}' ${eal_debug_opts} --log-level=failsafe,debug --"
 			;;
 		*)
 			LogMsg "Not supported PMD $pmd. Abort."

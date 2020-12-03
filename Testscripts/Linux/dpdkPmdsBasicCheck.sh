@@ -59,7 +59,7 @@ function checkCmdExitStatus ()
 		SetTestStateAborted
 		exit $exit_status
 	else
-		echo "$cmd: SUCCESS" 
+		echo "$cmd: SUCCESS"
 	fi
 }
 
@@ -67,7 +67,14 @@ runTestPmd()
 {
 	pmd=$1
 	LogMsg "*********INFO: Starting TestPmd test execution with ${pmd} PMD*********"
-	whitelist="-w ${bus_info}"
+
+	local dpdk_version=$(Get_DPDK_Version "${LIS_HOME}/${DPDK_DIR}")
+	local pci_param="-w ${bus_info}"
+	local dpdk_version_changed="20.11"
+	if [[ ! $(printf "${dpdk_version_changed}\n${dpdk_version}" | sort -V | head -n1) == "${dpdk_version}" ]]; then
+		pci_param="-a ${bus_info}"
+	fi
+
 	case "$pmd" in
 		mlx*)
 			vdev=""
@@ -97,7 +104,6 @@ runTestPmd()
 			mac=$(cat /sys/class/net/eth1/address)
 			chmod +x ${FAILSAFE_FILE}
 			vdev='$('${FAILSAFE_FILE}' '${mac}')'
-			whitelist=""
 			;;
 		*)
 			LogMsg "Not supported PMD $pmd. Abort."
@@ -114,7 +120,7 @@ runTestPmd()
 		SetTestStateAborted
 		exit 0
 	}
-	cmd="echo 'stop' | $testpmd_cmd -l 0-1 ${whitelist} ${vdev} -- -i --port-topology=chained --nb-cores 1"
+	cmd="echo 'stop' | $testpmd_cmd -l 0-1 ${pci_param} ${vdev} -- -i --port-topology=chained --nb-cores 1"
 	LogMsg "$cmd"
 	eval "$cmd" > $LOGDIR/$pmd.log 2>&1
 	checkCmdExitStatus "TestPmd with ${pmd} execution"

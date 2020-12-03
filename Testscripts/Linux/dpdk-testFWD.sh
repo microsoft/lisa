@@ -64,6 +64,7 @@ function Run_Testfwd() {
 
 	local core=${1}
 	local test_duration=${2}
+	local tx_rx_ips=${3}
 
 	local ip
 	LogMsg "Ensuring free hugepages"
@@ -72,11 +73,6 @@ function Run_Testfwd() {
 		ssh "${ip}" "${free_huge_cmd}"
 	done
 
-	trx_rx_ips=$(Get_Trx_Rx_Ip_Flags "${forwarder}")
-	if [ ${pmd} = "netvsc" ]; then
-		. dpdkUtils.sh && NetvscDevice_Setup "${sender}"
-		. dpdkUtils.sh && NetvscDevice_Setup "${receiver}"
-	fi
 	# start receiver and fowarder in advance so testpmd comes up easily
 	local fwd_recv_duration=$(expr "${test_duration}" + 5)
 
@@ -90,7 +86,7 @@ function Run_Testfwd() {
 
 	sleep 5
 
-	local sender_testfwd_cmd="$(Create_Timed_Testpmd_Cmd "${test_duration}" "${core}" "${sender_busaddr}" "${sender_iface}" txonly "${pmd}" "${trx_rx_ips}")"
+	local sender_testfwd_cmd="$(Create_Timed_Testpmd_Cmd "${test_duration}" "${core}" "${sender_busaddr}" "${sender_iface}" txonly "${pmd}" "${tx_rx_ips}")"
 	LogMsg "${sender_testfwd_cmd}"
 	eval "${sender_testfwd_cmd} 2>&1 > ${LOG_DIR}/dpdk-testfwd-sender-${core}-core-$(date +"%m%d%Y-%H%M%S").log &"
 	sleep "${test_duration}"
@@ -174,8 +170,16 @@ function Run_Testcase() {
 
 	LogMsg "Starting testfwd"
 	Create_Vm_Synthetic_Vf_Pair_Mappings
+	tx_rx_ips=$(Get_Trx_Rx_Ip_Flags "${forwarder}")
+
+	if [ ${pmd} = "netvsc" ]; then
+		LogMsg "Starting netvsc device setup"
+		. dpdkUtils.sh && NetvscDevice_Setup "${sender}"
+		. dpdkUtils.sh && NetvscDevice_Setup "${forwarder}"
+		. dpdkUtils.sh && NetvscDevice_Setup "${receiver}"
+	fi
 	for core in "${CORES[@]}"; do
-		Run_Testfwd ${core} ${TEST_DURATION}
+		Run_Testfwd ${core} ${TEST_DURATION} ${tx_rx_ips}
 	done
 
 	LogMsg "Starting testfwd parser"
