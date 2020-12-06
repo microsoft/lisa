@@ -165,7 +165,7 @@ Class HyperVProvider : TestProvider
 			}
 
 			([TestProvider]$this).RunTestCaseCleanup($AllVMData, $CurrentTestData, $CurrentTestResult, $CollectVMLogs, $RemoveFiles, $User, $Password, $SetupTypeData, $TestParameters)
-			if ($CurrentTestResult.TestResult -ne "PASS") {
+			if ($CurrentTestResult.TestResult -ne "PASS" -and $CurrentTestResult.TestResult -ne "SKIPPED") {
 				Create-HyperVCheckpoint -VMData $AllVMData -CheckpointName "$($CurrentTestData.TestName)-$($CurrentTestResult.TestResult)" `
 					-ShouldTurnOffVMBeforeCheckpoint $false -ShouldTurnOnVMAfterCheckpoint $false
 			}
