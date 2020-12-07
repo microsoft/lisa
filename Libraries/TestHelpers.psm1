@@ -383,7 +383,7 @@ Function Get-AvailableExecutionFolder([string] $username, [string] $password, [s
 	}
 }
 
-Function Run-LinuxCmd([string] $username, [string] $password, [string] $ip, [string] $command, [int] $port, [switch]$runAsSudo, [Boolean]$WriteHostOnly, [Boolean]$NoLogsPlease, [switch]$ignoreLinuxExitCode, [int]$runMaxAllowedTime = 300, [switch]$RunInBackGround, [int]$maxRetryCount = 20, [string] $MaskStrings) {
+Function Run-LinuxCmd([string] $username, [string] $password, [string] $ip, [string] $command, [int] $port, [switch]$runAsSudo, [Boolean]$WriteHostOnly, [Boolean]$NoLogsPlease, [switch]$ignoreLinuxExitCode, [int]$runMaxAllowedTime = 300, [switch]$RunInBackGround, [int]$maxRetryCount = 1, [string] $MaskStrings) {
 	if (!$global:AvailableExecutionFolder) {
 		Get-AvailableExecutionFolder $username $password $ip $port
 	}
@@ -396,9 +396,6 @@ Function Run-LinuxCmd([string] $username, [string] $password, [string] $ip, [str
 		}
 	}
 	$randomFileName = [System.IO.Path]::GetRandomFileName()
-	if ( $maxRetryCount -eq 0) {
-		$maxRetryCount = 1
-	}
 	$currentDir = $PWD.Path
 	$scriptName = "runtest-${global:TestID}.sh"
 	if ($global:sshPrivateKey) {
@@ -449,7 +446,7 @@ Function Run-LinuxCmd([string] $username, [string] $password, [string] $ip, [str
 	$attemptswt = $attemptswot = 0
 	$timeout = $false
 	$sw = [diagnostics.stopwatch]::StartNew()
-	while ( !$shouldBreak -and ($attemptswt -lt $maxRetryCount -or $attemptswot -lt $maxRetryCount) -and !$timeout) {
+	while (!$shouldBreak -and ($attemptswt -lt $maxRetryCount -or $attemptswot -lt $maxRetryCount) -and !$timeout) {
 		$debugOutputBuilder = [System.Text.StringBuilder]::new()
 		$RunLinuxCmdOutput = ""
 		$LinuxExitCode = ""
@@ -479,7 +476,7 @@ Function Run-LinuxCmd([string] $username, [string] $password, [string] $ip, [str
 				$null = Receive-Job $runLinuxCmdJob 2> $LogDir\$randomFileName
 				$isBackGroundProcessStarted = Select-String -Pattern "Started a shell" -Path "$LogDir\$randomFileName"
 				Get-Content $LogDir\$randomFileName | Foreach-Object { $debugOutputBuilder.AppendLine($_) | Out-Null }
-				if ($sw.elapsed.Seconds -lt $RunMaxAllowedTime) {
+				if ($sw.elapsed.TotalSeconds -lt $RunMaxAllowedTime) {
 					$timeOut = $false
 				}
 				else {
@@ -538,8 +535,8 @@ Function Run-LinuxCmd([string] $username, [string] $password, [string] $ip, [str
 		else {
 			While (!$timeout -and ($runLinuxCmdJob.State -eq "Running")) {
 				Write-Progress -Activity "Attempt : $attemptswot+$attemptswt : Executing $logCommand on $ip : $port" `
-					-Status "Timeout in $($RunMaxAllowedTime - $($sw.elapsed.Seconds)) seconds.." -Id $progressId -PercentComplete -1
-				if ($sw.elapsed.Seconds -lt $RunMaxAllowedTime) {
+					-Status "Timeout in $($RunMaxAllowedTime - $($sw.elapsed.TotalSeconds)) seconds.." -Id $progressId -PercentComplete -1
+				if ($sw.elapsed.TotalSeconds -lt $RunMaxAllowedTime) {
 					$timeout = $false
 				}
 				else {
@@ -561,7 +558,7 @@ Function Run-LinuxCmd([string] $username, [string] $password, [string] $ip, [str
 			if ($LinuxExitCode -imatch "AZURE-LINUX-EXIT-CODE-0") {
 				$shouldBreak = $true
 				$sw.Stop()
-				Write-LogDbg "$MaskedCommand executed successfully in $([math]::Round($($sw.elapsed.Seconds), 2)) seconds."
+				Write-LogDbg "$MaskedCommand executed successfully in $([math]::Round($($sw.elapsed.TotalSeconds), 2)) seconds."
 				$retValue = $RunLinuxCmdOutput.Trim()
 				Remove-Item $LogDir\$randomFileName -Force | Out-Null
 			}
