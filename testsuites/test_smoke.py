@@ -37,6 +37,8 @@ def test_smoke(target: Azure) -> None:
 
     SSH failures DO NOT fail this test.
 
+    TODO: Capture these logs without capturing all INFO logs.
+
     """
     logging.info("Pinging before reboot...")
     ping1 = Result()
