@@ -46,6 +46,12 @@ Install_KVM_Dependencies()
         SetTestStateSkipped
         exit 0
     fi
+    lscpu | grep -i vt
+    if [ $? != 0 ]; then
+        LogMsg "CPU type is not VT-x. Skip the test."
+        SetTestStateSkipped
+        exit 0
+    fi
     update_repos
     install_package qemu-kvm
     check_package "bridge-utils"
