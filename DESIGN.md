@@ -817,7 +817,7 @@ We can additionally list a test twice when modifying the items collection, as
 implemented in the criteria proof-of-concept. However, given the above
 abilities, this may not be desired.
 
-## What does the “flow” of Pytest look-like?
+## What does the “flow” of Pytest look like?
 
 This is best described in Pythonic pseudo-code, where the context manager
 encapsulates each scope and the for loop encapsulates processing:
@@ -868,6 +868,7 @@ with pool_fixture as pool:
 There’s still a lot more to think about and design. A non-exhaustive list of
 future topics (some touched on above):
 
+* Terminology table
 * Tests inventory (generating statistics from metadata)
 * Environment / multiple targets class design
 * Feature/requirement requests (NICs in particular)
