@@ -12,7 +12,7 @@ python = "^3.7"
 pytest = "^6.1.2"
 pytest-playbook = {path = "../pytest-playbook", develop = true}
 pytest-target = {path = "../pytest-target", develop = true}
-schema = "^0.7.3"
+schema = "0.7.2"
 
 [tool.poetry.dev-dependencies]
 

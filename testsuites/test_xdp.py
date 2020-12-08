@@ -7,6 +7,7 @@ if typing.TYPE_CHECKING:
     from target import Azure
 
 import pytest
+
 from lisa import LISA
 
 
