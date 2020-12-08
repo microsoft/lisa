@@ -89,6 +89,10 @@ Install_KVM_Dependencies()
         make install
         cd ..
     fi
+    check_package "dnsmasq"
+    if [ $? -eq 0 ]; then
+        install_package dnsmasq
+    fi
 }
 
 Download_Image_Files()
