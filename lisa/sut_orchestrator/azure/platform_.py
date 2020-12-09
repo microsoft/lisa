@@ -859,10 +859,9 @@ class AzurePlatform(Platform):
         self, location: str, deployment_parameters: Dict[str, Any], log: Logger
     ) -> None:
         resource_group_name = deployment_parameters[AZURE_RG_NAME_KEY]
-        log.info(f"resource group '{resource_group_name}' deployment is in progress...")
-
         self._check_or_create_storage_account(location=location, log=log)
 
+        log.info(f"resource group '{resource_group_name}' deployment is in progress...")
         deployment_operation: Any = None
         deployments = self._rm_client.deployments
         try:
