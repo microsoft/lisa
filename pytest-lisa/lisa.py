@@ -72,6 +72,7 @@ def pytest_playbook_schema(schema: Dict[Any, Any]) -> None:
             # TODO: Validate that these strings are valid regular
             # expressions if we change our matching logic.
             Optional("name", default=None): str,
+            Optional("module", default=None): str,
             Optional("area", default=None): str,
             Optional("category", default=None): str,
             Optional("priority", default=None): int,
@@ -149,6 +150,8 @@ def pytest_collection_modifyitems(
             if any(
                 [
                     c["name"] and c["name"] in item.name,
+                    # NOTE: `Item` does have a `module` field, though it’s untyped.
+                    c["module"] and c["module"] in item.module.__name__,  # type: ignore
                     c["area"] and c["area"].casefold() == i["area"].casefold(),
                     c["category"]
                     and c["category"].casefold() == i["category"].casefold(),
