@@ -127,6 +127,8 @@ collect_VM_properties
                     -command $cmdGetRxpktsVF -runAsSudo
             Write-LogInfo "With VF attached packet count: Synth: ${synPktsBefore} VF: ${vfPktsBefore}"
 
+            [int]$vfCountBefore = Run-LinuxCmd -ip $receiverVMData.PublicIP -port $receiverVMData.SSHPort -username $user -password $password `
+                    -command "lspci | grep -i mellanox | wc -l" -runAsSudo
             [int]$startMs = (Get-Date).Second
             Enable_Disable_VF $receiverVMData $false
             [int]$endMs = (Get-Date).Second
@@ -151,6 +153,18 @@ collect_VM_properties
             [int]$endMs = (Get-Date).Second
             Write-LogDbg "Time elapsed for Turning acc networking on is $($endMs - $startMs)"
             Wait-Time -seconds 10
+            $timeout = New-Timespan -Minutes 5
+            $sw = [diagnostics.stopwatch]::StartNew()
+            do {
+                [int]$vfCountAfter = Run-LinuxCmd -ip $receiverVMData.PublicIP -port $receiverVMData.SSHPort -username $user -password $password `
+                        -command "lspci | grep -i mellanox | wc -l" -runAsSudo
+                Write-LogInfo "VF count: before disable: ${vfCountBefore} after enable: ${vfCountAfter}"
+                Wait-Time -seconds 10
+            } while (($vfCountAfter -ne $vfCountBefore) -and ($sw.elapsed -lt $timeout))
+
+            if ($vfCountAfter -ne $vfCountBefore) {
+                Throw "VF is not back yet."
+            }
             [int]$synPktsAfter = Run-LinuxCmd -ip $receiverVMData.PublicIP -port $receiverVMData.SSHPort -username $user -password $password `
                     -command $cmdGetRxpktsSyn -runAsSudo
             [int]$vfPktsAfter = Run-LinuxCmd -ip $receiverVMData.PublicIP -port $receiverVMData.SSHPort -username $user -password $password `
