@@ -6,7 +6,7 @@ import sys
 from logging import getLogger
 from pathlib import Path, PurePath
 from time import sleep
-from typing import Any, Dict, List, Mapping, Optional, Sequence, Union, cast
+from typing import Any, Dict, List, Mapping, Optional, Sequence, Tuple, Union, cast
 
 import paramiko  # type: ignore
 import spur  # type: ignore
@@ -22,13 +22,14 @@ from .perf_timer import create_timer
 
 def wait_tcp_port_ready(
     address: str, port: int, log: Optional[Logger] = None, timeout: int = 300
-) -> bool:
+) -> Tuple[bool, int]:
     """
     return is ready or not
     """
     is_ready: bool = False
     # TODO: may need to support IPv6.
     times: int = 0
+    result: int = 0
 
     timout_timer = create_timer()
     while timout_timer.elapsed(False) < timeout:
@@ -40,12 +41,12 @@ def wait_tcp_port_ready(
             else:
                 if times % 10 == 0 and log:
                     log.debug(
-                        f"TCP port {port} connection failed({result}), and retrying... "
-                        f"Tried times: {times}, elapsed: {timout_timer}"
+                        f"cannot connect to TCP port: {port}, error code: {result}, "
+                        f"tried times: {times}, elapsed: {timout_timer}. retrying..."
                     )
                 sleep(1)
                 times += 1
-    return is_ready
+    return is_ready, result
 
 
 class ConnectionInfo:
@@ -157,13 +158,14 @@ class SshShell(InitializableMixin):
         paramiko_logger.setLevel(logging.WARN)
 
     def _initialize(self, *args: Any, **kwargs: Any) -> None:
-        is_ready = wait_tcp_port_ready(
+        is_ready, tcp_error_code = wait_tcp_port_ready(
             self._connection_info.address, self._connection_info.port
         )
         if not is_ready:
             raise LisaException(
-                f"cannot open SSH port {self._connection_info.port} to server: "
-                f"[{self._connection_info.address}:{self._connection_info.port}]"
+                f"cannot connect to TCP port: "
+                f"[{self._connection_info.address}:{self._connection_info.port}], "
+                f"error code: {tcp_error_code}"
             )
         try:
             stdout = try_connect(self._connection_info)
