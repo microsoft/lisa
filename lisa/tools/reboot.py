@@ -8,6 +8,7 @@ from lisa.util.perf_timer import create_timer
 from lisa.util.process import ExecutableResult
 
 from .date import Date
+from .uptime import Uptime
 from .who import Who
 
 
@@ -26,7 +27,14 @@ class Reboot(Tool):
     def reboot(self) -> None:
         who = self.node.tools[Who]
         timer = create_timer()
-        last_boot_time = who.last_boot()
+
+        # who -b doesn't return correct content in Ubuntu 14.04, but uptime works.
+        # uptime has no -s parameter in some distros, so not use is as default.
+        try:
+            last_boot_time = who.last_boot()
+        except Exception:
+            uptime = self.node.tools[Uptime]
+            last_boot_time = uptime.since_time()
         current_boot_time = last_boot_time
 
         # who -b returns time without seconds.
