@@ -25,7 +25,7 @@ from schema import Optional, Or, Schema  # type: ignore
 from target.target import Target
 
 if typing.TYPE_CHECKING:
-    from typing import Any, Dict, Iterator, List, Type
+    from typing import Any, Dict, Iterator, List, Set, Type
 
     from _pytest.config.argparsing import Parser
     from _pytest.fixtures import SubRequest
@@ -84,35 +84,24 @@ def pool(request: SubRequest) -> Iterator[List[Target]]:
             t.delete()
 
 
-@pytest.fixture
-def target(pool: List[Target], request: SubRequest) -> Iterator[Target]:
-    """This fixture provides a connected target for each test.
+def get_target(
+    pool: List[Target],
+    platform: Type[Target],
+    parameters: Dict[str, Any],
+    features: Set[str],
+) -> Target:
+    """This function gets or creates an appropriate `Target`.
 
-    It is parametrized indirectly in `pytest_generate_tests`.
-
-    In this fixture we can check if any existing target matches all
-    the requirements. If so, we can re-use that target, and if not, we
-    can deallocate the currently running target and allocate a new
-    one. When all tests are finished, the pool fixture above will
-    delete all created VMs. Coupled with performing discrete
-    optimization in the test collection phase and ordering the tests
-    such that the test(s) with the lowest common denominator
-    requirements are executed first, we have the two-layer scheduling
-    as asked.
-
-    However, this feels like putting the cart before the horse to me.
-    It would be much simpler in terms of design, implementation, and
-    usage that features are specified upfront when the targets are
-    specified. Then all this goes away, and tests are skipped when the
-    feature is missing, which also leaves users in full control of
-    their environments.
+    First check if any existing target in the `pool` matches all the
+    `features` and other requirements. If so, we can re-use that
+    target, and if not, we can deallocate the currently running target
+    and allocate a new one. When all tests are finished, the pool
+    fixture above will delete all created VMs. We can achieve
+    two-layer scheduling by implementing a custom scheduler in
+    pytest-xdist via `pytest_xdist_make_scheduler` and sorting the
+    tests such that they're grouped by features.
 
     """
-    platform: Type[Target] = platforms[request.param["platform"]]
-    parameters: Dict[str, Any] = request.param["parameters"]
-    marker = request.node.get_closest_marker("lisa")
-    features = set(marker.kwargs["features"])
-
     # TODO: If `t` is not already in use, deallocate the previous
     # target, and ensure the tests have been sorted (and so grouped)
     # by their requirements.
@@ -124,14 +113,63 @@ def target(pool: List[Target], request: SubRequest) -> Iterator[Target]:
             and t.parameters == parameters
             and t.features >= features
         ):
-            yield t
-            break
+            pool.remove(t)
+            return t
     else:
         # TODO: Reimplement caching.
         t = platform(f"pytest-{uuid4()}", parameters, features)
-        pool.append(t)
-        yield t
+        return t
+
+
+def cleanup_target(pool: List[Target], t: Target) -> None:
+    """This is called by fixtures after they're done with a target."""
     t.conn.close()
+    pool.append(t)
+
+
+@pytest.fixture
+def target(pool: List[Target], request: SubRequest) -> Iterator[Target]:
+    """This fixture provides a connected target for each test.
+
+    It is parametrized indirectly in `pytest_generate_tests`.
+
+    TODO: Clean up the code duplication here across the fixtures.
+
+    """
+    platform = platforms[request.param["platform"]]
+    parameters = request.param["parameters"]
+    # TODO: Use a ‘target’ marker instead.
+    marker = request.node.get_closest_marker("lisa")
+    features = set(marker.kwargs["features"])
+    t = get_target(pool, platform, parameters, features)
+    yield t
+    cleanup_target(pool, t)
+
+
+@pytest.fixture(scope="class")
+def c_target(pool: List[Target], request: SubRequest) -> Iterator[Target]:
+    """This fixture is the same as `target` but shared across a class."""
+    platform = platforms[request.param["platform"]]
+    parameters = request.param["parameters"]
+    # TODO: Use a ‘target’ marker instead.
+    marker = request.node.get_closest_marker("lisa")
+    features = set(marker.kwargs["features"])
+    t = get_target(pool, platform, parameters, features)
+    yield t
+    cleanup_target(pool, t)
+
+
+@pytest.fixture(scope="module")
+def m_target(pool: List[Target], request: SubRequest) -> Iterator[Target]:
+    """This fixture is the same as `target` but shared across a module."""
+    platform = platforms[request.param["platform"]]
+    parameters = request.param["parameters"]
+    # TODO: Use a ‘target’ marker instead.
+    marker = request.node.get_closest_marker("lisa")
+    features = set(marker.kwargs["features"])
+    t = get_target(pool, platform, parameters, features)
+    yield t
+    cleanup_target(pool, t)
 
 
 targets: List[Dict[str, Any]] = []
@@ -154,3 +192,7 @@ def pytest_generate_tests(metafunc: Metafunc) -> None:
     """
     if "target" in metafunc.fixturenames:
         metafunc.parametrize("target", targets, True, target_ids)
+    if "m_target" in metafunc.fixturenames:
+        metafunc.parametrize("m_target", targets, True, target_ids)
+    if "c_target" in metafunc.fixturenames:
+        metafunc.parametrize("c_target", targets, True, target_ids)
