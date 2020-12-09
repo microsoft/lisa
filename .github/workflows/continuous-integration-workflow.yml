@@ -4,10 +4,11 @@ on:
   push:
     branches:
       - main
+      - v3_*
   pull_request:
     branches:
       - main
-
+      - v3_*
 jobs:
   build:
     runs-on: ${{ matrix.os }}
