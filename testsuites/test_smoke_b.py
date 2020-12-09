@@ -1,18 +1,19 @@
-"""Runs a 'smoke' test for an Azure Linux VM deployment."""
 from __future__ import annotations
 
 import typing
 
 if typing.TYPE_CHECKING:
     from target import Azure
+    from _pytest.logging import LogCaptureFixture
 
 import logging
 import socket
 import time
 
 from invoke.runners import CommandTimedOut, Result, UnexpectedExit  # type: ignore
-from lisa import LISA
 from paramiko import SSHException  # type: ignore
+
+from lisa import LISA
 
 
 @LISA(
@@ -22,24 +23,27 @@ from paramiko import SSHException  # type: ignore
     priority=0,
     sku="Standard_DS2_v2",
 )
-def test_smoke(target: Azure) -> None:
-    """Check that a VM can be deployed and is responsive.
+def test_smoke(target: Azure, caplog: LogCaptureFixture) -> None:
+    """Check that an Azure Linux VM can be deployed and is responsive.
 
-    1. Deploy the VM (via 'node' fixture) and log it.
+    This example uses exactly one function for the entire test, which
+    means we have to catch failures that don't fail the test, and
+    instead emit warnings. It works, and it's closer to how LISAv2
+    would have implemented it, but it's less Pythonic. For a more
+    "modern" example, see `test_smoke_a.py`.
+
+    1. Deploy the VM (via `target` fixture).
     2. Ping the VM.
     3. Connect to the VM via SSH.
     4. Attempt to reboot via SSH, otherwise use the platform.
-    5. Fetch the serial console logs.
-
-    For commands where we expect a possible non-zero exit code, we
-    pass 'warn=True' to prevent it from throwing 'UnexpectedExit' and
-    we instead check its result at the end.
+    5. Fetch the serial console logs AKA boot diagnostics.
 
     SSH failures DO NOT fail this test.
 
-    TODO: Capture these logs without capturing all INFO logs.
-
     """
+    # Capture INFO and above logs for this test.
+    caplog.set_level(logging.INFO)
+
     logging.info("Pinging before reboot...")
     ping1 = Result()
     try:
@@ -69,6 +73,8 @@ def test_smoke(target: Azure) -> None:
         if reboot_exit != -1:
             logging.warning("While SSH worked, 'reboot' command failed")
 
+    # TODO: We should check something more concrete here instead of
+    # sleeping an arbitrary amount of time.
     logging.info("Sleeping for 10 seconds after reboot...")
     time.sleep(10)
 
