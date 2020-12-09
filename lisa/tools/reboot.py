@@ -53,15 +53,25 @@ class Reboot(Tool):
         except Exception as identifier:
             # it doesn't matter to exceptions here. The system may reboot fast
             self._log.debug(f"ignorable exception on rebooting: {identifier}")
+
+        connected: bool = False
         while (
             last_boot_time >= current_boot_time and timer.elapsed(False) < self.time_out
         ):
             try:
                 self.node.close()
                 current_boot_time = who.last_boot()
+                connected = True
             except Exception as identifier:
                 # error is ignorable, as ssh may be closed suddenly.
                 self._log.debug(f"ignorable ssh exception: {identifier}")
             self._log.debug(f"reconnected with uptime: {current_boot_time}")
         if timer.elapsed() > self.time_out:
-            raise LisaException("timeout to wait reboot")
+            if connected:
+                raise LisaException(
+                    "timeout to wait reboot, the node may not perform reboot."
+                )
+            else:
+                raise LisaException(
+                    "timeout to wait reboot, the node may stuck on reboot command."
+                )
