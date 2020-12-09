@@ -172,8 +172,8 @@ class SshShell(InitializableMixin):
         except Exception as identifier:
             raise LisaException(
                 f"failed to connect SSH "
-                f"[{self._connection_info.address}:{self._connection_info.port}]: "
-                f"{identifier}"
+                f"[{self._connection_info.address}:{self._connection_info.port}], "
+                f"{identifier.__class__.__name__}: {identifier}"
             )
 
         # Some windows doesn't end the text stream, so read first line only.
