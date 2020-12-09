@@ -26,6 +26,8 @@ class Provisioning(TestSuite):
         This test try to connect to ssh port to check if a node is healthy.
         If ssh connected, the node is healthy enough. And check if it's healthy after
         reboot. Even not eable to reboot, it's passed with a warning.
+        If the node can be rebooted, but there is panic detected, or not be able to
+        connected. The case failed.
         """,
         priority=0,
         requirement=simple_requirement(
@@ -60,4 +62,10 @@ class Provisioning(TestSuite):
             serial_console = node.features[SerialConsole]
             # if there is any panic, fail before parial passed
             serial_console.check_panic(saved_path=case_path, stage="reboot")
+
+            # if node cannot be connected after reboot, it should be failed.
+            if isinstance(identifier, LisaException) and str(identifier).startswith(
+                "cannot connect to TCP port"
+            ):
+                raise LisaException(f"after reboot, {identifier}")
             raise PassedException(identifier)
