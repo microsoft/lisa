@@ -18,7 +18,7 @@ from lisa.testsuite import (
     get_suites_metadata,
     simple_requirement,
 )
-from lisa.util import LisaException, PartialPassedException, constants
+from lisa.util import LisaException, PassedException, constants
 
 # for other UTs
 fail_on_before_suite = False
@@ -73,7 +73,7 @@ class MockTestSuite(TestSuite):
 
     def mock_ut1(self, *args: Any, **kwargs: Any) -> None:
         if self.partial_pass:
-            raise PartialPassedException("mock_ut1 partial passed")
+            raise PassedException("mock_ut1 passed with warning")
         while self.fail_case_count > 0:
             self.fail_case_count -= 1
             raise LisaException("mock_ut1 failed")
@@ -262,7 +262,7 @@ class TestSuiteTestCase(IsolatedAsyncioTestCase):
         result = test_suite.case_results[0]
         await test_suite.start()
         self.assertEqual(TestStatus.PASSED, result.status)
-        self.assertEqual("partial passed: mock_ut1 partial passed", result.message)
+        self.assertEqual("warning: mock_ut1 passed with warning", result.message)
         result = test_suite.case_results[1]
         self.assertEqual(TestStatus.PASSED, result.status)
         self.assertEqual("", result.message)

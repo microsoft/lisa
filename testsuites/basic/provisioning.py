@@ -5,7 +5,7 @@ from lisa import TestCaseMetadata, TestSuite, TestSuiteMetadata
 from lisa.environment import EnvironmentStatus
 from lisa.features import SerialConsole
 from lisa.testsuite import simple_requirement
-from lisa.util import LisaException, PartialPassedException
+from lisa.util import LisaException, PassedException
 from lisa.util.perf_timer import create_timer
 from lisa.util.shell import wait_tcp_port_ready
 
@@ -25,7 +25,7 @@ class Provisioning(TestSuite):
         description="""
         This test try to connect to ssh port to check if a node is healthy.
         If ssh connected, the node is healthy enough. And check if it's healthy after
-        reboot. Even not eable to reboot, it's partial passed.
+        reboot. Even not eable to reboot, it's passed with a warning.
         """,
         priority=0,
         requirement=simple_requirement(
@@ -60,4 +60,4 @@ class Provisioning(TestSuite):
             serial_console = node.features[SerialConsole]
             # if there is any panic, fail before parial passed
             serial_console.check_panic(saved_path=case_path, stage="reboot")
-            raise PartialPassedException(identifier)
+            raise PassedException(identifier)
