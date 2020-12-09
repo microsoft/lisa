@@ -10,6 +10,7 @@ from .modinfo import Modinfo
 from .ntttcp import Ntttcp
 from .reboot import Reboot
 from .uname import Uname
+from .uptime import Uptime
 from .who import Who
 
 __all__ = [
@@ -25,5 +26,6 @@ __all__ = [
     "Ntttcp",
     "Reboot",
     "Uname",
+    "Uptime",
     "Who",
 ]
