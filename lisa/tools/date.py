@@ -1,5 +1,7 @@
 from datetime import datetime
 
+from dateutil.parser import parser
+
 from lisa.executable import Tool
 from lisa.util import LisaException
 
@@ -18,6 +20,4 @@ class Date(Tool):
             raise LisaException(
                 f"'Date' return non-zero exit code: {command_result.stderr}"
             )
-        # Mon Nov 23 00:21:02 UTC 2020
-        result = datetime.strptime(command_result.stdout, "%a %b %d %H:%M:%S %Z %Y")
-        return result
+        return parser().parse(command_result.stdout)
