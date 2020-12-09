@@ -34,14 +34,16 @@ class Reboot(Tool):
         # The reboot will wait forever.
         # in this case, verify the time is wait enough to prevent this problem.
         date = self.node.tools[Date]
-        current_delta = date.current() - current_boot_time
+        # boot time has no tzinfo, so remove from date result to avoid below error.
+        # TypeError: can't subtract offset-naive and offset-aware datetimes
+        current_delta = date.current().replace(tzinfo=None) - current_boot_time
         self._log.debug(f"delta time since last boot: {current_delta}")
         while current_delta < timedelta(minutes=1):
             # wait until one minute
             wait_seconds = 60 - current_delta.seconds + 1
             self._log.debug(f"waiting {wait_seconds} seconds before rebooting")
             sleep(wait_seconds)
-            current_delta = date.current() - current_boot_time
+            current_delta = date.current().replace(tzinfo=None) - current_boot_time
 
         self._log.debug(f"rebooting with boot time: {last_boot_time}")
         try:

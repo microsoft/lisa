@@ -1,6 +1,8 @@
 import re
 from datetime import datetime
 
+from dateutil.parser import parser
+
 from lisa.executable import Tool
 from lisa.util import LisaException, get_matched_str
 
@@ -23,11 +25,5 @@ class Who(Tool):
                 f"'last' return non-zero exit code: {command_result.stderr}"
             )
         datetime_output = get_matched_str(command_result.stdout, self.last_time_pattern)
-        try:
-            result = datetime.fromisoformat(datetime_output)
-        except ValueError:
-            # ValueError: Invalid isoformat string: 'Nov 10 20:54'
-            datetime_with_year = f"{datetime_output} {datetime.utcnow().year}"
-            result = datetime.strptime(datetime_with_year, "%b %d %H:%M %Y")
 
-        return result
+        return parser().parse(datetime_output)
