@@ -37,7 +37,7 @@ class Provisioning(TestSuite):
         node = self.environment.default_node
         case_path: Optional[Path] = None
 
-        is_ready = wait_tcp_port_ready(
+        is_ready, tcp_error_code = wait_tcp_port_ready(
             node.public_address, node.public_port, log=self.log, timeout=self.TIME_OUT
         )
         if not is_ready:
@@ -45,8 +45,8 @@ class Provisioning(TestSuite):
             case_path = self._create_case_log_path(case_name)
             serial_console.check_panic(saved_path=case_path, stage="bootup")
             raise LisaException(
-                f"cannot connect to [{node.public_address}:{node.public_port}]"
-                f", but no panic found in serial log"
+                f"cannot connect to [{node.public_address}:{node.public_port}], "
+                f"error code: {tcp_error_code}, no panic found in serial log"
             )
 
         try:
