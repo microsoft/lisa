@@ -15,7 +15,7 @@ from lisa.feature import Feature
 from lisa.operating_system import OperatingSystem
 from lisa.util import (
     LisaException,
-    PartialPassedException,
+    PassedException,
     constants,
     get_datetime_path,
     set_filtered_fields,
@@ -393,12 +393,11 @@ class TestSuite(Action):
                         logger=self.log,
                     )
                     case_result.set_status(TestStatus.PASSED, "")
-                except PartialPassedException as identifier:
+                except PassedException as identifier:
                     self.log.info(f"case parial passed: {identifier}")
                     self.log.debug("case parial passed", exc_info=identifier)
-                    case_result.set_status(
-                        TestStatus.PASSED, f"partial passed: {identifier}"
-                    )
+                    # case can be passed with a warning.
+                    case_result.set_status(TestStatus.PASSED, f"warning: {identifier}")
                 except Exception as identifier:
                     if case_result.runtime_data.ignore_failure:
                         self.log.info(f"case failed and ignored: {identifier}")

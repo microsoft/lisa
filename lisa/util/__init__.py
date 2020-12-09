@@ -9,8 +9,13 @@ class LisaException(Exception):
     pass
 
 
-# some test cases verify more than
-class PartialPassedException(Exception):
+class PassedException(Exception):
+    """
+    A test case may verify several things, but part of verification cannot be done. In
+    this situation, the test case may be considered to passed also. Raise this
+    Exception to bring an error message, and make test pass also.
+    """
+
     pass
 
 
