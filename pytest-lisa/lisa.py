@@ -27,12 +27,15 @@ TODO
 """
 from __future__ import annotations
 
+import re
 import sys
 import typing
 
 import playbook
+import py
 import pytest
 from schema import Optional, Or, Schema, SchemaMissingKeyError  # type: ignore
+from xdist.scheduler.loadscope import LoadScopeScheduling  # type: ignore
 
 if typing.TYPE_CHECKING:
     from typing import Any, Dict, List
@@ -67,6 +70,9 @@ def pytest_configure(config: Config) -> None:
 
 def pytest_playbook_schema(schema: Dict[Any, Any]) -> None:
     """pytest-playbook hook to update the playbook schema."""
+    # TODO: We also want to support a criteria selection on each
+    # `target` in the playbook, which this top-level criteria being
+    # the default.
     criteria_schema = Schema(
         {
             # TODO: Validate that these strings are valid regular
@@ -90,6 +96,8 @@ lisa_schema = Schema(
         "category": Or("Functional", "Performance", "Stress", "Community", "Longhaul"),
         "area": str,
         "priority": Or(0, 1, 2, 3),
+        # TODO: Move `features` to `pytest.mark.target` and don’t
+        # allow extra keys.
         Optional("features", default=list): [str],
         Optional("tags", default=list): [str],
         Optional(object): object,
@@ -164,3 +172,76 @@ def pytest_collection_modifyitems(
     if not included:
         included = items
     items[:] = [i for i in included if i not in excluded]
+
+
+class LISAScheduling(LoadScopeScheduling):
+    """Implement load scheduling across nodes, but grouping by parameter.
+
+    This algorithm ensures that all tests which share the same set of
+    parameters (namely the target) will run on the same executor as a
+    single work-unit.
+
+    TODO: This essentially confines the targets and one target won't
+    be spun up multiple times when run in parallel, so we should make
+    this scheduler optional, as an alternative scenario is to spin up
+    multiple near-identical instances of a target in order to run
+    tests in parallel.
+
+    TODO: We could also add an expected prefix to the target
+    parameter, like 'Target=<Name>' and then only split on it instead
+    of all parameters.
+
+    This is modeled after the built-in `LoadFileScheduling`, which
+    also simply subclasses `LoadScopeScheduling`. See `_split_scope`
+    for the important part. Note that we can extend this to implement
+    any kind of scheduling algorithm we want.
+
+    """
+
+    def __init__(self, config: Config, log=None):  # type: ignore
+        super().__init__(config, log)
+        if log is None:
+            self.log = py.log.Producer("lisasched")
+        else:
+            self.log = log.lisasched
+
+    regex = re.compile(r"\[(\w+)\]")
+
+    def _split_scope(self, nodeid: str) -> str:
+        """Determine the scope (grouping) of a nodeid.
+
+        Example of a parameterized test's nodeid::
+
+            example/test_module.py::test_function[A]
+            example/test_module.py::test_function[B]
+            example/test_module.py::test_function_extra[A][B]
+
+        `LoadScopeScheduling` uses `nodeid.rsplit("::", 1)[0]`, or the
+        first `::` from the right, to split by scope, such that
+        classes will be grouped, then modules. `LoadFileScheduling`
+        uses `nodeid.split("::", 1)[0]`, or the first `::` from the
+        left, to instead split only by modules (Python files).
+
+        We opportunistically find all the parameters (strings within
+        square brackets) and join them with a slash to create the
+        scope. If the function is not parameterized, and so has no
+        square brackets, then we simply fallback to the algorithm of
+        `LoadScopeScheduling`. So the above would map into the scopes:
+        'A', 'B', and 'A/B'.
+
+        """
+        if "[" in nodeid:
+            scope = "/".join(self.regex.findall(nodeid))
+            if self.config.getoption("verbose"):
+                self.log(f"Split nodeid '{nodeid}' into scope '{scope}'")
+            return scope
+        return super()._split_scope(nodeid)  # type: ignore
+
+
+def pytest_xdist_make_scheduler(config: Config) -> LISAScheduling:
+    """pytest-xdist hook for implementing a custom scheduler.
+
+    https://github.com/pytest-dev/pytest-xdist/blob/master/OVERVIEW.md
+
+    """
+    return LISAScheduling(config)

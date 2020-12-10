@@ -189,6 +189,10 @@ def pytest_generate_tests(metafunc: Metafunc) -> None:
     This hook is run for each test, so we gather the `targets` in
     `pytest_sessionstart`.
 
+    TODO: Handle `targets` being empty (probably a user-error). Also
+    consider how this may change if we want to selectively
+    parameterize tests.
+
     """
     if "target" in metafunc.fixturenames:
         metafunc.parametrize("target", targets, True, target_ids)

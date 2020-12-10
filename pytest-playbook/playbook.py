@@ -37,7 +37,7 @@ if typing.TYPE_CHECKING:
     from _pytest.config import Config, PytestPluginManager
     from _pytest.config.argparsing import Parser
 
-# TODO: I’m not a fan of this name.
+# TODO: I’m not a fan of this name. Maybe ‘params’ or ‘data’?
 playbook: Dict[Any, Any] = dict()
 
 
@@ -76,6 +76,7 @@ def pytest_addoption(parser: Parser, pluginmanager: PytestPluginManager) -> None
     group.addoption("--playbook", type=Path, help="Path to playbook.")
 
 
+# TODO: See if this works without ‘trylast’.
 @pytest.hookimpl(trylast=True)
 def pytest_configure(config: Config) -> None:
     """Pytest hook to configure our plugin.

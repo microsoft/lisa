@@ -14,5 +14,5 @@ if typing.TYPE_CHECKING:
 
 
 def pytest_html_report_title(report: HTMLReport) -> None:
-    """Set HTML report title."""
+    """pytest-html hook to set the HTML report title."""
     report.title = "LISAv3 Results"

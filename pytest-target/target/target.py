@@ -17,7 +17,18 @@ if typing.TYPE_CHECKING:
 
 
 class Target(ABC):
-    """Extends 'fabric.Connection' with our own utilities."""
+    """This class represents a remote Linux target.
+
+    As a partially abstract base class, it is meant to be subclassed
+    to provide platform support. So `Target` as a class maps to the
+    concept of a Linux target machine reachable via SSH (through
+    `self.conn`, an instance of `Fabric.Connection`). Each subclass of
+    `Target` provides the necessary implementation to instantiate an
+    actual Linux target, by deploying it on that platform. Each
+    _instance_ of a platform-specific subclass of `Target` maps to an
+    actual Linux target that has been deployed on that platform.
+
+    """
 
     # Typed instance attributes, not class attributes.
     parameters: Mapping[str, str]
