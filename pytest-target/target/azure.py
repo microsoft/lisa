@@ -79,7 +79,7 @@ class Azure(Target):
                 self.local(
                     f"az network nsg rule create "
                     f"--name allow{d}ICMP --resource-group {self.name}-rg "
-                    f"--nsg-name {self.name}NSG --priority 100  "
+                    f"--nsg-name {self.name}NSG --priority 150  "
                     f"--access Allow --direction '{d}' --protocol Icmp "
                     "--source-port-ranges '*' --destination-port-ranges '*'"
                 )
