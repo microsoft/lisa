@@ -52,6 +52,26 @@ function Collect_Logs() {
 	fi
 }
 
+# Function to run intel intranode pingpong test for the all the IB interface
+# If any pingpong test fails for any IB interface will return non-zero value
+function Run_intel_IMB_Intranode() {
+	local vm1=${1}
+	local vm2=${2}
+	local logfile=${3}
+	local logmsg=""
+
+	local ib_ifcs=$(ssh root@${vm1} ls /sys/class/net/ | grep ib)
+	for ifc in ${ib_ifcs};do
+	logmsg="${mpi_run_path} -hosts ${vm1},${vm2} -iface ${ifc} -ppn 2 -n 2 ${non_shm_mpi_settings} ${imb_mpi1_path} pingpong"
+	ssh root@${vm1} "${mpi_run_path} -hosts ${vm1},${vm2} -iface ${ifc} -ppn 2 -n 2 ${non_shm_mpi_settings} ${imb_mpi1_path} pingpong >> ${logfile}"
+	[[ $? -ne 0 ]] && {
+		LogMsg "${logmsg} .. Failed"
+		return 1
+	} || LogMsg "${logmsg} .. Succeeded"
+	done
+	return 0
+}
+
 function Run_IMB_Intranode() {
 	# Verify Intel MPI PingPong Tests (IntraNode).
 	final_mpi_intranode_status=0
@@ -85,8 +105,7 @@ function Run_IMB_Intranode() {
 						fi
 					;;
 					intel)
-						LogMsg "$mpi_run_path -hosts $vm1,$vm2 -ppn 2 -n 2 $non_shm_mpi_settings $imb_mpi1_path pingpong"
-						ssh root@${vm1} "$mpi_run_path -hosts $vm1,$vm2 -ppn 2 -n 2 $non_shm_mpi_settings $imb_mpi1_path pingpong >> $log_file"
+						Run_intel_IMB_Intranode ${vm1} ${vm2} ${log_file}
 					;;
 					mvapich)
 						LogMsg "$mpi_run_path -n 2 $vm1 $vm2 $imb_mpi1_path pingpong"
@@ -463,6 +482,132 @@ function Run_IMB_IO() {
 	fi
 }
 
+# Function to validate the IB interface supported by VM
+function check_ib_interface_cnt() {
+	local exp_ib_cnt=1
+	[[ ! -z $VM_Size && $VM_Size == "96" ]] && exp_ib_cnt=8
+
+	for vm in $master $slaves_array; do
+		local ib_cnt=$(ssh root@${vm} ls /sys/class/net | grep -c ib)
+		LogMsg "${vm} IB count: ${ib_cnt} Expected ${exp_ib_cnt}"
+		[[ ${ib_cnt} -ne ${exp_ib_cnt} ]] && {
+			LogErr "${vm} - Invalid count of ib interfaces ${exp_ib_cnt} - ${ib_cnt})"
+			return 1
+		}
+	done
+	return 0
+}
+
+# Function to check the IB port status
+# If port status is not active then validation will fail
+function check_ib_port_status() {
+	local vm="${1}"
+	local port_state=""
+	ssh root@${vm} "ibv_devinfo > /root/IMB-PORT_STATE_${vm}.txt"
+	local ib_devs=$(ssh root@${vm} "ls /sys/class/infiniband")
+	for ib_dev in ${ib_devs};do
+		port_state=$(ssh root@${vm} ibv_devinfo -d ${ib_dev} | grep -i state)
+		LogMsg "${ib_dev} - ${port_state}"
+		[[ "$port_state" != *"PORT_ACTIVE"* ]] && {
+			LogErr "${ib_dev} ib port is down - $port_state"
+			return 1
+		}
+	done
+	return 0
+}
+
+# Function to get IB interface based on the IB device id
+# Last 3 bytes of GUID of IB device is used to fetch the IB network interface
+function get_ib_interface() {
+	local dev_name=${1}
+	local vm=${2}
+	local guid=$(ssh root@${vm} ibv_devices | grep ${dev_name} | awk '{print $2}')
+	# Use the last 3 bytes of GUID to match the corresponding IB interface
+	local mpat="${guid:10:2}:${guid:12:2}:${guid:14:2}"
+	local ib_ifcs=$(ssh root@${vm} ls /sys/class/net/ | grep ib)
+	for ifc in ${ib_ifcs};do
+		ssh root@${vm} ip addr show ${ifc} | grep "${mpat}" > /dev/null
+		[[ $? -eq 0 ]] && {
+			echo "$ifc"
+			return 0
+		}
+	done
+	return 1
+}
+
+# Function to detect all the IB network interface
+# All the interfaces are updated in constants.sh file
+function detect_ib_interface() {
+	local ib_ifcs=""
+	local ib_name=""
+	local slaves_array=$(echo ${slaves} | tr ',' ' ')
+	for vm in $master $slaves_array; do
+		ib_ifcs=$(ssh root@${vm} ls /sys/class/net/ | grep ib)
+		local idx=0
+		for ib_name in ${ib_ifcs};do
+			ipaddr=$(ssh root@${vm} ip addr show $ib_name | awk -F ' *|:' '/inet /{print $3}' | cut -d / -f 1)
+			if [[ $? -eq 0 && ${ipaddr} ]]; then
+				LogMsg "Successfully queried $ib_name interface address, $ib from ${vm}."
+			else
+				LogErr "Failed to query $ib_name interface address, $ib from ${vm}."
+				final_pingpong_state=$(($final_pingpong_state + 1))
+				found_ib_interface=0
+			fi
+			LogMsg "Logging ${ib_name}_${vm} value: ${ipaddr}"
+			vm_id=$(echo $vm | sed -r 's!/.*!!; s!.*\.!!')
+			echo ib${idx}_${vm_id}=${ipaddr} >> /root/constants.sh
+			idx=$((idx+1))
+		done
+	done
+}
+
+# Function to run ping pong test
+function run_pingpong_cmd() {
+	local vm1=${1}
+	local vm2=${2}
+	local ping_cmd=${3}
+
+	# Source the constant file to read the IP and IB interface mapping
+	[[ -f /root/constants.sh ]] && . /root/constants.sh
+
+	# Define pingpong test log file name
+	LogMsg "  Start $ping_cmd in server VM $vm1 first"
+	local ifc_names=$(ssh root@${vm1} ls /sys/class/infiniband)
+	for ifc in ${ifc_names};do
+		local retries=0
+		local ib_ifc=$(get_ib_interface ${ifc} ${vm1})
+		local vm1_ibid=${ib_ifc}_$(echo ${vm1} | sed -r 's!/.*!!; s!.*\.!!')
+		local log_file=IMB-"$ping_cmd"-output-$vm1-$vm2-${ib_ifc}.txt
+		LogMsg "Run $ping_cmd from $vm2 to $vm1 over ${ib_ifc}"
+		while [ $retries -lt 1 ]; do
+			LogMsg "$ping_cmd -d ${ifc}"
+			ssh root@${vm1} "$ping_cmd -d ${ifc}" &
+			LogMsg "  $?"
+			sleep 1
+			LogMsg "$ping_cmd ${!vm1_ibid}"
+			ssh root@${vm2} "$ping_cmd ${!vm1_ibid} > /root/$log_file"
+			pingpong_state=$?
+			LogMsg "  $pingpong_state"
+
+			sleep 1
+			scp root@${vm2}:/root/$log_file .
+			pingpong_result=$(cat $log_file | grep -i Mbit | cut -d ' ' -f7)
+			if [ $pingpong_state -eq 0 ] && [ $pingpong_result > 0 ]; then
+				LogMsg "$ping_cmd test execution successful"
+				LogMsg "$ping_cmd result $pingpong_result in $vm1-$vm2 - Succeeded."
+				break
+			fi
+			sleep 10
+			retries=$((retries + 1))
+		done
+		if [ $pingpong_state -ne 0 ] || (($(echo "$pingpong_result <= 0" | bc -l))); then
+			LogErr "$ping_cmd test execution failed"
+			LogErr "$ping_cmd result $pingpong_result in ${vm1}-${vm2}-${ib_ifc} - Failed"
+			final_pingpong_state=$(($final_pingpong_state + 1))
+		fi
+	done
+}
+
 function Main() {
 	LogMsg "Restarting waagent for ib0 device loading"
 	if [[ $DISTRO == "ubuntu"* ]]; then
@@ -543,6 +688,19 @@ function Main() {
 		total_virtual_machines=$(($total_virtual_machines - 1))
 	fi
 
+    # ############################################################################################################
+	# Check the IB interface count
+	check_ib_interface_cnt
+	if [ $? -ne 0 ]; then
+		LogErr "IB count check failed in VMs. Aborting further tests."
+		SetTestStateFailed
+		Collect_Logs
+		LogMsg "IB INTERFACE CHECK FAILED"
+		exit 0
+	else
+		LogMsg "IB INTERFACE CHECK PASSED"
+	fi
+
 	# ############################################################################################################
 	# ib kernel modules verification
 	# mlx5_ib, rdma_cm, rdma_ucm, ib_ipoib, ib_umad shall be loaded in kernel
@@ -583,12 +741,11 @@ function Main() {
 	min_port_state_up_cnt=0
 	for vm in $master $slaves_array; do
 		min_port_state_up_cnt=$(($min_port_state_up_cnt + 1))
-		ssh root@${vm} "ibv_devinfo > /root/IMB-PORT_STATE_${vm}.txt"
-		port_state=$(ssh root@${vm} "ibv_devinfo | grep -i state")
-		if [[ "$port_state" == *"PORT_ACTIVE"* ]]; then
-			LogMsg "$vm ib port is up - Succeeded; $port_state"
+		check_ib_port_status ${vm}
+		if [[ $? -eq 0 ]]; then
+			LogMsg "$vm ib port is up - Succeeded"
 		else
-			LogErr "$vm ib port is down; $port_state"
+			LogErr "$vm ib port is down"
 			LogErr "Will remove the VM with bad port from constants.sh"
 			sed -i "s/${vm},\|,${vm}//g" ${__LIS_CONSTANTS_FILE}
 			ib_port_state_down_cnt=$(($ib_port_state_down_cnt + 1))
@@ -660,70 +817,22 @@ function Main() {
 	# ############################################################################################################
 	# Verify ibv_rc_pingpong, ibv_uc_pingpong and ibv_ud_pingpong and rping.
 	final_pingpong_state=0
-	found_ib0_interface=1
+	found_ib_interface=1
 
 	if [[ $is_nd == "no" ]]; then
-		# Getting ib0 interface address and store in constants.sh
-		slaves_array=$(echo ${slaves} | tr ',' ' ')
-		ib_name=ib0
-		for vm in $master $slaves_array; do
-			ib0=$(ssh root@${vm} ip addr show $ib_name | awk -F ' *|:' '/inet /{print $3}' | cut -d / -f 1)
-			if [[ $? -eq 0 && $ib0 ]]; then
-				LogMsg "Successfully queried $ib_name interface address, $ib0 from ${vm}."
-			else
-				LogErr "Failed to query $ib_name interface address, $ib0 from ${vm}."
-				final_pingpong_state=$(($final_pingpong_state + 1))
-				found_ib0_interface=0
-			fi
-			LogMsg "Logging ib0_$vm value: $ib0"
-			vm_id=$(echo $vm | sed -r 's!/.*!!; s!.*\.!!')
-			echo ib0_$vm_id=$ib0 >> /root/constants.sh
-			export ib0_$vm_id=$ib0
-		done
+		# Getting ibX(x=0..8) interface address and store in constants.sh
+		detect_ib_interface
 
 		# Define ibv_ pingpong commands in the array
 		declare -a ping_cmds=("ibv_rc_pingpong" "ibv_uc_pingpong" "ibv_ud_pingpong")
 
-		if [ $found_ib0_interface = 1 ]; then
+		if [ $found_ib_interface = 1 ]; then
 			for ping_cmd in "${ping_cmds[@]}"; do
 				for vm1 in $master $slaves_array; do
 					for vm2 in $slaves_array $master; do
-						if [[ "$vm1" == "$vm2" ]]; then
-							# Skip self-ping test case
-							break
-						fi
-						# Define pingpong test log file name
-						log_file=IMB-"$ping_cmd"-output-$vm1-$vm2.txt
-						LogMsg "Run $ping_cmd from $vm2 to $vm1"
-						LogMsg "  Start $ping_cmd in server VM $vm1 first"
-						retries=0
-						while [ $retries -lt 3 ]; do
-							ssh root@${vm1} "$ping_cmd" &
-							LogMsg "  $?"
-							sleep 1
-							vm1_id=ib0_$(echo $vm1 | sed -r 's!/.*!!; s!.*\.!!')
-							LogMsg "  Start $ping_cmd in client VM, $vm2 to ${!vm1_id}"
-							ssh root@${vm2} "$ping_cmd ${!vm1_id} > /root/$log_file"
-							pingpong_state=$?
-							LogMsg "  $pingpong_state"
-
-							sleep 1
-							scp root@${vm2}:/root/$log_file .
-							pingpong_result=$(cat $log_file | grep -i Mbit | cut -d ' ' -f7)
-							if [ $pingpong_state -eq 0 ] && [ $pingpong_result > 0 ]; then
-								LogMsg "$ping_cmd test execution successful"
-								LogMsg "$ping_cmd result $pingpong_result in $vm1-$vm2 - Succeeded."
-								retries=4
-							else
-								sleep 10
-								let retries=retries+1
-							fi
-						done
-						if [ $pingpong_state -ne 0 ] || (($(echo "$pingpong_result <= 0" | bc -l))); then
-							LogErr "$ping_cmd test execution failed"
-							LogErr "$ping_cmd result $pingpong_result in $vm1-$vm2 - Failed"
-							final_pingpong_state=$(($final_pingpong_state + 1))
-						fi
+						# Skip self-ping test case
+						[[ "$vm1" == "$vm2" ]] && continue
+						run_pingpong_cmd $vm1 $vm2 $ping_cmd
 					done
 				done
 			done
@@ -802,7 +911,7 @@ function Main() {
 		LogMsg "Running IMB benchmarks tests for $mpi_type"
 		Run_IMB_Intranode
 		Run_IMB_MPI1
-		if [[ $quicktestonly == "no" ]]; then
+		if [[ $quicktest_only == "no" ]]; then
 			Run_IMB_RMA
 			Run_IMB_NBC
 			# Sometimes IMB-P2P and IMB-IO aren't available, skip them if it's the case
