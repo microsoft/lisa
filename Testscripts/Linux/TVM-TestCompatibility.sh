@@ -53,9 +53,8 @@ fi
 
 
 sudo mbinfo
-rc=$?
 
-if [ rc == 0 ]; then
+if [ $? == 0 ]; then
     UpdateSummary "This OS image is compatible with TVM."
     SetTestStateCompleted
 else
