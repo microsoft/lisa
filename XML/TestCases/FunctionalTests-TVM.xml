@@ -17,7 +17,7 @@
   <test>
     <testName>TVM-TEST-COMPATIBILITY</testName>
     <testScript>TVM-TestCompatibility.sh</testScript>
-    <files>.\Testscripts\Linux\TVM-TestCompatibility.sh,.\Testscripts\Linux\utils.sh,.\Tools\tvminfo</files>
+    <files>.\Testscripts\Linux\TVM-TestCompatibility.sh,.\Testscripts\Linux\utils.sh</files>
     <Platform>Azure</Platform>
     <Category>Functional</Category>
     <Area>TVM</Area>
