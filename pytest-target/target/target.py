@@ -8,8 +8,8 @@ from io import BytesIO
 
 import fabric  # type: ignore
 import invoke  # type: ignore
+import schema  # type: ignore
 from invoke.runners import Result  # type: ignore
-from schema import Schema  # type: ignore
 from tenacity import retry, stop_after_attempt, wait_exponential  # type: ignore
 
 if typing.TYPE_CHECKING:
@@ -90,7 +90,7 @@ class Target(ABC):
     # in Python 3.9 and up.
     @classmethod
     @abstractmethod
-    def schema(cls) -> Schema:
+    def schema(cls) -> schema.Schema:
         """Must return a schema for expected instance parameters.
 
         TODO: This schema is used for each instance. We may want to
@@ -130,13 +130,29 @@ class Target(ABC):
             return buf.getvalue().decode("utf-8").strip()
 
 
-class Local(Target):
+class SSH(Target):
+    """The `SSH` platform simply connects to existing targets.
+
+    It does not deploy nor delete the target. The default ``host`` is
+    ``localhost`` so this can be used for testing against the user's
+    system (if SSH is enabled).
+
+    """
+
     @classmethod
-    def schema(cls) -> Schema:
-        return Schema(None)
+    def schema(cls) -> schema.Schema:
+        return schema.Schema(
+            {
+                schema.Optional(
+                    "host",
+                    default="localhost",
+                    description="The address of the destination target.",
+                ): str
+            }
+        )
 
     def deploy(self) -> str:
-        return "localhost"
+        return self.params["host"]
 
     def delete(self) -> None:
         pass

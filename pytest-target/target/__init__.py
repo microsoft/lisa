@@ -29,8 +29,7 @@ deployed targets.
 """
 # Provide common types in the package's namespace.
 from target.azure import Azure
-from target.plugin import pool, target
-from target.target import Local, Target
+from target.target import SSH, Target
 
 # NOTE: This is mostly to avoid “imported but not used.”
-__all__ = ["Azure", "Target", "Local", "pool", "target"]
+__all__ = ["Azure", "Target", "SSH"]

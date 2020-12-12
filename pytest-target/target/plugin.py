@@ -69,7 +69,7 @@ def pytest_playbook_schema(schema: Dict[Any, Any]) -> None:
             ),
         }
     )
-    default_targets = [{"name": "Default", "platform": "Local"}]
+    default_targets = [{"name": "Default", "platform": "SSH"}]
     schema[Optional("targets", default=default_targets)] = [target_schema]
 
 
