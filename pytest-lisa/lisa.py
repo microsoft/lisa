@@ -187,10 +187,6 @@ class LISAScheduling(LoadScopeScheduling):
     multiple near-identical instances of a target in order to run
     tests in parallel.
 
-    TODO: We could also add an expected prefix to the target
-    parameter, like 'Target=<Name>' and then only split on it instead
-    of all parameters.
-
     This is modeled after the built-in `LoadFileScheduling`, which
     also simply subclasses `LoadScopeScheduling`. See `_split_scope`
     for the important part. Note that we can extend this to implement
@@ -205,33 +201,49 @@ class LISAScheduling(LoadScopeScheduling):
         else:
             self.log = log.lisasched
 
-    regex = re.compile(r"\[(\w+)\]")
+    regex = re.compile(r"\[Target=(\w+)\]")
 
     def _split_scope(self, nodeid: str) -> str:
-        """Determine the scope (grouping) of a nodeid.
+        """Determine the scope (grouping) of a `nodeid`.
 
-        Example of a parameterized test's nodeid::
+        Example of a parameterized test's `nodeid`:
 
-            example/test_module.py::test_function[A]
-            example/test_module.py::test_function[B]
-            example/test_module.py::test_function_extra[A][B]
+        * ``example/test_module.py::test_function[Target=A]``
+        * ``example/test_module.py::test_function[A][Target=B]``
+        * ``example/test_module.py::test_function_extra[A][B][Target=C]``
 
-        `LoadScopeScheduling` uses `nodeid.rsplit("::", 1)[0]`, or the
-        first `::` from the right, to split by scope, such that
-        classes will be grouped, then modules. `LoadFileScheduling`
-        uses `nodeid.split("::", 1)[0]`, or the first `::` from the
-        left, to instead split only by modules (Python files).
+        `LoadScopeScheduling` uses ``nodeid.rsplit("::", 1)[0]``, or
+        the first ``::`` from the right, to split by scope, such that
+        classes will be grouped, then modules. ``LoadFileScheduling``
+        uses ``nodeid.split("::", 1)[0]``, or the first ``::`` from
+        the left, to instead split only by modules (Python files).
 
-        We opportunistically find all the parameters (strings within
-        square brackets) and join them with a slash to create the
-        scope. If the function is not parameterized, and so has no
-        square brackets, then we simply fallback to the algorithm of
-        `LoadScopeScheduling`. So the above would map into the scopes:
-        'A', 'B', and 'A/B'.
+        We opportunistically find the "Target" parameter and use it as
+        the scope. If the target parameter is missing then we simply
+        fallback to the algorithm of `LoadScopeScheduling`. So the
+        above would map into the scopes: 'A', 'B', and 'C'.
+
+        >>> class Config:
+        ...     def getoption(self, option):
+        ...         return False
+        ...     def getvalue(self, value):
+        ...         return ["popen"]
+        >>> s = LISAScheduling(Config())
+        >>> s._split_scope("example/test_module.py::test_function[Target=A][B][C]")
+        'A'
+        >>> s._split_scope("example/test_module.py::test_function[A][Target=B][C]")
+        'B'
+        >>> s._split_scope("example/test_module.py::test_function[A][B][Target=C]")
+        'C'
+        >>> s._split_scope("example/test_module.py::test_function")
+        'example/test_module.py'
+        >>> s._split_scope("example/test_module.py::test_class::test_function")
+        'example/test_module.py::test_class'
 
         """
-        if "[" in nodeid:
-            scope = "/".join(self.regex.findall(nodeid))
+        search = self.regex.search(nodeid)
+        if search:
+            scope = search.group(1)
             if self.config.getoption("verbose"):
                 self.log(f"Split nodeid '{nodeid}' into scope '{scope}'")
             return scope
