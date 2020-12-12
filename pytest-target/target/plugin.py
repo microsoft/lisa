@@ -180,7 +180,7 @@ def pytest_sessionstart() -> None:
     """Gather the `targets` from the playbook."""
     for target in playbook.playbook.get("targets", []):
         targets.append(target)
-        target_ids.append(target["name"])
+        target_ids.append("Target=" + target["name"])
 
 
 def pytest_generate_tests(metafunc: Metafunc) -> None:
