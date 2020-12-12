@@ -201,7 +201,8 @@ class LISAScheduling(LoadScopeScheduling):
         else:
             self.log = log.lisasched
 
-    regex = re.compile(r"\[Target=(\w+)\]")
+    # NOTE: Needs to handle whitespace, so can’t be `\w+`.
+    regex = re.compile(r"\[Target=([^\[\]]+)\]")
 
     def _split_scope(self, nodeid: str) -> str:
         """Determine the scope (grouping) of a `nodeid`.
