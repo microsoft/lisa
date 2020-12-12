@@ -37,8 +37,8 @@ if typing.TYPE_CHECKING:
     from _pytest.config import Config, PytestPluginManager
     from _pytest.config.argparsing import Parser
 
-# TODO: I’m not a fan of this name. Maybe ‘params’ or ‘data’?
-playbook: Dict[Any, Any] = dict()
+data: Dict[Any, Any] = dict()
+"""This global is the data read from the given playbook."""
 
 
 class Hooks:
@@ -85,18 +85,20 @@ def pytest_configure(config: Config) -> None:
     loaded and defined their `pytest_playbook_schema` hooks.
 
     """
-    path: Optional[Path] = config.getoption("playbook")
-    if not path or not path.is_file():
-        # TODO: Log an appropriate warning.
-        return
-
     schema: Dict[Any, Any] = dict()
     config.hook.pytest_playbook_schema(schema=schema, config=config)
 
-    global playbook
-    try:
-        with open(path) as f:
-            data = yaml.load(f, Loader=Loader)
-        playbook = Schema(schema).validate(data)
-    except (yaml.YAMLError, SchemaMissingKeyError, OSError) as e:
-        pytest.exit(f"Error loading playbook '{path}': {e}")
+    global data
+
+    path: Optional[Path] = config.getoption("playbook")
+    if not path or not path.is_file():
+        # TODO: Use proper logging?
+        print("No playbook was specified, using defaults...")
+        data = Schema(schema).validate({})
+    else:
+        try:
+            with open(path) as f:
+                data = yaml.load(f, Loader=Loader)
+            data = Schema(schema).validate(data)
+        except (yaml.YAMLError, SchemaMissingKeyError, OSError) as e:
+            pytest.exit(f"Error loading playbook '{path}': {e}")

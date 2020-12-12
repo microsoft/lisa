@@ -163,7 +163,7 @@ target_ids: List[str] = []
 
 def pytest_sessionstart() -> None:
     """Gather the `targets` from the playbook."""
-    for target in playbook.playbook.get("targets", []):
+    for target in playbook.data.get("targets", []):
         targets.append(target)
         target_ids.append("Target=" + target["name"])
 

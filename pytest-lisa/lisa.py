@@ -147,7 +147,7 @@ def pytest_collection_modifyitems(
             for _ in range(times - included.count(item)):
                 included.append(item)
 
-    for c in playbook.playbook.get("criteria", []):
+    for c in playbook.data.get("criteria", []):
         for item in items:
             mark = item.get_closest_marker("lisa")
             if not mark:
