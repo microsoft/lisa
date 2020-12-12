@@ -27,9 +27,14 @@ session-scoped and used by the `target` fixture to efficiently re-use
 deployed targets.
 
 """
+import pytest
+
 # Provide common types in the package's namespace.
 from target.azure import Azure
 from target.target import SSH, Target
 
 # NOTE: This is mostly to avoid “imported but not used.”
 __all__ = ["Azure", "Target", "SSH"]
+
+# See https://docs.pytest.org/en/stable/writing_plugins.html#assertion-rewriting
+pytest.register_assert_rewrite("pytest_target.azure", "pytest_target.target")
