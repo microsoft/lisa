@@ -1,13 +1,11 @@
 targets:
   - name: Debian
     platform: Azure
-    params:
-      image: credativ:Debian:9:9.0.201706190
+    image: credativ:Debian:9:9.0.201706190
 
   - name: Ubuntu
     platform: Azure
-    params:
-      image: UbuntuLTS
+    image: UbuntuLTS
 
 criteria:
     - module: smoke

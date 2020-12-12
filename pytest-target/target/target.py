@@ -90,11 +90,13 @@ class Target(ABC):
     # in Python 3.9 and up.
     @classmethod
     @abstractmethod
-    def schema(cls) -> schema.Schema:
-        """Must return a schema for expected instance parameters.
+    def schema(cls) -> Mapping[Any, Any]:
+        """Must return a mapping for expected instance parameters.
 
-        TODO: This schema is used for each instance. We may want to
-        define platform-level shared schemata too.
+        The items in this mapping are added to the playbook schema, so
+        they may container objects from the `schema` library. Each
+        target in the playbook will have `name` and `platform` keys in
+        addition to those specified here (they're merged).
 
         """
         ...
@@ -140,16 +142,14 @@ class SSH(Target):
     """
 
     @classmethod
-    def schema(cls) -> schema.Schema:
-        return schema.Schema(
-            {
-                schema.Optional(
-                    "host",
-                    default="localhost",
-                    description="The address of the destination target.",
-                ): str
-            }
-        )
+    def schema(cls) -> Mapping[Any, Any]:
+        return {
+            schema.Optional(
+                "host",
+                default="localhost",
+                description="The address of the destination target.",
+            ): str
+        }
 
     def deploy(self) -> str:
         return self.params["host"]

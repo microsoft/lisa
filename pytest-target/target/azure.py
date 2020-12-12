@@ -6,12 +6,12 @@ import logging
 import typing
 
 from invoke.runners import Result  # type: ignore
-from schema import Optional, Schema  # type: ignore
+from schema import Optional  # type: ignore
 from target.target import Target
 from tenacity import retry, stop_after_attempt, wait_exponential  # type: ignore
 
 if typing.TYPE_CHECKING:
-    from typing import Any
+    from typing import Any, Mapping
 
 
 class Azure(Target):
@@ -21,17 +21,15 @@ class Azure(Target):
     internal_address: str
 
     @classmethod
-    def schema(cls) -> Schema:
-        return Schema(
-            {
-                # TODO: Maybe validate as URN or path etc.
-                "image": str,
-                Optional("sku", default="Standard_DS1_v2"): str,
-                Optional("location", default="eastus2"): str,
-                # TODO: Remove or support this.
-                Optional("networking", default=""): str,
-            }
-        )
+    def schema(cls) -> Mapping[Any, Any]:
+        return {
+            # TODO: Maybe validate as URN or path etc.
+            "image": str,
+            Optional("sku", default="Standard_DS1_v2"): str,
+            Optional("location", default="eastus2"): str,
+            # TODO: Remove or support this.
+            Optional("networking", default=""): str,
+        }
 
     # A class attribute because it’s defined.
     az_ok = False

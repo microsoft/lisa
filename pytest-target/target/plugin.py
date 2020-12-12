@@ -21,8 +21,8 @@ import playbook
 import pytest
 
 # See https://pypi.org/project/schema/
-from schema import Optional, Or, Schema  # type: ignore
-from target.target import Target
+from schema import Literal, Optional, Or, Schema  # type: ignore
+from target.target import SSH, Target
 
 if typing.TYPE_CHECKING:
     from typing import Any, Dict, Iterator, List, Set, Type
@@ -57,19 +57,26 @@ def pytest_playbook_schema(schema: Dict[Any, Any]) -> None:
     """
     global platforms
     platforms = {cls.__name__: cls for cls in Target.__subclasses__()}  # type: ignore
-    target_schema = Schema(
-        {
-            "name": str,
-            "platform": Or(*[platform for platform in platforms.keys()]),
-            # TODO: What should we do when lacking parameters? Ideally we
-            # use the platform’s defaults from its own schema, but that
-            # means this value must be set, even if to an empty dict.
-            Optional("params", default=dict): Or(
-                *[cls.schema() for cls in platforms.values()]
-            ),
-        }
+    target_schema = Or(
+        # We’re unpacking a list of updated schema from each platform.
+        *(
+            {
+                # We’re adding ‘name’ and ‘platform’ keys to each
+                # platform’s schema.
+                Literal("name", description="A friendly name for the target."): str,
+                Literal(
+                    "platform",
+                    description="The literal class name of the platform implementation,"
+                    + " a subclass of `Target`.",
+                ): name,
+                **cls.schema(),
+            }
+            for name, cls in platforms.items()
+        )
     )
-    default_targets = [{"name": "Default", "platform": "SSH"}]
+    default_targets = [
+        {"name": "Default", "platform": "SSH", **Schema(SSH.schema()).validate({})}
+    ]
     schema[Optional("targets", default=default_targets)] = [target_schema]
 
 
@@ -102,8 +109,8 @@ def get_target(
 
     """
     # Unpack the request.
-    platform: Type[Target] = platforms[request.param["platform"]]
-    params: Dict[str, Any] = request.param["params"]
+    params: Dict[str, Any] = request.param
+    platform: Type[Target] = platforms[params["platform"]]
     # TODO: Use a ‘target’ marker instead.
     marker = request.node.get_closest_marker("lisa")
     features: Set[str] = set(marker.kwargs["features"])
