@@ -1,12 +1,12 @@
 targets:
   - name: Debian
     platform: Azure
-    parameters:
+    params:
       image: credativ:Debian:9:9.0.201706190
 
   - name: Ubuntu
     platform: Azure
-    parameters:
+    params:
       image: UbuntuLTS
 
 criteria:

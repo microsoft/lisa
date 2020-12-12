@@ -46,10 +46,10 @@ def pytest_playbook_schema(schema: Dict[Any, Any]) -> None:
 
     The `platforms` global is a mapping of platform names (strings) to
     the implementing subclasses of `Target` where each subclass
-    defines its own `parameters` schema, `deploy` and `delete`
+    defines its own parameters `schema`, `deploy` and `delete`
     methods, and other platform-specific functionality. A `Target`
     subclass need only be defined in a file loaded by Pytest, so a
-    `contest.py` file works just fine.
+    `conftest.py` file works just fine.
 
     TODO: Add field annotations, friendly error reporting, automatic
     case transformations, etc.
@@ -64,7 +64,7 @@ def pytest_playbook_schema(schema: Dict[Any, Any]) -> None:
             # TODO: What should we do when lacking parameters? Ideally we
             # use the platform’s defaults from its own schema, but that
             # means this value must be set, even if to an empty dict.
-            Optional("parameters", default=dict): Or(
+            Optional("params", default=dict): Or(
                 *[cls.schema() for cls in platforms.values()]
             ),
         }
@@ -79,16 +79,15 @@ def pool(request: SubRequest) -> Iterator[List[Target]]:
     targets: List[Target] = []
     yield targets
     for t in targets:
-        print(f"Created target: {t.features} / {t.parameters}")
+        # TODO: Use proper logging?
+        print(f"Created target: {t.features} / {t.params}")
         if not request.config.getoption("keep_vms"):
             t.delete()
 
 
 def get_target(
     pool: List[Target],
-    platform: Type[Target],
-    parameters: Dict[str, Any],
-    features: Set[str],
+    request: SubRequest,
 ) -> Target:
     """This function gets or creates an appropriate `Target`.
 
@@ -102,22 +101,25 @@ def get_target(
     tests such that they're grouped by features.
 
     """
+    # Unpack the request.
+    platform: Type[Target] = platforms[request.param["platform"]]
+    params: Dict[str, Any] = request.param["params"]
+    # TODO: Use a ‘target’ marker instead.
+    marker = request.node.get_closest_marker("lisa")
+    features: Set[str] = set(marker.kwargs["features"])
+
     # TODO: If `t` is not already in use, deallocate the previous
     # target, and ensure the tests have been sorted (and so grouped)
     # by their requirements.
     for t in pool:
         # TODO: Implement full feature comparison, etc. and not just
         # proof-of-concept string set comparison.
-        if (
-            isinstance(t, platform)
-            and t.parameters == parameters
-            and t.features >= features
-        ):
+        if isinstance(t, platform) and t.params == params and t.features >= features:
             pool.remove(t)
             return t
     else:
         # TODO: Reimplement caching.
-        t = platform(f"pytest-{uuid4()}", parameters, features)
+        t = platform(f"pytest-{uuid4()}", params, features)
         return t
 
 
@@ -133,15 +135,8 @@ def target(pool: List[Target], request: SubRequest) -> Iterator[Target]:
 
     It is parametrized indirectly in `pytest_generate_tests`.
 
-    TODO: Clean up the code duplication here across the fixtures.
-
     """
-    platform = platforms[request.param["platform"]]
-    parameters = request.param["parameters"]
-    # TODO: Use a ‘target’ marker instead.
-    marker = request.node.get_closest_marker("lisa")
-    features = set(marker.kwargs["features"])
-    t = get_target(pool, platform, parameters, features)
+    t = get_target(pool, request)
     yield t
     cleanup_target(pool, t)
 
@@ -149,12 +144,7 @@ def target(pool: List[Target], request: SubRequest) -> Iterator[Target]:
 @pytest.fixture(scope="class")
 def c_target(pool: List[Target], request: SubRequest) -> Iterator[Target]:
     """This fixture is the same as `target` but shared across a class."""
-    platform = platforms[request.param["platform"]]
-    parameters = request.param["parameters"]
-    # TODO: Use a ‘target’ marker instead.
-    marker = request.node.get_closest_marker("lisa")
-    features = set(marker.kwargs["features"])
-    t = get_target(pool, platform, parameters, features)
+    t = get_target(pool, request)
     yield t
     cleanup_target(pool, t)
 
@@ -162,12 +152,7 @@ def c_target(pool: List[Target], request: SubRequest) -> Iterator[Target]:
 @pytest.fixture(scope="module")
 def m_target(pool: List[Target], request: SubRequest) -> Iterator[Target]:
     """This fixture is the same as `target` but shared across a module."""
-    platform = platforms[request.param["platform"]]
-    parameters = request.param["parameters"]
-    # TODO: Use a ‘target’ marker instead.
-    marker = request.node.get_closest_marker("lisa")
-    features = set(marker.kwargs["features"])
-    t = get_target(pool, platform, parameters, features)
+    t = get_target(pool, request)
     yield t
     cleanup_target(pool, t)
 

@@ -31,7 +31,7 @@ class Target(ABC):
     """
 
     # Typed instance attributes, not class attributes.
-    parameters: Mapping[str, str]
+    params: Mapping[str, str]
     features: Set[str]
     name: str
     host: str
@@ -55,7 +55,7 @@ class Target(ABC):
     def __init__(
         self,
         name: str,
-        parameters: Mapping[str, str],
+        params: Mapping[str, str],
         features: Set[str],
     ):
         """Requires a unique name.
@@ -67,7 +67,7 @@ class Target(ABC):
         """
         self.name = name
         # TODO: Do we need to re-validate the parameters here?
-        self.parameters = parameters
+        self.params = params
         self.features = features
 
         # TODO: Review this thoroughly as currently it depends on

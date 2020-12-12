@@ -28,6 +28,7 @@ class Azure(Target):
                 "image": str,
                 Optional("sku", default="Standard_DS1_v2"): str,
                 Optional("location", default="eastus2"): str,
+                # TODO: Remove or support this.
                 Optional("networking", default=""): str,
             }
         )
@@ -88,10 +89,10 @@ class Azure(Target):
 
     def deploy(self) -> str:
         """Given deployment info, deploy a new VM."""
-        image = self.parameters["image"]
-        sku = self.parameters["sku"]
-        location = self.parameters["location"]
-        networking = self.parameters["networking"]
+        image = self.params["image"]
+        sku = self.params["sku"]
+        location = self.params["location"]
+        networking = self.params["networking"]
 
         Azure.check_az_cli()
 
