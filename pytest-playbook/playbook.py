@@ -17,6 +17,7 @@ playbook` and reference `playbook.playbook`.
 
 from __future__ import annotations
 
+import json
 import typing
 from pathlib import Path
 
@@ -74,6 +75,10 @@ def pytest_addoption(parser: Parser, pluginmanager: PytestPluginManager) -> None
     """Pytest hook to add our CLI options."""
     group = parser.getgroup("playbook")
     group.addoption("--playbook", type=Path, help="Path to playbook.")
+    group.addoption(
+        "--print-schema",
+        help="Print the JSON schema of the playbook with the given ID.",
+    )
 
 
 # TODO: See if this works without ‘trylast’.
@@ -88,6 +93,11 @@ def pytest_configure(config: Config) -> None:
     schema: Dict[Any, Any] = dict()
     config.hook.pytest_playbook_schema(schema=schema, config=config)
 
+    json_schema = config.getoption("print_schema")
+    if json_schema:
+        print(json.dumps(Schema(schema).json_schema(json_schema), indent=2))
+        pytest.exit("Printed schema!", pytest.ExitCode.OK)
+
     global data
 
     path: Optional[Path] = config.getoption("playbook")
@@ -101,4 +111,6 @@ def pytest_configure(config: Config) -> None:
                 data = yaml.load(f, Loader=Loader)
             data = Schema(schema).validate(data)
         except (yaml.YAMLError, SchemaMissingKeyError, OSError) as e:
-            pytest.exit(f"Error loading playbook '{path}': {e}")
+            pytest.exit(
+                f"Error loading playbook '{path}': {e}", pytest.ExitCode.USAGE_ERROR
+            )
