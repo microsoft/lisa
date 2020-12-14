@@ -541,7 +541,7 @@ class AzurePlatform(Platform):
                     self._deploy(location, deployment_parameters, log)
 
                 # Even skipped deploy, try best to initialize nodes
-                self._initialize_nodes(environment)
+                self._initialize_nodes(environment, log)
             except Exception as identifier:
                 self._delete_environment(environment, log)
                 raise identifier
@@ -894,7 +894,7 @@ class AzurePlatform(Platform):
                 errors = [f"{error.code}: {error.message}"]
         return errors
 
-    def _initialize_nodes(self, environment: Environment) -> None:
+    def _initialize_nodes(self, environment: Environment, log: Logger) -> None:
 
         node_context_map: Dict[str, Node] = dict()
         for node in environment.nodes.list():
@@ -908,6 +908,7 @@ class AzurePlatform(Platform):
             environment_context.resource_group_name
         )
         for vm in vms:
+            log.debug(f"found vm '{vm.name}' in resource group.")
             vms_map[vm.name] = vm
 
         network_client = NetworkManagementClient(
