@@ -16,8 +16,10 @@ _get_init_logger = partial(get_logger, name="os")
 
 class OperatingSystem:
     __lsb_release_pattern = re.compile(r"^Description:[ \t]+([\w]+)[ ]+$", re.M)
-    __os_release_pattern_name = re.compile(r"^NAME=\"?([^\" \n]+)[^\" \n]*\"?$", re.M)
-    __os_release_pattern_id = re.compile(r"^ID=\"?([^\" \n]+)[^\" \n]*\"?$", re.M)
+    __os_release_pattern_name = re.compile(
+        r"^NAME=\"?([^\" \r\n]+)[^\" \n]*\"?\r?$", re.M
+    )
+    __os_release_pattern_id = re.compile(r"^ID=\"?([^\" \r\n]+)[^\" \n]*\"?\r?$", re.M)
     __redhat_release_pattern_header = re.compile(r"^([^ ]*) .*$")
     __redhat_release_pattern_bracket = re.compile(r"^.*\(([^ ]*).*\)$")
     __debian_issue_pattern = re.compile(r"^([^ ]+) ?.*$")
@@ -52,16 +54,16 @@ class OperatingSystem:
             for os_info_item in cls._get_detect_string(node):
                 if os_info_item:
                     os_infos.append(os_info_item)
-                for sub_type in linux_factory.values():
-                    linux_type: Type[Linux] = sub_type
-                    pattern = linux_type.name_pattern()
-                    if pattern.findall(os_info_item):
-                        detected_info = os_info_item
-                        result = linux_type(typed_node)
-                        matched = True
+                    for sub_type in linux_factory.values():
+                        linux_type: Type[Linux] = sub_type
+                        pattern = linux_type.name_pattern()
+                        if pattern.findall(os_info_item):
+                            detected_info = os_info_item
+                            result = linux_type(typed_node)
+                            matched = True
+                            break
+                    if matched:
                         break
-                if matched:
-                    break
 
             if not os_infos:
                 raise LisaException(
@@ -259,4 +261,4 @@ class NixOS(Linux):
 class OtherLinux(Linux):
     @classmethod
     def name_pattern(cls) -> Pattern[str]:
-        return re.compile("^Sapphire|Buildroot|OpenWrt$")
+        return re.compile("^Sapphire|Buildroot|OpenWrt|BloombaseOS$")
