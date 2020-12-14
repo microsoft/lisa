@@ -64,7 +64,7 @@ class Reboot(Tool):
 
         connected: bool = False
         while (
-            last_boot_time >= current_boot_time and timer.elapsed(False) < self.time_out
+            last_boot_time == current_boot_time and timer.elapsed(False) < self.time_out
         ):
             try:
                 self.node.close()
