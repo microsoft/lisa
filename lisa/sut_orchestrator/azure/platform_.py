@@ -1071,11 +1071,19 @@ class AzurePlatform(Platform):
         if image_info.plan:
             # if there is a plan, it may need to accept term.
             marketplace_client = get_marketplace_ordering_client(self)
-            term: AgreementTerms = marketplace_client.marketplace_agreements.get(
-                publisher_id=gallery.publisher,
-                offer_id=gallery.offer,
-                plan_id=image_info.plan.name,
-            )
+            term: Optional[AgreementTerms] = None
+            try:
+                term = marketplace_client.marketplace_agreements.get(
+                    publisher_id=gallery.publisher,
+                    offer_id=gallery.offer,
+                    plan_id=image_info.plan.name,
+                )
+            except Exception as identifier:
+                raise LisaException(
+                    f"error on getting marketplace agreement: {identifier}"
+                )
+
+            assert term
             if term.accepted is False:
                 term.accepted = True
                 marketplace_client.marketplace_agreements.create(
