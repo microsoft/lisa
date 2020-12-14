@@ -55,29 +55,30 @@ def pytest_playbook_schema(schema: Dict[Any, Any]) -> None:
     case transformations, etc.
 
     """
+    # Map the subclasses of `Target` into name and class pairs, used
+    # by `get_target` to lookup the type based on the name.
     global platforms
     platforms = {cls.__name__: cls for cls in Target.__subclasses__()}  # type: ignore
-    target_schema = Or(
-        # We’re unpacking a list of updated schema from each platform.
-        *(
-            {
-                # We’re adding ‘name’ and ‘platform’ keys to each
-                # platform’s schema.
-                Literal("name", description="A friendly name for the target."): str,
-                Literal(
-                    "platform",
-                    description="The literal class name of the platform implementation,"
-                    + " a subclass of `Target`.",
-                ): name,
-                **cls.schema(),
-            }
-            for name, cls in platforms.items()
-        )
-    )
-    default_targets = [
-        {"name": "Default", "platform": "SSH", **Schema(SSH.schema()).validate({})}
+    platform_description = "The class name of the platform implementation."
+
+    # The target schema is `anyOf`/`Or` the platform’s schemas.
+    target_schemas = [
+        {
+            # We’re adding ‘name’ and ‘platform’ keys to each
+            # platform’s schema.
+            Literal("name", description="A friendly name for the target."): str,
+            Literal("platform", description=platform_description): platform,
+            **cls.schema(),
+        }
+        for platform, cls in platforms.items()
     ]
-    schema[Optional("targets", default=default_targets)] = [target_schema]
+    target_schema = Or(*target_schemas)
+    default_target = {
+        "name": "Default",
+        "platform": "SSH",
+        **Schema(SSH.schema()).validate({}),  # Fill in the defaults
+    }
+    schema[Optional("targets", default=[default_target])] = [target_schema]
 
 
 @pytest.fixture(scope="session")
