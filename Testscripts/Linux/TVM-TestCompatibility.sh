@@ -34,8 +34,8 @@ case $DISTRO in
         zypper ar -t rpm-md -n "packages-microsoft-com-azurecore" --no-gpgcheck https://packages.microsoft.com/yumrepos/azurecore/ azurecore
     ;;
     *)
-        LogErr "Distro not supported. Aborting..."
-        UpdateSummary "Distro not supported. Aborting..."
+        LogErr "Distro not supported. Skipping..."
+        UpdateSummary "Distro not supported. Skipping..."
         SetTestStateAborted
         exit 0
     ;;
