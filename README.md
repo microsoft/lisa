@@ -35,14 +35,14 @@ appear in your `PATH` before the Windows version, or this error will appear:
 On Linux (or WSL):
 
 ```bash
-curl -sSL https://raw.githubusercontent.com/python-poetry/poetry/master/get-poetry.py | python3 - --preview --version 1.1.3
+curl -sSL https://raw.githubusercontent.com/python-poetry/poetry/master/get-poetry.py | python3 - --preview --version 1.1.4
 source $HOME/.poetry/env
 ```
 
 On Windows (in PowerShell):
 
 ```powershell
-(Invoke-WebRequest -Uri https://raw.githubusercontent.com/python-poetry/poetry/master/get-poetry.py -UseBasicParsing).Content | python - --preview --version 1.1.3
+(Invoke-WebRequest -Uri https://raw.githubusercontent.com/python-poetry/poetry/master/get-poetry.py -UseBasicParsing).Content | python - --preview --version 1.1.4
 # the path can be added to system, so it applies to every terminal.
 $env:PATH += ";$env:USERPROFILE\.poetry\bin"
 ```
@@ -50,7 +50,7 @@ $env:PATH += ";$env:USERPROFILE\.poetry\bin"
 If you already have Poetry installed, you can update it like:
 
 ```bash
-poetry self update 1.1.3
+poetry self update 1.1.4
 ```
 
 ### Install Python packages
