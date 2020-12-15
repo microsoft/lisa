@@ -77,9 +77,11 @@ def pytest_playbook_schema(schema: Dict[Any, Any]) -> None:
             platform,
             default=Schema(cls.defaults()).validate({}),
             description=platform_description,
-        ): cls.defaults()
+        ): Schema(cls.defaults(), name=f"{platform}_defaults", as_reference=True)
         for platform, cls in platforms.items()
     }
+    # TODO: Assert that the set of key names in each `defaults()` is a
+    # subset of the key names in the corresponding `schema()`.
     schema[
         Optional(
             "platforms",
@@ -88,18 +90,27 @@ def pytest_playbook_schema(schema: Dict[Any, Any]) -> None:
         )
     ] = platform_schemas
 
-    # The target schema is `anyOf`/`Or` the platform’s schemas.
+    # The targets schema is a list of dicts where each dict is ‘any
+    # of’ (`Or`) the platforms’ schemata, with the addition of a
+    # required ‘platform’ key matching the class name, and a friendly
+    # name for the target itself (which should be unique).
     target_schemas = [
-        {
-            # We’re adding ‘name’ and ‘platform’ keys to each
-            # platform’s schema.
-            Literal("name", description="A friendly name for the target."): str,
-            Literal("platform", description=platform_description): platform,
-            # Unpack the rest of the schema’s items.
-            **cls.schema(),
-        }
+        Schema(
+            {
+                # We’re adding ‘name’ and ‘platform’ keys to each
+                # platform’s schema.
+                Literal("name", description="A friendly name for the target."): str,
+                Literal("platform", description=platform_description): platform,
+                # Unpack the rest of the schema’s items.
+                **cls.schema(),
+            },
+            name=f"{platform}_schema",
+            as_reference=True,
+        )
         for platform, cls in platforms.items()
     ]
+    # TODO: Perhaps elevate ‘name’ to the key, with the nested schema
+    # as the value.
     target_schema = Or(*target_schemas)
     default_target = {
         "name": "Default",
@@ -197,8 +208,7 @@ def m_target(pool: List[Target], request: SubRequest) -> Iterator[Target]:
     cleanup_target(pool, request, t)
 
 
-targets: List[Dict[str, Any]] = []
-target_ids: List[str] = []
+targets: Dict[str, Dict[str, Any]] = {}
 
 
 def pytest_sessionstart() -> None:
@@ -214,8 +224,7 @@ def pytest_sessionstart() -> None:
     for target in playbook.data.get("targets", []):
         params = platform_defaults.get(target["platform"], {}).copy()
         params.update(target)
-        targets.append(params)
-        target_ids.append("Target=" + target["name"])
+        targets["Target=" + target["name"]] = params
 
 
 def pytest_generate_tests(metafunc: Metafunc) -> None:
@@ -228,4 +237,4 @@ def pytest_generate_tests(metafunc: Metafunc) -> None:
     assert targets, "This should not be empty!"
     for target_fixture in "target", "m_target", "c_target":
         if target_fixture in metafunc.fixturenames:
-            metafunc.parametrize(target_fixture, targets, True, target_ids)
+            metafunc.parametrize(target_fixture, targets.values(), True, targets.keys())
