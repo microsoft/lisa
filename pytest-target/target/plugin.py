@@ -44,7 +44,7 @@ def pytest_configure(config: Config) -> None:
     """
     config.addinivalue_line(
         "markers",
-        ("target(platform, features): " "Specify target requirements."),
+        ("target(platform, features, reuse): " "Specify target requirements."),
     )
 
 
@@ -142,7 +142,7 @@ def get_target(
 
     # Get the required features for this test.
     marker = request.node.get_closest_marker("target")
-    features = set(marker.kwargs["features"])
+    features = set(marker.kwargs.get("features", []))
 
     # TODO: If `t` is not already in use, deallocate the previous
     # target, and ensure the tests have been sorted (and so grouped)
@@ -159,10 +159,14 @@ def get_target(
         return t
 
 
-def cleanup_target(pool: List[Target], t: Target) -> None:
+def cleanup_target(pool: List[Target], request: SubRequest, t: Target) -> None:
     """This is called by fixtures after they're done with a target."""
     t.conn.close()
-    pool.append(t)
+    marker = request.node.get_closest_marker("target")
+    if marker.kwargs.get("reuse", True):
+        pool.append(t)
+    else:
+        t.delete()
 
 
 @pytest.fixture
@@ -174,7 +178,7 @@ def target(pool: List[Target], request: SubRequest) -> Iterator[Target]:
     """
     t = get_target(pool, request)
     yield t
-    cleanup_target(pool, t)
+    cleanup_target(pool, request, t)
 
 
 @pytest.fixture(scope="class")
@@ -182,7 +186,7 @@ def c_target(pool: List[Target], request: SubRequest) -> Iterator[Target]:
     """This fixture is the same as `target` but shared across a class."""
     t = get_target(pool, request)
     yield t
-    cleanup_target(pool, t)
+    cleanup_target(pool, request, t)
 
 
 @pytest.fixture(scope="module")
@@ -190,7 +194,7 @@ def m_target(pool: List[Target], request: SubRequest) -> Iterator[Target]:
     """This fixture is the same as `target` but shared across a module."""
     t = get_target(pool, request)
     yield t
-    cleanup_target(pool, t)
+    cleanup_target(pool, request, t)
 
 
 targets: List[Dict[str, Any]] = []

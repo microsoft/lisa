@@ -136,6 +136,11 @@ lisa_schema = Schema(
             description="A set of required features, passed to `pytest.mark.target`.",
             default=[],
         ): [str],
+        Optional(
+            "reuse",
+            description="Set to false if the target is made unusable.",
+            default=True,
+        ): bool,
     }
 )
 
@@ -173,7 +178,11 @@ def pytest_collection_modifyitems(
             validate_mark(mark)
             # Forward `features` to `pytest.mark.target` so LISA users
             # don’t need to use two marks, but keep them decoupled.
-            item.add_marker(pytest.mark.target(features=mark.kwargs["features"]))
+            item.add_marker(
+                pytest.mark.target(
+                    features=mark.kwargs["features"], reuse=mark.kwargs["reuse"]
+                )
+            )
         except (SchemaError, AssertionError) as e:
             pytest.exit(f"Error validating test '{item.name}' metadata: {e}")
 
