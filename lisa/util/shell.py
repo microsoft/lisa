@@ -11,7 +11,7 @@ from typing import Any, Dict, List, Mapping, Optional, Sequence, Tuple, Union, c
 import paramiko  # type: ignore
 import spur  # type: ignore
 import spurplus  # type: ignore
-from func_timeout import func_set_timeout  # type: ignore
+from func_timeout import FunctionTimedOut, func_set_timeout  # type: ignore
 from paramiko.ssh_exception import SSHException  # type: ignore
 from retry import retry  # type: ignore
 
@@ -234,9 +234,6 @@ class SshShell(InitializableMixin):
         self.initialize()
         assert self._inner_shell
 
-        # the time out happens on other threads. It doesn't throw exception to current
-        # thread. So use a flag to detect if code runs normally.
-        is_time_out = True
         try:
             process: spur.ssh.SshProcess = _spawn_ssh_process(
                 self._inner_shell,
@@ -250,13 +247,11 @@ class SshShell(InitializableMixin):
                 use_pty=use_pty,
                 allow_error=allow_error,
             )
-            is_time_out = False
-        finally:
-            if is_time_out:
-                raise LisaException(
-                    f"The remove node is timeout on execute command {command}. "
-                    f"It may be caused by paramiko/spur not support the shell of node."
-                )
+        except FunctionTimedOut:
+            raise LisaException(
+                f"The remote node is timeout on execute {command}. "
+                f"It may be caused by paramiko/spur not support the shell of node."
+            )
         return process
 
     def mkdir(
