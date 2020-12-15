@@ -894,13 +894,11 @@ class AzurePlatform(Platform):
                 errors = [f"{error.code}: {error.message}"]
         return errors
 
-    def _initialize_nodes(self, environment: Environment, log: Logger) -> None:
-
-        node_context_map: Dict[str, Node] = dict()
-        for node in environment.nodes.list():
-            node_context = get_node_context(node)
-            node_context_map[node_context.vm_name] = node
-
+    # the VM may not be queried after deployed. use retry to mitigate it.
+    @retry(tries=60, delay=1)  # type: ignore
+    def _load_vms(
+        self, environment: Environment, log: Logger
+    ) -> Dict[str, VirtualMachine]:
         compute_client = get_compute_client(self)
         environment_context = get_environment_context(environment=environment)
         vms_map: Dict[str, VirtualMachine] = dict()
@@ -910,6 +908,22 @@ class AzurePlatform(Platform):
         for vm in vms:
             log.debug(f"found vm '{vm.name}' in resource group.")
             vms_map[vm.name] = vm
+        if not vms_map:
+            raise LisaException(
+                f"cannot find vm in resource group "
+                f"{environment_context.resource_group_name}"
+            )
+        return vms_map
+
+    def _initialize_nodes(self, environment: Environment, log: Logger) -> None:
+        node_context_map: Dict[str, Node] = dict()
+        for node in environment.nodes.list():
+            node_context = get_node_context(node)
+            node_context_map[node_context.vm_name] = node
+
+        environment_context = get_environment_context(environment=environment)
+
+        vms_map: Dict[str, VirtualMachine] = self._load_vms(environment, log)
 
         network_client = NetworkManagementClient(
             credential=self.credential, subscription_id=self.subscription_id
