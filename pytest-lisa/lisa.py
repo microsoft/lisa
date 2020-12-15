@@ -33,6 +33,9 @@ import playbook
 import py
 import pytest
 from schema import Literal, Optional, Or, Schema, SchemaError  # type: ignore
+
+# TODO: Importing `xdist` here causes a `PytestAssertRewriteWarning`
+# to be thrown, which we ignore for now.
 from xdist.scheduler.loadscope import LoadScopeScheduling  # type: ignore
 
 if typing.TYPE_CHECKING:
