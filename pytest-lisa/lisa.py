@@ -184,6 +184,10 @@ def pytest_collection_modifyitems(
             validate_mark(mark)
             # Forward args to `pytest.mark.target` so LISA users don’t
             # need to use two marks, but keep them decoupled.
+            #
+            # NOTE: The module and class scoped target fixtures won’t
+            # work with this, because the mark will need to be applied
+            # at that scope, and this applies on the function.
             kw = mark.kwargs
             item.add_marker(
                 pytest.mark.target(

@@ -1,13 +1,14 @@
 platforms:
-  Azure:
+  AzureCLI:
     sku: Standard_DS2_v2
+
 targets:
   - name: Debian
-    platform: Azure
+    platform: AzureCLI
     image: credativ:Debian:9:9.0.201706190
 
   - name: Ubuntu
-    platform: Azure
+    platform: AzureCLI
     image: UbuntuLTS
 
 criteria:

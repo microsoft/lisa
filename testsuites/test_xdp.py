@@ -4,7 +4,7 @@ from __future__ import annotations
 import typing
 
 if typing.TYPE_CHECKING:
-    from target import Azure
+    from target import AzureCLI
 
 import pytest
 
@@ -24,7 +24,7 @@ from lisa import LISA
 # vm_image="Canonical:0001-com-ubuntu-server-focal:20_04-lts:latest",
 # vm_size="Standard_DS4_v2",
 @pytest.mark.skip(reason="Not Finished")
-def test_verify_xdp_compliance(target: Azure) -> None:
+def test_verify_xdp_compliance(target: AzureCLI) -> None:
     for f in [
         "utils.sh",
         "XDPDumpSetup.sh",

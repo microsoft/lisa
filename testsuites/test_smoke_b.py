@@ -3,7 +3,7 @@ from __future__ import annotations
 import typing
 
 if typing.TYPE_CHECKING:
-    from target import Azure
+    from target import AzureCLI
     from _pytest.logging import LogCaptureFixture
 
 import logging
@@ -22,7 +22,7 @@ from lisa import LISA
     area="deploy",
     priority=0,
 )
-def test_smoke(target: Azure, caplog: LogCaptureFixture) -> None:
+def test_smoke(target: AzureCLI, caplog: LogCaptureFixture) -> None:
     """Check that an Azure Linux VM can be deployed and is responsive.
 
     This example uses exactly one function for the entire test, which

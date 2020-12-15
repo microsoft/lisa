@@ -14,35 +14,39 @@ from __future__ import annotations
 import typing
 
 if typing.TYPE_CHECKING:
-    from target import Azure
+    from target import AzureCLI
 
 import socket
 import time
 
+import pytest
 from invoke.runners import CommandTimedOut, UnexpectedExit  # type: ignore
 from paramiko import SSHException  # type: ignore
 
 from lisa import LISA
 
-pytestmark = LISA(
-    platform="Azure",
-    category="Functional",
-    area="deploy",
-    priority=0,
-)
+pytestmark = [
+    LISA(
+        platform="Azure",
+        category="Functional",
+        area="deploy",
+        priority=0,
+    ),
+    pytest.mark.target,
+]
 
 
-def test_first_ping(m_target: Azure) -> None:
+def test_first_ping(m_target: AzureCLI) -> None:
     """"Pinging before reboot..."""
     assert m_target.ping(), f"Pinging {m_target.host} before reboot failed"
 
 
-def test_first_ssh(m_target: Azure) -> None:
+def test_first_ssh(m_target: AzureCLI) -> None:
     """SSHing before reboot..."""
     assert m_target.conn.open(), f"SSH {m_target.host} before reboot failed"
 
 
-def test_reboot(m_target: Azure) -> None:
+def test_reboot(m_target: AzureCLI) -> None:
     """Rebooting..."""
     reboot_exit = 0
     try:
@@ -60,16 +64,16 @@ def test_reboot(m_target: Azure) -> None:
         time.sleep(10)
 
 
-def test_second_ping(m_target: Azure) -> None:
+def test_second_ping(m_target: AzureCLI) -> None:
     """Pinging after reboot..."""
     assert m_target.ping(), f"Pinging {m_target.host} after reboot failed"
 
 
-def test_second_ssh(m_target: Azure) -> None:
+def test_second_ssh(m_target: AzureCLI) -> None:
     """SSHing after reboot..."""
     assert m_target.conn.open(), f"SSH {m_target.host} after reboot failed"
 
 
-def test_boot_diagnostics(m_target: Azure) -> None:
+def test_boot_diagnostics(m_target: AzureCLI) -> None:
     """Retrieving boot diagnostics..."""
     m_target.get_boot_diagnostics()

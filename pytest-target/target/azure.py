@@ -11,23 +11,36 @@ from target.target import Target
 from tenacity import retry, stop_after_attempt, wait_exponential  # type: ignore
 
 if typing.TYPE_CHECKING:
-    from typing import Any, Mapping
+    from typing import Any, Dict
 
 
-class Azure(Target):
-    """Implements Azure-specific target methods."""
+class AzureCLI(Target):
+    """Implements Azure-specific target methods.
+
+    This implementation uses the Azure CLI `az` to automate creating
+    VMs based on the given parameters.
+
+    """
 
     # Custom instance attribute(s).
     internal_address: str
 
     @classmethod
-    def schema(cls) -> Mapping[Any, Any]:
+    def schema(cls) -> Dict[Any, Any]:
         return {
             # TODO: Maybe validate as URN or path etc.
             "image": str,
+            Optional("sku"): str,
+            Optional("location"): str,
+            Optional("networking"): str,
+        }
+
+    @classmethod
+    def defaults(cls) -> Dict[Any, Any]:
+        return {
+            Optional("image", default="UbuntuLTS"): str,
             Optional("sku", default="Standard_DS1_v2"): str,
             Optional("location", default="eastus2"): str,
-            # TODO: Remove or support this.
             Optional("networking", default=""): str,
         }
 
@@ -92,7 +105,7 @@ class Azure(Target):
         location = self.params["location"]
         networking = self.params["networking"]
 
-        Azure.check_az_cli()
+        AzureCLI.check_az_cli()
 
         logging.info(
             f"""Deploying VM...
