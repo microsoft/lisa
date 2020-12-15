@@ -210,9 +210,9 @@ def pytest_sessionstart() -> None:
     overwrite with the target's specific parameters.
 
     """
-    platform_defaults = playbook.data.get("platforms")
-    for target in playbook.data.get("targets"):
-        params = platform_defaults.get(target["platform"]).copy()
+    platform_defaults = playbook.data.get("platforms", {})
+    for target in playbook.data.get("targets", []):
+        params = platform_defaults.get(target["platform"], {}).copy()
         params.update(target)
         targets.append(params)
         target_ids.append("Target=" + target["name"])
