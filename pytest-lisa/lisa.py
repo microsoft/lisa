@@ -17,10 +17,8 @@ criteria schema. For example::
       - area: xdp
         exclude: true
 
-TODO
-====
+# TODO:
 * Provide test metadata statistics via a command-line flag.
-* Improve schemata with annotations, error messages, etc.
 * Assert every test has a LISA marker.
 * Remove 'features' from marker.
 
@@ -34,7 +32,7 @@ import typing
 import playbook
 import py
 import pytest
-from schema import Optional, Or, Schema, SchemaMissingKeyError  # type: ignore
+from schema import Literal, Optional, Or, Schema, SchemaMissingKeyError  # type: ignore
 from xdist.scheduler.loadscope import LoadScopeScheduling  # type: ignore
 
 if typing.TYPE_CHECKING:
@@ -75,16 +73,44 @@ def pytest_playbook_schema(schema: Dict[Any, Any]) -> None:
     # the default.
     criteria_schema = Schema(
         {
-            # TODO: Validate that these strings are valid regular
-            # expressions if we change our matching logic.
-            Optional("name", default=None): str,
-            Optional("module", default=None): str,
-            Optional("area", default=None): str,
-            Optional("category", default=None): str,
-            Optional("priority", default=None): int,
-            Optional("tags", default=list): [str],
-            Optional("times", default=1): int,
-            Optional("exclude", default=False): bool,
+            # TODO: Should any/all of the strings be regex comparisons?
+            Optional(
+                "name", description="Substring match of test name.", default=None
+            ): str,
+            Optional(
+                "module",
+                description="Substring match of test file (Python module).",
+                default=None,
+            ): str,
+            Optional(
+                "area",
+                description="Case-folded equality comparison of test's area.",
+                default=None,
+            ): str,
+            Optional(
+                "category",
+                description="Case-folded equality comparison of test's category.",
+                default=None,
+            ): str,
+            Optional(
+                "priority",
+                # TODO: Should this instead be a range comparison?
+                description="Equality comparison of test's priority.",
+                default=None,
+            ): int,
+            Optional(
+                "tags", description="Subset comparison of test's tags.", default=list
+            ): [str],
+            Optional(
+                "times",
+                description="Number of times to run the matched tests.",
+                default=1,
+            ): int,
+            Optional(
+                "exclude",
+                description="Exclude the matched tests instead.",
+                default=False,
+            ): bool,
         }
     )
     schema[Optional("criteria", default=list)] = [criteria_schema]
@@ -93,14 +119,22 @@ def pytest_playbook_schema(schema: Dict[Any, Any]) -> None:
 lisa_schema = Schema(
     {
         # TODO: Move platform to `pytest.mark.target`.
-        "platform": str,
-        "category": Or("Functional", "Performance", "Stress", "Community", "Longhaul"),
-        "area": str,
-        "priority": Or(0, 1, 2, 3),
+        Literal("platform", description="The test's intended platform."): str,
+        Literal("category", description="The kind of test this is."): Or(
+            "Functional", "Performance", "Stress", "Community", "Longhaul"
+        ),
+        Literal("area", description="The test's area (or 'feature')."): str,
+        Literal(
+            "priority", description="The test's priority with 0 being the highest."
+        ): Or(0, 1, 2, 3),
         # TODO: Move `features` to `pytest.mark.target` and don’t
         # allow extra keys.
         Optional("features", default=list): [str],
-        Optional("tags", default=list): [str],
+        Optional(
+            "tags",
+            description="An arbitrary set of tags used for selection.",
+            default=list,
+        ): [str],
         Optional(object): object,
     },
     ignore_extra_keys=True,
