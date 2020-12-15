@@ -11,6 +11,7 @@ from typing import Any, Dict, List, Mapping, Optional, Sequence, Tuple, Union, c
 import paramiko  # type: ignore
 import spur  # type: ignore
 import spurplus  # type: ignore
+from func_timeout import func_set_timeout  # type: ignore
 from paramiko.ssh_exception import SSHException  # type: ignore
 from retry import retry  # type: ignore
 
@@ -147,6 +148,13 @@ def try_connect(connection_info: ConnectionInfo) -> Any:
     return stdout
 
 
+# paramiko stucks on get command output of 'fortinet' VM, and spur hide timeout of
+# exec_command. So use an external timeout wrapper to force timeout.
+@func_set_timeout(10)  # type: ignore
+def _spawn_ssh_process(shell: spur.ssh.SshShell, **kwargs: Any) -> spur.ssh.SshProcess:
+    return shell.spawn(**kwargs)
+
+
 class SshShell(InitializableMixin):
     def __init__(self, connection_info: ConnectionInfo) -> None:
         super().__init__()
@@ -225,17 +233,31 @@ class SshShell(InitializableMixin):
     ) -> spur.ssh.SshProcess:
         self.initialize()
         assert self._inner_shell
-        return self._inner_shell.spawn(
-            command=command,
-            update_env=update_env,
-            store_pid=store_pid,
-            cwd=cwd,
-            stdout=stdout,
-            stderr=stderr,
-            encoding=encoding,
-            use_pty=use_pty,
-            allow_error=allow_error,
-        )
+
+        # the time out happens on other threads. It doesn't throw exception to current
+        # thread. So use a flag to detect if code runs normally.
+        is_time_out = True
+        try:
+            process: spur.ssh.SshProcess = _spawn_ssh_process(
+                self._inner_shell,
+                command=command,
+                update_env=update_env,
+                store_pid=store_pid,
+                cwd=cwd,
+                stdout=stdout,
+                stderr=stderr,
+                encoding=encoding,
+                use_pty=use_pty,
+                allow_error=allow_error,
+            )
+            is_time_out = False
+        finally:
+            if is_time_out:
+                raise LisaException(
+                    f"The remove node is timeout on execute command {command}. "
+                    f"It may be caused by paramiko/spur not support the shell of node."
+                )
+        return process
 
     def mkdir(
         self,

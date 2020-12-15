@@ -352,6 +352,14 @@ testfixtures = ">=6.8.0,<7"
 test = ["pytest (>=4.0.2,<6)", "toml"]
 
 [[package]]
+name = "func-timeout"
+version = "4.3.5"
+description = "Python module which allows you to specify timeouts when calling any existing function. Also provides support for stoppable-threads"
+category = "main"
+optional = false
+python-versions = "*"
+
+[[package]]
 name = "icontract"
 version = "2.3.7"
 description = "Provide design-by-contract with informative violation messages."
@@ -981,7 +989,7 @@ socks = ["PySocks (>=1.5.6,!=1.5.7,<2.0)"]
 [metadata]
 lock-version = "1.1"
 python-versions = "^3.8"
-content-hash = "a44f707696fdb38afd23be8723eccd02e6aa375323aafaf2a995b586901a2ac8"
+content-hash = "fe1346bdc5b0b779bc68329f0b504cb7048b6f6eb77a04ddca092fb718f11e19"
 
 [metadata.files]
 adal = [
@@ -1175,6 +1183,9 @@ flake8-bugbear = [
 flake8-isort = [
     {file = "flake8-isort-4.0.0.tar.gz", hash = "sha256:2b91300f4f1926b396c2c90185844eb1a3d5ec39ea6138832d119da0a208f4d9"},
     {file = "flake8_isort-4.0.0-py2.py3-none-any.whl", hash = "sha256:729cd6ef9ba3659512dee337687c05d79c78e1215fdf921ed67e5fe46cce2f3c"},
+]
+func-timeout = [
+    {file = "func_timeout-4.3.5.tar.gz", hash = "sha256:74cd3c428ec94f4edfba81f9b2f14904846d5ffccc27c92433b8b5939b5575dd"},
 ]
 icontract = [
     {file = "icontract-2.3.7.tar.gz", hash = "sha256:936969b9d8ecb1a53d7d629c6e75e9bbb2df3c2b9f1d60ef0777dba3d76e6338"},
