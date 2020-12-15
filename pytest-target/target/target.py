@@ -5,6 +5,7 @@ import platform
 import typing
 from abc import ABC, abstractmethod
 from io import BytesIO
+from uuid import uuid4
 
 import fabric  # type: ignore
 import invoke  # type: ignore
@@ -13,7 +14,7 @@ from invoke.runners import Result  # type: ignore
 from tenacity import retry, stop_after_attempt, wait_exponential  # type: ignore
 
 if typing.TYPE_CHECKING:
-    from typing import Any, Mapping, Set
+    from typing import Any, Mapping, Optional, Set
 
 
 class Target(ABC):
@@ -31,9 +32,9 @@ class Target(ABC):
     """
 
     # Typed instance attributes, not class attributes.
+    name: str
     params: Mapping[str, str]
     features: Set[str]
-    name: str
     host: str
     conn: fabric.Connection
 
@@ -54,24 +55,29 @@ class Target(ABC):
 
     def __init__(
         self,
-        name: str,
+        name: Optional[str],
         params: Mapping[str, str],
         features: Set[str],
     ):
-        """Requires a unique name.
+        """Creates and deploys an instance of `Target`.
 
-        Name is a unique identifier for the group of associated
-        resources. Features is a list of requirements such as sriov,
-        rdma, gpu, xdp. Parameters are used by `deploy()`.
+        * `name` is a unique ID for the group of associated resources
+        * `params` is the input parameters conforming to `schema()`
+        * `features` is set of arbitrary feature requirements
+
+        Subclass implementations of `Target` do not need to (and
+        should not) override `__init__()` as it is setup such that all
+        platform-specific setup logic can be encoded in `deploy()`
+        instead, which this calls.
 
         """
-        self.name = name
-        # TODO: Do we need to re-validate the parameters here?
+        if name:
+            self.name = name
+        else:
+            self.name = f"pytest-{uuid4()}"
         self.params = params
         self.features = features
 
-        # TODO: Review this thoroughly as currently it depends on
-        # parameters which is side-effecty.
         self.host = self.deploy()
 
         fabric_config = self.config.copy()
@@ -117,7 +123,12 @@ class Target(ABC):
 
     @abstractmethod
     def deploy(self) -> str:
-        """Must deploy the target resources and return the hostname."""
+        """Must deploy the target resources and return the hostname.
+
+        Subclass implementations can treat this like `__init__` with
+        `schema()` defining the input `params`.
+
+        """
         ...
 
     @abstractmethod

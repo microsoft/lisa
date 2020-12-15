@@ -12,7 +12,6 @@ from __future__ import annotations
 
 import logging
 import typing
-from uuid import uuid4
 
 import playbook
 import pytest
@@ -148,8 +147,10 @@ def get_target(
     tests such that they're grouped by features.
 
     """
+    # Alias because we use it a lot in this function.
+    params: Dict[Any, Any] = request.param
     # Get the intended class for this parameterization of `target`.
-    platform: Type[Target] = platforms[request.param["platform"]]
+    platform: Type[Target] = platforms[params["platform"]]
 
     # Get the required features for this test.
     marker = request.node.get_closest_marker("target")
@@ -161,13 +162,18 @@ def get_target(
     for t in pool:
         # TODO: Implement full feature comparison, etc. and not just
         # proof-of-concept string set comparison.
-        if isinstance(t, platform) and t.features >= features:
+        if (
+            isinstance(t, platform)
+            # NOTE: This is not the same as `t.name`!
+            and t.params["name"] == params["name"]
+            and t.features >= features
+        ):
             pool.remove(t)
             return t
     else:
         # TODO: Reimplement caching.
-        logging.debug(f"Creating target '{request.param}' with features '{features}'")
-        t = platform(f"pytest-{uuid4()}", request.param, features)
+        logging.debug(f"Creating target '{params}' with features '{features}'")
+        t = platform(None, params, features)
         return t
 
 
