@@ -32,7 +32,7 @@ import typing
 import playbook
 import py
 import pytest
-from schema import Literal, Optional, Or, Schema, SchemaError  # type: ignore
+from schema import And, Literal, Optional, Or, Schema, SchemaError  # type: ignore
 
 # TODO: Importing `xdist` here causes a `PytestAssertRewriteWarning`
 # to be thrown, which we ignore for now.
@@ -63,7 +63,7 @@ def pytest_configure(config: Config) -> None:
     config.addinivalue_line(
         "markers",
         (
-            "lisa(platform, category, area, priority, tags, features): "
+            "lisa(platform, category, area, priority, tags): "
             "Annotate a test with metadata."
         ),
     )
@@ -144,6 +144,9 @@ lisa_schema = Schema(
             description="Set to false if the target is made unusable.",
             default=True,
         ): bool,
+        Optional(
+            "count", description="Number of targets this test needs.", default=1
+        ): And(int, lambda n: 0 < n < 10),
     }
 )
 
@@ -179,11 +182,12 @@ def pytest_collection_modifyitems(
             if not mark:
                 continue
             validate_mark(mark)
-            # Forward `features` to `pytest.mark.target` so LISA users
-            # don’t need to use two marks, but keep them decoupled.
+            # Forward args to `pytest.mark.target` so LISA users don’t
+            # need to use two marks, but keep them decoupled.
+            kw = mark.kwargs
             item.add_marker(
                 pytest.mark.target(
-                    features=mark.kwargs["features"], reuse=mark.kwargs["reuse"]
+                    features=kw["features"], reuse=kw["reuse"], count=kw["count"]
                 )
             )
         except (SchemaError, AssertionError) as e:

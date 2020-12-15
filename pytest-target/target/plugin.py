@@ -1,8 +1,6 @@
 """Provides and parameterizes the `pool` and `target` fixtures.
 
 # TODO
-* Provide a `targets` fixture for tests which use more than one target
-  at a time.
 * Deallocate targets when switching to a new target.
 * Use richer feature/requirements comparison for targets.
 * Reimplement caching of targets between runs.
@@ -44,7 +42,7 @@ def pytest_configure(config: Config) -> None:
     """
     config.addinivalue_line(
         "markers",
-        ("target(platform, features, reuse): " "Specify target requirements."),
+        ("target(platform, features, reuse, count): " "Specify target requirements."),
     )
 
 
@@ -199,6 +197,19 @@ def target(pool: List[Target], request: SubRequest) -> Iterator[Target]:
     cleanup_target(pool, request, t)
 
 
+@pytest.fixture
+def targets(pool: List[Target], request: SubRequest) -> Iterator[List[Target]]:
+    """This fixture obtains N targets for a test."""
+    marker = request.node.get_closest_marker("target")
+    count = marker.kwargs.get("count", 1)
+    # TODO: Support sharing a `name` across the targets such that
+    # they’re in the same logical group for any platform.
+    ts = [get_target(pool, request) for _ in range(count)]
+    yield ts
+    for t in ts:
+        cleanup_target(pool, request, t)
+
+
 @pytest.fixture(scope="class")
 def c_target(pool: List[Target], request: SubRequest) -> Iterator[Target]:
     """This fixture is the same as `target` but shared across a class."""
@@ -215,7 +226,7 @@ def m_target(pool: List[Target], request: SubRequest) -> Iterator[Target]:
     cleanup_target(pool, request, t)
 
 
-targets: Dict[str, Dict[str, Any]] = {}
+target_params: Dict[str, Dict[str, Any]] = {}
 
 
 def pytest_sessionstart() -> None:
@@ -228,10 +239,10 @@ def pytest_sessionstart() -> None:
 
     """
     platform_defaults = playbook.data.get("platforms", {})
-    for target in playbook.data.get("targets", []):
-        params = platform_defaults.get(target["platform"], {}).copy()
-        params.update(target)
-        targets["Target=" + target["name"]] = params
+    for t in playbook.data.get("targets", []):
+        params = platform_defaults.get(t["platform"], {}).copy()
+        params.update(t)
+        target_params["Target=" + t["name"]] = params
 
 
 def pytest_generate_tests(metafunc: Metafunc) -> None:
@@ -241,7 +252,7 @@ def pytest_generate_tests(metafunc: Metafunc) -> None:
     `pytest_sessionstart`.
 
     """
-    assert targets, "This should not be empty!"
-    for target_fixture in "target", "m_target", "c_target":
-        if target_fixture in metafunc.fixturenames:
-            metafunc.parametrize(target_fixture, targets.values(), True, targets.keys())
+    assert target_params, "This should not be empty!"
+    for f in "target", "targets", "m_target", "c_target":
+        if f in metafunc.fixturenames:
+            metafunc.parametrize(f, target_params.values(), True, target_params.keys())
