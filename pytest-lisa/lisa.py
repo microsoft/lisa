@@ -92,6 +92,7 @@ def pytest_playbook_schema(schema: Dict[Any, Any]) -> None:
 
 lisa_schema = Schema(
     {
+        # TODO: Move platform to `pytest.mark.target`.
         "platform": str,
         "category": Or("Functional", "Performance", "Stress", "Community", "Longhaul"),
         "area": str,

@@ -1,7 +1,6 @@
 """Provides and parameterizes the `pool` and `target` fixtures.
 
-TODO
-====
+# TODO
 * Provide a `targets` fixture for tests which use more than one target
   at a time.
 * Deallocate targets when switching to a new target.
@@ -9,7 +8,6 @@ TODO
 * Add `pytest.mark.target` instead of LISA mark for target
   requirements.
 * Reimplement caching of targets between runs.
-* Improve schema with annotations, error messages, etc.
 
 """
 from __future__ import annotations
@@ -46,20 +44,37 @@ def pytest_playbook_schema(schema: Dict[Any, Any]) -> None:
 
     The `platforms` global is a mapping of platform names (strings) to
     the implementing subclasses of `Target` where each subclass
-    defines its own parameters `schema`, `deploy` and `delete`
-    methods, and other platform-specific functionality. A `Target`
-    subclass need only be defined in a file loaded by Pytest, so a
-    `conftest.py` file works just fine.
-
-    TODO: Add field annotations, friendly error reporting, automatic
-    case transformations, etc.
+    defines its own parameters `schema`, optional `defaults`,
+    `deploy`, `delete` methods, and other platform-specific
+    functionality. A `Target` subclass need only be defined in a file
+    loaded by Pytest, so a `conftest.py` file works just fine.
 
     """
     # Map the subclasses of `Target` into name and class pairs, used
     # by `get_target` to lookup the type based on the name.
     global platforms
     platforms = {cls.__name__: cls for cls in Target.__subclasses__()}  # type: ignore
+
+    # The platform schema is an optional mapping of the platform name
+    # to defaults for its provided schema. Setting the defaults here
+    # is a bit particular, as we need to have the schema library parse
+    # the given dict as a schema, and fill in the nested defaults.
     platform_description = "The class name of the platform implementation."
+    platform_schemas = {
+        Optional(
+            platform,
+            default=Schema(cls.defaults()).validate({}),
+            description=platform_description,
+        ): cls.defaults()
+        for platform, cls in platforms.items()
+    }
+    schema[
+        Optional(
+            "platforms",
+            default=Schema(platform_schemas).validate({}),
+            description="Default values for each platform.",
+        )
+    ] = platform_schemas
 
     # The target schema is `anyOf`/`Or` the platform’s schemas.
     target_schemas = [
@@ -68,6 +83,7 @@ def pytest_playbook_schema(schema: Dict[Any, Any]) -> None:
             # platform’s schema.
             Literal("name", description="A friendly name for the target."): str,
             Literal("platform", description=platform_description): platform,
+            # Unpack the rest of the schema’s items.
             **cls.schema(),
         }
         for platform, cls in platforms.items()
@@ -171,8 +187,13 @@ target_ids: List[str] = []
 
 def pytest_sessionstart() -> None:
     """Gather the `targets` from the playbook."""
-    for target in playbook.data.get("targets", []):
-        targets.append(target)
+    platform_defaults = playbook.data.get("platforms")
+    for target in playbook.data.get("targets"):
+        # Get a copy of this platform’s defaults (which may not exist)
+        # and update them with this target’s specific parameters.
+        params = platform_defaults.get(target["platform"]).copy()
+        params.update(target)
+        targets.append(params)
         target_ids.append("Target=" + target["name"])
 
 

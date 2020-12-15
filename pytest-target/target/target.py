@@ -94,16 +94,30 @@ class Target(ABC):
         """Must return a mapping for expected instance parameters.
 
         The items in this mapping are added to the playbook schema, so
-        they may container objects from the `schema` library. Each
+        they may contain objects from the `schema` library. Each
         target in the playbook will have `name` and `platform` keys in
-        addition to those specified here (they're merged).
+        addition to those specified here (they're merged). Parameters
+        should generally be `schema.Optional`. If the parameter should
+        have a shared but mutable default value, set it in `defaults`.
 
         """
         ...
 
+    @classmethod
+    def defaults(cls) -> Mapping[Any, Any]:
+        """Can return a mapping for default parameters.
+
+        If specified, it should contain only `schema.Optional`
+        elements, where the names and types match those in `schema`,
+        but with a set default value, and those in `schema` should not
+        contain default values. This is used a base for each target.
+
+        """
+        return {}
+
     @abstractmethod
     def deploy(self) -> str:
-        """Must deploy the target resources and return hostname."""
+        """Must deploy the target resources and return the hostname."""
         ...
 
     @abstractmethod
@@ -145,9 +159,15 @@ class SSH(Target):
     def schema(cls) -> Mapping[Any, Any]:
         return {
             schema.Optional(
-                "host",
-                default="localhost",
-                description="The address of the destination target.",
+                "host", description="The address of the destination target."
+            ): str
+        }
+
+    @classmethod
+    def defaults(cls) -> Mapping[Any, Any]:
+        return {
+            schema.Optional(
+                "host", default="localhost", description="The default value for host."
             ): str
         }
 
