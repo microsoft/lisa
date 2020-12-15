@@ -21,7 +21,7 @@ from schema import Literal, Optional, Or, Schema  # type: ignore
 from target.target import SSH, Target
 
 if typing.TYPE_CHECKING:
-    from typing import Any, Dict, Iterator, List, Set, Type
+    from typing import Any, Dict, Iterator, List, Type
 
     from _pytest.config import Config
     from _pytest.config.argparsing import Parser
@@ -137,11 +137,12 @@ def get_target(
     tests such that they're grouped by features.
 
     """
-    # Unpack the request.
-    params: Dict[str, Any] = request.param
-    platform: Type[Target] = platforms[params["platform"]]
+    # Get the intended class for this parameterization of `target`.
+    platform: Type[Target] = platforms[request.param["platform"]]
+
+    # Get the required features for this test.
     marker = request.node.get_closest_marker("target")
-    features: Set[str] = set(marker.kwargs["features"])
+    features = set(marker.kwargs["features"])
 
     # TODO: If `t` is not already in use, deallocate the previous
     # target, and ensure the tests have been sorted (and so grouped)
@@ -149,12 +150,12 @@ def get_target(
     for t in pool:
         # TODO: Implement full feature comparison, etc. and not just
         # proof-of-concept string set comparison.
-        if isinstance(t, platform) and t.params == params and t.features >= features:
+        if isinstance(t, platform) and t.features >= features:
             pool.remove(t)
             return t
     else:
         # TODO: Reimplement caching.
-        t = platform(f"pytest-{uuid4()}", params, features)
+        t = platform(f"pytest-{uuid4()}", request.param, features)
         return t
 
 
@@ -197,11 +198,16 @@ target_ids: List[str] = []
 
 
 def pytest_sessionstart() -> None:
-    """Gather the `targets` from the playbook."""
+    """Gather the `targets` from the playbook.
+
+    First collect any user supplied defaults from the `platforms` key
+    in the playbook, which will default to the given `defaults`
+    implemented for each platform. Copy the defaults and then
+    overwrite with the target's specific parameters.
+
+    """
     platform_defaults = playbook.data.get("platforms")
     for target in playbook.data.get("targets"):
-        # Get a copy of this platform’s defaults (which may not exist)
-        # and update them with this target’s specific parameters.
         params = platform_defaults.get(target["platform"]).copy()
         params.update(target)
         targets.append(params)
@@ -214,14 +220,8 @@ def pytest_generate_tests(metafunc: Metafunc) -> None:
     This hook is run for each test, so we gather the `targets` in
     `pytest_sessionstart`.
 
-    TODO: Handle `targets` being empty (probably a user-error). Also
-    consider how this may change if we want to selectively
-    parameterize tests.
-
     """
-    if "target" in metafunc.fixturenames:
-        metafunc.parametrize("target", targets, True, target_ids)
-    if "m_target" in metafunc.fixturenames:
-        metafunc.parametrize("m_target", targets, True, target_ids)
-    if "c_target" in metafunc.fixturenames:
-        metafunc.parametrize("c_target", targets, True, target_ids)
+    assert targets, "This should not be empty!"
+    for target_fixture in "target", "m_target", "c_target":
+        if target_fixture in metafunc.fixturenames:
+            metafunc.parametrize(target_fixture, targets, True, target_ids)
