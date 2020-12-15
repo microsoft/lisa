@@ -24,6 +24,7 @@ criteria schema. For example::
 """
 from __future__ import annotations
 
+import logging
 import re
 import sys
 import typing
@@ -67,9 +68,8 @@ def pytest_configure(config: Config) -> None:
 
 def pytest_playbook_schema(schema: Dict[Any, Any]) -> None:
     """pytest-playbook hook to update the playbook schema."""
-    # TODO: We also want to support a criteria selection on each
-    # `target` in the playbook, which this top-level criteria being
-    # the default.
+    # TODO: We also want to support a ‘targets’ list that confines a
+    # test selection to only the given targets.
     criteria_schema = Schema(
         {
             # TODO: Should any/all of the strings be regex comparisons?
@@ -193,8 +193,10 @@ def pytest_collection_modifyitems(
     def select(item: Item, times: int, exclude: bool) -> None:
         """Includes or excludes the item as appropriate."""
         if exclude:
+            logging.debug(f"Excluding '{item}'")
             excluded.append(item)
         else:
+            logging.debug(f"Including '{item}' {times} times")
             for _ in range(times - included.count(item)):
                 included.append(item)
 
@@ -214,7 +216,8 @@ def pytest_collection_modifyitems(
                     c["area"] and c["area"].casefold() == i["area"].casefold(),
                     c["category"]
                     and c["category"].casefold() == i["category"].casefold(),
-                    c["priority"] and c["priority"] == i["priority"],
+                    # Priority of 0 is falsy so explicitly check against None.
+                    c["priority"] is not None and c["priority"] == i["priority"],
                     c["tags"] and set(c["tags"]) <= set(i["tags"]),
                 ]
             ):

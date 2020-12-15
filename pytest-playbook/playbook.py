@@ -19,10 +19,11 @@ from __future__ import annotations
 
 import json
 import typing
+import warnings
 from pathlib import Path
 
 import yaml  # TODO: Optionally load yaml.
-from schema import Schema, SchemaMissingKeyError  # type: ignore
+from schema import Schema, SchemaError  # type: ignore
 
 # See https://pyyaml.org/wiki/PyYAMLDocumentation
 try:
@@ -102,15 +103,14 @@ def pytest_configure(config: Config) -> None:
 
     path: Optional[Path] = config.getoption("playbook")
     if not path or not path.is_file():
-        # TODO: Use proper logging?
-        print("No playbook was specified, using defaults...")
+        warnings.warn("No playbook was specified, using defaults...")
         data = Schema(schema).validate({})
     else:
         try:
             with open(path) as f:
                 data = yaml.load(f, Loader=Loader)
             data = Schema(schema).validate(data)
-        except (yaml.YAMLError, SchemaMissingKeyError, OSError) as e:
+        except (yaml.YAMLError, SchemaError, OSError) as e:
             pytest.exit(
                 f"Error loading playbook '{path}': {e}", pytest.ExitCode.USAGE_ERROR
             )

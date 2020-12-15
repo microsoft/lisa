@@ -10,6 +10,7 @@
 """
 from __future__ import annotations
 
+import logging
 import typing
 from uuid import uuid4
 
@@ -126,9 +127,8 @@ def pool(request: SubRequest) -> Iterator[List[Target]]:
     targets: List[Target] = []
     yield targets
     for t in targets:
-        # TODO: Use proper logging?
-        print(f"Created target: {t.features} / {t.params}")
         if not request.config.getoption("keep_vms"):
+            logging.debug(f"Deleting target '{t.name}'")
             t.delete()
 
 
@@ -166,6 +166,7 @@ def get_target(
             return t
     else:
         # TODO: Reimplement caching.
+        logging.debug(f"Creating target '{request.param}' with features '{features}'")
         t = platform(f"pytest-{uuid4()}", request.param, features)
         return t
 
