@@ -118,7 +118,7 @@ class TestResult:
         set_filtered_fields(self, result_message, fields=fields)
 
         # get information of default node, and send to notifier.
-        if self.environment:
+        if self.environment and self.environment.nodes:
             environment_information = (
                 self.environment.default_node.get_node_information()
             )
