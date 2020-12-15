@@ -21,7 +21,6 @@ from lisa import LISA
     category="Functional",
     area="deploy",
     priority=0,
-    sku="Standard_DS2_v2",
 )
 def test_smoke(target: Azure, caplog: LogCaptureFixture) -> None:
     """Check that an Azure Linux VM can be deployed and is responsive.

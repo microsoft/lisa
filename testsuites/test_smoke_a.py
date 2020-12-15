@@ -29,7 +29,6 @@ pytestmark = LISA(
     category="Functional",
     area="deploy",
     priority=0,
-    sku="Standard_DS2_v2",
 )
 
 

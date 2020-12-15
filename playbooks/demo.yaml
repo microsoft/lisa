@@ -1,3 +1,6 @@
+platforms:
+  Azure:
+    sku: Standard_DS2_v2
 targets:
   - name: Debian
     platform: Azure

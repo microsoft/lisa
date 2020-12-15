@@ -31,7 +31,7 @@ import typing
 import playbook
 import py
 import pytest
-from schema import Literal, Optional, Or, Schema, SchemaMissingKeyError  # type: ignore
+from schema import Literal, Optional, Or, Schema, SchemaError  # type: ignore
 from xdist.scheduler.loadscope import LoadScopeScheduling  # type: ignore
 
 if typing.TYPE_CHECKING:
@@ -117,7 +117,6 @@ def pytest_playbook_schema(schema: Dict[Any, Any]) -> None:
 
 lisa_schema = Schema(
     {
-        # TODO: Move platform to `pytest.mark.target`.
         Literal("platform", description="The test's intended platform."): str,
         Literal("category", description="The kind of test this is."): Or(
             "Functional", "Performance", "Stress", "Community", "Longhaul"
@@ -126,26 +125,23 @@ lisa_schema = Schema(
         Literal(
             "priority", description="The test's priority with 0 being the highest."
         ): Or(0, 1, 2, 3),
-        # TODO: Move `features` to `pytest.mark.target` and don’t
-        # allow extra keys.
-        Optional("features", default=list): [str],
         Optional(
             "tags",
             description="An arbitrary set of tags used for selection.",
-            default=list,
+            default=[],
         ): [str],
-        Optional(object): object,
-    },
-    ignore_extra_keys=True,
+        # TODO: Consider just making users set this manually.
+        Optional(
+            "features",
+            description="A set of required features, passed to `pytest.mark.target`.",
+            default=[],
+        ): [str],
+    }
 )
 
 
-def validate_mark(mark: typing.Optional[Mark]) -> None:
+def validate_mark(mark: Mark) -> None:
     """Validate each test's LISA parameters."""
-    if not mark:
-        # TODO: `assert mark, "LISA marker is missing!"` but not all
-        # tests will have it, such as static analysis tests.
-        return
     assert not mark.args, "LISA marker cannot have positional arguments!"
     mark.kwargs.update(lisa_schema.validate(mark.kwargs))  # type: ignore
 
@@ -155,7 +151,11 @@ def pytest_collection_modifyitems(
 ) -> None:
     """Pytest hook for modifying the selected items (tests).
 
-    https://docs.pytest.org/en/latest/reference.html#pytest.hookspec.pytest_collection_modifyitems
+    First we validate all the `LISA` marks on the collected tests.
+    Then we parse the given `criteria` in the playbook to include or
+    exclude tests. We do not care if the `platform` mismatches because
+    we intend a multiplicative effect where all selected tests in a
+    playbook are run on all the targets.
 
     """
     # TODO: The ‘Item’ object has a ‘user_properties’ attribute which
@@ -165,8 +165,16 @@ def pytest_collection_modifyitems(
     # Validate all LISA marks.
     for item in items:
         try:
-            validate_mark(item.get_closest_marker("lisa"))
-        except (SchemaMissingKeyError, AssertionError) as e:
+            mark = item.get_closest_marker("lisa")
+            # TODO: `assert mark, "LISA marker is missing!"` but not
+            # all tests will have it, such as static analysis tests.
+            if not mark:
+                continue
+            validate_mark(mark)
+            # Forward `features` to `pytest.mark.target` so LISA users
+            # don’t need to use two marks, but keep them decoupled.
+            item.add_marker(pytest.mark.target(features=mark.kwargs["features"]))
+        except (SchemaError, AssertionError) as e:
             pytest.exit(f"Error validating test '{item.name}' metadata: {e}")
 
     # Optionally select tests based on a playbook.
