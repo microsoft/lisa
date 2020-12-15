@@ -5,6 +5,7 @@ import json
 import logging
 import typing
 
+import invoke  # type: ignore
 from invoke.runners import Result  # type: ignore
 from schema import Optional  # type: ignore
 from target.target import Target
@@ -44,6 +45,18 @@ class AzureCLI(Target):
             Optional("networking", default=""): str,
         }
 
+    @classmethod
+    def _local(cls, *args: Any, **kwargs: Any) -> Result:
+        """A quiet version of `local()`.
+
+        TODO: Consider adding this to the superclass.
+
+        """
+        config = Target.config.copy()
+        config["run"]["hide"] = True
+        context = invoke.Context(config=invoke.Config(overrides=config))
+        return context.run(*args, **kwargs)
+
     # A class attribute because it’s defined.
     az_ok = False
 
@@ -53,10 +66,10 @@ class AzureCLI(Target):
         if cls.az_ok:  # Shortcut if we already checked.
             return
         # E.g. on Ubuntu: `curl -sL https://aka.ms/InstallAzureCLIDeb | sudo bash`
-        assert cls.local("az --version", warn=True), "Please install the `az` CLI!"
+        assert cls._local("az --version", warn=True), "Please install the `az` CLI!"
         # TODO: Login with service principal (az login) and set
         # default subscription (az account set -s) using secrets.
-        account: Result = cls.local("az account show")
+        account: Result = cls._local("az account show")
         assert account.ok, "Please `az login`!"
         sub = json.loads(account.stdout)
         assert sub["isDefault"], "Please `az account set -s <subscription>`!"
@@ -69,12 +82,12 @@ class AzureCLI(Target):
         """Create a separate resource group and storage account for boot diagnostics."""
         account = "pytestbootdiag"
         # This command always exits with 0 but returns a string.
-        if self.local("az group exists -n pytest-lisa").stdout.strip() == "false":
-            self.local(f"az group create -n pytest-lisa --location {location}")
-        if not self.local(
+        if self._local("az group exists -n pytest-lisa").stdout.strip() == "false":
+            self._local(f"az group create -n pytest-lisa --location {location}")
+        if not self._local(
             f"az storage account show -g pytest-lisa -n {account}", warn=True
         ):
-            self.local(f"az storage account create -g pytest-lisa -n {account}")
+            self._local(f"az storage account create -g pytest-lisa -n {account}")
         return account
 
     def allow_ping(self) -> None:
@@ -117,7 +130,7 @@ class AzureCLI(Target):
 
         boot_storage = self.create_boot_storage(location)
 
-        self.local(f"az group create -n {self.name}-rg --location {location}")
+        self._local(f"az group create -n {self.name}-rg --location {location}")
         # TODO: Accept EULA terms when necessary. Like:
         #
         # local.run(f"az vm image terms accept --urn {vm_image}")
