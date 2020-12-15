@@ -5,8 +5,6 @@
   at a time.
 * Deallocate targets when switching to a new target.
 * Use richer feature/requirements comparison for targets.
-* Add `pytest.mark.target` instead of LISA mark for target
-  requirements.
 * Reimplement caching of targets between runs.
 
 """
@@ -25,6 +23,7 @@ from target.target import SSH, Target
 if typing.TYPE_CHECKING:
     from typing import Any, Dict, Iterator, List, Set, Type
 
+    from _pytest.config import Config
     from _pytest.config.argparsing import Parser
     from _pytest.fixtures import SubRequest
     from _pytest.python import Metafunc
@@ -34,6 +33,19 @@ def pytest_addoption(parser: Parser) -> None:
     """Pytest hook to add our CLI options."""
     group = parser.getgroup("target")
     group.addoption("--keep-vms", action="store_true", help="Keeps deployed VMs.")
+
+
+def pytest_configure(config: Config) -> None:
+    """Pytest hook to perform initial configuration.
+
+    We're registering our custom marker so that it passes
+    `--strict-markers`.
+
+    """
+    config.addinivalue_line(
+        "markers",
+        ("target(platform, features): " "Specify target requirements."),
+    )
 
 
 platforms: Dict[str, Type[Target]] = dict()
@@ -128,8 +140,7 @@ def get_target(
     # Unpack the request.
     params: Dict[str, Any] = request.param
     platform: Type[Target] = platforms[params["platform"]]
-    # TODO: Use a ‘target’ marker instead.
-    marker = request.node.get_closest_marker("lisa")
+    marker = request.node.get_closest_marker("target")
     features: Set[str] = set(marker.kwargs["features"])
 
     # TODO: If `t` is not already in use, deallocate the previous

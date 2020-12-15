@@ -20,7 +20,6 @@ criteria schema. For example::
 # TODO:
 * Provide test metadata statistics via a command-line flag.
 * Assert every test has a LISA marker.
-* Remove 'features' from marker.
 
 """
 from __future__ import annotations
@@ -60,7 +59,7 @@ def pytest_configure(config: Config) -> None:
     config.addinivalue_line(
         "markers",
         (
-            "lisa(platform, category, area, priority, features, tags): "
+            "lisa(platform, category, area, priority, tags, features): "
             "Annotate a test with metadata."
         ),
     )
