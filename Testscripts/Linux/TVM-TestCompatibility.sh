@@ -20,22 +20,19 @@ case $DISTRO in
         echo "gpgcheck=0" | tee -a /etc/yum.repos.d/azurecore.repo
     ;;
     ubuntu*|debian*)
-        echo "deb [arch=amd64] http://packages.microsoft.com/repos/azurecore/ trusty main" | sudo tee -a /etc/apt/sources.list.d/azure.list
-        echo "deb [arch=amd64] http://packages.microsoft.com/repos/azurecore/ xenial main" | sudo tee -a /etc/apt/sources.list.d/azure.list
-        echo "deb [arch=amd64] http://packages.microsoft.com/repos/azurecore/ bionic main" | sudo tee -a /etc/apt/sources.list.d/azure.list
+        release=$(lsb_release -c -s)
+        echo "deb [arch=amd64] http://packages.microsoft.com/repos/azurecore/ $release main" | sudo tee -a /etc/apt/sources.list.d/azure.list
 
-        wget https://packages.microsoft.com/keys/microsoft.asc
-        wget https://packages.microsoft.com/keys/msopentech.asc
+        wget -qO https://packages.microsoft.com/keys/microsoft.asc | apt-key add microsoft.asc
+        wget -qO https://packages.microsoft.com/keys/msopentech.asc | apt-key add msopentech.asc
 
-        apt-key add microsoft.asc
-        apt-key add msopentech.asc
     ;;
     suse*|opensuse*|sles*|sle_hpc*)
         zypper ar -t rpm-md -n "packages-microsoft-com-azurecore" --no-gpgcheck https://packages.microsoft.com/yumrepos/azurecore/ azurecore
     ;;
     *)
-        LogErr "Distro not supported. Skipping..."
-        UpdateSummary "Distro not supported. Skipping..."
+        LogErr "Distro not supported. Skipping test case..."
+        UpdateSummary "Distro not supported. Skipping test case..."
         SetTestStateAborted
         exit 0
     ;;
@@ -52,7 +49,8 @@ if [ ! -e /usr/bin/mbinfo ]; then
 fi
 
 
-sudo mbinfo
+output=$(sudo mbinfo)
+LogMsg "$output"
 
 if [ $? == 0 ]; then
     UpdateSummary "This OS image is compatible with TVM."
