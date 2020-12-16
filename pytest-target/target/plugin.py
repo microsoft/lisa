@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import logging
 import typing
+from uuid import uuid4
 
 import playbook
 import pytest
@@ -147,7 +148,7 @@ def get_target(
     else:
         # TODO: Reimplement caching.
         logging.debug(f"Creating target '{params}' with features '{features}'")
-        t = platform(None, params, features)
+        t = platform(f"pytest-{uuid4()}", params, features)
         return t
 
 

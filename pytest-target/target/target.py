@@ -5,17 +5,15 @@ import platform
 import typing
 from abc import ABC, abstractmethod
 from io import BytesIO
-from uuid import uuid4
 
 import fabric  # type: ignore
 import invoke  # type: ignore
-import schema  # type: ignore
 from invoke.runners import Result  # type: ignore
-from schema import Literal, Schema  # type: ignore
+from schema import Literal, Optional, Schema  # type: ignore
 from tenacity import retry, stop_after_attempt, wait_exponential  # type: ignore
 
 if typing.TYPE_CHECKING:
-    from typing import Any, Mapping, Optional, Set, Tuple
+    from typing import Any, Dict, Mapping, Set, Tuple
 
 
 class Target(ABC):
@@ -56,7 +54,7 @@ class Target(ABC):
 
     def __init__(
         self,
-        name: Optional[str],
+        name: str,
         params: Mapping[str, str],
         features: Set[str],
     ):
@@ -72,10 +70,7 @@ class Target(ABC):
         instead, which this calls.
 
         """
-        if name:
-            self.name = name
-        else:
-            self.name = f"pytest-{uuid4()}"
+        self.name = name
         self.params = params
         self.features = features
 
@@ -140,7 +135,7 @@ class Target(ABC):
     platform_description = "The class name of the platform implementation."
 
     @classmethod
-    def get_defaults(cls) -> Tuple[schema.Optional, Schema]:
+    def get_defaults(cls) -> Tuple[Optional, Schema]:
         """Returns a tuple of "platform key" / "defaults value" pairs.
 
         This is an internal detail, used when generating the
@@ -160,7 +155,7 @@ class Target(ABC):
 
         """
         return (
-            schema.Optional(
+            Optional(
                 cls.__name__,
                 default=Schema(cls.defaults()).validate({}),
                 description=cls.platform_description,
@@ -233,17 +228,15 @@ class SSH(Target):
     """
 
     @classmethod
-    def schema(cls) -> Mapping[Any, Any]:
+    def schema(cls) -> Dict[Any, Any]:
         return {
-            schema.Optional(
-                "host", description="The address of the destination target."
-            ): str
+            Optional("host", description="The address of the destination target."): str
         }
 
     @classmethod
-    def defaults(cls) -> Mapping[Any, Any]:
+    def defaults(cls) -> Dict[Any, Any]:
         return {
-            schema.Optional(
+            Optional(
                 "host", default="localhost", description="The default value for host."
             ): str
         }
