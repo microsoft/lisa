@@ -2,7 +2,7 @@
 # Copyright (c) Microsoft Corporation. All rights reserved.
 # Licensed under the Apache License.
 
-# This script installs XDP dump application 
+# This script installs XDP dump application
 
 repo_url="https://github.com/LIS/bpf-samples.git"
 
