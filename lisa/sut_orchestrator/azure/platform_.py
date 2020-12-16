@@ -895,12 +895,16 @@ class AzurePlatform(Platform):
         return errors
 
     # the VM may not be queried after deployed. use retry to mitigate it.
-    @retry(tries=60, delay=1)  # type: ignore
+    @retry(exceptions=LisaException, tries=150, delay=2)  # type: ignore
     def _load_vms(
         self, environment: Environment, log: Logger
     ) -> Dict[str, VirtualMachine]:
         compute_client = get_compute_client(self)
         environment_context = get_environment_context(environment=environment)
+        log.debug(
+            f"listing vm in resource group "
+            f"'{environment_context.resource_group_name}'"
+        )
         vms_map: Dict[str, VirtualMachine] = dict()
         vms = compute_client.virtual_machines.list(
             environment_context.resource_group_name
@@ -910,8 +914,8 @@ class AzurePlatform(Platform):
             vms_map[vm.name] = vm
         if not vms_map:
             raise LisaException(
-                f"cannot find vm in resource group "
-                f"{environment_context.resource_group_name}"
+                f"deployment succeeded, but VM not found in 5 minutes "
+                f"from '{environment_context.resource_group_name}'"
             )
         return vms_map
 
