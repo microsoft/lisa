@@ -17,7 +17,6 @@ from azure.mgmt.compute.models import (  # type: ignore
     VirtualMachine,
 )
 from azure.mgmt.marketplaceordering.models import AgreementTerms  # type: ignore
-from azure.mgmt.network import NetworkManagementClient  # type: ignore
 from azure.mgmt.network.models import NetworkInterface, PublicIPAddress  # type: ignore
 from azure.mgmt.resource import (  # type: ignore
     ResourceManagementClient,
@@ -56,6 +55,7 @@ from .common import (
     get_compute_client,
     get_environment_context,
     get_marketplace_ordering_client,
+    get_network_client,
     get_node_context,
     get_storage_account_name,
     get_storage_client,
@@ -901,6 +901,7 @@ class AzurePlatform(Platform):
     ) -> Dict[str, VirtualMachine]:
         compute_client = get_compute_client(self)
         environment_context = get_environment_context(environment=environment)
+
         log.debug(
             f"listing vm in resource group "
             f"'{environment_context.resource_group_name}'"
@@ -910,7 +911,6 @@ class AzurePlatform(Platform):
             environment_context.resource_group_name
         )
         for vm in vms:
-            log.debug(f"found vm '{vm.name}' in resource group.")
             vms_map[vm.name] = vm
         if not vms_map:
             raise LisaException(
@@ -919,22 +919,19 @@ class AzurePlatform(Platform):
             )
         return vms_map
 
-    def _initialize_nodes(self, environment: Environment, log: Logger) -> None:
-        node_context_map: Dict[str, Node] = dict()
-        for node in environment.nodes.list():
-            node_context = get_node_context(node)
-            node_context_map[node_context.vm_name] = node
-
+    @retry(exceptions=LisaException, tries=150, delay=2)  # type: ignore
+    def _load_nics(
+        self, environment: Environment, log: Logger
+    ) -> Dict[str, NetworkInterface]:
+        network_client = get_network_client(self)
         environment_context = get_environment_context(environment=environment)
 
-        vms_map: Dict[str, VirtualMachine] = self._load_vms(environment, log)
-
-        network_client = NetworkManagementClient(
-            credential=self.credential, subscription_id=self.subscription_id
+        log.debug(
+            f"listing network interfaces in resource group "
+            f"'{environment_context.resource_group_name}'"
         )
-
         # load nics
-        nic_map: Dict[str, NetworkInterface] = dict()
+        nics_map: Dict[str, NetworkInterface] = dict()
         network_interfaces = network_client.network_interfaces.list(
             environment_context.resource_group_name
         )
@@ -944,13 +941,30 @@ class AzurePlatform(Platform):
             node_name_from_nic = RESOURCE_ID_NIC_PATTERN.findall(nic.name)
             if node_name_from_nic:
                 name = node_name_from_nic[0]
-                nic_map[name] = nic
+                nics_map[name] = nic
+        if not nics_map:
+            raise LisaException(
+                f"deployment succeeded, but network interfaces not found in 5 minutes "
+                f"from '{environment_context.resource_group_name}'"
+            )
+        return nics_map
 
+    @retry(exceptions=LisaException, tries=150, delay=2)  # type: ignore
+    def _load_public_ips(
+        self, environment: Environment, log: Logger
+    ) -> Dict[str, PublicIPAddress]:
+        network_client = get_network_client(self)
+        environment_context = get_environment_context(environment=environment)
+
+        log.debug(
+            f"listing public ips in resource group "
+            f"'{environment_context.resource_group_name}'"
+        )
         # get public IP
         public_ip_addresses = network_client.public_ip_addresses.list(
             environment_context.resource_group_name
         )
-        public_ip_map: Dict[str, PublicIPAddress] = dict()
+        public_ips_map: Dict[str, PublicIPAddress] = dict()
         for ip_address in public_ip_addresses:
             # nic name is like node-0-nic-2, get vm name part for later pick
             # only find primary nic, which is ended by -nic-0
@@ -959,7 +973,25 @@ class AzurePlatform(Platform):
             )
             if node_name_from_public_ip:
                 name = node_name_from_public_ip[0]
-                public_ip_map[name] = ip_address
+                public_ips_map[name] = ip_address
+        if not public_ips_map:
+            raise LisaException(
+                f"deployment succeeded, but public ips not found in 5 minutes "
+                f"from '{environment_context.resource_group_name}'"
+            )
+        return public_ips_map
+
+    def _initialize_nodes(self, environment: Environment, log: Logger) -> None:
+        node_context_map: Dict[str, Node] = dict()
+        for node in environment.nodes.list():
+            node_context = get_node_context(node)
+            node_context_map[node_context.vm_name] = node
+
+        vms_map: Dict[str, VirtualMachine] = self._load_vms(environment, log)
+        nics_map: Dict[str, NetworkInterface] = self._load_nics(environment, log)
+        public_ips_map: Dict[str, PublicIPAddress] = self._load_public_ips(
+            environment, log
+        )
 
         for vm_name, node in node_context_map.items():
             node_context = get_node_context(node)
@@ -968,8 +1000,8 @@ class AzurePlatform(Platform):
                 raise LisaException(
                     f"cannot find vm: '{vm_name}', make sure deployment is correct."
                 )
-            nic = nic_map[vm_name]
-            public_ip = public_ip_map[vm_name]
+            nic = nics_map[vm_name]
+            public_ip = public_ips_map[vm_name]
 
             address = nic.ip_configurations[0].private_ip_address
             if not node.name:

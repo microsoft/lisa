@@ -3,6 +3,7 @@ from typing import TYPE_CHECKING, Any
 
 from azure.mgmt.compute import ComputeManagementClient  # type: ignore
 from azure.mgmt.marketplaceordering import MarketplaceOrderingAgreements  # type: ignore
+from azure.mgmt.network import NetworkManagementClient  # type: ignore
 from azure.mgmt.storage import StorageManagementClient  # type: ignore
 
 from lisa.environment import Environment
@@ -36,6 +37,16 @@ def get_compute_client(platform: Any) -> ComputeManagementClient:
     # so it just use typing here only, no assertion.
     azure_platform: AzurePlatform = platform
     return ComputeManagementClient(
+        credential=azure_platform.credential,
+        subscription_id=azure_platform.subscription_id,
+    )
+
+
+def get_network_client(platform: Any) -> ComputeManagementClient:
+    # there is cycle import, if assert type.
+    # so it just use typing here only, no assertion.
+    azure_platform: AzurePlatform = platform
+    return NetworkManagementClient(
         credential=azure_platform.credential,
         subscription_id=azure_platform.subscription_id,
     )
