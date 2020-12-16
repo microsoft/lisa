@@ -15,7 +15,7 @@ import playbook
 import pytest
 
 # See https://pypi.org/project/schema/
-from schema import Literal, Optional, Or, Schema  # type: ignore
+from schema import Optional, Or, Schema  # type: ignore
 from target.target import SSH, Target
 
 if typing.TYPE_CHECKING:
@@ -65,57 +65,33 @@ def pytest_playbook_schema(schema: Dict[Any, Any]) -> None:
     global platforms
     platforms = {cls.__name__: cls for cls in Target.__subclasses__()}  # type: ignore
 
-    # The platform schema is an optional mapping of the platform name
-    # to defaults for its provided schema. Setting the defaults here
-    # is a bit particular, as we need to have the schema library parse
-    # the given dict as a schema, and fill in the nested defaults.
-    platform_description = "The class name of the platform implementation."
-    platform_schemas = {
-        Optional(
-            platform,
-            default=Schema(cls.defaults()).validate({}),
-            description=platform_description,
-        ): Schema(cls.defaults(), name=f"{platform}_defaults", as_reference=True)
-        for platform, cls in platforms.items()
-    }
-    # TODO: Assert that the set of key names in each `defaults()` is a
-    # subset of the key names in the corresponding `schema()`.
+    # The platforms schema is a set of optional mappings of each
+    # platform’s name to defaults for its provided schema.
+    platforms_schema = dict(cls.get_defaults() for cls in platforms.values())
+    default_platforms = Schema(platforms_schema).validate({})
     schema[
         Optional(
             "platforms",
-            default=Schema(platform_schemas).validate({}),
-            description="Default values for each platform.",
+            default=default_platforms,
+            description="A set of objects with default values for each platform.",
         )
-    ] = platform_schemas
+    ] = platforms_schema
 
-    # The targets schema is a list of dicts where each dict is ‘any
-    # of’ (`Or`) the platforms’ schemata, with the addition of a
-    # required ‘platform’ key matching the class name, and a friendly
-    # name for the target itself (which should be unique).
-    target_schemas = [
-        Schema(
-            {
-                # We’re adding ‘name’ and ‘platform’ keys to each
-                # platform’s schema.
-                Literal("name", description="A friendly name for the target."): str,
-                Literal("platform", description=platform_description): platform,
-                # Unpack the rest of the schema’s items.
-                **cls.schema(),
-            },
-            name=f"{platform}_schema",
-            as_reference=True,
-        )
-        for platform, cls in platforms.items()
-    ]
-    # TODO: Perhaps elevate ‘name’ to the key, with the nested schema
-    # as the value.
-    target_schema = Or(*target_schemas)
+    # The targets schema is a list of ‘any of’ the platforms’
+    # reference schemata.
+    targets_schema = [Or(*(cls.get_schema() for cls in platforms.values()))]
     default_target = {
         "name": "Default",
         "platform": "SSH",
         **Schema(SSH.schema()).validate({}),  # Fill in the defaults
     }
-    schema[Optional("targets", default=[default_target])] = [target_schema]
+    schema[
+        Optional(
+            "targets",
+            default=[default_target],
+            description="A list of targets with which to parameterize the tests.",
+        )
+    ] = targets_schema
 
 
 @pytest.fixture(scope="session")

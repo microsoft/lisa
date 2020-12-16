@@ -11,10 +11,11 @@ import fabric  # type: ignore
 import invoke  # type: ignore
 import schema  # type: ignore
 from invoke.runners import Result  # type: ignore
+from schema import Literal, Schema  # type: ignore
 from tenacity import retry, stop_after_attempt, wait_exponential  # type: ignore
 
 if typing.TYPE_CHECKING:
-    from typing import Any, Mapping, Optional, Set
+    from typing import Any, Mapping, Optional, Set, Tuple
 
 
 class Target(ABC):
@@ -113,9 +114,9 @@ class Target(ABC):
     def defaults(cls) -> Mapping[Any, Any]:
         """Can return a mapping for default parameters.
 
-        If specified, it should contain only `schema.Optional`
-        elements, where the names and types match those in `schema`,
-        but with a set default value, and those in `schema` should not
+        If specified, it must contain only `schema.Optional` elements,
+        where the names and types match those in `schema()`, but with
+        a set default value, and those in `schema()` should not
         contain default values. This is used a base for each target.
 
         """
@@ -136,7 +137,72 @@ class Target(ABC):
         """Must delete the target resources."""
         ...
 
-    # A class attribute because it’s defined.
+    platform_description = "The class name of the platform implementation."
+
+    @classmethod
+    def get_defaults(cls) -> Tuple[schema.Optional, Schema]:
+        """Returns a tuple of "platform key" / "defaults value" pairs.
+
+        This is an internal detail, used when generating the
+        playbook's schema. Subclasses should not override this.
+
+        The key is an optional literal, the name of the subclass for
+        the platform, with a default value of the validated
+        `defaults()` schema when given no input (hence they must all
+        be optional). The value is reference schema definition
+        generated from the `defaults()` dict.
+
+        When generating the playbook's schema all the platforms'
+        tuples are mapped into a single dict.
+
+        TODO: Assert that the set of key names in each `defaults()` is
+        a subset of the key names in the corresponding `schema()`.
+
+        """
+        return (
+            schema.Optional(
+                cls.__name__,
+                default=Schema(cls.defaults()).validate({}),
+                description=cls.platform_description,
+            ),
+            Schema(cls.defaults(), name=f"{cls.__name__}_Defaults", as_reference=True),
+        )
+
+    @classmethod
+    def get_schema(cls) -> Schema:
+        """Returns a reference schema definition for the class parameters.
+
+        This is an internal detail, used when generating the
+        playbook's schema. Subclasses should not override this.
+
+        We generate the whole definition by combining the values of
+        `cls.schema()` (which is defined by each platform's
+        implementation) with two required keys:
+
+        * name: A friendly name for the target.
+        * platform: The name of the subclass for the platform.
+
+        When generating the playbook's schema all the platforms'
+        schemata are mapped into an 'any of' schema.
+
+        TODO: Perhaps elevate ‘name’ to the key, with the nested
+        schema as the value.
+
+        """
+        return Schema(
+            {
+                # We’re adding ‘name’ and ‘platform’ keys.
+                Literal("name", description="A friendly name for the target."): str,
+                Literal("platform", description=cls.platform_description): cls.__name__,
+                # Unpack the rest of the schema’s items.
+                **cls.schema(),
+            },
+            name=f"{cls.__name__}_Schema",
+            as_reference=True,
+        )
+
+    # Platform-agnostic functionality should be added here:
+
     local_context = invoke.Context(config=invoke.Config(overrides=config))
 
     @classmethod
