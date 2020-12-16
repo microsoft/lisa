@@ -78,7 +78,8 @@ def pytest_addoption(parser: Parser, pluginmanager: PytestPluginManager) -> None
     group.addoption("--playbook", type=Path, help="Path to playbook.")
     group.addoption(
         "--print-schema",
-        help="Print the JSON schema of the playbook with the given ID.",
+        type=Path,
+        help="Print the JSON schema of the playbook to the given path.",
     )
 
 
@@ -91,25 +92,27 @@ def pytest_configure(config: Config) -> None:
     loaded and defined their `pytest_playbook_schema` hooks.
 
     """
-    schema: Dict[Any, Any] = dict()
-    config.hook.pytest_playbook_schema(schema=schema, config=config)
+    schema_dict: Dict[Any, Any] = dict()
+    config.hook.pytest_playbook_schema(schema=schema_dict, config=config)
+    schema = Schema(schema_dict)
 
-    json_schema = config.getoption("print_schema")
+    json_schema: Optional[Path] = config.getoption("print_schema")
     if json_schema:
-        print(json.dumps(Schema(schema).json_schema(json_schema), indent=2))
-        pytest.exit("Printed schema!", pytest.ExitCode.OK)
+        with json_schema.open("w") as f:
+            json.dump(schema.json_schema(json_schema.name), f, indent=2)
+        pytest.exit(f"Printed schema to {json_schema}!", pytest.ExitCode.OK)
 
     global data
 
     path: Optional[Path] = config.getoption("playbook")
     if not path or not path.is_file():
         warnings.warn("No playbook was specified, using defaults...")
-        data = Schema(schema).validate({})
+        data = schema.validate({})
     else:
         try:
-            with open(path) as f:
+            with path.open() as f:
                 data = yaml.load(f, Loader=Loader)
-            data = Schema(schema).validate(data)
+            data = schema.validate(data)
         except (yaml.YAMLError, SchemaError, OSError) as e:
             pytest.exit(
                 f"Error loading playbook '{path}': {e}", pytest.ExitCode.USAGE_ERROR
