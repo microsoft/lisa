@@ -156,7 +156,7 @@ if [ -z ${ip} ] && [ ! -z "${1}" ]; then
     LogMsg "IP : ${ip}"
 fi
 
-if [ -z ${nicName}] && [ ! -z "${2}" ]; then
+if [ -z ${nicName} ] && [ ! -z "${2}" ]; then
     nicName=${2}
     LogMsg "nicName: ${2}"
 fi
