@@ -1,0 +1,195 @@
+{
+  "type": "object",
+  "properties": {
+    "criteria": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "default": null
+          },
+          "module": {
+            "type": "string",
+            "default": null
+          },
+          "area": {
+            "type": "string",
+            "default": null
+          },
+          "category": {
+            "type": "string",
+            "default": null
+          },
+          "priority": {
+            "type": "integer",
+            "default": null
+          },
+          "tags": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "default": "<class 'list'>"
+          },
+          "times": {
+            "type": "integer",
+            "default": 1
+          },
+          "exclude": {
+            "type": "boolean",
+            "default": false
+          }
+        },
+        "required": [],
+        "additionalProperties": false
+      },
+      "default": "<class 'list'>"
+    },
+    "platforms": {
+      "type": "object",
+      "properties": {
+        "SSH": {
+          "$ref": "#/definitions/SSH_Defaults",
+          "default": {
+            "host": "localhost"
+          }
+        },
+        "AzureCLI": {
+          "$ref": "#/definitions/AzureCLI_Defaults",
+          "default": {
+            "location": "eastus2",
+            "sku": "Standard_DS1_v2",
+            "networking": "",
+            "image": "UbuntuLTS"
+          }
+        }
+      },
+      "required": [],
+      "additionalProperties": false,
+      "default": {
+        "AzureCLI": {
+          "location": "eastus2",
+          "sku": "Standard_DS1_v2",
+          "networking": "",
+          "image": "UbuntuLTS"
+        },
+        "SSH": {
+          "host": "localhost"
+        }
+      }
+    },
+    "targets": {
+      "type": "array",
+      "items": {
+        "anyOf": [
+          {
+            "$ref": "#/definitions/SSH_Schema"
+          },
+          {
+            "$ref": "#/definitions/AzureCLI_Schema"
+          }
+        ]
+      },
+      "default": [
+        {
+          "name": "Default",
+          "platform": "SSH"
+        }
+      ]
+    }
+  },
+  "required": [],
+  "additionalProperties": false,
+  "$id": "schema.json",
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "definitions": {
+    "SSH_Defaults": {
+      "type": "object",
+      "properties": {
+        "host": {
+          "type": "string",
+          "default": "localhost"
+        }
+      },
+      "required": [],
+      "additionalProperties": false
+    },
+    "AzureCLI_Defaults": {
+      "type": "object",
+      "properties": {
+        "image": {
+          "type": "string",
+          "default": "UbuntuLTS"
+        },
+        "sku": {
+          "type": "string",
+          "default": "Standard_DS1_v2"
+        },
+        "location": {
+          "type": "string",
+          "default": "eastus2"
+        },
+        "networking": {
+          "type": "string",
+          "default": ""
+        }
+      },
+      "required": [],
+      "additionalProperties": false
+    },
+    "SSH_Schema": {
+      "type": "object",
+      "properties": {
+        "name": {
+          "description": "A friendly name for the target.",
+          "type": "string"
+        },
+        "platform": {
+          "description": "The class name of the platform implementation.",
+          "const": "SSH"
+        },
+        "host": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "name",
+        "platform"
+      ],
+      "additionalProperties": false
+    },
+    "AzureCLI_Schema": {
+      "type": "object",
+      "properties": {
+        "name": {
+          "description": "A friendly name for the target.",
+          "type": "string"
+        },
+        "platform": {
+          "description": "The class name of the platform implementation.",
+          "const": "AzureCLI"
+        },
+        "image": {
+          "type": "string"
+        },
+        "sku": {
+          "type": "string"
+        },
+        "location": {
+          "type": "string"
+        },
+        "networking": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "name",
+        "platform",
+        "image"
+      ],
+      "additionalProperties": false
+    }
+  }
+}
