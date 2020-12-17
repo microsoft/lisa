@@ -34,6 +34,7 @@ class Target(ABC):
     name: str
     params: Mapping[str, str]
     features: Set[str]
+    data: Mapping[Any, Any]
     host: str
     conn: fabric.Connection
 
@@ -55,8 +56,9 @@ class Target(ABC):
     def __init__(
         self,
         name: str,
-        params: Mapping[str, str],
+        params: Mapping[Any, Any],
         features: Set[str],
+        data: Mapping[Any, Any],
     ):
         """Creates and deploys an instance of `Target`.
 
@@ -71,8 +73,9 @@ class Target(ABC):
 
         """
         self.name = name
-        self.params = params
+        self.params = self.get_schema().validate(params)
         self.features = features
+        self.data = data
 
         self.host = self.deploy()
 
@@ -123,6 +126,11 @@ class Target(ABC):
 
         Subclass implementations can treat this like `__init__` with
         `schema()` defining the input `params`.
+
+        Data which should be cached must be saved to `self.data`.
+
+        If `self.data` is populated then implementations should assume
+        they're refreshing a cached target.
 
         """
         ...

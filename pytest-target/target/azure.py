@@ -111,26 +111,34 @@ class AzureCLI(Target):
         except Exception as e:
             logging.warning(f"Failed to create ICMP allow rules in NSG due to '{e}'")
 
+    def parse_data(self) -> str:
+        self.internal_address = self.data["privateIpAddress"]
+        return typing.cast(str, self.data["publicIpAddress"])
+
     def deploy(self) -> str:
         """Given deployment info, deploy a new VM."""
+        if self.data:  # Shortcut if refreshing from cache.
+            return self.parse_data()
+
+        AzureCLI.check_az_cli()
+
         image = self.params["image"]
         sku = self.params["sku"]
         location = self.params["location"]
         networking = self.params["networking"]
 
-        AzureCLI.check_az_cli()
-
         logging.info(
-            f"""Deploying VM...
-        Resource Group:	'{self.name}-rg'
-        Region:		'{location}'
-        Image:		'{image}'
-        SKU:		'{sku}'"""
+            "Deploying VM...\n"
+            f"	Group:		'{self.name}-rg'\n"
+            f"	Region:	'{location}'\n"
+            f"	Image:		'{image}'\n"
+            f"	SKU:		'{sku}'"
         )
 
         boot_storage = self.create_boot_storage(location)
 
         self._local(f"az group create -n {self.name}-rg --location {location}")
+
         # TODO: Accept EULA terms when necessary. Like:
         #
         # local.run(f"az vm image terms accept --urn {vm_image}")
@@ -152,11 +160,9 @@ class AzureCLI(Target):
             vm_command.append("--accelerated-networking true")
 
         self.data = json.loads(self.local(" ".join(vm_command)).stdout)
-        hostname: str = self.data["publicIpAddress"]
-        self.internal_address = self.data["privateIpAddress"]
         self.allow_ping()
         # TODO: Enable auto-shutdown 4 hours from deployment.
-        return hostname
+        return self.parse_data()
 
     def delete(self) -> None:
         """Delete the entire allocated resource group.
@@ -165,7 +171,7 @@ class AzureCLI(Target):
         the entire resource group.
 
         """
-        logging.info(f"Deleting resource group '{self.name}-rg'")
+        logging.debug(f"Deleting resource group '{self.name}-rg'")
         self.local(f"az group delete -n {self.name}-rg --yes --no-wait")
 
     @retry(reraise=True, wait=wait_exponential(), stop=stop_after_attempt(3))
