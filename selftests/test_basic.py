@@ -22,4 +22,4 @@ def test_basic(target: SSH) -> None:
 @pytest.mark.skip("Need to fix cache bug with `targets`")
 def test_basic_multiple(targets: List[SSH]) -> None:
     """Basic test which asks for 3 unique targets."""
-    assert len({target.name for target in targets}) == 3
+    assert len({target.group for target in targets}) == 3

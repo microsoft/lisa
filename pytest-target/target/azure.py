@@ -25,6 +25,7 @@ class AzureCLI(Target):
 
     # Custom instance attribute(s).
     internal_address: str
+    name: str
 
     @classmethod
     def schema(cls) -> Dict[Any, Any]:
@@ -103,13 +104,15 @@ class AzureCLI(Target):
             for d in ["Inbound", "Outbound"]:
                 self.local(
                     f"az network nsg rule create "
-                    f"--name allow{d}ICMP --resource-group {self.name}-rg "
+                    f"--name allow{d}ICMP --resource-group {self.group}-rg "
                     f"--nsg-name {self.name}NSG --priority 150  "
                     f"--access Allow --direction '{d}' --protocol Icmp "
                     "--source-port-ranges '*' --destination-port-ranges '*'"
                 )
         except Exception as e:
-            logging.warning(f"Failed to create ICMP allow rules in NSG due to '{e}'")
+            logging.warning(
+                f"Failed creating ICMP allow rules in '{self.name}NSG': {e}"
+            )
 
     def parse_data(self) -> str:
         self.internal_address = self.data["privateIpAddress"]
@@ -117,6 +120,7 @@ class AzureCLI(Target):
 
     def deploy(self) -> str:
         """Given deployment info, deploy a new VM."""
+        self.name = f"{self.group}-{self.number}"
         if self.data:  # Shortcut if refreshing from cache.
             return self.parse_data()
 
@@ -129,15 +133,15 @@ class AzureCLI(Target):
 
         logging.info(
             "Deploying VM...\n"
-            f"	Group:		'{self.name}-rg'\n"
-            f"	Region:	'{location}'\n"
+            f"	Group:		'{self.group}-rg'\n"
+            f"	Region:		'{location}'\n"
             f"	Image:		'{image}'\n"
             f"	SKU:		'{sku}'"
         )
 
         boot_storage = self.create_boot_storage(location)
 
-        self._local(f"az group create -n {self.name}-rg --location {location}")
+        self._local(f"az group create -n {self.group}-rg --location {location}")
 
         # TODO: Accept EULA terms when necessary. Like:
         #
@@ -148,7 +152,7 @@ class AzureCLI(Target):
 
         vm_command = [
             "az vm create",
-            f"-g {self.name}-rg",
+            f"-g {self.group}-rg",
             f"-n {self.name}",
             f"--image {image}",
             f"--size {sku}",
@@ -167,12 +171,15 @@ class AzureCLI(Target):
     def delete(self) -> None:
         """Delete the entire allocated resource group.
 
-        TODO: Delete VM itself. Only if it was the last VM then delete
-        the entire resource group.
+        TODO: Delete VM '{self.name}'. Only if it was
+        the last VM then delete the entire resource group.
 
         """
-        logging.debug(f"Deleting resource group '{self.name}-rg'")
-        self.local(f"az group delete -n {self.name}-rg --yes --no-wait")
+        logging.debug(f"Deleting resource group '{self.group}-rg'")
+        try:
+            self.local(f"az group delete -n {self.group}-rg --yes --no-wait")
+        except Exception as e:
+            logging.warning(f"Failed deleting resource group '{self.group}-rg': {e}")
 
     @retry(reraise=True, wait=wait_exponential(), stop=stop_after_attempt(3))
     def get_boot_diagnostics(self, **kwargs: Any) -> Result:
@@ -181,10 +188,10 @@ class AzureCLI(Target):
         # their logs aren’t UTF-8 encoded. I’ve filed a bug:
         # https://github.com/Azure/azure-cli/issues/15590
         return self.local(
-            f"az vm boot-diagnostics get-boot-log -n {self.name} -g {self.name}-rg",
+            f"az vm boot-diagnostics get-boot-log -n {self.name} -g {self.group}-rg",
             **kwargs,
         )
 
     def platform_restart(self) -> Result:
         """TODO: Should this '--force' and redeploy?"""
-        return self.local(f"az vm restart -n {self.name} -g {self.name}-rg")
+        return self.local(f"az vm restart -n {self.name} -g {self.group}-rg")

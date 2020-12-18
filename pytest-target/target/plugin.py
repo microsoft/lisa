@@ -116,10 +116,7 @@ def pool(request: SubRequest) -> Iterator[List[Target]]:
             delete_target(t, request.config.cache)
 
 
-def get_target(
-    pool: List[Target],
-    request: SubRequest,
-) -> Target:
+def get_target(pool: List[Target], request: SubRequest, number: int = 0) -> Target:
     """This function gets or creates an appropriate `Target`.
 
     First check if any existing target in the `pool` matches all the
@@ -192,7 +189,7 @@ def cleanup_target(pool: List[Target], request: SubRequest, t: Target) -> None:
 def delete_target(t: Target, cache: Optional[Cache]) -> None:
     """Deletes a `Target` and removes it from the cache."""
     name: str = t.params["name"]
-    logging.info(f"Deleting target '{name}'...")
+    logging.info(f"Deleting target '{name}': {t.group}/{t.number}...")
     t.delete()
     assert cache is not None
     cache.set("target/" + name, None)
@@ -217,7 +214,7 @@ def targets(pool: List[Target], request: SubRequest) -> Iterator[List[Target]]:
     count = marker.kwargs.get("count", 1)
     # TODO: Support sharing a `name` across the targets such that
     # they’re in the same logical group for any platform.
-    ts = [get_target(pool, request) for _ in range(count)]
+    ts = [get_target(pool, request, i) for i in range(count)]
     yield ts
     for t in ts:
         cleanup_target(pool, request, t)

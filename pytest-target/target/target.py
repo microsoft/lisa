@@ -31,10 +31,11 @@ class Target(ABC):
     """
 
     # Typed instance attributes, not class attributes.
-    name: str
+    group: str
     params: Mapping[str, str]
     features: Set[str]
     data: Mapping[Any, Any]
+    number: int
     host: str
     conn: fabric.Connection
 
@@ -55,16 +56,19 @@ class Target(ABC):
 
     def __init__(
         self,
-        name: str,
+        group: str,
         params: Mapping[Any, Any],
         features: Set[str],
         data: Mapping[Any, Any],
+        number: int = 0,
     ):
         """Creates and deploys an instance of `Target`.
 
-        * `name` is a unique ID for the group of associated resources
+        * `group` is a unique ID for the group of associated resources
         * `params` is the input parameters conforming to `schema()`
         * `features` is set of arbitrary feature requirements
+        * `data` is the cached data for the target
+        * `number` is the numerical ID of this target in its group
 
         Subclass implementations of `Target` do not need to (and
         should not) override `__init__()` as it is setup such that all
@@ -72,10 +76,11 @@ class Target(ABC):
         instead, which this calls.
 
         """
-        self.name = name
+        self.group = group
         self.params = self.get_schema().validate(params)
         self.features = features
         self.data = data
+        self.number = number
 
         self.host = self.deploy()
 
@@ -137,7 +142,12 @@ class Target(ABC):
 
     @abstractmethod
     def delete(self) -> None:
-        """Must delete the target resources."""
+        """Must delete the target's resources.
+
+        If this is the last target in its group then implementations
+        should delete the group resource too.
+
+        """
         ...
 
     platform_description = "The class name of the platform implementation."
