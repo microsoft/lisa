@@ -33,7 +33,7 @@ case $DISTRO in
     *)
         LogErr "Distro not supported. Skipping test case..."
         UpdateSummary "Distro not supported. Skipping test case..."
-        SetTestStateAborted
+        SetTestStateSkipped
         exit 0
     ;;
 esac
@@ -50,9 +50,10 @@ fi
 
 
 output=$(sudo mbinfo)
+ret=$?
 LogMsg "$output"
 
-if [ $? == 0 ]; then
+if [ $ret == 0 ]; then
     UpdateSummary "This OS image is compatible with TVM."
     SetTestStateCompleted
 else
