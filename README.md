@@ -6,7 +6,10 @@
 
 LISA is a Linux test automation framework with built-in test cases to verify the
 quality of Linux distributions on multiple platforms (such as Azure, Hyper-V,
-and bare metal).
+and bare metal). It is an opinionated collection of custom [Pytest][] plugins,
+configurations, and tests. See the [design document](DESIGN.md) for details.
+
+[Pytest]: https://docs.pytest.org/en/stable/
 
 ## Getting Started:
 
@@ -49,7 +52,7 @@ $env:PATH += ";$env:USERPROFILE\.poetry\bin"
 ### Clone LISA and `cd` into the Git repo:
 
 ```bash
-git clone -b main https://github.com/LIS/LISAv2.git lisa
+git clone -b main https://github.com/microsoft/lisa.git
 cd lisa
 ```
 
@@ -69,13 +72,15 @@ poetry shell
 # Run some self-tests
 lisa --playbook=playbooks/test.yml selftests/
 
-# Run a demo which deployes Azure resources
+# Run a demo which deploys Azure resources
 lisa --playbook=playbooks/smoke.yaml
 ```
 
 #### Enable Azure:
 
 To run the demo you’ll need the [Azure CLI][] tool installed and configured:
+
+[Azure CLI]: https://docs.microsoft.com/en-us/cli/azure/
 
 ```bash
 # Install Azure CLI, make sure `az` is in your `PATH`
@@ -86,130 +91,9 @@ az login
 az account set -s <your subscription ID>
 ```
 
-See the [design document](DESIGN.md) for details.
-
 ## Contributing
 
-The path to the virtualenv used by Poetry can found with this command:
-
-```bash
-poetry env list --full-path
-```
-
-Use it to configure your editor.
-
-The registered playbook schema can be generated using `--print-schema`:
-
-```bash
-lisa --print-schema=playbooks/schema.json
-```
-
-This will create a file `playbooks/schema.json` with the [JSON Schema][] for all
-the registered schemata (including those added in any local plugins). Note that
-this file is committed to the repo for the public schema, but you can generate
-your own (or update it) with the above command.
-
-Using the LSP [yaml-language-server][] you can setup almost any editor to lint
-the playbook files against the schema. Either add as a comment to the top of the
-playbook file:
-
-```yaml
-# yaml-language-server: $schema=file:///path/to/playbooks/schema.json
-```
-
-Or set `yaml.schemas` as appropriate for your editor. Also ensure that
-`yaml-language-server` is installed, which you can do via:
-
-```bash
-npm install -g yaml-language-server
-```
-
-[JSON Schema]: https://json-schema.org/
-[yaml-language-server]: https://github.com/redhat-developer/yaml-language-server
-
-### Editor Setup
-
-#### Visual Studio Code
-
-First, click the Python version in the bottom left, then enter the path emitted
-by the command above. This will point Code to the Poetry virtual environment.
-
-Make sure below settings are in root level of `.vscode/settings.json`
-
-```json
-{
-    "python.analysis.typeCheckingMode": "strict",
-    "python.formatting.provider": "black",
-    "python.linting.enabled": true,
-    "python.linting.flake8Enabled": true,
-    "python.linting.mypyEnabled": true,
-    "python.linting.pylintEnabled": false,
-    "editor.formatOnSave": true,
-    "python.linting.mypyArgs": [
-        "--strict",
-        "--namespace-packages",
-        "--show-column-numbers",
-    ],
-    "python.sortImports.path": "isort",
-    "python.analysis.useLibraryCodeForTypes": false,
-    "python.analysis.autoImportCompletions": false,
-    "files.eol": "\n",
-}
-```
-
-#### Emacs
-
-I recommend using the [pyvenv][] package to have Emacs automatically use the
-correct Python venv (setup by Poetry), and the [eglot][] package to provide LSP
-support. The below expects you already have an `init.el` with [use-package][].
-
-[pyvenv]: https://github.com/jorgenschaefer/pyvenv
-[eglot]: https://github.com/joaotavora/eglot
-[use-package]: https://github.com/jwiegley/use-package
-
-```emacs-lisp
-(use-package pyvenv
-  :ensure t
-  :hook (python-mode . pyvenv-tracking-mode))
-
-(use-package eglot
-  :hook
-  (python-mode . eglot-ensure)
-  (yaml-mode . eglot-ensure)
-  :custom
-  (eglot-auto-display-help-buffer t)
-  (eglot-autoshutdown t)
-  (eglot-confirm-server-initiated-edits nil)
-  :config
-  (add-to-list 'eglot-server-programs '(yaml-mode . ("yaml-language-server" "--stdio")))
-  (defun eglot-format-buffer-on-save ()
-    (if (and (project-current) (eglot-managed-p))
-        (add-hook 'before-save-hook #'eglot-format-buffer nil 'local)
-      (remove-hook 'before-save-hook #'eglot-format-buffer 'local)))
-  (add-hook 'eglot-managed-mode-hook #'eglot-format-buffer-on-save))
-```
-
-Then run `M-x add-dir-local-variable RET python-mode RET pyvenv-activate RET
-<path/to/virtualenv>` where the value is the path given by the command above.
-This will create a `.dir-locals.el` with this variable set for Python.
-
-Refer to this `.dir-locals.el` for a complete setup:
-
-```emacs-lisp
-;;; Directory Local Variables
-;;; For more information see (info "(emacs) Directory Variables")
-
-((python-mode
-  . ((eglot-workspace-configuration ; an LSP implementation
-      ;; Use `flake8’ instead of the default, and disable noisy plugins.
-      . ((:pyls . (:configurationSources ["flake8"] :plugins (:pycodestyle (:enabled nil) :mccabe (:enabled nil))))))))
- (yaml-mode
-  . ((eglot-workspace-configuration
-      ;; Set the `playbooks/schema.json’ as the schema for playbooks.
-      . ((:yaml . (:schemas (:playbooks/schema.json "playbooks/*")))))))
- ;; Set `pyvenv’ to use the given venv for the whole project.
- (nil . ((pyvenv-activate . "~/.cache/pypoetry/virtualenvs/<venv name>"))))
-```
+See the [Contributing Guidelines](CONTRIBUTING.md) for developer information!
 
 ### Contributor License Agreement
 

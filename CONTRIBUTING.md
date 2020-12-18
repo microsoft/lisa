@@ -3,38 +3,62 @@
 This document describes the existing developer tooling we have in place (and what to
 expect of it), as well as our design and development philosophy.
 
-## Naming Conventions
+See [learnxinyminutes.com](https://learnxinyminutes.com/docs/python/) for a
+Python crash course.
 
-Naming conventions are not automatically enforced, so please read the [naming
-conventions](https://www.python.org/dev/peps/pep-0008/#naming-conventions)
-section of PEP 8, which describes what each of the different styles means. A
-short summary of the most important parts:
+## Pytest
 
-* Modules (and hence files) should have short, all-lowercase names.
-* Class (and exception) names should normally use the `CapWords` convention
-  (also known as `CamelCase`).
-* Function and variable names should be lowercase, with words separated by
-  underscores as necessary to improve readability (also known as `snake_case`).
-* To avoid collisions with the standard library, an underscore can be appended,
-  such as `id_`.
-* Always use `self` for the first argument to instance methods.
-* Always use `cls` for the first argument to class methods.
-* Use one leading underscore only for non-public methods and instance variables,
-  such as `_data`. Do not activate name mangling with `__` unless necessary.
-* If there is a pair of `get_x` and `set_x` methods, they should instead be a
-  proper property, which is easy to do with the built-in `@property` decorator.
-* Constants should be `CAPITALIZED_SNAKE_CASE`.
-* When importing a function, try to avoid renaming it with `import as` because
-  it introduces cognitive overhead to track yet another name.
-* When deriving another module’s class (such as `unittest.TestCase`), reuse the
-  class name to avoid confusion, such as `LisaTestCase`, instead of introducing
-  a different connotation like `TestSuite`.
+Underneath the hood, `lisa` is just [Pytest][]! Refer to its
+[documentation](https://docs.pytest.org/en/stable/contents.html).
 
-When in doubt, adhere to existing conventions, or check the style guide.
+[Pytest]: https://docs.pytest.org/en/stable/
 
-## Automated Tooling
+Some useful CLI options are:
 
-If you have ran pytest-lisa already, then you have installed and used the `poetry`
+* `--help` and `--verbose`, of course
+* `--log-cli-level=DEBUG` to enable live output of all `DEBUG` and above logs
+* `--collect-only` to show which tests would be selected (but don’t run them)
+* `--setup-only` to show in which order fixtures and tests would be setup (but
+  don’t run them)
+* `--flake8 --mypy -m "flake8 or mypy"` to run the semantic analysis tools
+
+## YAML Schema
+
+The registered playbook schema can be generated using `--print-schema`:
+
+```bash
+lisa --print-schema=playbooks/schema.json
+```
+
+This will create a file `playbooks/schema.json` with the [JSON
+Schema](https://json-schema.org/) for all the registered schemata (including
+those added in any local plugins). Note that this file is committed to the repo
+for the public schema, but you can generate your own (or update it) with the
+above command.
+
+Using the LSP [yaml-language-server][] you can setup almost any editor to lint
+the playbook files against the schema. Either add as a comment to the top of the
+playbook file:
+
+```yaml
+# yaml-language-server: $schema=file:///path/to/playbooks/schema.json
+```
+
+Or set `yaml.schemas` as appropriate for your editor. Also ensure that
+`yaml-language-server` is installed, which you can do via:
+
+```bash
+npm install -g yaml-language-server
+```
+
+See [learnxinyminutes.com](https://learnxinyminutes.com/docs/yaml/) for a crash
+course in YAML.
+
+[yaml-language-server]: https://github.com/redhat-developer/yaml-language-server
+
+## Poetry
+
+If you have ran `lisa` already, then you have installed and used the `poetry`
 tool. [Poetry][] is a [PEP 518][] compliant and cross-platform build system
 which handles our Python dependencies and environment.
 
@@ -77,13 +101,19 @@ From the documentation:
 
 On Linux, your initial run of `poetry install` will cause Poetry to
 automatically setup a new [virtualenv][] using [pyenv][]. If you are developing
-on Windows, you will want to setup your own, perhaps using [Conda][].
+on Windows, you may need to setup your own, perhaps using [Conda][].
+
+The path to the virtualenv used by Poetry can found with this command:
+
+```bash
+poetry env list --full-path
+```
+
+Use it to configure your editor.
 
 [virtualenv]: https://docs.python-guide.org/dev/virtualenvs/
 [pyenv]: https://github.com/pyenv/pyenv
 [Conda]: https://docs.conda.io/en/latest/
-
-* python: We pinned Python to version 3.8 so everyone uses the same version.
 
 ### Developer Dependencies
 
@@ -117,13 +147,96 @@ adhere to our coding standards.
 * [rope](https://github.com/python-rope/rope), to provide completions and
   renaming support to pyls.
 
-With these packages installed and a correctly setup editor (see the readme and
-feel free to reach out to us), your code should automatically follow all the
+With these packages installed and a correctly setup editor (see below, and feel
+free to reach out to us), your code should automatically follow all the
 standards which we could automate.
 
-The final sections, `tool.black`, `tool.isort`, `build-system`, and the
-`.flake8` file (Flake8 does not yet support `pyproject.toml`) configure the
-tools per their recommendations.
+The final sections, `tool.black`, `tool.isort`, `build-system`, and files
+`mypy.ini` and `.flake8` configure the tools per their recommendations.
+
+## Editor Setup
+
+### Visual Studio Code
+
+First, click the Python version in the bottom left, then enter the path emitted
+by the command above. This will point Code to the Poetry virtual environment.
+
+Make sure below settings are in root level of `.vscode/settings.json`
+
+```json
+{
+    "python.analysis.typeCheckingMode": "strict",
+    "python.formatting.provider": "black",
+    "python.linting.enabled": true,
+    "python.linting.flake8Enabled": true,
+    "python.linting.mypyEnabled": true,
+    "python.linting.pylintEnabled": false,
+    "editor.formatOnSave": true,
+    "python.linting.mypyArgs": [
+        "--strict",
+        "--namespace-packages",
+        "--show-column-numbers",
+    ],
+    "python.sortImports.path": "isort",
+    "python.analysis.useLibraryCodeForTypes": false,
+    "python.analysis.autoImportCompletions": false,
+    "files.eol": "\n",
+}
+```
+
+### Emacs
+
+I recommend using the [pyvenv][] package to have Emacs automatically use the
+correct Python venv (setup by Poetry), and the [eglot][] package to provide LSP
+support. The below expects you already have an `init.el` with [use-package][].
+
+[pyvenv]: https://github.com/jorgenschaefer/pyvenv
+[eglot]: https://github.com/joaotavora/eglot
+[use-package]: https://github.com/jwiegley/use-package
+
+```emacs-lisp
+(use-package pyvenv
+  :ensure t
+  :hook (python-mode . pyvenv-tracking-mode))
+
+(use-package eglot
+  :hook
+  (python-mode . eglot-ensure)
+  (yaml-mode . eglot-ensure)
+  :custom
+  (eglot-auto-display-help-buffer t)
+  (eglot-autoshutdown t)
+  (eglot-confirm-server-initiated-edits nil)
+  :config
+  (add-to-list 'eglot-server-programs '(yaml-mode . ("yaml-language-server" "--stdio")))
+  (defun eglot-format-buffer-on-save ()
+    (if (and (project-current) (eglot-managed-p))
+        (add-hook 'before-save-hook #'eglot-format-buffer nil 'local)
+      (remove-hook 'before-save-hook #'eglot-format-buffer 'local)))
+  (add-hook 'eglot-managed-mode-hook #'eglot-format-buffer-on-save))
+```
+
+Then run `M-x add-dir-local-variable RET python-mode RET pyvenv-activate RET
+<path/to/virtualenv>` where the value is the path given by the command above.
+This will create a `.dir-locals.el` with this variable set for Python.
+
+Refer to this `.dir-locals.el` for a complete setup:
+
+```emacs-lisp
+;;; Directory Local Variables
+;;; For more information see (info "(emacs) Directory Variables")
+
+((python-mode
+  . ((eglot-workspace-configuration ; an LSP implementation
+      ;; Use `flake8’ instead of the default, and disable noisy plugins.
+      . ((:pyls . (:configurationSources ["flake8"] :plugins (:pycodestyle (:enabled nil) :mccabe (:enabled nil))))))))
+ (yaml-mode
+  . ((eglot-workspace-configuration
+      ;; Set the `playbooks/schema.json’ as the schema for playbooks.
+      . ((:yaml . (:schemas (:playbooks/schema.json "playbooks/*")))))))
+ ;; Set `pyvenv’ to use the given venv for the whole project.
+ (nil . ((pyvenv-activate . "~/.cache/pypoetry/virtualenvs/<venv name>"))))
+```
 
 ## Type Annotations
 
@@ -146,13 +259,31 @@ mypy’s [cheat sheet][].
 [intro]: https://kishstats.com/python/2019/01/07/python-type-hinting.html
 [cheat sheet]: https://mypy.readthedocs.io/en/latest/cheat_sheet_py3.html
 
-## Runbook schema
+## Python Naming Conventions
 
-Some plugins like Platform need follow this section to extend runbook schema. Runbook is the configurations of LISA runs. Every LISA run need a runbook.
+Naming conventions are not automatically enforced, so please read the [naming
+conventions](https://www.python.org/dev/peps/pep-0008/#naming-conventions)
+section of PEP 8, which describes what each of the different styles means. A
+short summary of the most important parts:
 
-The runbook uses [dataclass](https://docs.python.org/3/library/dataclasses.html) to define, [dataclass-json](https://github.com/lidatong/dataclasses-json/) to deserialize, and [marshmallow](https://marshmallow.readthedocs.io/en/3.0/api_reference.html) to validate the schema.
+* Modules (and hence files) should have short, all-lowercase names.
+* Class (and exception) names should normally use the `CapWords` convention
+  (also known as `CamelCase`).
+* Function and variable names should be lowercase, with words separated by
+  underscores as necessary to improve readability (also known as `snake_case`).
+* To avoid collisions with the standard library, an underscore can be appended,
+  such as `id_`.
+* Always use `self` for the first argument to instance methods.
+* Always use `cls` for the first argument to class methods.
+* Use one leading underscore only for non-public methods and instance variables,
+  such as `_data`. Do not activate name mangling with `__` unless necessary.
+* If there is a pair of `get_x` and `set_x` methods, they should instead be a
+  proper property, which is easy to do with the built-in `@property` decorator.
+* Constants should be `CAPITALIZED_SNAKE_CASE`.
+* When importing a function, try to avoid renaming it with `import as` because
+  it introduces cognitive overhead to track yet another name.
 
-See more examples in [schema.py](lisa/schema.py), if you need to extend runbook schema.
+When in doubt, adhere to existing conventions, or check the style guide.
 
 ## Committing Guidelines
 
@@ -242,28 +373,12 @@ Python world. If you make it through even some of these guides, you will be well
 on your way to being a “Pythonista” (a Python developer) writing “Pythonic”
 (canonically correct Python) code left and right.
 
-### Async IO
-
-With Python 3.4, the Async IO pattern found in languages such as C# and Go is
-available through the keywords `async` and `await`, along with the Python module
-`asyncio`. Please read [Async IO in Python: A Complete
-Walkthrough](https://realpython.com/async-io-python/) to understand at a high
-level how asynchronous programming works. As of Python 3.7, One major “gotcha”
-is that `asyncio.run(...)` should be used [exactly once in
-`main`](https://docs.python.org/3/library/asyncio-task.html), it starts the
-event loop. Everything else should be a coroutine or task which the event loop
-schedules.
-
 ## Future Sections
 
 Just a collection of reminders for the author to expand on later.
 
-* [unittest](https://docs.python.org/3/library/unittest.html)
 * [doctest](https://docs.python.org/3/library/doctest.html)
 * [subprocess](https://pymotw.com/3/subprocess/index.html)
 * [GitHub Actions](https://github.com/LIS/LISAv2/actions)
 * [ShellCheck](https://www.shellcheck.net/)
 * [Governance](https://opensource.guide/leadership-and-governance/)
-* [Maintenance Cost](https://web.archive.org/web/20120313070806/http://users.jyu.fi/~koskinen/smcosts.htm)
-* Parallelism and multi-plexing
-* Versioned inputs and outputs
