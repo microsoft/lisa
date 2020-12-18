@@ -2548,7 +2548,9 @@ Function Get-ExpectedDevicesCount {
             break
         }
         "GPU" {
-            if ($size -match "Standard_NDv2") {
+            if ($size -imatch "Standard_ND96asr") {
+                [int]$expectedCount = $($vmCPUCount/12)
+            } elseif ($size -match "Standard_NDv2") {
                 [int]$expectedCount = $($vmCPUCount/5)
             } elseif (($size -imatch "Standard_ND" -or $size -imatch "Standard_NV") -and $size -imatch "v3") {
                 [int]$expectedCount = $($vmCPUCount/12)
