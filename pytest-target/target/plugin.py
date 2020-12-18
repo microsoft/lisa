@@ -48,7 +48,7 @@ def pytest_configure(config: Config) -> None:
     """
     config.addinivalue_line(
         "markers",
-        ("target(platform, features, reuse, count): " "Specify target requirements."),
+        "target(platform, features, reuse, count): Specify target requirements.",
     )
 
 
@@ -75,13 +75,15 @@ def pytest_playbook_schema(schema: Dict[Any, Any]) -> None:
     # platform’s name to defaults for its provided schema.
     platforms_schema = dict(cls.get_defaults() for cls in platforms.values())
     default_platforms = Schema(platforms_schema).validate({})
-    schema[
-        Optional(
-            "platforms",
-            default=default_platforms,
-            description="A set of objects with default values for each platform.",
-        )
-    ] = platforms_schema
+    schema.update(
+        {
+            Optional(
+                "platforms",
+                default=default_platforms,
+                description="A set of objects with default values for each platform.",
+            ): platforms_schema
+        }
+    )
 
     # The targets schema is a list of ‘any of’ the platforms’
     # reference schemata.
@@ -91,13 +93,15 @@ def pytest_playbook_schema(schema: Dict[Any, Any]) -> None:
         "platform": "SSH",
         **Schema(SSH.schema()).validate({}),  # Fill in the defaults
     }
-    schema[
-        Optional(
-            "targets",
-            default=[default_target],
-            description="A list of targets with which to parameterize the tests.",
-        )
-    ] = targets_schema
+    schema.update(
+        {
+            Optional(
+                "targets",
+                default=[default_target],
+                description="A list of targets with which to parameterize the tests.",
+            ): targets_schema
+        }
+    )
 
 
 @pytest.fixture(scope="session")
@@ -154,6 +158,9 @@ def get_target(
     else:
         logging.info(f"Instantiating target: '{params}'...")
         assert request.config.cache is not None
+        # TODO: Using this key breaks `targets`. We’ll probably need
+        # to store a list of the unique names for this key, and for
+        # each of those store the `data`.
         key = "target/" + params["name"]
         cache = request.config.cache.get(key, {})
         if cache:

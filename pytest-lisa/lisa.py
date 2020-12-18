@@ -115,7 +115,7 @@ def pytest_playbook_schema(schema: Dict[Any, Any]) -> None:
             ): bool,
         }
     )
-    schema[Optional("criteria", default=list)] = [criteria_schema]
+    schema.update({Optional("criteria", default=list): [criteria_schema]})
 
 
 lisa_schema = Schema(
