@@ -26,6 +26,16 @@ param([object] $AllVmData,
     )
 
 function Start-Validation {
+
+    $expectedGPUBridgeCount = 0
+    $gpuName = "Tesla"
+    $deviceIDPattern = "Device_ID.*47505500"
+    if ($allVMData.InstanceSize -imatch "Standard_ND96") {
+        $gpuName = "A100-SXM4"
+        $expectedGPUBridgeCount = 6
+        $deviceIDPattern = "Device_ID.*44450000"
+    }
+
     # region PCI Express pass-through in lsvmbus
     $PCIExpress = Run-LinuxCmd -ip $allVMData.PublicIP -port $allVMData.SSHPort `
         -username $superuser -password $password "lsvmbus -vv" -ignoreLinuxExitCode
@@ -37,22 +47,22 @@ function Start-Validation {
 
     Set-Content -Value $PCIExpress -Path $LogDir\PCI-Express-passthrough.txt -Force
     # Scope to match GPUs only since there can be other pass-through devices
-    $pciExpressCount = (Select-String -Path $LogDir\PCI-Express-passthrough.txt -Pattern "Device_ID.*47505500").Matches.Count
+    $pciExpressCount = (Select-String -Path $LogDir\PCI-Express-passthrough.txt -Pattern $deviceIDPattern).Matches.Count
     if ( $pciExpressCount -gt 0 ) {
         Write-Debug "Successfully found more than a PCI Expess device "
     } else {
         Write-Error "Could not find the PCI Express device count"
     }
 
-    if ($pciExpressCount -eq $expectedGPUCount) {
+    if ($pciExpressCount -eq ($expectedGPUCount + $expectedGPUBridgeCount)) {
         $currentResult = $resultPass
         Write-Debug "Successfully verified PCI Express device count with the expected GPU count: $pciExpressCount"
     } else {
         $currentResult = $resultFail
-        Write-Error "Failed to verify the PCI Express device count. Expected: $expectedGPUCount, but found: $pciExpressCount"
+        Write-Error "Failed to verify the PCI Express device count. Expected: ($expectedGPUCount + $expectedGPUBridgeCount), but found: $pciExpressCount"
         $failureCount += 1
     }
-    $metaData = "lsvmbus: Expected `"PCI Express pass-through`" count: $expectedGPUCount, count inside the VM: $pciExpressCount"
+    $metaData = "lsvmbus: Expected `"PCI Express pass-through`" count: ($expectedGPUCount + $expectedGPUBridgeCount), count inside the VM: $pciExpressCount"
     $resultArr += $currentResult
     $CurrentTestResult.TestSummary += New-ResultSummary -testResult $currentResult -metaData $metaData `
         -checkValues "PASS,FAIL,ABORTED" -testName $CurrentTestData.testName
@@ -72,15 +82,15 @@ function Start-Validation {
     }
     Set-Content -Value $lspci -Path $LogDir\lspci.txt -Force
     $lspciCount = (Select-String -Path $LogDir\lspci.txt -Pattern "NVIDIA Corporation").Matches.Count
-    if ($lspciCount -eq $expectedGPUCount) {
+    if ($lspciCount -eq ($expectedGPUCount + $expectedGPUBridgeCount)) {
         $currentResult = $resultPass
         Write-Debug "Successfully verified PCI device count with lspci result: $lspciCount"
     } else {
         $currentResult = $resultFail
-        Write-Error "Failed to verify the PCI device count with lspci device result. Expected: $expectedGPUCount, found: $lspciCount"
+        Write-Error "Failed to verify the PCI device count with lspci device result. Expected: ($expectedGPUCount + $expectedGPUBridgeCount), found: $lspciCount"
         $failureCount += 1
     }
-    $metaData = "lspci: Expected `"3D controller: NVIDIA Corporation`" count: $expectedGPUCount, found inside the VM: $lspciCount"
+    $metaData = "lspci: Expected `"3D controller: NVIDIA Corporation`" count: ($expectedGPUCount + $expectedGPUBridgeCount), found inside the VM: $lspciCount"
     $resultArr += $currentResult
     $CurrentTestResult.TestSummary += New-ResultSummary -testResult $currentResult -metaData $metaData `
         -checkValues "PASS,FAIL,ABORTED" -testName $CurrentTestData.testName
@@ -119,7 +129,7 @@ function Start-Validation {
         Write-Error "Failed to fetch the nvidia-smi command result"
     }
     Set-Content -Value $nvidiasmi -Path $LogDir\nvidia-smi.txt -Force
-    $nvidiasmiCount = (Select-String -Path $LogDir\nvidia-smi.txt -Pattern "Tesla").Matches.Count
+    $nvidiasmiCount = (Select-String -Path $LogDir\nvidia-smi.txt -Pattern $gpuName).Matches.Count
     if ($nvidiasmiCount -eq $expectedGPUCount) {
         $currentResult = $resultPass
         Write-Debug "Successfully verified nvidia-smi device count: $nvidiasmiCount"
@@ -133,7 +143,6 @@ function Start-Validation {
     $CurrentTestResult.TestSummary += New-ResultSummary -testResult $currentResult -metaData $metaData `
         -checkValues "PASS,FAIL,ABORTED" -testName $CurrentTestData.testName
     return $failureCount
-    #endregion
 }
 
 function Collect-Logs {
