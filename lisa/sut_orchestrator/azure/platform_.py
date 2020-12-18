@@ -296,7 +296,11 @@ class AzurePlatformSchema:
             self.locations = LOCATIONS
 
 
-HOST_VERSION_PATTERN = re.compile(r"Hyper-V Host Build:([^\n;]*)")
+# Ubuntu 18.04:
+# [    0.000000] Hyper-V Host Build:18362-10.0-3-0.3198
+# FreeBSD 11.3:
+# Hyper-V Version: 10.0.18362 [SP3]
+HOST_VERSION_PATTERN = re.compile(r"Hyper-V (?:Host Build|Version): ?(.*)$", re.M)
 
 
 def _get_node_information(node: Node, information: Dict[str, str]) -> None:
