@@ -72,7 +72,7 @@ class Process:
         command = f"{command}"
         if shell:
             if self._is_linux:
-                split_command = ["bash", "-c"]
+                split_command = ["sh", "-c"]
             else:
                 split_command = ["cmd", "/c"]
             split_command.append(command)
