@@ -62,8 +62,8 @@ function Run_intel_IMB_Intranode() {
 
 	local ib_ifcs=$(ssh root@${vm1} ls /sys/class/net/ | grep ib)
 	for ifc in ${ib_ifcs};do
-	logmsg="${mpi_run_path} -hosts ${vm1},${vm2} -iface ${ifc} -ppn 2 -n 2 ${non_shm_mpi_settings} ${imb_mpi1_path} pingpong"
-	ssh root@${vm1} "${mpi_run_path} -hosts ${vm1},${vm2} -iface ${ifc} -ppn 2 -n 2 ${non_shm_mpi_settings} ${imb_mpi1_path} pingpong >> ${logfile}"
+	logmsg="${mpi_run_path} -hosts ${vm1},${vm2} -iface ${ifc} -ppn 1 -n 2 ${non_shm_mpi_settings} ${imb_mpi1_path} pingpong"
+	ssh root@${vm1} "${mpi_run_path} -hosts ${vm1},${vm2} -iface ${ifc} -ppn 1 -n 2 ${non_shm_mpi_settings} ${imb_mpi1_path} pingpong >> ${logfile}"
 	[[ $? -ne 0 ]] && {
 		LogMsg "${logmsg} .. Failed"
 		return 1
@@ -163,8 +163,8 @@ function Run_IMB_MPI1() {
 				$mpi_run_path --allow-run-as-root -x UCX_IB_PKEY=$UCX_IB_PKEY -n $(($mpi1_ppn * $total_virtual_machines)) --H $master,$slaves $mpi_settings $imb_mpi1_path $extra_params > IMB-MPI1-AllNodes-output-Attempt-${attempt}.txt
 			;;
 			intel)
-				LogMsg "$mpi_run_path -hosts $master,$slaves -ppn $(($VM_Size / $total_virtual_machines)) -n $(($VM_Size * $total_virtual_machines)) $mpi_settings $imb_mpi1_path $extra_params"
-				$mpi_run_path -hosts $master,$slaves -ppn $(($VM_Size / $total_virtual_machines)) -n $(($VM_Size * $total_virtual_machines)) $mpi_settings $imb_mpi1_path $extra_params > IMB-MPI1-AllNodes-output-Attempt-${attempt}.txt
+				LogMsg "$mpi_run_path -hosts $master,$slaves -ppn $(($VM_Size / $total_virtual_machines)) -n $VM_Size $mpi_settings $imb_mpi1_path $extra_params"
+				$mpi_run_path -hosts $master,$slaves -ppn $(($VM_Size / $total_virtual_machines)) -n $VM_Size $mpi_settings $imb_mpi1_path $extra_params > IMB-MPI1-AllNodes-output-Attempt-${attempt}.txt
 			;;
 			mvapich)
 				LogMsg "$mpi_run_path -n $(($mpi1_ppn * $total_virtual_machines)) $master $slaves_array $mpi_settings $imb_mpi1_path $extra_params"
@@ -254,8 +254,8 @@ function Run_IMB_RMA() {
 				$mpi_run_path --allow-run-as-root -x UCX_IB_PKEY=$UCX_IB_PKEY -n $(($rma_ppn * $total_virtual_machines)) --H $master,$slaves $mpi_settings $imb_rma_path $extra_params > IMB-RMA-AllNodes-output-Attempt-${attempt}.txt
 			;;
 			intel)
-				LogMsg "$mpi_run_path -hosts $master,$slaves -ppn $(($VM_Size / $total_virtual_machines)) -n $(($VM_Size * $total_virtual_machines)) $mpi_settings $imb_rma_path $extra_params"
-				$mpi_run_path -hosts $master,$slaves -ppn $(($VM_Size / $total_virtual_machines)) -n $(($VM_Size * $total_virtual_machines)) $mpi_settings $imb_rma_path $extra_params > IMB-RMA-AllNodes-output-Attempt-${attempt}.txt
+				LogMsg "$mpi_run_path -hosts $master,$slaves -ppn $(($VM_Size / $total_virtual_machines)) -n $VM_Size $mpi_settings $imb_rma_path $extra_params"
+				$mpi_run_path -hosts $master,$slaves -ppn $(($VM_Size / $total_virtual_machines)) -n $VM_Size $mpi_settings $imb_rma_path $extra_params > IMB-RMA-AllNodes-output-Attempt-${attempt}.txt
 			;;
 			mvapich)
 				LogMsg "$mpi_run_path -n $(($rma_ppn * $total_virtual_machines)) $master $slaves_array $mpi_settings $imb_rma_path $extra_params"
@@ -308,8 +308,8 @@ function Run_IMB_NBC() {
 					$mpi_run_path --allow-run-as-root -x UCX_IB_PKEY=$UCX_IB_PKEY -n $(($nbc_ppn * $total_virtual_machines)) --H $master,$slaves $mpi_settings $imb_nbc_path $extra_params > IMB-NBC-AllNodes-output-Attempt-${attempt}.txt
 				;;
 				intel)
-					LogMsg "$mpi_run_path -hosts $master,$slaves -ppn $(($VM_Size / $total_virtual_machines)) -n $(($VM_Size * $total_virtual_machines)) $mpi_settings $imb_nbc_path $extra_params"
-					$mpi_run_path -hosts $master,$slaves -ppn $(($VM_Size / $total_virtual_machines)) -n $(($VM_Size * $total_virtual_machines)) $mpi_settings $imb_nbc_path $extra_params > IMB-NBC-AllNodes-output-Attempt-${attempt}.txt
+					LogMsg "$mpi_run_path -hosts $master,$slaves -ppn $(($VM_Size / $total_virtual_machines)) -n $VM_Size $mpi_settings $imb_nbc_path $extra_params"
+					$mpi_run_path -hosts $master,$slaves -ppn $(($VM_Size / $total_virtual_machines)) -n $VM_Size $mpi_settings $imb_nbc_path $extra_params > IMB-NBC-AllNodes-output-Attempt-${attempt}.txt
 				;;
 				mvapich)
 					LogMsg "$mpi_run_path -n $(($nbc_ppn * $total_virtual_machines)) $master $slaves_array $mpi_settings $imb_nbc_path $extra_params"
@@ -440,8 +440,8 @@ function Run_IMB_IO() {
 					$mpi_run_path --allow-run-as-root -x UCX_IB_PKEY=$UCX_IB_PKEY -n $(($io_ppn * $total_virtual_machines)) --H $master,$slaves $mpi_settings $imb_io_path $extra_params > IMB-IO-AllNodes-output-Attempt-${attempt}.txt
 				;;
 				intel)
-					LogMsg "$mpi_run_path -hosts $master,$slaves -ppn $(($VM_Size / $total_virtual_machines)) -n $(($VM_Size * $total_virtual_machines)) $mpi_settings $imb_io_path $extra_params"
-					$mpi_run_path -hosts $master,$slaves -ppn $(($VM_Size / $total_virtual_machines)) -n $(($VM_Size * $total_virtual_machines)) $mpi_settings $imb_io_path $extra_params > IMB-IO-AllNodes-output-Attempt-${attempt}.txt
+					LogMsg "$mpi_run_path -hosts $master,$slaves -ppn $(($VM_Size / $total_virtual_machines)) -n $VM_Size $mpi_settings $imb_io_path $extra_params"
+					$mpi_run_path -hosts $master,$slaves -ppn $(($VM_Size / $total_virtual_machines)) -n $VM_Size $mpi_settings $imb_io_path $extra_params > IMB-IO-AllNodes-output-Attempt-${attempt}.txt
 				;;
 				mvapich)
 					LogMsg "$mpi_run_path -n $(($io_ppn * $total_virtual_machines)) $master $slaves_array $mpi_settings $imb_io_path $extra_params"
@@ -877,6 +877,7 @@ function Main() {
 			source $hpcx_init; hpcx_load
 		;;
 		intel)
+			total_virtual_machines=$(($total_virtual_machines + 1))
 			vars=$(find / -name mpivars.sh | grep intel)
 			source $vars
 			imb_mpi1_path=$(find / -name IMB-MPI1 | grep intel)
