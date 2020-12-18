@@ -1,9 +1,8 @@
 """Provides and parameterizes the `pool` and `target` fixtures.
 
-# TODO
+# TODO:
 * Deallocate targets when switching to a new target.
 * Use richer feature/requirements comparison for targets.
-* Reimplement caching of targets between runs.
 
 """
 from __future__ import annotations
@@ -22,6 +21,7 @@ from target.target import SSH, Target
 if typing.TYPE_CHECKING:
     from typing import Any, Dict, Iterator, List, Type
 
+    from _pytest.cacheprovider import Cache
     from _pytest.config import Config
     from _pytest.config.argparsing import Parser
     from _pytest.fixtures import SubRequest
@@ -31,7 +31,12 @@ if typing.TYPE_CHECKING:
 def pytest_addoption(parser: Parser) -> None:
     """Pytest hook to add our CLI options."""
     group = parser.getgroup("target")
-    group.addoption("--keep-vms", action="store_true", help="Keeps deployed VMs.")
+    group.addoption(
+        "--keep-targets", action="store_true", help="Keeps targets between runs."
+    )
+    group.addoption(
+        "--delete-targets", action="store_true", help="Deletes all cached targets."
+    )
 
 
 def pytest_configure(config: Config) -> None:
@@ -100,10 +105,11 @@ def pool(request: SubRequest) -> Iterator[List[Target]]:
     """This fixture tracks all deployed target resources."""
     targets: List[Target] = []
     yield targets
+    # TODO: Catch interrupts and always delete targets:
+    # `UnexpectedExit`, `KeyboardInterrupt`, `SystemExit`.
     for t in targets:
-        if not request.config.getoption("keep_vms"):
-            logging.debug(f"Deleting target '{t.name}'")
-            t.delete()
+        if not request.config.getoption("keep_targets"):
+            delete_target(t, request.config.cache)
 
 
 def get_target(
@@ -146,9 +152,23 @@ def get_target(
             pool.remove(t)
             return t
     else:
-        # TODO: Reimplement caching.
-        logging.debug(f"Creating target '{params}' with features '{features}'")
-        t = platform(f"pytest-{uuid4()}", params, features)
+        logging.info(f"Instantiating target: '{params}'...")
+        assert request.config.cache is not None
+        key = "target/" + params["name"]
+        cache = request.config.cache.get(key, {})
+        if cache:
+            logging.debug("Cache hit...")
+            name = cache["name"]
+            assert cache["params"] == params, "Params changed!"
+            # TODO: Check `features`, but a set isn’t serializable.
+            data = cache["data"]
+        else:
+            logging.debug("Cache miss...")
+            name = f"pytest-{uuid4()}"
+            data = None
+        t = platform(name, params, features, data)
+        cache = {"name": name, "params": params, "data": t.data}
+        request.config.cache.set(key, cache)
         return t
 
 
@@ -159,7 +179,16 @@ def cleanup_target(pool: List[Target], request: SubRequest, t: Target) -> None:
     if marker.kwargs.get("reuse", True):
         pool.append(t)
     else:
-        t.delete()
+        delete_target(t, request.config.cache)
+
+
+def delete_target(t: Target, cache: Optional[Cache]) -> None:
+    """Deletes a `Target` and removes it from the cache."""
+    name: str = t.params["name"]
+    logging.info(f"Deleting target '{name}'...")
+    t.delete()
+    assert cache is not None
+    cache.set("target/" + name, None)
 
 
 @pytest.fixture
