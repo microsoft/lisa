@@ -23,8 +23,8 @@ case $DISTRO in
         release=$(lsb_release -c -s)
         echo "deb [arch=amd64] http://packages.microsoft.com/repos/azurecore/ $release main" | sudo tee -a /etc/apt/sources.list.d/azure.list
 
-        wget -qO https://packages.microsoft.com/keys/microsoft.asc | apt-key add microsoft.asc
-        wget -qO https://packages.microsoft.com/keys/msopentech.asc | apt-key add msopentech.asc
+        wget -qO - https://packages.microsoft.com/keys/microsoft.asc | apt-key add microsoft.asc
+        wget -qO - https://packages.microsoft.com/keys/msopentech.asc | apt-key add msopentech.asc
 
     ;;
     suse*|opensuse*|sles*|sle_hpc*)
