@@ -643,7 +643,7 @@
     <TestParameters>
       <param>vmCpuNumber=2</param>
       <param>vmMemory=2GB</param>
-      <param>crashkernel=256M</param>
+      <param>crashkernel=512M</param>
       <param>kexecVersion=KEXEC_VERSION</param>
     </TestParameters>
     <Platform>Azure,HyperV</Platform>
