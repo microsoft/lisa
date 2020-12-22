@@ -62,7 +62,7 @@ class Dmesg(Tool):
             # sometime it need sudo, we can retry
             # so no_error_log for first time
             result = self.run(no_error_log=True)
-            if result.stderr:
+            if result.exit_code != 0:
                 # may need sudo
                 result = self.node.execute("sudo dmesg")
             self._cached_result = result
