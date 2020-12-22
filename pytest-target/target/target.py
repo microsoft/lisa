@@ -36,6 +36,7 @@ class Target(ABC):
     features: Set[str]
     data: Mapping[Any, Any]
     number: int
+    free: bool
     host: str
     conn: fabric.Connection
 
@@ -61,6 +62,7 @@ class Target(ABC):
         features: Set[str],
         data: Mapping[Any, Any],
         number: int = 0,
+        free: bool = False,
     ):
         """Creates and deploys an instance of `Target`.
 
@@ -69,6 +71,7 @@ class Target(ABC):
         * `features` is set of arbitrary feature requirements
         * `data` is the cached data for the target
         * `number` is the numerical ID of this target in its group
+        * `free` is the state of the target in this session
 
         Subclass implementations of `Target` do not need to (and
         should not) override `__init__()` as it is setup such that all
@@ -81,6 +84,7 @@ class Target(ABC):
         self.features = features
         self.data = data
         self.number = number
+        self.free = free
 
         self.host = self.deploy()
 
