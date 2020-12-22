@@ -4,7 +4,6 @@
 * Deallocate targets when switching to a new target.
 * Use richer feature/requirements comparison for targets.
 * Make cache compatible with pytest-xdist.
-* Cleanup `targets/pool` cache with a context manager.
 
 """
 from __future__ import annotations
@@ -23,10 +22,24 @@ from target.target import SSH, Target
 if typing.TYPE_CHECKING:
     from typing import Any, Dict, Iterator, List
 
+    from _pytest.cacheprovider import Cache
     from _pytest.config import Config
     from _pytest.config.argparsing import Parser
     from _pytest.fixtures import SubRequest
+    from _pytest.mark.structures import Mark
     from _pytest.python import Metafunc
+
+
+def get_target_cache(cache: Optional[Cache]) -> List[Target]:
+    assert cache is not None
+    key = "target/pool"
+    return [Target.from_json(**t) for t in cache.get(key, [])]
+
+
+def set_target_cache(cache: Optional[Cache], pool: List[Target]) -> None:
+    assert cache is not None
+    key = "target/pool"
+    cache.set(key, [t.to_json() for t in pool])
 
 
 def pytest_addoption(parser: Parser) -> None:
@@ -54,12 +67,11 @@ def pytest_configure(config: Config) -> None:
 
     if config.getoption("delete_targets"):
         logging.info("Deleting all cached targets!")
-        assert config.cache is not None
-        targets = [Target.from_json(**x) for x in config.cache.get("target/pool", [])]
-        for t in targets:
+        pool = get_target_cache(config.cache)
+        for t in pool:
             t.delete()
-        targets.clear()
-        config.cache.set("target/pool", [])
+        pool.clear()
+        set_target_cache(config.cache, pool)
         pytest.exit("Deleted all cached targets!", pytest.ExitCode.OK)
 
 
@@ -110,22 +122,6 @@ def pytest_playbook_schema(schema: Dict[Any, Any]) -> None:
     )
 
 
-@pytest.fixture(scope="session")
-def pool(request: SubRequest) -> Iterator[List[Target]]:
-    """This fixture tracks all deployed target resources."""
-    targets: List[Target] = []
-    yield targets
-    # TODO: Catch interrupts and always delete targets:
-    # `UnexpectedExit`, `KeyboardInterrupt`, `SystemExit`.
-    if not request.config.getoption("keep_targets"):
-        logging.info("Deleting targets! Pass `--keep-targets` to prevent this.")
-        for t in targets:
-            t.delete()
-        targets.clear()
-        assert request.config.cache is not None
-        request.config.cache.set("target/pool", [])
-
-
 def get_target(pool: List[Target], request: SubRequest) -> Target:
     """Common case of getting one target."""
     marker = request.node.get_closest_marker("target")
@@ -137,28 +133,18 @@ def get_target(pool: List[Target], request: SubRequest) -> Target:
 def get_targets(pool: List[Target], request: SubRequest) -> List[Target]:
     """This function gets or creates an appropriate number of `Target`s.
 
-    1. Update `pool` (list of targets) from the cache
-    2. Unpack request into params, required features, and count
-    3. Setup fitness criteria for target(s)
-    4. Find or create necessary targets
-    5. Update cache with modified `pool`
-    6. Return targets
+    1. Unpack request into params, required features, and count
+    2. Setup fitness criteria for target(s)
+    3. Find or create necessary targets
+    4. Update cache with modified `pool`
+    5. Return targets
 
     """
-    assert request.config.cache is not None
-    # TODO: Use a file lock to handle multi-processing, and handle
-    # edge case where cache plugin isn’t available.
-    key = "target/pool"
-    # NOTE: We’re explicitly modifying this argument.
-    pool[:] = [Target.from_json(**x) for x in request.config.cache.get(key, [])]
-
-    # Get the required params for this test.
     params: Dict[Any, Any] = request.param
-
-    # Get the required features for this test.
-    marker = request.node.get_closest_marker("target")
-    features = marker.kwargs.get("features", [])
-    count = marker.kwargs.get("count", 1)
+    mark: Optional[Mark] = request.node.get_closest_marker("target")
+    assert mark is not None
+    features = mark.kwargs.get("features", [])
+    count = mark.kwargs.get("count", 1)
 
     def fits(t: Target) -> bool:
         # TODO: Implement full feature comparison, etc. and not just
@@ -190,67 +176,81 @@ def get_targets(pool: List[Target], request: SubRequest) -> List[Target]:
         for i in range(count):
             logging.info(f"Instantiating target '{group}/{i}': {params}...")
             t = Target.from_json(group, params, features, {}, i, False)
-            ts.append(t)
             pool.append(t)
-    request.config.cache.set(key, [x.to_json() for x in pool])
+            ts.append(t)
+    set_target_cache(request.config.cache, pool)
     return ts
 
 
 def cleanup_target(t: Target, pool: List[Target], request: SubRequest) -> None:
     """This is called by fixtures after they're done with a target."""
     t.conn.close()
-    marker = request.node.get_closest_marker("target")
-    if marker.kwargs.get("reuse", True):
-        # Leave in pool and mark free for use.
+    mark: Optional[Mark] = request.node.get_closest_marker("target")
+    assert mark is not None
+    if mark.kwargs.get("reuse", True):
         t.free = True
     else:
         logging.info(f"Deleting target '{t.group}/{t.number}'...")
         t.delete()
         pool.remove(t)
-    assert request.config.cache is not None
-    request.config.cache.set("target/pool", [x.to_json() for x in pool])
+    set_target_cache(request.config.cache, pool)
+
+
+@pytest.fixture(scope="session")
+def target_pool(request: SubRequest) -> Iterator[List[Target]]:
+    """This fixture tracks all deployed target resources."""
+    pool = get_target_cache(request.config.cache)
+    yield pool
+    # TODO: Catch interrupts and always delete targets:
+    # `UnexpectedExit`, `KeyboardInterrupt`, `SystemExit`.
+    if not request.config.getoption("keep_targets"):
+        logging.info("Deleting targets! Pass `--keep-targets` to prevent this.")
+        for t in pool:
+            t.delete()
+        pool.clear()
+    set_target_cache(request.config.cache, pool)
 
 
 @pytest.fixture
-def target(pool: List[Target], request: SubRequest) -> Iterator[Target]:
+def target(target_pool: List[Target], request: SubRequest) -> Iterator[Target]:
     """This fixture provides a connected target for each test.
 
     It is parametrized indirectly in `pytest_generate_tests`.
 
     """
-    t = get_target(pool, request)
+    t = get_target(target_pool, request)
     yield t
-    cleanup_target(t, pool, request)
+    cleanup_target(t, target_pool, request)
 
 
 @pytest.fixture
-def targets(pool: List[Target], request: SubRequest) -> Iterator[List[Target]]:
+def targets(target_pool: List[Target], request: SubRequest) -> Iterator[List[Target]]:
     """This fixture is the same as `target` but gets a list of targets.
 
     For example, use `pytest.mark.target(count=2)` to get a list of
     two targets with the same parameters, in the same group.
 
     """
-    ts = get_targets(pool, request)
+    ts = get_targets(target_pool, request)
     yield ts
     for t in ts:
-        cleanup_target(t, pool, request)
+        cleanup_target(t, target_pool, request)
 
 
 @pytest.fixture(scope="class")
-def c_target(pool: List[Target], request: SubRequest) -> Iterator[Target]:
+def c_target(target_pool: List[Target], request: SubRequest) -> Iterator[Target]:
     """This fixture is the same as `target` but shared across a class."""
-    t = get_target(pool, request)
+    t = get_target(target_pool, request)
     yield t
-    cleanup_target(t, pool, request)
+    cleanup_target(t, target_pool, request)
 
 
 @pytest.fixture(scope="module")
-def m_target(pool: List[Target], request: SubRequest) -> Iterator[Target]:
+def m_target(target_pool: List[Target], request: SubRequest) -> Iterator[Target]:
     """This fixture is the same as `target` but shared across a module."""
-    t = get_target(pool, request)
+    t = get_target(target_pool, request)
     yield t
-    cleanup_target(t, pool, request)
+    cleanup_target(t, target_pool, request)
 
 
 target_params: Dict[str, Dict[str, Any]] = {}
