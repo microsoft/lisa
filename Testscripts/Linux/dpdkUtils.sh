@@ -215,7 +215,7 @@ function Install_Dpdk () {
 				fi
 			else
 				if [[ "${DISTRO_NAME}" = "centos" && ${DISTRO_VERSION} == *"8."* ]]; then
-					dnf --enablerepo=PowerTools install -y meson
+					ssh "${1}" "dnf --enablerepo=PowerTools install -y meson"
 				else
 					packages+=(meson)
 				fi
@@ -232,7 +232,7 @@ function Install_Dpdk () {
 			fi
 			ssh "${1}" ". utils.sh && CheckInstallLockUbuntu && add-apt-repository 'deb http://cz.archive.ubuntu.com/ubuntu eoan main universe' "
 			ssh "${1}" ". utils.sh && CheckInstallLockUbuntu && update_repos"
-			packages+=(librdmacm-dev librdmacm1 build-essential libnuma-dev libmnl-dev libelf-dev dpkg-dev meson pkg-config)
+			packages+=(librdmacm-dev librdmacm1 build-essential libnuma-dev libmnl-dev libelf-dev dpkg-dev meson pkg-config python3-pip)
 			;;
 		suse|opensuse|sles)
 			ssh "${1}" ". utils.sh && add_sles_network_utilities_repo"
@@ -348,6 +348,15 @@ function Install_Dpdk () {
 		check_exit_status "DST IP configuration on ${1}" "exit"
 	else
 		LogMsg "dpdk build with default DST IP ADDR on ${1}"
+	fi
+
+	# meson version on Ubuntu 16.04 is 0.29.0, on Ubuntu 18.04 is 0.45.1.
+	# dpdk meson version needs at least 0.47.1.
+	if [[ ${DISTRO_NAME} == ubuntu ]]; then
+		ssh "${1}" "pip3 install --upgrade meson"
+		ssh "${1}" "mv /usr/bin/meson /usr/bin/meson.bak"
+		ssh "${1}" "ln -s /usr/local/bin/meson /usr/bin/meson"
+		ssh "${1}" "pip3 install --upgrade ninja"
 	fi
 
 	LogMsg "MLX_PMD flag enabling on ${1}"
