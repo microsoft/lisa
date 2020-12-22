@@ -25,7 +25,6 @@ class AzureCLI(Target):
 
     # Custom instance attribute(s).
     internal_address: str
-    name: str
 
     @classmethod
     def schema(cls) -> Dict[Any, Any]:
@@ -120,7 +119,6 @@ class AzureCLI(Target):
 
     def deploy(self) -> str:
         """Given deployment info, deploy a new VM."""
-        self.name = f"{self.group}-{self.number}"
         if self.data:  # Shortcut if refreshing from cache.
             return self.parse_data()
 

@@ -37,6 +37,7 @@ class Target(ABC):
     data: Mapping[Any, Any]
     number: int
     locked: bool
+    name: str
     host: str
     conn: fabric.Connection
 
@@ -85,6 +86,7 @@ class Target(ABC):
         self.data = data
         self.number = number
         self.locked = locked
+        self.name = f"{self.group}-{self.number}"
 
         self.host = self.deploy()
 
