@@ -52,6 +52,15 @@ def pytest_configure(config: Config) -> None:
         "target(platform, features, reuse, count): Specify target requirements.",
     )
 
+    if config.getoption("delete_targets"):
+        logging.info("Deleting all cached targets!")
+        assert config.cache is not None
+        targets = [Target.from_json(**x) for x in config.cache.get("target/pool", [])]
+        for t in targets:
+            t.delete()
+        targets.clear()
+        config.cache.set("target/pool", [])
+        pytest.exit("Deleted all cached targets!", pytest.ExitCode.OK)
 
 
 def pytest_playbook_schema(schema: Dict[Any, Any]) -> None:
