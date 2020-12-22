@@ -13,7 +13,7 @@ from schema import Literal, Optional, Schema  # type: ignore
 from tenacity import retry, stop_after_attempt, wait_exponential  # type: ignore
 
 if typing.TYPE_CHECKING:
-    from typing import Any, Dict, Mapping, Set, Tuple
+    from typing import Any, Dict, List, Mapping, Set, Tuple
 
 
 class Target(ABC):
@@ -154,6 +154,8 @@ class Target(ABC):
         """
         ...
 
+    # Internal details follow:
+
     platform_description = "The class name of the platform implementation."
 
     @classmethod
@@ -217,6 +219,43 @@ class Target(ABC):
             name=f"{cls.__name__}_Schema",
             as_reference=True,
         )
+
+    def to_json(self) -> Dict[str, Any]:
+        """Returns a JSON-serializable representation of `self`.
+
+        This is an internal detail, used when caching the target.
+
+        """
+        return {
+            "group": self.group,
+            "params": self.params,
+            "features": list(self.features),
+            "data": self.data,
+            "number": self.number,
+            "free": self.free,
+        }
+
+    @staticmethod
+    def from_json(
+        group: str,
+        params: Mapping[Any, Any],
+        features: List[str],
+        data: Mapping[Any, Any],
+        number: int,
+        free: bool,
+    ) -> Target:
+        """Instantiates the correct subclass given the JSON representation.
+
+        This is an internal detail, used when (re-)creating the target.
+
+        """
+        platform = params["platform"]
+        cls: typing.Optional[typing.Type[Target]] = next(
+            (x for x in Target.__subclasses__() if x.__name__ == platform),
+            None,
+        )
+        assert cls, f"Platform implementation not found for '{platform}'"
+        return cls(group, params, set(features), data, number, free)
 
     # Platform-agnostic functionality should be added here:
 
