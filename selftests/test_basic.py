@@ -3,8 +3,6 @@ from __future__ import annotations
 
 import typing
 
-import pytest
-
 if typing.TYPE_CHECKING:
     from target import SSH
     from typing import List
@@ -19,7 +17,7 @@ def test_basic(target: SSH) -> None:
 
 
 @LISA(platform="SSH", category="Functional", area="self-test", priority=1, count=3)
-@pytest.mark.skip("Need to fix cache bug with `targets`")
 def test_basic_multiple(targets: List[SSH]) -> None:
-    """Basic test which asks for 3 unique targets."""
-    assert len({target.group for target in targets}) == 3
+    """Basic test which asks for 3 unique targets in 1 group."""
+    assert len({t.group for t in targets}) == 1
+    assert len({t.number for t in targets}) == 3

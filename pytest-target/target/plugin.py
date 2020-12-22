@@ -3,6 +3,8 @@
 # TODO:
 * Deallocate targets when switching to a new target.
 * Use richer feature/requirements comparison for targets.
+* Make cache compatible with pytest-xdist.
+* Cleanup `targets/pool` cache with a context manager.
 
 """
 from __future__ import annotations
@@ -19,9 +21,8 @@ from schema import Optional, Or, Schema  # type: ignore
 from target.target import SSH, Target
 
 if typing.TYPE_CHECKING:
-    from typing import Any, Dict, Iterator, List, Type
+    from typing import Any, Dict, Iterator, List
 
-    from _pytest.cacheprovider import Cache
     from _pytest.config import Config
     from _pytest.config.argparsing import Parser
     from _pytest.fixtures import SubRequest
@@ -52,28 +53,24 @@ def pytest_configure(config: Config) -> None:
     )
 
 
-platforms: Dict[str, Type[Target]] = dict()
-
 
 def pytest_playbook_schema(schema: Dict[Any, Any]) -> None:
     """pytest-playbook hook to update the playbook schema.
 
-    The `platforms` global is a mapping of platform names (strings) to
-    the implementing subclasses of `Target` where each subclass
-    defines its own parameters `schema`, optional `defaults`,
-    `deploy`, `delete` methods, and other platform-specific
-    functionality. A `Target` subclass need only be defined in a file
-    loaded by Pytest, so a `conftest.py` file works just fine.
+    This adds `platforms` and `targets` keys to the playbook schema,
+    with their nested schemata accumulated from each platform's
+    implementations of `defaults()` and `schema()`. We do this by
+    iterating over the subclasses of `Target`, a handy feature of
+    Python that lets us automatically discover users' implementations,
+    even if they're defined in a local `conftest.py` Pytest
+    configuration file.
 
     """
-    # Map the subclasses of `Target` into name and class pairs, used
-    # by `get_target` to lookup the type based on the name.
-    global platforms
-    platforms = {cls.__name__: cls for cls in Target.__subclasses__()}  # type: ignore
+    classes = Target.__subclasses__()
 
     # The platforms schema is a set of optional mappings of each
     # platform’s name to defaults for its provided schema.
-    platforms_schema = dict(cls.get_defaults() for cls in platforms.values())
+    platforms_schema = dict(cls.get_defaults() for cls in classes)
     default_platforms = Schema(platforms_schema).validate({})
     schema.update(
         {
@@ -87,7 +84,7 @@ def pytest_playbook_schema(schema: Dict[Any, Any]) -> None:
 
     # The targets schema is a list of ‘any of’ the platforms’
     # reference schemata.
-    targets_schema = [Or(*(cls.get_schema() for cls in platforms.values()))]
+    targets_schema = [Or(*(cls.get_schema() for cls in classes))]
     default_target = {
         "name": "Default",
         "platform": "SSH",
@@ -111,88 +108,98 @@ def pool(request: SubRequest) -> Iterator[List[Target]]:
     yield targets
     # TODO: Catch interrupts and always delete targets:
     # `UnexpectedExit`, `KeyboardInterrupt`, `SystemExit`.
-    for t in targets:
-        if not request.config.getoption("keep_targets"):
-            delete_target(t, request.config.cache)
+    if not request.config.getoption("keep_targets"):
+        logging.info("Deleting targets! Pass `--keep-targets` to prevent this.")
+        for t in targets:
+            t.delete()
+        targets.clear()
+        assert request.config.cache is not None
+        request.config.cache.set("target/pool", [])
 
 
-def get_target(pool: List[Target], request: SubRequest, number: int = 0) -> Target:
-    """This function gets or creates an appropriate `Target`.
+def get_target(pool: List[Target], request: SubRequest) -> Target:
+    """Common case of getting one target."""
+    marker = request.node.get_closest_marker("target")
+    count = marker.kwargs.get("count", 1)
+    assert count == 1, "Use `targets` fixture with `count` instead!"
+    return get_targets(pool, request).pop()
 
-    First check if any existing target in the `pool` matches all the
-    `features` and other requirements. If so, we can re-use that
-    target, and if not, we can deallocate the currently running target
-    and allocate a new one. When all tests are finished, the pool
-    fixture above will delete all created VMs. We can achieve
-    two-layer scheduling by implementing a custom scheduler in
-    pytest-xdist via `pytest_xdist_make_scheduler` and sorting the
-    tests such that they're grouped by features.
+
+def get_targets(pool: List[Target], request: SubRequest) -> List[Target]:
+    """This function gets or creates an appropriate number of `Target`s.
+
+    1. Update `pool` (list of targets) from the cache
+    2. Unpack request into params, required features, and count
+    3. Setup fitness criteria for target(s)
+    4. Find or create necessary targets
+    5. Update cache with modified `pool`
+    6. Return targets
 
     """
-    # Alias because we use it a lot in this function.
+    assert request.config.cache is not None
+    # TODO: Use a file lock to handle multi-processing, and handle
+    # edge case where cache plugin isn’t available.
+    key = "target/pool"
+    # NOTE: We’re explicitly modifying this argument.
+    pool[:] = [Target.from_json(**x) for x in request.config.cache.get(key, [])]
+
+    # Get the required params for this test.
     params: Dict[Any, Any] = request.param
-    # Get the intended class for this parameterization of `target`.
-    platform: Type[Target] = platforms[params["platform"]]
 
     # Get the required features for this test.
     marker = request.node.get_closest_marker("target")
-    features = set(marker.kwargs.get("features", []))
+    features = marker.kwargs.get("features", [])
+    count = marker.kwargs.get("count", 1)
+
+    def fits(t: Target) -> bool:
+        # TODO: Implement full feature comparison, etc. and not just
+        # proof-of-concept string set comparison.
+        logging.debug(f"Checking fit of {t.to_json()}...")
+        return (
+            t.free
+            and params == t.params
+            and set(features) <= t.features
+            and count <= sum(t.group == x.group for x in pool)
+        )
 
     # TODO: If `t` is not already in use, deallocate the previous
     # target, and ensure the tests have been sorted (and so grouped)
     # by their requirements.
-    for t in pool:
-        # TODO: Implement full feature comparison, etc. and not just
-        # proof-of-concept string set comparison.
-        if (
-            isinstance(t, platform)
-            # NOTE: This is not the same as `t.name`!
-            and t.params["name"] == params["name"]
-            and t.features >= features
-        ):
-            pool.remove(t)
-            return t
+    ts: List[Target] = []
+    logging.debug(f"Looking for {count} target(s) which fit: {params}...")
+    for i in range(count):
+        for t in pool:
+            if fits(t):
+                logging.debug(f"Found fit target '{i}'!")
+                t.free = False
+                ts.append(t)
+                break
+        if count == len(ts):
+            break
     else:
-        logging.info(f"Instantiating target: '{params}'...")
-        assert request.config.cache is not None
-        # TODO: Using this key breaks `targets`. We’ll probably need
-        # to store a list of the unique names for this key, and for
-        # each of those store the `data`.
-        key = "target/" + params["name"]
-        cache = request.config.cache.get(key, {})
-        if cache:
-            logging.debug("Cache hit...")
-            name = cache["name"]
-            assert cache["params"] == params, "Params changed!"
-            # TODO: Check `features`, but a set isn’t serializable.
-            data = cache["data"]
-        else:
-            logging.debug("Cache miss...")
-            name = f"pytest-{uuid4()}"
-            data = None
-        t = platform(name, params, features, data)
-        cache = {"name": name, "params": params, "data": t.data}
-        request.config.cache.set(key, cache)
-        return t
+        group = f"pytest-{uuid4()}"
+        for i in range(count):
+            logging.info(f"Instantiating target '{group}/{i}': {params}...")
+            t = Target.from_json(group, params, features, {}, i, False)
+            ts.append(t)
+            pool.append(t)
+    request.config.cache.set(key, [x.to_json() for x in pool])
+    return ts
 
 
-def cleanup_target(pool: List[Target], request: SubRequest, t: Target) -> None:
+def cleanup_target(t: Target, pool: List[Target], request: SubRequest) -> None:
     """This is called by fixtures after they're done with a target."""
     t.conn.close()
     marker = request.node.get_closest_marker("target")
     if marker.kwargs.get("reuse", True):
-        pool.append(t)
+        # Leave in pool and mark free for use.
+        t.free = True
     else:
-        delete_target(t, request.config.cache)
-
-
-def delete_target(t: Target, cache: Optional[Cache]) -> None:
-    """Deletes a `Target` and removes it from the cache."""
-    name: str = t.params["name"]
-    logging.info(f"Deleting target '{name}': {t.group}/{t.number}...")
-    t.delete()
-    assert cache is not None
-    cache.set("target/" + name, None)
+        logging.info(f"Deleting target '{t.group}/{t.number}'...")
+        t.delete()
+        pool.remove(t)
+    assert request.config.cache is not None
+    request.config.cache.set("target/pool", [x.to_json() for x in pool])
 
 
 @pytest.fixture
@@ -204,20 +211,21 @@ def target(pool: List[Target], request: SubRequest) -> Iterator[Target]:
     """
     t = get_target(pool, request)
     yield t
-    cleanup_target(pool, request, t)
+    cleanup_target(t, pool, request)
 
 
 @pytest.fixture
 def targets(pool: List[Target], request: SubRequest) -> Iterator[List[Target]]:
-    """This fixture obtains N targets for a test."""
-    marker = request.node.get_closest_marker("target")
-    count = marker.kwargs.get("count", 1)
-    # TODO: Support sharing a `name` across the targets such that
-    # they’re in the same logical group for any platform.
-    ts = [get_target(pool, request, i) for i in range(count)]
+    """This fixture is the same as `target` but gets a list of targets.
+
+    For example, use `pytest.mark.target(count=2)` to get a list of
+    two targets with the same parameters, in the same group.
+
+    """
+    ts = get_targets(pool, request)
     yield ts
     for t in ts:
-        cleanup_target(pool, request, t)
+        cleanup_target(t, pool, request)
 
 
 @pytest.fixture(scope="class")
@@ -225,7 +233,7 @@ def c_target(pool: List[Target], request: SubRequest) -> Iterator[Target]:
     """This fixture is the same as `target` but shared across a class."""
     t = get_target(pool, request)
     yield t
-    cleanup_target(pool, request, t)
+    cleanup_target(t, pool, request)
 
 
 @pytest.fixture(scope="module")
@@ -233,7 +241,7 @@ def m_target(pool: List[Target], request: SubRequest) -> Iterator[Target]:
     """This fixture is the same as `target` but shared across a module."""
     t = get_target(pool, request)
     yield t
-    cleanup_target(pool, request, t)
+    cleanup_target(t, pool, request)
 
 
 target_params: Dict[str, Dict[str, Any]] = {}
