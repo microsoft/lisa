@@ -36,7 +36,7 @@ class Target(ABC):
     features: Set[str]
     data: Mapping[Any, Any]
     number: int
-    free: bool
+    locked: bool
     host: str
     conn: fabric.Connection
 
@@ -62,7 +62,7 @@ class Target(ABC):
         features: Set[str],
         data: Mapping[Any, Any],
         number: int = 0,
-        free: bool = False,
+        locked: bool = True,
     ):
         """Creates and deploys an instance of `Target`.
 
@@ -71,7 +71,7 @@ class Target(ABC):
         * `features` is set of arbitrary feature requirements
         * `data` is the cached data for the target
         * `number` is the numerical ID of this target in its group
-        * `free` is the state of the target in this session
+        * `locked` is the state of the target's availability
 
         Subclass implementations of `Target` do not need to (and
         should not) override `__init__()` as it is setup such that all
@@ -84,7 +84,7 @@ class Target(ABC):
         self.features = features
         self.data = data
         self.number = number
-        self.free = free
+        self.locked = locked
 
         self.host = self.deploy()
 
@@ -232,7 +232,7 @@ class Target(ABC):
             "features": list(self.features),
             "data": self.data,
             "number": self.number,
-            "free": self.free,
+            "locked": self.locked,
         }
 
     @staticmethod
@@ -242,7 +242,7 @@ class Target(ABC):
         features: List[str],
         data: Mapping[Any, Any],
         number: int,
-        free: bool,
+        locked: bool,
     ) -> Target:
         """Instantiates the correct subclass given the JSON representation.
 
@@ -255,7 +255,7 @@ class Target(ABC):
             None,
         )
         assert cls, f"Platform implementation not found for '{platform}'"
-        return cls(group, params, set(features), data, number, free)
+        return cls(group, params, set(features), data, number, locked)
 
     # Platform-agnostic functionality should be added here:
 

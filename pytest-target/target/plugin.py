@@ -3,17 +3,18 @@
 # TODO:
 * Deallocate targets when switching to a new target.
 * Use richer feature/requirements comparison for targets.
-* Make cache compatible with pytest-xdist.
 
 """
 from __future__ import annotations
 
 import logging
 import typing
+from pathlib import Path
 from uuid import uuid4
 
 import playbook
 import pytest
+from filelock import FileLock  # type: ignore
 
 # See https://pypi.org/project/schema/
 from schema import Optional, Or, Schema  # type: ignore
@@ -22,24 +23,27 @@ from target.target import SSH, Target
 if typing.TYPE_CHECKING:
     from typing import Any, Dict, Iterator, List
 
-    from _pytest.cacheprovider import Cache
     from _pytest.config import Config
     from _pytest.config.argparsing import Parser
     from _pytest.fixtures import SubRequest
     from _pytest.mark.structures import Mark
     from _pytest.python import Metafunc
+    from pytest import Session
 
 
-def get_target_cache(cache: Optional[Cache]) -> List[Target]:
-    assert cache is not None
-    key = "target/pool"
-    return [Target.from_json(**t) for t in cache.get(key, [])]
+def get_target_cache(config: Config) -> List[Target]:
+    assert config.cache is not None
+    lock = Path(config.cache.makedir("target")) / "pool.lock"
+    with FileLock(str(lock)):
+        cache = config.cache.get("target/pool", [])
+    return [Target.from_json(**t) for t in cache]
 
 
-def set_target_cache(cache: Optional[Cache], pool: List[Target]) -> None:
-    assert cache is not None
-    key = "target/pool"
-    cache.set(key, [t.to_json() for t in pool])
+def set_target_cache(config: Config, pool: List[Target]) -> None:
+    assert config.cache is not None
+    lock = Path(config.cache.makedir("target")) / "pool.lock"
+    with FileLock(str(lock)):
+        config.cache.set("target/pool", [t.to_json() for t in pool])
 
 
 def pytest_addoption(parser: Parser) -> None:
@@ -67,11 +71,11 @@ def pytest_configure(config: Config) -> None:
 
     if config.getoption("delete_targets"):
         logging.info("Deleting all cached targets!")
-        pool = get_target_cache(config.cache)
+        pool = get_target_cache(config)
         for t in pool:
             t.delete()
         pool.clear()
-        set_target_cache(config.cache, pool)
+        set_target_cache(config, pool)
         pytest.exit("Deleted all cached targets!", pytest.ExitCode.OK)
 
 
@@ -151,7 +155,7 @@ def get_targets(pool: List[Target], request: SubRequest) -> List[Target]:
         # proof-of-concept string set comparison.
         logging.debug(f"Checking fit of {t.to_json()}...")
         return (
-            t.free
+            not t.locked
             and params == t.params
             and set(features) <= t.features
             and count <= sum(t.group == x.group for x in pool)
@@ -166,7 +170,7 @@ def get_targets(pool: List[Target], request: SubRequest) -> List[Target]:
         for t in pool:
             if fits(t):
                 logging.debug(f"Found fit target '{i}'!")
-                t.free = False
+                t.locked = True
                 ts.append(t)
                 break
         if count == len(ts):
@@ -178,7 +182,7 @@ def get_targets(pool: List[Target], request: SubRequest) -> List[Target]:
             t = Target.from_json(group, params, features, {}, i, False)
             pool.append(t)
             ts.append(t)
-    set_target_cache(request.config.cache, pool)
+    set_target_cache(request.config, pool)
     return ts
 
 
@@ -188,18 +192,18 @@ def cleanup_target(t: Target, pool: List[Target], request: SubRequest) -> None:
     mark: Optional[Mark] = request.node.get_closest_marker("target")
     assert mark is not None
     if mark.kwargs.get("reuse", True):
-        t.free = True
+        t.locked = False
     else:
         logging.info(f"Deleting target '{t.group}/{t.number}'...")
         t.delete()
         pool.remove(t)
-    set_target_cache(request.config.cache, pool)
+    set_target_cache(request.config, pool)
 
 
 @pytest.fixture(scope="session")
 def target_pool(request: SubRequest) -> Iterator[List[Target]]:
     """This fixture tracks all deployed target resources."""
-    pool = get_target_cache(request.config.cache)
+    pool = get_target_cache(request.config)
     yield pool
     # TODO: Catch interrupts and always delete targets:
     # `UnexpectedExit`, `KeyboardInterrupt`, `SystemExit`.
@@ -208,7 +212,7 @@ def target_pool(request: SubRequest) -> Iterator[List[Target]]:
         for t in pool:
             t.delete()
         pool.clear()
-    set_target_cache(request.config.cache, pool)
+    set_target_cache(request.config, pool)
 
 
 @pytest.fixture
@@ -256,8 +260,10 @@ def m_target(target_pool: List[Target], request: SubRequest) -> Iterator[Target]
 target_params: Dict[str, Dict[str, Any]] = {}
 
 
-def pytest_sessionstart() -> None:
-    """Gather the `targets` from the playbook.
+def pytest_sessionstart(session: Session) -> None:
+    """Pytest hook to setup the session.
+
+    Gather the `targets` from the playbook.
 
     First collect any user supplied defaults from the `platforms` key
     in the playbook, which will default to the given `defaults`
