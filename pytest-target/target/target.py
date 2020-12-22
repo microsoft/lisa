@@ -1,9 +1,10 @@
 """Provides the abstract base `Target` class."""
 from __future__ import annotations
 
+import dataclasses
 import platform
 import typing
-from abc import ABC, abstractmethod
+from abc import ABCMeta, abstractmethod
 from io import BytesIO
 
 import fabric  # type: ignore
@@ -13,10 +14,43 @@ from schema import Literal, Optional, Schema  # type: ignore
 from tenacity import retry, stop_after_attempt, wait_exponential  # type: ignore
 
 if typing.TYPE_CHECKING:
-    from typing import Any, Dict, List, Mapping, Set, Tuple
+    from typing import Any, Dict, List, Mapping, Tuple, Type
 
 
-class Target(ABC):
+@dataclasses.dataclass
+class TargetData:
+    """This class holds serializable data for a `Target`.
+
+    This is an internal detail. It is separated out so we can easily
+    serialize to and from JSON in order to enable caching. By
+    decoupling these we prevent users from having to understand the
+    semantics of a `dataclass`, and fields added to subclasses don't
+    interfere with serialization.
+
+    TODO: Consider using more from `dataclasses`, such as `field()`
+    and `__post_init__()`.
+
+    """
+
+    group: str
+    params: Dict[str, str]
+    features: List[str]
+    data: Dict[Any, Any]
+    number: int
+    locked: bool
+
+    def to_json(self) -> Dict[str, Any]:
+        """Returns a JSON-serializable representation of `self`."""
+        return dataclasses.asdict(self)
+
+    @staticmethod
+    def from_json(json: Dict[str, Any]) -> Target:
+        """Instantiates the correct subclass given the JSON representation."""
+        cls = Target.get_platform(json["params"]["platform"])
+        return cls(**json)
+
+
+class Target(TargetData, metaclass=ABCMeta):
     """This class represents a remote Linux target.
 
     As a partially abstract base class, it is meant to be subclassed
@@ -30,13 +64,9 @@ class Target(ABC):
 
     """
 
-    # Typed instance attributes, not class attributes.
-    group: str
-    params: Mapping[str, str]
-    features: Set[str]
-    data: Mapping[Any, Any]
-    number: int
-    locked: bool
+    # Typed instance attributes (not class attributes) in addition to
+    # those inherited from the dataclass `TargetData`. These exist
+    # here and not on the superclass because they shouldn’t be cached.
     name: str
     host: str
     conn: fabric.Connection
@@ -59,9 +89,9 @@ class Target(ABC):
     def __init__(
         self,
         group: str,
-        params: Mapping[Any, Any],
-        features: Set[str],
-        data: Mapping[Any, Any],
+        params: Dict[Any, Any],
+        features: List[str],
+        data: Dict[Any, Any],
         number: int = 0,
         locked: bool = True,
     ):
@@ -86,8 +116,8 @@ class Target(ABC):
         self.data = data
         self.number = number
         self.locked = locked
-        self.name = f"{self.group}-{self.number}"
 
+        self.name = f"{self.group}-{self.number}"
         self.host = self.deploy()
 
         fabric_config = self.config.copy()
@@ -222,42 +252,14 @@ class Target(ABC):
             as_reference=True,
         )
 
-    def to_json(self) -> Dict[str, Any]:
-        """Returns a JSON-serializable representation of `self`.
-
-        This is an internal detail, used when caching the target.
-
-        """
-        return {
-            "group": self.group,
-            "params": self.params,
-            "features": list(self.features),
-            "data": self.data,
-            "number": self.number,
-            "locked": self.locked,
-        }
-
     @staticmethod
-    def from_json(
-        group: str,
-        params: Mapping[Any, Any],
-        features: List[str],
-        data: Mapping[Any, Any],
-        number: int,
-        locked: bool,
-    ) -> Target:
-        """Instantiates the correct subclass given the JSON representation.
-
-        This is an internal detail, used when (re-)creating the target.
-
-        """
-        platform = params["platform"]
+    def get_platform(platform: str) -> Type[Target]:
         cls: typing.Optional[typing.Type[Target]] = next(
             (x for x in Target.__subclasses__() if x.__name__ == platform),
             None,
         )
         assert cls, f"Platform implementation not found for '{platform}'"
-        return cls(group, params, set(features), data, number, locked)
+        return cls
 
     # Platform-agnostic functionality should be added here:
 
