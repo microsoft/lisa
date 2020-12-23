@@ -41,4 +41,4 @@ jobs:
         run: poetry run pytest --verbose --playbook=playbooks/test.yaml --setup-show selftests/
 
       - name: Run semantic analysis
-        run: poetry run pytest --quiet --flake8 --mypy -m "flake8 or mypy"
+        run: poetry run pytest --tb=auto --flake8 --mypy -m "flake8 or mypy"
