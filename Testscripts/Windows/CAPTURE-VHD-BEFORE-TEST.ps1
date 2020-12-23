@@ -39,10 +39,27 @@ function Main {
         if ($env:BUILD_NUMBER){
             $Append += "-$env:BUILD_NUMBER"
         }
+        [System.Net.ServicePointManager]::SecurityProtocol = [System.Net.SecurityProtocolType]::Tls12
+        foreach ($param in $currentTestData.TestParameters.param) {
+            if ($param -match "DestSA") {
+                $DestSA = $param.Replace("DestSA=","").Replace('"',"")
+            }
+            if ($param -match "SASToken") {
+                $DestSASToken = $param.Replace("SASToken=","").Replace("'","")
+            }
+        }
         #Copy the OS VHD with different name.
         if ($CurrentTestData.SetupConfig.ARMImageName) {
             $ARMImage = $CurrentTestData.SetupConfig.ARMImageName.Split(" ")
             $newVHDName = "EOSG-AUTOBUILT-$($ARMImage[0])-$($ARMImage[1])-$($ARMImage[2])-$($ARMImage[3])-$Append"
+            if ($DestSASToken) {
+                if ($CurrentTestData.SetupConfig.ARMImageName.ToLower().contains(" latest")) {
+                    $images = Get-AzVMImage -Location $TestLocation -PublisherName $ARMImage[0] -Offer $ARMImage[1] -Skus $ARMImage[2]
+                    $newVHDName = "$($ARMImage[0])/$($ARMImage[1])/$($ARMImage[2])/$($images[-1].Version)"
+                } else {
+                    $newVHDName = "$($ARMImage[0])/$($ARMImage[1])/$($ARMImage[2])/$($ARMImage[3])"
+                }
+            }
         }
         if ($global:BaseOsVHD) {
             $OSVhd = $global:BaseOsVHD.Split('/')[-1]
@@ -57,7 +74,11 @@ function Main {
         $managedDisk = $vm.StorageProfile.OsDisk | Where-Object {$null -ne $_.ManagedDisk} | Select-Object Name
         if ($managedDisk) {
             $sas = Grant-AzDiskAccess -ResourceGroupName $vm.ResourceGroupName -DiskName $managedDisk.Name -Access Read -DurationInSecond (60*60*24)
-            $null = Copy-VHDToAnotherStorageAccount -SasUrl $sas.AccessSAS -destinationStorageAccount  $GlobalConfig.Global.Azure.Subscription.ARMStorageAccount -vhdName $managedDisk.Name -destVHDName $newVHDName -destinationStorageContainer "vhds"
+            if ($DestSASToken) {
+                $null = Copy-VHDToAnotherStorageAccount -SasUrl $sas.AccessSAS -destinationStorageAccount $DestSA -vhdName $managedDisk.Name -destVHDName $newVHDName -destinationStorageContainer "vhds" -DestSasToken $DestSasToken
+            } else {
+                $null = Copy-VHDToAnotherStorageAccount -SasUrl $sas.AccessSAS -destinationStorageAccount $GlobalConfig.Global.Azure.Subscription.ARMStorageAccount -vhdName $managedDisk.Name -destVHDName $newVHDName -destinationStorageContainer "vhds"
+            }
             $null = Revoke-AzDiskAccess -ResourceGroupName $vm.ResourceGroupName -DiskName $managedDisk.Name
         } else {
             # Collect current VHD, Storage Account and Key

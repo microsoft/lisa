@@ -2383,7 +2383,7 @@ Function Get-LISAStorageAccount ($ResourceGroupName, $Name) {
 	return $GetAzureRMStorageAccount
 }
 
-Function Copy-VHDToAnotherStorageAccount ($sourceStorageAccount, $sourceStorageContainer, $destinationStorageAccount, $destinationStorageContainer, $vhdName, $destVHDName, $SasUrl) {
+Function Copy-VHDToAnotherStorageAccount ($sourceStorageAccount, $sourceStorageContainer, $destinationStorageAccount, $destinationStorageContainer, $vhdName, $destVHDName, $SasUrl, $DestSasToken) {
 	$retValue = $false
 	if (!$destVHDName) {
 		$destVHDName = $vhdName
@@ -2401,13 +2401,18 @@ Function Copy-VHDToAnotherStorageAccount ($sourceStorageAccount, $sourceStorageC
 		$SasUrl = New-AzStorageBlobSASToken -container $srcStorageContainer -Blob $srcStorageBlob -Permission R -ExpiryTime $expireTime -FullUri -Context $Context
 	}
 
-	Write-LogInfo "Retrieving $destinationStorageAccount storage account key"
-	$DestAccountKey = (Get-AzStorageAccountKey -ResourceGroupName $(($GetAzureRmStorageAccount  | Where-Object { $_.StorageAccountName -eq "$destinationStorageAccount" }).ResourceGroupName) -Name $destinationStorageAccount)[0].Value
 	[string]$DestAccountName = $destinationStorageAccount
 	[string]$DestBlob = $destVHDName
 	$DestContainer = $destinationStorageContainer
 
-	$destContext = New-AzStorageContext -StorageAccountName $destAccountName -StorageAccountKey $destAccountKey
+	if ($DestSasToken) {
+		$destContext = New-AzStorageContext -StorageAccountName $destAccountName -SasToken $DestSasToken
+	} else {
+		Write-LogInfo "Retrieving $destinationStorageAccount storage account key"
+		$DestAccountKey = (Get-AzStorageAccountKey -ResourceGroupName $(($GetAzureRmStorageAccount  | Where-Object { $_.StorageAccountName -eq "$destinationStorageAccount" }).ResourceGroupName) -Name $destinationStorageAccount)[0].Value
+		$destContext = New-AzStorageContext -StorageAccountName $destAccountName -StorageAccountKey $destAccountKey
+	}
+
 	$testContainer = Get-AzStorageContainer -Name $destContainer -Context $destContext -ErrorAction Ignore
 	if ($null -eq $testContainer) {
 		$null = New-AzStorageContainer -Name $destContainer -context $destContext
@@ -2430,7 +2435,7 @@ Function Copy-VHDToAnotherStorageAccount ($sourceStorageAccount, $sourceStorageC
 			$retValue = $true
 
 		}
-		if ($CopyingInProgress) {
+		if ($CopyingInProgress -and $status.TotalBytes -gt 0) {
 			$copyPercentage = [math]::Round( $(($status.BytesCopied * 100 / $status.TotalBytes)) , 2 )
 			Write-LogInfo "Bytes Copied:$($status.BytesCopied), Total Bytes:$($status.TotalBytes) [ $copyPercentage % ]"
 			Start-Sleep -Seconds 10

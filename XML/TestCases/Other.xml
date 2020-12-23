@@ -7,11 +7,11 @@
     <Platform>Azure</Platform>
     <TestParameters>
       <param>SkipVerifyKernelLogs=true</param>
+      <param>DestSA=DESTSA</param>
+      <param>SASToken=SASTOKEN</param>
     </TestParameters>
-    <Category>
-    </Category>
-    <Area>
-    </Area>
+    <Category></Category>
+    <Area></Area>
     <Tags>disk</Tags>
     <SetupConfig>
       <SetupType>OneVM</SetupType>
