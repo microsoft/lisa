@@ -276,16 +276,19 @@ if distro == "CENTOS":
     #Verify repositories
     version_release = Run("cat /etc/system-release | grep -Eo '[0-9].?[0-9]?' | head -1 | tr -d '\n'")
     r_out = Run("yum repolist")
-    if "base" in r_out.lower() and ("updates" in r_out.lower() or float(version_release) == 8.0):
+    if "base" in r_out.lower() and (
+        ("updates" in r_out.lower() and float(version_release) < 8.0)
+        or ("appstream" in r_out.lower() and float(version_release) >= 8.0)
+    ):
         RunLog.info("Expected repositories are present")
         print(distro+"_TEST_REPOSITORIES_AVAILABLE")
-        if float(version_release) == 8.0:
-            RunLog.info("In CentOS 8.0, skip updates repo check")
     else:
         if "base" not in r_out.lower():
             RunLog.error("Base repository not present")
-        if "updates" not in r_out.lower():
+        if "updates" not in r_out.lower() and float(version_release) < 8.0:
             RunLog.error("Updates repository not present")
+        if "appstream" not in r_out.lower() and float(version_release) >= 8.0:
+            RunLog.error("AppStream repository not present")
         print(distro+"_TEST_REPOSITORIES_ERROR")
     #Verify etc/yum.conf
     y_out = Run("cat /etc/yum.conf")
@@ -308,20 +311,26 @@ if distro == "REDHAT" or distro == "FEDORA":
     result = verify_network_file_in_sysconfig(distro)
     result = verify_ifcfg_eth0(distro)
     result = verify_udev_rules(distro)
+    version_release = Run("cat /etc/system-release | grep -Eo '[0-9].?[0-9]?' | head -1 | tr -d '\n'")
     #Verify repositories
     r_out = Run("yum repolist")
-    if "base" in r_out and "updates" in r_out:
+    if "base" in r_out.lower() and (
+        ("updates" in r_out.lower() and float(version_release) < 8.0)
+        or ("appstream" in r_out.lower() and float(version_release) >= 8.0)
+    ):
         RunLog.info("Expected repositories are present")
         print(distro+"_TEST_REPOSITORIES_AVAILABLE")
     else:
         if "base" not in r_out:
             RunLog.error("Base repository not present")
-        if "updates" not in r_out:
+        if "updates" not in r_out and float(version_release) < 8.0:
             RunLog.error("Updates repository not present")
-            print(distro+"_TEST_REPOSITORIES_ERROR")
+        if "appstream" not in r_out and float(version_release) >= 8.0:
+            RunLog.error("AppStream repository not present")
+        print(distro+"_TEST_REPOSITORIES_ERROR")
 
     if distro == "REDHAT":
-            ra_out = int(Run("yum repolist all -q | grep -c 'rhui-rhel-'"))
+            ra_out = int(Run("yum repolist all -q | grep -c 'rhui-'"))
             if(ra_out > 5):
                 RunLog.info("yum repolist all status: Success, repo count = %s", ra_out)
                 print(distro+"_TEST_RHUIREPOSITORIES_AVAILABLE")
@@ -329,9 +338,7 @@ if distro == "REDHAT" or distro == "FEDORA":
                 RunLog.error("yum repolist all status: Fail, repo count = %s", ra_out)
                 print(distro+"_TEST_RHUIREPOSITORIES_ERROR")
 
-
     #Verify etc/yum.conf
-    version_release = Run("cat /etc/system-release | grep -Eo '[0-9].?[0-9]?' | head -1 | tr -d '\n'")
     if float(version_release) < 6.6:
         if "http_caching=packages" in y_out:
             RunLog.info("http_caching=packages present in /etc/yum.conf")
