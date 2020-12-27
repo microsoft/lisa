@@ -94,12 +94,7 @@ function InstallDockerEngine() {
             LogMsg "Add Docker's official GPG key."
             curl -fsSL https://download.docker.com/linux/$DISTRO_NAME/gpg | sudo apt-key add -
             LogMsg "Set up the stable repository."
-            # Temporary fix till driver for ubuntu20 series list under https://docs.docker.com/engine/install/ubuntu/
-            if [[ $os_RELEASE =~ 20.* ]]; then
-                release="bionic"
-            else
-                release=$(lsb_release -cs)
-            fi
+            release=$(lsb_release -cs)
             add-apt-repository -y "deb [arch=amd64] https://download.docker.com/linux/$DISTRO_NAME ${release} stable"
             if [[ $os_RELEASE = '14.04' ]]; then
                 pack_list=(docker-ce)
@@ -122,7 +117,8 @@ function InstallDockerEngine() {
             LogMsg "Add repo https://download.docker.com/linux/centos/docker-ce.repo."
             yum-config-manager --add-repo https://download.docker.com/linux/centos/docker-ce.repo
             if [[ $DISTRO_VERSION == 8* ]];then
-                yum install --nogpgcheck -y docker-ce docker-ce-cli containerd.io --nobest
+                sed -i -e 's/$releasever/8/g' /etc/yum.repos.d/docker-ce.repo
+                yum install --nogpgcheck -y docker-ce docker-ce-cli containerd.io --nobest --allowerasing
             elif [[ $DISTRO_VERSION == 7* ]];then
                 yum install -y http://mirror.centos.org/centos/7/extras/x86_64/Packages/container-selinux-2.107-1.el7_6.noarch.rpm
                 for package in "${pack_list[@]}"; do
