@@ -877,8 +877,20 @@ class AzurePlatform(Platform):
                 raise LisaException(f"deploy failed: {result}")
         except HttpResponseError as identifier:
             assert identifier.error
-            error_messages = self._parse_detail_errors(identifier.error)
-            raise LisaException("\n".join(error_messages))
+            error_message = "\n".join(self._parse_detail_errors(identifier.error))
+            if "OSProvisioningTimedOut: OS Provisioning for VM" in error_message:
+                # Provisioning timeout causes by waagent is not ready.
+                # In smoke test, it still can verify some information.
+                # Eat information here, to run test case any way.
+                #
+                # It may cause other cases fail on assumptions. In this case, we can
+                # define a flag in config, to mark this exception is ignorable or not.
+                log.error(
+                    f"provisioning time out, try to run case. "
+                    f"Exception: {error_message}"
+                )
+            else:
+                raise LisaException(error_message)
 
     def _parse_detail_errors(self, error: Any) -> List[str]:
         # original message may be a summary, get lowest level details.
