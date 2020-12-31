@@ -13,6 +13,7 @@ class SerialConsole(Feature):
         re.compile(r"^(.*Kernel panic - not syncing:.*)$", re.MULTILINE),
         re.compile(r"^(.*RIP:.*)$", re.MULTILINE),
         re.compile(r"^(.*grub>.*)$", re.MULTILINE),
+        re.compile(r"^The operating system has halted.$", re.MULTILINE),
     ]
 
     # ignore some return lines, which shouldn't be a panic line.
