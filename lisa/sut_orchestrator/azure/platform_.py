@@ -296,7 +296,11 @@ class AzurePlatformSchema:
             self.locations = LOCATIONS
 
 
-HOST_VERSION_PATTERN = re.compile(r"Hyper-V Host Build:([^\n;]*)")
+# Ubuntu 18.04:
+# [    0.000000] Hyper-V Host Build:18362-10.0-3-0.3198
+# FreeBSD 11.3:
+# Hyper-V Version: 10.0.18362 [SP3]
+HOST_VERSION_PATTERN = re.compile(r"Hyper-V (?:Host Build|Version): ?(.*)$", re.M)
 
 
 def _get_node_information(node: Node, information: Dict[str, str]) -> None:
@@ -873,8 +877,20 @@ class AzurePlatform(Platform):
                 raise LisaException(f"deploy failed: {result}")
         except HttpResponseError as identifier:
             assert identifier.error
-            error_messages = self._parse_detail_errors(identifier.error)
-            raise LisaException("\n".join(error_messages))
+            error_message = "\n".join(self._parse_detail_errors(identifier.error))
+            if "OSProvisioningTimedOut: OS Provisioning for VM" in error_message:
+                # Provisioning timeout causes by waagent is not ready.
+                # In smoke test, it still can verify some information.
+                # Eat information here, to run test case any way.
+                #
+                # It may cause other cases fail on assumptions. In this case, we can
+                # define a flag in config, to mark this exception is ignorable or not.
+                log.error(
+                    f"provisioning time out, try to run case. "
+                    f"Exception: {error_message}"
+                )
+            else:
+                raise LisaException(error_message)
 
     def _parse_detail_errors(self, error: Any) -> List[str]:
         # original message may be a summary, get lowest level details.
