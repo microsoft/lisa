@@ -73,7 +73,7 @@ poetry shell
 lisa --playbook=playbooks/test.yml selftests/
 
 # Run a demo which deploys Azure resources
-lisa --playbook=playbooks/smoke.yaml
+lisa --playbook=playbooks/demo.yaml
 ```
 
 #### Enable Azure:

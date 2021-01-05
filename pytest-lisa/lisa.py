@@ -236,7 +236,11 @@ def pytest_collection_modifyitems(
     # Handle edge case of no items selected for inclusion.
     if not included:
         included = items
-    items[:] = [i for i in included if i not in excluded]
+    # Properly report deselected items.
+    collected = [i for i in included if i not in excluded]
+    deselected = [i for i in items if i not in collected]
+    config.hook.pytest_deselected(items=deselected)
+    items[:] = collected
 
 
 class LISAScheduling(LoadScopeScheduling):
