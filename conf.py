@@ -20,7 +20,29 @@ release = version
 # Add any Sphinx extension module names here, as strings. They can be
 # extensions coming with Sphinx (named 'sphinx.ext.*') or your custom
 # ones.
-extensions = ["recommonmark"]
+extensions = [
+    "recommonmark",
+    "sphinx.ext.autodoc",
+    "sphinx.ext.autosummary",
+    "sphinx.ext.githubpages",
+    "sphinx.ext.inheritance_diagram",
+    "sphinx.ext.linkcode",
+    "sphinx.ext.todo",
+    "sphinx.ext.viewcode",
+]
+
+
+def linkcode_resolve(domain, info):
+    """Configure linkcode extension."""
+    if domain != "py":
+        return None
+    if not info["module"]:
+        return None
+    filename = info["module"].replace(".", "/")
+    url = metadata["Project-Url"].split(", ")[1]
+    # TODO: Update this branch to `main` branch after PR is merged.
+    branch = "andschwa/pytest"
+    return f"{url}/blob/{branch}/{filename}.py"
 
 
 # Add any paths that contain templates here, relative to this directory.
