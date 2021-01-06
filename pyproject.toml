@@ -2,8 +2,12 @@
 name = "LISA"
 version = "0.1.0"
 description = "Linux Integration Services Automation (LISA)"
-authors = ["Andrew Schwartzmeyer <andrew@schwartzmeyer.com>"]
 license = "MIT License"
+authors = ["Andrew Schwartzmeyer <andrew@schwartzmeyer.com>"]
+readme = "README.md"
+homepage = "https://microsoft.github.io/lisa"
+repository = "https://github.com/microsoft/lisa"
+
 include = [".md", "playbooks/*.yaml"]
 packages = [{include = "*.py"}, {include = "testsuites"}]
 
