@@ -9,7 +9,7 @@ import importlib.metadata
 
 metadata = importlib.metadata.metadata("LISA")
 
-project = metadata["Name"]
+project = metadata["Name"].upper()
 project_copyright = "Microsoft"  # TODO: Add year and verify.
 author = metadata["Author"]
 version = metadata["Version"]
