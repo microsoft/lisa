@@ -1,4 +1,4 @@
-# LISAv3 Technical Specification Document
+# Technical Specification Document
 
 This document outlines the technical specifications for LISAv3. We are
 evaluating the feasibility of leveraging
