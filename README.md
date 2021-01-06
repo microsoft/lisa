@@ -1,30 +1,30 @@
-# Linux Integration Services Automation 3.0 (LISAv3)
+# Linux Integration Services Automation
 
-[![CI Workflow for LISAv3](https://github.com/LIS/LISAv2/workflows/CI%20Workflow%20for%20LISAv3/badge.svg?branch=main)](https://github.com/LIS/LISAv2/actions?query=workflow%3A%22CI+Workflow+for+LISAv3%22+event%3Apush+branch%3Amain)
+[![LISA/Pytest CI Workflow](https://github.com/microsoft/lisa/workflows/LISA/Pytest%20CI%20Workflow/badge.svg?branch=andschwa%2Fpytest)](https://github.com/microsoft/lisa/actions?query=workflow%3A%22LISA%2FPytest+CI+Workflow%22)
 [![Code Style: black](https://img.shields.io/badge/code%20style-black-000000.svg)](https://github.com/psf/black)
-[![GitHub License](https://img.shields.io/github/license/LIS/LISAv2)](https://github.com/LIS/LISAv2/blob/main/LICENSE.md)
 
 LISA is a Linux test automation framework with built-in test cases to verify the
 quality of Linux distributions on multiple platforms (such as Azure, Hyper-V,
 and bare metal). It is an opinionated collection of custom [Pytest][] plugins,
-configurations, and tests. See the [design document](DESIGN.md) for details.
+configurations, and tests. See the [technical specification document](DESIGN.md)
+for details.
 
 [Pytest]: https://docs.pytest.org/en/stable/
 
-## Getting Started:
+## Getting Started
 
-### Install Python 3:
+### Install Python 3
 
 Install Python 3.7 or newer from your Linux distribution’s package repositories,
 or [python.org](https://www.python.org/).
 
-### Install Poetry:
+### Install Poetry
 
 [Poetry](https://python-poetry.org/docs/) is our preferred tool for Python
 dependency management and packaging. We’ll use it to automatically setup a
 ‘virtualenv’ and install everything we need.
 
-#### On Linux (or WSL):
+#### On Linux (or WSL)
 
 ```bash
 curl -sSL https://raw.githubusercontent.com/python-poetry/poetry/master/get-poetry.py | python -
@@ -42,21 +42,21 @@ your `PATH` before the Windows version, or this error will appear:
 
 Adjust your `PATH` appropriately to fix it.
 
-#### On Windows (in PowerShell):
+#### On Windows (in PowerShell)
 
 ```powershell
 (Invoke-WebRequest -Uri https://raw.githubusercontent.com/python-poetry/poetry/master/get-poetry.py -UseBasicParsing).Content | python -
 $env:PATH += ";$env:USERPROFILE\.poetry\bin"
 ```
 
-### Clone LISA and `cd` into the Git repo:
+### Clone LISA and `cd` into the Git repo
 
 ```bash
-git clone -b main https://github.com/microsoft/lisa.git
+git clone -b andschwa/pytest https://github.com/microsoft/lisa.git
 cd lisa
 ```
 
-### Install Python dependencies:
+### Install Python dependencies
 
 ```bash
 # Install the Python packages
@@ -66,7 +66,7 @@ poetry install
 poetry shell
 ```
 
-### Use LISA:
+### Use LISA
 
 ```bash
 # Run some self-tests
@@ -76,7 +76,7 @@ lisa --playbook=playbooks/test.yml selftests/
 lisa --playbook=playbooks/demo.yaml
 ```
 
-#### Enable Azure:
+#### Enable Azure
 
 To run the demo you’ll need the [Azure CLI][] tool installed and configured:
 
@@ -93,14 +93,14 @@ az account set -s <your subscription ID>
 
 ## Contributing
 
-See the [Contributing Guidelines](CONTRIBUTING.md) for developer information!
+See the [contributing guidelines](CONTRIBUTING.md) for developer information!
 
 ### Contributor License Agreement
 
 This project welcomes contributions and suggestions. Most contributions require
 you to agree to a Contributor License Agreement (CLA) declaring that you have
 the right to, and actually do, grant us the rights to use your contribution. For
-details, visit https://cla.opensource.microsoft.com.
+details, visit <https://cla.opensource.microsoft.com>.
 
 When you submit a pull request, a CLA bot will automatically determine whether
 you need to provide a CLA and decorate the PR appropriately (e.g., status check,
@@ -111,8 +111,7 @@ This project has adopted the [Microsoft Open Source Code of
 Conduct](https://opensource.microsoft.com/codeofconduct/). For more information
 see the [Code of Conduct
 FAQ](https://opensource.microsoft.com/codeofconduct/faq/) or contact
-[opencode@microsoft.com](mailto:opencode@microsoft.com) with any additional
-questions or comments.
+<opencode@microsoft.com> with any additional questions or comments.
 
 ## Legal Notices
 
@@ -129,9 +128,9 @@ referenced in the documentation may be either trademarks or registered
 trademarks of Microsoft in the United States and/or other countries. The
 licenses for this project do not grant you rights to use any Microsoft names,
 logos, or trademarks. Microsoft's general trademark guidelines can be found at
-http://go.microsoft.com/fwlink/?LinkID=254653.
+<https://go.microsoft.com/fwlink/?LinkID=254653>.
 
-Privacy information can be found at https://privacy.microsoft.com/en-us/
+Privacy information can be found at <https://privacy.microsoft.com/en-us/>
 
 Microsoft and any contributors reserve all other rights, whether under their
 respective copyrights, patents, or trademarks, whether by implication, estoppel
