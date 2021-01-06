@@ -6,5 +6,6 @@
 /*.html
 /*.xml
 /assets/
+/_build/
 __pycache__/
 dist/

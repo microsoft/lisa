@@ -373,6 +373,12 @@ Python world. If you make it through even some of these guides, you will be well
 on your way to being a “Pythonista” (a Python developer) writing “Pythonic”
 (canonically correct Python) code left and right.
 
+## Generating Documentation
+
+```bash
+sphinx-build . _build
+```
+
 ## Future Sections
 
 Just a collection of reminders for the author to expand on later.
