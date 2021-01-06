@@ -31,6 +31,7 @@ rope = "^0.18.0"
 pytest-flake8 = "^1.0.6"
 pytest-mypy = "^0.7.0"
 Sphinx = "^3.4.2"
+recommonmark = "^0.7.1"
 
 [tool.black]
 line-length = 88
