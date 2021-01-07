@@ -7,5 +7,6 @@
 /*.xml
 /assets/
 /_build/
+/modules/
 __pycache__/
 dist/

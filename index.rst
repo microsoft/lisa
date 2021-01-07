@@ -12,6 +12,7 @@ document <DESIGN>` for details.
 
 .. toctree::
    :maxdepth: 3
+   :caption: Documentation
    :hidden:
 
    Design <DESIGN>
@@ -107,6 +108,22 @@ configured:
    # Login and set subscription
    az login
    az account set -s <your subscription ID>
+
+Python Modules
+--------------
+
+See the :doc:`technical specification document <DESIGN>` for design
+details, and see the below table for auto-generated API documentation
+of the framework.
+
+.. autosummary::
+   :toctree: modules
+   :caption: API
+   :recursive:
+
+   lisa
+   target
+   playbook
 
 Contributing
 ------------
