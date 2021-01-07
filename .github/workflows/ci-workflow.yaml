@@ -42,3 +42,21 @@ jobs:
 
       - name: Run semantic analysis
         run: poetry run pytest --tb=auto --flake8 --mypy -m "flake8 or mypy"
+
+      - name: Build documentation website
+        if: runner.os == 'Linux' && matrix.python-version == '3.9'
+        run: |
+          rm -rf docs/
+          poetry run sphinx-build . docs/
+          git config --local user.email 'lisval@microsoft.com'
+          git config --local user.name 'GitHub Action'
+          git add docs/
+          git commit -m "Generated documentation"
+
+      - name: Push to GitHub Pages branch
+        if: runner.os == 'Linux' && matrix.python-version == '3.9'
+        uses: ad-m/github-push-action@master
+        with:
+          branch: gh-pages
+          force: true
+          github_token: ${{ secrets.GITHUB_TOKEN }}
