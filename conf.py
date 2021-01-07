@@ -31,6 +31,18 @@ extensions = [
     "sphinx.ext.todo",
 ]
 
+# Setup autodoc default options.
+autodoc_member_order = "bysource"
+autodoc_default_options = {
+    "members": True,
+    "member-order": "bysource",
+    "private-members": False,
+    "special-members": "__init__",
+    "ignore-module-all": True,
+    "undoc-members": True,
+    "show-inheritance": True,
+}
+
 # Scan all found documents for autosummary directives, and generate
 # stub pages for each, instead of using `sphinx-autogen` directly.
 autosummary_generate = True
