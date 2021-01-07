@@ -188,7 +188,7 @@ class Target(TargetData, metaclass=ABCMeta):
 
     # Internal details follow:
 
-    platform_description = "The class name of the platform implementation."
+    _platform_description = "The class name of the platform implementation."
 
     @classmethod
     def get_defaults(cls) -> Tuple[Optional, Schema]:
@@ -214,7 +214,7 @@ class Target(TargetData, metaclass=ABCMeta):
             Optional(
                 cls.__name__,
                 default=Schema(cls.defaults()).validate({}),
-                description=cls.platform_description,
+                description=cls._platform_description,
             ),
             Schema(cls.defaults(), name=f"{cls.__name__}_Defaults", as_reference=True),
         )
@@ -244,7 +244,9 @@ class Target(TargetData, metaclass=ABCMeta):
             {
                 # We’re adding ‘name’ and ‘platform’ keys.
                 Literal("name", description="A friendly name for the target."): str,
-                Literal("platform", description=cls.platform_description): cls.__name__,
+                Literal(
+                    "platform", description=cls._platform_description
+                ): cls.__name__,
                 # Unpack the rest of the schema’s items.
                 **cls.schema(),
             },
@@ -263,12 +265,12 @@ class Target(TargetData, metaclass=ABCMeta):
 
     # Platform-agnostic functionality should be added here:
 
-    local_context = invoke.Context(config=invoke.Config(overrides=config))
+    _local_context = invoke.Context(config=invoke.Config(overrides=config))
 
     @classmethod
     def local(cls, *args: Any, **kwargs: Any) -> Result:
         """This patches Fabric's 'local()' function to ignore SSH environment."""
-        return Target.local_context.run(*args, **kwargs)
+        return Target._local_context.run(*args, **kwargs)
 
     @retry(reraise=True, wait=wait_exponential(), stop=stop_after_attempt(3))
     def ping(self, **kwargs: Any) -> Result:

@@ -25,6 +25,7 @@ class AzureCLI(Target):
 
     # Custom instance attribute(s).
     internal_address: str
+    """Internal IP address of this target."""
 
     @classmethod
     def schema(cls) -> Dict[Any, Any]:
@@ -58,12 +59,12 @@ class AzureCLI(Target):
         return context.run(*args, **kwargs)
 
     # A class attribute because it’s defined.
-    az_ok = False
+    _az_ok = False
 
     @classmethod
     def check_az_cli(cls) -> None:
         """Assert that the `az` CLI is installed and logged in."""
-        if cls.az_ok:  # Shortcut if we already checked.
+        if cls._az_ok:  # Shortcut if we already checked.
             return
         # E.g. on Ubuntu: `curl -sL https://aka.ms/InstallAzureCLIDeb | sudo bash`
         assert cls._local("az --version", warn=True), "Please install the `az` CLI!"
@@ -76,7 +77,7 @@ class AzureCLI(Target):
         logging.info(
             f"Using account '{sub['user']['name']}' with subscription '{sub['name']}'"
         )
-        cls.az_ok = True
+        cls._az_ok = True
 
     def create_boot_storage(self, location: str) -> str:
         """Create a separate resource group and storage account for boot diagnostics."""

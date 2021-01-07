@@ -1,4 +1,4 @@
-"""Provides and parameterizes the `pool` and `target` fixtures.
+"""Provides and parameterizes the `target` fixture(s).
 
 # TODO:
 * Deallocate targets when switching to a new target.
