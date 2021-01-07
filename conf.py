@@ -40,13 +40,25 @@ def linkcode_resolve(domain, info):
     """Configure linkcode extension."""
     if domain != "py":
         return None
-    if not info["module"]:
+    module = info["module"]
+    if not module:
         return None
-    filename = info["module"].replace(".", "/")
+
+    # Map to subfolders.
+    if module.startswith("lisa"):
+        folder = "pytest-lisa"
+    elif module.startswith("target"):
+        folder = "pytest-target"
+    elif module.startswith("playbook"):
+        folder = "pytest-playbook"
+    else:
+        folder = ""
+
+    filename = module.replace(".", "/")
     url = metadata["Project-Url"].split(", ")[1]
     # TODO: Update this branch to `main` branch after PR is merged.
     branch = "andschwa/pytest"
-    return f"{url}/blob/{branch}/{filename}.py"
+    return f"{url}/blob/{branch}/{folder}/{filename}.py"
 
 
 # Add any paths that contain templates here, relative to this directory.
