@@ -1,4 +1,4 @@
-"""Provides an `Azure(Target)` implementation using the Azure CLI."""
+"""Provides an ``Azure(Target)`` implementation using the Azure CLI."""
 from __future__ import annotations
 
 import json
@@ -48,11 +48,8 @@ class AzureCLI(Target):
 
     @classmethod
     def _local(cls, *args: Any, **kwargs: Any) -> Result:
-        """A quiet version of `local()`.
-
-        TODO: Consider adding this to the superclass.
-
-        """
+        """A quiet version of `local()`."""
+        # TODO: Consider adding this to the superclass.
         config = Target.config.copy()
         config["run"]["hide"] = True
         context = invoke.Context(config=invoke.Config(overrides=config))
@@ -81,6 +78,7 @@ class AzureCLI(Target):
 
     def create_boot_storage(self, location: str) -> str:
         """Create a separate resource group and storage account for boot diagnostics."""
+        # TODO: Use a different account per user.
         account = "pytestbootdiag"
         # This command always exits with 0 but returns a string.
         if self._local("az group exists -n pytest-lisa").stdout.strip() == "false":
@@ -168,12 +166,9 @@ class AzureCLI(Target):
         return self.parse_data()
 
     def delete(self) -> None:
-        """Delete the entire allocated resource group.
-
-        TODO: Delete VM '{self.name}'. Only if it was
-        the last VM then delete the entire resource group.
-
-        """
+        """Delete the entire allocated resource group."""
+        # TODO: Delete VM '{self.name}'. Only if it was
+        # the last VM then delete the entire resource group.
         logging.debug(f"Deleting resource group '{self.group}-rg'")
         try:
             self.local(f"az group delete -n {self.group}-rg --yes --no-wait")
@@ -192,5 +187,5 @@ class AzureCLI(Target):
         )
 
     def platform_restart(self) -> Result:
-        """TODO: Should this '--force' and redeploy?"""
+        """Should this use `--force` and redeploy?"""
         return self.local(f"az vm restart -n {self.name} -g {self.group}-rg")

@@ -11,20 +11,23 @@ Tests can request access to a target through the function-scoped
 targets listed in a `playbook.yaml` file. The fixture is parameterized
 across the list of provided targets. For example:
 
-    targets:
-      - name: Debian
-        platform: Azure
-        image: Debian:debian-10:10:latest
-      - name: Ubuntu
-        platform: Azure
-        image: Canonical:UbuntuServer:18.04-LTS:latest
-      - name: OpenSUSE
-        platform: Azure
-        image: SUSE:openSUSE-Leap:42.3:latest
+.. code-block:: yaml
 
-Will run all selected tests against each target. The `pool` fixture is
-session-scoped and used by the `target` fixture to efficiently re-use
-deployed targets.
+   platforms:
+     AzureCLI:
+       sku: Standard_DS2_v2
+
+   targets:
+     - name: Debian
+       platform: AzureCLI
+       image: Debian:debian-10:10:latest
+
+     - name: Ubuntu
+       platform: AzureCLI
+       image: Canonical:UbuntuServer:18.04-LTS:latest
+
+Will run all selected tests against each target. The pool of targets
+can be cached between runs with ``--keep-targets``.
 
 """
 import pytest

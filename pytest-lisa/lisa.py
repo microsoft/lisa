@@ -1,25 +1,29 @@
 """A plugin for organizing, analyzing, and selecting tests.
 
-This plugin provides the mark `pytest.mark.lisa`, aliased as `LISA`,
+This plugin provides the mark ``pytest.mark.lisa``, aliased as ``LISA``,
 for marking up tests metadata beyond that which Pytest provides by
-default. See the `lisa_schema` for the expected metadata input.
+default. See the ``lisa_schema`` for the expected metadata input.
 
-Tests can be selected through a `playbook.yaml` file using the
-criteria schema. For example::
+Tests can be selected through a ``playbook.yaml`` file using the
+criteria schema. For example:
 
-    criteria:
-      # Select all Priority 0 tests.
-      - priority: 0
-      # Run tests with 'smoke' in the name twice.
-      - name: smoke
-        times: 2
-      # Exclude all tests in Area "xdp"
-      - area: xdp
-        exclude: true
+.. code-block:: yaml
 
-# TODO:
-* Provide test metadata statistics via a command-line flag.
-* Assert every test has a LISA marker.
+   criteria:
+     # Select all Priority 0 tests.
+     - priority: 0
+     # Run tests with 'smoke' in the name twice.
+     - name: smoke
+       times: 2
+     # Exclude all tests in Area "xdp"
+     - area: xdp
+       exclude: true
+
+.. TODO::
+
+   * Review the ``criteria`` schema.
+   * Provide test metadata statistics via a command-line flag.
+   * Assert every test has a LISA marker.
 
 """
 from __future__ import annotations

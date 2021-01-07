@@ -1,8 +1,9 @@
-"""Provides and parameterizes the `target` fixture(s).
+"""Provides and parameterizes the ``target`` fixture(s).
 
-# TODO:
-* Deallocate targets when switching to a new target.
-* Use richer feature/requirements comparison for targets.
+.. TODO::
+
+   * Deallocate targets when switching to a new target.
+   * Use richer feature/requirements comparison for targets.
 
 """
 from __future__ import annotations
@@ -184,13 +185,12 @@ def get_targets(request: SubRequest) -> List[Target]:
         def fits(t: TargetData) -> bool:
             """Checks if a given Target fits the current search criteria.
 
-            Converting the cached JSON to a `TargetData` instance is
+            Converting the cached JSON to a ``TargetData`` instance is
             cheap and lets us use typed fields here.
 
-            TODO: Implement full feature comparison, etc. and not just
-            proof-of-concept string set comparison.
-
             """
+            # TODO: Implement full feature comparison, etc. and not
+            # just proof-of-concept string set comparison.
             logging.debug(f"Checking fit of {t}...")
             return (
                 not t.locked
@@ -253,7 +253,7 @@ def cleanup_target(t: Target, request: SubRequest) -> None:
 def target(request: SubRequest) -> Iterator[Target]:
     """This fixture provides a connected target for each test.
 
-    It is parametrized indirectly in `pytest_generate_tests`.
+    It is parametrized indirectly in ``pytest_generate_tests``.
 
     """
     t = get_target(request)
@@ -263,9 +263,9 @@ def target(request: SubRequest) -> Iterator[Target]:
 
 @pytest.fixture
 def targets(request: SubRequest) -> Iterator[List[Target]]:
-    """This fixture is the same as `target` but gets a list of targets.
+    """This fixture is the same as ``target`` but gets a list of targets.
 
-    For example, use `pytest.mark.target(count=2)` to get a list of
+    For example, use ``pytest.mark.target(count=2)`` to get a list of
     two targets with the same parameters, in the same group.
 
     """
@@ -277,7 +277,7 @@ def targets(request: SubRequest) -> Iterator[List[Target]]:
 
 @pytest.fixture(scope="class")
 def c_target(request: SubRequest) -> Iterator[Target]:
-    """This fixture is the same as `target` but shared across a class."""
+    """This fixture is the same as ``target`` but shared across a class."""
     t = get_target(request)
     yield t
     cleanup_target(t, request)
@@ -285,7 +285,7 @@ def c_target(request: SubRequest) -> Iterator[Target]:
 
 @pytest.fixture(scope="module")
 def m_target(request: SubRequest) -> Iterator[Target]:
-    """This fixture is the same as `target` but shared across a module."""
+    """This fixture is the same as ``target`` but shared across a module."""
     t = get_target(request)
     yield t
     cleanup_target(t, request)
@@ -297,7 +297,7 @@ target_params: Dict[str, Dict[str, Any]] = {}
 def pytest_sessionstart(session: Session) -> None:
     """Pytest hook to setup the session.
 
-    Gather the `targets` from the playbook.
+    Gather the targets from the playbook.
 
     First collect any user supplied defaults from the `platforms` key
     in the playbook, which will default to the given `defaults`
@@ -313,10 +313,10 @@ def pytest_sessionstart(session: Session) -> None:
 
 
 def pytest_generate_tests(metafunc: Metafunc) -> None:
-    """Indirectly parametrize the `target` fixture based on the playbook.
+    """Indirectly parametrize the ``target`` fixture based on the playbook.
 
-    This hook is run for each test, so we gather the `targets` in
-    `pytest_sessionstart`.
+    This hook is run for each test, so we gather the targets in
+    ``pytest_sessionstart``.
 
     """
     assert target_params, "This should not be empty!"

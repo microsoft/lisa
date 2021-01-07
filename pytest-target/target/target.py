@@ -1,4 +1,4 @@
-"""Provides the abstract base `Target` class."""
+"""Provides the abstract base ``Target`` class."""
 from __future__ import annotations
 
 import dataclasses
@@ -19,7 +19,7 @@ if typing.TYPE_CHECKING:
 
 @dataclasses.dataclass
 class TargetData:
-    """This class holds serializable data for a `Target`.
+    """This class holds serializable data for a ``Target``.
 
     This is an internal detail. It is separated out so we can easily
     serialize to and from JSON in order to enable caching. By
@@ -27,8 +27,10 @@ class TargetData:
     semantics of a `dataclass`, and fields added to subclasses don't
     interfere with serialization.
 
-    TODO: Consider using more from `dataclasses`, such as `field()`
-    and `__post_init__()`.
+    .. TODO::
+
+       Consider using more from `dataclasses`, such as `field()` and
+       `__post_init__()`.
 
     """
 
@@ -206,8 +208,11 @@ class Target(TargetData, metaclass=ABCMeta):
         When generating the playbook's schema all the platforms'
         tuples are mapped into a single dict.
 
-        TODO: Assert that the set of key names in each `defaults()` is
-        a subset of the key names in the corresponding `schema()`.
+        .. TODO::
+
+           Assert that the set of key names in each ``defaults()`` is
+           a subset of the key names in the corresponding
+           ``schema()``.
 
         """
         return (
@@ -227,7 +232,7 @@ class Target(TargetData, metaclass=ABCMeta):
         playbook's schema. Subclasses should not override this.
 
         We generate the whole definition by combining the values of
-        `cls.schema()` (which is defined by each platform's
+        ``cls.schema()`` (which is defined by each platform's
         implementation) with two required keys:
 
         * name: A friendly name for the target.
@@ -236,8 +241,10 @@ class Target(TargetData, metaclass=ABCMeta):
         When generating the playbook's schema all the platforms'
         schemata are mapped into an 'any of' schema.
 
-        TODO: Perhaps elevate ‘name’ to the key, with the nested
-        schema as the value.
+        .. TODO::
+
+           Perhaps elevate ‘name’ to the key, with the nested schema
+           as the value.
 
         """
         return Schema(

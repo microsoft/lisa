@@ -73,6 +73,9 @@ def linkcode_resolve(domain, info):
     return f"{url}/blob/{branch}/{folder}/{filename}.py"
 
 
+# Generate TODO list.
+todo_include_todos = True
+
 # Add any paths that contain templates here, relative to this directory.
 templates_path = ["_templates"]
 

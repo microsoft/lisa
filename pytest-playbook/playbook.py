@@ -1,17 +1,17 @@
 """A plugin for creating, validating, and reading a playbook.
 
-Use the `pytest_playbook_schema` hook to modify the schema dictionary
-representing the data expected to be read and validated from a
-`playbook.yaml` file, the path to which is provided by the user with
-the command-line flag `--playbook`.
+Use the ``pytest_playbook_schema`` hook to modify the schema
+dictionary representing the data expected to be read and validated
+from a ``playbook.yaml`` file, the path to which is provided by the
+user with the command-line flag ``--playbook``.
 
-This module's `playbook` attribute will hold the read and validated
-data after all `pytest_configure` hooks have run. See
-`pytest_playbook_schema` for example usage.
+This module's ``data`` attribute will hold the read and validated data
+after all ``pytest_configure`` hooks have run. See
+``pytest_playbook_schema`` for example usage.
 
-Remember not to use `from playbook import playbook` because then the
-attribute will not contain the shared data. Instead use `import
-playbook` and reference `playbook.playbook`.
+Remember not to use ``from playbook import data`` because then the
+attribute will not contain the shared data. Instead use ``import
+playbook`` and reference ``playbook.data``.
 
 """
 
@@ -51,17 +51,19 @@ class Hooks:
         """Update the Playbook's schema dict.
 
         The 'schema' is a mutable dict, and 'config' is optional.
-        Example usage::
+        Example usage:
 
-            import playbook
-            from schema import Schema
+        .. code-block:: python
 
-            def pytest_playbook_schema(schema):
-                schema["targets"] = Schema({"name": str, "platform": str, "cpus": int})
+           import playbook
+           from schema import Schema
 
-            def pytest_sessionstart(session):
-                for target in playbook.playbook["targets"]:
-                    print(target["name"])
+           def pytest_playbook_schema(schema):
+               schema["targets"] = Schema({"name": str, "platform": str, "cpus": int})
+
+           def pytest_sessionstart(session):
+               for target in playbook.playbook["targets"]:
+                   print(target["name"])
 
         """
 
@@ -89,7 +91,7 @@ def pytest_configure(config: Config) -> None:
     """Pytest hook to configure our plugin.
 
     This is set to be tried last so that all other plugins have been
-    loaded and defined their `pytest_playbook_schema` hooks.
+    loaded and defined their ``pytest_playbook_schema`` hooks.
 
     """
     schema_dict: Dict[Any, Any] = dict()
