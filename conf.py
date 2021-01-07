@@ -32,6 +32,10 @@ extensions = [
     "sphinx.ext.viewcode",
 ]
 
+# Scan all found documents for autosummary directives, and generate
+# stub pages for each, instead of using `sphinx-autogen` directly.
+autosummary_generate = True
+
 
 def linkcode_resolve(domain, info):
     """Configure linkcode extension."""
