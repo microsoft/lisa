@@ -375,8 +375,12 @@ on your way to being a “Pythonista” (a Python developer) writing “Pythonic
 
 ## Generating Documentation
 
+We use [Sphinx](https://www.sphinx-doc.org/en/master/index.html) to generate our
+[documentation](https://microsoft.github.io/lisa/). To build it locally (and
+check all the links), use:
+
 ```bash
-sphinx-build . _build
+sphinx-build -b linkcheck . _build
 ```
 
 ## Future Sections
