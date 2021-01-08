@@ -52,7 +52,7 @@ Function Move-ToNewWorkingSpace($originalFolder) {
 
 	$tmpSource = '\\?\' + "$originalFolder\*"
 	Write-LogInfo "Copying current workspace to $tempWorkingDir"
-	$excludedDirectories = @(".git", "Documents", ".github", "Report", "TestResults", "VHDs_Destination_Path", "*.zip")
+	$excludedDirectories = @(".git", "Documents", ".github", "Report", "TestResults", "VHDs_Path", "*.zip")
 	Copy-Item -Path $tmpSource -Destination $tempWorkingDir -Recurse -Force -Exclude $excludedDirectories | Out-Null
 	Set-Location -Path $tempWorkingDir | Out-Null
 	Write-LogWarn "Working directory has been changed to $tempWorkingDir"

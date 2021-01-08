@@ -170,7 +170,7 @@ Please follow the steps mentioned at [here](https://docs.microsoft.com/en-us/azu
                 <Host>
                     <!--ServerName can be localhost or Hyper-V host name-->
                     <ServerName>localhost</ServerName>
-                    <DestinationOsVHDPath>VHDs_Destination_Path</DestinationOsVHDPath>
+                    <DestinationOsVHDPath>VHDs_Path</DestinationOsVHDPath>
                 </Host>
                 <Host>
                     <!--If run test against 2 hosts, set ServerName as another host computer name-->
