@@ -50,7 +50,7 @@ class AzureCLI(Target):
     def _local(cls, *args: Any, **kwargs: Any) -> Result:
         """A quiet version of `local()`."""
         # TODO: Consider adding this to the superclass.
-        config = Target.config.copy()
+        config = Target._config.copy()
         config["run"]["hide"] = True
         context = invoke.Context(config=invoke.Config(overrides=config))
         return context.run(*args, **kwargs)

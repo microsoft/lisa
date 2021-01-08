@@ -1,4 +1,4 @@
-"""Provides the abstract base ``Target`` class."""
+"""Provides the abstract base :py:class:`~target.target.Target` class."""
 from __future__ import annotations
 
 import dataclasses
@@ -19,18 +19,18 @@ if typing.TYPE_CHECKING:
 
 @dataclasses.dataclass
 class TargetData:
-    """This class holds serializable data for a ``Target``.
+    """This class holds serializable data for a :py:class:`Target`.
 
     This is an internal detail. It is separated out so we can easily
     serialize to and from JSON in order to enable caching. By
     decoupling these we prevent users from having to understand the
-    semantics of a `dataclass`, and fields added to subclasses don't
+    semantics of a ``dataclass``, and fields added to subclasses don't
     interfere with serialization.
 
     .. TODO::
 
-       Consider using more from `dataclasses`, such as `field()` and
-       `__post_init__()`.
+       Consider using more from ``dataclasses``, such as ``field()``
+       and ``__post_init__()``.
 
     """
 
@@ -42,12 +42,12 @@ class TargetData:
     locked: bool
 
     def to_json(self) -> Dict[str, Any]:
-        """Returns a JSON-serializable representation of `self`."""
+        """Returns a JSON-serializable representation of the ``Target``."""
         return dataclasses.asdict(self)
 
     @staticmethod
     def from_json(json: Dict[str, Any]) -> Target:
-        """Instantiates the correct subclass given the JSON representation."""
+        """Instantiates the correct ``Target`` subclass given the JSON representation."""
         cls = Target.get_platform(json["params"]["platform"])
         return cls(**json)
 
@@ -56,13 +56,16 @@ class Target(TargetData, metaclass=ABCMeta):
     """This class represents a remote Linux target.
 
     As a partially abstract base class, it is meant to be subclassed
-    to provide platform support. So `Target` as a class maps to the
+    to provide platform support. So ``Target`` as a class maps to the
     concept of a Linux target machine reachable via SSH (through
-    `self.conn`, an instance of `Fabric.Connection`). Each subclass of
-    `Target` provides the necessary implementation to instantiate an
-    actual Linux target, by deploying it on that platform. Each
-    _instance_ of a platform-specific subclass of `Target` maps to an
-    actual Linux target that has been deployed on that platform.
+    :py:attr:`conn`, an instance of `Fabric.Connection`_). Each
+    subclass of ``Target`` provides the necessary implementation to
+    instantiate an actual Linux target, by deploying it on that
+    platform. Each _instance_ of a platform-specific subclass of
+    ``Target`` maps to an actual Linux target that has been deployed
+    on that platform.
+
+    .. _Fabric.Connection: https://docs.fabfile.org/en/stable/api/connection.html
 
     """
 
@@ -76,7 +79,7 @@ class Target(TargetData, metaclass=ABCMeta):
     # Setup a sane configuration for local and remote commands. Note
     # that the defaults between Fabric and Invoke are different, so we
     # use their Config classes explicitly later.
-    config = {
+    _config = {
         "run": {
             # Show each command as its run.
             "echo": True,
@@ -97,19 +100,19 @@ class Target(TargetData, metaclass=ABCMeta):
         number: int = 0,
         locked: bool = True,
     ):
-        """Creates and deploys an instance of `Target`.
+        """Creates and deploys an instance of :py:class:`Target`.
 
-        * `group` is a unique ID for the group of associated resources
-        * `params` is the input parameters conforming to `schema()`
-        * `features` is set of arbitrary feature requirements
-        * `data` is the cached data for the target
-        * `number` is the numerical ID of this target in its group
-        * `locked` is the state of the target's availability
+        :param group: is a unique ID for the group of associated resources
+        :param params: is the input parameters conforming to `schema()`
+        :param features: is set of arbitrary feature requirements
+        :param data: is the cached data for the target
+        :param number: is the numerical ID of this target in its group
+        :param locked: is the state of the target's availability
 
-        Subclass implementations of `Target` do not need to (and
-        should not) override `__init__()` as it is setup such that all
-        platform-specific setup logic can be encoded in `deploy()`
-        instead, which this calls.
+        Subclass implementations of ``Target`` do not need to (and
+        should not) override :py:meth:`__init__` as it is setup such
+        that all platform-specific setup logic can be encoded in
+        :py:meth:`deploy` instead, which this calls.
 
         """
         self.group = group
@@ -122,7 +125,7 @@ class Target(TargetData, metaclass=ABCMeta):
         self.name = f"{self.group}-{self.number}"
         self.host = self.deploy()
 
-        fabric_config = self.config.copy()
+        fabric_config = self._config.copy()
         fabric_config["run"]["env"] = {  # type: ignore
             # Set PATH since it’s not a login shell.
             "PATH": "/sbin:/usr/sbin:/usr/local/sbin:/bin:/usr/bin:/usr/local/bin"
@@ -142,11 +145,14 @@ class Target(TargetData, metaclass=ABCMeta):
         """Must return a mapping for expected instance parameters.
 
         The items in this mapping are added to the playbook schema, so
-        they may contain objects from the `schema` library. Each
-        target in the playbook will have `name` and `platform` keys in
-        addition to those specified here (they're merged). Parameters
-        should generally be `schema.Optional`. If the parameter should
-        have a shared but mutable default value, set it in `defaults`.
+        they may contain objects from the `schema`_ library. Each
+        target in the playbook will have ``name`` and ``platform``
+        keys in addition to those specified here (they're merged).
+        Parameters should generally be ``schema.Optional``. If the
+        parameter should have a shared but mutable default value, set
+        it in ``defaults``.
+
+        .. _schema: https://github.com/keleshev/schema
 
         """
         ...
@@ -155,10 +161,11 @@ class Target(TargetData, metaclass=ABCMeta):
     def defaults(cls) -> Mapping[Any, Any]:
         """Can return a mapping for default parameters.
 
-        If specified, it must contain only `schema.Optional` elements,
-        where the names and types match those in `schema()`, but with
-        a set default value, and those in `schema()` should not
-        contain default values. This is used a base for each target.
+        If specified, it must contain only ``schema.Optional``
+        elements, where the names and types match those in
+        :py:meth:`schema`, but with a set default value, and those in
+        :py:meth:`schema` should not contain default values. This is
+        used a base for each target.
 
         """
         return {}
@@ -167,13 +174,13 @@ class Target(TargetData, metaclass=ABCMeta):
     def deploy(self) -> str:
         """Must deploy the target resources and return the hostname.
 
-        Subclass implementations can treat this like `__init__` with
-        `schema()` defining the input `params`.
+        Subclass implementations can treat this like ``__init__`` with
+        :py:meth:`schema` defining the input ``params``.
 
-        Data which should be cached must be saved to `self.data`.
+        Data which should be cached must be saved to :py:attr:`data`.
 
-        If `self.data` is populated then implementations should assume
-        they're refreshing a cached target.
+        If :py:attr:`data` is populated then implementations should
+        assume they're refreshing a cached target.
 
         """
         ...
@@ -201,9 +208,9 @@ class Target(TargetData, metaclass=ABCMeta):
 
         The key is an optional literal, the name of the subclass for
         the platform, with a default value of the validated
-        `defaults()` schema when given no input (hence they must all
-        be optional). The value is reference schema definition
-        generated from the `defaults()` dict.
+        :py:meth:`defaults` schema when given no input (hence they
+        must all be optional). The value is reference schema
+        definition generated from the :py:meth:`defaults` dict.
 
         When generating the playbook's schema all the platforms'
         tuples are mapped into a single dict.
@@ -232,11 +239,11 @@ class Target(TargetData, metaclass=ABCMeta):
         playbook's schema. Subclasses should not override this.
 
         We generate the whole definition by combining the values of
-        ``cls.schema()`` (which is defined by each platform's
+        :py:meth:`schema` (which is defined by each platform's
         implementation) with two required keys:
 
-        * name: A friendly name for the target.
-        * platform: The name of the subclass for the platform.
+        * ``name``: A friendly name for the target.
+        * ``platform``: The name of the subclass for the platform.
 
         When generating the playbook's schema all the platforms'
         schemata are mapped into an 'any of' schema.
@@ -263,6 +270,7 @@ class Target(TargetData, metaclass=ABCMeta):
 
     @staticmethod
     def get_platform(platform: str) -> Type[Target]:
+        """Returns the :py:class:`Target` subclass for the named platform."""
         cls: typing.Optional[typing.Type[Target]] = next(
             (x for x in Target.__subclasses__() if x.__name__ == platform),
             None,
@@ -272,11 +280,11 @@ class Target(TargetData, metaclass=ABCMeta):
 
     # Platform-agnostic functionality should be added here:
 
-    _local_context = invoke.Context(config=invoke.Config(overrides=config))
+    _local_context = invoke.Context(config=invoke.Config(overrides=_config))
 
     @classmethod
     def local(cls, *args: Any, **kwargs: Any) -> Result:
-        """This patches Fabric's 'local()' function to ignore SSH environment."""
+        """This patches Fabric's ``local()`` function to ignore SSH environment."""
         return Target._local_context.run(*args, **kwargs)
 
     @retry(reraise=True, wait=wait_exponential(), stop=stop_after_attempt(3))
@@ -293,7 +301,7 @@ class Target(TargetData, metaclass=ABCMeta):
 
 
 class SSH(Target):
-    """The `SSH` platform simply connects to existing targets.
+    """This platform simply connects to existing targets.
 
     It does not deploy nor delete the target. The default ``host`` is
     ``localhost`` so this can be used for testing against the user's
@@ -303,12 +311,14 @@ class SSH(Target):
 
     @classmethod
     def schema(cls) -> Dict[Any, Any]:
+        """Takes a ``host`` parameter."""
         return {
             Optional("host", description="The address of the destination target."): str
         }
 
     @classmethod
     def defaults(cls) -> Dict[Any, Any]:
+        """Defaults to ``localhost``."""
         return {
             Optional(
                 "host", default="localhost", description="The default value for host."
