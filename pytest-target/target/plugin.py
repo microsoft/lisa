@@ -1,4 +1,4 @@
-"""Provides and parameterizes the ``target`` fixture(s).
+"""Provides and parameterizes the :py:func:`.target` fixture(s).
 
 .. TODO::
 
@@ -35,7 +35,11 @@ if typing.TYPE_CHECKING:
 
 
 def pytest_addoption(parser: Parser) -> None:
-    """Pytest hook to add our CLI options."""
+    """Pytest `addoption hook`_ to add our CLI options.
+
+    .. _addoption hook: https://docs.pytest.org/en/stable/reference.html#pytest.hookspec.pytest_addoption
+
+    """
     group = parser.getgroup("target")
     group.addoption(
         "--keep-targets", action="store_true", help="Keeps targets between runs."
@@ -46,15 +50,17 @@ def pytest_addoption(parser: Parser) -> None:
 
 
 def pytest_playbook_schema(schema: Dict[Any, Any]) -> None:
-    """pytest-playbook hook to update the playbook schema.
+    """:py:mod:`playbook` hook to update the playbook schema.
 
-    This adds `platforms` and `targets` keys to the playbook schema,
-    with their nested schemata accumulated from each platform's
-    implementations of `defaults()` and `schema()`. We do this by
-    iterating over the subclasses of `Target`, a handy feature of
-    Python that lets us automatically discover users' implementations,
-    even if they're defined in a local `conftest.py` Pytest
-    configuration file.
+    This adds ``platforms`` and ``targets`` keys to the playbook
+    schema, with their nested schemata accumulated from each
+    platform's implementations of
+    :py:meth:`~target.target.Target.defaults` and
+    :py:meth:`~target.target.Target.schema`. We do this by iterating
+    over the subclasses of :py:class:`~target.target.Target`, a handy
+    feature of Python that lets us automatically discover users'
+    implementations, even if they're defined in a local
+    ``conftest.py`` Pytest configuration file.
 
     """
     classes = Target.__subclasses__()
@@ -99,10 +105,12 @@ def target_pool(config: Config) -> Generator[Dict[str, Any], None, None]:
     This handles access to the Pytest cache of serialized targets. The
     cache is a dict of ``{target.name: target.to_json()}``. We use a
     file lock to provide exclusive access even if Pytest is being run
-    in parallel with xdist. Entries have a `locked` property and must
-    only be modified during a session when locked by that session.
-    Locking means setting `locked` to `True` and updating the entry
-    before exiting this context manager.
+    in parallel with `pytest-xdist`_. Entries have a ``locked``
+    property and must only be modified during a session when locked by
+    that session. Locking means setting ``locked`` to ``True`` and
+    updating the entry before exiting this context manager.
+
+    .. _pytest-xdist: https://github.com/pytest-dev/pytest-xdist
 
     """
     # TODO: Handle edge case where cache plugin is disabled.
@@ -126,12 +134,12 @@ def delete_targets(config: Config) -> None:
 
 
 def pytest_configure(config: Config) -> None:
-    """Pytest hook to perform initial configuration.
+    """Pytest `configure hook`_ to perform initial configuration.
 
-    https://docs.pytest.org/en/stable/reference.html#pytest.hookspec.pytest_configure
+    .. _configure hook: https://docs.pytest.org/en/stable/reference.html#pytest.hookspec.pytest_configure
 
     We're registering our custom marker so that it passes
-    `--strict-markers`.
+    ``--strict-markers``.
 
     """
     config.addinivalue_line(
@@ -146,9 +154,9 @@ def pytest_configure(config: Config) -> None:
 
 
 def pytest_unconfigure(config: Config) -> None:
-    """Pytest hook to perform teardown.
+    """Pytest `unconfigure hook`_ to perform teardown.
 
-    https://docs.pytest.org/en/stable/reference.html#pytest.hookspec.pytest_unconfigure
+    .. _unconfigure hook: https://docs.pytest.org/en/stable/reference.html#pytest.hookspec.pytest_unconfigure
 
     """
     if not config.getoption("keep_targets"):
@@ -157,7 +165,7 @@ def pytest_unconfigure(config: Config) -> None:
 
 
 def get_target(request: SubRequest) -> Target:
-    """Common case of getting one target."""
+    """Common case of getting one ``Target``."""
     marker = request.node.get_closest_marker("target")
     count = marker.kwargs.get("count", 1)
     assert count == 1, "Use `targets` fixture with `count` instead!"
@@ -165,7 +173,7 @@ def get_target(request: SubRequest) -> Target:
 
 
 def get_targets(request: SubRequest) -> List[Target]:
-    """This function gets or creates an appropriate number of `Target`s.
+    """This function gets or creates N ``Target`` instances.
 
     1. Unpack request into params, required features, and count
     2. Setup fitness criteria for target(s)
@@ -183,7 +191,7 @@ def get_targets(request: SubRequest) -> List[Target]:
     with target_pool(request.config) as pool:
 
         def fits(t: TargetData) -> bool:
-            """Checks if a given Target fits the current search criteria.
+            """Checks if a given ``Target`` fits the current search criteria.
 
             Converting the cached JSON to a ``TargetData`` instance is
             cheap and lets us use typed fields here.
@@ -235,7 +243,7 @@ def get_targets(request: SubRequest) -> List[Target]:
 
 
 def cleanup_target(t: Target, request: SubRequest) -> None:
-    """This is called by fixtures after they're done with a target."""
+    """This is called by fixtures after they're done with a ``Target``."""
     t.conn.close()
     mark: Optional[Mark] = request.node.get_closest_marker("target")
     assert mark is not None
@@ -251,9 +259,9 @@ def cleanup_target(t: Target, request: SubRequest) -> None:
 
 @pytest.fixture
 def target(request: SubRequest) -> Iterator[Target]:
-    """This fixture provides a connected target for each test.
+    """This fixture provides a connected ``Target`` for each test.
 
-    It is parametrized indirectly in ``pytest_generate_tests``.
+    It is parametrized indirectly in :py:func:`pytest_generate_tests`.
 
     """
     t = get_target(request)
@@ -263,7 +271,7 @@ def target(request: SubRequest) -> Iterator[Target]:
 
 @pytest.fixture
 def targets(request: SubRequest) -> Iterator[List[Target]]:
-    """This fixture is the same as ``target`` but gets a list of targets.
+    """This fixture is the same as :py:func:`.target` but gets a ``Target`` list.
 
     For example, use ``pytest.mark.target(count=2)`` to get a list of
     two targets with the same parameters, in the same group.
@@ -277,7 +285,7 @@ def targets(request: SubRequest) -> Iterator[List[Target]]:
 
 @pytest.fixture(scope="class")
 def c_target(request: SubRequest) -> Iterator[Target]:
-    """This fixture is the same as ``target`` but shared across a class."""
+    """This fixture is the same as :py:func:`.target` but shared across a class."""
     t = get_target(request)
     yield t
     cleanup_target(t, request)
@@ -285,7 +293,7 @@ def c_target(request: SubRequest) -> Iterator[Target]:
 
 @pytest.fixture(scope="module")
 def m_target(request: SubRequest) -> Iterator[Target]:
-    """This fixture is the same as ``target`` but shared across a module."""
+    """This fixture is the same as :py:func:`.target` but shared across a module."""
     t = get_target(request)
     yield t
     cleanup_target(t, request)
@@ -295,12 +303,14 @@ target_params: Dict[str, Dict[str, Any]] = {}
 
 
 def pytest_sessionstart(session: Session) -> None:
-    """Pytest hook to setup the session.
+    """Pytest `sessionstart hook`_ to setup the session.
+
+    .. _sessionstart hook: https://docs.pytest.org/en/stable/reference.html#pytest.hookspec.pytest_sessionstart
 
     Gather the targets from the playbook.
 
-    First collect any user supplied defaults from the `platforms` key
-    in the playbook, which will default to the given `defaults`
+    First collect any user supplied defaults from the ``platforms``
+    key in the playbook, which will default to the given ``defaults``
     implemented for each platform. Copy the defaults and then
     overwrite with the target's specific parameters.
 
@@ -313,10 +323,14 @@ def pytest_sessionstart(session: Session) -> None:
 
 
 def pytest_generate_tests(metafunc: Metafunc) -> None:
-    """Indirectly parametrize the ``target`` fixture based on the playbook.
+    """Pytest `generate_tests hook`_ to indirectly parameterize :py:func:`.target`.
 
-    This hook is run for each test, so we gather the targets in
-    ``pytest_sessionstart``.
+    .. _generate_tests hook: https://docs.pytest.org/en/stable/reference.html#pytest.hookspec.pytest_generate_tests
+
+    This takes the given targets (probably from the playbook) and
+    transforms them into parameters for all the tests using the
+    :py:func:`.target` fixture. Since this hook is run for each test,
+    so we gather the targets in :py:func:`pytest_sessionstart`.
 
     """
     assert target_params, "This should not be empty!"
