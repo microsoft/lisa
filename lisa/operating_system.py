@@ -244,7 +244,7 @@ class CoreOs(Redhat):
 class Suse(Linux):
     @classmethod
     def name_pattern(cls) -> Pattern[str]:
-        return re.compile("^SLES|SUSE|sles|sle-hpc|sle_hpc$")
+        return re.compile("^SLES|SUSE|sles|sle-hpc|sle_hpc|opensuse-leap$")
 
     def _initialize_package_installation(self) -> None:
         self._node.execute("zypper --non-interactive --gpg-auto-import-keys update")
