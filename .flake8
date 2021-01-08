@@ -2,4 +2,4 @@
 max-line-length = 88
 select = B,BLK,C90,E,F,I,W
 max-complexity = 15
-extend-ignore = E203
+extend-ignore = E203,E501
