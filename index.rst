@@ -6,7 +6,7 @@ Linux Integration Services Automation
 LISA is a Linux test automation framework with built-in test cases to
 verify the quality of Linux distributions on multiple platforms (such
 as Azure, Hyper-V, and bare metal). It is an opinionated collection of
-custom `Pytest <https://docs.pytest.org/en/stable/>`__ plugins,
+custom `Pytest <https://docs.pytest.org/en/stable/>`_ plugins,
 configurations, and tests. See the :doc:`technical specification
 document <DESIGN>` for details, and the `GitHub repository`_ for
 sources.
@@ -25,16 +25,29 @@ sources.
 Getting Started
 ---------------
 
+LISA is supported on almost any Linux or Windows installation provided
+Python 3.7 (released in 2018) or newer is available and SSH can be
+used to connect to the remote targets under test. The local SSH
+configuration is respected so ``ProxyJump`` can be used.
+
 Install Python 3
 ~~~~~~~~~~~~~~~~
 
 Install Python 3.7 or newer from your Linux distribution’s package
-repositories, or `python.org <https://www.python.org/>`__.
+repositories, or `python.org <https://www.python.org/>`_.
+
+On Ubuntu 20.04 and up, just run ``apt install python-is-python3``.
+
+Below that Ubuntu version, the ``python3`` package is out-of-date, so
+use something like a `PPA`_ or `pyenv`_.
+
+.. _PPA: https://launchpad.net/~deadsnakes/+archive/ubuntu/ppa
+.. _pyenv: https://github.com/pyenv/pyenv
 
 Install Poetry
 ~~~~~~~~~~~~~~
 
-`Poetry <https://python-poetry.org/docs/>`__ is our preferred tool for
+`Poetry <https://python-poetry.org/docs/>`_ is our preferred tool for
 Python dependency management and packaging. We’ll use it to
 automatically setup a ‘virtualenv’ and install everything we need.
 
@@ -100,7 +113,7 @@ Enable Azure
 ^^^^^^^^^^^^
 
 To run the demo you’ll need the `Azure
-CLI <https://docs.microsoft.com/en-us/cli/azure/>`__ tool installed and
+CLI <https://docs.microsoft.com/en-us/cli/azure/>`_ tool installed and
 configured:
 
 .. code:: bash
