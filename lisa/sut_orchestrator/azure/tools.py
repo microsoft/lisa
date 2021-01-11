@@ -23,5 +23,11 @@ class Waagent(Tool):
         if result.exit_code != 0:
             self._command = "/usr/sbin/waagent"
             result = self.run("-version")
+        # When the default command python points to python2,
+        # we need specify python3 clearly.
+        # e.g. bt-americas-inc diamondip-sapphire-v5 v5-9 9.0.53.
+        if result.exit_code != 0:
+            self._command = "python3 /usr/sbin/waagent"
+            result = self.run("-version")
         found_version = find_patterns_in_lines(result.stdout, [self.__version_pattern])
         return found_version[0][0] if found_version[0] else ""
