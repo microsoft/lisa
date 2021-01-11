@@ -1,3 +1,5 @@
+# Copyright (c) Microsoft Corporation.
+# Licensed under the MIT License.
 """A plugin for creating, validating, and reading a playbook.
 
 Use the ``pytest_playbook_schema`` hook to modify the schema

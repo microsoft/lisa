@@ -1,3 +1,5 @@
+# Copyright (c) Microsoft Corporation.
+# Licensed under the MIT License.
 """A plugin for creating, using, and managing remote targets.
 
 The abstract base `Target` class provides an interface for adding

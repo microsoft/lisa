@@ -1,3 +1,5 @@
+# Copyright (c) Microsoft Corporation.
+# Licensed under the MIT License.
 """Provides and parameterizes the :py:func:`.target` fixture(s).
 
 .. TODO::

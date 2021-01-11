@@ -1,3 +1,5 @@
+# Copyright (c) Microsoft Corporation.
+# Licensed under the MIT License.
 """LISA tests' specific configurations go here.
 
 This file is essentially the staging ground for contributions to

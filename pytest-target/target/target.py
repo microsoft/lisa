@@ -1,3 +1,5 @@
+# Copyright (c) Microsoft Corporation.
+# Licensed under the MIT License.
 """Provides the abstract base :py:class:`~target.target.Target` class."""
 from __future__ import annotations
 

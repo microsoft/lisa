@@ -1,3 +1,5 @@
+# Copyright (c) Microsoft Corporation.
+# Licensed under the MIT License.
 """A plugin for organizing, analyzing, and selecting tests.
 
 This plugin provides the mark ``pytest.mark.lisa``, aliased as ``LISA``,

@@ -1,3 +1,5 @@
+# Copyright (c) Microsoft Corporation.
+# Licensed under the MIT License.
 """Provides an ``Azure(Target)`` implementation using the Azure CLI."""
 from __future__ import annotations
 

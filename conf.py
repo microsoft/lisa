@@ -1,22 +1,21 @@
-# type: ignore
-# Configuration file for the Sphinx documentation builder.
-#
-# This file only contains a selection of the most common options. For a full
-# list see the documentation:
-# https://www.sphinx-doc.org/en/master/usage/configuration.html
+# Copyright (c) Microsoft Corporation.
+# Licensed under the MIT License.
 
-# -- Project information -----------------------------------------------------
+# type: ignore
+"""Configuration file for the Sphinx documentation builder.
+
+https://www.sphinx-doc.org/en/master/usage/configuration.html
+"""
 import importlib.metadata
+from datetime import datetime
 
 metadata = importlib.metadata.metadata("LISA")
 
 project = metadata["Name"].upper()
-project_copyright = "Microsoft"  # TODO: Add year and verify.
+copyright = f"{datetime.now().year} Microsoft Corporation"
 author = metadata["Author"]
 version = metadata["Version"]
 release = version
-
-# -- General configuration ---------------------------------------------------
 
 # Add any Sphinx extension module names here, as strings. They can be
 # extensions coming with Sphinx (named 'sphinx.ext.*') or your custom
