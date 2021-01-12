@@ -214,6 +214,10 @@ class FreeBSD(Unix):
     pass
 
 
+class OpenBSD(Unix):
+    pass
+
+
 class Redhat(Linux):
     @classmethod
     def name_pattern(cls) -> Pattern[str]:
@@ -261,4 +265,13 @@ class NixOS(Linux):
 class OtherLinux(Linux):
     @classmethod
     def name_pattern(cls) -> Pattern[str]:
-        return re.compile("^Sapphire|Buildroot|OpenWrt|BloombaseOS$")
+        """
+        FMOS - firemon firemon_sip_azure firemon_sip_azure_byol 9.1.3
+        idms - linuxbasedsystemsdesignltd1580878904727 idmslinux
+               idmslinux_nosla 2020.0703.1
+        RecoveryOS - unitrends unitrends-enterprise-backup-azure ueb9-azure-trial 1.0.9
+        sinefa - sinefa sinefa-probe sf-va-msa 26.6.3
+        """
+        return re.compile(
+            "^Sapphire|Buildroot|OpenWrt|BloombaseOS|FMOS|idms|RecoveryOS|sinefa$"
+        )
