@@ -26,11 +26,11 @@
         <Hosts>
             <Host>
                 <ServerName>localhost</ServerName>
-                <DestinationOsVHDPath>VHDs_Destination_Path</DestinationOsVHDPath>
+                <DestinationOsVHDPath>VHDs_Path</DestinationOsVHDPath>
             </Host>
             <Host>
                 <ServerName>localhost</ServerName>
-                <DestinationOsVHDPath>VHDs_Destination_Path</DestinationOsVHDPath>
+                <DestinationOsVHDPath>VHDs_Path</DestinationOsVHDPath>
             </Host>
         </Hosts>
         <ResultsDatabase>

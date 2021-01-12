@@ -324,10 +324,10 @@ function Create-HyperVGroupDeployment([string]$HyperVGroupName, $HyperVGroupXML,
             $VMSwitches = Get-VMSwitch -ComputerName $HyperVHost | Where-Object {$InterfaceAliasWithInternet -like "*" + $_.Name + "*" } | Select-Object -First 1
             if ( $VirtualMachine.RoleName) {
                 $CurrentVMName = $HyperVGroupName + "-" + $VirtualMachine.RoleName
-                $CurrentVMOsVHDPath = "$DestinationOsVHDPath\$HyperVGroupName-$CurrentVMName-diff-OSDisk${vhdSuffix}"
+                $CurrentVMOsVHDPath = "$DestinationOsVHDPath\$CurrentVMName-diff-OS${vhdSuffix}"
             } else {
                 $CurrentVMName = $HyperVGroupName + "-role-$i"
-                $CurrentVMOsVHDPath = "$DestinationOsVHDPath\$HyperVGroupName-role-$i-diff-OSDisk${vhdSuffix}"
+                $CurrentVMOsVHDPath = "$DestinationOsVHDPath\$HyperVGroupName-role-$i-diff-OS${vhdSuffix}"
                 $i += 1
             }
 
@@ -343,7 +343,7 @@ function Create-HyperVGroupDeployment([string]$HyperVGroupName, $HyperVGroupXML,
                 }
             } elseif ($uriParentOsVHDPath.Scheme -imatch "http") {
                 $FileName = Split-Path $uriParentOsVHDPath -Leaf
-                $DownloadFile = Join-Path "$($pwd.Path)\VHDs_Destination_Path" $FileName
+                $DownloadFile = Join-Path "$($pwd.Path)\VHDs_Path" $FileName
                 $parentOsVHDPath = $DownloadFile
                 if ( -not $Global:OsVhdDownloaded ) {
                     Write-LogInfo "Parent VHD path $($uriParentOsVHDPath.AbsoluteUri) is web URL."
@@ -561,6 +561,10 @@ function Get-AllHyperVDeployementData($HyperVGroupNames,$CurrentTestData,$RetryC
                 $QuickVMNode.PublicIP = $VMNicProperties.IPAddresses | Where-Object {$_ -imatch "\b(25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)(\.(25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)){3}\b"}
             } while(($CurrentRetryAttempt -lt $RetryCount) -and (!$QuickVMNode.PublicIP))
 
+            if (($CurrentRetryAttempt -eq $RetryCount) -and (!$QuickVMNode.PublicIP)) {
+                Write-LogErr "Can't get public IP for machine $($property.Name) after retry $CurrentRetryAttempt."
+                return $null
+            }
             if ($QuickVMNode.PublicIP -and $QuickVMNode.PublicIP.Split("").Length -gt 1) {
                 $QuickVMNode.PublicIP = $QuickVMNode.PublicIP[0]
             }
