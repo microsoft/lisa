@@ -23,8 +23,8 @@ case $DISTRO in
         release=$(lsb_release -c -s)
         echo "deb [arch=amd64] http://packages.microsoft.com/repos/azurecore/ $release main" | sudo tee -a /etc/apt/sources.list.d/azure.list
 
-    wget -qO - https://packages.microsoft.com/keys/microsoft.asc | apt-key add  -
-    wget -qO - https://packages.microsoft.com/keys/msopentech.asc | apt-key add -
+        wget -qO - https://packages.microsoft.com/keys/microsoft.asc | apt-key add -
+        wget -qO - https://packages.microsoft.com/keys/msopentech.asc | apt-key add -
     ;;
     suse*|opensuse*|sles*|sle_hpc*)
         zypper ar -t rpm-md -n "packages-microsoft-com-azurecore" --no-gpgcheck https://packages.microsoft.com/yumrepos/azurecore/ azurecore
