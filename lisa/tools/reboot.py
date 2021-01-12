@@ -5,7 +5,6 @@ from typing import Any
 from lisa.executable import Tool
 from lisa.util import LisaException
 from lisa.util.perf_timer import create_timer
-from lisa.util.process import ExecutableResult
 
 from .date import Date
 from .uptime import Uptime
@@ -16,10 +15,11 @@ class Reboot(Tool):
     def _initialize(self, *args: Any, **kwargs: Any) -> None:
         # timeout to wait
         self.time_out: int = 300
+        self._command = "/sbin/reboot"
 
     @property
     def command(self) -> str:
-        return "reboot"
+        return self._command
 
     def _check_exists(self) -> bool:
         return True
@@ -53,11 +53,29 @@ class Reboot(Tool):
             sleep(wait_seconds)
             current_delta = date.current().replace(tzinfo=None) - current_boot_time
 
+        # sudo not enabled for test user in some distros.
+        # e.g. firemon firemon_sip_azure firemon_sip_azure_byol 9.1.3.
+        command_result = self.node.execute(
+            "command -v sudo", shell=True, no_info_log=True
+        )
+        if command_result.exit_code != 0:
+            raise LisaException(
+                "the system doesn't support [command] or [sudo], cannot perform reboot."
+            )
+
+        # Get reboot execution path
+        # Not all distros have the same reboot execution path
+        command_result = self.node.execute(
+            "sudo -s command -v reboot", shell=True, no_info_log=True
+        )
+        if command_result.exit_code == 0:
+            self._command = command_result.stdout
         self._log.debug(f"rebooting with boot time: {last_boot_time}")
         try:
-            reboot_result: ExecutableResult = self.node.execute(f"sudo {self.command}")
-            if reboot_result.stderr:
-                self.node.execute_async(f"sudo /usr/sbin/{self.command}")
+            # The reason for using function execute_async is,
+            # in some case, it doesn't return back after run reboot.
+            # e.g. SUSE sles-15-sp1-sapcal gen1 2020.10.23.
+            self.node.execute_async(f"sudo {self._command}")
         except Exception as identifier:
             # it doesn't matter to exceptions here. The system may reboot fast
             self._log.debug(f"ignorable exception on rebooting: {identifier}")
