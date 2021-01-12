@@ -17,6 +17,7 @@ pytest = "^6.1.1"
 pytest-timeout = "^1.4.2"
 pytest-html = "^2.1.1"
 pytest-rerunfailures = "^9.1.1"
+pytest-target = {path = "pytest-target", develop = true}
 pytest-lisa = {path = "pytest-lisa", develop = true}
 
 [tool.poetry.dev-dependencies]
