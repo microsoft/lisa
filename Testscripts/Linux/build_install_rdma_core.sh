@@ -37,7 +37,8 @@ function build_install_rdma_core () {
 
 	mk-build-deps rdma-core --install --tool "apt-get -o Debug::pkgProblemResolver=yes --no-install-recommends -y"
 	check_exit_status "enabled apt sources on ${1}" "exit"
-
+	LogMsg "/etc/resolv.conf maybe overwrite by updated package, run dhclient to restore it."
+	dhclient
 	RDMA_CORE_DIR="rdma-core"
 	LogMsg "Remove folder $RDMA_CORE_DIR if exists."
 	rm -rf "${RDMA_CORE_DIR}"
