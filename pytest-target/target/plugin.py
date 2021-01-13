@@ -245,7 +245,7 @@ def get_targets(request: SubRequest) -> List[Target]:
 
 
 def cleanup_target(t: Target, request: SubRequest) -> None:
-    """This is called by fixtures after they're done with a ``Target``."""
+    """This is called by fixtures after they're done with a :py:class:`~target.target.Target`."""
     t.conn.close()
     mark: Optional[Mark] = request.node.get_closest_marker("target")
     assert mark is not None
@@ -261,7 +261,7 @@ def cleanup_target(t: Target, request: SubRequest) -> None:
 
 @pytest.fixture
 def target(request: SubRequest) -> Iterator[Target]:
-    """This fixture provides a connected ``Target`` for each test.
+    """This fixture provides a connected :py:class:`~target.target.Target` for each test.
 
     It is parametrized indirectly in :py:func:`pytest_generate_tests`.
 

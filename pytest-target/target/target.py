@@ -1,6 +1,13 @@
 # Copyright (c) Microsoft Corporation.
 # Licensed under the MIT License.
-"""Provides the abstract base :py:class:`~target.target.Target` class."""
+"""Provides the abstract base :py:class:`~target.target.Target` class.
+
+This abstract base class provides the building blocks for any platform
+support that could be required. Users simply define a subclass with
+the abstract methods implemented to deploy or delete the target
+appropriately.
+
+"""
 from __future__ import annotations
 
 import dataclasses
@@ -77,6 +84,7 @@ class Target(TargetData, metaclass=ABCMeta):
     name: str
     host: str
     conn: fabric.Connection
+    """Used for SSH access, see `Fabric.Connection`_"""
 
     # Setup a sane configuration for local and remote commands. Note
     # that the defaults between Fabric and Invoke are different, so we

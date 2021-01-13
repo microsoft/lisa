@@ -155,6 +155,7 @@ lisa_schema = Schema(
         ): And(int, lambda n: 0 < n < 10),
     }
 )
+"""Schema used to validate a test's metadata."""
 
 
 def validate_mark(mark: Mark) -> None:
@@ -277,7 +278,7 @@ class LISAScheduling(LoadScopeScheduling):
             self.log = log.lisasched
 
     # NOTE: Needs to handle whitespace, so can’t be `\w+`.
-    regex = re.compile(r"\[Target=([^\[\]]+)\]")
+    _regex = re.compile(r"\[Target=([^\[\]]+)\]")
 
     def _split_scope(self, nodeid: str) -> str:
         """Determine the scope (grouping) of a `nodeid`.
@@ -317,7 +318,7 @@ class LISAScheduling(LoadScopeScheduling):
         'example/test_module.py::test_class'
 
         """
-        search = self.regex.search(nodeid)
+        search = self._regex.search(nodeid)
         if search:
             scope = search.group(1)
             if self.config.getoption("verbose"):

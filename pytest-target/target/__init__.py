@@ -2,11 +2,12 @@
 # Licensed under the MIT License.
 """A plugin for creating, using, and managing remote targets.
 
-The abstract base `Target` class provides an interface for adding
-platform-specific support through sub-classes. A usable reference
-implementation is the `Azure` class. A class for testing on the local
-system is the `Local` class. Sub-classes can be implemented in a
-`conftest.py` file and will be found automatically.
+The abstract base :py:class:`~target.target.Target` class provides an
+interface for adding platform-specific support through sub-classes. A
+usable reference implementation is the
+:py:class:`~target.azure.AzureCLI` class. A class for just connecting
+over SSH is the :py:class:`~target.target.SSH` Sub-classes can be
+implemented in a ``conftest.py`` file and will be found automatically.
 
 Tests can request access to a target through the function-scoped
 `target` Pytest fixture, which returns an instance based on the

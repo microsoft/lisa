@@ -16,12 +16,7 @@ from paramiko import SSHException  # type: ignore
 from lisa import LISA
 
 
-@LISA(
-    platform="Azure",
-    category="Functional",
-    area="deploy",
-    priority=0,
-)
+@LISA(platform="Azure", category="Functional", area="deploy", priority=0)
 def test_smoke(target: AzureCLI, caplog: LogCaptureFixture) -> None:
     """Check that an Azure Linux VM can be deployed and is responsive.
 
