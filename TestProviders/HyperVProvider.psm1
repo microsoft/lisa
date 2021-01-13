@@ -156,8 +156,6 @@ Class HyperVProvider : TestProvider
 					}
 				}
 			}
-			# Retrieve VM info to make sure use correct IP after VM starts
-			$allVMData = Get-AllHyperVDeployementData -HyperVGroupNames $allVMData[0].HyperVGroupName -CurrentTestData $CurrentTestData
 
 			if ($SetupTypeData.ClusteredVM) {
 				foreach ($VM in $AllVMData) {
