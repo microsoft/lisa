@@ -726,6 +726,10 @@ Class TestController {
 				$executionCount += 1
 				Write-LogInfo "($executionCount/$($this.TotalCaseNum)) testing started: $($currentTestCase.testName)"
 				Write-LogInfo "SetupConfig: { $(ConvertFrom-SetupConfig -SetupConfig $currentTestCase.SetupConfig) }"
+				# Retrieve VM info again, since the IP may change after restart/stop, start.
+				if ($vmData) {
+					$vmData = Get-AllHyperVDeployementData -HyperVGroupNames $vmData[0].HyperVGroupName -CurrentTestData $currentTestCase
+				}
 				if (!$vmData -or $this.DeployVMPerEachTest) {
 					# Deploy the VM for the setup
 					Write-LogInfo "Deploy target machine for test if required ..."
