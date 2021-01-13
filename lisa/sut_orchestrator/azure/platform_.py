@@ -44,6 +44,7 @@ from lisa.util import (
     LisaException,
     constants,
     find_patterns_in_lines,
+    get_matched_str,
     get_public_key_data,
     set_filtered_fields,
 )
@@ -66,6 +67,10 @@ from .common import (
 AZURE_DEPLOYMENT_NAME = "lisa_default_deployment_script"
 AZURE_RG_NAME_KEY = "resource_group_name"
 AZURE_SHARED_RG_NAME = "lisa_shared_resource"
+AZURE_INTERNAL_ERROR_PATTERN = re.compile(
+    r"OSProvisioningInternalError: OS Provisioning failed "
+    r"for VM.*due to an internal error."
+)
 
 VM_SIZE_FALLBACK_PATTERNS = [
     # exclude Standard_DS1_v2, because one core is too slow,
@@ -887,6 +892,17 @@ class AzurePlatform(Platform):
                 # define a flag in config, to mark this exception is ignorable or not.
                 log.error(
                     f"provisioning time out, try to run case. "
+                    f"Exception: {error_message}"
+                )
+            elif get_matched_str(error_message, AZURE_INTERNAL_ERROR_PATTERN):
+                # Similar situation with OSProvisioningTimedOut
+                # Some OSProvisioningInternalError caused by it doesn't support
+                # SSH key authentation
+                # e.g. hpe hpestoreoncevsa hpestoreoncevsa-3187 3.18.7
+                # After passthrough this exception,
+                # actuatlly the 22 port of this VM is open.
+                log.error(
+                    f"provisioning failed for an internal error, try to run case. "
                     f"Exception: {error_message}"
                 )
             else:
