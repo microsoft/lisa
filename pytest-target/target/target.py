@@ -13,6 +13,7 @@ from __future__ import annotations
 import dataclasses
 import platform
 import typing
+import warnings
 from abc import ABCMeta, abstractmethod
 from io import BytesIO
 
@@ -131,9 +132,12 @@ class Target(TargetData, metaclass=ABCMeta):
         self.data = data
         self.number = number
         self.locked = locked
-
         self.name = f"{self.group}-{self.number}"
-        self.host = self.deploy()
+
+        try:
+            self.host = self.deploy()
+        except Exception as e:
+            warnings.warn(f"Failed to deploy '{self.name}': {e}")
 
         fabric_config = self._config.copy()
         fabric_config["run"]["env"] = {  # type: ignore

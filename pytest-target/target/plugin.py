@@ -217,30 +217,31 @@ def get_targets(request: SubRequest) -> List[Target]:
             for name, json in pool.items():
                 if fits(TargetData(**json)):
                     logging.debug(f"Found fit target '{i}'!")
-                    # TODO: De-duplicate this logic and its
-                    # counterpart below.
                     t = Target.from_json(json)
                     assert name == t.name  # Sanity check.
                     t.locked = True
                     pool[t.name] = t.to_json()
                     targets.append(t)
-                    break
-            if count == len(targets):
-                # TODO: This is a kludgy way to either use the found
-                # targets or give up and instantiate new ones instead.
-                # Theoretically the length here should either be zero
-                # or `count` because of the check in `fits`, but
-                # perhaps we should handle the erroneous case where
-                # it’s in-between.
-                break
-        else:
-            group = f"pytest-{uuid4()}"
-            for i in range(count):
-                logging.info(f"Instantiating target '{group}-{i}': {params}...")
-                cls = Target.get_platform(params["platform"])
-                t = cls(group, params, features, {}, i)
+                    break  # Continue outer counting loop...
+    if targets:
+        assert len(targets) == count
+    else:
+        group = f"pytest-{uuid4()}"
+        for i in range(count):
+            logging.info(f"Instantiating target '{group}-{i}': {params}...")
+            t = Target.from_json(
+                {
+                    "group": group,
+                    "params": params,
+                    "features": features,
+                    "data": {},
+                    "number": i,
+                    "locked": True,
+                }
+            )
+            with target_pool(request.config) as pool:
                 pool[t.name] = t.to_json()
-                targets.append(t)
+            targets.append(t)
     return targets
 
 
