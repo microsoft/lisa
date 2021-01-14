@@ -18,6 +18,7 @@ class Uptime(Tool):
         command_result = self.run("-s", no_error_log=no_error_log)
         if command_result.exit_code != 0:
             raise LisaException(
-                f"get unexpected non-zero exit code {command_result.exit_code}"
+                f"get unexpected non-zero exit code {command_result.exit_code} "
+                f"when run {self.command} -s."
             )
         return parser().parse(command_result.stdout)
