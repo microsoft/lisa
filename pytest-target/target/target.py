@@ -21,7 +21,12 @@ import fabric  # type: ignore
 import invoke  # type: ignore
 from invoke.runners import Result  # type: ignore
 from schema import Literal, Optional, Schema  # type: ignore
-from tenacity import retry, stop_after_attempt, wait_exponential  # type: ignore
+from tenacity import (  # type: ignore
+    retry,
+    retry_if_result,
+    stop_after_attempt,
+    wait_exponential,
+)
 
 if typing.TYPE_CHECKING:
     from typing import Any, Dict, List, Mapping, Tuple, Type
@@ -301,11 +306,27 @@ class Target(TargetData, metaclass=ABCMeta):
         """This patches Fabric's ``local()`` function to ignore SSH environment."""
         return Target._local_context.run(*args, **kwargs)
 
-    @retry(reraise=True, wait=wait_exponential(), stop=stop_after_attempt(3))
+    @retry(
+        retry=retry_if_result(lambda result: result.failed),
+        retry_error_callback=(lambda retry_state: retry_state.outcome.result()),
+        wait=wait_exponential(),
+        stop=stop_after_attempt(5),
+    )
     def ping(self, **kwargs: Any) -> Result:
-        """Ping the node from the local system in a cross-platform manner."""
+        """Ping the node from the local system in a cross-platform manner.
+
+        This is setup such that it retries five times when the exit
+        code is nonzero, with an exponential backoff. Since we want to
+        return the command's result regardless of failure, we suppress
+        `Invoke`_'s exception with ``warn=True`` and `Tenacity`_'s exception
+        with ``retry_error_callback=...``.
+
+        .. _Invoke: https://www.pyinvoke.org/
+        .. _Tenacity: https://tenacity.readthedocs.io/en/latest/
+
+        """
         flag = "-c 1" if platform.system() == "Linux" else "-n 1"
-        return self.local(f"ping {flag} {self.host}", **kwargs)
+        return self.local(f"ping {flag} {self.host}", warn=True, **kwargs)
 
     def cat(self, path: str) -> str:
         """Gets the value of a remote file without a temporary file."""

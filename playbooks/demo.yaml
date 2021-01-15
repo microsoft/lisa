@@ -12,4 +12,4 @@ targets:
     image: UbuntuLTS
 
 criteria:
-    - module: smoke
+    - module: test_smoke_b

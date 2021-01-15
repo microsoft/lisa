@@ -10,7 +10,7 @@ import logging
 import socket
 import time
 
-from invoke.runners import CommandTimedOut, Result, UnexpectedExit  # type: ignore
+from invoke.runners import CommandTimedOut, UnexpectedExit  # type: ignore
 from paramiko import SSHException  # type: ignore
 
 from lisa import LISA
@@ -39,11 +39,7 @@ def test_smoke(target: AzureCLI, caplog: LogCaptureFixture) -> None:
     caplog.set_level(logging.INFO)
 
     logging.info("Pinging before reboot...")
-    ping1 = Result()
-    try:
-        ping1 = target.ping()
-    except UnexpectedExit:
-        logging.warning(f"Pinging {target.host} before reboot failed")
+    ping1 = target.ping()
 
     ssh_errors = (TimeoutError, CommandTimedOut, SSHException, socket.error)
 
@@ -73,11 +69,7 @@ def test_smoke(target: AzureCLI, caplog: LogCaptureFixture) -> None:
     time.sleep(10)
 
     logging.info("Pinging after reboot...")
-    ping2 = Result()
-    try:
-        ping2 = target.ping()
-    except UnexpectedExit:
-        logging.warning(f"Pinging {target.host} after reboot failed")
+    ping2 = target.ping()
 
     try:
         logging.info("SSHing after reboot...")
@@ -94,5 +86,5 @@ def test_smoke(target: AzureCLI, caplog: LogCaptureFixture) -> None:
         logging.info("See full report for boot diagnostics.")
 
     # NOTE: The test criteria is to fail only if ping fails.
-    assert ping1.ok
-    assert ping2.ok
+    assert ping1.ok, f"Pinging {target.host} before reboot failed"
+    assert ping2.ok, f"Pinging {target.host} after reboot failed"
