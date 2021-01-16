@@ -2,18 +2,39 @@
 # Licensed under the MIT License.
 """A plugin for creating, validating, and reading a playbook.
 
-Use the ``pytest_playbook_schema`` hook to modify the schema
-dictionary representing the data expected to be read and validated
-from a ``playbook.yaml`` file, the path to which is provided by the
-user with the command-line flag ``--playbook``.
+Use the :py:meth:`~Hooks.pytest_playbook_schema` hook to modify the
+`schema`_ dictionary representing the data expected to be read and
+validated from a ``playbook.yaml`` `YAML`_ file, the path to which is
+provided by the user with the command-line flag
+``--playbook=<data.yaml>``.
 
-This module's ``data`` attribute will hold the read and validated data
-after all ``pytest_configure`` hooks have run. See
-``pytest_playbook_schema`` for example usage.
+.. _schema: https://github.com/keleshev/schema
+.. _YAML: https://pyyaml.org/wiki/PyYAMLDocumentation
+
+This module's :py:data:`data` attribute will hold the read and
+validated data after all :py:func:`pytest_configure` hooks have run.
+Use it in your ``conftest.py`` (or Pytest plugin) like so:
+
+.. code-block:: python
+
+   import playbook
+   from schema import Schema
+
+   def pytest_playbook_schema(schema):
+       schema["targets"] = Schema({"name": str, "platform": str, "cpus": int})
+
+   def pytest_sessionstart(session):
+       for target in playbook.data["targets"]:
+           print(target["name"])
 
 Remember not to use ``from playbook import data`` because then the
 attribute will not contain the shared data. Instead use ``import
-playbook`` and reference ``playbook.data``.
+playbook`` and reference :py:data:`playbook.data`.
+
+All registered schema can be printed to a `JSON Schema`_ file with
+``--print-schema=<file.json>``.
+
+.. _JSON Schema: https://json-schema.org/
 
 """
 
@@ -27,7 +48,6 @@ from pathlib import Path
 import yaml  # TODO: Optionally load yaml.
 from schema import Schema, SchemaError  # type: ignore
 
-# See https://pyyaml.org/wiki/PyYAMLDocumentation
 try:
     from yaml import CLoader as Loader
 except ImportError:
@@ -52,32 +72,28 @@ class Hooks:
     def pytest_playbook_schema(self, schema: Dict[Any, Any], config: Config) -> None:
         """Update the Playbook's schema dict.
 
-        The 'schema' is a mutable dict, and 'config' is optional.
-        Example usage:
-
-        .. code-block:: python
-
-           import playbook
-           from schema import Schema
-
-           def pytest_playbook_schema(schema):
-               schema["targets"] = Schema({"name": str, "platform": str, "cpus": int})
-
-           def pytest_sessionstart(session):
-               for target in playbook.playbook["targets"]:
-                   print(target["name"])
+        :param schema: mutable dict passed to ``schema.validate()`` in :py:func:`pytest_configure`.
+        :param config: optional, allows access to Pytest ``Config`` object if given.
 
         """
 
 
 # Now provide the hook implementations.
 def pytest_addhooks(pluginmanager: PytestPluginManager) -> None:
-    """Pytest hook to register our hooks."""
+    """Pytest `addhooks hook`_ to register our hooks.
+
+    .. _addhooks hook: https://docs.pytest.org/en/stable/reference.html#pytest.hookspec.pytest_addhooks
+
+    """
     pluginmanager.add_hookspecs(Hooks)
 
 
 def pytest_addoption(parser: Parser, pluginmanager: PytestPluginManager) -> None:
-    """Pytest hook to add our CLI options."""
+    """Pytest `addoption hook`_ to add our CLI options.
+
+    .. _addoption hook: https://docs.pytest.org/en/stable/reference.html#pytest.hookspec.pytest_addoption
+
+    """
     group = parser.getgroup("playbook")
     group.addoption("--playbook", type=Path, help="Path to playbook.")
     group.addoption(
@@ -90,10 +106,13 @@ def pytest_addoption(parser: Parser, pluginmanager: PytestPluginManager) -> None
 # TODO: See if this works without ‘trylast’.
 @pytest.hookimpl(trylast=True)
 def pytest_configure(config: Config) -> None:
-    """Pytest hook to configure our plugin.
+    """Pytest `configure hook`_ to configure our plugin.
 
-    This is set to be tried last so that all other plugins have been
-    loaded and defined their ``pytest_playbook_schema`` hooks.
+    .. _configure hook: https://docs.pytest.org/en/stable/reference.html#pytest.hookspec.pytest_configure
+
+    This is set to be tried last so that all other plugins and
+    ``conftest.py`` files have been loaded and defined their
+    :py:meth:`~Hooks.pytest_playbook_schema` hooks.
 
     """
     schema_dict: Dict[Any, Any] = dict()

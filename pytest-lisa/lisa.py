@@ -2,12 +2,15 @@
 # Licensed under the MIT License.
 """A plugin for organizing, analyzing, and selecting tests.
 
-This plugin provides the mark ``pytest.mark.lisa``, aliased as ``LISA``,
-for marking up tests metadata beyond that which Pytest provides by
-default. See the ``lisa_schema`` for the expected metadata input.
+This plugin provides the mark ``pytest.mark.lisa``, aliased as
+:py:func:`LISA`, for marking up tests metadata beyond that which
+Pytest provides by default. See the :py:data:`lisa_schema` for the
+expected metadata input.
 
 Tests can be selected through a ``playbook.yaml`` file using the
-criteria schema. For example:
+criteria schema (using the `pytest-playbook`_ plugin). For example:
+
+.. _pytest-playbook: https://microsoft.github.io/lisa/modules/playbook.html
 
 .. code-block:: yaml
 
@@ -52,18 +55,21 @@ if typing.TYPE_CHECKING:
     from pytest import Item, Session
 
 LISA = pytest.mark.lisa
+"""Alias for the Pytest mark ``lisa``."""
 
 
 def main() -> None:
-    """Wrapper function so we can have a `lisa` binary."""
+    """Wrapper function so we can have a ``lisa`` binary."""
     sys.exit(pytest.main())
 
 
 def pytest_configure(config: Config) -> None:
-    """Pytest hook to perform initial configuration.
+    """Pytest `configure hook`_ to perform initial configuration.
+
+    .. _configure hook: https://docs.pytest.org/en/stable/reference.html#pytest.hookspec.pytest_configure
 
     We're registering our custom marker so that it passes
-    `--strict-markers`.
+    ``--strict-markers``.
 
     """
     config.addinivalue_line(
@@ -76,7 +82,7 @@ def pytest_configure(config: Config) -> None:
 
 
 def pytest_playbook_schema(schema: Dict[Any, Any]) -> None:
-    """pytest-playbook hook to update the playbook schema."""
+    """:py:meth:`~playbook.Hooks.pytest_playbook_schema` hook to update the playbook schema."""
     # TODO: We also want to support a ‘targets’ list that confines a
     # test selection to only the given targets.
     criteria_schema = Schema(
@@ -159,7 +165,7 @@ lisa_schema = Schema(
 
 
 def validate_mark(mark: Mark) -> None:
-    """Validate each test's LISA parameters."""
+    """Validate each test's :py:func:`LISA` parameters."""
     assert not mark.args, "LISA marker cannot have positional arguments!"
     mark.kwargs.update(lisa_schema.validate(mark.kwargs))  # type: ignore
 
@@ -167,13 +173,15 @@ def validate_mark(mark: Mark) -> None:
 def pytest_collection_modifyitems(
     session: Session, config: Config, items: List[Item]
 ) -> None:
-    """Pytest hook for modifying the selected items (tests).
+    """Pytest `collection modifyitems hook`_ for modifying the selected items (tests).
 
-    First we validate all the `LISA` marks on the collected tests.
-    Then we parse the given `criteria` in the playbook to include or
-    exclude tests. We do not care if the `platform` mismatches because
-    we intend a multiplicative effect where all selected tests in a
-    playbook are run on all the targets.
+    .. _collection modifyitems hook: https://docs.pytest.org/en/latest/reference.html#pytest.hookspec.pytest_collection_modifyitems
+
+    First we validate all the :py:func:`LISA` marks on the collected
+    tests. Then we parse the given ``criteria`` in the playbook to
+    include or exclude tests. We do not care if the ``platform``
+    mismatches because we intend a multiplicative effect where all
+    selected tests in a playbook are run on all the targets.
 
     """
     # TODO: The ‘Item’ object has a ‘user_properties’ attribute which
@@ -251,22 +259,24 @@ def pytest_collection_modifyitems(
 
 
 class LISAScheduling(LoadScopeScheduling):
-    """Implement load scheduling across nodes, but grouping by parameter.
+    """Implement load scheduling across nodes, but grouping by target parameter.
 
     This algorithm ensures that all tests which share the same set of
     parameters (namely the target) will run on the same executor as a
     single work-unit.
 
-    TODO: This essentially confines the targets and one target won't
-    be spun up multiple times when run in parallel, so we should make
-    this scheduler optional, as an alternative scenario is to spin up
-    multiple near-identical instances of a target in order to run
-    tests in parallel.
+    .. TODO::
 
-    This is modeled after the built-in `LoadFileScheduling`, which
-    also simply subclasses `LoadScopeScheduling`. See `_split_scope`
-    for the important part. Note that we can extend this to implement
-    any kind of scheduling algorithm we want.
+       This essentially confines the targets and one target won't be
+       spun up multiple times when run in parallel, so we should make
+       this scheduler optional, as an alternative scenario is to spin
+       up multiple near-identical instances of a target in order to
+       run tests in parallel.
+
+    This is modeled after the built-in ``LoadFileScheduling``, which
+    also simply subclasses ``LoadScopeScheduling``. See
+    ``_split_scope`` for the important part. Note that we can extend
+    this to implement any kind of scheduling algorithm we want.
 
     """
 
@@ -328,9 +338,9 @@ class LISAScheduling(LoadScopeScheduling):
 
 
 def pytest_xdist_make_scheduler(config: Config) -> LISAScheduling:
-    """pytest-xdist hook for implementing a custom scheduler.
+    """pytest-xdist `make scheduler hook`_ for implementing a custom scheduler.
 
-    https://github.com/pytest-dev/pytest-xdist/blob/master/OVERVIEW.md
+    .. _make scheduler hook: https://github.com/pytest-dev/pytest-xdist/blob/master/OVERVIEW.md
 
     """
     return LISAScheduling(config)

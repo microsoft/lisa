@@ -66,7 +66,8 @@ def linkcode_resolve(domain, info):
         folder = ""
 
     filename = module.replace(".", "/")
-    url = metadata["Project-Url"].split(", ")[1]
+    # NOTE: Note `metadata["Project-Url"]` because we need the base.
+    url = "https://github.com/microsoft/lisa"
     # TODO: Update this branch to `main` branch after PR is merged.
     branch = "andschwa/pytest"
     return f"{url}/blob/{branch}/{folder}/{filename}.py"
