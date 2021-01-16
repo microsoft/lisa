@@ -1,10 +1,21 @@
 [tool.poetry]
 name = "pytest-lisa"
 version = "0.1.0"
-description = "Pytest plugin for Linux Integration Services Automation (LISA)."
-authors = ["Andrew Schwartzmeyer <andrew@schwartzmeyer.com>"]
+description = "Pytest plugin for organizing tests."
 license = "MIT"
-classifiers = ["Framework :: Pytest"]
+authors = ["Andrew Schwartzmeyer <andrew@schwartzmeyer.com>"]
+readme = "README.md"
+homepage = "https://microsoft.github.io/lisa"
+repository = "https://github.com/microsoft/lisa/tree/andschwa/pytest/pytest-lisa"
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Framework :: Pytest",
+    "Intended Audience :: Developers",
+    "Operating System :: Microsoft :: Windows",
+    "Operating System :: POSIX",
+    "Topic :: Software Development :: Testing",
+    "Topic :: Utilities"
+]
 packages = [{include = "lisa.py"}]
 
 [tool.poetry.dependencies]

@@ -2,13 +2,21 @@
 name = "LISA"
 version = "0.1.0"
 description = "Linux Integration Services Automation (LISA)"
-license = "MIT License"
+license = "MIT"
 authors = ["Andrew Schwartzmeyer <andrew@schwartzmeyer.com>"]
 readme = "README.md"
 homepage = "https://microsoft.github.io/lisa"
-repository = "https://github.com/microsoft/lisa"
-
-include = [".md", "playbooks/*.yaml"]
+repository = "https://github.com/microsoft/lisa/tree/andschwa/pytest"
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Framework :: Pytest",
+    "Intended Audience :: Developers",
+    "Operating System :: Microsoft :: Windows",
+    "Operating System :: POSIX",
+    "Topic :: Software Development :: Testing",
+    "Topic :: Utilities"
+]
+include = [".md", "playbooks/*.yaml", "playbooks/schema.json"]
 packages = [{include = "*.py"}, {include = "testsuites"}]
 
 [tool.poetry.dependencies]

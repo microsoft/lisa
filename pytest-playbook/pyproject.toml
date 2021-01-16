@@ -2,9 +2,20 @@
 name = "pytest-playbook"
 version = "0.1.0"
 description = "Pytest plugin for reading playbooks."
-authors = ["Andrew Schwartzmeyer <andrew@schwartzmeyer.com>"]
 license = "MIT"
-classifiers = ["Framework :: Pytest"]
+authors = ["Andrew Schwartzmeyer <andrew@schwartzmeyer.com>"]
+readme = "README.md"
+homepage = "https://microsoft.github.io/lisa"
+repository = "https://github.com/microsoft/lisa/tree/andschwa/pytest/pytest-playbook"
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Framework :: Pytest",
+    "Intended Audience :: Developers",
+    "Operating System :: Microsoft :: Windows",
+    "Operating System :: POSIX",
+    "Topic :: Software Development :: Testing",
+    "Topic :: Utilities"
+]
 packages = [{include = "playbook.py"}]
 
 [tool.poetry.dependencies]
