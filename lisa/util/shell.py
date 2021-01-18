@@ -150,7 +150,10 @@ def try_connect(connection_info: ConnectionInfo) -> Any:
 
 # paramiko stucks on get command output of 'fortinet' VM, and spur hide timeout of
 # exec_command. So use an external timeout wrapper to force timeout.
-@func_set_timeout(10)  # type: ignore
+# some images needs longer time to set up ssh connection.
+# e.g. Oracle Oracle-Linux 7.5 7.5.20181207
+# e.g. qubole-inc qubole-data-service default-img 0.7.4
+@func_set_timeout(20)  # type: ignore
 def _spawn_ssh_process(shell: spur.ssh.SshShell, **kwargs: Any) -> spur.ssh.SshProcess:
     return shell.spawn(**kwargs)
 
