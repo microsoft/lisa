@@ -224,12 +224,16 @@ Function Upload-TestResultToDatabase ([String]$SQLQuery) {
 	}
 }
 
-Function Upload-TestResultDataToDatabase ([Array] $TestResultData, [Object] $DatabaseConfig) {
+Function Upload-TestResultDataToDatabase ([Array] $TestResultData, [Object] $DatabaseConfig, [string] $DefaultResultTable, [string] $TestPassID) {
 	$server = $DatabaseConfig.server
 	$dbUser = $DatabaseConfig.user
 	$dbPassword = $DatabaseConfig.password
 	$dbName = $DatabaseConfig.dbname
-	$tableName = $DatabaseConfig.dbtable
+	if ($DatabaseConfig.dbtable) {
+		$tablename = $DatabaseConfig.dbtable
+	} elseif ($DefaultResultTable) {
+		$tablename = $DefaultResultTable
+	}
 
 	if ($server -and $dbUser -and $dbPassword -and $dbName -and $tableName) {
 		try {
@@ -240,13 +244,15 @@ Function Upload-TestResultDataToDatabase ([Array] $TestResultData, [Object] $Dat
 			foreach ($map in $TestResultData) {
 				$queryKey = "INSERT INTO $tableName ("
 				$queryValue = "VALUES ("
-				foreach ($key in $map.Keys) {
+				$newMap = $map
+				$newMap["TestPassID"] = $TestPassID
+				foreach ($key in $newMap.Keys) {
 					$queryKey += "$key,"
-					if (($null -ne $map[$key]) -and ($map[$key].GetType().Name -eq "String")) {
-						$queryValue += "'$($map[$key])',"
+					if (($null -ne $map[$key]) -and ($newMap[$key].GetType().Name -eq "String")) {
+						$queryValue += "'$($newMap[$key])',"
 					}
 					else {
-						$queryValue += "$($map[$key]),"
+						$queryValue += "$($newMap[$key]),"
 					}
 				}
 				$query = $queryKey.TrimEnd(",") + ") " + $queryValue.TrimEnd(",") + ")"

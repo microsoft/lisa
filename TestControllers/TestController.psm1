@@ -537,7 +537,8 @@ Class TestController {
 			# Upload results to database
 			Write-LogInfo "==> Upload test results to database."
 			if ($currentTestResult.TestResultData) {
-				Upload-TestResultDataToDatabase -TestResultData $currentTestResult.TestResultData -DatabaseConfig $this.GlobalConfig.Global.$($this.TestPlatform).ResultsDatabase
+				Upload-TestResultDataToDatabase -TestResultData $currentTestResult.TestResultData -DatabaseConfig $this.GlobalConfig.Global.$($this.TestPlatform).ResultsDatabase `
+					-DefaultResultTable $currentTestData.DefaultResultTable -TestPassID $this.TestPassID
 			}
 
 			if ($CurrentTestData.SetupConfig.OSType -notcontains "Windows") {
