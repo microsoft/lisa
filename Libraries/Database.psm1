@@ -224,12 +224,16 @@ Function Upload-TestResultToDatabase ([String]$SQLQuery) {
 	}
 }
 
-Function Upload-TestResultDataToDatabase ([Array] $TestResultData, [Object] $DatabaseConfig) {
+Function Upload-TestResultDataToDatabase ([Array] $TestResultData, [Object] $DatabaseConfig, [string] $DefaultResultTable, [string] $TestPassID) {
 	$server = $DatabaseConfig.server
 	$dbUser = $DatabaseConfig.user
 	$dbPassword = $DatabaseConfig.password
 	$dbName = $DatabaseConfig.dbname
-	$tableName = $DatabaseConfig.dbtable
+	if ($DatabaseConfig.dbtable) {
+		$tablename = $DatabaseConfig.dbtable
+	} elseif ($DefaultResultTable) {
+		$tablename = $DefaultResultTable
+	}
 
 	if ($server -and $dbUser -and $dbPassword -and $dbName -and $tableName) {
 		try {
@@ -237,25 +241,36 @@ Function Upload-TestResultDataToDatabase ([Array] $TestResultData, [Object] $Dat
 			$connection = New-Object System.Data.SqlClient.SqlConnection
 			$connection.ConnectionString = $connectionString
 			$connection.Open()
+			# Check if the table exists
+			$command = $connection.CreateCommand()
+			$command.CommandText = "SELECT * FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_NAME ='$tablename'"
+			$reader = $command.ExecuteReader()
+			$tableExist = $reader.Read()
+			$reader.Close()
+			if (-not $tableExist) {
+				Write-LogErr "Table $tableName doesn't exist in database $dbName. Results will not be uploaded to database."
+				return
+			}
+
 			foreach ($map in $TestResultData) {
 				$queryKey = "INSERT INTO $tableName ("
 				$queryValue = "VALUES ("
-				foreach ($key in $map.Keys) {
+				$newMap = $map
+				$newMap["TestPassID"] = $TestPassID
+				foreach ($key in $newMap.Keys) {
 					$queryKey += "$key,"
-					if (($null -ne $map[$key]) -and ($map[$key].GetType().Name -eq "String")) {
-						$queryValue += "'$($map[$key])',"
+					if (($null -ne $map[$key]) -and ($newMap[$key].GetType().Name -eq "String")) {
+						$queryValue += "'$($newMap[$key])',"
 					}
 					else {
-						$queryValue += "$($map[$key]),"
+						$queryValue += "$($newMap[$key]),"
 					}
 				}
 				$query = $queryKey.TrimEnd(",") + ") " + $queryValue.TrimEnd(",") + ")"
 				Write-LogInfo "SQLQuery:  $query"
-				$command = $connection.CreateCommand()
 				$command.CommandText = $query
 				$null = $command.executenonquery()
 			}
-			$connection.Close()
 			Write-LogInfo "Succeed to upload test results to database"
 		}
 		catch {

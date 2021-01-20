@@ -24,6 +24,7 @@
       <SetupType>TwoVM2Host</SetupType>
       <SetupScript>.\Testscripts\Windows\SETUP-Check-PowerPlan.ps1,.\Testscripts\Windows\SETUP-PERF-Add-NIC.ps1</SetupScript>
     </SetupConfig>
+    <DefaultResultTable>Perf_Network_TCP</DefaultResultTable>
   </test>
   <test>
     <testName>PERF-NETWORK-TCP-THROUGHPUT-MULTICONNECTION-NTTTCP-SRIOV</testName>
@@ -50,6 +51,7 @@
       <SetupType>TwoVM2Host</SetupType>
       <SetupScript>.\Testscripts\Windows\SETUP-Check-PowerPlan.ps1,.\Testscripts\Windows\SETUP-PERF-Add-NIC.ps1</SetupScript>
     </SetupConfig>
+    <DefaultResultTable>Perf_Network_TCP</DefaultResultTable>
   </test>
   <test>
     <testName>PERF-NETWORK-UDP-1K-THROUGHPUT-MULTICONNECTION-NTTTCP-Synthetic</testName>
@@ -77,6 +79,7 @@
       <SetupType>TwoVM2Host</SetupType>
       <SetupScript>.\Testscripts\Windows\SETUP-Check-PowerPlan.ps1,.\Testscripts\Windows\SETUP-PERF-Add-NIC.ps1</SetupScript>
     </SetupConfig>
+    <DefaultResultTable>Perf_Network_UDP</DefaultResultTable>
   </test>
   <test>
     <testName>PERF-NETWORK-UDP-1K-THROUGHPUT-MULTICONNECTION-NTTTCP-SRIOV</testName>
@@ -104,6 +107,7 @@
       <SetupType>TwoVM2Host</SetupType>
       <SetupScript>.\Testscripts\Windows\SETUP-Check-PowerPlan.ps1,.\Testscripts\Windows\SETUP-PERF-Add-NIC.ps1</SetupScript>
     </SetupConfig>
+    <DefaultResultTable>Perf_Network_UDP</DefaultResultTable>
   </test>
   <test>
     <testName>PERF-NETWORK-TCP-THROUGHPUT-MULTICLIENTS-NTTTCP-Synthetic</testName>
@@ -125,6 +129,7 @@
       <Networking>Synthetic</Networking>
       <SetupType>NineVM</SetupType>
     </SetupConfig>
+    <DefaultResultTable>Perf_Network_TCP</DefaultResultTable>
   </test>
   <test>
     <testName>PERF-NETWORK-TCP-THROUGHPUT-MULTICLIENTS-NTTTCP-SRIOV</testName>
@@ -146,6 +151,7 @@
       <Networking>SRIOV</Networking>
       <SetupType>NineVM</SetupType>
     </SetupConfig>
+    <DefaultResultTable>Perf_Network_TCP</DefaultResultTable>
   </test>
   <test>
     <testName>PERF-NETWORK-UDP-1K-THROUGHPUT-MULTICLIENTS-NTTTCP-Synthetic</testName>
@@ -168,6 +174,7 @@
       <Networking>Synthetic</Networking>
       <SetupType>NineVM</SetupType>
     </SetupConfig>
+    <DefaultResultTable>Perf_Network_UDP</DefaultResultTable>
   </test>
   <test>
     <testName>PERF-NETWORK-UDP-1K-THROUGHPUT-MULTICLIENTS-NTTTCP-SRIOV</testName>
@@ -190,6 +197,7 @@
       <Networking>SRIOV</Networking>
       <SetupType>NineVM</SetupType>
     </SetupConfig>
+    <DefaultResultTable>Perf_Network_UDP</DefaultResultTable>
   </test>
   <test>
     <testName>PERF-NETWORK-TCP-LATENCY-Synthetic</testName>
@@ -211,6 +219,7 @@
       <SetupType>TwoVM2Host</SetupType>
       <SetupScript>.\Testscripts\Windows\SETUP-Check-PowerPlan.ps1,.\Testscripts\Windows\SETUP-PERF-Add-NIC.ps1</SetupScript>
     </SetupConfig>
+    <DefaultResultTable>Perf_Network_Latency</DefaultResultTable>
   </test>
   <test>
     <testName>PERF-NETWORK-TCP-LATENCY-SRIOV</testName>
@@ -233,6 +242,7 @@
       <SetupType>TwoVM2Host</SetupType>
       <SetupScript>.\Testscripts\Windows\SETUP-Check-PowerPlan.ps1,.\Testscripts\Windows\SETUP-PERF-Add-NIC.ps1</SetupScript>
     </SetupConfig>
+    <DefaultResultTable>Perf_Network_Latency</DefaultResultTable>
   </test>
   <test>
     <testName>PERF-NETWORK-UDP-THROUGHPUT-MULTICONNECTION-Synthetic</testName>
@@ -259,6 +269,7 @@
       <SetupType>TwoVM2Host</SetupType>
       <SetupScript>.\Testscripts\Windows\SETUP-Check-PowerPlan.ps1,.\Testscripts\Windows\SETUP-PERF-Add-NIC.ps1</SetupScript>
     </SetupConfig>
+    <DefaultResultTable>Perf_Network_UDP</DefaultResultTable>
   </test>
   <test>
     <testName>PERF-NETWORK-UDP-THROUGHPUT-MULTICONNECTION-SRIOV</testName>
@@ -286,6 +297,7 @@
       <SetupType>TwoVM2Host</SetupType>
       <SetupScript>.\Testscripts\Windows\SETUP-Check-PowerPlan.ps1,.\Testscripts\Windows\SETUP-PERF-Add-NIC.ps1</SetupScript>
     </SetupConfig>
+    <DefaultResultTable>Perf_Network_UDP</DefaultResultTable>
   </test>
   <test>
     <testName>PERF-STORAGE-4K-IO</testName>
@@ -314,6 +326,7 @@
       <SetupType>OneVM12Disk</SetupType>
       <SetupScript>.\Testscripts\Windows\SETUP-Check-PowerPlan.ps1,.\Testscripts\Windows\AddHardDisk.ps1</SetupScript>
     </SetupConfig>
+    <DefaultResultTable>Perf_Storage</DefaultResultTable>
   </test>
   <test>
     <testName>PERF-STORAGE-1024K-IO</testName>
@@ -338,6 +351,7 @@
       <StorageAccountType>PERF_STORAGE_ACCOUNT_TYPE</StorageAccountType>
       <SetupType>OneVM12Disk</SetupType>
     </SetupConfig>
+    <DefaultResultTable>Perf_Storage</DefaultResultTable>
   </test>
   <test>
     <testName>PERF-STORAGE-OVER-NFS-Synthetic-TCP-4K</testName>
@@ -363,6 +377,7 @@
       <StorageAccountType>PERF_STORAGE_ACCOUNT_TYPE</StorageAccountType>
       <SetupType>TwoVM12Disk</SetupType>
     </SetupConfig>
+    <DefaultResultTable>Perf_Storage</DefaultResultTable>
   </test>
   <test>
     <testName>PERF-STORAGE-OVER-NFS-Synthetic-UDP-4K</testName>
@@ -388,6 +403,7 @@
       <StorageAccountType>PERF_STORAGE_ACCOUNT_TYPE</StorageAccountType>
       <SetupType>TwoVM12Disk</SetupType>
     </SetupConfig>
+    <DefaultResultTable>Perf_Storage</DefaultResultTable>
   </test>
   <test>
     <testName>PERF-STORAGE-OVER-NFS-SRIOV-TCP-4K</testName>
@@ -414,6 +430,7 @@
       <StorageAccountType>PERF_STORAGE_ACCOUNT_TYPE</StorageAccountType>
       <SetupType>TwoVM12Disk</SetupType>
     </SetupConfig>
+    <DefaultResultTable>Perf_Storage</DefaultResultTable>
   </test>
   <test>
     <testName>PERF-STORAGE-OVER-NFS-SRIOV-UDP-4K</testName>
@@ -440,6 +457,7 @@
       <StorageAccountType>PERF_STORAGE_ACCOUNT_TYPE</StorageAccountType>
       <SetupType>TwoVM12Disk</SetupType>
     </SetupConfig>
+    <DefaultResultTable>Perf_Storage</DefaultResultTable>
   </test>
   <test>
     <testName>PERF-NETWORK-TCP-SINGLE-CONNECTION-THROUGHPUT-SYNTHETIC</testName>
@@ -467,6 +485,7 @@
       <SetupType>TwoVM2Host</SetupType>
       <SetupScript>.\Testscripts\Windows\SETUP-Check-PowerPlan.ps1,.\Testscripts\Windows\SETUP-PERF-Add-NIC.ps1</SetupScript>
     </SetupConfig>
+    <DefaultResultTable>Perf_Network_Single_TCP</DefaultResultTable>
   </test>
   <test>
     <testName>PERF-NETWORK-TCP-SINGLE-CONNECTION-THROUGHPUT-SRIOV</testName>
@@ -494,6 +513,7 @@
       <SetupType>TwoVM2Host</SetupType>
       <SetupScript>.\Testscripts\Windows\SETUP-Check-PowerPlan.ps1,.\Testscripts\Windows\SETUP-PERF-Add-NIC.ps1</SetupScript>
     </SetupConfig>
+    <DefaultResultTable>Perf_Network_Single_TCP</DefaultResultTable>
   </test>
   <test>
     <testName>PERF-SYSCALL-BENCHMARK</testName>
@@ -506,7 +526,7 @@
     <Category>Performance</Category>
     <Area>CPU</Area>
     <Tags>syscall</Tags>
-    <Priority>1</Priority>
+    <Priority>2</Priority>
     <SetupConfig>
       <SetupType>OneVM</SetupType>
       <OverrideVMSize>Standard_DS15_v2</OverrideVMSize>
@@ -637,6 +657,7 @@
       <OverrideVMSize>Standard_L64s_v2</OverrideVMSize>
       <SetupScript>.\Testscripts\Windows\SETUP-Check-PowerPlan.ps1,.\TestScripts\Windows\SETUP-Config-VM.ps1,.\Testscripts\Windows\SETUP-Add-NVME-Disk.ps1</SetupScript>
     </SetupConfig>
+    <DefaultResultTable>Perf_Network_Storage</DefaultResultTable>
   </test>
   <test>
     <testName>PERF-GOLANG-BENCHMARK</testName>
@@ -728,7 +749,7 @@
     <Category>Performance</Category>
     <Area>LKP</Area>
     <Tags>lkp</Tags>
-    <Priority>1</Priority>
+    <Priority>2</Priority>
     <SetupConfig>
       <SetupType>OneVM</SetupType>
       <OverrideVMSize>Standard_D3_v2</OverrideVMSize>
@@ -1050,11 +1071,12 @@
     <Category>Performance</Category>
     <Area>STORAGE</Area>
     <Tags>hv_storvsc,storage</Tags>
-    <Priority>1</Priority>
+    <Priority>2</Priority>
     <SetupConfig>
       <StorageAccountType>PERF_STORAGE_ACCOUNT_TYPE</StorageAccountType>
       <SetupType>OneVM24Disk</SetupType>
       <SetupScript>.\Testscripts\Windows\SETUP-Check-PowerPlan.ps1,.\Testscripts\Windows\AddHardDisk.ps1</SetupScript>
     </SetupConfig>
+    <DefaultResultTable>Perf_Storage</DefaultResultTable>
   </test>
 </TestCases>
