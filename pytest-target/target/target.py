@@ -101,7 +101,7 @@ class Target(TargetData, metaclass=ABCMeta):
             "echo": True,
             # Disable stdin forwarding.
             "in_stream": False,
-            # Don’t let remote commands take longer than five minutes
+            # Don’t let remote commands take longer than twenty minutes
             # (unless later overridden). This is to prevent hangs.
             "command_timeout": 1200,
         }

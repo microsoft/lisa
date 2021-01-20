@@ -18,6 +18,7 @@ sources.
    :caption: Documentation
    :hidden:
 
+   Usage <USAGE>
    Design <DESIGN>
    Contributing <CONTRIBUTING>
    Code of Conduct <CODE_OF_CONDUCT>
@@ -25,105 +26,8 @@ sources.
 Getting Started
 ---------------
 
-LISA is supported on almost any Linux or Windows installation provided
-Python 3.7 (released in 2018) or newer is available and SSH can be
-used to connect to the remote targets under test. The local SSH
-configuration is respected so ``ProxyJump`` can be used.
-
-Install Python 3
-~~~~~~~~~~~~~~~~
-
-Install Python 3.7 or newer from your Linux distribution’s package
-repositories, or `python.org <https://www.python.org/>`_.
-
-On Ubuntu 20.04 and up, just run ``apt install python-is-python3``.
-
-Below that Ubuntu version, the ``python3`` package is out-of-date, so
-use something like a `PPA`_ or `pyenv`_.
-
-.. _PPA: https://launchpad.net/~deadsnakes/+archive/ubuntu/ppa
-.. _pyenv: https://github.com/pyenv/pyenv
-
-Install Poetry
-~~~~~~~~~~~~~~
-
-`Poetry <https://python-poetry.org/docs/>`_ is our preferred tool for
-Python dependency management and packaging. We’ll use it to
-automatically setup a ‘virtualenv’ and install everything we need.
-
-On Linux (or WSL)
-^^^^^^^^^^^^^^^^^
-
-.. code:: bash
-
-   curl -sSL https://raw.githubusercontent.com/python-poetry/poetry/master/get-poetry.py | python -
-   source $HOME/.poetry/env
-
-If you are using WSL, installing Poetry on both Windows and Linux may
-cause both platforms’ versions of Poetry to be on your path, as Windows
-binaries are mapped into WSL’s ``PATH``. This means that the Linux
-``poetry`` binary *must* appear in your ``PATH`` before the Windows
-version, or this error will appear:
-
-::
-
-   `/usr/bin/env: ‘python\r’: No such file or directory`
-
-Adjust your ``PATH`` appropriately to fix it.
-
-On Windows (in PowerShell)
-^^^^^^^^^^^^^^^^^^^^^^^^^^
-
-.. code:: powershell
-
-   (Invoke-WebRequest -Uri https://raw.githubusercontent.com/python-poetry/poetry/master/get-poetry.py -UseBasicParsing).Content | python -
-   $env:PATH += ";$env:USERPROFILE\.poetry\bin"
-
-Clone LISA and ``cd`` into the Git repo
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-.. code:: bash
-
-   git clone -b andschwa/pytest https://github.com/microsoft/lisa.git
-   cd lisa
-
-Install Python dependencies
-~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-.. code:: bash
-
-   # Install the Python packages
-   poetry install
-
-   # Enter the virtual environment
-   poetry shell
-
-Use LISA
-~~~~~~~~
-
-.. code:: bash
-
-   # Run some self-tests
-   lisa --playbook=playbooks/test.yml selftests/
-
-   # Run a demo which deploys Azure resources
-   lisa --playbook=playbooks/demo.yaml
-
-Enable Azure
-^^^^^^^^^^^^
-
-To run the demo you’ll need the `Azure
-CLI <https://docs.microsoft.com/en-us/cli/azure/>`_ tool installed and
-configured:
-
-.. code:: bash
-
-   # Install Azure CLI, make sure `az` is in your `PATH`
-   curl -sL https://aka.ms/InstallAzureCLIDeb | sudo bash
-
-   # Login and set subscription
-   az login
-   az account set -s <your subscription ID>
+See the :doc:`usage document <USAGE>` for how to setup the
+requirements, run tests, and write new tests.
 
 Python Modules
 --------------

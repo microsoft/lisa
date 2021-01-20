@@ -9,7 +9,7 @@ targets:
 
   - name: Ubuntu
     platform: AzureCLI
-    image: UbuntuLTS
+    image: Canonical:UbuntuServer:18.04-LTS:latest
 
 criteria:
     - module: test_smoke_b
