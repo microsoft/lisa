@@ -25,20 +25,19 @@ readonly dir_list=(/opt/microsoft/dependency-agent /var/opt/microsoft/dependency
 
 readonly da_installer="./InstallDependencyAgent-Linux64.bin"
 readonly uninstaller="/opt/microsoft/dependency-agent/uninstall"
+readonly da="/etc/init.d/microsoft-dependency-agent"
 
 readonly da_pid_file="/etc/opt/microsoft/dependency-agent/config/DA_PID"
 readonly da_log_dir="/var/opt/microsoft/dependency-agent/log"
 readonly da_storage_dir="/var/opt/microsoft/dependency-agent/storage"
 
 function test_case_cleanup() {
-    if [ -f $uninstaller ]; then
-        $uninstaller
-        rm -f "$uninstaller"
+    # Stop DA from running when test fails
+    if [ -f $da ]; then
+        $da stop
     fi
 
     rm -f "$da_installer"
-
-    rm -rf "${dir_list[@]}"
 
     # This can be a NOP if the test exits before calling generate_network_activity
     kill $network_activity_generator_pid
@@ -174,7 +173,7 @@ function verify_install_da() {
     esac
 
     verify_expected_file "$uninstaller"
-    verify_expected_file "/etc/init.d/microsoft-dependency-agent"
+    verify_expected_file "$da"
     verify_expected_file "$da_log_dir/install.log"
 
     bin_version=$("$da_installer" --version | awk '{print $5}')
