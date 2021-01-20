@@ -241,6 +241,17 @@ Function Upload-TestResultDataToDatabase ([Array] $TestResultData, [Object] $Dat
 			$connection = New-Object System.Data.SqlClient.SqlConnection
 			$connection.ConnectionString = $connectionString
 			$connection.Open()
+			# Check if the table exists
+			$command = $connection.CreateCommand()
+			$command.CommandText = "SELECT * FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_NAME ='$tablename'"
+			$reader = $command.ExecuteReader()
+			$tableExist = $reader.Read()
+			$reader.Close()
+			if (-not $tableExist) {
+				Write-LogErr "Table $tableName doesn't exist in database $dbName. Results will not be uploaded to database."
+				return
+			}
+
 			foreach ($map in $TestResultData) {
 				$queryKey = "INSERT INTO $tableName ("
 				$queryValue = "VALUES ("
@@ -257,11 +268,9 @@ Function Upload-TestResultDataToDatabase ([Array] $TestResultData, [Object] $Dat
 				}
 				$query = $queryKey.TrimEnd(",") + ") " + $queryValue.TrimEnd(",") + ")"
 				Write-LogInfo "SQLQuery:  $query"
-				$command = $connection.CreateCommand()
 				$command.CommandText = $query
 				$null = $command.executenonquery()
 			}
-			$connection.Close()
 			Write-LogInfo "Succeed to upload test results to database"
 		}
 		catch {
