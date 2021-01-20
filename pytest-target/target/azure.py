@@ -107,7 +107,8 @@ class AzureCLI(Target):
                     f"--name allow{d}ICMP --resource-group {self.group}-rg "
                     f"--nsg-name {self.name}NSG --priority 150  "
                     f"--access Allow --direction '{d}' --protocol Icmp "
-                    "--source-port-ranges '*' --destination-port-ranges '*'"
+                    "--source-port-ranges '*' --destination-port-ranges '*'",
+                    hide=True,
                 )
         except Exception as e:
             logging.warning(

@@ -162,6 +162,7 @@ def pytest_unconfigure(config: Config) -> None:
 
     """
     if not config.getoption("keep_targets"):
+        # TODO: Ignore `--help` or other times tests weren’t run.
         logging.info("Deleting targets! Pass `--keep-targets` to prevent this.")
         delete_targets(config)
 
