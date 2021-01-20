@@ -9,6 +9,7 @@ if typing.TYPE_CHECKING:
 import logging
 import socket
 import time
+from pathlib import Path
 
 from invoke.runners import CommandTimedOut, UnexpectedExit  # type: ignore
 from paramiko import SSHException  # type: ignore
@@ -17,7 +18,7 @@ from lisa import LISA
 
 
 @LISA(platform="Azure", category="Functional", area="deploy", priority=0)
-def test_smoke(target: AzureCLI, caplog: LogCaptureFixture) -> None:
+def test_smoke(target: AzureCLI, caplog: LogCaptureFixture, tmp_path: Path) -> None:
     """Check that an Azure Linux VM can be deployed and is responsive.
 
     This example uses exactly one function for the entire test, which
@@ -78,12 +79,14 @@ def test_smoke(target: AzureCLI, caplog: LogCaptureFixture) -> None:
         logging.warning(f"SSH after reboot failed: '{e}'")
 
     logging.info("Retrieving boot diagnostics...")
+    path = tmp_path / "diagnostics.txt"
     try:
-        target.get_boot_diagnostics()
+        diagnostics = target.get_boot_diagnostics(hide=True)
+        path.write_text(diagnostics.stdout)
     except UnexpectedExit:
         logging.warning("Retrieving boot diagnostics failed.")
     else:
-        logging.info("See full report for boot diagnostics.")
+        logging.info(f"See '{path}' for boot diagnostics.")
 
     # NOTE: The test criteria is to fail only if ping fails.
     assert ping1.ok, f"Pinging {target.host} before reboot failed"
