@@ -1,15 +1,15 @@
-from __future__ import annotations
+from __future__ import annotations  # For type checking.
 
 import typing
 
 if typing.TYPE_CHECKING:
     from target import AzureCLI
     from _pytest.logging import LogCaptureFixture
+    from pathlib import Path
 
 import logging
 import socket
 import time
-from pathlib import Path
 
 from invoke.runners import CommandTimedOut, UnexpectedExit  # type: ignore
 from paramiko import SSHException  # type: ignore
@@ -81,6 +81,9 @@ def test_smoke(target: AzureCLI, caplog: LogCaptureFixture, tmp_path: Path) -> N
     logging.info("Retrieving boot diagnostics...")
     path = tmp_path / "diagnostics.txt"
     try:
+        # NOTE: It’s actually more interesting to emit the downloaded
+        # boot diagnostics to `stdout` as they’re then captured in the
+        # HTML report, but this is to demo using `tmp_path`.
         diagnostics = target.get_boot_diagnostics(hide=True)
         path.write_text(diagnostics.stdout)
     except UnexpectedExit:
