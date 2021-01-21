@@ -163,17 +163,12 @@ version = "0.1.0"
 description = "Pytest plugin for reading playbooks."
 category = "main"
 optional = false
-python-versions = "^3.7"
-develop = true
+python-versions = ">=3.7,<4.0"
 
 [package.dependencies]
-pytest = "^6.1.2"
-PyYAML = "^5.3.1"
+pytest = ">=6.1.2,<7.0.0"
+PyYAML = ">=5.3.1,<6.0.0"
 schema = "0.7.2"
-
-[package.source]
-type = "directory"
-url = "../pytest-playbook"
 
 [[package]]
 name = "pytest-xdist"
@@ -242,7 +237,7 @@ testing = ["pytest (>=3.5,!=3.7.3)", "pytest-checkdocs (>=1.2.3)", "pytest-flake
 [metadata]
 lock-version = "1.1"
 python-versions = "^3.7"
-content-hash = "35352fa0bb935ffb30d81fdf5ffa203e15a25d4a7fd0e1243570236a1105f647"
+content-hash = "f265436364a83d94f8fb710e4d992f88e631a07004e6bce037888eb0991288bc"
 
 [metadata.files]
 apipkg = [
@@ -301,7 +296,10 @@ pytest-forked = [
     {file = "pytest-forked-1.3.0.tar.gz", hash = "sha256:6aa9ac7e00ad1a539c41bec6d21011332de671e938c7637378ec9710204e37ca"},
     {file = "pytest_forked-1.3.0-py2.py3-none-any.whl", hash = "sha256:dc4147784048e70ef5d437951728825a131b81714b398d5d52f17c7c144d8815"},
 ]
-pytest-playbook = []
+pytest-playbook = [
+    {file = "pytest-playbook-0.1.0.tar.gz", hash = "sha256:c9ce7446e9301646ee3fdb74a3d7cbdee4a83e775126b9062d0cbd6178ef36ec"},
+    {file = "pytest_playbook-0.1.0-py3-none-any.whl", hash = "sha256:c2fb714d4347d89d7b031822eed279c956275f41f34927cb94685f04670bd01d"},
+]
 pytest-xdist = [
     {file = "pytest-xdist-2.2.0.tar.gz", hash = "sha256:1d8edbb1a45e8e1f8e44b1260583107fc23f8bc8da6d18cb331ff61d41258ecf"},
     {file = "pytest_xdist-2.2.0-py3-none-any.whl", hash = "sha256:f127e11e84ad37cc1de1088cb2990f3c354630d428af3f71282de589c5bb779b"},

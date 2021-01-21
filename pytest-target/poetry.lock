@@ -250,17 +250,12 @@ version = "0.1.0"
 description = "Pytest plugin for reading playbooks."
 category = "main"
 optional = false
-python-versions = "^3.7"
-develop = true
+python-versions = ">=3.7,<4.0"
 
 [package.dependencies]
-pytest = "^6.1.2"
-PyYAML = "^5.3.1"
+pytest = ">=6.1.2,<7.0.0"
+PyYAML = ">=5.3.1,<6.0.0"
 schema = "0.7.2"
-
-[package.source]
-type = "directory"
-url = "../pytest-playbook"
 
 [[package]]
 name = "pyyaml"
@@ -334,7 +329,7 @@ testing = ["pytest (>=3.5,!=3.7.3)", "pytest-checkdocs (>=1.2.3)", "pytest-flake
 [metadata]
 lock-version = "1.1"
 python-versions = "^3.7"
-content-hash = "db5b497c6697ab98df1b46727bd1d10fd3a6853b142a9fc9c11a626032d2ebd5"
+content-hash = "2cfd10a84e947de5a1483d7ae41f1213f0bff74c1318688aafaa2751aa1313c6"
 
 [metadata.files]
 atomicwrites = [
@@ -485,7 +480,10 @@ pytest = [
     {file = "pytest-6.2.1-py3-none-any.whl", hash = "sha256:1969f797a1a0dbd8ccf0fecc80262312729afea9c17f1d70ebf85c5e76c6f7c8"},
     {file = "pytest-6.2.1.tar.gz", hash = "sha256:66e419b1899bc27346cb2c993e12c5e5e8daba9073c1fbce33b9807abc95c306"},
 ]
-pytest-playbook = []
+pytest-playbook = [
+    {file = "pytest-playbook-0.1.0.tar.gz", hash = "sha256:c9ce7446e9301646ee3fdb74a3d7cbdee4a83e775126b9062d0cbd6178ef36ec"},
+    {file = "pytest_playbook-0.1.0-py3-none-any.whl", hash = "sha256:c2fb714d4347d89d7b031822eed279c956275f41f34927cb94685f04670bd01d"},
+]
 pyyaml = [
     {file = "PyYAML-5.3.1-cp27-cp27m-win32.whl", hash = "sha256:74809a57b329d6cc0fdccee6318f44b9b8649961fa73144a98735b0aaf029f1f"},
     {file = "PyYAML-5.3.1-cp27-cp27m-win_amd64.whl", hash = "sha256:240097ff019d7c70a4922b6869d8a86407758333f02203e0fc6ff79c5dcede76"},
