@@ -2315,16 +2315,19 @@ Function Create-RGDeploymentWithTempParameters([string]$RGName, $TemplateFile, $
 }
 
 Function Get-LISAStorageAccount ($ResourceGroupName, $Name) {
+	# Get-AzStorageAccounts may return incorrect result when only use -ResourceGroup as the parameter, so we choose workaround
+	if ($ResourceGroupName -and !$Name) {
+		$rgSAResources = Get-AzResource -ResourceGroupName $ResourceGroupName -ResourceType "Microsoft.Storage/storageAccounts"
+	}
 	$retryCount = 0
-	$maxRetryCount = 999
+	$maxRetryCount = 99
 	$GetAzureRMStorageAccount = $null
 	$useAsJob = (Get-Command -Name Get-AzStorageAccount).Parameters.Keys -contains 'AsJob'
 	while (!$GetAzureRMStorageAccount -and ($retryCount -lt $maxRetryCount)) {
 		try {
 			$retryCount += 1
 			Write-LogInfo "[Attempt $retryCount/$maxRetryCount] : Getting Existing Storage account information..."
-			# 10 seconds here will probably incorrect, set as 20 seconds waiting time
-			$waitTimeInSecond = 20
+			$waitTimeInSecond = 60
 			if ($useAsJob) {
 				if (!$ResourceGroupName -and !$Name) {
 					$job = Get-AzStorageAccount -AsJob
@@ -2333,7 +2336,7 @@ Function Get-LISAStorageAccount ($ResourceGroupName, $Name) {
 					$job = Get-AzStorageAccount -ResourceGroupName $ResourceGroupName -Name $Name -AsJob
 				}
 				elseif ($ResourceGroupName) {
-					$job = Get-AzStorageAccount -ResourceGroupName $ResourceGroupName -AsJob
+					$job = Get-AzStorageAccount -AsJob
 				}
 				elseif ($Name) {
 					Throw "Get-LISAStorageAccount needs necessary parameter [-ResourceGroupName] when [-Name] is used"
@@ -2343,6 +2346,10 @@ Function Get-LISAStorageAccount ($ResourceGroupName, $Name) {
 				if ($job.State -eq "Completed") {
 					$GetAzureRMStorageAccount = Receive-Job $job
 					Remove-Job $job -Force -ErrorAction SilentlyContinue
+					# Get-AzStorageAccounts may return incorrect result when only use -ResourceGroup as the parameter, so we choose workaround
+					if ($rgSAResources) {
+						$GetAzureRMStorageAccount = $GetAzureRMStorageAccount | Where-Object {$rgSAResources.Name -contains $_.StorageAccountName}
+					}
 					break
 				}
 				else {
@@ -2360,7 +2367,11 @@ Function Get-LISAStorageAccount ($ResourceGroupName, $Name) {
 					break
 				}
 				elseif ($ResourceGroupName) {
-					$GetAzureRMStorageAccount = Get-AzStorageAccount -ResourceGroupName $ResourceGroupName
+					# Get-AzStorageAccounts may return incorrect result when only use -ResourceGroup as the parameter, so we choose workaround
+					$GetAzureRMStorageAccount = Get-AzStorageAccount
+					if ($rgSAResources) {
+						$GetAzureRMStorageAccount = $GetAzureRMStorageAccount | Where-Object {$rgSAResources.Name -contains $_.StorageAccountName}
+					}
 					break
 				}
 				elseif ($Name) {
