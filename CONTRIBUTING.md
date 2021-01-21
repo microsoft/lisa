@@ -383,6 +383,24 @@ check all the links), use:
 sphinx-build -b linkcheck . _build
 ```
 
+## Publishing Packages
+
+Setup [PyPI](https://pypi.org/) with Poetry’s
+[repositories](https://python-poetry.org/docs/repositories/):
+
+```bash
+poetry config pypi-token.pypi my-token
+```
+
+Then for each package, build and publish it! Don’t forget to increment the
+version number afterwards. You should carefully test the package on the [Test
+PyPI](https://test.pypi.org/) instance first, as you cannot overwrite uploaded
+packages. You can also bump the patch version if you made a small mistake.
+
+```bash
+poetry publish --build
+```
+
 ## Future Sections
 
 Just a collection of reminders for the author to expand on later.

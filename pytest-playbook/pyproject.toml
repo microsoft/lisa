@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "pytest-playbook"
-version = "0.1.0"
+version = "0.1.1"
 description = "Pytest plugin for reading playbooks."
 license = "MIT"
 authors = ["Andrew Schwartzmeyer <andrew@schwartzmeyer.com>"]
