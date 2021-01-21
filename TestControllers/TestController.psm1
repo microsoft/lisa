@@ -460,6 +460,7 @@ Class TestController {
 		try {
 			# Prepare test case log folder
 			$currentTestName = $($CurrentTestData.testName)
+			Write-LogInfo "Start running test case: $currentTestName"
 			$CurrentTestLogDir = "$global:LogDir\$currentTestName"
 
 			New-Item -Type Directory -Path $CurrentTestLogDir -ErrorAction SilentlyContinue | Out-Null
