@@ -41,6 +41,10 @@ function build_install_rdma_core () {
 	RDMA_CORE_DIR="rdma-core"
 	LogMsg "Remove folder $RDMA_CORE_DIR if exists."
 	rm -rf "${RDMA_CORE_DIR}"
+	# systemd package is updated, then /etc/resolv.conf file is overwritten
+	# then dns name can't be resolved
+	# run dhclient to restore file /etc/resolv.conf
+	dhclient
 	git clone "${dpdkRdmaCoreSrcLink}" -b "${dpdkRdmaCoreBranch}" "${RDMA_CORE_DIR}"
 	check_exit_status "git clone ${dpdkRdmaCoreSrcLink} rdma-core on ${1}" "exit"
 	pushd "${RDMA_CORE_DIR}"

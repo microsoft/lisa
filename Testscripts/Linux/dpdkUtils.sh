@@ -230,7 +230,8 @@ function Install_Dpdk () {
 			else
 				packages+=(rdma-core)
 			fi
-			ssh "${1}" ". utils.sh && CheckInstallLockUbuntu && add-apt-repository 'deb http://cz.archive.ubuntu.com/ubuntu eoan main universe' "
+			release=$(lsb_release -c -s)
+			ssh "${1}" ". utils.sh && CheckInstallLockUbuntu && add-apt-repository 'deb http://cz.archive.ubuntu.com/ubuntu $release main universe' "
 			ssh "${1}" ". utils.sh && CheckInstallLockUbuntu && update_repos"
 			packages+=(librdmacm-dev librdmacm1 build-essential libnuma-dev libmnl-dev libelf-dev dpkg-dev meson pkg-config python3-pip)
 			;;
