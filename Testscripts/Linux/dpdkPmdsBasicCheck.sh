@@ -67,7 +67,8 @@ runTestPmd()
 {
 	pmd=$1
 	LogMsg "*********INFO: Starting TestPmd test execution with ${pmd} PMD*********"
-
+	LogMsg "Load module ib_uverbs mlx4_ib mlx5_ib"
+	modprobe -a ib_uverbs mlx4_ib mlx5_ib
 	local dpdk_version=$(Get_DPDK_Version "${LIS_HOME}/${DPDK_DIR}")
 	local pci_param="-w ${bus_info}"
 	local dpdk_version_changed="20.11"
