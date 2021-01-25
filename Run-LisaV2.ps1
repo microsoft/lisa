@@ -147,7 +147,6 @@ $params["Verbose"] = $PSCmdlet.MyInvocation.BoundParameters["Verbose"]
 
 try {
 	if ($RunInParallel) {
-#		$params["ExitWithZero"] = $params.RunInParallel
 		Start-LISAv2 @params -ParamsInParallel $params
 	}
 	else {
