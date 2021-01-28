@@ -5,6 +5,7 @@ import re
 from dataclasses import InitVar, dataclass, field
 from datetime import datetime
 from functools import lru_cache
+from logging import getLogger
 from pathlib import Path
 from types import SimpleNamespace
 from typing import Any, Dict, List, Optional, Tuple, Type, Union
@@ -292,10 +293,19 @@ class AzurePlatformSchema:
     wait_delete: bool = False
 
     def __post_init__(self, *args: Any, **kwargs: Any) -> None:
-        add_secret(self.service_principal_tenant_id, mask=PATTERN_GUID)
-        add_secret(self.service_principal_client_id, mask=PATTERN_GUID)
-        add_secret(self.service_principal_key)
-        add_secret(self.subscription_id, mask=PATTERN_GUID)
+        if self.service_principal_tenant_id:
+            add_secret(self.service_principal_tenant_id, mask=PATTERN_GUID)
+        if self.subscription_id:
+            add_secret(self.subscription_id, mask=PATTERN_GUID)
+
+        if self.service_principal_client_id or self.service_principal_key:
+            add_secret(self.service_principal_client_id, mask=PATTERN_GUID)
+            add_secret(self.service_principal_key)
+            if not self.service_principal_client_id or not self.service_principal_key:
+                raise LisaException(
+                    "service_principal_client_id and service_principal_key "
+                    "should be specified either both or not."
+                )
 
         if not self.locations:
             self.locations = LOCATIONS
@@ -610,16 +620,24 @@ class AzurePlatform(Platform):
         # set azure log to warn level only
         logging.getLogger("azure").setLevel(azure_runbook.log_level)
 
-        os.environ["AZURE_TENANT_ID"] = azure_runbook.service_principal_tenant_id
-        os.environ["AZURE_CLIENT_ID"] = azure_runbook.service_principal_client_id
-        os.environ["AZURE_CLIENT_SECRET"] = azure_runbook.service_principal_key
+        if azure_runbook.service_principal_tenant_id:
+            os.environ["AZURE_TENANT_ID"] = azure_runbook.service_principal_tenant_id
+        if azure_runbook.service_principal_client_id:
+            os.environ["AZURE_CLIENT_ID"] = azure_runbook.service_principal_client_id
+        if azure_runbook.service_principal_key:
+            os.environ["AZURE_CLIENT_SECRET"] = azure_runbook.service_principal_key
 
         self.credential = DefaultAzureCredential()
-
         self._sub_client = SubscriptionClient(self.credential)
 
         self.subscription_id = azure_runbook.subscription_id
+
+        # suspress warning message by search for different credential types
+        azure_identity_logger = getLogger("azure.identity")
+        azure_identity_logger.setLevel(logging.ERROR)
         subscription = self._sub_client.subscriptions.get(self.subscription_id)
+        azure_identity_logger.setLevel(logging.WARN)
+
         if not subscription:
             raise LisaException(
                 f"cannot find subscription id: '{self.subscription_id}'"
