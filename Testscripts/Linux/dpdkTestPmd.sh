@@ -76,8 +76,8 @@ runTestPmd()
 	LogMsg "pci_info_server $pci_info_server"
 	trx_rx_ips=$(Get_Trx_Rx_Ip_Flags "${server}")
 	if [ ${pmd} = "netvsc" ]; then
-		. ${DPDK_UTIL_FILE} && NetvscDevice_Setup "${server}"
-		. ${DPDK_UTIL_FILE} && NetvscDevice_Setup "${client}"
+		. ${DPDK_UTIL_FILE} && NetvscDevice_Setup "${server}" "set"
+		. ${DPDK_UTIL_FILE} && NetvscDevice_Setup "${client}" "set"
 		vdev=''
 	elif [ ${pmd} = "failsafe" ];then
 		vdev="--vdev=net_vdev_netvsc0,iface=eth1,force=1"
@@ -122,6 +122,11 @@ runTestPmd()
 		sleep 60
 		LogMsg "TestPmd execution for ${testmode} mode is COMPLETED"
 	done
+	if [ ${pmd} = "netvsc" ]; then
+		LogMsg "Resetting Netvsc device.."
+		. ${DPDK_UTIL_FILE} && NetvscDevice_Setup "${server}" "reset"
+		. ${DPDK_UTIL_FILE} && NetvscDevice_Setup "${client}" "reset"
+	fi
 }
 
 testPmdParser ()
