@@ -202,6 +202,8 @@ function Install_Dpdk () {
 			if [ $? -eq 0 ]; then
 				packages+=("elfutils-libelf-devel")
 			fi
+			# install elftools for dpdk v21.02
+			ssh "${1}" "sudo yum install python3-pip && sudo pip3 install --upgrade pip && sudo pip3 install pyelftools"
 			if [[ "${DISTRO_NAME}" = "rhel" ]]; then
 				# meson requires ninja-build and python-devel to be installed. [ninja-build ref: https://pkgs.org/download/ninja-build]
 				if [[ ${DISTRO_VERSION} == *"8."* ]]; then
@@ -211,7 +213,7 @@ function Install_Dpdk () {
 				else
 					# Required as meson is dependent on python36
 					ssh "${1}" ". utils.sh && install_package rh-python36 ninja-build"
-					ssh "${1}" 'PATH=$PATH:/opt/rh/rh-python36/root/usr/bin/ && pip install --upgrade pip && pip install meson'
+					ssh "${1}" 'PATH=$PATH:/opt/rh/rh-python36/root/usr/bin/ && pip install --upgrade pip && pip install meson pyelftools'
 				fi
 			else
 				if [[ "${DISTRO_NAME}" = "centos" && ${DISTRO_VERSION} == *"8."* ]]; then
@@ -233,7 +235,7 @@ function Install_Dpdk () {
 			release=$(lsb_release -c -s)
 			ssh "${1}" ". utils.sh && CheckInstallLockUbuntu && add-apt-repository 'deb http://cz.archive.ubuntu.com/ubuntu $release main universe' "
 			ssh "${1}" ". utils.sh && CheckInstallLockUbuntu && update_repos"
-			packages+=(librdmacm-dev librdmacm1 build-essential libnuma-dev libmnl-dev libelf-dev dpkg-dev meson pkg-config python3-pip)
+			packages+=(librdmacm-dev librdmacm1 build-essential libnuma-dev libmnl-dev libelf-dev dpkg-dev meson pkg-config python3-pip python3-pyelftools python-pyelftools)
 			;;
 		suse|opensuse|sles)
 			ssh "${1}" ". utils.sh && add_sles_network_utilities_repo"
@@ -246,6 +248,7 @@ function Install_Dpdk () {
 				packages+=(kernel-default-devel)
 			fi
 			packages+=(libnuma-devel numactl librdmacm1 rdma-core-devel libmnl-devel pkg-config)
+			ssh ${1} "sudo zypper install -y python3-pip && sudo pip3 install --upgrade pip && sudo pip3 install pyelftools"
 			# default meson in SUSE 15-SP1 is 0.46 & required is 0.47. Installing it separately
 			ssh "${1}" ". utils.sh && install_package ninja"
 			ssh "${1}" "rpm -ivh https://download.opensuse.org/repositories/openSUSE:/Leap:/15.2/standard/noarch/meson-0.54.2-lp152.1.1.noarch.rpm"
