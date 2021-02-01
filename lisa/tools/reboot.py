@@ -72,10 +72,10 @@ class Reboot(Tool):
             self._command = command_result.stdout
         self._log.debug(f"rebooting with boot time: {last_boot_time}")
         try:
-            # The reason for using function execute_async is,
-            # in some case, it doesn't return back after run reboot.
-            # e.g. SUSE sles-15-sp1-sapcal gen1 2020.10.23.
-            self.node.execute_async(f"sudo {self._command}")
+            # Reboot is not reliable, and sometime stucks,
+            # like SUSE sles-15-sp1-sapcal gen1 2020.10.23.
+            # In this case, use timeout to prevent hanging.
+            self.node.execute(f"sudo {self.command}", timeout=10)
         except Exception as identifier:
             # it doesn't matter to exceptions here. The system may reboot fast
             self._log.debug(f"ignorable exception on rebooting: {identifier}")
