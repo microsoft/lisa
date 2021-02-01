@@ -19,7 +19,7 @@ def generate_runbook(
         nodes.append(
             {
                 constants.TYPE: constants.ENVIRONMENTS_NODES_LOCAL,
-                constants.ENVIRONMENTS_NODES_CAPABILITY: {"coreCount": {"min": 4}},
+                constants.ENVIRONMENTS_NODES_CAPABILITY: {"core_count": {"min": 4}},
             }
         )
     if remote:
@@ -28,8 +28,8 @@ def generate_runbook(
                 constants.TYPE: constants.ENVIRONMENTS_NODES_REMOTE,
                 constants.ENVIRONMENTS_NODES_REMOTE_ADDRESS: "internal_address",
                 constants.ENVIRONMENTS_NODES_REMOTE_PORT: 22,
-                "publicAddress": "public_address",
-                "publicPort": 10022,
+                "public_address": "public_address",
+                "public_port": 10022,
                 constants.ENVIRONMENTS_NODES_REMOTE_USERNAME: "name_of_user",
                 constants.ENVIRONMENTS_NODES_REMOTE_PASSWORD: "dont_use_it",
             }
@@ -38,10 +38,10 @@ def generate_runbook(
         nodes.append(
             {
                 constants.TYPE: constants.ENVIRONMENTS_NODES_REQUIREMENT,
-                "nodeCount": 2,
-                "coreCount": 8,
-                "diskCount": {"min": 1},
-                "nicCount": {"min": 1, "max": 1},
+                "node_count": 2,
+                "core_count": 8,
+                "disk_count": {"min": 1},
+                "nic_count": {"min": 1, "max": 1},
             }
         )
     if is_single_env:
@@ -50,7 +50,7 @@ def generate_runbook(
         for node in nodes:
             environments.append({"nodes": [node]})
 
-    data = {"maxConcurrency": 2, constants.ENVIRONMENTS: environments}
+    data = {"max_concurrency": 2, constants.ENVIRONMENTS: environments}
     return schema.EnvironmentRoot.schema().load(data)  # type: ignore
 
 

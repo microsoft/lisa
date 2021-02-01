@@ -3,7 +3,7 @@ from abc import abstractmethod
 from dataclasses import dataclass, field
 from typing import Any, Iterable, List, Optional, Set, TypeVar, Union
 
-from dataclasses_json import LetterCase, dataclass_json  # type: ignore
+from dataclasses_json import dataclass_json  # type: ignore
 
 from lisa.util import LisaException
 
@@ -67,7 +67,7 @@ class RequirementMixin:
 T_SEARCH_SPACE = TypeVar("T_SEARCH_SPACE", bound=RequirementMixin)
 
 
-@dataclass_json(letter_case=LetterCase.CAMEL)
+@dataclass_json()
 @dataclass
 class IntRange(RequirementMixin):
     min: int = 0
@@ -203,7 +203,7 @@ def _one_of_matched(requirement: Any, capabilities: List[Any]) -> ResultReason:
     return result
 
 
-@dataclass_json(letter_case=LetterCase.CAMEL)
+@dataclass_json()
 @dataclass
 class SetSpace(RequirementMixin, Set[T]):
     is_allow_set: bool = False

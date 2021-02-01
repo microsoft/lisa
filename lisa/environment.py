@@ -7,7 +7,7 @@ from enum import Enum
 from functools import partial
 from typing import TYPE_CHECKING, Any, List, Optional
 
-from dataclasses_json import LetterCase, dataclass_json  # type: ignore
+from dataclasses_json import dataclass_json  # type: ignore
 from marshmallow import validate
 
 from lisa import schema, search_space
@@ -40,7 +40,7 @@ EnvironmentStatus = Enum(
 )
 
 
-@dataclass_json(letter_case=LetterCase.CAMEL)
+@dataclass_json()
 @dataclass
 class EnvironmentSpace(search_space.RequirementMixin):
     """

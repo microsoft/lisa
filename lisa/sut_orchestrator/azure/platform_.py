@@ -29,7 +29,7 @@ from azure.mgmt.resource.resources.models import (  # type: ignore
     DeploymentProperties,
 )
 from azure.mgmt.storage.models import Sku, StorageAccountCreateParameters  # type:ignore
-from dataclasses_json import LetterCase, dataclass_json  # type: ignore
+from dataclasses_json import dataclass_json  # type: ignore
 from marshmallow import fields, validate
 from retry import retry  # type: ignore
 
@@ -99,7 +99,7 @@ RESOURCE_ID_NIC_PATTERN = re.compile(r"([\w]+-[\d]+)-nic-0")
 RESOURCE_ID_PUBLIC_IP_PATTERN = re.compile(r"([\w]+-[\d]+)-public-ip")
 
 
-@dataclass_json(letter_case=LetterCase.CAMEL)
+@dataclass_json()
 @dataclass
 class AzureCapability:
     location: str
@@ -109,7 +109,7 @@ class AzureCapability:
     resource_sku: Dict[str, Any]
 
 
-@dataclass_json(letter_case=LetterCase.CAMEL)
+@dataclass_json()
 @dataclass
 class AzureLocation:
     updated_time: datetime = field(
@@ -118,7 +118,6 @@ class AzureLocation:
             fields.DateTime,
             encoder=datetime.isoformat,
             decoder=datetime.fromisoformat,
-            data_key="updatedTime",
             format="iso",
         ),
     )
@@ -126,7 +125,7 @@ class AzureLocation:
     capabilities: List[AzureCapability] = field(default_factory=list)
 
 
-@dataclass_json(letter_case=LetterCase.CAMEL)
+@dataclass_json()
 @dataclass
 class AzureVmGallerySchema:
     publisher: str = "Canonical"
@@ -135,7 +134,7 @@ class AzureVmGallerySchema:
     version: str = "Latest"
 
 
-@dataclass_json(letter_case=LetterCase.CAMEL)
+@dataclass_json()
 @dataclass
 class AzureVmPurchasePlanSchema:
     name: str
@@ -143,7 +142,7 @@ class AzureVmPurchasePlanSchema:
     publisher: str
 
 
-@dataclass_json(letter_case=LetterCase.CAMEL)
+@dataclass_json()
 @dataclass
 class AzureNodeSchema:
     name: str = ""
@@ -214,7 +213,7 @@ class AzureNodeSchema:
         return result
 
 
-@dataclass_json(letter_case=LetterCase.CAMEL)
+@dataclass_json()
 @dataclass
 class AzureArmParameter:
     resource_group_name: str = ""
@@ -239,20 +238,18 @@ class AzureArmParameter:
             }
 
 
-@dataclass_json(letter_case=LetterCase.CAMEL)
+@dataclass_json()
 @dataclass
 class AzurePlatformSchema:
     service_principal_tenant_id: str = field(
         default="",
         metadata=schema.metadata(
-            data_key="servicePrincipalTenantId",
             validate=validate.Regexp(constants.GUID_REGEXP),
         ),
     )
     service_principal_client_id: str = field(
         default="",
         metadata=schema.metadata(
-            data_key="servicePrincipalClientId",
             validate=validate.Regexp(constants.GUID_REGEXP),
         ),
     )
@@ -260,7 +257,6 @@ class AzurePlatformSchema:
     subscription_id: str = field(
         default="",
         metadata=schema.metadata(
-            data_key="subscriptionId",
             validate=validate.Regexp(constants.GUID_REGEXP),
         ),
     )
@@ -273,7 +269,6 @@ class AzurePlatformSchema:
     log_level: str = field(
         default=logging.getLevelName(logging.WARN),
         metadata=schema.metadata(
-            data_key="logLevel",
             validate=validate.OneOf(
                 [
                     logging.getLevelName(logging.ERROR),
@@ -670,7 +665,9 @@ class AzurePlatform(Platform):
             except Exception as identifier:
                 # if schema changed, There may be exception, remove cache and retry
                 # Note: retry on this method depends on decorator
-                log.debug("error on loading cache, delete cache and retry.")
+                log.debug(
+                    f"error on loading cache, delete cache and retry. {identifier}"
+                )
                 cached_file_name.unlink()
                 raise identifier
         return loaded_obj

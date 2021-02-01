@@ -2,7 +2,7 @@ from dataclasses import dataclass, field
 from typing import Any, List, Optional, Type, Union
 from unittest.case import TestCase
 
-from dataclasses_json import LetterCase, dataclass_json  # type: ignore
+from dataclasses_json import dataclass_json  # type: ignore
 
 from lisa import schema
 from lisa.environment import (
@@ -25,7 +25,7 @@ class MockPlatformTestData:
     deleted_envs: List[str] = field(default_factory=list)
 
 
-@dataclass_json(letter_case=LetterCase.CAMEL)
+@dataclass_json()
 @dataclass
 class MockPlatformSchema:
     # for other UT to set value
@@ -111,9 +111,9 @@ def generate_platform(
 ) -> MockPlatform:
     runbook_data = {
         constants.TYPE: constants.PLATFORM_MOCK,
-        "reserveEnvironment": reserve_environment,
-        "adminPassword": admin_password,
-        "adminPrivateKeyFile": admin_key_file,
+        "reserve_environment": reserve_environment,
+        "admin_password": admin_password,
+        "admin_private_key_file": admin_key_file,
     }
     runbook = schema.Platform.schema().load(runbook_data)  # type: ignore
     platform = load_platform([runbook])
