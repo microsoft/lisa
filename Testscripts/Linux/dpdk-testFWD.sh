@@ -174,14 +174,20 @@ function Run_Testcase() {
 
 	if [ ${pmd} = "netvsc" ]; then
 		LogMsg "Starting netvsc device setup"
-		. dpdkUtils.sh && NetvscDevice_Setup "${sender}"
-		. dpdkUtils.sh && NetvscDevice_Setup "${forwarder}"
-		. dpdkUtils.sh && NetvscDevice_Setup "${receiver}"
+		. dpdkUtils.sh && NetvscDevice_Setup "${sender}" "set"
+		. dpdkUtils.sh && NetvscDevice_Setup "${forwarder}" "set"
+		. dpdkUtils.sh && NetvscDevice_Setup "${receiver}" "set"
 	fi
 	for core in "${CORES[@]}"; do
 		Run_Testfwd ${core} ${TEST_DURATION} ${tx_rx_ips}
 	done
 
+	if [ ${pmd} = "netvsc" ]; then
+		LogMsg "Resetting netvsc device setup"
+		. dpdkUtils.sh && NetvscDevice_Setup "${sender}" "reset"
+		. dpdkUtils.sh && NetvscDevice_Setup "${forwarder}" "reset"
+		. dpdkUtils.sh && NetvscDevice_Setup "${receiver}" "reset"
+	fi
 	LogMsg "Starting testfwd parser"
 	local csv_file=$(Create_Csv)
 	echo "dpdk_version,poll_mode_driver,test_mode,core,tx_pps_avg,fwdrx_pps_avg,fwdtx_pps_avg,rx_pps_avg,tx_bytes,rx_bytes,fwd_bytes,tx_packets,rx_packets,fwd_packets,tx_packet_size,rx_packet_size" > "${csv_file}"

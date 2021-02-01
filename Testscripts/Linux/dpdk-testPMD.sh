@@ -70,8 +70,8 @@ function Run_Testpmd() {
 
 	trx_rx_ips=$(Get_Trx_Rx_Ip_Flags "${receiver}")
 	if [ ${pmd} = "netvsc" ]; then
-		. dpdkUtils.sh && NetvscDevice_Setup "${sender}"
-		. dpdkUtils.sh && NetvscDevice_Setup "${receiver}"
+		. dpdkUtils.sh && NetvscDevice_Setup "${sender}" "set"
+		. dpdkUtils.sh && NetvscDevice_Setup "${receiver}" "set"
 	fi
 
 	for test_mode in ${modes}; do
@@ -105,6 +105,11 @@ function Run_Testpmd() {
 		LogMsg "TestPmd execution for ${test_mode} mode on ${core} core(s) is COMPLETED"
 		sleep 10
 	done
+	if [ ${pmd} = "netvsc" ]; then
+		LogMsg "Resetting netvsc device.."
+		. dpdkUtils.sh && NetvscDevice_Setup "${sender}" "reset"
+		. dpdkUtils.sh && NetvscDevice_Setup "${receiver}" "reset"
+	fi
 }
 
 # Requires

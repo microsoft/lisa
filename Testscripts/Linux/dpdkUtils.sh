@@ -730,8 +730,8 @@ function wget_retry() {
 }
 
 function NetvscDevice_Setup() {
-	if [ -z "${1}" ]; then
-		LogErr "ERROR: must provide target ip to NetvscDevice_Setup()"
+	if [ -z "${1}"  -o -z "${2}"]; then
+		LogErr "ERROR: must provide target ip and set/reset to NetvscDevice_Setup()"
 		SetTestStateAborted
 		exit 1
 	fi
@@ -742,11 +742,18 @@ function NetvscDevice_Setup() {
 		SetTestStateAborted
 		exit 1
 	fi
-	NET_UUID="f8615163-df3e-46c5-913f-f2d2f965ed0e"
-	DEV_UUID_pre=$(ssh "${1}" "readlink /sys/class/net/eth1/device")
-	DEV_UUID=$(basename ${DEV_UUID_pre})
-	ssh "${1}" "modprobe uio_hv_generic"
-	ssh "${1}" "echo ${NET_UUID} > /sys/bus/vmbus/drivers/uio_hv_generic/new_id"
-	ssh "${1}" "echo ${DEV_UUID} > /sys/bus/vmbus/drivers/hv_netvsc/unbind"
-	ssh "${1}" "echo ${DEV_UUID} > /sys/bus/vmbus/drivers/uio_hv_generic/bind"
+	if [ "${2}" = "set" ];then
+		NET_UUID="f8615163-df3e-46c5-913f-f2d2f965ed0e"
+		DEV_UUID_pre=$(ssh "${1}" "readlink /sys/class/net/eth1/device")
+		DEV_UUID=$(basename ${DEV_UUID_pre})
+		ssh "${1}" "echo ${DEV_UUID} > eth1_device_id"
+		ssh "${1}" "modprobe uio_hv_generic"
+		ssh "${1}" "echo ${NET_UUID} > /sys/bus/vmbus/drivers/uio_hv_generic/new_id"
+		ssh "${1}" "echo ${DEV_UUID} > /sys/bus/vmbus/drivers/hv_netvsc/unbind"
+		ssh "${1}" "echo ${DEV_UUID} > /sys/bus/vmbus/drivers/uio_hv_generic/bind"
+	else
+		DEV_UUID=$(ssh ${1} "cat eth1_device_id")
+		ssh "${1}" "echo ${DEV_UUID} > /sys/bus/vmbus/drivers/uio_hv_generic/unbind"
+		ssh "${1}" "echo ${DEV_UUID} > /sys/bus/vmbus/drivers/hv_netvsc/bind"
+	fi
 }
