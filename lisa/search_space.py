@@ -188,9 +188,7 @@ def decode_count_space(data: Any) -> Any:
     return decoded_data
 
 
-def _one_of_matched(
-    requirement: Any, capabilities: List[T_SEARCH_SPACE]
-) -> ResultReason:
+def _one_of_matched(requirement: Any, capabilities: List[Any]) -> ResultReason:
     result = ResultReason()
     supported = False
     assert isinstance(requirement, RequirementMixin), f"actual: {type(requirement)}"
