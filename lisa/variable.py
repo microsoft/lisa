@@ -45,7 +45,8 @@ def replace_variables(data: Any, variables: Dict[str, VariableEntry]) -> Any:
     return data
 
 
-def load_from_env(current_variables: Dict[str, Any]) -> None:
+def load_from_env() -> Dict[str, Any]:
+    results: Dict[str, VariableEntry] = {}
     for env_name in os.environ:
         is_lisa_variable = True
         is_secret = False
@@ -61,14 +62,12 @@ def load_from_env(current_variables: Dict[str, Any]) -> None:
 
         if is_lisa_variable:
             value = os.environ[env_name]
-            _add_variable(
-                name, value, current_variables=current_variables, is_secret=is_secret
-            )
+            _add_variable(name, value, results, is_secret=is_secret)
+    return results
 
 
-def load_from_runbook(
-    runbook_data: Any, current_variables: Dict[str, VariableEntry]
-) -> None:
+def load_from_runbook(runbook_data: Any) -> Dict[str, VariableEntry]:
+    results: Dict[str, VariableEntry] = {}
     if constants.VARIABLE in runbook_data:
         variable_entries = schema.Variable.schema().load(  # type:ignore
             runbook_data[constants.VARIABLE], many=True
@@ -76,21 +75,23 @@ def load_from_runbook(
         variable_entries = cast(List[schema.Variable], variable_entries)
         for entry in variable_entries:
             if entry.file:
-                load_from_file(entry.file, current_variables, is_secret=entry.is_secret)
+                results.update(load_from_file(entry.file, is_secret=entry.is_secret))
             else:
-                load_from_variable_entry(
-                    entry.name,
-                    entry.value,
-                    current_variables,
-                    is_secret=entry.is_secret,
+                results.update(
+                    load_from_variable_entry(
+                        entry.name,
+                        entry.value,
+                        is_secret=entry.is_secret,
+                    )
                 )
+    return results
 
 
 def load_from_file(
     file_name: str,
-    current_variables: Dict[str, VariableEntry],
     is_secret: bool = False,
-) -> None:
+) -> Dict[str, VariableEntry]:
+    results: Dict[str, VariableEntry] = {}
     if is_secret:
         secret.add_secret(file_name, secret.PATTERN_FILENAME)
 
@@ -108,33 +109,34 @@ def load_from_file(
         raise LisaException("variable file must be dict")
 
     for key, raw_value in raw_variables.items():
-        load_from_variable_entry(
-            key, raw_value, current_variables=current_variables, is_secret=is_secret
-        )
+        results.update(load_from_variable_entry(key, raw_value, is_secret=is_secret))
+    return results
 
 
 def load_from_pairs(
-    pairs: Optional[List[str]], current_variables: Dict[str, VariableEntry]
-) -> None:
+    pairs: Optional[List[str]],
+) -> Dict[str, VariableEntry]:
+    results: Dict[str, VariableEntry] = {}
     if pairs is None:
-        return
+        return results
     for pair in pairs:
         is_secret = False
         if pair.lower().startswith("s:"):
             is_secret = True
             pair = pair[2:]
         key, value = pair.split(":", 1)
-        _add_variable(key, value, current_variables, is_secret=is_secret)
+        _add_variable(key, value, results, is_secret=is_secret)
+    return results
 
 
 def load_from_variable_entry(
     name: str,
     raw_value: Any,
-    current_variables: Dict[str, VariableEntry],
     is_secret: bool = False,
-) -> None:
+) -> Dict[str, VariableEntry]:
 
     assert isinstance(name, str), f"actual: {type(name)}"
+    results: Dict[str, VariableEntry] = {}
     mask_pattern_name = ""
     if type(raw_value) in [str, int, bool, float]:
         value = raw_value
@@ -150,10 +152,11 @@ def load_from_variable_entry(
     _add_variable(
         name,
         value,
-        current_variables,
+        results,
         is_secret=is_secret,
         mask_pattern_name=mask_pattern_name,
     )
+    return results
 
 
 def _add_variable(

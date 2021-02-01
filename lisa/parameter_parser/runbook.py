@@ -77,10 +77,9 @@ def load_runbook(path: Path, user_variables: Optional[List[str]]) -> schema.Runb
 
     # load arg variables
     variables: Dict[str, VariableEntry] = dict()
-    # TODO: This is all side-effect driven and needs to be fixed.
-    load_from_runbook(data, variables)
-    load_from_env(variables)
-    load_from_pairs(user_variables, variables)
+    variables.update(load_from_runbook(data))
+    variables.update(load_from_env())
+    variables.update(load_from_pairs(user_variables))
 
     # replace variables:
     data = replace_variables(data, variables)
