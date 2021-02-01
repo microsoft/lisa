@@ -1,38 +1,38 @@
 {
-    "updatedTime": "9999-09-21T12:16:46.895330",
+    "updated_time": "9999-09-21T12:16:46.895330",
     "location": "eastus2",
     "capabilities": [
         {
             "location": "eastus2",
-            "vmSize": "Standard_B1ls",
+            "vm_size": "Standard_B1ls",
             "capability": {
                 "type": "requirement",
                 "name": "eastus2_Standard_B1ls",
                 "isDefault": false,
                 "artifact": "",
-                "nodeCount": 1,
-                "coreCount": 1,
-                "memoryMb": 512,
-                "diskCount": {
+                "node_count": 1,
+                "core_count": 1,
+                "memory_mb": 512,
+                "disk_count": {
                     "min": 0,
                     "max": 2,
-                    "maxInclusive": true
+                    "max_inclusive": true
                 },
-                "nicCount": {
+                "nic_count": {
                     "min": 0,
                     "max": 2,
-                    "maxInclusive": true
+                    "max_inclusive": true
                 },
-                "gpuCount": 0,
+                "gpu_count": 0,
                 "features": {
-                    "isAllowSet": true
+                    "is_allow_set": true
                 },
-                "excludedFeatures": {
-                    "isAllowSet": false
+                "excluded_features": {
+                    "is_allow_set": false
                 }
             },
-            "estimatedCost": 1,
-            "resourceSku": {
+            "estimated_cost": 1,
+            "resource_sku": {
                 "resource_type": "virtualMachines",
                 "name": "Standard_B1ls",
                 "tier": "Standard",
@@ -144,35 +144,35 @@
         },
         {
             "location": "eastus2",
-            "vmSize": "Standard_DS1_v2",
+            "vm_size": "Standard_DS1_v2",
             "capability": {
                 "type": "requirement",
                 "name": "eastus2_Standard_DS1_v2",
                 "isDefault": false,
                 "artifact": "",
-                "nodeCount": 1,
-                "coreCount": 1,
-                "memoryMb": 3584,
-                "diskCount": {
+                "node_count": 1,
+                "core_count": 1,
+                "memory_mb": 3584,
+                "disk_count": {
                     "min": 0,
                     "max": 4,
-                    "maxInclusive": true
+                    "max_inclusive": true
                 },
-                "nicCount": {
+                "nic_count": {
                     "min": 0,
                     "max": 2,
-                    "maxInclusive": true
+                    "max_inclusive": true
                 },
-                "gpuCount": 0,
+                "gpu_count": 0,
                 "features": {
-                    "isAllowSet": true
+                    "is_allow_set": true
                 },
-                "excludedFeatures": {
-                    "isAllowSet": false
+                "excluded_features": {
+                    "is_allow_set": false
                 }
             },
-            "estimatedCost": 1,
-            "resourceSku": {
+            "estimated_cost": 1,
+            "resource_sku": {
                 "resource_type": "virtualMachines",
                 "name": "Standard_DS1_v2",
                 "tier": "Standard",
@@ -291,39 +291,39 @@
         },
         {
             "location": "eastus2",
-            "vmSize": "Standard_DS2_v2",
+            "vm_size": "Standard_DS2_v2",
             "capability": {
                 "type": "requirement",
                 "name": "eastus2_Standard_DS2_v2",
                 "isDefault": false,
                 "artifact": "",
-                "nodeCount": 1,
-                "coreCount": 2,
-                "memoryMb": 7168,
-                "diskCount": {
+                "node_count": 1,
+                "core_count": 2,
+                "memory_mb": 7168,
+                "disk_count": {
                     "min": 0,
                     "max": 8,
-                    "maxInclusive": true
+                    "max_inclusive": true
                 },
-                "nicCount": {
+                "nic_count": {
                     "min": 0,
                     "max": 2,
-                    "maxInclusive": true
+                    "max_inclusive": true
                 },
-                "gpuCount": 0,
+                "gpu_count": 0,
                 "features": {
-                    "isAllowSet": true,
+                    "is_allow_set": true,
                     "items": [
                         "StartStop"
                     ]
                 },
-                "excludedFeatures": {
-                    "isAllowSet": false,
+                "excluded_features": {
+                    "is_allow_set": false,
                     "items": []
                 }
             },
-            "estimatedCost": 2,
-            "resourceSku": {
+            "estimated_cost": 2,
+            "resource_sku": {
                 "resource_type": "virtualMachines",
                 "name": "Standard_DS2_v2",
                 "tier": "Standard",
@@ -442,35 +442,35 @@
         },
         {
             "location": "eastus2",
-            "vmSize": "Standard_DS15_v2",
+            "vm_size": "Standard_DS15_v2",
             "capability": {
                 "type": "requirement",
                 "name": "eastus2_Standard_DS15_v2",
                 "isDefault": false,
                 "artifact": "",
-                "nodeCount": 1,
-                "coreCount": 20,
-                "memoryMb": 143360,
-                "diskCount": {
+                "node_count": 1,
+                "core_count": 20,
+                "memory_mb": 143360,
+                "disk_count": {
                     "min": 0,
                     "max": 64,
-                    "maxInclusive": true
+                    "max_inclusive": true
                 },
-                "nicCount": {
+                "nic_count": {
                     "min": 0,
                     "max": 8,
-                    "maxInclusive": true
+                    "max_inclusive": true
                 },
-                "gpuCount": 0,
+                "gpu_count": 0,
                 "features": {
-                    "isAllowSet": true
+                    "is_allow_set": true
                 },
-                "excludedFeatures": {
-                    "isAllowSet": false
+                "excluded_features": {
+                    "is_allow_set": false
                 }
             },
-            "estimatedCost": 20,
-            "resourceSku": {
+            "estimated_cost": 20,
+            "resource_sku": {
                 "resource_type": "virtualMachines",
                 "name": "Standard_DS15_v2",
                 "tier": "Standard",
@@ -607,35 +607,35 @@
         },
         {
             "location": "eastus2",
-            "vmSize": "Standard_A8_v2",
+            "vm_size": "Standard_A8_v2",
             "capability": {
                 "type": "requirement",
                 "name": "eastus2_Standard_A8_v2",
                 "isDefault": false,
                 "artifact": "",
-                "nodeCount": 1,
-                "coreCount": 8,
-                "memoryMb": 16384,
-                "diskCount": {
+                "node_count": 1,
+                "core_count": 8,
+                "memory_mb": 16384,
+                "disk_count": {
                     "min": 0,
                     "max": 16,
-                    "maxInclusive": true
+                    "max_inclusive": true
                 },
-                "nicCount": {
+                "nic_count": {
                     "min": 0,
                     "max": 8,
-                    "maxInclusive": true
+                    "max_inclusive": true
                 },
-                "gpuCount": 0,
+                "gpu_count": 0,
                 "features": {
-                    "isAllowSet": true
+                    "is_allow_set": true
                 },
-                "excludedFeatures": {
-                    "isAllowSet": false
+                "excluded_features": {
+                    "is_allow_set": false
                 }
             },
-            "estimatedCost": 8,
-            "resourceSku": {
+            "estimated_cost": 8,
+            "resource_sku": {
                 "resource_type": "virtualMachines",
                 "name": "Standard_A8_v2",
                 "tier": "Standard",
@@ -742,35 +742,35 @@
         },
         {
             "location": "eastus2",
-            "vmSize": "Standard_NV48s_v3",
+            "vm_size": "Standard_NV48s_v3",
             "capability": {
                 "type": "requirement",
                 "name": "eastus2_Standard_NV48s_v3",
                 "isDefault": false,
                 "artifact": "",
-                "nodeCount": 1,
-                "coreCount": 48,
-                "memoryMb": 458752,
-                "diskCount": {
+                "node_count": 1,
+                "core_count": 48,
+                "memory_mb": 458752,
+                "disk_count": {
                     "min": 0,
                     "max": 32,
-                    "maxInclusive": true
+                    "max_inclusive": true
                 },
-                "nicCount": {
+                "nic_count": {
                     "min": 0,
                     "max": 8,
-                    "maxInclusive": true
+                    "max_inclusive": true
                 },
-                "gpuCount": 4,
+                "gpu_count": 4,
                 "features": {
-                    "isAllowSet": true
+                    "is_allow_set": true
                 },
-                "excludedFeatures": {
-                    "isAllowSet": false
+                "excluded_features": {
+                    "is_allow_set": false
                 }
             },
-            "estimatedCost": 448,
-            "resourceSku": {
+            "estimated_cost": 448,
+            "resource_sku": {
                 "resource_type": "virtualMachines",
                 "name": "Standard_NV48s_v3",
                 "tier": "Standard",

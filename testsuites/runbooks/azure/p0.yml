@@ -4,18 +4,18 @@ extension:
     - "../../basic"
 variable:
   - file: secret.yml
-    isSecret: true
+    is_secret: true
 environment:
-  maxConcurrency: 1
-  warnAsError: false
+  max_concurrency: 1
+  warn_as_error: false
 platform:
   - type: azure
-    adminPrivateKeyFile: $(adminPrivateKeyFile)
+    admin_private_key_file: $(admin_private_key_file)
     azure:
-      servicePrincipalTenantId: $(servicePrincipalTenantId)
-      servicePrincipalClientId: $(servicePrincipalClientId)
-      servicePrincipalKey: $(servicePrincipalKey)
-      subscriptionId: $(subscriptionId)
+      service_principal_tenant_id: $(service_principal_tenant_id)
+      service_principal_client_id: $(service_principal_client_id)
+      service_principal_key: $(service_principal_key)
+      subscription_id: $(subscription_id)
 testcase:
   - criteria:
       priority: 0

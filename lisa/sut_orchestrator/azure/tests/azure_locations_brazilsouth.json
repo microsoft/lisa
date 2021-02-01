@@ -1,38 +1,38 @@
 {
-    "updatedTime": "9999-09-21T12:16:43.682968",
+    "updated_time": "9999-09-21T12:16:43.682968",
     "location": "westus2",
     "capabilities": [
         {
             "location": "westus2",
-            "vmSize": "Standard_M208ms_v2",
+            "vm_size": "Standard_M208ms_v2",
             "capability": {
                 "type": "requirement",
                 "name": "westus2_Standard_M208ms_v2",
                 "isDefault": false,
                 "artifact": "",
-                "nodeCount": 1,
-                "coreCount": 208,
-                "memoryMb": 5836800,
-                "diskCount": {
+                "node_count": 1,
+                "core_count": 208,
+                "memory_mb": 5836800,
+                "disk_count": {
                     "min": 0,
                     "max": 64,
-                    "maxInclusive": true
+                    "max_inclusive": true
                 },
-                "nicCount": {
+                "nic_count": {
                     "min": 0,
                     "max": 8,
-                    "maxInclusive": true
+                    "max_inclusive": true
                 },
-                "gpuCount": 0,
+                "gpu_count": 0,
                 "features": {
-                    "isAllowSet": true
+                    "is_allow_set": true
                 },
-                "excludedFeatures": {
-                    "isAllowSet": false
+                "excluded_features": {
+                    "is_allow_set": false
                 }
             },
-            "estimatedCost": 208,
-            "resourceSku": {
+            "estimated_cost": 208,
+            "resource_sku": {
                 "resource_type": "virtualMachines",
                 "name": "Standard_M208ms_v2",
                 "tier": "Standard",
@@ -143,35 +143,35 @@
         },
         {
             "location": "westus2",
-            "vmSize": "Standard_DS1_v2",
+            "vm_size": "Standard_DS1_v2",
             "capability": {
                 "type": "requirement",
                 "name": "westus2_Standard_DS1_v2",
                 "isDefault": false,
                 "artifact": "",
-                "nodeCount": 1,
-                "coreCount": 1,
-                "memoryMb": 3584,
-                "diskCount": {
+                "node_count": 1,
+                "core_count": 1,
+                "memory_mb": 3584,
+                "disk_count": {
                     "min": 0,
                     "max": 4,
-                    "maxInclusive": true
+                    "max_inclusive": true
                 },
-                "nicCount": {
+                "nic_count": {
                     "min": 0,
                     "max": 2,
-                    "maxInclusive": true
+                    "max_inclusive": true
                 },
-                "gpuCount": 0,
+                "gpu_count": 0,
                 "features": {
-                    "isAllowSet": true
+                    "is_allow_set": true
                 },
-                "excludedFeatures": {
-                    "isAllowSet": false
+                "excluded_features": {
+                    "is_allow_set": false
                 }
             },
-            "estimatedCost": 1,
-            "resourceSku": {
+            "estimated_cost": 1,
+            "resource_sku": {
                 "resource_type": "virtualMachines",
                 "name": "Standard_DS1_v2",
                 "tier": "Standard",
@@ -290,39 +290,39 @@
         },
         {
             "location": "westus2",
-            "vmSize": "Standard_DS2_v2",
+            "vm_size": "Standard_DS2_v2",
             "capability": {
                 "type": "requirement",
                 "name": "westus2_Standard_DS2_v2",
                 "isDefault": false,
                 "artifact": "",
-                "nodeCount": 1,
-                "coreCount": 2,
-                "memoryMb": 7168,
-                "diskCount": {
+                "node_count": 1,
+                "core_count": 2,
+                "memory_mb": 7168,
+                "disk_count": {
                     "min": 0,
                     "max": 8,
-                    "maxInclusive": true
+                    "max_inclusive": true
                 },
-                "nicCount": {
+                "nic_count": {
                     "min": 0,
                     "max": 2,
-                    "maxInclusive": true
+                    "max_inclusive": true
                 },
-                "gpuCount": 0,
+                "gpu_count": 0,
                 "features": {
-                    "isAllowSet": true,
+                    "is_allow_set": true,
                     "items": [
                         "StartStop"
                     ]
                 },
-                "excludedFeatures": {
-                    "isAllowSet": false,
+                "excluded_features": {
+                    "is_allow_set": false,
                     "items": []
                 }
             },
-            "estimatedCost": 2,
-            "resourceSku": {
+            "estimated_cost": 2,
+            "resource_sku": {
                 "resource_type": "virtualMachines",
                 "name": "Standard_DS2_v2",
                 "tier": "Standard",

@@ -13,33 +13,33 @@ class VariableTestCase(TestCase):
         secret.reset()
 
     def test_in_env(self) -> None:
-        os.environ["LISA_normalValue"] = "value_from_env"
-        os.environ["S_LISA_normalEntry"] = "s_value_from_env"
+        os.environ["LISA_normal_value"] = "value_from_env"
+        os.environ["S_LISA_normal_entry"] = "s_value_from_env"
         variables = self._get_default_variables()
         variable.load_from_env(variables)
-        data = self._replace_and_validate(variables, {"normalEntry": "******"})
+        data = self._replace_and_validate(variables, {"normal_entry": "******"})
         self.assertEqual("value_from_env", data["nested"]["normal_value"])
-        self.assertEqual("s_value_from_env", data["normalEntry"])
+        self.assertEqual("s_value_from_env", data["normal_entry"])
 
     def test_in_pair(self) -> None:
-        pair1 = "normalValue:nv_from_pair"
-        pair2 = "S:normalEntry:s_value_from_env"
+        pair1 = "normal_value:nv_from_pair"
+        pair2 = "S:normal_entry:s_value_from_env"
         variables = self._get_default_variables()
         variable.load_from_pairs([pair1, pair2], variables)
-        data = self._replace_and_validate(variables, {"normalEntry": "******"})
+        data = self._replace_and_validate(variables, {"normal_entry": "******"})
         self.assertEqual("nv_from_pair", data["nested"]["normal_value"])
-        self.assertEqual("s_value_from_env", data["normalEntry"])
+        self.assertEqual("s_value_from_env", data["normal_entry"])
 
     def test_in_normal_file_outside_secret(self) -> None:
         self._test_files(
             "variable_normal.yml",
             True,
             {
-                "normalValue": "******",
-                "normalEntry": "******",
-                "secretGuid": "12345678-****-****-****-********90ab",
-                "secretInt": "1****0",
-                "secretHeadTail": "a****h",
+                "normal_value": "******",
+                "normal_entry": "******",
+                "secret_guid": "12345678-****-****-****-********90ab",
+                "secret_int": "1****0",
+                "secret_head_tail": "a****h",
             },
         )
 
@@ -48,9 +48,9 @@ class VariableTestCase(TestCase):
             "variable_normal.yml",
             False,
             {
-                "secretGuid": "12345678-****-****-****-********90ab",
-                "secretInt": "1****0",
-                "secretHeadTail": "a****h",
+                "secret_guid": "12345678-****-****-****-********90ab",
+                "secret_int": "1****0",
+                "secret_head_tail": "a****h",
             },
         )
 
@@ -59,11 +59,11 @@ class VariableTestCase(TestCase):
             "variable_secret.yml",
             True,
             {
-                "normalValue": "******",
-                "normalEntry": "******",
-                "secretGuid": "12345678-****-****-****-********90ab",
-                "secretInt": "1****0",
-                "secretHeadTail": "a****h",
+                "normal_value": "******",
+                "normal_entry": "******",
+                "secret_guid": "12345678-****-****-****-********90ab",
+                "secret_int": "1****0",
+                "secret_head_tail": "a****h",
             },
         )
 
@@ -79,43 +79,43 @@ class VariableTestCase(TestCase):
         data = self._test_runbook_file_entry(
             runbook_data,
             {
-                "secretGuid": "12345678-****-****-****-********90ab",
-                "secretInt": "1****0",
-                "secretHeadTail": "a****h",
+                "secret_guid": "12345678-****-****-****-********90ab",
+                "secret_int": "1****0",
+                "secret_head_tail": "a****h",
             },
         )
         self.assertEqual("12345678-abcd-efab-cdef-1234567890ab", data["list"][0])
         self.assertEqual(1234567890, data["list"][1]["dictInList"])
         self.assertEqual("abcdefgh", data["headtail"])
         self.assertEqual("normal_value", data["nested"]["normal_value"])
-        self.assertEqual("entry_value", data["normalEntry"])
+        self.assertEqual("entry_value", data["normal_entry"])
 
     def test_in_runbook_format_variable(self) -> None:
         runbook_data: Dict[str, Any] = {
             "variable": [
-                {"name": "normalValue", "value": "normal_value"},
-                {"name": "normalEntry", "value": {"value": "entry_value"}},
+                {"name": "normal_value", "value": "normal_value"},
+                {"name": "normal_entry", "value": {"value": "entry_value"}},
                 {
-                    "name": "secretGuid",
+                    "name": "secret_guid",
                     "value": {
                         "value": "12345678-abcd-efab-cdef-1234567890ab",
-                        "isSecret": True,
+                        "is_secret": True,
                         "mask": "guid",
                     },
                 },
                 {
-                    "name": "secretInt",
+                    "name": "secret_int",
                     "value": {
                         "value": 1234567890,
-                        "isSecret": True,
+                        "is_secret": True,
                         "mask": "headtail",
                     },
                 },
                 {
-                    "name": "secretHeadTail",
+                    "name": "secret_head_tail",
                     "value": {
                         "value": "abcdefgh",
-                        "isSecret": True,
+                        "is_secret": True,
                         "mask": "headtail",
                     },
                 },
@@ -124,44 +124,44 @@ class VariableTestCase(TestCase):
         data = self._test_runbook_file_entry(
             runbook_data,
             {
-                "secretGuid": "12345678-****-****-****-********90ab",
-                "secretInt": "1****0",
-                "secretHeadTail": "a****h",
+                "secret_guid": "12345678-****-****-****-********90ab",
+                "secret_int": "1****0",
+                "secret_head_tail": "a****h",
             },
         )
         self.assertEqual("12345678-abcd-efab-cdef-1234567890ab", data["list"][0])
         self.assertEqual(1234567890, data["list"][1]["dictInList"])
         self.assertEqual("abcdefgh", data["headtail"])
         self.assertEqual("normal_value", data["nested"]["normal_value"])
-        self.assertEqual("entry_value", data["normalEntry"])
+        self.assertEqual("entry_value", data["normal_entry"])
 
     def test_in_runbook_ordered(self) -> None:
         runbook_data: Dict[str, Any] = {
             "variable": [
                 {"file": "variable_normal.yml"},
-                {"name": "normalValue", "value": "normal_value1"},
-                {"name": "normalEntry", "value": {"value": "entry_value1"}},
+                {"name": "normal_value", "value": "normal_value1"},
+                {"name": "normal_entry", "value": {"value": "entry_value1"}},
                 {
-                    "name": "secretGuid",
+                    "name": "secret_guid",
                     "value": {
                         "value": "12345678-abcd-efab-cdef-1234567890ac",
-                        "isSecret": True,
+                        "is_secret": True,
                         "mask": "guid",
                     },
                 },
                 {
-                    "name": "secretInt",
+                    "name": "secret_int",
                     "value": {
                         "value": 1234567891,
-                        "isSecret": True,
+                        "is_secret": True,
                         "mask": "headtail",
                     },
                 },
                 {
-                    "name": "secretHeadTail",
+                    "name": "secret_head_tail",
                     "value": {
                         "value": "abcdefgi",
-                        "isSecret": True,
+                        "is_secret": True,
                         "mask": "headtail",
                     },
                 },
@@ -170,16 +170,16 @@ class VariableTestCase(TestCase):
         data = self._test_runbook_file_entry(
             runbook_data,
             {
-                "secretGuid": "12345678-****-****-****-********90ac",
-                "secretInt": "1****1",
-                "secretHeadTail": "a****i",
+                "secret_guid": "12345678-****-****-****-********90ac",
+                "secret_int": "1****1",
+                "secret_head_tail": "a****i",
             },
         )
         self.assertEqual("12345678-abcd-efab-cdef-1234567890ac", data["list"][0])
         self.assertEqual(1234567891, data["list"][1]["dictInList"])
         self.assertEqual("abcdefgi", data["headtail"])
         self.assertEqual("normal_value1", data["nested"]["normal_value"])
-        self.assertEqual("entry_value1", data["normalEntry"])
+        self.assertEqual("entry_value1", data["normal_entry"])
 
     def test_variable_not_found(self) -> None:
         variables = self._get_default_variables()
@@ -192,10 +192,10 @@ class VariableTestCase(TestCase):
         variables = self._get_default_variables()
         variables["unused"] = variable.VariableEntry("value")
         self.assertFalse(variables["unused"].is_used)
-        self.assertFalse(variables["normalvalue"].is_used)
-        self._replace_and_validate(variables, {"normalEntry": "original"})
+        self.assertFalse(variables["normal_value"].is_used)
+        self._replace_and_validate(variables, {"normal_entry": "original"})
         self.assertFalse(variables["unused"].is_used)
-        self.assertTrue(variables["normalvalue"].is_used)
+        self.assertTrue(variables["normal_value"].is_used)
 
     def test_invalid_file_extension(self) -> None:
         variables = self._get_default_variables()
@@ -221,7 +221,7 @@ class VariableTestCase(TestCase):
         variable.load_from_file(file_name, variables, is_secret=all_secret)
         data = self._replace_and_validate(variables, secret_variables)
         self.assertEqual("normal_value", data["nested"]["normal_value"])
-        self.assertEqual("entry_value", data["normalEntry"])
+        self.assertEqual("entry_value", data["normal_entry"])
         self.assertEqual("12345678-abcd-efab-cdef-1234567890ab", data["list"][0])
         self.assertEqual(1234567890, data["list"][1]["dictInList"])
         self.assertEqual("abcdefgh", data["headtail"])
@@ -255,11 +255,11 @@ class VariableTestCase(TestCase):
 
     def _get_default_variables(self) -> Dict[str, variable.VariableEntry]:
         data = {
-            "normalvalue": variable.VariableEntry("original"),
-            "normalentry": variable.VariableEntry("original"),
-            "secretguid": variable.VariableEntry("original"),
-            "secretint": variable.VariableEntry("original"),
-            "secretheadtail": variable.VariableEntry("original"),
+            "normal_value": variable.VariableEntry("original"),
+            "normal_entry": variable.VariableEntry("original"),
+            "secret_guid": variable.VariableEntry("original"),
+            "secret_int": variable.VariableEntry("original"),
+            "secret_head_tail": variable.VariableEntry("original"),
         }
         return data
 
@@ -271,12 +271,12 @@ class VariableTestCase(TestCase):
         self.assertDictEqual(
             {
                 "keep": "normal",
-                "normalEntry": variables["normalentry"].data,
-                "headtail": variables["secretheadtail"].data,
-                "nested": {"normal_value": variables["normalvalue"].data},
+                "normal_entry": variables["normal_entry"].data,
+                "headtail": variables["secret_head_tail"].data,
+                "nested": {"normal_value": variables["normal_value"].data},
                 "list": [
-                    variables["secretguid"].data,
-                    {"dictInList": variables["secretint"].data},
+                    variables["secret_guid"].data,
+                    {"dictInList": variables["secret_int"].data},
                 ],
             },
             data,
@@ -288,9 +288,9 @@ class VariableTestCase(TestCase):
     def _get_default_data(self) -> Dict[str, Any]:
         data = {
             "keep": "normal",
-            "normalEntry": "$(normalEntry)",
-            "headtail": "$(secretHeadTail)",
-            "nested": {"normal_value": "$(normalValue)"},
-            "list": ["$(secretGuid)", {"dictInList": "$(secretInt)"}],
+            "normal_entry": "$(normal_entry)",
+            "headtail": "$(secret_head_tail)",
+            "nested": {"normal_value": "$(normal_value)"},
+            "list": ["$(secret_guid)", {"dictInList": "$(secret_int)"}],
         }
         return data

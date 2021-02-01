@@ -2,13 +2,13 @@ import logging
 from dataclasses import dataclass
 from typing import List, Type, cast
 
-from dataclasses_json import LetterCase, dataclass_json  # type: ignore
+from dataclasses_json import dataclass_json  # type: ignore
 
 from lisa import notifier, schema
 from lisa.testsuite import TestResultMessage
 
 
-@dataclass_json(letter_case=LetterCase.CAMEL)
+@dataclass_json()
 @dataclass
 class ConsoleSchema(schema.TypedSchema):
     log_level: str = logging.getLevelName(logging.DEBUG)

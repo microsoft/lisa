@@ -6,7 +6,6 @@ from typing import Any, Callable, Dict, List, Optional, Type, TypeVar, Union, ca
 from dataclasses_json import (  # type: ignore
     CatchAll,
     DataClassJsonMixin,
-    LetterCase,
     Undefined,
     config,
     dataclass_json,
@@ -105,7 +104,7 @@ class ListableValidator(validate.Validator):
         return value
 
 
-@dataclass_json(letter_case=LetterCase.CAMEL, undefined=Undefined.INCLUDE)
+@dataclass_json(undefined=Undefined.INCLUDE)
 @dataclass
 class ExtendableSchemaMixin:
     extended_schemas: CatchAll = field(default_factory=dict)
@@ -145,13 +144,13 @@ class ExtendableSchemaMixin:
         return result
 
 
-@dataclass_json(letter_case=LetterCase.CAMEL)
+@dataclass_json()
 @dataclass
 class TypedSchema:
     type: str = ""
 
 
-@dataclass_json(letter_case=LetterCase.CAMEL)
+@dataclass_json()
 @dataclass
 class Strategy:
     """
@@ -178,7 +177,7 @@ class Strategy:
     )
 
 
-@dataclass_json(letter_case=LetterCase.CAMEL)
+@dataclass_json()
 @dataclass
 class Parent:
     """
@@ -192,7 +191,7 @@ class Parent:
     )
 
 
-@dataclass_json(letter_case=LetterCase.CAMEL)
+@dataclass_json()
 @dataclass
 class Extension:
     """
@@ -204,7 +203,7 @@ class Extension:
     paths: List[str] = field(default_factory=list, metadata=metadata(required=True))
 
 
-@dataclass_json(letter_case=LetterCase.CAMEL)
+@dataclass_json()
 @dataclass
 class VariableEntry:
     is_secret: bool = False
@@ -212,7 +211,7 @@ class VariableEntry:
     value: Union[str, bool, int] = ""
 
 
-@dataclass_json(letter_case=LetterCase.CAMEL)
+@dataclass_json()
 @dataclass
 class Variable:
     """
@@ -256,7 +255,7 @@ class Variable:
             self.value = self.value_raw
 
 
-@dataclass_json(letter_case=LetterCase.CAMEL)
+@dataclass_json()
 @dataclass
 class ArtifactLocation(TypedSchema):
     type: str = field(
@@ -269,7 +268,7 @@ class ArtifactLocation(TypedSchema):
         add_secret(self.path)
 
 
-@dataclass_json(letter_case=LetterCase.CAMEL)
+@dataclass_json()
 @dataclass
 class Artifact(TypedSchema):
     # name is optional. artifacts can be referred by name or index.
@@ -277,7 +276,7 @@ class Artifact(TypedSchema):
     locations: List[ArtifactLocation] = field(default_factory=list)
 
 
-@dataclass_json(letter_case=LetterCase.CAMEL, undefined=Undefined.INCLUDE)
+@dataclass_json(undefined=Undefined.INCLUDE)
 @dataclass
 class Notifier(TypedSchema):
     """
@@ -288,7 +287,7 @@ class Notifier(TypedSchema):
     delay_parsed: CatchAll = field(default_factory=dict)
 
 
-@dataclass_json(letter_case=LetterCase.CAMEL, undefined=Undefined.INCLUDE)
+@dataclass_json(undefined=Undefined.INCLUDE)
 @dataclass
 class NodeSpace(search_space.RequirementMixin, TypedSchema, ExtendableSchemaMixin):
     type: str = field(
@@ -304,40 +303,33 @@ class NodeSpace(search_space.RequirementMixin, TypedSchema, ExtendableSchemaMixi
     artifact: str = field(default="")
     node_count: search_space.CountSpace = field(
         default=search_space.IntRange(min=1),
-        metadata=metadata(
-            data_key="nodeCount", decoder=search_space.decode_count_space
-        ),
+        metadata=metadata(decoder=search_space.decode_count_space),
     )
     core_count: search_space.CountSpace = field(
         default=search_space.IntRange(min=1),
-        metadata=metadata(
-            data_key="coreCount", decoder=search_space.decode_count_space
-        ),
+        metadata=metadata(decoder=search_space.decode_count_space),
     )
     memory_mb: search_space.CountSpace = field(
         default=search_space.IntRange(min=512),
-        metadata=metadata(data_key="memoryMb", decoder=search_space.decode_count_space),
+        metadata=metadata(decoder=search_space.decode_count_space),
     )
     disk_count: search_space.CountSpace = field(
         default=search_space.IntRange(min=1),
-        metadata=metadata(
-            data_key="diskCount", decoder=search_space.decode_count_space
-        ),
+        metadata=metadata(decoder=search_space.decode_count_space),
     )
     nic_count: search_space.CountSpace = field(
         default=search_space.IntRange(min=1),
-        metadata=metadata(data_key="nicCount", decoder=search_space.decode_count_space),
+        metadata=metadata(decoder=search_space.decode_count_space),
     )
     gpu_count: search_space.CountSpace = field(
         default=search_space.IntRange(min=0),
-        metadata=metadata(data_key="gpuCount", decoder=search_space.decode_count_space),
+        metadata=metadata(decoder=search_space.decode_count_space),
     )
     # all features on requirement should be included.
     # all features on capability can be included.
     features: Optional[search_space.SetSpace[str]] = field(
         default=None,
         metadata=metadata(
-            data_key="features",
             decoder=search_space.decode_set_space,
             allow_none=True,
         ),
@@ -347,7 +339,6 @@ class NodeSpace(search_space.RequirementMixin, TypedSchema, ExtendableSchemaMixi
     excluded_features: Optional[search_space.SetSpace[str]] = field(
         default=None,
         metadata=metadata(
-            data_key="excludedFeatures",
             decoder=search_space.decode_set_space,
             allow_none=True,
         ),
@@ -527,7 +518,7 @@ class NodeSpace(search_space.RequirementMixin, TypedSchema, ExtendableSchemaMixi
         return min_value
 
 
-@dataclass_json(letter_case=LetterCase.CAMEL)
+@dataclass_json()
 @dataclass
 class Capability(NodeSpace):
     type: str = constants.ENVIRONMENTS_NODES_REQUIREMENT
@@ -537,7 +528,7 @@ class Capability(NodeSpace):
         self.node_count = 1
 
 
-@dataclass_json(letter_case=LetterCase.CAMEL)
+@dataclass_json()
 @dataclass
 class LocalNode(TypedSchema):
     type: str = field(
@@ -552,7 +543,7 @@ class LocalNode(TypedSchema):
     capability: Capability = field(default_factory=Capability)
 
 
-@dataclass_json(letter_case=LetterCase.CAMEL)
+@dataclass_json()
 @dataclass
 class RemoteNode(TypedSchema):
     type: str = field(
@@ -571,9 +562,7 @@ class RemoteNode(TypedSchema):
     public_address: str = ""
     public_port: int = field(
         default=22,
-        metadata=metadata(
-            data_key="publicPort", validate=validate.Range(min=1, max=65535)
-        ),
+        metadata=metadata(validate=validate.Range(min=1, max=65535)),
     )
     username: str = field(default="", metadata=metadata(required=True))
     password: str = ""
@@ -589,7 +578,7 @@ class RemoteNode(TypedSchema):
 
         if not self.address and not self.public_address:
             raise LisaException(
-                "at least one of address and publicAddress need to be set"
+                "at least one of address and public_address need to be set"
             )
         elif not self.address:
             self.address = self.public_address
@@ -597,7 +586,7 @@ class RemoteNode(TypedSchema):
             self.public_address = self.address
 
         if not self.port and not self.public_port:
-            raise LisaException("at least one of port and publicPort need to be set")
+            raise LisaException("at least one of port and public_port need to be set")
         elif not self.port:
             self.port = self.public_port
         elif not self.public_port:
@@ -609,7 +598,7 @@ class RemoteNode(TypedSchema):
             )
 
 
-@dataclass_json(letter_case=LetterCase.CAMEL)
+@dataclass_json()
 @dataclass
 class Environment:
     name: str = field(default="")
@@ -656,19 +645,19 @@ class Environment:
             self.nodes_raw = None
 
 
-@dataclass_json(letter_case=LetterCase.CAMEL)
+@dataclass_json()
 @dataclass
 class EnvironmentRoot:
     max_concurrency: int = field(
         default=1,
-        metadata=metadata(data_key="maxConcurrency", validate=validate.Range(min=1)),
+        metadata=metadata(validate=validate.Range(min=1)),
     )
     allow_create: bool = True
     warn_as_error: bool = field(default=False)
     environments: List[Environment] = field(default_factory=list)
 
 
-@dataclass_json(letter_case=LetterCase.CAMEL, undefined=Undefined.INCLUDE)
+@dataclass_json(undefined=Undefined.INCLUDE)
 @dataclass
 class Platform(TypedSchema, ExtendableSchemaMixin):
     type: str = field(
@@ -707,7 +696,7 @@ class Platform(TypedSchema, ExtendableSchemaMixin):
                 )
 
 
-@dataclass_json(letter_case=LetterCase.CAMEL)
+@dataclass_json()
 @dataclass
 class Criteria:
     """
@@ -732,7 +721,7 @@ class Criteria:
     )
 
 
-@dataclass_json(letter_case=LetterCase.CAMEL)
+@dataclass_json()
 @dataclass
 class TestCase:
     """
@@ -780,7 +769,7 @@ class TestCase:
     environment: str = ""
 
 
-@dataclass_json(letter_case=LetterCase.CAMEL)
+@dataclass_json()
 @dataclass
 class Runbook:
     # run name prefix to help grouping results and put it in title.
