@@ -166,10 +166,10 @@ class Runner(Action):
         self._latest_test_results = test_results
 
     async def stop(self) -> None:
-        super().stop()
+        await super().stop()
 
     async def close(self) -> None:
-        super().close()
+        await super().close()
 
     def _pick_one_result_on_environment(
         self, environment: Environment, results: List[TestResult]
