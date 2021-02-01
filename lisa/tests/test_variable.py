@@ -16,7 +16,9 @@ class VariableTestCase(TestCase):
         os.environ["LISA_normal_value"] = "value_from_env"
         os.environ["S_LISA_normal_entry"] = "s_value_from_env"
         variables = self._get_default_variables()
-        variable.load_from_env(variables)
+        print(variables)
+        variables.update(variable.load_from_env())
+        print(variables)
         data = self._replace_and_validate(variables, {"normal_entry": "******"})
         self.assertEqual("value_from_env", data["nested"]["normal_value"])
         self.assertEqual("s_value_from_env", data["normal_entry"])
@@ -25,7 +27,7 @@ class VariableTestCase(TestCase):
         pair1 = "normal_value:nv_from_pair"
         pair2 = "S:normal_entry:s_value_from_env"
         variables = self._get_default_variables()
-        variable.load_from_pairs([pair1, pair2], variables)
+        variables.update(variable.load_from_pairs([pair1, pair2]))
         data = self._replace_and_validate(variables, {"normal_entry": "******"})
         self.assertEqual("nv_from_pair", data["nested"]["normal_value"])
         self.assertEqual("s_value_from_env", data["normal_entry"])
@@ -200,7 +202,7 @@ class VariableTestCase(TestCase):
     def test_invalid_file_extension(self) -> None:
         variables = self._get_default_variables()
         with self.assertRaises(LisaException) as cm:
-            variable.load_from_file("file.xml", variables)
+            variables.update(variable.load_from_file("file.xml"))
         self.assertIsInstance(cm.exception, LisaException)
         self.assertIn("variable support only yaml and yml", str(cm.exception))
 
@@ -209,7 +211,7 @@ class VariableTestCase(TestCase):
     ) -> Any:
         constants.RUNBOOK_PATH = Path(__file__).parent
         variables = self._get_default_variables()
-        variable.load_from_runbook(data, variables)
+        variables.update(variable.load_from_runbook(data))
         data = self._replace_and_validate(variables, secret_variables)
         return data
 
@@ -218,7 +220,7 @@ class VariableTestCase(TestCase):
     ) -> Any:
         constants.RUNBOOK_PATH = Path(__file__).parent
         variables = self._get_default_variables()
-        variable.load_from_file(file_name, variables, is_secret=all_secret)
+        variables.update(variable.load_from_file(file_name, is_secret=all_secret))
         data = self._replace_and_validate(variables, secret_variables)
         self.assertEqual("normal_value", data["nested"]["normal_value"])
         self.assertEqual("entry_value", data["normal_entry"])
