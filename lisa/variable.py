@@ -10,7 +10,7 @@ from lisa.util import LisaException, constants
 
 DataType = Union[str, bool, int]
 
-_VARIABLE_PATTERN = re.compile(r"^\$\((.+)\)$")
+_VARIABLE_PATTERN = re.compile(r"(\$\(.+?\))", re.MULTILINE)
 _ENV_START = "LISA_"
 _SECRET_ENV_START = "S_LISA_"
 
@@ -22,27 +22,12 @@ class VariableEntry:
 
 
 def replace_variables(data: Any, variables: Dict[str, VariableEntry]) -> Any:
-    if isinstance(data, dict):
-        for key, value in data.items():
-            data[key] = replace_variables(value, variables)
-    elif isinstance(data, list):
-        for index, item in enumerate(data):
-            data[index] = replace_variables(item, variables)
-    elif isinstance(data, str):
-        matches = _VARIABLE_PATTERN.match(data)
-        if matches:
-            variable_name = matches[1]
-            lower_variable_name = variable_name.lower()
-            if lower_variable_name in variables:
-                entry = variables[lower_variable_name]
-                entry.is_used = True
-                data = entry.data
-            else:
-                raise LisaException(
-                    f"cannot find variable '{variable_name}', make sure it's defined"
-                )
 
-    return data
+    new_variables: Dict[str, VariableEntry] = dict()
+    for key, value in variables.items():
+        new_variables[f"$({key})"] = value
+
+    return _replace_variables(data, new_variables)
 
 
 def load_from_env() -> Dict[str, Any]:
@@ -157,6 +142,44 @@ def load_from_variable_entry(
         mask_pattern_name=mask_pattern_name,
     )
     return results
+
+
+def _replace_variables(data: Any, variables: Dict[str, VariableEntry]) -> Any:
+    if isinstance(data, dict):
+        for key, value in data.items():
+            data[key] = _replace_variables(value, variables)
+    elif isinstance(data, list):
+        for index, item in enumerate(data):
+            data[index] = _replace_variables(item, variables)
+    elif isinstance(data, str):
+        lower_name = data.lower()
+        if lower_name in variables:
+            # whole matches, may not be a string. It's replaced with type.
+            entry = variables[lower_name]
+            entry.is_used = True
+            data = entry.data
+        else:
+            matches = _VARIABLE_PATTERN.findall(data)
+            if matches:
+                for variable_name in matches:
+                    lower_variable_name = variable_name.lower()
+                    if lower_variable_name in variables:
+                        variables[lower_variable_name].is_used = True
+                    else:
+                        raise LisaException(
+                            f"cannot find variable '{variable_name[2:-1]}', "
+                            f"make sure it's defined"
+                        )
+                data = _VARIABLE_PATTERN.sub(
+                    lambda matched: str(
+                        variables[
+                            matched.string[matched.start() : matched.end()].lower()
+                        ].data,
+                    ),
+                    data,
+                )
+
+    return data
 
 
 def _add_variable(

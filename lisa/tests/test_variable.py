@@ -16,9 +16,7 @@ class VariableTestCase(TestCase):
         os.environ["LISA_normal_value"] = "value_from_env"
         os.environ["S_LISA_normal_entry"] = "s_value_from_env"
         variables = self._get_default_variables()
-        print(variables)
         variables.update(variable.load_from_env())
-        print(variables)
         data = self._replace_and_validate(variables, {"normal_entry": "******"})
         self.assertEqual("value_from_env", data["nested"]["normal_value"])
         self.assertEqual("s_value_from_env", data["normal_entry"])
@@ -280,6 +278,8 @@ class VariableTestCase(TestCase):
                     variables["secret_guid"].data,
                     {"dictInList": variables["secret_int"].data},
                 ],
+                "two_entries": f"1{variables['normal_entry'].data}"
+                f"2-$-()3{variables['normal_entry'].data}4",
             },
             data,
         )
@@ -294,5 +294,6 @@ class VariableTestCase(TestCase):
             "headtail": "$(secret_head_tail)",
             "nested": {"normal_value": "$(normal_value)"},
             "list": ["$(secret_guid)", {"dictInList": "$(secret_int)"}],
+            "two_entries": "1$(normal_entry)2-$-()3$(normal_entry)4",
         }
         return data
