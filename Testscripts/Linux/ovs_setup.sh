@@ -46,7 +46,7 @@ function install_ovs () {
 		ovsOldSrc="https://github.com/openvswitch/ovs/archive/v2.11.2.tar.gz"
 		dpdkSrcTar="${dpdkSrcLink##*/}"
 		dpdk_version=$(echo "$dpdkSrcTar" | grep -Po "(\d+\.)+\d+")
-		if [[ $dpdk_version =~ "18.11" ]]; 
+		if [[ $dpdk_version =~ "18.11" ]];
 		then
 			LogMsg "DPDK Source is $dpdk_version"
 			LogMsg "Changing OVS source to older version: $ovsOldSrc"
@@ -79,7 +79,7 @@ function install_ovs () {
 	ssh "${1}" "cd ${OVS_DIR} && ./boot.sh"
 
 	LogMsg "Starting OVS configure on ${1}"
-	ssh "${1}" "cd ${OVS_DIR} && ./configure --with-dpdk=${RTE_SDK}/${RTE_TARGET} --prefix=/usr --localstatedir=/var --sysconfdir=/etc"
+	ssh "${1}" "cd ${OVS_DIR} && ./configure --with-dpdk=static"
 
 	LogMsg "Starting OVS build on ${1}"
 	ssh "${1}" "cd ${OVS_DIR} && make -j && make install"
@@ -90,7 +90,7 @@ function install_ovs () {
 	ssh "${1}" "ip addr flush dev ${nicName}"
 	check_exit_status "${nicName} flush on ${1}" "exit"
 
-	ssh "${1}" "/usr/share/openvswitch/scripts/ovs-ctl start"
+	ssh "${1}" "/usr/local/share/openvswitch/scripts/ovs-ctl start"
 	check_exit_status "ovs start on ${1}" "exit"
 
 	ssh "${1}" "ovs-vsctl --no-wait set Open_vSwitch . other_config:dpdk-init=true"
