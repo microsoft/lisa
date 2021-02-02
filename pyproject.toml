@@ -2,13 +2,12 @@
 name = "LISA"
 version = "3.0.0.dev1"
 description = "Linux Integration Services Automation"
-authors = ["Andrew Schwartzmeyer <andrew@schwartzmeyer.com>", "Chi Song <song.chi@microsoft.com>"]
-license = "Apache License 2.0"
+authors = ["contributors <https://github.com/microsoft/lisa/graphs/contributors>"]
+license = "MIT"
 
 [tool.poetry.dependencies]
 python = "^3.8"
-psutil = "^5.7.2"
-pyyaml = "^5.3.1"
+PyYAML = "^5.4.1"
 retry = "^0.9.2"
 paramiko = "^2.7.1"
 spurplus = "^2.3.3"
