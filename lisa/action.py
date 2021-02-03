@@ -36,8 +36,9 @@ class ActionMessage(notifier.MessageBase):
 
 class Action(metaclass=ABCMeta):
     def __init__(self) -> None:
+        super().__init__()
         self.name: str = self.__class__.__name__
-        self.log = get_logger("Action")
+        self._log = get_logger("Action")
 
         self.__status = ActionStatus.UNINITIALIZED
         self.__is_started = False
@@ -65,7 +66,7 @@ class Action(metaclass=ABCMeta):
     @status.setter
     def status(self, value: ActionStatus) -> None:
         if self.__status != value:
-            self.log.debug(
+            self._log.debug(
                 f"{self.name} status changed from {self.__status.name} "
                 f"to {value.name} with {self.__timer}"
             )
