@@ -17,7 +17,7 @@ PATH_REMOTE_ROOT = "lisa_working"
 PATH_TOOL = "tool"
 
 # patterns
-GUID_REGEXP = re.compile(r"^[0-9a-f]{8}-([0-9a-f]{4}-){3}[0-9a-f]{12}$")
+GUID_REGEXP = re.compile(r"^[0-9a-f]{8}-([0-9a-f]{4}-){3}[0-9a-f]{12}$|^$")
 NORMALIZE_PATTERN = re.compile(r"[^\w\d]")
 
 # list types
