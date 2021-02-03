@@ -3,7 +3,7 @@ from unittest import IsolatedAsyncioTestCase
 
 from lisa import schema
 from lisa.environment import EnvironmentStatus, load_environments
-from lisa.runner import Runner
+from lisa.runners.lisa_runner import LisaRunner
 from lisa.tests import test_platform, test_testsuite
 from lisa.tests.test_environment import generate_runbook as generate_env_runbook
 from lisa.tests.test_testsuite import (
@@ -19,7 +19,7 @@ def generate_runner(
     env_runbook: Optional[schema.EnvironmentRoot] = None,
     case_use_new_env: bool = False,
     platform_schema: Optional[test_platform.MockPlatformSchema] = None,
-) -> Runner:
+) -> LisaRunner:
     platform_runbook = schema.Platform(
         type=constants.PLATFORM_MOCK, admin_password="do-not-use"
     )
@@ -29,16 +29,16 @@ def generate_runner(
         }
     runbook = schema.Runbook(
         platform=[platform_runbook],
-        testcase=[
-            schema.TestCase(
-                criteria=schema.Criteria(priority=[0, 1, 2]),
-                use_new_environment=case_use_new_env,
-            )
-        ],
     )
+    runbook.testcase = [
+        schema.TestCase(
+            criteria=schema.Criteria(priority=[0, 1, 2]),
+            use_new_environment=case_use_new_env,
+        )
+    ]
     if env_runbook:
         runbook.environment = env_runbook
-    runner = Runner(runbook)
+    runner = LisaRunner(runbook)
 
     return runner
 
@@ -495,7 +495,7 @@ class RunnerTestCase(IsolatedAsyncioTestCase):
         expected_prepared: List[str],
         expected_deployed_envs: List[str],
         expected_deleted_envs: List[str],
-        runner: Runner,
+        runner: LisaRunner,
     ) -> None:
         platform = cast(test_platform.MockPlatform, runner._latest_platform)
         platform_test_data = platform.test_data
