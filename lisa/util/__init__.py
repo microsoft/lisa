@@ -62,6 +62,12 @@ class InitializableMixin:
                 raise identifier
 
 
+class BaseClassMixin:
+    @classmethod
+    def type_name(cls) -> str:
+        raise NotImplementedError()
+
+
 def get_datetime_path(current: Optional[datetime] = None) -> str:
     if current is None:
         current = datetime.now()

@@ -4,7 +4,7 @@ from typing import Iterable, Optional, cast
 
 from lisa import notifier
 from lisa.parameter_parser.runbook import load_runbook
-from lisa.runners.lisa_runner import LisaRunner
+from lisa.runner import RootRunner
 from lisa.testselector import select_testcases
 from lisa.testsuite import TestCaseRuntimeData
 from lisa.util import LisaException, constants
@@ -30,7 +30,7 @@ async def run(args: Namespace) -> int:
     run_status = notifier.TestRunStatus.FAILED
     run_timer = create_timer()
     try:
-        runner = LisaRunner(runbook)
+        runner = RootRunner(runbook)
         await runner.start()
         run_status = notifier.TestRunStatus.SUCCESS
     finally:

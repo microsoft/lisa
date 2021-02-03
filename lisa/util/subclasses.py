@@ -2,14 +2,8 @@ from collections import UserDict
 from typing import TYPE_CHECKING, Any, Generic, Iterable, Type, TypeVar, cast
 
 from lisa import schema
-from lisa.util import InitializableMixin, LisaException
+from lisa.util import BaseClassMixin, InitializableMixin, LisaException, constants
 from lisa.util.logger import get_logger
-
-
-class BaseClassMixin:
-    @classmethod
-    def type_name(cls) -> str:
-        raise NotImplementedError()
 
 
 class BaseClassWithRunbookMixin(BaseClassMixin):
@@ -62,6 +56,15 @@ class Factory(InitializableMixin, Generic[T_BASECLASS], SubClassTypeDict):
         self._log.debug(
             f"registered: " f"[{', '.join([name for name in self.keys()])}]"
         )
+
+    def create_runbook(self, raw_runbook: Any) -> T_BASECLASS:
+        self.initialize()
+        type_name = raw_runbook[constants.TYPE]
+        sub_type = self.get(type_name)
+        if sub_type is None:
+            raise LisaException(f"cannot find subclass '{type_name}'")
+        instance = sub_type.schema().load(raw_runbook)  # type: ignore
+        return cast(T_BASECLASS, instance)
 
     def create_by_type_name(self, type_name: str) -> T_BASECLASS:
         self.initialize()

@@ -1,9 +1,9 @@
 import logging
 import traceback
-from typing import Dict, List, Optional
+from typing import Dict, List, Optional, cast
 
-from lisa import notifier, schema, search_space
-from lisa.action import Action, ActionStatus
+from lisa import schema, search_space
+from lisa.action import ActionStatus
 from lisa.environment import (
     Environment,
     Environments,
@@ -11,6 +11,7 @@ from lisa.environment import (
     load_environments,
 )
 from lisa.platform_ import WaitMoreResourceError, load_platform
+from lisa.runner import BaseRunner
 from lisa.testselector import select_testcases
 from lisa.testsuite import (
     TestCaseRequirement,
@@ -19,23 +20,26 @@ from lisa.testsuite import (
     TestSuite,
     TestSuiteMetadata,
 )
-from lisa.util.logger import get_logger
+from lisa.util import constants
 
 
-class LisaRunner(Action):
-    def __init__(self, runbook: schema.Runbook) -> None:
+class LisaRunner(BaseRunner):
+    @classmethod
+    def type_name(cls) -> str:
+        return constants.TESTCASE_TYPE_LISA
+
+    def __init__(self) -> None:
         super().__init__()
         self.exit_code: int = 0
 
-        self._runbook = runbook
-        self._log = get_logger("runner")
-
-    # TODO: This entire function is one long string of side-effects.
     async def start(self) -> None:
         await super().start()
 
         # select test cases
-        selected_test_cases = select_testcases(self._runbook.testcase)
+        testcase_filters: List[schema.TestCase] = cast(
+            List[schema.TestCase], self._runbook.testcase
+        )
+        selected_test_cases = select_testcases(testcase_filters)
 
         # create test results
         test_results = [TestResult(runtime_data=case) for case in selected_test_cases]
@@ -53,11 +57,6 @@ class LisaRunner(Action):
 
         # there may not need to handle requirements, if all environment are predefined
         prepared_environments = platform.prepare_environments(candidate_environments)
-
-        run_message = notifier.TestRunMessage(
-            status=notifier.TestRunStatus.RUNNING,
-        )
-        notifier.notify(run_message)
 
         can_run_results = test_results
         # request environment then run tests
