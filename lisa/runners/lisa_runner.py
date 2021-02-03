@@ -30,7 +30,6 @@ class LisaRunner(BaseRunner):
 
     def __init__(self) -> None:
         super().__init__()
-        self.exit_code: int = 0
 
     async def start(self) -> None:
         await super().start()
@@ -158,7 +157,9 @@ class LisaRunner(BaseRunner):
         self.status = ActionStatus.SUCCESS
 
         # pass failed count to exit code
-        self.exit_code = sum(1 for x in test_results if x.status == TestStatus.FAILED)
+        self.failed_count = sum(
+            1 for x in test_results if x.status == TestStatus.FAILED
+        )
 
         # for UT testability
         self._latest_platform = platform
