@@ -32,6 +32,7 @@ class BaseRunner(Action, BaseClassMixin):
         super().__init__()
         self._runbook: schema.Runbook
 
+        self.failed_count: int = 0
         # keep default logger shorter, so not print name for lisa cases
         runner_name = self.type_name()
         if runner_name == constants.TESTCASE_TYPE_LISA:
@@ -77,6 +78,8 @@ class RootRunner(Action):
 
         run_message.status = notifier.TestRunStatus.SUCCESS
         notifier.notify(run_message)
+
+        self.exit_code = sum(x.failed_count for x in self._runners)
 
     async def stop(self) -> None:
         await super().stop()
