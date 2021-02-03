@@ -5,6 +5,7 @@ from lisa import schema
 from lisa.environment import EnvironmentStatus, load_environments
 from lisa.operating_system import Linux, Windows
 from lisa.parameter_parser.runbook import validate_data
+from lisa.runner import initialize_testcase
 from lisa.tests.test_environment import generate_runbook
 from lisa.testselector import select_testcases
 from lisa.testsuite import (
@@ -132,6 +133,7 @@ def select_and_check(
     ut: TestCase, case_runbook: List[Any], expected_descriptions: List[str]
 ) -> List[TestCaseRuntimeData]:
     runbook = validate_data({constants.TESTCASE: case_runbook})
+    initialize_testcase(runbook=runbook)
     case_metadatas = generate_cases_metadata()
     selected = select_testcases(runbook.testcase, case_metadatas)
     ut.assertListEqual(expected_descriptions, [case.description for case in selected])

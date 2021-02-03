@@ -723,12 +723,13 @@ class Criteria:
 
 @dataclass_json()
 @dataclass
-class TestCase:
-    """
-    rules apply ordered on previous selection.
-    The order of test cases running is not guaranteed, until it set dependencies.
-    """
-
+class TestCase(TypedSchema):
+    type: str = field(
+        default=constants.TESTCASE_TYPE_LISA,
+        metadata=metadata(
+            validate=validate.OneOf([constants.TESTCASE_TYPE_LISA]),
+        ),
+    )
     name: str = ""
     criteria: Optional[Criteria] = None
     # specify use this rule to select or drop test cases. if it's forced include or
@@ -771,6 +772,22 @@ class TestCase:
 
 @dataclass_json()
 @dataclass
+class LegacyTestCase(TypedSchema):
+    type: str = field(
+        default=constants.TESTCASE_TYPE_LEGACY,
+        metadata=metadata(
+            required=True,
+            validate=validate.OneOf([constants.TESTCASE_TYPE_LEGACY]),
+        ),
+    )
+
+    repo: str = "https://github.com/microsoft/lisa.git"
+    branch: str = "master"
+    parameters: str = ""
+
+
+@dataclass_json()
+@dataclass
 class Runbook:
     # run name prefix to help grouping results and put it in title.
     name: str = "not_named"
@@ -784,11 +801,12 @@ class Runbook:
     environment: Optional[EnvironmentRoot] = field(default=None)
     notifier: Optional[List[Notifier]] = field(default=None)
     platform: List[Platform] = field(default_factory=list)
-    testcase: List[TestCase] = field(default_factory=list)
+    #  will be parsed in runner.
+    testcase_raw: List[Any] = field(
+        default_factory=list, metadata=metadata(data_key=constants.TESTCASE)
+    )
 
     def __post_init__(self, *args: Any, **kwargs: Any) -> None:
         if not self.platform:
             self.platform = [Platform(type=constants.PLATFORM_READY)]
-
-        if not self.testcase:
-            self.testcase = [TestCase(name="test", criteria=Criteria(area="demo"))]
+        self.testcase: List[Any] = []
