@@ -3,9 +3,9 @@ from functools import partial
 from typing import TYPE_CHECKING, Any, Iterable, List, Optional, Pattern, Type, Union
 
 from lisa.executable import Tool
-from lisa.util import LisaException, get_matched_str
+from lisa.util import BaseClassMixin, LisaException, get_matched_str
 from lisa.util.logger import get_logger
-from lisa.util.subclasses import BaseClassMixin, Factory
+from lisa.util.subclasses import Factory
 
 if TYPE_CHECKING:
     from lisa.node import Node

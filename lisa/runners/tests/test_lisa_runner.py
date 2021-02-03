@@ -38,7 +38,8 @@ def generate_runner(
     ]
     if env_runbook:
         runbook.environment = env_runbook
-    runner = LisaRunner(runbook)
+    runner = LisaRunner()
+    runner._runbook = runbook
 
     return runner
 

@@ -14,7 +14,7 @@ from marshmallow import ValidationError, fields, validate
 
 from lisa import search_space
 from lisa.secret import PATTERN_HEADTAIL, add_secret
-from lisa.util import LisaException, constants
+from lisa.util import BaseClassMixin, LisaException, constants
 
 """
 Schema is dealt with three components,
@@ -721,9 +721,17 @@ class Criteria:
     )
 
 
+class BaseTestCaseFilter(TypedSchema, BaseClassMixin):
+    """
+    base test case filters for subclass factory
+    """
+
+    ...
+
+
 @dataclass_json()
 @dataclass
-class TestCase(TypedSchema):
+class TestCase(BaseTestCaseFilter):
     type: str = field(
         default=constants.TESTCASE_TYPE_LISA,
         metadata=metadata(
@@ -769,10 +777,14 @@ class TestCase(TypedSchema):
     # case should run on a specified environment
     environment: str = ""
 
+    @classmethod
+    def type_name(cls) -> str:
+        return constants.TESTCASE_TYPE_LISA
+
 
 @dataclass_json()
 @dataclass
-class LegacyTestCase(TypedSchema):
+class LegacyTestCase(BaseTestCaseFilter):
     type: str = field(
         default=constants.TESTCASE_TYPE_LEGACY,
         metadata=metadata(
@@ -784,6 +796,10 @@ class LegacyTestCase(TypedSchema):
     repo: str = "https://github.com/microsoft/lisa.git"
     branch: str = "master"
     parameters: str = ""
+
+    @classmethod
+    def type_name(cls) -> str:
+        return constants.TESTCASE_TYPE_LEGACY
 
 
 @dataclass_json()
@@ -809,4 +825,12 @@ class Runbook:
     def __post_init__(self, *args: Any, **kwargs: Any) -> None:
         if not self.platform:
             self.platform = [Platform(type=constants.PLATFORM_READY)]
+        if not self.testcase_raw:
+            self.testcase_raw = [
+                {
+                    constants.TESTCASE_CRITERIA: {
+                        constants.TESTCASE_CRITERIA_AREA: "demo"
+                    }
+                }
+            ]
         self.testcase: List[Any] = []
