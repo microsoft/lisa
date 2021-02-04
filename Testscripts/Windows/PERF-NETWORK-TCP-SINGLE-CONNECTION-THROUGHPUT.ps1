@@ -101,7 +101,7 @@ function Consume-Iperf3Results {
     $database = $dbConfig.dbname
     if ($dbConfig.dbtable) {
 		$dataTableName = $dbConfig.dbtable
-	} elseif ($DefaultResultTable) {
+	} elseif ($currentTestData.DefaultResultTable) {
 		$dataTableName = $currentTestData.DefaultResultTable
 	}
     $TestCaseName = $dbConfig.testTag

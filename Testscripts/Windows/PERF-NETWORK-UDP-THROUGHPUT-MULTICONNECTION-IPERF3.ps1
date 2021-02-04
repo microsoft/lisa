@@ -305,7 +305,7 @@ collect_VM_properties
         $database = $dbConfig.dbname
         if ($dbConfig.dbtable) {
             $dataTableName = $dbConfig.dbtable
-        } elseif ($DefaultResultTable) {
+        } elseif ($currentTestData.DefaultResultTable) {
             $dataTableName = $currentTestData.DefaultResultTable
         }
         $TestCaseName = $dbConfig.testTag
