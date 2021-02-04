@@ -298,12 +298,17 @@ collect_VM_properties
         Write-LogInfo "Test Completed"
 
         Write-LogInfo "Uploading the test results to DB STARTED.."
-        $dataSource = $GlobalConfig.Global.$TestPlatform.ResultsDatabase.server
-        $dbuser = $GlobalConfig.Global.$TestPlatform.ResultsDatabase.user
-        $dbpassword = $GlobalConfig.Global.$TestPlatform.ResultsDatabase.password
-        $database = $GlobalConfig.Global.$TestPlatform.ResultsDatabase.dbname
-        $dataTableName = $GlobalConfig.Global.$TestPlatform.ResultsDatabase.dbtable
-        $TestCaseName = $GlobalConfig.Global.$TestPlatform.ResultsDatabase.testTag
+        $dbConfig = $GlobalConfig.Global.$TestPlatform.ResultsDatabase
+        $dataSource = $dbConfig.server
+        $dbuser = $dbConfig.user
+        $dbpassword = $dbConfig.password
+        $database = $dbConfig.dbname
+        if ($dbConfig.dbtable) {
+            $dataTableName = $dbConfig.dbtable
+        } elseif ($DefaultResultTable) {
+            $dataTableName = $currentTestData.DefaultResultTable
+        }
+        $TestCaseName = $dbConfig.testTag
         if (!$TestCaseName) {
             $TestCaseName = $CurrentTestData.testName
         }
