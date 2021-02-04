@@ -1,8 +1,8 @@
 import pathlib
-from typing import cast
 
 from lisa.executable import Tool
 from lisa.operating_system import Linux
+from lisa.util import LisaException
 
 
 class Git(Tool):
@@ -15,8 +15,13 @@ class Git(Tool):
         return True
 
     def _install(self) -> bool:
-        linux_os: Linux = cast(Linux, self.node.os)
-        linux_os.install_packages([self])
+        if isinstance(self.node.os, Linux):
+            self.node.os.install_packages([self])
+        else:
+            raise LisaException(
+                "Doesn't support to install git in Windows. "
+                "Make sure git is installed and in PATH"
+            )
         return self._check_exists()
 
     def clone(self, url: str, cwd: pathlib.PurePath) -> None:
