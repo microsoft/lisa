@@ -205,24 +205,37 @@ function Start-LISAv2 {
 			$zipFilePath = Join-Path (Get-Location).Path $zipFile
 			New-ZipFile -zipFileName $zipFilePath -sourceDir $LogDir
 
-			if (Test-Path -Path $TestReportXml) {
-				Write-LogInfo "Analyzing test results ..."
-				$results = $null
-				try {
-					$results = [xml](Get-Content $TestReportXml -ErrorAction SilentlyContinue)
-				} catch {
-					throw "Could not parse test results from the test report."
-				}
-				$testSuiteresults = $results.testsuites.testsuite
-				if (($testSuiteresults.failures -eq 0) `
-							-and ($testSuiteresults.errors -eq 0) `
-							-and ($testSuiteresults.tests -gt 0)) {
-					$ExitCode = 0
+			$reportFiles = @($TestReportXml)
+			if ($RunInParallel) {
+				$reportFiles = Get-ChildItem "$reportFolder" | Where-Object { $_.FullName -imatch "LISAv2_TestReport_${testId}*-junit.xml" }
+			}
+
+			$failedCount = 0
+			$errorCount = 0
+			$testCount = 0
+			foreach ($reportFile in $reportFiles) {
+				Write-LogInfo "Analyzing test results from $reportFile ..."
+				if (Test-Path -Path $reportFiles) {
+					try {
+						$results = [xml](Get-Content $reportFiles -ErrorAction SilentlyContinue)
+					} catch {
+						throw "Could not parse test results from the test report."
+					}
+					$testSuiteresults = $results.testsuites.testsuite
+
+					$failedCount += [int] ($testSuiteresults.failures)
+					$errorCount += [int] ($testSuiteresults.errors)
+					$testCount += [int] ($testSuiteresults.tests)
 				} else {
+					Write-LogErr "Summary file: $TestReportXml does not exist. Exiting with error code 1."
 					$ExitCode = 1
+					return
 				}
+			}
+
+			if ($failedCount -eq 0 -and $errorCount -eq 0 and testCount -gt 0) {
+				$ExitCode = 0
 			} else {
-				Write-LogErr "Summary file: $TestReportXml does not exist. Exiting with error code 1."
 				$ExitCode = 1
 			}
 		} catch {
