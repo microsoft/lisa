@@ -144,7 +144,7 @@ function Consume-Iperf3Results {
 
 function Main {
     param (
-        $TestParams, $AllVmData
+        $TestParams, $AllVmData, $CurrentTestData
     )
     $resultArr = @()
 
@@ -295,4 +295,4 @@ collect_VM_properties
     return $currentTestResult
 }
 
-Main -TestParams (ConvertFrom-StringData $TestParams.Replace(";","`n")) -AllVmData $AllVmData
+Main -TestParams (ConvertFrom-StringData $TestParams.Replace(";","`n")) -AllVmData $AllVmData -CurrentTestData $CurrentTestData
