@@ -205,7 +205,7 @@ function Start-LISAv2 {
 			$zipFilePath = Join-Path (Get-Location).Path $zipFile
 			New-ZipFile -zipFileName $zipFilePath -sourceDir $LogDir
 
-			$reportFiles = Get-ChildItem "$reportFolder" | Where-Object { $_.FullName -imatch "LISAv2_TestReport_${testId}*-junit.xml" }
+			$reportFiles = Get-ChildItem "$reportFolder" | Where-Object { $_.FullName -imatch "LISAv2_TestReport_${TestId}([\-\d])+junit.xml" }
 
 			$failedCount = 0
 			$errorCount = 0
