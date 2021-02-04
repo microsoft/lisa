@@ -1,3 +1,4 @@
+import asyncio
 import logging
 import traceback
 from typing import Dict, List, Optional, cast
@@ -31,8 +32,8 @@ class LisaRunner(BaseRunner):
     def __init__(self) -> None:
         super().__init__()
 
-    async def start(self) -> None:
-        await super().start()
+    def run(self) -> None:
+        super().run()
 
         # select test cases
         testcase_filters: List[schema.TestCase] = cast(
@@ -109,7 +110,7 @@ class LisaRunner(BaseRunner):
                 self._log.info(f"start running cases on '{environment.name}'")
 
                 # run test cases that need deployed environment
-                await self._run_cases_on_environment(
+                self._run_cases_on_environment(
                     environment=environment, results=can_run_results
                 )
 
@@ -139,7 +140,7 @@ class LisaRunner(BaseRunner):
                 ), f"actual: {environment.status}"
 
                 # run test cases that need connected environment
-                await self._run_cases_on_environment(
+                self._run_cases_on_environment(
                     environment=environment, results=can_run_results
                 )
             finally:
@@ -170,12 +171,6 @@ class LisaRunner(BaseRunner):
         self._latest_platform = platform
         self._latest_test_results = test_results
 
-    async def stop(self) -> None:
-        await super().stop()
-
-    async def close(self) -> None:
-        await super().close()
-
     def _pick_one_result_on_environment(
         self, environment: Environment, results: List[TestResult]
     ) -> Optional[TestResult]:
@@ -188,7 +183,7 @@ class LisaRunner(BaseRunner):
             None,
         )
 
-    async def _run_cases_on_environment(
+    def _run_cases_on_environment(
         self, environment: Environment, results: List[TestResult]
     ) -> None:
 
@@ -202,9 +197,7 @@ class LisaRunner(BaseRunner):
                 results, use_new_environment=True, enviornment_status=environment.status
             ):
                 if new_env_result.check_environment(environment, True):
-                    await self._run_suite(
-                        environment=environment, results=[new_env_result]
-                    )
+                    self._run_suite(environment=environment, results=[new_env_result])
                     break
 
         # grouped test results by test suite.
@@ -219,9 +212,7 @@ class LisaRunner(BaseRunner):
                     and grouped_cases
                 ):
                     # run last batch cases
-                    await self._run_suite(
-                        environment=environment, results=grouped_cases
-                    )
+                    self._run_suite(environment=environment, results=grouped_cases)
                     grouped_cases = []
 
                 # append new test cases
@@ -229,11 +220,9 @@ class LisaRunner(BaseRunner):
                 grouped_cases.append(test_result)
 
         if grouped_cases:
-            await self._run_suite(environment=environment, results=grouped_cases)
+            self._run_suite(environment=environment, results=grouped_cases)
 
-    async def _run_suite(
-        self, environment: Environment, results: List[TestResult]
-    ) -> None:
+    def _run_suite(self, environment: Environment, results: List[TestResult]) -> None:
 
         assert results
         suite_metadata = results[0].runtime_data.metadata.suite
@@ -245,7 +234,7 @@ class LisaRunner(BaseRunner):
         for result in results:
             result.environment = environment
         environment.is_new = False
-        await test_suite.start()
+        asyncio.run(test_suite.start())
 
     def _attach_failed_environment_to_result(
         self, environment: Environment, result: TestResult, exception: Exception

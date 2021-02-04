@@ -1,5 +1,5 @@
 from typing import List, Optional, cast
-from unittest import IsolatedAsyncioTestCase
+from unittest import TestCase
 
 from lisa import schema
 from lisa.environment import EnvironmentStatus, load_environments
@@ -44,7 +44,7 @@ def generate_runner(
     return runner
 
 
-class RunnerTestCase(IsolatedAsyncioTestCase):
+class RunnerTestCase(TestCase):
     def tearDown(self) -> None:
         cleanup_cases_metadata()  # Necessary side effects!
 
@@ -84,8 +84,8 @@ class RunnerTestCase(IsolatedAsyncioTestCase):
             ["customized_0"],
             list(envs),
         )
-
         runner = generate_runner(env_runbook)
+
         test_results = generate_cases_result()
         runner._merge_test_requirements(
             test_results=test_results,
@@ -114,6 +114,7 @@ class RunnerTestCase(IsolatedAsyncioTestCase):
             list(envs),
         )
         runner = generate_runner(env_runbook)
+
         test_results = generate_cases_result()
         for test_result in test_results:
             test_result.runtime_data.use_new_environment = True
@@ -206,7 +207,7 @@ class RunnerTestCase(IsolatedAsyncioTestCase):
             test_results=test_results,
         )
 
-    async def test_fit_a_predefined_env(self) -> None:
+    def test_fit_a_predefined_env(self) -> None:
         # predefined env can run case in below condition.
         # 1. with predefined env of 1 simple node, so ut2 don't need a new env
         # 2. ut3 need 8 cores, and predefined env target to meet all core requirement,
@@ -214,7 +215,8 @@ class RunnerTestCase(IsolatedAsyncioTestCase):
         generate_cases_metadata()
         env_runbook = generate_env_runbook(is_single_env=True, remote=True)
         runner = generate_runner(env_runbook)
-        await runner.start()
+        runner.run()
+
         self.verify_env_results(
             expected_prepared=["customized_0", "generated_1", "generated_2"],
             expected_deployed_envs=["customized_0", "generated_1"],
@@ -228,14 +230,15 @@ class RunnerTestCase(IsolatedAsyncioTestCase):
             test_results=runner._latest_test_results,
         )
 
-    async def test_fit_a_bigger_env(self) -> None:
+    def test_fit_a_bigger_env(self) -> None:
         # similar with test_fit_a_predefined_env, but predefined 2 nodes,
         # it doesn't equal to any case req, but reusable for all cases.
 
         generate_cases_metadata()
         env_runbook = generate_env_runbook(is_single_env=True, local=True, remote=True)
         runner = generate_runner(env_runbook)
-        await runner.start()
+        runner.run()
+
         self.verify_env_results(
             expected_prepared=[
                 "customized_0",
@@ -254,13 +257,14 @@ class RunnerTestCase(IsolatedAsyncioTestCase):
             test_results=runner._latest_test_results,
         )
 
-    async def test_case_new_env_run_only_1_needed(self) -> None:
+    def test_case_new_env_run_only_1_needed(self) -> None:
         # same predefined env as test_fit_a_bigger_env,
         # but all case want to run on a new env
         generate_cases_metadata()
         env_runbook = generate_env_runbook(is_single_env=True, local=True, remote=True)
         runner = generate_runner(env_runbook, case_use_new_env=True)
-        await runner.start()
+        runner.run()
+
         self.verify_env_results(
             expected_prepared=[
                 "customized_0",
@@ -279,14 +283,15 @@ class RunnerTestCase(IsolatedAsyncioTestCase):
             test_results=runner._latest_test_results,
         )
 
-    async def test_no_needed_env(self) -> None:
+    def test_no_needed_env(self) -> None:
         # two 1 node env predefined, but only customized_0 go to deploy
         # no cases assigned to customized_1, as fit cases run on customized_0 already
 
         generate_cases_metadata()
         env_runbook = generate_env_runbook(local=True, remote=True)
         runner = generate_runner(env_runbook)
-        await runner.start()
+        runner.run()
+
         self.verify_env_results(
             expected_prepared=[
                 "customized_0",
@@ -305,7 +310,7 @@ class RunnerTestCase(IsolatedAsyncioTestCase):
             test_results=runner._latest_test_results,
         )
 
-    async def test_deploy_no_more_resource(self) -> None:
+    def test_deploy_no_more_resource(self) -> None:
         # platform may see no more resource, like no azure quota.
         # cases skipped due to this.
         # In future, will add retry on wait more resource.
@@ -314,7 +319,7 @@ class RunnerTestCase(IsolatedAsyncioTestCase):
         generate_cases_metadata()
         env_runbook = generate_env_runbook(is_single_env=True, local=True)
         runner = generate_runner(env_runbook, platform_schema=platform_schema)
-        await runner.start()
+        runner.run()
 
         self.verify_env_results(
             expected_prepared=[
@@ -343,13 +348,14 @@ class RunnerTestCase(IsolatedAsyncioTestCase):
             test_results=runner._latest_test_results,
         )
 
-    async def test_skipped_on_suite_failure(self) -> None:
+    def test_skipped_on_suite_failure(self) -> None:
         # First two tests were skipped because the setup is made to fail.
         test_testsuite.fail_on_before_suite = True
         generate_cases_metadata()
         env_runbook = generate_env_runbook(is_single_env=True, local=True, remote=True)
         runner = generate_runner(env_runbook)
-        await runner.start()
+        runner.run()
+
         self.verify_env_results(
             expected_prepared=[
                 "customized_0",
@@ -374,14 +380,15 @@ class RunnerTestCase(IsolatedAsyncioTestCase):
             test_results=runner._latest_test_results,
         )
 
-    async def test_env_skipped_no_prepared_env(self) -> None:
+    def test_env_skipped_no_prepared_env(self) -> None:
         # test env not prepared, so test cases cannot find an env to run
         platform_schema = test_platform.MockPlatformSchema()
         platform_schema.return_prepared = False
         generate_cases_metadata()
         env_runbook = generate_env_runbook(is_single_env=True, local=True, remote=True)
         runner = generate_runner(env_runbook, platform_schema=platform_schema)
-        await runner.start()
+        runner.run()
+
         self.verify_env_results(
             expected_prepared=[
                 "customized_0",
@@ -406,7 +413,7 @@ class RunnerTestCase(IsolatedAsyncioTestCase):
             test_results=runner._latest_test_results,
         )
 
-    async def test_env_deploy_failed(self) -> None:
+    def test_env_deploy_failed(self) -> None:
         # env prepared, but deployment failed
         # so cases failed also
         platform_schema = test_platform.MockPlatformSchema()
@@ -414,7 +421,8 @@ class RunnerTestCase(IsolatedAsyncioTestCase):
         generate_cases_metadata()
         env_runbook = generate_env_runbook(is_single_env=True, local=True, remote=True)
         runner = generate_runner(env_runbook, platform_schema=platform_schema)
-        await runner.start()
+        runner.run()
+
         self.verify_env_results(
             expected_prepared=[
                 "customized_0",
@@ -442,12 +450,13 @@ class RunnerTestCase(IsolatedAsyncioTestCase):
             test_results=runner._latest_test_results,
         )
 
-    async def test_env_skipped_no_case(self) -> None:
+    def test_env_skipped_no_case(self) -> None:
         # no case found, as not call generate_case_metadata
         # in this case, not deploy any env
         env_runbook = generate_env_runbook(is_single_env=True, remote=True)
         runner = generate_runner(env_runbook)
-        await runner.start()
+        runner.run()
+
         # still prepare predefined, but not deploy
         self.verify_env_results(
             expected_prepared=["customized_0"],
