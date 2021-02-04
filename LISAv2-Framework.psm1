@@ -214,10 +214,11 @@ function Start-LISAv2 {
 			$errorCount = 0
 			$testCount = 0
 			foreach ($reportFile in $reportFiles) {
-				Write-LogInfo "Analyzing test results from $reportFile ..."
-				if (Test-Path -Path $reportFile) {
+				$reportFilePath = $reportFile.FullName
+				Write-LogInfo "Analyzing test results from $reportFilePath ..."
+				if (Test-Path -Path $reportFilePath) {
 					try {
-						$results = [xml](Get-Content $reportFile -ErrorAction SilentlyContinue)
+						$results = [xml](Get-Content $reportFilePath -ErrorAction SilentlyContinue)
 					} catch {
 						throw "Could not parse test results from the test report."
 					}
@@ -227,7 +228,7 @@ function Start-LISAv2 {
 					$errorCount += [int] ($testSuiteresults.errors)
 					$testCount += [int] ($testSuiteresults.tests)
 				} else {
-					Write-LogErr "Summary file: $reportFile does not exist. Exiting with error code 1."
+					Write-LogErr "Summary file: $reportFilePath does not exist. Exiting with error code 1."
 					$ExitCode = 1
 					return
 				}
