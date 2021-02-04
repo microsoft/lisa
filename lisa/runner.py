@@ -1,10 +1,9 @@
-import asyncio
 import copy
 from typing import Any, Dict, List
 
 from lisa import notifier, schema
 from lisa.action import Action
-from lisa.util import BaseClassMixin, constants
+from lisa.util import BaseClassMixin, constants, run_in_threads
 from lisa.util.logger import get_logger
 from lisa.util.subclasses import Factory
 
@@ -23,7 +22,7 @@ def parse_testcase_filters(raw_filters: List[Any]) -> List[schema.BaseTestCaseFi
     return filters
 
 
-class BaseRunner(Action, BaseClassMixin):
+class BaseRunner(BaseClassMixin):
     """
     Base runner of other runners.
     """
@@ -39,15 +38,10 @@ class BaseRunner(Action, BaseClassMixin):
             runner_name = ""
 
         self._log = get_logger(runner_name)
+        self._working_folder = constants.RUN_LOCAL_PATH / f"runner_{self.type_name()}"
 
-    async def start(self) -> None:
-        await super().start()
-
-    async def stop(self) -> None:
-        await super().stop()
-
-    async def close(self) -> None:
-        await super().close()
+    def run(self) -> None:
+        self._working_folder.mkdir(parents=True, exist_ok=True)
 
 
 class RootRunner(Action):
@@ -68,8 +62,7 @@ class RootRunner(Action):
 
         self._initialize_runners()
 
-        runner_coroutes = [x.start() for x in self._runners]
-        await asyncio.gather(*runner_coroutes)
+        run_in_threads([runner.run for runner in self._runners])
 
         run_message = notifier.TestRunMessage(
             status=notifier.TestRunStatus.SUCCESS,
