@@ -795,7 +795,7 @@ class LegacyTestCase(BaseTestCaseFilter):
 
     repo: str = "https://github.com/microsoft/lisa.git"
     branch: str = "master"
-    parameters: str = ""
+    command: str = ""
 
     @classmethod
     def type_name(cls) -> str:
