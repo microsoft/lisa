@@ -59,7 +59,8 @@ class Node(ContextMixin, InitializableMixin):
         self.features: Features
         self.tools = Tools(self)
         self.working_path: pathlib.PurePath = pathlib.PurePath()
-        self.log = get_logger(logger_name, str(self.index))
+        node_id = str(self.index) if self.index >= 0 else ""
+        self.log = get_logger(logger_name, node_id)
 
         self._connection_info: Optional[ConnectionInfo] = None
         self._node_information_hooks: List[Callable[[Node, Dict[str, str]], None]] = []
