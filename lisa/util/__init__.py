@@ -1,6 +1,8 @@
+import concurrent.futures
+import time
 from datetime import datetime
 from pathlib import Path
-from typing import Any, Dict, Iterable, List, Optional, Pattern, Type, TypeVar
+from typing import Any, Callable, Dict, Iterable, List, Optional, Pattern, Type, TypeVar
 
 T = TypeVar("T")
 
@@ -141,3 +143,67 @@ def get_matched_str(content: str, pattern: Pattern[str]) -> str:
             # if something matched, it's like ['matched']
             result = matched_item[0]
     return result
+
+
+def _cancel_threads(
+    futures: List[Any],
+) -> List[Any]:
+    success_futures: List[Any] = []
+    for future in futures:
+        if future.done() and future.exception():
+            # throw exception, if it's not here.
+            future.result()
+        elif future.running():
+            # cancel running threads. It may need cancellation callback
+            future.cancel()
+        else:
+            success_futures.append(future)
+    # return empty list to prevent cancel again.
+    return success_futures
+
+
+def run_in_threads(
+    methods: List[Any],
+    max_workers: int = 0,
+    completed_callback: Optional[Callable[[Any], None]] = None,
+) -> List[Any]:
+    """
+    start methods in a thread pool
+    """
+
+    results: List[Any] = []
+    if max_workers <= 0:
+        max_workers = len(methods)
+    with concurrent.futures.ThreadPoolExecutor(max_workers) as pool:
+        futures = [pool.submit(method) for method in methods]
+        if completed_callback:
+            for future in futures:
+                future.add_done_callback(completed_callback)
+        try:
+            while any(x.running() for x in futures):
+                # if there is any change, skip sleep to get faster
+                changed = False
+                for future in futures:
+                    # join exceptions of subthreads to main thread
+                    if future.done():
+                        changed = True
+                        # removed finished threads
+                        futures.remove(future)
+                        if future.exception():
+                            # trigger to throw exception
+                            future.result()
+                        else:
+                            results.append(future.result())
+                        break
+                if not changed:
+                    time.sleep(0.1)
+        except KeyboardInterrupt:
+            # support to interrupt runs on local debugging.
+            futures = _cancel_threads(futures)
+            pool.shutdown(True)
+        finally:
+            futures = _cancel_threads(futures)
+        for future in futures:
+            if not future.exception():
+                results.append(future.result())
+    return results
