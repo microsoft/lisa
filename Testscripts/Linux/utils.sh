@@ -288,6 +288,9 @@ function GetDistro() {
 		*Red*8.*)
 			DISTRO=redhat_8
 			;;
+		*Red*9.*)
+			DISTRO=redhat_9
+			;;
 		*Red*)
 			DISTRO=redhat_x
 			;;
