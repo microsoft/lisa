@@ -61,12 +61,10 @@ class Process:
         if no_error_log:
             stderr_level = stdout_level
 
-        self.stdout_writer = LogWriter(
-            logger=get_logger("stdout", parent=self._log), level=stdout_level
-        )
-        self.stderr_writer = LogWriter(
-            logger=get_logger("stderr", parent=self._log), level=stderr_level
-        )
+        self.stdout_logger = get_logger("stdout", parent=self._log)
+        self.stderr_logger = get_logger("stderr", parent=self._log)
+        self._stdout_writer = LogWriter(logger=self.stdout_logger, level=stdout_level)
+        self._stderr_writer = LogWriter(logger=self.stderr_logger, level=stderr_level)
 
         # command may be Path object, convert it to str
         command = f"{command}"
@@ -100,8 +98,8 @@ class Process:
             self._timer = create_timer()
             self._process = self._shell.spawn(
                 command=split_command,
-                stdout=self.stdout_writer,
-                stderr=self.stderr_writer,
+                stdout=self._stdout_writer,
+                stderr=self._stderr_writer,
                 cwd=cwd_path,
                 update_env=new_envs,
                 allow_error=True,
@@ -132,8 +130,8 @@ class Process:
             # if not isinstance(self._process, ExecutableResult):
             assert self._process
             proces_result = self._process.wait_for_result()
-            self.stdout_writer.close()
-            self.stderr_writer.close()
+            self._stdout_writer.close()
+            self._stderr_writer.close()
             # cache for future queries, in case it's queried twice.
             self._result = ExecutableResult(
                 proces_result.output.strip(),
