@@ -1,7 +1,7 @@
 import asyncio
 import logging
 import traceback
-from typing import Dict, List, Optional, cast
+from typing import Any, Dict, List, Optional, cast
 
 from lisa import notifier, schema, search_space
 from lisa.action import ActionStatus
@@ -29,8 +29,8 @@ class LisaRunner(BaseRunner):
     def type_name(cls) -> str:
         return constants.TESTCASE_TYPE_LISA
 
-    def __init__(self) -> None:
-        super().__init__()
+    def __init__(self, *args: Any, **kwargs: Any) -> None:
+        super().__init__(*args, **kwargs)
 
     def run(self) -> None:
         super().run()

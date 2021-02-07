@@ -27,9 +27,9 @@ class BaseRunner(BaseClassMixin):
     Base runner of other runners.
     """
 
-    def __init__(self) -> None:
+    def __init__(self, runbook: schema.Runbook) -> None:
         super().__init__()
-        self._runbook: schema.Runbook
+        self._runbook = runbook
 
         self.failed_count: int = 0
         # keep default logger shorter, so not print name for lisa cases
@@ -107,11 +107,10 @@ class RootRunner(Action):
             self._log.debug(
                 f"create runner {runner_name} with {len(raw_filters)} filter(s)."
             )
-            runner = factory.create_by_type_name(runner_name)
 
             runbook = copy.copy(self._runbook)
             # keep filters to current runner's only.
             runbook.testcase = parse_testcase_filters(raw_filters)
-            # the type is on every test case schema. Use first one's.
-            runner._runbook = runbook
+            runner = factory.create_by_type_name(runner_name, runbook=runbook)
+
             self._runners.append(runner)
