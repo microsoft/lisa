@@ -66,17 +66,14 @@ class RootRunner(Action):
     async def start(self) -> None:
         await super().start()
 
-        run_message = notifier.TestRunMessage(
-            status=notifier.TestRunStatus.RUNNING,
-        )
-        notifier.notify(run_message)
-
         self._initialize_runners()
 
         runner_coroutes = [x.start() for x in self._runners]
         await asyncio.gather(*runner_coroutes)
 
-        run_message.status = notifier.TestRunStatus.SUCCESS
+        run_message = notifier.TestRunMessage(
+            status=notifier.TestRunStatus.SUCCESS,
+        )
         notifier.notify(run_message)
 
         self.exit_code = sum(x.failed_count for x in self._runners)

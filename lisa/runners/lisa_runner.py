@@ -2,7 +2,7 @@ import logging
 import traceback
 from typing import Dict, List, Optional, cast
 
-from lisa import schema, search_space
+from lisa import notifier, schema, search_space
 from lisa.action import ActionStatus
 from lisa.environment import (
     Environment,
@@ -42,6 +42,11 @@ class LisaRunner(BaseRunner):
 
         # create test results
         test_results = [TestResult(runtime_data=case) for case in selected_test_cases]
+
+        run_message = notifier.TestRunMessage(
+            status=notifier.TestRunStatus.RUNNING,
+        )
+        notifier.notify(run_message)
 
         # load predefined environments
         candidate_environments = load_environments(self._runbook.environment)
