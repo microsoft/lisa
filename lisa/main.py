@@ -9,7 +9,7 @@ from retry import retry  # type: ignore
 
 from lisa.parameter_parser.argparser import parse_args
 from lisa.util import constants, get_datetime_path
-from lisa.util.logger import get_logger, set_level, set_log_file
+from lisa.util.logger import create_file_handler, get_logger, set_level
 from lisa.util.perf_timer import create_timer
 
 
@@ -52,7 +52,7 @@ async def main() -> int:
             log_level = INFO
         set_level(log_level)
 
-        set_log_file(f"{local_path}/lisa-host.log")
+        create_file_handler(f"{local_path}/lisa.log")
 
         log.info(f"Python version: {sys.version}")
         log.info(f"local time: {datetime.now().astimezone()}")

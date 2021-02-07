@@ -4,7 +4,7 @@ from typing import Any, Dict, List
 from lisa import notifier, schema
 from lisa.action import Action
 from lisa.util import BaseClassMixin, constants, run_in_threads
-from lisa.util.logger import get_logger
+from lisa.util.logger import create_file_handler, get_logger, remove_handler
 from lisa.util.subclasses import Factory
 
 
@@ -42,6 +42,13 @@ class BaseRunner(BaseClassMixin):
 
     def run(self) -> None:
         self._working_folder.mkdir(parents=True, exist_ok=True)
+        # create separated folder and log for each runner.
+        runner_path_name = f"{self.type_name()}_runner"
+        self._log_file_name = str(self._working_folder / f"{runner_path_name}.log")
+        self._log_handler = create_file_handler(self._log_file_name, self._log)
+
+    def close(self) -> None:
+        remove_handler(self._log_handler)
 
 
 class RootRunner(Action):
@@ -62,7 +69,11 @@ class RootRunner(Action):
 
         self._initialize_runners()
 
-        run_in_threads([runner.run for runner in self._runners])
+        try:
+            run_in_threads([runner.run for runner in self._runners])
+        finally:
+            for runner in self._runners:
+                runner.close()
 
         run_message = notifier.TestRunMessage(
             status=notifier.TestRunStatus.SUCCESS,
