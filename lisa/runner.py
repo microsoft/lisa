@@ -1,5 +1,6 @@
 import copy
-from typing import Any, Dict, List
+from logging import FileHandler
+from typing import Any, Dict, List, Optional
 
 from lisa import notifier, schema
 from lisa.action import Action
@@ -32,23 +33,25 @@ class BaseRunner(BaseClassMixin):
         self._runbook = runbook
 
         self.failed_count: int = 0
-        # keep default logger shorter, so not print name for lisa cases
-        runner_name = self.type_name()
-        if runner_name == constants.TESTCASE_TYPE_LISA:
-            runner_name = ""
-
-        self._log = get_logger(runner_name)
-        self._working_folder = constants.RUN_LOCAL_PATH / f"runner_{self.type_name()}"
+        self._log = get_logger(self.type_name())
+        self._log_handler: Optional[FileHandler] = None
 
     def run(self) -> None:
-        self._working_folder.mkdir(parents=True, exist_ok=True)
-        # create separated folder and log for each runner.
-        runner_path_name = f"{self.type_name()}_runner"
-        self._log_file_name = str(self._working_folder / f"{runner_path_name}.log")
-        self._log_handler = create_file_handler(self._log_file_name, self._log)
+        # do not put this logic to __init__, since the mkdir takes time.
+        if self.type_name() == constants.TESTCASE_TYPE_LISA:
+            # default lisa runner doesn't need separated handler.
+            self._working_folder = constants.RUN_LOCAL_PATH
+        else:
+            # create separated folder and log for each runner.
+            runner_path_name = f"{self.type_name()}_runner"
+            self._working_folder = constants.RUN_LOCAL_PATH / runner_path_name
+            self._log_file_name = str(self._working_folder / f"{runner_path_name}.log")
+            self._working_folder.mkdir(parents=True, exist_ok=True)
+            self._log_handler = create_file_handler(self._log_file_name, self._log)
 
     def close(self) -> None:
-        remove_handler(self._log_handler)
+        if self._log_handler:
+            remove_handler(self._log_handler)
 
 
 class RootRunner(Action):
