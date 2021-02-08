@@ -113,7 +113,7 @@ class Process:
             self._result = ExecutableResult(
                 "", identifier.strerror, 1, self._timer.elapsed()
             )
-            self._log.debug(f"not found command: {identifier}")
+            self._log.log(stderr_level, f"not found command: {identifier}")
 
     def wait_result(self, timeout: float = 600) -> ExecutableResult:
         timer = create_timer()
