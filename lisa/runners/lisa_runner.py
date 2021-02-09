@@ -32,9 +32,7 @@ class LisaRunner(BaseRunner):
     def __init__(self, *args: Any, **kwargs: Any) -> None:
         super().__init__(*args, **kwargs)
 
-    def run(self) -> List[TestResult]:
-        super().run()
-
+    def _run(self, id_: str) -> List[TestResult]:
         # select test cases
         testcase_filters: List[schema.TestCase] = cast(
             List[schema.TestCase], self._runbook.testcase
@@ -42,7 +40,10 @@ class LisaRunner(BaseRunner):
         selected_test_cases = select_testcases(testcase_filters)
 
         # create test results
-        test_results = [TestResult(runtime_data=case) for case in selected_test_cases]
+        test_results = [
+            TestResult(f"{id_}_{index}", runtime_data=case)
+            for index, case in enumerate(selected_test_cases)
+        ]
 
         run_message = notifier.TestRunMessage(
             status=notifier.TestRunStatus.RUNNING,

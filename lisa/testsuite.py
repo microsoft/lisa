@@ -41,6 +41,8 @@ class SkipTestCaseException(LisaException):
 
 @dataclass
 class TestResultMessage(notifier.MessageBase):
+    # id is used to identify the unique test result
+    id_: str = ""
     type: str = "TestResult"
     name: str = ""
     status: TestStatus = TestStatus.NOTRUN
@@ -50,6 +52,8 @@ class TestResultMessage(notifier.MessageBase):
 
 @dataclass
 class TestResult:
+    # id is used to identify the unique test result
+    id_: str
     runtime_data: TestCaseRuntimeData
     status: TestStatus = TestStatus.NOTRUN
     elapsed: float = 0
@@ -118,7 +122,7 @@ class TestResult:
         if hasattr(self, "_timer"):
             self.elapsed = self._timer.elapsed(False)
 
-        fields = ["status", "elapsed"]
+        fields = ["status", "elapsed", "id_"]
         result_message = TestResultMessage()
         set_filtered_fields(self, result_message, fields=fields)
 
