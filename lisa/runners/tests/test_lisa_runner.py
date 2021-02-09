@@ -214,7 +214,7 @@ class RunnerTestCase(TestCase):
         generate_cases_metadata()
         env_runbook = generate_env_runbook(is_single_env=True, remote=True)
         runner = generate_runner(env_runbook)
-        test_results = runner.run()
+        test_results = runner.run("ut")
 
         self.verify_env_results(
             expected_prepared=["customized_0", "generated_1", "generated_2"],
@@ -236,7 +236,7 @@ class RunnerTestCase(TestCase):
         generate_cases_metadata()
         env_runbook = generate_env_runbook(is_single_env=True, local=True, remote=True)
         runner = generate_runner(env_runbook)
-        test_results = runner.run()
+        test_results = runner.run("ut")
 
         self.verify_env_results(
             expected_prepared=[
@@ -262,7 +262,7 @@ class RunnerTestCase(TestCase):
         generate_cases_metadata()
         env_runbook = generate_env_runbook(is_single_env=True, local=True, remote=True)
         runner = generate_runner(env_runbook, case_use_new_env=True)
-        test_results = runner.run()
+        test_results = runner.run("ut")
 
         self.verify_env_results(
             expected_prepared=[
@@ -289,7 +289,7 @@ class RunnerTestCase(TestCase):
         generate_cases_metadata()
         env_runbook = generate_env_runbook(local=True, remote=True)
         runner = generate_runner(env_runbook)
-        test_results = runner.run()
+        test_results = runner.run("ut")
 
         self.verify_env_results(
             expected_prepared=[
@@ -318,7 +318,7 @@ class RunnerTestCase(TestCase):
         generate_cases_metadata()
         env_runbook = generate_env_runbook(is_single_env=True, local=True)
         runner = generate_runner(env_runbook, platform_schema=platform_schema)
-        test_results = runner.run()
+        test_results = runner.run("ut")
 
         self.verify_env_results(
             expected_prepared=[
@@ -353,7 +353,7 @@ class RunnerTestCase(TestCase):
         generate_cases_metadata()
         env_runbook = generate_env_runbook(is_single_env=True, local=True, remote=True)
         runner = generate_runner(env_runbook)
-        test_results = runner.run()
+        test_results = runner.run("ut")
 
         self.verify_env_results(
             expected_prepared=[
@@ -386,7 +386,7 @@ class RunnerTestCase(TestCase):
         generate_cases_metadata()
         env_runbook = generate_env_runbook(is_single_env=True, local=True, remote=True)
         runner = generate_runner(env_runbook, platform_schema=platform_schema)
-        test_results = runner.run()
+        test_results = runner.run("ut")
 
         self.verify_env_results(
             expected_prepared=[
@@ -420,7 +420,7 @@ class RunnerTestCase(TestCase):
         generate_cases_metadata()
         env_runbook = generate_env_runbook(is_single_env=True, local=True, remote=True)
         runner = generate_runner(env_runbook, platform_schema=platform_schema)
-        test_results = runner.run()
+        test_results = runner.run("ut")
 
         self.verify_env_results(
             expected_prepared=[
@@ -454,7 +454,7 @@ class RunnerTestCase(TestCase):
         # in this case, not deploy any env
         env_runbook = generate_env_runbook(is_single_env=True, remote=True)
         runner = generate_runner(env_runbook)
-        test_results = runner.run()
+        test_results = runner.run("ut")
 
         # still prepare predefined, but not deploy
         self.verify_env_results(

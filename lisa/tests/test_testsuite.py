@@ -124,7 +124,7 @@ def generate_cases_metadata() -> List[TestCaseMetadata]:
 def generate_cases_result() -> List[TestResult]:
     case_metadata = generate_cases_metadata()
 
-    case_results = [TestResult(TestCaseRuntimeData(x)) for x in case_metadata]
+    case_results = [TestResult("0", TestCaseRuntimeData(x)) for x in case_metadata]
 
     return case_results
 
@@ -195,7 +195,7 @@ class TestSuiteTestCase(IsolatedAsyncioTestCase):
         cases = select_and_check(self, runbook, ["ut1", "ut2", "ut3"])
         case = cases[0]
         for status in TestStatus:
-            result = TestResult(case)
+            result = TestResult("0", case)
             result.set_status(status, f"set_{status}")
             self.assertEqual(f"set_{status}", result.message)
             self.assertEqual(status, result.status)

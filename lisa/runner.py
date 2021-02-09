@@ -1,5 +1,6 @@
 import copy
 import itertools
+from functools import partial
 from logging import FileHandler
 from typing import Any, Dict, List, Optional
 
@@ -37,7 +38,7 @@ class BaseRunner(BaseClassMixin):
         self._log = get_logger(self.type_name())
         self._log_handler: Optional[FileHandler] = None
 
-    def run(self) -> List[TestResult]:
+    def run(self, id_: str) -> List[TestResult]:
         # do not put this logic to __init__, since the mkdir takes time.
         if self.type_name() == constants.TESTCASE_TYPE_LISA:
             # default lisa runner doesn't need separated handler.
@@ -49,7 +50,10 @@ class BaseRunner(BaseClassMixin):
             self._log_file_name = str(self._working_folder / f"{runner_path_name}.log")
             self._working_folder.mkdir(parents=True, exist_ok=True)
             self._log_handler = create_file_handler(self._log_file_name, self._log)
-        return []
+        return self._run(id_)
+
+    def _run(self, id_: str) -> List[TestResult]:
+        raise NotImplementedError()
 
     def close(self) -> None:
         if self._log_handler:
@@ -76,7 +80,10 @@ class RootRunner(Action):
 
         try:
             raw_results: List[List[TestResult]] = run_in_threads(
-                [runner.run for runner in self._runners]
+                [
+                    partial(runner.run, id_=runner.type_name())
+                    for runner in self._runners
+                ]
             )
         finally:
             for runner in self._runners:
