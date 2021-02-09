@@ -1,6 +1,7 @@
 import logging
 import pathlib
 import shlex
+import signal
 import subprocess
 import time
 from dataclasses import dataclass
@@ -165,7 +166,13 @@ class Process:
 
     def kill(self) -> None:
         if self._process:
-            self._process.send_signal(9)
+            if self._shell.is_remote:
+                # Support remote Linux so far
+                self._process.send_signal(9)
+            else:
+                # local process should use the compiled value
+                # the value is different between windows and linux
+                self._process.send_signal(signal.SIGTERM)
 
     def is_running(self) -> bool:
         if self._running and self._process:
