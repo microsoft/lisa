@@ -69,15 +69,18 @@ def VerifyRootPassword():
         RunLog.error('root password not deleted.%s', passwd_output)
 
 
-def CheckLastConsole(command):
+def CheckLastConsole():
     global last_console_check_result
-    RunLog.info("Checking for last console as console=ttys0 in  kernel boot line.")
-    output = Run(command)
-    if (output and output.rfind(" console=") == output.rfind(" console=ttyS0")) :
-        RunLog.info('console=ttys0 is present in kernel boot line as a last console. \nOutput:' + output)
+    output = Run("cat /proc/cmdline")
+    RunLog.info('kernel bootargs: ' + output)
+    RunLog.info("Checking console/earlyprintk setting to ttyS0 in bootargs")
+    if (output and
+       ((output.find(" console=ttyS0")!= -1) or
+        (output.find(" earlyprintk=ttyS0")!= -1))):
+        RunLog.info('ttyS0 is configured as serial console')
         last_console_check_result = True
     else:
-        RunLog.error('console=ttys0 is not present in kernel boot line as a last console.')
+        RunLog.error('ttyS0 is missing as serial console in bootargs')
 
 
 def VerifyBashHistory():
@@ -116,7 +119,7 @@ def RunTest():
     UpdateState("TestRunning")
     VerifySSHDConfig()
     VerifyRootPassword()
-    CheckLastConsole("dmesg | grep -i 'Kernel command line' | grep -i ' console='")
+    CheckLastConsole()
     VerifyBashHistory()
     VerifyIrqbalanceExist()
 
