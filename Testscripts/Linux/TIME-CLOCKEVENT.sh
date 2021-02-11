@@ -69,10 +69,11 @@ UnbindClockEvent()
         if echo "$CLOCKEVENT" > $clockevent_unbind_file
         then
             _clockevent=$(cat /sys/devices/system/clockevents/clockevent0/current_device)
-            if [ "$_clockevent" == "$SECOND_CLOCKEVENT" ]; then
-                LogMsg "Test successful. After unbind, current clockevent device is $_clockevent"
+            LogMsg "After unbind, current clockevent device is $_clockevent"
+            if [[ "$_clockevent" != $CLOCKEVENT ]]; then
+                LogMsg "Test successful"
             else
-                LogMsg "Test failed. After unbind, current clockevent device is $_clockevent"
+                LogMsg "Test failed"
                 SetTestStateFailed
                 exit 0
             fi
