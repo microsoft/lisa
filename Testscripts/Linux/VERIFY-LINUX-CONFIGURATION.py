@@ -76,17 +76,26 @@ def VerifyUsersPassword():
     print ("USERS_PASSWORD_CHECK_SUCCESS")
 
 
-def CheckLastConsole(command):
+def CheckLastConsole():
     global last_console_check_result
-    RunLog.info("Checking for last console as console=ttys0 or console=ttyAMA0 in kernel boot line.")
-    output = Run(command)
     kernel = Run("uname -a")
-    if (kernel and kernel.rfind("x86_64") and output and output.rfind(" console=") == output.rfind(" console=ttyS0") or
-        kernel and kernel.rfind("aarch64") and output and output.rfind(" console=") == output.rfind(" console=ttyAMA0")) :
-        RunLog.info('console=ttys0 for x86 or console=ttyAMA0 for arm64 is present in kernel boot line as a last console. \nOutput:' + output)
-        last_console_check_result = True
+    output = Run("cat /proc/cmdline")
+    RunLog.info('kernel bootargs: ' + output)
+    RunLog.info("Checking console/earlyprintk setting in bootargs")
+    if kernel and kernel.rfind("x86_64"):
+        if (output and ((output.find(" console=ttyS0")!= -1) or (output.find(" earlyprintk=ttyS0")!= -1))):
+            RunLog.info('ttyS0 is configured as serial console')
+            last_console_check_result = True
+        else:
+            RunLog.error('ttyS0 is missing as serial console in bootargs')
+    elif kernel and kernel.rfind("aarch64"):
+        if (output and ((output.find(" console=ttyAMA0")!= -1) or (output.find(" earlyprintk=ttyAMA0")!= -1))):
+            RunLog.info('ttyAMA0 is configured as serial console')
+            last_console_check_result = True
+        else:
+            RunLog.error('ttyAMA0 is missing as serial console in bootargs')
     else:
-        RunLog.error('console=ttys0 for x86 or console=ttyAMA0 for arm64 is not present in kernel boot line as a last console.')
+        RunLog.error('Not a Linux guest VM')
 
 
 def VerifyBashHistory():
@@ -125,7 +134,7 @@ def RunTest():
     UpdateState("TestRunning")
     VerifySSHDConfig()
     VerifyUsersPassword()
-    CheckLastConsole("dmesg | grep -i 'Kernel command line' | grep -i ' console='")
+    CheckLastConsole()
     VerifyBashHistory()
     VerifyIrqbalanceExist()
 
