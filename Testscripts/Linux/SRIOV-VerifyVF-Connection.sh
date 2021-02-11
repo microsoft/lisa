@@ -115,6 +115,9 @@ UpdateSummary "Expected VF count: $NIC_COUNT. Actual VF count: $vf_count"
 __iterator=1
 __ip_iterator_1=1
 __ip_iterator_2=2
+
+LogMsg  "List all network interfaces: $(ifconfig -a)"
+
 # Ping and send file from VM1 to VM2
 while [ $__iterator -le "$vf_count" ]; do
     # Extract VF_IP values
@@ -124,7 +127,14 @@ while [ $__iterator -le "$vf_count" ]; do
     static_IP_2="${!ip_variable_name}"
 
     synthetic_interface_vm_1=$(ip addr | grep $static_IP_1 | awk '{print $NF}')
-    LogMsg  "Synthetic interface found: $synthetic_interface_vm_1"
+    LogMsg  "Synthetic interface: $synthetic_interface_vm_1"
+
+    if [[ -z ${synthetic_interface_vm_1} ]];then
+        LogErr "Unable to detect the synthetic interface for $static_IP_1"
+        SetTestStateFailed
+        exit 0
+    fi
+
     if [[ $DISTRO_VERSION =~ ^6\. ]]; then
         synthetic_MAC=$(ip link show ${synthetic_interface_vm_1} | grep ether | awk '{print $2}')
         vf_interface_vm_1=$(grep -il ${synthetic_MAC} /sys/class/net/*/address | grep -v $synthetic_interface_vm_1 | sed 's/\// /g' | awk '{print $4}')
@@ -137,7 +147,13 @@ while [ $__iterator -le "$vf_count" ]; do
             vf_interface_vm_1=$(find /sys/devices/* -name "*${synthetic_interface_vm_1}" | grep pci | sed 's/\// /g' | awk '{print $12}')
         fi
     fi
-    LogMsg "Virtual function found: $vf_interface_vm_1"
+    LogMsg "Virtual function: $vf_interface_vm_1"
+
+    if [[ -z ${vf_interface_vm_1} ]];then
+        LogErr "Unable to detect the VF interface for $synthetic_interface_vm_1"
+        SetTestStateFailed
+        exit 0
+    fi
 
     # Ping the remote host
     i=0
@@ -161,25 +177,6 @@ while [ $__iterator -le "$vf_count" ]; do
         exit 0
     fi
 
-    # Send 1GB file from VM1 to VM2 via eth1
-    output_file_path=$(find / -name $output_file)
-    scp -i "$HOME"/.ssh/"$SSH_PRIVATE_KEY" -o StrictHostKeyChecking=no "$output_file_path" "$remote_user"@"$static_IP_2":/tmp/"$output_file"
-    if [ 0 -ne $? ]; then
-        LogErr "Unable to send the file from VM1 to VM2 ($static_IP_2)"
-        SetTestStateFailed
-        exit 0
-    else
-        LogMsg "Successfully sent $output_file to $VF_IP2"
-    fi
-
-    tx_value=$(cat /sys/class/net/"${vf_interface_vm_1}"/statistics/tx_packets)
-    LogMsg "TX value after sending the file: $tx_value"
-    if [ "$tx_value" -lt 400000 ]; then
-        LogErr "insufficient TX packets sent"
-        SetTestStateFailed
-        exit 0
-    fi
-
     # Get the VF name from VM2
     cmd_to_send="ip addr | grep \"$static_IP_2\" | awk '{print \$NF}'"
     synthetic_interface_vm_2=$(ssh -i "$HOME"/.ssh/"$SSH_PRIVATE_KEY" -o StrictHostKeyChecking=no "$remote_user"@"$static_IP_2" "$cmd_to_send")
@@ -198,13 +195,37 @@ while [ $__iterator -le "$vf_count" ]; do
     fi
     vf_interface_vm_2=$(ssh -i "$HOME"/.ssh/"$SSH_PRIVATE_KEY" -o StrictHostKeyChecking=no "$remote_user"@"$static_IP_2" "$cmd_to_send")
 
-    rx_value=$(ssh -i "$HOME"/.ssh/"$SSH_PRIVATE_KEY" -o StrictHostKeyChecking=no "$remote_user"@"$static_IP_2" cat /sys/class/net/"${vf_interface_vm_2}"/statistics/rx_packets)
-    LogMsg "RX value after sending the file: $rx_value"
-    if [ "$rx_value" -lt 400000 ]; then
-        LogErr "insufficient RX packets received"
+    # Additional information for capturing tx and rx packet in case of failure.
+    rx_value1=$(ssh -i "$HOME"/.ssh/"$SSH_PRIVATE_KEY" -o StrictHostKeyChecking=no "$remote_user"@"$static_IP_2" cat /sys/class/net/"${vf_interface_vm_2}"/statistics/rx_packets)
+    tx_value1=$(cat /sys/class/net/"${vf_interface_vm_1}"/statistics/tx_packets)
+    LogMsg "Packet count before sending the file: TX($tx_value1) RX($rx_value1)"
+
+    # Send 1GB file from VM1 to VM2 via eth1
+    output_file_path=$(find / -name $output_file)
+    # Capture the md5sum of the file
+    hash_val_tx=$(md5sum $output_file_path | awk '{print $1}')
+    scp -i "$HOME"/.ssh/"$SSH_PRIVATE_KEY" -o StrictHostKeyChecking=no "$output_file_path" "$remote_user"@"$static_IP_2":/tmp/"$output_file"
+    if [ 0 -ne $? ]; then
+        LogErr "Unable to send the file from VM1 to VM2 ($static_IP_2)"
+        SetTestStateFailed
+        exit 0
+    else
+        LogMsg "Successfully sent $output_file to $VF_IP2"
+    fi
+
+    tx_value2=$(cat /sys/class/net/"${vf_interface_vm_1}"/statistics/tx_packets)
+    rx_value2=$(ssh -i "$HOME"/.ssh/"$SSH_PRIVATE_KEY" -o StrictHostKeyChecking=no "$remote_user"@"$static_IP_2" cat /sys/class/net/"${vf_interface_vm_2}"/statistics/rx_packets)
+    # Capture the md5sum of the recieved file
+    hash_val_rx=$(ssh -i "$HOME"/.ssh/"$SSH_PRIVATE_KEY" -o StrictHostKeyChecking=no "$remote_user"@"$static_IP_2" md5sum /tmp/$output_file | awk '{print $1}')
+    LogMsg "Packet count after sending the file: TX($tx_value2) RX($rx_value2)"
+
+    LogMsg "tx hash ($hash_val_tx) rx hash ($hash_val_rx)"
+    if [[ $hash_val_tx -ne $hash_val_rx ]];then
+        LogErr "Transfered file is corrupted"
         SetTestStateFailed
         exit 0
     fi
+
     UpdateSummary "Successfully sent file from VM1 to VM2 through $synthetic_interface_vm_1"
 
     __ip_iterator_1=$(($__ip_iterator_1 + 2))
