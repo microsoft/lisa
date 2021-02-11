@@ -49,7 +49,22 @@ LogMsg "KVP Daemon is running"
 UpdateSummary "KVP Daemon is running"
 
 #
-# 2. run the KVP client tool and verify that the data pools are created and accessible
+# 2. check kernel version supports hv_kvp
+#
+CheckVMFeatureSupportStatus "3.10.0-514"
+if [ $? -eq 0 ]; then
+    ls -la /proc/"$pid"/fd | grep /dev/vmbus/hv_kvp
+    if [ $? -ne 0 ]; then
+        LogErr "There is no hv_kvp in the /proc/$pid/fd"
+        SetTestStateFailed
+        exit 0
+    fi
+else
+    LogMsg "This kernel version does not support /dev/vmbus/hv_kvp, skip this step"
+fi
+
+#
+# 3. run the KVP client tool and verify that the data pools are created and accessible
 #
 uname -a | grep x86_64
 if [ $? -eq 0 ]; then
@@ -76,8 +91,13 @@ if [ ! -e ${homeDir}/${kvp_client} ]; then
     exit 0
 fi
 
-chmod +x ${homeDir}/kvp_client*
+#
+# 4. check kvp_pool count
+#
+chmod +x ${homeDir}/${kvp_client}
+LogMsg "Output of ${kvp_client}: ${homeDir}/${kvp_client}"
 poolCount=$(${homeDir}/$kvp_client | grep -i pool | wc -l)
+LogMsg "KVP pool count: $poolCount}"
 if [ "$poolCount" -ne 5 ]; then
     LogErr "Could not find a total of 5 KVP data pools"
     SetTestStateFailed
@@ -87,9 +107,10 @@ LogMsg "Verified that all 5 KVP data pools are listed properly"
 UpdateSummary "Verified that all 5 KVP data pools are listed properly"
 
 #
-# 3. check kvp_pool file permission is 644
+# 5. check kvp_pool file permission is 644
 #
 permCount=$(stat -c %a /var/lib/hyperv/.kvp_pool* | grep 644 | wc -l)
+LogMsg "KVP pool file with 644 permission count: $permCount}"
 if [ "$permCount" -ne 5 ]; then
     LogErr ".kvp_pool file permission is incorrect "
     SetTestStateFailed
@@ -99,22 +120,7 @@ LogMsg "Verified that .kvp_pool files permission is 644"
 UpdateSummary "Verified that .kvp_pool files permission is 644"
 
 #
-# 4. check kernel version supports hv_kvp
-#
-CheckVMFeatureSupportStatus "3.10.0-514"
-if [ $? -eq 0 ]; then
-    ls -la /proc/"$pid"/fd | grep /dev/vmbus/hv_kvp
-    if [ $? -ne 0 ]; then
-        LogErr "There is no hv_kvp in the /proc/$pid/fd"
-        SetTestStateFailed
-        exit 0
-    fi
-else
-    LogMsg "This kernel version does not support /dev/vmbus/hv_kvp, skip this step"
-fi
-
-#
-# 5. check lsof number for kvp whether increase or not after sleep 2 minutes
+# 6. check lsof number for kvp whether increase or not after sleep 2 minutes
 #
 GetDistro
 command -v lsof > /dev/null
@@ -125,18 +131,19 @@ fi
 lsofCountBegin=$(lsof | grep -c kvp)
 sleep 120
 lsofCountEnd=$(lsof | grep -c kvp)
+LogMsg "lsof for kvp is $lsofCountBegin, after 2 minutes is $lsofCountEnd"
 if [ "$lsofCountBegin" -ne "$lsofCountEnd" ]; then
     LogErr "hypervkvp opened file number has changed from $lsofCountBegin to $lsofCountEnd"
     SetTestStateFailed
     exit 0
 fi
-LogMsg "Verified that lsof for kvp is $lsofCountBegin, after 2 minutes is $lsofCountEnd"
 UpdateSummary "Verified that lsof for kvp is $lsofCountBegin, after 2 minutes is $lsofCountEnd"
 
 #
 # 6. Check if KVP pool 3 file has a size greater than zero
 #
 poolFileSize=$(ls -l /var/lib/hyperv/.kvp_pool_"${kvp_pool}" | awk '{print $5}')
+LogMsg "Count of kvp pool file >0 : $poolFileSize"
 if [ "$poolFileSize" -eq 0 ]; then
     LogErr "The kvp_pool_${kvp_pool} file size is zero"
     SetTestStateFailed
@@ -148,12 +155,12 @@ fi
 # Below 11 entries (default value) the test will fail
 #
 pool_records=$(${homeDir}/${kvp_client} "$kvp_pool" | wc -l)
+LogMsg "KVP items in pool ${kvp_pool}: ${pool_records}"
 if [ "$pool_records" -eq 0 ]; then
     LogErr "Could not list the KVP Items in pool ${kvp_pool}"
     SetTestStateFailed
     exit 0
 fi
-LogMsg "KVP items in pool ${kvp_pool}: ${pool_records}"
 UpdateSummary "KVP items in pool ${kvp_pool}: ${pool_records}"
 
 poolItemNumber=$(${homeDir}/${kvp_client} "$kvp_pool" | awk 'FNR==2 {print $4}')
