@@ -741,6 +741,27 @@
     </SetupConfig>
   </test>
   <test>
+    <testName>KDUMP-CRASH-LARGE-VCPU</testName>
+    <testScript>KDUMP-TestScript.ps1</testScript>
+    <files>.\Testscripts\Linux\KDUMP-Execute.sh,.\Testscripts\Linux\KDUMP-Config.sh,.\Testscripts\Linux\KDUMP-Results.sh,.\Testscripts\Linux\utils.sh</files>
+    <TestParameters>
+      <param>crashedVcpu=CRASHED_VCPU</param>
+      <param>vmMemory=4GB</param>
+      <param>crashkernel=512M</param>
+      <param>kexecVersion=KEXEC_VERSION</param>
+    </TestParameters>
+    <Platform>Azure,HyperV</Platform>
+    <Category>Functional</Category>
+    <Area>KDUMP</Area>
+    <Tags>kdump</Tags>
+    <Priority>1</Priority>
+    <SetupConfig>
+      <SetupType>OneVM</SetupType>
+      <OverrideVMSize>Standard_D64_v3</OverrideVMSize>
+      <SetupScript>.\TestScripts\Windows\SETUP-Config-VM.ps1</SetupScript>
+    </SetupConfig>
+  </test>
+  <test>
     <testName>SECUREBOOT-BASIC</testName>
     <testScript>SECUREBOOT.ps1</testScript>
     <Timeout>600</Timeout>
