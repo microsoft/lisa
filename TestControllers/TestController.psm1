@@ -1093,6 +1093,6 @@ Class TestController {
 			Write-LogErr "Source: Line $line in script $script_name."
 		}
 
-		return $retValue,$deltaLogs
+		return @($retValue,$deltaLogs)
 	}
 }
