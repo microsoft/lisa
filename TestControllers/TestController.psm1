@@ -543,7 +543,7 @@ Class TestController {
 
 			if ($CurrentTestData.SetupConfig.OSType -notcontains "Windows") {
 				if ($testParameters["SkipVerifyKernelLogs"] -ne "True") {
-					$ret = $this.GetAndCompareOsLogs($VmData, "Final")
+					$ret = $this.GetAndCompareOsLogs($VmData, "Final", $currentTestResult)
 					if (($testParameters["FailForLogCheck"] -eq "True") -and ($ret -eq $false) -and ($currentTestResult.TestResult -eq $global:ResultPass)) {
 						$currentTestResult.TestResult = $global:ResultFail
 						Write-LogErr "Test $($CurrentTestData.TestName) fails for log check"
@@ -995,7 +995,7 @@ Class TestController {
 		}
 	}
 
-	[bool] GetAndCompareOsLogs($AllVMData, $Status) {
+	[bool] GetAndCompareOsLogs($AllVMData, $Status, $CurrentTestResult) {
 		$retValue = $true
 		try	{
 			if (!($status -imatch "Initial" -or $status -imatch "Final")) {
