@@ -1000,7 +1000,7 @@ Class TestController {
 		}
 	}
 
-	[bool] GetAndCompareOsLogs($AllVMData, $Status) {
+	[array] GetAndCompareOsLogs($AllVMData, $Status) {
 		$retValue = $true
 		$deltaLogs = @()
 		try	{
