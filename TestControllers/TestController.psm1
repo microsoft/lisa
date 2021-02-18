@@ -543,11 +543,16 @@ Class TestController {
 
 			if ($CurrentTestData.SetupConfig.OSType -notcontains "Windows") {
 				if ($testParameters["SkipVerifyKernelLogs"] -ne "True") {
-					$ret = $this.GetAndCompareOsLogs($VmData, "Final", $currentTestResult)
+					$ret, $deltaLogs = $this.GetAndCompareOsLogs($VmData, "Final")
 					if (($testParameters["FailForLogCheck"] -eq "True") -and ($ret -eq $false) -and ($currentTestResult.TestResult -eq $global:ResultPass)) {
 						$currentTestResult.TestResult = $global:ResultFail
 						Write-LogErr "Test $($CurrentTestData.TestName) fails for log check"
 						$currentTestResult.testSummary += New-ResultSummary -testResult "Test fails for log check"
+					}
+					if ($currentTestResult.TestResult -ne $global:ResultPass -and $currentTestResult.TestResult -ne $global:ResultSkipped) {
+						foreach ($line in $deltaLogs) {
+							$currentTestResult.testSummary += New-ResultSummary -testResult $line
+						}
 					}
 				}
 			}
@@ -995,8 +1000,9 @@ Class TestController {
 		}
 	}
 
-	[bool] GetAndCompareOsLogs($AllVMData, $Status, $CurrentTestResult) {
+	[bool] GetAndCompareOsLogs($AllVMData, $Status) {
 		$retValue = $true
+		$deltaLogs = @()
 		try	{
 			if (!($status -imatch "Initial" -or $status -imatch "Final")) {
 				Write-LogErr "Status value should be either final or initial"
@@ -1087,6 +1093,6 @@ Class TestController {
 			Write-LogErr "Source: Line $line in script $script_name."
 		}
 
-		return $retValue
+		return $retValue,$deltaLogs
 	}
 }
