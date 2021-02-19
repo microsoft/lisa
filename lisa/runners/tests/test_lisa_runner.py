@@ -214,7 +214,7 @@ class RunnerTestCase(TestCase):
         generate_cases_metadata()
         env_runbook = generate_env_runbook(is_single_env=True, remote=True)
         runner = generate_runner(env_runbook)
-        runner.run()
+        test_results = runner.run()
 
         self.verify_env_results(
             expected_prepared=["customized_0", "generated_1", "generated_2"],
@@ -226,7 +226,7 @@ class RunnerTestCase(TestCase):
             expected_envs=["generated_1", "customized_0", "customized_0"],
             expected_status=[TestStatus.PASSED, TestStatus.PASSED, TestStatus.PASSED],
             expected_message=["", "", ""],
-            test_results=runner._latest_test_results,
+            test_results=test_results,
         )
 
     def test_fit_a_bigger_env(self) -> None:
@@ -236,7 +236,7 @@ class RunnerTestCase(TestCase):
         generate_cases_metadata()
         env_runbook = generate_env_runbook(is_single_env=True, local=True, remote=True)
         runner = generate_runner(env_runbook)
-        runner.run()
+        test_results = runner.run()
 
         self.verify_env_results(
             expected_prepared=[
@@ -253,7 +253,7 @@ class RunnerTestCase(TestCase):
             expected_envs=["customized_0", "customized_0", "customized_0"],
             expected_status=[TestStatus.PASSED, TestStatus.PASSED, TestStatus.PASSED],
             expected_message=["", "", ""],
-            test_results=runner._latest_test_results,
+            test_results=test_results,
         )
 
     def test_case_new_env_run_only_1_needed(self) -> None:
@@ -262,7 +262,7 @@ class RunnerTestCase(TestCase):
         generate_cases_metadata()
         env_runbook = generate_env_runbook(is_single_env=True, local=True, remote=True)
         runner = generate_runner(env_runbook, case_use_new_env=True)
-        runner.run()
+        test_results = runner.run()
 
         self.verify_env_results(
             expected_prepared=[
@@ -279,7 +279,7 @@ class RunnerTestCase(TestCase):
             expected_envs=["customized_0", "generated_1", "generated_3"],
             expected_status=[TestStatus.PASSED, TestStatus.PASSED, TestStatus.PASSED],
             expected_message=["", "", ""],
-            test_results=runner._latest_test_results,
+            test_results=test_results,
         )
 
     def test_no_needed_env(self) -> None:
@@ -289,7 +289,7 @@ class RunnerTestCase(TestCase):
         generate_cases_metadata()
         env_runbook = generate_env_runbook(local=True, remote=True)
         runner = generate_runner(env_runbook)
-        runner.run()
+        test_results = runner.run()
 
         self.verify_env_results(
             expected_prepared=[
@@ -306,7 +306,7 @@ class RunnerTestCase(TestCase):
             expected_envs=["generated_2", "customized_0", "customized_0"],
             expected_status=[TestStatus.PASSED, TestStatus.PASSED, TestStatus.PASSED],
             expected_message=["", "", ""],
-            test_results=runner._latest_test_results,
+            test_results=test_results,
         )
 
     def test_deploy_no_more_resource(self) -> None:
@@ -318,7 +318,7 @@ class RunnerTestCase(TestCase):
         generate_cases_metadata()
         env_runbook = generate_env_runbook(is_single_env=True, local=True)
         runner = generate_runner(env_runbook, platform_schema=platform_schema)
-        runner.run()
+        test_results = runner.run()
 
         self.verify_env_results(
             expected_prepared=[
@@ -344,7 +344,7 @@ class RunnerTestCase(TestCase):
                 before_suite_failed,
                 before_suite_failed,
             ],
-            test_results=runner._latest_test_results,
+            test_results=test_results,
         )
 
     def test_skipped_on_suite_failure(self) -> None:
@@ -353,7 +353,7 @@ class RunnerTestCase(TestCase):
         generate_cases_metadata()
         env_runbook = generate_env_runbook(is_single_env=True, local=True, remote=True)
         runner = generate_runner(env_runbook)
-        runner.run()
+        test_results = runner.run()
 
         self.verify_env_results(
             expected_prepared=[
@@ -376,7 +376,7 @@ class RunnerTestCase(TestCase):
                 TestStatus.PASSED,
             ],
             expected_message=[before_suite_failed, before_suite_failed, ""],
-            test_results=runner._latest_test_results,
+            test_results=test_results,
         )
 
     def test_env_skipped_no_prepared_env(self) -> None:
@@ -386,7 +386,7 @@ class RunnerTestCase(TestCase):
         generate_cases_metadata()
         env_runbook = generate_env_runbook(is_single_env=True, local=True, remote=True)
         runner = generate_runner(env_runbook, platform_schema=platform_schema)
-        runner.run()
+        test_results = runner.run()
 
         self.verify_env_results(
             expected_prepared=[
@@ -409,7 +409,7 @@ class RunnerTestCase(TestCase):
                 TestStatus.SKIPPED,
             ],
             expected_message=[no_available_env, no_available_env, no_available_env],
-            test_results=runner._latest_test_results,
+            test_results=test_results,
         )
 
     def test_env_deploy_failed(self) -> None:
@@ -420,7 +420,7 @@ class RunnerTestCase(TestCase):
         generate_cases_metadata()
         env_runbook = generate_env_runbook(is_single_env=True, local=True, remote=True)
         runner = generate_runner(env_runbook, platform_schema=platform_schema)
-        runner.run()
+        test_results = runner.run()
 
         self.verify_env_results(
             expected_prepared=[
@@ -446,7 +446,7 @@ class RunnerTestCase(TestCase):
                 TestStatus.FAILED,
             ],
             expected_message=[no_available_env, no_available_env, no_available_env],
-            test_results=runner._latest_test_results,
+            test_results=test_results,
         )
 
     def test_env_skipped_no_case(self) -> None:
@@ -454,7 +454,7 @@ class RunnerTestCase(TestCase):
         # in this case, not deploy any env
         env_runbook = generate_env_runbook(is_single_env=True, remote=True)
         runner = generate_runner(env_runbook)
-        runner.run()
+        test_results = runner.run()
 
         # still prepare predefined, but not deploy
         self.verify_env_results(
@@ -467,7 +467,7 @@ class RunnerTestCase(TestCase):
             expected_envs=[],
             expected_status=[],
             expected_message=[],
-            test_results=runner._latest_test_results,
+            test_results=test_results,
         )
 
     def verify_test_results(
