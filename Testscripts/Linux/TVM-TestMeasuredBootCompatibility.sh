@@ -47,16 +47,15 @@ if [ ! -e /usr/bin/mbinfo ]; then
     exit 0
 fi
 
-
 output=$(sudo mbinfo)
 ret=$?
 LogMsg "$output"
 
 if [ $ret == 0 ]; then
-    UpdateSummary "This OS image is compatible with TVM."
+    UpdateSummary "This OS image is compatible with Measured Boot."
     SetTestStateCompleted
 else
-    UpdateSummary "This OS image is not compatible with TVM."
+    UpdateSummary "This OS image is not compatible with Measured Boot."
     SetTestStateFailed
 fi
 
