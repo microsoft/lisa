@@ -1,7 +1,7 @@
 import asyncio
 import logging
 import traceback
-from typing import Any, Dict, List, Optional, cast
+from typing import Any, List, Optional, cast
 
 from lisa import notifier, schema, search_space
 from lisa.action import ActionStatus
@@ -32,7 +32,7 @@ class LisaRunner(BaseRunner):
     def __init__(self, *args: Any, **kwargs: Any) -> None:
         super().__init__(*args, **kwargs)
 
-    def run(self) -> None:
+    def run(self) -> List[TestResult]:
         super().run()
 
         # select test cases
@@ -158,18 +158,12 @@ class LisaRunner(BaseRunner):
 
             case.set_status(TestStatus.SKIPPED, reasons)
 
-        self._output_results(test_results)
-
         self.status = ActionStatus.SUCCESS
-
-        # pass failed count to exit code
-        self.failed_count = sum(
-            1 for x in test_results if x.status == TestStatus.FAILED
-        )
 
         # for UT testability
         self._latest_platform = platform
-        self._latest_test_results = test_results
+
+        return test_results
 
     def _pick_one_result_on_environment(
         self, environment: Environment, results: List[TestResult]
@@ -307,25 +301,3 @@ class LisaRunner(BaseRunner):
                     existing_environments.from_requirement(test_req.environment)
                 else:
                     existing_environments.get_or_create(test_req.environment)
-
-    def _output_results(self, test_results: List[TestResult]) -> None:
-        self._log.info("________________________________________")
-        result_count_dict: Dict[TestStatus, int] = dict()
-        for test_result in test_results:
-            self._log.info(
-                f"{test_result.runtime_data.metadata.full_name:>50}: "
-                f"{test_result.status.name:<8} {test_result.message}"
-            )
-            result_count = result_count_dict.get(test_result.status, 0)
-            result_count += 1
-            result_count_dict[test_result.status] = result_count
-
-        self._log.info("test result summary")
-        self._log.info(f"  TOTAL      : {len(test_results)}")
-        for key in TestStatus:
-            count = result_count_dict.get(key, 0)
-            if key == TestStatus.ATTEMPTED and count == 0:
-                # attempted is confusing, if user don't know it.
-                # so hide it, if there is no attempted cases.
-                continue
-            self._log.info(f"    {key.name:<9}: {count}")

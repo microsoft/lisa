@@ -1,9 +1,11 @@
 import copy
+import itertools
 from logging import FileHandler
 from typing import Any, Dict, List, Optional
 
 from lisa import notifier, schema
 from lisa.action import Action
+from lisa.testsuite import TestResult, TestStatus
 from lisa.util import BaseClassMixin, constants, run_in_threads
 from lisa.util.logger import create_file_handler, get_logger, remove_handler
 from lisa.util.subclasses import Factory
@@ -32,11 +34,10 @@ class BaseRunner(BaseClassMixin):
         super().__init__()
         self._runbook = runbook
 
-        self.failed_count: int = 0
         self._log = get_logger(self.type_name())
         self._log_handler: Optional[FileHandler] = None
 
-    def run(self) -> None:
+    def run(self) -> List[TestResult]:
         # do not put this logic to __init__, since the mkdir takes time.
         if self.type_name() == constants.TESTCASE_TYPE_LISA:
             # default lisa runner doesn't need separated handler.
@@ -48,6 +49,7 @@ class BaseRunner(BaseClassMixin):
             self._log_file_name = str(self._working_folder / f"{runner_path_name}.log")
             self._working_folder.mkdir(parents=True, exist_ok=True)
             self._log_handler = create_file_handler(self._log_file_name, self._log)
+        return []
 
     def close(self) -> None:
         if self._log_handler:
@@ -73,7 +75,9 @@ class RootRunner(Action):
         self._initialize_runners()
 
         try:
-            run_in_threads([runner.run for runner in self._runners])
+            raw_results: List[List[TestResult]] = run_in_threads(
+                [runner.run for runner in self._runners]
+            )
         finally:
             for runner in self._runners:
                 runner.close()
@@ -83,7 +87,11 @@ class RootRunner(Action):
         )
         notifier.notify(run_message)
 
-        self.exit_code = sum(x.failed_count for x in self._runners)
+        test_results = list(itertools.chain(*raw_results))
+        self._output_results(test_results)
+
+        # pass failed count to exit code
+        self.exit_code = sum(1 for x in test_results if x.status == TestStatus.FAILED)
 
     async def stop(self) -> None:
         await super().stop()
@@ -117,3 +125,25 @@ class RootRunner(Action):
             runner = factory.create_by_type_name(runner_name, runbook=runbook)
 
             self._runners.append(runner)
+
+    def _output_results(self, test_results: List[TestResult]) -> None:
+        self._log.info("________________________________________")
+        result_count_dict: Dict[TestStatus, int] = dict()
+        for test_result in test_results:
+            self._log.info(
+                f"{test_result.runtime_data.metadata.full_name:>50}: "
+                f"{test_result.status.name:<8} {test_result.message}"
+            )
+            result_count = result_count_dict.get(test_result.status, 0)
+            result_count += 1
+            result_count_dict[test_result.status] = result_count
+
+        self._log.info("test result summary")
+        self._log.info(f"  TOTAL      : {len(test_results)}")
+        for key in TestStatus:
+            count = result_count_dict.get(key, 0)
+            if key == TestStatus.ATTEMPTED and count == 0:
+                # attempted is confusing, if user don't know it.
+                # so hide it, if there is no attempted cases.
+                continue
+            self._log.info(f"    {key.name:<9}: {count}")
