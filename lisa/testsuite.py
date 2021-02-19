@@ -45,7 +45,7 @@ class TestResultMessage(notifier.MessageBase):
     name: str = ""
     status: TestStatus = TestStatus.NOTRUN
     message: str = ""
-    environment_information: Dict[str, str] = field(default_factory=dict)
+    information: Dict[str, str] = field(default_factory=dict)
 
 
 @dataclass
@@ -56,6 +56,7 @@ class TestResult:
     message: str = ""
     environment: Optional[Environment] = None
     check_results: Optional[search_space.ResultReason] = None
+    information: Dict[str, Any] = field(default_factory=dict)
 
     @property
     def can_run(self) -> bool:
@@ -64,6 +65,10 @@ class TestResult:
     def __post_init__(self, *args: Any, **kwargs: Any) -> None:
         self._send_result_message()
         self._timer: Timer
+
+    @property
+    def name(self) -> str:
+        return self.runtime_data.metadata.name
 
     def set_status(
         self, new_status: TestStatus, message: Union[str, List[str]]
@@ -119,15 +124,12 @@ class TestResult:
 
         # get information of default node, and send to notifier.
         if self.environment and self.environment.nodes:
-            environment_information = (
-                self.environment.default_node.get_node_information()
-            )
-            result_message.environment_information.update(environment_information)
-            result_message.environment_information["name"] = self.environment.name
+            information = self.environment.default_node.get_node_information()
+            self.information.update(information)
+            self.information["name"] = self.environment.name
             assert self.environment.platform
-            result_message.environment_information[
-                "platform"
-            ] = self.environment.platform.type_name()
+            self.information["platform"] = self.environment.platform.type_name()
+        result_message.information.update(self.information)
         result_message.message = self.message[0:2048] if self.message else ""
         result_message.name = self.runtime_data.metadata.full_name
         notifier.notify(result_message)
