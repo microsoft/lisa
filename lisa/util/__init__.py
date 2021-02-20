@@ -189,11 +189,8 @@ def run_in_threads(
                         changed = True
                         # removed finished threads
                         futures.remove(future)
-                        if future.exception():
-                            # trigger to throw exception
-                            future.result()
-                        else:
-                            results.append(future.result())
+                        # exception will throw at this point
+                        results.append(future.result())
                         break
                 if not changed:
                     time.sleep(0.1)
@@ -204,6 +201,6 @@ def run_in_threads(
         finally:
             futures = _cancel_threads(futures)
         for future in futures:
-            if not future.exception():
-                results.append(future.result())
+            # exception will throw at this point
+            results.append(future.result())
     return results
