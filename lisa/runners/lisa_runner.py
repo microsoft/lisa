@@ -1,4 +1,3 @@
-import asyncio
 import logging
 import traceback
 from typing import Any, List, Optional, cast
@@ -229,7 +228,7 @@ class LisaRunner(BaseRunner):
         for result in results:
             result.environment = environment
         environment.is_new = False
-        asyncio.run(test_suite.start())
+        test_suite.start()
 
     def _attach_failed_environment_to_result(
         self, environment: Environment, result: TestResult, exception: Exception

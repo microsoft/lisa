@@ -9,7 +9,6 @@ from typing import TYPE_CHECKING, Any, Callable, Dict, List, Optional, Type, Uni
 from retry.api import retry_call  # type: ignore
 
 from lisa import notifier, schema, search_space
-from lisa.action import Action, ActionStatus
 from lisa.environment import EnvironmentSpace, EnvironmentStatus
 from lisa.feature import Feature
 from lisa.operating_system import OperatingSystem
@@ -304,7 +303,7 @@ class TestCaseRuntimeData:
         return cloned
 
 
-class TestSuite(Action):
+class TestSuite:
     def __init__(
         self,
         environment: Environment,
@@ -343,7 +342,7 @@ class TestSuite(Action):
     # TODO: This entire function is one long string of side-effects.
     # We need to reduce this function's complexity to remove the
     # disabled warning, and not rely solely on side effects.
-    async def start(self) -> None:  # noqa: C901
+    def start(self) -> None:  # noqa: C901
         suite_error_message = ""
         is_suite_continue = True
 
@@ -434,7 +433,6 @@ class TestSuite(Action):
 
             if self._should_stop:
                 self.log.info("received stop message, stop run")
-                self.status = ActionStatus.STOPPED
                 break
 
         self.log = suite_log
@@ -446,12 +444,8 @@ class TestSuite(Action):
             self.log.error("after_suite failed", exc_info=identifier)
         self.log.debug(f"after_suite end with {timer}")
 
-    async def stop(self) -> None:
-        self.status = ActionStatus.STOPPING
+    def stop(self) -> None:
         self._should_stop = True
-
-    async def close(self) -> None:
-        pass
 
 
 def get_suites_metadata() -> Dict[str, TestSuiteMetadata]:
