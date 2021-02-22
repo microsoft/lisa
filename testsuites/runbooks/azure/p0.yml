@@ -1,7 +1,6 @@
 name: azure p0
 extension:
-  paths:
-    - "../../basic"
+  - "../../basic"
 variable:
   - file: secret.yml
     is_secret: true
