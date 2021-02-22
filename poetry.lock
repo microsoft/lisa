@@ -21,12 +21,12 @@ optional = false
 python-versions = "*"
 
 [[package]]
-name = "asserts"
-version = "0.11.1"
-description = "Stand-alone Assertions"
+name = "assertpy"
+version = "1.1"
+description = "Simple assertion library for unit testing in python with a fluent API"
 category = "main"
 optional = false
-python-versions = ">=3.6"
+python-versions = "*"
 
 [[package]]
 name = "asttokens"
@@ -978,7 +978,7 @@ socks = ["PySocks (>=1.5.6,!=1.5.7,<2.0)"]
 [metadata]
 lock-version = "1.1"
 python-versions = "^3.8"
-content-hash = "e7d5be1a170c1052e4123e08dd710884a90454617c6cbc07a6a276509bed6eb9"
+content-hash = "ea66b5bbea70beb6cb4606814462b8972efd5e742b07dcefc9bc0d3c36a86805"
 
 [metadata.files]
 adal = [
@@ -989,8 +989,8 @@ appdirs = [
     {file = "appdirs-1.4.4-py2.py3-none-any.whl", hash = "sha256:a841dacd6b99318a741b166adb07e19ee71a274450e68237b4650ca1055ab128"},
     {file = "appdirs-1.4.4.tar.gz", hash = "sha256:7d5d0167b2b1ba821647616af46a749d1c653740dd0d2415100fe26e27afdf41"},
 ]
-asserts = [
-    {file = "asserts-0.11.1-py2.py3-none-any.whl", hash = "sha256:dfe3a45a311c727f516e9375eac85e5f5dd1df846b60ae52f559d8534b24df5d"},
+assertpy = [
+    {file = "assertpy-1.1.tar.gz", hash = "sha256:acc64329934ad71a3221de185517a43af33e373bb44dc05b5a9b174394ef4833"},
 ]
 asttokens = [
     {file = "asttokens-2.0.4-py2.py3-none-any.whl", hash = "sha256:766d3352908730efb20b95ae22db0f1cb1bedb67c6071fcffb5c236ea673f2f7"},

@@ -1,6 +1,6 @@
 from pathlib import Path
 
-import asserts
+from assertpy import assert_that  # type: ignore
 
 from lisa import TestCaseMetadata, TestSuite, TestSuiteMetadata
 from lisa.executable import CustomScript, CustomScriptBuilder
@@ -41,14 +41,12 @@ class WithScript(TestSuite):
         self.log.info(f"first run finished within {timer1}")
         timer2 = create_timer()
         result2 = script.run()
-        asserts.assert_equal(result1.stdout, result2.stdout)
+        assert_that(result1.stdout).is_equal_to(result2.stdout)
         if node.is_remote:
             # the timer will be significant different on a remote node.
-            asserts.assert_greater(
-                timer1.elapsed(),
-                timer2.elapsed(),
-                "the second time should be faster, without uploading",
-            )
+            assert_that(
+                timer1.elapsed(), "the second time should be faster, without uploading"
+            ).is_greater_than(timer2.elapsed())
         self.log.info(
             f"second run finished within {timer2}, total: {timer1.elapsed_text(False)}"
         )
