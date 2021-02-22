@@ -684,7 +684,7 @@ Class TestController {
 				$jobId = $parallelJobIds[$i]
 				$parallelJob = Get-Job -Id $jobId
 				Write-LogWarn "Stopping job $($parallelJob.Name)"
-				Stop-Job $parallelJob -Force
+				Stop-Job $parallelJob
 				Remove-Job $parallelJob -Force
 			}
 		}
