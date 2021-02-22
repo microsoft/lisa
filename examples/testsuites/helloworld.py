@@ -1,4 +1,4 @@
-import asserts
+from assertpy import assert_that  # type: ignore
 
 from lisa import TestCaseMetadata, TestSuite, TestSuiteMetadata
 from lisa.operating_system import Linux
@@ -41,9 +41,9 @@ class HelloWorld(TestSuite):
         echo = node.tools[Echo]
         hello_world = "hello world!"
         result = echo.run(hello_world)
-        asserts.assert_equal(hello_world, result.stdout)
-        asserts.assert_equal("", result.stderr)
-        asserts.assert_equal(0, result.exit_code)
+        assert_that(result.stdout).is_equal_to(hello_world)
+        assert_that(result.stderr).is_equal_to("")
+        assert_that(result.exit_code).is_equal_to(0)
 
     @TestCaseMetadata(
         description="""
@@ -55,7 +55,7 @@ class HelloWorld(TestSuite):
         node = self.environment.default_node
         # use it once like this way before use short cut
         node.tools[Echo]
-        asserts.assert_equal("bye!", str(node.tools.echo("bye!")))
+        assert_that(str(node.tools.echo("bye!"))).is_equal_to("bye!")
 
     def before_suite(self) -> None:
         self.log.info("setup my test suite")

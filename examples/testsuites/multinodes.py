@@ -1,4 +1,4 @@
-import asserts
+from assertpy import assert_that  # type: ignore
 
 from lisa import TestCaseMetadata, TestSuite, TestSuiteMetadata
 from lisa.testsuite import simple_requirement
@@ -64,13 +64,9 @@ class MutipleNodesDemo(TestSuite):
             f"client throughput: "
             f"{ntttcp_client.get_throughput(client_result.stdout)}"
         )
-        asserts.assert_equal(
-            0,
-            client_result.exit_code,
-            f"client exit code [{client_result.exit_code}] should be 0.",
-        )
-        asserts.assert_equal(
-            0,
-            server_result.exit_code,
-            f"server exit code [{server_result.exit_code}] should be 0.",
-        )
+        assert_that(
+            client_result.exit_code, "client exit code should be 0."
+        ).is_equal_to(0)
+        assert_that(
+            server_result.exit_code, "server exit code should be 0."
+        ).is_equal_to(0)

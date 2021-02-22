@@ -81,6 +81,7 @@ poetry run python lisa/main.py
 ### Make
 
 We now also have a GNU Makefile that automates some tasks. Try:
+
 ```bash
 # Install Python packages
 make setup
@@ -125,7 +126,7 @@ Make sure below settings are in root level of `.vscode/settings.json`
     "python.linting.mypyArgs": [
         "--strict",
         "--namespace-packages",
-        "--show-column-numbers",
+        "--show-column-numbers"
     ],
     "python.sortImports.path": "isort",
     "python.analysis.useLibraryCodeForTypes": false,
