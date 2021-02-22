@@ -188,7 +188,7 @@ Function Compare-OsLogs($InitialLogFilePath, $FinalLogFilePath, $LogStatusFilePa
 			}
 		}
 		elseif (-not $finalLogs) {
-			Write-LogInfo "Final log is empty"
+			Write-LogInfo "Final log for $ErrorMatchPatten is empty"
 			return $true
 		}
 		$fileDiff = Compare-Object -ReferenceObject $initialLogs -DifferenceObject $finalLogs
