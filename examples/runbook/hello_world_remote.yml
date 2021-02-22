@@ -1,7 +1,6 @@
 name: remote try
 extension:
-  paths:
-    - "../testsuites"
+  - "../testsuites"
 environment:
   environments:
     - nodes:

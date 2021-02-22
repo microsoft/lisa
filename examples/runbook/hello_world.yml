@@ -1,6 +1,5 @@
 extension:
-  paths:
-    - "../testsuites"
+  - "../testsuites"
 environment:
   environments:
     - nodes:

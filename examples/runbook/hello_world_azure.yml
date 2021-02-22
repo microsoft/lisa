@@ -1,7 +1,6 @@
 name: remote try
 extension:
-  paths:
-    - "../testsuites"
+  - "../testsuites"
 platform:
   - type: azure
     admin_private_key_file: $(admin_private_key_file)
