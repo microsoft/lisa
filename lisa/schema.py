@@ -195,9 +195,7 @@ class Parent:
 @dataclass
 class Extension:
     """
-    add extended classes can be put in folders and include here. it doesn't matter how
-    those files are organized, lisa loads by their inherits relationship. if there is
-    any conflict on type name, there should be an error message.
+    deprecated. Use paths directly
     """
 
     paths: List[str] = field(default_factory=list, metadata=metadata(required=True))
@@ -229,7 +227,9 @@ class Variable:
     # continue to support v2 format. it's simple.
     file: str = field(
         default="",
-        metadata=metadata(validate=validate.Regexp(r"[\w\W]+[.](xml|yml|yaml)$")),
+        metadata=metadata(
+            validate=validate.Regexp(r"([\w\W]+[.](xml|yml|yaml)$)|(^$)")
+        ),
     )
 
     name: str = field(default="")
@@ -811,7 +811,8 @@ class Runbook:
     test_pass: str = ""
     tags: Optional[List[str]] = None
     parent: Optional[List[Parent]] = field(default=None)
-    extension: Optional[Extension] = field(default=None)
+    # Extension is deprecated, should use list of string.
+    extension: Union[Extension, List[str], None] = field(default=None)
     variable: Optional[List[Variable]] = field(default=None)
     artifact: Optional[List[Artifact]] = field(default=None)
     environment: Optional[EnvironmentRoot] = field(default=None)
