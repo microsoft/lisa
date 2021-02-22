@@ -11,9 +11,8 @@ def import_module(
     path: Path, index: Optional[int] = None, logDetails: bool = True
 ) -> None:
 
-    path = path.absolute()
     if not path.exists():
-        raise FileNotFoundError(path)
+        raise FileNotFoundError(f"import module path: {path}")
 
     log = get_logger("init", "module")
 
@@ -43,9 +42,9 @@ def import_module(
 
         if full_module_name not in sys.modules:
             if logDetails:
-                log.debug(f"loading file: {file}")
+                log.debug(f"  loading module from file: {file}")
                 log.debug(
-                    f"package: '{local_package_name}', "
+                    f"  package: '{local_package_name}', "
                     f"full_module_name: '{full_module_name}' "
                 )
 
