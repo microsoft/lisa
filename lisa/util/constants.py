@@ -39,6 +39,7 @@ OPERATION_OVERWRITE = "overwrite"
 # typoplogies
 ENVIRONMENTS_SUBNET = "subnet"
 
+PARENT = "parent"
 EXTENSION = "extension"
 VARIABLE = "variable"
 

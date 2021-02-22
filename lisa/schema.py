@@ -154,14 +154,17 @@ class TypedSchema:
 @dataclass
 class Strategy:
     """
-    for simple merge, this part is optional.
+    node_path is the path of yaml node. For example:
+        environment.nodes
+    if node_path doesn't present, it means to all.
+
     operations include:
     overwrite: default behavior. add non-exist items and replace exist.
     remove: remove specified path totally.
     add: add non-exist, not replace exist.
     """
 
-    path: str = field(default="", metadata=metadata(required=True))
+    node_path: str = field(default="", metadata=metadata(required=True))
     operation: str = field(
         default=constants.OPERATION_OVERWRITE,
         metadata=metadata(
@@ -185,10 +188,7 @@ class Parent:
     """
 
     path: str = field(default="", metadata=metadata(required=True))
-    strategy: List[Strategy] = field(
-        default_factory=list,
-        metadata=metadata(required=True),
-    )
+    strategy: Union[List[Strategy], Strategy, None] = None
 
 
 @dataclass_json()
