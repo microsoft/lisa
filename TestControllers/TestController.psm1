@@ -78,6 +78,7 @@ Class TestController {
 	[int] $TotalCountInParallel
 	[object] $ParamsInParallel
 	[string] $TestIdInParallel
+	[int] $ParallelTimeoutHours
 
 	[void] SyncEquivalentCustomParameters([string] $Key, [string] $Value) {
 		if ($Value) {
@@ -135,6 +136,7 @@ Class TestController {
 			$processorCount = (Get-WmiObject -class Win32_ComputerSystem).numberoflogicalprocessors
 			$this.TotalCountInParallel = [math]::Ceiling($processorCount / 2)
 		}
+		$this.ParallelTimeoutHours = $ParamTable["ParallelTimeoutHours"]
 		$this.ParamsInParallel = $ParamTable["ParamsInParallel"]
 		$this.TestIdInParallel = $ParamTable["TestIdInParallel"]
 		$GlobalConfigurationFile = "$PSScriptRoot\..\XML\GlobalConfigurations.xml"
@@ -592,7 +594,7 @@ Class TestController {
 		return $currentTestResult
 	}
 
-	[void] RunTestCasesInParallel([int] $CountInParallel) {
+	[void] RunTestCasesInParallel([int] $CountInParallel, [int] $ParallelTimeoutHours) {
 		$this.ParamsInParallel.Remove("RunInParallel")
 		$this.ParamsInParallel.Remove("TotalCountInParallel")
 		$parallelJobIds = [System.Collections.ArrayList]@()
@@ -857,7 +859,7 @@ Class TestController {
 			$this.RunTestCasesInSequence($TestIterations)
 		}
 		else {
-			$this.RunTestCasesInParallel($this.TotalCountInParallel)
+			$this.RunTestCasesInParallel($this.TotalCountInParallel, $this.ParallelTimeoutHours)
 		}
 
 		$this.JunitReport.CompleteLogTestSuite("LISAv2Test-$($this.TestPlatform)")
