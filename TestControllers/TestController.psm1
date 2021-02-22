@@ -137,6 +137,10 @@ Class TestController {
 			$this.TotalCountInParallel = [math]::Ceiling($processorCount / 2)
 		}
 		$this.ParallelTimeoutHours = $ParamTable["ParallelTimeoutHours"]
+		# Set the default timeout value to be 2 days
+		if (-not $this.ParallelTimeoutHours) {
+			$this.ParallelTimeoutHours = 48
+		}
 		$this.ParamsInParallel = $ParamTable["ParamsInParallel"]
 		$this.TestIdInParallel = $ParamTable["TestIdInParallel"]
 		$GlobalConfigurationFile = "$PSScriptRoot\..\XML\GlobalConfigurations.xml"
@@ -609,7 +613,9 @@ Class TestController {
 			$null = $parallelJobIds.Add($parallelJob.Id)
 		}
 		$parallelTestSummary = [System.Collections.ArrayList]@()
-		while ($parallelJobIds.Count -gt 0) {
+		$timeout = New-Timespan -Hours $ParallelTimeoutHours
+		$sw = [diagnostics.stopwatch]::StartNew()
+		while ($parallelJobIds.Count -gt 0 -and $sw.elapsed -lt $timeout) {
 			for ($i = 0; $i -lt $parallelJobIds.Count; ) {
 				$jobId = $parallelJobIds[$i]
 				$parallelJob = Get-Job -Id $jobId
@@ -670,6 +676,16 @@ Class TestController {
 					Write-LogInfo "There are $($parallelJobIds.Count) jobs are still running, will check again after 180 seconds..."
 					Start-Sleep -Seconds 180
 				}
+			}
+		}
+		if ($parallelJobIds.Count -gt 0) {
+			Write-LogErr "Test execution time exceeds the timeout value, stopping the running jobs..."
+			for ($i = 0; $i -lt $parallelJobIds.Count; ) {
+				$jobId = $parallelJobIds[$i]
+				$parallelJob = Get-Job -Id $jobId
+				Write-LogWarn "Stopping job $($parallelJob.Name)"
+				Stop-Job $parallelJob -Force
+				Remove-Job $parallelJob -Force
 			}
 		}
 		Write-Host "[[=====================================================                             =====================================================]]"
