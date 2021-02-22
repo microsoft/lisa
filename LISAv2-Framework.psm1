@@ -205,8 +205,15 @@ function Start-LISAv2 {
 			$zipFilePath = Join-Path (Get-Location).Path $zipFile
 			New-ZipFile -zipFileName $zipFilePath -sourceDir $LogDir
 
-			$reportFiles = Get-ChildItem "$reportFolder" | Where-Object { $_.FullName -imatch "LISAv2_TestReport_${TestId}([\-\d])+junit.xml" }
+			# for parallel run, only calculate the error counts in main process
+			if ($RunInParallel) {
+				$reportFiles = Get-ChildItem "$reportFolder" | Where-Object { $_.FullName -imatch "LISAv2_TestReport_${TestId}([\-\d])+junit.xml" }
+			# non-parallel run, and not the sub-process of parallel run
+			} elseif (-not $TestIdInParallel) {
+				$reportFiles = @(Get-Item -path $TestReportXml)
+			}
 
+			$ExitCode = 0
 			$failedCount = 0
 			$errorCount = 0
 			$testCount = 0
