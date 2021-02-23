@@ -6,7 +6,7 @@ import shutil
 import time
 from functools import partial
 from pathlib import Path
-from typing import Any, Dict, Iterable, List, Optional, Pattern
+from typing import Any, Dict, Iterable, List, Pattern
 
 from retry import retry  # type: ignore
 
@@ -404,7 +404,7 @@ class LogParser(InitializableMixin):
         Discover all cases names. The name may be duplicate by test matrix.
         """
         all_cases: List[Dict[str, str]] = []
-        count: Optional[int] = None
+        count: int = 1
         for line in self._line_iter():
             case_match = self.CASE_COLLECTED.match(line)
             if case_match:
@@ -414,10 +414,9 @@ class LogParser(InitializableMixin):
             if count_match:
                 count = int(count_match["count"])
                 break
-        if count:
+        if all_cases:
+            # expand for test matrix
             all_cases = all_cases * int(count / len(all_cases))
-        else:
-            all_cases = []
         return all_cases
 
     def discover_running_cases(self) -> List[Dict[str, str]]:
