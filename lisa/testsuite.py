@@ -14,7 +14,9 @@ from lisa.feature import Feature
 from lisa.operating_system import OperatingSystem
 from lisa.util import (
     LisaException,
+    NotRunException,
     PassedException,
+    SkippedException,
     constants,
     get_datetime_path,
     set_filtered_fields,
@@ -32,10 +34,6 @@ TestStatus = Enum(
 
 _all_suites: Dict[str, TestSuiteMetadata] = dict()
 _all_cases: Dict[str, TestCaseMetadata] = dict()
-
-
-class SkipTestCaseException(LisaException):
-    pass
 
 
 @dataclass
@@ -398,6 +396,16 @@ class TestSuite:
                         logger=self.log,
                     )
                     case_result.set_status(TestStatus.PASSED, "")
+                except SkippedException as identifier:
+                    self.log.info(f"case skipped: {identifier}")
+                    self.log.debug("case skipped", exc_info=identifier)
+                    # case is skipped dynamically
+                    case_result.set_status(TestStatus.SKIPPED, f"{identifier}")
+                except NotRunException as identifier:
+                    self.log.info(f"case keep NOTRUN: {identifier}")
+                    self.log.debug("case NOTRUN", exc_info=identifier)
+                    # case is not run dynamically.
+                    case_result.set_status(TestStatus.NOTRUN, f"{identifier}")
                 except PassedException as identifier:
                     self.log.info(f"case parial passed: {identifier}")
                     self.log.debug("case parial passed", exc_info=identifier)
