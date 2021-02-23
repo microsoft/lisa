@@ -20,7 +20,7 @@ from lisa.testsuite import (
     TestSuite,
     TestSuiteMetadata,
 )
-from lisa.util import constants
+from lisa.util import LisaException, constants
 
 
 class LisaRunner(BaseRunner):
@@ -67,6 +67,8 @@ class LisaRunner(BaseRunner):
         # request environment then run tests
         for environment in prepared_environments:
             try:
+                self._check_cancel()
+
                 can_run_results = self._get_can_run_results(can_run_results)
                 can_run_results.sort(key=lambda x: x.runtime_data.metadata.suite.name)
                 if not can_run_results:
@@ -190,6 +192,7 @@ class LisaRunner(BaseRunner):
             for new_env_result in self._get_can_run_results(
                 results, use_new_environment=True, enviornment_status=environment.status
             ):
+                self._check_cancel()
                 if new_env_result.check_environment(environment, True):
                     self._run_suite(environment=environment, results=[new_env_result])
                     break
@@ -200,6 +203,7 @@ class LisaRunner(BaseRunner):
         for test_result in self._get_can_run_results(
             results, use_new_environment=False, enviornment_status=environment.status
         ):
+            self._check_cancel()
             if test_result.check_environment(environment, True):
                 if (
                     test_result.runtime_data.metadata.suite != current_test_suite
@@ -301,3 +305,7 @@ class LisaRunner(BaseRunner):
                     existing_environments.from_requirement(test_req.environment)
                 else:
                     existing_environments.get_or_create(test_req.environment)
+
+    def _check_cancel(self) -> None:
+        if self.canceled:
+            raise LisaException("received cancellation from root runner")

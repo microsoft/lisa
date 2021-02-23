@@ -147,15 +147,21 @@ def get_matched_str(content: str, pattern: Pattern[str]) -> str:
 
 def _cancel_threads(
     futures: List[Any],
+    completed_callback: Optional[Callable[[Any], None]] = None,
 ) -> List[Any]:
     success_futures: List[Any] = []
     for future in futures:
         if future.done() and future.exception():
             # throw exception, if it's not here.
             future.result()
-        elif future.running():
+        elif not future.done():
             # cancel running threads. It may need cancellation callback
-            future.cancel()
+            result = future.cancel()
+            if not result and completed_callback:
+                # make sure it's status changed to canceled
+                completed_callback(False)
+            # join exception back to main thread
+            future.result()
         else:
             success_futures.append(future)
     # return empty list to prevent cancel again.
@@ -166,6 +172,8 @@ def run_in_threads(
     methods: List[Any],
     max_workers: int = 0,
     completed_callback: Optional[Callable[[Any], None]] = None,
+    # Use Any to prevent cycle import
+    log: Optional[Any] = None,
 ) -> List[Any]:
     """
     start methods in a thread pool
@@ -180,7 +188,7 @@ def run_in_threads(
             for future in futures:
                 future.add_done_callback(completed_callback)
         try:
-            while any(x.running() for x in futures):
+            while any(not x.done() for x in futures):
                 # if there is any change, skip sleep to get faster
                 changed = False
                 for future in futures:
@@ -194,12 +202,17 @@ def run_in_threads(
                         break
                 if not changed:
                     time.sleep(0.1)
+
         except KeyboardInterrupt:
+            if log:
+                log.info("received CTRL+C, stopping threads...")
             # support to interrupt runs on local debugging.
-            futures = _cancel_threads(futures)
+            futures = _cancel_threads(futures, completed_callback=completed_callback)
             pool.shutdown(True)
         finally:
-            futures = _cancel_threads(futures)
+            if log:
+                log.debug("finalizing threads...")
+            futures = _cancel_threads(futures, completed_callback=completed_callback)
         for future in futures:
             # exception will throw at this point
             results.append(future.result())
