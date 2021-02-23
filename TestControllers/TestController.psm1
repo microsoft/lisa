@@ -626,6 +626,8 @@ Class TestController {
 					Write-LogInfo "$($parallelJob.Name) finished with State: [$($parallelJob.State)]"
 					Remove-Job $parallelJob -Force
 					$parallelJobIds.RemoveAt($i)
+					# After removing the job ID from the array, the index of next item should reduce 1
+					$i--
 					$LogFile = Get-Item "$PSScriptRoot\..\TestResults\*$($parallelJob.Name)\*$($parallelJob.Name).log" | Sort-Object CreationTime -Descending | Select-Object -First 1
 					if ($logFile) {
 						#[INFO ] LISAv2 exit code: 0
@@ -682,10 +684,14 @@ Class TestController {
 			Write-LogErr "Test execution time exceeds $ParallelTimeoutHours hours, stopping the running jobs..."
 			for ($i = 0; $i -lt $parallelJobIds.Count; ) {
 				$jobId = $parallelJobIds[$i]
-				$parallelJob = Get-Job -Id $jobId
-				Write-LogWarn "Stopping job $($parallelJob.Name)"
-				Stop-Job $parallelJob
-				Remove-Job $parallelJob -Force
+				$parallelJob = Get-Job -Id $jobId -ErrorAction SilentlyContinue
+				if ($parallelJob) {
+					Write-LogWarn "Stopping job $($parallelJob.Name)"
+					Stop-Job $parallelJob -ErrorAction SilentlyContinue
+					Remove-Job $parallelJob -Force
+				} else {
+					Write-LogErr "Cannot find the job of ID $jobId"
+				}
 			}
 		}
 		Write-Host "[[=====================================================                             =====================================================]]"
