@@ -8,7 +8,24 @@ T = TypeVar("T")
 
 
 class LisaException(Exception):
-    pass
+    ...
+
+
+class SkippedException(Exception):
+    """
+    A test case can be skipped based on runtime information.
+    """
+
+    ...
+
+
+class NotRunException(Exception):
+    """
+    If current environment doesn't meet requirement of a test case, it can be set to
+    not run and try next environment.
+    """
+
+    ...
 
 
 class PassedException(Exception):
@@ -18,7 +35,7 @@ class PassedException(Exception):
     Exception to bring an error message, and make test pass also.
     """
 
-    pass
+    ...
 
 
 class ContextMixin:

@@ -19,7 +19,13 @@ from lisa.testsuite import (
     get_suites_metadata,
     simple_requirement,
 )
-from lisa.util import LisaException, PassedException, constants
+from lisa.util import (
+    LisaException,
+    NotRunException,
+    PassedException,
+    SkippedException,
+    constants,
+)
 
 # for other UTs
 fail_on_before_suite = False
@@ -27,6 +33,8 @@ fail_on_after_suite = False
 fail_on_before_case = False
 fail_on_after_case = False
 partial_pass = False
+skipped = False
+notrun = False
 fail_case_count = 0
 
 
@@ -38,6 +46,9 @@ class MockTestSuite(TestSuite):
         self.fail_on_before_case = fail_on_before_case
         self.fail_on_after_case = fail_on_after_case
         self.partial_pass = partial_pass
+        self.skipped = skipped
+        self.notrun = notrun
+        self.partial_pass = partial_pass
         self.fail_case_count = fail_case_count
 
     def set_fail_phase(
@@ -47,6 +58,8 @@ class MockTestSuite(TestSuite):
         fail_on_before_case: bool = False,
         fail_on_after_case: bool = False,
         partial_pass: bool = False,
+        skipped: bool = False,
+        notrun: bool = False,
         fail_case_count: int = 0,
     ) -> None:
         self.fail_on_before_suite = fail_on_before_suite
@@ -54,6 +67,8 @@ class MockTestSuite(TestSuite):
         self.fail_on_before_case = fail_on_before_case
         self.fail_on_after_case = fail_on_after_case
         self.partial_pass = partial_pass
+        self.skipped = skipped
+        self.notrun = notrun
         self.fail_case_count = fail_case_count
 
     def before_suite(self) -> None:
@@ -75,6 +90,10 @@ class MockTestSuite(TestSuite):
     def mock_ut1(self, *args: Any, **kwargs: Any) -> None:
         if self.partial_pass:
             raise PassedException("mock_ut1 passed with warning")
+        if self.skipped:
+            raise SkippedException("mock_ut1 skipped this run")
+        if self.notrun:
+            raise NotRunException("mock_ut1 kept not run")
         while self.fail_case_count > 0:
             self.fail_case_count -= 1
             raise LisaException("mock_ut1 failed")
@@ -266,6 +285,28 @@ class TestSuiteTestCase(TestCase):
         test_suite.start()
         self.assertEqual(TestStatus.PASSED, result.status)
         self.assertEqual("warning: mock_ut1 passed with warning", result.message)
+        result = test_suite.case_results[1]
+        self.assertEqual(TestStatus.PASSED, result.status)
+        self.assertEqual("", result.message)
+
+    def test_skipped(self) -> None:
+        test_suite = self.generate_suite_instance()
+        test_suite.set_fail_phase(skipped=True)
+        result = test_suite.case_results[0]
+        test_suite.start()
+        self.assertEqual(TestStatus.SKIPPED, result.status)
+        self.assertEqual("mock_ut1 skipped this run", result.message)
+        result = test_suite.case_results[1]
+        self.assertEqual(TestStatus.PASSED, result.status)
+        self.assertEqual("", result.message)
+
+    def test_notrun(self) -> None:
+        test_suite = self.generate_suite_instance()
+        test_suite.set_fail_phase(notrun=True)
+        result = test_suite.case_results[0]
+        test_suite.start()
+        self.assertEqual(TestStatus.NOTRUN, result.status)
+        self.assertEqual("mock_ut1 kept not run", result.message)
         result = test_suite.case_results[1]
         self.assertEqual(TestStatus.PASSED, result.status)
         self.assertEqual("", result.message)
