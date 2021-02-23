@@ -389,7 +389,7 @@ class LogParser(InitializableMixin):
     # ')
     CASE_COMPLETED = re.compile(
         r"SQLQuery\:  INSERT INTO LISATestTelemetry \(.*\) "
-        r"VALUES \('.*?','.*?','(?P<location>.*?)','.*?','.*?','(?P<name>.*?)',"
+        r"VALUES \('.*?','(?P<platform>.*?)','(?P<location>.*?)','.*?','.*?','(?P<name>.*?)',"
         r"'(?P<status>.*?)','.*?','(?P<os>.*?)','(?P<kernel_version>.*?)','.*?','.*?',"
         r"'(?P<host_version>.*?)','(?P<vmsize>.*?)','.*?','(?P<image>.*?)','.*?',"
         r"'(?P<log_path>.*?)','.*?','.*?','.*?','(?P<message>[\w\W]*?)'\)"
