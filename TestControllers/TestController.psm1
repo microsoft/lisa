@@ -682,7 +682,7 @@ Class TestController {
 		}
 		if ($parallelJobIds.Count -gt 0) {
 			Write-LogErr "Test execution time exceeds $ParallelTimeoutHours hours, stopping the running jobs..."
-			for ($i = 0; $i -lt $parallelJobIds.Count; ) {
+			for ($i = 0; $i -lt $parallelJobIds.Count; $i++) {
 				$jobId = $parallelJobIds[$i]
 				$parallelJob = Get-Job -Id $jobId -ErrorAction SilentlyContinue
 				if ($parallelJob) {
