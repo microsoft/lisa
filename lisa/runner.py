@@ -37,6 +37,7 @@ class BaseRunner(BaseClassMixin):
 
         self._log = get_logger(self.type_name())
         self._log_handler: Optional[FileHandler] = None
+        self.canceled = False
 
     def run(self, id_: str) -> List[TestResult]:
         # do not put this logic to __init__, since the mkdir takes time.
@@ -83,7 +84,9 @@ class RootRunner(Action):
                 [
                     partial(runner.run, id_=runner.type_name())
                     for runner in self._runners
-                ]
+                ],
+                completed_callback=self._completed_callback,
+                log=self._log,
             )
         finally:
             for runner in self._runners:
@@ -106,6 +109,16 @@ class RootRunner(Action):
 
     async def close(self) -> None:
         await super().close()
+
+    def _completed_callback(self, future: Any) -> None:
+        """
+        exit sub tests, once received cancellation message from executor.
+        """
+        # future is False, if it's called explictly by run_in_threads.
+        if not future or future.cancelled() or future.exception():
+            self._log.debug(f"set cancel signal on future: {future}")
+            for runner in self._runners:
+                runner.canceled = True
 
     def _initialize_runners(self) -> None:
         # group fitlers by runner type
