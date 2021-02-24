@@ -99,7 +99,8 @@ class LegacyRunner(BaseRunner):
         """
         exit sub tests, once received cancellation message from executor.
         """
-        if future.cancelled() or future.exception():
+        # future is False, if it's called explictly by run_in_threads.
+        if not future or future.cancelled() or future.exception():
             self._log.debug(f"received cancel notification on {future}")
             self.canceled = True
 
