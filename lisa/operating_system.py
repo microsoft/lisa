@@ -185,14 +185,14 @@ class Ubuntu(Linux):
         return re.compile("^Ubuntu|ubuntu$")
 
     def _initialize_package_installation(self) -> None:
-        self._node.execute("sudo apt-get update")
+        self._node.execute("apt-get update", sudo=True)
 
     def _install_packages(self, packages: Union[List[str]]) -> None:
         command = (
-            f"sudo DEBIAN_FRONTEND=noninteractive "
+            f"DEBIAN_FRONTEND=noninteractive "
             f"apt-get -y install {' '.join(packages)}"
         )
-        self._node.execute(command)
+        self._node.execute(command, sudo=True)
 
 
 class Debian(Ubuntu):
@@ -225,7 +225,8 @@ class Redhat(Linux):
 
     def _install_packages(self, packages: Union[List[str]]) -> None:
         self._node.execute(
-            f"sudo DEBIAN_FRONTEND=noninteractive yum install -y {' '.join(packages)}"
+            f"DEBIAN_FRONTEND=noninteractive yum install -y {' '.join(packages)}",
+            sudo=True,
         )
 
 
@@ -254,8 +255,8 @@ class Suse(Linux):
         self._node.execute("zypper --non-interactive --gpg-auto-import-keys update")
 
     def _install_packages(self, packages: Union[List[str]]) -> None:
-        command = f"sudo zypper --non-interactive in  {' '.join(packages)}"
-        self._node.execute(command)
+        command = f"zypper --non-interactive in  {' '.join(packages)}"
+        self._node.execute(command, sudo=True)
 
 
 class NixOS(Linux):

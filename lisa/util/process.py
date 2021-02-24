@@ -47,6 +47,7 @@ class Process:
         self,
         command: str,
         shell: bool = False,
+        sudo: bool = False,
         cwd: Optional[pathlib.PurePath] = None,
         new_envs: Optional[Dict[str, str]] = None,
         no_error_log: bool = False,
@@ -68,14 +69,18 @@ class Process:
         self._stderr_writer = LogWriter(logger=self.stderr_logger, level=stderr_level)
 
         # command may be Path object, convert it to str
-        command = f"{command}"
+        command = str(command)
         if shell:
-            if self._is_linux:
-                split_command = ["sh", "-c"]
+            if not self._is_linux:
+                split_command = ["cmd", "/c", command]
+            elif sudo:
+                command = f"sudo -s {command}"
+                split_command = shlex.split(command, posix=self._is_linux)
             else:
-                split_command = ["cmd", "/c"]
-            split_command.append(command)
+                split_command = ["sh", "-c", command]
         else:
+            if sudo and self._is_linux:
+                command = f"sudo {command}"
             split_command = shlex.split(command, posix=self._is_linux)
 
         cwd_path: Optional[str] = None
@@ -86,10 +91,12 @@ class Process:
                 cwd_path = str(pathlib.PureWindowsPath(cwd))
 
         self._log.debug(
-            f"Linux({1 if self._is_linux else 0})"
-            f"Remote({1 if self._shell.is_remote else 0}): "
             f"cmd: {split_command}, "
-            f"cwd: {cwd_path}"
+            f"cwd: {cwd_path}, "
+            f"shell: {shell}, "
+            f"sudo: {sudo}, "
+            f"linux: {self._is_linux}, "
+            f"remote: {self._shell.is_remote}"
         )
 
         if new_envs is None:

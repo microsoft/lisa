@@ -182,6 +182,7 @@ class Tool(ABC, InitializableMixin):
         self,
         parameters: str = "",
         shell: bool = False,
+        sudo: bool = False,
         no_error_log: bool = False,
         no_info_log: bool = True,
         cwd: Optional[pathlib.PurePath] = None,
@@ -196,7 +197,8 @@ class Tool(ABC, InitializableMixin):
             command = self.command
         return self.node.execute_async(
             command,
-            shell,
+            shell=shell,
+            sudo=sudo,
             no_error_log=no_error_log,
             cwd=cwd,
             no_info_log=no_info_log,
@@ -206,6 +208,7 @@ class Tool(ABC, InitializableMixin):
         self,
         parameters: str = "",
         shell: bool = False,
+        sudo: bool = False,
         no_error_log: bool = False,
         no_info_log: bool = True,
         cwd: Optional[pathlib.PurePath] = None,
@@ -217,6 +220,7 @@ class Tool(ABC, InitializableMixin):
         process = self.run_async(
             parameters=parameters,
             shell=shell,
+            sudo=sudo,
             no_error_log=no_error_log,
             no_info_log=no_info_log,
             cwd=cwd,
@@ -273,6 +277,7 @@ class CustomScript(Tool):
         self,
         parameters: str = "",
         shell: bool = False,
+        sudo: bool = False,
         no_error_log: bool = False,
         no_info_log: bool = True,
         cwd: Optional[pathlib.PurePath] = None,
@@ -287,6 +292,7 @@ class CustomScript(Tool):
         return self.node.execute_async(
             cmd=command,
             shell=shell,
+            sudo=sudo,
             no_error_log=no_error_log,
             no_info_log=no_info_log,
             cwd=self._cwd,
@@ -296,6 +302,7 @@ class CustomScript(Tool):
         self,
         parameters: str = "",
         shell: bool = False,
+        sudo: bool = False,
         no_error_log: bool = False,
         no_info_log: bool = True,
         cwd: Optional[pathlib.PurePath] = None,
@@ -304,6 +311,7 @@ class CustomScript(Tool):
         process = self.run_async(
             parameters=parameters,
             shell=shell,
+            sudo=sudo,
             no_error_log=no_error_log,
             no_info_log=no_info_log,
             cwd=cwd,

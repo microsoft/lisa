@@ -64,7 +64,7 @@ class Dmesg(Tool):
             result = self.run(no_error_log=True)
             if result.exit_code != 0:
                 # may need sudo
-                result = self.node.execute("sudo dmesg")
+                result = self.run(sudo=True)
             self._cached_result = result
         else:
             result = self._cached_result

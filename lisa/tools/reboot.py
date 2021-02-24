@@ -56,7 +56,7 @@ class Reboot(Tool):
         # Get reboot execution path
         # Not all distros have the same reboot execution path
         command_result = self.node.execute(
-            "sudo -s command -v reboot", shell=True, no_info_log=True
+            "command -v reboot", shell=True, sudo=True, no_info_log=True
         )
         if command_result.exit_code == 0:
             self._command = command_result.stdout
@@ -65,7 +65,7 @@ class Reboot(Tool):
             # Reboot is not reliable, and sometime stucks,
             # like SUSE sles-15-sp1-sapcal gen1 2020.10.23.
             # In this case, use timeout to prevent hanging.
-            self.node.execute(f"sudo {self.command}", timeout=10)
+            self.node.execute(self.command, sudo=True, timeout=10)
         except Exception as identifier:
             # it doesn't matter to exceptions here. The system may reboot fast
             self._log.debug(f"ignorable exception on rebooting: {identifier}")
