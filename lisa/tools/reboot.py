@@ -53,16 +53,6 @@ class Reboot(Tool):
             sleep(wait_seconds)
             current_delta = date.current().replace(tzinfo=None) - current_boot_time
 
-        # sudo not enabled for test user in some distros.
-        # e.g. firemon firemon_sip_azure firemon_sip_azure_byol 9.1.3.
-        command_result = self.node.execute(
-            "command -v sudo", shell=True, no_info_log=True
-        )
-        if command_result.exit_code != 0:
-            raise LisaException(
-                "the system doesn't support [command] or [sudo], cannot perform reboot."
-            )
-
         # Get reboot execution path
         # Not all distros have the same reboot execution path
         command_result = self.node.execute(
