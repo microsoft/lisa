@@ -80,7 +80,8 @@ function Start-LISAv2 {
 		[switch] $RunInParallel,
 		[int]    $TotalCountInParallel,
 		[object] $ParamsInParallel,
-		[string] $TestIdInParallel
+		[string] $TestIdInParallel,
+		[int]    $ParallelTimeoutHours
 	)
 
 	PROCESS {

@@ -78,6 +78,7 @@ Class TestController {
 	[int] $TotalCountInParallel
 	[object] $ParamsInParallel
 	[string] $TestIdInParallel
+	[int] $ParallelTimeoutHours
 
 	[void] SyncEquivalentCustomParameters([string] $Key, [string] $Value) {
 		if ($Value) {
@@ -134,6 +135,11 @@ Class TestController {
 		if (!$this.TotalCountInParallel) {
 			$processorCount = (Get-WmiObject -class Win32_ComputerSystem).numberoflogicalprocessors
 			$this.TotalCountInParallel = [math]::Ceiling($processorCount / 2)
+		}
+		$this.ParallelTimeoutHours = $ParamTable["ParallelTimeoutHours"]
+		# Set the default timeout value to be 2 days
+		if (-not $this.ParallelTimeoutHours) {
+			$this.ParallelTimeoutHours = 48
 		}
 		$this.ParamsInParallel = $ParamTable["ParamsInParallel"]
 		$this.TestIdInParallel = $ParamTable["TestIdInParallel"]
@@ -592,7 +598,7 @@ Class TestController {
 		return $currentTestResult
 	}
 
-	[void] RunTestCasesInParallel([int] $CountInParallel) {
+	[void] RunTestCasesInParallel([int] $CountInParallel, [int] $ParallelTimeoutHours) {
 		$this.ParamsInParallel.Remove("RunInParallel")
 		$this.ParamsInParallel.Remove("TotalCountInParallel")
 		$parallelJobIds = [System.Collections.ArrayList]@()
@@ -607,7 +613,9 @@ Class TestController {
 			$null = $parallelJobIds.Add($parallelJob.Id)
 		}
 		$parallelTestSummary = [System.Collections.ArrayList]@()
-		while ($parallelJobIds.Count -gt 0) {
+		$timeout = New-Timespan -Hours $ParallelTimeoutHours
+		$sw = [diagnostics.stopwatch]::StartNew()
+		while ($parallelJobIds.Count -gt 0 -and $sw.elapsed -lt $timeout) {
 			for ($i = 0; $i -lt $parallelJobIds.Count; ) {
 				$jobId = $parallelJobIds[$i]
 				$parallelJob = Get-Job -Id $jobId
@@ -618,6 +626,8 @@ Class TestController {
 					Write-LogInfo "$($parallelJob.Name) finished with State: [$($parallelJob.State)]"
 					Remove-Job $parallelJob -Force
 					$parallelJobIds.RemoveAt($i)
+					# After removing the job ID from the array, the index of next item should reduce 1
+					$i--
 					$LogFile = Get-Item "$PSScriptRoot\..\TestResults\*$($parallelJob.Name)\*$($parallelJob.Name).log" | Sort-Object CreationTime -Descending | Select-Object -First 1
 					if ($logFile) {
 						#[INFO ] LISAv2 exit code: 0
@@ -667,6 +677,20 @@ Class TestController {
 				if ($i -eq $parallelJobIds.Count) {
 					Write-LogInfo "There are $($parallelJobIds.Count) jobs are still running, will check again after 180 seconds..."
 					Start-Sleep -Seconds 180
+				}
+			}
+		}
+		if ($parallelJobIds.Count -gt 0) {
+			Write-LogErr "Test execution time exceeds $ParallelTimeoutHours hours, stopping the running jobs..."
+			for ($i = 0; $i -lt $parallelJobIds.Count; $i++) {
+				$jobId = $parallelJobIds[$i]
+				$parallelJob = Get-Job -Id $jobId -ErrorAction SilentlyContinue
+				if ($parallelJob) {
+					Write-LogWarn "Stopping job $($parallelJob.Name)"
+					Stop-Job $parallelJob -ErrorAction SilentlyContinue
+					Remove-Job $parallelJob -Force
+				} else {
+					Write-LogErr "Cannot find the job of ID $jobId"
 				}
 			}
 		}
@@ -857,7 +881,7 @@ Class TestController {
 			$this.RunTestCasesInSequence($TestIterations)
 		}
 		else {
-			$this.RunTestCasesInParallel($this.TotalCountInParallel)
+			$this.RunTestCasesInParallel($this.TotalCountInParallel, $this.ParallelTimeoutHours)
 		}
 
 		$this.JunitReport.CompleteLogTestSuite("LISAv2Test-$($this.TestPlatform)")

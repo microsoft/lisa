@@ -125,7 +125,8 @@ Param(
 	[switch] $ReuseVMOnFailure,
 	[switch] $RunInParallel,
 	[int]    $TotalCountInParallel,
-	[string] $TestIdInParallel
+	[string] $TestIdInParallel,
+	[int]    $ParallelTimeoutHours
 )
 
 Set-Location $PSScriptRoot
