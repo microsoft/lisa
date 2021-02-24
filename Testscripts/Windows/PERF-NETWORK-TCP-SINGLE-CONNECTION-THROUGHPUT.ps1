@@ -109,7 +109,7 @@ function Consume-Iperf3Results {
 
     foreach ($perfResult in $Iperf3Results) {
         $resultMap = @{}
-        $resultMap["TestCaseName"] = $TestCaseName
+        $resultMap["TestCaseName"] = $currentTestData.testName
         $resultMap["DataPath"] = $DataPath
         $resultMap["TestDate"] = $TestDate
         $resultMap["HostBy"] = $CurrentTestData.SetupConfig.TestLocation
