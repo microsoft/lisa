@@ -1,3 +1,4 @@
+import threading
 from dataclasses import dataclass
 from enum import Enum
 from typing import Any, Dict, List, Optional, Type
@@ -63,6 +64,10 @@ class Notifier(subclasses.BaseClassWithRunbookMixin, InitializableMixin):
 
 _notifiers: List[Notifier] = []
 _messages: Dict[type, List[Notifier]] = dict()
+# prevent concurrent message conflict.
+_message_queue: List[MessageBase] = []
+_message_queue_lock = threading.Lock()
+_notifying_lock = threading.Lock()
 
 
 # below methods uses to operate a global notifiers,
@@ -93,10 +98,22 @@ def initialize(runbooks: List[schema.Notifier]) -> None:
 
 def notify(message: MessageBase) -> None:
     # TODO make it async for performance consideration
-    notifiers = _messages.get(type(message))
-    if notifiers:
-        for notifier in notifiers:
-            notifier._received_message(message=message)
+
+    # to make sure message get order as possible, use a queue to hold messages.
+    with _message_queue_lock:
+        _message_queue.append(message)
+    while len(_message_queue) > 0:
+        # send message one by one
+        with _notifying_lock:
+            with _message_queue_lock:
+                current_message: Optional[MessageBase] = None
+                if len(_message_queue) > 0:
+                    current_message = _message_queue.pop()
+            if current_message:
+                notifiers = _messages.get(type(current_message))
+                if notifiers:
+                    for notifier in notifiers:
+                        notifier._received_message(message=current_message)
 
 
 def finalize() -> None:
