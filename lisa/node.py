@@ -129,6 +129,7 @@ class Node(ContextMixin, InitializableMixin):
         self,
         cmd: str,
         shell: bool = False,
+        sudo: bool = False,
         no_error_log: bool = False,
         no_info_log: bool = True,
         cwd: Optional[pathlib.PurePath] = None,
@@ -137,6 +138,7 @@ class Node(ContextMixin, InitializableMixin):
         process = self.execute_async(
             cmd,
             shell=shell,
+            sudo=sudo,
             no_error_log=no_error_log,
             no_info_log=no_info_log,
             cwd=cwd,
@@ -147,14 +149,22 @@ class Node(ContextMixin, InitializableMixin):
         self,
         cmd: str,
         shell: bool = False,
+        sudo: bool = False,
         no_error_log: bool = False,
         no_info_log: bool = True,
         cwd: Optional[pathlib.PurePath] = None,
     ) -> Process:
         self.initialize()
+
+        if sudo and not self.support_sudo:
+            raise LisaException(
+                f"node doesn't support [command] or [sudo], cannot execute: {cmd}"
+            )
+
         return self._execute(
             cmd,
             shell=shell,
+            sudo=sudo,
             no_error_log=no_error_log,
             no_info_log=no_info_log,
             cwd=cwd,
@@ -239,6 +249,7 @@ class Node(ContextMixin, InitializableMixin):
                 self.working_path = pathlib.PureWindowsPath(result.stdout)
         else:
             self.working_path = constants.RUN_LOCAL_PATH
+
         self.shell.mkdir(self.working_path, parents=True, exist_ok=True)
         self.log.debug(f"working path is: '{self.working_path}'")
         self.is_connected = True
@@ -247,6 +258,7 @@ class Node(ContextMixin, InitializableMixin):
         self,
         cmd: str,
         shell: bool = False,
+        sudo: bool = False,
         no_error_log: bool = False,
         no_info_log: bool = False,
         cwd: Optional[pathlib.PurePath] = None,
@@ -256,6 +268,7 @@ class Node(ContextMixin, InitializableMixin):
         process.start(
             cmd,
             shell=shell,
+            sudo=sudo,
             no_error_log=no_error_log,
             no_info_log=no_info_log,
             cwd=cwd,

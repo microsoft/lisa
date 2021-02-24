@@ -4,6 +4,7 @@ from typing import cast
 from lisa.executable import Tool
 from lisa.operating_system import Linux
 from lisa.tools import Gcc
+from lisa.util import LisaException
 
 
 class Make(Tool):
@@ -23,4 +24,11 @@ class Make(Tool):
         return self._check_exists()
 
     def make_and_install(self, cwd: PurePath) -> None:
-        self.run("&& sudo make install", shell=True, cwd=cwd)
+        make_result = self.run(shell=True, cwd=cwd)
+        if make_result.exit_code == 0:
+            # install with sudo
+            self.node.execute("make install", shell=True, sudo=True, cwd=cwd)
+        else:
+            raise LisaException(
+                f"make commadn got non-zero exit code: {make_result.exit_code}"
+            )
