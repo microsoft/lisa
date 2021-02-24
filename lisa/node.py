@@ -65,6 +65,7 @@ class Node(ContextMixin, InitializableMixin):
         node_id = str(self.index) if self.index >= 0 else ""
         self.log = get_logger(logger_name, node_id)
 
+        self._support_sudo: Optional[bool] = None
         self._connection_info: Optional[ConnectionInfo] = None
         self._node_information_hooks: List[Callable[[Node, Dict[str, str]], None]] = []
         self.add_node_information_hook(_get_node_information)
@@ -163,6 +164,25 @@ class Node(ContextMixin, InitializableMixin):
     def is_linux(self) -> bool:
         self.initialize()
         return self.os.is_linux
+
+    @property
+    def support_sudo(self) -> bool:
+        self.initialize()
+
+        # check if sudo supported
+        if self.is_linux and self._support_sudo is None:
+            process = self._execute("command -v sudo", shell=True, no_info_log=True)
+            result = process.wait_result(10)
+            if result.exit_code == 0:
+                self._support_sudo = True
+            else:
+                self._support_sudo = False
+                self.log.debug("node doesn't support sudo, may cause failure later.")
+        if self._support_sudo is None:
+            # set Windows to true to ignore sudo asks.
+            self._support_sudo = True
+
+        return self._support_sudo
 
     def close(self) -> None:
         self.log.debug("closing node connection...")
