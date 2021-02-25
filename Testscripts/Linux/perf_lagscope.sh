@@ -104,8 +104,12 @@ else
 	cmd="lagscope"
 fi
 
-#Now, start lagscope on server and client VMs.
+# Enable busypoll
+core_mem_set_cmd="sysctl -w net.core.busy_poll=50; sysctl -w net.core.busy_read=50"
+ssh root@"${client}" "${core_mem_set_cmd}"
+ssh root@"${server}" "${core_mem_set_cmd}"
 
+#Now, start lagscope on server and client VMs.
 LogMsg "Now running Lagscope test"
 LogMsg "Starting server."
 ssh root@"${server}" "${cmd} -r${testServerIP}" &
