@@ -70,6 +70,14 @@ if [ ! "${nicName}" ]; then
 	exit 1
 fi
 
+if [ ! "${oneConnectionBufferSize}" ]; then
+	oneConnectionBufferSize=1048576
+fi
+
+if [ ! "${multiConnectionsBufferSize}" ]; then
+	multiConnectionsBufferSize=65536
+fi
+
 # Make & build ntttcp on client and server Machine
 LogMsg "Configuring client ${client}..."
 Run_SSHCommand "${client}" ". $UTIL_FILE && install_ntttcp ${ntttcpVersion} ${lagscopeVersion}"
@@ -259,6 +267,8 @@ Run_Ntttcp()
 		Run_SSHCommand "${server}" "${core_mem_set_cmd}"
 		Run_SSHCommand "${client}" "${core_mem_set_cmd}"
 	else
+		oneConnectionBufferSize=$(($oneConnectionBufferSize/1024))
+		multiConnectionsBufferSize=$(($multiConnectionsBufferSize/1024))
 		testType="tcp"
 		# Set sysctl config for creating more than 40960 connections
 		core_mem_set_cmd="sysctl -w kernel.pid_max=122880; sysctl -w vm.max_map_count=655300; sysctl -w net.ipv4.ip_local_port_range='1024 65535'"
@@ -298,15 +308,20 @@ Run_Ntttcp()
 			tx_log_prefix="sender-${testType}-p${num_threads_P}X${num_threads_n}.log"
 			rx_log_prefix="receiver-${testType}-p${num_threads_P}X${num_threads_n}.log"
 			run_msg="Running ${testType} Test: $current_test_threads connections : $num_threads_P X $num_threads_n X $client_count clients"
-			server_ntttcp_cmd="ulimit -n 204800 && ${ntttcp_cmd} -r${server} -P ${num_threads_P} -t ${testDuration} -e -W 1 -C 1"
+			if [ ${num_threads_P} -eq 1 ] && [ ${num_threads_n} -eq 1 ];
+			then
+				server_ntttcp_cmd="ulimit -n 204800 && ${ntttcp_cmd} -r${server} -P ${num_threads_P} -t ${testDuration} -e -W 1 -C 1 -b ${oneConnectionBufferSize}K"
+				client_ntttcp_cmd="ulimit -n 204800 && ${ntttcp_cmd} -s${server} -P ${num_threads_P} -n ${num_threads_n} -t ${testDuration} -W 1 -C 1 -b ${oneConnectionBufferSize}K"
+			else
+				server_ntttcp_cmd="ulimit -n 204800 && ${ntttcp_cmd} -r${server} -P ${num_threads_P} -t ${testDuration} -e -W 1 -C 1 -b ${multiConnectionsBufferSize}k"
+				client_ntttcp_cmd="ulimit -n 204800 && ${ntttcp_cmd} -s${server} -P ${num_threads_P} -n ${num_threads_n} -t ${testDuration} -W 1 -C 1 -b ${multiConnectionsBufferSize}k"
+			fi
 			if [[ "$mode" == "multi-clients" ]];
 			then
 				server_ntttcp_cmd+=" -M"
 			fi
-			client_ntttcp_cmd="ulimit -n 204800 && ${ntttcp_cmd} -s${server} -P ${num_threads_P} -n ${num_threads_n} -t ${testDuration} -W 1 -C 1"
 			Run_SSHCommand "${server}" "for i in {1..$testDuration}; do ss -ta | grep ESTA | grep -v ssh | wc -l >> ${log_folder}/tcp-connections-p${num_threads_P}X${num_threads_n}.log; sleep 1; done" &
 		fi
-
 
 		server_ntttcp_cmd=$(Get_VFName "${ntttcpVersion}" "${server}" "${server_ntttcp_cmd}")
 

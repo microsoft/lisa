@@ -12,6 +12,8 @@
       <param>testType=tcp</param>
       <param>testConnections=NTTTCP_TCP_CONNECTIONS</param>
       <param>ntttcpVersion=master</param>
+      <param>oneConnectionBufferSize=NTTTCP_TCP_ONE_CONNECTION_BUFFER_SIZE</param>
+      <param>multiConnectionsBufferSize=NTTTCP_TCP_MULTI_CONNECTIONS_BUFFER_SIZE</param>
       <param>lagscopeVersion=LAGSCOPE_VERSION</param>
     </TestParameters>
     <Platform>Azure,HyperV</Platform>
@@ -39,6 +41,8 @@
       <param>testType=tcp</param>
       <param>testConnections=NTTTCP_TCP_CONNECTIONS</param>
       <param>ntttcpVersion=master</param>
+      <param>oneConnectionBufferSize=NTTTCP_TCP_ONE_CONNECTION_BUFFER_SIZE</param>
+      <param>multiConnectionsBufferSize=NTTTCP_TCP_MULTI_CONNECTIONS_BUFFER_SIZE</param>
       <param>lagscopeVersion=LAGSCOPE_VERSION</param>
     </TestParameters>
     <Platform>Azure,HyperV</Platform>
