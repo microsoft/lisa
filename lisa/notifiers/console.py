@@ -1,6 +1,6 @@
 import logging
 from dataclasses import dataclass
-from typing import List, Type, cast
+from typing import Any, List, Type, cast
 
 from dataclasses_json import dataclass_json  # type: ignore
 
@@ -29,11 +29,14 @@ class Console(notifier.Notifier):
         return ConsoleSchema
 
     def _received_message(self, message: notifier.MessageBase) -> None:
-        runbook = cast(ConsoleSchema, self._runbook)
         self._log.log(
-            getattr(logging, runbook.log_level),
+            getattr(logging, self._log_level),
             f"received message [{message.type}]: {message}",
         )
 
     def _subscribed_message_type(self) -> List[Type[notifier.MessageBase]]:
         return [TestResultMessage, notifier.TestRunMessage]
+
+    def _initialize(self, *args: Any, **kwargs: Any) -> None:
+        runbook = cast(ConsoleSchema, self._runbook)
+        self._log_level = runbook.log_level
