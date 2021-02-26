@@ -1,3 +1,4 @@
+import json
 from functools import partial
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Set, cast
@@ -181,6 +182,7 @@ def load_runbook(path: Path, user_variables: Optional[List[str]]) -> schema.Runb
     Loads a runbook given a user-supplied path and set of variables.
     """
     constants.RUNBOOK_PATH = path.parent
+    constants.RUNBOOK_FILE = path
 
     # load lisa itself modules
     base_module_path = Path(__file__).parent.parent
@@ -204,6 +206,7 @@ def load_runbook(path: Path, user_variables: Optional[List[str]]) -> schema.Runb
     # replace variables:
     try:
         data = replace_variables(data, variables)
+        constants.RUNBOOK = json.dumps(data, indent=2)
     except Exception as identifier:
         # log current runbook for troubleshooting.
         log.info(f"current runbook: {data}")

@@ -7,7 +7,9 @@ CONFIG_RUNBOOK = "runbook"
 RUN_ID = ""
 RUN_NAME = ""
 
+RUNBOOK_FILE: Path
 RUNBOOK_PATH: Path
+RUNBOOK: str
 CACHE_PATH: Path
 RUN_LOCAL_PATH: Path = Path()
 RUN_LOGIC_PATH: PurePath = PurePath()
