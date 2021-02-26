@@ -425,12 +425,13 @@ class LogParser(InitializableMixin):
         Discover all cases names. The name may be duplicate by test matrix.
         """
         all_cases: List[Dict[str, str]] = []
-        count: int = 1
+        count: int = 0
         for line in self._line_iter():
             case_match = self.CASE_COLLECTED.match(line)
             if case_match:
                 case = {"name": case_match["name"]}
                 all_cases.append(case)
+                count = len(all_cases)
             count_match = self.CASE_EXPANEDED.match(line)
             if count_match:
                 count = int(count_match["count"])
