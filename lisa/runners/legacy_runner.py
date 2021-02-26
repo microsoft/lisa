@@ -310,13 +310,13 @@ class ResultStateManager:
         ), f"result name '{result.name}' doesn't match parsed name '{parsed_name}'"
 
         raw_status = information.pop("status")
-        if raw_status in ["FAIL", "ABORT"]:
+        if raw_status in ["FAIL", "ABORTED"]:
             status: TestStatus = TestStatus.FAILED
         elif raw_status == "PASS":
             status = TestStatus.PASSED
         elif raw_status == "RUNNING":
             status = TestStatus.RUNNING
-        elif raw_status == "SKIP":
+        elif raw_status == "SKIPPED":
             status = TestStatus.SKIPPED
         else:
             raise LisaException(f"unknown test status: {raw_status}")
