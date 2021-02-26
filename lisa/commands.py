@@ -29,14 +29,17 @@ async def run(args: Namespace) -> int:
 
     run_status = notifier.TestRunStatus.FAILED
     run_timer = create_timer()
+    run_error_message = ""
     try:
         runner = RootRunner(runbook)
         await runner.start()
         run_status = notifier.TestRunStatus.SUCCESS
+    except Exception as identifier:
+        run_error_message = str(identifier)
+        raise identifier
     finally:
         run_message = notifier.TestRunMessage(
-            status=run_status,
-            elapsed=run_timer.elapsed(),
+            status=run_status, elapsed=run_timer.elapsed(), message=run_error_message
         )
         notifier.notify(run_message)
         notifier.finalize()
