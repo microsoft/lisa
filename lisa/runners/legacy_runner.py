@@ -319,6 +319,12 @@ class ResultStateManager:
             status = TestStatus.SKIPPED
         else:
             raise LisaException(f"unknown test status: {raw_status}")
+        raw_platform = information.get("platform")
+        if raw_platform:
+            if raw_platform in ["Azure", "HyperV", "Ready"]:
+                information["platform"] = raw_platform.lower()
+            else:
+                raise LisaException(f"unknown test platform: {raw_platform}")
         message = information.pop("message", "")
         result.information.update(information)
         if result.status != status:
@@ -362,8 +368,21 @@ class LogParser(InitializableMixin):
     # find image and location information when case is running
     # SetupConfig: { ARMImageName: Canonical 0001-com-ubuntu-server-focal 20_04-lts
     #  20.04.202102010, TestLocation: westus2 }
+    # find image, vm size, location information when case is running
+    # SetupConfig: { ARMImageName: SUSE sles-15-sp1-sapcal gen1 2020.10.23,
+    # OverrideVMSize: Standard_DS4_v2, TestLocation: westus2 }
+    # find image, vm size, location, vm_generation information when case is running
+    # SetupConfig: { ARMImageName: canonical 0001-com-ubuntu-server-groovy-daily
+    #  20_10-daily-gen2 latest, OverrideVMSize: Standard_D2s_v3, TestLocation: westus2,
+    #  VMGeneration: 2 }
+    # find osvhd, vm size, location, vm_generation information when case is running
+    # SetupConfig: { OsVHD: http://storageaccount.blob.core.windows.net/vhds/test.vhd,
+    #  OverrideVMSize: Standard_E16s_v3, TestLocation: westus2, VMGeneration: 1 }
     CASE_IMAGE_LOCATION = re.compile(
-        r"SetupConfig: { ARMImageName: (?P<image>.+), TestLocation: (?P<location>.+) }"
+        r"SetupConfig: { (?:ARMImageName|OsVHD): (?P<image>.+?)(?:,"
+        r" OverrideVMSize: (?P<vmsize>.+?))?,"
+        r" TestLocation: (?P<location>.+?)"
+        r"(?:, VMGeneration: (?P<vm_generation>.+?))? }$"
     )
     # Test Location 'westus2' has VM Size 'Standard_DS1_v2' enabled and has enough
     #  quota for 'VERIFY-LINUX-CONFIGURATION' deployment
@@ -389,7 +408,8 @@ class LogParser(InitializableMixin):
     # ')
     CASE_COMPLETED = re.compile(
         r"SQLQuery\:  INSERT INTO LISATestTelemetry \(.*\) "
-        r"VALUES \('.*?','.*?','(?P<location>.*?)','.*?','.*?','(?P<name>.*?)',"
+        r"VALUES \('.*?','(?P<platform>.*?)','(?P<location>.*?)',"
+        r"'.*?','.*?','(?P<name>.*?)',"
         r"'(?P<status>.*?)','.*?','(?P<os>.*?)','(?P<kernel_version>.*?)','.*?','.*?',"
         r"'(?P<host_version>.*?)','(?P<vmsize>.*?)','.*?','(?P<image>.*?)','.*?',"
         r"'(?P<log_path>.*?)','.*?','.*?','.*?','(?P<message>[\w\W]*?)'\)"
