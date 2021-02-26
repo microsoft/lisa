@@ -90,7 +90,7 @@ def initialize(runbooks: List[schema.Notifier]) -> None:
             _messages[message_type] = registered_notifiers
         log.debug(
             f"registered [{notifier.type_name()}] "
-            f"on messages: [{[x.type for x in subscribed_message_types]}]"
+            f"on messages: {[x.type for x in subscribed_message_types]}"
         )
 
         notifier.initialize()
@@ -121,4 +121,4 @@ def finalize() -> None:
         try:
             notifier.finalize()
         except Exception as identifier:
-            notifier._log.info(f"finalize failed: {identifier}")
+            notifier._log.exception(identifier)
