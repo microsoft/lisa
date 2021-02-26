@@ -6,6 +6,7 @@ environment:
         - type: local
 notifier:
   - type: console
+  - type: html
 testcase:
   - criteria:
       area: demo
