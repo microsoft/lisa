@@ -4,7 +4,7 @@ from functools import partial
 from logging import FileHandler
 from typing import Any, Dict, List, Optional
 
-from lisa import notifier, schema
+from lisa import schema
 from lisa.action import Action
 from lisa.testsuite import TestResult, TestStatus
 from lisa.util import BaseClassMixin, constants, run_in_threads
@@ -91,11 +91,6 @@ class RootRunner(Action):
         finally:
             for runner in self._runners:
                 runner.close()
-
-        run_message = notifier.TestRunMessage(
-            status=notifier.TestRunStatus.SUCCESS,
-        )
-        notifier.notify(run_message)
 
         test_results = list(itertools.chain(*raw_results))
         self._output_results(test_results)
