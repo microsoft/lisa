@@ -192,14 +192,10 @@ class ResultStateManager:
                     new_running_cases.remove(running_case)
                     not_matched_results.remove(result)
                     break
-        try:
-            assert (
-                not not_matched_results
-            ), f"not matched should be empty, but {not_matched_results}"
-        except AssertionError as identifier:
-            # provide more information for troubleshooting
-            self.log.info(f"parsed running cases: {[running_cases]}")
-            raise identifier
+        assert not not_matched_results, (
+            f"not matched should be empty, but {not_matched_results}"
+            f"parsed running cases: {[running_cases]}"
+        )
 
         # set new running case information
         notrun_results = [x for x in self._results if x.status == TestStatus.NOTRUN]
@@ -229,17 +225,14 @@ class ResultStateManager:
                     new_completed_cases.remove(completed_case)
                     not_matched_results.remove(result)
                     break
-        try:
-            assert (
-                not not_matched_results
-            ), f"not matched should be empty, but {not_matched_results}"
-        except AssertionError as identifier:
-            # provide more information for troubleshooting
-            self.log.info(f"parsed completed cases: {[completed_cases]}")
-            raise identifier
+        assert not not_matched_results, (
+            f"not matched should be empty, but {not_matched_results}"
+            f"parsed completed cases: {[completed_cases]}"
+        )
 
         # set new completed case information
         running_results = [x for x in self._results if x.status == TestStatus.RUNNING]
+        not_matched_cases = new_completed_cases[:]
         for completed_case in new_completed_cases:
             for result in running_results:
                 if self._is_matched_infomation(result, completed_case):
@@ -250,7 +243,11 @@ class ResultStateManager:
                     )
                     # every running result just match one
                     running_results.remove(result)
+                    not_matched_cases.remove(completed_case)
                     break
+        assert (
+            not not_matched_cases
+        ), f"found unmatched completed results: {[not_matched_cases]}"
 
     def _get_name(self, name: str) -> str:
         return f"legacy.{name}"
@@ -280,15 +277,30 @@ class ResultStateManager:
             result_vmsize = ""
             information_vmsize = ""
 
+        # When user specifies both "latest" and explict versions,
+        #  they may be mismatched with below logic.
+        # Leave it as it is in this cornner case.
+        result_image = result.information.get("image", "")
+        information_image = information.get("image", "")
+        # We need below Conversion since
+        #   LISAv2 may resolve the 'latest' into explict version
+        if result_image.lower().endswith(
+            " latest"
+        ) or information_image.lower().endswith(" latest"):
+            result_image = " ".join(result_image.split(" ")[:-1])
+            information_image = " ".join(information_image.split(" ")[:-1])
+            if result_image != information_image:
+                return False
+
         result_key = self._get_case_key(
             result.name,
-            result.information["image"],
+            result_image,
             result.information["location"],
             result_vmsize,
         )
         information_key = self._get_case_key(
             information["name"],
-            information["image"],
+            information_image,
             information["location"],
             information_vmsize,
         )
