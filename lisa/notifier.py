@@ -33,6 +33,7 @@ class TestRunMessage(MessageBase):
     test_pass: str = ""
     tags: Optional[List[str]] = None
     run_name: str = ""
+    message: str = ""
 
 
 class Notifier(subclasses.BaseClassWithRunbookMixin, InitializableMixin):
