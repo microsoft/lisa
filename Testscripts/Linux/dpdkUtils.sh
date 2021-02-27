@@ -229,6 +229,9 @@ function Install_Dpdk () {
 			then
 				LogMsg "Adding dpdk repo to ${DISTRO_NAME} ${DISTRO_VERSION} for DPDK test..."
 				ssh "${1}" ". utils.sh && CheckInstallLockUbuntu && add-apt-repository ppa:canonical-server/dpdk-azure -y"
+				ssh "${1}" ". utils.sh && CheckInstallLockUbuntu && add-apt-repository -y ppa:deadsnakes/ppa -y"
+				ssh "${1}" "apt update -y && apt-get install -y python3.6"
+				ssh "${1}" "rm -rf /usr/bin/python3 && ln -s /usr/bin/python3.6 /usr/bin/python3"
 			else
 				packages+=(rdma-core)
 			fi
