@@ -139,7 +139,7 @@ function Main {
     $resultArr = @()
 
     try {
-	    $currentTestResult = Create-TestResultObject
+        $currentTestResult = Create-TestResultObject
         # Validate test setup
         $clientVMExists = $false
         $serverVMExists = $false
