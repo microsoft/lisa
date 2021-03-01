@@ -1,3 +1,4 @@
+import copy
 import json
 import logging
 import os
@@ -195,7 +196,7 @@ class AzureNodeSchema:
 
     @gallery.setter
     def gallery(self, value: Optional[AzureVmGallerySchema]) -> None:
-        self._status = value
+        self._gallery = value
         if value is None:
             self.gallery_raw = None
         else:
@@ -808,10 +809,18 @@ class AzurePlatform(Platform):
                 # set to default gallery, if nothing secified
                 azure_node_runbook.gallery = AzureVmGallerySchema()
 
+            if azure_node_runbook.gallery:
+                # resolve Latest to specified version
+                azure_node_runbook.gallery = self._parse_gallery_image(
+                    azure_node_runbook.location, azure_node_runbook.gallery
+                )
             if azure_node_runbook.gallery and not azure_node_runbook.purchase_plan:
                 azure_node_runbook.purchase_plan = self._process_gallery_image_plan(
                     azure_node_runbook.location, azure_node_runbook.gallery
                 )
+            # save parsed runbook back, for example, the version of gallery may be
+            # parsed from latest to a specified version.
+            node.capability.set_extended_runbook(azure_node_runbook)
             nodes_parameters.append(azure_node_runbook)
 
             if not arm_parameters.location:
@@ -1136,20 +1145,12 @@ class AzurePlatform(Platform):
             self._eligible_capabilities[location] = location_capabilities
         return self._eligible_capabilities[location]
 
-    def _process_gallery_image_plan(
+    def _parse_gallery_image(
         self, location: str, gallery: AzureVmGallerySchema
-    ) -> Optional[PurchasePlan]:
-        """
-        this method to fill plan, if a VM needs it. If don't fill it, the deployment
-        will be failed.
-
-        1. Convert latest to a specified version, which is required by get API.
-        2. Get image_info to check if there is a plan.
-        3. If there is a plan, it may need to check and accept terms.
-        """
+    ) -> AzureVmGallerySchema:
         compute_client = get_compute_client(self)
-        version = gallery.version.lower()
-        if version == "latest":
+        new_gallery = copy.copy(gallery)
+        if gallery.version.lower() == "latest":
             # latest doesn't work, it needs a specified version.
             versioned_images = compute_client.virtual_machine_images.list(
                 location=location,
@@ -1158,13 +1159,26 @@ class AzurePlatform(Platform):
                 skus=gallery.sku,
             )
             # any one should be the same to get purchase plan
-            version = versioned_images[-1].name
+            new_gallery.version = versioned_images[-1].name
+        return new_gallery
+
+    def _process_gallery_image_plan(
+        self, location: str, gallery: AzureVmGallerySchema
+    ) -> Optional[PurchasePlan]:
+        """
+        this method to fill plan, if a VM needs it. If don't fill it, the deployment
+        will be failed.
+
+        1. Get image_info to check if there is a plan.
+        2. If there is a plan, it may need to check and accept terms.
+        """
+        compute_client = get_compute_client(self)
         image_info = compute_client.virtual_machine_images.get(
             location=location,
             publisher_name=gallery.publisher,
             offer=gallery.offer,
             skus=gallery.sku,
-            version=version,
+            version=gallery.version,
         )
         plan: Optional[AzureVmPurchasePlanSchema] = None
         if image_info.plan:
