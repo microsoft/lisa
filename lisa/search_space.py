@@ -85,7 +85,11 @@ class IntRange(RequirementMixin):
             )
 
     def __repr__(self) -> str:
-        return f"[{self.min}-{self.max}],inc:{self.max_inclusive}"
+        max_value = self.max if self.max < sys.maxsize else ""
+        max_inclusive = ""
+        if max_value:
+            max_inclusive = "(inc)" if self.max_inclusive else "(exc)"
+        return f"[{self.min},{max_value}{max_inclusive}]"
 
     def check(self, capability: Any) -> ResultReason:
         result = ResultReason()
