@@ -453,7 +453,8 @@ class AzurePlatform(Platform):
                 # no location meet requirement
                 raise LisaException(
                     f"cannot find predefined vm size [{node_runbook.vm_size}] "
-                    f"in location [{locations}]"
+                    f"in location [{locations}]. "
+                    f"it may not be supported in current subscription."
                 )
             for location_name in locations:
                 # in each location, all node must be found
