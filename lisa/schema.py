@@ -109,31 +109,42 @@ class ListableValidator(validate.Validator):
 class ExtendableSchemaMixin:
     extended_schemas: CatchAll = field(default_factory=dict)
 
-    def get_extended_runbook(self, runbook_type: Type[T], field_name: str = "") -> T:
+    def get_extended_runbook(self, runbook_type: Type[T], type_name: str = "") -> T:
         """
         runbook_type: type of runbook
         field_name: the field name which stores the data, if it's "", get it from type
         """
         if not hasattr(self, "_extended_runbook"):
-            assert issubclass(
-                runbook_type, DataClassJsonMixin
-            ), "runbook_type must annotate from DataClassJsonMixin"
-            if not field_name:
-                assert hasattr(self, constants.TYPE), (
-                    f"cannot find type attr on '{runbook_type.__name__}'."
-                    f"either set field_name or make sure type attr exists."
-                )
-                field_name = getattr(self, constants.TYPE)
-
-            if self.extended_schemas and field_name in self.extended_schemas:
+            type_name = self.__resolve_type_name(
+                runbook_type=runbook_type, type_name=type_name
+            )
+            if self.extended_schemas and type_name in self.extended_schemas:
                 self._extended_runbook: T = runbook_type.schema().load(  # type:ignore
-                    self.extended_schemas[field_name]
+                    self.extended_schemas[type_name]
                 )
             else:
                 # value may be filled outside, so hold and return an object.
                 self._extended_runbook = runbook_type()
 
         return self._extended_runbook
+
+    def set_extended_runbook(self, runbook: Any, type_name: str = "") -> None:
+        self._extended_runbook = runbook
+        if self.extended_schemas and type_name in self.extended_schemas:
+            # save extended runbook back to raw dict
+            self.extended_schemas[type_name] = runbook.to_dict()
+
+    def __resolve_type_name(self, runbook_type: Type[Any], type_name: str) -> str:
+        assert issubclass(
+            runbook_type, DataClassJsonMixin
+        ), "runbook_type must annotate from DataClassJsonMixin"
+        if not type_name:
+            assert hasattr(self, constants.TYPE), (
+                f"cannot find type attr on '{runbook_type.__name__}'."
+                f"either set field_name or make sure type attr exists."
+            )
+            type_name = getattr(self, constants.TYPE)
+        return type_name
 
     def __repr__(self) -> str:
         result = ""

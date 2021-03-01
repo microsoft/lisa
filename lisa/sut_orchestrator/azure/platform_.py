@@ -785,7 +785,7 @@ class AzurePlatform(Platform):
                 node_space, schema.NodeSpace
             ), f"actual: {type(node_space)}"
             azure_node_runbook: AzureNodeSchema = node_space.get_extended_runbook(
-                AzureNodeSchema, field_name=AZURE
+                AzureNodeSchema, type_name=AZURE
             )
 
             # init node
