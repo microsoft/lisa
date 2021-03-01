@@ -78,12 +78,23 @@ class Platform(subclasses.BaseClassWithRunbookMixin, InitializableMixin):
         prepared_environments: List[Environment] = []
         for environment in environments.values():
             log = get_logger(f"prepare[{environment.name}]", parent=self._log)
-            is_success = self._prepare_environment(environment, log)
-            if is_success:
-                prepared_environments.append(environment)
-                environment.status = EnvironmentStatus.Prepared
-            else:
-                log.debug("dropped since no fit capability found")
+            is_success = False
+            reason: str = ""
+            try:
+                is_success = self._prepare_environment(environment, log)
+                if is_success:
+                    prepared_environments.append(environment)
+                    environment.status = EnvironmentStatus.Prepared
+                else:
+                    reason = "no capability found"
+            except Exception as identifier:
+                reason = str(identifier)
+            finally:
+                if not is_success:
+                    log.info(
+                        f"environment not prepared: {reason}. "
+                        f"environment: {environment.runbook}."
+                    )
 
         # sort by environment source and cost cases
         # user defined should be higher priority than test cases' requirement
