@@ -205,24 +205,42 @@ function Start-LISAv2 {
 			$zipFilePath = Join-Path (Get-Location).Path $zipFile
 			New-ZipFile -zipFileName $zipFilePath -sourceDir $LogDir
 
-			if (Test-Path -Path $TestReportXml) {
-				Write-LogInfo "Analyzing test results ..."
-				$results = $null
-				try {
-					$results = [xml](Get-Content $TestReportXml -ErrorAction SilentlyContinue)
-				} catch {
-					throw "Could not parse test results from the test report."
-				}
-				$testSuiteresults = $results.testsuites.testsuite
-				if (($testSuiteresults.failures -eq 0) `
-							-and ($testSuiteresults.errors -eq 0) `
-							-and ($testSuiteresults.tests -gt 0)) {
-					$ExitCode = 0
+			# for parallel run, only calculate the error counts in main process
+			if ($RunInParallel) {
+				$reportFiles = Get-ChildItem "$reportFolder" | Where-Object { $_.FullName -imatch "LISAv2_TestReport_${TestId}([\-\d])+junit.xml" }
+			# non-parallel run, and not the sub-process of parallel run
+			} elseif (-not $TestIdInParallel) {
+				$reportFiles = @(Get-Item -path $TestReportXml)
+			}
+
+			$ExitCode = 0
+			$failedCount = 0
+			$errorCount = 0
+			$testCount = 0
+			foreach ($reportFile in $reportFiles) {
+				$reportFilePath = $reportFile.FullName
+				Write-LogInfo "Analyzing test results from $reportFilePath ..."
+				if (Test-Path -Path $reportFilePath) {
+					try {
+						$results = [xml](Get-Content $reportFilePath -ErrorAction SilentlyContinue)
+					} catch {
+						throw "Could not parse test results from the test report."
+					}
+					$testSuiteresults = $results.testsuites.testsuite
+
+					$failedCount += [int] ($testSuiteresults.failures)
+					$errorCount += [int] ($testSuiteresults.errors)
+					$testCount += [int] ($testSuiteresults.tests)
 				} else {
+					Write-LogErr "Summary file: $reportFilePath does not exist. Exiting with error code 1."
 					$ExitCode = 1
+					return
 				}
+			}
+
+			if (($failedCount -eq 0 -and $errorCount -eq 0 -and $testCount -gt 0) -or (-not $RunInParallel -and $TestIdInParallel)) {
+				$ExitCode = 0
 			} else {
-				Write-LogErr "Summary file: $TestReportXml does not exist. Exiting with error code 1."
 				$ExitCode = 1
 			}
 		} catch {

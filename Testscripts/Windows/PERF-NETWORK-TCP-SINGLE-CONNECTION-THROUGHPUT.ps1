@@ -91,22 +91,9 @@ function Consume-Iperf3Results {
         $DataPath,
         $IPVersion,
         $ClientVMData,
-        $currentTestData
+        $currentTestData,
+        $currentTestResult
     )
-
-    $dataSource = $GlobalConfig.Global.$TestPlatform.ResultsDatabase.server
-    $user = $GlobalConfig.Global.$TestPlatform.ResultsDatabase.user
-    $password = $GlobalConfig.Global.$TestPlatform.ResultsDatabase.password
-    $database = $GlobalConfig.Global.$TestPlatform.ResultsDatabase.dbname
-    $dataTableName = $GlobalConfig.Global.$TestPlatform.ResultsDatabase.dbtable
-    $TestCaseName = $GlobalConfig.Global.$TestPlatform.ResultsDatabase.testTag
-    if (!$TestCaseName) {
-        $TestCaseName = $CurrentTestData.testName
-    }
-    if (!($dataSource -and $user -and $password -and $database -and $dataTableName)) {
-        Write-LogInfo "Invalid database details. Failed to upload result to database!"
-        return
-    }
 
     $TestDate = Get-Date -Format 'yyyy/MM/dd HH:mm:ss'
     $GuestDistro = cat "$LogDir\VM_properties.csv" | Select-String "OS type"| %{$_ -replace ",OS type,",""}
@@ -120,31 +107,39 @@ function Consume-Iperf3Results {
     }
     $ProtocolType = "TCP"
 
-    $SQLQuery = "INSERT INTO $dataTableName (TestCaseName,DataPath,TestDate,HostBy,HostOS,HostType,GuestSize,GuestOSType,GuestDistro,KernelVersion,IPVersion,ProtocolType,BufferSize_Bytes,RxThroughput_Gbps,TxThroughput_Gbps,RetransmittedSegments,CongestionWindowSize_KB) VALUES"
     foreach ($perfResult in $Iperf3Results) {
-        $BufferSize_Bytes = $perfResult["meta_data"]["buffer_length"]
-        $RxThroughput_Gbps = $perfResult["rx_throughput_gbps"]
-        $TxThroughput_Gbps = $perfResult["tx_throughput_gbps"]
-        $RetransmittedSegments = $perfResult["retransmitted_segments"]
-        $CongestionWindowSize_KB = $perfResult["congestion_windowsize_kb"]
+        $resultMap = @{}
+        $resultMap["TestCaseName"] = $currentTestData.testName
+        $resultMap["DataPath"] = $DataPath
+        $resultMap["TestDate"] = $TestDate
+        $resultMap["HostBy"] = $CurrentTestData.SetupConfig.TestLocation
+        $resultMap["HostOS"] = $HostOS
+        $resultMap["HostType"] = $TestPlatform
+        $resultMap["GuestSize"] = $GuestSize
+        $resultMap["GuestOSType"] = $GuestOSType
+        $resultMap["GuestDistro"] = $GuestDistro
+        $resultMap["KernelVersion"] = $KernelVersion
+        $resultMap["IPVersion"] = $IPVersion
+        $resultMap["ProtocolType"] = $ProtocolType
+        $resultMap["BufferSize_Bytes"] = $perfResult["meta_data"]["buffer_length"]
+        $resultMap["RxThroughput_Gbps"] = $perfResult["rx_throughput_gbps"]
+        $resultMap["TxThroughput_Gbps"] = $perfResult["tx_throughput_gbps"]
+        $resultMap["RetransmittedSegments"] = $perfResult["retransmitted_segments"]
+        $resultMap["CongestionWindowSize_KB"] = $perfResult["congestion_windowsize_kb"]
 
-        $SQLQuery += "('$TestCaseName','$DataPath','$TestDate','$($CurrentTestData.SetupConfig.TestLocation)','$HostOS','$TestPlatform','$GuestSize','$GuestOSType','$GuestDistro','$KernelVersion','$IPVersion','$ProtocolType','$BufferSize_Bytes','$RxThroughput_Gbps','$TxThroughput_Gbps','$RetransmittedSegments','$CongestionWindowSize_KB'),"
+        $currentTestResult.TestResultData += $resultMap
     }
-
-    Write-LogInfo "Uploading the test results.."
-    $SQLQuery = $SQLQuery.TrimEnd(',')
-    Upload-TestResultToDatabase $SQLQuery
 }
 
 
 function Main {
     param (
-        $TestParams, $AllVmData
+        $TestParams, $AllVmData, $CurrentTestData, $TestProvider
     )
     $resultArr = @()
 
     try {
-
+        $currentTestResult = Create-TestResultObject
         # Validate test setup
         $clientVMExists = $false
         $serverVMExists = $false
@@ -267,7 +262,7 @@ collect_VM_properties
             $iperf3Results | ConvertTo-Json | Out-File $iperf3ResutsFile -Encoding "ascii"
             Write-LogInfo "Perf results in json format saved at: ${iperf3ResutsFile}"
             Consume-Iperf3Results -Iperf3Results $iperf3Results -DataPath $DataPath -IPVersion $IPVersion `
-                -ClientVMData $clientVMData -currentTestData $currentTestData
+                -ClientVMData $clientVMData -currentTestData $currentTestData -currentTestResult $currentTestResult
         } elseif ($finalStatus -imatch "TestRunning") {
             Write-LogInfo "Powershell background job is completed but VM is reporting that test is still running. Please check $LogDir\ConsoleLogs.txt"
             $testResult = "FAIL"
@@ -290,4 +285,4 @@ collect_VM_properties
     return $currentTestResult
 }
 
-Main -TestParams (ConvertFrom-StringData $TestParams.Replace(";","`n")) -AllVmData $AllVmData
+Main -TestParams (ConvertFrom-StringData $TestParams.Replace(";","`n")) -AllVmData $AllVmData -CurrentTestData $CurrentTestData

@@ -657,7 +657,7 @@
       <OverrideVMSize>Standard_L64s_v2</OverrideVMSize>
       <SetupScript>.\Testscripts\Windows\SETUP-Check-PowerPlan.ps1,.\TestScripts\Windows\SETUP-Config-VM.ps1,.\Testscripts\Windows\SETUP-Add-NVME-Disk.ps1</SetupScript>
     </SetupConfig>
-    <DefaultResultTable>Perf_Network_Storage</DefaultResultTable>
+    <DefaultResultTable>Perf_Storage</DefaultResultTable>
   </test>
   <test>
     <testName>PERF-GOLANG-BENCHMARK</testName>
