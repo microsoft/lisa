@@ -143,6 +143,12 @@ class TestCaseRequirement:
     platform_type: Optional[search_space.SetSpace[str]] = None
     os_type: Optional[search_space.SetSpace[Type[OperatingSystem]]] = None
 
+    def __post_init__(self, *args: Any, **kwargs: Any) -> None:
+        if self.environment_status == EnvironmentStatus.Deployed and self.os_type:
+            raise LisaException(
+                "requirement doesn't support os_type, when status is Deployed"
+            )
+
 
 def simple_requirement(
     min_count: int = 1,
