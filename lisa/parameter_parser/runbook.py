@@ -132,9 +132,14 @@ def _load_data(path: Path, used_path: Set[str]) -> Any:
         # log.debug(f"{indent}found {len(parents_config)} parent runbooks")
         merged_data: Dict[str, Any] = {}
         for parent_config in parents_config:
-            parent: schema.Parent = schema.Parent.schema().load(  # type: ignore
-                parent_config
-            )
+            try:
+                parent: schema.Parent = schema.Parent.schema().load(  # type: ignore
+                    parent_config
+                )
+            except Exception as identifer:
+                raise LisaException(
+                    f"error on loading parent node [{parent_config}]: {identifer}"
+                )
             if parent.strategy:
                 raise NotImplementedError("Parent doesn't implement Strategy")
 
