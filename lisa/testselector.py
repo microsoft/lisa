@@ -158,12 +158,12 @@ def _apply_filter(  # noqa: C901
     # TODO: Reduce this function's complexity and remove the disabled warning.
 
     log = _get_logger()
-    # initialize criterias
+    # initialize criteria
     patterns: List[Callable[[Union[TestCaseRuntimeData, TestCaseMetadata]], bool]] = []
-    criterias_runbook = case_runbook.criteria
-    assert criterias_runbook, "test case criteria cannot be None"
-    criterias_runbook_dict = criterias_runbook.__dict__
-    for runbook_key, runbook_value in criterias_runbook_dict.items():
+    criteria_runbook = case_runbook.criteria
+    assert criteria_runbook, "test case criteria cannot be None"
+    criteria_runbook_dict = criteria_runbook.__dict__
+    for runbook_key, runbook_value in criteria_runbook_dict.items():
         if runbook_value is None:
             continue
         if runbook_key in [
@@ -171,19 +171,19 @@ def _apply_filter(  # noqa: C901
             constants.TESTCASE_CRITERIA_AREA,
             constants.TESTCASE_CRITERIA_CATEGORY,
         ]:
-            pattern = cast(str, criterias_runbook_dict[runbook_key])
+            pattern = cast(str, criteria_runbook_dict[runbook_key])
             expression = re.compile(pattern)
             patterns.append(
                 partial(_match_string, pattern=expression, attr_name=runbook_key)
             )
         elif runbook_key == constants.TESTCASE_CRITERIA_PRIORITY:
             priority_pattern = cast(
-                Union[int, List[int]], criterias_runbook_dict[runbook_key]
+                Union[int, List[int]], criteria_runbook_dict[runbook_key]
             )
             patterns.append(partial(_match_priority, pattern=priority_pattern))
         elif runbook_key == constants.TESTCASE_CRITERIA_TAGS:
             tag_pattern = cast(
-                Union[str, List[str]], criterias_runbook_dict[runbook_key]
+                Union[str, List[str]], criteria_runbook_dict[runbook_key]
             )
             patterns.append(partial(_match_tags, criteria_tags=tag_pattern))
         else:

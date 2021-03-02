@@ -244,13 +244,13 @@ class VariableTestCase(TestCase):
                 f"key: {secret_name}, value: {value}, "
                 f"expected: {expected_value}  should be secret",
             )
-        for key, unsecret_value in copied_variables.items():
+        for key, unsecured_value in copied_variables.items():
             with self.assertLogs("LISA") as cm:
-                log.info(f"MUST_NOT_SECRET[{unsecret_value}]")
+                log.info(f"MUST_NOT_SECRET[{unsecured_value}]")
             self.assertListEqual(
-                [f"INFO:LISA:MUST_NOT_SECRET[{unsecret_value}]"],
+                [f"INFO:LISA:MUST_NOT_SECRET[{unsecured_value}]"],
                 cm.output,
-                f"key: {key}, value: {unsecret_value} shouldn't be secret",
+                f"key: {key}, value: {unsecured_value} shouldn't be secret",
             )
 
     def _get_default_variables(self) -> Dict[str, variable.VariableEntry]:

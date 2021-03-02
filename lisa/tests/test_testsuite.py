@@ -152,10 +152,10 @@ def select_and_check(
     ut: TestCase, case_runbook: List[Any], expected_descriptions: List[str]
 ) -> List[TestCaseRuntimeData]:
     runbook = validate_data({constants.TESTCASE: case_runbook})
-    case_metadatas = generate_cases_metadata()
+    case_metadata = generate_cases_metadata()
     runbook.testcase = parse_testcase_filters(runbook.testcase_raw)
     filters = cast(List[schema.TestCase], runbook.testcase)
-    selected = select_testcases(filters, case_metadatas)
+    selected = select_testcases(filters, case_metadata)
     ut.assertListEqual(expected_descriptions, [case.description for case in selected])
 
     return selected

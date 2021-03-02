@@ -112,7 +112,7 @@ _format = logging.Formatter(
 _console_handler = logging.StreamHandler()
 
 
-def init_loggger() -> None:
+def init_logger() -> None:
     logging.Formatter.converter = time.gmtime
     logging.setLoggerClass(Logger)
     logging.root.handlers = []

@@ -19,7 +19,7 @@ class SelectorTestCase(TestCase):
         ]
         select_and_check(self, runbook, ["ut3"])
 
-    def test_select_by_priroity(self) -> None:
+    def test_select_by_priority(self) -> None:
         runbook = [{constants.TESTCASE_CRITERIA: {"priority": 0}}]
         select_and_check(self, runbook, ["ut1"])
 

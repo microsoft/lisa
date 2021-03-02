@@ -137,14 +137,14 @@ class Process:
         if self._result is None:
             # if not isinstance(self._process, ExecutableResult):
             assert self._process
-            proces_result = self._process.wait_for_result()
+            process_result = self._process.wait_for_result()
             self._stdout_writer.close()
             self._stderr_writer.close()
             # cache for future queries, in case it's queried twice.
             self._result = ExecutableResult(
-                proces_result.output.strip(),
-                proces_result.stderr_output.strip(),
-                proces_result.return_code,
+                process_result.output.strip(),
+                process_result.stderr_output.strip(),
+                process_result.return_code,
                 self._timer.elapsed(),
             )
             # TODO: The spur library is not very good and leaves open

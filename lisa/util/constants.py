@@ -38,7 +38,7 @@ OPERATION_REMOVE = "remove"
 OPERATION_ADD = "add"
 OPERATION_OVERWRITE = "overwrite"
 
-# typoplogies
+# topologies
 ENVIRONMENTS_SUBNET = "subnet"
 
 PARENT = "parent"

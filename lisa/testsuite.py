@@ -99,7 +99,7 @@ class TestResult:
         ):
             for node in environment.nodes.list():
                 # use __mro__ to match any super types.
-                # for example, Ubuntu satisifies Linux
+                # for example, Ubuntu satisfies Linux
                 node_os_capability = search_space.SetSpace[Type[OperatingSystem]](
                     is_allow_set=True, items=type(node.os).__mro__
                 )
@@ -413,8 +413,8 @@ class TestSuite:
                     # case is not run dynamically.
                     case_result.set_status(TestStatus.NOTRUN, f"{identifier}")
                 except PassedException as identifier:
-                    self.log.info(f"case parial passed: {identifier}")
-                    self.log.debug("case parial passed", exc_info=identifier)
+                    self.log.info(f"case partial passed: {identifier}")
+                    self.log.debug("case partial passed", exc_info=identifier)
                     # case can be passed with a warning.
                     case_result.set_status(TestStatus.PASSED, f"warning: {identifier}")
                 except Exception as identifier:
@@ -504,7 +504,7 @@ def _add_case_metadata(metadata: TestCaseMetadata) -> None:
         raise LisaException(f"duplicate test class name: {full_name}")
 
     # this should be None in current observation.
-    # the methods are loadded prior to test class
+    # the methods are loaded prior to test class
     # in case logic is changed, so keep this logic
     #   to make two collection consistent.
     class_name = full_name.split(".")[0]

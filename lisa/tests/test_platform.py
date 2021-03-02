@@ -106,7 +106,7 @@ class MockPlatform(Platform):
 
 def generate_platform(
     reserve_environment: Optional[Union[str, bool]] = False,
-    admin_password: str = "donot use for real",
+    admin_password: str = "do not use for real",
     admin_key_file: str = "",
 ) -> MockPlatform:
     runbook_data = {
@@ -120,7 +120,7 @@ def generate_platform(
     try:
         assert isinstance(platform, MockPlatform), f"actual: {type(platform)}"
     except AssertionError:
-        # as UT imported from tests package, instaed of from lisa.tests package
+        # as UT imported from tests package, instead of from lisa.tests package
         # ignore by assign type from current package
         platform = MockPlatform(runbook)
     return platform

@@ -112,7 +112,7 @@ class AzurePrepareTestCase(TestCase):
             environment=env,
         )
 
-    def test_predefiend_only_size(self) -> None:
+    def test_predefined_only_size(self) -> None:
         # predefined an eastus2 vm size, so all are to eastus2
         env = self.load_environment(node_req_count=2)
         self.set_node_runbook(env, 1, location="", vm_size="Standard_B1ls")
@@ -139,7 +139,7 @@ class AzurePrepareTestCase(TestCase):
             environment=env,
         )
 
-    def test_predefiend_inconsistent_location_failed(self) -> None:
+    def test_predefined_inconsistent_location_failed(self) -> None:
         # two locations westus2, and eastus2 predefined, so failed.
         env = self.load_environment(node_req_count=2)
         self.set_node_runbook(env, 0, location="eastus2")
@@ -176,7 +176,7 @@ class AzurePrepareTestCase(TestCase):
             environment=env,
         )
 
-    def test_predefiend_not_found_vm_size(self) -> None:
+    def test_predefined_not_found_vm_size(self) -> None:
         # vm size is not found
         env = self.load_environment(node_req_count=1)
         self.set_node_runbook(env, 0, location="", vm_size="not_exist")
@@ -186,7 +186,7 @@ class AzurePrepareTestCase(TestCase):
         self.assertEqual(message, str(cm.exception)[0 : len(message)])
 
     def test_predefined_wont_be_override(self) -> None:
-        # predefined node won't be overrided in loop
+        # predefined node won't be overridden in loop
         env = self.load_environment(node_req_count=3)
         self.set_node_runbook(env, 1, location="", vm_size="Standard_A8_v2")
         self.set_node_runbook(env, 2, location="eastus2", vm_size="")
@@ -222,7 +222,7 @@ class AzurePrepareTestCase(TestCase):
         )
 
     def test_normal_may_fit_2nd_location(self) -> None:
-        # normal req may fit into 2nd loaction, as 1st location not meet requirement
+        # normal req may fit into 2nd location, as 1st location not meet requirement
         env = self.load_environment(node_req_count=1)
         assert env.runbook.nodes_requirement
         env.runbook.nodes_requirement.append(
