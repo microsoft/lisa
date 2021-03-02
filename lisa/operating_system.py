@@ -1,3 +1,6 @@
+# Copyright (c) Microsoft Corporation.
+# Licensed under the MIT license.
+
 import re
 from functools import partial
 from typing import TYPE_CHECKING, Any, Iterable, List, Optional, Pattern, Type, Union

@@ -1,3 +1,6 @@
+# Copyright (c) Microsoft Corporation.
+# Licensed under the MIT license.
+
 from .cat import Cat
 from .date import Date
 from .dmesg import Dmesg

@@ -1,3 +1,6 @@
+# Copyright (c) Microsoft Corporation.
+# Licensed under the MIT license.
+
 from collections import OrderedDict
 from dataclasses import dataclass
 from typing import Any, List, Type, cast

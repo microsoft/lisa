@@ -1,3 +1,6 @@
+# Copyright (c) Microsoft Corporation.
+# Licensed under the MIT license.
+
 # copy from https://gist.github.com/lmazuel/cc683d82ea1d7b40208de7c9fc8de59d to
 #   be compatible with azure-mgmt-marketplaceordering=0.2.1. Once it's upgrade,
 #   the wrapper can be removed.

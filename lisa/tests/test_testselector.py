@@ -1,3 +1,6 @@
+# Copyright (c) Microsoft Corporation.
+# Licensed under the MIT license.
+
 from unittest import TestCase
 
 from lisa.tests.test_testsuite import cleanup_cases_metadata, select_and_check

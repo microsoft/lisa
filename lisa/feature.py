@@ -1,3 +1,6 @@
+# Copyright (c) Microsoft Corporation.
+# Licensed under the MIT license.
+
 from abc import abstractmethod
 from typing import TYPE_CHECKING, Any, Dict, Optional, Type, TypeVar, cast
 

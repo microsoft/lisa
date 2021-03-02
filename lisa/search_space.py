@@ -1,3 +1,6 @@
+# Copyright (c) Microsoft Corporation.
+# Licensed under the MIT license.
+
 import sys
 from abc import abstractmethod
 from dataclasses import dataclass, field

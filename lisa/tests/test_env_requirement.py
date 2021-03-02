@@ -1,3 +1,6 @@
+# Copyright (c) Microsoft Corporation.
+# Licensed under the MIT license.
+
 from dataclasses import dataclass
 from functools import partial
 from typing import Any, List, Optional, Type
