@@ -1,3 +1,6 @@
+# Copyright (c) Microsoft Corporation.
+# Licensed under the MIT license.
+
 import functools
 from argparse import Namespace
 from typing import Iterable, Optional, cast

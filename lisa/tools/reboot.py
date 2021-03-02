@@ -1,3 +1,6 @@
+# Copyright (c) Microsoft Corporation.
+# Licensed under the MIT license.
+
 from datetime import timedelta
 from time import sleep
 from typing import Any

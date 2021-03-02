@@ -1,3 +1,6 @@
+# Copyright (c) Microsoft Corporation.
+# Licensed under the MIT license.
+
 import re
 from functools import partial
 from typing import Callable, Dict, List, Mapping, Optional, Pattern, Set, Union, cast
