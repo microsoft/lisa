@@ -47,7 +47,7 @@ if [ ! -e /usr/bin/mbinfo ]; then
     exit 0
 fi
 
-output=$(sudo mbinfo)
+output=$(sudo /usr/bin/mbinfo)
 ret=$?
 LogMsg "$output"
 

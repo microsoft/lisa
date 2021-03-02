@@ -50,7 +50,7 @@ if [ ! -e /usr/local/bin/sbinfo ]; then
     exit 0
 fi
 
-SBEnforcementStage=$(sbinfo | grep SBEnforcementStage | sed -e s/'  "SBEnforcementStage": '//)
+SBEnforcementStage=$(/usr/local/bin/sbinfo | grep SBEnforcementStage | sed -e s/'  "SBEnforcementStage": '//)
 LogMsg "$SBEnforcementStage"
 
 if [[ "$SBEnforcementStage" == *"Secure Boot is enforced"* ]] || [[ "$SBEnforcementStage" == *"Secure Boot is not enforced"* ]]; then
