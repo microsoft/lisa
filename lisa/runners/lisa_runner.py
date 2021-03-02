@@ -94,7 +94,7 @@ class LisaRunner(BaseRunner):
                 except WaitMoreResourceError as identifier:
                     self._log.warning(
                         f"[{environment.name}] waiting for more resource: "
-                        f"{identifier}, skip assiging case"
+                        f"{identifier}, skip assigning case"
                     )
                     continue
                 except Exception as identifier:
@@ -190,7 +190,7 @@ class LisaRunner(BaseRunner):
         # try a case need new environment firstly
         if environment.is_new:
             for new_env_result in self._get_can_run_results(
-                results, use_new_environment=True, enviornment_status=environment.status
+                results, use_new_environment=True, environment_status=environment.status
             ):
                 self._check_cancel()
                 if new_env_result.check_environment(environment, True):
@@ -201,7 +201,7 @@ class LisaRunner(BaseRunner):
         grouped_cases: List[TestResult] = []
         current_test_suite: Optional[TestSuiteMetadata] = None
         for test_result in self._get_can_run_results(
-            results, use_new_environment=False, enviornment_status=environment.status
+            results, use_new_environment=False, environment_status=environment.status
         ):
             self._check_cancel()
             if test_result.check_environment(environment, True):
@@ -260,7 +260,7 @@ class LisaRunner(BaseRunner):
         self,
         source_results: List[TestResult],
         use_new_environment: Optional[bool] = None,
-        enviornment_status: Optional[EnvironmentStatus] = None,
+        environment_status: Optional[EnvironmentStatus] = None,
     ) -> List[TestResult]:
         results = [
             x
@@ -271,9 +271,9 @@ class LisaRunner(BaseRunner):
                 or x.runtime_data.use_new_environment == use_new_environment
             )
             and (
-                enviornment_status is None
+                environment_status is None
                 or x.runtime_data.metadata.requirement.environment_status
-                == enviornment_status
+                == environment_status
             )
         ]
         return results

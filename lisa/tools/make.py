@@ -30,5 +30,5 @@ class Make(Tool):
             self.node.execute("make install", shell=True, sudo=True, cwd=cwd)
         else:
             raise LisaException(
-                f"make commadn got non-zero exit code: {make_result.exit_code}"
+                f"'make' command got non-zero exit code: {make_result.exit_code}"
             )

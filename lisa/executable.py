@@ -42,7 +42,7 @@ class Tool(ABC, InitializableMixin):
     initialize: It's called when a tool is created, and before to call any other
                 methods. It can be used to initialize variables or time-costing
                 operations.
-    dependencies: All dependented tools, they will be checked and installed before
+    dependencies: All depended tools, they will be checked and installed before
                   current tool installed. For example, ntttcp uses git to clone code
                   and build. So it depends on Git tool.
 
@@ -109,7 +109,7 @@ class Tool(ABC, InitializableMixin):
     def _install(self) -> bool:
         """
         Execute installation process like build, install from packages. If other tools
-        are dependented, specify them in dependencies. Other tools can be used here,
+        are depended, specify them in dependencies. Other tools can be used here,
         refer to ntttcp implementation.
         """
         raise NotImplementedError()
@@ -169,7 +169,7 @@ class Tool(ABC, InitializableMixin):
     def install(self) -> bool:
         """
         Default behavior of install a tool, including dependencies. It doesn't need to
-        be overrided.
+        be overridden.
         """
         # check dependencies
         if self.dependencies:

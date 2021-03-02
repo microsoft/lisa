@@ -339,7 +339,7 @@ class AzurePlatform(Platform):
     def __init__(self, runbook: schema.Platform) -> None:
         super().__init__(runbook=runbook)
         self.credential: DefaultAzureCredential = None
-        self._enviornment_counter = 0
+        self._environment_counter = 0
         self._eligible_capabilities: Dict[str, List[AzureCapability]] = dict()
         self._locations_data_cache: Dict[str, AzureLocation] = dict()
 
@@ -359,7 +359,7 @@ class AzurePlatform(Platform):
         Main flow
 
         1. load location, vm size patterns firstly.
-        2. load avaiablbe vm sizes for each location.
+        2. load available vm sizes for each location.
         3. match vm sizes by pattern.
 
         for each environment
@@ -418,7 +418,7 @@ class AzurePlatform(Platform):
                         found_or_skipped = True
                         continue
 
-                    # find predefined vm size on all avaiable's.
+                    # find predefined vm size on all available's.
                     location_info: AzureLocation = self._get_location_info(
                         location_name, log
                     )
@@ -459,7 +459,7 @@ class AzurePlatform(Platform):
                 )
             for location_name in locations:
                 # in each location, all node must be found
-                # fill them as None and check after meeted capability
+                # fill them as None and check after met capability
                 found_capabilities: List[Any] = list(predefined_caps)
 
                 # skip unmatched location
@@ -529,8 +529,8 @@ class AzurePlatform(Platform):
             normalized_run_name = constants.NORMALIZE_PATTERN.sub(
                 "_", constants.RUN_NAME
             )
-            resource_group_name = f"{normalized_run_name}_e{self._enviornment_counter}"
-            self._enviornment_counter += 1
+            resource_group_name = f"{normalized_run_name}_e{self._environment_counter}"
+            self._environment_counter += 1
             environment_context.resource_group_is_created = True
 
         environment_context.resource_group_name = resource_group_name
@@ -597,8 +597,8 @@ class AzurePlatform(Platform):
                 delete_operation = self._rm_client.resource_groups.begin_delete(
                     resource_group_name
                 )
-            except Exception as indentifer:
-                log.debug(f"exception on delete resource group: {indentifer}")
+            except Exception as identifer:
+                log.debug(f"exception on delete resource group: {identifer}")
             if delete_operation and self._azure_runbook.wait_delete:
                 result = wait_operation(delete_operation)
                 if result:
@@ -629,7 +629,7 @@ class AzurePlatform(Platform):
 
         self.subscription_id = azure_runbook.subscription_id
 
-        # suspress warning message by search for different credential types
+        # suppress warning message by search for different credential types
         azure_identity_logger = getLogger("azure.identity")
         azure_identity_logger.setLevel(logging.ERROR)
         subscription = self._sub_client.subscriptions.get(self.subscription_id)
@@ -806,7 +806,7 @@ class AzurePlatform(Platform):
                 # vhd is higher priority
                 azure_node_runbook.gallery = None
             elif not azure_node_runbook.gallery:
-                # set to default gallery, if nothing secified
+                # set to default gallery, if nothing specified
                 azure_node_runbook.gallery = AzureVmGallerySchema()
 
             if azure_node_runbook.gallery:
@@ -922,10 +922,10 @@ class AzurePlatform(Platform):
             elif get_matched_str(error_message, AZURE_INTERNAL_ERROR_PATTERN):
                 # Similar situation with OSProvisioningTimedOut
                 # Some OSProvisioningInternalError caused by it doesn't support
-                # SSH key authentation
+                # SSH key authentication
                 # e.g. hpe hpestoreoncevsa hpestoreoncevsa-3187 3.18.7
                 # After passthrough this exception,
-                # actuatlly the 22 port of this VM is open.
+                # actually the 22 port of this VM is open.
                 log.error(
                     f"provisioning failed for an internal error, try to run case. "
                     f"Exception: {error_message}"

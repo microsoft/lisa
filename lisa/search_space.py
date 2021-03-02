@@ -241,7 +241,7 @@ class SetSpace(RequirementMixin, Set[T]):
             )
 
         assert isinstance(capability, SetSpace), f"actual: {type(capability)}"
-        assert capability.is_allow_set, "capatility must be allow set"
+        assert capability.is_allow_set, "capability must be allow set"
         # if self.options is not None:
         # cap_set = capability.options
         if result.result:
@@ -422,8 +422,8 @@ def generate_min_capability(
                 if result is None:
                     result = temp_min
                 else:
-                    # TODO: mutiple matches found, not supported well yet
-                    # It can be improvied by impelment __eq__, __lt__ functions.
+                    # TODO: multiple matches found, not supported well yet
+                    # It can be improved by implement __eq__, __lt__ functions.
                     result = min(result, temp_min)
     elif requirement is not None:
         result = requirement.generate_min_capability(capability)

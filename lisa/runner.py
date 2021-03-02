@@ -109,14 +109,14 @@ class RootRunner(Action):
         """
         exit sub tests, once received cancellation message from executor.
         """
-        # future is False, if it's called explictly by run_in_threads.
+        # future is False, if it's called explicitly by run_in_threads.
         if not future or future.cancelled() or future.exception():
             self._log.debug(f"set cancel signal on future: {future}")
             for runner in self._runners:
                 runner.canceled = True
 
     def _initialize_runners(self) -> None:
-        # group fitlers by runner type
+        # group filters by runner type
         runner_filters: Dict[str, List[schema.BaseTestCaseFilter]] = {}
         for raw_filter in self._runbook.testcase_raw:
             runner_type = raw_filter.get(constants.TYPE, constants.TESTCASE_TYPE_LISA)

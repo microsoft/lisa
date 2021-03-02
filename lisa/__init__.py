@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from lisa.testsuite import TestCaseMetadata, TestSuite, TestSuiteMetadata
-from lisa.util.logger import init_loggger
+from lisa.util.logger import init_logger
 
 __all__ = [
     "TestSuiteMetadata",
@@ -10,4 +10,4 @@ __all__ = [
 ]
 
 
-init_loggger()
+init_logger()

@@ -148,7 +148,7 @@ def try_connect(connection_info: ConnectionInfo) -> Any:
     return stdout
 
 
-# paramiko stucks on get command output of 'fortinet' VM, and spur hide timeout of
+# paramiko stuck on get command output of 'fortinet' VM, and spur hide timeout of
 # exec_command. So use an external timeout wrapper to force timeout.
 # some images needs longer time to set up ssh connection.
 # e.g. Oracle Oracle-Linux 7.5 7.5.20181207

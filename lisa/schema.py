@@ -461,7 +461,7 @@ class NodeSpace(search_space.RequirementMixin, TypedSchema, ExtendableSchemaMixi
 
     def expand_by_node_count(self) -> List[Any]:
         # expand node count in requirement to one,
-        # so that's easy to compare equalation later.
+        # so that's easy to compare equalization later.
         expanded_requirements: List[NodeSpace] = []
         node_count = search_space.generate_min_capability_countspace(
             self.node_count, self.node_count

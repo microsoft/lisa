@@ -99,7 +99,7 @@ class LegacyRunner(BaseRunner):
         """
         exit sub tests, once received cancellation message from executor.
         """
-        # future is False, if it's called explictly by run_in_threads.
+        # future is False, if it's called explicitly by run_in_threads.
         if not future or future.cancelled() or future.exception():
             self._log.debug(f"received cancel notification on {future}")
             self.canceled = True
@@ -185,7 +185,7 @@ class ResultStateManager:
         not_matched_results = [
             x for x in self._results if x.status != TestStatus.NOTRUN
         ]
-        # remove existing running case, left new running casesl
+        # remove existing running case, left new running cases
         for running_case in running_cases:
             for result in not_matched_results:
                 if self._is_matched_infomation(result, running_case):
@@ -277,13 +277,13 @@ class ResultStateManager:
             result_vmsize = ""
             information_vmsize = ""
 
-        # When user specifies both "latest" and explict versions,
+        # When user specifies both "latest" and explicit versions,
         #  they may be mismatched with below logic.
-        # Leave it as it is in this cornner case.
+        # Leave it as it is in this corner case.
         result_image = result.information.get("image", "")
         information_image = information.get("image", "")
         # We need below Conversion since
-        #   LISAv2 may resolve the 'latest' into explict version
+        #   LISAv2 may resolve the 'latest' into explicit version
         if result_image.lower().endswith(
             " latest"
         ) or information_image.lower().endswith(" latest"):
@@ -371,7 +371,7 @@ class LogParser(InitializableMixin):
     # 4 Test Cases have been selected or expanded to be run in this LISAv2
     #  execution, other test cases may have been skipped due to test case native
     #  SetupConfig conflicts with current Run-LISAv2 parameters
-    CASE_EXPANEDED = re.compile(
+    CASE_EXPANDED = re.compile(
         r"(?P<count>\d+) Test Cases have been selected or "
         r"expanded to be run in this LISAv2 execution,"
     )
@@ -388,7 +388,7 @@ class LogParser(InitializableMixin):
     # SetupConfig: { ARMImageName: canonical 0001-com-ubuntu-server-groovy-daily
     #  20_10-daily-gen2 latest, OverrideVMSize: Standard_D2s_v3, TestLocation: westus2,
     #  VMGeneration: 2 }
-    # find osvhd, vm size, location, vm_generation information when case is running
+    # find os vhd, vm size, location, vm_generation information when case is running
     # SetupConfig: { OsVHD: http://storageaccount.blob.core.windows.net/vhds/test.vhd,
     #  OverrideVMSize: Standard_E16s_v3, TestLocation: westus2, VMGeneration: 1 }
     CASE_IMAGE_LOCATION = re.compile(
@@ -444,7 +444,7 @@ class LogParser(InitializableMixin):
                 case = {"name": case_match["name"]}
                 all_cases.append(case)
                 count = len(all_cases)
-            count_match = self.CASE_EXPANEDED.match(line)
+            count_match = self.CASE_EXPANDED.match(line)
             if count_match:
                 count = int(count_match["count"])
                 break

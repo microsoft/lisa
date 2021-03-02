@@ -512,15 +512,15 @@ class RunnerTestCase(TestCase):
         self.assertListEqual(
             expected_prepared,
             list(platform_test_data.prepared_envs),
-            "prepared envs inconstent",
+            "prepared envs inconsistent",
         )
         self.assertListEqual(
             expected_deployed_envs,
             list(platform_test_data.deployed_envs),
-            "deployed envs inconstent",
+            "deployed envs inconsistent",
         )
         self.assertListEqual(
             expected_deleted_envs,
             list(platform_test_data.deleted_envs),
-            "deleted envs inconstent",
+            "deleted envs inconsistent",
         )

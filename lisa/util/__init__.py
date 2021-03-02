@@ -51,7 +51,7 @@ class ContextMixin:
 
 class InitializableMixin:
     """
-    This mixin uses to do one time but delay initilization work.
+    This mixin uses to do one time but delay initialization work.
 
     __init__ shouldn't do time costing work as most design recommendation. But
     something may be done let an object works. _initialize uses to call for one time

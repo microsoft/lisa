@@ -31,7 +31,7 @@ def generate_runbook(
                 "public_address": "public_address",
                 "public_port": 10022,
                 constants.ENVIRONMENTS_NODES_REMOTE_USERNAME: "name_of_user",
-                constants.ENVIRONMENTS_NODES_REMOTE_PASSWORD: "dont_use_it",
+                constants.ENVIRONMENTS_NODES_REMOTE_PASSWORD: "do_not_use_it",
             }
         )
     if requirement:
@@ -62,7 +62,7 @@ class EnvironmentTestCase(TestCase):
         self.assertEqual(1, envs.max_concurrency)
         self.assertEqual(True, envs.allow_create)
 
-    def test_create_from_runbook_splited(self) -> None:
+    def test_create_from_runbook_split(self) -> None:
         runbook = generate_runbook(local=True, remote=True)
         envs = load_environments(runbook)
         self.assertEqual(2, len(envs))

@@ -31,7 +31,7 @@ class Feature(InitializableMixin):
 
     def _initialize(self, *args: Any, **kwargs: Any) -> None:
         """
-        override for initializating
+        override for initializing
         """
         pass
 
