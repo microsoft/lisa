@@ -14,12 +14,11 @@ from lisa.util.shell import wait_tcp_port_ready
 
 
 @TestSuiteMetadata(
-    area="provisioning",
+    area="core",
     category="functional",
     description="""
     This test suite uses to test an environment provisioning correct or not.
     """,
-    tags=[],
 )
 class Provisioning(TestSuite):
     TIME_OUT = 300

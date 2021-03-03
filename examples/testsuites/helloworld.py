@@ -10,12 +10,11 @@ from lisa.tools import Echo, Uname
 
 @TestSuiteMetadata(
     area="demo",
-    category="simple",
+    category="functional",
     description="""
     this is an example test suite.
     it helps to understand how to write a test case.
     """,
-    tags=["demo"],
 )
 class HelloWorld(TestSuite):
     @TestCaseMetadata(
