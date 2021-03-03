@@ -1,6 +1,7 @@
 # Copyright (c) Microsoft Corporation.
 # Licensed under the MIT license.
 
+import asyncio
 import functools
 from argparse import Namespace
 from typing import Iterable, Optional, cast
@@ -17,7 +18,7 @@ from lisa.util.perf_timer import create_timer
 _get_init_logger = functools.partial(get_logger, "init")
 
 
-async def run(args: Namespace) -> int:
+def run(args: Namespace) -> int:
     runbook = load_runbook(args.runbook, args.variables)
 
     if runbook.notifier:
@@ -35,7 +36,7 @@ async def run(args: Namespace) -> int:
     run_error_message = ""
     try:
         runner = RootRunner(runbook)
-        await runner.start()
+        asyncio.run(runner.start())
         run_status = notifier.TestRunStatus.SUCCESS
     except Exception as identifier:
         run_error_message = str(identifier)
@@ -51,12 +52,12 @@ async def run(args: Namespace) -> int:
 
 
 # check runbook
-async def check(args: Namespace) -> int:
+def check(args: Namespace) -> int:
     load_runbook(args.runbook, args.variables)
     return 0
 
 
-async def list_start(args: Namespace) -> int:
+def list_start(args: Namespace) -> int:
     runbook = load_runbook(args.runbook, args.variables)
     list_all = cast(Optional[bool], args.list_all)
     log = _get_init_logger("list")
