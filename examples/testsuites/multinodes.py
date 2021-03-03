@@ -10,12 +10,11 @@ from lisa.tools import Lscpu, Ntttcp
 
 @TestSuiteMetadata(
     area="demo",
-    category="demo",
+    category="functional",
     description="""
     this is an example test suite.
     It helps to understand how test cases works on multiple nodes
     """,
-    tags=["demo", "multinode"],
     requirement=simple_requirement(min_count=2),
 )
 class MultipleNodesDemo(TestSuite):

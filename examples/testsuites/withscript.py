@@ -14,11 +14,10 @@ from lisa.util.perf_timer import create_timer
 
 @TestSuiteMetadata(
     area="demo",
-    category="simple",
+    category="functional",
     description="""
     This test suite run a script on linux
     """,
-    tags=["demo"],
 )
 class WithScript(TestSuite):
     def before_suite(self) -> None:

@@ -208,12 +208,13 @@ class TestSuiteMetadata:
         area: str,
         category: str,
         description: str,
-        tags: List[str],
+        tags: Optional[List[str]] = None,
         name: str = "",
         requirement: TestCaseRequirement = DEFAULT_REQUIREMENT,
     ) -> None:
         self.name = name
         self.cases: List[TestCaseMetadata] = []
+        self.tags: List[str] = tags if tags else []
 
         self.area = area
         self.category = category
