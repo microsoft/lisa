@@ -41,7 +41,7 @@ def support_variable(parser: ArgumentParser) -> None:
 
 def parse_args() -> Namespace:
     """This wraps Python's 'ArgumentParser' to setup our CLI."""
-    parser = ArgumentParser()
+    parser = ArgumentParser(prog="lisa")
     support_debug(parser)
     support_runbook(parser, required=False)
     support_variable(parser)
