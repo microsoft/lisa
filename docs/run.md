@@ -3,15 +3,13 @@
 - [Quick start](#quick-start)
   - [Run locally](#run-locally)
   - [Run in Azure](#run-in-azure)
-  - [Run in Ready VMs](#run-in-ready-vms)
+  - [Run in Ready computers](#run-in-ready-computers)
 - [Run Microsoft tests](#run-microsoft-tests)
-- [Test priority and tier](#test-priority-and-tier)
 - [Run legacy LISAv2 test cases](#run-legacy-lisav2-test-cases)
-- [FAQ and Troubleshooting](#faq-and-troubleshooting)
 
 ## Quick start
 
-In Linux, define an alias to simplify the command. If you want the alias effective every time, add into `.bashrc`
+In Linux, define an alias to simplify the command. If you want it effective every time, add to `.bashrc`.
 
 ```bash
 alias lisa="./lisa.sh"
@@ -19,15 +17,15 @@ alias lisa="./lisa.sh"
 
 ### Run locally
 
-If not arguments specified, LISA runs test cases on local machine. Those cases won't modify local environment, and they are helpful to validate LISA installation.
+If no argument specified, LISA runs test cases on the local computer. Those cases are helpful to validate LISA installation, and won't modify the local computer.
 
 ```bash
 lisa
 ```
 
-After run, the terminal output is like below. If there is any error, check troubleshooting part of [installation](install.md).
+The end of output is like below, after completed. If there is any error, check [FAQ and troubleshooting](troubleshooting.md).
 
-The log shows 5 test cases are scheduled, 2 passed, and 3 skipped. For each skipped case, there is a reason, why it's skipped. There is a html test report, and its link shows at end of log.
+The log shows five test cases are scheduled, two passed, and three skipped. For each skipped case, there is a reason, why it's skipped. There is a html test report, and its link shows at end of log.
 
 ```text
 2021-03-04 06:32:30.904 INFO LISA.RootRunner ________________________________________
@@ -49,21 +47,21 @@ The log shows 5 test cases are scheduled, 2 passed, and 3 skipped. For each skip
 
 ### Run in Azure
 
-Below commands shows how to run Microsoft tier 0 tests on an Azure gallery image.
+Below commands shows how to run Microsoft tier 0 (t0) tests on an Azure gallery image.
 
 1. Sign in to Azure
 
-    Make sure [Azure CLI](https://docs.microsoft.com/en-us/cli/azure/install-azure-cli) or [Azure PowerShell](https://docs.microsoft.com/en-us/powershell/azure/install-az-ps) installed. It needs to sign in to run LISA on current machine. LISA supports other Azure credential mechanisms also, refer to [runbook reference](runbook.md).
+    Make sure [Azure CLI](https://docs.microsoft.com/en-us/cli/azure/install-azure-cli) or [Azure PowerShell](https://docs.microsoft.com/en-us/powershell/azure/install-az-ps) installed. It needs to sign in to run LISA on the current computer. LISA supports other Azure credential mechanisms, refer to [runbook reference](runbook.md).
 
-    Here uses Azure CLI as the example. Open a terminal.
+    Here uses Azure CLI as the example. Open a terminal, and execute,
 
     ```bash
     az login
     ```
 
-2. Find subscription id
+2. Get the subscription id
 
-    If you have multiple Azure subscriptions. Use below command to set default subscription. LISA will create resource groups in it. To prevent missing use, the subscription id is a required parameter to run LISA.
+    If you have multiple Azure subscriptions. Use below command to set default subscription. LISA will create resource groups in it. To prevent mistakes, the subscription id is a required parameter to run LISA.
 
     Run below command to retrieve subscription information.
 
@@ -94,7 +92,7 @@ Below commands shows how to run Microsoft tier 0 tests on an Azure gallery image
 
     LISA connects to VMs by SSH, and a public/private key pair is necessary for authentication. If you don't have a key pair, follow this step to create one.
 
-    Run below command, and follow prompt to create a key pair. Most Linux distributions have SSH client installed. On windows, follow [install OpenSSH](https://docs.microsoft.com/en-us/windows-server/administration/openssh/openssh_install_firstuse) instruction.
+    Run below command and follow prompt to create a key pair. Most Linux distributions have SSH client installed. On windows, follow [install OpenSSH](https://docs.microsoft.com/en-us/windows-server/administration/openssh/openssh_install_firstuse).
 
     Note, don't use passphrase to generate the key. LISA doesn't support passphrase.
 
@@ -128,9 +126,7 @@ Below commands shows how to run Microsoft tier 0 tests on an Azure gallery image
 
 4. Run LISA
 
-    Use above `<subscription id>` and `<private key file>` to replace in below command.
-
-    It may take several minutes to complete.
+    Use above `<subscription id>` and `<private key file>` to replace in below command. It may take several minutes to complete.
 
     ```bash
     lisa -r ./microsoft/runbook/azure.yml -v subscription_id:<subscription id> -v "admin_private_key_file:<private key file>"
@@ -138,19 +134,19 @@ Below commands shows how to run Microsoft tier 0 tests on an Azure gallery image
 
 5. Verify test results
 
-    After test completed, the html report is like below. The tier 0 includes a smoke test case, run on an Ubuntu image.
+    After test completed, the html report is like below. The t0 includes the smoke test case, run on an Ubuntu image.
 
     ![image](img/smoke_test_result.png)
 
-It doesn't need to create new VMs each time. And the test Linux distribution can be other gallery image or a VHD. Learn more from [runbook reference](runbook.md).
+It doesn't need to create new VMs every time. The test Linux distribution can be another gallery image or a VHD. Learn more from [runbook reference](runbook.md).
 
-### Run in Ready VMs
+### Run in Ready computers
 
 The tests can run in an existing environment in lab or cloud. LISA calls the platform as `ready`.
 
 1. Get IP address which can be accessed by LISA.
 
-2. Prepare the SSH public/private key pair like steps in Azure.
+2. Get the SSH public/private key pair which can access the computers.
 
 3. Run LISA in existing VM.
 
@@ -160,11 +156,13 @@ The tests can run in an existing environment in lab or cloud. LISA calls the pla
     lisa -r ./microsoft/runbook/ready.yml -v public_address:<public address> -v "user_name:<user name>" -v "admin_private_key_file:<private key file>"
     ```
 
-The existing VMs can be multiple to support networking testing, and it also support authenticate by password. Learn more from [runbook reference](runbook.md).
+The existing VMs can be multiple ones to support networking testing, and it also support authenticate by password. Learn more from [runbook reference](runbook.md).
 
 ## Run Microsoft tests
 
-LISA is an end-to-end solution to validate Linux in Azure, Hyper-V or other Microsoft virtualization platform. In quick start, it runs tier 0 Microsoft test cases in Azure. It tests an image can boot up and reboot without kernel panic. Refer to [test priority and tier](#test-priority-and-tier) know more about how test tiers defined.
+LISA is an end-to-end solution to validate Linux in Azure, Hyper-V or other Microsoft virtualization platforms. The quick start introduces how to run t0 Microsoft tests in Azure. It tests an image can boot up and reboot without kernel panic.
+
+Refer to [Microsoft tests](microsoft_tests.md) know more about how test tiers defined.
 
 If you want to validate more scenarios, run with `<tier id>` from 1 to 4. To run tier 1 to 4, it needs legacy LISAv2 tests. The LISA must be run in a Windows computer, and prepare a secret file. Learn more from [how to run legacy test cases](run_legacy.md).
 
@@ -174,10 +172,6 @@ lisa -r ./microsoft/runbook/azure.yml -v subscription_id:<subscription id> -v "a
 
 Learn more from [command-line arguments](command_line.md) and the [runbook reference](runbook.md).
 
-## Test priority and tier
-
 ## Run legacy LISAv2 test cases
 
 Learn more from [how to run legacy LISAv2 tests](run_legacy.md).
-
-## FAQ and Troubleshooting

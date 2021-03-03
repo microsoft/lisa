@@ -1,6 +1,6 @@
 # Contributing
 
-You are very welcome to contribute in any way. There are serval ways to guide the contribution. They have no intention of restricting you, they will only increase efficiency.
+You are very welcome to contribute in any way. This document is the guide of contribution. it has no intention to limit, only make it efficient.
 
 - [Provide feedback or ask a question](#provide-feedback-or-ask-a-question)
 - [File a bug](#file-a-bug)
@@ -13,7 +13,7 @@ You are very welcome to contribute in any way. There are serval ways to guide th
 
 You are welcome to provide feedback by [filing an issue](https://github.com/microsoft/lisa/issues/new).
 
-When there is any question, please check below FAQs first. If there is no satisfying answer, don't hesitate to [file an issue](https://github.com/microsoft/lisa/issues/new).
+When there is any question, please check [FAQ and troubleshooting](troubleshooting.md) first. If there is no satisfying answer, don't hesitate to [file an issue](https://github.com/microsoft/lisa/issues/new).
 
 ## File a bug
 
@@ -27,15 +27,15 @@ When you submit a pull request, a CLA bot will automatically determine whether y
 
 ### Contribute fixing or extension
 
-If you think there is a bug, and want to fix it. Feel free to submit a pull request. We will review it proactively. Once it's signed off, we will merge the change.
+If there is a bug and you want to fix it. Feel free to submit a pull request. We will review it proactively. Once it's approved, we will merge it.
 
-If there is any extension is needed by others, submit a pull request.
+If there is any extension is needed, submit a pull request.
 
 Learn more on [development guideline](./development.md).
 
 ### Contribute feature
 
-Please file an issue to describe why the feature is needed, and how it will be implemented. Once we agree on that, follow [Contribute fixing or extension](#contribute-fixing-or-extension) to implement it.
+Please file an issue to describe why a feature is needed, and how to implement. Once we agree on that, follow [contribute fixing or extension](#contribute-fixing-or-extension) to implement.
 
 ## Code of Conduct
 
