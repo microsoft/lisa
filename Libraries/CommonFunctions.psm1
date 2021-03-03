@@ -130,38 +130,42 @@ Function Select-TestCases($TestXMLs, $TestCategory, $TestArea, $TestNames, $Test
             if (!$platformMatched) {
                 continue
             }
-            # if TestCategory not provided, or test case has Category completely matching one of expected TestCategory (case insensitive 'contains'), otherwise continue (skip this test case)
-            if (($TestCategory -ne "*") -and ($testCategoryArray -notcontains $test.Category)) {
-                continue
-            }
-            # if TestArea not provided, or test case has Area completely matching one of expected TestArea (case insensitive 'contains'), otherwise continue (skip this test case)
-            if (($TestArea -ne "*") -and ($testAreaArray -notcontains $test.Area)) {
-                continue
-            }
-            # if TestSetup not provided, or test case has SetupType value defined which could insensitively match one of expected Setup pattern, otherwise continue (skip this test case)
-            if (($TestSetup -ne "*") -and !$($testSetupTypeArray | Where-Object {$test.SetupConfig.SetupType -and ("$($test.SetupConfig.SetupType)" -imatch $_)})) {
-                continue
-            }
-            # if TestNames not provided, or test case has TestName completely matching one of expected TestNames (case insensitive 'contains'), otherwise continue (skip this test case)
-            if (($TestNames -ne "*") -and ($testNamesArray -notcontains $test.testName)) {
-                continue
-            }
 
-            # if TestTag not provided, or test case has Tags not defined (backward compatible), or test case has defined Tags scope and this Tags scope has value completely matching one of expected TestTag (case insensitive 'contains'), otherwise continue (skip this test case)
-            if (($TestTag -ne "*")) {
-                if (!$test.Tags) {
-                    Write-LogWarn "Test Tags of $($test.TestName) is not defined; include this test case by default."
-                }
-                elseif (!$($testTagArray | Where-Object {$test.Tags.Trim(', ').Split(',').Trim() -contains $_})) {
+            # If TestName is provided and contains the current case name, then pick the case, unless it's in excluded tests. Otherwise, check other filter conditions.
+            if (($testNamesArray -notcontains $test.testName)) {
+                # if TestCategory not provided, or test case has Category completely matching one of expected TestCategory (case insensitive 'contains'), otherwise continue (skip this test case)
+                if (($TestCategory -ne "*") -and ($testCategoryArray -notcontains $test.Category)) {
                     continue
                 }
-            }
-            # if TestPriority not provided, or test case has Priority defined which equals to one of expected TestPriority, otherwise continue (skip this test case)
-            if (($TestPriority -ne "*") -and !$($testPriorityArray | Where-Object {$test.Priority -and ($test.Priority -eq $_)})) {
-                if (!$test.Priority) {
-                    Write-LogWarn "Priority of $($test.TestName) is not defined."
+                # if TestArea not provided, or test case has Area completely matching one of expected TestArea (case insensitive 'contains'), otherwise continue (skip this test case)
+                if (($TestArea -ne "*") -and ($testAreaArray -notcontains $test.Area)) {
+                    continue
                 }
-                continue
+                # if TestSetup not provided, or test case has SetupType value defined which could insensitively match one of expected Setup pattern, otherwise continue (skip this test case)
+                if (($TestSetup -ne "*") -and !$($testSetupTypeArray | Where-Object {$test.SetupConfig.SetupType -and ("$($test.SetupConfig.SetupType)" -imatch $_)})) {
+                    continue
+                }
+                # if TestNames not provided, or test case has TestName completely matching one of expected TestNames (case insensitive 'contains'), otherwise continue (skip this test case)
+                if (($TestNames -ne "*") -and ($testNamesArray -notcontains $test.testName)) {
+                    continue
+                }
+
+                # if TestTag not provided, or test case has Tags not defined (backward compatible), or test case has defined Tags scope and this Tags scope has value completely matching one of expected TestTag (case insensitive 'contains'), otherwise continue (skip this test case)
+                if (($TestTag -ne "*")) {
+                    if (!$test.Tags) {
+                        Write-LogWarn "Test Tags of $($test.TestName) is not defined; include this test case by default."
+                    }
+                    elseif (!$($testTagArray | Where-Object {$test.Tags.Trim(', ').Split(',').Trim() -contains $_})) {
+                        continue
+                    }
+                }
+                # if TestPriority not provided, or test case has Priority defined which equals to one of expected TestPriority, otherwise continue (skip this test case)
+                if (($TestPriority -ne "*") -and !$($testPriorityArray | Where-Object {$test.Priority -and ($test.Priority -eq $_)})) {
+                    if (!$test.Priority) {
+                        Write-LogWarn "Priority of $($test.TestName) is not defined."
+                    }
+                    continue
+                }
             }
 
             if ($ExcludeTests) {
