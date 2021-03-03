@@ -1,7 +1,77 @@
-# Contributing Guidelines
+# Development Guideline
 
 This document describes the existing developer tooling we have in place (and what to
 expect of it), as well as our design and development philosophy.
+
+- [Editor Setup](#editor-setup)
+  - [Visual Studio Code](#visual-studio-code)
+  - [Emacs](#emacs)
+  - [other tools](#other-tools)
+- [Create a pull request](#create-a-pull-request)
+- [Naming Conventions](#naming-conventions)
+- [Automated Tooling](#automated-tooling)
+  - [Metadata](#metadata)
+  - [Package Dependencies](#package-dependencies)
+  - [Developer Dependencies](#developer-dependencies)
+- [Type Annotations](#type-annotations)
+- [Runbook schema](#runbook-schema)
+- [Committing Guidelines](#committing-guidelines)
+- [Design Patterns](#design-patterns)
+- [Future Sections](#future-sections)
+
+## Editor Setup
+
+### Visual Studio Code
+
+First, click the Python version in the bottom left, then enter the path emitted by the command above. This will point Code to the Poetry virtual environment.
+
+Make sure below settings are in root level of `.vscode/settings.json`
+
+```json
+{
+    "python.analysis.typeCheckingMode": "strict",
+    "python.formatting.provider": "black",
+    "python.linting.enabled": true,
+    "python.linting.flake8Enabled": true,
+    "python.linting.mypyEnabled": true,
+    "python.linting.pylintEnabled": false,
+    "editor.formatOnSave": true,
+    "python.linting.mypyArgs": [
+        "--strict",
+        "--namespace-packages",
+        "--show-column-numbers"
+    ],
+    "python.sortImports.path": "isort",
+    "python.analysis.useLibraryCodeForTypes": false,
+    "python.analysis.autoImportCompletions": false,
+    "files.eol": "\n",
+}
+```
+
+### Emacs
+
+Use the [pyvenv](https://github.com/jorgenschaefer/pyvenv) package:
+
+```emacs-lisp
+(use-package pyvenv
+  :ensure t
+  :hook (python-mode . pyvenv-tracking-mode))
+```
+
+Then run `M-x add-dir-local-variable RET python-mode RET pyvenv-activate RET <path/to/virtualenv>` where the value is the path given by the command above. This will create a `.dir-locals.el` file which looks like this:
+
+```emacs-lisp
+;;; Directory Local Variables
+;;; For more information see (info "(emacs) Directory Variables")
+
+((python-mode . ((pyvenv-activate . "~/.cache/pypoetry/virtualenvs/lisa-s7Q404Ij-py3.8"))))
+```
+
+### other tools
+
+- Install and enable [ShellCheck](https://github.com/koalaman/shellcheck) to find bash errors locally.
+
+## Create a pull request
 
 ## Naming Conventions
 
@@ -10,23 +80,16 @@ conventions](https://www.python.org/dev/peps/pep-0008/#naming-conventions)
 section of PEP 8, which describes what each of the different styles means. A
 short summary of the most important parts:
 
-* Modules (and hence files) should have short, all-lowercase names.
-* Class (and exception) names should normally use the `CapWords` convention
-  (also known as `CamelCase`).
-* Function and variable names should be lowercase, with words separated by
-  underscores as necessary to improve readability (also known as `snake_case`).
-* To avoid collisions with the standard library, an underscore can be appended,
-  such as `id_`.
-* Always use `self` for the first argument to instance methods.
-* Always use `cls` for the first argument to class methods.
-* One leading underscore like `_data` is for non-public methods and instance
-  variables. And it can be used by sub-classes. If it won't be used in
-  sub-classes, use like `__data`.
-* If there is a pair of `get_x` and `set_x` methods, they should instead be a
-  proper property, which is easy to do with the built-in `@property` decorator.
-* Constants should be `CAPITALIZED_SNAKE_CASE`.
-* When importing a function, try to avoid renaming it with `import as` because
-  it introduces cognitive overhead to track yet another name.
+- Modules (and hence files) should have short, all-lowercase names.
+- Class (and exception) names should normally use the `CapWords` convention (also known as `CamelCase`).
+- Function and variable names should be lowercase, with words separated by underscores as necessary to improve readability (also known as `snake_case`).
+- To avoid collisions with the standard library, an underscore can be appended, such as `id_`.
+- Always use `self` for the first argument to instance methods.
+- Always use `cls` for the first argument to class methods.
+- One leading underscore like `_data` is for non-public methods and instance variables. And it can be used by sub-classes. If it won't be used in sub-classes, use like `__data`.
+- If there is a pair of `get_x` and `set_x` methods, they should instead be a proper property, which is easy to do with the built-in `@property` decorator.
+- Constants should be `CAPITALIZED_SNAKE_CASE`.
+- When importing a function, try to avoid renaming it with `import as` because it introduces cognitive overhead to track yet another name.
 
 When in doubt, adhere to existing conventions, or check the style guide.
 
@@ -81,24 +144,24 @@ on Windows, you will want to setup your own, perhaps using [Conda][].
 [pyenv]: https://github.com/pyenv/pyenv
 [Conda]: https://docs.conda.io/en/latest/
 
-* python: We pinned Python to version 3.8 so everyone uses the same version.
+- python: We pinned Python to version 3.8 so everyone uses the same version.
 
-* psutil: TODO @squirrelsc will document
+- psutil: TODO @squirrelsc will document
 
-* pyyaml: TODO @squirrelsc will document
+- pyyaml: TODO @squirrelsc will document
 
-* retry: TODO @squirrelsc will document
+- retry: TODO @squirrelsc will document
 
-* paramiko: TODO @squirrelsc will document
+- paramiko: TODO @squirrelsc will document
 
-* spurplus: TODO @squirrelsc will document
+- spurplus: TODO @squirrelsc will document
 
-* dataclasses-json: TODO @squirrelsc will document (brings in `usjon` which
+- dataclasses-json: TODO @squirrelsc will document (brings in `usjon` which
   requires `gcc` and `libpython`)
 
-* portalocker: TODO @squirrelsc will document
+- portalocker: TODO @squirrelsc will document
 
-* azure-*: TODO @squirrelsc will document
+- azure-*: TODO @squirrelsc will document
 
 ### Developer Dependencies
 
@@ -107,29 +170,29 @@ add --dev <package_name>` records our _developer_ packages. These are not
 necessary for LISAv3 to execute, but are used by developers to automatically
 adhere to our coding standards.
 
-* [Black](https://github.com/psf/black), the opinionated code formatter which
+- [Black](https://github.com/psf/black), the opinionated code formatter which
   settles all debates as to how our Python files should be formatted. It follows
   [PEP 8](https://www.python.org/dev/peps/pep-0008/), the official Python style
   guide, and where ambiguous makes the decision for us.
 
-* [Flake8](https://flake8.pycqa.org/en/latest/) (and integrations), the semantic
+- [Flake8](https://flake8.pycqa.org/en/latest/) (and integrations), the semantic
   analyzer, used to coordinate most of the other tools.
 
-* [isort](https://timothycrosley.github.io/isort/), the `import` sorter, which
+- [isort](https://timothycrosley.github.io/isort/), the `import` sorter, which
   automatically splits imports into the expected, alphabetized sections.
 
-* [mypy](http://mypy-lang.org/), the static type checker, which coupled with
+- [mypy](http://mypy-lang.org/), the static type checker, which coupled with
   type annotations allows us to avoid the pitfalls of Python being a dynamically
   typed language.
 
-* [python-language-server](https://github.com/palantir/python-language-server)
+- [python-language-server](https://github.com/palantir/python-language-server)
   (and integrations), the de facto LSP server. While Microsoft is developing
   their own LSP servers, they do not integrate with the existing ecosystem of
   tools, and their latest tool, Pyright, simply does not support
   `pyproject.toml`. Since pyls is used far more widely, and supports every
   editor, we use it.
 
-* [rope](https://github.com/python-rope/rope), to provide completions and
+- [rope](https://github.com/python-rope/rope), to provide completions and
   renaming support to pyls.
 
 With these packages installed and a correctly setup editor (see the readme and
@@ -204,12 +267,12 @@ example](https://tbaggery.com/2008/04/19/a-note-about-git-commit-messages.html):
 >
 > Further paragraphs come after blank lines.
 >
-> * Bullet points are okay, too
+> - Bullet points are okay, too
 >
-> * Typically a hyphen or asterisk is used for the bullet, followed by a
+> - Typically a hyphen or asterisk is used for the bullet, followed by a
 >   single space, with blank lines in between, but conventions vary here
 >
-> * Use a hanging indent
+> - Use a hanging indent
 
 You should also feel free to use Markdown in the commit messages, as our project
 is hosted on GitHub which renders it (and Markdown is human readable).
@@ -240,15 +303,15 @@ carefully create a well-designed and maintainable framework.
 
 Several popular patterns that actually _do not_ work well in Python are:
 
-* [The Abstract Factory Pattern](https://python-patterns.guide/gang-of-four/abstract-factory/)
-* [The Factory Method Pattern](https://python-patterns.guide/gang-of-four/factory-method/)
-* [The Prototype Pattern](https://python-patterns.guide/gang-of-four/prototype/)
-* [The Singleton Pattern](https://python-patterns.guide/gang-of-four/singleton/)
+- [The Abstract Factory Pattern](https://python-patterns.guide/gang-of-four/abstract-factory/)
+- [The Factory Method Pattern](https://python-patterns.guide/gang-of-four/factory-method/)
+- [The Prototype Pattern](https://python-patterns.guide/gang-of-four/prototype/)
+- [The Singleton Pattern](https://python-patterns.guide/gang-of-four/singleton/)
 
 Conversely, patterns that are a natural fit to Python include:
 
-* [The Composite Pattern](https://python-patterns.guide/gang-of-four/composite/)
-* [The Iterator Pattern](https://python-patterns.guide/gang-of-four/iterator/)
+- [The Composite Pattern](https://python-patterns.guide/gang-of-four/composite/)
+- [The Iterator Pattern](https://python-patterns.guide/gang-of-four/iterator/)
   (caution: it is actually better to implement these with `yield`!)
 
 Finally, a high-level guide to all things Python is [The Hitchhiker’s Guide to
@@ -257,28 +320,16 @@ Python world. If you make it through even some of these guides, you will be well
 on your way to being a “Pythonista” (a Python developer) writing “Pythonic”
 (canonically correct Python) code left and right.
 
-### Async IO
-
-With Python 3.4, the Async IO pattern found in languages such as C# and Go is
-available through the keywords `async` and `await`, along with the Python module
-`asyncio`. Please read [Async IO in Python: A Complete
-Walkthrough](https://realpython.com/async-io-python/) to understand at a high
-level how asynchronous programming works. As of Python 3.7, One major “gotcha”
-is that `asyncio.run(...)` should be used [exactly once in
-`main`](https://docs.python.org/3/library/asyncio-task.html), it starts the
-event loop. Everything else should be a coroutine or task which the event loop
-schedules.
-
 ## Future Sections
 
 Just a collection of reminders for the author to expand on later.
 
-* [unittest](https://docs.python.org/3/library/unittest.html)
-* [doctest](https://docs.python.org/3/library/doctest.html)
-* [subprocess](https://pymotw.com/3/subprocess/index.html)
-* [GitHub Actions](https://github.com/LIS/LISAv2/actions)
-* [ShellCheck](https://www.shellcheck.net/)
-* [Governance](https://opensource.guide/leadership-and-governance/)
-* [Maintenance Cost](https://web.archive.org/web/20120313070806/http://users.jyu.fi/~koskinen/smcosts.htm)
-* Parallelism and multi-plexing
-* Versioned inputs and outputs
+- [unittest](https://docs.python.org/3/library/unittest.html)
+- [doctest](https://docs.python.org/3/library/doctest.html)
+- [subprocess](https://pymotw.com/3/subprocess/index.html)
+- [GitHub Actions](https://github.com/LIS/LISAv2/actions)
+- [ShellCheck](https://www.shellcheck.net/)
+- [Governance](https://opensource.guide/leadership-and-governance/)
+- [Maintenance Cost](https://web.archive.org/web/20120313070806/http://users.jyu.fi/~koskinen/smcosts.htm)
+- Parallelism and multi-plexing
+- Versioned inputs and outputs
