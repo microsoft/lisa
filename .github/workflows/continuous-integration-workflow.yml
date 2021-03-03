@@ -1,14 +1,12 @@
-name: CI Workflow for LISAv3
+name: CI Workflow
 
 on:
   push:
     branches:
       - main
-      - v3_*
   pull_request:
     branches:
       - main
-      - v3_*
 jobs:
   build:
     runs-on: ${{ matrix.os }}
@@ -40,7 +38,7 @@ jobs:
       - name: Install Python dependencies
         run: make setup
 
-      - name: Run LISAv3 hello-world
+      - name: Run hello-world
         run: make run
 
       - name: Run unit tests
