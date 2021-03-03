@@ -2,16 +2,17 @@
 
 - [Troubleshooting excellence](#troubleshooting-excellence)
 - [Document excellence](#document-excellence)
+- [Concepts](#concepts)
+- [How LISA works](#how-lisa-works)
 - [Test suite and test case](#test-suite-and-test-case)
 - [Metadata](#metadata)
   - [Test suite metadata](#test-suite-metadata)
   - [Test case metadata](#test-case-metadata)
 - [Requirement](#requirement)
 - [Use tool](#use-tool)
-- [Use Assertions](#use-assertions)
+- [Use assertions](#use-assertions)
 - [Use feature](#use-feature)
 - [Debug test case](#debug-test-case)
-
 
 ## Troubleshooting excellence
 
@@ -41,6 +42,9 @@ Meaningful Assertion
 
 Write code like test logic instead of test action
 
+## Concepts
+
+## How LISA works
 
 ## Test suite and test case
 
@@ -54,7 +58,7 @@ Write code like test logic instead of test action
 
 ## Use tool
 
-## Use Assertions
+## Use assertions
 
 ## Use feature
 

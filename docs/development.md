@@ -7,7 +7,6 @@ expect of it), as well as our design and development philosophy.
   - [Visual Studio Code](#visual-studio-code)
   - [Emacs](#emacs)
   - [other tools](#other-tools)
-- [Create a pull request](#create-a-pull-request)
 - [Naming Conventions](#naming-conventions)
 - [Automated Tooling](#automated-tooling)
   - [Metadata](#metadata)
@@ -70,8 +69,6 @@ Then run `M-x add-dir-local-variable RET python-mode RET pyvenv-activate RET <pa
 ### other tools
 
 - Install and enable [ShellCheck](https://github.com/koalaman/shellcheck) to find bash errors locally.
-
-## Create a pull request
 
 ## Naming Conventions
 
