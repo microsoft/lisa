@@ -145,10 +145,6 @@ Function Select-TestCases($TestXMLs, $TestCategory, $TestArea, $TestNames, $Test
                 if (($TestSetup -ne "*") -and !$($testSetupTypeArray | Where-Object {$test.SetupConfig.SetupType -and ("$($test.SetupConfig.SetupType)" -imatch $_)})) {
                     continue
                 }
-                # if TestNames not provided, or test case has TestName completely matching one of expected TestNames (case insensitive 'contains'), otherwise continue (skip this test case)
-                if (($TestNames -ne "*") -and ($testNamesArray -notcontains $test.testName)) {
-                    continue
-                }
 
                 # if TestTag not provided, or test case has Tags not defined (backward compatible), or test case has defined Tags scope and this Tags scope has value completely matching one of expected TestTag (case insensitive 'contains'), otherwise continue (skip this test case)
                 if (($TestTag -ne "*")) {
