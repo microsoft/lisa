@@ -77,8 +77,8 @@ class EnvironmentSpace(search_space.RequirementMixin):
         elif len(self.nodes) > len(capability.nodes):
             result.add_reason(
                 f"no enough nodes, "
-                f"capability: {len(capability.nodes)}, "
-                f"requirement: {len(self.nodes)}"
+                f"requirement: {len(self.nodes)}, "
+                f"capability: {len(capability.nodes)}."
             )
         else:
             if self.nodes:

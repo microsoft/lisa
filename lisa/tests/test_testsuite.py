@@ -426,7 +426,7 @@ class TestSuiteTestCase(TestCase):
         assert result.check_results
         self.assertFalse(result.check_results.result)
         self.assertListEqual(
-            ["no enough nodes, capability: 2, requirement: 3"],
+            ["no enough nodes, requirement: 3, capability: 2."],
             result.check_results.reasons,
         )
         result = test_suite.case_results[1]
