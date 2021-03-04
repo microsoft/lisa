@@ -1,0 +1,10 @@
+parent:
+  - path: base.yml
+variable:
+  - name: v2_rg
+    value: v2-t1
+testcase:
+  - criteria:
+      priority: [0, 1]
+  - type: legacy
+    command: .\Run-LisaV2.ps1 -TestLocation '$(location)' -RGIdentifier '$(v2_rg)' -TestPlatform 'Azure' -ARMImageName '$(image)' -XMLSecretFile '$(v2_secret_file)' -TestPriority 0 -ResourceCleanup $(v2_rg_cleanup)

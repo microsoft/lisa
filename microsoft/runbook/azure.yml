@@ -1,0 +1,15 @@
+name: azure default
+parent:
+  - path: ./tiers/t0.yml
+variable:
+  - name: reserve_environment
+    value: "no"
+notifier:
+  - type: html
+platform:
+  - type: azure
+    admin_private_key_file: $(admin_private_key_file)
+    reserve_environment: $(reserve_environment)
+    azure:
+      subscription_id: $(subscription_id)
+      wait_delete: false

@@ -1,0 +1,8 @@
+extension:
+  paths:
+    - ../../../testsuites/basic
+variable:
+  - name: location
+    value: westus2
+  - name: v2_rg_cleanup
+    value: Delete
