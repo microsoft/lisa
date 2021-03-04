@@ -2152,7 +2152,7 @@ Function Invoke-ResourceGroupDeployment([string]$RGName, $TemplateFile, $UseExis
 	return @{ "Status" = $retValue ; "Error" = $errMsg }
 }
 
-Function Get-AllDeploymentData([string]$ResourceGroups, [string]$PatternOfResourceNamePrefix) {
+Function Get-AllDeploymentData([string]$ResourceGroups, [string]$PatternOfResourceNamePrefix, [boolean]$UseExistingRG = $false, [int]$MaxRetryCount = 60) {
 	$allDeployedVMs = @()
 	function Create-QuickVMNode() {
 		$objNode = New-Object -TypeName PSObject
@@ -2171,6 +2171,9 @@ Function Get-AllDeploymentData([string]$ResourceGroups, [string]$PatternOfResour
 		return $objNode
 	}
 
+	if ($UseExistingRG) {
+		$MaxRetryCount = 5
+	}
 	foreach ($ResourceGroup in $ResourceGroups.Split("^")) {
 		Write-LogInfo "Collecting $ResourceGroup data.."
 
@@ -2178,7 +2181,7 @@ Function Get-AllDeploymentData([string]$ResourceGroups, [string]$PatternOfResour
 		$RGVMs = Get-AzResource -ResourceGroupName $ResourceGroup -ResourceType "Microsoft.Compute/virtualMachines" -Verbose `
 		| Where-Object {!$PatternOfResourceNamePrefix -or $_.Name -imatch $PatternOfResourceNamePrefix}
 		$retryCount = 0
-		while (!$RGVMs -and $retryCount -lt 5) {
+		while (!$RGVMs -and $retryCount -lt $MaxRetryCount) {
 			Write-LogWarn "    No available Microsoft.Compute/virtualMachines resources, retry..."
 			Start-Sleep -Seconds 2
 			$retryCount++
