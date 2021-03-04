@@ -1328,7 +1328,7 @@ Function Invoke-AllResourceGroupDeployments($SetupTypeData, $CurrentTestData, $R
 			#region virtualMachines
 			Write-LogInfo "Adding Virtual Machine $vmName"
 			Add-Content -Value "$($indents[2]){" -Path $jsonFile
-			Add-Content -Value "$($indents[3])^apiVersion^: ^2020-06-01^," -Path $jsonFile
+			Add-Content -Value "$($indents[3])^apiVersion^: ^2020-12-01^," -Path $jsonFile
 			Add-Content -Value "$($indents[3])^type^: ^Microsoft.Compute/virtualMachines^," -Path $jsonFile
 			Add-Content -Value "$($indents[3])^name^: ^$vmName^," -Path $jsonFile
 			Add-Content -Value "$($indents[3])^location^: ^[variables('location')]^," -Path $jsonFile
@@ -1401,7 +1401,13 @@ Function Invoke-AllResourceGroupDeployments($SetupTypeData, $CurrentTestData, $R
 					Add-Content -Value "$($indents[6])^secureBootEnabled^: ^$($CurrentTestData.SetupConfig.SecureBoot)^," -Path $jsonFile
 					Add-Content -Value "$($indents[6])^vTPMEnabled^: ^$($CurrentTestData.SetupConfig.vTPM)^" -Path $jsonFile
 				}
-				Add-Content -Value "$($indents[5])}" -Path $jsonFile
+				if ($CurrentTestData.SetupConfig.SecurityType) {
+					Add-Content -Value "$($indents[5])}," -Path $jsonFile
+					Add-Content -Value "$($indents[5])^securityType^: ^$($CurrentTestData.SetupConfig.SecurityType)^" -Path $jsonFile
+				}
+				else {
+					Add-Content -Value "$($indents[5])}" -Path $jsonFile
+				}
 				Add-Content -Value "$($indents[4])}," -Path $jsonFile
 			}
 			#endregion

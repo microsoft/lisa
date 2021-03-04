@@ -9,10 +9,12 @@
     <Tags>secureboot</Tags>
     <Priority>1</Priority>
     <SetupConfig>
+      <TestLocation>southcentralus</TestLocation>
       <SetupType>OneVM</SetupType>
-		<SecureBoot>true</SecureBoot>
-		<vTPM>true</vTPM>
-		<OverrideVMSize>Standard_D2s_v3,=~.*</OverrideVMSize>
+      <SecureBoot>true</SecureBoot>
+      <vTPM>true</vTPM>
+      <SecurityType>TrustedLaunch</SecurityType>
+      <OverrideVMSize>Standard_D2s_v3,=~.*</OverrideVMSize>
       <VMGeneration>2</VMGeneration>
     </SetupConfig>
   </test>
@@ -26,10 +28,11 @@
     <Tags>measuredboot</Tags>
     <Priority>1</Priority>
     <SetupConfig>
-      <TestLocation>eastus2euap</TestLocation>
+      <TestLocation>southcentralus</TestLocation>
       <SetupType>OneVM</SetupType>
       <SecureBoot>true</SecureBoot>
       <vTPM>true</vTPM>
+      <SecurityType>TrustedLaunch</SecurityType>
       <OverrideVMSize>Standard_D2s_v3,=~.*</OverrideVMSize>
       <VMGeneration>2</VMGeneration>
     </SetupConfig>
