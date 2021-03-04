@@ -1,0 +1,5 @@
+parent:
+  - path: base.yml
+testcase:
+  - criteria:
+      priority: 0

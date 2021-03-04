@@ -1,0 +1,21 @@
+name: ready default
+parent:
+  - path: ./tiers/t0.yml
+variable:
+  - name: user_name
+    value: "lisatest"
+  - name: public_port
+    value: 22
+notifier:
+  - type: html
+environment:
+  environments:
+    - nodes:
+        - type: remote
+          isDefault: true
+          public_address: $(public_address)
+          public_port: $(public_port)
+          username: $(user_name)
+platform:
+  - type: ready
+    admin_private_key_file: $(admin_private_key_file)
