@@ -95,6 +95,7 @@ class Lsvmbus(Tool):
     def command(self) -> str:
         return self._command
 
+    @property
     def can_install(self) -> bool:
         return True
 
