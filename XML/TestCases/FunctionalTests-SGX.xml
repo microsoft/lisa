@@ -7,8 +7,7 @@
     <Category>Functional</Category>
     <Area>SGX</Area>
     <Tags>sgx</Tags>
-    <Priority>
-    </Priority>
+    <Priority>1</Priority>
     <SetupConfig>
       <TestLocation>uksouth</TestLocation>
       <SetupType>OneVM</SetupType>

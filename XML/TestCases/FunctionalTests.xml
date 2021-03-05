@@ -10,7 +10,7 @@
     </TestParameters>
     <Platform>Azure,HyperV</Platform>
     <Category>Functional</Category>
-    <Area>CORE</Area>
+    <Area>PROVISIONING</Area>
     <Tags>provision</Tags>
     <Priority>0</Priority>
     <SetupConfig>
@@ -24,7 +24,7 @@
     </files>
     <Platform>Azure</Platform>
     <Category>Functional</Category>
-    <Area>CORE</Area>
+    <Area>PROVISIONING</Area>
     <Tags>provision</Tags>
     <Priority>1</Priority>
     <SetupConfig>
@@ -40,7 +40,7 @@
     </files>
     <Platform>Azure</Platform>
     <Category>Functional</Category>
-    <Area>CORE</Area>
+    <Area>PROVISIONING</Area>
     <Tags>provision,sriov</Tags>
     <Priority>0</Priority>
     <SetupConfig>
@@ -55,7 +55,7 @@
     <files>.\Testscripts\Linux\VERIFY-LINUX-CONFIGURATION.py,.\Testscripts\Linux\azuremodules.py</files>
     <Platform>Azure</Platform>
     <Category>Functional</Category>
-    <Area>CORE</Area>
+    <Area>CONFIGURATION</Area>
     <Tags>linux_setting</Tags>
     <Priority>0</Priority>
     <SetupConfig>
@@ -135,7 +135,7 @@
     <files>.\Testscripts\Linux\azuremodules.py,.\Testscripts\Linux\VERIFY-VHD-PREREQUISITES.py</files>
     <Platform>Azure</Platform>
     <Category>Functional</Category>
-    <Area>CORE</Area>
+    <Area>STORAGE</Area>
     <Tags>linux_setting</Tags>
     <Priority>0</Priority>
     <SetupConfig>
@@ -151,7 +151,7 @@
     </TestParameters>
     <Platform>HyperV</Platform>
     <Category>Functional</Category>
-    <Area>CORE</Area>
+    <Area>TIME</Area>
     <Tags>timesync</Tags>
     <Priority>0</Priority>
     <SetupConfig>
@@ -164,7 +164,7 @@
     <files>.\TestScripts\Linux\TIMESYNC-NTP.sh,.\TestScripts\Linux\utils.sh</files>
     <Platform>Azure,HyperV</Platform>
     <Category>Functional</Category>
-    <Area>CORE</Area>
+    <Area>TIME</Area>
     <Tags>timesync</Tags>
     <Priority>0</Priority>
     <SetupConfig>
@@ -177,7 +177,7 @@
     <files>.\TestScripts\Linux\TIME-CLOCKSOURCE.sh,.\TestScripts\Linux\utils.sh</files>
     <Platform>Azure,HyperV</Platform>
     <Category>Functional</Category>
-    <Area>CORE</Area>
+    <Area>TIME</Area>
     <Tags>time</Tags>
     <Priority>0</Priority>
     <SetupConfig>
@@ -190,7 +190,7 @@
     <files>.\TestScripts\Linux\TIME-CLOCKEVENT.sh,.\TestScripts\Linux\utils.sh</files>
     <Platform>Azure,HyperV</Platform>
     <Category>Functional</Category>
-    <Area>CORE</Area>
+    <Area>TIME</Area>
     <Tags>time</Tags>
     <Priority>1</Priority>
     <SetupConfig>
@@ -203,7 +203,7 @@
     <files>.\TestScripts\Linux\TIME-CLOCKEVENT.sh,.\TestScripts\Linux\utils.sh</files>
     <Platform>Azure,HyperV</Platform>
     <Category>Functional</Category>
-    <Area>CORE</Area>
+    <Area>TIME</Area>
     <Tags>time</Tags>
     <Priority>1</Priority>
     <SetupConfig>
@@ -238,7 +238,7 @@
     </TestParameters>
     <Platform>Azure,HyperV</Platform>
     <Category>Functional</Category>
-    <Area>CORE</Area>
+    <Area>CPU</Area>
     <Tags>cpu</Tags>
     <Priority>1</Priority>
     <SetupConfig>
@@ -287,7 +287,7 @@
     </TestParameters>
     <Platform>HyperV</Platform>
     <Category>Functional</Category>
-    <Area>CORE</Area>
+    <Area>CPU</Area>
     <Tags>cpu</Tags>
     <Priority>0</Priority>
     <SetupConfig>
@@ -320,7 +320,7 @@
     </TestParameters>
     <Platform>HyperV</Platform>
     <Category>Functional</Category>
-    <Area>CORE</Area>
+    <Area>CPU</Area>
     <Tags>memory</Tags>
     <Priority>0</Priority>
     <SetupConfig>
@@ -342,7 +342,7 @@
     </TestParameters>
     <Platform>HyperV</Platform>
     <Category>Functional</Category>
-    <Area>CORE</Area>
+    <Area>CPU</Area>
     <Tags>memory</Tags>
     <Priority>1</Priority>
     <SetupConfig>
@@ -372,7 +372,7 @@
     </TestParameters>
     <Platform>HyperV</Platform>
     <Category>Functional</Category>
-    <Area>CORE</Area>
+    <Area>TIME</Area>
     <Tags>timesync</Tags>
     <Priority>0</Priority>
     <SetupConfig>
@@ -389,7 +389,7 @@
     </TestParameters>
     <Platform>HyperV</Platform>
     <Category>Functional</Category>
-    <Area>CORE</Area>
+    <Area>TIME</Area>
     <Tags>timesync</Tags>
     <Priority>2</Priority>
     <SetupConfig>
@@ -406,7 +406,7 @@
     </TestParameters>
     <Platform>HyperV</Platform>
     <Category>Functional</Category>
-    <Area>CORE</Area>
+    <Area>TIME</Area>
     <Tags>timesync</Tags>
     <Priority>2</Priority>
     <SetupConfig>
@@ -424,7 +424,7 @@
     </TestParameters>
     <Platform>HyperV</Platform>
     <Category>Functional</Category>
-    <Area>CORE</Area>
+    <Area>TIME</Area>
     <Tags>timesync</Tags>
     <Priority>2</Priority>
     <SetupConfig>
@@ -442,7 +442,7 @@
     </TestParameters>
     <Platform>HyperV</Platform>
     <Category>Functional</Category>
-    <Area>CORE</Area>
+    <Area>TIME</Area>
     <Tags>timesync</Tags>
     <Priority>2</Priority>
     <SetupConfig>
@@ -455,7 +455,7 @@
     <files>.\Tools\gettime.c</files>
     <Platform>HyperV</Platform>
     <Category>Functional</Category>
-    <Area>CORE</Area>
+    <Area>TIME</Area>
     <Tags>timesync</Tags>
     <Priority>2</Priority>
     <SetupConfig>
@@ -540,7 +540,7 @@
     <files>.\Testscripts\Linux\verify_vmbus_interrupts.sh,.\Testscripts\Linux\utils.sh</files>
     <Platform>Azure,HyperV</Platform>
     <Category>Functional</Category>
-    <Area>CORE</Area>
+    <Area>CPU</Area>
     <Tags>vmbus</Tags>
     <Priority>1</Priority>
     <SetupConfig>
@@ -584,7 +584,7 @@
     </TestParameters>
     <Platform>HyperV</Platform>
     <Category>Functional</Category>
-    <Area>CORE</Area>
+    <Area>KDUMP</Area>
     <Tags>vmbus</Tags>
     <Priority>2</Priority>
     <SetupConfig>
@@ -837,7 +837,7 @@
     </TestParameters>
     <Platform>Azure</Platform>
     <Category>Functional</Category>
-    <Area>CORE</Area>
+    <Area>VM-HOT-RESIZE</Area>
     <Tags>hot_resize,memory</Tags>
     <Priority>2</Priority>
     <SetupConfig>
@@ -851,7 +851,7 @@
     <files>.\Testscripts\Linux\utils.sh,.\Testscripts\Linux\L3Cache-Verify.sh</files>
     <Platform>Azure</Platform>
     <Category>Functional</Category>
-    <Area>CORE</Area>
+    <Area>CPU</Area>
     <Tags>cpu</Tags>
     <Priority>1</Priority>
     <SetupConfig>
@@ -865,7 +865,7 @@
     <files>.\Testscripts\Linux\VERIFY-LINUX-DISK-SETUP.py,.\Testscripts\Linux\azuremodules.py</files>
     <Platform>Azure</Platform>
     <Category>Functional</Category>
-    <Area>CORE</Area>
+    <Area>STORAGE</Area>
     <Tags>linux_setting</Tags>
     <Priority>0</Priority>
     <SetupConfig>
@@ -902,7 +902,7 @@
     </TestParameters>
     <Platform>Azure</Platform>
     <Category>Functional</Category>
-    <Area>CORE</Area>
+    <Area>CPU</Area>
     <Tags>cpu</Tags>
     <Priority>3</Priority>
     <SetupConfig>
@@ -921,7 +921,7 @@
     </TestParameters>
     <Platform>Azure</Platform>
     <Category>Functional</Category>
-    <Area>CORE</Area>
+    <Area>CPU</Area>
     <Tags>cpu</Tags>
     <Priority>3</Priority>
     <SetupConfig>
@@ -941,7 +941,7 @@
     </TestParameters>
     <Platform>Azure</Platform>
     <Category>Functional</Category>
-    <Area>CORE</Area>
+    <Area>CPU</Area>
     <Tags>cpu</Tags>
     <Priority>3</Priority>
     <SetupConfig>
@@ -961,7 +961,7 @@
     </TestParameters>
     <Platform>Azure</Platform>
     <Category>Functional</Category>
-    <Area>CORE</Area>
+    <Area>CPU</Area>
     <Tags>cpu</Tags>
     <Priority>3</Priority>
     <SetupConfig>
@@ -991,7 +991,7 @@
     </TestParameters>
     <Platform>Azure,HyperV</Platform>
     <Category>Functional</Category>
-    <Area>CORE</Area>
+    <Area>DPDK</Area>
     <Tags>uio,network</Tags>
     <Priority>2</Priority>
     <SetupConfig>
@@ -1017,7 +1017,7 @@
     <testScript>FIPS-ENABLE.ps1</testScript>
     <Platform>Azure,HyperV</Platform>
     <Category>Functional</Category>
-    <Area>CORE</Area>
+    <Area>SECURITY</Area>
     <Tags>boot</Tags>
     <Priority>2</Priority>
     <SetupConfig>
