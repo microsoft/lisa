@@ -930,7 +930,7 @@
     </TestParameters>
     <Platform>Azure</Platform>
     <Category>Performance</Category>
-    <Area>NETWORK</Area>
+    <Area>XDP</Area>
     <Tags>xdp</Tags>
     <Priority>3</Priority>
     <SetupConfig>
@@ -948,7 +948,7 @@
     </TestParameters>
     <Platform>Azure</Platform>
     <Category>Performance</Category>
-    <Area>NETWORK</Area>
+    <Area>XDP</Area>
     <Tags>xdp</Tags>
     <Priority>3</Priority>
     <SetupConfig>
@@ -988,7 +988,7 @@
     </TestParameters>
     <Platform>Azure</Platform>
     <Category>Performance</Category>
-    <Area>NETWORK</Area>
+    <Area>XDP</Area>
     <Tags>xdp</Tags>
     <Priority>3</Priority>
     <SetupConfig>
@@ -1007,7 +1007,7 @@
     </TestParameters>
     <Platform>Azure</Platform>
     <Category>Performance</Category>
-    <Area>NETWORK</Area>
+    <Area>XDP</Area>
     <Tags>xdp</Tags>
     <Priority>3</Priority>
     <SetupConfig>
@@ -1026,7 +1026,7 @@
     </TestParameters>
     <Platform>Azure</Platform>
     <Category>Performance</Category>
-    <Area>NETWORK</Area>
+    <Area>XDP</Area>
     <Tags>xdp</Tags>
     <Priority>3</Priority>
     <SetupConfig>
@@ -1044,7 +1044,7 @@
     </TestParameters>
     <Platform>Azure</Platform>
     <Category>Performance</Category>
-    <Area>NETWORK</Area>
+    <Area>XDP</Area>
     <Tags>xdp</Tags>
     <Priority>3</Priority>
     <SetupConfig>
