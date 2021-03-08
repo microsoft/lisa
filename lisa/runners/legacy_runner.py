@@ -248,9 +248,10 @@ class ResultStateManager:
                     running_results.remove(result)
                     not_matched_cases.remove(completed_case)
                     break
-        assert (
-            not not_matched_cases
-        ), f"found unmatched completed results: {[not_matched_cases]}"
+        assert not not_matched_cases, (
+            f"found unmatched completed results: {not_matched_cases}, "
+            f"running results: {running_results}"
+        )
 
     def _get_name(self, name: str) -> str:
         return f"legacy.{name}"
@@ -310,11 +311,7 @@ class ResultStateManager:
 
         return result_key == information_key
 
-    def _set_result(
-        self,
-        result: TestResult,
-        information: Dict[str, str],
-    ) -> None:
+    def _set_result(self, result: TestResult, information: Dict[str, str]) -> None:
         """
         Fill information to test result
         """
@@ -395,9 +392,9 @@ class LogParser(InitializableMixin):
     # SetupConfig: { OsVHD: http://storageaccount.blob.core.windows.net/vhds/test.vhd,
     #  OverrideVMSize: Standard_E16s_v3, TestLocation: westus2, VMGeneration: 1 }
     CASE_IMAGE_LOCATION = re.compile(
-        r"SetupConfig: { (?:ARMImageName|OsVHD): (?P<image>.+?)(?:,"
-        r" OverrideVMSize: (?P<vmsize>.+?))?,"
-        r" TestLocation: (?P<location>.+?)"
+        r"SetupConfig: { (?:ARMImageName: (?P<gallery_image>.+?))?(?:, )?"
+        r"(?:Networking: .*?)?(?:, )?(?:OsVHD: (?P<vhd_image>.+?))?(?:,"
+        r" OverrideVMSize: (?P<vmsize>.+?))?, TestLocation: (?P<location>.+?)"
         r"(?:, VMGeneration: (?P<vm_generation>.+?))? }$"
     )
     # Test Location 'westus2' has VM Size 'Standard_DS1_v2' enabled and has enough
@@ -423,12 +420,12 @@ class LogParser(InitializableMixin):
     # Networking: Synthetic;
     # ')
     CASE_COMPLETED = re.compile(
-        r"SQLQuery\:  INSERT INTO LISATestTelemetry \(.*\) "
-        r"VALUES \('.*?','(?P<platform>.*?)','(?P<location>.*?)',"
-        r"'.*?','.*?','(?P<name>.*?)',"
-        r"'(?P<status>.*?)','.*?','(?P<os>.*?)','(?P<kernel_version>.*?)','.*?','.*?',"
-        r"'(?P<host_version>.*?)','(?P<vmsize>.*?)','.*?','(?P<image>.*?)','.*?',"
-        r"'(?P<log_path>.*?)','.*?','.*?','.*?','(?P<message>[\w\W]*?)'\)"
+        r"SQLQuery\:  INSERT INTO LISATestTelemetry \(.*\) VALUES \('.*?',"
+        r"'(?P<platform>.*?)','(?P<location>.*?)','.*?','.*?','(?P<name>.*?)',"
+        r"'(?P<status>.*?)','.*?','(?P<os>.*?)','(?P<kernel_version>.*?)','.*?',"
+        r"'.*?','(?P<host_version>.*?)','(?P<vmsize>.*?)','.*?',"
+        r"'(?P<gallery_image>.*?)','(?P<vhd_image>.*?)','(?P<log_path>.*?)',"
+        r"'.*?','.*?','.*?','(?P<message>[\w\W]*?)'\)"
     )
 
     def __init__(self, runner_log_path: str, log: Logger) -> None:
@@ -462,11 +459,29 @@ class LogParser(InitializableMixin):
             case_match = self.CASE_RUNNING.match(line)
             if case_match:
                 name = case_match["name"]
-                current_case: Dict[str, str] = case_match.groupdict()
+                current_case: Dict[str, str] = {
+                    key: value for key, value in case_match.groupdict().items() if value
+                }
             image_match = self.CASE_IMAGE_LOCATION.match(line)
             if image_match:
                 location = image_match["location"]
-                current_case.update(image_match.groupdict())
+                current_case.update(
+                    {
+                        key: value
+                        for key, value in image_match.groupdict().items()
+                        if value
+                    }
+                )
+                # gallery_image for ARMImage, vhd_image for OsVHD in legacy run
+                if "gallery_image" in current_case.keys():
+                    current_case["image"] = current_case.pop("gallery_image")
+                elif "vhd_image" in current_case.keys():
+                    current_case["image"] = current_case.pop("vhd_image")
+                else:
+                    raise LisaException(
+                        "Can't get ARMImage or OsVHD from legacy run "
+                        "when parsing running cases"
+                    )
                 # In sequence run, there is no vm size log line.
                 # So, when image and location is found, the case can be added.
                 cases.append(current_case)
@@ -484,7 +499,13 @@ class LogParser(InitializableMixin):
                     f"setup config is: '{location}', "
                     f"location in vmsize is: '{temp_location}'. {line}"
                 )
-                current_case.update(vmsize_match.groupdict())
+                current_case.update(
+                    {
+                        key: value
+                        for key, value in vmsize_match.groupdict().items()
+                        if value
+                    }
+                )
         return cases
 
     def discover_completed_cases(self) -> List[Dict[str, str]]:
@@ -492,7 +513,19 @@ class LogParser(InitializableMixin):
         for line in self._line_iter():
             case_match = self.CASE_COMPLETED.match(line)
             if case_match:
-                current_case = case_match.groupdict()
+                current_case = {
+                    key: value for key, value in case_match.groupdict().items() if value
+                }
+                # gallery_image for ARMImage, vhd_image for OsVHD in legacy run
+                if "gallery_image" in current_case.keys():
+                    current_case["image"] = current_case.pop("gallery_image")
+                elif "vhd_image" in current_case.keys():
+                    current_case["image"] = current_case.pop("vhd_image")
+                else:
+                    raise LisaException(
+                        "Can't get ARMImage or OsVHD from legacy run "
+                        "when parsing completed cases"
+                    )
                 cases.append(current_case)
         return cases
 
