@@ -86,6 +86,26 @@ class VariableTestCase(TestCase):
                 "secret_int": "1****0",
                 "secret_head_tail": "a****h",
             },
+            {},
+        )
+        self.assertEqual("12345678-abcd-efab-cdef-1234567890ab", data["list"][0])
+        self.assertEqual(1234567890, data["list"][1]["dictInList"])
+        self.assertEqual("abcdefgh", data["headtail"])
+        self.assertEqual("normal_value", data["nested"]["normal_value"])
+        self.assertEqual("entry_value", data["normal_entry"])
+
+    def test_in_runbook_path_with_variable(self) -> None:
+        runbook_data: Dict[str, Any] = {
+            "variable": [{"file": "variable_$(var_in_cmd).yml"}]
+        }
+        data = self._test_runbook_file_entry(
+            runbook_data,
+            {
+                "secret_guid": "12345678-****-****-****-********90ab",
+                "secret_int": "1****0",
+                "secret_head_tail": "a****h",
+            },
+            {"var_in_cmd": variable.VariableEntry("normal", False)},
         )
         self.assertEqual("12345678-abcd-efab-cdef-1234567890ab", data["list"][0])
         self.assertEqual(1234567890, data["list"][1]["dictInList"])
@@ -131,6 +151,7 @@ class VariableTestCase(TestCase):
                 "secret_int": "1****0",
                 "secret_head_tail": "a****h",
             },
+            {},
         )
         self.assertEqual("12345678-abcd-efab-cdef-1234567890ab", data["list"][0])
         self.assertEqual(1234567890, data["list"][1]["dictInList"])
@@ -177,6 +198,7 @@ class VariableTestCase(TestCase):
                 "secret_int": "1****1",
                 "secret_head_tail": "a****i",
             },
+            {},
         )
         self.assertEqual("12345678-abcd-efab-cdef-1234567890ac", data["list"][0])
         self.assertEqual(1234567891, data["list"][1]["dictInList"])
@@ -208,11 +230,14 @@ class VariableTestCase(TestCase):
         self.assertIn("variable support only yaml and yml", str(cm.exception))
 
     def _test_runbook_file_entry(
-        self, data: Any, secret_variables: Dict[str, str]
+        self,
+        data: Any,
+        secret_variables: Dict[str, str],
+        current_variables: Dict[str, variable.VariableEntry],
     ) -> Any:
         constants.RUNBOOK_PATH = Path(__file__).parent
         variables = self._get_default_variables()
-        variables.update(variable._load_from_runbook(data))
+        variables.update(variable._load_from_runbook(data, current_variables))
         data = self._replace_and_validate(variables, secret_variables)
         return data
 
