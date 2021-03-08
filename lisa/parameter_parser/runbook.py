@@ -112,7 +112,7 @@ def _merge_data(
     return result
 
 
-def _load_data(path: Path, used_path: Set[str]) -> Any:
+def _load_data(path: Path, used_path: Set[str], cmd_variables_args: List[str]) -> Any:
     """
     Load runbook, but not to validate. It will be validated after extension imported.
     To support partial runbooks, it loads recursively.
@@ -120,6 +120,8 @@ def _load_data(path: Path, used_path: Set[str]) -> Any:
 
     with open(path, "r") as file:
         data = yaml.safe_load(file)
+
+    variables = load_variables(data, cmd_variables_args=cmd_variables_args)
 
     if constants.PARENT in data and data[constants.PARENT]:
         parents_config = data[constants.PARENT]
@@ -141,6 +143,8 @@ def _load_data(path: Path, used_path: Set[str]) -> Any:
                 raise NotImplementedError("Parent doesn't implement Strategy")
 
             raw_path = parent.path
+            if variables:
+                raw_path = replace_variables(raw_path, variables)
             if raw_path in used_path:
                 raise LisaException(
                     f"cycle reference parent runbook detected: {raw_path}"
@@ -153,7 +157,11 @@ def _load_data(path: Path, used_path: Set[str]) -> Any:
             # clone a set to support same path is used in different tree.
             new_used_path = used_path.copy()
             new_used_path.add(raw_path)
-            parent_data = _load_data(parent_path, used_path=new_used_path)
+            parent_data = _load_data(
+                parent_path,
+                used_path=new_used_path,
+                cmd_variables_args=cmd_variables_args,
+            )
             merged_data = _merge_data(parent_path.parent, parent_data, merged_data)
         data = _merge_data(path.parent, merged_data, data)
 
@@ -198,7 +206,7 @@ def load_runbook(
     # merge all parameters
     log = _get_init_logger()
     log.info(f"loading runbook: {path}")
-    data = _load_data(path.absolute(), set())
+    data = _load_data(path.absolute(), set(), cmd_variables_args=cmd_variables_args)
 
     # load final variables
     variables = load_variables(runbook_data=data, cmd_variables_args=cmd_variables_args)
