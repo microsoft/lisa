@@ -13,13 +13,7 @@ from lisa import schema
 from lisa.util import LisaException, constants
 from lisa.util.logger import get_logger
 from lisa.util.module import import_module
-from lisa.variable import (
-    VariableEntry,
-    load_from_env,
-    load_from_pairs,
-    load_from_runbook,
-    replace_variables,
-)
+from lisa.variable import VariableEntry, load_variables, replace_variables
 
 _schema: Optional[Schema] = None
 
@@ -185,12 +179,17 @@ def validate_data(data: Any) -> schema.Runbook:
     return runbook
 
 
-def load_runbook(path: Path, user_variables: Optional[List[str]]) -> schema.Runbook:
+def load_runbook(
+    path: Path, cmd_variables_args: Optional[List[str]] = None
+) -> schema.Runbook:
     """
     Loads a runbook given a user-supplied path and set of variables.
     """
     constants.RUNBOOK_PATH = path.parent
     constants.RUNBOOK_FILE = path
+
+    if cmd_variables_args is None:
+        cmd_variables_args = []
 
     # load lisa itself modules
     base_module_path = Path(__file__).parent.parent
@@ -201,15 +200,12 @@ def load_runbook(path: Path, user_variables: Optional[List[str]]) -> schema.Runb
     log.info(f"loading runbook: {path}")
     data = _load_data(path.absolute(), set())
 
+    # load final variables
+    variables = load_variables(runbook_data=data, cmd_variables_args=cmd_variables_args)
+
     # load extended modules
     if constants.EXTENSION in data:
         _import_extends(_load_extend_paths(constants.RUNBOOK_PATH, data))
-
-    # load arg variables
-    variables: Dict[str, VariableEntry] = dict()
-    variables.update(load_from_runbook(data))
-    variables.update(load_from_env())
-    variables.update(load_from_pairs(user_variables))
 
     # replace variables:
     try:

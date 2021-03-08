@@ -33,7 +33,17 @@ def replace_variables(data: Any, variables: Dict[str, VariableEntry]) -> Any:
     return _replace_variables(data, new_variables)
 
 
-def load_from_env() -> Dict[str, Any]:
+def load_variables(
+    runbook_data: Any, cmd_variables_args: Optional[List[str]]
+) -> Dict[str, VariableEntry]:
+    variables: Dict[str, VariableEntry] = dict()
+    variables.update(_load_from_runbook(runbook_data))
+    variables.update(_load_from_env())
+    variables.update(_load_from_pairs(cmd_variables_args))
+    return variables
+
+
+def _load_from_env() -> Dict[str, Any]:
     results: Dict[str, VariableEntry] = {}
     for env_name in os.environ:
         is_lisa_variable = True
@@ -54,7 +64,7 @@ def load_from_env() -> Dict[str, Any]:
     return results
 
 
-def load_from_runbook(runbook_data: Any) -> Dict[str, VariableEntry]:
+def _load_from_runbook(runbook_data: Any) -> Dict[str, VariableEntry]:
     results: Dict[str, VariableEntry] = {}
     if constants.VARIABLE in runbook_data:
         variable_entries = schema.Variable.schema().load(  # type:ignore
@@ -63,7 +73,7 @@ def load_from_runbook(runbook_data: Any) -> Dict[str, VariableEntry]:
         variable_entries = cast(List[schema.Variable], variable_entries)
         for entry in variable_entries:
             if entry.file:
-                results.update(load_from_file(entry.file, is_secret=entry.is_secret))
+                results.update(_load_from_file(entry.file, is_secret=entry.is_secret))
             else:
                 results.update(
                     load_from_variable_entry(
@@ -75,7 +85,7 @@ def load_from_runbook(runbook_data: Any) -> Dict[str, VariableEntry]:
     return results
 
 
-def load_from_file(
+def _load_from_file(
     file_name: str,
     is_secret: bool = False,
 ) -> Dict[str, VariableEntry]:
@@ -101,18 +111,18 @@ def load_from_file(
     return results
 
 
-def load_from_pairs(
-    pairs: Optional[List[str]],
+def _load_from_pairs(
+    raw_pairs: Optional[List[str]],
 ) -> Dict[str, VariableEntry]:
     results: Dict[str, VariableEntry] = {}
-    if pairs is None:
+    if raw_pairs is None:
         return results
-    for pair in pairs:
+    for raw_pair in raw_pairs:
         is_secret = False
-        if pair.lower().startswith("s:"):
+        if raw_pair.lower().startswith("s:"):
             is_secret = True
-            pair = pair[2:]
-        key, value = pair.split(":", 1)
+            raw_pair = raw_pair[2:]
+        key, value = raw_pair.split(":", 1)
         _add_variable(key, value, results, is_secret=is_secret)
     return results
 
