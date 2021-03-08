@@ -36,11 +36,20 @@ def replace_variables(data: Any, variables: Dict[str, VariableEntry]) -> Any:
 def load_variables(
     runbook_data: Any, cmd_variables_args: Optional[List[str]]
 ) -> Dict[str, VariableEntry]:
-    variables: Dict[str, VariableEntry] = dict()
-    variables.update(_load_from_runbook(runbook_data))
-    variables.update(_load_from_env())
-    variables.update(_load_from_pairs(cmd_variables_args))
-    return variables
+    if cmd_variables_args is None:
+        cmd_variables_args = []
+
+    env_variables = _load_from_env()
+    cmd_variables = _load_from_pairs(cmd_variables_args)
+    # current_variables uses to support variable in variable file path
+    current_variables: Dict[str, VariableEntry] = dict()
+    final_variables: Dict[str, VariableEntry] = dict()
+    final_variables.update(
+        _load_from_runbook(runbook_data, current_variables=current_variables)
+    )
+    final_variables.update(env_variables)
+    final_variables.update(cmd_variables)
+    return final_variables
 
 
 def _load_from_env() -> Dict[str, Any]:
@@ -64,8 +73,13 @@ def _load_from_env() -> Dict[str, Any]:
     return results
 
 
-def _load_from_runbook(runbook_data: Any) -> Dict[str, VariableEntry]:
+def _load_from_runbook(
+    runbook_data: Any, current_variables: Dict[str, VariableEntry]
+) -> Dict[str, VariableEntry]:
+    # make a copy to prevent modifying existing dict
+    current_variables = current_variables.copy()
     results: Dict[str, VariableEntry] = {}
+
     if constants.VARIABLE in runbook_data:
         variable_entries = schema.Variable.schema().load(  # type:ignore
             runbook_data[constants.VARIABLE], many=True
@@ -73,15 +87,18 @@ def _load_from_runbook(runbook_data: Any) -> Dict[str, VariableEntry]:
         variable_entries = cast(List[schema.Variable], variable_entries)
         for entry in variable_entries:
             if entry.file:
-                results.update(_load_from_file(entry.file, is_secret=entry.is_secret))
+                path = replace_variables(entry.file, current_variables)
+                loaded_variables = _load_from_file(path, is_secret=entry.is_secret)
+                results.update()
             else:
-                results.update(
-                    load_from_variable_entry(
-                        entry.name,
-                        entry.value,
-                        is_secret=entry.is_secret,
-                    )
+                value = replace_variables(entry.value, current_variables)
+                loaded_variables = load_from_variable_entry(
+                    entry.name,
+                    value,
+                    is_secret=entry.is_secret,
                 )
+            results.update(loaded_variables)
+            current_variables.update(loaded_variables)
     return results
 
 
