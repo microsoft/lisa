@@ -62,7 +62,7 @@ function install_prereq_1604() {
     sudo apt-get update
 
     echo "----- Install Open Enclave packages and dependencies -----"
-    install_package "clang-7 libssl-dev gdb libsgx-enclave-common libsgx-enclave-common-dev libprotobuf9v5 libsgx-dcap-ql libsgx-dcap-ql-dev az-dcap-client open-enclave"
+    install_package "clang-8 libssl-dev gdb libsgx-enclave-common libsgx-enclave-common-dev libprotobuf9v5 libsgx-dcap-ql libsgx-dcap-ql-dev az-dcap-client open-enclave"
 }
 
 . /etc/lsb-release
