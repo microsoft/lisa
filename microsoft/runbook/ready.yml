@@ -1,6 +1,6 @@
 name: ready default
 parent:
-  - path: ./tiers/t0.yml
+  - path: ./tiers/tier.yml
 variable:
   - name: user_name
     value: "lisatest"
@@ -12,7 +12,6 @@ environment:
   environments:
     - nodes:
         - type: remote
-          isDefault: true
           public_address: $(public_address)
           public_port: $(public_port)
           username: $(user_name)
