@@ -1,6 +1,6 @@
 name: azure default
 parent:
-  - path: ./tiers/t0.yml
+  - path: ./tiers/tier.yml
 variable:
   - name: reserve_environment
     value: "no"

@@ -1,7 +1,10 @@
+parent:
+  - path: ./t$(tier).yml
 extension:
-  paths:
-    - ../../../testsuites/basic
+  - ../../testsuites/basic
 variable:
+  - name: tier
+    value: 0
   - name: location
     value: westus2
   - name: v2_rg_cleanup

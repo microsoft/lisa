@@ -1,5 +1,3 @@
-parent:
-  - path: base.yml
 variable:
   - name: v2_rg
     value: v2-t1
