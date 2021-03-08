@@ -20,7 +20,9 @@ _schema: Optional[Schema] = None
 _get_init_logger = partial(get_logger, "init", "runbook")
 
 
-def _load_extend_paths(current_path: Path, data: Any) -> List[str]:
+def _load_extend_paths(
+    current_path: Path, data: Any, variables: Optional[Dict[str, VariableEntry]] = None
+) -> List[str]:
     result: List[str] = []
     if constants.EXTENSION in data:
         raw_extension = data[constants.EXTENSION]
@@ -30,6 +32,9 @@ def _load_extend_paths(current_path: Path, data: Any) -> List[str]:
                 data[constants.EXTENSION]
             )
             raw_extension = raw_extension.paths
+        # support variables in extension paths
+        if variables:
+            raw_extension = replace_variables(raw_extension, variables=variables)
         result = [
             str(current_path.joinpath(path).absolute().resolve())
             for path in raw_extension
@@ -213,7 +218,7 @@ def load_runbook(
 
     # load extended modules
     if constants.EXTENSION in data:
-        _import_extends(_load_extend_paths(constants.RUNBOOK_PATH, data))
+        _import_extends(_load_extend_paths(constants.RUNBOOK_PATH, data, variables))
 
     # replace variables:
     try:
