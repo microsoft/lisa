@@ -4,7 +4,6 @@
 - [Document excellence](#document-excellence)
 - [Concepts](#concepts)
 - [How LISA works](#how-lisa-works)
-- [Test suite and test case](#test-suite-and-test-case)
 - [Metadata](#metadata)
   - [Test suite metadata](#test-suite-metadata)
   - [Test case metadata](#test-case-metadata)
@@ -45,8 +44,6 @@ Write code like test logic instead of test action
 ## Concepts
 
 ## How LISA works
-
-## Test suite and test case
 
 ## Metadata
 
