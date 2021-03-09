@@ -15,13 +15,6 @@ class SelectorTestCase(TestCase):
         runbook = [{constants.TESTCASE_CRITERIA: {"area": "demo"}}]
         select_and_check(self, runbook, [])
 
-    def test_skip_not_enabled(self) -> None:
-        runbook = [
-            {constants.TESTCASE_CRITERIA: {"tags": "t2"}, constants.ENABLE: False},
-            {constants.TESTCASE_CRITERIA: {"tags": "t3"}},
-        ]
-        select_and_check(self, runbook, ["ut3"])
-
     def test_select_by_priority(self) -> None:
         runbook = [{constants.TESTCASE_CRITERIA: {"priority": 0}}]
         select_and_check(self, runbook, ["ut1"])

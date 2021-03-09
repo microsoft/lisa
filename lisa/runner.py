@@ -81,19 +81,7 @@ class RootRunner(Action):
         await super().start()
 
         self._initialize_runners()
-
-        try:
-            raw_results: List[List[TestResult]] = run_in_threads(
-                [
-                    partial(runner.run, id_=runner.type_name())
-                    for runner in self._runners
-                ],
-                completed_callback=self._completed_callback,
-                log=self._log,
-            )
-        finally:
-            for runner in self._runners:
-                runner.close()
+        raw_results = self._start_run()
 
         test_results = list(itertools.chain(*raw_results))
         self._output_results(test_results)
@@ -122,13 +110,17 @@ class RootRunner(Action):
         # group filters by runner type
         runner_filters: Dict[str, List[schema.BaseTestCaseFilter]] = {}
         for raw_filter in self._runbook.testcase_raw:
-            runner_type = raw_filter.get(constants.TYPE, constants.TESTCASE_TYPE_LISA)
-            raw_filters: List[schema.BaseTestCaseFilter] = runner_filters.get(
-                runner_type, []
-            )
-            if not raw_filters:
-                runner_filters[runner_type] = raw_filters
-            raw_filters.append(raw_filter)
+            # by default run all filtered cases unless 'enable' is specified as false
+            filter = schema.BaseTestCaseFilter.schema().load(raw_filter)  # type:ignore
+            if filter.enable:
+                raw_filters: List[schema.BaseTestCaseFilter] = runner_filters.get(
+                    filter.type, []
+                )
+                if not raw_filters:
+                    runner_filters[filter.type] = raw_filters
+                raw_filters.append(raw_filter)
+            else:
+                self._log.debug(f"Skip disabled filter: {raw_filter}.")
 
         # initialize runners
         factory = Factory[BaseRunner](BaseRunner)
@@ -165,3 +157,21 @@ class RootRunner(Action):
                 # so hide it, if there is no attempted cases.
                 continue
             self._log.info(f"    {key.name:<9}: {count}")
+
+    def _start_run(self) -> List[List[TestResult]]:
+        raw_results: List[List[TestResult]] = []
+        # in case all of runners are disabled
+        if self._runners:
+            try:
+                raw_results = run_in_threads(
+                    [
+                        partial(runner.run, id_=runner.type_name())
+                        for runner in self._runners
+                    ],
+                    completed_callback=self._completed_callback,
+                    log=self._log,
+                )
+            finally:
+                for runner in self._runners:
+                    runner.close()
+        return raw_results
