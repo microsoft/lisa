@@ -32,12 +32,9 @@ def select_testcases(
         force_included: Set[str] = set()
         force_excluded: Set[str] = set()
         for filter in filters:
-            if filter.enable:
-                selected = _apply_filter(
-                    filter, selected, force_included, force_excluded, full_list
-                )
-            else:
-                log.debug(f"skip disabled rule: {filter}")
+            selected = _apply_filter(
+                filter, selected, force_included, force_excluded, full_list
+            )
         results: List[TestCaseRuntimeData] = []
         for case in selected.values():
             times = case.times

@@ -735,12 +735,18 @@ class Criteria:
     )
 
 
+@dataclass_json(undefined=Undefined.EXCLUDE)
+@dataclass
 class BaseTestCaseFilter(TypedSchema, BaseClassMixin):
     """
     base test case filters for subclass factory
     """
 
-    ...
+    type: str = field(
+        default=constants.TESTCASE_TYPE_LISA,
+    )
+    # if it's false, current filter is ineffective.
+    enable: bool = field(default=True)
 
 
 @dataclass_json()
@@ -774,9 +780,6 @@ class TestCase(BaseTestCaseFilter):
             ),
         ),
     )
-    # if it's false, the test cases are disable in current run.
-    # it uses to control test cases dynamic form command line.
-    enable: bool = field(default=True)
     # run this group of test cases several times
     # default is 1
     times: int = field(default=1, metadata=metadata(validate=validate.Range(min=1)))
