@@ -137,20 +137,28 @@ def generate_environments() -> Environments:
 
 
 class PlatformTestCase(TestCase):
-    def test_prepared_env_not_success_dropped(self) -> None:
+    def test_prepared_env_not_success_with_exception(self) -> None:
         platform = generate_platform()
         platform.set_test_config(return_prepared=False)
         envs = generate_environments()
         self.assertEqual(2, len(envs))
-        prepared_environments = platform.prepare_environments(envs)
-        self.assertEqual(0, len(prepared_environments))
+        with self.assertRaises(LisaException) as cm:
+            [platform.prepare_environment(env) for env in envs.values()]
+        self.assertEqual(
+            "no capability found for environment: "
+            "Environment(name='customized_0', topology='subnet', "
+            "nodes_raw=None, nodes_requirement=None)",
+            str(cm.exception),
+        )
 
     def test_prepared_env_success(self) -> None:
         platform = generate_platform()
         platform.set_test_config(return_prepared=True)
         envs = generate_environments()
         self.assertEqual(2, len(envs))
-        prepared_environments = platform.prepare_environments(envs)
+        prepared_environments = [
+            platform.prepare_environment(env) for env in envs.values()
+        ]
         self.assertEqual(2, len(prepared_environments))
 
     def test_prepared_env_sorted_predefined_first(self) -> None:
@@ -164,7 +172,10 @@ class PlatformTestCase(TestCase):
 
         # verify stable sort
         envs["customized_1"].is_predefined = False
-        prepared_environments = platform.prepare_environments(envs)
+        prepared_environments = [
+            platform.prepare_environment(env) for env in envs.values()
+        ]
+        prepared_environments.sort(key=lambda x: (not x.is_predefined, x.cost))
         self.assertListEqual(
             ["customized_0", "customized_1"], [x.name for x in prepared_environments]
         )
@@ -175,7 +186,10 @@ class PlatformTestCase(TestCase):
         # verify reverse sort
         envs["customized_0"].is_predefined = False
         envs["customized_1"].is_predefined = True
-        prepared_environments = platform.prepare_environments(envs)
+        prepared_environments = [
+            platform.prepare_environment(env) for env in envs.values()
+        ]
+        prepared_environments.sort(key=lambda x: (not x.is_predefined, x.cost))
         self.assertListEqual(
             ["customized_1", "customized_0"],
             [x.name for x in prepared_environments],
@@ -194,7 +208,10 @@ class PlatformTestCase(TestCase):
 
         envs["customized_0"].cost = 1
         envs["customized_1"].cost = 2
-        prepared_environments = platform.prepare_environments(envs)
+        prepared_environments = [
+            platform.prepare_environment(env) for env in envs.values()
+        ]
+        prepared_environments.sort(key=lambda x: (not x.is_predefined, x.cost))
         self.assertListEqual(
             ["customized_0", "customized_1"], [x.name for x in prepared_environments]
         )
@@ -202,7 +219,10 @@ class PlatformTestCase(TestCase):
 
         envs["customized_0"].cost = 2
         envs["customized_1"].cost = 1
-        prepared_environments = platform.prepare_environments(envs)
+        prepared_environments = [
+            platform.prepare_environment(env) for env in envs.values()
+        ]
+        prepared_environments.sort(key=lambda x: (not x.is_predefined, x.cost))
         self.assertListEqual(
             ["customized_1", "customized_0"], [x.name for x in prepared_environments]
         )

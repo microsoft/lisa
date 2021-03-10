@@ -4,17 +4,14 @@
 from __future__ import annotations
 
 from functools import partial
-from typing import TYPE_CHECKING, Any, List, Type
+from typing import Any, List, Type
 
 from lisa import schema
-from lisa.environment import Environments, EnvironmentStatus
+from lisa.environment import Environment, EnvironmentStatus
 from lisa.feature import Feature, Features
 from lisa.util import InitializableMixin, LisaException, subclasses
 from lisa.util.logger import Logger, get_logger
 from lisa.util.perf_timer import create_timer
-
-if TYPE_CHECKING:
-    from lisa.environment import Environment
 
 _get_init_logger = partial(get_logger, "init", "platform")
 
@@ -70,7 +67,7 @@ class Platform(subclasses.BaseClassWithRunbookMixin, InitializableMixin):
     def _delete_environment(self, environment: Environment, log: Logger) -> None:
         raise NotImplementedError()
 
-    def prepare_environments(self, environments: Environments) -> List[Environment]:
+    def prepare_environment(self, environment: Environment) -> Environment:
         """
         return prioritized environments.
             user defined environment is higher priority than test cases,
@@ -78,32 +75,16 @@ class Platform(subclasses.BaseClassWithRunbookMixin, InitializableMixin):
         """
         self.initialize()
 
-        prepared_environments: List[Environment] = []
-        for environment in environments.values():
-            log = get_logger(f"prepare[{environment.name}]", parent=self._log)
-            is_success = False
-            reason: str = ""
-            try:
-                is_success = self._prepare_environment(environment, log)
-                if is_success:
-                    prepared_environments.append(environment)
-                    environment.status = EnvironmentStatus.Prepared
-                else:
-                    reason = "no capability found"
-            except Exception as identifier:
-                reason = str(identifier)
-            finally:
-                if not is_success:
-                    log.info(
-                        f"environment not prepared: {reason}. "
-                        f"environment: {environment.runbook}."
-                    )
+        log = get_logger(f"prepare[{environment.name}]", parent=self._log)
+        is_success = self._prepare_environment(environment, log)
+        if is_success:
+            environment.status = EnvironmentStatus.Prepared
+        else:
+            raise LisaException(
+                f"no capability found for environment: {environment.runbook}"
+            )
 
-        # sort by environment source and cost cases
-        # user defined should be higher priority than test cases' requirement
-        prepared_environments.sort(key=lambda x: (not x.is_predefined, x.cost))
-
-        return prepared_environments
+        return environment
 
     def deploy_environment(self, environment: Environment) -> None:
         log = get_logger(f"deploy[{environment.name}]", parent=self._log)
