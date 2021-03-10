@@ -4,12 +4,18 @@
 from __future__ import annotations
 
 from functools import partial
-from typing import Any, List, Type
+from typing import Any, Dict, List, Type
 
 from lisa import schema
 from lisa.environment import Environment, EnvironmentStatus
 from lisa.feature import Feature, Features
-from lisa.util import InitializableMixin, LisaException, subclasses
+from lisa.util import (
+    InitializableMixin,
+    LisaException,
+    hookimpl,
+    plugin_manager,
+    subclasses,
+)
 from lisa.util.logger import Logger, get_logger
 from lisa.util.perf_timer import create_timer
 
@@ -24,6 +30,7 @@ class Platform(subclasses.BaseClassWithRunbookMixin, InitializableMixin):
     def __init__(self, runbook: schema.Platform) -> None:
         super().__init__(runbook)
         self._log = get_logger("", self.type_name())
+        plugin_manager.register(self)
 
     @classmethod
     def type_schema(cls) -> Type[schema.TypedSchema]:
@@ -66,6 +73,22 @@ class Platform(subclasses.BaseClassWithRunbookMixin, InitializableMixin):
 
     def _delete_environment(self, environment: Environment, log: Logger) -> None:
         raise NotImplementedError()
+
+    def _get_environment_information(self, environment: Environment) -> Dict[str, str]:
+        ...
+
+    @hookimpl  # type: ignore
+    def get_environment_information(self, environment: Environment) -> Dict[str, str]:
+        information: Dict[str, str] = {}
+
+        assert environment.platform
+        if environment.platform.type_name() != self.type_name():
+            return information
+
+        information["platform"] = environment.platform.type_name()
+        information.update(self._get_environment_information(environment=environment))
+
+        return information
 
     def prepare_environment(self, environment: Environment) -> Environment:
         """
