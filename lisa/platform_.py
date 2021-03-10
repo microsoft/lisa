@@ -75,7 +75,7 @@ class Platform(subclasses.BaseClassWithRunbookMixin, InitializableMixin):
         raise NotImplementedError()
 
     def _get_environment_information(self, environment: Environment) -> Dict[str, str]:
-        ...
+        return {}
 
     @hookimpl  # type: ignore
     def get_environment_information(self, environment: Environment) -> Dict[str, str]:
