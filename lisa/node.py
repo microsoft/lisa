@@ -5,13 +5,13 @@ from __future__ import annotations
 
 import pathlib
 import random
-from typing import Any, Callable, Dict, Iterable, List, Optional, TypeVar, Union, cast
+from typing import Any, Iterable, List, Optional, TypeVar, Union, cast
 
 from lisa import schema
 from lisa.executable import Tools
 from lisa.feature import Features
 from lisa.operating_system import OperatingSystem
-from lisa.tools import Echo, Reboot, Uname
+from lisa.tools import Echo, Reboot
 from lisa.util import (
     ContextMixin,
     InitializableMixin,
@@ -24,22 +24,6 @@ from lisa.util.process import ExecutableResult, Process
 from lisa.util.shell import ConnectionInfo, LocalShell, Shell, SshShell
 
 T = TypeVar("T")
-
-
-def _get_node_information(node: Node, information: Dict[str, str]) -> None:
-    if node.is_connected and node.is_linux:
-        uname = node.tools[Uname]
-        linux_information = uname.get_linux_information()
-        fields = ["hardware_platform", "kernel_version"]
-        information_dict = fields_to_dict(linux_information, fields=fields)
-        information.update(information_dict)
-
-        node.log.debug("detecting vm generation...")
-        information["vm_generation"] = "1"
-        cmd_result = node.execute(cmd="ls -lt /sys/firmware/efi", no_error_log=True)
-        if cmd_result.exit_code == 0:
-            information["vm_generation"] = "2"
-        node.log.debug(f"vm generation: {information['vm_generation']}")
 
 
 class Node(ContextMixin, InitializableMixin):
@@ -70,8 +54,6 @@ class Node(ContextMixin, InitializableMixin):
 
         self._support_sudo: Optional[bool] = None
         self._connection_info: Optional[ConnectionInfo] = None
-        self._node_information_hooks: List[Callable[[Node, Dict[str, str]], None]] = []
-        self.add_node_information_hook(_get_node_information)
 
     @staticmethod
     def create(
@@ -200,22 +182,6 @@ class Node(ContextMixin, InitializableMixin):
     def close(self) -> None:
         self.log.debug("closing node connection...")
         self.shell.close()
-
-    def get_node_information(self) -> Dict[str, str]:
-        result: Dict[str, str] = {}
-        for hook in self._node_information_hooks:
-            try:
-                hook(self, result)
-            except Exception as identifier:
-                # the message hook shouldn't produce any error
-                # they are called on any place, and may bring uncaught exception
-                self.log.debug(f"fail on get node information: {identifier}")
-        return result
-
-    def add_node_information_hook(
-        self, callback: Callable[[Node, Dict[str, str]], None]
-    ) -> None:
-        self._node_information_hooks.append(callback)
 
     def _initialize(self, *args: Any, **kwargs: Any) -> None:
         if self.is_remote:

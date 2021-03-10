@@ -89,8 +89,6 @@ class MockPlatform(Platform):
             for node_space in requirements:
                 environment.nodes.from_requirement(node_requirement=node_space)
         for node in environment.nodes.list():
-            # prevent real calls
-            node._node_information_hooks.clear()
             node._is_initialized = True
         self.test_data.deployed_envs.append(environment.name)
         if self._mock_runbook.deployed_status not in [
