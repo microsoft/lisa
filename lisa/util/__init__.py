@@ -7,7 +7,15 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any, Callable, Dict, Iterable, List, Optional, Pattern, Type, TypeVar
 
+import pluggy  # type: ignore
+
 T = TypeVar("T")
+
+# hooks manager helper, they must be same name.
+_NAME_LISA = "lisa"
+plugin_manager = pluggy.PluginManager(_NAME_LISA)
+hookspec = pluggy.HookspecMarker(_NAME_LISA)
+hookimpl = pluggy.HookimplMarker(_NAME_LISA)
 
 
 class LisaException(Exception):
