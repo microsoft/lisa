@@ -382,7 +382,7 @@ class RunnerTestCase(TestCase):
             test_results=test_results,
         )
 
-    def test_env_skipped_no_prepared_env(self) -> None:
+    def test_env_failed_not_prepared_env(self) -> None:
         # test env not prepared, so test cases cannot find an env to run
         platform_schema = test_platform.MockPlatformSchema()
         platform_schema.return_prepared = False
@@ -403,13 +403,13 @@ class RunnerTestCase(TestCase):
             runner=runner,
         )
 
-        no_available_env = "no available environment"
+        no_available_env = "deployment: no capability found for environment: "
         self.verify_test_results(
-            expected_envs=["", "", ""],
+            expected_envs=["customized_0", "generated_1", "generated_2"],
             expected_status=[
-                TestStatus.SKIPPED,
-                TestStatus.SKIPPED,
-                TestStatus.SKIPPED,
+                TestStatus.FAILED,
+                TestStatus.FAILED,
+                TestStatus.FAILED,
             ],
             expected_message=[no_available_env, no_available_env, no_available_env],
             test_results=test_results,

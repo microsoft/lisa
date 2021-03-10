@@ -13,7 +13,7 @@ from lisa.environment import (
     EnvironmentStatus,
     load_environments,
 )
-from lisa.platform_ import WaitMoreResourceError, load_platform
+from lisa.platform_ import Platform, WaitMoreResourceError, load_platform
 from lisa.runner import BaseRunner
 from lisa.testselector import select_testcases
 from lisa.testsuite import (
@@ -64,7 +64,12 @@ class LisaRunner(BaseRunner):
         )
 
         # there may not need to handle requirements, if all environment are predefined
-        prepared_environments = platform.prepare_environments(candidate_environments)
+
+        prepared_environments = self._prepare_environments(
+            platform=platform,
+            candidate_environments=candidate_environments,
+            test_results=test_results,
+        )
 
         can_run_results = test_results
         # request environment then run tests
@@ -102,6 +107,7 @@ class LisaRunner(BaseRunner):
                     continue
                 except Exception as identifier:
                     self._attach_failed_environment_to_result(
+                        platform=platform,
                         environment=environment,
                         result=picked_result,
                         exception=identifier,
@@ -134,6 +140,7 @@ class LisaRunner(BaseRunner):
                     environment.initialize()
                 except Exception as identifier:
                     self._attach_failed_environment_to_result(
+                        platform=platform,
                         environment=environment,
                         result=picked_result,
                         exception=identifier,
@@ -169,6 +176,37 @@ class LisaRunner(BaseRunner):
         self._latest_platform = platform
 
         return test_results
+
+    def _prepare_environments(
+        self,
+        platform: Platform,
+        candidate_environments: Environments,
+        test_results: List[TestResult],
+    ) -> List[Environment]:
+        prepared_environments: List[Environment] = []
+        for candidate_environment in candidate_environments.values():
+            try:
+                prepared_environment = platform.prepare_environment(
+                    candidate_environment
+                )
+                prepared_environments.append(prepared_environment)
+            except Exception as identifier:
+                matched_result = self._pick_one_result_on_environment(
+                    environment=candidate_environment, results=test_results
+                )
+                if matched_result:
+                    self._attach_failed_environment_to_result(
+                        platform=platform,
+                        environment=candidate_environment,
+                        result=matched_result,
+                        exception=identifier,
+                    )
+
+        # sort by environment source and cost cases
+        # user defined should be higher priority than test cases' requirement
+        prepared_environments.sort(key=lambda x: (not x.is_predefined, x.cost))
+
+        return prepared_environments
 
     def _pick_one_result_on_environment(
         self, environment: Environment, results: List[TestResult]
@@ -238,9 +276,15 @@ class LisaRunner(BaseRunner):
         test_suite.start()
 
     def _attach_failed_environment_to_result(
-        self, environment: Environment, result: TestResult, exception: Exception
+        self,
+        platform: Platform,
+        environment: Environment,
+        result: TestResult,
+        exception: Exception,
     ) -> None:
-        # make first fit test case fail by deployment
+        # make first fit test case failed by deployment,
+        # so deployment failure can be tracked.
+        environment.platform = platform
         result.environment = environment
         result.set_status(TestStatus.FAILED, f"deployment: {str(exception)}")
         self._log.lines(
