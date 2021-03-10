@@ -588,6 +588,40 @@ class AzurePlatform(Platform):
             else:
                 log.debug("not wait deleting")
 
+    def _get_environment_information(self, environment: Environment) -> Dict[str, str]:
+        information: Dict[str, str] = {}
+        node_runbook: Optional[AzureNodeSchema] = None
+        if environment.nodes:
+            node = environment.default_node
+            node_runbook = node.capability.get_extended_runbook(AzureNodeSchema, AZURE)
+            if node.is_connected and node.is_linux:
+                dmesg = node.tools[Dmesg]
+                matched_host_version = find_patterns_in_lines(
+                    dmesg.get_output(), [HOST_VERSION_PATTERN]
+                )
+                information["host_version"] = (
+                    matched_host_version[0][0] if matched_host_version[0] else ""
+                )
+
+            modinfo = node.tools[Modinfo]
+            information["lis_version"] = modinfo.get_version("hv_vmbus")
+
+            waagent = node.tools[Waagent]
+            information["wala_version"] = waagent.get_version()
+        elif environment.capability and environment.capability.nodes:
+            # get deployment information, if failed on preparing phase
+            node_space = environment.capability.nodes[0]
+            node_runbook = node_space.get_extended_runbook(
+                AzureNodeSchema, type_name=AZURE
+            )
+
+        if node_runbook:
+            information["location"] = node_runbook.location
+            information["vmsize"] = node_runbook.vm_size
+            information["image"] = node_runbook.get_image_name()
+
+        return information
+
     def _initialize(self, *args: Any, **kwargs: Any) -> None:
         # set needed environment variables for authentication
         azure_runbook: AzurePlatformSchema = self._runbook.get_extended_runbook(
