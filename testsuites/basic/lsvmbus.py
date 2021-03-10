@@ -6,6 +6,7 @@ from lisa import TestCaseMetadata, TestSuite, TestSuiteMetadata
 from lisa.operating_system import Windows
 from lisa.testsuite import simple_requirement
 from lisa.tools import Lscpu, Lsvmbus
+from lisa.util import plugin_manager
 
 
 class VmbusNames:
@@ -58,7 +59,9 @@ class LsVmBus(TestSuite):
     def lsvmbus_channel_counting(self) -> None:
         node = self.environment.default_node
         # get vm generation info
-        environment_information = node.get_node_information()
+        environment_information = plugin_manager.hook.get_environment_information(
+            environment=self.environment
+        )
         # get expected vm bus names
         vmbus_class = VmbusNames(environment_information["vm_generation"] == "1")
 

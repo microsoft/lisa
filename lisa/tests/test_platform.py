@@ -17,7 +17,7 @@ from lisa.environment import (
 from lisa.feature import Feature
 from lisa.platform_ import Platform, WaitMoreResourceError, load_platform
 from lisa.tests.test_environment import generate_runbook as generate_env_runbook
-from lisa.util import LisaException, constants
+from lisa.util import LisaException, constants, plugin_manager
 from lisa.util.logger import Logger
 
 
@@ -42,6 +42,9 @@ class MockPlatform(Platform):
     def __init__(self, runbook: schema.Platform) -> None:
         super().__init__(runbook=runbook)
         self.test_data = MockPlatformTestData()
+        # prevent real calls
+        for plugin_name, _ in plugin_manager.list_name_plugin():
+            plugin_manager.unregister(name=plugin_name)
 
     @classmethod
     def type_name(cls) -> str:

@@ -22,6 +22,7 @@ from lisa.util import (
     SkippedException,
     constants,
     get_datetime_path,
+    plugin_manager,
     set_filtered_fields,
 )
 from lisa.util.logger import get_logger
@@ -127,10 +128,17 @@ class TestResult:
         set_filtered_fields(self, result_message, fields=fields)
 
         # get information of default node, and send to notifier.
-        if self.environment and self.environment.nodes:
-            self.information["name"] = self.environment.name
-            assert self.environment.platform
-            self.information["platform"] = self.environment.platform.type_name()
+        if self.environment:
+            informations: List[
+                Dict[str, str]
+            ] = plugin_manager.hook.get_environment_information(
+                environment=self.environment
+            )
+            # reverse it, since it's FILO order,
+            # try basic earlier, and they are allowed to be overwritten
+            informations.reverse()
+            for information in informations:
+                self.information.update(information)
         result_message.information.update(self.information)
         result_message.message = self.message[0:2048] if self.message else ""
         result_message.name = self.runtime_data.metadata.full_name
