@@ -210,6 +210,19 @@ class Environment(ContextMixin, InitializableMixin):
             result.nodes.extend(self.runbook.nodes_requirement)
         return result
 
+    def get_information(self) -> Dict[str, str]:
+        final_information: Dict[str, str] = {}
+        informations: List[
+            Dict[str, str]
+        ] = plugin_manager.hook.get_environment_information(environment=self)
+        # reverse it, since it's FILO order,
+        # try basic earlier, and they are allowed to be overwritten
+        informations.reverse()
+        for current_information in informations:
+            final_information.update(current_information)
+
+        return final_information
+
     def __validate_single_default(
         self, has_default: bool, is_default: Optional[bool]
     ) -> bool:
