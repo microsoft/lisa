@@ -8,14 +8,24 @@ from collections import UserDict
 from dataclasses import dataclass, field
 from enum import Enum
 from functools import partial
-from typing import TYPE_CHECKING, Any, List, Optional
+from typing import TYPE_CHECKING, Any, Dict, List, Optional
 
 from dataclasses_json import dataclass_json  # type: ignore
 from marshmallow import validate
 
 from lisa import schema, search_space
 from lisa.node import Nodes
-from lisa.util import ContextMixin, InitializableMixin, LisaException, constants
+from lisa.tools import Uname
+from lisa.util import (
+    ContextMixin,
+    InitializableMixin,
+    LisaException,
+    constants,
+    fields_to_dict,
+    hookimpl,
+    hookspec,
+    plugin_manager,
+)
 from lisa.util.logger import get_logger
 
 if TYPE_CHECKING:
@@ -293,3 +303,40 @@ def load_environments(
         environments = Environments()
 
     return environments
+
+
+class EnvironmentHookSpec:
+    @hookspec  # type: ignore
+    def get_environment_information(self, environment: Environment) -> Dict[str, str]:
+        ...
+
+
+class EnvironmentHookImpl:
+    @hookimpl  # type: ignore
+    def get_environment_information(self, environment: Environment) -> Dict[str, str]:
+        information: Dict[str, str] = {}
+        information["name"] = environment.name
+
+        if environment.nodes:
+            node = environment.default_node
+            if node.is_connected and node.is_linux:
+                uname = node.tools[Uname]
+                linux_information = uname.get_linux_information()
+                fields = ["hardware_platform", "kernel_version"]
+                information_dict = fields_to_dict(linux_information, fields=fields)
+                information.update(information_dict)
+
+                node.log.debug("detecting vm generation...")
+                information["vm_generation"] = "1"
+                cmd_result = node.execute(
+                    cmd="ls -lt /sys/firmware/efi", no_error_log=True
+                )
+                if cmd_result.exit_code == 0:
+                    information["vm_generation"] = "2"
+                node.log.debug(f"vm generation: {information['vm_generation']}")
+
+        return information
+
+
+plugin_manager.add_hookspecs(EnvironmentHookSpec)
+plugin_manager.register(EnvironmentHookImpl())
