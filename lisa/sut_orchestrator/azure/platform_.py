@@ -608,6 +608,13 @@ class AzurePlatform(Platform):
 
             waagent = node.tools[Waagent]
             information["wala_version"] = waagent.get_version()
+
+            node.log.debug("detecting vm generation...")
+            information["vm_generation"] = "1"
+            cmd_result = node.execute(cmd="ls -lt /sys/firmware/efi", no_error_log=True)
+            if cmd_result.exit_code == 0:
+                information["vm_generation"] = "2"
+            node.log.debug(f"vm generation: {information['vm_generation']}")
         elif environment.capability and environment.capability.nodes:
             # get deployment information, if failed on preparing phase
             node_space = environment.capability.nodes[0]
