@@ -1,6 +1,7 @@
 extension:
   - "../testsuites"
 environment:
+  allow_create: false
   environments:
     - nodes:
         - type: local
