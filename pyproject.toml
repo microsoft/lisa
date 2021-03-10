@@ -23,6 +23,7 @@ azure-mgmt-storage = {version = "^16.0.0", allow-prereleases = true}
 func-timeout = "^4.3.5"
 assertpy = "^1.1"
 pytest-html = "^3.1.1"
+pluggy = "^0.13.1"
 
 [tool.poetry.dev-dependencies]
 black = "^20.8b1"
