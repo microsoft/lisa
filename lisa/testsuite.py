@@ -128,8 +128,6 @@ class TestResult:
 
         # get information of default node, and send to notifier.
         if self.environment and self.environment.nodes:
-            information = self.environment.default_node.get_node_information()
-            self.information.update(information)
             self.information["name"] = self.environment.name
             assert self.environment.platform
             self.information["platform"] = self.environment.platform.type_name()
