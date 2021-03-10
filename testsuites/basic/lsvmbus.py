@@ -66,7 +66,7 @@ class LsVmBus(TestSuite):
         vmbus_list = lsvmbus_tool.get_vmbuses()
         actual_vmbus_names = [x.vmbus_name for x in vmbus_list]
         assert_that(actual_vmbus_names).is_not_none()
-        assert_that(actual_vmbus_names.sort()).is_equal_to(vmbus_class.names.sort())
+        assert_that(vmbus_class.names).is_subset_of(actual_vmbus_names)
 
         # get actual core count
         lscpu_tool = node.tools[Lscpu]
