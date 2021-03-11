@@ -163,7 +163,8 @@ Config_Rhel() {
     fi
 
     GetGuestGeneration
-
+    # centos 7 gen2 - /boot/efi/EFI/centos/grub.cfg
+    distro=$(detect_linux_distribution)
     if [ "$os_GENERATION" -eq 2 ] && [[ $os_RELEASE =~ 6.* ]]; then
         boot_filepath=/boot/efi/EFI/BOOT/bootx64.conf
     elif [ "$os_GENERATION" -eq 1 ] && [[ $os_RELEASE =~ ^6.* ]]; then
@@ -173,7 +174,7 @@ Config_Rhel() {
     elif [ "$os_GENERATION" -eq 1 ] && [[ $os_RELEASE =~ 8.* ]]; then
         boot_filepath=/boot/grub2/grubenv
     elif [ "$os_GENERATION" -eq 2 ] && [[ $os_RELEASE =~ 7.* || $os_RELEASE =~ 8.* ]]; then
-        boot_filepath=/boot/efi/EFI/redhat/grub.cfg
+        boot_filepath=/boot/efi/EFI/$distro/grub.cfg
     else
         boot_filepath=$(find /boot -name grub.cfg)
     fi

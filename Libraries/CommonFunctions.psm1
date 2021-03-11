@@ -2453,6 +2453,7 @@ Function Wait-AzVMBackRunningWithTimeOut($AllVMData, [scriptblock]$AzVMScript) {
     }
     $MaximumCores = ($VMCoresArray | Measure-Object -Maximum).Maximum
 
+    Write-LogDbg "MaximumCores is $MaximumCores."
     # Calculate timeout depending on VM size.
     # We're adding timeout of 10 minutes (default timeout) + 1 minute/10 cores (additional timeout).
     # So For D64 VM, timeout = 10 + int[64/10] = 16 minutes.
@@ -2476,8 +2477,10 @@ Function Wait-AzVMBackRunningWithTimeOut($AllVMData, [scriptblock]$AzVMScript) {
         foreach ($vmData in $AllVMData) {
             $vmData.PublicIP = ($VMDataWithPublicIP | Where-Object {$_.RoleName -eq $vmData.RoleName}).PublicIP
         }
-
-        if ((Is-VmAlive -AllVMDataObject $AllVMData -MaxRetryCount 10) -eq "True") {
+        # the core is more, the boot time is longer
+        $MaxRetryCount = [int]($MaximumCores / 10) + 10
+        Write-LogDbg "MaxRetryCount is $MaxRetryCount."
+        if ((Is-VmAlive -AllVMDataObject $AllVMData -MaxRetryCount $MaxRetryCount) -eq "True") {
             return $true
         }
         return $false
