@@ -36,11 +36,12 @@ In Windows, you need to install [git](https://git-scm.com/downloads) and [Visual
 
 ## Clone code
 
-Open a terminal window, and enter the folder, which uses to put lisa code.
+Open a terminal window, and enter the folder, which uses to put lisa code. If you want to use the latest version, checkout the main branch.
 
 ```sh
 git clone https://github.com/microsoft/lisa.git
 cd lisa
+git checkout main
 ```
 
 ## Install Poetry and Python dependencies
