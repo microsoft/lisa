@@ -42,6 +42,10 @@ sed -i 's/:/ /g' lscpu.log
 sed -i 's/^CPU.*//g' lscpu.log
 sed -i '/^$/d' lscpu.log
 
+# Print the content of lscpu.log
+LogMsg "Output of lscpu --extended=cpu,node,socket,cache command:"
+LogMsg "$(cat lscpu.log)"
+
 # table header should now look like this:
 # CPU NODE SOCKET L1d L1i L2 L3
 
