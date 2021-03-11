@@ -420,22 +420,18 @@ function Main() {
 		else
 			# none HPC image case, need to install Intel MPI
 			# Intel MPI installation of tarball file
+			intel_mpi_installer="$(basename $intel_mpi)"
 			LogMsg "Intel MPI installation running ..."
-			LogMsg "Downloading Intel MPI source code, $intel_mpi"
+			LogMsg "Downloading Intel MPI source code: $intel_mpi"
+			LogMsg "Intel MPI installer name: $intel_mpi_installer"
 			wget $intel_mpi
 
-			tar_filename=$(echo $intel_mpi | rev | cut -d'/' -f1 | rev)
-			LogMsg "Untarring the downloaded file, $tar_filename"
-			tar xvzf $tar_filename
-			cd ${tar_filename%.*}
-
 			LogMsg "Executing the silent installation"
-			sed -i -e 's/ACCEPT_EULA=decline/ACCEPT_EULA=accept/g' silent.cfg
-			./install.sh -s silent.cfg
+			bash ./$intel_mpi_installer -s -a -s --eula accept
 			Verify_Result
 			LogMsg "Completed Intel MPI installation"
 
-			mpirun_path=$(find / -name mpirun | grep intel64)
+			mpirun_path=$(find / -name mpirun | grep oneapi)
 			LogMsg "Searching $mpirun_path ..."
 			Found_File "mpirun" "intel64"
 			Found_File "IMB-MPI1" "intel64"
@@ -448,7 +444,7 @@ function Main() {
 		export PATH=$PATH:"${mpirun_path%/*}"
 		LogMsg "$?: Set $mpirun_path to PATH, $PATH"
 		# add sourcing file in each session
-		echo "source ${mpirun_path%/*}/mpivars.sh" >> $HOMEDIR/.bashrc
+		echo "source ${mpirun_path%/*}/setvars.sh" >> $HOMEDIR/.bashrc
 
 		LogMsg "$?: Completed Intel MPI installation"
 
