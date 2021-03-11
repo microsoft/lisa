@@ -63,7 +63,7 @@ function Run_intel_IMB_Intranode() {
 	local ib_ifcs=$(ssh root@${vm1} ls /sys/class/net/ | grep ib)
 	for ifc in ${ib_ifcs};do
 	logmsg="${mpi_run_path} -hosts ${vm1},${vm2} -iface ${ifc} -ppn 1 -n 2 ${non_shm_mpi_settings} ${imb_mpi1_path} pingpong"
-	ssh root@${vm1} "${mpi_run_path} -hosts ${vm1},${vm2} -iface ${ifc} -ppn 1 -n 2 ${non_shm_mpi_settings} ${imb_mpi1_path} pingpong >> ${logfile}"
+	ssh root@${vm1} "source $vars > /dev/null;${mpi_run_path} -hosts ${vm1},${vm2} -iface ${ifc} -ppn 1 -n 2 ${non_shm_mpi_settings} ${imb_mpi1_path} pingpong >> ${logfile}"
 	[[ $? -ne 0 ]] && {
 		LogMsg "${logmsg} .. Failed"
 		return 1
@@ -878,12 +878,14 @@ function Main() {
 		;;
 		intel)
 			total_virtual_machines=$(($total_virtual_machines + 1))
-			vars=$(find / -name mpivars.sh | grep intel)
-			source $vars
-			imb_mpi1_path=$(find / -name IMB-MPI1 | grep intel)
-			imb_rma_path=$(find / -name IMB-RMA | grep intel)
-			imb_nbc_path=$(find / -name IMB-NBC | grep intel)
-			mpi_run_path=$(find / -name mpirun | grep intel64)
+			vars=$(find / -name setvars.sh | grep oneapi)
+			source $vars > /dev/null
+			imb_mpi1_path=$(find / -name IMB-MPI1 | grep oneapi)
+			imb_rma_path=$(find / -name IMB-RMA | grep oneapi)
+			imb_nbc_path=$(find / -name IMB-NBC | grep oneapi)
+			mpi_run_path=$(find / -name mpirun | grep oneapi)
+			imb_p2p_path=$(find / -name IMB-P2P | grep oneapi)
+			imb_io_path=$(find / -name IMB-IO | grep oneapi)
 		;;
 		mvapich)
 			omb_path=$(find / -name osu_benchmarks | tail -n 1)
