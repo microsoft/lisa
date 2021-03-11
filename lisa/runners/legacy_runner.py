@@ -391,11 +391,14 @@ class LogParser(InitializableMixin):
     # find os vhd, vm size, location, vm_generation information when case is running
     # SetupConfig: { OsVHD: http://storageaccount.blob.core.windows.net/vhds/test.vhd,
     #  OverrideVMSize: Standard_E16s_v3, TestLocation: westus2, VMGeneration: 1 }
+    # find image and location
+    # SetupConfig: { ARMImageName: Canonical UbuntuServer 18.04-LTS Latest,
+    #  StorageAccountType: Premium_LRS, TestLocation: westus2 }
     CASE_IMAGE_LOCATION = re.compile(
         r"SetupConfig: { (?:ARMImageName: (?P<gallery_image>.+?))?(?:, )?"
-        r"(?:Networking: .*?)?(?:, )?(?:OsVHD: (?P<vhd_image>.+?))?(?:,"
-        r" OverrideVMSize: (?P<vmsize>.+?))?, TestLocation: (?P<location>.+?)"
-        r"(?:, VMGeneration: (?P<vm_generation>.+?))? }$"
+        r"(?:Networking: .*?)?(?:, )?(?:OsVHD: (?P<vhd_image>.+?))?"
+        r"(?:, OverrideVMSize: (?P<vmsize>.+?))?(?:StorageAccountType: .*?)?(?:, )?"
+        r"TestLocation: (?P<location>.+?)(?:, VMGeneration: (?P<vm_generation>.+?))? }$"
     )
     # Test Location 'westus2' has VM Size 'Standard_DS1_v2' enabled and has enough
     #  quota for 'VERIFY-LINUX-CONFIGURATION' deployment
