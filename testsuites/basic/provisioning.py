@@ -14,10 +14,15 @@ from lisa.util.shell import wait_tcp_port_ready
 
 
 @TestSuiteMetadata(
-    area="core",
+    area="provisioning",
     category="functional",
     description="""
-    This test suite uses to test an environment provisioning correct or not.
+    This test suite uses to verify if an environment can be provisioned correct or not.
+
+    - The basic smoke test can run on all images to determinate if a image can boot and
+    reboot.
+    - Other provisioning tests verify if an environment can be provisioned with special
+    hardware configurations.
     """,
 )
 class Provisioning(TestSuite):
@@ -25,11 +30,16 @@ class Provisioning(TestSuite):
 
     @TestCaseMetadata(
         description="""
-        This test try to connect to ssh port to check if a node is healthy.
-        If ssh connected, the node is healthy enough. And check if it's healthy after
-        reboot. Even not enable to reboot, it's passed with a warning.
-        If the node can be rebooted, but there is panic detected, or not be able to
-        connected. The case failed.
+        This case verifies whether a node is operating normally.
+
+        Steps,
+        1. Connect to TCP port 22. If it's not connectable, failed and check whether
+            there is kernel panic.
+        2. Connect to SSH port 22, and reboot the node. If there is an error and kernel
+            panic, fail the case. If it's not connectable, also fail the case.
+        3. If there is another error, but not kernel panic or tcp connection, pass with
+            warning.
+        4. Otherwise, fully passed.
         """,
         priority=0,
         requirement=simple_requirement(
@@ -48,15 +58,20 @@ class Provisioning(TestSuite):
             case_path = self._create_case_log_path(case_name)
             serial_console.check_panic(saved_path=case_path, stage="bootup")
             raise LisaException(
-                f"cannot connect to [{node.public_address}:{node.public_port}], "
+                f"Cannot connect to [{node.public_address}:{node.public_port}], "
                 f"error code: {tcp_error_code}, no panic found in serial log"
             )
 
         try:
             timer = create_timer()
-            self.log.info(f"restarting {node.name}")
+            self.log.info(
+                f"SSH port 22 is opened, connecting and rebooting '{node.name}'"
+            )
+            # In this step, the underlying shell will connect to SSH port.
+            # If successful, the node will be reboot.
+            # If failed, It distinguishes TCP and SSH errors by error messages.
             node.reboot()
-            self.log.info(f"node {node.name} rebooted in {timer}")
+            self.log.info(f"node '{node.name}' rebooted in {timer}")
         except Exception as identifier:
             if not case_path:
                 case_path = self._create_case_log_path(case_name)
