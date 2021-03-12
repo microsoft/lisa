@@ -100,7 +100,7 @@ class LisaRunner(BaseRunner):
                 try:
                     platform.deploy_environment(environment)
                 except WaitMoreResourceError as identifier:
-                    self._log.warning(
+                    self._log.info(
                         f"[{environment.name}] waiting for more resource: "
                         f"{identifier}, skip assigning case"
                     )
