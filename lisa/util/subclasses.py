@@ -50,8 +50,9 @@ class Factory(InitializableMixin, Generic[T_BASECLASS], SubClassTypeDict):
                 # so far, it happens on ut only.
                 # When UT code import each other, it happens.
                 # it's important to use first registered.
-                self._log.warning(
-                    f"register [{subclass_type_name}] subclass again. "
+                self._log.error(
+                    f"registered [{subclass_type_name}] subclass again. "
+                    f"It should happen in UT only. "
                     f"new: [{subclass_type}], exist: [{exists_type}]"
                 )
             else:

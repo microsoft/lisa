@@ -134,7 +134,7 @@ class Process:
 
         if timeout < timer.elapsed():
             if self._process is not None:
-                self._log.warning(f"timeout in {timeout} sec, and killed")
+                self._log.info(f"timeout in {timeout} sec, and killed")
             self.kill()
 
         if self._result is None:
