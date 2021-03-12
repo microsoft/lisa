@@ -60,17 +60,28 @@ function Main {
             throw "Fail to attach $count empty data disks of size $diskSizeinGB GB to VM"
         }
         Write-LogInfo "Verifying if data disks are added to the VM - running fdisk on remote VM"
-        $fdiskOutput = Run-LinuxCmd -username $user -password $password -ip $AllVMData.PublicIP -port $AllVMData.SSHPort -command "/sbin/fdisk -l | grep /dev/sd" -runAsSudo
-        foreach ($line in ($fdiskOutput.Split([Environment]::NewLine))) {
-            if ($line -imatch "Disk /dev/sd[a-z][a-z]|sd[c-z]:" -and [int64]($line.Split()[4]) -eq (([int64]($diskSizeinGB) * [int64]1073741824))){
-                $verifiedDiskCount += 1
-                Write-LogInfo "$verifiedDiskCount data disk is successfully attached the VM: $line"
+        $retry = 1
+        $retryMaxTimes = 2
+        # retry here - it takes time to show all disks on the VM
+        while ($retry -lt $retryMaxTimes) {
+            $verifiedDiskCount = 0
+            $fdiskOutput = Run-LinuxCmd -username $user -password $password -ip $AllVMData.PublicIP -port $AllVMData.SSHPort -command "/sbin/fdisk -l | grep /dev/sd" -runAsSudo
+            foreach ($line in ($fdiskOutput.Split([Environment]::NewLine))) {
+                if ($line -imatch "Disk /dev/sd[a-z][a-z]|sd[c-z]:" -and [int64]($line.Split()[4]) -eq (([int64]($diskSizeinGB) * [int64]1073741824))){
+                    $verifiedDiskCount += 1
+                    Write-LogInfo "$verifiedDiskCount data disk is successfully attached the VM: $line"
+                }
+            }
+            Write-LogInfo "Number of data disks verified inside VM $verifiedDiskCount, expected count is $diskCount"
+            if ($verifiedDiskCount -eq $diskCount) {
+                Write-LogInfo "Data disks added to the VM are successfully verified inside VM"
+                break
+            } else {
+                Write-LogInfo "Retry times - $retry"
+                Start-Sleep 30
             }
         }
-        Write-LogInfo "Number of data disks verified inside VM $verifiedDiskCount"
-        if ($verifiedDiskCount -eq $diskCount) {
-            Write-LogInfo "Data disks added to the VM are successfully verified inside VM"
-        } else {
+        if ($retry -eq $retryMaxTimes) {
             $testResult=$resultFail
             throw "Data disks added to the VM failed to verify inside VM"
         }
