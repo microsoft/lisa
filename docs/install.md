@@ -2,6 +2,8 @@
 
 - [Prerequisites](#prerequisites)
 - [Install Python](#install-python)
+  - [Windows](#windows)
+  - [Linux](#linux)
 - [Install dependencies](#install-dependencies)
 - [Clone code](#clone-code)
 - [Install Poetry and Python dependencies](#install-poetry-and-python-dependencies)
@@ -18,9 +20,24 @@ LISA supports to run on Windows and Linux. Follow below steps to install LISA fr
 
 ## Install Python
 
-Install latest [Python 3.8 64 bits](https://www.python.org/). If there are Python installed already, please make sure effective Python's version is 3.8 64 bits or above.
+Lisa is tested on [Python 3.8 64 bits](https://www.python.org/). If there are Python installed already, please make sure effective Python's version is 3.8 64-bit or above.
 
 LISA is developed and tested with Python 3.8 (64 bit). The latest version of Python 3.8 is recommended. If LISA is not compatible with higher Python version, [file an issue](https://github.com/microsoft/lisa/issues/new) to us.
+
+### Windows
+
+Navigate to [Python releases for Windows](https://www.python.org/downloads/windows/). Download and install *Windows installer (64-bit)* from latest Python 3.8 64-bits or higher version.
+
+### Linux
+
+For some Linux distributions, you can install latest Python 3.8 (64-bit) by its guidance, or build from source code. Below is how to install in Ubuntu.
+
+```bash
+sudo apt update
+sudo apt install software-properties-common -y
+sudo add-apt-repository ppa:deadsnakes/ppa -y
+sudo apt install python3.8 -y
+```
 
 ## Install dependencies
 
