@@ -177,6 +177,9 @@ Function Assert-ResourceLimitationForDeployment($RGXMLData, [ref]$TargetLocation
 				$regionVmUsage = Get-AzVMUsage -Location $vmAvailableLocations[$index]
 				$vmFamilyUsage = $regionVmUsage | Where-Object { $_.Name.Value -imatch "$vmFamily" } | Select-Object CurrentValue, Limit
 				$regionCoresUsage = $regionVmUsage | Where-Object { $_.Name.Value -imatch "$vmFamily" } | Select-Object CurrentValue, Limit
+				if ($vmFamilyUsage.Limit -eq 0 -or $regionCoresUsage.Limit -eq 0) {
+					return -1
+				}
 				$locationErrors = Test-OverflowErrors -ResourceType "$vmFamily" -CurrentValue $vmFamilyUsage.CurrentValue `
 					-RequiredValue $vmFamilyRequiredCPUs.$vmFamily -MaximumLimit $vmFamilyUsage.Limit -Location $vmAvailableLocations[$index]
 				$locationErrors += Test-OverflowErrors -ResourceType "Region Total Cores" -CurrentValue $regionCoresUsage.CurrentValue `
@@ -205,7 +208,6 @@ Function Assert-ResourceLimitationForDeployment($RGXMLData, [ref]$TargetLocation
 					if ($TargetLocation.Value) {
 						Write-LogErr "Estimated resource usage for VM Size: '$testVMSize' exceeded allowed limits from TestLocation '$($TargetLocation.Value)'"
 					}
-					$TargetLocation.Value = $null
 					$overFlowErrors += 1
 				}
 			}
@@ -1707,6 +1709,10 @@ Function Invoke-AllResourceGroupDeployments($SetupTypeData, $CurrentTestData, $R
 		$coreCountExceededTimeout = 3600
 		while (!$readyToDeploy) {
 			$readyToDeploy = Assert-ResourceLimitationForDeployment -RGXMLData $RG -TargetLocation ([ref]$location) -CurrentTestData $CurrentTestData
+            if (-1 -eq $readyToDeploy) {
+                $coreCountExceededTimeout = 0
+                $readyToDeploy = 0
+            }
 			$validateCurrentTime = Get-Date
 			$elapsedWaitTime = ($validateCurrentTime - $validateStartTime).TotalSeconds
 			# When assertion failed, break the loop if '-UseExistingRG', or target VMSize is detected 'NOT_ENABLED' from all regions,
