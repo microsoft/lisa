@@ -573,7 +573,8 @@ def _track_progress(
 ) -> List[TestResult]:
     # discovered all cases
     all_cases: List[Dict[str, str]] = []
-    while process.is_running() and not runner.canceled:
+    process_exiting: bool = False
+    while not runner.canceled:
         root_parsers = _find_matched_files(
             working_dir=working_dir, pattern=ROOT_LOG_FILE_PATTERN, log=log
         )
@@ -581,14 +582,25 @@ def _track_progress(
         if root_parsers:
             root_parser = root_parsers[0]
             all_cases = root_parser.discover_cases()
-            if all_cases:
-                log.info(f"found cases: {[x['name'] for x in all_cases]}")
+
+        # check if any case is running, it means all cases are collected
+        running_parsers = _find_matched_files(
+            working_dir=working_dir, pattern=LOG_FILE_PATTERN, log=log
+        )
+        if any(parser.discover_running_cases() for parser in running_parsers):
+            log.info(f"found {len(all_cases)} cases: {[x['name'] for x in all_cases]}")
+            break
+        # try one more time, after process is exited.
+        if not process.is_running():
+            if process_exiting:
                 break
+            process_exiting = True
         time.sleep(5)
 
+    process_exiting = False
     case_states = ResultStateManager(id_=id_, log=log)
     # loop to check running and completed results
-    while process.is_running() and not runner.canceled:
+    while not runner.canceled:
         running_cases: List[Dict[str, str]] = []
         completed_cases: List[Dict[str, str]] = []
         # discover running cases
@@ -611,6 +623,18 @@ def _track_progress(
             running_cases=running_cases,
             completed_cases=completed_cases,
         )
+        # try one more time, after process is exited.
+        if not process.is_running():
+            if process_exiting:
+                break
+            process_exiting = True
         time.sleep(5)
+
+    # Handle cases which aborted in deployment stage
+    for result in case_states.results:
+        if result.status == TestStatus.RUNNING:
+            result.status = TestStatus.FAILED
+            result.message = "Case fail in deployment stage."
+            result._send_result_message()
 
     return case_states.results
