@@ -391,14 +391,25 @@ class LogParser(InitializableMixin):
     # find os vhd, vm size, location, vm_generation information when case is running
     # SetupConfig: { OsVHD: http://storageaccount.blob.core.windows.net/vhds/test.vhd,
     #  OverrideVMSize: Standard_E16s_v3, TestLocation: westus2, VMGeneration: 1 }
-    # find image and location
+    # find image and location when case is running
     # SetupConfig: { ARMImageName: Canonical UbuntuServer 18.04-LTS Latest,
     #  StorageAccountType: Premium_LRS, TestLocation: westus2 }
+    # find image, vm size, location, vm_generation information when case is running
+    # SetupConfig: { ARMImageName: canonical 0001-com-ubuntu-server-focal
+    #  20_04-lts-gen2 latest, OverrideVMSize: Standard_D2s_v3, SecureBoot: true,
+    #  SecurityType: TrustedLaunch, TestLocation: southcentralus, VMGeneration: 2,
+    #  vTPM: true }
+    # find image, vm size, location when case is running
+    # SetupConfig: { ARMImageName: Canonical UbuntuServer 18.04-LTS latest, OSDiskType:
+    #  Ephemeral, OverrideVMSize: Standard_DS4_v2, TestLocation: westus2 }
     CASE_IMAGE_LOCATION = re.compile(
         r"SetupConfig: { (?:ARMImageName: (?P<gallery_image>.+?))?(?:, )?"
-        r"(?:Networking: .*?)?(?:, )?(?:OsVHD: (?P<vhd_image>.+?))?"
-        r"(?:, OverrideVMSize: (?P<vmsize>.+?))?(?:StorageAccountType: .*?)?(?:, )?"
-        r"TestLocation: (?P<location>.+?)(?:, VMGeneration: (?P<vm_generation>.+?))? }$"
+        r"(?:DiskType: .*?)?(?:, )?(?:Networking: .*?)?(?:, )?"
+        r"(?:OsVHD: (?P<vhd_image>.+?))?(?:, )?(?:OSDiskType: .*?)?"
+        r"(?:, )?(?:, OverrideVMSize: (?P<vmsize>.+?))?(?:, )?"
+        r"(?:SecureBoot: .*?)?(?:, )?(?:SecurityType: .*?)?"
+        r"(?:, )?(?:StorageAccountType: .*?)?(?:, )?TestLocation: (?P<location>.+?)"
+        r"(?:, )?(?:VMGeneration: (?P<vm_generation>.+?))?(?:, )?(?:vTPM: .*?)? }$"
     )
     # Test Location 'westus2' has VM Size 'Standard_DS1_v2' enabled and has enough
     #  quota for 'VERIFY-LINUX-CONFIGURATION' deployment
