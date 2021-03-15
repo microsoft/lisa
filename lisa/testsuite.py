@@ -128,7 +128,8 @@ class TestResult:
 
         # get information of default node, and send to notifier.
         if self.environment:
-            result_message.information.update(self.environment.get_information())
+            self.information.update(self.environment.get_information())
+        result_message.information.update(self.information)
         result_message.message = self.message[0:2048] if self.message else ""
         result_message.name = self.runtime_data.metadata.full_name
         notifier.notify(result_message)
