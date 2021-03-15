@@ -132,7 +132,8 @@ Function Select-TestCases($TestXMLs, $TestCategory, $TestArea, $TestNames, $Test
             }
 
             # If TestName is provided and contains the current case name, then pick the case, unless it's in excluded tests. Otherwise, check other filter conditions.
-            if (($testNamesArray -notcontains $test.testName)) {
+            if (($testNamesArray -notcontains $test.testName) -and
+                ($TestCategory -ne "*" -or $TestArea -ne "*" -or $TestTag -ne "*" -or $TestSetup -ne "*" -or $TestPriority -ne "*")) {
                 # if TestCategory not provided, or test case has Category completely matching one of expected TestCategory (case insensitive 'contains'), otherwise continue (skip this test case)
                 if (($TestCategory -ne "*") -and ($testCategoryArray -notcontains $test.Category)) {
                     continue
