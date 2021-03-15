@@ -170,6 +170,13 @@ class AzureNodeSchema:
         gallery: Optional[AzureVmGallerySchema] = self._gallery
         if not gallery:
             if isinstance(self.gallery_raw, dict):
+                # Users decide the cases of image names,
+                #  the inconsistent cases cause the mismatched error in notifiers.
+                # The lower() normalizes the image names,
+                #  it has no impact on deployment.
+                self.gallery_raw = dict(
+                    (k, v.lower()) for k, v in self.gallery_raw.items()
+                )
                 gallery = AzureVmGallerySchema.schema().load(  # type: ignore
                     self.gallery_raw
                 )
@@ -180,7 +187,11 @@ class AzureNodeSchema:
                 assert isinstance(
                     self.gallery_raw, str
                 ), f"actual: {type(self.gallery_raw)}"
-                gallery_strings = re.split(r"[:\s]+", self.gallery_raw.strip())
+                # Users decide the cases of image names,
+                #  the inconsistent cases cause the mismatched error in notifiers.
+                # The lower() normalizes the image names,
+                #  it has no impact on deployment.
+                gallery_strings = re.split(r"[:\s]+", self.gallery_raw.strip().lower())
 
                 if len(gallery_strings) == 4:
                     gallery = AzureVmGallerySchema(*gallery_strings)
