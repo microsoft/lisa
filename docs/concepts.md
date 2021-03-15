@@ -32,6 +32,8 @@ Tools are runnable commands in a node. Scripts are considered tools. The only di
 
 In different Linux distributions, tools may have different installation methods, commands, or command line parameters. The LISA tool provides a simple test interface. Therefore, the test focuses on verifying logic and does not need to deal with the diversity of distributions.
 
+A collection of tools are provided on each node. After the tool is initialized, it will be added to the collection, and will be available during the lifetime of the node.
+
 ## Platform
 
 The platform provides a test environment, such as Azure, Hyper-V or WSL. The platform will measure test requirements, deploy the environment and delete the used environment.
@@ -41,6 +43,8 @@ In most cases, after the environment is deployed, it has nothing to do with the 
 ## Feature
 
 The feature is like the tool, but it supports operations outside the node. For example, get serial logs of nodes, add disks, etc.
+
+When implementing a platform, it also needs to implement supporting features. After a feature is implemented, the test cases that requires this feature, can be run on the platform.
 
 ## Requirement and Capability
 
@@ -59,3 +63,5 @@ For example, in the figure below. A test case requires at least one core, 2G mem
 A test suite contains one or more test cases that focus on certain functions or tested domains. A test case is the smallest unit that runs and generates test results.
 
 The test cases in the same test suite have the same overall description and setting/clearing method. Each test case describes its own steps and sets the appropriate priority.
+
+Test suites and test cases have their metadata. The metadata includes the description, priority, test requirement, and other information.

@@ -20,7 +20,7 @@ LISA focuses on validating the integration of Linux kernels/distributions and vi
 * [Install LISA](docs/install.md)
 * [Run tests](docs/run.md)
 * [Microsoft tests](docs/microsoft_tests.md)
-* [Write LISA tests](docs/write_case.md)
+* [Write test cases in LISA](docs/write_case.md)
 * [Command line reference](docs/command_line.md)
 * [Runbook reference](docs/runbook.md)
 * [Extend and customize LISA](docs/extension.md)

@@ -3,9 +3,11 @@
 This document describes the existing developer tooling we have in place (and what to
 expect of it), as well as our design and development philosophy.
 
-- [Editor Setup](#editor-setup)
+- [Understand LISA](#understand-lisa)
+- [Environment Setup](#environment-setup)
   - [Visual Studio Code](#visual-studio-code)
   - [Emacs](#emacs)
+- [Code guideline](#code-guideline)
   - [other tools](#other-tools)
 - [Naming Conventions](#naming-conventions)
 - [Automated Tooling](#automated-tooling)
@@ -18,7 +20,17 @@ expect of it), as well as our design and development philosophy.
 - [Design Patterns](#design-patterns)
 - [Future Sections](#future-sections)
 
-## Editor Setup
+## Understand LISA
+
+It depends on what kind of contribution to LISA, you may need to understand LISA deeper. Learn more from below topics.
+
+- [Concepts](concepts.md) includes design considerations, how components work together.
+- [Extensions](extension.md) includes all extendable components, and how to develop extensions in LISA.
+- [How to write test cases](write_case.md) introduce the guideline to write test cases.
+
+## Environment Setup
+
+Follow [installation](install.md) steps to get source code ready. Then follow below steps to setup corresponding development environment.
 
 ### Visual Studio Code
 
@@ -65,6 +77,8 @@ Then run `M-x add-dir-local-variable RET python-mode RET pyvenv-activate RET <pa
 
 ((python-mode . ((pyvenv-activate . "~/.cache/pypoetry/virtualenvs/lisa-s7Q404Ij-py3.8"))))
 ```
+
+## Code guideline
 
 ### other tools
 
@@ -181,13 +195,6 @@ adhere to our coding standards.
 - [mypy](http://mypy-lang.org/), the static type checker, which coupled with
   type annotations allows us to avoid the pitfalls of Python being a dynamically
   typed language.
-
-- [python-language-server](https://github.com/palantir/python-language-server)
-  (and integrations), the de facto LSP server. While Microsoft is developing
-  their own LSP servers, they do not integrate with the existing ecosystem of
-  tools, and their latest tool, Pyright, simply does not support
-  `pyproject.toml`. Since pyls is used far more widely, and supports every
-  editor, we use it.
 
 - [rope](https://github.com/python-rope/rope), to provide completions and
   renaming support to pyls.
