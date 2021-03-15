@@ -592,7 +592,10 @@ class AzurePlatform(Platform):
         information: Dict[str, str] = {}
         node_runbook: Optional[AzureNodeSchema] = None
         if environment.nodes:
-            node = environment.default_node
+            node: Optional[Node] = environment.default_node
+        else:
+            node = None
+        if node and node.is_connected and node.is_linux:
             node_runbook = node.capability.get_extended_runbook(AzureNodeSchema, AZURE)
             if node.is_connected and node.is_linux:
                 dmesg = node.tools[Dmesg]
