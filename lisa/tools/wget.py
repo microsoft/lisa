@@ -9,7 +9,7 @@ from lisa.util import LisaException
 
 class Wget(Tool):
     __pattern_path = re.compile(
-        r"([\w\W]*?) (-|File) ‘(?P<path>.+?)’ (saved|already there)"
+        r"([\w\W]*?)(-|File) (‘|')(?P<path>.+?)(’|') (saved|already there)"
     )
 
     @property
@@ -44,6 +44,11 @@ class Wget(Tool):
         matched_result = self.__pattern_path.match(command_result.stdout)
         if matched_result:
             download_file_path = matched_result.group("path")
+        else:
+            raise LisaException(
+                f"cannot find file path in stdout of '{run_command}', it may cause by "
+                f"download failed or pattern mismatch. stdout: {command_result.stdout}"
+            )
         actual_file_path = self.node.execute(f"ls {download_file_path}", shell=True)
         if actual_file_path.exit_code != 0:
             raise LisaException(f"File {actual_file_path} doesn't exist.")

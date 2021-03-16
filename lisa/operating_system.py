@@ -182,10 +182,10 @@ class Linux(OperatingSystem, BaseClassMixin):
         self._install_packages(package_names)
 
 
-class Ubuntu(Linux):
+class Debian(Linux):
     @classmethod
     def name_pattern(cls) -> Pattern[str]:
-        return re.compile("^Ubuntu|ubuntu$")
+        return re.compile("^debian|Forcepoint|Kali$")
 
     def _initialize_package_installation(self) -> None:
         self._node.execute("apt-get update", sudo=True)
@@ -198,10 +198,10 @@ class Ubuntu(Linux):
         self._node.execute(command, sudo=True)
 
 
-class Debian(Ubuntu):
+class Ubuntu(Debian):
     @classmethod
     def name_pattern(cls) -> Pattern[str]:
-        return re.compile("^debian|Forcepoint|Kali$")
+        return re.compile("^Ubuntu|ubuntu$")
 
 
 class Unix(Linux):
@@ -226,11 +226,11 @@ class Redhat(Linux):
     def name_pattern(cls) -> Pattern[str]:
         return re.compile("^rhel|Red|Scientific|acronis|Actifio$")
 
+    def _initialize_package_installation(self) -> None:
+        self._node.execute("yum -y update", sudo=True, timeout=1200)
+
     def _install_packages(self, packages: Union[List[str]]) -> None:
-        self._node.execute(
-            f"DEBIAN_FRONTEND=noninteractive yum install -y {' '.join(packages)}",
-            sudo=True,
-        )
+        self._node.execute(f"yum install -y {' '.join(packages)}", sudo=True)
 
 
 class CentOs(Redhat):

@@ -1,8 +1,8 @@
 import re
-from typing import Any, List, cast
+from typing import Any, List
 
 from lisa.executable import Tool
-from lisa.operating_system import Debian, Linux, Redhat, Suse, Ubuntu
+from lisa.operating_system import Redhat, Suse, Ubuntu
 from lisa.util import LisaException
 
 from .wget import Wget
@@ -87,6 +87,8 @@ class VmBus:
 
 
 class Lsvmbus(Tool):
+    __pattern_not_found = re.compile(r"(.*WARNING: lsvmbus not found for kernel*)")
+
     _lsvmbus_repo = (
         "https://raw.githubusercontent.com/torvalds/linux/master/tools/hv/lsvmbus"
     )
@@ -105,6 +107,7 @@ class Lsvmbus(Tool):
 
     def _check_exists(self) -> bool:
         _exists = super()._check_exists()
+
         if not _exists:
             previous_command = self._command
             self._command = "$HOME/.local/bin/lsvmbus"
@@ -115,25 +118,58 @@ class Lsvmbus(Tool):
             _exists = super()._check_exists()
             if not _exists:
                 self._command = previous_command
+
+        if _exists and isinstance(self.node.os, Ubuntu):
+            # fix for issue happen on Canonical UbuntuServer 16.04-LTS 16.04.201703020
+            # lsvmbus exists by default, but it doesn't give expected results, still
+            # download lsvmbus src
+            # WARNING: lsvmbus not found for kernel 4.4.0-65
+            #   You may need to install the following packages for this specific kernel:
+            #     linux-tools-4.4.0-65-generic
+            #     linux-cloud-tools-4.4.0-65-generic
+            #   You may also want to install one of the following packages to keep up to
+            # date:
+            #     linux-tools-generic
+            #     linux-cloud-tools-generic
+            cmd_result = self.run(shell=True)
+            if self.__pattern_not_found.match(cmd_result.stdout):
+                _exists = False
+
         return _exists
 
+    def _install_from_src(self) -> None:
+        wget_tool = self.node.tools[Wget]
+        file_path = wget_tool.get(self._lsvmbus_repo, "$HOME/.local/bin")
+        # make the download file executable
+        self.node.execute(f"chmod +x {file_path}")
+        self._command = file_path
+
     def install(self) -> bool:
-        linux_os: Linux = cast(Linux, self.node.os)
         package_name = ""
-        if isinstance(linux_os, Redhat):
+        if isinstance(self.node.os, Redhat):
             package_name = "hyperv-tools"
-        elif isinstance(linux_os, Suse):
+            self.node.os.install_packages(package_name)
+        elif isinstance(self.node.os, Suse):
             package_name = "hyper-v"
-        elif isinstance(linux_os, Ubuntu) and not isinstance(linux_os, Debian):
+            self.node.os.install_packages(package_name)
+        elif isinstance(self.node.os, Ubuntu):
             package_name = "linux-cloud-tools-common"
-        if package_name:
-            linux_os.install_packages(package_name)
-        else:
-            wget_tool = self.node.tools[Wget]
-            file_path = wget_tool.get(self._lsvmbus_repo, "$HOME/.local/bin")
-            # make the download file executable
-            self.node.execute(f"chmod +x {file_path}")
-            self._command = file_path
+            self.node.os.install_packages(package_name)
+            cmd_result = self.run(shell=True)
+            # this is to handle lsvmbus exist by default, but broken in
+            # Canonical UbuntuServer 16.04-LTS 16.04.201703020
+            # refer to similar logic in _check_exists above
+            if self.__pattern_not_found.match(cmd_result.stdout):
+                self._install_from_src()
+
+        if not self._check_exists():
+            if package_name:
+                self._log.info(
+                    f"failed to install lsvmbus by package '{package_name}',"
+                    f" trying to install by downloading src."
+                )
+            self._install_from_src()
+
         return self._check_exists()
 
     def get_vmbuses(self, force_run: bool = False) -> List[VmBus]:
