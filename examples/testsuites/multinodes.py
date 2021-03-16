@@ -3,7 +3,7 @@
 
 from assertpy import assert_that  # type: ignore
 
-from lisa import TestCaseMetadata, TestSuite, TestSuiteMetadata
+from lisa import Environment, TestCaseMetadata, TestSuite, TestSuiteMetadata
 from lisa.testsuite import simple_requirement
 from lisa.tools import Lscpu, Ntttcp
 
@@ -24,10 +24,10 @@ class MultipleNodesDemo(TestSuite):
         """,
         priority=1,
     )
-    def os_info(self) -> None:
-        self.log.info(f"node count: {len(self.environment.nodes)}")
+    def os_info(self, environment: Environment) -> None:
+        self.log.info(f"node count: {len(environment.nodes)}")
 
-        for node in self.environment.nodes.list():
+        for node in environment.nodes.list():
             lscpu = node.tools[Lscpu]
             core_count = lscpu.get_core_count()
             self.log.info(f"index: {node.index}, core_count: {core_count}")
@@ -39,13 +39,13 @@ class MultipleNodesDemo(TestSuite):
         priority=2,
     )
     def perf_network_tcp_ipv4_throughput_ntttcp_synthetic_singleconnection(
-        self,
+        self, environment: Environment
     ) -> None:
-        server_node = self.environment.nodes[0]
+        server_node = environment.nodes[0]
         self.log.info(
             f"server: {server_node.internal_address}:{server_node.internal_port}"
         )
-        client_node = self.environment.nodes[1]
+        client_node = environment.nodes[1]
         self.log.info(
             f"client: {client_node.internal_address}:{client_node.internal_port}"
         )

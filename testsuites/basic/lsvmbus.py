@@ -2,7 +2,7 @@ import math
 
 from assertpy import assert_that  # type: ignore
 
-from lisa import TestCaseMetadata, TestSuite, TestSuiteMetadata
+from lisa import Environment, Node, TestCaseMetadata, TestSuite, TestSuiteMetadata
 from lisa.operating_system import Windows
 from lisa.testsuite import simple_requirement
 from lisa.tools import Lscpu, Lsvmbus
@@ -55,10 +55,9 @@ class LsVmBus(TestSuite):
         priority=1,
         requirement=simple_requirement(unsupported_os=[Windows]),
     )
-    def lsvmbus_channel_counting(self) -> None:
-        node = self.environment.default_node
+    def lsvmbus_channel_counting(self, environment: Environment, node: Node) -> None:
         # get vm generation info
-        environment_information = self.environment.get_information()
+        environment_information = environment.get_information()
         # get expected vm bus names
         vmbus_class = VmbusNames(environment_information["vm_generation"] == "1")
 

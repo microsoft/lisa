@@ -253,7 +253,9 @@ class LisaRunner(BaseRunner):
             ):
                 self._check_cancel()
                 if new_env_result.check_environment(environment, True):
-                    self._run_suite(environment=environment, results=[new_env_result])
+                    self._run_suite(
+                        environment=environment, case_results=[new_env_result]
+                    )
                     break
 
         # grouped test results by test suite.
@@ -269,7 +271,7 @@ class LisaRunner(BaseRunner):
                     and grouped_cases
                 ):
                     # run last batch cases
-                    self._run_suite(environment=environment, results=grouped_cases)
+                    self._run_suite(environment=environment, case_results=grouped_cases)
                     grouped_cases = []
 
                 # append new test cases
@@ -277,21 +279,18 @@ class LisaRunner(BaseRunner):
                 grouped_cases.append(test_result)
 
         if grouped_cases:
-            self._run_suite(environment=environment, results=grouped_cases)
+            self._run_suite(environment=environment, case_results=grouped_cases)
 
-    def _run_suite(self, environment: Environment, results: List[TestResult]) -> None:
+    def _run_suite(
+        self, environment: Environment, case_results: List[TestResult]
+    ) -> None:
 
-        assert results
-        suite_metadata = results[0].runtime_data.metadata.suite
+        assert case_results
+        suite_metadata = case_results[0].runtime_data.metadata.suite
         test_suite: TestSuite = suite_metadata.test_class(
-            environment,
-            results,
             suite_metadata,
         )
-        for result in results:
-            result.environment = environment
-        environment.is_new = False
-        test_suite.start()
+        test_suite.start(environment=environment, case_results=case_results)
 
     def _attach_failed_environment_to_result(
         self,

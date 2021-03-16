@@ -3,7 +3,7 @@
 
 from assertpy import assert_that  # type: ignore
 
-from lisa import TestCaseMetadata, TestSuite, TestSuiteMetadata
+from lisa import Environment, Node, TestCaseMetadata, TestSuite, TestSuiteMetadata
 from lisa.operating_system import Linux
 from lisa.tools import Echo, Uname
 
@@ -25,9 +25,9 @@ class HelloWorld(TestSuite):
         """,
         priority=0,
     )
-    def hello(self) -> None:
-        self.log.info(f"node count: {len(self.environment.nodes)}")
-        node = self.environment.default_node
+    def hello(self, environment: Environment) -> None:
+        self.log.info(f"node count: {len(environment.nodes)}")
+        node = environment.default_node
 
         if node.os.is_linux:
             assert isinstance(node.os, Linux)
@@ -53,8 +53,7 @@ class HelloWorld(TestSuite):
         """,
         priority=1,
     )
-    def bye(self) -> None:
-        node = self.environment.default_node
+    def bye(self, node: Node) -> None:
         # use it once like this way before use short cut
         node.tools[Echo]
         assert_that(str(node.tools.echo("bye!"))).is_equal_to("bye!")
