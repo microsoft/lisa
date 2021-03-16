@@ -4,7 +4,7 @@
 from pathlib import Path
 from typing import Optional
 
-from lisa import TestCaseMetadata, TestSuite, TestSuiteMetadata
+from lisa import Node, TestCaseMetadata, TestSuite, TestSuiteMetadata
 from lisa.environment import EnvironmentStatus
 from lisa.features import SerialConsole
 from lisa.testsuite import simple_requirement
@@ -37,8 +37,7 @@ class Provisioning(TestSuite):
             supported_features=[SerialConsole],
         ),
     )
-    def smoke_test(self, case_name: str) -> None:
-        node = self.environment.default_node
+    def smoke_test(self, case_name: str, node: Node) -> None:
         case_path: Optional[Path] = None
 
         is_ready, tcp_error_code = wait_tcp_port_ready(

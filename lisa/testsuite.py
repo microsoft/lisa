@@ -7,7 +7,17 @@ from dataclasses import dataclass, field
 from enum import Enum
 from functools import wraps
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, Callable, Dict, List, Optional, Type, Union
+from typing import (
+    TYPE_CHECKING,
+    Any,
+    Callable,
+    Dict,
+    List,
+    Optional,
+    Tuple,
+    Type,
+    Union,
+)
 
 from retry.api import retry_call  # type: ignore
 
@@ -24,7 +34,7 @@ from lisa.util import (
     get_datetime_path,
     set_filtered_fields,
 )
-from lisa.util.logger import get_logger
+from lisa.util.logger import Logger, get_logger
 from lisa.util.perf_timer import Timer, create_timer
 
 if TYPE_CHECKING:
@@ -230,11 +240,9 @@ class TestSuiteMetadata:
         @wraps(self.test_class)
         def wrapper(
             test_class: Type[TestSuite],
-            environment: Environment,
-            cases: List[TestResult],
             metadata: TestSuiteMetadata,
         ) -> TestSuite:
-            return test_class(environment, cases, metadata)
+            return test_class(metadata)
 
         return wrapper
 
@@ -310,14 +318,9 @@ class TestCaseRuntimeData:
 class TestSuite:
     def __init__(
         self,
-        environment: Environment,
-        case_results: List[TestResult],
         metadata: TestSuiteMetadata,
     ) -> None:
         super().__init__()
-        self.environment = environment
-        # test cases to run, must be a test method in this class.
-        self.case_results = case_results
         self._metadata = metadata
         self._should_stop = False
         self.log = get_logger("suite", metadata.name)
@@ -343,29 +346,26 @@ class TestSuite:
         path.mkdir()
         return path
 
-    # TODO: This entire function is one long string of side-effects.
-    # We need to reduce this function's complexity to remove the
-    # disabled warning, and not rely solely on side effects.
-    def start(self) -> None:  # noqa: C901
+    def start(
+        self,
+        environment: Environment,
+        # test cases to run, must be a test method in this class.
+        case_results: List[TestResult],
+    ) -> None:
         suite_error_message = ""
-        is_suite_continue = True
-
-        timer = create_timer()
-        try:
-            self.before_suite()
-        except Exception as identifier:
-            suite_error_message = f"before_suite: {identifier}"
-            is_suite_continue = False
-        self.log.debug(f"before_suite end with {timer}")
 
         #  replace to case's logger temporarily
         suite_log = self.log
-        for case_result in self.case_results:
-            case_name = case_result.runtime_data.name
-            test_method = getattr(self, case_name)
-            self.log = get_logger("case", f"{case_result.runtime_data.full_name}")
+        is_suite_continue, suite_error_message = self.__before_suite(suite_log)
 
-            self.log.info(
+        # set the environment is not new, when it's used by any suite.
+        environment.is_new = False
+
+        for case_result in case_results:
+            case_result.environment = environment
+            case_log = get_logger("case", f"{case_result.runtime_data.full_name}")
+
+            case_log.info(
                 f"test case '{case_result.runtime_data.full_name}' is running"
             )
             is_continue: bool = is_suite_continue
@@ -373,93 +373,129 @@ class TestSuite:
             case_result.set_status(TestStatus.RUNNING, "")
 
             if is_continue:
-                timer = create_timer()
-                try:
-                    retry_call(
-                        self.before_case,
-                        exceptions=Exception,
-                        tries=case_result.runtime_data.retry + 1,
-                        logger=self.log,
-                    )
-                except Exception as identifier:
-                    self.log.error("before_case: ", exc_info=identifier)
-                    case_result.set_status(
-                        TestStatus.SKIPPED, f"before_case: {identifier}"
-                    )
-                    is_continue = False
-                self.log.debug(f"before_case end with {timer}")
+                is_continue = self.__before_case(case_result, case_log)
             else:
                 case_result.set_status(TestStatus.SKIPPED, suite_error_message)
 
             if is_continue:
-                timer = create_timer()
-                try:
-                    retry_call(
-                        test_method,
-                        fkwargs={"case_name": case_name},
-                        exceptions=Exception,
-                        tries=case_result.runtime_data.retry + 1,
-                        logger=self.log,
-                    )
-                    case_result.set_status(TestStatus.PASSED, "")
-                except SkippedException as identifier:
-                    self.log.info(f"case skipped: {identifier}")
-                    self.log.debug("case skipped", exc_info=identifier)
-                    # case is skipped dynamically
-                    case_result.set_status(TestStatus.SKIPPED, f"{identifier}")
-                except NotRunException as identifier:
-                    self.log.info(f"case keep NOTRUN: {identifier}")
-                    self.log.debug("case NOTRUN", exc_info=identifier)
-                    # case is not run dynamically.
-                    case_result.set_status(TestStatus.NOTRUN, f"{identifier}")
-                except PassedException as identifier:
-                    self.log.info(f"case partial passed: {identifier}")
-                    self.log.debug("case partial passed", exc_info=identifier)
-                    # case can be passed with a warning.
-                    case_result.set_status(TestStatus.PASSED, f"warning: {identifier}")
-                except Exception as identifier:
-                    if case_result.runtime_data.ignore_failure:
-                        self.log.info(f"case failed and ignored: {identifier}")
-                        case_result.set_status(TestStatus.ATTEMPTED, f"{identifier}")
-                    else:
-                        self.log.error("case failed", exc_info=identifier)
-                        case_result.set_status(
-                            TestStatus.FAILED, f"failed: {identifier}"
-                        )
-                self.log.debug(f"case end with {timer}")
-
-            timer = create_timer()
-            try:
-                retry_call(
-                    self.after_case,
-                    exceptions=Exception,
-                    tries=case_result.runtime_data.retry + 1,
-                    logger=self.log,
+                self.__run_case(
+                    case_result=case_result, environment=environment, log=case_log
                 )
-            except Exception as identifier:
-                # after case doesn't impact test case result.
-                self.log.error("after_case failed", exc_info=identifier)
-            self.log.debug(f"after_case end with {timer}")
 
-            self.log.info(
+            self.__after_case(case_result, case_log)
+
+            case_log.info(
                 f"result: {case_result.status.name}, " f"elapsed: {total_timer}"
             )
 
             if self._should_stop:
-                self.log.info("received stop message, stop run")
+                suite_log.info("received stop message, stop run")
                 break
 
-        self.log = suite_log
+        self.__after_suite(suite_log)
+
+    def stop(self) -> None:
+        self._should_stop = True
+
+    def __before_suite(self, log: Logger) -> Tuple[bool, str]:
+        result: bool = True
+        message: str = ""
+        timer = create_timer()
+        try:
+            self.before_suite()
+        except Exception as identifier:
+            result = False
+            message = f"before_suite: {identifier}"
+        log.debug(f"before_suite end with {timer}")
+        return result, message
+
+    def __after_suite(self, log: Logger) -> None:
         timer = create_timer()
         try:
             self.after_suite()
         except Exception as identifier:
             # after_suite doesn't impact test case result, and can continue
-            self.log.error("after_suite failed", exc_info=identifier)
-        self.log.debug(f"after_suite end with {timer}")
+            log.error("after_suite failed", exc_info=identifier)
+        log.debug(f"after_suite end with {timer}")
 
-    def stop(self) -> None:
-        self._should_stop = True
+    def __before_case(self, case_result: TestResult, log: Logger) -> bool:
+        result: bool = True
+
+        timer = create_timer()
+        try:
+            retry_call(
+                self.before_case,
+                exceptions=Exception,
+                tries=case_result.runtime_data.retry + 1,
+                logger=log,
+            )
+        except Exception as identifier:
+            log.error("before_case: ", exc_info=identifier)
+            case_result.set_status(TestStatus.SKIPPED, f"before_case: {identifier}")
+            result = False
+        log.debug(f"before_case end with {timer}")
+
+        return result
+
+    def __after_case(self, case_result: TestResult, log: Logger) -> None:
+        timer = create_timer()
+        try:
+            retry_call(
+                self.after_case,
+                exceptions=Exception,
+                tries=case_result.runtime_data.retry + 1,
+                logger=log,
+            )
+        except Exception as identifier:
+            # after case doesn't impact test case result.
+            log.error("after_case failed", exc_info=identifier)
+        log.debug(f"after_case end with {timer}")
+
+    def __run_case(
+        self, case_result: TestResult, environment: Environment, log: Logger
+    ) -> None:
+        timer = create_timer()
+        case_name = case_result.runtime_data.name
+        test_method = getattr(self, case_name)
+
+        test_arguments = {
+            "case_name": case_name,
+            "environment": environment,
+            "node": environment.default_node,
+        }
+
+        try:
+            retry_call(
+                test_method,
+                fkwargs=test_arguments,
+                exceptions=Exception,
+                tries=case_result.runtime_data.retry + 1,
+                logger=log,
+            )
+            case_result.set_status(TestStatus.PASSED, "")
+        except SkippedException as identifier:
+            log.info(f"case skipped: {identifier}")
+            log.debug("case skipped", exc_info=identifier)
+            # case is skipped dynamically
+            case_result.set_status(TestStatus.SKIPPED, f"{identifier}")
+        except NotRunException as identifier:
+            log.info(f"case keep NOTRUN: {identifier}")
+            log.debug("case NOTRUN", exc_info=identifier)
+            # case is not run dynamically.
+            case_result.set_status(TestStatus.NOTRUN, f"{identifier}")
+        except PassedException as identifier:
+            log.info(f"case partial passed: {identifier}")
+            log.debug("case partial passed", exc_info=identifier)
+            # case can be passed with a warning.
+            case_result.set_status(TestStatus.PASSED, f"warning: {identifier}")
+        except Exception as identifier:
+            if case_result.runtime_data.ignore_failure:
+                log.info(f"case failed and ignored: {identifier}")
+                case_result.set_status(TestStatus.ATTEMPTED, f"{identifier}")
+            else:
+                log.error("case failed", exc_info=identifier)
+                case_result.set_status(TestStatus.FAILED, f"failed: {identifier}")
+        log.debug(f"case end with {timer}")
 
 
 def get_suites_metadata() -> Dict[str, TestSuiteMetadata]:

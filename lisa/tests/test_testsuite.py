@@ -167,15 +167,13 @@ def select_and_check(
 class TestSuiteTestCase(TestCase):
     def generate_suite_instance(self) -> MockTestSuite:
         case_results = generate_cases_result()
-        case_results = case_results[:2]
+        self.case_results = case_results[:2]
         suite_metadata = case_results[0].runtime_data.metadata.suite
         runbook = generate_runbook(is_single_env=True, local=True, remote=True)
         envs = load_environments(runbook)
         self.default_env = list(envs.values())[0]
         assert self.default_env
         test_suite = MockTestSuite(
-            environment=self.default_env,
-            case_results=case_results,
             metadata=suite_metadata,
         )
         return test_suite
@@ -229,196 +227,196 @@ class TestSuiteTestCase(TestCase):
     def test_skip_before_suite_failed(self) -> None:
         test_suite = self.generate_suite_instance()
         test_suite.set_fail_phase(fail_on_before_suite=True)
-        test_suite.start()
-        for result in test_suite.case_results:
+        test_suite.start(environment=self.default_env, case_results=self.case_results)
+        for result in self.case_results:
             self.assertEqual(TestStatus.SKIPPED, result.status)
             self.assertEqual("before_suite: failed", result.message)
 
     def test_pass_after_suite_failed(self) -> None:
         test_suite = self.generate_suite_instance()
         test_suite.set_fail_phase(fail_on_after_suite=True)
-        test_suite.start()
-        for result in test_suite.case_results:
+        test_suite.start(environment=self.default_env, case_results=self.case_results)
+        for result in self.case_results:
             self.assertEqual(TestStatus.PASSED, result.status)
             self.assertEqual("", result.message)
 
     def test_skip_before_case_failed(self) -> None:
         test_suite = self.generate_suite_instance()
         test_suite.set_fail_phase(fail_on_before_case=True)
-        test_suite.start()
-        for result in test_suite.case_results:
+        test_suite.start(environment=self.default_env, case_results=self.case_results)
+        for result in self.case_results:
             self.assertEqual(TestStatus.SKIPPED, result.status)
             self.assertEqual("before_case: failed", result.message)
 
     def test_pass_after_case_failed(self) -> None:
         test_suite = self.generate_suite_instance()
         test_suite.set_fail_phase(fail_on_after_case=True)
-        test_suite.start()
-        for result in test_suite.case_results:
+        test_suite.start(environment=self.default_env, case_results=self.case_results)
+        for result in self.case_results:
             self.assertEqual(TestStatus.PASSED, result.status)
             self.assertEqual("", result.message)
 
     def test_skip_case_failed(self) -> None:
         test_suite = self.generate_suite_instance()
         test_suite.set_fail_phase(fail_case_count=1)
-        test_suite.start()
-        result = test_suite.case_results[0]
+        test_suite.start(environment=self.default_env, case_results=self.case_results)
+        result = self.case_results[0]
         self.assertEqual(TestStatus.FAILED, result.status)
         self.assertEqual("failed: mock_ut1 failed", result.message)
-        result = test_suite.case_results[1]
+        result = self.case_results[1]
         self.assertEqual(TestStatus.PASSED, result.status)
         self.assertEqual("", result.message)
 
     def test_retry_passed(self) -> None:
         test_suite = self.generate_suite_instance()
         test_suite.set_fail_phase(fail_case_count=1)
-        result = test_suite.case_results[0]
+        result = self.case_results[0]
         result.runtime_data.retry = 1
-        test_suite.start()
+        test_suite.start(environment=self.default_env, case_results=self.case_results)
         self.assertEqual(TestStatus.PASSED, result.status)
         self.assertEqual("", result.message)
-        result = test_suite.case_results[1]
+        result = self.case_results[1]
         self.assertEqual(TestStatus.PASSED, result.status)
         self.assertEqual("", result.message)
 
     def test_partial_passed(self) -> None:
         test_suite = self.generate_suite_instance()
         test_suite.set_fail_phase(partial_pass=True)
-        result = test_suite.case_results[0]
-        test_suite.start()
+        result = self.case_results[0]
+        test_suite.start(environment=self.default_env, case_results=self.case_results)
         self.assertEqual(TestStatus.PASSED, result.status)
         self.assertEqual("warning: mock_ut1 passed with warning", result.message)
-        result = test_suite.case_results[1]
+        result = self.case_results[1]
         self.assertEqual(TestStatus.PASSED, result.status)
         self.assertEqual("", result.message)
 
     def test_skipped(self) -> None:
         test_suite = self.generate_suite_instance()
         test_suite.set_fail_phase(skipped=True)
-        result = test_suite.case_results[0]
-        test_suite.start()
+        result = self.case_results[0]
+        test_suite.start(environment=self.default_env, case_results=self.case_results)
         self.assertEqual(TestStatus.SKIPPED, result.status)
         self.assertEqual("mock_ut1 skipped this run", result.message)
-        result = test_suite.case_results[1]
+        result = self.case_results[1]
         self.assertEqual(TestStatus.PASSED, result.status)
         self.assertEqual("", result.message)
 
     def test_notrun(self) -> None:
         test_suite = self.generate_suite_instance()
         test_suite.set_fail_phase(notrun=True)
-        result = test_suite.case_results[0]
-        test_suite.start()
+        result = self.case_results[0]
+        test_suite.start(environment=self.default_env, case_results=self.case_results)
         self.assertEqual(TestStatus.NOTRUN, result.status)
         self.assertEqual("mock_ut1 kept not run", result.message)
-        result = test_suite.case_results[1]
+        result = self.case_results[1]
         self.assertEqual(TestStatus.PASSED, result.status)
         self.assertEqual("", result.message)
 
     def test_retry_notenough_failed(self) -> None:
         test_suite = self.generate_suite_instance()
         test_suite.set_fail_phase(fail_case_count=2)
-        result = test_suite.case_results[0]
+        result = self.case_results[0]
         result.runtime_data.retry = 1
-        test_suite.start()
+        test_suite.start(environment=self.default_env, case_results=self.case_results)
         self.assertEqual(TestStatus.FAILED, result.status)
         self.assertEqual("failed: mock_ut1 failed", result.message)
-        result = test_suite.case_results[1]
+        result = self.case_results[1]
         self.assertEqual(TestStatus.PASSED, result.status)
         self.assertEqual("", result.message)
 
     def test_attempt_ignore_failure(self) -> None:
         test_suite = self.generate_suite_instance()
         test_suite.set_fail_phase(fail_case_count=2)
-        result = test_suite.case_results[0]
+        result = self.case_results[0]
         result.runtime_data.ignore_failure = True
-        test_suite.start()
+        test_suite.start(environment=self.default_env, case_results=self.case_results)
         self.assertEqual(TestStatus.ATTEMPTED, result.status)
         self.assertEqual("mock_ut1 failed", result.message)
-        result = test_suite.case_results[1]
+        result = self.case_results[1]
         self.assertEqual(TestStatus.PASSED, result.status)
         self.assertEqual("", result.message)
 
     def test_result_check_env_not_ready_os_type(self) -> None:
-        test_suite = self.generate_suite_instance()
+        _ = self.generate_suite_instance()
         assert self.default_env
         self.default_env.status = EnvironmentStatus.Deployed
         self.default_env._is_initialized = True
         for node in self.default_env.nodes.list():
             node.os = Linux(node)
-        for result in test_suite.case_results:
+        for result in self.case_results:
             check_result = result.check_environment(self.default_env)
             self.assertTrue(check_result)
 
     def test_result_check_env_os_type_not_unsupported(self) -> None:
-        test_suite = self.generate_suite_instance()
+        _ = self.generate_suite_instance()
         assert self.default_env
         self.default_env.status = EnvironmentStatus.Connected
         self.default_env._is_initialized = True
-        case_metadata = test_suite.case_results[0].runtime_data.metadata
+        case_metadata = self.case_results[0].runtime_data.metadata
         case_metadata.requirement = simple_requirement(
             min_count=2, unsupported_os=[Linux]
         )
         for node in self.default_env.nodes.list():
             node.os = Windows(node)
-        for result in test_suite.case_results:
+        for result in self.case_results:
             check_result = result.check_environment(self.default_env)
             self.assertTrue(check_result)
 
     def test_result_check_env_os_type_unsupported(self) -> None:
-        test_suite = self.generate_suite_instance()
+        _ = self.generate_suite_instance()
         assert self.default_env
         self.default_env.status = EnvironmentStatus.Connected
         self.default_env._is_initialized = True
-        case_metadata = test_suite.case_results[0].runtime_data.metadata
+        case_metadata = self.case_results[0].runtime_data.metadata
         case_metadata.requirement = simple_requirement(
             min_count=2, unsupported_os=[Linux]
         )
         for node in self.default_env.nodes.list():
             node.os = Linux(node)
-        check_result = test_suite.case_results[0].check_environment(self.default_env)
+        check_result = self.case_results[0].check_environment(self.default_env)
         self.assertFalse(check_result)
-        check_result = test_suite.case_results[1].check_environment(self.default_env)
+        check_result = self.case_results[1].check_environment(self.default_env)
         self.assertTrue(check_result)
 
     def test_result_check_env_os_type_supported(self) -> None:
-        test_suite = self.generate_suite_instance()
+        _ = self.generate_suite_instance()
         assert self.default_env
         self.default_env.status = EnvironmentStatus.Connected
         self.default_env._is_initialized = True
-        case_metadata = test_suite.case_results[0].runtime_data.metadata
+        case_metadata = self.case_results[0].runtime_data.metadata
         case_metadata.requirement = simple_requirement(
             min_count=2, supported_os=[Linux]
         )
         for node in self.default_env.nodes.list():
             node.os = Linux(node)
-        for result in test_suite.case_results:
+        for result in self.case_results:
             check_result = result.check_environment(self.default_env)
             self.assertTrue(check_result)
 
     def test_result_check_env_os_type_not_supported(self) -> None:
-        test_suite = self.generate_suite_instance()
+        _ = self.generate_suite_instance()
         assert self.default_env
         self.default_env.status = EnvironmentStatus.Connected
         self.default_env._is_initialized = True
-        case_metadata = test_suite.case_results[0].runtime_data.metadata
+        case_metadata = self.case_results[0].runtime_data.metadata
         case_metadata.requirement = simple_requirement(
             min_count=2, supported_os=[Linux]
         )
         for node in self.default_env.nodes.list():
             node.os = Windows(node)
-        check_result = test_suite.case_results[0].check_environment(self.default_env)
+        check_result = self.case_results[0].check_environment(self.default_env)
         self.assertFalse(check_result)
-        check_result = test_suite.case_results[1].check_environment(self.default_env)
+        check_result = self.case_results[1].check_environment(self.default_env)
         self.assertTrue(check_result)
 
     def test_skipped_not_meet_req(self) -> None:
-        test_suite = self.generate_suite_instance()
+        _ = self.generate_suite_instance()
         assert self.default_env
         self.default_env.status = EnvironmentStatus.Deployed
-        case_metadata = test_suite.case_results[0].runtime_data.metadata
+        case_metadata = self.case_results[0].runtime_data.metadata
         case_metadata.requirement = simple_requirement(min_count=3)
 
-        result = test_suite.case_results[0]
+        result = self.case_results[0]
         check_result = result.check_environment(self.default_env, save_reason=True)
         self.assertFalse(check_result)
         # only save reason, but not set final status, so that it can try next env
@@ -429,7 +427,7 @@ class TestSuiteTestCase(TestCase):
             ["no enough nodes, requirement: 3, capability: 2."],
             result.check_results.reasons,
         )
-        result = test_suite.case_results[1]
+        result = self.case_results[1]
         check_result = result.check_environment(self.default_env, save_reason=True)
         self.assertTrue(check_result)
         self.assertEqual(TestStatus.NOTRUN, result.status)

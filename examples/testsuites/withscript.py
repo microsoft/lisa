@@ -5,7 +5,7 @@ from pathlib import Path
 
 from assertpy import assert_that  # type: ignore
 
-from lisa import TestCaseMetadata, TestSuite, TestSuiteMetadata
+from lisa import Node, TestCaseMetadata, TestSuite, TestSuiteMetadata
 from lisa.executable import CustomScript, CustomScriptBuilder
 from lisa.operating_system import Windows
 from lisa.testsuite import simple_requirement
@@ -35,8 +35,7 @@ class WithScript(TestSuite):
         priority=1,
         requirement=simple_requirement(unsupported_os=[Windows]),
     )
-    def script(self) -> None:
-        node = self.environment.default_node
+    def script(self, node: Node) -> None:
         timer1 = create_timer()
         script: CustomScript = node.tools[self._echo_script]
         result1 = script.run()
