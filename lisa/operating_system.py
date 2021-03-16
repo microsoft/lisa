@@ -233,6 +233,18 @@ class Redhat(Linux):
         )
 
 
+class Fedora(Linux):
+    @classmethod
+    def name_pattern(cls) -> Pattern[str]:
+        return re.compile("^Fedora|fedora$")
+
+    def _install_packages(self, packages: Union[List[str]]) -> None:
+        self._node.execute(
+            f"dnf install -y {' '.join(packages)}",
+            sudo=True,
+        )
+
+
 class CentOs(Redhat):
     @classmethod
     def name_pattern(cls) -> Pattern[str]:
