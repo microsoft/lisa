@@ -7,7 +7,7 @@ param
     [switch] $UseSecretsFile,
     [switch] $IncludeAge,
     [switch] $IncludeState,
-    $AzureSecretsFile,
+    [string] $AzureSecretsFile,
     [string] $Region,
     [string] $VmSize,
     [string] $Tags,
