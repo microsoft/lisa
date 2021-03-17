@@ -111,7 +111,13 @@ function Start-LISAv2 {
 
 			# Prepare $LogDir and $LogFileName after Set-Variable $WorkingDirectory
 			$testTimestamp = Get-Date -Format 'yyyy-MM-dd-HH-mm-ss'
-			$logDir = Join-Path $workingDirectory "TestResults\${testTimestamp}-$global:TestId"
+			$scopeString = ""
+			if ( $TestCategory ) { $scopeString += "-$TestCategory"	}
+			if ( $TestArea ) { $scopeString += "-$TestArea" }
+			if ( $TestTag ) { $scopeString += "-$($TestTag)" }
+			if ( $TestPriority ) { $scopeString += "-$($TestPriority)" }
+
+			$logDir = Join-Path $workingDirectory "TestResults\${testTimestamp}-${global:TestId}$scopeString"
 			New-Item -ItemType "Directory" -Path $logDir -Force | Out-Null
 			Set-Variable -Name "LogDir" -Value $logDir -Scope Global -Force
 			$logFileName = "LISAv2-Test-${testId}.log"
@@ -196,10 +202,7 @@ function Start-LISAv2 {
 
 			# Zip the test log folder
 			$zipFile = "$TestPlatform"
-			if ( $TestCategory ) { $zipFile += "-$TestCategory"	}
-			if ( $TestArea ) { $zipFile += "-$TestArea" }
-			if ( $TestTag ) { $zipFile += "-$($TestTag)" }
-			if ( $TestPriority ) { $zipFile += "-$($TestPriority)" }
+			$zipFile += "$scopeString"
 			$zipFile += "-$testId-TestLogs.zip"
 			$zipFile = $zipFile.Replace("*", "All")
 			$zipFilePath = Join-Path (Get-Location).Path $zipFile
