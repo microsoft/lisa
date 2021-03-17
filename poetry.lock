@@ -86,7 +86,7 @@ six = ">=1.11.0"
 
 [[package]]
 name = "azure-identity"
-version = "1.6.0b2"
+version = "1.5.0"
 description = "Microsoft Azure Identity Library for Python"
 category = "main"
 optional = false
@@ -95,9 +95,9 @@ python-versions = "*"
 [package.dependencies]
 azure-core = ">=1.0.0,<2.0.0"
 cryptography = ">=2.1.4"
-msal = ">=1.7.0,<2.0.0"
+msal = ">=1.6.0,<2.0.0"
 msal-extensions = ">=0.3.0,<0.4.0"
-six = ">=1.12.0"
+six = ">=1.6"
 
 [[package]]
 name = "azure-mgmt-compute"
@@ -1085,7 +1085,7 @@ brotli = ["brotlipy (>=0.6.0)"]
 [metadata]
 lock-version = "1.1"
 python-versions = "^3.8"
-content-hash = "e31dee310deec0b845733078fc1f2edf6a7eea76a26cac32a24dd817feb0aa41"
+content-hash = "702be6b42c448b41bfd9560a473d807ac113ac04e34e87fdfc9c71adf846dd14"
 
 [metadata.files]
 adal = [
@@ -1120,8 +1120,8 @@ azure-core = [
     {file = "azure_core-1.12.0-py2.py3-none-any.whl", hash = "sha256:2d0ff1c446cc572f3e32a9a59809880d0d857754a06afe682bce8a6ea2201607"},
 ]
 azure-identity = [
-    {file = "azure-identity-1.6.0b2.zip", hash = "sha256:d9cd354dae87ec2e44ee39f55d8727a0d232a8b35cba8d35eacc85f73b31cdba"},
-    {file = "azure_identity-1.6.0b2-py2.py3-none-any.whl", hash = "sha256:71abecad851078fb9458b4b1d31d4dc012bd5357d4fbfbadab778e181b685d38"},
+    {file = "azure-identity-1.5.0.zip", hash = "sha256:872adfa760b2efdd62595659b283deba92d47b7a67557eb9ff48f0b5d04ee396"},
+    {file = "azure_identity-1.5.0-py2.py3-none-any.whl", hash = "sha256:1575972d19fe6651256554b2be4c009d2c996d0e86fb8ab4b0a10cc1ee2ef80a"},
 ]
 azure-mgmt-compute = [
     {file = "azure-mgmt-compute-17.0.0.zip", hash = "sha256:c7350b404e5d10a548ceddb034394c8fad6c852ce33a3d3b211065813c1da404"},
