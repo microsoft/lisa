@@ -117,7 +117,7 @@ function Start-LISAv2 {
 			if ( $TestTag ) { $scopeString += "-$($TestTag.Replace(',','-'))" }
 			if ( $TestPriority ) { $scopeString += "-$($TestPriority.Replace(',','-'))" }
 
-			$logDir = Join-Path $workingDirectory "TestResults\${testTimestamp}-${global:TestId}$scopeString"
+			$logDir = Join-Path $workingDirectory "TestResults\${testTimestamp}$scopeString-${global:TestId}"
 			New-Item -ItemType "Directory" -Path $logDir -Force | Out-Null
 			Set-Variable -Name "LogDir" -Value $logDir -Scope Global -Force
 			$logFileName = "LISAv2-Test-${testId}.log"
