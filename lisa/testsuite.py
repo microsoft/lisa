@@ -325,17 +325,17 @@ class TestSuite:
         self._should_stop = False
         self.log = get_logger("suite", metadata.name)
 
-    def before_suite(self) -> None:
-        pass
+    def before_suite(self, **kwargs: Any) -> None:
+        ...
 
-    def after_suite(self) -> None:
-        pass
+    def after_suite(self, **kwargs: Any) -> None:
+        ...
 
-    def before_case(self) -> None:
-        pass
+    def before_case(self, **kwargs: Any) -> None:
+        ...
 
-    def after_case(self) -> None:
-        pass
+    def after_case(self, **kwargs: Any) -> None:
+        ...
 
     def _create_case_log_path(self, case_name: str) -> Path:
         while True:
@@ -354,16 +354,27 @@ class TestSuite:
     ) -> None:
         suite_error_message = ""
 
-        #  replace to case's logger temporarily
-        suite_log = self.log
-        is_suite_continue, suite_error_message = self.__before_suite(suite_log)
-
         # set the environment is not new, when it's used by any suite.
         environment.is_new = False
+        test_kwargs = {
+            "environment": environment,
+            "node": environment.default_node,
+        }
+
+        #  replace to case's logger temporarily
+        suite_log = self.log
+        is_suite_continue, suite_error_message = self.__suite_method(
+            self.before_suite, test_kwargs=test_kwargs, log=suite_log
+        )
 
         for case_result in case_results:
+            case_name = case_result.runtime_data.name
+
             case_result.environment = environment
             case_log = get_logger("case", f"{case_result.runtime_data.full_name}")
+
+            case_kwargs = test_kwargs.copy()
+            case_kwargs.update({"case_name": case_name})
 
             case_log.info(
                 f"test case '{case_result.runtime_data.full_name}' is running"
@@ -373,16 +384,18 @@ class TestSuite:
             case_result.set_status(TestStatus.RUNNING, "")
 
             if is_continue:
-                is_continue = self.__before_case(case_result, case_log)
+                is_continue = self.__before_case(
+                    case_result, test_kwargs=case_kwargs, log=case_log
+                )
             else:
                 case_result.set_status(TestStatus.SKIPPED, suite_error_message)
 
             if is_continue:
                 self.__run_case(
-                    case_result=case_result, environment=environment, log=case_log
+                    case_result=case_result, test_kwargs=case_kwargs, log=case_log
                 )
 
-            self.__after_case(case_result, case_log)
+            self.__after_case(case_result, test_kwargs=case_kwargs, log=case_log)
 
             case_log.info(
                 f"result: {case_result.status.name}, " f"elapsed: {total_timer}"
@@ -392,39 +405,37 @@ class TestSuite:
                 suite_log.info("received stop message, stop run")
                 break
 
-        self.__after_suite(suite_log)
+        self.__suite_method(self.after_suite, test_kwargs=test_kwargs, log=suite_log)
 
     def stop(self) -> None:
         self._should_stop = True
 
-    def __before_suite(self, log: Logger) -> Tuple[bool, str]:
+    def __suite_method(
+        self, method: Callable[..., Any], test_kwargs: Dict[str, Any], log: Logger
+    ) -> Tuple[bool, str]:
         result: bool = True
         message: str = ""
         timer = create_timer()
+        method_name = method.__name__
         try:
-            self.before_suite()
+            # use retry to pass dynamic parameters
+            method(**test_kwargs)
         except Exception as identifier:
             result = False
-            message = f"before_suite: {identifier}"
-        log.debug(f"before_suite end with {timer}")
+            message = f"{method_name}: {identifier}"
+        log.debug(f"{method_name} end with {timer}")
         return result, message
 
-    def __after_suite(self, log: Logger) -> None:
-        timer = create_timer()
-        try:
-            self.after_suite()
-        except Exception as identifier:
-            # after_suite doesn't impact test case result, and can continue
-            log.error("after_suite failed", exc_info=identifier)
-        log.debug(f"after_suite end with {timer}")
-
-    def __before_case(self, case_result: TestResult, log: Logger) -> bool:
+    def __before_case(
+        self, case_result: TestResult, test_kwargs: Dict[str, Any], log: Logger
+    ) -> bool:
         result: bool = True
 
         timer = create_timer()
         try:
             retry_call(
                 self.before_case,
+                fkwargs=test_kwargs,
                 exceptions=Exception,
                 tries=case_result.runtime_data.retry + 1,
                 logger=log,
@@ -437,11 +448,14 @@ class TestSuite:
 
         return result
 
-    def __after_case(self, case_result: TestResult, log: Logger) -> None:
+    def __after_case(
+        self, case_result: TestResult, test_kwargs: Dict[str, Any], log: Logger
+    ) -> None:
         timer = create_timer()
         try:
             retry_call(
                 self.after_case,
+                fkwargs=test_kwargs,
                 exceptions=Exception,
                 tries=case_result.runtime_data.retry + 1,
                 logger=log,
@@ -452,22 +466,16 @@ class TestSuite:
         log.debug(f"after_case end with {timer}")
 
     def __run_case(
-        self, case_result: TestResult, environment: Environment, log: Logger
+        self, case_result: TestResult, test_kwargs: Dict[str, Any], log: Logger
     ) -> None:
         timer = create_timer()
         case_name = case_result.runtime_data.name
         test_method = getattr(self, case_name)
 
-        test_arguments = {
-            "case_name": case_name,
-            "environment": environment,
-            "node": environment.default_node,
-        }
-
         try:
             retry_call(
                 test_method,
-                fkwargs=test_arguments,
+                fkwargs=test_kwargs,
                 exceptions=Exception,
                 tries=case_result.runtime_data.retry + 1,
                 logger=log,
