@@ -132,7 +132,7 @@ class WindowsShellType(object):
 # retry strategy is the same as spurplus.connect_with_retries.
 @retry(Exception, tries=3, delay=1, logger=None)  # type: ignore
 def try_connect(connection_info: ConnectionInfo) -> Any:
-    # spur always run a linux command and will fail on Windows.
+    # spur always run a posix command and will fail on Windows.
     # So try with paramiko firstly.
     paramiko_client = paramiko.SSHClient()
     paramiko_client.set_missing_host_key_policy(paramiko.AutoAddPolicy())
@@ -197,10 +197,10 @@ class SshShell(InitializableMixin):
         stdout.close()
 
         if stdout_content and "Windows" in stdout_content:
-            self.is_linux = False
+            self.is_posix = False
             shell_type = WindowsShellType()
         else:
-            self.is_linux = True
+            self.is_posix = True
             shell_type = spur.ssh.ShellTypes.sh
 
         spur_kwargs = {
@@ -373,9 +373,9 @@ class LocalShell(InitializableMixin):
 
     def _initialize(self, *args: Any, **kwargs: Any) -> None:
         if "win32" == sys.platform:
-            self.is_linux = False
+            self.is_posix = False
         else:
-            self.is_linux = True
+            self.is_posix = True
 
     def close(self) -> None:
         ...

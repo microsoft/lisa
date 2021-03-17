@@ -3,7 +3,7 @@ import re
 from typing import cast
 
 from lisa.executable import Tool
-from lisa.operating_system import Linux
+from lisa.operating_system import Posix
 from lisa.util import LisaException
 
 
@@ -21,8 +21,8 @@ class Wget(Tool):
         return True
 
     def install(self) -> bool:
-        linux_os: Linux = cast(Linux, self.node.os)
-        linux_os.install_packages([self])
+        posix_os: Posix = cast(Posix, self.node.os)
+        posix_os.install_packages([self])
         return self._check_exists()
 
     def get(
