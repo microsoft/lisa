@@ -194,13 +194,31 @@ class LisaRunner(BaseRunner):
                 matched_result = self._pick_one_result_on_environment(
                     environment=candidate_environment, results=test_results
                 )
-                if matched_result:
-                    self._attach_failed_environment_to_result(
-                        platform=platform,
-                        environment=candidate_environment,
-                        result=matched_result,
-                        exception=identifier,
+                if not matched_result:
+                    self._log.info(
+                        "No requirement of test case is suitable for the preparation "
+                        f"error of the environment '{candidate_environment.name}'. "
+                        "Randomly attach a test case to this environment. "
+                        "This may be because the platform failed before populating the "
+                        "features into this environment.",
                     )
+                    matched_result = next(
+                        (result for result in test_results if result.can_run),
+                        None,
+                    )
+                if not matched_result:
+                    raise LisaException(
+                        "There are no remaining test results to run, so preparation "
+                        "errors cannot be appended to the test results. Please correct "
+                        "the error and run again. "
+                        f"original exception: {identifier}"
+                    )
+                self._attach_failed_environment_to_result(
+                    platform=platform,
+                    environment=candidate_environment,
+                    result=matched_result,
+                    exception=identifier,
+                )
 
         # sort by environment source and cost cases
         # user defined should be higher priority than test cases' requirement

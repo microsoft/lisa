@@ -15,7 +15,7 @@ from lisa.tests.test_testsuite import (
     generate_cases_result,
 )
 from lisa.testsuite import TestResult, TestStatus, simple_requirement
-from lisa.util import constants
+from lisa.util import LisaException, constants
 
 
 def generate_runner(
@@ -387,16 +387,15 @@ class RunnerTestCase(TestCase):
         platform_schema = test_platform.MockPlatformSchema()
         platform_schema.return_prepared = False
         generate_cases_metadata()
-        env_runbook = generate_env_runbook(is_single_env=True, local=True, remote=True)
-        runner = generate_runner(env_runbook, platform_schema=platform_schema)
+        runner = generate_runner(None, platform_schema=platform_schema)
+
         test_results = runner.run("ut")
 
         self.verify_env_results(
             expected_prepared=[
-                "customized_0",
+                "generated_0",
                 "generated_1",
                 "generated_2",
-                "generated_3",
             ],
             expected_deployed_envs=[],
             expected_deleted_envs=[],
@@ -405,7 +404,7 @@ class RunnerTestCase(TestCase):
 
         no_available_env = "deployment: no capability found for environment: "
         self.verify_test_results(
-            expected_envs=["customized_0", "generated_1", "generated_2"],
+            expected_envs=["generated_0", "generated_1", "generated_2"],
             expected_status=[
                 TestStatus.FAILED,
                 TestStatus.FAILED,
@@ -413,6 +412,21 @@ class RunnerTestCase(TestCase):
             ],
             expected_message=[no_available_env, no_available_env, no_available_env],
             test_results=test_results,
+        )
+
+    def test_env_failed_more_failed_env_on_prepare(self) -> None:
+        # test env not prepared, so test cases cannot find an env to run
+        platform_schema = test_platform.MockPlatformSchema()
+        platform_schema.return_prepared = False
+        generate_cases_metadata()
+        env_runbook = generate_env_runbook(is_single_env=True, local=True, remote=True)
+        runner = generate_runner(env_runbook, platform_schema=platform_schema)
+
+        with self.assertRaises(LisaException) as cm:
+            _ = runner.run("ut")
+        self.assertIn(
+            "There are no remaining test results to run, ",
+            str(cm.exception),
         )
 
     def test_env_deploy_failed(self) -> None:
