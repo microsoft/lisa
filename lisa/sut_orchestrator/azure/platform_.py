@@ -612,7 +612,7 @@ class AzurePlatform(Platform):
             node: Optional[Node] = environment.default_node
         else:
             node = None
-        if node and node.is_connected and node.is_linux:
+        if node and node.is_connected and node.is_posix:
             node_runbook = node.capability.get_extended_runbook(AzureNodeSchema, AZURE)
 
             node.log.debug("detecting host version...")

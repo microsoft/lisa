@@ -40,7 +40,7 @@ class Process:
         # the shell can be LocalShell or SshShell
         self._shell = shell
         self._id_ = id_
-        self._is_linux = shell.is_linux
+        self._is_posix = shell.is_posix
         self._running: bool = False
         self._log = get_logger("cmd", id_, parent=parent_logger)
         self._process: Optional[spur.local.LocalProcess] = None
@@ -74,21 +74,21 @@ class Process:
         # command may be Path object, convert it to str
         command = str(command)
         if shell:
-            if not self._is_linux:
+            if not self._is_posix:
                 split_command = ["cmd", "/c", command]
             elif sudo:
                 command = f"sudo -s {command}"
-                split_command = shlex.split(command, posix=self._is_linux)
+                split_command = shlex.split(command, posix=self._is_posix)
             else:
                 split_command = ["sh", "-c", command]
         else:
-            if sudo and self._is_linux:
+            if sudo and self._is_posix:
                 command = f"sudo {command}"
-            split_command = shlex.split(command, posix=self._is_linux)
+            split_command = shlex.split(command, posix=self._is_posix)
 
         cwd_path: Optional[str] = None
         if cwd:
-            if self._is_linux:
+            if self._is_posix:
                 cwd_path = str(pathlib.PurePosixPath(cwd))
             else:
                 cwd_path = str(pathlib.PureWindowsPath(cwd))
@@ -98,7 +98,7 @@ class Process:
             f"cwd: {cwd_path}, "
             f"shell: {shell}, "
             f"sudo: {sudo}, "
-            f"linux: {self._is_linux}, "
+            f"posix: {self._is_posix}, "
             f"remote: {self._shell.is_remote}"
         )
 
@@ -120,7 +120,7 @@ class Process:
             self._running = True
         except (FileNotFoundError, NoSuchCommandError) as identifier:
             # FileNotFoundError: not found command on Windows
-            # NoSuchCommandError: not found command on remote Linux
+            # NoSuchCommandError: not found command on remote Posix
             self._result = ExecutableResult(
                 "", identifier.strerror, 1, self._timer.elapsed()
             )
@@ -177,11 +177,11 @@ class Process:
     def kill(self) -> None:
         if self._process:
             if self._shell.is_remote:
-                # Support remote Linux so far
+                # Support remote Posix so far
                 self._process.send_signal(9)
             else:
                 # local process should use the compiled value
-                # the value is different between windows and linux
+                # the value is different between windows and posix
                 self._process.send_signal(signal.SIGTERM)
 
     def is_running(self) -> bool:

@@ -163,16 +163,16 @@ class Node(ContextMixin, InitializableMixin):
         return self._shell
 
     @property
-    def is_linux(self) -> bool:
+    def is_posix(self) -> bool:
         self.initialize()
-        return self.os.is_linux
+        return self.os.is_posix
 
     @property
     def support_sudo(self) -> bool:
         self.initialize()
 
         # check if sudo supported
-        if self.is_linux and self._support_sudo is None:
+        if self.is_posix and self._support_sudo is None:
             process = self._execute("command -v sudo", shell=True, no_info_log=True)
             result = process.wait_result(10)
             if result.exit_code == 0:
@@ -209,7 +209,7 @@ class Node(ContextMixin, InitializableMixin):
 
         # set working path
         if self.is_remote:
-            if self.is_linux:
+            if self.is_posix:
                 remote_root_path = pathlib.Path("$HOME")
             else:
                 remote_root_path = pathlib.Path("%TEMP%")
@@ -222,7 +222,7 @@ class Node(ContextMixin, InitializableMixin):
             result = echo.run(working_path, shell=True)
 
             # PurePath is more reasonable here, but spurplus doesn't support it.
-            if self.is_linux:
+            if self.is_posix:
                 self.working_path = pathlib.PurePosixPath(result.stdout)
             else:
                 self.working_path = pathlib.PureWindowsPath(result.stdout)

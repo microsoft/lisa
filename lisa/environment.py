@@ -332,7 +332,7 @@ class EnvironmentHookImpl:
 
         if environment.nodes:
             node = environment.default_node
-            if node.is_connected and node.is_linux:
+            if node.is_connected and node.is_posix:
                 uname = node.tools[Uname]
                 linux_information = uname.get_linux_information()
                 fields = ["hardware_platform", "kernel_version"]

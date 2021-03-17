@@ -5,7 +5,7 @@ import pathlib
 import re
 
 from lisa.executable import Tool
-from lisa.operating_system import Linux
+from lisa.operating_system import Posix
 from lisa.util import LisaException, get_matched_str
 
 
@@ -21,7 +21,7 @@ class Git(Tool):
         return True
 
     def _install(self) -> bool:
-        if isinstance(self.node.os, Linux):
+        if isinstance(self.node.os, Posix):
             self.node.os.install_packages([self])
         else:
             raise LisaException(

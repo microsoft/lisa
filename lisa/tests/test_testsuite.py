@@ -6,7 +6,7 @@ from unittest import TestCase
 
 from lisa import schema
 from lisa.environment import EnvironmentStatus, load_environments
-from lisa.operating_system import Linux, Windows
+from lisa.operating_system import Posix, Windows
 from lisa.parameter_parser.runbook import validate_data
 from lisa.runner import parse_testcase_filters
 from lisa.tests.test_environment import generate_runbook
@@ -342,7 +342,7 @@ class TestSuiteTestCase(TestCase):
         self.default_env.status = EnvironmentStatus.Deployed
         self.default_env._is_initialized = True
         for node in self.default_env.nodes.list():
-            node.os = Linux(node)
+            node.os = Posix(node)
         for result in self.case_results:
             check_result = result.check_environment(self.default_env)
             self.assertTrue(check_result)
@@ -354,7 +354,7 @@ class TestSuiteTestCase(TestCase):
         self.default_env._is_initialized = True
         case_metadata = self.case_results[0].runtime_data.metadata
         case_metadata.requirement = simple_requirement(
-            min_count=2, unsupported_os=[Linux]
+            min_count=2, unsupported_os=[Posix]
         )
         for node in self.default_env.nodes.list():
             node.os = Windows(node)
@@ -369,10 +369,10 @@ class TestSuiteTestCase(TestCase):
         self.default_env._is_initialized = True
         case_metadata = self.case_results[0].runtime_data.metadata
         case_metadata.requirement = simple_requirement(
-            min_count=2, unsupported_os=[Linux]
+            min_count=2, unsupported_os=[Posix]
         )
         for node in self.default_env.nodes.list():
-            node.os = Linux(node)
+            node.os = Posix(node)
         check_result = self.case_results[0].check_environment(self.default_env)
         self.assertFalse(check_result)
         check_result = self.case_results[1].check_environment(self.default_env)
@@ -385,10 +385,10 @@ class TestSuiteTestCase(TestCase):
         self.default_env._is_initialized = True
         case_metadata = self.case_results[0].runtime_data.metadata
         case_metadata.requirement = simple_requirement(
-            min_count=2, supported_os=[Linux]
+            min_count=2, supported_os=[Posix]
         )
         for node in self.default_env.nodes.list():
-            node.os = Linux(node)
+            node.os = Posix(node)
         for result in self.case_results:
             check_result = result.check_environment(self.default_env)
             self.assertTrue(check_result)
@@ -400,7 +400,7 @@ class TestSuiteTestCase(TestCase):
         self.default_env._is_initialized = True
         case_metadata = self.case_results[0].runtime_data.metadata
         case_metadata.requirement = simple_requirement(
-            min_count=2, supported_os=[Linux]
+            min_count=2, supported_os=[Posix]
         )
         for node in self.default_env.nodes.list():
             node.os = Windows(node)

@@ -4,7 +4,7 @@
 from typing import cast
 
 from lisa.executable import Tool
-from lisa.operating_system import Linux
+from lisa.operating_system import Posix
 
 
 class Gcc(Tool):
@@ -17,6 +17,6 @@ class Gcc(Tool):
         return True
 
     def _install(self) -> bool:
-        linux_os: Linux = cast(Linux, self.node.os)
-        linux_os.install_packages("gcc")
+        posix_os: Posix = cast(Posix, self.node.os)
+        posix_os.install_packages("gcc")
         return self._check_exists()

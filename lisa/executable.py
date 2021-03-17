@@ -103,7 +103,7 @@ class Tool(ABC, InitializableMixin):
         override this method if richer creation factory is needed.
         """
         tool_cls = cls
-        if not node.is_linux:
+        if not node.is_posix:
             windows_tool = cls._windows_tool()
             if windows_tool:
                 tool_cls = windows_tool
@@ -146,7 +146,7 @@ class Tool(ABC, InitializableMixin):
         isInstalled, and cached result. Builtin tools can override it can return True
         directly to save time.
         """
-        if self.node.is_linux:
+        if self.node.is_posix:
             where_command = "command -v"
         else:
             where_command = "where"
@@ -357,7 +357,7 @@ class CustomScript(Tool):
             self._cwd = self._local_path
 
         if not self._command:
-            if self.node.is_linux:
+            if self.node.is_posix:
                 # in Linux, local script must to relative path.
                 self._command = f"./{pathlib.PurePosixPath(self._files[0])}"
             else:

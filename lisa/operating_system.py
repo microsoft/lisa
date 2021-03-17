@@ -29,12 +29,12 @@ class OperatingSystem:
     __release_pattern = re.compile(r"^DISTRIB_ID='?([^ \n']+).*$", re.M)
     __suse_release_pattern = re.compile(r"^(SUSE).*$", re.M)
 
-    __linux_factory: Optional[Factory[Any]] = None
+    __posix_factory: Optional[Factory[Any]] = None
 
-    def __init__(self, node: Any, is_linux: bool) -> None:
+    def __init__(self, node: Any, is_posix: bool) -> None:
         super().__init__()
         self._node: Node = node
-        self._is_linux = is_linux
+        self._is_posix = is_posix
         self._log = get_logger(name="os", parent=self._node.log)
 
     @classmethod
@@ -44,25 +44,25 @@ class OperatingSystem:
         result: Optional[OperatingSystem] = None
 
         detected_info = ""
-        if typed_node.shell.is_linux:
+        if typed_node.shell.is_posix:
             # delay create factory to make sure it's late than loading extensions
-            if cls.__linux_factory is None:
-                cls.__linux_factory = Factory[Linux](Linux)
-                cls.__linux_factory.initialize()
+            if cls.__posix_factory is None:
+                cls.__posix_factory = Factory[Posix](Posix)
+                cls.__posix_factory.initialize()
             # cast type for easy to use
-            linux_factory: Factory[Linux] = cls.__linux_factory
+            posix_factory: Factory[Posix] = cls.__posix_factory
 
             matched = False
             os_infos: List[str] = []
             for os_info_item in cls._get_detect_string(node):
                 if os_info_item:
                     os_infos.append(os_info_item)
-                    for sub_type in linux_factory.values():
-                        linux_type: Type[Linux] = sub_type
-                        pattern = linux_type.name_pattern()
+                    for sub_type in posix_factory.values():
+                        posix_type: Type[Posix] = sub_type
+                        pattern = posix_type.name_pattern()
                         if pattern.findall(os_info_item):
                             detected_info = os_info_item
-                            result = linux_type(typed_node)
+                            result = posix_type(typed_node)
                             matched = True
                             break
                     if matched:
@@ -70,12 +70,12 @@ class OperatingSystem:
 
             if not os_infos:
                 raise LisaException(
-                    "unknown linux distro, no os info found. "
+                    "unknown posix distro, no os info found. "
                     "it may cause by not support basic commands like `cat`"
                 )
             elif not result:
                 raise LisaException(
-                    f"unknown linux distro names '{os_infos}', "
+                    f"unknown posix distro names '{os_infos}', "
                     f"support it in operating_system."
                 )
         else:
@@ -87,11 +87,11 @@ class OperatingSystem:
 
     @property
     def is_windows(self) -> bool:
-        return not self._is_linux
+        return not self._is_posix
 
     @property
-    def is_linux(self) -> bool:
-        return self._is_linux
+    def is_posix(self) -> bool:
+        return self._is_posix
 
     @classmethod
     def _get_detect_string(cls, node: Any) -> Iterable[str]:
@@ -134,12 +134,12 @@ class OperatingSystem:
 
 class Windows(OperatingSystem):
     def __init__(self, node: Any) -> None:
-        super().__init__(node, is_linux=False)
+        super().__init__(node, is_posix=False)
 
 
-class Linux(OperatingSystem, BaseClassMixin):
+class Posix(OperatingSystem, BaseClassMixin):
     def __init__(self, node: Any) -> None:
-        super().__init__(node, is_linux=True)
+        super().__init__(node, is_posix=True)
         self._first_time_installation: bool = True
 
     @classmethod
@@ -182,6 +182,14 @@ class Linux(OperatingSystem, BaseClassMixin):
         self._install_packages(package_names)
 
 
+class BSD(Posix):
+    ...
+
+
+class Linux(Posix):
+    ...
+
+
 class Debian(Linux):
     @classmethod
     def name_pattern(cls) -> Pattern[str]:
@@ -204,21 +212,12 @@ class Ubuntu(Debian):
         return re.compile("^Ubuntu|ubuntu$")
 
 
-class Unix(Linux):
-    """
-    The inherits may look weird, which put Linux first.
-    Let's check later, if it need to be reversed.
-    """
-
-    pass
+class FreeBSD(BSD):
+    ...
 
 
-class FreeBSD(Unix):
-    pass
-
-
-class OpenBSD(Unix):
-    pass
+class OpenBSD(BSD):
+    ...
 
 
 class Redhat(Linux):
