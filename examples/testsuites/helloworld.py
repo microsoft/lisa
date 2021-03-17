@@ -1,6 +1,8 @@
 # Copyright (c) Microsoft Corporation.
 # Licensed under the MIT license.
 
+from typing import Any
+
 from assertpy import assert_that  # type: ignore
 
 from lisa import Environment, Node, TestCaseMetadata, TestSuite, TestSuiteMetadata
@@ -58,15 +60,15 @@ class HelloWorld(TestSuite):
         node.tools[Echo]
         assert_that(str(node.tools.echo("bye!"))).is_equal_to("bye!")
 
-    def before_suite(self) -> None:
+    def before_suite(self, **kwargs: Any) -> None:
         self.log.info("setup my test suite")
         self.log.info(f"see my code at {__file__}")
 
-    def after_suite(self) -> None:
+    def after_suite(self, **kwargs: Any) -> None:
         self.log.info("clean up my test suite")
 
-    def before_case(self) -> None:
+    def before_case(self, **kwargs: Any) -> None:
         self.log.info("before test case")
 
-    def after_case(self) -> None:
+    def after_case(self, **kwargs: Any) -> None:
         self.log.info("after test case")

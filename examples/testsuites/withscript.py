@@ -2,6 +2,7 @@
 # Licensed under the MIT license.
 
 from pathlib import Path
+from typing import Any
 
 from assertpy import assert_that  # type: ignore
 
@@ -20,7 +21,7 @@ from lisa.util.perf_timer import create_timer
     """,
 )
 class WithScript(TestSuite):
-    def before_suite(self) -> None:
+    def before_suite(self, **kwargs: Any) -> None:
         self._echo_script = CustomScriptBuilder(
             Path(__file__).parent.joinpath("scripts"), ["echo.sh"]
         )

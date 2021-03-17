@@ -74,19 +74,19 @@ class MockTestSuite(TestSuite):
         self.notrun = notrun
         self.fail_case_count = fail_case_count
 
-    def before_suite(self) -> None:
+    def before_suite(self, **kwargs: Any) -> None:
         if self.fail_on_before_suite:
             raise LisaException("failed")
 
-    def after_suite(self) -> None:
+    def after_suite(self, **kwargs: Any) -> None:
         if self.fail_on_after_suite:
             raise LisaException("failed")
 
-    def before_case(self) -> None:
+    def before_case(self, **kwargs: Any) -> None:
         if self.fail_on_before_case:
             raise LisaException("failed")
 
-    def after_case(self) -> None:
+    def after_case(self, **kwargs: Any) -> None:
         if self.fail_on_after_case:
             raise LisaException("failed")
 
