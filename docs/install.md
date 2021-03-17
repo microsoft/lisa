@@ -43,10 +43,10 @@ sudo apt install python3.8 -y
 
 Since LISA is installed from source, `git` is necessary. And some packages need to be built, so the build tools are also needed.
 
-In Linux, it needs `git` and `gcc`. Below is depended packages on Ubuntu.
+In Linux, it needs `git`, `gcc`, and other Azure dependencies. Below is depended packages on Ubuntu.
 
 ```bash
-sudo apt install git gcc
+sudo apt install git gcc libgirepository1.0-dev libcairo2-dev
 ```
 
 In Windows, you need to install [git](https://git-scm.com/downloads) and [Visual C++ redistributable package](https://aka.ms/vs/16/release/vc_redist.x64.exe)
