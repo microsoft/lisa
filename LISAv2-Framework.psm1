@@ -110,7 +110,7 @@ function Start-LISAv2 {
 			$env:TEMP = $envTempPath
 
 			# Prepare $LogDir and $LogFileName after Set-Variable $WorkingDirectory
-			$testTimestamp = Get-Date -Format 'MMddHHmmss'
+			$testTimestamp = Get-Date -Format 'yyyyMMddHHmmss'
 			$scopeString = ""
 			if ( $TestCategory ) { $scopeString += "-$($TestCategory.Replace(',','-'))" }
 			if ( $TestArea ) { $scopeString += "-$($TestArea.Replace(',','-'))" }
