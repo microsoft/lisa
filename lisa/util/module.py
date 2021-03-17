@@ -55,8 +55,8 @@ def import_module(
             module = importlib.util.module_from_spec(spec)
             assert spec
             assert spec.loader
-            spec.loader.exec_module(module)  # type: ignore
             sys.modules[full_module_name] = module
+            spec.loader.exec_module(module)  # type: ignore
 
 
 packages = ["lisa"]
