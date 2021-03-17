@@ -110,12 +110,12 @@ function Start-LISAv2 {
 			$env:TEMP = $envTempPath
 
 			# Prepare $LogDir and $LogFileName after Set-Variable $WorkingDirectory
-			$testTimestamp = Get-Date -Format 'yyyy-MM-dd-HH-mm-ss'
+			$testTimestamp = Get-Date -Format 'MMddHHmmss'
 			$scopeString = ""
-			if ( $TestCategory ) { $scopeString += "-$TestCategory"	}
-			if ( $TestArea ) { $scopeString += "-$TestArea" }
-			if ( $TestTag ) { $scopeString += "-$($TestTag)" }
-			if ( $TestPriority ) { $scopeString += "-$($TestPriority)" }
+			if ( $TestCategory ) { $scopeString += "-$($TestCategory.Replace(',','-'))" }
+			if ( $TestArea ) { $scopeString += "-$($TestArea.Replace(',','-'))" }
+			if ( $TestTag ) { $scopeString += "-$($TestTag.Replace(',','-'))" }
+			if ( $TestPriority ) { $scopeString += "-$($TestPriority.Replace(',','-'))" }
 
 			$logDir = Join-Path $workingDirectory "TestResults\${testTimestamp}-${global:TestId}$scopeString"
 			New-Item -ItemType "Directory" -Path $logDir -Force | Out-Null
