@@ -167,6 +167,7 @@ class SshShell(InitializableMixin):
         self.is_remote = True
         self._connection_info = connection_info
         self._inner_shell: Optional[spur.SshShell] = None
+        self._is_connected: bool = False
 
         paramiko_logger = getLogger("paramiko")
         paramiko_logger.setLevel(logging.WARN)
@@ -224,6 +225,13 @@ class SshShell(InitializableMixin):
             # after closed, can be reconnect
             self._inner_shell = None
         self._is_initialized = False
+
+    @property
+    def is_connected(self) -> bool:
+        is_inner_shell_ready = False
+        if self._inner_shell:
+            is_inner_shell_ready = True
+        return is_inner_shell_ready
 
     def spawn(
         self,
@@ -370,7 +378,12 @@ class LocalShell(InitializableMixin):
             self.is_linux = True
 
     def close(self) -> None:
-        pass
+        ...
+
+    @property
+    def is_connected(self) -> bool:
+        # local shell is always available.
+        return True
 
     def spawn(
         self,

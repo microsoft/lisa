@@ -41,7 +41,6 @@ class Node(ContextMixin, InitializableMixin):
         self.capability = capability
         self.name: str = ""
         self.index = index
-        self.is_connected: bool = False
 
         self.shell: Shell = LocalShell()
 
@@ -179,6 +178,10 @@ class Node(ContextMixin, InitializableMixin):
 
         return self._support_sudo
 
+    @property
+    def is_connected(self) -> bool:
+        return self.shell.is_connected
+
     def close(self) -> None:
         self.log.debug("closing node connection...")
         self.shell.close()
@@ -221,7 +224,6 @@ class Node(ContextMixin, InitializableMixin):
 
         self.shell.mkdir(self.working_path, parents=True, exist_ok=True)
         self.log.debug(f"working path is: '{self.working_path}'")
-        self.is_connected = True
 
     def _execute(
         self,
