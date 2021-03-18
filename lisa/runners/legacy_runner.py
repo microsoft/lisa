@@ -4,8 +4,8 @@
 import glob
 import itertools
 import os
+import platform
 import re
-import shutil
 import time
 from functools import partial
 from pathlib import Path
@@ -21,6 +21,13 @@ from lisa.tools import Git
 from lisa.util import InitializableMixin, LisaException, constants, run_in_threads
 from lisa.util.logger import Logger, create_file_handler, get_logger, remove_handler
 from lisa.util.process import Process
+
+# uses to prevent read conflict on log files
+if platform.system() == "Windows":
+    import msvcrt
+
+    import win32file  # type: ignore
+
 
 # TestResults\2021-02-07-18-04-09-OX53\LISAv2-Test-OX53.log
 ROOT_LOG_FILE_PATTERN = re.compile(
@@ -51,6 +58,9 @@ class LegacyRunner(BaseRunner):
         return constants.TESTCASE_TYPE_LEGACY
 
     def __init__(self, *args: Any, **kwargs: Any) -> None:
+        if platform.system() != "Windows":
+            raise LisaException("LegacyRunner uses PowerShell, runs on Windows only.")
+
         super().__init__(*args, **kwargs)
         self.exit_code: int = 0
         # leverage Node logic to run local processes.
@@ -549,11 +559,29 @@ class LogParser(InitializableMixin):
         V2 opens log file frequently to write content, copying may be failed due to
         conflict. So retry to make it more stable.
         """
-        temp_file_name = f"{self._runner_log_path}_temp.log"
-        shutil.copy2(self._runner_log_path, temp_file_name)
-        with open(temp_file_name, "r") as file:
+        # refer from http://thepythoncorner.com/dev/how-to-open-file-without-locking-it/
+        # that's cool!
+        handle = win32file.CreateFile(
+            self._runner_log_path,
+            win32file.GENERIC_READ,
+            win32file.FILE_SHARE_DELETE
+            | win32file.FILE_SHARE_READ
+            | win32file.FILE_SHARE_WRITE,
+            None,
+            win32file.OPEN_EXISTING,
+            0,
+            None,
+        )
+
+        # detach the handle
+        detached_handle = handle.Detach()
+
+        # get a file descriptor associated to the handle
+        file_descriptor = msvcrt.open_osfhandle(detached_handle, os.O_RDONLY)
+
+        # open the file descriptor
+        with open(file_descriptor) as file:
             content = file.read()
-        os.remove(temp_file_name)
         return content
 
     def _line_iter(self) -> Iterable[str]:
