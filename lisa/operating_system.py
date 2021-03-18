@@ -220,7 +220,19 @@ class OpenBSD(BSD):
     ...
 
 
-class Redhat(Linux):
+class Fedora(Linux):
+    @classmethod
+    def name_pattern(cls) -> Pattern[str]:
+        return re.compile("^Fedora|fedora$")
+
+    def _install_packages(self, packages: Union[List[str]]) -> None:
+        self._node.execute(
+            f"dnf install -y {' '.join(packages)}",
+            sudo=True,
+        )
+
+
+class Redhat(Fedora):
     @classmethod
     def name_pattern(cls) -> Pattern[str]:
         return re.compile("^rhel|Red|Scientific|acronis|Actifio$")
@@ -234,18 +246,6 @@ class Redhat(Linux):
 
     def _install_packages(self, packages: Union[List[str]]) -> None:
         self._node.execute(f"yum install -y {' '.join(packages)}", sudo=True)
-
-
-class Fedora(Linux):
-    @classmethod
-    def name_pattern(cls) -> Pattern[str]:
-        return re.compile("^Fedora|fedora$")
-
-    def _install_packages(self, packages: Union[List[str]]) -> None:
-        self._node.execute(
-            f"dnf install -y {' '.join(packages)}",
-            sudo=True,
-        )
 
 
 class CentOs(Redhat):
