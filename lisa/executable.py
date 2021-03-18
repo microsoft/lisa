@@ -479,7 +479,10 @@ class Tools:
                     timer = create_timer()
                     is_success = tool.install()
                     if not is_success:
-                        raise LisaException(f"install '{tool.name}' failed")
+                        raise LisaException(
+                            f"install '{tool.name}' failed. After installed, "
+                            f"it cannot be detected."
+                        )
                     tool_log.debug(f"installed in {timer}")
                 else:
                     raise LisaException(
