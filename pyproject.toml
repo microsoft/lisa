@@ -24,6 +24,7 @@ func-timeout = "^4.3.5"
 assertpy = "^1.1"
 pytest-html = "^3.1.1"
 pluggy = "^0.13.1"
+pypiwin32 = {version = "^223", platform = "win32"}
 PyGObject = {version = "^3.38.0", platform = 'linux'}
 
 [tool.poetry.dev-dependencies]
