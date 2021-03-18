@@ -614,18 +614,21 @@ class AzurePlatform(Platform):
             node = None
         if node and node.is_connected and node.is_linux:
             node_runbook = node.capability.get_extended_runbook(AzureNodeSchema, AZURE)
-            if node.is_connected and node.is_linux:
-                dmesg = node.tools[Dmesg]
-                matched_host_version = find_patterns_in_lines(
-                    dmesg.get_output(), [HOST_VERSION_PATTERN]
-                )
-                information["host_version"] = (
-                    matched_host_version[0][0] if matched_host_version[0] else ""
-                )
 
+            node.log.debug("detecting host version...")
+            dmesg = node.tools[Dmesg]
+            matched_host_version = find_patterns_in_lines(
+                dmesg.get_output(), [HOST_VERSION_PATTERN]
+            )
+            information["host_version"] = (
+                matched_host_version[0][0] if matched_host_version[0] else ""
+            )
+
+            node.log.debug("detecting lis version...")
             modinfo = node.tools[Modinfo]
             information["lis_version"] = modinfo.get_version("hv_vmbus")
 
+            node.log.debug("detecting wala version...")
             waagent = node.tools[Waagent]
             information["wala_version"] = waagent.get_version()
 
