@@ -43,43 +43,56 @@ def _load_extend_paths(
 
 
 def _merge_variables(
-    merged_path: Path, merged_data: Dict[str, Any], existing_data: Dict[str, Any]
+    merged_path: Path,
+    data_from_parent: Dict[str, Any],
+    data_from_current: Dict[str, Any],
 ) -> List[Any]:
-    variables: List[schema.Variable] = []
-    if constants.VARIABLE in merged_data and merged_data[constants.VARIABLE]:
-        variables = [
+    variables_from_parent: List[schema.Variable] = []
+    if constants.VARIABLE in data_from_parent and data_from_parent[constants.VARIABLE]:
+        variables_from_parent = [
             schema.Variable.schema().load(variable)  # type: ignore
-            for variable in merged_data[constants.VARIABLE]
+            for variable in data_from_parent[constants.VARIABLE]
         ]
         # resolve to absolute path
-        for variable in variables:
-            if variable.file:
-                variable.file = str((merged_path / variable.file).resolve())
-    if constants.VARIABLE in existing_data and existing_data[constants.VARIABLE]:
-        existing_variables: List[schema.Variable] = [
+        for parent_variable in variables_from_parent:
+            if parent_variable.file:
+                parent_variable.file = str(
+                    (merged_path / parent_variable.file).resolve()
+                )
+    if (
+        constants.VARIABLE in data_from_current
+        and data_from_current[constants.VARIABLE]
+    ):
+        variables_from_current: List[schema.Variable] = [
             schema.Variable.schema().load(variable)  # type: ignore
-            for variable in existing_data[constants.VARIABLE]
+            for variable in data_from_current[constants.VARIABLE]
         ]
 
         # remove duplicate items
-        for existing_variable in existing_variables:
-            for variable in variables:
-                if (variable.name and variable.name == existing_variable.name) or (
-                    variable.file and variable.file == existing_variable.file
+        for current_variable in variables_from_current:
+            for parent_variable in variables_from_parent:
+                if (
+                    parent_variable.name
+                    and parent_variable.name == current_variable.name
+                ) or (
+                    parent_variable.file
+                    and parent_variable.file == current_variable.file
                 ):
-                    variables.remove(variable)
+                    variables_from_parent.remove(parent_variable)
                     break
-        variables.extend(existing_variables)
+        variables_from_parent.extend(variables_from_current)
 
     # serialize back for loading together
-    return [variable.to_dict() for variable in variables]  # type: ignore
+    return [variable.to_dict() for variable in variables_from_parent]  # type: ignore
 
 
 def _merge_extensions(
-    merged_path: Path, merged_data: Dict[str, Any], existing_data: Dict[str, Any]
+    merged_path: Path,
+    data_from_parent: Dict[str, Any],
+    data_from_current: Dict[str, Any],
 ) -> List[Any]:
-    old_extensions = _load_extend_paths(merged_path, merged_data)
-    extensions = _load_extend_paths(constants.RUNBOOK_PATH, existing_data)
+    old_extensions = _load_extend_paths(merged_path, data_from_parent)
+    extensions = _load_extend_paths(constants.RUNBOOK_PATH, data_from_current)
     # remove duplicate paths
     for old_extension in old_extensions:
         for extension in extensions:
@@ -94,23 +107,25 @@ def _merge_extensions(
 
 
 def _merge_data(
-    merged_path: Path, merged_data: Dict[str, Any], existing_data: Dict[str, Any]
+    merged_path: Path,
+    data_from_parent: Dict[str, Any],
+    data_from_current: Dict[str, Any],
 ) -> Dict[str, Any]:
     """
-    merge parent data to existing data. The existing data has higher priority.
+    merge parent data to data_from_current. The current data has higher priority.
     """
-    result = merged_data.copy()
+    result = data_from_parent.copy()
 
     # merge others
-    result.update(existing_data)
+    result.update(data_from_current)
 
     # merge variables, latest should be effective last
-    variables = _merge_variables(merged_path, merged_data, existing_data)
+    variables = _merge_variables(merged_path, data_from_parent, data_from_current)
     if variables:
         result[constants.VARIABLE] = variables
 
     # merge extensions
-    extensions = _merge_extensions(merged_path, merged_data, existing_data)
+    extensions = _merge_extensions(merged_path, data_from_parent, data_from_current)
     if extensions:
         result[constants.EXTENSION] = extensions
 
@@ -124,17 +139,17 @@ def _load_data(path: Path, used_path: Set[str], cmd_variables_args: List[str]) -
     """
 
     with open(path, "r") as file:
-        data = yaml.safe_load(file)
+        data_from_current = yaml.safe_load(file)
 
-    variables = load_variables(data, cmd_variables_args=cmd_variables_args)
+    variables = load_variables(data_from_current, cmd_variables_args=cmd_variables_args)
 
-    if constants.PARENT in data and data[constants.PARENT]:
-        parents_config = data[constants.PARENT]
+    if constants.PARENT in data_from_current and data_from_current[constants.PARENT]:
+        parents_config = data_from_current[constants.PARENT]
 
         log = _get_init_logger()
         indent = len(used_path) * 4 * " "
-        # log.debug(f"{indent}found {len(parents_config)} parent runbooks")
-        merged_data: Dict[str, Any] = {}
+
+        data_from_parent: Dict[str, Any] = {}
         for parent_config in parents_config:
             try:
                 parent: schema.Parent = schema.Parent.schema().load(  # type: ignore
@@ -167,10 +182,14 @@ def _load_data(path: Path, used_path: Set[str], cmd_variables_args: List[str]) -
                 used_path=new_used_path,
                 cmd_variables_args=cmd_variables_args,
             )
-            merged_data = _merge_data(parent_path.parent, parent_data, merged_data)
-        data = _merge_data(path.parent, merged_data, data)
+            data_from_parent = _merge_data(
+                parent_path.parent, parent_data, data_from_parent
+            )
+        data_from_current = _merge_data(
+            path.parent, data_from_parent, data_from_current
+        )
 
-    return data
+    return data_from_current
 
 
 def _import_extends(extends_runbook: List[str]) -> None:
