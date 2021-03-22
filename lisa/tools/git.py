@@ -36,11 +36,22 @@ class Git(Tool):
         cmd = f"clone {url} {dir_name}"
         # git print to stderr for normal info, so set no_error_log to True.
         result = self.run(cmd, cwd=cwd, no_error_log=True)
-
+        if result.exit_code != 0:
+            raise LisaException(
+                f"Fail to clone the repo."
+                f" It may caused by repo url {url} is incorrect or temp network issue."
+            )
         code_dir = get_matched_str(result.stderr, self.CODE_FOLDER_PATTERN)
         full_path = cwd / code_dir
         if branch:
             self.checkout(branch, cwd=full_path)
 
     def checkout(self, branch: str, cwd: pathlib.PurePath) -> None:
-        self.run(f"checkout {branch}", cwd=cwd, no_info_log=True, no_error_log=True)
+        result = self.run(
+            f"checkout {branch}", cwd=cwd, no_info_log=True, no_error_log=True
+        )
+        if result.exit_code != 0:
+            raise LisaException(
+                f"Fail to checkout branch."
+                f" It may caused by branch {branch} not exist or temp network issue."
+            )
