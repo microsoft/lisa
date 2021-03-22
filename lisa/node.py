@@ -42,7 +42,10 @@ class Node(ContextMixin, InitializableMixin):
         self.name: str = ""
         self.index = index
 
-        self.shell: Shell = LocalShell()
+        if self.is_remote:
+            self._shell: Optional[Shell] = None
+        else:
+            self._shell = LocalShell()
 
         # will be initialized by platform
         self.features: Features
@@ -100,7 +103,7 @@ class Node(ContextMixin, InitializableMixin):
             password,
             private_key_file,
         )
-        self.shell = SshShell(self._connection_info)
+        self._shell = SshShell(self._connection_info)
         self.public_address = public_address
         self.public_port = public_port
         self.internal_address = address
@@ -155,6 +158,11 @@ class Node(ContextMixin, InitializableMixin):
         )
 
     @property
+    def shell(self) -> Shell:
+        assert self._shell, "Shell is not initialized"
+        return self._shell
+
+    @property
     def is_linux(self) -> bool:
         self.initialize()
         return self.os.is_linux
@@ -180,11 +188,12 @@ class Node(ContextMixin, InitializableMixin):
 
     @property
     def is_connected(self) -> bool:
-        return self.shell.is_connected
+        return self._shell is not None and self._shell.is_connected
 
     def close(self) -> None:
         self.log.debug("closing node connection...")
-        self.shell.close()
+        if self._shell:
+            self._shell.close()
 
     def _initialize(self, *args: Any, **kwargs: Any) -> None:
         if self.is_remote:
@@ -200,8 +209,6 @@ class Node(ContextMixin, InitializableMixin):
 
         # set working path
         if self.is_remote:
-            assert self.shell
-
             if self.is_linux:
                 remote_root_path = pathlib.Path("$HOME")
             else:
