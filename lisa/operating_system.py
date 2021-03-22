@@ -227,7 +227,11 @@ class Redhat(Linux):
         return re.compile("^rhel|Red|Scientific|acronis|Actifio$")
 
     def _initialize_package_installation(self) -> None:
-        self._node.execute("yum -y update", sudo=True, timeout=1200)
+        # older images cost much longer time when update packages
+        # smaller sizes cost much longer time when update packages, e.g.
+        #  Basic_A1, Standard_A5, Standard_A1_v2, Standard_D1
+        # redhat rhel 7-lvm 7.7.2019102813 Basic_A1 cost 2371.568 seconds
+        self._node.execute("yum -y update", sudo=True, timeout=2400)
 
     def _install_packages(self, packages: Union[List[str]]) -> None:
         self._node.execute(f"yum install -y {' '.join(packages)}", sudo=True)
