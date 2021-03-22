@@ -239,6 +239,13 @@ def load_runbook(
     if constants.EXTENSION in data:
         _import_extends(_load_extend_paths(constants.RUNBOOK_PATH, data, variables))
 
+    # remove variables part from data, since it's not used, and may be confusing in log.
+    if constants.VARIABLE in data:
+        del data[constants.VARIABLE]
+
+    for key, value in variables.items():
+        log.debug(f"variable '{key}': {value.data}")
+
     # replace variables:
     try:
         data = replace_variables(data, variables)
