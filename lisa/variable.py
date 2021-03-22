@@ -34,21 +34,37 @@ def replace_variables(data: Any, variables: Dict[str, VariableEntry]) -> Any:
 
 
 def load_variables(
-    runbook_data: Any, cmd_variables_args: Optional[List[str]]
+    runbook_data: Any,
+    higher_level_variables: Union[List[str], Dict[str, VariableEntry], None] = None,
 ) -> Dict[str, VariableEntry]:
-    if cmd_variables_args is None:
-        cmd_variables_args = []
+    """
+    Args::
+        higher_level_variables: it has higher level than current variables. It
+         may be from command lines, or parent runbooks.
+    """
+    if higher_level_variables is None:
+        higher_level_variables = {}
 
     env_variables = _load_from_env()
-    cmd_variables = _load_from_pairs(cmd_variables_args)
-    # current_variables uses to support variable in variable file path
     current_variables: Dict[str, VariableEntry] = dict()
+    if isinstance(higher_level_variables, list):
+        cmd_variables = _load_from_pairs(higher_level_variables)
+    else:
+        current_variables.update(higher_level_variables)
+        cmd_variables = {}
+    # current_variables uses to support variable in variable file path
+    current_variables.update(env_variables)
+    current_variables.update(cmd_variables)
+
     final_variables: Dict[str, VariableEntry] = dict()
     final_variables.update(
         _load_from_runbook(runbook_data, current_variables=current_variables)
     )
+    if isinstance(higher_level_variables, dict):
+        final_variables.update(higher_level_variables)
     final_variables.update(env_variables)
     final_variables.update(cmd_variables)
+
     return final_variables
 
 
@@ -184,7 +200,9 @@ def _replace_variables(data: Any, variables: Dict[str, VariableEntry]) -> Any:
     elif isinstance(data, str):
         lower_name = data.lower()
         if lower_name in variables:
-            # whole matches, may not be a string. It's replaced with type.
+            # If a variable value matches a variable name completely, it may not be a
+            #   string.
+            # So replace the whole value here to support other types.
             entry = variables[lower_name]
             entry.is_used = True
             data = entry.data

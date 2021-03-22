@@ -4,7 +4,7 @@
 import json
 from functools import partial
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Set, cast
+from typing import Any, Dict, List, Optional, Set, Union, cast
 
 import yaml
 from marshmallow import Schema
@@ -112,7 +112,7 @@ def _merge_data(
     data_from_current: Dict[str, Any],
 ) -> Dict[str, Any]:
     """
-    merge parent data to data_from_current. The current data has higher priority.
+    merge parent data to data_from_current. The current data has higher level.
     """
     result = data_from_parent.copy()
 
@@ -132,7 +132,11 @@ def _merge_data(
     return result
 
 
-def _load_data(path: Path, used_path: Set[str], cmd_variables_args: List[str]) -> Any:
+def _load_data(
+    path: Path,
+    used_path: Set[str],
+    higher_level_variables: Union[List[str], Dict[str, VariableEntry]],
+) -> Any:
     """
     Load runbook, but not to validate. It will be validated after extension imported.
     To support partial runbooks, it loads recursively.
@@ -141,7 +145,9 @@ def _load_data(path: Path, used_path: Set[str], cmd_variables_args: List[str]) -
     with open(path, "r") as file:
         data_from_current = yaml.safe_load(file)
 
-    variables = load_variables(data_from_current, cmd_variables_args=cmd_variables_args)
+    variables = load_variables(
+        data_from_current, higher_level_variables=higher_level_variables
+    )
 
     if constants.PARENT in data_from_current and data_from_current[constants.PARENT]:
         parents_config = data_from_current[constants.PARENT]
@@ -180,7 +186,7 @@ def _load_data(path: Path, used_path: Set[str], cmd_variables_args: List[str]) -
             parent_data = _load_data(
                 parent_path,
                 used_path=new_used_path,
-                cmd_variables_args=cmd_variables_args,
+                higher_level_variables=variables,
             )
             data_from_parent = _merge_data(
                 parent_path.parent, parent_data, data_from_parent
@@ -230,10 +236,12 @@ def load_runbook(
     # merge all parameters
     log = _get_init_logger()
     log.info(f"loading runbook: {path}")
-    data = _load_data(path.absolute(), set(), cmd_variables_args=cmd_variables_args)
+    data = _load_data(path.absolute(), set(), higher_level_variables=cmd_variables_args)
 
     # load final variables
-    variables = load_variables(runbook_data=data, cmd_variables_args=cmd_variables_args)
+    variables = load_variables(
+        runbook_data=data, higher_level_variables=cmd_variables_args
+    )
 
     # load extended modules
     if constants.EXTENSION in data:
