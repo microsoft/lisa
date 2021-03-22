@@ -45,12 +45,13 @@ def load_variables(
     if higher_level_variables is None:
         higher_level_variables = {}
 
-    env_variables = _load_from_env()
     current_variables: Dict[str, VariableEntry] = dict()
     if isinstance(higher_level_variables, list):
+        env_variables = _load_from_env()
         cmd_variables = _load_from_pairs(higher_level_variables)
     else:
         current_variables.update(higher_level_variables)
+        env_variables = {}
         cmd_variables = {}
     # current_variables uses to support variable in variable file path
     current_variables.update(env_variables)
@@ -58,12 +59,13 @@ def load_variables(
 
     final_variables: Dict[str, VariableEntry] = dict()
     final_variables.update(
-        _load_from_runbook(runbook_data, current_variables=current_variables)
+        _load_from_runbook(runbook_data, higher_level_variables=current_variables)
     )
     if isinstance(higher_level_variables, dict):
         final_variables.update(higher_level_variables)
-    final_variables.update(env_variables)
-    final_variables.update(cmd_variables)
+    else:
+        final_variables.update(env_variables)
+        final_variables.update(cmd_variables)
 
     return final_variables
 
@@ -103,11 +105,10 @@ def _load_from_env() -> Dict[str, VariableEntry]:
 
 
 def _load_from_runbook(
-    runbook_data: Any, current_variables: Dict[str, VariableEntry]
+    runbook_data: Any, higher_level_variables: Dict[str, VariableEntry]
 ) -> Dict[str, VariableEntry]:
     # make a copy to prevent modifying existing dict
-    current_variables = current_variables.copy()
-    results: Dict[str, VariableEntry] = {}
+    current_variables = higher_level_variables.copy()
 
     if constants.VARIABLE in runbook_data:
         variable_entries: List[
@@ -150,14 +151,14 @@ def _load_from_runbook(
                         value,
                         is_secret=entry.is_secret,
                     )
-                results.update(loaded_variables)
                 current_variables.update(loaded_variables)
+                current_variables.update(higher_level_variables)
                 is_current_updated = True
 
                 left_variables.remove(entry)
         if undefined_variables:
             raise LisaException(f"variables are undefined: {undefined_variables}")
-    return results
+    return current_variables
 
 
 def _load_from_file(
