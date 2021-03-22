@@ -1,5 +1,6 @@
 # IDE Settings
 /.vscode
+/.dir-locals.el
 
 # lisa runtime folder
 /runtime/*
