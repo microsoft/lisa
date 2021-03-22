@@ -68,7 +68,20 @@ def load_variables(
     return final_variables
 
 
-def _load_from_env() -> Dict[str, Any]:
+def _get_undefined_variables(
+    value: str, variables: Dict[str, VariableEntry]
+) -> List[str]:
+    undefined_variables: List[str] = []
+    # check if there is variable or not in a value
+    matches = _VARIABLE_PATTERN.findall(value)
+    for variable_name in matches:
+        lower_variable_name = variable_name[2:-1].lower()
+        if lower_variable_name not in variables:
+            undefined_variables.append(variable_name)
+    return undefined_variables
+
+
+def _load_from_env() -> Dict[str, VariableEntry]:
     results: Dict[str, VariableEntry] = {}
     for env_name in os.environ:
         is_lisa_variable = True
@@ -97,24 +110,53 @@ def _load_from_runbook(
     results: Dict[str, VariableEntry] = {}
 
     if constants.VARIABLE in runbook_data:
-        variable_entries = schema.Variable.schema().load(  # type:ignore
+        variable_entries: List[
+            schema.Variable
+        ] = schema.Variable.schema().load(  # type:ignore
             runbook_data[constants.VARIABLE], many=True
         )
-        variable_entries = cast(List[schema.Variable], variable_entries)
-        for entry in variable_entries:
-            if entry.file:
-                path = replace_variables(entry.file, current_variables)
-                loaded_variables = _load_from_file(path, is_secret=entry.is_secret)
-                results.update()
-            else:
-                value = replace_variables(entry.value, current_variables)
-                loaded_variables = load_from_variable_entry(
-                    entry.name,
-                    value,
-                    is_secret=entry.is_secret,
+
+        left_variables = variable_entries.copy()
+        undefined_variables: List[str] = []
+        is_current_updated = True
+        # when is_current_updated, it means one of variable is processed, and
+        #  it's ok to loop again. If it's false, there are some variables cannot
+        #  be resolved.
+        while left_variables and is_current_updated:
+            is_current_updated = False
+            undefined_variables = []
+            # solved variable will be removed later, so use a copy here to prevent
+            #  operate enumerating collection.
+            for entry in left_variables.copy():
+                # this value is used to detect whether value used undefined variables.
+                # in final merge, the referred variable may be defined later than used.
+                # So it should to load referred variables firstly.
+                checked_value = f"{entry.file}{entry.value}"
+
+                current_undefined_variables = _get_undefined_variables(
+                    checked_value, current_variables
                 )
-            results.update(loaded_variables)
-            current_variables.update(loaded_variables)
+                if current_undefined_variables:
+                    undefined_variables.extend(current_undefined_variables)
+                    continue
+
+                if entry.file:
+                    path = replace_variables(entry.file, current_variables)
+                    loaded_variables = _load_from_file(path, is_secret=entry.is_secret)
+                else:
+                    value = replace_variables(entry.value, current_variables)
+                    loaded_variables = load_from_variable_entry(
+                        entry.name,
+                        value,
+                        is_secret=entry.is_secret,
+                    )
+                results.update(loaded_variables)
+                current_variables.update(loaded_variables)
+                is_current_updated = True
+
+                left_variables.remove(entry)
+        if undefined_variables:
+            raise LisaException(f"variables are undefined: {undefined_variables}")
     return results
 
 
