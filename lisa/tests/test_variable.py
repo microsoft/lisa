@@ -94,6 +94,29 @@ class VariableTestCase(TestCase):
         self.assertEqual("normal_value", data["nested"]["normal_value"])
         self.assertEqual("entry_value", data["normal_entry"])
 
+    def test_in_variable_path_with_variable(self) -> None:
+        runbook_data: Dict[str, Any] = {
+            "variable": [
+                {"file": "variable_$(var_in_var1).yml"},
+                {"name": "var_in_var1", "value": "$(var_in_var2)"},
+                {"name": "var_in_var2", "value": "normal"},
+            ]
+        }
+        data = self._test_runbook_file_entry(
+            runbook_data,
+            {
+                "secret_guid": "12345678-****-****-****-********90ab",
+                "secret_int": "1****0",
+                "secret_head_tail": "a****h",
+            },
+            {},
+        )
+        self.assertEqual("12345678-abcd-efab-cdef-1234567890ab", data["list"][0])
+        self.assertEqual(1234567890, data["list"][1]["dictInList"])
+        self.assertEqual("abcdefgh", data["headtail"])
+        self.assertEqual("normal_value", data["nested"]["normal_value"])
+        self.assertEqual("entry_value", data["normal_entry"])
+
     def test_in_runbook_path_with_variable(self) -> None:
         runbook_data: Dict[str, Any] = {
             "variable": [{"file": "variable_$(var_in_cmd).yml"}]
