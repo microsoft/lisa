@@ -30,20 +30,28 @@ if platform.system() == "Windows":
 
 
 # TestResults\2021-02-07-18-04-09-OX53\LISAv2-Test-OX53.log
+# TestResults\20210321211417-WALA-1-EN55\LISAv2-Test-EN55.log
 ROOT_LOG_FILE_PATTERN = re.compile(
-    r"TestResults[\\/][\d-]{20}.{4}[\\/]LISAv2-Test-.{4}\.log$"
+    r"TestResults[\\/](?:[\d]{14}.*-.{4})?(?:[\d-]{20}.{4})?"
+    r"[\\/]LISAv2-Test-.{4}\.log$"
 )
 
 # TestResults\2021-02-07-18-04-09-OX53\LISAv2-Test-OX53.log
 # TestResults\2021-02-07-18-04-36-OX53-1\LISAv2-Test-OX53-1.log
+# TestResults\20210318234449-0-KC97\LISAv2-Test-KC97.log
+# TestResults\20210318234508-0-KC97-1\LISAv2-Test-KC97.log
 LOG_FILE_PATTERN = re.compile(
-    r"TestResults[\\/][\d-]{20}[^\\/]+[\\/]LISAv2-Test-.+\.log$"
+    r"TestResults[\\/](?:[\d]{14}.*-.{4})?(?:[\d-]{20}.{4})?"
+    r"[^\\/]+[\\/]LISAv2-Test-.+\.log$"
 )
 
 # TestResults\2021-02-08-08-31-24-AI57\VERIFY-LINUX-CONFIGURATION\LISAv2-Test-AI57.log
 # TestResults\2021-02-07-18-04-36-OX53-1\VERIFY-DEPLOYMENT-PROVISION\LISAv2-Test-OX53-1.log
+# TestResults\20210321225602-WALA-1-CK34\VERIFY-DEPLOYMENT-PROVISION\LISAv2-Test-CK34.log
+# TestResults\20210321225602-WALA-1-CK34-1\VERIFY-DEPLOYMENT-PROVISION\LISAv2-Test-CK34.log
 CASE_LOG_FILE_PATTERN = re.compile(
-    r"TestResults[\\/][\d-]{20}.+[\\/].+[\\/]LISAv2-Test-.+\.log$"
+    r"TestResults[\\/](?:[\d-]{14}.*)?(?:[\d-]{20}.+)?"
+    r"[\\/].+[\\/]LISAv2-Test-.+\.log$"
 )
 
 
