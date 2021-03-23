@@ -6,7 +6,7 @@ all: setup run test check
 setup:
 	@poetry install --no-ansi --remove-untracked
 
-# Run LISAv3
+# Run LISA
 run:
 	@poetry run python -X dev lisa/main.py --debug
 
@@ -14,7 +14,7 @@ run:
 test:
 	@poetry run python -X dev -m unittest discover -v lisa
 
-# Generate coverage report (slow, reruns LISAv3 and tests)
+# Generate coverage report (slow, reruns LISA and tests)
 coverage:
 	@poetry run coverage erase
 	@poetry run coverage run lisa/main.py 2>/dev/null

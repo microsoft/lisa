@@ -7,7 +7,7 @@
   - [Commit messages](#commit-messages)
   - [Logging](#logging)
   - [Error message](#error-message)
-  - [Meaningful Assertion](#meaningful-assertion)
+  - [Assertion](#assertion)
 - [Troubleshooting excellence](#troubleshooting-excellence)
 - [Test code excellence](#test-code-excellence)
   - [Compositions of test](#compositions-of-test)
@@ -108,7 +108,7 @@ For examples,
 - "The subscription ID [aaa] could not be found, please make sure it exists and is accessible by the current account". A bad example, "The subscription ID [aaa] could not be found". This bad example illustrates what happened, but there is no suggestion.
 - "The vm size [aaa] could not be found on the location [bbb]. This may be because the virtual machine size is not available in this location". A bad example, "The vm size [aaa] could not be found on the location [bbb]". It explains what happened, but it does not provide a guess at the root cause.
 
-### Meaningful Assertion
+### Assertion
 
 Assertions are heavily used in test code. Assertions are a simple pattern of "if some checks fail, raise an exception".
 
