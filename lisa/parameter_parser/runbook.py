@@ -200,7 +200,8 @@ def _load_data(
 
 def _import_extends(extends_runbook: List[str]) -> None:
     for index, path in enumerate(extends_runbook):
-        import_package(Path(path), index=index)
+        package_name = f"lisa_ext_{index}"
+        import_package(Path(path), package_name=package_name)
 
 
 def validate_data(data: Any) -> schema.Runbook:

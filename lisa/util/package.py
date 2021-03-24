@@ -57,24 +57,24 @@ def _import_module(
         importlib.import_module(name=module_name, package=root_package_name)
 
 
-def _import_root_package(root_package_name: str, path: Path) -> None:
+def _import_root_package(package_name: str, path: Path) -> None:
     # the module can be imported with __init__.py only, but it doesn't need to exist
     init_file = path / "__init__.py"
     spec = importlib.util.spec_from_file_location(
-        name=root_package_name,
+        name=package_name,
         location=init_file,
     )
     module = importlib.util.module_from_spec(spec)
     assert spec
     assert spec.loader
-    sys.modules[root_package_name] = module
+    sys.modules[package_name] = module
     if init_file.exists():
         # if __init__ file exists, execute it's actual import logic.
         spec.loader.exec_module(module)  # type: ignore
 
 
 def import_package(
-    path: Path, index: Optional[int] = None, enable_log: bool = True
+    path: Path, package_name: Optional[str] = None, enable_log: bool = True
 ) -> None:
 
     if not path.exists():
@@ -88,15 +88,12 @@ def import_package(
         log = None
 
     # import the package
-    if index is None:
-        # import for lisa itself
-        root_package_name: Optional[str] = None
-        package_dir = path.parent
-    else:
+    if package_name:
         package_dir = path
-        root_package_name = f"lisa_ext_{index}"
-        assert root_package_name
-        _import_root_package(root_package_name=root_package_name, path=package_dir)
+        _import_root_package(package_name=package_name, path=package_dir)
+    else:
+        # import for lisa itself
+        package_dir = path.parent
 
     # import missed files
     for file in path.glob("**/*.py"):
@@ -109,7 +106,7 @@ def import_package(
 
         _import_module(
             file=file,
-            root_package_name=root_package_name,
+            root_package_name=package_name,
             package_dir=package_dir,
             log=log,
         )
