@@ -12,7 +12,7 @@ from marshmallow import Schema
 from lisa import schema
 from lisa.util import LisaException, constants
 from lisa.util.logger import get_logger
-from lisa.util.module import import_package
+from lisa.util.package import import_package
 from lisa.variable import VariableEntry, load_variables, replace_variables
 
 _schema: Optional[Schema] = None
