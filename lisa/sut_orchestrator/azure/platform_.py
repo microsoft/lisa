@@ -52,6 +52,7 @@ from lisa.util import (
     find_patterns_in_lines,
     get_matched_str,
     get_public_key_data,
+    plugin_manager,
     set_filtered_fields,
 )
 from lisa.util.logger import Logger
@@ -882,6 +883,7 @@ class AzurePlatform(Platform):
                     f"Exception: {error_message}"
                 )
             else:
+                plugin_manager.hook.azure_deploy_failed(error_message=error_message)
                 raise LisaException(error_message)
 
     def _parse_detail_errors(self, error: Any) -> List[str]:
