@@ -1,8 +1,6 @@
 # Copyright (c) Microsoft Corporation.
 # Licensed under the MIT license.
 
-import logging
-import traceback
 from typing import Any, List, Optional, cast
 
 from lisa import notifier, schema, search_space
@@ -303,17 +301,7 @@ class LisaRunner(BaseRunner):
         # so deployment failure can be tracked.
         environment.platform = platform
         result.environment = environment
-        result.set_status(TestStatus.FAILED, f"deployment: {str(exception)}")
-        self._log.lines(
-            logging.DEBUG,
-            "".join(
-                traceback.format_exception(
-                    etype=type(exception),
-                    value=exception,
-                    tb=exception.__traceback__,
-                )
-            ),
-        )
+        result.handle_exception(exception=exception, log=self._log, phase="deployment")
         self._log.info(
             f"'{environment.name}' attached to test case "
             f"'{result.runtime_data.metadata.full_name}': "
