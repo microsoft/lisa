@@ -207,12 +207,43 @@ class Parent:
 
 @dataclass_json()
 @dataclass
-class Extension:
+class ExtensionV1:
     """
     deprecated. Use paths directly
     """
 
     paths: List[str] = field(default_factory=list, metadata=metadata(required=True))
+
+
+@dataclass_json()
+@dataclass
+class Extension:
+    path: str
+    name: Optional[str] = None
+
+    @classmethod
+    def from_raw(cls, raw_data: Any) -> List["Extension"]:
+        results: List[Extension] = []
+
+        if isinstance(raw_data, Dict):
+            # for compatibility
+            # convert v1 extension to list of strings, if it's used.
+            # the ExtensionV1 should be removed later.
+            extension_v1: ExtensionV1 = ExtensionV1.schema().load(  # type: ignore
+                raw_data
+            )
+            raw_data = extension_v1.paths
+
+        assert isinstance(raw_data, list), f"actual: {type(raw_data)}"
+        for extension in raw_data:
+            # convert to structured Extension
+            if isinstance(extension, str):
+                extension = Extension(path=extension)
+            elif isinstance(extension, dict):
+                extension = Extension.schema().load(extension)  # type: ignore
+            results.append(extension)
+
+        return results
 
 
 @dataclass_json()
@@ -828,8 +859,9 @@ class Runbook:
     test_pass: str = ""
     tags: Optional[List[str]] = None
     parent: Optional[List[Parent]] = field(default=None)
-    # Extension is deprecated, should use list of string.
-    extension: Union[Extension, List[str], None] = field(default=None)
+    extension: Union[ExtensionV1, List[Union[str, Extension]], None] = field(
+        default=None
+    )
     variable: Optional[List[Variable]] = field(default=None)
     artifact: Optional[List[Artifact]] = field(default=None)
     environment: Optional[EnvironmentRoot] = field(default=None)

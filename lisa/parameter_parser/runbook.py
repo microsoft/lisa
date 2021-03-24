@@ -20,26 +20,32 @@ _schema: Optional[Schema] = None
 _get_init_logger = partial(get_logger, "init", "runbook")
 
 
-def _load_extend_paths(
+def _load_extensions(
     current_path: Path, data: Any, variables: Optional[Dict[str, VariableEntry]] = None
-) -> List[str]:
-    result: List[str] = []
+) -> List[schema.Extension]:
+    results: List[schema.Extension] = []
     if constants.EXTENSION in data:
-        raw_extension = data[constants.EXTENSION]
-        if isinstance(raw_extension, Dict):
-            # for compatibility, convert extension to list of strings
-            raw_extension = schema.Extension.schema().load(  # type:ignore
-                data[constants.EXTENSION]
-            )
-            raw_extension = raw_extension.paths
-        # support variables in extension paths
+        raw_extensions: Any = data[constants.EXTENSION]
+
+        # replace variables in extensions names
         if variables:
-            raw_extension = replace_variables(raw_extension, variables=variables)
-        result = [
-            str(current_path.joinpath(path).absolute().resolve())
-            for path in raw_extension
-        ]
-    return result
+            raw_extensions = replace_variables(raw_extensions, variables=variables)
+
+        # this is the first place to normalize extensions
+        extensions = schema.Extension.from_raw(raw_extensions)
+
+        for extension in extensions:
+            assert extension.path, "extension path must be specified"
+
+            # resolving to real path, it needs to compare for merging later.
+            if variables:
+                extension.path = replace_variables(extension.path, variables=variables)
+            extension.path = str(
+                current_path.joinpath(extension.path).absolute().resolve()
+            )
+            results.append(extension)
+
+    return results
 
 
 def _merge_variables(
@@ -91,12 +97,15 @@ def _merge_extensions(
     data_from_parent: Dict[str, Any],
     data_from_current: Dict[str, Any],
 ) -> List[Any]:
-    old_extensions = _load_extend_paths(merged_path, data_from_parent)
-    extensions = _load_extend_paths(constants.RUNBOOK_PATH, data_from_current)
+    old_extensions = _load_extensions(merged_path, data_from_parent)
+    extensions = _load_extensions(constants.RUNBOOK_PATH, data_from_current)
     # remove duplicate paths
     for old_extension in old_extensions:
         for extension in extensions:
-            if extension == old_extension:
+            if extension.path == old_extension.path:
+                if not old_extension.name:
+                    # specify name as possible
+                    old_extension.name = extension.name
                 extensions.remove(extension)
                 break
     if extensions or old_extensions:
@@ -198,12 +207,6 @@ def _load_data(
     return data_from_current
 
 
-def _import_extends(extends_runbook: List[str]) -> None:
-    for index, path in enumerate(extends_runbook):
-        package_name = f"lisa_ext_{index}"
-        import_package(Path(path), package_name=package_name)
-
-
 def validate_data(data: Any) -> schema.Runbook:
     global _schema
     if not _schema:
@@ -246,11 +249,19 @@ def load_runbook(
 
     # load extended modules
     if constants.EXTENSION in data:
-        _import_extends(_load_extend_paths(constants.RUNBOOK_PATH, data, variables))
+        raw_extensions = _load_extensions(constants.RUNBOOK_PATH, data, variables)
+        extensions: List[schema.Extension] = schema.Extension.from_raw(raw_extensions)
+        for index, extension in enumerate(extensions):
+            if not extension.name:
+                extension.name = f"lisa_ext_{index}"
+            import_package(Path(extension.path), package_name=extension.name)
 
-    # remove variables part from data, since it's not used, and may be confusing in log.
+    # remove variables and extensions from data, since it's not used, and may be
+    #  confusing in log.
     if constants.VARIABLE in data:
         del data[constants.VARIABLE]
+    if constants.EXTENSION in data:
+        del data[constants.EXTENSION]
 
     for key, value in variables.items():
         log.debug(f"variable '{key}': {value.data}")
