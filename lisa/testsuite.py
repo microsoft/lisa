@@ -84,6 +84,34 @@ class TestResult:
     def name(self) -> str:
         return self.runtime_data.metadata.name
 
+    def handle_exception(
+        self, exception: Exception, log: Logger, phase: str = ""
+    ) -> None:
+        if phase:
+            phase = f"{phase} "
+        if isinstance(exception, SkippedException):
+            log.info(f"case skipped: {exception}")
+            log.debug("case skipped", exc_info=exception)
+            # case is skipped dynamically
+            self.set_status(TestStatus.SKIPPED, f"{phase}skipped: {exception}")
+        elif isinstance(exception, NotRunException):
+            log.info(f"case keep NOTRUN: {exception}")
+            log.debug("case NOTRUN", exc_info=exception)
+            # case is not run dynamically.
+            self.set_status(TestStatus.NOTRUN, f"{phase}notrun: {exception}")
+        elif isinstance(exception, PassedException):
+            log.info(f"case passed with warning: {exception}")
+            log.debug("case passed with warning", exc_info=exception)
+            # case can be passed with a warning.
+            self.set_status(TestStatus.PASSED, f"{phase}warning: {exception}")
+        else:
+            if self.runtime_data.ignore_failure:
+                log.info(f"case failed and ignored: {exception}")
+                self.set_status(TestStatus.ATTEMPTED, f"{phase}{exception}")
+            else:
+                log.error("case failed", exc_info=exception)
+                self.set_status(TestStatus.FAILED, f"{phase}failed: {exception}")
+
     def set_status(
         self, new_status: TestStatus, message: Union[str, List[str]]
     ) -> None:
@@ -481,28 +509,8 @@ class TestSuite:
                 logger=log,
             )
             case_result.set_status(TestStatus.PASSED, "")
-        except SkippedException as identifier:
-            log.info(f"case skipped: {identifier}")
-            log.debug("case skipped", exc_info=identifier)
-            # case is skipped dynamically
-            case_result.set_status(TestStatus.SKIPPED, f"{identifier}")
-        except NotRunException as identifier:
-            log.info(f"case keep NOTRUN: {identifier}")
-            log.debug("case NOTRUN", exc_info=identifier)
-            # case is not run dynamically.
-            case_result.set_status(TestStatus.NOTRUN, f"{identifier}")
-        except PassedException as identifier:
-            log.info(f"case partial passed: {identifier}")
-            log.debug("case partial passed", exc_info=identifier)
-            # case can be passed with a warning.
-            case_result.set_status(TestStatus.PASSED, f"warning: {identifier}")
         except Exception as identifier:
-            if case_result.runtime_data.ignore_failure:
-                log.info(f"case failed and ignored: {identifier}")
-                case_result.set_status(TestStatus.ATTEMPTED, f"{identifier}")
-            else:
-                log.error("case failed", exc_info=identifier)
-                case_result.set_status(TestStatus.FAILED, f"failed: {identifier}")
+            case_result.handle_exception(exception=identifier, log=log)
         log.debug(f"case end with {timer}")
 
 

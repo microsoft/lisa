@@ -402,7 +402,7 @@ class RunnerTestCase(TestCase):
             runner=runner,
         )
 
-        no_available_env = "deployment: no capability found for environment: "
+        no_available_env = "deployment failed: no capability found for environment: "
         self.verify_test_results(
             expected_envs=["generated_0", "generated_1", "generated_2"],
             expected_status=[
@@ -454,7 +454,9 @@ class RunnerTestCase(TestCase):
             expected_deleted_envs=[],
             runner=runner,
         )
-        no_available_env = "deployment: expected status is EnvironmentStatus.Prepared"
+        no_available_env = (
+            "deployment failed: expected status is EnvironmentStatus.Prepared"
+        )
         self.verify_test_results(
             expected_envs=["customized_0", "generated_1", "generated_3"],
             expected_status=[

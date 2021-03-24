@@ -296,7 +296,7 @@ class TestSuiteTestCase(TestCase):
         result = self.case_results[0]
         test_suite.start(environment=self.default_env, case_results=self.case_results)
         self.assertEqual(TestStatus.SKIPPED, result.status)
-        self.assertEqual("mock_ut1 skipped this run", result.message)
+        self.assertEqual("skipped: mock_ut1 skipped this run", result.message)
         result = self.case_results[1]
         self.assertEqual(TestStatus.PASSED, result.status)
         self.assertEqual("", result.message)
@@ -307,7 +307,7 @@ class TestSuiteTestCase(TestCase):
         result = self.case_results[0]
         test_suite.start(environment=self.default_env, case_results=self.case_results)
         self.assertEqual(TestStatus.NOTRUN, result.status)
-        self.assertEqual("mock_ut1 kept not run", result.message)
+        self.assertEqual("notrun: mock_ut1 kept not run", result.message)
         result = self.case_results[1]
         self.assertEqual(TestStatus.PASSED, result.status)
         self.assertEqual("", result.message)
