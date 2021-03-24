@@ -9,7 +9,7 @@ from azure.mgmt.compute.models import ResourceSku  # type: ignore
 
 from lisa import schema, search_space
 from lisa.environment import Environment
-from lisa.util import LisaException, constants
+from lisa.util import LisaException, SkippedException, constants
 from lisa.util.logger import get_logger
 
 from .. import common, platform_
@@ -182,7 +182,7 @@ class AzurePrepareTestCase(TestCase):
         # vm size is not found
         env = self.load_environment(node_req_count=1)
         self.set_node_runbook(env, 0, location="", vm_size="not_exist")
-        with self.assertRaises(LisaException) as cm:
+        with self.assertRaises(SkippedException) as cm:
             self._platform._prepare_environment(env, self._log)
         message = "cannot find predefined vm size [not_exist] in location"
         self.assertEqual(message, str(cm.exception)[0 : len(message)])
