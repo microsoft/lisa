@@ -47,6 +47,7 @@ from lisa.sut_orchestrator.azure.tools import Waagent
 from lisa.tools import Dmesg, Modinfo
 from lisa.util import (
     LisaException,
+    SkippedException,
     constants,
     find_patterns_in_lines,
     get_matched_str,
@@ -355,7 +356,7 @@ class AzurePlatform(Platform):
                     break
             if not found_or_skipped:
                 # no location meet requirement
-                raise LisaException(
+                raise SkippedException(
                     f"cannot find predefined vm size [{node_runbook.vm_size}] "
                     f"in locations {locations}. "
                     f"it may not be supported in current subscription."
