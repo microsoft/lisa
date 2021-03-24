@@ -10,8 +10,8 @@ from typing import Optional
 from lisa.util.logger import get_logger
 
 
-def import_module(
-    path: Path, index: Optional[int] = None, logDetails: bool = True
+def import_package(
+    path: Path, index: Optional[int] = None, enable_log: bool = True
 ) -> None:
 
     if not path.exists():
@@ -24,7 +24,7 @@ def import_module(
     packages.append(package_name)
     package_dir = path.parent
     sys.path.append(str(package_dir))
-    if logDetails:
+    if enable_log:
         log.info(f"loading extension from {path}")
 
     for file in path.glob("**/*.py"):
@@ -44,7 +44,7 @@ def import_module(
         full_module_name = f"{local_package_name}.{file_name}"
 
         if full_module_name not in sys.modules:
-            if logDetails:
+            if enable_log:
                 log.debug(f"  loading module from file: {file}")
                 log.debug(
                     f"  package: '{local_package_name}', "
