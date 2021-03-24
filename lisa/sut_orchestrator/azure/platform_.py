@@ -6,7 +6,7 @@ import json
 import logging
 import os
 import re
-from dataclasses import InitVar, dataclass, field
+from dataclasses import dataclass, field
 from datetime import datetime
 from functools import lru_cache
 from logging import getLogger
@@ -58,6 +58,9 @@ from lisa.util.logger import Logger
 from . import features
 from .common import (
     AZURE,
+    AzureNodeSchema,
+    AzureVmGallerySchema,
+    AzureVmPurchasePlanSchema,
     get_compute_client,
     get_environment_context,
     get_marketplace_ordering_client,
@@ -127,105 +130,6 @@ class AzureLocation:
     )
     location: str = ""
     capabilities: List[AzureCapability] = field(default_factory=list)
-
-
-@dataclass_json()
-@dataclass
-class AzureVmGallerySchema:
-    publisher: str = "Canonical"
-    offer: str = "UbuntuServer"
-    sku: str = "18.04-LTS"
-    version: str = "Latest"
-
-
-@dataclass_json()
-@dataclass
-class AzureVmPurchasePlanSchema:
-    name: str
-    product: str
-    publisher: str
-
-
-@dataclass_json()
-@dataclass
-class AzureNodeSchema:
-    name: str = ""
-    vm_size: str = ""
-    location: str = ""
-    gallery_raw: Optional[Union[Dict[Any, Any], str]] = field(
-        default=None, metadata=schema.metadata(data_key="gallery")
-    )
-    vhd: str = ""
-    nic_count: int = 1
-    # for gallery image, which need to accept terms
-    purchase_plan: Optional[AzureVmPurchasePlanSchema] = None
-
-    _gallery: InitVar[Optional[AzureVmGallerySchema]] = None
-
-    @property
-    def gallery(self) -> Optional[AzureVmGallerySchema]:
-        # this is a safe guard and prevent mypy error on typing
-        if not hasattr(self, "_gallery"):
-            self._gallery: Optional[AzureVmGallerySchema] = None
-        gallery: Optional[AzureVmGallerySchema] = self._gallery
-        if not gallery:
-            if isinstance(self.gallery_raw, dict):
-                # Users decide the cases of image names,
-                #  the inconsistent cases cause the mismatched error in notifiers.
-                # The lower() normalizes the image names,
-                #  it has no impact on deployment.
-                self.gallery_raw = dict(
-                    (k, v.lower()) for k, v in self.gallery_raw.items()
-                )
-                gallery = AzureVmGallerySchema.schema().load(  # type: ignore
-                    self.gallery_raw
-                )
-                # this step makes gallery_raw is validated, and filter out any unwanted
-                # content.
-                self.gallery_raw = gallery.to_dict()  # type: ignore
-            elif self.gallery_raw:
-                assert isinstance(
-                    self.gallery_raw, str
-                ), f"actual: {type(self.gallery_raw)}"
-                # Users decide the cases of image names,
-                #  the inconsistent cases cause the mismatched error in notifiers.
-                # The lower() normalizes the image names,
-                #  it has no impact on deployment.
-                gallery_strings = re.split(r"[:\s]+", self.gallery_raw.strip().lower())
-
-                if len(gallery_strings) == 4:
-                    gallery = AzureVmGallerySchema(*gallery_strings)
-                    # gallery_raw is used
-                    self.gallery_raw = gallery.to_dict()  # type: ignore
-                else:
-                    raise LisaException(
-                        f"Invalid value for the provided gallery "
-                        f"parameter: '{self.gallery_raw}'."
-                        f"The gallery parameter should be in the format: "
-                        f"'<Publisher> <Offer> <Sku> <Version>' "
-                        f"or '<Publisher>:<Offer>:<Sku>:<Version>'"
-                    )
-            self._gallery = gallery
-        return gallery
-
-    @gallery.setter
-    def gallery(self, value: Optional[AzureVmGallerySchema]) -> None:
-        self._gallery = value
-        if value is None:
-            self.gallery_raw = None
-        else:
-            self.gallery_raw = value.to_dict()  # type: ignore
-
-    def get_image_name(self) -> str:
-        result = ""
-        if self.vhd:
-            result = self.vhd
-        elif self.gallery:
-            assert isinstance(
-                self.gallery_raw, dict
-            ), f"actual type: {type(self.gallery_raw)}"
-            result = " ".join([x for x in self.gallery_raw.values()])
-        return result
 
 
 @dataclass_json()

@@ -12,8 +12,7 @@ from lisa.environment import Environment
 from lisa.util import LisaException, constants
 from lisa.util.logger import get_logger
 
-from .. import common
-from .. import platform_ as azure
+from .. import common, platform_
 
 
 class AzurePrepareTestCase(TestCase):
@@ -25,8 +24,8 @@ class AzurePrepareTestCase(TestCase):
         self._log = get_logger("test", "azure")
 
         platform_runbook = schema.Platform()
-        self._platform = azure.AzurePlatform(platform_runbook)
-        self._platform._azure_runbook = azure.AzurePlatformSchema()
+        self._platform = platform_.AzurePlatform(platform_runbook)
+        self._platform._azure_runbook = platform_.AzurePlatformSchema()
 
         # trigger data to be cached
         locations = ["westus2", "eastus2", "notreal"]
@@ -270,7 +269,7 @@ class AzurePrepareTestCase(TestCase):
 
     def verify_exists_vm_size(
         self, location: str, vm_size: str, expect_exists: bool
-    ) -> Optional[azure.AzureCapability]:
+    ) -> Optional[platform_.AzureCapability]:
         result = None
         location_info = self._platform._get_location_info(location, self._log)
         self.assertEqual(
@@ -283,7 +282,7 @@ class AzurePrepareTestCase(TestCase):
 
     def verify_eligible_vm_size(
         self, location: str, vm_size: str, expect_exists: bool
-    ) -> Optional[azure.AzureCapability]:
+    ) -> Optional[platform_.AzureCapability]:
         result = None
         assert self._platform._eligible_capabilities
         self.assertEqual(
@@ -314,7 +313,7 @@ class AzurePrepareTestCase(TestCase):
 
             for _ in range(node_req_count):
                 node_req = schema.NodeSpace()
-                _ = node_req.get_extended_runbook(azure.AzureNodeSchema, common.AZURE)
+                _ = node_req.get_extended_runbook(common.AzureNodeSchema, common.AZURE)
                 environment.runbook.nodes_requirement.append(node_req)
 
         return environment
@@ -329,7 +328,7 @@ class AzurePrepareTestCase(TestCase):
         assert environment.runbook.nodes_requirement
         node_runbook = environment.runbook.nodes_requirement[
             index
-        ].get_extended_runbook(azure.AzureNodeSchema, common.AZURE)
+        ].get_extended_runbook(common.AzureNodeSchema, common.AZURE)
         node_runbook.location = location
         node_runbook.vm_size = vm_size
 
@@ -349,7 +348,7 @@ class AzurePrepareTestCase(TestCase):
 
             # get node runbook for validating
             nodes_runbook = [
-                x.get_extended_runbook(azure.AzureNodeSchema, common.AZURE)
+                x.get_extended_runbook(common.AzureNodeSchema, common.AZURE)
                 for x in environment.runbook.nodes_requirement
             ]
 
