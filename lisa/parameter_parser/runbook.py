@@ -12,7 +12,7 @@ from marshmallow import Schema
 from lisa import schema
 from lisa.util import LisaException, constants
 from lisa.util.logger import get_logger
-from lisa.util.module import import_module
+from lisa.util.module import import_package
 from lisa.variable import VariableEntry, load_variables, replace_variables
 
 _schema: Optional[Schema] = None
@@ -200,7 +200,7 @@ def _load_data(
 
 def _import_extends(extends_runbook: List[str]) -> None:
     for index, path in enumerate(extends_runbook):
-        import_module(Path(path), index=index)
+        import_package(Path(path), index=index)
 
 
 def validate_data(data: Any) -> schema.Runbook:
@@ -229,9 +229,9 @@ def load_runbook(
     if cmd_variables_args is None:
         cmd_variables_args = []
 
-    # load lisa itself modules
+    # load lisa itself modules, it's for subclasses, and other dynamic loading.
     base_module_path = Path(__file__).parent.parent
-    import_module(base_module_path, logDetails=False)
+    import_package(base_module_path, enable_log=False)
 
     # merge all parameters
     log = _get_init_logger()
