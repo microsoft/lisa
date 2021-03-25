@@ -263,9 +263,6 @@ def load_runbook(
     if constants.EXTENSION in data:
         del data[constants.EXTENSION]
 
-    for key, value in variables.items():
-        log.debug(f"variable '{key}': {value.data}")
-
     # replace variables:
     try:
         data = replace_variables(data, variables)
@@ -283,6 +280,10 @@ def load_runbook(
 
     # validate runbook, after extensions loaded
     runbook = validate_data(data)
+
+    # print runbook later, after __post_init__ executed, so secrets are handled.
+    for key, value in variables.items():
+        log.debug(f"variable '{key}': {value.data}")
 
     log = _get_init_logger()
     constants.RUN_NAME = f"lisa_{runbook.name}_{constants.RUN_ID}"
