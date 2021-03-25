@@ -1139,6 +1139,7 @@ class AzurePlatform(Platform):
             term: Optional[AgreementTerms] = None
             try:
                 term = marketplace_client.marketplace_agreements.get(
+                    offer_type="virtualmachine",
                     publisher_id=gallery.publisher,
                     offer_id=gallery.offer,
                     plan_id=image_info.plan.name,
