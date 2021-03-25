@@ -332,12 +332,17 @@ class EnvironmentHookImpl:
 
         if environment.nodes:
             node = environment.default_node
-            if node.is_connected and node.is_posix:
-                uname = node.tools[Uname]
-                linux_information = uname.get_linux_information()
-                fields = ["hardware_platform", "kernel_version"]
-                information_dict = fields_to_dict(linux_information, fields=fields)
-                information.update(information_dict)
+            try:
+                if node.is_connected and node.is_posix:
+                    uname = node.tools[Uname]
+                    linux_information = uname.get_linux_information()
+                    fields = ["hardware_platform", "kernel_version"]
+                    information_dict = fields_to_dict(linux_information, fields=fields)
+                    information.update(information_dict)
+            except Exception as identifier:
+                environment._log.exception(
+                    "failed to get environment information", exc_info=identifier
+                )
 
         return information
 
