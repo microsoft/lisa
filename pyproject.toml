@@ -9,37 +9,36 @@ license = "MIT"
 python = "^3.8"
 PyYAML = "^5.4.1"
 retry = "^0.9.2"
-paramiko = "^2.7.1"
-spurplus = "^2.3.3"
+paramiko = "^2.7.2"
+spurplus = "^2.3.4"
 dataclasses-json = "^0.5.2"
-# portalocker for compatibility of Windows, trigger pywin32 installed
-portalocker = "^1.7.1"
-azure-identity = {version = "^1.4.0"}
-azure-mgmt-resource = {version = "^15.0.0-beta.1"}
-azure-mgmt-compute = {version = "^17.0.0-beta.1"}
-azure-mgmt-marketplaceordering = {version = "^0.2.1"}
-azure-mgmt-network = {version = "^16.0.0-beta.1"}
-azure-mgmt-storage = {version = "^16.0.0"}
+azure-identity = "^1.5.0"
+azure-mgmt-resource = "^16.0.0"
+azure-mgmt-compute = "^19.0.0"
+azure-mgmt-marketplaceordering = "^1.1.0"
+azure-mgmt-network = "^18.0.0"
+azure-mgmt-storage = "^17.0.0"
 func-timeout = "^4.3.5"
 assertpy = "^1.1"
 pytest-html = "^3.1.1"
 pluggy = "^0.13.1"
 pypiwin32 = {version = "^223", platform = "win32"}
 PyGObject = {version = "^3.38.0", platform = 'linux'}
+python-dateutil = "^2.8.1"
 
 [tool.poetry.dev-dependencies]
 black = "^20.8b1"
 flake8 = "^3.8.3"
 flake8-black = "^0.2.1"
-flake8-bugbear = "^20.1.4"
+flake8-bugbear = "^21.3.2"
 flake8-isort = "^4.0.0"
 isort = "^5.5.3"
 mypy = "^0.782"
 pyls-black = "^0.4.6"
 pyls-isort = "^0.2.0"
 pyls-mypy = "^0.1.8"
-python-language-server = "^0.35.1"
-rope = "^0.17.0"
+python-language-server = "^0.36.2"
+rope = "^0.18.0"
 coverage = "^5.3"
 
 [tool.black]
