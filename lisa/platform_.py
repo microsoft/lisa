@@ -83,10 +83,19 @@ class Platform(subclasses.BaseClassWithRunbookMixin, InitializableMixin):
 
         assert environment.platform
         if environment.platform.type_name() != self.type_name():
+            # prevent multiple platform can be activated in future, it should call for
+            #  right platform only.
             return information
 
         information["platform"] = environment.platform.type_name()
-        information.update(self._get_environment_information(environment=environment))
+        try:
+            information.update(
+                self._get_environment_information(environment=environment)
+            )
+        except Exception as identifier:
+            self._log.exception(
+                "failed to get environment information on platform", exc_info=identifier
+            )
 
         return information
 
