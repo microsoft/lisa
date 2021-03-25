@@ -233,6 +233,11 @@ class Fedora(Linux):
 
 
 class Redhat(Fedora):
+    # pattern for expired RHUI client certificate issue
+    __rhui_error_pattern = re.compile(
+        r"([\w\W]*?)SSL peer rejected your certificate as expired.*", re.MULTILINE
+    )
+
     @classmethod
     def name_pattern(cls) -> Pattern[str]:
         return re.compile("^rhel|Red|Scientific|acronis|Actifio$")
@@ -242,7 +247,18 @@ class Redhat(Fedora):
         # smaller sizes cost much longer time when update packages, e.g.
         #  Basic_A1, Standard_A5, Standard_A1_v2, Standard_D1
         # redhat rhel 7-lvm 7.7.2019102813 Basic_A1 cost 2371.568 seconds
-        self._node.execute("yum -y update", sudo=True, timeout=2400)
+        cmd_result = self._node.execute("yum -y update", sudo=True, timeout=2400)
+        # we will hit expired RHUI client certificate issue on old RHEL VM image
+        # use below solution to resolve it
+        # refer https://docs.microsoft.com/en-us/azure/virtual-machines/workloads/redhat/redhat-rhui#azure-rhui-infrastructure # noqa: E501
+        if cmd_result.exit_code != 0 and self.__rhui_error_pattern.match(
+            cmd_result.stdout
+        ):
+            cmd_result = self._node.execute(
+                "yum update -y --disablerepo='*' --enablerepo='*microsoft*' ",
+                sudo=True,
+                timeout=2400,
+            )
 
     def _install_packages(self, packages: Union[List[str]]) -> None:
         self._node.execute(f"yum install -y {' '.join(packages)}", sudo=True)
