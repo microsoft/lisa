@@ -70,7 +70,8 @@ class ConnectionInfo:
 
         if not self.password and not self.private_key_file:
             raise LisaException(
-                "at least one of password and privateKeyFile need to be set"
+                "at least one of password or private_key_file need to be set when "
+                "connecting"
             )
         elif not self.private_key_file:
             # use password
