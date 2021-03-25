@@ -16,8 +16,6 @@ from lisa.environment import Environment
 from lisa.node import Node
 from lisa.util import LisaException
 
-from .cred_wrapper import CredentialWrapper
-
 if TYPE_CHECKING:
     from .platform_ import AzurePlatform
 
@@ -176,7 +174,7 @@ def get_storage_account_name(platform: Any, location: str) -> str:
 def get_marketplace_ordering_client(platform: Any) -> MarketplaceOrderingAgreements:
     azure_platform: AzurePlatform = platform
     return MarketplaceOrderingAgreements(
-        credentials=CredentialWrapper(azure_platform.credential),
+        credential=azure_platform.credential,
         subscription_id=azure_platform.subscription_id,
     )
 
