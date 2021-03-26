@@ -7,7 +7,7 @@ from datetime import datetime
 from logging import DEBUG, INFO
 from pathlib import Path
 
-from retry import retry  # type: ignore
+from retry import retry
 
 from lisa.parameter_parser.argparser import parse_args
 from lisa.util import constants, get_datetime_path
@@ -15,7 +15,7 @@ from lisa.util.logger import create_file_handler, get_logger, set_level
 from lisa.util.perf_timer import create_timer
 
 
-@retry(FileExistsError, tries=10, delay=0)  # type: ignore
+@retry(FileExistsError, tries=10, delay=0)
 def create_run_path(root_path: Path) -> Path:
     current_time = datetime.utcnow()
     date = current_time.strftime("%Y%m%d")

@@ -6,7 +6,7 @@ from dataclasses import dataclass, field
 from enum import Enum
 from typing import Any, Callable, Dict, List, Optional, Type, TypeVar, Union, cast
 
-from dataclasses_json import (  # type: ignore
+from dataclasses_json import (
     CatchAll,
     DataClassJsonMixin,
     Undefined,
@@ -47,7 +47,7 @@ def metadata(
     # keep data_key for underlying marshmallow
     field_name = kwargs.get("data_key")
     return config(
-        field_name=field_name,
+        field_name=cast(str, field_name),
         encoder=encoder,
         decoder=decoder,
         mm_field=field_function(*args, **kwargs),
@@ -110,7 +110,7 @@ class ListableValidator(validate.Validator):
 @dataclass_json(undefined=Undefined.INCLUDE)
 @dataclass
 class ExtendableSchemaMixin:
-    extended_schemas: CatchAll = field(default_factory=dict)
+    extended_schemas: CatchAll = field(default_factory=dict)  # type: ignore
 
     def get_extended_runbook(self, runbook_type: Type[T], type_name: str = "") -> T:
         """
@@ -329,7 +329,7 @@ class Notifier(TypedSchema):
     detail types are defined in notifier itself, allowed items are handled in code.
     """
 
-    delay_parsed: CatchAll = field(default_factory=dict)
+    delay_parsed: CatchAll = field(default_factory=dict)  # type: ignore
 
 
 @dataclass_json(undefined=Undefined.INCLUDE)

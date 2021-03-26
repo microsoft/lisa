@@ -1,7 +1,7 @@
 # Copyright (c) Microsoft Corporation.
 # Licensed under the MIT license.
 
-from assertpy import assert_that  # type: ignore
+from assertpy import assert_that
 
 from lisa import Environment, TestCaseMetadata, TestSuite, TestSuiteMetadata
 from lisa.testsuite import simple_requirement

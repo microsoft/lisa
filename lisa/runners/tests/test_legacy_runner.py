@@ -5,7 +5,7 @@ from dataclasses import dataclass
 from typing import Dict, List
 from unittest import TestCase
 
-from dataclasses_json import dataclass_json  # type: ignore
+from dataclasses_json import dataclass_json
 
 from lisa import schema
 from lisa.runners import legacy_runner

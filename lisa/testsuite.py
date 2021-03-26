@@ -19,7 +19,7 @@ from typing import (
     Union,
 )
 
-from retry.api import retry_call  # type: ignore
+from retry.api import retry_call
 
 from lisa import notifier, schema, search_space
 from lisa.environment import EnvironmentSpace, EnvironmentStatus

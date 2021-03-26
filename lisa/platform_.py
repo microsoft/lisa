@@ -77,7 +77,7 @@ class Platform(subclasses.BaseClassWithRunbookMixin, InitializableMixin):
     def _get_environment_information(self, environment: Environment) -> Dict[str, str]:
         return {}
 
-    @hookimpl  # type: ignore
+    @hookimpl
     def get_environment_information(self, environment: Environment) -> Dict[str, str]:
         information: Dict[str, str] = {}
 

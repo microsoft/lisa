@@ -5,7 +5,7 @@ from dataclasses import dataclass, field
 from typing import Any, List, Optional, Type, Union
 from unittest.case import TestCase
 
-from dataclasses_json import dataclass_json  # type: ignore
+from dataclasses_json import dataclass_json
 
 from lisa import schema
 from lisa.environment import (

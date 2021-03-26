@@ -10,7 +10,7 @@ from enum import Enum
 from functools import partial
 from typing import TYPE_CHECKING, Any, Dict, List, Optional
 
-from dataclasses_json import dataclass_json  # type: ignore
+from dataclasses_json import dataclass_json
 from marshmallow import validate
 
 from lisa import schema, search_space
@@ -319,13 +319,13 @@ def load_environments(
 
 
 class EnvironmentHookSpec:
-    @hookspec  # type: ignore
+    @hookspec
     def get_environment_information(self, environment: Environment) -> Dict[str, str]:
         ...
 
 
 class EnvironmentHookImpl:
-    @hookimpl  # type: ignore
+    @hookimpl
     def get_environment_information(self, environment: Environment) -> Dict[str, str]:
         information: Dict[str, str] = {}
         information["name"] = environment.name

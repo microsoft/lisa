@@ -11,12 +11,12 @@ from pathlib import Path, PurePath
 from time import sleep
 from typing import Any, Dict, List, Mapping, Optional, Sequence, Tuple, Union, cast
 
-import paramiko  # type: ignore
+import paramiko
 import spur  # type: ignore
 import spurplus  # type: ignore
 from func_timeout import FunctionTimedOut, func_set_timeout  # type: ignore
-from paramiko.ssh_exception import SSHException  # type: ignore
-from retry import retry  # type: ignore
+from paramiko.ssh_exception import SSHException
+from retry import retry
 
 from lisa.util import InitializableMixin, LisaException
 
@@ -131,7 +131,7 @@ class WindowsShellType(object):
 
 
 # retry strategy is the same as spurplus.connect_with_retries.
-@retry(Exception, tries=3, delay=1, logger=None)  # type: ignore
+@retry(Exception, tries=3, delay=1, logger=None)
 def try_connect(connection_info: ConnectionInfo) -> Any:
     # spur always run a posix command and will fail on Windows.
     # So try with paramiko firstly.
@@ -313,13 +313,25 @@ class SshShell(InitializableMixin):
         path_str = self._purepath_to_str(path)
         sftp_attributes: paramiko.SFTPAttributes = self._inner_shell.stat(path_str)
 
-        result = os.stat_result(sftp_attributes.st_mode)
-        result.st_mode = sftp_attributes.st_mode
-        result.st_size = sftp_attributes.st_size
-        result.st_uid = sftp_attributes.st_uid
-        result.st_gid = sftp_attributes.st_gid
-        result.st_atime = sftp_attributes.st_atime
-        result.st_mtime = sftp_attributes.st_mtime
+        result = os.stat_result(())
+        result.st_atime = (
+            sftp_attributes.st_atime if sftp_attributes.st_atime is not None else 0
+        )
+        result.st_gid = (
+            sftp_attributes.st_gid if sftp_attributes.st_gid is not None else 0
+        )
+        result.st_mode = (
+            sftp_attributes.st_mode if sftp_attributes.st_mode is not None else 0
+        )
+        result.st_mtime = (
+            sftp_attributes.st_mtime if sftp_attributes.st_mtime is not None else 0
+        )
+        result.st_size = (
+            sftp_attributes.st_size if sftp_attributes.st_size is not None else 0
+        )
+        result.st_uid = (
+            sftp_attributes.st_uid if sftp_attributes.st_uid is not None else 0
+        )
         return result
 
     def is_dir(self, path: PurePath) -> bool:

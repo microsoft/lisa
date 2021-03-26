@@ -1,6 +1,6 @@
 import math
 
-from assertpy import assert_that  # type: ignore
+from assertpy import assert_that
 
 from lisa import Environment, Node, TestCaseMetadata, TestSuite, TestSuiteMetadata
 from lisa.operating_system import Windows

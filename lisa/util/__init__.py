@@ -7,7 +7,7 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any, Callable, Dict, Iterable, List, Optional, Pattern, Type, TypeVar
 
-import pluggy  # type: ignore
+import pluggy
 
 T = TypeVar("T")
 

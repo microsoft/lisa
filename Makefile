@@ -30,7 +30,7 @@ flake8:
 
 # This runs the static type checking
 mypy:
-	@poetry run mypy --strict --namespace-packages .
+	@poetry run mypy --strict --namespace-packages --implicit-reexport .
 
 # Print current Python virtualenv
 venv:
