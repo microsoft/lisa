@@ -33,9 +33,9 @@ from azure.mgmt.resource.resources.models import (  # type: ignore
     DeploymentProperties,
 )
 from azure.mgmt.storage.models import Sku, StorageAccountCreateParameters  # type:ignore
-from dataclasses_json import dataclass_json  # type: ignore
+from dataclasses_json import dataclass_json
 from marshmallow import fields, validate
-from retry import retry  # type: ignore
+from retry import retry
 
 from lisa import schema, search_space
 from lisa.environment import Environment
@@ -605,7 +605,7 @@ class AzurePlatform(Platform):
             template = json.load(f)
         return template
 
-    @retry(tries=2)  # type: ignore
+    @retry(tries=2)
     def _load_location_info_from_file(
         self, cached_file_name: Path, log: Logger
     ) -> Optional[AzureLocation]:
@@ -910,7 +910,7 @@ class AzurePlatform(Platform):
         return errors
 
     # the VM may not be queried after deployed. use retry to mitigate it.
-    @retry(exceptions=LisaException, tries=150, delay=2)  # type: ignore
+    @retry(exceptions=LisaException, tries=150, delay=2)
     def _load_vms(
         self, environment: Environment, log: Logger
     ) -> Dict[str, VirtualMachine]:
@@ -934,7 +934,7 @@ class AzurePlatform(Platform):
             )
         return vms_map
 
-    @retry(exceptions=LisaException, tries=150, delay=2)  # type: ignore
+    @retry(exceptions=LisaException, tries=150, delay=2)
     def _load_nics(
         self, environment: Environment, log: Logger
     ) -> Dict[str, NetworkInterface]:
@@ -964,7 +964,7 @@ class AzurePlatform(Platform):
             )
         return nics_map
 
-    @retry(exceptions=LisaException, tries=150, delay=2)  # type: ignore
+    @retry(exceptions=LisaException, tries=150, delay=2)
     def _load_public_ips(
         self, environment: Environment, log: Logger
     ) -> Dict[str, PublicIPAddress]:

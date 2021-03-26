@@ -4,7 +4,7 @@
 import re
 from typing import Any, Optional, Type
 
-from assertpy import assert_that  # type: ignore
+from assertpy import assert_that
 
 from lisa.executable import Tool
 

@@ -5,7 +5,7 @@ import logging
 from dataclasses import dataclass
 from typing import Any, List, Type, cast
 
-from dataclasses_json import dataclass_json  # type: ignore
+from dataclasses_json import dataclass_json
 
 from lisa import notifier, schema
 from lisa.testsuite import TestResultMessage

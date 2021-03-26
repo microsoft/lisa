@@ -8,7 +8,7 @@ from typing import Any, List, Type, cast
 import pytest
 from _pytest.config import Config
 from _pytest.reports import CollectReport, TestReport
-from dataclasses_json import dataclass_json  # type: ignore
+from dataclasses_json import dataclass_json
 from pytest_html.plugin import HTMLReport  # type: ignore
 
 from lisa import schema

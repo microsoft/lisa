@@ -9,7 +9,7 @@ from azure.mgmt.compute import ComputeManagementClient  # type: ignore
 from azure.mgmt.marketplaceordering import MarketplaceOrderingAgreements  # type: ignore
 from azure.mgmt.network import NetworkManagementClient  # type: ignore
 from azure.mgmt.storage import StorageManagementClient  # type: ignore
-from dataclasses_json import dataclass_json  # type: ignore
+from dataclasses_json import dataclass_json
 
 from lisa import schema
 from lisa.environment import Environment

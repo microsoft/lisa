@@ -5,7 +5,7 @@ from lisa.util import SkippedException, hookimpl, hookspec, plugin_manager
 
 
 class AzureHookSpec:
-    @hookspec  # type: ignore
+    @hookspec
     def azure_deploy_failed(self, error_message: str) -> None:
         """
         It can be used to skipped some by design failed deployment, such as deploy gen1
@@ -26,7 +26,7 @@ class AzureHookSpecDefaultImpl:
         )
     ]
 
-    @hookimpl  # type: ignore
+    @hookimpl
     def azure_deploy_failed(self, error_message: str) -> None:
         for message, pattern, exception_type in self.__error_maps:
             if pattern.findall(error_message):

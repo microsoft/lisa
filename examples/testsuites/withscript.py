@@ -4,7 +4,7 @@
 from pathlib import Path
 from typing import Any
 
-from assertpy import assert_that  # type: ignore
+from assertpy import assert_that
 
 from lisa import Node, TestCaseMetadata, TestSuite, TestSuiteMetadata
 from lisa.executable import CustomScript, CustomScriptBuilder

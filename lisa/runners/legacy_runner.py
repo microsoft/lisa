@@ -9,9 +9,9 @@ import re
 import time
 from functools import partial
 from pathlib import Path
-from typing import Any, Dict, Iterable, List, Pattern
+from typing import TYPE_CHECKING, Any, Dict, Iterable, List, Pattern
 
-from retry import retry  # type: ignore
+from retry import retry
 
 from lisa import schema
 from lisa.node import Node
@@ -561,7 +561,7 @@ class LogParser(InitializableMixin):
                 cases.append(current_case)
         return cases
 
-    @retry(tries=10, jitter=1)  # type: ignore
+    @retry(tries=10, jitter=1)
     def _read_log(self) -> str:
         """
         V2 opens log file frequently to write content, copying may be failed due to
@@ -584,12 +584,15 @@ class LogParser(InitializableMixin):
         # detach the handle
         detached_handle = handle.Detach()
 
+        content = ""
         # get a file descriptor associated to the handle
-        file_descriptor = msvcrt.open_osfhandle(detached_handle, os.O_RDONLY)
+        if not TYPE_CHECKING:  # FIXME: if you have a better solution
+            # for mypy checks on Linux, change this
+            file_descriptor = msvcrt.open_osfhandle(detached_handle, os.O_RDONLY)
 
-        # open the file descriptor
-        with open(file_descriptor) as file:
-            content = file.read()
+            # open the file descriptor
+            with open(file_descriptor) as file:
+                content = file.read()
         return content
 
     def _line_iter(self) -> Iterable[str]:

@@ -6,7 +6,7 @@ from abc import abstractmethod
 from dataclasses import dataclass, field
 from typing import Any, Iterable, List, Optional, Set, TypeVar, Union
 
-from dataclasses_json import dataclass_json  # type: ignore
+from dataclasses_json import dataclass_json
 
 from lisa.util import LisaException
 
