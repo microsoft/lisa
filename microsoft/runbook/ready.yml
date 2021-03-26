@@ -9,12 +9,13 @@ variable:
 notifier:
   - type: html
 environment:
+  allow_create: false
   environments:
     - nodes:
         - type: remote
           public_address: $(public_address)
           public_port: $(public_port)
           username: $(user_name)
+          private_key_file: $(private_key_file)
 platform:
   - type: ready
-    admin_private_key_file: $(admin_private_key_file)
