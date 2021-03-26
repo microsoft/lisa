@@ -3,6 +3,7 @@
 - [Installation](#installation)
   - [How to use LISA in WSL](#how-to-use-lisa-in-wsl)
   - [Cannot find package after run `poetry install`](#cannot-find-package-after-run-poetry-install)
+  - [Error: Poetry could not find a pyproject.toml file](#error-poetry-could-not-find-a-pyprojecttoml-file)
   - [Poetry related questions](#poetry-related-questions)
   - [Other issues](#other-issues)
 
@@ -17,6 +18,10 @@ If you are using WSL, installing Poetry on both Windows and WSL may cause both p
 ### Cannot find package after run `poetry install`
 
 Poetry is case sensitive. When in windows, make sure the case of path is consistent every time.
+
+### Error: Poetry could not find a pyproject.toml file
+
+Poetry provides different packages according to the folder, and depends on the `pyproject.toml` file in the current folder. Make sure to run `poetry` in the root folder of LISA.
 
 ### Poetry related questions
 
