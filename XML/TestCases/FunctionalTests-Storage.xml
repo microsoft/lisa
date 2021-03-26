@@ -850,9 +850,8 @@
   </test>
   <test>
     <testName>STORAGE-HOT-ADD-DISK-PARALLEL</testName>
-    <testScript>.\Testscripts\Linux\utils.sh,DiskHotAddRemove-Parallel.ps1</testScript>
-    <files>
-    </files>
+    <testScript>DiskHotAddRemove-Parallel.ps1</testScript>
+    <files>\Testscripts\Linux\utils.sh,DiskHotAddRemove-Parallel.ps1<</files>
     <testParameters>
       <param>DiskSize=30</param>
       <param>DiskSku=DATA_DISK_SKU</param>
