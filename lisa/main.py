@@ -54,7 +54,7 @@ def main() -> int:
             log_level = INFO
         set_level(log_level)
 
-        create_file_handler(f"{local_path}/lisa.log")
+        create_file_handler(f"{local_path}/lisa-{constants.RUN_ID}.log")
 
         log.info(f"Python version: {sys.version}")
         log.info(f"local time: {datetime.now().astimezone()}")
