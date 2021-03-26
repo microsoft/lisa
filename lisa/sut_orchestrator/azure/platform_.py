@@ -738,7 +738,7 @@ class AzurePlatform(Platform):
             assert isinstance(
                 node_space, schema.NodeSpace
             ), f"actual: {type(node_space)}"
-            azure_node_runbook: AzureNodeSchema = node_space.get_extended_runbook(
+            azure_node_runbook = node_space.get_extended_runbook(
                 AzureNodeSchema, type_name=AZURE
             )
 
@@ -1058,7 +1058,7 @@ class AzurePlatform(Platform):
             elif name == "GPUs":
                 node_space.gpu_count = int(sku_capability.value)
 
-        # all node support start/stop
+        # all nodes support following features
         node_space.features = search_space.SetSpace[str](is_allow_set=True)
         node_space.features.update(
             [features.StartStop.name(), features.SerialConsole.name()]

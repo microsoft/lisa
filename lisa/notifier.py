@@ -54,9 +54,16 @@ class Notifier(subclasses.BaseClassWithRunbookMixin, InitializableMixin):
         pass
 
     def _subscribed_message_type(self) -> List[Type[MessageBase]]:
+        """
+        Specify which message types want to be subscribed.
+        Other types won't be passed in.
+        """
         raise NotImplementedError("must specify supported message types")
 
     def _received_message(self, message: MessageBase) -> None:
+        """
+        Called by notifier, when a subscribed message happens.
+        """
         raise NotImplementedError
 
     def _initialize(self, *args: Any, **kwargs: Any) -> None:
