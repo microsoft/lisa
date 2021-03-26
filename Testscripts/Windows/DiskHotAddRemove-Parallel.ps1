@@ -88,13 +88,11 @@ function Main {
         } else {
             throw "Failed to remove the data disk from the VM"
         }
-        Write-LogInfo "Verifying if data disks are removed from the VM: Running fdisk on remote VM"
-        $fdiskFinalOutput = Run-LinuxCmd -username $user -password $password -ip  $AllVMData.PublicIP -port $AllVMData.SSHPort -command "/sbin/fdisk -l | grep /dev/sd" -runAsSudo
-        foreach ($line in ($fdiskFinalOutput.Split([Environment]::NewLine))) {
-            if($line -imatch "Disk /dev/sd[a-z][a-z]|sd[c-z]:" -and [int64]($line.Split()[4]) -eq (([int64]($diskSizeinGB) * [int64]1073741824))) {
-                $testResult=$resultFail
-                throw "Data disk is NOT removed from the VM at $line"
-            }
+        $osDiskLabel = Run-LinuxCmd -username $user -password $password -ip $AllVMData.PublicIP -port $AllVMData.SSHPort -command ". utils.sh && get_OSdisk" -runAsSudo
+        $finalDiskCount = Run-LinuxCmd -username $user -password $password -ip $AllVMData.PublicIP -port $AllVMData.SSHPort -command "lsblk -io KNAME,TYPE,SIZE,MODEL | grep -i 'Virtual Disk' | grep $diskSizeinGB | grep -v $osDiskLabel | wc -l" -runAsSudo
+        if([int]$finalDiskCount -ne 0) {
+            $testResult=$resultFail
+            throw "Data disk is NOT removed from the VM at $line"
         }
         Write-LogInfo "Successfully verified that all data disks are removed from the VM"
         # Delete unmanaged data disks
