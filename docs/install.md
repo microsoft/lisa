@@ -15,6 +15,8 @@ LISA supports to run on Windows and Linux. Follow below steps to install LISA fr
 
 ## Prerequisites
 
+LISA needs to be installed on a computer that can access the computer to be tested. For tested computers, LISA is not required to be installed. The computer under test can be a local computer.
+
 - Can access the tested platform, like Azure, Hyper-V, or else. It recommends having good bandwidth and low network latency.
 - At least 2 CPU cores and 4GB memory.
 
