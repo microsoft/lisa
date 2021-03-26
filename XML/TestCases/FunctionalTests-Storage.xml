@@ -850,7 +850,7 @@
   </test>
   <test>
     <testName>STORAGE-HOT-ADD-DISK-PARALLEL</testName>
-    <testScript>DiskHotAddRemove-Parallel.ps1</testScript>
+    <testScript>.\Testscripts\Linux\utils.sh,DiskHotAddRemove-Parallel.ps1</testScript>
     <files>
     </files>
     <testParameters>
