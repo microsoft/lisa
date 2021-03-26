@@ -858,7 +858,12 @@ class AzurePlatform(Platform):
             if result:
                 raise LisaException(f"deploy failed: {result}")
         except HttpResponseError as identifier:
-            assert identifier.error
+            # Some errors happens underlying, so there is no detail errors from API.
+            # For example,
+            # azure.core.exceptions.HttpResponseError:
+            #    Operation returned an invalid status 'OK'
+            assert identifier.error, f"HttpResponseError: {identifier}"
+
             error_message = "\n".join(self._parse_detail_errors(identifier.error))
             if "OSProvisioningTimedOut: OS Provisioning for VM" in error_message:
                 # Provisioning timeout causes by waagent is not ready.
