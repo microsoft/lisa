@@ -22,7 +22,10 @@ class Who(Tool):
         return False
 
     def last_boot(self, no_error_log: bool = True) -> datetime:
-        command_result = self.run("-b", no_error_log=no_error_log, timeout=10)
+        # always force run, because it's used to detect if the system is rebooted.
+        command_result = self.run(
+            "-b", force_run=True, no_error_log=no_error_log, timeout=10
+        )
         if command_result.exit_code != 0:
             raise LisaException(
                 f"'last' return non-zero exit code: {command_result.stderr}"

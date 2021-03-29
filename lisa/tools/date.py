@@ -18,7 +18,8 @@ class Date(Tool):
         return True
 
     def current(self, no_error_log: bool = True) -> datetime:
-        command_result = self.run(no_error_log=no_error_log, timeout=10)
+        # always force run to get current date time.
+        command_result = self.run(no_error_log=no_error_log, force_run=True, timeout=10)
         if command_result.exit_code != 0:
             raise LisaException(
                 f"'Date' return non-zero exit code: {command_result.stderr}"

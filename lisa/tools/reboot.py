@@ -68,7 +68,7 @@ class Reboot(Tool):
             # Reboot is not reliable, and sometime stucks,
             # like SUSE sles-15-sp1-sapcal gen1 2020.10.23.
             # In this case, use timeout to prevent hanging.
-            self.node.execute(self.command, sudo=True, timeout=10)
+            self.run(force_run=True, sudo=True, timeout=10)
         except Exception as identifier:
             # it doesn't matter to exceptions here. The system may reboot fast
             self._log.debug(f"ignorable exception on rebooting: {identifier}")

@@ -27,7 +27,9 @@ class Make(Tool):
         return self._check_exists()
 
     def make_and_install(self, cwd: PurePath) -> None:
-        make_result = self.run(shell=True, cwd=cwd)
+        # make/install can happen on different folder with same parameter,
+        # so force rerun it.
+        make_result = self.run(force_run=True, shell=True, cwd=cwd)
         if make_result.exit_code == 0:
             # install with sudo
             self.node.execute("make install", shell=True, sudo=True, cwd=cwd)

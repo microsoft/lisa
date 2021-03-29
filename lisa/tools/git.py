@@ -47,8 +47,13 @@ class Git(Tool):
             self.checkout(branch, cwd=full_path)
 
     def checkout(self, branch: str, cwd: pathlib.PurePath) -> None:
+        # force run to make sure checkout among branches correctly.
         result = self.run(
-            f"checkout {branch}", cwd=cwd, no_info_log=True, no_error_log=True
+            f"checkout {branch}",
+            force_run=True,
+            cwd=cwd,
+            no_info_log=True,
+            no_error_log=True,
         )
         if result.exit_code != 0:
             raise LisaException(
