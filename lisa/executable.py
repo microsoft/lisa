@@ -62,6 +62,9 @@ class Tool(ABC, InitializableMixin):
         # triple states, None means not checked.
         self._exists: Optional[bool] = None
         self._log = get_logger("tool", self.name, self.node.log)
+        # cache the processes with same command line, so that it reduce time to rerun
+        # same commands.
+        self.__cached_results: Dict[str, Process] = {}
 
     @property
     @abstractmethod
@@ -184,6 +187,7 @@ class Tool(ABC, InitializableMixin):
     def run_async(
         self,
         parameters: str = "",
+        force_run: bool = False,
         shell: bool = False,
         sudo: bool = False,
         no_error_log: bool = False,
@@ -198,18 +202,27 @@ class Tool(ABC, InitializableMixin):
             command = f"{self.command} {parameters}"
         else:
             command = self.command
-        return self.node.execute_async(
-            command,
-            shell=shell,
-            sudo=sudo,
-            no_error_log=no_error_log,
-            cwd=cwd,
-            no_info_log=no_info_log,
-        )
+
+        command_key = f"{command}|{shell}|{sudo}|{cwd}"
+        process = self.__cached_results.get(command_key, None)
+        if force_run or not process:
+            process = self.node.execute_async(
+                command,
+                shell=shell,
+                sudo=sudo,
+                no_error_log=no_error_log,
+                cwd=cwd,
+                no_info_log=no_info_log,
+            )
+            self.__cached_results[command_key] = process
+        else:
+            self._log.debug(f"loaded cached result for command: [{command}]")
+        return process
 
     def run(
         self,
         parameters: str = "",
+        force_run: bool = False,
         shell: bool = False,
         sudo: bool = False,
         no_error_log: bool = False,
@@ -222,6 +235,7 @@ class Tool(ABC, InitializableMixin):
         """
         process = self.run_async(
             parameters=parameters,
+            force_run=force_run,
             shell=shell,
             sudo=sudo,
             no_error_log=no_error_log,
@@ -279,6 +293,7 @@ class CustomScript(Tool):
     def run_async(
         self,
         parameters: str = "",
+        force_run: bool = False,
         shell: bool = False,
         sudo: bool = False,
         no_error_log: bool = False,
@@ -287,13 +302,10 @@ class CustomScript(Tool):
     ) -> Process:
         if cwd is not None:
             raise LisaException("don't set cwd for script")
-        if parameters:
-            command = f"{self.command} {parameters}"
-        else:
-            command = self.command
 
-        return self.node.execute_async(
-            cmd=command,
+        return super().run_async(
+            parameters=parameters,
+            force_run=force_run,
             shell=shell,
             sudo=sudo,
             no_error_log=no_error_log,
@@ -304,6 +316,7 @@ class CustomScript(Tool):
     def run(
         self,
         parameters: str = "",
+        force_run: bool = False,
         shell: bool = False,
         sudo: bool = False,
         no_error_log: bool = False,
@@ -313,6 +326,7 @@ class CustomScript(Tool):
     ) -> ExecutableResult:
         process = self.run_async(
             parameters=parameters,
+            force_run=force_run,
             shell=shell,
             sudo=sudo,
             no_error_log=no_error_log,
