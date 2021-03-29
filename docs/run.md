@@ -15,6 +15,18 @@ In Linux, define an alias to simplify the command. If you want it effective ever
 alias lisa="./lisa.sh"
 ```
 
+In Windows Command Prompt, use lisa.cmd to start lisa. Alias definition should be
+
+```bash
+doskey lisa=lisa.cmd
+```
+
+In Windows Powershell,
+
+```bash
+Set-Alias -Name lisa -Value "./lisa.cmd"
+```
+
 ### Run locally
 
 If no argument specified, LISA runs test cases on the local computer. Those cases are helpful to validate LISA installation, and won't modify the local computer.
