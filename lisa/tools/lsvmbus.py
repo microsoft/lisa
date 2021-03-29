@@ -175,9 +175,8 @@ class Lsvmbus(Tool):
     def get_vmbuses(self, force_run: bool = False) -> List[VmBus]:
         if (not self._vmbuses) or force_run:
             result = self.run("-vv", force_run=force_run, shell=True)
-            if result.exit_code != 0 and (not self._command.startswith("sudo")):
-                self._command = f"sudo {self._command}"
-                result = self.run("-vv", shell=True)
+            if result.exit_code != 0:
+                result = self.run("-vv", shell=True, sudo=True)
                 if result.exit_code != 0:
                     raise LisaException(
                         f"get unexpected non-zero exit code {result.exit_code} "
