@@ -170,8 +170,8 @@ class Process:
                 if self._process._stderr:
                     self._process._stderr.close()
             self._process = None
+            self._log.debug(f"waited with {self._timer}")
 
-        self._log.debug(f"waited with {self._timer}")
         return self._result
 
     def kill(self) -> None:
