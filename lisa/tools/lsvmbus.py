@@ -177,8 +177,7 @@ class Lsvmbus(Tool):
             result = self.run("-vv", force_run=force_run, shell=True)
             if result.exit_code != 0 and (not self._command.startswith("sudo")):
                 self._command = f"sudo {self._command}"
-                # force run to make sure rerun success
-                result = self.run("-vv", force_run=True, shell=True)
+                result = self.run("-vv", shell=True)
                 if result.exit_code != 0:
                     raise LisaException(
                         f"get unexpected non-zero exit code {result.exit_code} "
