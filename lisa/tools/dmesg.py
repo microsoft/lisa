@@ -2,7 +2,7 @@
 # Licensed under the MIT license.
 
 import re
-from typing import Any, List, Optional
+from typing import List
 
 from lisa.executable import Tool
 from lisa.util import LisaException
@@ -21,9 +21,6 @@ class Dmesg(Tool):
     @property
     def command(self) -> str:
         return "dmesg"
-
-    def _initialize(self, *args: Any, **kwargs: Any) -> None:
-        self._cached_result: Optional[ExecutableResult] = None
 
     def _check_exists(self) -> bool:
         return True
@@ -60,15 +57,12 @@ class Dmesg(Tool):
                 self._log.debug(error_message)
         return result
 
-    def _run(self, force_run: bool = True) -> ExecutableResult:
-        if self._cached_result is None or force_run:
-            # sometime it need sudo, we can retry
-            # so no_error_log for first time
-            result = self.run(no_error_log=True)
-            if result.exit_code != 0:
-                # may need sudo
-                result = self.run(sudo=True)
-            self._cached_result = result
-        else:
-            result = self._cached_result
+    def _run(self, force_run: bool = False) -> ExecutableResult:
+        # sometime it need sudo, we can retry
+        # so no_error_log for first time
+        result = self.run(force_run=force_run, no_error_log=True)
+        if result.exit_code != 0:
+            # may need sudo
+            result = self.run(sudo=True)
+        self._cached_result = result
         return result

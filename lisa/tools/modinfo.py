@@ -2,11 +2,10 @@
 # Licensed under the MIT license.
 
 import re
-from typing import Any, Dict
+from typing import Any
 
 from lisa.executable import Tool
 from lisa.util import find_patterns_in_lines
-from lisa.util.process import ExecutableResult
 
 
 class Modinfo(Tool):
@@ -21,7 +20,6 @@ class Modinfo(Tool):
 
     def _initialize(self, *args: Any, **kwargs: Any) -> None:
         self._command = "modinfo"
-        self._cached_result: Dict[str, ExecutableResult] = {}
 
     def get_info(
         self,
@@ -30,20 +28,23 @@ class Modinfo(Tool):
         no_info_log: bool = True,
         no_error_log: bool = True,
     ) -> str:
-        cached_result = self._cached_result.get(mod_name)
-        if cached_result is None or force_run:
-            cached_result = self.run(
-                mod_name, no_info_log=no_info_log, no_error_log=no_error_log
+        result = self.run(
+            mod_name,
+            force_run=force_run,
+            no_info_log=no_info_log,
+            no_error_log=no_error_log,
+        )
+        if result.exit_code != 0:
+            # CentOS may not include the path when started,
+            # specify path and try again.
+            self._command = "/usr/sbin/modinfo"
+            result = self.run(
+                mod_name,
+                force_run=force_run,
+                no_info_log=no_info_log,
+                no_error_log=no_error_log,
             )
-            if cached_result.exit_code != 0:
-                # CentOS may not include the path when started,
-                # specify path and try again.
-                self._command = "/usr/sbin/modinfo"
-                cached_result = self.run(
-                    mod_name, no_info_log=no_info_log, no_error_log=no_error_log
-                )
-            self._cached_result[mod_name] = cached_result
-        return cached_result.stdout
+        return result.stdout
 
     def get_version(
         self,

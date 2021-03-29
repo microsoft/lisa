@@ -3,7 +3,6 @@
 
 import re
 from dataclasses import dataclass
-from typing import Any
 
 from lisa.executable import Tool
 from lisa.util import LisaException
@@ -24,11 +23,6 @@ class Uname(Tool):
         r"(?P<os>[\w\W]+?)$"
     )
 
-    def _initialize(self, *args: Any, **kwargs: Any) -> None:
-        # uname's result suppose not be changed frequently,
-        #  so cache it for performance.
-        self.has_result: bool = False
-
     @property
     def command(self) -> str:
         return "uname"
@@ -37,27 +31,25 @@ class Uname(Tool):
         return True
 
     def get_linux_information(
-        self, force: bool = False, no_error_log: bool = False
+        self, force_run: bool = False, no_error_log: bool = False
     ) -> UnameResult:
         self.initialize()
-        if (not self.has_result) or force:
-            cmd_result = self.run("-vrio", no_error_log=no_error_log, no_info_log=True)
+        cmd_result = self.run(
+            "-vrio", force_run=force_run, no_error_log=no_error_log, no_info_log=True
+        )
 
-            if cmd_result.exit_code != 0:
-                self.result = UnameResult(False, "", "", "", "")
-            else:
-                match_result = self._key_info_pattern.fullmatch(cmd_result.stdout)
-                if not match_result:
-                    raise LisaException(
-                        f"no result matched, stdout: '{cmd_result.stdout}'"
-                    )
-                self.result = UnameResult(
-                    has_result=True,
-                    kernel_version=match_result.group("kernel_version"),
-                    uname_version=match_result.group("uname_version"),
-                    hardware_platform=match_result.group("platform"),
-                    operating_system=match_result.group("os"),
-                )
-            self.has_result = True
+        if cmd_result.exit_code != 0:
+            result = UnameResult(False, "", "", "", "")
+        else:
+            match_result = self._key_info_pattern.fullmatch(cmd_result.stdout)
+            if not match_result:
+                raise LisaException(f"no result matched, stdout: '{cmd_result.stdout}'")
+            result = UnameResult(
+                has_result=True,
+                kernel_version=match_result.group("kernel_version"),
+                uname_version=match_result.group("uname_version"),
+                hardware_platform=match_result.group("platform"),
+                operating_system=match_result.group("os"),
+            )
 
-        return self.result
+        return result

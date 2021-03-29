@@ -26,15 +26,15 @@ class Lscpu(Tool):
     def _check_exists(self) -> bool:
         return True
 
-    def get_core_count(self, force: bool = False) -> int:
-        if self._core_count is None or force:
-            result = self.run()
-            matched = self.__vcpu_sockets.findall(result.stdout)
-            assert_that(
-                len(matched),
-                f"cpu count should have exact one line, but got {matched}",
-            ).is_equal_to(1)
-            self._core_count = int(matched[0]) * 1
+    def get_core_count(self, force_run: bool = False) -> int:
+        result = self.run(force_run=force_run)
+        matched = self.__vcpu_sockets.findall(result.stdout)
+        assert_that(
+            len(matched),
+            f"cpu count should have exact one line, but got {matched}",
+        ).is_equal_to(1)
+        self._core_count = int(matched[0]) * 1
+
         return self._core_count
 
 
@@ -43,10 +43,10 @@ class WindowsLscpu(Lscpu):
     def command(self) -> str:
         return "wmic cpu get"
 
-    def get_core_count(self, force: bool = False) -> int:
-        if self._core_count is None or force:
-            result = self.run("ThreadCount")
-            lines = result.stdout.splitlines(keepends=False)
-            assert "ThreadCount" == lines[0].strip(), f"actual: '{lines[0]}'"
-            self._core_count = int(lines[2].strip())
+    def get_core_count(self, force_run: bool = False) -> int:
+        result = self.run("ThreadCount", force_run=force_run)
+        lines = result.stdout.splitlines(keepends=False)
+        assert "ThreadCount" == lines[0].strip(), f"actual: '{lines[0]}'"
+        self._core_count = int(lines[2].strip())
+
         return self._core_count

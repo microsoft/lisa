@@ -173,18 +173,18 @@ class Lsvmbus(Tool):
         return self._check_exists()
 
     def get_vmbuses(self, force_run: bool = False) -> List[VmBus]:
-        cached_result = None
         if (not self._vmbuses) or force_run:
-            cached_result = self.run("-vv", shell=True)
-            if cached_result.exit_code != 0 and (not self._command.startswith("sudo")):
+            result = self.run("-vv", force_run=force_run, shell=True)
+            if result.exit_code != 0 and (not self._command.startswith("sudo")):
                 self._command = f"sudo {self._command}"
-                cached_result = self.run("-vv", shell=True)
-                if cached_result.exit_code != 0:
+                # force run to make sure rerun success
+                result = self.run("-vv", force_run=True, shell=True)
+                if result.exit_code != 0:
                     raise LisaException(
-                        f"get unexpected non-zero exit code {cached_result.exit_code} "
+                        f"get unexpected non-zero exit code {result.exit_code} "
                         f"when run {self.command} -vv."
                     )
-            raw_list = re.finditer(PATTERN_VMBUSES, cached_result.stdout)
+            raw_list = re.finditer(PATTERN_VMBUSES, result.stdout)
             for vmbus_raw in raw_list:
                 vmbus = VmBus(vmbus_raw.group())
                 self._vmbuses.append(vmbus)
