@@ -49,8 +49,17 @@ class SerialConsole(Feature):
     def _initialize(self, *args: Any, **kwargs: Any) -> None:
         self._cached_console_log: Optional[bytes] = None
 
+    def invalidate_cache(self) -> None:
+        # sometime, if the serial log accessed too early, it may be empty.
+        # invalidate it for next run.
+        self._node.log.debug(
+            f"invalidate serial log cache, current size: "
+            f"{len(self._cached_console_log) if self._cached_console_log else None}"
+        )
+        self._cached_console_log = None
+
     def get_console_log(
-        self, saved_path: Optional[Path], force_run: bool = False
+        self, saved_path: Optional[Path] = None, force_run: bool = False
     ) -> str:
         self._node.log.debug("downloading serial log...")
         if saved_path:
@@ -58,6 +67,9 @@ class SerialConsole(Feature):
             saved_path.mkdir()
         if self._cached_console_log is None or force_run:
             self._cached_console_log = self._get_console_log(saved_path=saved_path)
+            self._node.log.debug(
+                f"downloaded serial log size: {len(self._cached_console_log)}"
+            )
         if saved_path:
             log_file_name = saved_path.joinpath("serial_console.log")
             with open(log_file_name, mode="wb") as f:
