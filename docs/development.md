@@ -49,6 +49,9 @@ Make sure below settings are in root level of `.vscode/settings.json`.
     "python.analysis.useLibraryCodeForTypes": false,
     "python.analysis.autoImportCompletions": false,
     "files.eol": "\n",
+    "terminal.integrated.env.windows": {
+        "mypypath": "${workspaceFolder}\\typings"
+    },
 }
 ```
 
