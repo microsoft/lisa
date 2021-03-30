@@ -49,7 +49,6 @@ from lisa.util import (
     LisaException,
     SkippedException,
     constants,
-    find_patterns_in_lines,
     get_matched_str,
     get_public_key_data,
     plugin_manager,
@@ -106,6 +105,21 @@ RESOURCE_GROUP_LOCATION = "westus2"
 RESOURCE_ID_PORT_POSTFIX = "-ssh"
 RESOURCE_ID_NIC_PATTERN = re.compile(r"([\w]+-[\d]+)-nic-0")
 RESOURCE_ID_PUBLIC_IP_PATTERN = re.compile(r"([\w]+-[\d]+)-public-ip")
+
+# Ubuntu 18.04:
+# [    0.000000] Hyper-V Host Build:18362-10.0-3-0.3198
+# FreeBSD 11.3:
+# Hyper-V Version: 10.0.18362 [SP3]
+# bitnami dreamfactory 1.7 1.7.8
+# [    1.283478] hv_vmbus: Hyper-V Host Build:18362-10.0-3-0.3256; Vmbus version:3.0
+HOST_VERSION_PATTERN = re.compile(
+    r"Hyper-V (?:Host Build|Version):[ ]?([^\r\n;]*)", re.M
+)
+KERNEL_VERSION_PATTERN = re.compile(r"Linux version (?P<kernel_version>.+?) ", re.M)
+
+KEY_HOST_VERSION = "host_version"
+KEY_VM_GENERATION = "vm_generation"
+KEY_KERNEL_VERSION = "kernel_version"
 
 
 @dataclass_json()
@@ -225,15 +239,6 @@ class AzurePlatformSchema:
 
         if not self.locations:
             self.locations = LOCATIONS
-
-
-# Ubuntu 18.04:
-# [    0.000000] Hyper-V Host Build:18362-10.0-3-0.3198
-# FreeBSD 11.3:
-# Hyper-V Version: 10.0.18362 [SP3]
-# bitnami dreamfactory 1.7 1.7.8
-# [    1.283478] hv_vmbus: Hyper-V Host Build:18362-10.0-3-0.3256; Vmbus version:3.0
-HOST_VERSION_PATTERN = re.compile(r"Hyper-V (?:Host Build|Version):[ ]?([^\n;]*)", re.M)
 
 
 class AzurePlatform(Platform):
@@ -513,6 +518,75 @@ class AzurePlatform(Platform):
             else:
                 log.debug("not wait deleting")
 
+    def _get_node_information(self, node: Node) -> Dict[str, str]:
+        information: Dict[str, Any] = {}
+
+        node.log.debug("detecting lis version...")
+        modinfo = node.tools[Modinfo]
+        information["lis_version"] = modinfo.get_version("hv_vmbus")
+
+        node.log.debug("detecting wala version...")
+        waagent = node.tools[Waagent]
+        information["wala_version"] = waagent.get_version()
+
+        node.log.debug("detecting vm generation...")
+        information[KEY_VM_GENERATION] = "1"
+        cmd_result = node.execute(cmd="ls -lt /sys/firmware/efi", no_error_log=True)
+        if cmd_result.exit_code == 0:
+            information[KEY_VM_GENERATION] = "2"
+        node.log.debug(f"vm generation: {information[KEY_VM_GENERATION]}")
+
+        return information
+
+    def _get_kernel_version(self, node: Node) -> str:
+        result: str = ""
+
+        if not result and hasattr(node, "features"):
+            # try to get kernel version in Azure. use it, when uname doesn't work
+            node.log.debug("detecting kernel version from serial log...")
+            serial_console = node.features[features.SerialConsole]
+            result = get_matched_str(
+                serial_console.get_console_log(),
+                KERNEL_VERSION_PATTERN,
+                first_match=False,
+            )
+            if not result:
+                serial_console.invalidate_cache()
+            node.log.debug(f"kernel version is: {result}")
+
+        return result
+
+    def _get_host_version(self, node: Node) -> str:
+        result: str = ""
+
+        try:
+            if node.is_connected and node.is_posix:
+                node.log.debug("detecting host version from dmesg...")
+                dmesg = node.tools[Dmesg]
+                result = get_matched_str(
+                    dmesg.get_output(), HOST_VERSION_PATTERN, first_match=False
+                )
+        except Exception as identifier:
+            # it happens on some error vms. Those error should be caught earlier in
+            # test cases not here. So ignore any error here to collect information only.
+            node.log.debug(f"error on run dmesg: {identifier}")
+
+        # if not get, try again from serial console log.
+        # skip if node is not initialized.
+        if not result and hasattr(node, "features"):
+            node.log.debug("detecting host version from serial log...")
+            serial_console = node.features[features.SerialConsole]
+            result = get_matched_str(
+                serial_console.get_console_log(),
+                HOST_VERSION_PATTERN,
+                first_match=False,
+            )
+            if not result:
+                serial_console.invalidate_cache()
+        node.log.debug(f"host version is: {result}")
+
+        return result
+
     def _get_environment_information(self, environment: Environment) -> Dict[str, str]:
         information: Dict[str, str] = {}
         node_runbook: Optional[AzureNodeSchema] = None
@@ -520,32 +594,20 @@ class AzurePlatform(Platform):
             node: Optional[Node] = environment.default_node
         else:
             node = None
-        if node and node.is_connected and node.is_posix:
-            node_runbook = node.capability.get_extended_runbook(AzureNodeSchema, AZURE)
+        if node:
+            # host version get from two places, so create a separated method.
+            host_version = self._get_host_version(node)
+            if host_version:
+                information[KEY_HOST_VERSION] = host_version
 
-            node.log.debug("detecting host version...")
-            dmesg = node.tools[Dmesg]
-            matched_host_version = find_patterns_in_lines(
-                dmesg.get_output(), [HOST_VERSION_PATTERN]
-            )
-            information["host_version"] = (
-                matched_host_version[0][0] if matched_host_version[0] else ""
-            )
+            # kernel version get from serial log, which doesn't need node to be
+            # connected. # so query it separated
+            kernel_version = self._get_kernel_version(node)
+            if kernel_version:
+                information[KEY_KERNEL_VERSION] = kernel_version
 
-            node.log.debug("detecting lis version...")
-            modinfo = node.tools[Modinfo]
-            information["lis_version"] = modinfo.get_version("hv_vmbus")
-
-            node.log.debug("detecting wala version...")
-            waagent = node.tools[Waagent]
-            information["wala_version"] = waagent.get_version()
-
-            node.log.debug("detecting vm generation...")
-            information["vm_generation"] = "1"
-            cmd_result = node.execute(cmd="ls -lt /sys/firmware/efi", no_error_log=True)
-            if cmd_result.exit_code == 0:
-                information["vm_generation"] = "2"
-            node.log.debug(f"vm generation: {information['vm_generation']}")
+            if node.is_connected and node.is_posix:
+                information.update(self._get_node_information(node))
         elif environment.capability and environment.capability.nodes:
             # get deployment information, if failed on preparing phase
             node_space = environment.capability.nodes[0]
