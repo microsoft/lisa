@@ -43,6 +43,7 @@ Make sure below settings are in root level of `.vscode/settings.json`.
     "python.linting.mypyArgs": [
         "--strict",
         "--namespace-packages",
+        "--implicit-reexport",
         "--show-column-numbers"
     ],
     "python.sortImports.path": "isort",
