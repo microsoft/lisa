@@ -2,7 +2,6 @@ from typing import Any
 
 from .assertpy import AssertionBuilder
 
-__tracebackhide__: bool
 
 class BaseMixin:
     description: Any = ...

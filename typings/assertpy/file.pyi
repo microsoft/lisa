@@ -2,9 +2,6 @@ from typing import Any
 
 from .assertpy import AssertionBuilder
 
-str_types: Any
-__tracebackhide__: bool
-
 def contents_of(file: Any, encoding: str = ...) -> str: ...
 
 class FileMixin:

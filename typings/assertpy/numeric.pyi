@@ -2,8 +2,6 @@ from typing import Any
 
 from .assertpy import AssertionBuilder
 
-__tracebackhide__: bool
-
 class NumericMixin:
     def is_zero(self) -> AssertionBuilder: ...
     def is_not_zero(self) -> AssertionBuilder: ...

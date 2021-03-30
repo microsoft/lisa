@@ -2,8 +2,6 @@ from typing import Any
 
 from .assertpy import AssertionBuilder
 
-__tracebackhide__: bool
-
 class DateMixin:
     def is_before(self, other: Any) -> AssertionBuilder: ...
     def is_after(self, other: Any) -> AssertionBuilder: ...

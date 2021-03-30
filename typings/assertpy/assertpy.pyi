@@ -15,7 +15,6 @@ from .numeric import NumericMixin as NumericMixin
 from .snapshot import SnapshotMixin as SnapshotMixin
 from .string import StringMixin as StringMixin
 
-__tracebackhide__: bool
 
 def soft_assertions() -> None: ...
 def assert_that(val: Any, description: str = ...) -> AssertionBuilder: ...
