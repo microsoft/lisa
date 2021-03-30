@@ -231,7 +231,9 @@ class AzurePlatformSchema:
 # [    0.000000] Hyper-V Host Build:18362-10.0-3-0.3198
 # FreeBSD 11.3:
 # Hyper-V Version: 10.0.18362 [SP3]
-HOST_VERSION_PATTERN = re.compile(r"Hyper-V (?:Host Build|Version): ?(.*)$", re.M)
+# bitnami dreamfactory 1.7 1.7.8
+# [    1.283478] hv_vmbus: Hyper-V Host Build:18362-10.0-3-0.3256; Vmbus version:3.0
+HOST_VERSION_PATTERN = re.compile(r"Hyper-V (?:Host Build|Version):[ ]?([^\n;]*)", re.M)
 
 
 class AzurePlatform(Platform):
