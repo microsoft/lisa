@@ -1,12 +1,6 @@
-import collections
 from typing import Any
 
 from .assertpy import AssertionBuilder
-
-str_types: Any
-unicode = str
-Iterable = collections.abc.Iterable
-__tracebackhide__: bool
 
 class StringMixin:
     def is_equal_to_ignoring_case(self, other: Any) -> AssertionBuilder: ...

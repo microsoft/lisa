@@ -2,10 +2,6 @@ from typing import Any
 
 from .assertpy import AssertionBuilder
 
-str_types: Any
-xrange = range
-__tracebackhide__: bool
-
 class ContainsMixin:
     def contains(self, *items: Any) -> AssertionBuilder: ...
     def does_not_contain(self, *items: Any) -> AssertionBuilder: ...
