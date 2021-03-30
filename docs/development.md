@@ -77,6 +77,7 @@ Then run `M-x add-dir-local-variable RET python-mode RET pyvenv-activate RET <pa
 ### Other setups
 
 - Install and enable [ShellCheck](https://github.com/koalaman/shellcheck) to find bash errors locally.
+- If you need to update the documentation, it is recommended to install the extension [Markdown All in One](https://marketplace.visualstudio.com/items?itemName=yzhang.markdown-all-in-one). It helps to maintain the table of contents in the documentation.
 
 ## Code guideline
 
