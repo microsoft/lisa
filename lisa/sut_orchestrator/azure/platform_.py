@@ -595,6 +595,7 @@ class AzurePlatform(Platform):
         else:
             node = None
         if node:
+            node_runbook = node.capability.get_extended_runbook(AzureNodeSchema, AZURE)
             # host version get from two places, so create a separated method.
             host_version = self._get_host_version(node)
             if host_version:
