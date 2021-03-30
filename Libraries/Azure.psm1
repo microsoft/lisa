@@ -397,7 +397,8 @@ Function PrepareAutoCompleteStorageAccounts ($storageAccountsRGName, $XMLSecretF
 	}
 
 	if ((2 * $allAvailableRegions.Count) -gt $lisaSANum) {
-		foreach ($region in $allAvailableRegions) {
+		foreach ($availableRegion in $allAvailableRegions) {
+			$region = $availableRegion.Replace(" ","").ToLower()
 			if (!$regionStorageMapping.$region) {
 				$regionStorageMapping[$region] = @{}
 			}
