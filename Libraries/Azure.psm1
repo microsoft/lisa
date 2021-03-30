@@ -421,11 +421,8 @@ Function PrepareAutoCompleteStorageAccounts ($storageAccountsRGName, $XMLSecretF
 		}
 		&$UpdateSecretFileWithStorageAccounts -AzureSecretFile $XMLSecretFile -RSAMapping $regionStorageMapping
 	}
-	elseif ((2 * $allAvailableRegions.Count) -eq $lisaSANum) {
-		&$UpdateSecretFileWithStorageAccounts -AzureSecretFile $XMLSecretFile -RSAMapping $regionStorageMapping
-	}
 	else {
-		Throw "Existing count of StorageAccounts [$lisaSANum] is larger than `$allAvailableRegions.Count [$($allAvailableRegions.Count)] * 2"
+		&$UpdateSecretFileWithStorageAccounts -AzureSecretFile $XMLSecretFile -RSAMapping $regionStorageMapping
 	}
 }
 
