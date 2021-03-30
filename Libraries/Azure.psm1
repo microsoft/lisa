@@ -360,7 +360,7 @@ Function PrepareAutoCompleteStorageAccounts ($storageAccountsRGName, $XMLSecretF
 				$null = $rasANode.AppendChild($regionNode)
 			}
 			$null = $AzureSecretXml.secrets.AppendChild($rasANode)
-			$AzureSecretXml.Save($AzureSecretFile)
+			$AzureSecretXml.Save((Get-Item $AzureSecretFile).FullName)
 		}
 	}
 	$allAvailableRegions = ((Get-AzResourceProvider -ProviderNamespace "Microsoft.Storage").ResourceTypes | `
