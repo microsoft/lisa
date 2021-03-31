@@ -14,6 +14,7 @@ from lisa.util import (
 )
 
 FEATURE_NAME_SERIAL_CONSOLE = "SerialConsole"
+NAME_SERIAL_CONSOLE_LOG = "serial_console.log"
 
 
 class SerialConsole(Feature):
@@ -90,12 +91,20 @@ class SerialConsole(Feature):
             saved_path = saved_path.joinpath(get_datetime_path())
             saved_path.mkdir()
         if self._cached_console_log is None or force_run:
-            self._cached_console_log = self._get_console_log(saved_path=saved_path)
+            log_path = self._node.local_log_path / get_datetime_path()
+            log_path.mkdir(parents=True, exist_ok=True)
+
+            self._cached_console_log = self._get_console_log(saved_path=log_path)
             self._node.log.debug(
                 f"downloaded serial log size: {len(self._cached_console_log)}"
             )
+            # anyway save to node log_path for each time it's real queried
+            log_file_name = log_path / NAME_SERIAL_CONSOLE_LOG
+            with open(log_file_name, mode="wb") as f:
+                f.write(self._cached_console_log)
         if saved_path:
-            log_file_name = saved_path.joinpath("serial_console.log")
+            # save it again, if it's asked to save.
+            log_file_name = saved_path / NAME_SERIAL_CONSOLE_LOG
             with open(log_file_name, mode="wb") as f:
                 f.write(self._cached_console_log)
         return self._cached_console_log.decode("utf-8", errors="ignore")
