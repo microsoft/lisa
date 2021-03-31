@@ -6,7 +6,12 @@ from pathlib import Path
 from typing import Any, List, Optional, Pattern
 
 from lisa.feature import Feature
-from lisa.util import LisaException, find_patterns_in_lines, get_datetime_path
+from lisa.util import (
+    LisaException,
+    find_patterns_in_lines,
+    get_datetime_path,
+    get_matched_str,
+)
 
 FEATURE_NAME_SERIAL_CONSOLE = "SerialConsole"
 
@@ -57,6 +62,25 @@ class SerialConsole(Feature):
             f"{len(self._cached_console_log) if self._cached_console_log else None}"
         )
         self._cached_console_log = None
+
+    def get_matched_str(self, pattern: Pattern[str]) -> str:
+        # first_match is False, since serial log may log multiple reboots. take
+        # latest result.
+        result = get_matched_str(
+            self.get_console_log(),
+            pattern,
+            first_match=False,
+        )
+        # prevent the log is not ready, invalidata it for next capture.
+        if not result:
+            self._node.log.debug(
+                "no matched content in serial log, invalidate the cache."
+            )
+            self.invalidate_cache()
+        else:
+            self._node.log.debug(f"captured in serial log: {result}")
+
+        return result
 
     def get_console_log(
         self, saved_path: Optional[Path] = None, force_run: bool = False

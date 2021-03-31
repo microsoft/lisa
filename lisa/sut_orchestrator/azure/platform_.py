@@ -545,14 +545,7 @@ class AzurePlatform(Platform):
             # try to get kernel version in Azure. use it, when uname doesn't work
             node.log.debug("detecting kernel version from serial log...")
             serial_console = node.features[features.SerialConsole]
-            result = get_matched_str(
-                serial_console.get_console_log(),
-                KERNEL_VERSION_PATTERN,
-                first_match=False,
-            )
-            if not result:
-                serial_console.invalidate_cache()
-            node.log.debug(f"kernel version is: {result}")
+            result = serial_console.get_matched_str(KERNEL_VERSION_PATTERN)
 
         return result
 
@@ -576,14 +569,7 @@ class AzurePlatform(Platform):
         if not result and hasattr(node, "features"):
             node.log.debug("detecting host version from serial log...")
             serial_console = node.features[features.SerialConsole]
-            result = get_matched_str(
-                serial_console.get_console_log(),
-                HOST_VERSION_PATTERN,
-                first_match=False,
-            )
-            if not result:
-                serial_console.invalidate_cache()
-        node.log.debug(f"host version is: {result}")
+            result = serial_console.get_matched_str(HOST_VERSION_PATTERN)
 
         return result
 
