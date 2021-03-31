@@ -3,8 +3,8 @@
 
 from __future__ import annotations
 
-import pathlib
-import random
+from pathlib import Path, PurePath, PurePosixPath, PureWindowsPath
+from random import randint
 from typing import Any, Iterable, List, Optional, TypeVar, Union, cast
 
 from lisa import schema
@@ -50,7 +50,7 @@ class Node(ContextMixin, InitializableMixin):
         # will be initialized by platform
         self.features: Features
         self.tools = Tools(self)
-        self.working_path: pathlib.PurePath = pathlib.PurePath()
+        self.working_path: PurePath = PurePath()
         node_id = str(self.index) if self.index >= 0 else ""
         self.log = get_logger(logger_name, node_id)
 
@@ -119,7 +119,7 @@ class Node(ContextMixin, InitializableMixin):
         sudo: bool = False,
         no_error_log: bool = False,
         no_info_log: bool = True,
-        cwd: Optional[pathlib.PurePath] = None,
+        cwd: Optional[PurePath] = None,
         timeout: int = 600,
     ) -> ExecutableResult:
         process = self.execute_async(
@@ -139,7 +139,7 @@ class Node(ContextMixin, InitializableMixin):
         sudo: bool = False,
         no_error_log: bool = False,
         no_info_log: bool = True,
-        cwd: Optional[pathlib.PurePath] = None,
+        cwd: Optional[PurePath] = None,
     ) -> Process:
         self.initialize()
 
@@ -210,9 +210,9 @@ class Node(ContextMixin, InitializableMixin):
         # set working path
         if self.is_remote:
             if self.is_posix:
-                remote_root_path = pathlib.Path("$HOME")
+                remote_root_path = Path("$HOME")
             else:
-                remote_root_path = pathlib.Path("%TEMP%")
+                remote_root_path = Path("%TEMP%")
             working_path = remote_root_path.joinpath(
                 constants.PATH_REMOTE_ROOT, constants.RUN_LOGIC_PATH
             ).as_posix()
@@ -223,9 +223,9 @@ class Node(ContextMixin, InitializableMixin):
 
             # PurePath is more reasonable here, but spurplus doesn't support it.
             if self.is_posix:
-                self.working_path = pathlib.PurePosixPath(result.stdout)
+                self.working_path = PurePosixPath(result.stdout)
             else:
-                self.working_path = pathlib.PureWindowsPath(result.stdout)
+                self.working_path = PureWindowsPath(result.stdout)
         else:
             self.working_path = constants.RUN_LOCAL_PATH
 
@@ -239,9 +239,9 @@ class Node(ContextMixin, InitializableMixin):
         sudo: bool = False,
         no_error_log: bool = False,
         no_info_log: bool = False,
-        cwd: Optional[pathlib.PurePath] = None,
+        cwd: Optional[PurePath] = None,
     ) -> Process:
-        cmd_id = str(random.randint(0, 10000))
+        cmd_id = str(randint(0, 10000))
         process = Process(cmd_id, self.shell, parent_logger=self.log)
         process.start(
             cmd,
