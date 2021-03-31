@@ -47,7 +47,9 @@ The log shows five test cases are scheduled, two passed, and three skipped. For 
 
 ### Run in Azure
 
-Below commands shows how to run Microsoft tier 0 (t0) tests on an Azure gallery image.
+Below commands show how to run Microsoft tier 0 (t0) tests on an Azure
+Marketplace image (as in
+https://docs.microsoft.com/en-us/azure/virtual-machines/linux/cli-ps-findimage):
 
 1. Sign in to Azure
 
@@ -138,7 +140,9 @@ Below commands shows how to run Microsoft tier 0 (t0) tests on an Azure gallery 
 
     ![image](img/smoke_test_result.png)
 
-It doesn't need to create new VMs every time. The test Linux distribution can be another gallery image or a VHD. Learn more from [runbook reference](runbook.md).
+It doesn't need to create new VMs every time. The test Linux
+distribution can be another Marketplace image or a VHD. Learn more
+from [runbook reference](runbook.md).
 
 ### Run in Ready computers
 
