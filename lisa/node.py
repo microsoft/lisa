@@ -50,7 +50,8 @@ class Node(ContextMixin, InitializableMixin):
         # will be initialized by platform
         self.features: Features
         self.tools = Tools(self)
-        self.working_path: PurePath = PurePath()
+        # the path uses remotely
+        self.remote_working_path: Optional[PurePath] = None
         node_id = str(self.index) if self.index >= 0 else ""
         self.log = get_logger(logger_name, node_id)
 
@@ -223,14 +224,14 @@ class Node(ContextMixin, InitializableMixin):
 
             # PurePath is more reasonable here, but spurplus doesn't support it.
             if self.is_posix:
-                self.working_path = PurePosixPath(result.stdout)
+                self.remote_working_path = PurePosixPath(result.stdout)
             else:
-                self.working_path = PureWindowsPath(result.stdout)
+                self.remote_working_path = PureWindowsPath(result.stdout)
         else:
-            self.working_path = constants.RUN_LOCAL_PATH
+            self.remote_working_path = constants.RUN_LOCAL_PATH
 
-        self.shell.mkdir(self.working_path, parents=True, exist_ok=True)
-        self.log.debug(f"working path is: '{self.working_path}'")
+        self.shell.mkdir(self.remote_working_path, parents=True, exist_ok=True)
+        self.log.debug(f"working path is: '{self.remote_working_path}'")
 
     def _execute(
         self,
