@@ -2388,7 +2388,7 @@ Function Get-LISAStorageAccount ($ResourceGroupName, $Name) {
 		}
 	}
 	if ($retryCount -ge $maxRetryCount) {
-		Throw "Could not get AzStorageAccount info after 999 attempts"
+		Throw "Could not get AzStorageAccount info after $maxRetryCount attempts"
 	}
 	else {
 		Write-LogInfo "Get Storage Account information successfully"
