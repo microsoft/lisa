@@ -1708,7 +1708,8 @@ Function Invoke-AllResourceGroupDeployments($SetupTypeData, $CurrentTestData, $R
 		}
 		$coreCountExceededTimeout = 3600
 		while (!$readyToDeploy) {
-			$readyToDeploy = Assert-ResourceLimitationForDeployment -RGXMLData $RG -TargetLocation ([ref]$location) -CurrentTestData $CurrentTestData
+			#$readyToDeploy = Assert-ResourceLimitationForDeployment -RGXMLData $RG -TargetLocation ([ref]$location) -CurrentTestData $CurrentTestData
+			$readyToDeploy = $true
 			$validateCurrentTime = Get-Date
 			$elapsedWaitTime = ($validateCurrentTime - $validateStartTime).TotalSeconds
 			# When assertion failed, break the loop if '-UseExistingRG', or target VMSize is detected 'NOT_ENABLED' from all regions,
