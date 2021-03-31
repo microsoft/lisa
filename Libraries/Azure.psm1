@@ -2330,7 +2330,7 @@ Function Get-LISAStorageAccount ($ResourceGroupName, $Name) {
 		}
 	}
 	$retryCount = 0
-	$maxRetryCount = 99
+	$maxRetryCount = 10
 	$GetAzureRMStorageAccount = $null
 	$useAsJob = (Get-Command -Name Get-AzStorageAccount).Parameters.Keys -contains 'AsJob'
 	while (!$GetAzureRMStorageAccount -and ($retryCount -lt $maxRetryCount)) {
@@ -2368,16 +2368,13 @@ Function Get-LISAStorageAccount ($ResourceGroupName, $Name) {
 			else {
 				if (!$ResourceGroupName -and !$Name) {
 					$GetAzureRMStorageAccount = Get-AzStorageAccount
-					break
 				}
 				elseif ($ResourceGroupName -and $Name) {
 					$GetAzureRMStorageAccount = Get-AzStorageAccount -ResourceGroupName $ResourceGroupName -Name $Name
-					break
 				}
 				elseif ($ResourceGroupName) {
 					# Get-AzStorageAccounts may return incorrect result when only use -ResourceGroup as the parameter, so we choose workaround
 					$GetAzureRMStorageAccount = Get-AzStorageAccount | Where-Object {$rgSAResources.StorageAccountName -contains $_.StorageAccountName}
-					break
 				}
 				elseif ($Name) {
 					Throw "Get-LISAStorageAccount needs necessary parameter [-ResourceGroupName] when [-Name] is used"
