@@ -117,9 +117,15 @@ HOST_VERSION_PATTERN = re.compile(
 )
 KERNEL_VERSION_PATTERN = re.compile(r"Linux version (?P<kernel_version>.+?) ", re.M)
 
+# 2021/03/31 00:05:17.431693 INFO Daemon Azure Linux Agent Version:2.2.38
+WALA_VERSION_PATTERN = re.compile(
+    r"Azure Linux Agent Version:(?P<wala_version>.+?)[\n\r]", re.M
+)
+
 KEY_HOST_VERSION = "host_version"
 KEY_VM_GENERATION = "vm_generation"
 KEY_KERNEL_VERSION = "kernel_version"
+KEY_WALA_VERSION = "wala_version"
 
 
 @dataclass_json()
@@ -525,10 +531,6 @@ class AzurePlatform(Platform):
         modinfo = node.tools[Modinfo]
         information["lis_version"] = modinfo.get_version("hv_vmbus")
 
-        node.log.debug("detecting wala version...")
-        waagent = node.tools[Waagent]
-        information["wala_version"] = waagent.get_version()
-
         node.log.debug("detecting vm generation...")
         information[KEY_VM_GENERATION] = "1"
         cmd_result = node.execute(cmd="ls -lt /sys/firmware/efi", no_error_log=True)
@@ -573,6 +575,26 @@ class AzurePlatform(Platform):
 
         return result
 
+    def _get_wala_version(self, node: Node) -> str:
+        result = ""
+
+        try:
+            if node.is_connected and node.is_posix:
+                node.log.debug("detecting wala version...")
+                waagent = node.tools[Waagent]
+                result = waagent.get_version()
+        except Exception as identifier:
+            # it happens on some error vms. Those error should be caught earlier in
+            # test cases not here. So ignore any error here to collect information only.
+            node.log.debug(f"error on run waagent: {identifier}")
+
+        if not result and hasattr(node, "features"):
+            node.log.debug("detecting wala agent version from serial log...")
+            serial_console = node.features[features.SerialConsole]
+            result = serial_console.get_matched_str(WALA_VERSION_PATTERN)
+
+        return result
+
     def _get_environment_information(self, environment: Environment) -> Dict[str, str]:
         information: Dict[str, str] = {}
         node_runbook: Optional[AzureNodeSchema] = None
@@ -592,6 +614,13 @@ class AzurePlatform(Platform):
             kernel_version = self._get_kernel_version(node)
             if kernel_version:
                 information[KEY_KERNEL_VERSION] = kernel_version
+
+            try:
+                wala_version = self._get_wala_version(node)
+                if wala_version:
+                    information[KEY_WALA_VERSION] = wala_version
+            except Exception as identifier:
+                node.log.exception("error on get waagent version", exc_info=identifier)
 
             if node.is_connected and node.is_posix:
                 information.update(self._get_node_information(node))
