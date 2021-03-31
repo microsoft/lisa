@@ -115,6 +115,9 @@ RESOURCE_ID_PUBLIC_IP_PATTERN = re.compile(r"([\w]+-[\d]+)-public-ip")
 HOST_VERSION_PATTERN = re.compile(
     r"Hyper-V (?:Host Build|Version):[ ]?([^\r\n;]*)", re.M
 )
+
+# normal
+# [    0.000000] Linux version 5.4.0-1043-azure (buildd@lgw01-amd64-026) (gcc ...
 KERNEL_VERSION_PATTERN = re.compile(r"Linux version (?P<kernel_version>.+?) ", re.M)
 
 # 2021/03/31 00:05:17.431693 INFO Daemon Azure Linux Agent Version:2.2.38
@@ -126,6 +129,7 @@ KEY_HOST_VERSION = "host_version"
 KEY_VM_GENERATION = "vm_generation"
 KEY_KERNEL_VERSION = "kernel_version"
 KEY_WALA_VERSION = "wala_version"
+ATTRIBUTE_FEATURES = "features"
 
 
 @dataclass_json()
@@ -543,7 +547,7 @@ class AzurePlatform(Platform):
     def _get_kernel_version(self, node: Node) -> str:
         result: str = ""
 
-        if not result and hasattr(node, "features"):
+        if not result and hasattr(node, ATTRIBUTE_FEATURES):
             # try to get kernel version in Azure. use it, when uname doesn't work
             node.log.debug("detecting kernel version from serial log...")
             serial_console = node.features[features.SerialConsole]
@@ -568,7 +572,7 @@ class AzurePlatform(Platform):
 
         # if not get, try again from serial console log.
         # skip if node is not initialized.
-        if not result and hasattr(node, "features"):
+        if not result and hasattr(node, ATTRIBUTE_FEATURES):
             node.log.debug("detecting host version from serial log...")
             serial_console = node.features[features.SerialConsole]
             result = serial_console.get_matched_str(HOST_VERSION_PATTERN)
@@ -588,7 +592,7 @@ class AzurePlatform(Platform):
             # test cases not here. So ignore any error here to collect information only.
             node.log.debug(f"error on run waagent: {identifier}")
 
-        if not result and hasattr(node, "features"):
+        if not result and hasattr(node, ATTRIBUTE_FEATURES):
             node.log.debug("detecting wala agent version from serial log...")
             serial_console = node.features[features.SerialConsole]
             result = serial_console.get_matched_str(WALA_VERSION_PATTERN)
@@ -604,16 +608,22 @@ class AzurePlatform(Platform):
             node = None
         if node:
             node_runbook = node.capability.get_extended_runbook(AzureNodeSchema, AZURE)
-            # host version get from two places, so create a separated method.
-            host_version = self._get_host_version(node)
-            if host_version:
-                information[KEY_HOST_VERSION] = host_version
 
-            # kernel version get from serial log, which doesn't need node to be
-            # connected. # so query it separated
-            kernel_version = self._get_kernel_version(node)
-            if kernel_version:
-                information[KEY_KERNEL_VERSION] = kernel_version
+            # some informations get from two places, so create separated methods to
+            # query them.
+            try:
+                host_version = self._get_host_version(node)
+                if host_version:
+                    information[KEY_HOST_VERSION] = host_version
+            except Exception as identifier:
+                node.log.exception("error on get host version", exc_info=identifier)
+
+            try:
+                kernel_version = self._get_kernel_version(node)
+                if kernel_version:
+                    information[KEY_KERNEL_VERSION] = kernel_version
+            except Exception as identifier:
+                node.log.exception("error on get kernel version", exc_info=identifier)
 
             try:
                 wala_version = self._get_wala_version(node)
