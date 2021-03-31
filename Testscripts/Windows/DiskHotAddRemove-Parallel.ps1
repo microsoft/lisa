@@ -59,7 +59,7 @@ function Main {
             $testResult = $resultFail
             throw "Fail to attach $count empty data disks of size $diskSizeinGB GB to VM"
         }
-        Write-LogInfo "Verifying if data disks are added to the VM - running fdisk on remote VM"
+        Write-LogInfo "Verifying if data disks are added to the VM - running lsblk on remote VM"
         $retry = 1
         $retryMaxTimes = 2
         $osDiskLabel = Run-LinuxCmd -username $user -password $password -ip $AllVMData.PublicIP -port $AllVMData.SSHPort -command ". utils.sh && get_OSdisk" -runAsSudo
@@ -92,7 +92,7 @@ function Main {
         $finalDiskCount = Run-LinuxCmd -username $user -password $password -ip $AllVMData.PublicIP -port $AllVMData.SSHPort -command "lsblk -io KNAME,TYPE,SIZE,MODEL | grep -i 'Virtual Disk' | grep $diskSizeinGB | grep -v $osDiskLabel | wc -l" -runAsSudo
         if([int]$finalDiskCount -ne 0) {
             $testResult=$resultFail
-            throw "Data disk is NOT removed from the VM at $line"
+            throw "Data disk is NOT removed from the VM successfully"
         }
         Write-LogInfo "Successfully verified that all data disks are removed from the VM"
         # Delete unmanaged data disks

@@ -54,7 +54,7 @@ function Main {
                 $testResult = $resultFail
                 throw "Fail to attach an empty data disk of size $diskSizeinGB GB to VM"
             }
-            Write-LogInfo "Verifying if data disk is added to the VM: Running fdisk on remote VM"
+            Write-LogInfo "Verifying if data disk is added to the VM: Running lsblk on remote VM"
             $osDiskLabel = Run-LinuxCmd -username $user -password $password -ip $AllVMData.PublicIP -port $AllVMData.SSHPort -command ". utils.sh && get_OSdisk" -runAsSudo
             $verifiedDiskCount = Run-LinuxCmd -username $user -password $password -ip $AllVMData.PublicIP -port $AllVMData.SSHPort -command "lsblk -io KNAME,TYPE,SIZE,MODEL | grep -i 'Virtual Disk' | grep $diskSizeinGB | grep -v $osDiskLabel | wc -l" -runAsSudo
             if ($verifiedDiskCount -eq 1) {
@@ -71,11 +71,11 @@ function Main {
             } else {
                 throw "Failed to remove the data disk from the VM"
             }
-            Write-LogInfo "Verifying if data disk is removed from the VM: Running fdisk on remote VM"
+            Write-LogInfo "Verifying if data disk is removed from the VM: Running lsblk on remote VM"
             $finalDiskCount = Run-LinuxCmd -username $user -password $password -ip $AllVMData.PublicIP -port $AllVMData.SSHPort -command "lsblk -io KNAME,TYPE,SIZE,MODEL | grep -i 'Virtual Disk' | grep $diskSizeinGB | grep -v $osDiskLabel | wc -l" -runAsSudo
             if([int]$finalDiskCount -ne 0) {
                 $testResult = $resultFail
-                throw "Data disk is NOT removed from the VM at $line"
+                throw "Data disk is NOT removed from the VM successfully"
             }
             Write-LogInfo "Successfully verified that data disk is removed from the VM"
             $verifiedDiskCount-=1
