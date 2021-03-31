@@ -34,6 +34,7 @@ class Node(ContextMixin, InitializableMixin):
         is_remote: bool = True,
         is_default: bool = False,
         logger_name: str = "node",
+        base_log_path: Optional[Path] = None,
     ) -> None:
         super().__init__()
         self.is_default = is_default
@@ -55,6 +56,10 @@ class Node(ContextMixin, InitializableMixin):
         node_id = str(self.index) if self.index >= 0 else ""
         self.log = get_logger(logger_name, node_id)
 
+        self._base_local_log_path = base_log_path
+        # Not to set the log path until its first used. Because the path
+        # contains node name, which is not set in __init__.
+        self._local_log_path: Optional[Path] = None
         self._support_sudo: Optional[bool] = None
         self._connection_info: Optional[ConnectionInfo] = None
 
@@ -65,6 +70,7 @@ class Node(ContextMixin, InitializableMixin):
         node_type: str = constants.ENVIRONMENTS_NODES_REMOTE,
         is_default: bool = False,
         logger_name: str = "node",
+        base_log_path: Optional[Path] = None,
     ) -> Node:
         if node_type == constants.ENVIRONMENTS_NODES_REMOTE:
             is_remote = True
@@ -78,6 +84,7 @@ class Node(ContextMixin, InitializableMixin):
             is_remote=is_remote,
             is_default=is_default,
             logger_name=logger_name,
+            base_log_path=base_log_path,
         )
         node.log.debug(f"created, type: '{node_type}', isDefault: {is_default}")
         return node
@@ -190,6 +197,30 @@ class Node(ContextMixin, InitializableMixin):
     @property
     def is_connected(self) -> bool:
         return self._shell is not None and self._shell.is_connected
+
+    @property
+    def local_log_path(self) -> Path:
+        if not self._local_log_path:
+            base_path = self._base_local_log_path
+            if not base_path:
+                base_path = constants.RUN_LOCAL_PATH
+            path_name = self.name
+            if not path_name:
+                if self.index:
+                    index = self.index
+                else:
+                    index = randint(0, 10000)
+                path_name = f"node-{index}"
+            self._local_log_path = base_path / path_name
+            if self._local_log_path.exists():
+                raise LisaException(
+                    "Conflicting node log path detected, "
+                    "make sure LISA invocations have individual runtime paths."
+                    f"'{self._local_log_path}'"
+                )
+            self._local_log_path.mkdir(parents=True)
+
+        return self._local_log_path
 
     def close(self) -> None:
         self.log.debug("closing node connection...")
@@ -317,6 +348,7 @@ class Nodes:
         self,
         node_runbook: schema.LocalNode,
         logger_name: str = "node",
+        base_log_path: Optional[Path] = None,
     ) -> Node:
         assert isinstance(
             node_runbook, schema.LocalNode
@@ -327,6 +359,7 @@ class Nodes:
             node_type=node_runbook.type,
             is_default=node_runbook.is_default,
             logger_name=logger_name,
+            base_log_path=base_log_path,
         )
         self._list.append(node)
 
@@ -336,6 +369,7 @@ class Nodes:
         self,
         node_runbook: schema.RemoteNode,
         logger_name: str = "node",
+        base_log_path: Optional[Path] = None,
     ) -> Optional[Node]:
         assert isinstance(
             node_runbook, schema.RemoteNode
@@ -347,6 +381,7 @@ class Nodes:
             node_type=node_runbook.type,
             is_default=node_runbook.is_default,
             logger_name=logger_name,
+            base_log_path=base_log_path,
         )
         self._list.append(node)
 
@@ -364,7 +399,11 @@ class Nodes:
 
         return node
 
-    def from_requirement(self, node_requirement: schema.NodeSpace) -> Node:
+    def from_requirement(
+        self,
+        node_requirement: schema.NodeSpace,
+        base_log_path: Optional[Path] = None,
+    ) -> Node:
         min_requirement = cast(
             schema.NodeSpace, node_requirement.generate_min_capability(node_requirement)
         )
@@ -379,6 +418,7 @@ class Nodes:
             capability=min_requirement,
             node_type=constants.ENVIRONMENTS_NODES_REMOTE,
             is_default=node_requirement.is_default,
+            base_log_path=base_log_path,
         )
         self._list.append(node)
         return node
