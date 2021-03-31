@@ -2357,7 +2357,9 @@ Function Get-LISAStorageAccount ($ResourceGroupName, $Name) {
 					$GetAzureRMStorageAccount = Receive-Job $job
 					Remove-Job $job -Force -ErrorAction SilentlyContinue
 					# Get-AzStorageAccounts may return incorrect result when only use -ResourceGroup as the parameter, so we choose workaround
-					$GetAzureRMStorageAccount = $GetAzureRMStorageAccount | Where-Object {$rgSAResources.StorageAccountName -contains $_.StorageAccountName}
+					if ($rgSAResources) {
+						$GetAzureRMStorageAccount = $GetAzureRMStorageAccount | Where-Object {$rgSAResources.Name -contains $_.StorageAccountName}
+					}
 					break
 				}
 				else {
@@ -2368,13 +2370,16 @@ Function Get-LISAStorageAccount ($ResourceGroupName, $Name) {
 			else {
 				if (!$ResourceGroupName -and !$Name) {
 					$GetAzureRMStorageAccount = Get-AzStorageAccount
+					break
 				}
 				elseif ($ResourceGroupName -and $Name) {
 					$GetAzureRMStorageAccount = Get-AzStorageAccount -ResourceGroupName $ResourceGroupName -Name $Name
+					break
 				}
 				elseif ($ResourceGroupName) {
 					# Get-AzStorageAccounts may return incorrect result when only use -ResourceGroup as the parameter, so we choose workaround
 					$GetAzureRMStorageAccount = Get-AzStorageAccount | Where-Object {$rgSAResources.StorageAccountName -contains $_.StorageAccountName}
+					break
 				}
 				elseif ($Name) {
 					Throw "Get-LISAStorageAccount needs necessary parameter [-ResourceGroupName] when [-Name] is used"
