@@ -17,7 +17,7 @@ environment:
           core_count:
             min: 2
           azure:
-            gallery: $(gallery_image)
+            marketplace: $(marketplace_image)
             location: $(location)
 platform:
   - type: azure

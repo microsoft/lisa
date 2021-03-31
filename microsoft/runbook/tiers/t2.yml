@@ -9,46 +9,46 @@ testcase:
   - type: legacy
     repo: $(v2_repo_url)
     branch: $(v2_branch)
-    command: .\Run-LisaV2.ps1 -TestLocation '$(location)' -RGIdentifier '$(v2_rg)' -TestPlatform 'Azure' -EnableTelemetry -ARMImageName '$(gallery_image)' -XMLSecretFile '$(v2_secret_file)' -TestPriority '0,1' -ResourceCleanup '$(v2_rg_cleanup)' -CustomLIS '$(custom_lis)' -CustomTestParameters '$(custom_test_parameters)' -OverrideVMSize '$(override_vmsize)' -CustomKernel '$(custom_kernel)' -ExcludeTests '^PERF*,*DPDK*,*XDP*,*WALA*,^LIS-DEPLOY*,^LIS-DRIVER*,^LIS-PREINSTALL*,^TVM*' -ForceCustom -RunInParallel -TotalCountInParallel 3
+    command: .\Run-LisaV2.ps1 -TestLocation '$(location)' -RGIdentifier '$(v2_rg)' -TestPlatform 'Azure' -EnableTelemetry -ARMImageName '$(marketplace_image)' -XMLSecretFile '$(v2_secret_file)' -TestPriority '0,1' -ResourceCleanup '$(v2_rg_cleanup)' -CustomLIS '$(custom_lis)' -CustomTestParameters '$(custom_test_parameters)' -OverrideVMSize '$(override_vmsize)' -CustomKernel '$(custom_kernel)' -ExcludeTests '^PERF*,*DPDK*,*XDP*,*WALA*,^LIS-DEPLOY*,^LIS-DRIVER*,^LIS-PREINSTALL*,^TVM*' -ForceCustom -RunInParallel -TotalCountInParallel 3
   # LisaV2 p0, p1 LIS_DEPLOY, disable by default, can be enabled by set true to enable_lis
   - type: legacy
     enable: $(enable_lis)
     repo: $(v2_repo_url)
     branch: $(v2_branch)
-    command: .\Run-LisaV2.ps1 -TestLocation '$(location)' -RGIdentifier '$(v2_rg)' -TestPlatform 'Azure' -EnableTelemetry -ARMImageName '$(gallery_image)' -XMLSecretFile '$(v2_secret_file)' -TestPriority '0,1' -TestArea LIS_DEPLOY -ResourceCleanup '$(v2_rg_cleanup)' -CustomLIS '$(custom_lis)' -CustomTestParameters '$(custom_test_parameters)' -OverrideVMSize '$(override_vmsize)' -CustomKernel '$(custom_kernel)' -ForceCustom
+    command: .\Run-LisaV2.ps1 -TestLocation '$(location)' -RGIdentifier '$(v2_rg)' -TestPlatform 'Azure' -EnableTelemetry -ARMImageName '$(marketplace_image)' -XMLSecretFile '$(v2_secret_file)' -TestPriority '0,1' -TestArea LIS_DEPLOY -ResourceCleanup '$(v2_rg_cleanup)' -CustomLIS '$(custom_lis)' -CustomTestParameters '$(custom_test_parameters)' -OverrideVMSize '$(override_vmsize)' -CustomKernel '$(custom_kernel)' -ForceCustom
   # LisaV2 p0, p1 TCP perf, enabled by default, can be disabled by set false to enable_perf
   - type: legacy
     enable: $(enable_perf)
     repo: $(v2_repo_url)
     branch: $(v2_branch)
-    command: .\Run-LisaV2.ps1 -TestLocation '$(location)' -RGIdentifier '$(v2_rg)' -TestPlatform 'Azure' -EnableTelemetry -ARMImageName '$(gallery_image)' -XMLSecretFile '$(v2_secret_file)' -ResourceCleanup '$(v2_rg_cleanup)' -CustomLIS '$(custom_lis)' -CustomTestParameters '$(custom_test_parameters)' -OverrideVMSize '$(override_vmsize)' -CustomKernel '$(custom_kernel)' -ForceCustom -TestNames 'PERF-NETWORK-TCP-THROUGHPUT-MULTICONNECTION-NTTTCP-Synthetic,PERF-NETWORK-TCP-THROUGHPUT-MULTICONNECTION-NTTTCP-SRIOV'
+    command: .\Run-LisaV2.ps1 -TestLocation '$(location)' -RGIdentifier '$(v2_rg)' -TestPlatform 'Azure' -EnableTelemetry -ARMImageName '$(marketplace_image)' -XMLSecretFile '$(v2_secret_file)' -ResourceCleanup '$(v2_rg_cleanup)' -CustomLIS '$(custom_lis)' -CustomTestParameters '$(custom_test_parameters)' -OverrideVMSize '$(override_vmsize)' -CustomKernel '$(custom_kernel)' -ForceCustom -TestNames 'PERF-NETWORK-TCP-THROUGHPUT-MULTICONNECTION-NTTTCP-Synthetic,PERF-NETWORK-TCP-THROUGHPUT-MULTICONNECTION-NTTTCP-SRIOV'
   # LisaV2 p0, p1 UDP perf, enabled by default, can be disabled by set false to enable_perf
   - type: legacy
     enable: $(enable_perf)
     repo: $(v2_repo_url)
     branch: $(v2_branch)
-    command: .\Run-LisaV2.ps1 -TestLocation '$(location)' -RGIdentifier '$(v2_rg)' -TestPlatform 'Azure' -EnableTelemetry -ARMImageName '$(gallery_image)' -XMLSecretFile '$(v2_secret_file)' -ResourceCleanup '$(v2_rg_cleanup)' -CustomLIS '$(custom_lis)' -CustomTestParameters '$(custom_test_parameters)' -OverrideVMSize '$(override_vmsize)' -CustomKernel '$(custom_kernel)' -ForceCustom -TestNames 'PERF-NETWORK-UDP-1K-THROUGHPUT-MULTICONNECTION-NTTTCP-SRIOV,PERF-NETWORK-UDP-1K-THROUGHPUT-MULTICONNECTION-NTTTCP-Synthetic'
+    command: .\Run-LisaV2.ps1 -TestLocation '$(location)' -RGIdentifier '$(v2_rg)' -TestPlatform 'Azure' -EnableTelemetry -ARMImageName '$(marketplace_image)' -XMLSecretFile '$(v2_secret_file)' -ResourceCleanup '$(v2_rg_cleanup)' -CustomLIS '$(custom_lis)' -CustomTestParameters '$(custom_test_parameters)' -OverrideVMSize '$(override_vmsize)' -CustomKernel '$(custom_kernel)' -ForceCustom -TestNames 'PERF-NETWORK-UDP-1K-THROUGHPUT-MULTICONNECTION-NTTTCP-SRIOV,PERF-NETWORK-UDP-1K-THROUGHPUT-MULTICONNECTION-NTTTCP-Synthetic'
   # LisaV2 p0, p1 SSD 4K storage perf, enabled by default, can be disabled by set false to enable_perf
   - type: legacy
     enable: $(enable_perf)
     repo: $(v2_repo_url)
     branch: $(v2_branch)
-    command: .\Run-LisaV2.ps1 -TestLocation '$(location)' -RGIdentifier '$(v2_rg)' -TestPlatform 'Azure' -EnableTelemetry -ARMImageName '$(gallery_image)' -XMLSecretFile '$(v2_secret_file)' -ResourceCleanup '$(v2_rg_cleanup)' -CustomLIS '$(custom_lis)' -CustomTestParameters '$(custom_test_parameters)' -OverrideVMSize '$(override_vmsize)' -CustomKernel '$(custom_kernel)' -ForceCustom -TestNames 'PERF-STORAGE-4K-IO'
+    command: .\Run-LisaV2.ps1 -TestLocation '$(location)' -RGIdentifier '$(v2_rg)' -TestPlatform 'Azure' -EnableTelemetry -ARMImageName '$(marketplace_image)' -XMLSecretFile '$(v2_secret_file)' -ResourceCleanup '$(v2_rg_cleanup)' -CustomLIS '$(custom_lis)' -CustomTestParameters '$(custom_test_parameters)' -OverrideVMSize '$(override_vmsize)' -CustomKernel '$(custom_kernel)' -ForceCustom -TestNames 'PERF-STORAGE-4K-IO'
   # LisaV2 p0, p1 SSD 1024K storage perf, enabled by default, can be disabled by set false to enable_perf
   - type: legacy
     enable: $(enable_perf)
     repo: $(v2_repo_url)
     branch: $(v2_branch)
-    command: .\Run-LisaV2.ps1 -TestLocation '$(location)' -RGIdentifier '$(v2_rg)' -TestPlatform 'Azure' -EnableTelemetry -ARMImageName '$(gallery_image)' -XMLSecretFile '$(v2_secret_file)' -ResourceCleanup '$(v2_rg_cleanup)' -CustomLIS '$(custom_lis)' -CustomTestParameters '$(custom_test_parameters)' -OverrideVMSize '$(override_vmsize)' -CustomKernel '$(custom_kernel)' -ForceCustom -TestNames 'PERF-STORAGE-1024K-IO'
+    command: .\Run-LisaV2.ps1 -TestLocation '$(location)' -RGIdentifier '$(v2_rg)' -TestPlatform 'Azure' -EnableTelemetry -ARMImageName '$(marketplace_image)' -XMLSecretFile '$(v2_secret_file)' -ResourceCleanup '$(v2_rg_cleanup)' -CustomLIS '$(custom_lis)' -CustomTestParameters '$(custom_test_parameters)' -OverrideVMSize '$(override_vmsize)' -CustomKernel '$(custom_kernel)' -ForceCustom -TestNames 'PERF-STORAGE-1024K-IO'
   # LisaV2 p0, p1 NVMe storage perf, enabled by default, can be disabled by set false to enable_perf
   - type: legacy
     enable: $(enable_perf)
     repo: $(v2_repo_url)
     branch: $(v2_branch)
-    command: .\Run-LisaV2.ps1 -TestLocation '$(location)' -RGIdentifier '$(v2_rg)' -TestPlatform 'Azure' -EnableTelemetry -ARMImageName '$(gallery_image)' -XMLSecretFile '$(v2_secret_file)' -ResourceCleanup '$(v2_rg_cleanup)' -CustomLIS '$(custom_lis)' -CustomTestParameters '$(custom_test_parameters)' -OverrideVMSize '$(override_vmsize)' -CustomKernel '$(custom_kernel)' -ForceCustom -TestNames 'PERF-NVME-4K-IO'
+    command: .\Run-LisaV2.ps1 -TestLocation '$(location)' -RGIdentifier '$(v2_rg)' -TestPlatform 'Azure' -EnableTelemetry -ARMImageName '$(marketplace_image)' -XMLSecretFile '$(v2_secret_file)' -ResourceCleanup '$(v2_rg_cleanup)' -CustomLIS '$(custom_lis)' -CustomTestParameters '$(custom_test_parameters)' -OverrideVMSize '$(override_vmsize)' -CustomKernel '$(custom_kernel)' -ForceCustom -TestNames 'PERF-NVME-4K-IO'
   # LisaV2 p0, p1 latency perf, enabled by default, can be disabled by set false to enable_perf
   - type: legacy
     enable: $(enable_perf)
     repo: $(v2_repo_url)
     branch: $(v2_branch)
-    command: .\Run-LisaV2.ps1 -TestLocation '$(location)' -RGIdentifier '$(v2_rg)' -TestPlatform 'Azure' -EnableTelemetry -ARMImageName '$(gallery_image)' -XMLSecretFile '$(v2_secret_file)' -ResourceCleanup '$(v2_rg_cleanup)' -CustomLIS '$(custom_lis)' -CustomTestParameters '$(custom_test_parameters)' -OverrideVMSize '$(override_vmsize)' -CustomKernel '$(custom_kernel)' -ForceCustom -TestNames 'PERF-NETWORK-TCP-LATENCY-Synthetic,PERF-NETWORK-TCP-LATENCY-SRIOV'
+    command: .\Run-LisaV2.ps1 -TestLocation '$(location)' -RGIdentifier '$(v2_rg)' -TestPlatform 'Azure' -EnableTelemetry -ARMImageName '$(marketplace_image)' -XMLSecretFile '$(v2_secret_file)' -ResourceCleanup '$(v2_rg_cleanup)' -CustomLIS '$(custom_lis)' -CustomTestParameters '$(custom_test_parameters)' -OverrideVMSize '$(override_vmsize)' -CustomKernel '$(custom_kernel)' -ForceCustom -TestNames 'PERF-NETWORK-TCP-LATENCY-Synthetic,PERF-NETWORK-TCP-LATENCY-SRIOV'

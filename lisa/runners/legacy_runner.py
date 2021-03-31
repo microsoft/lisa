@@ -421,7 +421,7 @@ class LogParser(InitializableMixin):
     # SetupConfig: { ARMImageName: Canonical UbuntuServer 18.04-LTS latest, OSDiskType:
     #  Ephemeral, OverrideVMSize: Standard_DS4_v2, TestLocation: westus2 }
     CASE_IMAGE_LOCATION = re.compile(
-        r"SetupConfig: { (?:ARMImageName: (?P<gallery_image>.+?))?(?:, )?"
+        r"SetupConfig: { (?:ARMImageName: (?P<marketplace_image>.+?))?(?:, )?"
         r"(?:DiskType: .*?)?(?:, )?(?:Networking: .*?)?(?:, )?"
         r"(?:OsVHD: (?P<vhd_image>.+?))?(?:, )?(?:OSDiskType: .*?)?"
         r"(?:, )?(?:, OverrideVMSize: (?P<vmsize>.+?))?(?:, )?"
@@ -456,7 +456,7 @@ class LogParser(InitializableMixin):
         r"'(?P<platform>.*?)','(?P<location>.*?)','.*?','.*?','(?P<name>.*?)',"
         r"'(?P<status>.*?)','.*?','(?P<os>.*?)','(?P<kernel_version>.*?)','.*?',"
         r"'.*?','(?P<host_version>.*?)','(?P<vmsize>.*?)','.*?',"
-        r"'(?P<gallery_image>.*?)','(?P<vhd_image>.*?)','(?P<log_path>.*?)',"
+        r"'(?P<marketplace_image>.*?)','(?P<vhd_image>.*?)','(?P<log_path>.*?)',"
         r"'.*?','.*?','.*?','(?P<message>[\w\W]*?)'\)"
     )
 
@@ -504,9 +504,9 @@ class LogParser(InitializableMixin):
                         if value
                     }
                 )
-                # gallery_image for ARMImage, vhd_image for OsVHD in legacy run
-                if "gallery_image" in current_case.keys():
-                    current_case["image"] = current_case.pop("gallery_image")
+                # marketplace_image for ARMImage, vhd_image for OsVHD in legacy run
+                if "marketplace_image" in current_case.keys():
+                    current_case["image"] = current_case.pop("marketplace_image")
                 elif "vhd_image" in current_case.keys():
                     current_case["image"] = current_case.pop("vhd_image")
                 else:
@@ -548,9 +548,9 @@ class LogParser(InitializableMixin):
                 current_case = {
                     key: value for key, value in case_match.groupdict().items() if value
                 }
-                # gallery_image for ARMImage, vhd_image for OsVHD in legacy run
-                if "gallery_image" in current_case.keys():
-                    current_case["image"] = current_case.pop("gallery_image")
+                # marketplace_image for ARMImage, vhd_image for OsVHD in legacy run
+                if "marketplace_image" in current_case.keys():
+                    current_case["image"] = current_case.pop("marketplace_image")
                 elif "vhd_image" in current_case.keys():
                     current_case["image"] = current_case.pop("vhd_image")
                 else:

@@ -265,7 +265,7 @@
                     "linuxConfiguration": "[if(empty(parameters('admin_key_data')), json('null'), lisa.getLinuxConfiguration(concat('/home/', parameters('admin_username'), '/.ssh/authorized_keys'), parameters('admin_key_data')))]"
                 },
                 "storageProfile": {
-                    "imageReference": "[if(not(empty(parameters('nodes')[copyIndex('vmCopy')]['vhd'])), lisa.getOsDiskVhd(parameters('nodes')[copyIndex('vmCopy')]['name']), lisa.getOsDiskGallery(parameters('nodes')[copyIndex('vmCopy')]))]",
+                    "imageReference": "[if(not(empty(parameters('nodes')[copyIndex('vmCopy')]['vhd'])), lisa.getOsDiskVhd(parameters('nodes')[copyIndex('vmCopy')]['name']), lisa.getOsDiskMarketplace(parameters('nodes')[copyIndex('vmCopy')]))]",
                     "osDisk": {
                         "name": "[concat(parameters('nodes')[copyIndex('vmCopy')]['name'], '-osDisk')]",
                         "managedDisk": {
@@ -302,7 +302,7 @@
         {
             "namespace": "lisa",
             "members": {
-                "getOsDiskGallery": {
+                "getOsDiskMarketplace": {
                     "parameters": [
                         {
                             "name": "node",
@@ -311,7 +311,7 @@
                     ],
                     "output": {
                         "type": "object",
-                        "value": "[parameters('node')['gallery']]"
+                        "value": "[parameters('node')['marketplace']]"
                     }
                 },
                 "getOsDiskVhd": {

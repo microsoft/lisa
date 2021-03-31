@@ -60,7 +60,7 @@ from . import features
 from .common import (
     AZURE,
     AzureNodeSchema,
-    AzureVmGallerySchema,
+    AzureVmMarketplaceSchema,
     AzureVmPurchasePlanSchema,
     get_compute_client,
     get_environment_context,
@@ -848,21 +848,21 @@ class AzurePlatform(Platform):
                 )
             if azure_node_runbook.vhd:
                 # vhd is higher priority
-                azure_node_runbook.gallery = None
-            elif not azure_node_runbook.gallery:
-                # set to default gallery, if nothing specified
-                azure_node_runbook.gallery = AzureVmGallerySchema()
+                azure_node_runbook.marketplace = None
+            elif not azure_node_runbook.marketplace:
+                # set to default marketplace, if nothing specified
+                azure_node_runbook.marketplace = AzureVmMarketplaceSchema()
 
-            if azure_node_runbook.gallery:
+            if azure_node_runbook.marketplace:
                 # resolve Latest to specified version
-                azure_node_runbook.gallery = self._parse_gallery_image(
-                    azure_node_runbook.location, azure_node_runbook.gallery
+                azure_node_runbook.marketplace = self._parse_marketplace_image(
+                    azure_node_runbook.location, azure_node_runbook.marketplace
                 )
-            if azure_node_runbook.gallery and not azure_node_runbook.purchase_plan:
-                azure_node_runbook.purchase_plan = self._process_gallery_image_plan(
-                    azure_node_runbook.location, azure_node_runbook.gallery
+            if azure_node_runbook.marketplace and not azure_node_runbook.purchase_plan:
+                azure_node_runbook.purchase_plan = self._process_marketplace_image_plan(
+                    azure_node_runbook.location, azure_node_runbook.marketplace
                 )
-            # save parsed runbook back, for example, the version of gallery may be
+            # save parsed runbook back, for example, the version of marketplace may be
             # parsed from latest to a specified version.
             node.capability.set_extended_runbook(azure_node_runbook)
             nodes_parameters.append(azure_node_runbook)
@@ -1194,25 +1194,25 @@ class AzurePlatform(Platform):
             self._eligible_capabilities[location] = location_capabilities
         return self._eligible_capabilities[location]
 
-    def _parse_gallery_image(
-        self, location: str, gallery: AzureVmGallerySchema
-    ) -> AzureVmGallerySchema:
+    def _parse_marketplace_image(
+        self, location: str, marketplace: AzureVmMarketplaceSchema
+    ) -> AzureVmMarketplaceSchema:
         compute_client = get_compute_client(self)
-        new_gallery = copy.copy(gallery)
-        if gallery.version.lower() == "latest":
+        new_marketplace = copy.copy(marketplace)
+        if marketplace.version.lower() == "latest":
             # latest doesn't work, it needs a specified version.
             versioned_images = compute_client.virtual_machine_images.list(
                 location=location,
-                publisher_name=gallery.publisher,
-                offer=gallery.offer,
-                skus=gallery.sku,
+                publisher_name=marketplace.publisher,
+                offer=marketplace.offer,
+                skus=marketplace.sku,
             )
             # any one should be the same to get purchase plan
-            new_gallery.version = versioned_images[-1].name
-        return new_gallery
+            new_marketplace.version = versioned_images[-1].name
+        return new_marketplace
 
-    def _process_gallery_image_plan(
-        self, location: str, gallery: AzureVmGallerySchema
+    def _process_marketplace_image_plan(
+        self, location: str, marketplace: AzureVmMarketplaceSchema
     ) -> Optional[PurchasePlan]:
         """
         this method to fill plan, if a VM needs it. If don't fill it, the deployment
@@ -1224,10 +1224,10 @@ class AzurePlatform(Platform):
         compute_client = get_compute_client(self)
         image_info = compute_client.virtual_machine_images.get(
             location=location,
-            publisher_name=gallery.publisher,
-            offer=gallery.offer,
-            skus=gallery.sku,
-            version=gallery.version,
+            publisher_name=marketplace.publisher,
+            offer=marketplace.offer,
+            skus=marketplace.sku,
+            version=marketplace.version,
         )
         plan: Optional[AzureVmPurchasePlanSchema] = None
         if image_info.plan:
@@ -1237,8 +1237,8 @@ class AzurePlatform(Platform):
             try:
                 term = marketplace_client.marketplace_agreements.get(
                     offer_type="virtualmachine",
-                    publisher_id=gallery.publisher,
-                    offer_id=gallery.offer,
+                    publisher_id=marketplace.publisher,
+                    offer_id=marketplace.offer,
                     plan_id=image_info.plan.name,
                 )
             except Exception as identifier:
@@ -1251,8 +1251,8 @@ class AzurePlatform(Platform):
                 term.accepted = True
                 marketplace_client.marketplace_agreements.create(
                     offer_type="virtualmachine",
-                    publisher_id=gallery.publisher,
-                    offer_id=gallery.offer,
+                    publisher_id=marketplace.publisher,
+                    offer_id=marketplace.offer,
                     plan_id=image_info.plan.name,
                     parameters=term,
                 )
