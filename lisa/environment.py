@@ -8,6 +8,7 @@ from collections import UserDict
 from dataclasses import dataclass, field
 from enum import Enum
 from functools import partial
+from pathlib import Path
 from typing import TYPE_CHECKING, Any, Dict, List, Optional
 
 from dataclasses_json import dataclass_json
@@ -22,6 +23,7 @@ from lisa.util import (
     LisaException,
     constants,
     fields_to_dict,
+    get_datetime_path,
     hookimpl,
     hookspec,
     plugin_manager,
@@ -146,6 +148,9 @@ class Environment(ContextMixin, InitializableMixin):
         self.warn_as_error = warn_as_error
         self._default_node: Optional[Node] = None
         self._log = get_logger("env", self.name)
+        # Not to set the log path until its first used. Because the path
+        # contains environment name, which is not set in __init__.
+        self._log_path: Optional[Path] = None
 
     def _initialize(self, *args: Any, **kwargs: Any) -> None:
         if self.status != EnvironmentStatus.Deployed:
@@ -194,6 +199,23 @@ class Environment(ContextMixin, InitializableMixin):
     @property
     def default_node(self) -> Node:
         return self.nodes.default
+
+    @property
+    def log_path(self) -> Path:
+        if not self._log_path:
+            self._log_path = (
+                constants.RUN_LOCAL_PATH
+                / "environments"
+                / f"{get_datetime_path()}-{self.name}"
+            )
+            if self._log_path.exists():
+                raise LisaException(
+                    "Conflicting environment log path detected, "
+                    "make sure LISA invocations have individual runtime paths."
+                    f"'{self._log_path}'"
+                )
+            self._log_path.mkdir(parents=True)
+        return self._log_path
 
     def close(self) -> None:
         self.nodes.close()
