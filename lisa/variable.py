@@ -259,7 +259,8 @@ def _replace_variables(data: Any, variables: Dict[str, VariableEntry]) -> Any:
                     else:
                         raise LisaException(
                             f"cannot find variable '{variable_name[2:-1]}', "
-                            f"make sure it's defined"
+                            "make sure its value filled in runbook, "
+                            "command line or environment variables."
                         )
                 data = _VARIABLE_PATTERN.sub(
                     lambda matched: str(
