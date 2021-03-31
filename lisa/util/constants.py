@@ -13,8 +13,14 @@ RUN_NAME = ""
 RUNBOOK_FILE: Path
 RUNBOOK_PATH: Path
 RUNBOOK: str
+# a global cache path for all runs
 CACHE_PATH: Path
+# The physical path of current run.
+# All logs of current run should be in this folder.
 RUN_LOCAL_PATH: Path = Path()
+# It's a pure path, which is used to create working folder in remote node.
+# The datetime part of this path is the # same as local path, so it's easy to find
+# remote files, which belongs to same run.
 RUN_LOGIC_PATH: PurePath = PurePath()
 
 # path related
