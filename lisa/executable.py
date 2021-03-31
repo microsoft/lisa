@@ -248,7 +248,8 @@ class Tool(ABC, InitializableMixin):
         """
         compose a path, if the tool need to be installed
         """
-        return self.node.working_path.joinpath(constants.PATH_TOOL, self.name)
+        assert self.node.remote_working_path, "remote working path is not initialized"
+        return self.node.remote_working_path.joinpath(constants.PATH_TOOL, self.name)
 
     def __call__(
         self,
