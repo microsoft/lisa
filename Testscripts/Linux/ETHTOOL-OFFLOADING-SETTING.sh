@@ -171,7 +171,7 @@ if [ $? -eq 0 ]; then
 fi
 
 # Check if the VF count inside the VM is the same as the expected count
-vf_count=$(find /sys/devices -name net -a -ipath '*vmbus*' | grep pci | wc -l)
+vf_count=$(get_vf_count)
 if [ "$vf_count" -ne "$NIC_COUNT" ]; then
     LogErr "Expected VF count: $NIC_COUNT. Actual VF count: $vf_count"
     SetTestStateFailed
