@@ -1489,7 +1489,7 @@ Function Test-SRIOVInLinuxGuest {
 
 	$MaximumAttempts = 10
 	$Attempts = 1
-	$VerificationCommand = "lspci | grep Mellanox | wc -l"
+	$VerificationCommand = "lspci | grep Mellanox | grep 'Ethernet controller' | wc -l"
 	$retValue = $false
 	while ($retValue -eq $false -and $Attempts -le $MaximumAttempts) {
 		Write-LogInfo "[Attempt $Attempts/$MaximumAttempts] Detecting Mellanox NICs..."

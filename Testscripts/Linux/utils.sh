@@ -3858,3 +3858,15 @@ function found_sys_log() {
 		return 0
 	fi
 }
+
+# Function to return the vf ethernet interface
+function get_vf_count() {
+	which lspci 1> /dev/null 2>&1 || install_package pciutils
+	local ib_count=0
+	local vf_count=$(find /sys/devices -name net -a -ipath '*vmbus*' | grep pci | wc -l)
+	if (($vf_count > 1));then
+		which lspci 1> /dev/null 2>&1 &&
+			local ib_count=$(lspci | grep 'Infiniband controller' | wc -l)
+	fi
+	echo $(($vf_count - $ib_count))
+}

@@ -35,7 +35,7 @@ if [ $? -ne 0 ]; then
 fi
 
 # Check if the VF count inside the VM is the same as the expected count
-vf_count=$(find /sys/devices -name net -a -ipath '*vmbus*' | grep -c pci)
+vf_count=$(get_vf_count)
 if [ "$vf_count" -ne "$NIC_COUNT" ]; then
     LogErr "Expected VF count: $NIC_COUNT. Actual VF count: $vf_count"
     SetTestStateFailed
@@ -82,7 +82,7 @@ fi
 modprobe -r "$module_name_in_use"
 
 # Check if the VF count inside the VM is the same as the expected count
-vf_count=$(find /sys/devices -name net -a -ipath '*vmbus*' | grep -c pci)
+vf_count=$(get_vf_count)
 if [ "$vf_count" -eq "$NIC_COUNT" ]; then
     LogErr "VF is still up! Expected VF count: $NIC_COUNT. Actual VF count: $vf_count"
     SetTestStateFailed
@@ -120,7 +120,7 @@ if [ "$mlnx_sts" -eq 1 ]; then
 fi
 modprobe "$module_name_in_use"
 # Check if the VF count inside the VM is the same as the expected count
-vf_count=$(find /sys/devices -name net -a -ipath '*vmbus*' | grep -c pci)
+vf_count=$(get_vf_count)
 if [ "$vf_count" -ne "$NIC_COUNT" ]; then
     LogErr "Expected VF count: $NIC_COUNT. Actual VF count: $vf_count"
     SetTestStateFailed
