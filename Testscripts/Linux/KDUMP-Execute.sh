@@ -129,6 +129,8 @@ Configure_NMI()
         else
             UpdateSummary "Success: enabling kernel to call panic when it receives a NMI."
         fi
+    else
+        LogMsg "No /proc/sys/kernel/unknown_nmi_panic file. No need to config NMI panic. "
     fi
 }
 
