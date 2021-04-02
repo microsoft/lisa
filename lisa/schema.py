@@ -575,7 +575,20 @@ class Capability(NodeSpace):
 
 @dataclass_json()
 @dataclass
-class LocalNode(TypedSchema):
+class Node(TypedSchema):
+    name: str = ""
+    is_default: bool = field(default=False)
+    capability: Capability = field(default_factory=Capability)
+    # All nodes considered Systems Under Test, unless otherwise
+    # explicitly stated. One might have such scenarios
+    # (e.g. dependency on one TFTP server, for a given
+    # platform/enviroment)
+    sut: bool = field(default=True)
+
+
+@dataclass_json()
+@dataclass
+class LocalNode(Node):
     type: str = field(
         default=constants.ENVIRONMENTS_NODES_LOCAL,
         metadata=metadata(
@@ -583,14 +596,11 @@ class LocalNode(TypedSchema):
             validate=validate.OneOf([constants.ENVIRONMENTS_NODES_LOCAL]),
         ),
     )
-    name: str = ""
-    is_default: bool = field(default=False)
-    capability: Capability = field(default_factory=Capability)
 
 
 @dataclass_json()
 @dataclass
-class RemoteNode(TypedSchema):
+class RemoteNode(Node):
     type: str = field(
         default=constants.ENVIRONMENTS_NODES_REMOTE,
         metadata=metadata(
@@ -598,8 +608,6 @@ class RemoteNode(TypedSchema):
             validate=validate.OneOf([constants.ENVIRONMENTS_NODES_REMOTE]),
         ),
     )
-    name: str = ""
-    is_default: bool = field(default=False)
     address: str = ""
     port: int = field(
         default=22, metadata=metadata(validate=validate.Range(min=1, max=65535))
@@ -612,7 +620,6 @@ class RemoteNode(TypedSchema):
     username: str = field(default="", metadata=metadata(required=True))
     password: str = ""
     private_key_file: str = ""
-    capability: Capability = field(default_factory=Capability)
 
     def __post_init__(self, *args: Any, **kwargs: Any) -> None:
         add_secret(self.address)

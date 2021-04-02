@@ -35,13 +35,16 @@ class Node(ContextMixin, InitializableMixin):
         is_default: bool = False,
         logger_name: str = "node",
         base_log_path: Optional[Path] = None,
+        name: str = "",
+        sut: bool = True,
     ) -> None:
         super().__init__()
         self.is_default = is_default
         self.is_remote = is_remote
         self.capability = capability
-        self.name: str = ""
+        self.name = name
         self.index = index
+        self.sut = sut
 
         if self.is_remote:
             self._shell: Optional[Shell] = None
@@ -67,10 +70,12 @@ class Node(ContextMixin, InitializableMixin):
     def create(
         index: int,
         capability: schema.NodeSpace,
-        node_type: str = constants.ENVIRONMENTS_NODES_REMOTE,
+        base_log_path: Optional[Path] = None,
         is_default: bool = False,
         logger_name: str = "node",
-        base_log_path: Optional[Path] = None,
+        name: str = "",
+        node_type: str = constants.ENVIRONMENTS_NODES_REMOTE,
+        sut: bool = True,
     ) -> Node:
         if node_type == constants.ENVIRONMENTS_NODES_REMOTE:
             is_remote = True
@@ -80,11 +85,13 @@ class Node(ContextMixin, InitializableMixin):
             raise LisaException(f"unsupported node_type '{node_type}'")
         node = Node(
             index,
-            capability=capability,
-            is_remote=is_remote,
-            is_default=is_default,
-            logger_name=logger_name,
             base_log_path=base_log_path,
+            capability=capability,
+            is_default=is_default,
+            is_remote=is_remote,
+            logger_name=logger_name,
+            name=name,
+            sut=sut,
         )
         node.log.debug(f"created, type: '{node_type}', isDefault: {is_default}")
         return node
@@ -235,7 +242,10 @@ class Node(ContextMixin, InitializableMixin):
             address = f"{self._connection_info.address}:{self._connection_info.port}"
         else:
             address = "localhost"
-        self.log.info(f"initializing node '{self.name}' {address}")
+        self.log.info(
+            f"initializing node \"{self.name if self.name else 'unnamed'}\""
+            + f" at {address}"
+        )
         self.shell.initialize()
         self.os: OperatingSystem = OperatingSystem.create(self)
 
@@ -260,6 +270,10 @@ class Node(ContextMixin, InitializableMixin):
                 self.remote_working_path = PureWindowsPath(result.stdout)
         else:
             self.remote_working_path = constants.RUN_LOCAL_PATH
+
+        # not a system under test, just a helper node, working dir required
+        if not self.sut:
+            return
 
         self.shell.mkdir(self.remote_working_path, parents=True, exist_ok=True)
         self.log.debug(f"working path is: '{self.remote_working_path}'")
@@ -308,8 +322,11 @@ class Nodes:
             self._default = default
         return self._default
 
-    def list(self) -> Iterable[Node]:
+    # Hide non-SUT ones from this call. If needed, ask via name
+    def list(self, get_sut_only: bool = True) -> Iterable[Node]:
         for node in self._list:
+            if get_sut_only and not node.sut:
+                continue
             yield node
 
     def __getitem__(self, key: Union[int, str]) -> Node:
@@ -369,11 +386,13 @@ class Nodes:
         ), f"actual: {type(node_runbook)}"
         node = Node.create(
             len(self._list),
+            base_log_path=base_log_path,
             capability=node_runbook.capability,
-            node_type=node_runbook.type,
             is_default=node_runbook.is_default,
             logger_name=logger_name,
-            base_log_path=base_log_path,
+            name=node_runbook.name,
+            node_type=node_runbook.type,
+            sut=node_runbook.sut,
         )
         self._list.append(node)
 
@@ -391,11 +410,13 @@ class Nodes:
 
         node = Node.create(
             len(self._list),
+            base_log_path=base_log_path,
             capability=node_runbook.capability,
-            node_type=node_runbook.type,
             is_default=node_runbook.is_default,
             logger_name=logger_name,
-            base_log_path=base_log_path,
+            name=node_runbook.name,
+            node_type=node_runbook.type,
+            sut=node_runbook.sut,
         )
         self._list.append(node)
 
