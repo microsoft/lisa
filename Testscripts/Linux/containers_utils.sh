@@ -95,7 +95,7 @@ function InstallDockerEngine() {
             curl -fsSL https://download.docker.com/linux/$DISTRO_NAME/gpg | sudo apt-key add -
             LogMsg "Set up the stable repository."
             release=$(lsb_release -cs)
-            add-apt-repository -y "deb [arch=amd64] https://download.docker.com/linux/$DISTRO_NAME ${release} stable"
+            add-apt-repository -y "deb https://download.docker.com/linux/$DISTRO_NAME ${release} stable"
             if [[ $os_RELEASE = '14.04' ]]; then
                 pack_list=(docker-ce)
             fi

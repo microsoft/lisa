@@ -207,7 +207,8 @@ if distro == "UBUNTU":
     RunLog.info("Checking if repositories are installed or not..")
     Run("until dpkg --force-all --configure -a; sleep 10; do echo 'Trying again...'; done")
     repository_out = Run("apt-get update")
-    if "security.ubuntu.com" in repository_out and "azure.archive.ubuntu.com" in repository_out and "Hit" in repository_out:
+    if "security.ubuntu.com" in repository_out and "azure.archive.ubuntu.com" in repository_out and "Hit" in repository_out or \
+           "-security" in repository_out and "ports.ubuntu.com" in repository_out and "Hit" in repository_out:
         print(distro+"_TEST_REPOSITORIES_AVAILABLE")
     else:
         print(distro+"_TEST_REPOSITORIES_ERROR")
