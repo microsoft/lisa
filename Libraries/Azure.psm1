@@ -2322,64 +2322,31 @@ Function Create-RGDeploymentWithTempParameters([string]$RGName, $TemplateFile, $
 }
 
 Function Get-LISAStorageAccount ($ResourceGroupName, $Name) {
-	# Get-AzStorageAccounts may return incorrect result when only use -ResourceGroup as the parameter, so we choose workaround
-	if ($ResourceGroupName -and !$Name) {
-		$rgSAResources = Get-AzStorageAccount | where {$_.ResourceGroupName -eq $ResourceGroupName}
-		if (-not $rgSAResources) {
-			return $null
-		}
-	}
 	$retryCount = 0
 	$maxRetryCount = 10
 	$GetAzureRMStorageAccount = $null
-	$useAsJob = (Get-Command -Name Get-AzStorageAccount).Parameters.Keys -contains 'AsJob'
 	while (!$GetAzureRMStorageAccount -and ($retryCount -lt $maxRetryCount)) {
 		try {
 			$retryCount += 1
 			Write-LogInfo "[Attempt $retryCount/$maxRetryCount] : Getting Existing Storage account information..."
-			$waitTimeInSecond = 60
-			if ($useAsJob) {
-				if (!$ResourceGroupName -and !$Name) {
-					$job = Get-AzStorageAccount -AsJob
-				}
-				elseif ($ResourceGroupName -and $Name) {
-					$job = Get-AzStorageAccount -ResourceGroupName $ResourceGroupName -Name $Name -AsJob
-				}
-				elseif ($ResourceGroupName) {
-					$job = Get-AzStorageAccount -ResourceGroupName $ResourceGroupName -AsJob
-				}
-				elseif ($Name) {
-					Throw "Get-LISAStorageAccount needs necessary parameter [-ResourceGroupName] when [-Name] is used"
-				}
-				$job | Wait-Job -Timeout $waitTimeInSecond | Out-Null
-
-				if ($job.State -eq "Completed") {
-					$GetAzureRMStorageAccount = Receive-Job $job
-					Remove-Job $job -Force -ErrorAction SilentlyContinue
-					# Get-AzStorageAccounts may return incorrect result when only use -ResourceGroup as the parameter, so we choose workaround
-					if ($rgSAResources) {
-						$GetAzureRMStorageAccount = $GetAzureRMStorageAccount | Where-Object {$rgSAResources.Name -contains $_.StorageAccountName}
-					}
-				}
-				else {
-					Remove-Job $job -Force -ErrorAction SilentlyContinue
-					continue
-				}
+			if (!$ResourceGroupName -and !$Name) {
+				$GetAzureRMStorageAccount = Get-AzStorageAccount
+				Write-LogInfo "Get $($GetAzureRMStorageAccount.Count) storage accounts"
+				break
 			}
-			else {
-				if (!$ResourceGroupName -and !$Name) {
-					$GetAzureRMStorageAccount = Get-AzStorageAccount
-				}
-				elseif ($ResourceGroupName -and $Name) {
-					$GetAzureRMStorageAccount = Get-AzStorageAccount -ResourceGroupName $ResourceGroupName -Name $Name
-				}
-				elseif ($ResourceGroupName) {
-					# Get-AzStorageAccounts may return incorrect result when only use -ResourceGroup as the parameter, so we choose workaround
-					$GetAzureRMStorageAccount = Get-AzStorageAccount | Where-Object {$rgSAResources.StorageAccountName -contains $_.StorageAccountName}
-				}
-				elseif ($Name) {
-					Throw "Get-LISAStorageAccount needs necessary parameter [-ResourceGroupName] when [-Name] is used"
-				}
+			elseif ($ResourceGroupName -and $Name) {
+				$GetAzureRMStorageAccount = Get-AzStorageAccount -ResourceGroupName $ResourceGroupName -Name $Name
+				Write-LogInfo "Get storage account $GetAzureRMStorageAccount in resource group $ResourceGroupName"
+				break
+			}
+			elseif ($ResourceGroupName) {
+				# Get-AzStorageAccounts may return incorrect result when only use -ResourceGroup as the parameter, so we choose workaround
+				$GetAzureRMStorageAccount = Get-AzStorageAccount | where {$_.ResourceGroupName -eq $ResourceGroupName}
+				Write-LogInfo "Get $($GetAzureRMStorageAccount.Count) storage accounts in resource group $ResourceGroupName"
+				break
+			}
+			elseif ($Name) {
+				Throw "Get-LISAStorageAccount needs necessary parameter [-ResourceGroupName] when [-Name] is used"
 			}
 		}
 		catch {
@@ -2390,9 +2357,6 @@ Function Get-LISAStorageAccount ($ResourceGroupName, $Name) {
 	}
 	if ($retryCount -ge $maxRetryCount) {
 		Throw "Could not get AzStorageAccount info after $maxRetryCount attempts"
-	}
-	else {
-		Write-LogInfo "Get Storage Account information successfully"
 	}
 	return $GetAzureRMStorageAccount
 }
@@ -2436,13 +2400,15 @@ Function Copy-VHDToAnotherStorageAccount ($sourceStorageAccount, $sourceStorageC
 	while ($CopyingInProgress) {
 		$CopyingInProgress = $false
 		$status = Get-AzStorageBlobCopyState -Container $destContainer -Blob $destBlob -Context $destContext
+		if (-not $status) {
+			Throw "Cannot get the state of copying blob to storage account $($destContext.StorageAccountName)"
+		}
 		if ($status.Status -ne "Success") {
 			$CopyingInProgress = $true
 		}
 		else {
 			Write-LogInfo "Copy $DestBlob --> $($destContext.StorageAccountName) : Done"
 			$retValue = $true
-
 		}
 		if ($CopyingInProgress) {
 			$copyPercentage = [math]::Round( $(($status.BytesCopied * 100 / $status.TotalBytes)) , 2 )
