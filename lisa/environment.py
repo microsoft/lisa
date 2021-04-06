@@ -182,17 +182,9 @@ class Environment(ContextMixin, InitializableMixin):
 
         if runbook.nodes:
             for node_runbook in runbook.nodes:
-                if isinstance(node_runbook, schema.LocalNode):
-                    environment.nodes.from_local(
-                        node_runbook, base_log_path=environment.log_path
-                    )
-                else:
-                    assert isinstance(
-                        node_runbook, schema.RemoteNode
-                    ), f"actual: {type(node_runbook)}"
-                    environment.nodes.from_remote(
-                        node_runbook, base_log_path=environment.log_path
-                    )
+                environment.nodes.from_either(
+                    node_runbook, base_log_path=environment.log_path
+                )
 
                 has_default_node = environment.__validate_single_default(
                     has_default_node, node_runbook.is_default

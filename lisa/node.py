@@ -344,6 +344,20 @@ class Nodes:
         for node in self._list:
             node.close()
 
+    def from_either(
+        self,
+        node_runbook: Union[schema.LocalNode, schema.RemoteNode],
+        logger_name: str = "node",
+        base_log_path: Optional[Path] = None,
+    ) -> Optional[Node]:
+        if isinstance(node_runbook, schema.LocalNode):
+            return self.from_local(node_runbook, logger_name, base_log_path)
+        else:
+            assert isinstance(
+                node_runbook, schema.RemoteNode
+            ), f"actual: {type(node_runbook)}"
+            return self.from_remote(node_runbook, logger_name, base_log_path)
+
     def from_local(
         self,
         node_runbook: schema.LocalNode,
