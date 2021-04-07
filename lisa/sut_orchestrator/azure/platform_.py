@@ -1250,6 +1250,7 @@ class AzurePlatform(Platform):
             if term.accepted is False:
                 term.accepted = True
                 marketplace_client.marketplace_agreements.create(
+                    offer_type="virtualmachine",
                     publisher_id=gallery.publisher,
                     offer_id=gallery.offer,
                     plan_id=image_info.plan.name,
