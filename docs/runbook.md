@@ -41,14 +41,110 @@
 
 ### Configure Azure deployment
 
+Below section is for running cases on Azure platform, it specifies:
+  - admin_private_key_file: the private key file to access the Azure VM.
+  - subscription_id: Azure VM is created under this subscription.
+
+```yaml
+platform:
+  - type: azure
+    admin_private_key_file: $(admin_private_key_file)
+    azure:
+      subscription_id: $(subscription_id)
+```
+
 ### Select and set test cases
+
+Below section is to specify P0 and P1 test cases excluding case with name `hello`.
+
+```yaml
+testcase:
+  - criteria:
+      priority: [0, 1]
+  - criteria:
+      name: hello
+    select_action: exclude
+```
 
 ### Use variable and secrets
 
+Below section is to specify the variable in name/value format. We can use this variable in other field in this format `$(location)`.
+
+```yaml
+variable:
+  - name: location
+    value: westus2
+```
+
+The value of variable passed from command line will override the value in runbook yaml file.
+
+```bash
+lisa -r sample.yml -v "location:eastus2"
+```
+
+Below section is to specify the path of yaml file which stores the secret values.
+
+```yaml
+variable:
+  - file: secret.yml
+```
+
+Content of secret.yml.
+
+```yaml
+subscription_id:
+  value: replace_your_subscription_id_here
+  is_secret: true
+  mask: guid
+```
+
 ### Use partial runbook
 
+Below three yaml files will be loaded in this sequence.
+
+```
+loading runbook sample.yml
+|-- loading parent tier.yml
+|   |-- loading parent t0.yml
+```
+
+The variable values in its parent yaml file will be overrided by current yaml file. The relative path is always relative to current yaml file.
+
+Part of sample.yml
+
+```yaml
+parent:
+  - path: ./tier.yml
+```
+
+Part of tier.yml.
+
+```yaml
+parent:
+  - path: ./t$(tier).yml
+variable:
+  - name: tier
+    value: 0
+```
+
+Part of t0.yml.
+
+```yaml
+testcase:
+  - criteria:
+      priority: 0
+```
 
 ### Use extensions
+
+Below section is to specify path of extensions, the extensions are modules for test cases or extended features.
+
+```yaml
+extension:
+  - name: extended_features
+    path: ../../extensions
+  - ../../lisa/testsuites/basic
+```
 
 ## Reference
 
