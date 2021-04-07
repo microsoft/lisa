@@ -85,6 +85,9 @@ class ConnectionInfo:
         if not self.username:
             raise LisaException("username must be set")
 
+    def __str__(self) -> str:
+        return f"{self.username}@{self.address}:{self.port}"
+
 
 class WindowsShellType(object):
     """

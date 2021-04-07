@@ -66,6 +66,14 @@ class Node(ContextMixin, InitializableMixin):
         self._support_sudo: Optional[bool] = None
         self._connection_info: Optional[ConnectionInfo] = None
 
+    def __str__(self) -> str:
+        conn = self._connection_info
+        return (
+            f"{self.name if self.name else 'unnamed'}"
+            + f"[{'remote' if self.is_remote else 'local'}]: "
+            + f"{'no conn info' if not conn else conn}"
+        )
+
     @staticmethod
     def create(
         index: int,
@@ -93,7 +101,9 @@ class Node(ContextMixin, InitializableMixin):
             name=name,
             sut=sut,
         )
-        node.log.debug(f"created, type: '{node_type}', isDefault: {is_default}")
+        node.log.debug(
+            f"new node {node}, is_default: {is_default}{'' if sut else ', non-SUT'}"
+        )
         return node
 
     def set_connection_info(
@@ -108,7 +118,7 @@ class Node(ContextMixin, InitializableMixin):
     ) -> None:
         if self._connection_info is not None:
             raise LisaException(
-                "node is set connection information already, cannot set again"
+                f"{self} is set connection information already, cannot set again"
             )
 
         self._connection_info = ConnectionInfo(
@@ -160,7 +170,7 @@ class Node(ContextMixin, InitializableMixin):
 
         if sudo and not self.support_sudo:
             raise LisaException(
-                f"node doesn't support [command] or [sudo], cannot execute: {cmd}"
+                f"{self} doesn't support [command] or [sudo], cannot execute: {cmd}"
             )
 
         return self._execute(
@@ -194,7 +204,9 @@ class Node(ContextMixin, InitializableMixin):
                 self._support_sudo = True
             else:
                 self._support_sudo = False
-                self.log.debug("node doesn't support sudo, may cause failure later.")
+                self.log.debug(
+                    f"{self} doesn't support sudo, it may cause failures later."
+                )
         if self._support_sudo is None:
             # set Windows to true to ignore sudo asks.
             self._support_sudo = True
@@ -238,14 +250,9 @@ class Node(ContextMixin, InitializableMixin):
         if self.is_remote:
             assert (
                 self._connection_info
-            ), "call setConnectionInfo before use remote node"
-            address = f"{self._connection_info.address}:{self._connection_info.port}"
-        else:
-            address = "localhost"
-        self.log.info(
-            f"initializing node \"{self.name if self.name else 'unnamed'}\""
-            + f" at {address}"
-        )
+            ), "call set_connection_info before using a remote node"
+
+        self.log.info(f"initializing {self}")
         self.shell.initialize()
         self.os: OperatingSystem = OperatingSystem.create(self)
 
@@ -443,7 +450,7 @@ class Nodes:
             schema.NodeSpace, node_requirement.generate_min_capability(node_requirement)
         )
         assert isinstance(min_requirement.node_count, int), (
-            f"must be int after generate_min_capability, "
+            f"node_count must be integer after generate_min_capability, "
             f"actual: {min_requirement.node_count}"
         )
         # node count should be expanded in platform already
