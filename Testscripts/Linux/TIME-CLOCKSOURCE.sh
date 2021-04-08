@@ -66,13 +66,18 @@ CheckSource()
 	fi
 
 	# check cpu with tsc, for Intel CPU shows constant_tsc, for AMD cpu, only tsc
-	if grep -q tsc /proc/cpuinfo
+	if [[ $(lscpu | grep -i "Architecture" | awk '{print $NF}') == "x86_64" ]]
 	then
-		LogMsg "Test successful. /proc/cpuinfo contains flag tsc"
+		if grep -q tsc /proc/cpuinfo
+		then
+			LogMsg "Test successful. /proc/cpuinfo contains flag tsc"
+		else
+			LogErr "Test failed. /proc/cpuinfo does not contain flag tsc"
+			SetTestStateFailed
+			exit 0
+		fi
 	else
-		LogErr "Test failed. /proc/cpuinfo does not contain flag tsc"
-		SetTestStateFailed
-		exit 0
+		LogMsg "The architecture is not x86_64. No need to check flag tsc"
 	fi
 
 	# check dmesg with hyperv_clocksource
@@ -94,36 +99,52 @@ CheckSource()
 function UnbindCurrentSource()
 {
 	LogMsg "Running UnbindCurrentSource"
-	unbind_file="/sys/devices/system/clocksource/clocksource0/unbind_clocksource"
-	LogMsg "Assign $clocksource to $unbind_file"
-	if echo $clocksource > $unbind_file
-	then
-		_clocksource=$(cat /sys/devices/system/clocksource/clocksource0/current_clocksource)
-		LogMsg "Found _clocksource: $_clocksource"
-		retryTime=1
-		maxRetryTimes=20
-		while [ $retryTime -le $maxRetryTimes ]
-		do
-			LogMsg "Sleep 10 seconds for message show up in log file for the $retryTime time(s)."
-			sleep 10
-			val=$(grep -rnw '/var/log' -e 'Switched to clocksource acpi_pm' --ignore-case)
-			if [ -n "$val" ];then
-				break
-			fi
-			retryTime=$(($retryTime+1))
-		done
+	available_clocksource="/sys/devices/system/clocksource/clocksource0/available_clocksource"
+	if ! [[ $(find $available_clocksource -type f -size +0M) ]]; then
+		LogErr "Test Failed. No file was found available_clocksource greater than 0M."
+		SetTestStateFailed
+		exit 0
+	else
+		__file_content=$(cat $available_clocksource)
+		LogMsg "Found available_clocksource $__file_content in $available_clocksource"
+	fi
 
-		if [ -n "$val" ] && [ "$_clocksource" == "acpi_pm" ]; then
-			LogMsg "Test successful. After unbind, current clocksource is $_clocksource"
+	_second_clocksource=$(echo "$__file_content" | awk -F ' ' '{print $2}')
+	if [[ -n $_second_clocksource ]]
+	then
+		unbind_file="/sys/devices/system/clocksource/clocksource0/unbind_clocksource"	
+		LogMsg "Assign $clocksource to $unbind_file"
+		if echo $clocksource > $unbind_file
+		then
+			_clocksource=$(cat /sys/devices/system/clocksource/clocksource0/current_clocksource)
+			LogMsg "Found _clocksource: $_clocksource"
+			retryTime=1
+			maxRetryTimes=20
+			while [ $retryTime -le $maxRetryTimes ]
+			do
+				LogMsg "Sleep 10 seconds for message show up in log file for the $retryTime time(s)."
+				sleep 10
+				val=$(grep -rnw '/var/log' -e "Switched to clocksource $_second_clocksource" --ignore-case)
+				if [ -n "$val" ];then
+					break
+				fi
+				retryTime=$(($retryTime+1))
+			done
+
+			if [ -n "$val" ] && [ "$_clocksource" == "$_second_clocksource" ]; then
+				LogMsg "Test successful. After unbind, current clocksource is $_clocksource"
+			else
+				LogErr "Test failed. After unbind, current clocksource is $_clocksource. Expected $_second_clocksource"
+				SetTestStateFailed
+				exit 0
+			fi
 		else
-			LogErr "Test failed. After unbind, current clocksource is $_clocksource. Expected acpi_pm"
+			LogErr "Test failed. Can not unbind $clocksource"
 			SetTestStateFailed
 			exit 0
 		fi
 	else
-		LogErr "Test failed. Can not unbind $clocksource"
-		SetTestStateFailed
-		exit 0
+		LogMsg "Only one available clocksource, no need to check unbind"
 	fi
 }
 #
