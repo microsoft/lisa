@@ -387,4 +387,11 @@ Class AzureController : TestController {
 			Measure-SubscriptionCapabilities
 		}
 	}
+
+	[void] RunTestCasesInParallel([int] $CountInParallel, [int] $ParallelTimeoutHours) {
+		if ($this.StorageAccount -imatch "^Auto_Complete_RG=.+") {
+			$this.ParamsInParallel.Remove("StorageAccount")
+		}
+		([TestController]$this).RunTestCasesInParallel($CountInParallel, $ParallelTimeoutHours)
+	}
 }
