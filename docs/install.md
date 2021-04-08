@@ -82,9 +82,9 @@ poetry install
 Enter the PowerShell command prompt and execute,
 
 ```powershell
-(Invoke-WebRequest -Uri https://raw.githubusercontent.com/python-poetry/poetry/master/get-poetry.py -UseBasicParsing).Content | python -
-# the path can be added to system, so it applies to every terminal.
-$env:PATH += ";$env:USERPROFILE\.poetry\bin"
+(Invoke-WebRequest -Uri https://raw.githubusercontent.com/python-poetry/poetry/master/install-poetry.py -UseBasicParsing).Content | python -
+# Add to PATH Poetry's binary location (either this or via Window's global env. vars. menu):
+$env:PATH += ";$env:APPDATA\Python\Scripts"
 poetry install
 ```
 
