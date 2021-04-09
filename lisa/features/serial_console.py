@@ -86,11 +86,12 @@ class SerialConsole(Feature):
     def get_console_log(
         self, saved_path: Optional[Path] = None, force_run: bool = False
     ) -> str:
-        self._node.log.debug("downloading serial log...")
         if saved_path:
             saved_path = saved_path.joinpath(get_datetime_path())
             saved_path.mkdir()
+
         if self._cached_console_log is None or force_run:
+            self._node.log.debug("downloading serial log...")
             log_path = self._node.local_log_path / get_datetime_path()
             log_path.mkdir(parents=True, exist_ok=True)
 
@@ -102,11 +103,15 @@ class SerialConsole(Feature):
             log_file_name = log_path / NAME_SERIAL_CONSOLE_LOG
             with open(log_file_name, mode="wb") as f:
                 f.write(self._cached_console_log)
+        else:
+            self._node.log.debug("load cached serial log")
+
         if saved_path:
             # save it again, if it's asked to save.
             log_file_name = saved_path / NAME_SERIAL_CONSOLE_LOG
             with open(log_file_name, mode="wb") as f:
                 f.write(self._cached_console_log)
+
         return self._cached_console_log.decode("utf-8", errors="ignore")
 
     def check_panic(
