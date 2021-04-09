@@ -31,9 +31,9 @@ class Node(ContextMixin, InitializableMixin):
         self,
         index: int,
         capability: schema.NodeSpace,
+        logger_name: str,
         is_remote: bool = True,
         is_default: bool = False,
-        logger_name: str = "node",
         base_log_path: Optional[Path] = None,
     ) -> None:
         super().__init__()
@@ -353,25 +353,30 @@ class Nodes:
     def from_existing(
         self,
         node_runbook: Union[schema.LocalNode, schema.RemoteNode],
-        logger_name: str = "node",
+        environment_name: str,
         base_log_path: Optional[Path] = None,
     ) -> Node:
         if isinstance(node_runbook, schema.LocalNode):
             node = self._from_local(
-                node_runbook, logger_name=logger_name, base_log_path=base_log_path
+                node_runbook,
+                environment_name=environment_name,
+                base_log_path=base_log_path,
             )
         else:
             assert isinstance(
                 node_runbook, schema.RemoteNode
             ), f"actual: {type(node_runbook)}"
             node = self._from_remote(
-                node_runbook, logger_name=logger_name, base_log_path=base_log_path
+                node_runbook,
+                environment_name=environment_name,
+                base_log_path=base_log_path,
             )
         return node
 
     def from_requirement(
         self,
         node_requirement: schema.NodeSpace,
+        environment_name: str,
         base_log_path: Optional[Path] = None,
     ) -> Node:
         min_requirement = cast(
@@ -388,6 +393,7 @@ class Nodes:
             capability=min_requirement,
             node_type=constants.ENVIRONMENTS_NODES_REMOTE,
             is_default=node_requirement.is_default,
+            logger_name=environment_name,
             base_log_path=base_log_path,
         )
         self._list.append(node)
@@ -396,7 +402,7 @@ class Nodes:
     def _from_local(
         self,
         node_runbook: schema.LocalNode,
-        logger_name: str = "node",
+        environment_name: str,
         base_log_path: Optional[Path] = None,
     ) -> Node:
         assert isinstance(
@@ -407,7 +413,7 @@ class Nodes:
             capability=node_runbook.capability,
             node_type=node_runbook.type,
             is_default=node_runbook.is_default,
-            logger_name=logger_name,
+            logger_name=environment_name,
             base_log_path=base_log_path,
         )
         self._list.append(node)
@@ -417,7 +423,7 @@ class Nodes:
     def _from_remote(
         self,
         node_runbook: schema.RemoteNode,
-        logger_name: str = "node",
+        environment_name: str,
         base_log_path: Optional[Path] = None,
     ) -> Node:
         assert isinstance(
@@ -429,7 +435,7 @@ class Nodes:
             capability=node_runbook.capability,
             node_type=node_runbook.type,
             is_default=node_runbook.is_default,
-            logger_name=logger_name,
+            logger_name=environment_name,
             base_log_path=base_log_path,
         )
         self._list.append(node)
