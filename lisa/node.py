@@ -298,26 +298,6 @@ class Nodes:
         self._default: Optional[Node] = None
         self._list: List[Node] = list()
 
-    @property
-    def default(self) -> Node:
-        if self._default is None:
-            default = None
-            for node in self._list:
-                if node.is_default:
-                    default = node
-                    break
-            if default is None:
-                if len(self._list) == 0:
-                    raise LisaException("No node found in current environment")
-                else:
-                    default = self._list[0]
-            self._default = default
-        return self._default
-
-    def list(self) -> Iterable[Node]:
-        for node in self._list:
-            yield node
-
     def __getitem__(self, key: Union[int, str]) -> Node:
         found = None
         if not self._list:
@@ -342,6 +322,26 @@ class Nodes:
     def __len__(self) -> int:
         return len(self._list)
 
+    @property
+    def default(self) -> Node:
+        if self._default is None:
+            default = None
+            for node in self._list:
+                if node.is_default:
+                    default = node
+                    break
+            if default is None:
+                if len(self._list) == 0:
+                    raise LisaException("No node found in current environment")
+                else:
+                    default = self._list[0]
+            self._default = default
+        return self._default
+
+    def list(self) -> Iterable[Node]:
+        for node in self._list:
+            yield node
+
     def initialize(self) -> None:
         for node in self._list:
             node.initialize()
@@ -349,6 +349,49 @@ class Nodes:
     def close(self) -> None:
         for node in self._list:
             node.close()
+
+    def from_existing(
+        self,
+        node_runbook: Union[schema.LocalNode, schema.RemoteNode],
+        logger_name: str = "node",
+        base_log_path: Optional[Path] = None,
+    ) -> Node:
+        if isinstance(node_runbook, schema.LocalNode):
+            node = self._from_local(
+                node_runbook, logger_name=logger_name, base_log_path=base_log_path
+            )
+        else:
+            assert isinstance(
+                node_runbook, schema.RemoteNode
+            ), f"actual: {type(node_runbook)}"
+            node = self._from_remote(
+                node_runbook, logger_name=logger_name, base_log_path=base_log_path
+            )
+        return node
+
+    def from_requirement(
+        self,
+        node_requirement: schema.NodeSpace,
+        base_log_path: Optional[Path] = None,
+    ) -> Node:
+        min_requirement = cast(
+            schema.NodeSpace, node_requirement.generate_min_capability(node_requirement)
+        )
+        assert isinstance(min_requirement.node_count, int), (
+            f"must be int after generate_min_capability, "
+            f"actual: {min_requirement.node_count}"
+        )
+        # node count should be expanded in platform already
+        assert min_requirement.node_count == 1, f"actual: {min_requirement.node_count}"
+        node = Node.create(
+            len(self._list),
+            capability=min_requirement,
+            node_type=constants.ENVIRONMENTS_NODES_REMOTE,
+            is_default=node_requirement.is_default,
+            base_log_path=base_log_path,
+        )
+        self._list.append(node)
+        return node
 
     def _from_local(
         self,
@@ -403,47 +446,4 @@ class Nodes:
         parameters = fields_to_dict(node_runbook, fields)
         node.set_connection_info(**parameters)
 
-        return node
-
-    def from_existing(
-        self,
-        node_runbook: Union[schema.LocalNode, schema.RemoteNode],
-        logger_name: str = "node",
-        base_log_path: Optional[Path] = None,
-    ) -> Node:
-        if isinstance(node_runbook, schema.LocalNode):
-            node = self._from_local(
-                node_runbook, logger_name=logger_name, base_log_path=base_log_path
-            )
-        else:
-            assert isinstance(
-                node_runbook, schema.RemoteNode
-            ), f"actual: {type(node_runbook)}"
-            node = self._from_remote(
-                node_runbook, logger_name=logger_name, base_log_path=base_log_path
-            )
-        return node
-
-    def from_requirement(
-        self,
-        node_requirement: schema.NodeSpace,
-        base_log_path: Optional[Path] = None,
-    ) -> Node:
-        min_requirement = cast(
-            schema.NodeSpace, node_requirement.generate_min_capability(node_requirement)
-        )
-        assert isinstance(min_requirement.node_count, int), (
-            f"must be int after generate_min_capability, "
-            f"actual: {min_requirement.node_count}"
-        )
-        # node count should be expanded in platform already
-        assert min_requirement.node_count == 1, f"actual: {min_requirement.node_count}"
-        node = Node.create(
-            len(self._list),
-            capability=min_requirement,
-            node_type=constants.ENVIRONMENTS_NODES_REMOTE,
-            is_default=node_requirement.is_default,
-            base_log_path=base_log_path,
-        )
-        self._list.append(node)
         return node
