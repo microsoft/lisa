@@ -1024,4 +1024,17 @@
       <SetupType>OneVM</SetupType>
     </SetupConfig>
   </test>
+  <test>
+    <testName>VERIFY-CPU-COUNT</testName>
+    <testScript>verify_cpu_count.sh</testScript>
+    <files>.\Testscripts\Linux\verify_cpu_count.sh,.\Testscripts\Linux\utils.sh</files>
+    <Platform>Azure</Platform>
+    <Category>Functional</Category>
+    <Area>CORE</Area>
+    <Tags>boot</Tags>
+    <Priority>0</Priority>
+    <SetupConfig>
+      <SetupType>OneVM</SetupType>
+    </SetupConfig>
+  </test>
 </TestCases>
