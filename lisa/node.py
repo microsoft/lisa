@@ -87,7 +87,7 @@ class Node(ContextMixin, InitializableMixin):
             logger_name=logger_name,
             base_log_path=base_log_path,
         )
-        node.log.debug(f"created, type: '{node_type}', isDefault: {is_default}")
+        node.log.debug(f"created, type: '{node_type}', default: {is_default}")
         return node
 
     def set_connection_info(
@@ -263,9 +263,9 @@ class Node(ContextMixin, InitializableMixin):
             assert (
                 self._connection_info
             ), "call setConnectionInfo before use remote node"
-            address = f"{self._connection_info.address}:{self._connection_info.port}"
+            address = str(self._connection_info)
         else:
-            address = "localhost"
+            address = "(local)"
         self.log.info(f"initializing node '{self.name}' {address}")
         self.shell.initialize()
         self.os: OperatingSystem = OperatingSystem.create(self)
