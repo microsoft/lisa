@@ -350,7 +350,7 @@ class Nodes:
         for node in self._list:
             node.close()
 
-    def from_local(
+    def _from_local(
         self,
         node_runbook: schema.LocalNode,
         logger_name: str = "node",
@@ -371,12 +371,12 @@ class Nodes:
 
         return node
 
-    def from_remote(
+    def _from_remote(
         self,
         node_runbook: schema.RemoteNode,
         logger_name: str = "node",
         base_log_path: Optional[Path] = None,
-    ) -> Optional[Node]:
+    ) -> Node:
         assert isinstance(
             node_runbook, schema.RemoteNode
         ), f"actual: {type(node_runbook)}"
@@ -403,6 +403,25 @@ class Nodes:
         parameters = fields_to_dict(node_runbook, fields)
         node.set_connection_info(**parameters)
 
+        return node
+
+    def from_existing(
+        self,
+        node_runbook: Union[schema.LocalNode, schema.RemoteNode],
+        logger_name: str = "node",
+        base_log_path: Optional[Path] = None,
+    ) -> Node:
+        if isinstance(node_runbook, schema.LocalNode):
+            node = self._from_local(
+                node_runbook, logger_name=logger_name, base_log_path=base_log_path
+            )
+        else:
+            assert isinstance(
+                node_runbook, schema.RemoteNode
+            ), f"actual: {type(node_runbook)}"
+            node = self._from_remote(
+                node_runbook, logger_name=logger_name, base_log_path=base_log_path
+            )
         return node
 
     def from_requirement(
