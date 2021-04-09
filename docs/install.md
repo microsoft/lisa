@@ -72,8 +72,8 @@ Note, it's important to enter LISA's folder to run below command, since Poetry m
 ### Install Poetry in Linux
 
 ```bash
-curl -sSL https://raw.githubusercontent.com/python-poetry/poetry/master/get-poetry.py | python3 -
-source $HOME/.poetry/env
+curl -sSL https://raw.githubusercontent.com/python-poetry/poetry/master/install-poetry.py | python3 -
+source $HOME/.local/bin
 poetry install
 ```
 
