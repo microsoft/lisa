@@ -52,10 +52,11 @@ class Node(ContextMixin, InitializableMixin):
         self.features: Features
         self.tools = Tools(self)
         # the path uses remotely
-        self.remote_working_path: Optional[PurePath] = None
         node_id = str(self.index) if self.index >= 0 else ""
         self.log = get_logger(logger_name, node_id)
 
+        # The working path will be created in remote node, when it's used.
+        self._remote_working_path: Optional[PurePath] = None
         self._base_local_log_path = base_log_path
         # Not to set the log path until its first used. Because the path
         # contains node name, which is not set in __init__.
@@ -222,6 +223,36 @@ class Node(ContextMixin, InitializableMixin):
 
         return self._local_log_path
 
+    @property
+    def remote_working_path(self) -> PurePath:
+        if not self._remote_working_path:
+            if self.is_remote:
+                if self.is_posix:
+                    remote_root_path = Path("$HOME")
+                else:
+                    remote_root_path = Path("%TEMP%")
+
+                working_path = remote_root_path.joinpath(
+                    constants.PATH_REMOTE_ROOT, constants.RUN_LOGIC_PATH
+                ).as_posix()
+
+                # expand environment variables in path
+                echo = self.tools[Echo]
+                result = echo.run(working_path, shell=True)
+
+                # PurePath is more reasonable here, but spurplus doesn't support it.
+                if self.is_posix:
+                    self._remote_working_path = PurePosixPath(result.stdout)
+                else:
+                    self._remote_working_path = PureWindowsPath(result.stdout)
+            else:
+                self._remote_working_path = constants.RUN_LOCAL_PATH
+
+            self.shell.mkdir(self._remote_working_path, parents=True, exist_ok=True)
+            self.log.debug(f"working path is: '{self._remote_working_path}'")
+
+        return self._remote_working_path
+
     def close(self) -> None:
         self.log.debug("closing node connection...")
         if self._shell:
@@ -238,31 +269,6 @@ class Node(ContextMixin, InitializableMixin):
         self.log.info(f"initializing node '{self.name}' {address}")
         self.shell.initialize()
         self.os: OperatingSystem = OperatingSystem.create(self)
-
-        # set working path
-        if self.is_remote:
-            if self.is_posix:
-                remote_root_path = Path("$HOME")
-            else:
-                remote_root_path = Path("%TEMP%")
-            working_path = remote_root_path.joinpath(
-                constants.PATH_REMOTE_ROOT, constants.RUN_LOGIC_PATH
-            ).as_posix()
-
-            # expand environment variables in path
-            echo = self.tools[Echo]
-            result = echo.run(working_path, shell=True)
-
-            # PurePath is more reasonable here, but spurplus doesn't support it.
-            if self.is_posix:
-                self.remote_working_path = PurePosixPath(result.stdout)
-            else:
-                self.remote_working_path = PureWindowsPath(result.stdout)
-        else:
-            self.remote_working_path = constants.RUN_LOCAL_PATH
-
-        self.shell.mkdir(self.remote_working_path, parents=True, exist_ok=True)
-        self.log.debug(f"working path is: '{self.remote_working_path}'")
 
     def _execute(
         self,
