@@ -247,7 +247,8 @@ class Redhat(Fedora):
         # smaller sizes cost much longer time when update packages, e.g.
         #  Basic_A1, Standard_A5, Standard_A1_v2, Standard_D1
         # redhat rhel 7-lvm 7.7.2019102813 Basic_A1 cost 2371.568 seconds
-        cmd_result = self._node.execute("yum -y update", sudo=True, timeout=2400)
+        # redhat rhel 8.1 8.1.2020020415 Basic_A0 cost 2409.116 seconds
+        cmd_result = self._node.execute("yum -y update", sudo=True, timeout=3600)
         # we will hit expired RHUI client certificate issue on old RHEL VM image
         # use below solution to resolve it
         # refer https://docs.microsoft.com/en-us/azure/virtual-machines/workloads/redhat/redhat-rhui#azure-rhui-infrastructure # noqa: E501
@@ -257,7 +258,7 @@ class Redhat(Fedora):
             cmd_result = self._node.execute(
                 "yum update -y --disablerepo='*' --enablerepo='*microsoft*' ",
                 sudo=True,
-                timeout=2400,
+                timeout=3600,
             )
 
     def _install_packages(self, packages: Union[List[str]]) -> None:
