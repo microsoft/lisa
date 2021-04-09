@@ -90,7 +90,9 @@ class MockPlatform(Platform):
         if self._mock_runbook.return_prepared and environment.runbook.nodes_requirement:
             requirements = environment.runbook.nodes_requirement
             for node_space in requirements:
-                environment.nodes.from_requirement(node_requirement=node_space)
+                environment.nodes.from_requirement(
+                    node_requirement=node_space, environment_name=environment.name
+                )
         for node in environment.nodes.list():
             node._is_initialized = True
         self.test_data.deployed_envs.append(environment.name)

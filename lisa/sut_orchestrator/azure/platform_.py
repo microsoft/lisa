@@ -834,7 +834,9 @@ class AzurePlatform(Platform):
 
             # init node
             node = environment.nodes.from_requirement(
-                node_space, base_log_path=environment.log_path
+                node_space,
+                environment_name=environment.name,
+                base_log_path=environment.log_path,
             )
             if not azure_node_runbook.name:
                 azure_node_runbook.name = f"node-{len(nodes_parameters)}"

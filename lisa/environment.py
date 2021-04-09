@@ -183,7 +183,9 @@ class Environment(ContextMixin, InitializableMixin):
         if runbook.nodes:
             for node_runbook in runbook.nodes:
                 environment.nodes.from_existing(
-                    node_runbook=node_runbook, base_log_path=environment.log_path
+                    node_runbook=node_runbook,
+                    environment_name=environment.name,
+                    base_log_path=environment.log_path,
                 )
 
                 has_default_node = environment.__validate_single_default(
