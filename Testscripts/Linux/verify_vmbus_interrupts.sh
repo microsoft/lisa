@@ -32,14 +32,14 @@ UtilsInit
 function verify_vmbus_interrupts() {
 
     nonCPU0inter=0
-    cpu_count=$(grep CPU -o /proc/interrupts | wc -l)
+    cpu_count=$(grep CPU[0-9] -o /proc/interrupts | wc -l)
     UpdateSummary "${cpu_count} CPUs found"
 
     #
     # It is not mandatory to have the Hyper-V interrupts present
     # Skip test execution if these are not showing up
     #
-    if ! [[ $(grep 'hyperv\|Hypervisor' /proc/interrupts) ]]; then
+    if ! [[ $(grep 'hyperv\|Hypervisor\|Hyper-V' /proc/interrupts) ]]; then
         UpdateSummary "Hyper-V interrupts are not recorded, abort test."
         SetTestStateAborted
         exit 0
@@ -51,7 +51,7 @@ function verify_vmbus_interrupts() {
     while read -r line
     do
         LogMsg "Debug - reading a line $line"
-        if [[ ($line = *hyperv* ) || ( $line = *Hypervisor* ) ]]; then
+        if [[ ($line = *hyperv* ) || ( $line = *Hypervisor* ) || ( $line = *Hyper-V* ) ]]; then
             for (( core=0; core<=$((cpu_count-1)); core++ ))
             do
                 LogMsg "Debug - checking the core count $core"
