@@ -131,7 +131,7 @@ https://docs.microsoft.com/en-us/azure/virtual-machines/linux/cli-ps-findimage):
     Use above `<subscription id>` and `<private key file>` to replace in below command. It may take several minutes to complete. Marketplace VM images can be found according to the instructions [here](https://docs.microsoft.com/en-us/azure/virtual-machines/linux/cli-ps-findimage)
 
     ```bash
-    lisa -r ./microsoft/runbook/azure.yml -v subscription_id:<subscription id> -v "admin_private_key_file:<private key file>" -v "gallery_image:<marketplace image string>"
+    lisa -r ./microsoft/runbook/azure.yml -v subscription_id:<subscription id> -v "admin_private_key_file:<private key file>" -v "marketplace_image:<marketplace image string>"
     ```
   
 
