@@ -887,7 +887,7 @@ class AzurePlatform(Platform):
 
         arm_parameters.nodes = nodes_parameters
         arm_parameters.storage_name = get_storage_account_name(
-            self, arm_parameters.location
+            self.subscription_id, arm_parameters.location
         )
 
         # load template
@@ -1273,7 +1273,9 @@ class AzurePlatform(Platform):
         # Creating the deployment 'name' would exceed the quota of '800'.
         storage_client = get_storage_client(self)
         storage_account_exists = True
-        account_name = get_storage_account_name(platform=self, location=location)
+        account_name = get_storage_account_name(
+            subscription_id=self.subscription_id, location=location
+        )
         try:
             storage_client.storage_accounts.get_properties(
                 account_name=account_name,

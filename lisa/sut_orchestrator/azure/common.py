@@ -166,9 +166,8 @@ def get_storage_client(platform: Any) -> ComputeManagementClient:
     )
 
 
-def get_storage_account_name(platform: Any, location: str) -> str:
-    azure_platform: AzurePlatform = platform
-    subscription_id_postfix = azure_platform.subscription_id[-8:]
+def get_storage_account_name(subscription_id: str, location: str) -> str:
+    subscription_id_postfix = subscription_id[-8:]
     # name should be shorter than 24 charactor
     return f"lisas{location[0:11]}{subscription_id_postfix}"
 
