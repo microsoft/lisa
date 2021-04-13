@@ -10,6 +10,7 @@ PyGObject = {version = "^3.38.0", platform = 'linux'}
 PyYAML = "^5.4.1"
 assertpy = "^1.1"
 azure-identity = "^1.5.0"
+azure-storage-blob = "^12.8.0"
 azure-mgmt-compute = "^19.0.0"
 azure-mgmt-marketplaceordering = "^1.1.0"
 azure-mgmt-network = "^18.0.0"
