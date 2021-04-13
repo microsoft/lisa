@@ -5,10 +5,12 @@ import re
 from dataclasses import InitVar, dataclass, field
 from typing import TYPE_CHECKING, Any, Dict, Optional, Union
 
+from azure.identity import DefaultAzureCredential  # type: ignore
 from azure.mgmt.compute import ComputeManagementClient  # type: ignore
 from azure.mgmt.marketplaceordering import MarketplaceOrderingAgreements  # type: ignore
 from azure.mgmt.network import NetworkManagementClient  # type: ignore
 from azure.mgmt.storage import StorageManagementClient  # type: ignore
+from azure.storage.blob import BlobServiceClient, ContainerClient  # type: ignore
 from dataclasses_json import dataclass_json
 
 from lisa import schema
@@ -192,3 +194,18 @@ def get_environment_context(environment: Environment) -> EnvironmentContext:
 def wait_operation(operation: Any) -> Any:
     # to support timeout in future
     return operation.wait()
+
+
+def get_or_create_storage_container(
+    storage_account_name: str, container_name: str, credential: DefaultAzureCredential
+) -> ContainerClient:
+    """
+    Create a Azure Storage container if it does not exist.
+    """
+    blob_service_client = BlobServiceClient(
+        f"https://{storage_account_name}.blob.core.windows.net", credential
+    )
+    container_client = blob_service_client.get_container_client(container_name)
+    if not container_client.exists():
+        container_client.create_container()
+    return container_client
