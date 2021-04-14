@@ -1,13 +1,105 @@
 # Copyright (c) Microsoft Corporation.
 # Licensed under the MIT license.
 
-from typing import Any, List
+from dataclasses import dataclass, field
+from pathlib import Path
+from typing import Any, List, Optional, Type, cast
 from unittest import TestCase
 
-from lisa import schema, search_space
+from dataclasses_json import dataclass_json
+from marshmallow import validate
+
+from lisa import node, schema, search_space
 from lisa.environment import load_environments
 from lisa.testsuite import simple_requirement
 from lisa.util import constants
+
+CUSTOM_LOCAL = "custom_local"
+CUSTOM_REMOTE = "custom_remote"
+
+
+@dataclass_json()
+@dataclass
+class CustomLocalNodeSchema(schema.LocalNode):
+    type: str = field(
+        default=CUSTOM_LOCAL,
+        metadata=schema.metadata(
+            required=True,
+            validate=validate.OneOf([CUSTOM_LOCAL]),
+        ),
+    )
+
+    custom_local_field: Optional[str] = field(default=None)
+
+
+class CustomLocalNode(node.LocalNode):
+    def __init__(
+        self,
+        index: int,
+        runbook: CustomLocalNodeSchema,
+        logger_name: str,
+        base_log_path: Optional[Path] = None,
+    ) -> None:
+        super().__init__(
+            index=index,
+            runbook=runbook,
+            logger_name=logger_name,
+            base_log_path=base_log_path,
+        )
+        self.custom_local_field = runbook.custom_local_field
+        assert (
+            self.custom_local_field
+        ), f"custom_local_field field of {CUSTOM_LOCAL}-typed nodes cannot be empty"
+
+    @classmethod
+    def type_name(cls) -> str:
+        return CUSTOM_LOCAL
+
+    @classmethod
+    def type_schema(cls) -> Type[schema.TypedSchema]:
+        return CustomLocalNodeSchema
+
+
+@dataclass_json()
+@dataclass
+class CustomRemoteNodeSchema(schema.RemoteNode):
+    type: str = field(
+        default=CUSTOM_REMOTE,
+        metadata=schema.metadata(
+            required=True,
+            validate=validate.OneOf([CUSTOM_REMOTE]),
+        ),
+    )
+
+    custom_remote_field: Optional[str] = field(default=None)
+
+
+class CustomRemoteNode(node.RemoteNode):
+    def __init__(
+        self,
+        index: int,
+        runbook: CustomRemoteNodeSchema,
+        logger_name: str,
+        base_log_path: Optional[Path] = None,
+    ) -> None:
+        super().__init__(
+            index=index,
+            runbook=runbook,
+            logger_name=logger_name,
+            base_log_path=base_log_path,
+        )
+        self.custom_remote_field = runbook.custom_remote_field
+        assert (
+            self.custom_remote_field
+        ), f"custom_remote_field field of {CUSTOM_REMOTE}-typed nodes cannot be empty"
+
+    @classmethod
+    def type_name(cls) -> str:
+        return CUSTOM_REMOTE
+
+    @classmethod
+    def type_schema(cls) -> Type[schema.TypedSchema]:
+        return CustomRemoteNodeSchema
 
 
 def generate_runbook(
@@ -15,6 +107,7 @@ def generate_runbook(
     local: bool = False,
     remote: bool = False,
     requirement: bool = False,
+    local_remote_node_extensions: bool = False,
 ) -> schema.EnvironmentRoot:
     environments: List[Any] = list()
     nodes: List[Any] = list()
@@ -47,11 +140,31 @@ def generate_runbook(
                 "nic_count": {"min": 1, "max": 1},
             }
         )
+    if local_remote_node_extensions:
+        nodes.extend(
+            [
+                {
+                    constants.TYPE: CUSTOM_LOCAL,
+                    constants.ENVIRONMENTS_NODES_CAPABILITY: {"core_count": {"min": 4}},
+                    "custom_local_field": CUSTOM_LOCAL,
+                },
+                {
+                    constants.TYPE: CUSTOM_REMOTE,
+                    constants.ENVIRONMENTS_NODES_REMOTE_ADDRESS: "internal_address",
+                    constants.ENVIRONMENTS_NODES_REMOTE_PORT: 22,
+                    "public_address": "public_address",
+                    "public_port": 10022,
+                    constants.ENVIRONMENTS_NODES_REMOTE_USERNAME: "name_of_user",
+                    constants.ENVIRONMENTS_NODES_REMOTE_PASSWORD: "do_not_use_it",
+                    "custom_remote_field": CUSTOM_REMOTE,
+                },
+            ]
+        )
     if is_single_env:
         environments = [{"nodes": nodes}]
     else:
-        for node in nodes:
-            environments.append({"nodes": [node]})
+        for n in nodes:
+            environments.append({"nodes": [n]})
 
     data = {"max_concurrency": 2, constants.ENVIRONMENTS: environments}
     return schema.EnvironmentRoot.schema().load(data)  # type: ignore
@@ -70,9 +183,9 @@ class EnvironmentTestCase(TestCase):
         envs = load_environments(runbook)
         self.assertEqual(2, len(envs))
         for env in envs.values():
-            for node in env.nodes.list():
+            for n in env.nodes.list():
                 # mock initializing
-                node._is_initialized = True
+                n._is_initialized = True
             self.assertEqual(1, len(env.nodes))
 
     def test_create_from_runbook_merged(self) -> None:
@@ -80,9 +193,9 @@ class EnvironmentTestCase(TestCase):
         envs = load_environments(runbook)
         self.assertEqual(1, len(envs))
         for env in envs.values():
-            for node in env.nodes.list():
+            for n in env.nodes.list():
                 # mock initializing
-                node._is_initialized = True
+                n._is_initialized = True
             self.assertEqual(2, len(env.nodes))
 
     def test_create_from_runbook_cap(self) -> None:
@@ -91,11 +204,11 @@ class EnvironmentTestCase(TestCase):
         self.assertEqual(2, len(envs))
         env = envs.get("customized_0")
         assert env
-        for node in env.nodes.list():
+        for n in env.nodes.list():
             # mock initializing
-            node._is_initialized = True
-        self.assertEqual(search_space.IntRange(min=4), node.capability.core_count)
-        self.assertEqual(search_space.IntRange(min=1), node.capability.disk_count)
+            n._is_initialized = True
+        self.assertEqual(search_space.IntRange(min=4), n.capability.core_count)
+        self.assertEqual(search_space.IntRange(min=1), n.capability.disk_count)
         # check from env capability
         env_cap = env.capability
         self.assertEqual(1, len(env_cap.nodes))
@@ -132,3 +245,22 @@ class EnvironmentTestCase(TestCase):
         self.assertSequenceEqual([], env.runbook.nodes)
         assert env.runbook.nodes_requirement
         self.assertEqual(2, len(env.runbook.nodes_requirement))
+
+    def test_create_from_custom_local_remote(self) -> None:
+        runbook = generate_runbook(
+            local_remote_node_extensions=True, is_single_env=True
+        )
+        envs = load_environments(runbook)
+        self.assertEqual(1, len(envs))
+        for env in envs.values():
+            done: int = 0
+            for n in env.nodes.list():
+                if n.type_name() == CUSTOM_LOCAL:
+                    l_n = cast(CustomLocalNode, n)
+                    self.assertEqual(l_n.custom_local_field, CUSTOM_LOCAL)
+                    done += 1
+                elif n.type_name() == CUSTOM_REMOTE:
+                    r_n = cast(CustomRemoteNode, n)
+                    self.assertEqual(r_n.custom_remote_field, CUSTOM_REMOTE)
+                    done += 1
+            self.assertEqual(2, done)
