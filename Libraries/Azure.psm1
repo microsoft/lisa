@@ -234,7 +234,7 @@ Function Move-OsVHDToStorageAccount($OriginalOsVHD, $TargetStorageAccount) {
 	$targetOsVHD = 'http://{0}.blob.core.windows.net/vhds/{1}' -f $TargetStorageAccount, $vhdName
 
 	if (($sourceStorageAccount -ne $TargetStorageAccount) -or ($sourceContainer -ne "vhds")) {
-		Write-LogInfo "Your test VHD is not in target storage account '$TargetStorageAccount' or not in target container 'vhds', start copying now."
+		Write-LogInfo "Your test VHD is in the different storage account/container as the target storage account '$TargetStorageAccount' and container 'vhds', start copying now."
 		#Check if the OriginalOsVHD is a SasUrl
 		if (($OriginalOsVHD -imatch 'sp=') -and ($OriginalOsVHD -imatch 'sig=')) {
 			$copyStatus = Copy-VHDToAnotherStorageAccount -SasUrl $OriginalOsVHD -destinationStorageAccount $TargetStorageAccount -destinationStorageContainer "vhds" -vhdName $vhdName
