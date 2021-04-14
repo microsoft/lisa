@@ -234,7 +234,7 @@ Function Move-OsVHDToStorageAccount($OriginalOsVHD, $TargetStorageAccount) {
 	$targetOsVHD = 'http://{0}.blob.core.windows.net/vhds/{1}' -f $TargetStorageAccount, $vhdName
 
 	if (($sourceStorageAccount -ne $TargetStorageAccount) -or ($sourceContainer -ne "vhds")) {
-		Write-LogInfo "Your test VHD is not in target storage account '$TargetStorageAccount' or not in target container 'vhds', start copying now."
+		Write-LogInfo "Your test VHD is in the different storage account/container as the target storage account '$TargetStorageAccount' and container 'vhds', start copying now."
 		#Check if the OriginalOsVHD is a SasUrl
 		if (($OriginalOsVHD -imatch 'sp=') -and ($OriginalOsVHD -imatch 'sig=')) {
 			$copyStatus = Copy-VHDToAnotherStorageAccount -SasUrl $OriginalOsVHD -destinationStorageAccount $TargetStorageAccount -destinationStorageContainer "vhds" -vhdName $vhdName
@@ -2376,7 +2376,8 @@ Function Copy-VHDToAnotherStorageAccount ($sourceStorageAccount, $sourceStorageC
 		$context = New-AzStorageContext -StorageAccountName $srcStorageAccount -StorageAccountKey $srcStorageAccountKey
 		$expireTime = Get-Date
 		$expireTime = $expireTime.AddYears(1)
-		$SasUrl = New-AzStorageBlobSASToken -container $srcStorageContainer -Blob $srcStorageBlob -Permission R -ExpiryTime $expireTime -FullUri -Context $Context
+		$SasUrl = New-AzStorageBlobSASToken -container $srcStorageContainer -Blob $srcStorageBlob -Permission r -ExpiryTime $expireTime -FullUri -Context $Context
+		$srcBlob = Get-AzStorageBlob -Blob $SrcStorageBlob -Container $srcStorageContainer -Context $Context -ErrorAction Ignore
 	}
 
 	Write-LogInfo "Retrieving $destinationStorageAccount storage account key"
@@ -2390,13 +2391,25 @@ Function Copy-VHDToAnotherStorageAccount ($sourceStorageAccount, $sourceStorageC
 	if ($null -eq $testContainer) {
 		$null = New-AzStorageContainer -Name $destContainer -context $destContext
 	}
-	# Start the Copy
-	Write-LogInfo "Copy $vhdName --> $($destContext.StorageAccountName) : Running"
-	$null = Start-AzStorageBlobCopy -AbsoluteUri $SasUrl  -DestContainer $destContainer -DestContext $destContext -DestBlob $destBlob -Force
+
+	# Check if the blob exist, or in copy by other process
+	$blob = Get-AzStorageBlob -Blob $DestBlob -Container $DestContainer -Context $destContext -ErrorAction Ignore
+
+	$CopyingInProgress = $true
+	if ($blob -and $blob.ICloudBlob.CopyState.Status -eq "Pending") {
+		Write-LogInfo "The blob is already in the state of copying, skip copying again, and checking the status"
+	} elseif ($blob -and $srcBlob -and $srcBlob.ICloudBlob.Properties.ContentMD5 -eq $blob.ICloudBlob.Properties.ContentMD5) {
+		Write-LogInfo "The blob is already present in destination account: $destinationStorageAccount, skip copying"
+		$CopyingInProgress = $false
+		$retValue = $true
+	} else {
+		# Start the Copy
+		Write-LogInfo "Copy $vhdName --> $($destContext.StorageAccountName) : Running"
+		$null = Start-AzStorageBlobCopy -AbsoluteUri $SasUrl  -DestContainer $destContainer -DestContext $destContext -DestBlob $destBlob -Force
+	}
 	#
 	# Monitor replication status
 	#
-	$CopyingInProgress = $true
 	while ($CopyingInProgress) {
 		$CopyingInProgress = $false
 		$status = Get-AzStorageBlobCopyState -Container $destContainer -Blob $destBlob -Context $destContext
