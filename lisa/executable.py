@@ -8,6 +8,7 @@ from abc import ABC, abstractmethod
 from hashlib import sha256
 from typing import TYPE_CHECKING, Any, Dict, List, Optional, Type, TypeVar, Union, cast
 
+from lisa.schema import RemoteNode
 from lisa.util import InitializableMixin, LisaException, constants
 from lisa.util.logger import get_logger
 from lisa.util.perf_timer import create_timer
@@ -18,6 +19,11 @@ if TYPE_CHECKING:
 
 
 T = TypeVar("T")
+
+
+# circular dep if we use the helper in node.py, unfortunately
+def _is_node_remote(node: Node) -> bool:
+    return isinstance(node.type_schema, RemoteNode)
 
 
 class Tool(ABC, InitializableMixin):
@@ -246,10 +252,10 @@ class Tool(ABC, InitializableMixin):
 
     def get_tool_path(self) -> pathlib.PurePath:
         """
-        compose a path, if the tool need to be installed
+        compose a path, if the tool needs to be installed
         """
-        assert self.node.remote_working_path, "remote working path is not initialized"
-        return self.node.remote_working_path.joinpath(constants.PATH_TOOL, self.name)
+        assert self.node.working_path, "working path is not initialized"
+        return self.node.working_path.joinpath(constants.PATH_TOOL, self.name)
 
     def __call__(
         self,
@@ -359,7 +365,7 @@ class CustomScript(Tool):
         return self._dependencies
 
     def install(self) -> bool:
-        if self.node.is_remote:
+        if _is_node_remote(self.node):
             # copy to remote
             node_script_path = self.get_tool_path()
             for file in self._files:
@@ -495,7 +501,7 @@ class Tools:
                     is_success = tool.install()
                     if not is_success:
                         raise LisaException(
-                            f"install '{tool.name}' failed. After installed, "
+                            f"installing '{tool.name}' has failed. After installed, "
                             f"it cannot be detected."
                         )
                     tool_log.debug(f"installed in {timer}")
@@ -503,7 +509,7 @@ class Tools:
                     raise LisaException(
                         f"cannot find [{tool.name}] on [{self._node.name}], "
                         f"{self._node.os.__class__.__name__}, "
-                        f"Remote({self._node.is_remote}) "
+                        f"Remote({_is_node_remote(self._node)}) "
                         f"and installation of [{tool.name}] isn't enabled in lisa."
                     )
             else:

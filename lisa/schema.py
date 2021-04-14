@@ -4,7 +4,18 @@
 import copy
 from dataclasses import dataclass, field
 from enum import Enum
-from typing import Any, Callable, Dict, List, Optional, Type, TypeVar, Union, cast
+from typing import (
+    Any,
+    Callable,
+    Dict,
+    Iterable,
+    List,
+    Optional,
+    Type,
+    TypeVar,
+    Union,
+    cast,
+)
 
 from dataclasses_json import (
     CatchAll,
@@ -573,9 +584,21 @@ class Capability(NodeSpace):
         self.node_count = 1
 
 
-@dataclass_json()
+@dataclass_json(undefined=Undefined.INCLUDE)
 @dataclass
-class LocalNode(TypedSchema):
+class Node(TypedSchema, ExtendableSchemaMixin):
+    name: str = ""
+    type: str = field(
+        default="",
+        metadata=metadata(required=True),
+    )
+    is_default: bool = field(default=False)
+    capability: Capability = field(default_factory=Capability)
+
+
+@dataclass_json(undefined=Undefined.INCLUDE)
+@dataclass
+class LocalNode(Node):
     type: str = field(
         default=constants.ENVIRONMENTS_NODES_LOCAL,
         metadata=metadata(
@@ -583,14 +606,11 @@ class LocalNode(TypedSchema):
             validate=validate.OneOf([constants.ENVIRONMENTS_NODES_LOCAL]),
         ),
     )
-    name: str = ""
-    is_default: bool = field(default=False)
-    capability: Capability = field(default_factory=Capability)
 
 
-@dataclass_json()
+@dataclass_json(undefined=Undefined.INCLUDE)
 @dataclass
-class RemoteNode(TypedSchema):
+class RemoteNode(Node):
     type: str = field(
         default=constants.ENVIRONMENTS_NODES_REMOTE,
         metadata=metadata(
@@ -598,8 +618,6 @@ class RemoteNode(TypedSchema):
             validate=validate.OneOf([constants.ENVIRONMENTS_NODES_REMOTE]),
         ),
     )
-    name: str = ""
-    is_default: bool = field(default=False)
     address: str = ""
     port: int = field(
         default=22, metadata=metadata(validate=validate.Range(min=1, max=65535))
@@ -612,7 +630,10 @@ class RemoteNode(TypedSchema):
     username: str = field(default="", metadata=metadata(required=True))
     password: str = ""
     private_key_file: str = ""
-    capability: Capability = field(default_factory=Capability)
+
+    # FIXME: ideally this should have been an InitVar field, but it
+    # does not play well with Undefined.INCLUDE
+    _ignore_conn: bool = False
 
     def __post_init__(self, *args: Any, **kwargs: Any) -> None:
         add_secret(self.address)
@@ -620,6 +641,9 @@ class RemoteNode(TypedSchema):
         add_secret(self.username, PATTERN_HEADTAIL)
         add_secret(self.password)
         add_secret(self.private_key_file)
+
+        if self._ignore_conn:
+            return
 
         if not self.address and not self.public_address:
             raise LisaException(
@@ -658,36 +682,37 @@ class Environment:
     nodes_requirement: Optional[List[NodeSpace]] = None
 
     def __post_init__(self, *args: Any, **kwargs: Any) -> None:
-        self.nodes: Optional[List[Union[LocalNode, RemoteNode]]] = None
-        if self.nodes_raw is not None:
-            self.nodes = []
-            for node_raw in self.nodes_raw:
-                node_type = node_raw[constants.TYPE]
-                if node_type == constants.ENVIRONMENTS_NODES_LOCAL:
-                    node: Union[
-                        LocalNode, RemoteNode
-                    ] = LocalNode.schema().load(  # type:ignore
-                        node_raw
-                    )
-                    if self.nodes is None:
-                        self.nodes = []
-                    self.nodes.append(node)
-                elif node_type == constants.ENVIRONMENTS_NODES_REMOTE:
-                    node = RemoteNode.schema().load(node_raw)  # type:ignore
-                    if self.nodes is None:
-                        self.nodes = []
-                    self.nodes.append(node)
-                elif node_type == constants.ENVIRONMENTS_NODES_REQUIREMENT:
-                    original_req: NodeSpace = NodeSpace.schema().load(  # type:ignore
-                        node_raw
-                    )
-                    expanded_req = original_req.expand_by_node_count()
-                    if self.nodes_requirement is None:
-                        self.nodes_requirement = []
-                    self.nodes_requirement.extend(expanded_req)
+        self.nodes: List[Union[LocalNode, RemoteNode]] = []
+        if not self.nodes_raw:
+            return
+        nodes_final: List[Union[LocalNode, RemoteNode]] = []
+        for node in self.nodes_raw:
+            node_type = node[constants.TYPE]
+            new_node: Union[LocalNode, RemoteNode]
+            if node_type == constants.ENVIRONMENTS_NODES_REQUIREMENT:
+                original_req: NodeSpace = NodeSpace.schema().load(  # type:ignore
+                    node
+                )
+                expanded_req = original_req.expand_by_node_count()
+                if self.nodes_requirement is None:
+                    self.nodes_requirement = []
+                self.nodes_requirement.extend(expanded_req)
+            else:
+                # here we honor LocalNode, RemoteNode and all their extensions
+                subs: Dict[str, Type[Node]] = {}
+                for sub in self._get_subclasses(Node):
+                    subs[sub.type] = sub
+                if node_type not in subs:
+                    raise LisaException(f"unknown node type '{node_type}': {node}")
                 else:
-                    raise LisaException(f"unknown node type '{node_type}': {node_raw}")
-            self.nodes_raw = None
+                    new_node = subs[node_type].schema().load(node)  # type: ignore
+                    nodes_final.append(new_node)
+        self.nodes = nodes_final
+
+    def _get_subclasses(self, t: Type[Node]) -> Iterable[Type[Node]]:
+        for subclass_type in t.__subclasses__():
+            yield subclass_type
+            yield from self._get_subclasses(subclass_type)
 
 
 @dataclass_json()

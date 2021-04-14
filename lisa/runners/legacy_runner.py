@@ -14,7 +14,7 @@ from typing import TYPE_CHECKING, Any, Dict, Iterable, List, Pattern
 from retry import retry
 
 from lisa import schema
-from lisa.node import Node
+from lisa.node import LocalNode
 from lisa.runner import BaseRunner
 from lisa.testsuite import TestCaseMetadata, TestCaseRuntimeData, TestResult, TestStatus
 from lisa.tools import Git
@@ -71,11 +71,10 @@ class LegacyRunner(BaseRunner):
 
         super().__init__(*args, **kwargs)
         self.exit_code: int = 0
-        # leverage Node logic to run local processes.
-        self._local = Node.create(
+        # leverage LocalNode logic to run local processes.
+        self._local = LocalNode(
             index=-1,
-            node_type=constants.ENVIRONMENTS_NODES_LOCAL,
-            capability=schema.NodeSpace(),
+            runbook=schema.LocalNode(),
             logger_name="LISAv2",
         )
         self.canceled = False

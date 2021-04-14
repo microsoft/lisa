@@ -150,7 +150,8 @@ class PlatformTestCase(TestCase):
         self.assertEqual(
             "no capability found for environment: "
             "Environment(name='customized_0', topology='subnet', "
-            "nodes_raw=None, nodes_requirement=None)",
+            "nodes_raw=[{'type': 'local', 'capability': {'core_count': {'min': 4}}}]"
+            ", nodes_requirement=None)",
             str(cm.exception),
         )
 

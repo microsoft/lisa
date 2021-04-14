@@ -8,6 +8,7 @@ from assertpy import assert_that
 
 from lisa import Node, TestCaseMetadata, TestSuite, TestSuiteMetadata
 from lisa.executable import CustomScript, CustomScriptBuilder
+from lisa.node import is_remote
 from lisa.operating_system import Windows
 from lisa.testsuite import simple_requirement
 from lisa.util.perf_timer import create_timer
@@ -44,7 +45,7 @@ class WithScript(TestSuite):
         timer2 = create_timer()
         result2 = script.run(force_run=True)
         assert_that(result1.stdout).is_equal_to(result2.stdout)
-        if node.is_remote:
+        if is_remote(node):
             # the timer will be significant different on a remote node.
             assert_that(
                 timer1.elapsed(), "the second time should be faster, without uploading"

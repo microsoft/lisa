@@ -91,7 +91,8 @@ class LisaRunner(BaseRunner):
                 if picked_result is None:
                     self._log.debug(
                         f"env[{environment.name}] skipped "
-                        f"as not meet any case requirement"
+                        f"as LISA has not met any case requirement match"
+                        + " against test cases"
                     )
                     continue
 
