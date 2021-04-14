@@ -206,7 +206,7 @@ Function Select-TestCases($TestXMLs, $TestCategory, $TestArea, $TestNames, $Test
 }
 
 Function Add-SetupConfig {
-    param ([System.Collections.ArrayList]$AllTests, [string]$ConfigName, [string]$ConfigValue, [string]$DefaultConfigValue, [string]$SplitBy = ',', [bool]$Force = $false)
+    param ([System.Collections.ArrayList]$AllTests, [string]$ConfigName, [string]$ConfigValue, [string]$DefaultConfigValue, [string]$SplitBy = ',', [bool]$Force = $false, [switch]$UpdateName)
 
     $AddSplittedConfigValue = {
         param ([System.Collections.ArrayList]$TestCollections, [string]$ConfigName, [string]$ConfigValue, [bool]$Force = $false)
@@ -274,6 +274,9 @@ Function Add-SetupConfig {
                     # If not pre-defined in TestXml, or -ForceCustom used, duplicate
                     if (!$singleTest.SetupConfig.$ConfigName -or $Force) {
                         $clonedTest = ([System.Xml.XmlElement]$singleTest).CloneNode($true)
+                        if ($UpdateName) {
+                            $clonedTest.testName = $clonedTest.testName + "-" + $singleConfigValue.Replace(" ","")
+                        }
                         $null = $clonedTests.Add($clonedTest)
                     }
                     elseif ($singleConfigValue) {
@@ -288,6 +291,9 @@ Function Add-SetupConfig {
                         else {
                             $clonedTest = ([System.Xml.XmlElement]$singleTest).CloneNode($true)
                             $clonedTest.SetupConfig.$ConfigName = [string]$singleConfigValue
+                            if ($UpdateName) {
+                                $clonedTest.testName = $clonedTest.testName + "-" + $singleConfigValue.Replace(" ","")
+                            }
                             $null = $clonedTests.Add($clonedTest)
                         }
                     }

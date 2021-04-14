@@ -319,7 +319,7 @@ Class AzureController : TestController {
 			Add-SetupConfig -AllTests $AllTests -ConfigName "TestLocation" -ConfigValue $this.CustomParams["TestLocation"] -Force $this.ForceCustom
 			if ($this.TestIterations -gt 1) {
 				$testIterationsParamValue = @(1..$this.TestIterations) -join ','
-				Add-SetupConfig -AllTests $AllTests -ConfigName "TestIteration" -ConfigValue $testIterationsParamValue -Force $this.ForceCustom
+				Add-SetupConfig -AllTests $AllTests -ConfigName "TestIteration" -ConfigValue $testIterationsParamValue -Force $this.ForceCustom -UpdateName
 			}
 			Add-SetupConfig -AllTests $AllTests -ConfigName "OverrideVMSize" -ConfigValue $this.CustomParams["OverrideVMSize"] -Force $this.ForceCustom
 			Add-SetupConfig -AllTests $AllTests -ConfigName "OsVHD" -ConfigValue $this.CustomParams["OsVHD"] -Force $this.ForceCustom
@@ -386,5 +386,12 @@ Class AzureController : TestController {
 		if (!$this.RunInParallel) {
 			Measure-SubscriptionCapabilities
 		}
+	}
+
+	[void] RunTestCasesInParallel([int] $CountInParallel, [int] $ParallelTimeoutHours) {
+		if ($this.StorageAccount -imatch "^Auto_Complete_RG=.+") {
+			$this.ParamsInParallel.Remove("StorageAccount")
+		}
+		([TestController]$this).RunTestCasesInParallel($CountInParallel, $ParallelTimeoutHours)
 	}
 }
