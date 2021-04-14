@@ -2401,6 +2401,7 @@ Function Copy-VHDToAnotherStorageAccount ($sourceStorageAccount, $sourceStorageC
 	} elseif ($blob -and $srcBlob -and $srcBlob.ICloudBlob.Properties.ContentMD5 -eq $blob.ICloudBlob.Properties.ContentMD5) {
 		Write-LogInfo "The blob is already present in destination account: $destinationStorageAccount, skip copying"
 		$CopyingInProgress = $false
+		$retValue = $true
 	} else {
 		# Start the Copy
 		Write-LogInfo "Copy $vhdName --> $($destContext.StorageAccountName) : Running"
