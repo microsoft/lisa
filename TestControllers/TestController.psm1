@@ -388,7 +388,10 @@ Class TestController {
 		$testName = $currentTestData.TestName
 		$currentTestResult = Create-TestResultObject
 
-		Create-ConstantsFile -FilePath $constantsPath -Parameters $Parameters
+		$ParamsToInsertInConstantsFile = $Parameters
+		$ParamsToInsertInConstantsFile["TestPlatform"] = $global:TestPlatform
+		Create-ConstantsFile -FilePath $constantsPath -Parameters $ParamsToInsertInConstantsFile
+
 		if ($CurrentTestData.SetupConfig.OSType -notcontains "Windows") {
 			foreach ($VM in $VMData) {
 				Copy-RemoteFiles -upload -uploadTo $VM.PublicIP -Port $VM.SSHPort `
