@@ -20,8 +20,9 @@ case $DISTRO in
         echo "gpgcheck=0" | tee -a /etc/yum.repos.d/azurecore.repo
     ;;
     ubuntu*|debian*)
-        release=$(lsb_release -c -s)
-        echo "deb [arch=amd64] http://packages.microsoft.com/repos/azurecore/ $release main" | sudo tee -a /etc/apt/sources.list.d/azure.list
+        echo "deb [arch=amd64] http://packages.microsoft.com/repos/azurecore/ trusty main" | sudo tee -a /etc/apt/sources.list.d/azure.list
+        echo "deb [arch=amd64] http://packages.microsoft.com/repos/azurecore/ xenial main" | sudo tee -a /etc/apt/sources.list.d/azure.list
+        echo "deb [arch=amd64] http://packages.microsoft.com/repos/azurecore/ bionic main" | sudo tee -a /etc/apt/sources.list.d/azure.list
 
         wget -qO - https://packages.microsoft.com/keys/microsoft.asc | apt-key add -
         wget -qO - https://packages.microsoft.com/keys/msopentech.asc | apt-key add -
