@@ -193,6 +193,7 @@ Bring_Up_Nic_With_Private_Ip() {
 		else
 			sleep 30
 			Log_Msg "Try to bring up the nested VM NIC with private IP, left retry times: $retry_times" $log_file
+			Remote_Exec_Wrapper "root" $host_fwd_port "dhclient $NIC_NAME"
 			Remote_Exec_Wrapper "root" $host_fwd_port "ip addr add $ip_addr/24 dev $NIC_NAME && ip link set $NIC_NAME up"
 			Remote_Exec_Wrapper "root" $host_fwd_port "ip addr show dev $NIC_NAME | grep -i $ip_addr/24"
 			exit_status=$?
