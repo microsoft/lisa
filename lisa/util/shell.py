@@ -38,18 +38,22 @@ def wait_tcp_port_ready(
     timout_timer = create_timer()
     while timout_timer.elapsed(False) < timeout:
         with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as tcp_socket:
-            result = tcp_socket.connect_ex((address, port))
-            if result == 0:
-                is_ready = True
-                break
-            else:
-                if times % 10 == 0 and log:
-                    log.debug(
-                        f"cannot connect to TCP port: {port}, error code: {result}, "
-                        f"tried times: {times}, elapsed: {timout_timer}. retrying..."
-                    )
-                sleep(1)
-                times += 1
+            try:
+                result = tcp_socket.connect_ex((address, port))
+                if result == 0:
+                    is_ready = True
+                    break
+                else:
+                    if times % 10 == 0 and log:
+                        log.debug(
+                            f"cannot connect to {address}:{port}, "
+                            f"error code: {result}, tried times: {times},"
+                            f" elapsed: {timout_timer}. retrying..."
+                        )
+                    sleep(1)
+                    times += 1
+            except Exception as e:
+                raise LisaException(f"failed to connect to {address}:{port}: {e}")
     return is_ready, result
 
 
