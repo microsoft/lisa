@@ -180,7 +180,6 @@ echo disk > /sys/power/state
 source utils.sh
 update_repos
 install_package "ethtool stress-ng"
-if [ $? ]
 "@
 		Set-Content "$LogDir\setup.sh" $setupcommand
 		#endregion
