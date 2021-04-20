@@ -130,7 +130,7 @@ class Platform(subclasses.BaseClassWithRunbookMixin, InitializableMixin):
         # features may need platform, so create it in platform
         for node in environment.nodes.list():
             node.features = Features(node, self)
-        log.info(f"deployed with {timer}")
+        log.info(f"deployed in {timer}")
 
     def delete_environment(self, environment: Environment) -> None:
         log = get_logger(f"del[{environment.name}]", parent=self._log)
