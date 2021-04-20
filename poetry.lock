@@ -16,7 +16,7 @@ python-versions = "*"
 
 [[package]]
 name = "asttokens"
-version = "2.0.4"
+version = "2.0.5"
 description = "Annotate AST trees with source code positions"
 category = "main"
 optional = false
@@ -137,7 +137,7 @@ msrest = ">=0.5.0"
 
 [[package]]
 name = "azure-mgmt-resource"
-version = "16.0.0"
+version = "16.1.0"
 description = "Microsoft Azure Resource Management Client Library for Python"
 category = "main"
 optional = false
@@ -146,11 +146,11 @@ python-versions = "*"
 [package.dependencies]
 azure-common = ">=1.1,<2.0"
 azure-mgmt-core = ">=1.2.0,<2.0.0"
-msrest = ">=0.5.0"
+msrest = ">=0.6.21"
 
 [[package]]
 name = "azure-mgmt-storage"
-version = "17.0.0"
+version = "17.1.0"
 description = "Microsoft Azure Storage Management Client Library for Python"
 category = "main"
 optional = false
@@ -159,7 +159,7 @@ python-versions = "*"
 [package.dependencies]
 azure-common = ">=1.1,<2.0"
 azure-mgmt-core = ">=1.2.0,<2.0.0"
-msrest = ">=0.5.0"
+msrest = ">=0.6.21"
 
 [[package]]
 name = "azure-storage-blob"
@@ -1093,8 +1093,8 @@ assertpy = [
     {file = "assertpy-1.1.tar.gz", hash = "sha256:acc64329934ad71a3221de185517a43af33e373bb44dc05b5a9b174394ef4833"},
 ]
 asttokens = [
-    {file = "asttokens-2.0.4-py2.py3-none-any.whl", hash = "sha256:766d3352908730efb20b95ae22db0f1cb1bedb67c6071fcffb5c236ea673f2f7"},
-    {file = "asttokens-2.0.4.tar.gz", hash = "sha256:a42e57e28f2ac1c85ed9b1f84109401427e5c63c04f61d15b8842b027eec5128"},
+    {file = "asttokens-2.0.5-py2.py3-none-any.whl", hash = "sha256:0844691e88552595a6f4a4281a9f7f79b8dd45ca4ccea82e5e05b4bbdb76705c"},
+    {file = "asttokens-2.0.5.tar.gz", hash = "sha256:9a54c114f02c7a9480d56550932546a3f1fe71d8a02f1bc7ccd0ee3ee35cf4d5"},
 ]
 atomicwrites = [
     {file = "atomicwrites-1.4.0-py2.py3-none-any.whl", hash = "sha256:6d1784dea7c0c8d4a5172b6c620f40b6e4cbfdf96d783691f2e1302a7b88e197"},
@@ -1133,12 +1133,12 @@ azure-mgmt-network = [
     {file = "azure_mgmt_network-18.0.0-py2.py3-none-any.whl", hash = "sha256:b57466b74f35a719a65bd3057a72b753fca0984a3c5bc961bf0ec4b77a90102b"},
 ]
 azure-mgmt-resource = [
-    {file = "azure-mgmt-resource-16.0.0.zip", hash = "sha256:0bdbdc9c1ed2ef975d8dff45f358d1e06dc6761eace5b6817f13993447e48a68"},
-    {file = "azure_mgmt_resource-16.0.0-py2.py3-none-any.whl", hash = "sha256:79df0a7805b9f3d9e3d75b4bfbe3bace5408bb400a9dac21fd995fc164237f5a"},
+    {file = "azure-mgmt-resource-16.1.0.zip", hash = "sha256:b814ee27b37f030fe69461ef6f514661340dc8b1f28736362541e1c0d31d90ae"},
+    {file = "azure_mgmt_resource-16.1.0-py2.py3-none-any.whl", hash = "sha256:433cddfb737bbc894698a7c9b07e15b4e0872cf89a54eaf1301d5605b2c4118d"},
 ]
 azure-mgmt-storage = [
-    {file = "azure-mgmt-storage-17.0.0.zip", hash = "sha256:c0e3fd99028d98c80dddabe1c22dfeb3d694e5c1393c6de80766eb240739e4bc"},
-    {file = "azure_mgmt_storage-17.0.0-py2.py3-none-any.whl", hash = "sha256:671a2c57bff42e32e18ea7891d2b81d6dcdbb454fe60dc7be7ab09b92c11fd01"},
+    {file = "azure-mgmt-storage-17.1.0.zip", hash = "sha256:01acb8e988c8082174fa952e1638d700146185644fbe4b126e65843e63d44600"},
+    {file = "azure_mgmt_storage-17.1.0-py2.py3-none-any.whl", hash = "sha256:884ca5bdcb23fc7aaca45dfb1f256155a17d1f632a857c7c5b4396f7b672deee"},
 ]
 azure-storage-blob = [
     {file = "azure-storage-blob-12.8.0.zip", hash = "sha256:36b85a3423379d4a93f663022487cf53aa3043a355f8414321dde878c00cb577"},
