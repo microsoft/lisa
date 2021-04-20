@@ -2472,14 +2472,8 @@ function install_iperf3 () {
 				iperf3_version=3.2
 				iperf3_url=https://github.com/esnet/iperf/archive/$iperf3_version.tar.gz
 				update_repos
-				gcc -v
-				if [ $? -ne 0 ]; then
-					install_package "gcc"
-				fi
-				make -v
-				if [ $? -ne 0 ]; then
-					install_package "make"
-				fi
+				command -v gcc > /dev/null || install_package gcc
+				command -v make > /dev/null || install_package make
 				rm -rf $iperf3_version.tar.gz
 				wget $iperf3_url
 				if [ $? -ne 0 ]; then

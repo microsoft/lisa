@@ -47,30 +47,40 @@ function Main {
 
 		Write-LogInfo "constants.sh created successfully..."
 		#endregion
-
-		#region Add a new swap disk to Azure VM
-		$diskConfig = New-AzDiskConfig -SkuName $storageType -Location $location -CreateOption Empty -DiskSizeGB 1024
-		$dataDisk1 = New-AzDisk -DiskName $dataDiskName -Disk $diskConfig -ResourceGroupName $rgName
-
+		$isDiskAdded = $false
+		$lun = 0
 		$vm = Get-AzVM -Name $vmName -ResourceGroupName $rgName
-		Start-Sleep -seconds 30
-		$vm = Add-AzVMDataDisk -VM $vm -Name $dataDiskName -CreateOption Attach -ManagedDiskId $dataDisk1.Id -Lun 1
-		Start-Sleep -seconds 30
-
-		$ret_val = Update-AzVM -VM $vm -ResourceGroupName $rgName
-		Write-LogInfo "Updated the VM with a new data disk"
-		Write-LogInfo "Waiting for 30 seconds for configuration sync"
-		# Wait for disk sync with Azure host
-		Start-Sleep -seconds 60
-
-		# Verify the new data disk addition
-		if ($ret_val.IsSuccessStatusCode) {
-			Write-LogInfo "Successfully add a new disk to the Resource Group, $($rgName)"
-		} else {
-			Write-LogErr "Failed to add a new disk to the Resource Group, $($rgname)"
-			throw "Failed to add a new disk"
+		foreach($disk in $vm.StorageProfile.DataDisks) {
+			if (($disk.lun -eq $lun) -and ($disk.Name -eq $dataDiskName)) {
+				$isDiskAdded = $true
+				break
+			}
 		}
+		if ($isDiskAdded) {
+			Write-LogInfo "Data disk has already been added"
+		} else {
+			#region Add a new swap disk to Azure VM
+			$diskConfig = New-AzDiskConfig -SkuName $storageType -Location $location -CreateOption Empty -DiskSizeGB 1024
+			$dataDisk1 = New-AzDisk -DiskName $dataDiskName -Disk $diskConfig -ResourceGroupName $rgName
 
+			Start-Sleep -seconds 30
+			$vm = Add-AzVMDataDisk -VM $vm -Name $dataDiskName -CreateOption Attach -ManagedDiskId $dataDisk1.Id -Lun $lun
+			Start-Sleep -seconds 30
+
+			$ret_val = Update-AzVM -VM $vm -ResourceGroupName $rgName
+			Write-LogInfo "Updated the VM with a new data disk"
+			Write-LogInfo "Waiting for 30 seconds for configuration sync"
+			# Wait for disk sync with Azure host
+			Start-Sleep -seconds 60
+
+			# Verify the new data disk addition
+			if ($ret_val.IsSuccessStatusCode) {
+				Write-LogInfo "Successfully add a new disk to the Resource Group, $($rgName)"
+			} else {
+				Write-LogErr "Failed to add a new disk to the Resource Group, $($rgname)"
+				throw "Failed to add a new disk"
+			}
+		}
 		$testcommand = @"
 echo disk > /sys/power/state
 "@
@@ -83,55 +93,59 @@ echo disk > /sys/power/state
 		}
 		#endregion
 
-		# Configuration for the hibernation
-		Run-LinuxCmd -ip $AllVMData.PublicIP -port $AllVMData.SSHPort -username $user -password $password -command "./SetupHbKernel.sh" -RunInBackground -runAsSudo -ignoreLinuxExitCode:$true | Out-Null
-		Write-LogInfo "Executed SetupHbKernel script inside VM"
-
-		# Wait for kernel compilation completion. 90 min timeout
-		$timeout = New-Timespan -Minutes $maxKernelCompileMin
-		$sw = [diagnostics.stopwatch]::StartNew()
-		$vmCount = $AllVMData.Count
-		while ($sw.elapsed -lt $timeout){
-			Wait-Time -seconds 30
-			$state = Run-LinuxCmd -ip $VMData.PublicIP -port $VMData.SSHPort -username $user -password $password -command "cat ~/state.txt"
-			if ($state -eq "TestCompleted") {
-				$kernelCompileCompleted = Run-LinuxCmd -ip $VMData.PublicIP -port $VMData.SSHPort -username $user -password $password -command "cat ~/constants.sh | grep setup_completed=0"
-				if ($kernelCompileCompleted -ne "setup_completed=0") {
-					Write-LogErr "SetupHbKernel.sh run finished on $($VMData.RoleName) but setup was not successful!"
-				} else {
-					Write-LogInfo "SetupHbKernel.sh finished on $($VMData.RoleName)"
-					$vmCount--
-				}
-				break
-			} elseif ($state -eq "TestSkipped") {
-				Write-LogInfo "SetupHbKernel.sh finished with SKIPPED state!"
-				$resultArr = $resultSkipped
-				$currentTestResult.TestResult = Get-FinalResultHeader -resultarr $resultArr
-				return $currentTestResult.TestResult
-			} elseif ($state -eq "TestFailed") {
-				Write-LogErr "SetupHbKernel.sh didn't finish successfully!"
-				$resultArr = $resultFail
-				$currentTestResult.TestResult = Get-FinalResultHeader -resultarr $resultArr
-				return $currentTestResult.TestResult
-			} elseif ($state -eq "TestAborted") {
-				Write-LogInfo "SetupHbKernel.sh finished with Aborted state!"
-				$resultArr = $resultAborted
-				$currentTestResult.TestResult = Get-FinalResultHeader -resultarr $resultArr
-				return $currentTestResult.TestResult
-			} else {
-				Write-LogInfo "SetupHbKernel.sh is still running in the VM!"
-			}
-		}
-		if ($vmCount -le 0){
-			Write-LogInfo "SetupHbKernel.sh is done"
+		$env_setup = Run-LinuxCmd -ip $AllVMData.PublicIP -port $AllVMData.SSHPort -username $user -password $password -command "dmesg | grep -i root= | grep -i resume | wc -l" -runAsSudo
+		if([int]$env_setup -ge 1) {
+			Write-LogInfo "Environment has been set up..."
 		} else {
-			Throw "SetupHbKernel.sh didn't finish in the VM!"
+			# Configuration for the hibernation
+			Run-LinuxCmd -ip $AllVMData.PublicIP -port $AllVMData.SSHPort -username $user -password $password -command "./SetupHbKernel.sh" -RunInBackground -runAsSudo -ignoreLinuxExitCode:$true | Out-Null
+			Write-LogInfo "Executed SetupHbKernel script inside VM"
+
+			# Wait for kernel compilation completion. 90 min timeout
+			$timeout = New-Timespan -Minutes $maxKernelCompileMin
+			$sw = [diagnostics.stopwatch]::StartNew()
+			$vmCount = $AllVMData.Count
+			while ($sw.elapsed -lt $timeout){
+				Wait-Time -seconds 30
+				$state = Run-LinuxCmd -ip $VMData.PublicIP -port $VMData.SSHPort -username $user -password $password -command "cat ~/state.txt"
+				if ($state -eq "TestCompleted") {
+					$kernelCompileCompleted = Run-LinuxCmd -ip $VMData.PublicIP -port $VMData.SSHPort -username $user -password $password -command "cat ~/constants.sh | grep setup_completed=0"
+					if ($kernelCompileCompleted -ne "setup_completed=0") {
+						Write-LogErr "SetupHbKernel.sh run finished on $($VMData.RoleName) but setup was not successful!"
+					} else {
+						Write-LogInfo "SetupHbKernel.sh finished on $($VMData.RoleName)"
+						$vmCount--
+					}
+					break
+				} elseif ($state -eq "TestSkipped") {
+					Write-LogInfo "SetupHbKernel.sh finished with SKIPPED state!"
+					$resultArr = $resultSkipped
+					$currentTestResult.TestResult = Get-FinalResultHeader -resultarr $resultArr
+					return $currentTestResult.TestResult
+				} elseif ($state -eq "TestFailed") {
+					Write-LogErr "SetupHbKernel.sh didn't finish successfully!"
+					$resultArr = $resultFail
+					$currentTestResult.TestResult = Get-FinalResultHeader -resultarr $resultArr
+					return $currentTestResult.TestResult
+				} elseif ($state -eq "TestAborted") {
+					Write-LogInfo "SetupHbKernel.sh finished with Aborted state!"
+					$resultArr = $resultAborted
+					$currentTestResult.TestResult = Get-FinalResultHeader -resultarr $resultArr
+					return $currentTestResult.TestResult
+				} else {
+					Write-LogInfo "SetupHbKernel.sh is still running in the VM!"
+				}
+			}
+			if ($vmCount -le 0){
+				Write-LogInfo "SetupHbKernel.sh is done"
+			} else {
+				Throw "SetupHbKernel.sh didn't finish in the VM!"
+			}
+
+			# Reboot VM to apply swap setup changes
+			Write-LogInfo "Rebooting All VMs!"
+			$TestProvider.RestartAllDeployments($AllVMData)
 		}
-
-		# Reboot VM to apply swap setup changes
-		Write-LogInfo "Rebooting All VMs!"
-		$TestProvider.RestartAllDeployments($AllVMData)
-
 		# Check the VM status before hibernation
 		$vmStatus = Get-AzVM -Name $vmName -ResourceGroupName $rgName -Status
 		if ($vmStatus.Statuses[1].DisplayStatus -eq "VM running") {
