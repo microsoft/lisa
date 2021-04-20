@@ -149,7 +149,12 @@ def try_connect(connection_info: ConnectionInfo) -> Any:
         key_filename=connection_info.private_key_file,
         banner_timeout=10,
     )
-    _, stdout, _ = paramiko_client.exec_command("cmd")
+    stdin, stdout, _ = paramiko_client.exec_command("cmd\n")
+    # flush commands and prevent more writes
+    stdin.flush()
+    stdin.channel.shutdown_write()
+    # give time for it to finish
+    _ = stdout.channel.recv_exit_status()
     paramiko_client.close()
 
     return stdout
