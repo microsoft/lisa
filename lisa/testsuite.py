@@ -451,7 +451,7 @@ class TestSuite:
         except Exception as identifier:
             result = False
             message = f"{method_name}: {identifier}"
-        log.debug(f"{method_name} end with {timer}")
+        log.debug(f"{method_name} end in {timer}")
         return result, message
 
     def __before_case(
@@ -472,7 +472,7 @@ class TestSuite:
             log.error("before_case: ", exc_info=identifier)
             case_result.set_status(TestStatus.SKIPPED, f"before_case: {identifier}")
             result = False
-        log.debug(f"before_case end with {timer}")
+        log.debug(f"before_case end in {timer}")
 
         return result
 
@@ -491,7 +491,7 @@ class TestSuite:
         except Exception as identifier:
             # after case doesn't impact test case result.
             log.error("after_case failed", exc_info=identifier)
-        log.debug(f"after_case end with {timer}")
+        log.debug(f"after_case end in {timer}")
 
     def __run_case(
         self, case_result: TestResult, test_kwargs: Dict[str, Any], log: Logger
@@ -511,7 +511,7 @@ class TestSuite:
             case_result.set_status(TestStatus.PASSED, "")
         except Exception as identifier:
             case_result.handle_exception(exception=identifier, log=log)
-        log.debug(f"case end with {timer}")
+        log.debug(f"case end in {timer}")
 
 
 def get_suites_metadata() -> Dict[str, TestSuiteMetadata]:
