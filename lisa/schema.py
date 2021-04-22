@@ -622,8 +622,6 @@ class RemoteNode(Node):
     private_key_file: str = ""
 
     def __post_init__(self, *args: Any, **kwargs: Any) -> None:
-        add_secret(self.address)
-        add_secret(self.public_address)
         add_secret(self.username, PATTERN_HEADTAIL)
         add_secret(self.password)
         add_secret(self.private_key_file)
