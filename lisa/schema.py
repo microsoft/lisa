@@ -587,33 +587,27 @@ class Capability(NodeSpace):
         self.node_count = 1
 
 
-@dataclass_json()
+@dataclass_json(undefined=Undefined.INCLUDE)
 @dataclass
-class LocalNode(TypedSchema):
-    type: str = field(
-        default=constants.ENVIRONMENTS_NODES_LOCAL,
-        metadata=metadata(
-            required=True,
-            validate=validate.OneOf([constants.ENVIRONMENTS_NODES_LOCAL]),
-        ),
-    )
-    name: str = ""
-    is_default: bool = field(default=False)
+class Node(TypedSchema):
+    type: str
     capability: Capability = field(default_factory=Capability)
+    name: str = ""
+    is_default: bool = field(default=False)
+
+    delay_parsed: CatchAll = field(default_factory=dict)  # type: ignore
 
 
 @dataclass_json()
 @dataclass
-class RemoteNode(TypedSchema):
-    type: str = field(
-        default=constants.ENVIRONMENTS_NODES_REMOTE,
-        metadata=metadata(
-            required=True,
-            validate=validate.OneOf([constants.ENVIRONMENTS_NODES_REMOTE]),
-        ),
-    )
-    name: str = ""
-    is_default: bool = field(default=False)
+class LocalNode(Node):
+    type: str = constants.ENVIRONMENTS_NODES_LOCAL
+
+
+@dataclass_json()
+@dataclass
+class RemoteNode(Node):
+    type: str = constants.ENVIRONMENTS_NODES_REMOTE
     address: str = ""
     port: int = field(
         default=22, metadata=metadata(validate=validate.Range(min=1, max=65535))
@@ -626,7 +620,6 @@ class RemoteNode(TypedSchema):
     username: str = field(default="", metadata=metadata(required=True))
     password: str = ""
     private_key_file: str = ""
-    capability: Capability = field(default_factory=Capability)
 
     def __post_init__(self, *args: Any, **kwargs: Any) -> None:
         add_secret(self.address)
