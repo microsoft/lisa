@@ -6,6 +6,8 @@ variable:
     value: westus2
   - name: reserve_environment
     value: "no"
+  - name: marketplace_image
+    value: ""
 notifier:
   - type: html
 environment:
