@@ -663,9 +663,8 @@ class Environment:
     nodes_requirement: Optional[List[NodeSpace]] = None
 
     def __post_init__(self, *args: Any, **kwargs: Any) -> None:
-        self.nodes: Optional[List[Union[LocalNode, RemoteNode]]] = None
-        if self.nodes_raw is not None:
-            self.nodes = []
+        self.nodes: List[Union[LocalNode, RemoteNode]] = []
+        if self.nodes_raw:
             for node_raw in self.nodes_raw:
                 node_type = node_raw[constants.TYPE]
                 if node_type == constants.ENVIRONMENTS_NODES_LOCAL:
@@ -674,13 +673,9 @@ class Environment:
                     ] = LocalNode.schema().load(  # type:ignore
                         node_raw
                     )
-                    if self.nodes is None:
-                        self.nodes = []
                     self.nodes.append(node)
                 elif node_type == constants.ENVIRONMENTS_NODES_REMOTE:
                     node = RemoteNode.schema().load(node_raw)  # type:ignore
-                    if self.nodes is None:
-                        self.nodes = []
                     self.nodes.append(node)
                 elif node_type == constants.ENVIRONMENTS_NODES_REQUIREMENT:
                     original_req: NodeSpace = NodeSpace.schema().load(  # type:ignore
