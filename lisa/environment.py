@@ -180,17 +180,16 @@ class Environment(ContextMixin, InitializableMixin):
         if not runbook.nodes_requirement and not runbook.nodes:
             raise LisaException("not found any node or requirement in environment")
 
-        if runbook.nodes:
-            for node_runbook in runbook.nodes:
-                environment.nodes.from_existing(
-                    node_runbook=node_runbook,
-                    environment_name=environment.name,
-                    base_log_path=environment.log_path,
-                )
+        for node_runbook in runbook.nodes:
+            environment.nodes.from_existing(
+                node_runbook=node_runbook,
+                environment_name=environment.name,
+                base_log_path=environment.log_path,
+            )
 
-                has_default_node = environment.__validate_single_default(
-                    has_default_node, node_runbook.is_default
-                )
+            has_default_node = environment.__validate_single_default(
+                has_default_node, node_runbook.is_default
+            )
         environment.runbook = runbook
         return environment
 
