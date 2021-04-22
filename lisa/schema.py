@@ -129,6 +129,20 @@ class ExtendableSchemaMixin:
                 # value may be filled outside, so hold and return an object.
                 self._extended_runbook = runbook_type()
 
+            # if there is any extra key, raise exception to help user find it earlier.
+            if self.extended_schemas and len(self.extended_schemas) > 0:
+                expected_extra_count = 0
+                if type_name in self.extended_schemas:
+                    expected_extra_count = 1
+                if len(self.extended_schemas) > expected_extra_count:
+                    extra_names = [
+                        name for name in self.extended_schemas if name != type_name
+                    ]
+                    raise LisaException(
+                        f"unknown keys in extendable schema [{runbook_type.__name__}]: "
+                        f"{extra_names}"
+                    )
+
         return self._extended_runbook
 
     def set_extended_runbook(self, runbook: Any, type_name: str = "") -> None:
