@@ -850,7 +850,7 @@ function Install-CustomLIS ($CustomLIS, $customLISBranch, $allVMData, [switch]$R
 				{
 					if ( (Get-Job -Id $($job.ID)).State -eq "Running" )
 					{
-						$currentStatus = Run-LinuxCmd -ip $job.PublicIP -port $job.SSHPort -username "root" -password $password -command "tail -n 1 build-CustomLIS.txt"
+						$currentStatus = Run-LinuxCmd -ip $job.PublicIP -port $job.SSHPort -username "root" -password $password -command "tail -n 1 build-CustomLIS.txt" -ignoreLinuxExitCode
 						Write-LogInfo "Package Installation Status for $($job.RoleName) : $currentStatus"
 						$packageInstallJobsRunning = $true
 					}
