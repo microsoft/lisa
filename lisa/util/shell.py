@@ -373,7 +373,12 @@ class SshShell(InitializableMixin):
         assert self._inner_shell
         local_path_str = self._purepath_to_str(local_path)
         node_path_str = self._purepath_to_str(node_path)
-        self._inner_shell.put(local_path_str, node_path_str, create_directories=True)
+        self._inner_shell.put(
+            local_path_str,
+            node_path_str,
+            create_directories=True,
+            consistent=self.is_posix,
+        )
 
     def _purepath_to_str(
         self, path: Union[Path, PurePath, str]
