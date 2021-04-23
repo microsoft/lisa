@@ -132,7 +132,7 @@ class RootRunner(Action):
             runbook = copy.copy(self._runbook)
             # keep filters to current runner's only.
             runbook.testcase = parse_testcase_filters(raw_filters)
-            runner = factory.create_by_type_name(runner_name, runbook=runbook)
+            runner = factory.create_by_type_name(type_name=runner_name, runbook=runbook)
 
             self._runners.append(runner)
 
