@@ -5,7 +5,7 @@ from __future__ import annotations
 
 from pathlib import Path, PurePath, PurePosixPath, PureWindowsPath
 from random import randint
-from typing import Any, Iterable, List, Optional, TypeVar, Union, cast
+from typing import Any, Iterable, List, Optional, Type, TypeVar, Union, cast
 
 from lisa import schema
 from lisa.executable import Tools
@@ -18,6 +18,7 @@ from lisa.util import (
     LisaException,
     constants,
     fields_to_dict,
+    subclasses,
 )
 from lisa.util.logger import get_logger
 from lisa.util.process import ExecutableResult, Process
@@ -26,27 +27,23 @@ from lisa.util.shell import ConnectionInfo, LocalShell, Shell, SshShell
 T = TypeVar("T")
 
 
-class Node(ContextMixin, InitializableMixin):
+class Node(subclasses.BaseClassWithRunbookMixin, ContextMixin, InitializableMixin):
+    _factory: Optional[subclasses.Factory[Node]] = None
+
     def __init__(
         self,
+        runbook: schema.Node,
         index: int,
-        capability: schema.NodeSpace,
         logger_name: str,
-        is_remote: bool = True,
-        is_default: bool = False,
         base_log_path: Optional[Path] = None,
     ) -> None:
-        super().__init__()
-        self.is_default = is_default
-        self.is_remote = is_remote
-        self.capability = capability
-        self.name: str = ""
+        super().__init__(runbook=runbook)
+        self.is_default = runbook.is_default
+        self.capability = runbook.capability
+        self.name = runbook.name
         self.index = index
 
-        if self.is_remote:
-            self._shell: Optional[Shell] = None
-        else:
-            self._shell = LocalShell()
+        self._shell: Optional[Shell] = None
 
         # will be initialized by platform
         self.features: Features
@@ -64,59 +61,28 @@ class Node(ContextMixin, InitializableMixin):
         self._support_sudo: Optional[bool] = None
         self._connection_info: Optional[ConnectionInfo] = None
 
-    @staticmethod
+    @classmethod
     def create(
+        cls,
         index: int,
-        capability: schema.NodeSpace,
-        node_type: str = constants.ENVIRONMENTS_NODES_REMOTE,
-        is_default: bool = False,
+        runbook: schema.Node,
         logger_name: str = "node",
         base_log_path: Optional[Path] = None,
     ) -> Node:
-        if node_type == constants.ENVIRONMENTS_NODES_REMOTE:
-            is_remote = True
-        elif node_type == constants.ENVIRONMENTS_NODES_LOCAL:
-            is_remote = False
-        else:
-            raise LisaException(f"unsupported node_type '{node_type}'")
-        node = Node(
-            index,
-            capability=capability,
-            is_remote=is_remote,
-            is_default=is_default,
+        if not cls._factory:
+            cls._factory = subclasses.Factory[Node](Node)
+
+        node = cls._factory.create_by_runbook(
+            index=index,
+            runbook=runbook,
             logger_name=logger_name,
             base_log_path=base_log_path,
         )
-        node.log.debug(f"created, type: '{node_type}', default: {is_default}")
-        return node
 
-    def set_connection_info(
-        self,
-        address: str = "",
-        port: int = 22,
-        public_address: str = "",
-        public_port: int = 22,
-        username: str = "root",
-        password: str = "",
-        private_key_file: str = "",
-    ) -> None:
-        if self._connection_info is not None:
-            raise LisaException(
-                "node is set connection information already, cannot set again"
-            )
-
-        self._connection_info = ConnectionInfo(
-            public_address,
-            public_port,
-            username,
-            password,
-            private_key_file,
+        node.log.debug(
+            f"created, type: '{node.__class__.__name__}', default: {runbook.is_default}"
         )
-        self._shell = SshShell(self._connection_info)
-        self.public_address = public_address
-        self.public_port = public_port
-        self.internal_address = address
-        self.internal_port = port
+        return node
 
     def reboot(self) -> None:
         self.tools[Reboot].reboot()
@@ -177,6 +143,10 @@ class Node(ContextMixin, InitializableMixin):
         return self.os.is_posix
 
     @property
+    def is_remote(self) -> bool:
+        raise NotImplementedError()
+
+    @property
     def support_sudo(self) -> bool:
         self.initialize()
 
@@ -226,27 +196,7 @@ class Node(ContextMixin, InitializableMixin):
     @property
     def remote_working_path(self) -> PurePath:
         if not self._remote_working_path:
-            if self.is_remote:
-                if self.is_posix:
-                    remote_root_path = Path("$HOME")
-                else:
-                    remote_root_path = Path("%TEMP%")
-
-                working_path = remote_root_path.joinpath(
-                    constants.PATH_REMOTE_ROOT, constants.RUN_LOGIC_PATH
-                ).as_posix()
-
-                # expand environment variables in path
-                echo = self.tools[Echo]
-                result = echo.run(working_path, shell=True)
-
-                # PurePath is more reasonable here, but spurplus doesn't support it.
-                if self.is_posix:
-                    self._remote_working_path = PurePosixPath(result.stdout)
-                else:
-                    self._remote_working_path = PureWindowsPath(result.stdout)
-            else:
-                self._remote_working_path = constants.RUN_LOCAL_PATH
+            self._remote_working_path = self._create_local_path()
 
             self.shell.mkdir(self._remote_working_path, parents=True, exist_ok=True)
             self.log.debug(f"working path is: '{self._remote_working_path}'")
@@ -259,14 +209,7 @@ class Node(ContextMixin, InitializableMixin):
             self._shell.close()
 
     def _initialize(self, *args: Any, **kwargs: Any) -> None:
-        if self.is_remote:
-            assert (
-                self._connection_info
-            ), "call setConnectionInfo before use remote node"
-            address = str(self._connection_info)
-        else:
-            address = "(local)"
-        self.log.info(f"initializing node '{self.name}' {address}")
+        self.log.info(f"initializing node '{self.name}' {self}")
         self.shell.initialize()
         self.os: OperatingSystem = OperatingSystem.create(self)
 
@@ -290,6 +233,142 @@ class Node(ContextMixin, InitializableMixin):
             cwd=cwd,
         )
         return process
+
+    def _create_local_path(self) -> PurePath:
+        raise NotImplementedError()
+
+
+class RemoteNode(Node):
+    def __init__(
+        self,
+        runbook: schema.RemoteNode,
+        index: int,
+        logger_name: str,
+        base_log_path: Optional[Path],
+    ) -> None:
+        super().__init__(
+            index=index,
+            runbook=runbook,
+            logger_name=logger_name,
+            base_log_path=base_log_path,
+        )
+
+        if self._runbook.with_connection_info:
+            fields = [
+                constants.ENVIRONMENTS_NODES_REMOTE_ADDRESS,
+                constants.ENVIRONMENTS_NODES_REMOTE_PORT,
+                constants.ENVIRONMENTS_NODES_REMOTE_PUBLIC_ADDRESS,
+                constants.ENVIRONMENTS_NODES_REMOTE_PUBLIC_PORT,
+                constants.ENVIRONMENTS_NODES_REMOTE_USERNAME,
+                constants.ENVIRONMENTS_NODES_REMOTE_PASSWORD,
+                constants.ENVIRONMENTS_NODES_REMOTE_PRIVATE_KEY_FILE,
+            ]
+            parameters = fields_to_dict(self._runbook, fields)
+            self.set_connection_info(**parameters)
+
+    def __repr__(self) -> str:
+        return str(self._connection_info)
+
+    @classmethod
+    def type_name(cls) -> str:
+        return constants.ENVIRONMENTS_NODES_REMOTE
+
+    @classmethod
+    def type_schema(cls) -> Type[schema.TypedSchema]:
+        return schema.RemoteNode
+
+    @property
+    def is_remote(self) -> bool:
+        return True
+
+    def set_connection_info(
+        self,
+        address: str = "",
+        port: int = 22,
+        public_address: str = "",
+        public_port: int = 22,
+        username: str = "root",
+        password: str = "",
+        private_key_file: str = "",
+    ) -> None:
+        if self._connection_info is not None:
+            raise LisaException(
+                "node is set connection information already, cannot set again"
+            )
+
+        self._connection_info = ConnectionInfo(
+            public_address,
+            public_port,
+            username,
+            password,
+            private_key_file,
+        )
+        self._shell = SshShell(self._connection_info)
+        self.public_address = public_address
+        self.public_port = public_port
+        self.internal_address = address
+        self.internal_port = port
+
+    def _initialize(self, *args: Any, **kwargs: Any) -> None:
+        assert self._connection_info, "call setConnectionInfo before use remote node"
+        super()._initialize(*args, **kwargs)
+
+    def _create_local_path(self) -> PurePath:
+        if self.is_posix:
+            remote_root_path = Path("$HOME")
+        else:
+            remote_root_path = Path("%TEMP%")
+
+        working_path = remote_root_path.joinpath(
+            constants.PATH_REMOTE_ROOT, constants.RUN_LOGIC_PATH
+        ).as_posix()
+
+        # expand environment variables in path
+        echo = self.tools[Echo]
+        result = echo.run(working_path, shell=True)
+
+        # PurePath is more reasonable here, but spurplus doesn't support it.
+        if self.is_posix:
+            result_path: PurePath = PurePosixPath(result.stdout)
+        else:
+            result_path = PureWindowsPath(result.stdout)
+        return result_path
+
+
+class LocalNode(Node):
+    def __init__(
+        self,
+        runbook: schema.Node,
+        index: int,
+        logger_name: str,
+        base_log_path: Optional[Path],
+    ) -> None:
+        super().__init__(
+            index=index,
+            runbook=runbook,
+            logger_name=logger_name,
+            base_log_path=base_log_path,
+        )
+
+        self._shell = LocalShell()
+
+    @classmethod
+    def type_name(cls) -> str:
+        return constants.ENVIRONMENTS_NODES_LOCAL
+
+    @classmethod
+    def type_schema(cls) -> Type[schema.TypedSchema]:
+        return schema.LocalNode
+
+    @property
+    def is_remote(self) -> bool:
+        return False
+
+    def _create_local_path(self) -> PurePath:
+        return constants.RUN_LOCAL_PATH
+
+    def __repr__(self) -> str:
+        return "local"
 
 
 class Nodes:
@@ -352,25 +431,18 @@ class Nodes:
 
     def from_existing(
         self,
-        node_runbook: Union[schema.LocalNode, schema.RemoteNode],
+        node_runbook: schema.Node,
         environment_name: str,
         base_log_path: Optional[Path] = None,
     ) -> Node:
-        if isinstance(node_runbook, schema.LocalNode):
-            node = self._from_local(
-                node_runbook,
-                environment_name=environment_name,
-                base_log_path=base_log_path,
-            )
-        else:
-            assert isinstance(
-                node_runbook, schema.RemoteNode
-            ), f"actual: {type(node_runbook)}"
-            node = self._from_remote(
-                node_runbook,
-                environment_name=environment_name,
-                base_log_path=base_log_path,
-            )
+        node = Node.create(
+            index=len(self._list),
+            runbook=node_runbook,
+            logger_name=environment_name,
+            base_log_path=base_log_path,
+        )
+        self._list.append(node)
+
         return node
 
     def from_requirement(
@@ -380,7 +452,8 @@ class Nodes:
         base_log_path: Optional[Path] = None,
     ) -> Node:
         min_requirement = cast(
-            schema.NodeSpace, node_requirement.generate_min_capability(node_requirement)
+            schema.Capability,
+            node_requirement.generate_min_capability(node_requirement),
         )
         assert isinstance(min_requirement.node_count, int), (
             f"must be int after generate_min_capability, "
@@ -388,68 +461,18 @@ class Nodes:
         )
         # node count should be expanded in platform already
         assert min_requirement.node_count == 1, f"actual: {min_requirement.node_count}"
-        node = Node.create(
-            len(self._list),
+        mock_runbook = schema.RemoteNode(
+            type=constants.ENVIRONMENTS_NODES_REMOTE,
             capability=min_requirement,
-            node_type=constants.ENVIRONMENTS_NODES_REMOTE,
             is_default=node_requirement.is_default,
-            logger_name=environment_name,
-            base_log_path=base_log_path,
+            with_connection_info=False,
         )
-        self._list.append(node)
-        return node
-
-    def _from_local(
-        self,
-        node_runbook: schema.LocalNode,
-        environment_name: str,
-        base_log_path: Optional[Path] = None,
-    ) -> Node:
-        assert isinstance(
-            node_runbook, schema.LocalNode
-        ), f"actual: {type(node_runbook)}"
         node = Node.create(
-            len(self._list),
-            capability=node_runbook.capability,
-            node_type=node_runbook.type,
-            is_default=node_runbook.is_default,
+            index=len(self._list),
+            runbook=mock_runbook,
             logger_name=environment_name,
             base_log_path=base_log_path,
         )
         self._list.append(node)
-
-        return node
-
-    def _from_remote(
-        self,
-        node_runbook: schema.RemoteNode,
-        environment_name: str,
-        base_log_path: Optional[Path] = None,
-    ) -> Node:
-        assert isinstance(
-            node_runbook, schema.RemoteNode
-        ), f"actual: {type(node_runbook)}"
-
-        node = Node.create(
-            len(self._list),
-            capability=node_runbook.capability,
-            node_type=node_runbook.type,
-            is_default=node_runbook.is_default,
-            logger_name=environment_name,
-            base_log_path=base_log_path,
-        )
-        self._list.append(node)
-
-        fields = [
-            constants.ENVIRONMENTS_NODES_REMOTE_ADDRESS,
-            constants.ENVIRONMENTS_NODES_REMOTE_PORT,
-            constants.ENVIRONMENTS_NODES_REMOTE_PUBLIC_ADDRESS,
-            constants.ENVIRONMENTS_NODES_REMOTE_PUBLIC_PORT,
-            constants.ENVIRONMENTS_NODES_REMOTE_USERNAME,
-            constants.ENVIRONMENTS_NODES_REMOTE_PASSWORD,
-            constants.ENVIRONMENTS_NODES_REMOTE_PRIVATE_KEY_FILE,
-        ]
-        parameters = fields_to_dict(node_runbook, fields)
-        node.set_connection_info(**parameters)
 
         return node
