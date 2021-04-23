@@ -30,7 +30,7 @@ Schema is dealt with three components,
 
 
 T = TypeVar("T")
-ReserveEnvStatus = Enum("ReserveEnvStatus", ["no", "always", "failed"])
+keep_env_keys = Enum("keep_env_keys", ["no", "always", "failed"])
 
 
 def metadata(
@@ -727,7 +727,7 @@ class Platform(TypedSchema, ExtendableSchemaMixin):
 
     # no/False: means to delete the environment regardless case fail or pass
     # yes/always/True: means to keep the environment regardless case fail or pass
-    reserve_environment: Optional[Union[str, bool]] = False
+    keep_environment: Optional[Union[str, bool]] = False
 
     def __post_init__(self, *args: Any, **kwargs: Any) -> None:
         add_secret(self.admin_username, PATTERN_HEADTAIL)
@@ -743,12 +743,12 @@ class Platform(TypedSchema, ExtendableSchemaMixin):
                     "one of admin_password and admin_private_key_file must be set"
                 )
 
-        if isinstance(self.reserve_environment, str):
-            self.reserve_environment = self.reserve_environment.lower()
-            allow_list = [x for x in ReserveEnvStatus.__members__.keys()]
-            if self.reserve_environment not in allow_list:
+        if isinstance(self.keep_environment, str):
+            self.keep_environment = self.keep_environment.lower()
+            allow_list = [x for x in keep_env_keys.__members__.keys()]
+            if self.keep_environment not in allow_list:
                 raise LisaException(
-                    f"reserve_environment only can be set as one of {allow_list}"
+                    f"keep_environment only can be set as one of {allow_list}"
                 )
 
 

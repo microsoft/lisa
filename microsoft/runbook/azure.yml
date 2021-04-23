@@ -4,7 +4,7 @@ parent:
 variable:
   - name: location
     value: ""
-  - name: reserve_environment
+  - name: keep_environment
     value: "no"
   - name: resource_group_name
     value: ""
@@ -30,7 +30,7 @@ environment:
 platform:
   - type: azure
     admin_private_key_file: $(admin_private_key_file)
-    reserve_environment: $(reserve_environment)
+    keep_environment: $(keep_environment)
     azure:
       resource_group_name: $(resource_group_name)
       deploy: $(deploy)

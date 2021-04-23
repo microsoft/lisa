@@ -111,13 +111,13 @@ class MockPlatform(Platform):
 
 
 def generate_platform(
-    reserve_environment: Optional[Union[str, bool]] = False,
+    keep_environment: Optional[Union[str, bool]] = False,
     admin_password: str = "do not use for real",
     admin_key_file: str = "",
 ) -> MockPlatform:
     runbook_data = {
         constants.TYPE: constants.PLATFORM_MOCK,
-        "reserve_environment": reserve_environment,
+        "keep_environment": keep_environment,
         "admin_password": admin_password,
         "admin_private_key_file": admin_key_file,
     }
