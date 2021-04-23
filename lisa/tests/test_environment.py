@@ -129,6 +129,6 @@ class EnvironmentTestCase(TestCase):
         self.assertEqual(1, len(envs), "get or create again won't create new")
         assert env
         self.assertEqual(0, len(env.nodes))
-        self.assertIsNone(env.runbook.nodes)
+        self.assertSequenceEqual([], env.runbook.nodes)
         assert env.runbook.nodes_requirement
         self.assertEqual(2, len(env.runbook.nodes_requirement))

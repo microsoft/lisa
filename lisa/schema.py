@@ -2,7 +2,7 @@
 # Licensed under the MIT license.
 
 import copy
-from dataclasses import dataclass, field
+from dataclasses import InitVar, dataclass, field
 from enum import Enum
 from typing import Any, Callable, Dict, List, Optional, Type, TypeVar, Union, cast
 
@@ -621,7 +621,21 @@ class RemoteNode(Node):
     password: str = ""
     private_key_file: str = ""
 
+    with_connection_info: InitVar[bool] = True
+
     def __post_init__(self, *args: Any, **kwargs: Any) -> None:
+        if self.delay_parsed:
+            # the self needs to be overridden, since it's saved to delay parsed fields.
+            self.with_connection_info = self.delay_parsed.get(
+                "with_connection_info", True
+            )
+        else:
+            self.with_connection_info = True
+        if self.with_connection_info:
+            # if there is connection info, then validate it.
+            self.update_connection_info()
+
+    def update_connection_info(self) -> None:
         add_secret(self.username, PATTERN_HEADTAIL)
         add_secret(self.password)
         add_secret(self.private_key_file)
@@ -663,21 +677,12 @@ class Environment:
     nodes_requirement: Optional[List[NodeSpace]] = None
 
     def __post_init__(self, *args: Any, **kwargs: Any) -> None:
-        self.nodes: List[Union[LocalNode, RemoteNode]] = []
+        results: List[Node] = []
+
         if self.nodes_raw:
             for node_raw in self.nodes_raw:
                 node_type = node_raw[constants.TYPE]
-                if node_type == constants.ENVIRONMENTS_NODES_LOCAL:
-                    node: Union[
-                        LocalNode, RemoteNode
-                    ] = LocalNode.schema().load(  # type:ignore
-                        node_raw
-                    )
-                    self.nodes.append(node)
-                elif node_type == constants.ENVIRONMENTS_NODES_REMOTE:
-                    node = RemoteNode.schema().load(node_raw)  # type:ignore
-                    self.nodes.append(node)
-                elif node_type == constants.ENVIRONMENTS_NODES_REQUIREMENT:
+                if node_type == constants.ENVIRONMENTS_NODES_REQUIREMENT:
                     original_req: NodeSpace = NodeSpace.schema().load(  # type:ignore
                         node_raw
                     )
@@ -686,8 +691,14 @@ class Environment:
                         self.nodes_requirement = []
                     self.nodes_requirement.extend(expanded_req)
                 else:
-                    raise LisaException(f"unknown node type '{node_type}': {node_raw}")
+                    # load base schema for future parsing
+                    node: Node = Node.schema().load(  # type:ignore
+                        node_raw
+                    )
+                    results.append(node)
             self.nodes_raw = None
+
+        self.nodes = results
 
 
 @dataclass_json()

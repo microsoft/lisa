@@ -1,9 +1,12 @@
 # Copyright (c) Microsoft Corporation.
 # Licensed under the MIT license.
 
+from typing import cast
+
 from assertpy import assert_that
 
 from lisa import Environment, TestCaseMetadata, TestSuite, TestSuiteMetadata
+from lisa.node import RemoteNode
 from lisa.testsuite import simple_requirement
 from lisa.tools import Lscpu, Ntttcp
 
@@ -41,11 +44,11 @@ class MultipleNodesDemo(TestSuite):
     def perf_network_tcp_ipv4_throughput_ntttcp_synthetic_singleconnection(
         self, environment: Environment
     ) -> None:
-        server_node = environment.nodes[0]
+        server_node = cast(RemoteNode, environment.nodes[0])
         self.log.info(
             f"server: {server_node.internal_address}:{server_node.internal_port}"
         )
-        client_node = environment.nodes[1]
+        client_node = cast(RemoteNode, environment.nodes[1])
         self.log.info(
             f"client: {client_node.internal_address}:{client_node.internal_port}"
         )

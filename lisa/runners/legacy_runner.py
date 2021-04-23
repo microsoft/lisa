@@ -72,10 +72,10 @@ class LegacyRunner(BaseRunner):
         super().__init__(*args, **kwargs)
         self.exit_code: int = 0
         # leverage Node logic to run local processes.
+        mock_runbook = schema.LocalNode(capability=schema.Capability())
         self._local = Node.create(
             index=-1,
-            node_type=constants.ENVIRONMENTS_NODES_LOCAL,
-            capability=schema.NodeSpace(),
+            runbook=mock_runbook,
             logger_name="LISAv2",
         )
         self.canceled = False

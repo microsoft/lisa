@@ -4,11 +4,12 @@
 from pathlib import Path
 from typing import Optional
 
-from lisa import Node, TestCaseMetadata, TestSuite, TestSuiteMetadata
+from lisa import TestCaseMetadata, TestSuite, TestSuiteMetadata
 from lisa.environment import EnvironmentStatus
 from lisa.features import SerialConsole
+from lisa.node import RemoteNode
 from lisa.testsuite import simple_requirement
-from lisa.util import LisaException, PassedException
+from lisa.util import LisaException, PassedException, SkippedException
 from lisa.util.perf_timer import create_timer
 from lisa.util.shell import wait_tcp_port_ready
 
@@ -47,8 +48,11 @@ class Provisioning(TestSuite):
             supported_features=[SerialConsole],
         ),
     )
-    def smoke_test(self, case_name: str, node: Node) -> None:
+    def smoke_test(self, case_name: str, node: RemoteNode) -> None:
         case_path: Optional[Path] = None
+
+        if not node.is_remote:
+            raise SkippedException("smoke test cannot run on local node.")
 
         is_ready, tcp_error_code = wait_tcp_port_ready(
             node.public_address, node.public_port, log=self.log, timeout=self.TIME_OUT

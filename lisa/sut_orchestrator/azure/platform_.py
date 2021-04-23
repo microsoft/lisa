@@ -40,7 +40,7 @@ from retry import retry
 from lisa import schema, search_space
 from lisa.environment import Environment
 from lisa.feature import Feature
-from lisa.node import Node
+from lisa.node import Node, RemoteNode
 from lisa.platform_ import Platform
 from lisa.secret import PATTERN_GUID, PATTERN_HEADTAIL, add_secret
 from lisa.sut_orchestrator.azure.tools import Waagent
@@ -609,7 +609,7 @@ class AzurePlatform(Platform):
         if node:
             node_runbook = node.capability.get_extended_runbook(AzureNodeSchema, AZURE)
 
-            # some informations get from two places, so create separated methods to
+            # some information get from two places, so create separated methods to
             # query them.
             try:
                 host_version = self._get_host_version(node)
@@ -1115,6 +1115,8 @@ class AzurePlatform(Platform):
             address = nic.ip_configurations[0].private_ip_address
             if not node.name:
                 node.name = vm_name
+
+            assert isinstance(node, RemoteNode)
             node.set_connection_info(
                 address=address,
                 port=22,
