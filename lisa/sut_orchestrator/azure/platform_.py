@@ -496,12 +496,12 @@ class AzurePlatform(Platform):
                 f"as it's not created by this run."
             )
         elif (
-            self._runbook.reserve_environment == schema.ReserveEnvStatus.always.name
-            or self._runbook.reserve_environment is True
+            self._runbook.keep_environment == schema.keep_env_keys.always.name
+            or self._runbook.keep_environment is True
         ):
             log.info(
                 f"skipped to delete resource group: {resource_group_name}, "
-                f"as runbook set to reserve environment."
+                f"as runbook set to keep environment."
             )
         elif self._azure_runbook.dry_run:
             log.info(
