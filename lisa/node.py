@@ -61,77 +61,6 @@ class Node(subclasses.BaseClassWithRunbookMixin, ContextMixin, InitializableMixi
         self._support_sudo: Optional[bool] = None
         self._connection_info: Optional[ConnectionInfo] = None
 
-    @classmethod
-    def create(
-        cls,
-        index: int,
-        runbook: schema.Node,
-        logger_name: str = "node",
-        base_log_path: Optional[Path] = None,
-    ) -> Node:
-        if not cls._factory:
-            cls._factory = subclasses.Factory[Node](Node)
-
-        node = cls._factory.create_by_runbook(
-            index=index,
-            runbook=runbook,
-            logger_name=logger_name,
-            base_log_path=base_log_path,
-        )
-
-        node.log.debug(
-            f"created, type: '{node.__class__.__name__}', default: {runbook.is_default}"
-        )
-        return node
-
-    def reboot(self) -> None:
-        self.tools[Reboot].reboot()
-
-    def execute(
-        self,
-        cmd: str,
-        shell: bool = False,
-        sudo: bool = False,
-        no_error_log: bool = False,
-        no_info_log: bool = True,
-        cwd: Optional[PurePath] = None,
-        timeout: int = 600,
-    ) -> ExecutableResult:
-        process = self.execute_async(
-            cmd,
-            shell=shell,
-            sudo=sudo,
-            no_error_log=no_error_log,
-            no_info_log=no_info_log,
-            cwd=cwd,
-        )
-        return process.wait_result(timeout=timeout)
-
-    def execute_async(
-        self,
-        cmd: str,
-        shell: bool = False,
-        sudo: bool = False,
-        no_error_log: bool = False,
-        no_info_log: bool = True,
-        cwd: Optional[PurePath] = None,
-    ) -> Process:
-        self.initialize()
-
-        if sudo and not self.support_sudo:
-            raise LisaException(
-                f"node doesn't support [command] or [sudo], cannot execute: {cmd}"
-            )
-
-        return self._execute(
-            cmd,
-            shell=shell,
-            sudo=sudo,
-            no_error_log=no_error_log,
-            no_info_log=no_info_log,
-            cwd=cwd,
-        )
-
     @property
     def shell(self) -> Shell:
         assert self._shell, "Shell is not initialized"
@@ -203,6 +132,77 @@ class Node(subclasses.BaseClassWithRunbookMixin, ContextMixin, InitializableMixi
 
         return self._remote_working_path
 
+    @classmethod
+    def create(
+        cls,
+        index: int,
+        runbook: schema.Node,
+        logger_name: str = "node",
+        base_log_path: Optional[Path] = None,
+    ) -> Node:
+        if not cls._factory:
+            cls._factory = subclasses.Factory[Node](Node)
+
+        node = cls._factory.create_by_runbook(
+            index=index,
+            runbook=runbook,
+            logger_name=logger_name,
+            base_log_path=base_log_path,
+        )
+
+        node.log.debug(
+            f"created, type: '{node.__class__.__name__}', default: {runbook.is_default}"
+        )
+        return node
+
+    def reboot(self) -> None:
+        self.tools[Reboot].reboot()
+
+    def execute(
+        self,
+        cmd: str,
+        shell: bool = False,
+        sudo: bool = False,
+        no_error_log: bool = False,
+        no_info_log: bool = True,
+        cwd: Optional[PurePath] = None,
+        timeout: int = 600,
+    ) -> ExecutableResult:
+        process = self.execute_async(
+            cmd,
+            shell=shell,
+            sudo=sudo,
+            no_error_log=no_error_log,
+            no_info_log=no_info_log,
+            cwd=cwd,
+        )
+        return process.wait_result(timeout=timeout)
+
+    def execute_async(
+        self,
+        cmd: str,
+        shell: bool = False,
+        sudo: bool = False,
+        no_error_log: bool = False,
+        no_info_log: bool = True,
+        cwd: Optional[PurePath] = None,
+    ) -> Process:
+        self.initialize()
+
+        if sudo and not self.support_sudo:
+            raise LisaException(
+                f"node doesn't support [command] or [sudo], cannot execute: {cmd}"
+            )
+
+        return self._execute(
+            cmd,
+            shell=shell,
+            sudo=sudo,
+            no_error_log=no_error_log,
+            no_info_log=no_info_log,
+            cwd=cwd,
+        )
+
     def close(self) -> None:
         self.log.debug("closing node connection...")
         if self._shell:
@@ -269,6 +269,10 @@ class RemoteNode(Node):
     def __repr__(self) -> str:
         return str(self._connection_info)
 
+    @property
+    def is_remote(self) -> bool:
+        return True
+
     @classmethod
     def type_name(cls) -> str:
         return constants.ENVIRONMENTS_NODES_REMOTE
@@ -276,10 +280,6 @@ class RemoteNode(Node):
     @classmethod
     def type_schema(cls) -> Type[schema.TypedSchema]:
         return schema.RemoteNode
-
-    @property
-    def is_remote(self) -> bool:
-        return True
 
     def set_connection_info(
         self,
@@ -352,6 +352,10 @@ class LocalNode(Node):
 
         self._shell = LocalShell()
 
+    @property
+    def is_remote(self) -> bool:
+        return False
+
     @classmethod
     def type_name(cls) -> str:
         return constants.ENVIRONMENTS_NODES_LOCAL
@@ -359,10 +363,6 @@ class LocalNode(Node):
     @classmethod
     def type_schema(cls) -> Type[schema.TypedSchema]:
         return schema.LocalNode
-
-    @property
-    def is_remote(self) -> bool:
-        return False
 
     def _create_local_path(self) -> PurePath:
         return constants.RUN_LOCAL_PATH
