@@ -72,19 +72,17 @@ class Factory(InitializableMixin, Generic[T_BASECLASS], SubClassTypeDict):
         instance = sub_type.schema().load(raw_runbook)  # type: ignore
         return cast(T_BASECLASS, instance)
 
-    def create_by_type_name(
-        self, type_name: str, *args: Any, **kwargs: Any
-    ) -> T_BASECLASS:
+    def create_by_type_name(self, type_name: str, **kwargs: Any) -> T_BASECLASS:
         self.initialize()
         sub_type = self.get(type_name)
         if sub_type is None:
             raise LisaException(
                 f"cannot find subclass '{type_name}' of {self._base_type.__name__}"
             )
-        return cast(T_BASECLASS, sub_type(*args, **kwargs))
+        return cast(T_BASECLASS, sub_type(**kwargs))
 
     def create_by_runbook(
-        self, runbook: schema.TypedSchema, *args: Any, **kwargs: Any
+        self, runbook: schema.TypedSchema, **kwargs: Any
     ) -> T_BASECLASS:
         self.initialize()
         sub_type = self.get(runbook.type)
@@ -93,7 +91,7 @@ class Factory(InitializableMixin, Generic[T_BASECLASS], SubClassTypeDict):
                 f"cannot find subclass '{runbook.type}' of runbook {runbook}"
             )
         sub_type_with_runbook = cast(Type[BaseClassWithRunbookMixin], sub_type)
-        sub_object = sub_type_with_runbook(runbook, *args, **kwargs)
+        sub_object = sub_type_with_runbook(runbook=runbook, **kwargs)
         assert isinstance(
             sub_object, BaseClassWithRunbookMixin
         ), f"actual: {type(sub_object)}"
