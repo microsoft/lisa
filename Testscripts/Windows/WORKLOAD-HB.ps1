@@ -190,6 +190,9 @@ echo disk > /sys/power/state
 		$setupcommand = @"
 source utils.sh
 update_repos
+if [ $DISTRO_NAME == "centos" ] || [ $DISTRO_NAME == "rhel" ] || [ $DISTRO_NAME == "oracle" ]; then
+	install_epel
+fi
 install_package "ethtool stress-ng"
 "@
 		Set-Content "$LogDir\setup.sh" $setupcommand
