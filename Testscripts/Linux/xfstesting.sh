@@ -16,7 +16,7 @@
 XFSTestConfigFile="xfstests-config.config"
 xfs_folder="xfstests"
 dbench_folder="dbench"
-xfs_git_url="git://git.kernel.org/pub/scm/fs/xfs/xfstests-dev.git"
+xfs_git_url="https://github.com/kdave/xfstests.git"
 dbench_git_url="https://github.com/sahlberg/dbench.git"
 excluded_tests="generic/211 generic/430 generic/431 generic/434 /xfs/438 xfs/490 btrfs/007 btrfs/178"
 excluded_cifs="generic/013 generic/014 generic/070 generic/117 generic/430 generic/431 generic/434 generic/438 generic/476"
