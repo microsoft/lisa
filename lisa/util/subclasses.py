@@ -10,15 +10,18 @@ from lisa.util.logger import get_logger
 
 
 class BaseClassWithRunbookMixin(BaseClassMixin):
-    def __init__(self, runbook: schema.TypedSchema, *args: Any, **kwargs: Any) -> None:
+    def __init__(self, runbook: Any, *args: Any, **kwargs: Any) -> None:
         super().__init__()
-        if self.type_schema() != type(runbook):
+        self._runbook = runbook
+
+    @classmethod
+    def create_with_runbook(
+        cls, runbook: schema.TypedSchema, **kwargs: Any
+    ) -> "BaseClassWithRunbookMixin":
+        if cls.type_schema() != type(runbook):
             # reload if type is defined in subclass
-            self._runbook = (
-                self.type_schema().schema().load(runbook.to_dict())  # type:ignore
-            )
-        else:
-            self._runbook = runbook
+            runbook = cls.type_schema().schema().load(runbook.to_dict())  # type:ignore
+        return cls(runbook=runbook, **kwargs)
 
     @classmethod
     def type_schema(cls) -> Type[schema.TypedSchema]:
@@ -91,7 +94,9 @@ class Factory(InitializableMixin, Generic[T_BASECLASS], SubClassTypeDict):
                 f"cannot find subclass '{runbook.type}' of runbook {runbook}"
             )
         sub_type_with_runbook = cast(Type[BaseClassWithRunbookMixin], sub_type)
-        sub_object = sub_type_with_runbook(runbook=runbook, **kwargs)
+        sub_object = sub_type_with_runbook.create_with_runbook(
+            runbook=runbook, **kwargs
+        )
         assert isinstance(
             sub_object, BaseClassWithRunbookMixin
         ), f"actual: {type(sub_object)}"
