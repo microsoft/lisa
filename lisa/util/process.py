@@ -114,7 +114,7 @@ class Process:
                 cwd=cwd_path,
                 update_env=new_envs,
                 allow_error=True,
-                store_pid=True,
+                store_pid=self._is_posix,
                 encoding="utf-8",
             )
             self._running = True
