@@ -53,7 +53,7 @@ class Node(subclasses.BaseClassWithRunbookMixin, ContextMixin, InitializableMixi
         self.log = get_logger(logger_name, node_id)
 
         # The working path will be created in remote node, when it's used.
-        self._remote_working_path: Optional[PurePath] = None
+        self._working_path: Optional[PurePath] = None
         self._base_local_log_path = base_log_path
         # Not to set the log path until its first used. Because the path
         # contains node name, which is not set in __init__.
@@ -123,14 +123,17 @@ class Node(subclasses.BaseClassWithRunbookMixin, ContextMixin, InitializableMixi
         return self._local_log_path
 
     @property
-    def remote_working_path(self) -> PurePath:
-        if not self._remote_working_path:
-            self._remote_working_path = self._create_local_path()
+    def working_path(self) -> PurePath:
+        """
+        The working path may be a remote path on remote node. It uses to put executable.
+        """
+        if not self._working_path:
+            self._working_path = self._create_working_path()
 
-            self.shell.mkdir(self._remote_working_path, parents=True, exist_ok=True)
-            self.log.debug(f"working path is: '{self._remote_working_path}'")
+            self.shell.mkdir(self._working_path, parents=True, exist_ok=True)
+            self.log.debug(f"working path is: '{self._working_path}'")
 
-        return self._remote_working_path
+        return self._working_path
 
     @classmethod
     def create(
@@ -234,7 +237,7 @@ class Node(subclasses.BaseClassWithRunbookMixin, ContextMixin, InitializableMixi
         )
         return process
 
-    def _create_local_path(self) -> PurePath:
+    def _create_working_path(self) -> PurePath:
         raise NotImplementedError()
 
 
@@ -313,7 +316,7 @@ class RemoteNode(Node):
         assert self._connection_info, "call setConnectionInfo before use remote node"
         super()._initialize(*args, **kwargs)
 
-    def _create_local_path(self) -> PurePath:
+    def _create_working_path(self) -> PurePath:
         if self.is_posix:
             remote_root_path = Path("$HOME")
         else:
@@ -364,7 +367,7 @@ class LocalNode(Node):
     def type_schema(cls) -> Type[schema.TypedSchema]:
         return schema.LocalNode
 
-    def _create_local_path(self) -> PurePath:
+    def _create_working_path(self) -> PurePath:
         return constants.RUN_LOCAL_PATH
 
     def __repr__(self) -> str:
