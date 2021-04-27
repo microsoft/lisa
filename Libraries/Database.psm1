@@ -256,7 +256,9 @@ Function Upload-TestResultDataToDatabase ([Array] $TestResultData, [Object] $Dat
 				$queryKey = "INSERT INTO $tableName ("
 				$queryValue = "VALUES ("
 				$newMap = $map
-				$newMap["TestPassID"] = $TestPassID
+				if ($TestPassID) {
+					$newMap["TestPassID"] = $TestPassID
+				}
 				foreach ($key in $newMap.Keys) {
 					$queryKey += "$key,"
 					if (($null -ne $map[$key]) -and ($newMap[$key].GetType().Name -eq "String")) {
