@@ -2,6 +2,7 @@
 # Licensed under the MIT license.
 
 import logging
+import re
 import sys
 import time
 from functools import partial
@@ -30,6 +31,10 @@ class Logger(logging.Logger):
                 temp_content.append(f"{key}: {value}")
             content = temp_content
         for line in content:
+            # We can't afford to let ANSI escape codes trash our
+            # stdout stream
+            ansi_escape = re.compile(r"\x1B(?:[@-Z\\-_]|\[[0-?]*[ -/]*[@-~])")
+            line = ansi_escape.sub("", line)
             if prefix:
                 self.log(level, f"{prefix}{line}")
             else:
