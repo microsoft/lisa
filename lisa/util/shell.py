@@ -154,8 +154,15 @@ def try_connect(connection_info: ConnectionInfo) -> Any:
         banner_timeout=10,
     )
     stdin, stdout, _ = paramiko_client.exec_command("cmd\n")
-    # flush commands and prevent more writes
+    # Flush commands and prevent more writes
     stdin.flush()
+
+    # Give it time to read/buffer something, otherwise reads on stdout
+    # on calling contexts have been seen having empty strings from
+    # stdout, on Windows. There is no moving back, but losing one byte
+    # is not an issue for the function's intent
+    _ = stdout.channel.recv(1)
+
     stdin.channel.shutdown_write()
     paramiko_client.close()
 
