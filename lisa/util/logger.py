@@ -2,6 +2,7 @@
 # Licensed under the MIT license.
 
 import logging
+import re
 import sys
 import time
 from functools import partial
@@ -13,6 +14,10 @@ from lisa.util import LisaException
 # to prevent circular import, hard code it here.
 ENV_KEY_RUN_LOCAL_PATH = "LISA_RUN_LOCAL_PATH"
 DEFAULT_LOG_NAME = "LISA"
+
+# We can't afford to let ANSI escape codes trash our
+# stdout stream
+_ansi_escape = re.compile(r"\x1B(?:[@-Z\\-_]|\[[0-?]*[ -/]*[@-~])")
 
 
 class Logger(logging.Logger):
@@ -30,6 +35,11 @@ class Logger(logging.Logger):
                 temp_content.append(f"{key}: {value}")
             content = temp_content
         for line in content:
+            line = _ansi_escape.sub("", line)
+            # No good in logging empty lines (and they can happen via
+            # SSH stdout)
+            if not line or line.isspace():
+                continue
             if prefix:
                 self.log(level, f"{prefix}{line}")
             else:
