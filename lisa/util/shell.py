@@ -153,8 +153,6 @@ def try_connect(connection_info: ConnectionInfo) -> Any:
     # flush commands and prevent more writes
     stdin.flush()
     stdin.channel.shutdown_write()
-    # give time for it to finish
-    _ = stdout.channel.recv_exit_status()
     paramiko_client.close()
 
     return stdout
