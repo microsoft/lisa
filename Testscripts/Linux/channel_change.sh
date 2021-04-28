@@ -25,7 +25,6 @@ function Main() {
 	# If successful, all cpu_ids in lsvmbus output should be 0 of each channel, and generate
 	# the list of idle cpus
 
-	idle_cpus=()
 	basedir=$(pwd)
 	# restore the original vmbus and cpu id restored in OriginalSource file.
 	OriginalSource=vmbus_cpu.original
@@ -63,13 +62,13 @@ function Main() {
 			sleep 1
 		done < channel_vp_mapping
 	done
-	LogMsg "The list of target CPU: ${idle_cpus[@]}"
 
 	# #######################################################################################
 	# The previous step sets all channels' cpu to 0, so the rest of non-zero cpu can be offline
-	# Select a CPU number where does not associate to vmbus channels from idle_cpus array
 	LogMsg "Change all cpu state from online to offline, and vice versa."
-	for id in ${idle_cpus[@]}; do
+	cpu_index=$(nproc)
+	id=1
+	while [[ $id -lt $cpu_index ]] ; do
 		state=$(cat /sys/devices/system/cpu/cpu$id/online)
 		if [ $state = 1 ]; then
 			LogMsg "Verified the current cpu $id online"
@@ -100,9 +99,13 @@ function Main() {
 			LogErr "Found the currect cpu $id was not online. Expected 1, found $state"
 			failed_count=$((failed_count+1))
 		fi
+		((id++))
 	done
 	LogMsg "Completed the non-assigned cpu state change"
-
+	if [ $failed_count != 0 ]; then
+		LogErr "Failed case counts: $failed_count"
+		SetTestStateFailed
+	fi
 	# ########################################################################
 	# The previous step sets all cpus to online state, but all channels use cpu 0
 	# Assign a random CPU id to the vmbus channel
@@ -148,14 +151,14 @@ function Main() {
 	done < $OriginalSource
 	echo "job_completed=0" >> $basedir/constants.sh
 	LogMsg "Main function job completed"
+	if [ $failed_count == 0 ]; then
+		SetTestStateCompleted
+	else
+		LogErr "Failed case counts: $failed_count"
+		SetTestStateFailed
+	fi
 }
 
 # main body
 Main
-if [ $failed_count == 0 ]; then
-	SetTestStateCompleted
-else
-	LogErr "Failed case counts: $failed_count"
-	SetTestStateFailed
-fi
 exit 0

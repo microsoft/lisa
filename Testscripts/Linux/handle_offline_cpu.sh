@@ -26,25 +26,10 @@ function Main() {
 	# If successful, all cpu_ids in lsvmbus output should be 0 of each channel, and generate
 	# the list of idle cpus
 
-	idle_cpus=()
 	basedir=$(pwd)
 	syn_net_adpt=""
 
-	ethtool --version
-	if [ $? != 0 ]; then
-		install_package ethtool
-		LogMsg "Installing ethtool in the VM"
-		ethtool --version
-		if [ $? != 0 ]; then
-			LogErr "Did not find ethtool and could not install ethtool. Stop the test here"
-			SetTestStateFailed
-			exit 0
-		else
-			LogMsg "Successfully installed ethtool in the VM, and proceed the rest of test steps."
-		fi
-	else
-		LogMsg "Found ethtool in the VM, and proceed the rest of steps."
-	fi
+	command -v ethtool > /dev/null || install_package ethtool
 
 	LogMsg "Change all vmbus channels' cpu id to 0, if non-zero"
 	for _device in /sys/bus/vmbus/devices/*
@@ -65,7 +50,6 @@ function Main() {
 		do
 			LogMsg "vmbus: $_vmbus_ch,		cpu id: $_cpu"
 			if [ $_cpu != 0 ]; then
-				idle_cpus+=($_cpu)
 				# Now reset this cpu id to 0.
 				LogMsg "Set the vmbus channel $_vmbus_ch's cpu to the default cpu, 0"
 				echo 0 > $_device/channels/$_vmbus_ch/cpu
@@ -82,13 +66,13 @@ function Main() {
 			sleep 1
 		done < channel_vp_mapping
 	done
-	LogMsg "The list of target CPU: ${idle_cpus[@]}"
 
 	# #######################################################################################
 	# The previous step sets all channels' cpu to 0, so the rest of non-zero cpu can be offline
-	# Select a CPU number where does not associate to vmbus channels from idle_cpus array
 	LogMsg "Set all online idles cpus to offline."
-	for id in ${idle_cpus[@]}; do
+	cpu_index=$(nproc)
+	id=1
+	while [[ $id -lt $cpu_index ]] ; do
 		state=$(cat /sys/devices/system/cpu/cpu$id/online)
 		if [ $state = 1 ]; then
 			# Set cpu to offline
@@ -103,8 +87,14 @@ function Main() {
 				failed_count=$((failed_count+1))
 			fi
 		fi
+		((id++))
 	done
 
+	if [ $failed_count != 0 ]; then
+		LogErr "Failed case counts: $failed_count"
+		SetTestStateFailed
+		exit 0
+	fi
 	# ########################################################################
 	# The previous steps set all cpus to offline, but all channels use cpu 0
 	# By using ethtool command, it sets new channels
@@ -154,14 +144,15 @@ function Main() {
 	fi
 	echo "job_completed=0" >> $basedir/constants.sh
 	LogMsg "Main function job completed"
+	if [ $failed_count == 0 ]; then
+		SetTestStateCompleted
+	else
+		LogErr "Failed case counts: $failed_count"
+		SetTestStateFailed
+	fi
+
 }
 
 # main body
 Main
-if [ $failed_count == 0 ]; then
-	SetTestStateCompleted
-else
-	LogErr "Failed case counts: $failed_count"
-	SetTestStateFailed
-fi
 exit 0

@@ -194,7 +194,7 @@ done
 		$setupcommand = @"
 source utils.sh
 update_repos
-install_package "fio"
+install_fio
 install_iperf3
 "@
 		Set-Content "$LogDir\setup.sh" $setupcommand
