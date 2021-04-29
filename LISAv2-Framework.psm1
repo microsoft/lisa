@@ -119,7 +119,7 @@ function Start-LISAv2 {
 
 			$maxScopeStrLengh = 40
 			if ($scopeString.Length -gt $maxScopeStrLengh) {
-				$scopeString = $scopeString.Substring(0, $maxScopeStrLengh)
+				$scopeString = $scopeString.Substring(0, $maxScopeStrLengh).Trim("-")
 			}
 
 			$logDir = Join-Path $workingDirectory "TestResults\${testTimestamp}$scopeString-${global:TestId}"
