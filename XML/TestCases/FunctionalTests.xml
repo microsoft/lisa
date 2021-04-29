@@ -18,6 +18,36 @@
     </SetupConfig>
   </test>
   <test>
+    <TestName>VERIFY-DEPLOYMENT-PROVISION-STANDARD-DISK</TestName>
+    <testScript>VERIFY-DEPLOYMENT-PROVISION.ps1</testScript>
+    <files>
+    </files>
+    <Platform>Azure</Platform>
+    <Category>Functional</Category>
+    <Area>PROVISIONING</Area>
+    <Tags>provision</Tags>
+    <Priority>1</Priority>
+    <SetupConfig>
+      <StorageAccountType>Standard_LRS</StorageAccountType>
+      <SetupType>OneVM1Disk</SetupType>
+    </SetupConfig>
+  </test>
+  <test>
+    <TestName>VERIFY-DEPLOYMENT-PROVISION-PREMIUM-DISK</TestName>
+    <testScript>VERIFY-DEPLOYMENT-PROVISION.ps1</testScript>
+    <files>
+    </files>
+    <Platform>Azure</Platform>
+    <Category>Functional</Category>
+    <Area>PROVISIONING</Area>
+    <Tags>provision</Tags>
+    <Priority>1</Priority>
+    <SetupConfig>
+      <StorageAccountType>Premium_LRS</StorageAccountType>
+      <SetupType>OneVM1Disk</SetupType>
+    </SetupConfig>
+  </test>
+  <test>
     <TestName>VERIFY-DEPLOYMENT-PROVISION-EPHEMERAL-MANAGED-DISK</TestName>
     <testScript>VERIFY-DEPLOYMENT-PROVISION.ps1</testScript>
     <files>
