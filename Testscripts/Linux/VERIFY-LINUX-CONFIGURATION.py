@@ -8,7 +8,7 @@ import os.path
 root_bash_hist_file = '/root/.bash_history'
 root_bash_hist_file_default = '/root/default_bash_history'
 
-root_password_verify_result = False
+users_password_verify_result = False
 sshd_config_check_result = False
 last_console_check_result = False
 bash_history_verify_result = False
@@ -56,17 +56,24 @@ def VerifySSHDConfig():
             RunLog.error("ClientAliveInterval is " + ClientAliveIntervalValue + " is not expected.")
 
 
-def VerifyRootPassword():
-    global root_password_verify_result
-    RunLog.info("Checking if root password is deleted or not...")
-
-    passwd_output = Run("cat /etc/shadow | grep root")
-    root_passwd = passwd_output.split(":")[1]
-    if ('*' in root_passwd or '!' in root_passwd):
-        RunLog.info('root password is deleted in /etc/shadow.')
-        root_password_verify_result = True
-    else:
-        RunLog.error('root password not deleted.%s', passwd_output)
+def VerifyUsersPassword():
+    global users_password_verify_result
+    RunLog.info("Checking if users (except for current user) password is deleted or not...")
+    current_user = os.getenv("SUDO_USER")
+    RunLog.info('Current user is %s.' % current_user)
+    passwd_outputs = Run("cat /etc/shadow | grep -v %s" % current_user)
+    for passwd_raw_output in passwd_outputs.splitlines():
+        user_passwd = passwd_raw_output.split(":")[1]
+        user_name = passwd_raw_output.split(":")[0]
+        if ('*' in user_passwd or '!' in user_passwd):
+            RunLog.info('user %s password is deleted in /etc/shadow.' % user_name)
+            users_password_verify_result = True
+        else:
+            RunLog.error('user %s password is not deleted.' % user_name)
+            users_password_verify_result = False
+            print ("USERS_PASSWORD_CHECK_FAIL")
+            return
+    print ("USERS_PASSWORD_CHECK_SUCCESS")
 
 
 def CheckLastConsole(command):
@@ -115,12 +122,12 @@ def VerifyIrqbalanceExist():
 def RunTest():
     UpdateState("TestRunning")
     VerifySSHDConfig()
-    VerifyRootPassword()
+    VerifyUsersPassword()
     CheckLastConsole("dmesg | grep -i 'Kernel command line' | grep -i ' console='")
     VerifyBashHistory()
     VerifyIrqbalanceExist()
 
-    if (root_password_verify_result and sshd_config_check_result and last_console_check_result and bash_history_verify_result and irqbalance_verify_result):
+    if (users_password_verify_result and sshd_config_check_result and last_console_check_result and bash_history_verify_result and irqbalance_verify_result):
         ResultLog.info('PASS')
     else:
         ResultLog.info('FAIL')
