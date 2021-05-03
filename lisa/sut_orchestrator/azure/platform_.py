@@ -695,7 +695,7 @@ class AzurePlatform(Platform):
             template = json.load(f)
         return template
 
-    @retry(tries=2)
+    @retry(tries=10, delay=1, jitter=(0.5, 1))
     def _load_location_info_from_file(
         self, cached_file_name: Path, log: Logger
     ) -> Optional[AzureLocation]:
