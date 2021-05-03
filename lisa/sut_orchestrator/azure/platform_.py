@@ -1018,6 +1018,7 @@ class AzurePlatform(Platform):
         )
         for vm in vms:
             vms_map[vm.name] = vm
+            log.debug(f"  found vm {vm.name}")
         if not vms_map:
             raise LisaException(
                 f"deployment succeeded, but VM not found in 5 minutes "
@@ -1048,6 +1049,12 @@ class AzurePlatform(Platform):
             if node_name_from_nic:
                 name = node_name_from_nic[0]
                 nics_map[name] = nic
+                log.debug(f"  found nic '{name}', and saved for next step.")
+            else:
+                log.debug(
+                    f"  found nic '{nic.name}', but dropped, "
+                    "because it's not primary nic."
+                )
         if not nics_map:
             raise LisaException(
                 f"deployment succeeded, but network interfaces not found in 5 minutes "
@@ -1080,6 +1087,14 @@ class AzurePlatform(Platform):
             if node_name_from_public_ip:
                 name = node_name_from_public_ip[0]
                 public_ips_map[name] = ip_address
+                log.debug(
+                    f"  found public IP '{ip_address.name}', and saved for next step."
+                )
+            else:
+                log.debug(
+                    f"  found public IP '{ip_address.name}', but dropped "
+                    "because it's not primary nic."
+                )
         if not public_ips_map:
             raise LisaException(
                 f"deployment succeeded, but public ips not found in 5 minutes "
@@ -1108,6 +1123,9 @@ class AzurePlatform(Platform):
                 )
             nic = nics_map[vm_name]
             public_ip = public_ips_map[vm_name]
+            assert (
+                public_ip.ip_address
+            ), f"public IP address cannot be empty, public_ip object: {public_ip}"
 
             address = nic.ip_configurations[0].private_ip_address
             if not node.name:
