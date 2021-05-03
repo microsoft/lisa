@@ -142,23 +142,23 @@ def init_logger() -> None:
     sys.stderr = cast(TextIO, LogWriter(stderr_logger, logging.ERROR))
 
 
-def add_stream_handler(
-    stream_handler: logging.StreamHandler,
+def add_handler(
+    handler: logging.Handler,
     logger: Optional[logging.Logger] = None,
     formatter: Optional[logging.Formatter] = None,
 ) -> None:
     if logger is None:
         logger = _get_root_logger()
     # always include details in log file
-    stream_handler.setLevel(logging.DEBUG)
+    handler.setLevel(logging.DEBUG)
     if not formatter:
         formatter = _format
-    stream_handler.setFormatter(formatter)
-    logger.addHandler(stream_handler)
+    handler.setFormatter(formatter)
+    logger.addHandler(handler)
 
 
 def remove_handler(
-    log_handler: logging.StreamHandler, logger: Optional[logging.Logger] = None
+    log_handler: logging.Handler, logger: Optional[logging.Logger] = None
 ) -> None:
     if logger is None:
         logger = _get_root_logger()
@@ -171,7 +171,7 @@ def create_file_handler(
     formatter: Optional[logging.Formatter] = None,
 ) -> logging.FileHandler:
     file_handler = logging.FileHandler(path, "w", "utf-8")
-    add_stream_handler(file_handler, logger, formatter)
+    add_handler(file_handler, logger, formatter)
     return file_handler
 
 
