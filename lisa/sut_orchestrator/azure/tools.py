@@ -34,3 +34,24 @@ class Waagent(Tool):
             result = self.run("-version")
         found_version = find_patterns_in_lines(result.stdout, [self.__version_pattern])
         return found_version[0][0] if found_version[0] else ""
+
+
+class VmGeneration(Tool):
+    """
+    This is a virtual tool to detect VM generation of Hyper-V technology.
+    """
+
+    @property
+    def command(self) -> str:
+        return "ls -lt /sys/firmware/efi"
+
+    def _check_exists(self) -> bool:
+        return True
+
+    def get_generation(self) -> str:
+        cmd_result = self.run()
+        if cmd_result.exit_code == 0:
+            generation = "2"
+        else:
+            generation = "1"
+        return generation

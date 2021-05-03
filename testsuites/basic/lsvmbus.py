@@ -4,6 +4,7 @@ from assertpy import assert_that
 
 from lisa import Environment, Node, TestCaseMetadata, TestSuite, TestSuiteMetadata
 from lisa.operating_system import Windows
+from lisa.sut_orchestrator.azure.tools import VmGeneration
 from lisa.testsuite import simple_requirement
 from lisa.tools import Lscpu, Lsvmbus
 
@@ -56,10 +57,8 @@ class LsVmBus(TestSuite):
         requirement=simple_requirement(unsupported_os=[Windows]),
     )
     def lsvmbus_channel_counting(self, environment: Environment, node: Node) -> None:
-        # get vm generation info
-        environment_information = environment.get_information()
         # get expected vm bus names
-        vmbus_class = VmbusNames(environment_information["vm_generation"] == "1")
+        vmbus_class = VmbusNames("1" == node.tools[VmGeneration].get_generation())
 
         lsvmbus_tool = node.tools[Lsvmbus]
         vmbus_list = lsvmbus_tool.get_vmbuses()
