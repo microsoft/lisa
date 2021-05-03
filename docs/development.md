@@ -3,15 +3,16 @@
 This document describes the existing developer tooling we have in place (and what to
 expect of it), as well as our design and development philosophy.
 
-- [Understand LISA](#understand-lisa)
-- [Environment Setup](#environment-setup)
-  - [Visual Studio Code](#visual-studio-code)
-  - [Emacs](#emacs)
-  - [Other setups](#other-setups)
-- [Code guideline](#code-guideline)
-  - [Naming Conventions](#naming-conventions)
-  - [Code checks](#code-checks)
-- [Extended reading](#extended-reading)
+- [Development Guideline](#development-guideline)
+  - [Understand LISA](#understand-lisa)
+  - [Environment Setup](#environment-setup)
+    - [Visual Studio Code](#visual-studio-code)
+    - [Emacs](#emacs)
+    - [Other setups](#other-setups)
+  - [Code guideline](#code-guideline)
+    - [Naming Conventions](#naming-conventions)
+    - [Code checks](#code-checks)
+  - [Extended reading](#extended-reading)
 
 ## Understand LISA
 
@@ -23,41 +24,69 @@ It depends on your contribution to LISA, you may need to learn more about LISA. 
 
 ## Environment Setup
 
-Follow the [instal](install.md) steps to prepare the source code. Then follow the steps below to set up the corresponding development environment.
+Follow the [installation](install.md) steps to prepare the source code. Then follow
+the steps below to set up the corresponding development environment.
 
 ### Visual Studio Code
 
-First, click on the Python version at the bottom left of the editor's
+1. Click on the Python version at the bottom left of the editor's
 window and enter the path where the above command was issued. This
-will point the currenly workspace to use the correct Poetry virtual
+will point the current workspace to use the correct Poetry virtual
 environment.
 
-Make sure below settings are in root level of `.vscode/settings.json`.
+1. Make sure below settings are in root level of `.vscode/settings.json`.
 
-```json
-{
-    "python.analysis.typeCheckingMode": "strict",
-    "python.formatting.provider": "black",
-    "python.linting.enabled": true,
-    "python.linting.flake8Enabled": true,
-    "python.linting.mypyEnabled": true,
-    "python.linting.pylintEnabled": false,
-    "editor.formatOnSave": true,
-    "python.linting.mypyArgs": [
-        "--strict",
-        "--namespace-packages",
-        "--implicit-reexport",
-        "--show-column-numbers"
-    ],
-    "python.sortImports.path": "isort",
-    "python.analysis.useLibraryCodeForTypes": false,
-    "python.analysis.autoImportCompletions": false,
-    "files.eol": "\n",
-    "terminal.integrated.env.windows": {
-        "mypypath": "${workspaceFolder}\\typings"
-    },
-}
-```
+    ```json
+    {
+        "python.analysis.typeCheckingMode": "strict",
+        "python.formatting.provider": "black",
+        "python.linting.enabled": true,
+        "python.linting.flake8Enabled": true,
+        "python.linting.mypyEnabled": true,
+        "python.linting.pylintEnabled": false,
+        "editor.formatOnSave": true,
+        "python.linting.mypyArgs": [
+            "--strict",
+            "--namespace-packages",
+            "--implicit-reexport",
+            "--show-column-numbers"
+        ],
+        "python.sortImports.path": "isort",
+        "python.analysis.useLibraryCodeForTypes": false,
+        "python.analysis.autoImportCompletions": false,
+        "files.eol": "\n",
+        "terminal.integrated.env.windows": {
+            "mypypath": "${workspaceFolder}\\typings"
+        },
+        "python.analysis.diagnosticSeverityOverrides": {
+            "reportUntypedClassDecorator": "none",
+            "reportUnknownMemberType": "none",
+            "reportGeneralTypeIssues": "none",
+            "reportUnknownVariableType": "none",
+            "reportUnknownArgumentType": "none",
+            "reportUnknownParameterType": "none",
+            "reportUnboundVariable": "none",
+            "reportPrivateUsage": "none",
+            "reportImportCycles": "none"
+        },
+        "python.languageServer": "Pylance",
+        "python.pythonPath": "<python path>\\python.exe",
+    }
+    ```
+
+1. Replace `python.pythonPath` to the used Python path in above setting.
+
+1. Install extensions.
+
+   - Install
+     [Pylance](https://marketplace.visualstudio.com/items?itemName=ms-python.vscode-pylance)
+     to get best code intelligence experience.
+   - Install [Rewrap](https://marketplace.visualstudio.com/items?itemName=stkb.rewrap)
+     to automatically wrap.
+   - If there is need to update the documentation, it is recommended to install
+     [Markdown All in
+     One](https://marketplace.visualstudio.com/items?itemName=yzhang.markdown-all-in-one).
+     It helps to maintain the table of contents in the documentation.
 
 ### Emacs
 
@@ -81,14 +110,6 @@ Then run `M-x add-dir-local-variable RET python-mode RET pyvenv-activate RET <pa
 ### Other setups
 
 - Install and enable [ShellCheck](https://github.com/koalaman/shellcheck) to find bash errors locally.
-- If there is need to update the documentation, it is recommended to
-  install the extension [Markdown All in
-  One](https://marketplace.visualstudio.com/items?itemName=yzhang.markdown-all-in-one).
-  It helps to maintain the table of contents in the documentation.
-- While the black formatter does not handle long comments and the like
-  well (https://github.com/psf/black/issues/1331), you might want to
-  use the VSCode extension "Rewrap" manually, instead
-  (https://marketplace.visualstudio.com/items?itemName=stkb.rewrap).
 
 ## Code guideline
 
