@@ -43,7 +43,7 @@ from lisa.feature import Feature
 from lisa.node import Node, RemoteNode
 from lisa.platform_ import Platform
 from lisa.secret import PATTERN_GUID, PATTERN_HEADTAIL, add_secret
-from lisa.sut_orchestrator.azure.tools import Waagent
+from lisa.sut_orchestrator.azure.tools import VmGeneration, Waagent
 from lisa.tools import Dmesg, Modinfo
 from lisa.util import (
     LisaException,
@@ -536,10 +536,7 @@ class AzurePlatform(Platform):
         information["lis_version"] = modinfo.get_version("hv_vmbus")
 
         node.log.debug("detecting vm generation...")
-        information[KEY_VM_GENERATION] = "1"
-        cmd_result = node.execute(cmd="ls -lt /sys/firmware/efi", no_error_log=True)
-        if cmd_result.exit_code == 0:
-            information[KEY_VM_GENERATION] = "2"
+        information[KEY_VM_GENERATION] = node.tools[VmGeneration].get_generation()
         node.log.debug(f"vm generation: {information[KEY_VM_GENERATION]}")
 
         return information
