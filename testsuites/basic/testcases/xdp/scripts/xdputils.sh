@@ -66,13 +66,13 @@ function download_pktgen_scripts(){
     local dir=$2
     local cores=$3
     if [ "${cores}" = "multi" ];then
-        ssh $ip "wget https://git.kernel.org/pub/scm/linux/kernel/git/stable/linux.git/plain/samples/pktgen/pktgen_sample05_flow_per_thread.sh?h=v5.7.8 -O ${dir}/pktgen_sample.sh"
+        ssh $(whoami)@${ip} "wget https://git.kernel.org/pub/scm/linux/kernel/git/stable/linux.git/plain/samples/pktgen/pktgen_sample05_flow_per_thread.sh?h=v5.7.8 -O ${dir}/pktgen_sample.sh"
     else
-        ssh $ip "wget https://git.kernel.org/pub/scm/linux/kernel/git/stable/linux.git/plain/samples/pktgen/pktgen_sample01_simple.sh?h=v5.7.8 -O ${dir}/pktgen_sample.sh"
+        ssh $(whoami)@${ip} "wget https://git.kernel.org/pub/scm/linux/kernel/git/stable/linux.git/plain/samples/pktgen/pktgen_sample01_simple.sh?h=v5.7.8 -O ${dir}/pktgen_sample.sh"
     fi
-    ssh $ip "wget https://git.kernel.org/pub/scm/linux/kernel/git/stable/linux.git/plain/samples/pktgen/functions.sh?h=v5.7.8 -O ${dir}/functions.sh"
-    ssh $ip "wget https://git.kernel.org/pub/scm/linux/kernel/git/stable/linux.git/plain/samples/pktgen/parameters.sh?h=v5.7.8 -O ${dir}/parameters.sh"
-    ssh $ip "chmod +x ${dir}/*.sh"
+    ssh $(whoami)@${ip} "wget https://git.kernel.org/pub/scm/linux/kernel/git/stable/linux.git/plain/samples/pktgen/functions.sh?h=v5.7.8 -O ${dir}/functions.sh"
+    ssh $(whoami)@${ip} "wget https://git.kernel.org/pub/scm/linux/kernel/git/stable/linux.git/plain/samples/pktgen/parameters.sh?h=v5.7.8 -O ${dir}/parameters.sh"
+    ssh $(whoami)@${ip} "chmod +x ${dir}/*.sh"
 }
 
 function start_pktgen(){
@@ -86,13 +86,13 @@ function start_pktgen(){
     if [ "${cores}" = "single" ];then
         startCommand="cd ${pktgenDir} && ./pktgen_sample.sh -i ${nicName} -m ${forwarderSecondMAC} -d ${forwarderSecondIP} -v -n${packetCount}"
         LogMsg "Starting pktgen on sender: $startCommand"
-        ssh ${sender} "modprobe pktgen; lsmod | grep pktgen"
-        result=$(ssh ${sender} "${startCommand}")
+        ssh $(whoami)@${sender} "modprobe pktgen; lsmod | grep pktgen"
+        result=$(ssh $(whoami)@${sender} "${startCommand}")
     else
         startCommand="cd ${pktgenDir} && ./pktgen_sample.sh -i ${nicName} -m ${forwarderSecondMAC} -d ${forwarderSecondIP} -v -n${packetCount} -t8"
         LogMsg "Starting pktgen on sender: ${startCommand}"
-        ssh ${sender} "modprobe pktgen; lsmod | grep pktgen"
-        result=$(ssh ${sender} "${startCommand}")
+        ssh $(whoami)@${sender} "modprobe pktgen; lsmod | grep pktgen"
+        result=$(ssh $(whoami)@${sender} "${startCommand}")
     fi
     pktgenResult=$result
     LogMsg "pktgen result: $pktgenResult"
@@ -103,7 +103,7 @@ function start_xdpdump(){
     local nicName=$2
     xdpdumpCommand="cd bpf-samples/xdpdump && ./xdpdump -i ${nicName} > ~/xdpdumpout_${ip}.txt"
     LogMsg "Starting xdpdump on ${ip} with command: ${xdpdumpCommand}"
-    ssh -f ${ip} "sh -c '${xdpdumpCommand}'"
+    ssh -f $(whoami)@${ip} "sh -c '${xdpdumpCommand}'"
 }
 
 # Helper Function
@@ -194,7 +194,7 @@ function check_xdp_support {
     local install_ip="${1}"
     local nic_name="${2}"
     command="ethtool -S ${nic_name}  | grep xdp_drop | wc -l"
-    xdp_counter="$(ssh ${install_ip} $command)"
+    xdp_counter="$(ssh $(whoami)@${install_ip} $command)"
     if [ $xdp_counter -gt 0 ]; then
         LogMsg "Kernel version supports XDP"
     else

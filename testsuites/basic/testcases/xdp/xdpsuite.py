@@ -23,7 +23,6 @@ NIC_NAMES = ["eth0", "eth1", "eth2"]
     description="""
     This test suite run XDP Testcases.
     """,
-    tags=["sriov", "networking", "xdp"],  # TODO: remove tags from suites and tests
     requirement=simple_requirement(unsupported_os=[Windows]),
 )
 class xdpdump(TestSuite):
@@ -60,29 +59,30 @@ class xdpdump(TestSuite):
     def verify_xdp_compliance(self, environment: Environment, node: Node) -> None:
         script: CustomScript = node.tools[self._xdp_script]
         # Get Extra NIC name
+
         self.setup_xdpdump(environment, [node])
 
-        synth_interface = node.execute(
-            "bash -c 'source ./xdputils.sh;get_extra_synth_nic'",
-            cwd=script.get_tool_path(),
-        )
-        self.log.info(synth_interface.stdout)
-        # Start setup script with parameters
-        result = script.run(
-            f"./xdpdumpsetup.sh {node.internal_address} {synth_interface}"
-        )
+        # synth_interface = node.execute(
+        #     "bash -c 'source ./xdputils.sh;get_extra_synth_nic'",
+        #     cwd=script.get_tool_path(),
+        # )
+        # self.log.info(synth_interface.stdout)
+        # # Start setup script with parameters
+        # result = script.run(
+        #     f"./xdpdumpsetup.sh {node.internal_address} {synth_interface}"
+        # )
 
-        # TODO: Download remote log files
-        # self.log.info(node.execute("ls -la", cwd=script.get_tool_path()).stdout)
-        state = script.run("cat state.txt")
-        self.log.info(f"Final state after test execution:{state}")
+        # # TODO: Download remote log files
+        # # self.log.info(node.execute("ls -la", cwd=script.get_tool_path()).stdout)
+        # state = script.run("cat state.txt")
+        # self.log.info(f"Final state after test execution:{state}")
 
-        self.log.info("Check result")
-        # TODO: Handle Skip test result
-        assert_that(state.stdout).is_equal_to("TestCompleted")
-        assert_that(
-            result.exit_code, "xdpdumpsetup.sh script exit code should be 0"
-        ).is_zero()  # TODO: description decl
+        # self.log.info("Check result")
+        # # TODO: Handle Skip test result
+        # assert_that(state.stdout).is_equal_to("TestCompleted")
+        # assert_that(
+        #     result.exit_code, "xdpdumpsetup.sh script exit code should be 0"
+        # ).is_zero()  # TODO: description decl
 
     @TestCaseMetadata(
         description="""
@@ -426,26 +426,24 @@ class xdpdump(TestSuite):
         return origin.execute_async(f'bash -c "{ping_cmd}"')
 
     def run_xdp_ping(self, origin: Node, dest_ip: str, nic_name: str, log_suffix: str):
-        ping_process = self.run_ping_cmd(origin, dest_ip, nic_name, log_suffix)
+        ping_process = self.run_ping_cmd(origin, degst_ip, nic_name, log_suffix)
         xdp_process = self.run_xdpdump_cmd(origin, nic_name, log_suffix)
         return xdp_process, ping_process
 
-    def setup_xdpdump(
-        self, environment: Environment, nodes: list[Node]
-    ):  # TODO type parameters
+    def setup_xdpdump(self, environment: Environment, nodes: list[Node]):
         for node in nodes:
-            pass
             self.log.info("Setting up environment before test case")
             script: CustomScript = node.tools[self._xdp_script]
             # setup constants.sh
-            self.generate_constants_sh(
-                environment,
-                {"nicName": NIC_NAMES[0], "ip": f'"{node.internal_address}"'},
-            )
+            # self.upload_constants_sh(
+            #     environment,
+            #     node,
+            #     {"nicName": NIC_NAMES[0], "ip": f'"{node.internal_address}"'},
+            # )
             synth_interface = script.run(
                 "bash -c 'source ./xdputils.sh;get_extra_synth_nic'"
             ).stdout
-            self.log.info(synth_interface)
+            self.log.info("synth interface: " + synth_interface)
             assert_that(synth_interface).is_not_none()
             assert_that(synth_interface).described_as(
                 "output should not be empty"
@@ -453,19 +451,18 @@ class xdpdump(TestSuite):
 
             # Start setup script with parameters
             result = script.run(
-                f"./xdpdumpsetup.sh {node.internal_address} {synth_interface}",
-                sudo=True,
+                f"./xdpdumpsetup.sh {node.internal_address} {synth_interface}"
             )
             assert_that(result.exit_code).described_as(
                 "xdpdump did not terminate correctly, check xdpdumpout.txt for more info"
             ).is_zero()
             self.log.info(result.stdout)
-            self.log.info(node.execute("bash -c 'cat ~/xdpdumpout.txt'").stdout)
-            result = script.run(
-                f"bash -c 'source ./utils.sh; collect_VM_properties ~/VM_Properties.csv'"
-            )
-            self.log.info(result.stdout)
-            self.log.info(
-                "found vm_properties:\n"
-                + node.execute("bash -c 'cat ~/VM_Properties.csv'").stdout
-            )
+            # self.log.info(node.execute("bash -c 'cat ~/xdpdumpout.txt'").stdout)
+            # result = script.run(
+            #     f"bash -c 'source ./utils.sh; collect_VM_properties ~/VM_Properties.csv'"
+            # )
+            # self.log.info(result.stdout)
+            # self.log.info(
+            #     "found vm_properties:\n"
+            #     + node.execute("bash -c 'cat ~/VM_Properties.csv'").stdout
+            # )
