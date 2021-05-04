@@ -18,9 +18,9 @@ function Run_XDPDump {
 
     # https://lore.kernel.org/lkml/1579558957-62496-3-git-send-email-haiyangz@microsoft.com/t/
     LogMsg "XDP program cannot run with LRO (RSC) enabled, disable LRO before running XDP"
-    Run_SSHCommand ${install_ip} "ethtool -K ${nic_name} lro off"
+    Run_SSHCommand ${install_ip} "sudo ethtool -K ${nic_name} lro off"
     LogMsg "$(date): Starting xdpdump for 10 seconds"
-    Run_SSHCommand ${install_ip} "cd bpf-samples/xdpdump && timeout 10 ./xdpdump -i ${nic_name} > ~/xdpdumpout.txt 2>&1"
+    Run_SSHCommand ${install_ip} "cd bpf-samples/xdpdump && timeout 10 sudo ./xdpdump -i ${nic_name} > ~/xdpdumpout.txt 2>&1"
     check_exit_status "$(date): run xdpdump on ${install_ip}" "exit"
 
     LogMsg "Executing command Run_SSHCommand ${install_ip} 'tail -1 ~/xdpdumpout.txt'"
@@ -75,10 +75,10 @@ LogMsg "Installing XDP Dependencies on ${ip}"
 Install_XDP_Dependencies ${ip}
 
 LogMsg "Installing XDP Dump on ${ip}"
-#Install_XDPDump ${ip}
+Install_XDPDump ${ip}
 
 LogMsg "Run XDP Dump on ${ip}"
-#Run_XDPDump ${ip} ${nicName}
+Run_XDPDump ${ip} ${nicName}
 
 # check xdpdumpout.txt content for error
 SetTestStateCompleted

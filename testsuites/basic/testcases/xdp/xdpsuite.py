@@ -432,7 +432,50 @@ class xdpdump(TestSuite):
         xdp_process = self.run_xdpdump_cmd(origin, nic_name, log_suffix)
         return xdp_process, ping_process
 
+    def generate_keys_paths(
+        self, environment: Environment, node: Node
+    ) -> tuple[Path, Path]:
+        local_path = environment.log_path.joinpath("keys.tgz.b64")
+        remote_path = node.remote_working_path.joinpath("keys.tgz.b64")
+        return local_path, remote_path
+
+    def copy_and_install_keys_to_node(self, environment: Environment, node: Node):
+        local_path, remote_path = self.generate_keys_paths(environment, node)
+        node.shell.copy(local_path, remote_path)
+        result = node.execute("bash -c 'ls -la '", cwd=node.remote_working_path)
+        self.log.info(result.stdout)
+        result = node.execute(
+            f"bash -c 'cat keys.tgz.b64 | base64 -d --ignore-garbage | tar -xzvf -'",
+            cwd=node.remote_working_path,
+        )
+        self.log.debug(result.stdout)
+        result = node.execute(
+            "bash -c 'ssh-agent ssh-add'", cwd=node.remote_working_path
+        )
+        self.log.info(result.stdout)
+
+    def setup_keys_on_main_node(self, environment: Environment, node: Node) -> None:
+        result = node.execute("bash -c 'echo | ssh-keygen -N \"\"'")
+        self.log.info(result.stdout)
+        result = node.execute("bash -c 'ls -la ~/.ssh'")
+        self.log.info(result.stdout)
+        result = node.execute("bash -c 'ssh-agent ssh-add'")
+        self.log.info(result.stdout)
+        result = node.execute(
+            "bash -c 'tar -czvf ~/keys.tgz ~/.ssh/id_rsa ~/.ssh/id_rsa.pub'"
+        )
+        self.log.info(result.stdout)
+        result = node.execute("bash -c 'cat ~/keys.tgz | base64' ")
+        self.log.info(result.stdout)
+        local_path, remote_path = self.generate_keys_paths(environment, node)  # type: ignore
+        with open(str(local_path), "wb") as keyfile:
+            keyfile.write(result.stdout.encode("ascii"))
+
     def setup_xdpdump(self, environment: Environment, nodes: list[Node]):
+        main_node = nodes[0]
+        self.setup_keys_on_main_node(environment, main_node)
+        for node in nodes:
+            self.copy_and_install_keys_to_node(environment, node)
         for node in nodes:
             self.log.info("Setting up environment before test case")
             script: CustomScript = node.tools[self._xdp_script]
@@ -452,45 +495,21 @@ class xdpdump(TestSuite):
                 "output should not be empty"
             ).is_not_equal_to("")
 
-            result = node.execute("bash -c 'whoami && echo | ssh-keygen -N \"\"'")
-            self.log.info(result.stdout)
-            result = node.execute("bash -c 'ls -la ~/.ssh'")
-            self.log.info(result.stdout)
-            result = node.execute("bash -c 'ssh-agent ssh-add'")
-            self.log.info(result.stdout)
-            result = node.execute(
-                "bash -c 'tar -czvf ~/keys.tgz ~/.ssh/id_rsa ~/.ssh/id_rsa.pub'"
-            )
-            self.log.info(result.stdout)
-            result = node.execute("bash -c 'cat ~/keys.tgz | base64' ")
-            self.log.info(result.stdout)
-            local_path = environment.log_path.joinpath("keys.tgz.b64")
-            with open(str(local_path), "wb") as keyfile:
-                keyfile.write(result.stdout.encode("ascii"))
-            remote_path = node.remote_working_path.joinpath("keys.tgz.b64")
-            node.shell.copy(local_path, remote_path)
-            result = node.execute("bash -c 'ls -la '", cwd=node.remote_working_path)
-            self.log.info(result.stdout)
-            result = node.execute(
-                f"bash -c 'cat keys.tgz.b64 | base64 -d --ignore-garbage | tar -xzvf -'",
-                cwd=node.remote_working_path,
-            )
-            self.log.debug(result.stdout)
-            result = node.execute(
-                "bash -c 'ssh-agent ssh-add'", cwd=node.remote_working_path
-            )
-            self.log.info(result.stdout)
             # Start setup script with parameters
             result = node.execute(
                 f"./xdpdumpsetup.sh {node.internal_address} {synth_interface}",
                 cwd=script.get_tool_path(),
             )
             self.log.info(result.stdout)
+            self.log.info(
+                node.execute(
+                    "bash -c 'cat ~/xdpdumpout.txt'", cwd=script.get_tool_path()
+                ).stdout
+            )
 
             assert_that(result.exit_code).described_as(
                 "xdpdump did not terminate correctly, check xdpdumpout.txt for more info"
             ).is_zero()
-            self.log.info(node.execute("bash -c 'cat ~/xdpdumpout.txt'").stdout)
             result = node.execute(
                 f"bash -c 'source ./utils.sh; collect_VM_properties ~/VM_Properties.csv'",
                 cwd=script.get_tool_path(),

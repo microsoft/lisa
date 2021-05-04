@@ -139,7 +139,7 @@ function Install_XDP_Dependencies(){
             REPO_NAME="deb http://apt.llvm.org/$UBUNTU_CODENAME/   llvm-toolchain-$UBUNTU_CODENAME$LLVM_VERSION  main"
 
             Run_SSHCommand ${install_ip} "wget -o - https://apt.llvm.org/llvm-snapshot.gpg.key | sudo apt-key add -"
-            Run_SSHCommand ${install_ip} "apt-add-repository \"${REPO_NAME}\""
+            Run_SSHCommand ${install_ip} "sudo apt-add-repository \"${REPO_NAME}\""
             LogMsg "INFO: Updating apt repos with (${REPO_NAME})"
             Run_SSHCommand ${install_ip} ". utils.sh && CheckInstallLockUbuntu && update_repos"
             Run_SSHCommand ${install_ip} ". utils.sh && CheckInstallLockUbuntu && install_package \"clang llvm libelf-dev build-essential libbpfcc-dev\""
@@ -186,22 +186,21 @@ function Install_XDPDump(){
 
 # Check if kernel supports XDP or not
 function check_xdp_support {
-    if [ -z "${1}" -o -z "${2}" ]; then
-        LogErr "ERROR: must provide install ip and NIC Name to check_xdp_support"
-        SetTestStateAborted
+    if [ -f /boot/config-$(uname -r) ]
+    then
+        cat /boot/config-$(uname -r) | grep CONFIG_XDP_SOCKETS=y
+        if [ $? == 1 ]
+        then
+            LogMsg "XDP support is disabled in this kernel, CONFIG_XDP_SOCKETS=n"
+            SetTestStateSkipped
+            exit 1
+        fi
+    else
+        LogMsg "Kernel Config is not available at /boot/config-$(uname -r) to check XDP support for this distribution"
+        SetTestStateSkipped
         exit 1
     fi
-    local install_ip="${1}"
-    local nic_name="${2}"
-    command="ethtool -S ${nic_name}  | grep xdp_drop | wc -l"
-    xdp_counter="$(ssh ${install_ip} $command)"
-    if [ $xdp_counter -gt 0 ]; then
-        LogMsg "Kernel version supports XDP"
-    else
-        LogErr "Kernel Version does not support XDP"
-        SetTestStateSkipped
-        exit 2
-    fi
+    
 }
 
 function get_extra_synth_nic {

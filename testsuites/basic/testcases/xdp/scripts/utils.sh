@@ -2064,11 +2064,11 @@ function detect_linux_distribution() {
 function update_repos() {
 	case "$DISTRO_NAME" in
 		oracle|rhel|centos)
-			yum clean all
+			sudo yum clean all
 			;;
 		ubuntu|debian)
 			dpkg_configure
-			apt-get update
+			sudo apt-get update
 			;;
 		suse|opensuse|sles|sle_hpc)
 			_ret=$(zypper refresh)
@@ -2751,21 +2751,21 @@ function install_netperf () {
 	case "$DISTRO_NAME" in
 		oracle|rhel|centos)
 			install_epel
-			yum -y --nogpgcheck install sysstat make gcc wget
+			sudo yum -y --nogpgcheck install sysstat make gcc wget
 			build_netperf
 			iptables -F
 			;;
 
 		ubuntu|debian)
 			dpkg_configure
-			apt-get -y install sysstat make gcc
+			sudo apt-get -y install sysstat make gcc
 			build_netperf
 			;;
 
 		sles)
 			if [[ $DISTRO_VERSION =~ 12|15 ]]; then
 				add_sles_network_utilities_repo
-				zypper --no-gpg-checks --non-interactive --gpg-auto-import-keys install sysstat make gcc
+				sudo zypper --no-gpg-checks --non-interactive --gpg-auto-import-keys install sysstat make gcc
 				build_netperf
 				iptables -F
 			else
