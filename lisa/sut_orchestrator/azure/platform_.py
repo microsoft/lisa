@@ -121,8 +121,9 @@ HOST_VERSION_PATTERN = re.compile(
 KERNEL_VERSION_PATTERN = re.compile(r"Linux version (?P<kernel_version>.+?) ", re.M)
 
 # 2021/03/31 00:05:17.431693 INFO Daemon Azure Linux Agent Version:2.2.38
+# 2021/04/19 13:16:28 Windows Azure Linux Agent Version: WALinuxAgent-2.0.14
 WALA_VERSION_PATTERN = re.compile(
-    r"Azure Linux Agent Version:(?P<wala_version>.+?)[\n\r]", re.M
+    r"Azure Linux Agent Version:(?: WALinuxAgent-)?(?P<wala_version>.+?)[\n\r]", re.M
 )
 
 KEY_HOST_VERSION = "host_version"
