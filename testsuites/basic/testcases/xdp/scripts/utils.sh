@@ -3628,7 +3628,7 @@ function Run_SSHCommand()
 		if [[ ${localaddress} = ${ip} ]]; then
 			bash -c "${cmd}"
 		else
-			ssh "${whoami}@${ip}" "${cmd}"
+			ssh "${ip}" "${cmd}"
 		fi
 	done
 }

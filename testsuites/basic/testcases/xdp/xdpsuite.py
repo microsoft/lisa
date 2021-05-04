@@ -270,8 +270,10 @@ class xdpdump(TestSuite):
                 f"Running XDP Action: {action} on server node {client_node.internal_address}"
             )
             script: CustomScript = client_node.tools[self._xdp_script]
-            result = script.run(
-                "bash -c 'source xdputils.sh; ./XDP-Action.sh'", sudo=True
+            result = client_node.execute(
+                "bash -c 'source xdputils.sh; ./XDP-Action.sh'",
+                sudo=True,
+                cwd=script.get_tool_path(),
             )
             self.log.info(result.stdout)
 
@@ -426,7 +428,7 @@ class xdpdump(TestSuite):
         return origin.execute_async(f'bash -c "{ping_cmd}"')
 
     def run_xdp_ping(self, origin: Node, dest_ip: str, nic_name: str, log_suffix: str):
-        ping_process = self.run_ping_cmd(origin, degst_ip, nic_name, log_suffix)
+        ping_process = self.run_ping_cmd(origin, dest_ip, nic_name, log_suffix)
         xdp_process = self.run_xdpdump_cmd(origin, nic_name, log_suffix)
         return xdp_process, ping_process
 
@@ -440,6 +442,7 @@ class xdpdump(TestSuite):
             #     node,
             #     {"nicName": NIC_NAMES[0], "ip": f'"{node.internal_address}"'},
             # )
+
             synth_interface = script.run(
                 "bash -c 'source ./xdputils.sh;get_extra_synth_nic'"
             ).stdout
@@ -449,19 +452,50 @@ class xdpdump(TestSuite):
                 "output should not be empty"
             ).is_not_equal_to("")
 
-            # Start setup script with parameters
-            result = script.run(
-                f"./xdpdumpsetup.sh {node.internal_address} {synth_interface}"
+            result = node.execute("bash -c 'whoami && echo | ssh-keygen -N \"\"'")
+            self.log.info(result.stdout)
+            result = node.execute("bash -c 'ls -la ~/.ssh'")
+            self.log.info(result.stdout)
+            result = node.execute("bash -c 'ssh-agent ssh-add'")
+            self.log.info(result.stdout)
+            result = node.execute(
+                "bash -c 'tar -czvf ~/keys.tgz ~/.ssh/id_rsa ~/.ssh/id_rsa.pub'"
             )
+            self.log.info(result.stdout)
+            result = node.execute("bash -c 'cat ~/keys.tgz | base64' ")
+            self.log.info(result.stdout)
+            local_path = environment.log_path.joinpath("keys.tgz.b64")
+            with open(str(local_path), "wb") as keyfile:
+                keyfile.write(result.stdout.encode("ascii"))
+            remote_path = node.remote_working_path.joinpath("keys.tgz.b64")
+            node.shell.copy(local_path, remote_path)
+            result = node.execute("bash -c 'ls -la '", cwd=node.remote_working_path)
+            self.log.info(result.stdout)
+            result = node.execute(
+                f"bash -c 'cat keys.tgz.b64 | base64 -d --ignore-garbage | tar -xzvf -'",
+                cwd=node.remote_working_path,
+            )
+            self.log.debug(result.stdout)
+            result = node.execute(
+                "bash -c 'ssh-agent ssh-add'", cwd=node.remote_working_path
+            )
+            self.log.info(result.stdout)
+            # Start setup script with parameters
+            result = node.execute(
+                f"./xdpdumpsetup.sh {node.internal_address} {synth_interface}",
+                cwd=script.get_tool_path(),
+            )
+            self.log.info(result.stdout)
+
             assert_that(result.exit_code).described_as(
                 "xdpdump did not terminate correctly, check xdpdumpout.txt for more info"
             ).is_zero()
+            self.log.info(node.execute("bash -c 'cat ~/xdpdumpout.txt'").stdout)
+            result = node.execute(
+                f"bash -c 'source ./utils.sh; collect_VM_properties ~/VM_Properties.csv'",
+                cwd=script.get_tool_path(),
+            )
             self.log.info(result.stdout)
-            # self.log.info(node.execute("bash -c 'cat ~/xdpdumpout.txt'").stdout)
-            # result = script.run(
-            #     f"bash -c 'source ./utils.sh; collect_VM_properties ~/VM_Properties.csv'"
-            # )
-            # self.log.info(result.stdout)
             # self.log.info(
             #     "found vm_properties:\n"
             #     + node.execute("bash -c 'cat ~/VM_Properties.csv'").stdout

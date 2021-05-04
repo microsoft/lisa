@@ -75,10 +75,10 @@ LogMsg "Installing XDP Dependencies on ${ip}"
 Install_XDP_Dependencies ${ip}
 
 LogMsg "Installing XDP Dump on ${ip}"
-Install_XDPDump ${ip}
+#Install_XDPDump ${ip}
 
 LogMsg "Run XDP Dump on ${ip}"
-Run_XDPDump ${ip} ${nicName}
+#Run_XDPDump ${ip} ${nicName}
 
 # check xdpdumpout.txt content for error
 SetTestStateCompleted
