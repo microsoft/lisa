@@ -2,7 +2,7 @@
 # Licensed under the MIT license.
 
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, cast
 from unittest.case import TestCase
 
 from azure.mgmt.compute.models import ResourceSku  # type: ignore
@@ -23,9 +23,12 @@ class AzurePrepareTestCase(TestCase):
     def setUp(self) -> None:
         self._log = get_logger("test", "azure")
 
-        platform_runbook = schema.Platform()
-        self._platform = platform_.AzurePlatform(platform_runbook)
-        self._platform._azure_runbook = platform_.AzurePlatformSchema()
+        platform_runbook = platform_.AzurePlatformSchema(
+            admin_private_key_file="a_test"
+        )
+        self._platform = platform_.AzurePlatform(
+            cast(schema.Platform, platform_runbook)
+        )
 
         # trigger data to be cached
         locations = ["westus2", "eastus2", "notreal"]

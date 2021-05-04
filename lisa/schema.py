@@ -3,7 +3,6 @@
 
 import copy
 from dataclasses import InitVar, dataclass, field
-from enum import Enum
 from typing import Any, Callable, Dict, List, Optional, Type, TypeVar, Union, cast
 
 from dataclasses_json import (
@@ -30,7 +29,6 @@ Schema is dealt with three components,
 
 
 T = TypeVar("T")
-keep_env_keys = Enum("keep_env_keys", ["no", "always", "failed"])
 
 
 def metadata(
@@ -717,39 +715,25 @@ class EnvironmentRoot:
 @dataclass
 class Platform(TypedSchema, ExtendableSchemaMixin):
     type: str = field(
-        default=constants.PLATFORM_READY,
+        default="",
         metadata=metadata(required=True),
     )
 
-    admin_username: str = "lisatest"
-    admin_password: str = ""
-    admin_private_key_file: str = ""
-
-    # no/False: means to delete the environment regardless case fail or pass
-    # yes/always/True: means to keep the environment regardless case fail or pass
-    keep_environment: Optional[Union[str, bool]] = False
-
+    # This is just to fill in base/common fields, not to be instantiated
     def __post_init__(self, *args: Any, **kwargs: Any) -> None:
-        add_secret(self.admin_username, PATTERN_HEADTAIL)
-        add_secret(self.admin_password)
+        if not self.type:
+            raise LisaException("platform type runbook field must be set")
 
-        if self.type != constants.PLATFORM_READY:
-            if self.admin_password and self.admin_private_key_file:
-                raise LisaException(
-                    "only one of admin_password and admin_private_key_file can be set"
-                )
-            elif not self.admin_password and not self.admin_private_key_file:
-                raise LisaException(
-                    "one of admin_password and admin_private_key_file must be set"
-                )
 
-        if isinstance(self.keep_environment, str):
-            self.keep_environment = self.keep_environment.lower()
-            allow_list = [x for x in keep_env_keys.__members__.keys()]
-            if self.keep_environment not in allow_list:
-                raise LisaException(
-                    f"keep_environment only can be set as one of {allow_list}"
-                )
+# If platform(s) are undeclared, this is what the user gets, mapping
+# to lisa.sut_orchestrator.ready.ReadyPlatform
+@dataclass_json(undefined=Undefined.INCLUDE)
+@dataclass
+class ReadyPlatform(Platform):
+    type: str = field(
+        default=constants.PLATFORM_READY,
+        metadata=metadata(required=True),
+    )
 
 
 @dataclass_json()
@@ -877,15 +861,27 @@ class Runbook:
     artifact: Optional[List[Artifact]] = field(default=None)
     environment: Optional[EnvironmentRoot] = field(default=None)
     notifier: Optional[List[Notifier]] = field(default=None)
-    platform: List[Platform] = field(default_factory=list)
+    platforms_raw: Optional[List[Any]] = field(
+        default=None,
+        metadata=metadata(data_key=constants.PLATFORM),
+    )
     #  will be parsed in runner.
     testcase_raw: List[Any] = field(
         default_factory=list, metadata=metadata(data_key=constants.TESTCASE)
     )
 
     def __post_init__(self, *args: Any, **kwargs: Any) -> None:
-        if not self.platform:
-            self.platform = [Platform(type=constants.PLATFORM_READY)]
+        if self.platforms_raw:
+            plats: List[Platform] = []
+            for plat_raw in self.platforms_raw:
+                plat: Platform = Platform.schema().load(  # type:ignore
+                    plat_raw
+                )
+                plats.append(plat)
+            self.platforms_raw = None
+            self.platforms: List[Platform] = plats
+        else:
+            self.platforms = [ReadyPlatform()]
         if not self.testcase_raw:
             self.testcase_raw = [
                 {

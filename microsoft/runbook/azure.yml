@@ -29,9 +29,9 @@ environment:
             location: $(location)
 platform:
   - type: azure
-    admin_private_key_file: $(admin_private_key_file)
-    keep_environment: $(keep_environment)
     azure:
+      admin_private_key_file: $(admin_private_key_file)
+      keep_environment: $(keep_environment)
       resource_group_name: $(resource_group_name)
       deploy: $(deploy)
       subscription_id: $(subscription_id)

@@ -8,6 +8,7 @@ import os
 import re
 from dataclasses import dataclass, field
 from datetime import datetime
+from enum import Enum
 from functools import lru_cache
 from logging import getLogger
 from pathlib import Path
@@ -106,6 +107,8 @@ RESOURCE_ID_PORT_POSTFIX = "-ssh"
 RESOURCE_ID_NIC_PATTERN = re.compile(r"([\w]+-[\d]+)-nic-0")
 RESOURCE_ID_PUBLIC_IP_PATTERN = re.compile(r"([\w]+-[\d]+)-public-ip")
 
+keep_env_keys = Enum("keep_env_keys", ["no", "always", "failed"])
+
 # Ubuntu 18.04:
 # [    0.000000] Hyper-V Host Build:18362-10.0-3-0.3198
 # FreeBSD 11.3:
@@ -184,9 +187,21 @@ class AzureArmParameter:
             }
 
 
+# Actually a platform schema *extension*/appendix, not to be confused
+# with a Platform selector class (children of schema.Platform)
 @dataclass_json()
 @dataclass
 class AzurePlatformSchema:
+    admin_username: str = "lisatest"
+    admin_password: str = ""
+    admin_private_key_file: str = ""
+
+    # no/False: means to delete the environment,
+    #           regardless of cases failing or passing
+    # yes/always/True: means to keep the environment,
+    #                  regardless cases failing or passing
+    keep_environment: Optional[Union[str, bool]] = False
+
     service_principal_tenant_id: str = field(
         default="",
         metadata=schema.metadata(
@@ -234,6 +249,26 @@ class AzurePlatformSchema:
     wait_delete: bool = False
 
     def __post_init__(self, *args: Any, **kwargs: Any) -> None:
+        add_secret(self.admin_username, PATTERN_HEADTAIL)
+        add_secret(self.admin_password)
+
+        if self.admin_password and self.admin_private_key_file:
+            raise LisaException(
+                "only one of admin_password and admin_private_key_file can be set"
+            )
+        elif not self.admin_password and not self.admin_private_key_file:
+            raise LisaException(
+                "one of admin_password and admin_private_key_file must be set"
+            )
+
+        if isinstance(self.keep_environment, str):
+            self.keep_environment = self.keep_environment.lower()
+            allow_list = [x for x in keep_env_keys.__members__.keys()]
+            if self.keep_environment not in allow_list:
+                raise LisaException(
+                    f"keep_environment only can be set as one of {allow_list}"
+                )
+
         if self.service_principal_tenant_id:
             add_secret(self.service_principal_tenant_id, mask=PATTERN_GUID)
         if self.subscription_id:
@@ -497,8 +532,8 @@ class AzurePlatform(Platform):
                 f"as it's not created by this run."
             )
         elif (
-            self._runbook.keep_environment == schema.keep_env_keys.always.name
-            or self._runbook.keep_environment is True
+            self._azure_runbook.keep_environment == keep_env_keys.always.name
+            or self._azure_runbook.keep_environment is True
         ):
             log.info(
                 f"skipped to delete resource group: {resource_group_name}, "
@@ -811,13 +846,13 @@ class AzurePlatform(Platform):
         ]
         set_filtered_fields(self._azure_runbook, arm_parameters, copied_fields)
 
-        arm_parameters.admin_username = self._runbook.admin_username
-        if self._runbook.admin_private_key_file:
+        arm_parameters.admin_username = self._azure_runbook.admin_username
+        if self._azure_runbook.admin_private_key_file:
             arm_parameters.admin_key_data = get_public_key_data(
-                self._runbook.admin_private_key_file
+                self._azure_runbook.admin_private_key_file
             )
         else:
-            arm_parameters.admin_password = self._runbook.admin_password
+            arm_parameters.admin_password = self._azure_runbook.admin_password
 
         environment_context = get_environment_context(environment=environment)
         arm_parameters.resource_group_name = environment_context.resource_group_name
@@ -879,7 +914,7 @@ class AzurePlatform(Platform):
             # ssh related information will be filled back once vm is created
             node_context.username = arm_parameters.admin_username
             node_context.password = arm_parameters.admin_password
-            node_context.private_key_file = self._runbook.admin_private_key_file
+            node_context.private_key_file = self._azure_runbook.admin_private_key_file
 
             log.info(f"vm setting: {azure_node_runbook}")
 

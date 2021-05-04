@@ -2,7 +2,7 @@
 # Licensed under the MIT license.
 
 from dataclasses import dataclass, field
-from typing import Any, List, Optional, Type, Union
+from typing import Any, List, Type
 from unittest.case import TestCase
 
 from dataclasses_json import dataclass_json
@@ -110,16 +110,9 @@ class MockPlatform(Platform):
         self.delete_called = True
 
 
-def generate_platform(
-    keep_environment: Optional[Union[str, bool]] = False,
-    admin_password: str = "do not use for real",
-    admin_key_file: str = "",
-) -> MockPlatform:
+def generate_platform() -> MockPlatform:
     runbook_data = {
         constants.TYPE: constants.PLATFORM_MOCK,
-        "keep_environment": keep_environment,
-        "admin_password": admin_password,
-        "admin_private_key_file": admin_key_file,
     }
     runbook = schema.Platform.schema().load(runbook_data)  # type: ignore
     platform = load_platform([runbook])

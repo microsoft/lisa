@@ -53,7 +53,7 @@ class LisaRunner(BaseRunner):
         # load predefined environments
         candidate_environments = load_environments(self._runbook.environment)
 
-        platform = load_platform(self._runbook.platform)
+        platform = load_platform(self._runbook.platforms)
         # get environment requirements
         self._merge_test_requirements(
             test_results=test_results,

@@ -23,15 +23,15 @@ def generate_runner(
     case_use_new_env: bool = False,
     platform_schema: Optional[test_platform.MockPlatformSchema] = None,
 ) -> LisaRunner:
-    platform_runbook = schema.Platform(
-        type=constants.PLATFORM_MOCK, admin_password="do-not-use"
-    )
+    platform_runbook = {"type": f"{constants.PLATFORM_MOCK}"}
     if platform_schema:
-        platform_runbook.extended_schemas = {
-            constants.PLATFORM_MOCK: platform_schema.to_dict()  # type:ignore
-        }
+        platform_runbook.update(
+            {
+                constants.PLATFORM_MOCK: platform_schema.to_dict()  # type:ignore
+            }
+        )
     runbook = schema.Runbook(
-        platform=[platform_runbook],
+        platforms_raw=[platform_runbook],
     )
     runbook.testcase = [
         schema.TestCase(

@@ -9,8 +9,8 @@ environment:
   warn_as_error: false
 platform:
   - type: azure
-    admin_private_key_file: $(admin_private_key_file)
     azure:
+      admin_private_key_file: $(admin_private_key_file)
       service_principal_tenant_id: $(service_principal_tenant_id)
       service_principal_client_id: $(service_principal_client_id)
       service_principal_key: $(service_principal_key)
