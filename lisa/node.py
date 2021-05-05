@@ -242,33 +242,6 @@ class Node(subclasses.BaseClassWithRunbookMixin, ContextMixin, InitializableMixi
 
 
 class RemoteNode(Node):
-    def __init__(
-        self,
-        runbook: schema.RemoteNode,
-        index: int,
-        logger_name: str,
-        base_log_path: Optional[Path],
-    ) -> None:
-        super().__init__(
-            index=index,
-            runbook=runbook,
-            logger_name=logger_name,
-            base_log_path=base_log_path,
-        )
-
-        if self._runbook.with_connection_info:
-            fields = [
-                constants.ENVIRONMENTS_NODES_REMOTE_ADDRESS,
-                constants.ENVIRONMENTS_NODES_REMOTE_PORT,
-                constants.ENVIRONMENTS_NODES_REMOTE_PUBLIC_ADDRESS,
-                constants.ENVIRONMENTS_NODES_REMOTE_PUBLIC_PORT,
-                constants.ENVIRONMENTS_NODES_REMOTE_USERNAME,
-                constants.ENVIRONMENTS_NODES_REMOTE_PASSWORD,
-                constants.ENVIRONMENTS_NODES_REMOTE_PRIVATE_KEY_FILE,
-            ]
-            parameters = fields_to_dict(self._runbook, fields)
-            self.set_connection_info(**parameters)
-
     def __repr__(self) -> str:
         return str(self._connection_info)
 
@@ -284,12 +257,42 @@ class RemoteNode(Node):
     def type_schema(cls) -> Type[schema.TypedSchema]:
         return schema.RemoteNode
 
+    def set_connection_info_by_runbook(
+        self,
+        default_username: str = "",
+        default_password: str = "",
+        default_private_key_file: str = "",
+    ) -> None:
+        fields = [
+            constants.ENVIRONMENTS_NODES_REMOTE_ADDRESS,
+            constants.ENVIRONMENTS_NODES_REMOTE_PORT,
+            constants.ENVIRONMENTS_NODES_REMOTE_PUBLIC_ADDRESS,
+            constants.ENVIRONMENTS_NODES_REMOTE_PUBLIC_PORT,
+        ]
+        parameters = fields_to_dict(self.runbook, fields)
+
+        # use default credential, if they are not specified
+        node_runbook = cast(schema.RemoteNode, self.runbook)
+        parameters[constants.ENVIRONMENTS_NODES_REMOTE_USERNAME] = (
+            node_runbook.username if node_runbook.username else default_username
+        )
+        parameters[constants.ENVIRONMENTS_NODES_REMOTE_PASSWORD] = (
+            node_runbook.password if node_runbook.password else default_password
+        )
+        parameters[constants.ENVIRONMENTS_NODES_REMOTE_PRIVATE_KEY_FILE] = (
+            node_runbook.private_key_file
+            if node_runbook.private_key_file
+            else default_private_key_file
+        )
+
+        self.set_connection_info(**parameters)
+
     def set_connection_info(
         self,
         address: str = "",
-        port: int = 22,
+        port: Optional[int] = 22,
         public_address: str = "",
-        public_port: int = 22,
+        public_port: Optional[int] = 22,
         username: str = "root",
         password: str = "",
         private_key_file: str = "",
@@ -299,6 +302,25 @@ class RemoteNode(Node):
                 "node is set connection information already, cannot set again"
             )
 
+        if not address and not public_address:
+            raise LisaException(
+                "at least one of address and public_address need to be set"
+            )
+        elif not address:
+            address = public_address
+        elif not public_address:
+            public_address = address
+
+        if not port and not public_port:
+            raise LisaException("at least one of port and public_port need to be set")
+        elif not port:
+            port = public_port
+        elif not public_port:
+            public_port = port
+
+        assert public_port
+        assert port
+
         self._connection_info = ConnectionInfo(
             public_address,
             public_port,
@@ -307,6 +329,7 @@ class RemoteNode(Node):
             private_key_file,
         )
         self._shell = SshShell(self._connection_info)
+
         self.public_address = public_address
         self.public_port = public_port
         self.internal_address = address
@@ -468,7 +491,6 @@ class Nodes:
             type=constants.ENVIRONMENTS_NODES_REMOTE,
             capability=min_requirement,
             is_default=node_requirement.is_default,
-            with_connection_info=False,
         )
         node = Node.create(
             index=len(self._list),

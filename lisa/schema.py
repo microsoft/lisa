@@ -2,7 +2,7 @@
 # Licensed under the MIT license.
 
 import copy
-from dataclasses import InitVar, dataclass, field
+from dataclasses import dataclass, field
 from enum import Enum
 from typing import Any, Callable, Dict, List, Optional, Type, TypeVar, Union, cast
 
@@ -617,49 +617,14 @@ class RemoteNode(Node):
         default=22,
         metadata=metadata(validate=validate.Range(min=1, max=65535)),
     )
-    username: str = field(default="", metadata=metadata(required=True))
+    username: str = ""
     password: str = ""
     private_key_file: str = ""
 
-    with_connection_info: InitVar[bool] = True
-
     def __post_init__(self, *args: Any, **kwargs: Any) -> None:
-        if self.delay_parsed:
-            # the self needs to be overridden, since it's saved to delay parsed fields.
-            self.with_connection_info = self.delay_parsed.get(
-                "with_connection_info", True
-            )
-        else:
-            self.with_connection_info = True
-        if self.with_connection_info:
-            # if there is connection info, then validate it.
-            self.update_connection_info()
-
-    def update_connection_info(self) -> None:
         add_secret(self.username, PATTERN_HEADTAIL)
         add_secret(self.password)
         add_secret(self.private_key_file)
-
-        if not self.address and not self.public_address:
-            raise LisaException(
-                "at least one of address and public_address need to be set"
-            )
-        elif not self.address:
-            self.address = self.public_address
-        elif not self.public_address:
-            self.public_address = self.address
-
-        if not self.port and not self.public_port:
-            raise LisaException("at least one of port and public_port need to be set")
-        elif not self.port:
-            self.port = self.public_port
-        elif not self.public_port:
-            self.public_port = self.port
-
-        if not self.password and not self.private_key_file:
-            raise LisaException(
-                "at least one of password or private_key_file need to be set in schema"
-            )
 
 
 @dataclass_json()
