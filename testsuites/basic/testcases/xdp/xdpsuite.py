@@ -51,9 +51,9 @@ class xdpdump(TestSuite):
         description="""
         this test case run tests if xdp program load and unloads correctly.
         """,
-        priority=1,  # TODO: add 1 to each test priority, determine appropriate priority
+        priority=0,  # TODO: add 1 to each test priority, determine appropriate priority
         requirement=simple_requirement(
-            min_nic_count=2
+            min_nic_count=2, unsupported_os=[Windows]
         ),  # TODO: windows unsupported add to each test case
     )
     def verify_xdp_compliance(self, environment: Environment, node: Node) -> None:
@@ -67,19 +67,21 @@ class xdpdump(TestSuite):
         state = node.execute("cat state.txt", cwd=script.get_tool_path())
         self.log.info(f"Final state after test execution:{state.stdout}")
 
-        # self.log.info("Check result")
-        # # TODO: Handle Skip test result
-        # assert_that(state.stdout).is_equal_to("TestCompleted")
-        # assert_that(
-        #     result.exit_code, "xdpdumpsetup.sh script exit code should be 0"
-        # ).is_zero()  # TODO: description decl
+        self.log.info("Check exit code...")
+        # TODO: Handle Skip test result
+        assert_that(state.stdout).is_equal_to("TestCompleted")
+        assert_that(
+            state.exit_code, "xdpdumpsetup.sh script exit code should be 0"
+        ).is_zero()  # TODO: description decl
 
     @TestCaseMetadata(
         description="""
         Test verifies xdp is working with SRIOV-enabled NIC and synthetic NIC
         """,
-        priority=1,
-        requirement=simple_requirement(min_count=1, min_nic_count=2),
+        priority=0,
+        requirement=simple_requirement(
+            min_count=1, min_nic_count=2, unsupported_os=[Windows]
+        ),
     )
     def verify_sriov_failsafe(self, environment: Environment, node: Node) -> None:
         log_suffix = "sriov_failsafe"
@@ -93,20 +95,18 @@ class xdpdump(TestSuite):
             },
         )
 
-        test_node = environment.nodes[0]  # TODO: duplicate, just use node
-
         ping_process = self.run_ping_cmd(
-            test_node, test_node.public_address, NIC_NAMES[0], log_suffix
+            node, node.public_address, NIC_NAMES[0], log_suffix
         )
 
         xdpdump_process = self.run_xdpdump_cmd(node, NIC_NAMES[0], log_suffix)
         while xdpdump_process.is_running():
-            result = test_node.execute(
+            result = node.execute(
                 f"bash -c 'tail -2 ~/{self.xdpdump_prefix}_{log_suffix}.txt | head -1'"
             )
             self.log.info(result.stdout)
 
-        result = test_node.execute(
+        result = node.execute(
             f"bash -c 'tail -2 ~/{self.xdpdump_prefix}_{log_suffix}.txt | head -1'"
         )
         assert_that(
@@ -272,7 +272,7 @@ class xdpdump(TestSuite):
             This script deploys the VM and verify XDP working with various MTU sizes (1500, 2000, 3506) which are easily configurable in XML.
             Also, it will verify error caught by kernel "hv_netvsc" for MTU greater than Maximum MTU on Azure.
         """,
-        priority=0,
+        priority=1,
         requirement=simple_requirement(min_count=2, min_nic_count=2),
     )
     def verify_xdp_mtu(self, environment: Environment, node: Node) -> None:
@@ -367,19 +367,24 @@ class xdpdump(TestSuite):
             cwd=script.get_tool_path(),
         )
 
-    # TODO: snake case all the parameter names
-    def check_log_result(self, node: Node, log_prefix: str, log_suffix: str):
+    def check_log_result(
+        self, node: Node, log_prefix: str, log_suffix: str
+    ):  # TODO: refactor this
         result = node.execute(f"bash -c 'tail -1 ~/{log_prefix}_{log_suffix}.txt'")
-        assert_that(
-            result.exit_code == 0 and result.stdout.strip() != ""
-        )  # TODO: assert_that fixes
-        assert_that("No such file or directory" not in result.stdout)
+        assert_that(result.exit_code).is_zero()
+        assert_that(result.stdout.strip()).described_as(
+            f"log {log_prefix}_{log_suffix}.txt content was empty."
+        ).is_not_equal_to("")
+        assert_that(result.stdout).does_not_contain("No such file or directory")
         return result.stdout
 
     def get_log_file(self, node: Node, log_prefix: str, log_suffix: str):
         # self.log.info(node.execute("bash -c 'ls -la ~'").stdout)
         result = node.execute(f"bash -c 'cat ~/{log_prefix}_{log_suffix}.txt'")
-        assert_that(result.exit_code == 0 and result.stdout.strip() != "")
+        assert_that(result.exit_code).is_zero()
+        assert_that(result.stdout.strip()).described_as(
+            f"log {log_prefix}_{log_suffix}.txt content was empty."
+        ).is_not_equal_to("")
         return result.stdout.strip()
 
     def generate_ping_cmd(self, dest_ip: Node, nic_name: str, log_suffix: str):
