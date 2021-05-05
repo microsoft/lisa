@@ -4,11 +4,12 @@
 from __future__ import annotations
 
 from functools import partial
-from typing import Any, Dict, List, Type
+from typing import Any, Dict, List, Type, cast
 
 from lisa import schema
 from lisa.environment import Environment, EnvironmentStatus
 from lisa.feature import Feature, Features
+from lisa.node import RemoteNode
 from lisa.util import (
     InitializableMixin,
     LisaException,
@@ -108,6 +109,19 @@ class Platform(subclasses.BaseClassWithRunbookMixin, InitializableMixin):
         self.initialize()
 
         log = get_logger(f"prepare[{environment.name}]", parent=self._log)
+
+        # check and fill connection information for RemoteNode. So that the
+        # RemoteNodes can share the same connection information with created
+        # nodes.
+        platform_runbook = cast(schema.Platform, self.runbook)
+        for node in environment.nodes.list():
+            if isinstance(node, RemoteNode):
+                node.set_connection_info_by_runbook(
+                    default_username=platform_runbook.admin_username,
+                    default_password=platform_runbook.admin_password,
+                    default_private_key_file=platform_runbook.admin_private_key_file,
+                )
+
         is_success = self._prepare_environment(environment, log)
         if is_success:
             environment.status = EnvironmentStatus.Prepared
