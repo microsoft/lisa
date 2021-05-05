@@ -134,7 +134,9 @@ def init_logger() -> None:
     root_logger.setLevel(logging.DEBUG)
     root_logger.addHandler(_console_handler)
 
-    _console_handler.setFormatter(_format)
+    if "unittest" not in sys.modules.keys():
+        # make unittest component works well in vscode
+        _console_handler.setFormatter(_format)
 
     stdout_logger = get_logger("stdout")
     stderr_logger = get_logger("stderr")
