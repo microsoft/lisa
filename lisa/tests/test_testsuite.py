@@ -1,11 +1,15 @@
 # Copyright (c) Microsoft Corporation.
 # Licensed under the MIT license.
 
-from typing import Any, List, cast
-from unittest import TestCase
+import platform
+from getpass import getuser
+from pathlib import Path
+from typing import Any, List, TypedDict, cast
+from unittest import TestCase, skipIf
 
 from lisa import schema
 from lisa.environment import EnvironmentStatus, load_environments
+from lisa.node import RemoteNode
 from lisa.operating_system import Posix, Windows
 from lisa.parameter_parser.runbook import validate_data
 from lisa.runner import parse_testcase_filters
@@ -165,11 +169,45 @@ def select_and_check(
 
 
 class TestSuiteTestCase(TestCase):
-    def generate_suite_instance(self) -> MockTestSuite:
+    def generate_suite_instance(
+        self,
+        local: bool = True,
+        remote: bool = True,
+        public_addr: str = "",
+        public_port: int = 0,
+        user_name: str = "",
+        priv_key_path: str = "",
+    ) -> MockTestSuite:
         case_results = generate_cases_result()
         self.case_results = case_results[:2]
         suite_metadata = case_results[0].runtime_data.metadata.suite
-        runbook = generate_runbook(is_single_env=True, local=True, remote=True)
+
+        class dict_t(TypedDict, total=False):
+            is_single_env: bool
+            local: bool
+            remote: bool
+            public_addr: str
+            public_port: int
+            user_name: str
+            priv_key_path: str
+
+        extra_args = dict_t(
+            {
+                "is_single_env": True,
+                "local": local,
+                "remote": remote,
+            }
+        )
+        if remote:
+            for name, entry in [
+                ("public_addr", public_addr),
+                ("public_port", public_port),
+                ("user_name", user_name),
+                ("priv_key_path", priv_key_path),
+            ]:
+                if entry:
+                    extra_args[name] = entry  # type: ignore
+        runbook = generate_runbook(**extra_args)
         envs = load_environments(runbook)
         self.default_env = list(envs.values())[0]
         assert self.default_env
@@ -408,6 +446,27 @@ class TestSuiteTestCase(TestCase):
         self.assertFalse(check_result)
         check_result = self.case_results[1].check_environment(self.default_env)
         self.assertTrue(check_result)
+
+    @skipIf(platform.system() != "Windows", "Windows-only test case")
+    def test_windows_terminals_detected(self) -> None:
+        _ = self.generate_suite_instance(
+            local=False,
+            public_addr="localhost",
+            public_port=22,
+            user_name=getuser(),
+            priv_key_path=str(Path.home().joinpath(".ssh/id_rsa")),
+        )
+        assert self.default_env
+        self.default_env.status = EnvironmentStatus.Connected
+        self.default_env._is_initialized = True
+        case_metadata = self.case_results[0].runtime_data.metadata
+        case_metadata.requirement = simple_requirement(
+            min_count=2, supported_os=[Windows]
+        )
+        for n in self.default_env.nodes.list():
+            node = cast(RemoteNode, n)
+            node.initialize()
+            self.assertFalse(node.is_posix)
 
     def test_skipped_not_meet_req(self) -> None:
         _ = self.generate_suite_instance()

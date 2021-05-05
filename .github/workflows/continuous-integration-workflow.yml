@@ -43,6 +43,11 @@ jobs:
       - name: Install Python dependencies
         run: make setup
 
+      - name: Enable OpenSSH server for Windows
+        if: runner.os == 'Windows'
+        run: |
+          Add-WindowsCapability -Online -Name OpenSSH.Server
+
       - name: Run hello-world
         run: make run
 

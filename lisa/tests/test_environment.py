@@ -108,6 +108,10 @@ def generate_runbook(
     remote: bool = False,
     requirement: bool = False,
     local_remote_node_extensions: bool = False,
+    public_addr: str = "public_address",
+    public_port: int = 10022,
+    user_name: str = "name_of_user",
+    priv_key_path: str = "",
 ) -> schema.EnvironmentRoot:
     environments: List[Any] = list()
     nodes: List[Any] = list()
@@ -124,12 +128,17 @@ def generate_runbook(
                 constants.TYPE: constants.ENVIRONMENTS_NODES_REMOTE,
                 constants.ENVIRONMENTS_NODES_REMOTE_ADDRESS: "internal_address",
                 constants.ENVIRONMENTS_NODES_REMOTE_PORT: 22,
-                "public_address": "public_address",
-                "public_port": 10022,
-                constants.ENVIRONMENTS_NODES_REMOTE_USERNAME: "name_of_user",
+                "public_address": public_addr,
+                "public_port": public_port,
+                constants.ENVIRONMENTS_NODES_REMOTE_USERNAME: user_name,
                 constants.ENVIRONMENTS_NODES_REMOTE_PASSWORD: "do_not_use_it",
             }
         )
+        if priv_key_path:
+            del nodes[-1][constants.ENVIRONMENTS_NODES_REMOTE_PASSWORD]
+            nodes[-1][
+                constants.ENVIRONMENTS_NODES_REMOTE_PRIVATE_KEY_FILE
+            ] = priv_key_path
     if requirement:
         nodes.append(
             {
