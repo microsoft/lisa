@@ -61,7 +61,9 @@ class xdpdump(TestSuite):
     )
     def verify_xdp_compliance(self, environment: Environment, node: Node) -> None:
         script: CustomScript = node.tools[self._xdp_script]
-        self.setup_xdpdump(environment, [node])
+        self.setup_xdpdump(
+            environment, [node]
+        )  # just run the setup script, runs xdpdump for 10 seconds to check it is working
 
         # TODO: Download remote log files
         self.log.info(node.execute("ls -la", cwd=script.get_tool_path()).stdout)
@@ -124,7 +126,9 @@ class xdpdump(TestSuite):
         Verifies xdp working with 2 SRIOV-enabled nics i.e. eth1 and eth2
         """,
         priority=1,
-        requirement=simple_requirement(min_count=2, min_nic_count=2),
+        requirement=simple_requirement(
+            min_count=2, min_nic_count=2, unsupported_os=[Windows]
+        ),
     )
     def verify_xdp_multiple_nics(self, environment: Environment, node: Node) -> None:
         server_node = environment.nodes[0]
