@@ -16,7 +16,7 @@ function change_mtu(){
     local newMtu="${3}"
     local getMtuCmd="cat /sys/class/net/${iface}/mtu"
 
-    mtuSizeBefore=$(ssh ${ip} "${getMtuCmd}")
+    mtuSizeBefore=$(ssh -o StrictHostKeyChecking=no ${ip} "${getMtuCmd}")
     LogMsg "Current MTU Size: ${mtuSizeBefore}"
 
     local command="ip link set dev ${iface} mtu ${newMtu}"

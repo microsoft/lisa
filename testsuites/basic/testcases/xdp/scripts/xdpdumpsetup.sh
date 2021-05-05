@@ -20,7 +20,7 @@ function Run_XDPDump {
     LogMsg "XDP program cannot run with LRO (RSC) enabled, disable LRO before running XDP"
     Run_SSHCommand ${install_ip} "sudo ethtool -K ${nic_name} lro off"
     LogMsg "$(date): Starting xdpdump for 10 seconds"
-    Run_SSHCommand ${install_ip} "cd bpf-samples/xdpdump && timeout 10 sudo ./xdpdump -i ${nic_name} > ~/xdpdumpout.txt 2>&1"
+    Run_SSHCommand ${install_ip} "cd bpf-samples/xdpdump && sudo timeout 10 ./xdpdump -i ${nic_name} > ~/xdpdumpout.txt 2>&1"
     check_exit_status "$(date): run xdpdump on ${install_ip}" "exit"
 
     LogMsg "Executing command Run_SSHCommand ${install_ip} 'tail -1 ~/xdpdumpout.txt'"

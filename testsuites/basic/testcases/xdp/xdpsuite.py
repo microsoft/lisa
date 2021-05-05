@@ -51,7 +51,7 @@ class xdpdump(TestSuite):
         description="""
         this test case run tests if xdp program load and unloads correctly.
         """,
-        priority=0,  # TODO: add 1 to each test priority, determine appropriate priority
+        priority=1,  # TODO: add 1 to each test priority, determine appropriate priority
         requirement=simple_requirement(
             min_nic_count=2
         ),  # TODO: windows unsupported add to each test case
@@ -62,20 +62,10 @@ class xdpdump(TestSuite):
 
         self.setup_xdpdump(environment, [node])
 
-        # synth_interface = node.execute(
-        #     "bash -c 'source ./xdputils.sh;get_extra_synth_nic'",
-        #     cwd=script.get_tool_path(),
-        # )
-        # self.log.info(synth_interface.stdout)
-        # # Start setup script with parameters
-        # result = script.run(
-        #     f"./xdpdumpsetup.sh {node.internal_address} {synth_interface}"
-        # )
-
-        # # TODO: Download remote log files
-        # # self.log.info(node.execute("ls -la", cwd=script.get_tool_path()).stdout)
-        # state = script.run("cat state.txt")
-        # self.log.info(f"Final state after test execution:{state}")
+        # TODO: Download remote log files
+        self.log.info(node.execute("ls -la", cwd=script.get_tool_path()).stdout)
+        state = node.execute("cat state.txt", cwd=script.get_tool_path())
+        self.log.info(f"Final state after test execution:{state.stdout}")
 
         # self.log.info("Check result")
         # # TODO: Handle Skip test result
@@ -282,7 +272,7 @@ class xdpdump(TestSuite):
             This script deploys the VM and verify XDP working with various MTU sizes (1500, 2000, 3506) which are easily configurable in XML.
             Also, it will verify error caught by kernel "hv_netvsc" for MTU greater than Maximum MTU on Azure.
         """,
-        priority=1,
+        priority=0,
         requirement=simple_requirement(min_count=2, min_nic_count=2),
     )
     def verify_xdp_mtu(self, environment: Environment, node: Node) -> None:
@@ -315,12 +305,16 @@ class xdpdump(TestSuite):
             "ip": f'"{client_node.internal_address}"',
             "mtuSizes": '"1000 1500 2000 2500 3000"',
         }
+        self.log.info(constants)
         self.upload_constants_sh(environment, client_node, constants)
-        result = script.run(
-            "bash -c 'source ./xdputils.sh; ./XDP-MTUVerify.sh 2>&1 > ~/xdpConsoleLogs.txt'",
-            sudo=True,
+        result = client_node.execute(
+            "bash -c 'source ./xdputils.sh; ./XDP-MTUVerify.sh 2>&1 '",
+            cwd=script.get_tool_path(),
         )
         self.log.info(result.stdout)
+        assert_that(result.exit_code).described_as(
+            "XDP-MTUVerify did not exit correctly."
+        ).is_zero()
 
     # Utility functions follow:
     def gather_nic_ips(self, node: Node, nic_names: list[str]) -> dict[str, str]:
@@ -440,6 +434,7 @@ class xdpdump(TestSuite):
         return local_path, remote_path
 
     def copy_and_install_keys_to_node(self, environment: Environment, node: Node):
+        self.log.info(f"Copying keys to node : {node.internal_address}")
         local_path, remote_path = self.generate_keys_paths(environment, node)
         node.shell.copy(local_path, remote_path)
         result = node.execute("bash -c 'ls -la '", cwd=node.remote_working_path)
@@ -448,6 +443,7 @@ class xdpdump(TestSuite):
             f"bash -c 'cat keys.tgz.b64 | base64 -d --ignore-garbage | tar -xzvf -'",
             cwd=node.remote_working_path,
         )
+        result = node.execute("bash -c 'ls -la '", cwd=node.remote_working_path)
         self.log.debug(result.stdout)
         result = node.execute(
             "bash -c 'ssh-agent ssh-add'", cwd=node.remote_working_path
@@ -480,11 +476,11 @@ class xdpdump(TestSuite):
             self.log.info("Setting up environment before test case")
             script: CustomScript = node.tools[self._xdp_script]
             # setup constants.sh
-            # self.upload_constants_sh(
-            #     environment,
-            #     node,
-            #     {"nicName": NIC_NAMES[0], "ip": f'"{node.internal_address}"'},
-            # )
+            self.upload_constants_sh(
+                environment,
+                node,
+                {"nicName": NIC_NAMES[0], "ip": f'"{node.internal_address}"'},
+            )
 
             synth_interface = script.run(
                 "bash -c 'source ./xdputils.sh;get_extra_synth_nic'"
@@ -501,7 +497,7 @@ class xdpdump(TestSuite):
                 cwd=script.get_tool_path(),
             )
             self.log.info(result.stdout)
-            self.log.info(
+            self.log.debug(
                 node.execute(
                     "bash -c 'cat ~/xdpdumpout.txt'", cwd=script.get_tool_path()
                 ).stdout
@@ -515,7 +511,7 @@ class xdpdump(TestSuite):
                 cwd=script.get_tool_path(),
             )
             self.log.info(result.stdout)
-            # self.log.info(
-            #     "found vm_properties:\n"
-            #     + node.execute("bash -c 'cat ~/VM_Properties.csv'").stdout
-            # )
+            self.log.debug(
+                "found vm_properties:\n"
+                + node.execute("bash -c 'cat ~/VM_Properties.csv'").stdout
+            )
