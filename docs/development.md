@@ -67,7 +67,8 @@ environment.
             "reportUnknownParameterType": "none",
             "reportUnboundVariable": "none",
             "reportPrivateUsage": "none",
-            "reportImportCycles": "none"
+            "reportImportCycles": "none",
+            "reportUnnecessaryIsInstance": "none",
         },
         "python.languageServer": "Pylance",
         "python.pythonPath": "<python path>\\python.exe",
