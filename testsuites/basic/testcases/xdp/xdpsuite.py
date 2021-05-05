@@ -33,6 +33,9 @@ class xdpdump(TestSuite):
     def before_suite(self, **kwargs) -> None:
         # Upload scripts required by testsuite
         self._xdp_script = CustomScriptBuilder(
+            # TODO: This script runner is only nice in that it uploads the scripts automagically,
+            #        It's cleaner to just use node.execute and use/create tools for common linux commands.
+            #          Try to minimize use of bash scripts when possbile.
             Path(__file__).parent.joinpath("scripts"),
             [
                 "xdpdumpsetup.sh",
