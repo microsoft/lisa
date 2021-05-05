@@ -5,7 +5,8 @@ import sys
 import traceback
 from datetime import datetime
 from logging import DEBUG, INFO
-from pathlib import Path
+from pathlib import Path, PurePath
+from typing import Tuple
 
 from retry import retry
 
@@ -15,51 +16,58 @@ from lisa.util.logger import create_file_handler, get_logger, set_level
 from lisa.util.perf_timer import create_timer
 
 
-@retry(FileExistsError, tries=10, delay=0)
-def create_run_path(root_path: Path) -> Path:
+@retry(FileExistsError, tries=10, delay=0.2)
+def generate_run_path(root_path: Path) -> Tuple[PurePath, Path]:
+    # Get current time and generate a Run ID.
     current_time = datetime.utcnow()
-    date = current_time.strftime("%Y%m%d")
-    date_time = get_datetime_path(current_time)
-    run_path = Path(f"{date}/{date_time}")
-    local_path = root_path.joinpath(run_path)
+    date_of_today = current_time.strftime("%Y%m%d")
+    time_of_today = get_datetime_path(current_time)
+    logic_path = PurePath(f"{date_of_today}/{time_of_today}")
+    local_path = root_path.joinpath(logic_path)
     if local_path.exists():
-        raise FileExistsError(f"{local_path} exists, and not found an unique path.")
-    return run_path
+        raise FileExistsError(
+            f"The run path '{local_path}' already exists, "
+            f"and not found an unique path."
+        )
+    return logic_path, local_path
+
+
+def initialize_runtime_folder() -> None:
+    runtime_root = Path("runtime").absolute()
+
+    cache_path = runtime_root.joinpath("cache")
+    cache_path.mkdir(parents=True, exist_ok=True)
+    constants.CACHE_PATH = cache_path
+
+    # Layout the run time folder structure.
+    runs_path = runtime_root.joinpath("runs")
+    logic_path, local_path = generate_run_path(runs_path)
+    local_path.mkdir(parents=True)
+
+    constants.RUN_ID = logic_path.name
+    constants.RUN_LOGIC_PATH = logic_path
+    constants.RUN_LOCAL_PATH = local_path
 
 
 def main() -> int:
     total_timer = create_timer()
     log = get_logger()
     exit_code: int = 0
+
     try:
-        runtime_root = Path("runtime").absolute()
-
-        constants.CACHE_PATH = runtime_root.joinpath("cache")
-        constants.CACHE_PATH.mkdir(parents=True, exist_ok=True)
-        # create run root path
-        runs_path = runtime_root.joinpath("runs")
-        logic_path = create_run_path(runs_path)
-        local_path = runs_path.joinpath(logic_path)
-        local_path.mkdir(parents=True)
-
-        constants.RUN_ID = logic_path.name
-        constants.RUN_LOCAL_PATH = local_path
-        constants.RUN_LOGIC_PATH = logic_path
+        initialize_runtime_folder()
 
         args = parse_args()
 
-        if args.debug:
-            log_level = DEBUG
-        else:
-            log_level = INFO
+        log_level = DEBUG if (args.debug) else INFO
         set_level(log_level)
 
-        create_file_handler(f"{local_path}/lisa-{constants.RUN_ID}.log")
+        create_file_handler(f"{constants.RUN_LOCAL_PATH}/lisa-{constants.RUN_ID}.log")
 
         log.info(f"Python version: {sys.version}")
         log.info(f"local time: {datetime.now().astimezone()}")
         log.debug(f"command line args: {sys.argv}")
-        log.info(f"run local path: {runtime_root}")
+        log.info(f"run local path: {constants.RUN_LOCAL_PATH}")
 
         exit_code = args.func(args)
         assert isinstance(exit_code, int), f"actual: {type(exit_code)}"
