@@ -12,7 +12,7 @@ from lisa.util.logger import get_logger
 class BaseClassWithRunbookMixin(BaseClassMixin):
     def __init__(self, runbook: Any, *args: Any, **kwargs: Any) -> None:
         super().__init__()
-        self._runbook = runbook
+        self.runbook = runbook
 
     @classmethod
     def create_with_runbook(

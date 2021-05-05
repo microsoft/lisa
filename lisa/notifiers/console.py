@@ -41,5 +41,5 @@ class Console(notifier.Notifier):
         return [TestResultMessage, notifier.TestRunMessage]
 
     def _initialize(self, *args: Any, **kwargs: Any) -> None:
-        runbook = cast(ConsoleSchema, self._runbook)
+        runbook = cast(ConsoleSchema, self.runbook)
         self._log_level = runbook.log_level

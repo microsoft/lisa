@@ -497,8 +497,8 @@ class AzurePlatform(Platform):
                 f"as it's not created by this run."
             )
         elif (
-            self._runbook.keep_environment == schema.keep_env_keys.always.name
-            or self._runbook.keep_environment is True
+            self.runbook.keep_environment == schema.keep_env_keys.always.name
+            or self.runbook.keep_environment is True
         ):
             log.info(
                 f"skipped to delete resource group: {resource_group_name}, "
@@ -648,7 +648,7 @@ class AzurePlatform(Platform):
 
     def _initialize(self, *args: Any, **kwargs: Any) -> None:
         # set needed environment variables for authentication
-        azure_runbook: AzurePlatformSchema = self._runbook.get_extended_runbook(
+        azure_runbook: AzurePlatformSchema = self.runbook.get_extended_runbook(
             AzurePlatformSchema
         )
         assert azure_runbook, "platform runbook cannot be empty"
@@ -811,13 +811,13 @@ class AzurePlatform(Platform):
         ]
         set_filtered_fields(self._azure_runbook, arm_parameters, copied_fields)
 
-        arm_parameters.admin_username = self._runbook.admin_username
-        if self._runbook.admin_private_key_file:
+        arm_parameters.admin_username = self.runbook.admin_username
+        if self.runbook.admin_private_key_file:
             arm_parameters.admin_key_data = get_public_key_data(
-                self._runbook.admin_private_key_file
+                self.runbook.admin_private_key_file
             )
         else:
-            arm_parameters.admin_password = self._runbook.admin_password
+            arm_parameters.admin_password = self.runbook.admin_password
 
         environment_context = get_environment_context(environment=environment)
         arm_parameters.resource_group_name = environment_context.resource_group_name
@@ -879,7 +879,7 @@ class AzurePlatform(Platform):
             # ssh related information will be filled back once vm is created
             node_context.username = arm_parameters.admin_username
             node_context.password = arm_parameters.admin_password
-            node_context.private_key_file = self._runbook.admin_private_key_file
+            node_context.private_key_file = self.runbook.admin_private_key_file
 
             log.info(f"vm setting: {azure_node_runbook}")
 

@@ -68,7 +68,7 @@ class MockPlatform(Platform):
         self._mock_runbook.wait_more_resource_error = wait_more_resource_error
 
     def _initialize(self, *args: Any, **kwargs: Any) -> None:
-        self._mock_runbook: MockPlatformSchema = self._runbook.get_extended_runbook(
+        self._mock_runbook: MockPlatformSchema = self.runbook.get_extended_runbook(
             MockPlatformSchema, constants.PLATFORM_MOCK
         )
 

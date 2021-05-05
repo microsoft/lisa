@@ -49,7 +49,7 @@ class Html(Notifier):
         return HtmlSchema
 
     def finalize(self) -> None:
-        runbook = cast(HtmlSchema, self._runbook)
+        runbook = cast(HtmlSchema, self.runbook)
         self._log.info(f"report: {self._report_path}")
         self._html_report.pytest_sessionfinish(session=self._session)
         if runbook.auto_open:
@@ -124,7 +124,7 @@ class Html(Notifier):
         return [TestResultMessage, TestRunMessage]
 
     def _initialize(self, *args: Any, **kwargs: Any) -> None:
-        runbook = cast(HtmlSchema, self._runbook)
+        runbook = cast(HtmlSchema, self.runbook)
         self._config = Config.fromdictargs({"self_contained_html": True}, {})
         self._session = pytest.Session.from_config(self._config)
         self._report_path = constants.RUN_LOCAL_PATH / runbook.path
