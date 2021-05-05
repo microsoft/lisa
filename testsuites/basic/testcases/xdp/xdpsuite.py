@@ -61,8 +61,6 @@ class xdpdump(TestSuite):
     )
     def verify_xdp_compliance(self, environment: Environment, node: Node) -> None:
         script: CustomScript = node.tools[self._xdp_script]
-        # Get Extra NIC name
-
         self.setup_xdpdump(environment, [node])
 
         # TODO: Download remote log files
@@ -73,9 +71,9 @@ class xdpdump(TestSuite):
         self.log.info("Check exit code...")
         # TODO: Handle Skip test result
         assert_that(state.stdout).is_equal_to("TestCompleted")
-        assert_that(
-            state.exit_code, "xdpdumpsetup.sh script exit code should be 0"
-        ).is_zero()  # TODO: description decl
+        assert_that(state.exit_code).described_as(
+            "xdpdumpsetup.sh script exit code should be 0"
+        ).is_zero()
 
     @TestCaseMetadata(
         description="""
