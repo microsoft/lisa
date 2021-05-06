@@ -17,13 +17,13 @@ function ping_test () {
 	local logSuffix=$1
 	# https://lore.kernel.org/lkml/1579558957-62496-3-git-send-email-haiyangz@microsoft.com/t/
 	LogMsg "XDP program cannot run with LRO (RSC) enabled, disable LRO before running XDP"
-	ssh ${client} "ethtool -K ${nicName} lro off"
-	xdpdumpCommand="cd bpf-samples/xdpdump && timeout 20 ./xdpdump -i ${nicName} > ~/xdpdumpout_${logSuffix}.txt 2>&1"
+	Run_SSHCommand ${client} "sudo ethtool -K ${nicName} lro off"
+	xdpdumpCommand="cd bpf-samples/xdpdump && sudo timeout 20 ./xdpdump -i ${nicName} > ~/xdpdumpout_${logSuffix}.txt 2>&1"
 	LogMsg "Starting xdpdump on ${client} with command: ${xdpdumpCommand}"
-	ssh -f ${client} "sh -c '${xdpdumpCommand}'"
+	Run_SSHCommand -f ${client} "sh -c '${xdpdumpCommand}'"
 
 	LogMsg "Starting ping on ${server} with command: ping -I ${nicName} -c 10 ${clientSecondIP} > ~/pingOut_${logSuffix}.txt"
-	ssh ${server} "ping -I ${nicName} -c 10 ${clientSecondIP} > ~/pingOut_${logSuffix}.txt"
+	Run_SSHCommand ${server} "ping -I ${nicName} -c 10 ${clientSecondIP} > ~/pingOut_${logSuffix}.txt"
 	check_exit_status "ping test ${logSuffix} XDPDump-${ACTION} config"
 	# Cleanup xdpdump process
 	killall xdpdump
@@ -35,8 +35,8 @@ function ping_with_tcpdump () {
 	local logSuffix=$1
 	LogMsg "Ips client $client server $server"
 	# Start tcpdump
-	LogMsg "Starting tcpdump on ${client} with command timeout 10 tcpdump -i eth1 icmp -w tcpdumptest_${logSuffix}.pcap"
-	ssh ${client} "sh -c 'timeout 10 tcpdump -i eth1 icmp -w tcpdumptest_${logSuffix}.pcap &'"
+	LogMsg "Starting tcpdump on ${client} with command sudo timeout 10 tcpdump -i eth1 icmp -w tcpdumptest_${logSuffix}.pcap"
+	Run_SSHCommand ${client} "sh -c 'sudo timeout 10 tcpdump -i eth1 icmp -w tcpdumptest_${logSuffix}.pcap &'"
 	ping_test $logSuffix
 }
 
@@ -69,7 +69,7 @@ done
 beforeString="before"
 afterString="after"
 packetLossInNetwork=10
-
+ 
 if [ "${ACTION}" == "DROP" ] || [ "${ACTION}" == "ABORTED" ];then
 	LogMsg "Initializing validation for XDP Action ${ACTION}"
 
@@ -78,16 +78,16 @@ if [ "${ACTION}" == "DROP" ] || [ "${ACTION}" == "ABORTED" ];then
 
 	# Build xdpdump with DROP/ABORTED Config
 	LogMsg "Build XDPDump with ${ACTION} flag"
-	ssh ${client} "cd bpf-samples/xdpdump && make clean && CFLAGS='-D __ACTION_${ACTION}__ -I../libbpf/src/root/usr/include' make"
+	Run_SSHCommand ${client} "cd bpf-samples/xdpdump && make clean && CFLAGS='-D __ACTION_${ACTION}__ -I../libbpf/src/root/usr/include' make"
 	check_exit_status "Building xdpdump with ${ACTION} config"
 
 	# Ping test after changing action
 	ping_test $afterString
 
 	LogMsg "Starting analysis on number of ping packets drop.."
-	packetDropBefore=$(ssh ${server} "grep -oP '\d+(?=% packet loss)' ~/pingOut_${beforeString}.txt")
+	packetDropBefore=$(Run_SSHCommand ${server} "grep -oP '\d+(?=% packet loss)' ~/pingOut_${beforeString}.txt")
 	LogMsg "Packet drop $beforeString $packetDropBefore"
-	packetDropAfter=$(ssh ${server} "grep -oP '\d+(?=% packet loss)' ~/pingOut_${afterString}.txt")
+	packetDropAfter=$(Run_SSHCommand ${server} "grep -oP '\d+(?=% packet loss)' ~/pingOut_${afterString}.txt")
 	LogMsg "Packet drop $afterString $packetDropAfter"
 
 	if [ $((packetDropBefore + packetLossInNetwork)) -lt $((packetDropAfter)) ];then
@@ -106,16 +106,16 @@ elif [ "${ACTION}" == "TX" ];then
 	ping_with_tcpdump $beforeString
 
 	LogMsg "Build XDPDump with TX flag"
-	ssh ${client} "cd bpf-samples/xdpdump && make clean && CFLAGS='-D __ACTION_TX__ -I../libbpf/src/root/usr/include' make"
+	Run_SSHCommand ${client} "cd bpf-samples/xdpdump && make clean && CFLAGS='-D __ACTION_TX__ -I../libbpf/src/root/usr/include' make"
 	check_exit_status "Building xdpdump with TX config"
 
 	# Run Ping from server and tcpdump with xdpdump on client
 	# Get count of tcpdump and ping packets
 	ping_with_tcpdump $afterString
 
-	packetDropBefore=$(ssh ${server} "grep -oP '\d+(?=% packet loss)' ~/pingOut_${beforeString}.txt")
+	packetDropBefore=$(Run_SSHCommand ${server} "grep -oP '\d+(?=% packet loss)' ~/pingOut_${beforeString}.txt")
 	LogMsg "Packet drop $beforeString $packetDropBefore"
-	packetDropAfter=$(ssh ${server} "grep -oP '\d+(?=% packet loss)' ~/pingOut_${afterString}.txt")
+	packetDropAfter=$(Run_SSHCommand ${server} "grep -oP '\d+(?=% packet loss)' ~/pingOut_${afterString}.txt")
 	LogMsg "Packet drop $afterString $packetDropAfter"
 
 	if [ $((packetDropAfter - packetDropBefore)) -le $packetLossInNetwork ];then
@@ -127,7 +127,7 @@ elif [ "${ACTION}" == "TX" ];then
 	fi
 
 	LogMsg "Starting analysis on packets captured by tcpdump application"
-	tcpdumpCountAfter=$(ssh ${client} "tcpdump -r tcpdumptest_${afterString}.pcap 2>/dev/null | wc -l")
+	tcpdumpCountAfter=$(Run_SSHCommand ${client} "sudo tcpdump -r tcpdumptest_${afterString}.pcap 2>/dev/null | wc -l")
 
 	if [ $tcpdumpCountAfter -gt 0 ];then
 		LogErr "ICMP packets captured by tcpdump. Please check xdpAction.log."

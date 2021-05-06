@@ -41,12 +41,12 @@ function calculate_packets_drop(){
     local nicName=$1
     local vfName=$(get_vf_name ${nicName})
     local synthDrop=0
-    IFS=$'\n' read -r -d '' -a xdp_packet_array < <(ethtool -S $nicName | grep 'xdp' | cut -d':' -f2)
+    IFS=$'\n' read -r -d '' -a xdp_packet_array < <(sudo ethtool -S $nicName | grep 'xdp' | cut -d':' -f2)
     for i in "${xdp_packet_array[@]}";
     do
         synthDrop=$((synthDrop+i))
     done
-    vfDrop=$(ethtool -S $vfName | grep rx_xdp_drop | cut -d':' -f2)
+    vfDrop=$(sudo ethtool -S $vfName | grep rx_xdp_drop | cut -d':' -f2)
     if [ $? -ne 0 ]; then
         echo "$((synthDrop))"
     else
@@ -57,7 +57,7 @@ function calculate_packets_drop(){
 function calculate_packets_forward(){
     local nicName=$1
     local vfName=$(get_vf_name ${nicName})
-    vfForward=$(ethtool -S $vfName | grep rx_xdp_tx_xmit | cut -d':' -f2)
+    vfForward=$(sudo ethtool -S $vfName | grep rx_xdp_tx_xmit | cut -d':' -f2)
     echo "$((vfForward))"
 }
 
@@ -211,7 +211,7 @@ function get_extra_synth_nic {
     for interface in ${interfaces}; do
         # alternative is, but then must always know driver name
         # readlink -f /sys/class/net/<interface>/device/driver/
-        local bus_addr=$(ethtool -i ${interface} | grep bus-info | awk '{print $2}')
+        local bus_addr=$(sudo ethtool -i ${interface} | grep bus-info | awk '{print $2}')
         if [ -z "${bus_addr}" ]; then
             synth_ifs="${synth_ifs} ${interface}"
         fi

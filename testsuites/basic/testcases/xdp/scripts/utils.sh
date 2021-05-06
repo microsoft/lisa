@@ -3628,7 +3628,7 @@ function Run_SSHCommand()
 		if [[ ${localaddress} = ${ip} ]]; then
 			bash -c "${cmd}"
 		else
-			ssh "${ip}" "${cmd}"
+			ssh -o StrictHostKeyChecking=no "${ip}" "${cmd}"
 		fi
 	done
 }

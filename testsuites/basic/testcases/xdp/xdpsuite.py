@@ -12,6 +12,7 @@ from lisa.util.perf_timer import create_timer
 
 # TODO: move to microsoft test suite folder
 # TODO: hoping eventually there is a node.nics list to get these from rather than hardcoding
+# TODO: there needs to be an SRIOV enabled/disabled requirement added
 NIC_NAMES = ["eth0", "eth1", "eth2"]
 
 # TODO: check kernel version with uname -r and kernel config
@@ -81,11 +82,16 @@ class xdpdump(TestSuite):
         description="""
         Test verifies xdp is working with SRIOV-enabled NIC and synthetic NIC
         """,
-        priority=0,
+        priority=1,
         requirement=simple_requirement(
-            min_count=1, min_nic_count=2, unsupported_os=[Windows]
+            min_count=1,
+            min_nic_count=2,
+            unsupported_os=[
+                Windows
+            ],  # , sriov=disabled  #TODO: this requirement doesn't exist yet
         ),
-    )
+    )  # TODO: This original test requires SRIOV to be disabled and enabled to check on/off
+    # TODO: Not sure LISAv3 can do this yet, might be best to break into two tests
     def verify_sriov_failsafe(self, environment: Environment, node: Node) -> None:
         log_suffix = "sriov_failsafe"
         self.setup_xdpdump(environment, [node])
@@ -125,9 +131,9 @@ class xdpdump(TestSuite):
         description="""
         Verifies xdp working with 2 SRIOV-enabled nics i.e. eth1 and eth2
         """,
-        priority=1,
+        priority=0,
         requirement=simple_requirement(
-            min_count=2, min_nic_count=2, unsupported_os=[Windows]
+            min_count=2, min_nic_count=3, unsupported_os=[Windows]  # , sriov=enabled
         ),
     )
     def verify_xdp_multiple_nics(self, environment: Environment, node: Node) -> None:
@@ -153,7 +159,7 @@ class xdpdump(TestSuite):
             )
             self.log.info(result.stdout)
             node_nic_ips[node] = self.gather_nic_ips(
-                node, NIC_NAMES
+                node, NIC_NAMES  # TODO: this should use the nic_count
             )  # TODO: NIC_NAMES use
 
         self.log.info("Gathering NIC IP info for nodes:")
@@ -229,7 +235,7 @@ class xdpdump(TestSuite):
         description="""
             Test case verifies XDP is able to perform DROP, FWD, ABORT actions.
         """,
-        priority=1,
+        priority=0,
         requirement=simple_requirement(min_count=2, min_nic_count=2),
     )
     def verify_xdp_action(self, environment: Environment) -> None:
@@ -267,7 +273,6 @@ class xdpdump(TestSuite):
             script: CustomScript = client_node.tools[self._xdp_script]
             result = client_node.execute(
                 "bash -c 'source xdputils.sh; ./XDP-Action.sh'",
-                sudo=True,
                 cwd=script.get_tool_path(),
             )
             self.log.info(result.stdout)
@@ -400,7 +405,7 @@ class xdpdump(TestSuite):
         self.log.info(
             f"Disabling LRO on node at {node.public_address}/{node.internal_address}"
         )
-        result = node.execute(f"ethtool -K {nic_name} lro off", sudo=True)
+        result = node.execute(f"ethtool -K {nic_name} lro off", sudo=True, shell=True)
         assert_that(result.exit_code == 0)
         self.log.info(result.stdout)
 
