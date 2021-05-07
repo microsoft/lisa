@@ -1,6 +1,8 @@
 # Copyright (c) Microsoft Corporation.
 # Licensed under the MIT license.
 
+from lisa.base_tools.wget import Wget
+
 from .cat import Cat
 from .date import Date
 from .dmesg import Dmesg
@@ -15,7 +17,6 @@ from .ntttcp import Ntttcp
 from .reboot import Reboot
 from .uname import Uname
 from .uptime import Uptime
-from .wget import Wget
 from .who import Who
 
 __all__ = [

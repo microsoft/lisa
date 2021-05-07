@@ -1,11 +1,10 @@
 import re
 from typing import Any, List
 
+from lisa.base_tools.wget import Wget
 from lisa.executable import Tool
 from lisa.operating_system import Redhat, Suse, Ubuntu
 from lisa.util import LisaException
-
-from .wget import Wget
 
 # segment output of lsvmbus -vv
 # VMBUS ID  1: Class_ID = {525074dc-8985-46e2-8057-a307dc18a502}
@@ -151,9 +150,9 @@ class Lsvmbus(Tool):
 
     def _install_from_src(self) -> None:
         wget_tool = self.node.tools[Wget]
-        file_path = wget_tool.get(self._lsvmbus_repo, "$HOME/.local/bin")
-        # make the download file executable
-        self.node.execute(f"chmod +x {file_path}")
+        file_path = wget_tool.get(
+            self._lsvmbus_repo, "$HOME/.local/bin", executable=True
+        )
         self._command = file_path
 
     def install(self) -> bool:

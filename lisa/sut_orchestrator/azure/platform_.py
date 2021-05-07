@@ -1164,6 +1164,7 @@ class AzurePlatform(Platform):
             excluded_features=search_space.SetSpace[str](is_allow_set=False),
         )
         node_space.name = f"{location}_{resource_sku.name}"
+        node_space.features = search_space.SetSpace[str](is_allow_set=True)
         for sku_capability in resource_sku.capabilities:
             name = sku_capability.name
             if name == "vCPUs":
@@ -1180,9 +1181,10 @@ class AzurePlatform(Platform):
                 )
             elif name == "GPUs":
                 node_space.gpu_count = int(sku_capability.value)
+                # update features list if gpu feature is supported
+                node_space.features.update(features.Gpu.name())
 
         # all nodes support following features
-        node_space.features = search_space.SetSpace[str](is_allow_set=True)
         node_space.features.update(
             [features.StartStop.name(), features.SerialConsole.name()]
         )
