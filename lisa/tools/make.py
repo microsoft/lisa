@@ -11,8 +11,6 @@ from lisa.util import LisaException
 
 
 class Make(Tool):
-    repo = "https://github.com/microsoft/ntttcp-for-linux"
-
     @property
     def command(self) -> str:
         return "make"

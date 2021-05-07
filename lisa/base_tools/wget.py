@@ -1,15 +1,31 @@
 import pathlib
 import re
-from typing import cast
+from typing import TYPE_CHECKING
 
 from lisa.executable import Tool
-from lisa.operating_system import Posix
 from lisa.util import LisaException
+
+if TYPE_CHECKING:
+    from lisa.operating_system import Posix
 
 
 class Wget(Tool):
     __pattern_path = re.compile(
         r"([\w\W]*?)(-|File) (‘|')(?P<path>.+?)(’|') (saved|already there)"
+    )
+
+    # regex to validate url
+    # source -
+    # https://github.com/django/django/blob/stable/1.3.x/django/core/validators.py#L45
+    __url_pattern = re.compile(
+        r"^(?:http|ftp)s?://"  # http:// or https://
+        r"(?:(?:[A-Z0-9](?:[A-Z0-9-]{0,61}[A-Z0-9])?\.)"
+        r"+(?:[A-Z]{2,6}\.?|[A-Z0-9-]{2,}\.?)|"  # ...domain
+        r"localhost|"  # localhost...
+        r"\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3})"  # ...or ip
+        r"(?::\d+)?"  # optional port
+        r"(?:/?|[/?]\S+)$",
+        re.IGNORECASE,
     )
 
     @property
@@ -21,13 +37,20 @@ class Wget(Tool):
         return True
 
     def install(self) -> bool:
-        posix_os: Posix = cast(Posix, self.node.os)
+        posix_os: Posix = self.node.os  # type: ignore
         posix_os.install_packages([self])
         return self._check_exists()
 
     def get(
-        self, url: str, file_path: str = "", filename: str = "", overwrite: bool = True
+        self,
+        url: str,
+        file_path: str = "",
+        filename: str = "",
+        overwrite: bool = True,
+        executable: bool = False,
     ) -> str:
+        if re.match(self.__url_pattern, url) is None:
+            raise LisaException(f"Invalid URL '{url}'")
         # create folder when it doesn't exist
         self.node.execute(f"mkdir -p {file_path}", shell=True)
         # combine download file path
@@ -52,4 +75,7 @@ class Wget(Tool):
         actual_file_path = self.node.execute(f"ls {download_file_path}", shell=True)
         if actual_file_path.exit_code != 0:
             raise LisaException(f"File {actual_file_path} doesn't exist.")
+        if executable:
+            self.node.execute(f"chmod +x {actual_file_path}")
+
         return actual_file_path.stdout

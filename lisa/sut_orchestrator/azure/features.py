@@ -8,6 +8,7 @@ import requests
 
 from lisa import features
 from lisa.node import Node
+from lisa.operating_system import CentOs, Redhat, Suse, Ubuntu
 
 from .common import get_compute_client, get_node_context, wait_operation
 
@@ -67,3 +68,15 @@ class SerialConsole(AzureFeatureMixin, features.SerialConsole):
         log_response = requests.get(diagnostic_data.serial_console_log_blob_uri)
 
         return log_response.content
+
+
+class Gpu(AzureFeatureMixin, features.Gpu):
+    def _initialize(self, *args: Any, **kwargs: Any) -> None:
+        super()._initialize(*args, **kwargs)
+        self._initialize_information(self._node)
+
+    def _is_supported(self) -> bool:
+        supported_distro = (CentOs, Redhat, Ubuntu, Suse)
+        if not isinstance(self._node.os, supported_distro):
+            return False
+        return True
