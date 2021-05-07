@@ -47,8 +47,9 @@ def wait_tcp_port_ready(
                     if times % 10 == 0 and log:
                         log.debug(
                             f"cannot connect to {address}:{port}, "
-                            f"error code: {result}, tried times: {times},"
-                            f" elapsed: {timout_timer}. retrying..."
+                            f"error code: {result}, current try: {times + 1},"
+                            f" elapsed: {timout_timer.elapsed(False)} "
+                            f"(timeout on {timeout}). retrying..."
                         )
                     sleep(1)
                     times += 1
