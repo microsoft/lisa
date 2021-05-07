@@ -157,11 +157,15 @@ def try_connect(connection_info: ConnectionInfo) -> Any:
     # Flush commands and prevent more writes
     stdin.flush()
 
-    # Give it time to read/buffer something, otherwise reads on stdout
-    # on calling contexts have been seen having empty strings from
-    # stdout, on Windows. There is no moving back, but losing one byte
-    # is not an issue for the function's intent
-    _ = stdout.channel.recv(1)
+    # Give it some time to process the command, otherwise reads on
+    # stdout on calling contexts have been seen having empty strings
+    # from stdout, on Windows. There is a certain 3s penalty on Linux
+    # systems, as it's never ready for that (inexisting) command, but
+    # that should only happen once per node (not per command)
+    tries = 3
+    while not stdout.channel.recv_ready() and tries:
+        sleep(1)
+        tries -= 1
 
     stdin.channel.shutdown_write()
     paramiko_client.close()
