@@ -25,64 +25,76 @@ from .wget import Wget
 # \r\n\t
 # Rel_ID=2, target_cpu=0
 # \r\n\r\n
-PATTERN_VMBUSES = re.compile(r"(VMBUS ID[\w\W]*?)(?=VMBUS ID|\Z)", re.MULTILINE)
+PATTERN_VMBUS_DEVICE = re.compile(r"(VMBUS ID[\w\W]*?)(?=VMBUS ID|\Z)", re.MULTILINE)
 
 
 class ChannelVPMap:
-    def __init__(self, rel_id: str, cpu: str) -> None:
+    def __init__(self, vmbus_id: str, rel_id: str, cpu: str) -> None:
+        self.vmbus_id = vmbus_id
         self.rel_id = rel_id
         self.target_cpu = cpu
 
+    def __str__(self) -> str:
+        return "(vmbus_id: {0}, rel_id: {1}, target_cpu: {2})".format(
+            self.vmbus_id, self.rel_id, self.target_cpu
+        )
 
-class VmBus:
+    def __repr__(self) -> str:
+        return self.__str__()
+
+
+class VmBusDevice:
     # VMBUS ID  1: Class_ID = {525074dc-8985-46e2-8057-a307dc18a502}
     # - [Dynamic Memory]
-    __pattern_vmbus = re.compile(
+    __pattern_vmbus_device_info = re.compile(
         r"^VMBUS ID\s+(?P<index>\d+): Class_ID = {?(?P<class_id>.+?)}?"
         r" - \[?(?P<name>.+?)\]?\r$",
         re.MULTILINE,
     )
     # Device_ID = {00000000-0000-8899-0000-000000000000}
-    __pattern_device = re.compile(
+    __pattern_device_info = re.compile(
         r"([\w\W]*?)Device_ID = {?(?P<device_id>.+?)}?\r$", re.MULTILINE
     )
     # Rel_ID=12, target_cpu=2
     # Rel_ID=15, target_cpu=1
     # Rel_ID=16, target_cpu=2
     # Rel_ID=17, target_cpu=3
-    __pattern_channels = re.compile(r"(Rel_ID[\w\W]*?)(?=Rel_ID|\Z)", re.MULTILINE)
+    __pattern_channels_info = re.compile(r"(Rel_ID[\w\W]*?)(?=Rel_ID|\Z)", re.MULTILINE)
 
-    __pattern_channel = re.compile(
+    __pattern_channel_info = re.compile(
         r"([\w\W]*?)(Rel_ID=(?P<rel_id>\d+), target_cpu=(?P<cpu>\d+))", re.MULTILINE
     )
 
-    def __init__(self, vmbus_raw: str) -> None:
-        self.parse(vmbus_raw)
+    def __init__(self, vmbus_device_raw: str) -> None:
+        self.parse(vmbus_device_raw)
 
     def parse(self, raw_str: str) -> Any:
-        matched_vmbus = self.__pattern_vmbus.match(raw_str)
-        matched_device = self.__pattern_device.match(raw_str)
+        matched_vmbus_device_info = self.__pattern_vmbus_device_info.match(raw_str)
+        matched_device_info = self.__pattern_device_info.match(raw_str)
+        if matched_vmbus_device_info:
+            self.id = matched_vmbus_device_info.group("index")
+            self.name = matched_vmbus_device_info.group("name")
+            self.class_id = matched_vmbus_device_info.group("class_id")
+        else:
+            raise LisaException("cannot find matched vmbus device")
+        if matched_device_info:
+            self.device_id = matched_device_info.group("device_id")
+        else:
+            raise LisaException("cannot find matched device id")
         channel_vp_map_list: List[ChannelVPMap] = []
-        raw_channels = re.finditer(self.__pattern_channels, raw_str)
-        for channel in raw_channels:
-            matched_channel = self.__pattern_channel.match(channel.group())
+        raw_channels_info = re.finditer(self.__pattern_channels_info, raw_str)
+        for channel in raw_channels_info:
+            matched_channel = self.__pattern_channel_info.match(channel.group())
             if matched_channel:
                 channel_vp_map = ChannelVPMap(
-                    matched_channel.group("rel_id"), matched_channel.group("cpu")
+                    self.id,
+                    matched_channel.group("rel_id"),
+                    matched_channel.group("cpu"),
                 )
             else:
                 raise LisaException("cannot find matched channel")
             channel_vp_map_list.append(channel_vp_map)
-        if matched_vmbus:
-            self.id = matched_vmbus.group("index")
-            self.vmbus_name = matched_vmbus.group("name")
-            self.class_id = matched_vmbus.group("class_id")
-        else:
-            raise LisaException("cannot find matched vm bus")
-        if matched_device:
-            self.device_id = matched_device.group("device_id")
-        else:
-            raise LisaException("cannot find matched device id")
+
         self.channel_vp_map = channel_vp_map_list
 
 
@@ -103,7 +115,7 @@ class Lsvmbus(Tool):
 
     def _initialize(self, *args: Any, **kwargs: Any) -> None:
         self._command = "lsvmbus"
-        self._vmbuses: List[VmBus] = []
+        self._vmbus_devices: List[VmBusDevice] = []
 
     def _check_exists(self) -> bool:
         _exists = super()._check_exists()
@@ -172,19 +184,21 @@ class Lsvmbus(Tool):
 
         return self._check_exists()
 
-    def get_vmbuses(self, force_run: bool = False) -> List[VmBus]:
-        if (not self._vmbuses) or force_run:
+    def get_device_channels_from_lsvmbus(
+        self, force_run: bool = False
+    ) -> List[VmBusDevice]:
+        if (not self._vmbus_devices) or force_run:
             result = self.run("-vv", force_run=force_run, shell=True)
             if result.exit_code != 0:
-                result = self.run("-vv", shell=True, sudo=True)
+                result = self.run("-vv", force_run=force_run, shell=True, sudo=True)
                 if result.exit_code != 0:
                     raise LisaException(
                         f"get unexpected non-zero exit code {result.exit_code} "
                         f"when run {self.command} -vv."
                     )
-            raw_list = re.finditer(PATTERN_VMBUSES, result.stdout)
+            raw_list = re.finditer(PATTERN_VMBUS_DEVICE, result.stdout)
             for vmbus_raw in raw_list:
-                vmbus = VmBus(vmbus_raw.group())
-                self._vmbuses.append(vmbus)
+                vmbus_device = VmBusDevice(vmbus_raw.group())
+                self._vmbus_devices.append(vmbus_device)
 
-        return self._vmbuses
+        return self._vmbus_devices
