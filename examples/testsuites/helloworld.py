@@ -5,7 +5,7 @@ from typing import Any
 
 from assertpy import assert_that
 
-from lisa import Environment, Node, TestCaseMetadata, TestSuite, TestSuiteMetadata
+from lisa import Node, TestCaseMetadata, TestSuite, TestSuiteMetadata
 from lisa.operating_system import Posix
 from lisa.tools import Echo, Uname
 
@@ -27,10 +27,7 @@ class HelloWorld(TestSuite):
         """,
         priority=0,
     )
-    def hello(self, environment: Environment) -> None:
-        self.log.info(f"node count: {len(environment.nodes)}")
-        node = environment.default_node
-
+    def hello(self, node: Node) -> None:
         if node.os.is_posix:
             assert isinstance(node.os, Posix)
             info = node.tools[Uname].get_linux_information()
