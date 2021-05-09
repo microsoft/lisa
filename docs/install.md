@@ -1,15 +1,16 @@
 # Install LISA
 
-- [Prerequisites](#prerequisites)
-- [Install Python](#install-python)
-  - [Windows](#windows)
-  - [Linux](#linux)
-- [Install dependencies](#install-dependencies)
-- [Clone code](#clone-code)
-- [Install Poetry and Python dependencies](#install-poetry-and-python-dependencies)
-  - [Install Poetry in Linux](#install-poetry-in-linux)
-  - [Install Poetry in Windows](#install-poetry-in-windows)
-- [FAQ and Troubleshooting](#faq-and-troubleshooting)
+- [Install LISA](#install-lisa)
+  - [Prerequisites](#prerequisites)
+  - [Install Python](#install-python)
+    - [Windows](#windows)
+    - [Linux](#linux)
+  - [Install dependencies](#install-dependencies)
+  - [Clone code](#clone-code)
+  - [Install Poetry and Python dependencies](#install-poetry-and-python-dependencies)
+    - [Install Poetry in Linux](#install-poetry-in-linux)
+    - [Install Poetry in Windows](#install-poetry-in-windows)
+  - [FAQ and Troubleshooting](#faq-and-troubleshooting)
 
 LISA supports to run on Windows and Linux. Follow below steps to install LISA from source code.
 
@@ -38,7 +39,7 @@ For some Linux distributions, you can install latest Python 3.8 (64-bit) by its 
 sudo apt update
 sudo apt install software-properties-common -y
 sudo add-apt-repository ppa:deadsnakes/ppa -y
-sudo apt install python3.8 -y
+sudo apt install python3.8 python3.8-dev -y
 ```
 
 ## Install dependencies
@@ -48,19 +49,18 @@ Since LISA is installed from source, `git` is necessary. And some packages need 
 In Linux, it needs `git`, `gcc`, and other Azure dependencies. Below is depended packages on Ubuntu.
 
 ```bash
-sudo apt install git gcc libgirepository1.0-dev libcairo2-dev
+sudo apt install git gcc libgirepository1.0-dev libcairo2-dev virtualenv -y
 ```
 
 In Windows, you need to install [git](https://git-scm.com/downloads) and [Visual C++ redistributable package](https://aka.ms/vs/16/release/vc_redist.x64.exe)
 
 ## Clone code
 
-Open a terminal window, and enter the folder, which uses to put lisa code. If you want to use the latest version, checkout the main branch.
+Open a terminal window, and enter the folder, which uses to put LISA code. If you want to use the latest version, checkout the main branch.
 
 ```sh
 git clone https://github.com/microsoft/lisa.git
 cd lisa
-git checkout main
 ```
 
 ## Install Poetry and Python dependencies
@@ -73,7 +73,7 @@ Note, it's important to enter LISA's folder to run below command, since Poetry m
 
 ```bash
 curl -sSL https://raw.githubusercontent.com/python-poetry/poetry/master/install-poetry.py | python3 -
-source $HOME/.local/bin
+source ../.profile
 poetry install
 ```
 
