@@ -18,8 +18,9 @@ from lisa.node import Node
 from lisa.runner import BaseRunner
 from lisa.testsuite import TestCaseMetadata, TestCaseRuntimeData, TestResult, TestStatus
 from lisa.tools import Git
-from lisa.util import InitializableMixin, LisaException, constants, run_in_threads
+from lisa.util import InitializableMixin, LisaException, constants
 from lisa.util.logger import Logger, create_file_handler, get_logger, remove_handler
+from lisa.util.parallel import run_in_threads
 from lisa.util.process import Process
 
 # uses to prevent read conflict on log files
