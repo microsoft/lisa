@@ -10,8 +10,9 @@ from typing import Any, Dict, List, Optional
 from lisa import schema
 from lisa.action import Action
 from lisa.testsuite import TestResult, TestStatus
-from lisa.util import BaseClassMixin, constants, run_in_threads
+from lisa.util import BaseClassMixin, constants
 from lisa.util.logger import create_file_handler, get_logger, remove_handler
+from lisa.util.parallel import run_in_threads
 from lisa.util.subclasses import Factory
 
 
