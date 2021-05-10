@@ -376,7 +376,7 @@ function Install_Dpdk () {
 		fi
 		# shellcheck disable=SC2034
 		ssh ${1} ". constants.sh; . utils.sh; . dpdkUtils.sh; cd ${LIS_HOME}/${DPDK_DIR}; $(typeset -f Dpdk_Configure); DPDK_DIR=${DPDK_DIR} LIS_HOME=${LIS_HOME} Dpdk_Configure ${1}"
-		ssh ${1} "cd ${LIS_HOME}/${DPDK_DIR}/build && ninja && ninja install && ldconfig"
+		ssh ${1} "cd ${LIS_HOME}/${DPDK_DIR}/build && meson configure -Db_sanitize=address && ninja && ninja install && ldconfig"
 		check_exit_status "dpdk build on ${1}" "exit"
 	else
 		if [[ ${DISTRO_NAME} == rhel ]] && ! [[ ${DISTRO_VERSION} == *"8."* ]]; then
