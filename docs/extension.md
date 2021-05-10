@@ -1,21 +1,22 @@
 # How to write extensions in LISA
 
-- [Components](#components)
-  - [Common](#common)
-    - [Extend schema](#extend-schema)
-    - [Which method must be implemented](#which-method-must-be-implemented)
-  - [Notifier](#notifier)
-  - [Tool](#tool)
-  - [CustomScript](#customscript)
-  - [Feature](#feature)
-    - [Create a new feature](#create-a-new-feature)
-    - [Support an existing feature in a platform](#support-an-existing-feature-in-a-platform)
-    - [Use a feature](#use-a-feature)
-  - [Platform](#platform)
-- [Hooks](#hooks)
-  - [Implement a hook](#implement-a-hook)
-  - [`get_environment_information`](#get_environment_information)
-  - [`azure_deploy_failed`](#azure_deploy_failed)
+- [How to write extensions in LISA](#how-to-write-extensions-in-lisa)
+  - [Components](#components)
+    - [Common](#common)
+      - [Extend schema](#extend-schema)
+      - [Which method must be implemented](#which-method-must-be-implemented)
+    - [Notifier](#notifier)
+    - [Tool](#tool)
+    - [CustomScript](#customscript)
+    - [Feature](#feature)
+      - [Create a new feature](#create-a-new-feature)
+      - [Support an existing feature in a platform](#support-an-existing-feature-in-a-platform)
+      - [Use a feature](#use-a-feature)
+    - [Platform](#platform)
+  - [Hooks](#hooks)
+    - [Implement a hook](#implement-a-hook)
+    - [`get_environment_information`](#get_environment_information)
+    - [`azure_deploy_failed`](#azure_deploy_failed)
 
 LISA uses extensions to share code in test cases and makes it flexibly applicable to various situations. There are two kinds of extensions.
 
@@ -124,7 +125,6 @@ It needs to implement a base class that is called by the test cases. It needs to
 
     ```python
     requirement=simple_requirement(
-        environment_status=EnvironmentStatus.Deployed,
         supported_features=[SerialConsole],
     ```
 
