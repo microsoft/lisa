@@ -4,6 +4,8 @@ import concurrent.futures
 import time
 from typing import Any, Callable, List, Optional
 
+from .logger import Logger
+
 
 def _cancel_threads(
     futures: List[Any],
@@ -32,7 +34,7 @@ def run_in_threads(
     methods: List[Any],
     max_workers: int = 0,
     completed_callback: Optional[Callable[[Any], None]] = None,
-    log: Optional[Any] = None,
+    log: Optional[Logger] = None,
 ) -> List[Any]:
     """
     start methods in a thread pool

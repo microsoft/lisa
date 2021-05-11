@@ -143,23 +143,17 @@ class AzureNodeSchema:
         return result
 
 
-def get_compute_client(platform: Any) -> ComputeManagementClient:
-    # there is cycle import, if assert type.
-    # so it just use typing here only, no assertion.
-    azure_platform: AzurePlatform = platform
+def get_compute_client(platform: "AzurePlatform") -> ComputeManagementClient:
     return ComputeManagementClient(
-        credential=azure_platform.credential,
-        subscription_id=azure_platform.subscription_id,
+        credential=platform.credential,
+        subscription_id=platform.subscription_id,
     )
 
 
-def get_network_client(platform: Any) -> ComputeManagementClient:
-    # there is cycle import, if assert type.
-    # so it just use typing here only, no assertion.
-    azure_platform: AzurePlatform = platform
+def get_network_client(platform: "AzurePlatform") -> ComputeManagementClient:
     return NetworkManagementClient(
-        credential=azure_platform.credential,
-        subscription_id=azure_platform.subscription_id,
+        credential=platform.credential,
+        subscription_id=platform.subscription_id,
     )
 
 
@@ -178,11 +172,12 @@ def get_storage_account_name(subscription_id: str, location: str) -> str:
     return f"lisas{location[0:11]}{subscription_id_postfix}"
 
 
-def get_marketplace_ordering_client(platform: Any) -> MarketplaceOrderingAgreements:
-    azure_platform: AzurePlatform = platform
+def get_marketplace_ordering_client(
+    platform: "AzurePlatform",
+) -> MarketplaceOrderingAgreements:
     return MarketplaceOrderingAgreements(
-        credential=azure_platform.credential,
-        subscription_id=azure_platform.subscription_id,
+        credential=platform.credential,
+        subscription_id=platform.subscription_id,
     )
 
 

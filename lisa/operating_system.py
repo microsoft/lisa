@@ -51,7 +51,7 @@ class OperatingSystem:
 
     __posix_factory: Optional[Factory[Any]] = None
 
-    def __init__(self, node: Any, is_posix: bool) -> None:
+    def __init__(self, node: "Node", is_posix: bool) -> None:
         super().__init__()
         self._node: Node = node
         self._is_posix = is_posix
@@ -59,13 +59,12 @@ class OperatingSystem:
         self._os_version: Optional[OsVersion] = None
 
     @classmethod
-    def create(cls, node: Any) -> Any:
-        typed_node: Node = node
-        log = _get_init_logger(parent=typed_node.log)
+    def create(cls, node: "Node") -> Any:
+        log = _get_init_logger(parent=node.log)
         result: Optional[OperatingSystem] = None
 
         detected_info = ""
-        if typed_node.shell.is_posix:
+        if node.shell.is_posix:
             # delay create factory to make sure it's late than loading extensions
             if cls.__posix_factory is None:
                 cls.__posix_factory = Factory[Posix](Posix)
@@ -83,7 +82,7 @@ class OperatingSystem:
                         pattern = posix_type.name_pattern()
                         if pattern.findall(os_info_item):
                             detected_info = os_info_item
-                            result = posix_type(typed_node)
+                            result = posix_type(node)
                             matched = True
                             break
                     if matched:
@@ -100,7 +99,7 @@ class OperatingSystem:
                     f"support it in operating_system."
                 )
         else:
-            result = Windows(typed_node)
+            result = Windows(node)
         log.debug(
             f"detected OS: '{result.__class__.__name__}' by pattern '{detected_info}'"
         )

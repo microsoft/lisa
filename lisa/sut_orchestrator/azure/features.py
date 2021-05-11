@@ -2,7 +2,7 @@
 # Licensed under the MIT license.
 
 from pathlib import Path
-from typing import Any, Optional
+from typing import TYPE_CHECKING, Any, Optional
 
 import requests
 
@@ -11,6 +11,9 @@ from lisa.node import Node
 from lisa.operating_system import CentOs, Redhat, Suse, Ubuntu
 
 from .common import get_compute_client, get_node_context, wait_operation
+
+if TYPE_CHECKING:
+    from .platform_ import AzurePlatform
 
 
 class AzureFeatureMixin:
@@ -35,7 +38,8 @@ class StartStop(AzureFeatureMixin, features.StartStop):
         self._initialize_information(self._node)
 
     def _execute(self, wait: bool, operator: str) -> Any:
-        compute_client = get_compute_client(self._platform)
+        platform: AzurePlatform = self._platform  # type: ignore
+        compute_client = get_compute_client(platform)
         operator_method = getattr(compute_client.virtual_machines, operator)
         result = operator_method(
             vm_name=self._vm_name, resource_group_name=self._resource_group_name
@@ -51,7 +55,8 @@ class SerialConsole(AzureFeatureMixin, features.SerialConsole):
         self._initialize_information(self._node)
 
     def _get_console_log(self, saved_path: Optional[Path]) -> bytes:
-        compute_client = get_compute_client(self._platform)
+        platform: AzurePlatform = self._platform  # type: ignore
+        compute_client = get_compute_client(platform)
         diagnostic_data = (
             compute_client.virtual_machines.retrieve_boot_diagnostics_data(
                 resource_group_name=self._resource_group_name, vm_name=self._vm_name

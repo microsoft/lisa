@@ -12,7 +12,7 @@ if TYPE_CHECKING:
 
 
 class Feature(InitializableMixin):
-    def __init__(self, node: Any, platform: Any) -> None:
+    def __init__(self, node: "Node", platform: "Platform") -> None:
         super().__init__()
         self._node: Node = node
         self._platform: Platform = platform
