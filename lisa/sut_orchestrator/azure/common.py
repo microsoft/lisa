@@ -10,6 +10,7 @@ from azure.mgmt.compute import ComputeManagementClient  # type: ignore
 from azure.mgmt.marketplaceordering import MarketplaceOrderingAgreements  # type: ignore
 from azure.mgmt.network import NetworkManagementClient  # type: ignore
 from azure.mgmt.storage import StorageManagementClient  # type: ignore
+from azure.mgmt.storage.models import Sku, StorageAccountCreateParameters  # type:ignore
 from azure.storage.blob import BlobServiceClient, ContainerClient  # type: ignore
 from dataclasses_json import dataclass_json
 
@@ -17,11 +18,13 @@ from lisa import schema
 from lisa.environment import Environment
 from lisa.node import Node
 from lisa.util import LisaException
+from lisa.util.logger import Logger
 
 if TYPE_CHECKING:
     from .platform_ import AzurePlatform
 
 AZURE = "azure"
+AZURE_SHARED_RG_NAME = "lisa_shared_resource"
 
 
 @dataclass
@@ -160,11 +163,12 @@ def get_network_client(platform: Any) -> ComputeManagementClient:
     )
 
 
-def get_storage_client(platform: Any) -> ComputeManagementClient:
-    azure_platform: AzurePlatform = platform
+def get_storage_client(
+    credential: DefaultAzureCredential, subscription_id: str
+) -> ComputeManagementClient:
     return StorageManagementClient(
-        credential=azure_platform.credential,
-        subscription_id=azure_platform.subscription_id,
+        credential=credential,
+        subscription_id=subscription_id,
     )
 
 
@@ -208,3 +212,36 @@ def get_or_create_storage_container(
     if not container_client.exists():
         container_client.create_container()
     return container_client
+
+
+def check_or_create_storage_account(
+    credential: DefaultAzureCredential,
+    subscription_id: str,
+    account_name: str,
+    resource_group_name: str,
+    location: str,
+    log: Logger,
+) -> None:
+    # check and deploy storage account.
+    # storage account can be deployed inside of arm template, but if the concurrent
+    # is too big, Azure may not able to delete deployment script on time. so there
+    # will be error like below
+    # Creating the deployment 'name' would exceed the quota of '800'.
+    storage_client = get_storage_client(credential, subscription_id)
+    try:
+        storage_client.storage_accounts.get_properties(
+            account_name=account_name,
+            resource_group_name=resource_group_name,
+        )
+        log.debug(f"found storage account: {account_name}")
+    except Exception:
+        log.debug(f"creating storage account: {account_name}")
+        parameters = StorageAccountCreateParameters(
+            sku=Sku(name="Standard_LRS"), kind="StorageV2", location=location
+        )
+        operation = storage_client.storage_accounts.begin_create(
+            resource_group_name=resource_group_name,
+            account_name=account_name,
+            parameters=parameters,
+        )
+        wait_operation(operation)
