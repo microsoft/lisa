@@ -384,7 +384,7 @@ function Install_Dpdk () {
 		else
 			ssh ${1} "cd ${LIS_HOME}/${DPDK_DIR} && meson ${RTE_TARGET}"
 		fi
-		ssh "${1}" "cd $RTE_SDK/$RTE_TARGET && ninja 2>&1 && ninja install 2>&1 && ldconfig"
+		ssh "${1}" "cd $RTE_SDK/$RTE_TARGET && meson configure -Db_sanitize=address && ninja 2>&1 && ninja install 2>&1 && ldconfig"
 		check_exit_status "dpdk build on ${1}" "exit"
 	fi
 	if [[ ${DISTRO_NAME} == rhel || ${DISTRO_NAME} == centos ]]; then
