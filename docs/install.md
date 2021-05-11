@@ -110,7 +110,7 @@ command to install poetry, since Poetry manages dependencies by the working fold
 
 ```bash
 curl -sSL https://raw.githubusercontent.com/python-poetry/poetry/master/install-poetry.py | python3 -
-source ../.profile
+source $HOME/.profile
 poetry install
 ```
 
