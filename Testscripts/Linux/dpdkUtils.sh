@@ -367,6 +367,7 @@ function Install_Dpdk () {
 	fi
 
 	LogMsg "MLX_PMD flag enabling on ${1}"
+	MESON_CONFIG_OPTIONS="-Db_sanitize=address -Dbuildtype=debug"
 	if type Dpdk_Configure > /dev/null; then
 		echo "Calling testcase provided Dpdk_Configure(1) on ${1}"
 		if [[ ${DISTRO_NAME} == rhel ]] && ! [[ ${DISTRO_VERSION} == *"8."* ]]; then
@@ -376,7 +377,7 @@ function Install_Dpdk () {
 		fi
 		# shellcheck disable=SC2034
 		ssh ${1} ". constants.sh; . utils.sh; . dpdkUtils.sh; cd ${LIS_HOME}/${DPDK_DIR}; $(typeset -f Dpdk_Configure); DPDK_DIR=${DPDK_DIR} LIS_HOME=${LIS_HOME} Dpdk_Configure ${1}"
-		ssh ${1} "cd ${LIS_HOME}/${DPDK_DIR}/build && meson configure -Db_sanitize=address && ninja && ninja install && ldconfig"
+		ssh ${1} "cd ${LIS_HOME}/${DPDK_DIR}/build && meson configure ${MESON_CONFIG_OPTIONS} && ninja && ninja install && ldconfig"
 		check_exit_status "dpdk build on ${1}" "exit"
 	else
 		if [[ ${DISTRO_NAME} == rhel ]] && ! [[ ${DISTRO_VERSION} == *"8."* ]]; then
@@ -384,7 +385,7 @@ function Install_Dpdk () {
 		else
 			ssh ${1} "cd ${LIS_HOME}/${DPDK_DIR} && meson ${RTE_TARGET}"
 		fi
-		ssh "${1}" "cd $RTE_SDK/$RTE_TARGET && meson configure -Db_sanitize=address && ninja 2>&1 && ninja install 2>&1 && ldconfig"
+		ssh "${1}" "cd $RTE_SDK/$RTE_TARGET && meson configure ${MESON_CONFIG_OPTIONS} && ninja 2>&1 && ninja install 2>&1 && ldconfig"
 		check_exit_status "dpdk build on ${1}" "exit"
 	fi
 	if [[ ${DISTRO_NAME} == rhel || ${DISTRO_NAME} == centos ]]; then
