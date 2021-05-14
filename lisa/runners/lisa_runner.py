@@ -11,7 +11,12 @@ from lisa.environment import (
     EnvironmentStatus,
     load_environments,
 )
-from lisa.platform_ import Platform, WaitMoreResourceError, load_platform
+from lisa.platform_ import (
+    Platform,
+    PlatformMessage,
+    WaitMoreResourceError,
+    load_platform,
+)
 from lisa.runner import BaseRunner
 from lisa.testselector import select_testcases
 from lisa.testsuite import (
@@ -54,6 +59,10 @@ class LisaRunner(BaseRunner):
         candidate_environments = load_environments(self._runbook.environment)
 
         platform = load_platform(self._runbook.platform)
+        platform.initialize()
+        platform_message = PlatformMessage(name=platform.type_name())
+        notifier.notify(platform_message)
+
         # get environment requirements
         self._merge_test_requirements(
             test_results=test_results,

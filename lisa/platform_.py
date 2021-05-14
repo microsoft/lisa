@@ -3,6 +3,8 @@
 
 from __future__ import annotations
 
+from dataclasses import dataclass
+from enum import Enum
 from functools import partial
 from typing import Any, Dict, List, Type, cast
 
@@ -10,6 +12,7 @@ from lisa import schema
 from lisa.environment import Environment, EnvironmentStatus
 from lisa.feature import Feature, Features
 from lisa.node import RemoteNode
+from lisa.notifier import MessageBase
 from lisa.util import (
     InitializableMixin,
     LisaException,
@@ -21,6 +24,20 @@ from lisa.util.logger import Logger, get_logger
 from lisa.util.perf_timer import create_timer
 
 _get_init_logger = partial(get_logger, "init", "platform")
+
+PlatformStatus = Enum(
+    "TestRunStatus",
+    [
+        "INITIALIZED",
+    ],
+)
+
+
+@dataclass
+class PlatformMessage(MessageBase):
+    type: str = "Plaform"
+    name: str = ""
+    status: PlatformStatus = PlatformStatus.INITIALIZED
 
 
 class WaitMoreResourceError(Exception):
@@ -106,8 +123,6 @@ class Platform(subclasses.BaseClassWithRunbookMixin, InitializableMixin):
             user defined environment is higher priority than test cases,
             and then lower cost is prior to higher.
         """
-        self.initialize()
-
         log = get_logger(f"prepare[{environment.name}]", parent=self._log)
 
         # check and fill connection information for RemoteNode. So that the
