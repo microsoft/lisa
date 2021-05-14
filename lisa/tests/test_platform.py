@@ -123,6 +123,7 @@ def generate_platform(
     }
     runbook = schema.Platform.schema().load(runbook_data)  # type: ignore
     platform = load_platform([runbook])
+    platform.initialize()
     try:
         assert isinstance(platform, MockPlatform), f"actual: {type(platform)}"
     except AssertionError:
