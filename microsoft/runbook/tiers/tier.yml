@@ -1,7 +1,7 @@
 parent:
   - path: ./t$(tier).yml
 extension:
-  - ../../testsuites/basic
+  - ../testsuites/core
 variable:
   - name: tier
     value: 0

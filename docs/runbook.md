@@ -149,7 +149,7 @@ Below section is to specify path of extensions, the extensions are modules for t
 extension:
   - name: extended_features
     path: ../../extensions
-  - ../../lisa/testsuites/basic
+  - ../../lisa/microsoft/testsuites/core
 ```
 
 ## Reference
