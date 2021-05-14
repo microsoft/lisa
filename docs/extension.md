@@ -121,14 +121,14 @@ It needs to implement a base class that is called by the test cases. It needs to
 
 #### Use a feature
 
-1. Declare in the metadata which features are required. If the environment does not support this feature, the test case will be skipped. Learn more from [provisioning.py](../testsuites/basic/provisioning.py).
+1. Declare in the metadata which features are required. If the environment does not support this feature, the test case will be skipped. Learn more from [provisioning.py](../microsoft/testsuites/core/provisioning.py).
 
     ```python
     requirement=simple_requirement(
         supported_features=[SerialConsole],
     ```
 
-1. Using features is like using tools. Learn more from [provisioning.py](../testsuites/basic/provisioning.py).
+1. Using features is like using tools. Learn more from [provisioning.py](../microsoft/testsuites/core/provisioning.py).
 
     ```python
     serial_console = node.features[SerialConsole]
