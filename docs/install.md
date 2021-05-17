@@ -90,4 +90,4 @@ poetry install
 
 ## FAQ and Troubleshooting
 
-Refer to [FQA and troubleshooting](troubleshooting.md).
+Refer to [FAQ and troubleshooting](troubleshooting.md).
