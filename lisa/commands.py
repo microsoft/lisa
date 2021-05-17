@@ -12,13 +12,14 @@ from lisa.runner import RootRunner
 from lisa.testselector import select_testcases
 from lisa.testsuite import TestCaseRuntimeData
 from lisa.util import LisaException, constants
-from lisa.util.logger import get_logger
+from lisa.util.logger import enable_console_timestamp, get_logger
 from lisa.util.perf_timer import create_timer
 
 _get_init_logger = functools.partial(get_logger, "init")
 
 
 def run(args: Namespace) -> int:
+    enable_console_timestamp()
     runbook = load_runbook(args.runbook, args.variables)
 
     if runbook.notifier:
