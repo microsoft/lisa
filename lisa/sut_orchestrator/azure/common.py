@@ -5,7 +5,7 @@ import re
 from dataclasses import InitVar, dataclass, field
 from typing import TYPE_CHECKING, Any, Dict, Optional, Union
 
-from azure.identity import DefaultAzureCredential  # type: ignore
+from azure.identity import DefaultAzureCredential
 from azure.mgmt.compute import ComputeManagementClient  # type: ignore
 from azure.mgmt.marketplaceordering import MarketplaceOrderingAgreements  # type: ignore
 from azure.mgmt.network import NetworkManagementClient  # type: ignore

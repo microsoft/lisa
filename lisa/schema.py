@@ -89,7 +89,7 @@ class ListableValidator(validate.Validator):
         if isinstance(value, self._value_type):
             if self._inner_validator:
                 for validator in self._inner_validator:
-                    validator(value)  # type: ignore
+                    validator(value)
         elif isinstance(value, list):
             for value_item in value:
                 assert isinstance(value_item, self._value_type), (
@@ -98,7 +98,7 @@ class ListableValidator(validate.Validator):
                 )
                 if self._inner_validator:
                     for validator in self._inner_validator:
-                        validator(value_item)  # type: ignore
+                        validator(value_item)
         elif value is not None:
             raise ValidationError(
                 f"must be Union[{self._value_type}, List[{self._value_type}]], "

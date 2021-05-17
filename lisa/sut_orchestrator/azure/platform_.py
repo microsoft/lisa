@@ -15,7 +15,7 @@ from types import SimpleNamespace
 from typing import Any, Dict, List, Optional, Tuple, Type, Union
 
 from azure.core.exceptions import HttpResponseError
-from azure.identity import DefaultAzureCredential  # type: ignore
+from azure.identity import DefaultAzureCredential
 from azure.mgmt.compute.models import (  # type: ignore
     PurchasePlan,
     ResourceSku,
@@ -254,7 +254,6 @@ class AzurePlatformSchema:
 class AzurePlatform(Platform):
     def __init__(self, runbook: schema.Platform) -> None:
         super().__init__(runbook=runbook)
-        self.credential: DefaultAzureCredential = None
         self._environment_counter = 0
         self._eligible_capabilities: Dict[str, List[AzureCapability]] = dict()
         self._locations_data_cache: Dict[str, AzureLocation] = dict()
