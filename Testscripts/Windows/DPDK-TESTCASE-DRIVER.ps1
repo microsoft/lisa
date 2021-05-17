@@ -249,12 +249,6 @@ collect_VM_properties
 			-username $superUser -password $password -download -downloadTo $LogDir `
 			-files "*.csv, *.txt, *.log, logdir/*.log"
 
-		$testDataCsv = Import-Csv -Path "${LogDir}\dpdk_test.csv"
-		if (!$testDataCsv) {
-			Write-LogErr "Could not get performance data. Failing the test."
-			$finalState = "TestFailed"
-		}
-
 		if ($finalState -imatch "TestFailed") {
 			Write-LogErr "Test failed. Last known output: $currentOutput."
 			$testResult = "FAIL"
@@ -273,7 +267,12 @@ collect_VM_properties
 			Write-LogWarn "Content of summary.log : $testSummary"
 			$testResult = "ABORTED"
 		}
-
+		
+		$testDataCsv = Import-Csv -Path "${LogDir}\dpdk_test.csv"
+		if (!$testDataCsv) {
+			Write-LogErr "Could not get performance data. Failing the test."
+			$finalState = "TestFailed"
+		}
 		if ($testDataCsv -and @("PASS","FAIL").contains($testResult)) {
 			Write-LogInfo "Parsing the performance data for database insertion"
 			$properties = Get-VMProperties -PropertyFilePath "$LogDir\VM_properties.csv"
