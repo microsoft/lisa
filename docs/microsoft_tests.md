@@ -1,18 +1,12 @@
 # Microsoft tests
 
-- [How to run Microsoft tests](#how-to-run-microsoft-tests)
-  - [Quick start](#quick-start)
-  - [Advanced](#advanced)
-- [Test priority](#test-priority)
-- [Test tier](#test-tier)
-- [Test cases specification](#test-cases-specification)
-
-LISA is an end-to-end solution for verifying Linux kernels and distributions quality on Microsoft virtualization technologies.
-
-LISA is composed by two parts,
-
-1. A powerful framework to perform tests on Azure, Hyper-V, and other virtualization platforms.
-2. A comprehensive test suite to verify the integration between Linux kernels/distributions and Microsoft virtualization platforms.
+- [Microsoft tests](#microsoft-tests)
+  - [How to run Microsoft tests](#how-to-run-microsoft-tests)
+    - [Quick start](#quick-start)
+    - [Advanced](#advanced)
+  - [Test priority](#test-priority)
+  - [Test tier](#test-tier)
+  - [Test cases specification](#test-cases-specification)
 
 The test suite in LISA is called Microsoft tests, which are provided by Microsoft Linux System Group. This document introduces how Microsoft tests were defined, categorized, and how to have the appropriate coverage.
 
