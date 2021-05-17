@@ -38,9 +38,10 @@ def support_variable(parser: ArgumentParser) -> None:
         "-v",
         dest="variables",
         action="append",
-        help="Define one or more variables in the format of `name:value`, which will "
+        help="Variables are defined in runbooks, LISA doesn't pre-define any variable, "
+        "Specify one or more variables in the format of `name:value`, which will "
         "overwrite the value in the YAML file. It can support secret values in the "
-        "format of `s:name:value`.",
+        "format of `s:name:value`. Learn more from documents.",
     )
 
 
