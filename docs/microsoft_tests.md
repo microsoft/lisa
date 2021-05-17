@@ -40,11 +40,13 @@ Ideally, all tests should be run to maximize the coverage. But the time and reso
 
 Test tiers can be T0, T1, T2, T3, T4. It maps to priorities of test cases. For example, T0 means all P0 test cases are selected in a test run. T2 means all P0, P1, P2 test cases are selected in a test run.
 
-- **T0** completes in 5 minutes with single VM in average. 100% automation, and no need for manual analysis of results.
-- **T1** completes in 2 hours with 2 VMs in each environment, and two environments are parallel. 100% automation, and no need for manual analysis of results.
-- **T2** completes in 8 hours with two environments are parallel. 100% automation.
-- **T3** completes in 16 hours with two environments are parallel. 100% automation.
-- **T4** has no cost limit, and the coverage is maximized. 100% automation.
+| name | test priorities    | time restriction | resource restriction                    | automation requirement                                       |
+| ---- | ------------------ | ---------------- | --------------------------------------- | ------------------------------------------------------------ |
+| T0   | P0                 | 5 minutes        | single VM                               | 100% automation, and no need for manual analysis of results. |
+| T1   | P0, P1             | 2 hours          | 2 environments, and two VMs in each one | 100% automation, and no need for manual analysis of results. |
+| T2   | P0, P1, P2         | 8 hours          | 2 environments                          | 100% automation                                              |
+| T3   | P0, P1, P2, P3     | 16 hours         | 2 environments                          | 100% automation                                              |
+| T4   | P0, P1, P2, P3, P4 | no limitation    | no limitation                           | 100% automation                                              |
 
 ## Test cases specification
 
