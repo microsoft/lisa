@@ -54,14 +54,9 @@ function Main {
                 $testResult = $resultFail
                 throw "Fail to attach an empty data disk of size $diskSizeinGB GB to VM"
             }
-            Write-LogInfo "Verifying if data disk is added to the VM: Running fdisk on remote VM"
-            $fdiskOutput = Run-LinuxCmd -username $user -password $password -ip $AllVMData.PublicIP -port $AllVMData.SSHPort -command "/sbin/fdisk -l | grep /dev/sd" -runAsSudo
-            foreach ($line in ($fdiskOutput.Split([Environment]::NewLine))) {
-                if($line -imatch "Disk /dev/sd[a-z][a-z]|sd[c-z]:" -and [int64]($line.Split()[4]) -eq (([int64]($diskSizeinGB) * [int64]1073741824))) {
-                    $verifiedDiskCount += 1
-                    Write-LogInfo "$verifiedDiskCount data disk is successfully attached to the VM: $line"
-                }
-            }
+            Write-LogInfo "Verifying if data disk is added to the VM: Running lsblk on remote VM"
+            $osDiskLabel = Run-LinuxCmd -username $user -password $password -ip $AllVMData.PublicIP -port $AllVMData.SSHPort -command ". utils.sh && get_OSdisk" -runAsSudo
+            $verifiedDiskCount = Run-LinuxCmd -username $user -password $password -ip $AllVMData.PublicIP -port $AllVMData.SSHPort -command "lsblk -io KNAME,TYPE,SIZE,MODEL | grep -i 'Virtual Disk' | grep $diskSizeinGB | grep -v '$osDiskLabel ' | wc -l" -runAsSudo
             if ($verifiedDiskCount -eq 1) {
                 Write-LogInfo "Data disk added to the VM is successfully verified inside VM"
             } else {
@@ -76,13 +71,11 @@ function Main {
             } else {
                 throw "Failed to remove the data disk from the VM"
             }
-            Write-LogInfo "Verifying if data disk is removed from the VM: Running fdisk on remote VM"
-            $fdiskFinalOutput = Run-LinuxCmd -username $user -password $password -ip $AllVMData.PublicIP -port $AllVMData.SSHPort -command "/sbin/fdisk -l | grep /dev/sd" -runAsSudo
-            foreach ($line in ($fdiskFinalOutput.Split([Environment]::NewLine))) {
-                if($line -imatch "Disk /dev/sd[a-z][a-z]|sd[c-z]:" -and [int64]($line.Split()[4]) -eq (([int64]($diskSizeinGB) * [int64]1073741824))) {
-                    $testResult = $resultFail
-                    throw "Data disk is NOT removed from the VM at $line"
-                }
+            Write-LogInfo "Verifying if data disk is removed from the VM: Running lsblk on remote VM"
+            $finalDiskCount = Run-LinuxCmd -username $user -password $password -ip $AllVMData.PublicIP -port $AllVMData.SSHPort -command "lsblk -io KNAME,TYPE,SIZE,MODEL | grep -i 'Virtual Disk' | grep $diskSizeinGB | grep -v '$osDiskLabel ' | wc -l" -runAsSudo
+            if([int]$finalDiskCount -ne 0) {
+                $testResult = $resultFail
+                throw "Data disk is NOT removed from the VM successfully"
             }
             Write-LogInfo "Successfully verified that data disk is removed from the VM"
             $verifiedDiskCount-=1
