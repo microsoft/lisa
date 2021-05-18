@@ -161,7 +161,7 @@ Config_Rhel() {
         echo "extra_modules ata_piix sr_mod sd_mod" >> /etc/kdump.conf
         echo "KDUMP_COMMANDLINE_APPEND=\"ata_piix.prefer_ms_hyperv=0 disk_timeout=100 rd.driver.blacklist=hv_vmbus,hv_storvsc,hv_utils,hv_netvsc,hid-hyperv,hyperv_fb\"" >> /etc/sysconfig/kdump
     fi
-
+	
     GetGuestGeneration
     # centos 7 gen2 - /boot/efi/EFI/centos/grub.cfg
     distro=$(detect_linux_distribution)
@@ -175,6 +175,10 @@ Config_Rhel() {
         boot_filepath=/boot/grub2/grubenv
     elif [ "$os_GENERATION" -eq 2 ] && [[ $os_RELEASE =~ 7.* || $os_RELEASE =~ 8.* ]]; then
         boot_filepath=/boot/efi/EFI/$distro/grub.cfg
+		if [ ! -f $boot_filepath ]
+		then
+			boot_filepath=$(find /boot -name grub.cfg| grep efi)
+		fi
     else
         boot_filepath=$(find /boot -name grub.cfg)
     fi
