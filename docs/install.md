@@ -12,6 +12,10 @@
     - [Install Poetry in Windows](#install-poetry-in-windows)
   - [FAQ and Troubleshooting](#faq-and-troubleshooting)
 
+LISA can be installed on any computer without having to be installed on each tested node. It can be installed on tested nodes to perform local testing. It can connect to another tested node using SSH. The following are examples showing where LISA is installed.
+
+![deploy](img/deploy.svg)
+
 LISA supports to run on Windows and Linux. Follow below steps to install LISA from source code.
 
 ## Prerequisites
