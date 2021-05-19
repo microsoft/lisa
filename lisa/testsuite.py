@@ -24,7 +24,7 @@ from retry.api import retry_call
 from lisa import notifier, schema, search_space
 from lisa.environment import EnvironmentSpace, EnvironmentStatus
 from lisa.feature import Feature
-from lisa.operating_system import OperatingSystem
+from lisa.operating_system import OperatingSystem, Windows
 from lisa.util import (
     LisaException,
     NotRunException,
@@ -139,6 +139,9 @@ class TestResult:
             and environment.status == EnvironmentStatus.Connected
         ):
             for node in environment.nodes.list():
+                # the UT has no OS initialized, skip the check
+                if not hasattr(node, "os"):
+                    continue
                 # use __mro__ to match any super types.
                 # for example, Ubuntu satisfies Linux
                 node_os_capability = search_space.SetSpace[Type[OperatingSystem]](
@@ -180,12 +183,6 @@ class TestCaseRequirement:
     platform_type: Optional[search_space.SetSpace[str]] = None
     os_type: Optional[search_space.SetSpace[Type[OperatingSystem]]] = None
 
-    def __post_init__(self, *args: Any, **kwargs: Any) -> None:
-        if self.environment_status == EnvironmentStatus.Deployed and self.os_type:
-            raise LisaException(
-                "requirement doesn't support os_type, when status is Deployed"
-            )
-
 
 def simple_requirement(
     min_count: int = 1,
@@ -222,7 +219,9 @@ def simple_requirement(
     platform_types = search_space.create_set_space(
         supported_platform_type, unsupported_platform_type, "platform type"
     )
-
+    # Most test cases are applied to Linux, exclude Windows by default.
+    if unsupported_os is None and supported_os is None:
+        unsupported_os = [Windows]
     os = search_space.create_set_space(supported_os, unsupported_os, "operating system")
 
     return TestCaseRequirement(

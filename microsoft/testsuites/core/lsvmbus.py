@@ -3,9 +3,7 @@ import math
 from assertpy import assert_that
 
 from lisa import Environment, Node, TestCaseMetadata, TestSuite, TestSuiteMetadata
-from lisa.operating_system import Windows
 from lisa.sut_orchestrator.azure.tools import VmGeneration
-from lisa.testsuite import simple_requirement
 from lisa.tools import Lscpu, Lsvmbus
 
 
@@ -65,7 +63,6 @@ class LsVmBus(TestSuite):
                 https://git.kernel.org/pub/scm/linux/kernel/git/next/linux-next.git/tree/drivers/scsi/storvsc_drv.c#n952 # noqa: E501
         """,
         priority=1,
-        requirement=simple_requirement(unsupported_os=[Windows]),
     )
     def lsvmbus_count_devices_channels(
         self, environment: Environment, node: Node

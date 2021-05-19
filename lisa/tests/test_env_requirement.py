@@ -7,7 +7,7 @@ from typing import Any, List, Optional, Type
 
 from lisa import schema
 from lisa.environment import EnvironmentSpace
-from lisa.operating_system import OperatingSystem
+from lisa.operating_system import Linux, OperatingSystem
 from lisa.search_space import (
     IntRange,
     RequirementMixin,
@@ -84,7 +84,7 @@ def ut_simple_requirement(
 UT_DEFAULT_REQUIREMENT = UtTestCaseRequirement(
     environment=DEFAULT_REQUIREMENT.environment,
     platform_type=DEFAULT_REQUIREMENT.platform_type,
-    os_type=DEFAULT_REQUIREMENT.os_type,
+    os_type=SetSpace(is_allow_set=True, items=[Linux]),
 )
 
 
@@ -132,7 +132,7 @@ class RequirementTestCase(SearchSpaceTestCase):
         partial_testcase_schema = partial(
             TestCaseSchema,
             platform_type=None,
-            operating_system=None,
+            operating_system=SetSpace(is_allow_set=True, items=[Linux]),
         )
         s11 = partial_testcase_schema(environment=EnvironmentSpace())
         s11.environment.nodes = [n1]
@@ -178,29 +178,37 @@ class RequirementTestCase(SearchSpaceTestCase):
             ],
             requirements=[
                 UT_DEFAULT_REQUIREMENT,
-                ut_simple_requirement(),
-                ut_simple_requirement(node=schema.NodeSpace(core_count=IntRange(4, 8))),
+                ut_simple_requirement(supported_os=[Linux]),
                 ut_simple_requirement(
-                    min_count=2, node=schema.NodeSpace(core_count=IntRange(4, 8))
+                    node=schema.NodeSpace(core_count=IntRange(4, 8)),
+                    supported_os=[Linux],
+                ),
+                ut_simple_requirement(
+                    min_count=2,
+                    node=schema.NodeSpace(core_count=IntRange(4, 8)),
+                    supported_os=[Linux],
                 ),
                 UtTestCaseRequirement(
                     environment=EnvironmentSpace(
                         nodes=[schema.NodeSpace(core_count=6, node_count=1)]
-                    )
+                    ),
+                    os_type=SetSpace(is_allow_set=True, items=[Linux]),
                 ),
                 ut_simple_requirement(
                     min_count=1,
                     node=schema.NodeSpace(core_count=IntRange(4, 8), gpu_count=1),
+                    supported_os=[Linux],
                 ),
             ],
             capabilities=[
-                ut_simple_requirement(),
+                ut_simple_requirement(supported_os=[Linux]),
                 UtTestCaseRequirement(
                     environment=EnvironmentSpace(
                         nodes=[
                             schema.NodeSpace(core_count=6, node_count=1, gpu_count=0)
                         ]
-                    )
+                    ),
+                    os_type=SetSpace(is_allow_set=True, items=[Linux]),
                 ),
                 UtTestCaseRequirement(
                     environment=EnvironmentSpace(
@@ -209,28 +217,32 @@ class RequirementTestCase(SearchSpaceTestCase):
                                 node_count=1, core_count=6, gpu_count=IntRange(max=2)
                             )
                         ]
-                    )
+                    ),
+                    os_type=SetSpace(is_allow_set=True, items=[Linux]),
                 ),
                 UtTestCaseRequirement(
                     environment=EnvironmentSpace(
                         nodes=[
                             schema.NodeSpace(node_count=1, core_count=6, gpu_count=2)
                         ]
-                    )
+                    ),
+                    os_type=SetSpace(is_allow_set=True, items=[Linux]),
                 ),
                 UtTestCaseRequirement(
                     environment=EnvironmentSpace(
                         nodes=[
                             schema.NodeSpace(core_count=10, node_count=1, gpu_count=0)
                         ]
-                    )
+                    ),
+                    os_type=SetSpace(is_allow_set=True, items=[Linux]),
                 ),
                 UtTestCaseRequirement(
                     environment=EnvironmentSpace(
                         nodes=[
                             schema.NodeSpace(core_count=6, node_count=2, gpu_count=0)
                         ]
-                    )
+                    ),
+                    os_type=SetSpace(is_allow_set=True, items=[Linux]),
                 ),
                 UtTestCaseRequirement(
                     environment=EnvironmentSpace(
@@ -238,7 +250,8 @@ class RequirementTestCase(SearchSpaceTestCase):
                             schema.NodeSpace(core_count=6, node_count=1, gpu_count=0),
                             schema.NodeSpace(core_count=6, node_count=1, gpu_count=0),
                         ]
-                    )
+                    ),
+                    os_type=SetSpace(is_allow_set=True, items=[Linux]),
                 ),
                 UtTestCaseRequirement(
                     environment=EnvironmentSpace(
@@ -246,7 +259,8 @@ class RequirementTestCase(SearchSpaceTestCase):
                             schema.NodeSpace(core_count=6, node_count=1, gpu_count=0),
                             schema.NodeSpace(core_count=10, node_count=1, gpu_count=0),
                         ]
-                    )
+                    ),
+                    os_type=SetSpace(is_allow_set=True, items=[Linux]),
                 ),
                 UtTestCaseRequirement(
                     environment=EnvironmentSpace(
@@ -254,7 +268,8 @@ class RequirementTestCase(SearchSpaceTestCase):
                             schema.NodeSpace(core_count=10, node_count=1, gpu_count=0),
                             schema.NodeSpace(core_count=6, node_count=1, gpu_count=0),
                         ]
-                    )
+                    ),
+                    os_type=SetSpace(is_allow_set=True, items=[Linux]),
                 ),
             ],
         )
