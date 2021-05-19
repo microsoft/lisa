@@ -3,8 +3,6 @@ from pathlib import PurePosixPath
 from assertpy import assert_that
 
 from lisa import Environment, Node, TestCaseMetadata, TestSuite, TestSuiteMetadata
-from lisa.operating_system import Windows
-from lisa.testsuite import simple_requirement
 from lisa.tools import Cat, Dmesg
 
 
@@ -33,7 +31,6 @@ class TimeSync(TestSuite):
              instead of /dev/ptp0 or /dev/ptp1.
         """,
         priority=2,
-        requirement=simple_requirement(unsupported_os=[Windows]),
     )
     def timesync_validate_ptp(self, environment: Environment, node: Node) -> None:
         # 1. PTP time source is available on Azure guests (newer versions of Linux).
