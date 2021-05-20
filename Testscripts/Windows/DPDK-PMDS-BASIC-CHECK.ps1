@@ -23,7 +23,7 @@ function Main {
 	#
 	try {
 		Run-LinuxCmd -username $superUser -password $password -ip $allVmData.PublicIP -port $allVmData.SSHPort `
-			"bash dpdkPmdsBasicCheck.sh > DPDK-PMDS-BASIC-CHECK_summary.log 2>&1" -runMaxAllowedTime 600 | Out-Null
+			"bash -x dpdkPmdsBasicCheck.sh > DPDK-PMDS-BASIC-CHECK_summary.log 2>&1" -runMaxAllowedTime 600 | Out-Null
 
 		$status = Run-LinuxCmd -ip $allVMData.PublicIP -port $allVMData.SSHPort `
 			-username $superUser -password $password -command "cat ~/state.txt"
