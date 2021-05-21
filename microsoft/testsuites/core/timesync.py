@@ -53,7 +53,7 @@ class TimeSync(TestSuite):
         #  be available, the names of ptp are changeable, create the symlink
         #  /dev/ptp_hyperv to whichever /dev/ptp entry corresponds to the Azure host.
         assert_that(node.shell.exists(PurePosixPath("/dev/ptp_hyperv"))).described_as(
-            "/dev/ptp_hyperv should exist, make sure there is a udev rule to create "
+            "/dev/ptp_hyperv doesn't exist, make sure there is a udev rule to create "
             "symlink /dev/ptp_hyperv to /dev/ptp entry corresponds to the Azure host. "
             "More info please refer "
             "https://docs.microsoft.com/en-us/azure/virtual-machines/linux/time-sync#check-for-ptp-clock-source"  # noqa: E501
