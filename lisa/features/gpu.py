@@ -3,14 +3,12 @@
 
 import re
 from enum import Enum
-from typing import Any
 
 from lisa.base_tools.wget import Wget
 from lisa.feature import Feature
 from lisa.operating_system import Redhat, Ubuntu
 from lisa.tools import Uname
 from lisa.util import LisaException, SkippedException
-from lisa.util.logger import get_logger
 
 FEATURE_NAME_GPU = "Gpu"
 
@@ -31,10 +29,6 @@ DEFAULT_GRID_DRIVER_URL = "https://go.microsoft.com/fwlink/?linkid=874272"
 
 
 class Gpu(Feature):
-    def __init__(self, node: Any, platform: Any) -> None:
-        super().__init__(node, platform)
-        self._log = get_logger("feature", self.name(), self._node.log)
-
     @classmethod
     def name(cls) -> str:
         return FEATURE_NAME_GPU
