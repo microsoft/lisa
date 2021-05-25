@@ -123,6 +123,9 @@ function Install_Dpdk_Dependencies() {
 		ssh ${install_ip} ". utils.sh && CheckInstallLockUbuntu && apt-get install -y ${apt_packages}"
 
 	elif [[ "${distro}" == rhel7* || "${distro}" == centos7* ]]; then
+		# RHEL images can contain an expired certificate for the RHUI, devnet recommends updating the certs as follows:
+		# https://docs.microsoft.com/en-us/azure/virtual-machines/workloads/redhat/redhat-rhui#update-expired-rhui-client-certificate-on-a-vm
+		ssh ${install_ip} "yum update -y --disablerepo='*' --enablerepo='*microsoft*'"
 		ssh ${install_ip} "yum -y --nogpgcheck groupinstall 'Infiniband Support'"
 		ssh ${install_ip} "dracut --add-drivers 'mlx4_en mlx4_ib mlx5_ib' -f"
 		yum_flags=""
