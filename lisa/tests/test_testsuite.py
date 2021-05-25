@@ -220,9 +220,9 @@ class TestSuiteTestCase(TestCase):
             self.assertEqual(f"set_{status}", result.message)
             self.assertEqual(status, result.status)
             if status == TestStatus.NOTRUN:
-                self.assertEqual(True, result.can_run)
+                self.assertEqual(True, result.is_notrun)
             else:
-                self.assertEqual(False, result.can_run)
+                self.assertEqual(False, result.is_notrun)
 
     def test_skip_before_suite_failed(self) -> None:
         test_suite = self.generate_suite_instance()
