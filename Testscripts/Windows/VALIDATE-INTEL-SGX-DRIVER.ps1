@@ -31,7 +31,7 @@ function Main {
         }
     }
 
-    if (($ubuntuVersion -notmatch "Ubuntu 18.04") -and ($ubuntuVersion -notmatch "Ubuntu 16.04")) {
+    if ($ubuntuVersion -notmatch "Ubuntu 18.04") {
         $shortUbuntuVersion = $ubuntuVersion.replace(" \n \l","")
         Write-LogInfo "$shortUbuntuVersion is not supported! Test skipped!"
         return "SKIPPED"
