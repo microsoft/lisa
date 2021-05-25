@@ -13,7 +13,7 @@ from lisa.util import LisaException
 
 # to prevent circular import, hard code it here.
 ENV_KEY_RUN_LOCAL_PATH = "LISA_RUN_LOCAL_PATH"
-DEFAULT_LOG_NAME = "LISA"
+DEFAULT_LOG_NAME = "lisa"
 
 # We can't afford to let ANSI escape codes trash our
 # stdout stream

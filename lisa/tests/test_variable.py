@@ -287,19 +287,19 @@ class VariableTestCase(TestCase):
             secret_name = secret_name.lower()
             value = copied_variables[secret_name].data
             del copied_variables[secret_name]
-            with self.assertLogs("LISA") as cm:
+            with self.assertLogs("lisa") as cm:
                 log.info(f"MUST_SECRET[{value}]")
             self.assertListEqual(
-                [f"INFO:LISA:MUST_SECRET[{expected_value}]"],
+                [f"INFO:lisa:MUST_SECRET[{expected_value}]"],
                 cm.output,
                 f"key: {secret_name}, value: {value}, "
                 f"expected: {expected_value}  should be secret",
             )
         for key, unsecured_value in copied_variables.items():
-            with self.assertLogs("LISA") as cm:
+            with self.assertLogs("lisa") as cm:
                 log.info(f"MUST_NOT_SECRET[{unsecured_value}]")
             self.assertListEqual(
-                [f"INFO:LISA:MUST_NOT_SECRET[{unsecured_value}]"],
+                [f"INFO:lisa:MUST_NOT_SECRET[{unsecured_value}]"],
                 cm.output,
                 f"key: {key}, value: {unsecured_value} shouldn't be secret",
             )
