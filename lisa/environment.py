@@ -146,6 +146,9 @@ class Environment(ContextMixin, InitializableMixin):
         # original runbook or generated from test case which this environment supports
         self.runbook: schema.Environment
         self.warn_as_error = warn_as_error
+        # indicate is this environment is deploying, preparing, testing or not.
+        self.is_in_use: bool = False
+
         self._default_node: Optional[Node] = None
         self._log = get_logger("env", self.name)
         # Not to set the log path until its first used. Because the path
@@ -165,6 +168,15 @@ class Environment(ContextMixin, InitializableMixin):
     @status.setter
     def status(self, value: EnvironmentStatus) -> None:
         self._status = value
+
+    @property
+    def is_alive(self) -> bool:
+        return self._status in [
+            EnvironmentStatus.New,
+            EnvironmentStatus.Prepared,
+            EnvironmentStatus.Deployed,
+            EnvironmentStatus.Connected,
+        ]
 
     @classmethod
     def create(
