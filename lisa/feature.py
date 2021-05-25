@@ -5,6 +5,7 @@ from abc import abstractmethod
 from typing import TYPE_CHECKING, Any, Dict, Optional, Type, TypeVar, cast
 
 from lisa.util import InitializableMixin, LisaException
+from lisa.util.logger import get_logger
 
 if TYPE_CHECKING:
     from lisa.node import Node
@@ -16,6 +17,7 @@ class Feature(InitializableMixin):
         super().__init__()
         self._node: Node = node
         self._platform: Platform = platform
+        self._log = get_logger("feature", self.name(), self._node.log)
 
     @classmethod
     @abstractmethod
