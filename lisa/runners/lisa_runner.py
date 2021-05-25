@@ -2,7 +2,8 @@
 # Licensed under the MIT license.
 
 import copy
-from typing import Any, List, Optional, cast
+from functools import partial
+from typing import Any, Callable, List, Optional, cast
 
 from lisa import notifier, schema, search_space
 from lisa.action import ActionStatus
@@ -20,14 +21,9 @@ from lisa.platform_ import (
 )
 from lisa.runner import BaseRunner
 from lisa.testselector import select_testcases
-from lisa.testsuite import (
-    TestCaseRequirement,
-    TestResult,
-    TestStatus,
-    TestSuite,
-    TestSuiteMetadata,
-)
+from lisa.testsuite import TestCaseRequirement, TestResult, TestStatus, TestSuite
 from lisa.util import LisaException, constants
+from lisa.util.parallel import check_cancelled
 
 
 class LisaRunner(BaseRunner):
@@ -35,176 +31,201 @@ class LisaRunner(BaseRunner):
     def type_name(cls) -> str:
         return constants.TESTCASE_TYPE_LISA
 
-    def __init__(self, *args: Any, **kwargs: Any) -> None:
-        super().__init__(*args, **kwargs)
+    def _initialize(self, *args: Any, **kwargs: Any) -> None:
+        super()._initialize(*args, **kwargs)
+        self._is_prepared = False
 
-    def _run(self, id_: str) -> List[TestResult]:
         # select test cases
-        testcase_filters: List[schema.TestCase] = cast(
-            List[schema.TestCase], self._runbook.testcase
-        )
-        selected_test_cases = select_testcases(testcase_filters)
+        selected_test_cases = select_testcases(filters=self._runbook.testcase)
 
         # create test results
-        test_results = [
-            TestResult(f"{id_}_{index}", runtime_data=case)
+        self.test_results = [
+            TestResult(f"{self.id}_{index}", runtime_data=case)
             for index, case in enumerate(selected_test_cases)
         ]
-
-        run_message = notifier.TestRunMessage(
-            status=notifier.TestRunStatus.RUNNING,
-        )
-        notifier.notify(run_message)
-
         # load predefined environments
-        candidate_environments = load_environments(self._runbook.environment)
-
-        platform = load_platform(self._runbook.platform)
-        self.platform = platform
-        platform.initialize()
-        platform_message = PlatformMessage(name=platform.type_name())
+        self.platform = load_platform(self._runbook.platform)
+        self.platform.initialize()
+        platform_message = PlatformMessage(name=self.platform.type_name())
         notifier.notify(platform_message)
 
-        if not candidate_environments:
-            # if no runbook environment defined, generate from requirements
-            self._merge_test_requirements(
-                test_results=test_results,
-                existing_environments=candidate_environments,
-                platform_type=platform.type_name(),
+    @property
+    def is_done(self) -> bool:
+        is_all_results_completed = all(
+            result.is_completed for result in self.test_results
+        )
+        # all environment should not be used and not be deployed.
+        is_all_environment_completed = hasattr(self, "environments") and all(
+            (not env.is_in_use)
+            and (env.status in [EnvironmentStatus.Prepared, EnvironmentStatus.Deleted])
+            for env in self.environments
+        )
+        return is_all_results_completed and is_all_environment_completed
+
+    def fetch_task(self) -> Optional[Callable[[], List[TestResult]]]:
+        test_results = self._prepare_environments(
+            platform=self.platform,
+            test_results=self.test_results,
+        )
+        if test_results:
+            # return failed prepared results
+            return lambda: test_results
+
+        # sort environments by status
+        available_environments = self._sort_environments(self.environments)
+        available_results = [x for x in self.test_results if x.is_queued]
+
+        # check deleteable environments
+        delete_task = self._delete_unused_environments()
+        if delete_task:
+            return delete_task
+
+        if available_results and available_environments:
+            can_run_results = self._get_same_priority_results(available_results)
+
+            # it means there are test cases and environment, so it needs to
+            # schedule task.
+            for environment in available_environments:
+                if environment.is_in_use:
+                    # skip in used environments
+                    continue
+
+                environment_results = self._get_runnable_test_results(
+                    test_results=can_run_results, environment=environment
+                )
+
+                if not environment_results:
+                    continue
+
+                return self._associate_environment_test_results(
+                    environment=environment, test_results=environment_results
+                )
+            if not any(x.is_in_use for x in available_environments):
+                # no environment in used, and not fit. those results cannot be run.
+                skipped_test_results = self._skip_test_results(can_run_results)
+                return lambda: skipped_test_results
+        elif available_results:
+            # no available environments, so mark all test results skipped.
+            skipped_test_results = self._skip_test_results(available_results)
+
+            self.status = ActionStatus.SUCCESS
+            return lambda: skipped_test_results
+        return None
+
+    def close(self) -> None:
+        for environment in self.environments:
+            self._delete_environment_task(environment, [])
+        super().close()
+
+    def _associate_environment_test_results(
+        self, environment: Environment, test_results: List[TestResult]
+    ) -> Optional[Callable[[], List[TestResult]]]:
+        check_cancelled()
+
+        assert test_results
+        can_run_results = test_results
+        # deploy
+        if environment.status == EnvironmentStatus.Prepared and can_run_results:
+            return self._generate_task(
+                task_method=self._deploy_environment_task,
+                environment=environment,
+                test_results=can_run_results,
             )
 
-        # there may not need to handle requirements, if all environment are predefined
-
-        prepared_environments = self._prepare_environments(
-            platform=platform,
-            candidate_environments=candidate_environments,
-            test_results=test_results,
-        )
-
-        can_run_results = test_results
-        # request environment then run tests
-        for environment in prepared_environments:
-            try:
-                self._check_cancel()
-
-                can_run_results = self._get_can_run_results(can_run_results)
-                can_run_results.sort(key=lambda x: x.runtime_data.metadata.suite.name)
-                if not can_run_results:
-                    # no left tests, break the loop
-                    self._log.debug(
-                        f"no more test case to run, skip env [{environment.name}]"
-                    )
-                    continue
-
-                # check if any test need this environment
-                picked_result = self._pick_one_result_on_environment(
-                    environment=environment, results=can_run_results
-                )
-                if picked_result is None:
-                    self._log.debug(
-                        f"env[{environment.name}] skipped "
-                        f"as not meet any case requirement"
-                    )
-                    continue
-
-                try:
-                    platform.deploy_environment(environment)
-                except WaitMoreResourceError as identifier:
-                    self._log.info(
-                        f"[{environment.name}] waiting for more resource: "
-                        f"{identifier}, skip assigning case"
-                    )
-                    continue
-                except Exception as identifier:
-                    self._attach_failed_environment_to_result(
-                        platform=platform,
-                        environment=environment,
-                        result=picked_result,
-                        exception=identifier,
-                    )
-                    continue
-
-                assert (
-                    environment.status == EnvironmentStatus.Deployed
-                ), f"actual: {environment.status}"
-
-                self._log.info(f"start running cases on '{environment.name}'")
-
-                # run test cases that need deployed environment
-                self._run_cases_on_environment(
-                    environment=environment, results=can_run_results
+        # run on deployed environment
+        can_run_results = [x for x in can_run_results if x.can_run]
+        if environment.status == EnvironmentStatus.Deployed and can_run_results:
+            selected_test_results = self._get_test_results_to_run(
+                test_results=test_results, environment=environment
+            )
+            if selected_test_results:
+                return self._generate_task(
+                    task_method=self._run_test_task,
+                    environment=environment,
+                    test_results=selected_test_results,
                 )
 
-                picked_result = self._pick_one_result_on_environment(
-                    environment=environment, results=can_run_results
+            # Check if there is case to run in a connected environment. If so,
+            # initialize the environment
+            initialization_results = self._get_runnable_test_results(
+                test_results=test_results,
+                environment_status=EnvironmentStatus.Connected,
+                environment=environment,
+            )
+            if initialization_results:
+                return self._generate_task(
+                    task_method=self._initialize_environment_task,
+                    environment=environment,
+                    test_results=initialization_results,
                 )
-                if picked_result is None:
-                    self._log.debug(
-                        f"env[{environment.name}] skipped initializing, "
-                        f"since it doesn't meet any case requirement."
-                    )
-                    continue
 
-                self._log.debug(f"initializing environment: {environment.name}")
-                try:
-                    environment.initialize()
-                except Exception as identifier:
-                    self._attach_failed_environment_to_result(
-                        platform=platform,
-                        environment=environment,
-                        result=picked_result,
-                        exception=identifier,
-                    )
-                    continue
-
-                assert (
-                    environment.status == EnvironmentStatus.Connected
-                ), f"actual: {environment.status}"
-
-                # run test cases that need connected environment
-                self._run_cases_on_environment(
-                    environment=environment, results=can_run_results
+        # run on connected environment
+        can_run_results = [x for x in can_run_results if x.can_run]
+        if environment.status == EnvironmentStatus.Connected and can_run_results:
+            selected_test_results = self._get_test_results_to_run(
+                test_results=test_results, environment=environment
+            )
+            if selected_test_results:
+                return self._generate_task(
+                    task_method=self._run_test_task,
+                    environment=environment,
+                    test_results=selected_test_results,
                 )
-            finally:
-                if environment and environment.status in [
-                    EnvironmentStatus.Deployed,
-                    EnvironmentStatus.Connected,
-                ]:
-                    platform.delete_environment(environment)
 
-        # not run as there is no fit environment.
-        for case in self._get_can_run_results(can_run_results):
-            reasons = "no available environment"
-            if case.check_results and case.check_results.reasons:
-                reasons = f"{reasons}: {case.check_results.reasons}"
+        return None
 
-            case.set_status(TestStatus.SKIPPED, reasons)
+    def _delete_unused_environments(self) -> Optional[Callable[[], List[TestResult]]]:
+        available_environments = self._sort_environments(self.environments)
+        # check deleteable environments
+        for environment in available_environments:
+            if environment.is_in_use:
+                continue
 
-        self.status = ActionStatus.SUCCESS
-
-        # for UT testability
-        self._latest_platform = platform
-
-        return test_results
+            can_run_results = self._get_runnable_test_results(
+                self.test_results, environment=environment
+            )
+            if not can_run_results:
+                # no more test need this environment, delete it.
+                self._log.debug(
+                    f"generating delete environment task on '{environment.name}'"
+                )
+                return self._generate_task(
+                    task_method=self._delete_environment_task,
+                    environment=environment,
+                    test_results=[],
+                )
+        return None
 
     def _prepare_environments(
         self,
         platform: Platform,
-        candidate_environments: Environments,
         test_results: List[TestResult],
-    ) -> List[Environment]:
+    ) -> List[TestResult]:
+        if self._is_prepared:
+            return []
+
+        runbook_environments = load_environments(self._runbook.environment)
+        if not runbook_environments:
+            # if no runbook environment defined, generate from requirements
+            self._merge_test_requirements(
+                test_results=self.test_results,
+                existing_environments=runbook_environments,
+                platform_type=self.platform.type_name(),
+            )
+
         prepared_environments: List[Environment] = []
-        for candidate_environment in candidate_environments.values():
+        for candidate_environment in runbook_environments.values():
             try:
                 prepared_environment = platform.prepare_environment(
                     candidate_environment
                 )
                 prepared_environments.append(prepared_environment)
             except Exception as identifier:
-                matched_result = self._pick_one_result_on_environment(
-                    environment=candidate_environment, results=test_results
+                matched_results = self._get_runnable_test_results(
+                    test_results=test_results,
+                    environment=candidate_environment,
                 )
-                if not matched_result:
+                if not matched_results:
                     self._log.info(
                         "No requirement of test case is suitable for the preparation "
                         f"error of the environment '{candidate_environment.name}'. "
@@ -212,11 +233,10 @@ class LisaRunner(BaseRunner):
                         "This may be because the platform failed before populating the "
                         "features into this environment.",
                     )
-                    matched_result = next(
-                        (result for result in test_results if result.is_queued),
-                        None,
-                    )
-                if not matched_result:
+                    matched_results = [
+                        result for result in test_results if result.is_queued
+                    ]
+                if not matched_results:
                     raise LisaException(
                         "There are no remaining test results to run, so preparation "
                         "errors cannot be appended to the test results. Please correct "
@@ -224,9 +244,8 @@ class LisaRunner(BaseRunner):
                         f"original exception: {identifier}"
                     )
                 self._attach_failed_environment_to_result(
-                    platform=platform,
                     environment=candidate_environment,
-                    result=matched_result,
+                    result=matched_results[0],
                     exception=identifier,
                 )
 
@@ -234,84 +253,149 @@ class LisaRunner(BaseRunner):
         # user defined should be higher priority than test cases' requirement
         prepared_environments.sort(key=lambda x: (not x.is_predefined, x.cost))
 
-        return prepared_environments
+        self._is_prepared = True
+        self.environments = prepared_environments
+        return [x for x in self.test_results if x.is_completed]
 
-    def _pick_one_result_on_environment(
-        self, environment: Environment, results: List[TestResult]
-    ) -> Optional[TestResult]:
-        return next(
-            (
-                case
-                for case in self._get_can_run_results(results)
-                if case.check_environment(environment, True)
-            ),
-            None,
-        )
+    def _deploy_environment_task(
+        self, environment: Environment, test_results: List[TestResult]
+    ) -> None:
+        try:
+            self.platform.deploy_environment(environment)
+            assert (
+                environment.status == EnvironmentStatus.Deployed
+            ), f"actual: {environment.status}"
+        except WaitMoreResourceError as identifier:
+            self._log.info(
+                f"[{environment.name}] waiting for more resource: "
+                f"{identifier}, skip assigning case"
+            )
+            self._skip_test_results(
+                test_results, additional_reason="no more resource to deploy"
+            )
+        except Exception as identifier:
+            self._attach_failed_environment_to_result(
+                environment=environment,
+                result=test_results[0],
+                exception=identifier,
+            )
+            self._delete_environment_task(environment=environment, test_results=[])
 
-    def _run_cases_on_environment(
-        self, environment: Environment, results: List[TestResult]
+    def _initialize_environment_task(
+        self, environment: Environment, test_results: List[TestResult]
+    ) -> None:
+        self._log.debug(f"start initializing task on '{environment.name}'")
+        assert test_results
+        try:
+            environment.initialize()
+            assert (
+                environment.status == EnvironmentStatus.Connected
+            ), f"actual: {environment.status}"
+        except Exception as identifier:
+            self._attach_failed_environment_to_result(
+                environment=environment,
+                result=test_results[0],
+                exception=identifier,
+            )
+            self._delete_environment_task(environment=environment, test_results=[])
+
+    def _run_test_task(
+        self, environment: Environment, test_results: List[TestResult]
     ) -> None:
 
         self._log.debug(
             f"start running cases on '{environment.name}', "
+            f"case count: {len(test_results)}, "
             f"status {environment.status.name}"
         )
-        # try a case need new environment firstly
-        if environment.is_new:
-            for new_env_result in self._get_can_run_results(
-                results, use_new_environment=True, environment_status=environment.status
-            ):
-                self._check_cancel()
-                if new_env_result.check_environment(environment, True):
-                    self._run_suite(
-                        environment=environment, case_results=[new_env_result]
-                    )
-                    break
-
-        # grouped test results by test suite.
-        grouped_cases: List[TestResult] = []
-        current_test_suite: Optional[TestSuiteMetadata] = None
-        for test_result in self._get_can_run_results(
-            results, use_new_environment=False, environment_status=environment.status
-        ):
-            self._check_cancel()
-            if test_result.check_environment(environment, True):
-                if (
-                    test_result.runtime_data.metadata.suite != current_test_suite
-                    and grouped_cases
-                ):
-                    # run last batch cases
-                    self._run_suite(environment=environment, case_results=grouped_cases)
-                    grouped_cases = []
-
-                # append new test cases
-                current_test_suite = test_result.runtime_data.metadata.suite
-                grouped_cases.append(test_result)
-
-        if grouped_cases:
-            self._run_suite(environment=environment, case_results=grouped_cases)
-
-    def _run_suite(
-        self, environment: Environment, case_results: List[TestResult]
-    ) -> None:
-
-        assert case_results
-        suite_metadata = case_results[0].runtime_data.metadata.suite
+        assert test_results
+        suite_metadata = test_results[0].runtime_data.metadata.suite
         test_suite: TestSuite = suite_metadata.test_class(
             suite_metadata,
         )
-        test_suite.start(environment=environment, case_results=case_results)
+        test_suite.start(environment=environment, case_results=test_results)
+
+    def _delete_environment_task(
+        self, environment: Environment, test_results: List[TestResult]
+    ) -> None:
+        """
+        May be called async
+        """
+        # the predefined environment shouldn't be deleted, because it
+        # serves all test cases.
+        if (
+            environment.status
+            in [
+                EnvironmentStatus.Deployed,
+                EnvironmentStatus.Connected,
+            ]
+        ) or (
+            environment.status == EnvironmentStatus.Prepared and environment.is_in_use
+        ):
+            self.platform.delete_environment(environment)
+        else:
+            environment.status = EnvironmentStatus.Deleted
+
+    def _get_same_priority_results(
+        self, test_results: List[TestResult]
+    ) -> List[TestResult]:
+        if not test_results:
+            return []
+
+        current_priority = test_results[0].runtime_data.metadata.priority
+        while True:
+            test_results = [
+                x
+                for x in test_results
+                if x.runtime_data.metadata.priority == current_priority
+            ]
+            current_priority += 1
+            if test_results:
+                break
+
+        return test_results
+
+    def _generate_task(
+        self,
+        task_method: Callable[[Environment, List[TestResult]], None],
+        environment: Environment,
+        test_results: List[TestResult],
+    ) -> Callable[[], List[TestResult]]:
+        assert not environment.is_in_use
+        environment.is_in_use = True
+        for test_result in test_results:
+            # return assigned but not run casese
+            if test_result.status == TestStatus.QUEUED:
+                test_result.set_status(TestStatus.ASSIGNED, "")
+
+        task = partial(self._run_task, task_method, environment, test_results)
+        return task
+
+    def _run_task(
+        self,
+        task_method: Callable[[Environment, List[TestResult]], None],
+        environment: Environment,
+        test_results: List[TestResult],
+    ) -> List[TestResult]:
+        assert environment.is_in_use
+        task_method(environment, test_results)
+
+        for test_result in test_results:
+            # return assigned but not run casese
+            if test_result.status == TestStatus.ASSIGNED:
+                test_result.set_status(TestStatus.QUEUED, "")
+        environment.is_in_use = False
+        return [x for x in test_results if x.is_completed]
 
     def _attach_failed_environment_to_result(
         self,
-        platform: Platform,
         environment: Environment,
         result: TestResult,
         exception: Exception,
     ) -> None:
         # make first fit test case failed by deployment,
         # so deployment failure can be tracked.
-        environment.platform = platform
+        environment.platform = self.platform
         result.environment = environment
         result.handle_exception(exception=exception, log=self._log, phase="deployment")
         self._log.info(
@@ -320,16 +404,17 @@ class LisaRunner(BaseRunner):
             f"{exception}"
         )
 
-    def _get_can_run_results(
+    def _get_runnable_test_results(
         self,
-        source_results: List[TestResult],
+        test_results: List[TestResult],
         use_new_environment: Optional[bool] = None,
         environment_status: Optional[EnvironmentStatus] = None,
+        environment: Optional[Environment] = None,
     ) -> List[TestResult]:
         results = [
             x
-            for x in source_results
-            if x.is_queued
+            for x in test_results
+            if x.can_run
             and (
                 use_new_environment is None
                 or x.runtime_data.use_new_environment == use_new_environment
@@ -340,7 +425,101 @@ class LisaRunner(BaseRunner):
                 == environment_status
             )
         ]
+        if environment:
+            results = [
+                x
+                for x in results
+                if x.check_environment(environment=environment, save_reason=True)
+                and (not x.runtime_data.use_new_environment or environment.is_new)
+            ]
+        results = self._sort_test_results(results)
         return results
+
+    def _get_test_results_to_run(
+        self, test_results: List[TestResult], environment: Environment
+    ) -> List[TestResult]:
+        to_run_results = self._get_runnable_test_results(
+            test_results=test_results,
+            environment_status=environment.status,
+            environment=environment,
+        )
+        if to_run_results:
+            to_run_test_result = next(
+                (x for x in to_run_results if x.runtime_data.use_new_environment),
+                None,
+            )
+            if to_run_test_result:
+                to_run_test_results: List[TestResult] = [to_run_test_result]
+            else:
+                first_test_result = to_run_results[0]
+                to_run_test_results = []
+                for result in to_run_results:
+                    if (
+                        result.runtime_data.metadata.suite.name
+                        == first_test_result.runtime_data.metadata.suite.name
+                    ):
+                        to_run_test_results.append(result)
+                    else:
+                        # take case with same priority or near cases
+                        break
+            to_run_results = to_run_test_results
+
+        return to_run_results
+
+    def _sort_environments(self, environments: List[Environment]) -> List[Environment]:
+        results: List[Environment] = []
+        # sort environments by the status list
+        sorted_status = [
+            EnvironmentStatus.Connected,
+            EnvironmentStatus.Deployed,
+            EnvironmentStatus.Prepared,
+            EnvironmentStatus.New,
+        ]
+        if environments:
+            for status in sorted_status:
+                results.extend(
+                    x for x in environments if x.status == status and x.is_alive
+                )
+        return results
+
+    def _sort_test_results(self, test_results: List[TestResult]) -> List[TestResult]:
+        results = test_results.copy()
+        # sort by priority, use new environment, environment status and suite name.
+        results.sort(
+            key=lambda r: str(r.runtime_data.metadata.suite.name),
+        )
+        # this step make sure Deployed is before Connected
+        results.sort(
+            reverse=True,
+            key=lambda r: str(r.runtime_data.metadata.requirement.environment_status),
+        )
+        results.sort(
+            reverse=True,
+            key=lambda r: str(r.runtime_data.use_new_environment),
+        )
+        results.sort(key=lambda r: r.runtime_data.metadata.priority)
+        return results
+
+    def _skip_test_results(
+        self,
+        test_results: List[TestResult],
+        additional_reason: str = "no available environment",
+    ) -> List[TestResult]:
+        # no available environments, so mark all test results skipped.
+        skipped_test_results: List[TestResult] = []
+        for test_result in test_results:
+            if test_result.is_completed:
+                # already completed, don't skip it.
+                continue
+
+            skipped_test_results.append(test_result)
+            if test_result.check_results and test_result.check_results.reasons:
+                reasons = f"{additional_reason}: {test_result.check_results.reasons}"
+            else:
+                reasons = additional_reason
+
+            test_result.set_status(TestStatus.SKIPPED, reasons)
+        return skipped_test_results
 
     def _merge_test_requirements(
         self,
@@ -368,7 +547,7 @@ class LisaRunner(BaseRunner):
                 if not check_result.result:
                     test_result.set_status(TestStatus.SKIPPED, check_result.reasons)
 
-            if test_result.is_queued:
+            if test_result.can_run:
                 assert test_req.environment
 
                 environment_requirement = copy.copy(test_req.environment)
@@ -385,7 +564,3 @@ class LisaRunner(BaseRunner):
                     existing_environments.from_requirement(environment_requirement)
                 else:
                     existing_environments.get_or_create(environment_requirement)
-
-    def _check_cancel(self) -> None:
-        if self.canceled:
-            raise LisaException("received cancellation from root runner")

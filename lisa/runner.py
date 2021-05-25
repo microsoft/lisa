@@ -2,17 +2,16 @@
 # Licensed under the MIT license.
 
 import copy
-import itertools
-from functools import partial
 from logging import FileHandler
-from typing import Any, Dict, List, Optional
+from threading import Lock
+from typing import Any, Callable, Dict, List, Optional
 
-from lisa import schema
+from lisa import notifier, schema
 from lisa.action import Action
 from lisa.testsuite import TestResult, TestStatus
-from lisa.util import BaseClassMixin, constants
+from lisa.util import BaseClassMixin, InitializableMixin, constants
 from lisa.util.logger import create_file_handler, get_logger, remove_handler
-from lisa.util.parallel import run_in_threads
+from lisa.util.parallel import TaskManager, cancel, set_global_task_manager
 from lisa.util.subclasses import Factory
 
 
@@ -30,20 +29,37 @@ def parse_testcase_filters(raw_filters: List[Any]) -> List[schema.BaseTestCaseFi
     return filters
 
 
-class BaseRunner(BaseClassMixin):
+class BaseRunner(BaseClassMixin, InitializableMixin):
     """
-    Base runner of other runners.
+    Base runner of other runners. And other runners derived from this one.
     """
 
-    def __init__(self, runbook: schema.Runbook) -> None:
+    def __init__(self, runbook: schema.Runbook, index: int) -> None:
         super().__init__()
         self._runbook = runbook
 
-        self._log = get_logger(self.type_name())
+        self.id = f"{self.type_name()}_{index}"
+        self._log = get_logger("runner", str(index))
         self._log_handler: Optional[FileHandler] = None
         self.canceled = False
 
-    def run(self, id_: str) -> List[TestResult]:
+    @property
+    def is_done(self) -> bool:
+        raise NotImplementedError()
+
+    def fetch_task(self) -> Optional[Callable[[], List[TestResult]]]:
+        """
+
+        return:
+            The runnable task, which can return test results
+        """
+        raise NotImplementedError()
+
+    def close(self) -> None:
+        if self._log_handler:
+            remove_handler(self._log_handler)
+
+    def _initialize(self, *args: Any, **kwargs: Any) -> None:
         # do not put this logic to __init__, since the mkdir takes time.
         if self.type_name() == constants.TESTCASE_TYPE_LISA:
             # default lisa runner doesn't need separated handler.
@@ -55,40 +71,40 @@ class BaseRunner(BaseClassMixin):
             self._log_file_name = str(self._working_folder / f"{runner_path_name}.log")
             self._working_folder.mkdir(parents=True, exist_ok=True)
             self._log_handler = create_file_handler(self._log_file_name, self._log)
-        return self._run(id_)
-
-    def _run(self, id_: str) -> List[TestResult]:
-        raise NotImplementedError()
-
-    def close(self) -> None:
-        if self._log_handler:
-            remove_handler(self._log_handler)
 
 
 class RootRunner(Action):
     """
-    The entry runner, which starts other runners.
+    The entry root runner, which starts other runners.
     """
 
     def __init__(self, runbook: schema.Runbook) -> None:
         super().__init__()
         self.exit_code: int = 0
 
+        self._max_concurrency = runbook.concurrency
         self._runbook = runbook
         self._log = get_logger("RootRunner")
+        self._log.debug(f"max concurrency is {self._max_concurrency}")
         self._runners: List[BaseRunner] = []
+        self._results: List[TestResult] = []
+        self._results_lock: Lock = Lock()
 
     async def start(self) -> None:
         await super().start()
 
         self._initialize_runners()
-        raw_results = self._start_run()
 
-        test_results = list(itertools.chain(*raw_results))
-        self._output_results(test_results)
+        try:
+            self._start_loop()
+        except Exception as identifer:
+            cancel()
+            raise identifer
+
+        self._output_results(self._results)
 
         # pass failed count to exit code
-        self.exit_code = sum(1 for x in test_results if x.status == TestStatus.FAILED)
+        self.exit_code = sum(1 for x in self._results if x.status == TestStatus.FAILED)
 
     async def stop(self) -> None:
         await super().stop()
@@ -96,16 +112,6 @@ class RootRunner(Action):
 
     async def close(self) -> None:
         await super().close()
-
-    def _completed_callback(self, future: Any) -> None:
-        """
-        exit sub tests, once received cancellation message from executor.
-        """
-        # future is False, if it's called explicitly by run_in_threads.
-        if not future or future.cancelled() or future.exception():
-            self._log.debug(f"set cancel signal on future: {future}")
-            for runner in self._runners:
-                runner.canceled = True
 
     def _initialize_runners(self) -> None:
         # group filters by runner type
@@ -133,7 +139,10 @@ class RootRunner(Action):
             runbook = copy.copy(self._runbook)
             # keep filters to current runner's only.
             runbook.testcase = parse_testcase_filters(raw_filters)
-            runner = factory.create_by_type_name(type_name=runner_name, runbook=runbook)
+            runner = factory.create_by_type_name(
+                type_name=runner_name, runbook=runbook, index=len(self._runners)
+            )
+            runner.initialize()
 
             self._runners.append(runner)
 
@@ -159,20 +168,67 @@ class RootRunner(Action):
                 continue
             self._log.info(f"    {key.name:<9}: {count}")
 
-    def _start_run(self) -> List[List[TestResult]]:
-        raw_results: List[List[TestResult]] = []
+    def _callback_completed(self, results: List[TestResult]) -> None:
+        self._results_lock.acquire()
+        try:
+            self._results.extend(results)
+        finally:
+            self._results_lock.release()
+
+    def _start_loop(self) -> None:
         # in case all of runners are disabled
         if self._runners:
-            try:
-                raw_results = run_in_threads(
-                    [
-                        partial(runner.run, id_=runner.type_name())
-                        for runner in self._runners
-                    ],
-                    completed_callback=self._completed_callback,
-                    log=self._log,
+            run_message = notifier.TestRunMessage(
+                status=notifier.TestRunStatus.RUNNING,
+            )
+            notifier.notify(run_message)
+
+            task_manager = TaskManager[List[TestResult]](
+                self._max_concurrency, self._callback_completed
+            )
+            # set the global task manager for cancellation check
+            set_global_task_manager(task_manager)
+            remaining_runners = list(self._runners)
+
+            # run until no more task and all runner are closed
+            while task_manager.wait_worker() or remaining_runners:
+                assert task_manager.has_idle_worker()
+                has_idle_worker = True
+
+                # runners shouldn't mark them done, until all task completed. It
+                # can be checked by test results status or other signals.
+                assert remaining_runners, (
+                    f"no remaining runners, but there are running tasks. "
+                    f"{task_manager._futures}"
                 )
-            finally:
-                for runner in self._runners:
-                    runner.close()
-        return raw_results
+
+                for runner in remaining_runners:
+                    while not runner.is_done:
+                        # fetch a task and submit
+                        task = runner.fetch_task()
+                        if task:
+                            self._log.debug(f"fetched task from {runner.id}: '{task}'")
+                            task_manager.submit_task(task)
+                        else:
+                            # current runner may not be done, but it doesn't
+                            # have task temporialy. The root runner can start
+                            # tasks from next runner.
+                            break
+                        if not task_manager.has_idle_worker():
+                            has_idle_worker = False
+                            break
+                    if runner.is_done:
+                        # remove fully completed runner.
+                        runner.close()
+                        remaining_runners.remove(runner)
+                        self._log.debug(
+                            f"runner '{runner.id}' is done, "
+                            f"remaining runners {[x.id for x in remaining_runners]}"
+                        )
+                        break
+                    if not has_idle_worker:
+                        # uses the result from previous runner, because the
+                        # worker status may be changed after first runner
+                        # finished. Evne in this case, it should try result from
+                        # previous runner firstly in next run.
+                        break
