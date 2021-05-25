@@ -19,6 +19,7 @@ from lisa.environment import Environment
 from lisa.node import Node
 from lisa.util import LisaException
 from lisa.util.logger import Logger
+from lisa.util.parallel import check_cancelled
 
 if TYPE_CHECKING:
     from .platform_ import AzurePlatform
@@ -190,7 +191,7 @@ def get_environment_context(environment: Environment) -> EnvironmentContext:
 
 
 def wait_operation(operation: Any) -> Any:
-    # to support timeout in future
+    check_cancelled()
     return operation.wait()
 
 

@@ -819,6 +819,7 @@ class Runbook:
     test_project: str = ""
     test_pass: str = ""
     tags: Optional[List[str]] = None
+    concurrency: int = 1
     parent: Optional[List[Parent]] = field(default=None)
     extension: Optional[List[Union[str, Extension]]] = field(default=None)
     variable: Optional[List[Variable]] = field(default=None)

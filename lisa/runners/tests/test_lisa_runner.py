@@ -43,7 +43,7 @@ def generate_runner(
     ]
     if env_runbook:
         runbook.environment = env_runbook
-    runner = LisaRunner(runbook)
+    runner = LisaRunner(runbook, 0)
 
     return runner
 
@@ -224,7 +224,7 @@ class RunnerTestCase(TestCase):
         generate_cases_metadata()
         env_runbook = generate_env_runbook(is_single_env=True, remote=True)
         runner = generate_runner(env_runbook)
-        test_results = runner.run("ut")
+        test_results = self._run_all_tests(runner)
 
         self.verify_env_results(
             expected_prepared=["customized_0"],
@@ -232,6 +232,7 @@ class RunnerTestCase(TestCase):
             expected_deleted_envs=["customized_0"],
             runner=runner,
         )
+
         self.verify_test_results(
             expected_test_order=["mock_ut1", "mock_ut2", "mock_ut3"],
             expected_envs=["", "customized_0", "customized_0"],
@@ -247,7 +248,7 @@ class RunnerTestCase(TestCase):
         generate_cases_metadata()
         env_runbook = generate_env_runbook(is_single_env=True, local=True, remote=True)
         runner = generate_runner(env_runbook)
-        test_results = runner.run("ut")
+        test_results = self._run_all_tests(runner)
 
         self.verify_env_results(
             expected_prepared=["customized_0"],
@@ -269,7 +270,7 @@ class RunnerTestCase(TestCase):
         generate_cases_metadata()
         env_runbook = generate_env_runbook(is_single_env=True, local=True, remote=True)
         runner = generate_runner(env_runbook, case_use_new_env=True)
-        test_results = runner.run("ut")
+        test_results = self._run_all_tests(runner)
 
         self.verify_env_results(
             expected_prepared=["customized_0"],
@@ -291,7 +292,7 @@ class RunnerTestCase(TestCase):
         generate_cases_metadata()
         env_runbook = generate_env_runbook()
         runner = generate_runner(env_runbook, case_use_new_env=True, times=2)
-        test_results = runner.run("ut")
+        test_results = self._run_all_tests(runner)
 
         self.verify_env_results(
             expected_prepared=[
@@ -356,7 +357,7 @@ class RunnerTestCase(TestCase):
         generate_cases_metadata()
         env_runbook = generate_env_runbook(local=True, remote=True)
         runner = generate_runner(env_runbook)
-        test_results = runner.run("ut")
+        test_results = self._run_all_tests(runner)
 
         self.verify_env_results(
             expected_prepared=[
@@ -367,6 +368,7 @@ class RunnerTestCase(TestCase):
             expected_deleted_envs=["customized_0"],
             runner=runner,
         )
+
         self.verify_test_results(
             expected_test_order=["mock_ut1", "mock_ut2", "mock_ut3"],
             expected_envs=["", "customized_0", "customized_0"],
@@ -384,7 +386,7 @@ class RunnerTestCase(TestCase):
         generate_cases_metadata()
         env_runbook = generate_env_runbook(is_single_env=True, local=True)
         runner = generate_runner(env_runbook, platform_schema=platform_schema)
-        test_results = runner.run("ut")
+        test_results = self._run_all_tests(runner)
 
         self.verify_env_results(
             expected_prepared=["customized_0"],
@@ -392,7 +394,7 @@ class RunnerTestCase(TestCase):
             expected_deleted_envs=[],
             runner=runner,
         )
-
+        no_more_resource_message = "no more resource to deploy"
         self.verify_test_results(
             expected_test_order=["mock_ut1", "mock_ut2", "mock_ut3"],
             expected_envs=["", "", ""],
@@ -403,8 +405,8 @@ class RunnerTestCase(TestCase):
             ],
             expected_message=[
                 self.__skipped_no_env,
-                self.__skipped_no_env,
-                self.__skipped_no_env,
+                no_more_resource_message,
+                no_more_resource_message,
             ],
             test_results=test_results,
         )
@@ -415,7 +417,7 @@ class RunnerTestCase(TestCase):
         generate_cases_metadata()
         env_runbook = generate_env_runbook(is_single_env=True, local=True, remote=True)
         runner = generate_runner(env_runbook)
-        test_results = runner.run("ut")
+        test_results = self._run_all_tests(runner)
 
         self.verify_env_results(
             expected_prepared=["customized_0"],
@@ -444,7 +446,7 @@ class RunnerTestCase(TestCase):
         generate_cases_metadata()
         runner = generate_runner(None, platform_schema=platform_schema)
 
-        test_results = runner.run("ut")
+        test_results = self._run_all_tests(runner)
 
         self.verify_env_results(
             expected_prepared=[
@@ -460,13 +462,21 @@ class RunnerTestCase(TestCase):
         no_available_env = "deployment failed: no capability found for environment: "
         self.verify_test_results(
             expected_test_order=["mock_ut1", "mock_ut2", "mock_ut3"],
-            expected_envs=["generated_0", "generated_1", "generated_2"],
+            expected_envs=[
+                "generated_0",
+                "generated_1",
+                "generated_2",
+            ],
             expected_status=[
                 TestStatus.FAILED,
                 TestStatus.FAILED,
                 TestStatus.FAILED,
             ],
-            expected_message=[no_available_env, no_available_env, no_available_env],
+            expected_message=[
+                no_available_env,
+                no_available_env,
+                no_available_env,
+            ],
             test_results=test_results,
         )
 
@@ -478,21 +488,20 @@ class RunnerTestCase(TestCase):
         runner = generate_runner(env_runbook, platform_schema=platform_schema)
 
         with self.assertRaises(LisaException) as cm:
-            _ = runner.run("ut")
+            _ = self._run_all_tests(runner)
         self.assertIn(
             "There are no remaining test results to run, ",
             str(cm.exception),
         )
 
     def test_env_deploy_failed(self) -> None:
-        # env prepared, but deployment failed
-        # so cases failed also
+        # env prepared, but deployment failed, so cases failed
         platform_schema = test_platform.MockPlatformSchema()
         platform_schema.deployed_status = EnvironmentStatus.Prepared
         generate_cases_metadata()
         env_runbook = generate_env_runbook()
         runner = generate_runner(env_runbook, platform_schema=platform_schema)
-        test_results = runner.run("ut")
+        test_results = self._run_all_tests(runner)
 
         self.verify_env_results(
             expected_prepared=[
@@ -505,7 +514,11 @@ class RunnerTestCase(TestCase):
                 "generated_1",
                 "generated_2",
             ],
-            expected_deleted_envs=[],
+            expected_deleted_envs=[
+                "generated_0",
+                "generated_1",
+                "generated_2",
+            ],
             runner=runner,
         )
         no_available_env = (
@@ -528,13 +541,13 @@ class RunnerTestCase(TestCase):
         # in this case, not deploy any env
         env_runbook = generate_env_runbook(is_single_env=True, remote=True)
         runner = generate_runner(env_runbook)
-        test_results = runner.run("ut")
+        test_results = self._run_all_tests(runner)
 
         # still prepare predefined, but not deploy
         self.verify_env_results(
             expected_prepared=["customized_0"],
             expected_deployed_envs=[],
-            expected_deleted_envs=[],
+            expected_deleted_envs=["customized_0"],
             runner=runner,
         )
         self.verify_test_results(
@@ -590,7 +603,7 @@ class RunnerTestCase(TestCase):
         expected_deleted_envs: List[str],
         runner: LisaRunner,
     ) -> None:
-        platform = cast(test_platform.MockPlatform, runner._latest_platform)
+        platform = cast(test_platform.MockPlatform, runner.platform)
         platform_test_data = platform.test_data
 
         self.assertListEqual(
@@ -608,3 +621,15 @@ class RunnerTestCase(TestCase):
             list(platform_test_data.deleted_envs),
             "deleted envs inconsistent",
         )
+
+    def _run_all_tests(self, runner: LisaRunner) -> List[TestResult]:
+        test_results: List[TestResult] = []
+        runner.initialize()
+
+        while not runner.is_done:
+            task = runner.fetch_task()
+            if task:
+                temp_test_results = task()
+                if temp_test_results:
+                    test_results.extend(temp_test_results)
+        return test_results
