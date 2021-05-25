@@ -181,6 +181,7 @@ function Install_Dpdk () {
 			if ! ([ "${DISTRO_NAME}" = "rhel" ] && [[ ${DISTRO_VERSION} == *"8."* ]]) ;then
 				ssh "${1}" ". utils.sh && install_epel"
 			fi
+			ssh ${install_ip} "yum update -y --disablerepo='*' --enablerepo='*microsoft*'"
 			ssh "${1}" "yum -y groupinstall 'Infiniband Support' && dracut --add-drivers 'mlx4_en mlx4_ib mlx5_ib' -f && systemctl enable rdma"
 			check_exit_status "Install Infiniband Support on ${1}" "exit"
 			devel_source=(  "7.5=http://vault.centos.org/7.5.1804/updates/x86_64/Packages/kernel-devel-$(uname -r).rpm"
