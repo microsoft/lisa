@@ -65,6 +65,58 @@ function install_prereq_1604() {
     install_package "clang-8 libssl-dev gdb libsgx-enclave-common libsgx-enclave-common-dev libprotobuf9v5 libsgx-dcap-ql libsgx-dcap-ql-dev az-dcap-client open-enclave"
 }
 
+install_azure_dcap_client() {
+    #Follows guide at https://github.com/intel/SGXDataCenterAttestationPrimitives.git
+    #======================================
+    echo "Clone, build, install Azure DCAP Client"
+    #======================================
+    pushd .
+    cd ~
+    
+    git clone https://github.com/microsoft/Azure-DCAP-Client.git
+ 
+    # Adding permissions to be able to switch branches
+    sudo chown -R $(whoami):$(whoami) ~/Azure-DCAP-Client/
+ 
+    cd ~/Azure-DCAP-Client/
+ 
+    sudo apt-get update -y
+    sudo apt-get install -y libgtest-dev
+    sudo apt-get install -y cmake
+    cd /usr/src/gtest
+    sudo cmake CMakeLists.txt
+    sudo make
+ 
+    # Copy or symlink libgtest.a and libgtest_main.a to /usr/lib folder.
+    sudo cp *.a /usr/lib
+ 
+    # Building library.
+    cd ~/Azure-DCAP-Client/src/Linux/
+    sudo ./configure
+    sudo make
+    sudo make install
+ 
+    # Ensure correct DCAP quote provider is picked up
+    if [ -f /usr/lib/libdcap_quoteprov.so ] && [ -f /usr/local/lib/libdcap_quoteprov.so ];
+    then
+        echo "Moving /usr/lib/libdcap_quoteprov.so to /usr/lib/temp_libdcap_quoteprov.so"
+        sudo mv /usr/lib/libdcap_quoteprov.so /usr/lib/temp_libdcap_quoteprov.so
+        echo "Moving /usr/local/lib/libdcap_quoteprov.so to /usr/lib/libdcap_quoteprov.so"
+        sudo cp /usr/local/lib/libdcap_quoteprov.so /usr/lib/libdcap_quoteprov.so
+    else
+        echo "Could not find /usr/lib/libdcap_quoteprov.so and /usr/local/lib/libdcap_quoteprov.so"
+    fi
+ 
+    echo "Printing information about /usr/lib/libdcap_quoteprov.so"
+    ls -l /usr/lib/libdcap_quoteprov.so
+ 
+    echo "Printing environment variables after DCAP setup"
+    printenv
+    echo "Done printing environment variables after DCAP setup"
+
+    popd
+}
+
 . /etc/lsb-release
 echo "Script running on $DISTRIB_DESCRIPTION"
 
@@ -76,6 +128,10 @@ else
     echo "$DISTRIB_RELEASE is unsupported"
     exit 1
 fi
+
+export AZDCAP_COLLATERAL_VERSION=v3
+export AZDCAP_DEBUG_LOG_LEVEL=INFO
+install_azure_dcap_client
 
 echo "----- Running Samples Tests -----"
 cd ~
