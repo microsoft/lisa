@@ -73,7 +73,7 @@ class TestResult:
     information: Dict[str, Any] = field(default_factory=dict)
 
     @property
-    def can_run(self) -> bool:
+    def is_notrun(self) -> bool:
         return self.status == TestStatus.NOTRUN
 
     def __post_init__(self, *args: Any, **kwargs: Any) -> None:
