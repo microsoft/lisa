@@ -123,6 +123,9 @@ function Install_Dpdk_Dependencies() {
 		ssh ${install_ip} ". utils.sh && CheckInstallLockUbuntu && apt-get install -y ${apt_packages}"
 
 	elif [[ "${distro}" == rhel7* || "${distro}" == centos7* ]]; then
+		# RHEL images can contain an expired certificate for the RHUI, devnet recommends updating the certs as follows:
+		# https://docs.microsoft.com/en-us/azure/virtual-machines/workloads/redhat/redhat-rhui#update-expired-rhui-client-certificate-on-a-vm
+		ssh ${install_ip} "yum update -y --disablerepo='*' --enablerepo='*microsoft*'"
 		ssh ${install_ip} "yum -y --nogpgcheck groupinstall 'Infiniband Support'"
 		ssh ${install_ip} "dracut --add-drivers 'mlx4_en mlx4_ib mlx5_ib' -f"
 		yum_flags=""
@@ -178,6 +181,7 @@ function Install_Dpdk () {
 			if ! ([ "${DISTRO_NAME}" = "rhel" ] && [[ ${DISTRO_VERSION} == *"8."* ]]) ;then
 				ssh "${1}" ". utils.sh && install_epel"
 			fi
+			ssh ${1} "yum update -y --disablerepo='*' --enablerepo='*microsoft*'"
 			ssh "${1}" "yum -y groupinstall 'Infiniband Support' && dracut --add-drivers 'mlx4_en mlx4_ib mlx5_ib' -f && systemctl enable rdma"
 			check_exit_status "Install Infiniband Support on ${1}" "exit"
 			devel_source=(  "7.5=http://vault.centos.org/7.5.1804/updates/x86_64/Packages/kernel-devel-$(uname -r).rpm"
