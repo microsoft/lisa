@@ -42,7 +42,23 @@ if TYPE_CHECKING:
 
 
 TestStatus = Enum(
-    "TestStatus", ["NOTRUN", "RUNNING", "FAILED", "PASSED", "SKIPPED", "ATTEMPTED"]
+    "TestStatus",
+    [
+        # A test result is created, but not assigned to any running queue.
+        "NOTRUN",
+        # A test result is assigned to an environment, may be run later or not
+        # able to run. It may be returned to NOTRUN status, if the environment
+        # doesn't fit this case.
+        "ASSIGNED",
+        # A test result is running
+        "RUNNING",
+        "FAILED",
+        "PASSED",
+        # A test result is skipped, won't be run anymore.
+        "SKIPPED",
+        # A test result is failed with known issue.
+        "ATTEMPTED",
+    ],
 )
 
 _all_suites: Dict[str, TestSuiteMetadata] = dict()
@@ -75,6 +91,15 @@ class TestResult:
     @property
     def is_notrun(self) -> bool:
         return self.status == TestStatus.NOTRUN
+
+    @property
+    def is_completed(self) -> bool:
+        return self.status in [
+            TestStatus.FAILED,
+            TestStatus.PASSED,
+            TestStatus.SKIPPED,
+            TestStatus.ATTEMPTED,
+        ]
 
     def __post_init__(self, *args: Any, **kwargs: Any) -> None:
         self._send_result_message()
