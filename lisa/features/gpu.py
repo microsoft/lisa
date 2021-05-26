@@ -33,6 +33,14 @@ class Gpu(Feature):
     def name(cls) -> str:
         return FEATURE_NAME_GPU
 
+    @classmethod
+    def enabled(cls) -> bool:
+        return True
+
+    @classmethod
+    def can_disable(cls) -> bool:
+        return True
+
     def _is_supported(self) -> bool:
         raise NotImplementedError()
 
