@@ -714,7 +714,7 @@ class Criteria:
     priority: Optional[Union[int, List[int]]] = field(
         default=None,
         metadata=metadata(
-            validate=ListableValidator(int, validate.Range(min=0, max=3))
+            validate=ListableValidator(int, validate.Range(min=0, max=4))
         ),
     )
     # tags is a simple way to include test cases within same topic.
