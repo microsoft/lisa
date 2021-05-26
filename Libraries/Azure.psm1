@@ -364,7 +364,7 @@ Function PrepareAutoCompleteStorageAccounts ($storageAccountsRGName, $XMLSecretF
 		}
 	}
 	$allAvailableRegions = ((Get-AzResourceProvider -ProviderNamespace "Microsoft.Storage").ResourceTypes | `
-			Where-Object ResourceTypeName -eq "storageaccounts").Locations
+			Where-Object ResourceTypeName -eq "storageaccounts").Locations | where {-not $_.Contains("(")}
 	# Create ResourceGroup for StorageAccounts to run LISAv2
 	$getRGResult = Get-AzResourceGroup -Name $storageAccountsRGName -ErrorAction SilentlyContinue
 	if (!$getRGResult.ResourceGroupName ) {
