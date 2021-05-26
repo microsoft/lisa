@@ -28,7 +28,7 @@ class VariableTestCase(TestCase):
         pair1 = "normal_value:nv_from_pair"
         pair2 = "S:normal_entry:s_value_from_env"
         variables = self._get_default_variables()
-        variables.update(variable._load_from_pairs([pair1, pair2]))
+        variables.update(variable.add_secrets_from_pairs([pair1, pair2]))
         data = self._replace_and_validate(variables, {"normal_entry": "******"})
         self.assertEqual("nv_from_pair", data["nested"]["normal_value"])
         self.assertEqual("s_value_from_env", data["normal_entry"])

@@ -48,7 +48,7 @@ def load_variables(
     current_variables: Dict[str, VariableEntry] = dict()
     if isinstance(higher_level_variables, list):
         env_variables = _load_from_env()
-        cmd_variables = _load_from_pairs(higher_level_variables)
+        cmd_variables = add_secrets_from_pairs(higher_level_variables)
     else:
         current_variables.update(higher_level_variables)
         env_variables = {}
@@ -187,9 +187,16 @@ def _load_from_file(
     return results
 
 
-def _load_from_pairs(
+def add_secrets_from_pairs(
     raw_pairs: Optional[List[str]],
 ) -> Dict[str, VariableEntry]:
+    """
+    Given a list of command line style pairs of [s]:key:value tuples,
+    take the ones prefixed with "s:" and make them recorded
+    secrets. At the end, also return a dictionary of those tuples
+    (still with raw values).
+
+    """
     results: Dict[str, VariableEntry] = {}
     if raw_pairs is None:
         return results
