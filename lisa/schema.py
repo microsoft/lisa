@@ -221,16 +221,6 @@ class Parent:
 
 @dataclass_json()
 @dataclass
-class ExtensionV1:
-    """
-    deprecated. Use paths directly
-    """
-
-    paths: List[str] = field(default_factory=list, metadata=metadata(required=True))
-
-
-@dataclass_json()
-@dataclass
 class Extension:
     path: str
     name: Optional[str] = None
@@ -238,15 +228,6 @@ class Extension:
     @classmethod
     def from_raw(cls, raw_data: Any) -> List["Extension"]:
         results: List[Extension] = []
-
-        if isinstance(raw_data, Dict):
-            # for compatibility
-            # convert v1 extension to list of strings, if it's used.
-            # the ExtensionV1 should be removed later.
-            extension_v1: ExtensionV1 = ExtensionV1.schema().load(  # type: ignore
-                raw_data
-            )
-            raw_data = extension_v1.paths
 
         assert isinstance(raw_data, list), f"actual: {type(raw_data)}"
         for extension in raw_data:
@@ -835,9 +816,7 @@ class Runbook:
     test_pass: str = ""
     tags: Optional[List[str]] = None
     parent: Optional[List[Parent]] = field(default=None)
-    extension: Union[ExtensionV1, List[Union[str, Extension]], None] = field(
-        default=None
-    )
+    extension: Optional[List[Union[str, Extension]]] = field(default=None)
     variable: Optional[List[Variable]] = field(default=None)
     artifact: Optional[List[Artifact]] = field(default=None)
     environment: Optional[EnvironmentRoot] = field(default=None)
