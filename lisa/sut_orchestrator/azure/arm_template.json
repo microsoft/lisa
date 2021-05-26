@@ -20,6 +20,12 @@
                 "description": "location"
             }
         },
+        "enable_sriov": {
+            "type": "bool",
+            "metadata": {
+                "description": "enable accelerated network"
+            }
+        },
         "nodes": {
             "type": "array",
             "metadata": {
@@ -140,6 +146,9 @@
                     },
                     "default_subnetId": {
                         "value": "[variables('default_subnetId')]"
+                    },
+                    "enable_sriov": {
+                        "value": "[parameters('enable_sriov')]"
                     }
                 },
                 "mode": "Incremental",
@@ -158,6 +167,9 @@
                         },
                         "default_subnetId": {
                             "type": "string"
+                        },
+                        "enable_sriov": {
+                            "type": "bool"
                         }
                     },
                     "resources": [
@@ -183,7 +195,8 @@
                                             "privateIPAllocationMethod": "Dynamic"
                                         }
                                     }
-                                ]
+                                ],
+                                "enableAcceleratedNetworking": "[parameters('enable_sriov')]"
                             }
                         }
                     ],

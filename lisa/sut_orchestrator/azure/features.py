@@ -5,15 +5,22 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Any, Optional
 
 import requests
+from assertpy import assert_that
 
 from lisa import features
 from lisa.node import Node
 from lisa.operating_system import CentOs, Redhat, Suse, Ubuntu
-
-from .common import get_compute_client, get_node_context, wait_operation
+from lisa.util import LisaException
 
 if TYPE_CHECKING:
     from .platform_ import AzurePlatform
+
+from .common import (
+    get_compute_client,
+    get_network_client,
+    get_node_context,
+    wait_operation,
+)
 
 
 class AzureFeatureMixin:
@@ -85,3 +92,70 @@ class Gpu(AzureFeatureMixin, features.Gpu):
         if not isinstance(self._node.os, supported_distro):
             return False
         return True
+
+
+class Sriov(AzureFeatureMixin, features.Sriov):
+    def _initialize(self, *args: Any, **kwargs: Any) -> None:
+        super()._initialize(*args, **kwargs)
+        self._initialize_information(self._node)
+
+    def _switch(self, enable: bool) -> None:
+        azure_platform: AzurePlatform = self._platform  # type: ignore
+        network_client = get_network_client(azure_platform)
+        compute_client = get_compute_client(azure_platform)
+        vm = compute_client.virtual_machines.get(
+            self._resource_group_name, self._node.name
+        )
+        for nic in vm.network_profile.network_interfaces:
+            # get nic name from nic id
+            # /subscriptions/[subid]/resourceGroups/[rgname]/providers
+            # /Microsoft.Network/networkInterfaces/[nicname]
+            nic_name = nic.id.split("/")[-1]
+            updated_nic = network_client.network_interfaces.get(
+                self._resource_group_name, nic_name
+            )
+            if updated_nic.enable_accelerated_networking == enable:
+                self._log.debug(
+                    f"network interface {nic_name}'s accelerated networking default "
+                    f"status [{updated_nic.enable_accelerated_networking}] is "
+                    f"consistent with set status [{enable}], no need to update."
+                )
+            else:
+                self._log.debug(
+                    f"network interface {nic_name}'s accelerated networking default "
+                    f"status [{updated_nic.enable_accelerated_networking}], "
+                    f"now set its status into [{enable}]."
+                )
+                updated_nic.enable_accelerated_networking = enable
+                network_client.network_interfaces.begin_create_or_update(
+                    self._resource_group_name, updated_nic.name, updated_nic
+                )
+                updated_nic = network_client.network_interfaces.get(
+                    self._resource_group_name, nic_name
+                )
+                assert_that(updated_nic.enable_accelerated_networking).described_as(
+                    f"fail to set network interface {nic_name}'s accelerated "
+                    f"networking into status [{enable}]"
+                ).is_equal_to(enable)
+
+    def enabled(self) -> bool:
+        azure_platform: AzurePlatform = self._platform  # type: ignore
+        network_client = get_network_client(azure_platform)
+        compute_client = get_compute_client(azure_platform)
+        sriov_enabled: bool = False
+        vm = compute_client.virtual_machines.get(
+            self._resource_group_name, self._node.name
+        )
+        found_primary = False
+        for nic in vm.network_profile.network_interfaces:
+            if nic.primary:
+                found_primary = True
+                break
+        if not found_primary:
+            raise LisaException(f"fail to find primary nic for vm {self._node.name}")
+        nic_name = nic.id.split("/")[-1]
+        primary_nic = network_client.network_interfaces.get(
+            self._resource_group_name, nic_name
+        )
+        sriov_enabled = primary_nic.enable_accelerated_networking
+        return sriov_enabled

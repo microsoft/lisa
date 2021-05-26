@@ -169,6 +169,7 @@ class AzureArmParameter:
     admin_key_data: str = ""
     availability_set_tags: Dict[str, str] = field(default_factory=dict)
     availability_set_properties: Dict[str, Any] = field(default_factory=dict)
+    enable_sriov: Optional[bool] = None
     nodes: List[AzureNodeSchema] = field(default_factory=list)
 
     def __post_init__(self, *args: Any, **kwargs: Any) -> None:
@@ -264,7 +265,12 @@ class AzurePlatform(Platform):
 
     @classmethod
     def supported_features(cls) -> List[Type[Feature]]:
-        return [features.StartStop, features.SerialConsole]
+        return [
+            features.Gpu,
+            features.SerialConsole,
+            features.Sriov,
+            features.StartStop,
+        ]
 
     def _prepare_environment(  # noqa: C901
         self, environment: Environment, log: Logger
@@ -480,7 +486,10 @@ class AzurePlatform(Platform):
     def _delete_environment(self, environment: Environment, log: Logger) -> None:
         environment_context = get_environment_context(environment=environment)
         resource_group_name = environment_context.resource_group_name
-        assert resource_group_name
+        # the resource group name is empty when it is not deployed for some reasons,
+        # like capability doesn't meet case requirement.
+        if not resource_group_name:
+            return
         assert self._azure_runbook
 
         if not environment_context.resource_group_is_created:
@@ -879,6 +888,17 @@ class AzurePlatform(Platform):
         arm_parameters.storage_name = get_storage_account_name(
             self.subscription_id, arm_parameters.location
         )
+        if arm_parameters.enable_sriov is None:
+            arm_parameters.enable_sriov = True
+            if (
+                node.capability.features
+                and features.Sriov.name() not in node.capability.features
+            ):
+                self._log.debug(
+                    "use synthetic network since used size doesn't have"
+                    "sriov capability"
+                )
+                arm_parameters.enable_sriov = False
 
         # load template
         template = self._load_template()
@@ -1176,7 +1196,11 @@ class AzurePlatform(Platform):
             elif name == "GPUs":
                 node_space.gpu_count = int(sku_capability.value)
                 # update features list if gpu feature is supported
-                node_space.features.update(features.Gpu.name())
+                node_space.features.update([features.Gpu.name()])
+            elif name == "AcceleratedNetworkingEnabled":
+                if eval(sku_capability.value) is True:
+                    # update features list if sriov feature is supported
+                    node_space.features.update([features.Sriov.name()])
 
         # set a min value for nic_count work around for an azure python sdk bug
         # nic_count is 0 when get capability for some sizes e.g. Standard_D8a_v3
