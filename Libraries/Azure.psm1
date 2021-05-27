@@ -383,15 +383,19 @@ Function PrepareAutoCompleteStorageAccounts ($storageAccountsRGName, $XMLSecretF
 	$lisaSAPrefix = 'lisa'
 	$existingLISAStorageAccounts | ForEach-Object {
 		if ($_.StorageAccountName -imatch "^$lisaSAPrefix.+") {
-			$lisaSANum++;
-			if (!$regionStorageMapping[$_.Location]) {
-				$regionStorageMapping[$_.Location] = @{}
-			}
-			if ($_.Sku.Name -imatch "Standard_LRS") {
-				$regionStorageMapping[$_.Location]["StandardStorage"] = $_
-			}
-			elseif ($_.Sku.Name -imatch "Premium_LRS") {
-				$regionStorageMapping[$_.Location]["PremiumStorage"] = $_
+			$location = $_.Location
+			# Skip the location contains '(' in name
+			if (-not $location.contains("(")) {
+				$lisaSANum++;
+				if (!$regionStorageMapping[$location]) {
+					$regionStorageMapping[$location] = @{}
+				}
+				if ($_.Sku.Name -imatch "Standard_LRS") {
+					$regionStorageMapping[$location]["StandardStorage"] = $_
+				}
+				elseif ($_.Sku.Name -imatch "Premium_LRS") {
+					$regionStorageMapping[$location]["PremiumStorage"] = $_
+				}
 			}
 		}
 	}
