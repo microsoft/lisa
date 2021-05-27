@@ -275,12 +275,10 @@ class Environments(EnvironmentsDict):
         self,
         warn_as_error: bool = False,
         max_concurrency: int = 1,
-        allow_create: bool = True,
     ) -> None:
         super().__init__()
         self.warn_as_error = warn_as_error
         self.max_concurrency = max_concurrency
-        self.allow_create = allow_create
 
     def get_or_create(self, requirement: EnvironmentSpace) -> Optional[Environment]:
         result: Optional[Environment] = None
@@ -301,27 +299,28 @@ class Environments(EnvironmentsDict):
         return self.from_runbook(
             runbook=runbook,
             name=f"generated_{len(self.keys())}",
-            is_original_runbook=False,
+            is_predefined_runbook=False,
         )
 
     def from_runbook(
-        self, runbook: schema.Environment, name: str, is_original_runbook: bool
+        self, runbook: schema.Environment, name: str, is_predefined_runbook: bool
     ) -> Optional[Environment]:
         assert runbook
         assert name
         env: Optional[Environment] = None
-        if is_original_runbook or self.allow_create:
-            # make a copy, so that modification on env won't impact test case
-            copied_runbook = copy.copy(runbook)
-            copied_runbook.name = name
-            env = Environment.create(
-                runbook=copied_runbook,
-                is_predefined=is_original_runbook,
-                warn_as_error=self.warn_as_error,
-            )
-            self[name] = env
-            log = _get_init_logger()
-            log.debug(f"created {env.name}: {env.runbook}")
+
+        # make a copy, so that modification on env won't impact test case
+        copied_runbook = copy.copy(runbook)
+        copied_runbook.name = name
+        env = Environment.create(
+            runbook=copied_runbook,
+            is_predefined=is_predefined_runbook,
+            warn_as_error=self.warn_as_error,
+        )
+        self[name] = env
+        log = _get_init_logger()
+        log.debug(f"created {env.name}: {env.runbook}")
+
         return env
 
 
@@ -332,7 +331,6 @@ def load_environments(
         environments = Environments(
             warn_as_error=root_runbook.warn_as_error,
             max_concurrency=root_runbook.max_concurrency,
-            allow_create=root_runbook.allow_create,
         )
 
         environments_runbook = root_runbook.environments
@@ -340,7 +338,7 @@ def load_environments(
             env = environments.from_runbook(
                 runbook=environment_runbook,
                 name=f"customized_{len(environments)}",
-                is_original_runbook=True,
+                is_predefined_runbook=True,
             )
             assert env, "created from runbook shouldn't be None"
     else:

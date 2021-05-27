@@ -21,6 +21,7 @@ from lisa.util import LisaException, constants
 def generate_runner(
     env_runbook: Optional[schema.EnvironmentRoot] = None,
     case_use_new_env: bool = False,
+    times: int = 1,
     platform_schema: Optional[test_platform.MockPlatformSchema] = None,
 ) -> LisaRunner:
     platform_runbook = schema.Platform(
@@ -37,6 +38,7 @@ def generate_runner(
         schema.TestCase(
             criteria=schema.Criteria(priority=[0, 1, 2]),
             use_new_environment=case_use_new_env,
+            times=times,
         )
     ]
     if env_runbook:
@@ -47,6 +49,8 @@ def generate_runner(
 
 
 class RunnerTestCase(TestCase):
+    __skipped_no_env = "no available environment"
+
     def tearDown(self) -> None:
         cleanup_cases_metadata()  # Necessary side effects!
 
@@ -71,6 +75,7 @@ class RunnerTestCase(TestCase):
             list(envs),
         )
         self.verify_test_results(
+            expected_test_order=["mock_ut1", "mock_ut2", "mock_ut3"],
             expected_envs=["", "", ""],
             expected_status=[TestStatus.QUEUED, TestStatus.QUEUED, TestStatus.QUEUED],
             expected_message=["", "", ""],
@@ -131,17 +136,17 @@ class RunnerTestCase(TestCase):
             list(envs),
         )
         self.verify_test_results(
+            expected_test_order=["mock_ut1", "mock_ut2", "mock_ut3"],
             expected_envs=["", "", ""],
             expected_status=[TestStatus.QUEUED, TestStatus.QUEUED, TestStatus.QUEUED],
             expected_message=["", "", ""],
             test_results=test_results,
         )
 
-    def test_merge_req_not_allow_create(self) -> None:
+    def test_merge_req_all_generated(self) -> None:
         # force to use existing env, not to create new.
         # this case doesn't provide predefined env, but no case skipped on this stage.
         env_runbook = generate_env_runbook(is_single_env=False)
-        env_runbook.allow_create = False
         envs = load_environments(env_runbook)
         self.assertListEqual(
             [],
@@ -155,11 +160,12 @@ class RunnerTestCase(TestCase):
             platform_type=constants.PLATFORM_MOCK,
         )
         self.assertListEqual(
-            [],
+            ["generated_0", "generated_1", "generated_2"],
             list(envs),
         )
 
         self.verify_test_results(
+            expected_test_order=["mock_ut1", "mock_ut2", "mock_ut3"],
             expected_envs=["", "", ""],
             expected_status=[
                 TestStatus.QUEUED,
@@ -195,6 +201,7 @@ class RunnerTestCase(TestCase):
         )
         platform_unsupported = "capability cannot support some of requirement"
         self.verify_test_results(
+            expected_test_order=["mock_ut1", "mock_ut2", "mock_ut3"],
             expected_envs=["", "", ""],
             expected_status=[
                 TestStatus.SKIPPED,
@@ -220,15 +227,16 @@ class RunnerTestCase(TestCase):
         test_results = runner.run("ut")
 
         self.verify_env_results(
-            expected_prepared=["customized_0", "generated_1", "generated_2"],
-            expected_deployed_envs=["customized_0", "generated_1"],
-            expected_deleted_envs=["customized_0", "generated_1"],
+            expected_prepared=["customized_0"],
+            expected_deployed_envs=["customized_0"],
+            expected_deleted_envs=["customized_0"],
             runner=runner,
         )
         self.verify_test_results(
-            expected_envs=["generated_1", "customized_0", "customized_0"],
-            expected_status=[TestStatus.PASSED, TestStatus.PASSED, TestStatus.PASSED],
-            expected_message=["", "", ""],
+            expected_test_order=["mock_ut1", "mock_ut2", "mock_ut3"],
+            expected_envs=["", "customized_0", "customized_0"],
+            expected_status=[TestStatus.SKIPPED, TestStatus.PASSED, TestStatus.PASSED],
+            expected_message=[self.__skipped_no_env, "", ""],
             test_results=test_results,
         )
 
@@ -242,24 +250,20 @@ class RunnerTestCase(TestCase):
         test_results = runner.run("ut")
 
         self.verify_env_results(
-            expected_prepared=[
-                "customized_0",
-                "generated_1",
-                "generated_2",
-                "generated_3",
-            ],
+            expected_prepared=["customized_0"],
             expected_deployed_envs=["customized_0"],
             expected_deleted_envs=["customized_0"],
             runner=runner,
         )
         self.verify_test_results(
+            expected_test_order=["mock_ut1", "mock_ut2", "mock_ut3"],
             expected_envs=["customized_0", "customized_0", "customized_0"],
             expected_status=[TestStatus.PASSED, TestStatus.PASSED, TestStatus.PASSED],
             expected_message=["", "", ""],
             test_results=test_results,
         )
 
-    def test_case_new_env_run_only_1_needed(self) -> None:
+    def test_case_new_env_run_only_1_needed_customized(self) -> None:
         # same predefined env as test_fit_a_bigger_env,
         # but all case want to run on a new env
         generate_cases_metadata()
@@ -268,20 +272,80 @@ class RunnerTestCase(TestCase):
         test_results = runner.run("ut")
 
         self.verify_env_results(
-            expected_prepared=[
-                "customized_0",
-                "generated_1",
-                "generated_2",
-                "generated_3",
-            ],
-            expected_deployed_envs=["customized_0", "generated_1", "generated_3"],
-            expected_deleted_envs=["customized_0", "generated_1", "generated_3"],
+            expected_prepared=["customized_0"],
+            expected_deployed_envs=["customized_0"],
+            expected_deleted_envs=["customized_0"],
             runner=runner,
         )
         self.verify_test_results(
-            expected_envs=["customized_0", "generated_1", "generated_3"],
-            expected_status=[TestStatus.PASSED, TestStatus.PASSED, TestStatus.PASSED],
-            expected_message=["", "", ""],
+            expected_test_order=["mock_ut1", "mock_ut2", "mock_ut3"],
+            expected_envs=["customized_0", "", ""],
+            expected_status=[TestStatus.PASSED, TestStatus.SKIPPED, TestStatus.SKIPPED],
+            expected_message=["", self.__skipped_no_env, self.__skipped_no_env],
+            test_results=test_results,
+        )
+
+    def test_case_new_env_run_only_1_needed_generated(self) -> None:
+        # same predefined env as test_fit_a_bigger_env,
+        # but all case want to run on a new env
+        generate_cases_metadata()
+        env_runbook = generate_env_runbook()
+        runner = generate_runner(env_runbook, case_use_new_env=True, times=2)
+        test_results = runner.run("ut")
+
+        self.verify_env_results(
+            expected_prepared=[
+                "generated_0",
+                "generated_1",
+                "generated_2",
+                "generated_3",
+                "generated_4",
+                "generated_5",
+            ],
+            expected_deployed_envs=[
+                "generated_0",
+                "generated_1",
+                "generated_2",
+                "generated_3",
+                "generated_4",
+                "generated_5",
+            ],
+            expected_deleted_envs=[
+                "generated_0",
+                "generated_1",
+                "generated_2",
+                "generated_3",
+                "generated_4",
+                "generated_5",
+            ],
+            runner=runner,
+        )
+        self.verify_test_results(
+            expected_test_order=[
+                "mock_ut1",
+                "mock_ut1",
+                "mock_ut2",
+                "mock_ut2",
+                "mock_ut3",
+                "mock_ut3",
+            ],
+            expected_envs=[
+                "generated_0",
+                "generated_1",
+                "generated_2",
+                "generated_3",
+                "generated_4",
+                "generated_5",
+            ],
+            expected_status=[
+                TestStatus.PASSED,
+                TestStatus.PASSED,
+                TestStatus.PASSED,
+                TestStatus.PASSED,
+                TestStatus.PASSED,
+                TestStatus.PASSED,
+            ],
+            expected_message=["", "", "", "", "", ""],
             test_results=test_results,
         )
 
@@ -298,17 +362,16 @@ class RunnerTestCase(TestCase):
             expected_prepared=[
                 "customized_0",
                 "customized_1",
-                "generated_2",
-                "generated_3",
             ],
-            expected_deployed_envs=["customized_0", "generated_2"],
-            expected_deleted_envs=["customized_0", "generated_2"],
+            expected_deployed_envs=["customized_0"],
+            expected_deleted_envs=["customized_0"],
             runner=runner,
         )
         self.verify_test_results(
-            expected_envs=["generated_2", "customized_0", "customized_0"],
-            expected_status=[TestStatus.PASSED, TestStatus.PASSED, TestStatus.PASSED],
-            expected_message=["", "", ""],
+            expected_test_order=["mock_ut1", "mock_ut2", "mock_ut3"],
+            expected_envs=["", "customized_0", "customized_0"],
+            expected_status=[TestStatus.SKIPPED, TestStatus.PASSED, TestStatus.PASSED],
+            expected_message=[self.__skipped_no_env, "", ""],
             test_results=test_results,
         )
 
@@ -324,18 +387,14 @@ class RunnerTestCase(TestCase):
         test_results = runner.run("ut")
 
         self.verify_env_results(
-            expected_prepared=[
-                "customized_0",
-                "generated_1",
-                "generated_2",
-                "generated_3",
-            ],
+            expected_prepared=["customized_0"],
             expected_deployed_envs=[],
             expected_deleted_envs=[],
             runner=runner,
         )
-        before_suite_failed = "no available environment"
+
         self.verify_test_results(
+            expected_test_order=["mock_ut1", "mock_ut2", "mock_ut3"],
             expected_envs=["", "", ""],
             expected_status=[
                 TestStatus.SKIPPED,
@@ -343,9 +402,9 @@ class RunnerTestCase(TestCase):
                 TestStatus.SKIPPED,
             ],
             expected_message=[
-                before_suite_failed,
-                before_suite_failed,
-                before_suite_failed,
+                self.__skipped_no_env,
+                self.__skipped_no_env,
+                self.__skipped_no_env,
             ],
             test_results=test_results,
         )
@@ -359,12 +418,7 @@ class RunnerTestCase(TestCase):
         test_results = runner.run("ut")
 
         self.verify_env_results(
-            expected_prepared=[
-                "customized_0",
-                "generated_1",
-                "generated_2",
-                "generated_3",
-            ],
+            expected_prepared=["customized_0"],
             expected_deployed_envs=["customized_0"],
             expected_deleted_envs=["customized_0"],
             runner=runner,
@@ -372,6 +426,7 @@ class RunnerTestCase(TestCase):
 
         before_suite_failed = "before_suite: failed"
         self.verify_test_results(
+            expected_test_order=["mock_ut1", "mock_ut2", "mock_ut3"],
             expected_envs=["customized_0", "customized_0", "customized_0"],
             expected_status=[
                 TestStatus.SKIPPED,
@@ -404,6 +459,7 @@ class RunnerTestCase(TestCase):
 
         no_available_env = "deployment failed: no capability found for environment: "
         self.verify_test_results(
+            expected_test_order=["mock_ut1", "mock_ut2", "mock_ut3"],
             expected_envs=["generated_0", "generated_1", "generated_2"],
             expected_status=[
                 TestStatus.FAILED,
@@ -418,7 +474,6 @@ class RunnerTestCase(TestCase):
         # test env not prepared, so test cases cannot find an env to run
         platform_schema = test_platform.MockPlatformSchema()
         platform_schema.return_prepared = False
-        generate_cases_metadata()
         env_runbook = generate_env_runbook(is_single_env=True, local=True, remote=True)
         runner = generate_runner(env_runbook, platform_schema=platform_schema)
 
@@ -435,21 +490,20 @@ class RunnerTestCase(TestCase):
         platform_schema = test_platform.MockPlatformSchema()
         platform_schema.deployed_status = EnvironmentStatus.Prepared
         generate_cases_metadata()
-        env_runbook = generate_env_runbook(is_single_env=True, local=True, remote=True)
+        env_runbook = generate_env_runbook()
         runner = generate_runner(env_runbook, platform_schema=platform_schema)
         test_results = runner.run("ut")
 
         self.verify_env_results(
             expected_prepared=[
-                "customized_0",
+                "generated_0",
                 "generated_1",
                 "generated_2",
-                "generated_3",
             ],
             expected_deployed_envs=[
-                "customized_0",
+                "generated_0",
                 "generated_1",
-                "generated_3",
+                "generated_2",
             ],
             expected_deleted_envs=[],
             runner=runner,
@@ -458,7 +512,8 @@ class RunnerTestCase(TestCase):
             "deployment failed: expected status is EnvironmentStatus.Prepared"
         )
         self.verify_test_results(
-            expected_envs=["customized_0", "generated_1", "generated_3"],
+            expected_test_order=["mock_ut1", "mock_ut2", "mock_ut3"],
+            expected_envs=["generated_0", "generated_1", "generated_2"],
             expected_status=[
                 TestStatus.FAILED,
                 TestStatus.FAILED,
@@ -483,6 +538,7 @@ class RunnerTestCase(TestCase):
             runner=runner,
         )
         self.verify_test_results(
+            expected_test_order=[],
             expected_envs=[],
             expected_status=[],
             expected_message=[],
@@ -491,6 +547,7 @@ class RunnerTestCase(TestCase):
 
     def verify_test_results(
         self,
+        expected_test_order: List[str],
         expected_envs: List[str],
         expected_status: List[TestStatus],
         expected_message: List[str],
@@ -498,15 +555,22 @@ class RunnerTestCase(TestCase):
     ) -> None:
 
         self.assertListEqual(
+            expected_test_order,
+            [x.runtime_data.metadata.name for x in test_results],
+            "test order inconsistent",
+        )
+        self.assertListEqual(
             expected_envs,
             [
                 x.environment.name if x.environment is not None else ""
                 for x in test_results
             ],
+            "test env inconsistent",
         )
         self.assertListEqual(
             expected_status,
             [x.status for x in test_results],
+            "test result inconsistent",
         )
         # compare it's begin with
         actual_messages = [
@@ -516,6 +580,7 @@ class RunnerTestCase(TestCase):
         self.assertListEqual(
             expected_message,
             actual_messages,
+            "test message inconsistent",
         )
 
     def verify_env_results(

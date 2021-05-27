@@ -176,7 +176,6 @@ class EnvironmentTestCase(TestCase):
         self.assertEqual(0, len(envs))
         self.assertEqual(False, envs.warn_as_error)
         self.assertEqual(1, envs.max_concurrency)
-        self.assertEqual(True, envs.allow_create)
 
     def test_create_from_runbook_split(self) -> None:
         runbook = generate_runbook(local=True, remote=True)

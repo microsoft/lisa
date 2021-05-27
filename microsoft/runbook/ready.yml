@@ -9,7 +9,6 @@ variable:
 notifier:
   - type: html
 environment:
-  allow_create: false
   environments:
     - nodes:
         - type: remote
