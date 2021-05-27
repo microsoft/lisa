@@ -8,8 +8,6 @@ from assertpy import assert_that
 
 from lisa import Node, TestCaseMetadata, TestSuite, TestSuiteMetadata
 from lisa.executable import CustomScript, CustomScriptBuilder
-from lisa.operating_system import Windows
-from lisa.testsuite import simple_requirement
 from lisa.util.perf_timer import create_timer
 
 
@@ -34,7 +32,6 @@ class WithScript(TestSuite):
         2. use perf_timer to measure performance and output result.
         """,
         priority=1,
-        requirement=simple_requirement(unsupported_os=[Windows]),
     )
     def script(self, node: Node) -> None:
         timer1 = create_timer()
