@@ -63,12 +63,13 @@ class LisaRunner(BaseRunner):
         platform_message = PlatformMessage(name=platform.type_name())
         notifier.notify(platform_message)
 
-        # get environment requirements
-        self._merge_test_requirements(
-            test_results=test_results,
-            existing_environments=candidate_environments,
-            platform_type=platform.type_name(),
-        )
+        if not candidate_environments:
+            # if no runbook environment defined, generate from requirements
+            self._merge_test_requirements(
+                test_results=test_results,
+                existing_environments=candidate_environments,
+                platform_type=platform.type_name(),
+            )
 
         # there may not need to handle requirements, if all environment are predefined
 

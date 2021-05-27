@@ -18,7 +18,6 @@ notifier:
   - type: html
 environment:
   warn_as_error: false
-  allow_create: false
   environments:
     - nodes:
         - type: requirement

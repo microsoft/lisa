@@ -654,7 +654,6 @@ class EnvironmentRoot:
         default=1,
         metadata=metadata(validate=validate.Range(min=1)),
     )
-    allow_create: bool = True
     warn_as_error: bool = field(default=False)
     environments: List[Environment] = field(default_factory=list)
 
