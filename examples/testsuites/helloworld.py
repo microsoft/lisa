@@ -7,6 +7,7 @@ from assertpy import assert_that
 
 from lisa import Node, TestCaseMetadata, TestSuite, TestSuiteMetadata
 from lisa.operating_system import Posix
+from lisa.testsuite import simple_requirement
 from lisa.tools import Echo, Uname
 
 
@@ -17,6 +18,7 @@ from lisa.tools import Echo, Uname
     this is an example test suite.
     it helps to understand how to write a test case.
     """,
+    requirement=simple_requirement(unsupported_os=[]),
 )
 class HelloWorld(TestSuite):
     @TestCaseMetadata(
