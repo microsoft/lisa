@@ -29,6 +29,15 @@ LISA needs to be installed on a computer which has network access the platform a
 
 - It is recommended that this computer at least has 2 CPU cores and 4GB memory.
 
+## Notes
+
+:blue_book:	On Windows, after you finished a installation, or made a environment variable 
+change, you might need to restart your shell before moving to next step, to make sure your 
+changes take effect.
+
+:blue_book:	Please run your command prompt or shell with elevated privilege (such as `'Run as 
+Administrator'` on Windows) when you see access denied message when install tools.
+
 
 ## Install Python
 
@@ -38,7 +47,7 @@ Python 3 is recommended. If you found LISA is not compatible with higher version
 
 #### Install Python in Linux
 
-Refer below example to to install Python 3.8 in Ubuntu 20.04.
+Refer below example to install Python 3.8 in Ubuntu 20.04.
 
 ```bash
 sudo apt update
@@ -53,6 +62,13 @@ Navigate to [Python releases for
 Windows](https://www.python.org/downloads/windows/). Download and install
 *Windows installer (64-bit)* from Python 3.8 64-bits or higher version.
 
+:warning: Please make sure the `python` directory and its `Scripts` directory are 
+added to your `PATH` environment variable. For example:
+
+```powershell
+PS C:\github> echo $env:path
+... ...;C:\Users\username\AppData\Local\Programs\Python\Python39;C:\Users\username\AppData\Local\Programs\Python\Python39\Scripts;... ...
+```
 
 ## Install dependencies
 
@@ -60,7 +76,7 @@ Please install `git` on your computer to clone LISA source code from this repo.
 
 #### Install dependencies in Linux
 
-In Linux, for exmaple, on Ubuntu 20.04, please use below command to install the dependencies:
+In Linux, for example, on Ubuntu 20.04, please use below command to install the dependencies:
 
 ```bash
 sudo apt install git gcc libgirepository1.0-dev libcairo2-dev virtualenv -y
@@ -69,7 +85,7 @@ sudo apt install git gcc libgirepository1.0-dev libcairo2-dev virtualenv -y
 #### Install dependencies in Windows
 
 In Windows, you need to install [git](https://git-scm.com/downloads), 
-`virtualenv`(`pip install virtualenv`) and [Visual C++ 
+`virtualenv`(by running ```pip install virtualenv```) and [Visual C++ 
 redistributable package](https://aka.ms/vs/16/release/vc_redist.x64.exe)
 
 
@@ -83,11 +99,10 @@ cd lisa
 
 ## Install Poetry
 
-Poetry is used to manage Python dependencies of LISA. Execute corresponding
-script to install Poetry.
+Poetry is used to manage Python dependencies of LISA.
 
-WARNING: Please enter LISA source code root folder to run below command to install poetry, 
-since Poetry manages dependencies by the working folder.
+:warning: Please enter LISA source code root folder to run below 
+command to install poetry, since Poetry manages dependencies by the working folder.
 
 #### Install Poetry in Linux
 
@@ -99,12 +114,14 @@ poetry install
 
 #### Install Poetry in Windows
 
-Launch `PowerShell` as Administrator, then execute below commands:
+Enter the `PowerShell` command prompt and then execute below commands:
 
 ```powershell
 (Invoke-WebRequest -Uri https://raw.githubusercontent.com/python-poetry/poetry/master/install-poetry.py -UseBasicParsing).Content | python -
-# Add to PATH Poetry's binary location (either this or via Window's global env. vars. menu):
+
+# Add poetry.exe's path to your `PATH` environment variable.
 $env:PATH += ";$env:APPDATA\Python\Scripts"
+
 poetry install
 ```
 
