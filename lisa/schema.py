@@ -723,7 +723,7 @@ class Criteria:
     )
 
 
-@dataclass_json(undefined=Undefined.EXCLUDE)
+@dataclass_json(undefined=Undefined.INCLUDE)
 @dataclass
 class BaseTestCaseFilter(TypedSchema, BaseClassMixin):
     """
@@ -735,6 +735,8 @@ class BaseTestCaseFilter(TypedSchema, BaseClassMixin):
     )
     # if it's false, current filter is ineffective.
     enable: bool = field(default=True)
+
+    mismatched: CatchAll = field(default_factory=dict)  # type: ignore
 
 
 @dataclass_json()
