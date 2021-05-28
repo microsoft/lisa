@@ -2,14 +2,13 @@
 # Licensed under the MIT license.
 
 import glob
-import itertools
 import os
 import platform
 import re
 import time
 from functools import partial
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, Dict, Iterable, List, Pattern
+from typing import TYPE_CHECKING, Any, Callable, Dict, Iterable, List, Optional, Pattern
 
 from retry import retry
 
@@ -20,7 +19,7 @@ from lisa.testsuite import TestCaseMetadata, TestCaseRuntimeData, TestResult, Te
 from lisa.tools import Git
 from lisa.util import InitializableMixin, LisaException, constants
 from lisa.util.logger import Logger, create_file_handler, get_logger, remove_handler
-from lisa.util.parallel import run_in_threads
+from lisa.util.parallel import check_cancelled
 from lisa.util.process import Process
 
 # uses to prevent read conflict on log files
@@ -79,35 +78,42 @@ class LegacyRunner(BaseRunner):
             runbook=mock_runbook,
             logger_name="LISAv2",
         )
-        self.canceled = False
 
-    def _run(self, id_: str) -> List[TestResult]:
+    def _initialize(self, *args: Any, **kwargs: Any) -> None:
+        super()._initialize(*args, **kwargs)
         self._log_handler = create_file_handler(self._log_file_name, self._local.log)
-        lisav2_configurations: List[schema.LegacyTestCase] = self._runbook.testcase
+        self._configurations: List[schema.LegacyTestCase] = self._runbook.testcase
+        self._started_flags: List[bool] = [False] * len(self._configurations)
+        self._completed_flags: List[bool] = [False] * len(self._configurations)
 
-        # clone code
-        for index, config in enumerate(lisav2_configurations):
+    @property
+    def is_done(self) -> bool:
+        return all(x for x in self._completed_flags)
+
+    def fetch_task(self) -> Optional[Callable[[], List[TestResult]]]:
+        try:
+            index = self._started_flags.index(False)
+
+            config = self._configurations[index]
             git = self._local.tools[Git]
             git.clone(
                 config.repo,
                 cwd=self._working_folder,
                 branch=config.branch,
-                dir_name=self._get_dir_name(id_, index),
+                dir_name=self._get_dir_name(self.id, index),
             )
 
-        # start run for each configuration
-        raw_results: List[List[TestResult]] = run_in_threads(
-            [
-                partial(self._start_sub_test, self._get_dir_name(id_, index), config)
-                for index, config in enumerate(lisav2_configurations)
-            ],
-            completed_callback=self._completed_callback,
-        )
-
-        test_results = list(itertools.chain(*raw_results))
-
-        self._log.debug("legacy runner exited")
-        return test_results
+            self._started_flags[index] = True
+            task = partial(
+                self._start_sub_test,
+                self._get_dir_name(self.id, index),
+                index,
+                config,
+            )
+            return task
+        except ValueError:
+            # all started, do nothing
+            return None
 
     def close(self) -> None:
         super().close()
@@ -117,17 +123,8 @@ class LegacyRunner(BaseRunner):
             self._local.log,
         )
 
-    def _completed_callback(self, future: Any) -> None:
-        """
-        exit sub tests, once received cancellation message from executor.
-        """
-        # future is False, if it's called explicitly by run_in_threads.
-        if not future or future.cancelled() or future.exception():
-            self._log.debug(f"received cancel notification on {future}")
-            self.canceled = True
-
     def _start_sub_test(
-        self, id_: str, configuration: schema.LegacyTestCase
+        self, id_: str, index: int, configuration: schema.LegacyTestCase
     ) -> List[TestResult]:
         """
         entry point of each LISAv2 process.
@@ -151,6 +148,8 @@ class LegacyRunner(BaseRunner):
             if process.is_running():
                 log.debug("killing LISAv2 process")
                 process.kill()
+
+        self._completed_flags[index] = True
         return results
 
     def _get_dir_name(self, id_: str, index: int) -> str:
@@ -633,7 +632,8 @@ def _track_progress(
     # discovered all cases
     all_cases: List[Dict[str, str]] = []
     process_exiting: bool = False
-    while not runner.canceled:
+    while True:
+        check_cancelled()
         root_parsers = _find_matched_files(
             working_dir=working_dir, pattern=ROOT_LOG_FILE_PATTERN, log=log
         )
@@ -659,7 +659,8 @@ def _track_progress(
     process_exiting = False
     case_states = ResultStateManager(id_=id_, log=log)
     # loop to check running and completed results
-    while not runner.canceled:
+    while True:
+        check_cancelled()
         running_cases: List[Dict[str, str]] = []
         completed_cases: List[Dict[str, str]] = []
         # discover running cases
