@@ -94,7 +94,7 @@
     <testScript>RELOAD-MODULES.ps1</testScript>
     <files>.\TestScripts\Linux\RELOAD-MODULES.sh,.\TestScripts\Linux\utils.sh</files>
     <TestParameters>
-      <param>LoopCount=1000</param>
+      <param>LoopCount=1500</param>
     </TestParameters>
     <Platform>Azure,HyperV</Platform>
     <Category>Stress</Category>
