@@ -32,10 +32,10 @@ class ResultStateManagerTestCase(TestCase):
             0,
             0,
             [
-                TestStatus.NOTRUN,
-                TestStatus.NOTRUN,
-                TestStatus.NOTRUN,
-                TestStatus.NOTRUN,
+                TestStatus.QUEUED,
+                TestStatus.QUEUED,
+                TestStatus.QUEUED,
+                TestStatus.QUEUED,
             ],
         )
         self._set_check_state(
@@ -45,9 +45,9 @@ class ResultStateManagerTestCase(TestCase):
             0,
             [
                 TestStatus.RUNNING,
-                TestStatus.NOTRUN,
-                TestStatus.NOTRUN,
-                TestStatus.NOTRUN,
+                TestStatus.QUEUED,
+                TestStatus.QUEUED,
+                TestStatus.QUEUED,
             ],
         )
         self._set_check_state(
@@ -57,9 +57,9 @@ class ResultStateManagerTestCase(TestCase):
             1,
             [
                 TestStatus.PASSED,
-                TestStatus.NOTRUN,
-                TestStatus.NOTRUN,
-                TestStatus.NOTRUN,
+                TestStatus.QUEUED,
+                TestStatus.QUEUED,
+                TestStatus.QUEUED,
             ],
         )
         self._set_check_state(
@@ -70,8 +70,8 @@ class ResultStateManagerTestCase(TestCase):
             [
                 TestStatus.PASSED,
                 TestStatus.RUNNING,
-                TestStatus.NOTRUN,
-                TestStatus.NOTRUN,
+                TestStatus.QUEUED,
+                TestStatus.QUEUED,
             ],
         )
         self._set_check_state(
@@ -82,8 +82,8 @@ class ResultStateManagerTestCase(TestCase):
             [
                 TestStatus.PASSED,
                 TestStatus.PASSED,
-                TestStatus.NOTRUN,
-                TestStatus.NOTRUN,
+                TestStatus.QUEUED,
+                TestStatus.QUEUED,
             ],
         )
         self._set_check_state(
@@ -95,7 +95,7 @@ class ResultStateManagerTestCase(TestCase):
                 TestStatus.PASSED,
                 TestStatus.PASSED,
                 TestStatus.RUNNING,
-                TestStatus.NOTRUN,
+                TestStatus.QUEUED,
             ],
         )
         self._set_check_state(
@@ -131,7 +131,7 @@ class ResultStateManagerTestCase(TestCase):
         completed_count: int,
         expected_statuses: List[TestStatus],
     ) -> None:
-        all = self._create_information(all_count, TestStatus.NOTRUN)
+        all = self._create_information(all_count, TestStatus.QUEUED)
         running = self._create_information(running_count, TestStatus.RUNNING)
         completed = self._create_information(completed_count, TestStatus.PASSED)
         state.set_states(all, running, completed)
@@ -144,7 +144,7 @@ class ResultStateManagerTestCase(TestCase):
         for i in range(count):
             result = {"name": f"name{i}"}
             results.append(result)
-            if status == TestStatus.NOTRUN:
+            if status == TestStatus.QUEUED:
                 continue
             result["image"] = f"image{i}"
             result["location"] = f"location{i}"

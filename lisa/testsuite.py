@@ -27,8 +27,8 @@ from lisa.feature import Feature
 from lisa.operating_system import OperatingSystem, Windows
 from lisa.util import (
     LisaException,
-    NotRunException,
     PassedException,
+    QueuedException,
     SkippedException,
     constants,
     get_datetime_path,
@@ -45,9 +45,9 @@ TestStatus = Enum(
     "TestStatus",
     [
         # A test result is created, but not assigned to any running queue.
-        "NOTRUN",
+        "QUEUED",
         # A test result is assigned to an environment, may be run later or not
-        # able to run. It may be returned to NOTRUN status, if the environment
+        # able to run. It may be returned to QUEUED status, if the environment
         # doesn't fit this case.
         "ASSIGNED",
         # A test result is running
@@ -71,7 +71,7 @@ class TestResultMessage(notifier.MessageBase):
     id_: str = ""
     type: str = "TestResult"
     name: str = ""
-    status: TestStatus = TestStatus.NOTRUN
+    status: TestStatus = TestStatus.QUEUED
     message: str = ""
     information: Dict[str, str] = field(default_factory=dict)
 
@@ -81,7 +81,7 @@ class TestResult:
     # id is used to identify the unique test result
     id_: str
     runtime_data: TestCaseRuntimeData
-    status: TestStatus = TestStatus.NOTRUN
+    status: TestStatus = TestStatus.QUEUED
     elapsed: float = 0
     message: str = ""
     environment: Optional[Environment] = None
@@ -89,12 +89,12 @@ class TestResult:
     information: Dict[str, Any] = field(default_factory=dict)
 
     @property
-    def is_notrun(self) -> bool:
-        return self.status == TestStatus.NOTRUN
+    def is_queued(self) -> bool:
+        return self.status == TestStatus.QUEUED
 
     @property
     def can_run(self) -> bool:
-        return self.status in [TestStatus.NOTRUN, TestStatus.ASSIGNED]
+        return self.status in [TestStatus.QUEUED, TestStatus.ASSIGNED]
 
     @property
     def is_completed(self) -> bool:
@@ -123,11 +123,11 @@ class TestResult:
             log.debug("case skipped", exc_info=exception)
             # case is skipped dynamically
             self.set_status(TestStatus.SKIPPED, f"{phase}skipped: {exception}")
-        elif isinstance(exception, NotRunException):
-            log.info(f"case keep NOTRUN: {exception}")
-            log.debug("case NOTRUN", exc_info=exception)
+        elif isinstance(exception, QueuedException):
+            log.info(f"case keep QUEUED: {exception}")
+            log.debug("case QUEUED", exc_info=exception)
             # case is not run dynamically.
-            self.set_status(TestStatus.NOTRUN, f"{phase}notrun: {exception}")
+            self.set_status(TestStatus.QUEUED, f"{phase}queued: {exception}")
         elif isinstance(exception, PassedException):
             log.info(f"case passed with warning: {exception}")
             log.debug("case passed with warning", exc_info=exception)

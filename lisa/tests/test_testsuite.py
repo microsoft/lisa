@@ -24,8 +24,8 @@ from lisa.testsuite import (
 )
 from lisa.util import (
     LisaException,
-    NotRunException,
     PassedException,
+    QueuedException,
     SkippedException,
     constants,
 )
@@ -37,7 +37,7 @@ fail_on_before_case = False
 fail_on_after_case = False
 partial_pass = False
 skipped = False
-notrun = False
+queued = False
 fail_case_count = 0
 
 
@@ -50,7 +50,7 @@ class MockTestSuite(TestSuite):
         self.fail_on_after_case = fail_on_after_case
         self.partial_pass = partial_pass
         self.skipped = skipped
-        self.notrun = notrun
+        self.queued = queued
         self.partial_pass = partial_pass
         self.fail_case_count = fail_case_count
 
@@ -62,7 +62,7 @@ class MockTestSuite(TestSuite):
         fail_on_after_case: bool = False,
         partial_pass: bool = False,
         skipped: bool = False,
-        notrun: bool = False,
+        queued: bool = False,
         fail_case_count: int = 0,
     ) -> None:
         self.fail_on_before_suite = fail_on_before_suite
@@ -71,7 +71,7 @@ class MockTestSuite(TestSuite):
         self.fail_on_after_case = fail_on_after_case
         self.partial_pass = partial_pass
         self.skipped = skipped
-        self.notrun = notrun
+        self.queued = queued
         self.fail_case_count = fail_case_count
 
     def before_suite(self, **kwargs: Any) -> None:
@@ -95,8 +95,8 @@ class MockTestSuite(TestSuite):
             raise PassedException("mock_ut1 passed with warning")
         if self.skipped:
             raise SkippedException("mock_ut1 skipped this run")
-        if self.notrun:
-            raise NotRunException("mock_ut1 kept not run")
+        if self.queued:
+            raise QueuedException("mock_ut1 kept not run")
         while self.fail_case_count > 0:
             self.fail_case_count -= 1
             raise LisaException("mock_ut1 failed")
@@ -219,10 +219,10 @@ class TestSuiteTestCase(TestCase):
             result.set_status(status, f"set_{status}")
             self.assertEqual(f"set_{status}", result.message)
             self.assertEqual(status, result.status)
-            if status == TestStatus.NOTRUN:
-                self.assertEqual(True, result.is_notrun)
+            if status == TestStatus.QUEUED:
+                self.assertEqual(True, result.is_queued)
             else:
-                self.assertEqual(False, result.is_notrun)
+                self.assertEqual(False, result.is_queued)
 
     def test_skip_before_suite_failed(self) -> None:
         test_suite = self.generate_suite_instance()
@@ -301,13 +301,13 @@ class TestSuiteTestCase(TestCase):
         self.assertEqual(TestStatus.PASSED, result.status)
         self.assertEqual("", result.message)
 
-    def test_notrun(self) -> None:
+    def test_queued(self) -> None:
         test_suite = self.generate_suite_instance()
-        test_suite.set_fail_phase(notrun=True)
+        test_suite.set_fail_phase(queued=True)
         result = self.case_results[0]
         test_suite.start(environment=self.default_env, case_results=self.case_results)
-        self.assertEqual(TestStatus.NOTRUN, result.status)
-        self.assertEqual("notrun: mock_ut1 kept not run", result.message)
+        self.assertEqual(TestStatus.QUEUED, result.status)
+        self.assertEqual("queued: mock_ut1 kept not run", result.message)
         result = self.case_results[1]
         self.assertEqual(TestStatus.PASSED, result.status)
         self.assertEqual("", result.message)
@@ -426,7 +426,7 @@ class TestSuiteTestCase(TestCase):
         check_result = result.check_environment(self.default_env, save_reason=True)
         self.assertFalse(check_result)
         # only save reason, but not set final status, so that it can try next env
-        self.assertEqual(TestStatus.NOTRUN, result.status)
+        self.assertEqual(TestStatus.QUEUED, result.status)
         assert result.check_results
         self.assertFalse(result.check_results.result)
         self.assertListEqual(
@@ -436,7 +436,7 @@ class TestSuiteTestCase(TestCase):
         result = self.case_results[1]
         check_result = result.check_environment(self.default_env, save_reason=True)
         self.assertTrue(check_result)
-        self.assertEqual(TestStatus.NOTRUN, result.status)
+        self.assertEqual(TestStatus.QUEUED, result.status)
         assert result.check_results
         self.assertTrue(result.check_results.result)
         self.assertListEqual(

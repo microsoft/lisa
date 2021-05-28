@@ -210,7 +210,7 @@ class LisaRunner(BaseRunner):
                         "features into this environment.",
                     )
                     matched_result = next(
-                        (result for result in test_results if result.is_notrun),
+                        (result for result in test_results if result.is_queued),
                         None,
                     )
                 if not matched_result:
@@ -326,7 +326,7 @@ class LisaRunner(BaseRunner):
         results = [
             x
             for x in source_results
-            if x.is_notrun
+            if x.is_queued
             and (
                 use_new_environment is None
                 or x.runtime_data.use_new_environment == use_new_environment
@@ -358,7 +358,7 @@ class LisaRunner(BaseRunner):
                 if not check_result.result:
                     test_result.set_status(TestStatus.SKIPPED, check_result.reasons)
 
-            if test_result.is_notrun:
+            if test_result.is_queued:
                 assert test_req.environment
                 # if case need a new env to run, force to create one.
                 # if not, get or create one.
