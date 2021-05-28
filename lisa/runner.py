@@ -100,6 +100,9 @@ class RootRunner(Action):
         except Exception as identifer:
             cancel()
             raise identifer
+        finally:
+            for runner in self._runners:
+                runner.close()
 
         self._output_results(self._results)
 
