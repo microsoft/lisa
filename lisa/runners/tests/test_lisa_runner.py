@@ -72,7 +72,7 @@ class RunnerTestCase(TestCase):
         )
         self.verify_test_results(
             expected_envs=["", "", ""],
-            expected_status=[TestStatus.NOTRUN, TestStatus.NOTRUN, TestStatus.NOTRUN],
+            expected_status=[TestStatus.QUEUED, TestStatus.QUEUED, TestStatus.QUEUED],
             expected_message=["", "", ""],
             test_results=test_results,
         )
@@ -101,7 +101,7 @@ class RunnerTestCase(TestCase):
             list(envs),
         )
         self.assertListEqual(
-            [TestStatus.NOTRUN, TestStatus.NOTRUN, TestStatus.NOTRUN],
+            [TestStatus.QUEUED, TestStatus.QUEUED, TestStatus.QUEUED],
             [x.status for x in test_results],
         )
 
@@ -132,7 +132,7 @@ class RunnerTestCase(TestCase):
         )
         self.verify_test_results(
             expected_envs=["", "", ""],
-            expected_status=[TestStatus.NOTRUN, TestStatus.NOTRUN, TestStatus.NOTRUN],
+            expected_status=[TestStatus.QUEUED, TestStatus.QUEUED, TestStatus.QUEUED],
             expected_message=["", "", ""],
             test_results=test_results,
         )
@@ -162,9 +162,9 @@ class RunnerTestCase(TestCase):
         self.verify_test_results(
             expected_envs=["", "", ""],
             expected_status=[
-                TestStatus.NOTRUN,
-                TestStatus.NOTRUN,
-                TestStatus.NOTRUN,
+                TestStatus.QUEUED,
+                TestStatus.QUEUED,
+                TestStatus.QUEUED,
             ],
             expected_message=["", "", ""],
             test_results=test_results,

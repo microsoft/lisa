@@ -205,7 +205,7 @@ class ResultStateManager:
         # copy a list to find changed cases
         new_running_cases = running_cases[:]
         not_matched_results = [
-            x for x in self._results if x.status != TestStatus.NOTRUN
+            x for x in self._results if x.status != TestStatus.QUEUED
         ]
         # remove existing running case, left new running cases
         for running_case in running_cases:
@@ -220,16 +220,16 @@ class ResultStateManager:
         )
 
         # set new running case information
-        notrun_results = [x for x in self._results if x.status == TestStatus.NOTRUN]
+        queued_results = [x for x in self._results if x.status == TestStatus.QUEUED]
         for running_case in new_running_cases:
             name = running_case["name"]
-            for result in notrun_results:
+            for result in queued_results:
                 if result.name == name:
                     # initialize new running case
                     running_case["status"] = str(TestStatus.RUNNING.name)
                     self._set_result(result, information=running_case)
                     # every not run just match one
-                    notrun_results.remove(result)
+                    queued_results.remove(result)
                     break
 
     def _set_completed_results(self, completed_cases: List[Dict[str, str]]) -> None:
@@ -238,7 +238,7 @@ class ResultStateManager:
         not_matched_results = [
             x
             for x in self._results
-            if x.status not in [TestStatus.NOTRUN, TestStatus.RUNNING]
+            if x.status not in [TestStatus.QUEUED, TestStatus.RUNNING]
         ]
         # remove existing completed case
         for completed_case in completed_cases:

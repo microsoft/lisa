@@ -3,16 +3,15 @@
 This document describes the existing developer tooling we have in place (and what to
 expect of it), as well as our design and development philosophy.
 
-- [Development Guideline](#development-guideline)
-  - [Understand LISA](#understand-lisa)
-  - [Environment Setup](#environment-setup)
-    - [Visual Studio Code](#visual-studio-code)
-    - [Emacs](#emacs)
-    - [Other setups](#other-setups)
-  - [Code guideline](#code-guideline)
-    - [Naming Conventions](#naming-conventions)
-    - [Code checks](#code-checks)
-  - [Extended reading](#extended-reading)
+- [Understand LISA](#understand-lisa)
+- [Environment Setup](#environment-setup)
+  - [Visual Studio Code](#visual-studio-code)
+  - [Emacs](#emacs)
+  - [Other setups](#other-setups)
+- [Code guideline](#code-guideline)
+  - [Naming Conventions](#naming-conventions)
+  - [Code checks](#code-checks)
+- [Extended reading](#extended-reading)
 
 ## Understand LISA
 
@@ -38,6 +37,7 @@ environment.
 
     ```json
     {
+        "markdown.extension.toc.levels": "2..6",
         "python.analysis.typeCheckingMode": "strict",
         "python.formatting.provider": "black",
         "python.linting.enabled": true,

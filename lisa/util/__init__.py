@@ -28,7 +28,7 @@ class SkippedException(Exception):
     ...
 
 
-class NotRunException(Exception):
+class QueuedException(Exception):
     """
     If current environment doesn't meet requirement of a test case, it can be set to
     not run and try next environment.
