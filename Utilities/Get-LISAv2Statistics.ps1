@@ -68,11 +68,36 @@ if ($Area) {
     $all_test_cases = @($all_test_cases | Where-Object {$_.Area -imatch $Area})
 }
 
+# Get the VM Size
+$configFiles = Get-ChildItem (Join-Path $currentPath "..\XML\VMConfigurations\*.xml")
+$all_setup_types = @()
+foreach($fname in $configFiles) {
+    $xml = [xml](Get-Content $fname)
+    $all_setup_types += $xml.TestSetup
+}
+
+foreach ($case in $all_test_cases) {
+    if ($case.SetupConfig.OverrideVMSize) {
+        $case.SetAttribute("VMSize", $case.SetupConfig.OverrideVMSize)
+    } else {
+        foreach($setupType in $all_setup_types) {
+            $caseSetupType = $case.SetupConfig.SetupType
+            if ($setupType.$caseSetupType) {
+                if ($setupType.$caseSetupType.ResourceGroup.VirtualMachine.Count) {
+                    $case.SetAttribute("VMSize", $setupType.$caseSetupType.ResourceGroup.VirtualMachine[0].InstanceSize)
+                } else {
+                    $case.SetAttribute("VMSize", $setupType.$caseSetupType.ResourceGroup.VirtualMachine.InstanceSize)
+                }
+            }
+        }
+    }
+}
+
 if ($ExportCSV.IsPresent) {
     if (!$Path){
         $Path = "./LISAv2Statistics_" + (Get-Date).ToString("yyyyMMdd_hhmmss") + ".csv"
     }
-    $all_test_cases | Select-Object -Property TestName,Platform,Category,Area,Tags,Priority | Export-Csv -Path $Path -NoTypeInformation -Force
+    $all_test_cases | Select-Object -Property TestName,Platform,Category,Area,Tags,Priority,VMSize | Export-Csv -Path $Path -NoTypeInformation -Force
     if ($?) {
         Write-Output "Exported CSV file: $Path"
     }
@@ -82,7 +107,7 @@ else {
         Write-Output "`n[Warning]: '-Path' has value '$Path', but '-ExportCSV' does NOT present as a parameter, hence formating output as Table instead of exporting csv."
         Start-Sleep -s 5
     }
-    $all_test_cases | Format-Table TestName,Platform,Category,Area,Tags,Priority -AutoSize
+    $all_test_cases | Format-Table TestName,Platform,Category,Area,Tags,Priority,VMSize -AutoSize
     Write-Output "TestCases Count: $($all_test_cases.count)"
 
     if (!$Platform -and !$Priority -and !$Tags -and !$Category -and !$Area) {
