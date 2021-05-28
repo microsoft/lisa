@@ -84,6 +84,9 @@ function Main {
     )
     $testScript = "RELOAD-MODULES.sh"
 
+    # Capture the host version
+    $oldHostVersion = Run-LinuxCmd -ip $AllVMData[0].PublicIP -port $AllVMData[0].SSHPort -username $user -password $password ". utils.sh && get_host_version" -runAsSudo
+
     # Run test script in background
     Run-LinuxCmd -username $VMUserName -password $VMPassword -ip $Ipv4 -port $VMPort `
         -command "echo '${VMPassword}' | sudo -S -s eval `"export HOME=``pwd``;nohup bash ./${testScript} > RELOAD-MODULES_summary.log`"" -RunInBackGround | Out-Null
@@ -94,6 +97,15 @@ function Main {
         return "FAIL"
     } else {
         Write-LogInfo "Test Stress Reload Modules has passed"
+
+        # Check whether host version got updated by chance due to reboot.
+        $newHostVersion = Run-LinuxCmd -ip $AllVMData[0].PublicIP -port $AllVMData[0].SSHPort -username $user -password $password ". utils.sh && get_host_version" -runAsSudo
+        Write-LogInfo "Current VM host version is: $newHostVersion"
+        if ($oldHostVersion -ne $newHostVersion) {
+            # If host version changed means vm was rebooted.
+            Write-LogInfo "VM host version is updated. New Host version: $newHostVersion"
+            return "FAIL"
+        }
         return "PASS"
     }
 }
