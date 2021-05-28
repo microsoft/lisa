@@ -3,55 +3,42 @@
 - [Install LISA](#install-lisa)
   - [Prerequisites](#prerequisites)
   - [Install Python](#install-python)
-    - [Windows](#windows)
-    - [Linux](#linux)
+    - [Install Python in Linux](#install-python-in-linux)
+    - [Install Python in Windows](#install-python-in-windows)
   - [Install dependencies](#install-dependencies)
+    - [Install dependencies in Linux](#install-dependencies-in-linux)
+    - [Install dependencies in Windows](#install-dependencies-in-windows)
   - [Clone code](#clone-code)
-  - [Install Poetry and Python dependencies](#install-poetry-and-python-dependencies)
+  - [Install Poetry](#install-poetry)
     - [Install Poetry in Linux](#install-poetry-in-linux)
     - [Install Poetry in Windows](#install-poetry-in-windows)
   - [FAQ and Troubleshooting](#faq-and-troubleshooting)
 
-LISA can be installed on any computer without having to be installed on each
-tested node. It can be installed on tested nodes to perform local testing. It
-can connect to another tested node using SSH. The following are examples showing
-where LISA is installed.
+LISA can be used to run test against the local node, or a remote node; if it is used to run 
+against a remote node, you don't need to configure anything on the remote node.
 
 ![deploy](img/deploy.svg)
 
-LISA supports to run on Windows and Linux. Follow below steps to install LISA
-from source code.
+LISA can be launched on a Windows or a Linux OS. Follow below steps to install LISA
+on your OS.
+
 
 ## Prerequisites
 
-LISA needs to be installed on a computer that can access the computer to be
-tested. For tested computers, LISA is not required to be installed. The computer
-under test can be a local computer.
+LISA needs to be installed on a computer which has network access the platform and the node to be tested. 
 
-- Can access the tested platform, like Azure, Hyper-V, or else. It recommends
-  having good bandwidth and low network latency.
-- At least 2 CPU cores and 4GB memory.
+- It is recommended that this computer at least has 2 CPU cores and 4GB memory.
+
 
 ## Install Python
 
-Lisa is tested on [Python 3.8 64 bits](https://www.python.org/). If there are
-Python installed already, please make sure effective Python's version is 3.8
-64-bit or above.
+LISA has been tested on [Python 3.8 64 bits](https://www.python.org/). The latest version of
+Python 3 is recommended. If you found LISA is not compatible with higher version Python,
+[please file an issue](https://github.com/microsoft/lisa/issues/new).
 
-LISA is developed and tested with Python 3.8 (64 bit). The latest version of
-Python 3.8 is recommended. If LISA is not compatible with higher Python version,
-[file an issue](https://github.com/microsoft/lisa/issues/new) to us.
+#### Install Python in Linux
 
-### Windows
-
-Navigate to [Python releases for
-Windows](https://www.python.org/downloads/windows/). Download and install
-*Windows installer (64-bit)* from latest Python 3.8 64-bits or higher version.
-
-### Linux
-
-For some Linux distributions, you can install latest Python 3.8 (64-bit) by its
-guidance, or build from source code. Below is how to install in Ubuntu.
+Refer below example to to install Python 3.8 in Ubuntu 20.04.
 
 ```bash
 sudo apt update
@@ -60,40 +47,49 @@ sudo add-apt-repository ppa:deadsnakes/ppa -y
 sudo apt install python3.8 python3.8-dev -y
 ```
 
+#### Install Python in Windows
+
+Navigate to [Python releases for
+Windows](https://www.python.org/downloads/windows/). Download and install
+*Windows installer (64-bit)* from Python 3.8 64-bits or higher version.
+
+
 ## Install dependencies
 
-Since LISA is installed from source, `git` is necessary. And some packages need
-to be built, so the build tools are also needed.
+Please install `git` on your computer to clone LISA source code from this repo.
 
-In Linux, it needs `git`, `gcc`, and other Azure dependencies. Below is depended
-packages on Ubuntu.
+#### Install dependencies in Linux
+
+In Linux, for exmaple, on Ubuntu 20.04, please use below command to install the dependencies:
 
 ```bash
 sudo apt install git gcc libgirepository1.0-dev libcairo2-dev virtualenv -y
 ```
 
-In Windows, you need to install [git](https://git-scm.com/downloads) and [Visual
-C++ redistributable package](https://aka.ms/vs/16/release/vc_redist.x64.exe)
+#### Install dependencies in Windows
+
+In Windows, you need to install [git](https://git-scm.com/downloads), 
+`virtualenv`(`pip install virtualenv`) and [Visual C++ 
+redistributable package](https://aka.ms/vs/16/release/vc_redist.x64.exe)
+
 
 ## Clone code
-
-Open a terminal window, and enter the folder, which uses to put LISA code. If
-you want to use the latest version, checkout the main branch.
 
 ```sh
 git clone https://github.com/microsoft/lisa.git
 cd lisa
 ```
 
-## Install Poetry and Python dependencies
+
+## Install Poetry
 
 Poetry is used to manage Python dependencies of LISA. Execute corresponding
 script to install Poetry.
 
-Note, it's important to enter LISA's folder to run below command, since Poetry
-manages dependencies by the working folder.
+WARNING: Please enter LISA source code root folder to run below command to install poetry, 
+since Poetry manages dependencies by the working folder.
 
-### Install Poetry in Linux
+#### Install Poetry in Linux
 
 ```bash
 curl -sSL https://raw.githubusercontent.com/python-poetry/poetry/master/install-poetry.py | python3 -
@@ -101,9 +97,9 @@ source ../.profile
 poetry install
 ```
 
-### Install Poetry in Windows
+#### Install Poetry in Windows
 
-Enter the PowerShell command prompt and execute,
+Launch `PowerShell` as Administrator, then execute below commands:
 
 ```powershell
 (Invoke-WebRequest -Uri https://raw.githubusercontent.com/python-poetry/poetry/master/install-poetry.py -UseBasicParsing).Content | python -
@@ -111,6 +107,7 @@ Enter the PowerShell command prompt and execute,
 $env:PATH += ";$env:APPDATA\Python\Scripts"
 poetry install
 ```
+
 
 ## FAQ and Troubleshooting
 
