@@ -215,7 +215,7 @@ class ResultStateManager:
                     not_matched_results.remove(result)
                     break
         assert not not_matched_results, (
-            f"not matched should be empty, but {not_matched_results}"
+            f"not matched should be empty, but {not_matched_results}, "
             f"parsed running cases: {[running_cases]}"
         )
 
@@ -248,7 +248,7 @@ class ResultStateManager:
                     not_matched_results.remove(result)
                     break
         assert not not_matched_results, (
-            f"not matched should be empty, but {not_matched_results}"
+            f"not matched should be empty, but {not_matched_results}, "
             f"parsed completed cases: {[completed_cases]}"
         )
 
@@ -398,6 +398,9 @@ class LogParser(InitializableMixin):
     # (1/1) testing started: VERIFY-DEPLOYMENT-PROVISION
     CASE_RUNNING = re.compile(r"\(\d+/\d+\) testing started: (?P<name>.*)")
     # find image and location information when case is running
+    # If no default location specified, there is no location in SetupConfig
+    # SetupConfig: { ARMImageName: Canonical 0001-com-ubuntu-server-focal 20_04-lts
+    #  20.04.202102010 }
     # SetupConfig: { ARMImageName: Canonical 0001-com-ubuntu-server-focal 20_04-lts
     #  20.04.202102010, TestLocation: westus2 }
     # find image, vm size, location information when case is running
@@ -424,14 +427,17 @@ class LogParser(InitializableMixin):
     CASE_IMAGE_LOCATION = re.compile(
         r"SetupConfig: { (?:ARMImageName: (?P<marketplace_image>.+?))?(?:, )?"
         r"(?:DiskType: .*?)?(?:, )?(?:Networking: .*?)?(?:, )?"
-        r"(?:OsVHD: (?P<vhd_image>.+?))?(?:, )?(?:OSDiskType: .*?)?"
-        r"(?:, )?(?:, OverrideVMSize: (?P<vmsize>.+?))?(?:, )?"
-        r"(?:SecureBoot: .*?)?(?:, )?(?:SecurityType: .*?)?"
-        r"(?:, )?(?:StorageAccountType: .*?)?(?:, )?TestLocation: (?P<location>.+?)"
-        r"(?:, )?(?:VMGeneration: (?P<vm_generation>.+?))?(?:, )?(?:vTPM: .*?)? }$"
+        r"(?:OsVHD: (?P<vhd_image>.+?))?(?:, )?(?:OSDiskType: .*?)?(?:, )?"
+        r"(?:, OverrideVMSize: (?P<vmsize>.+?))?(?:, )?"
+        r"(?:SecureBoot: .*?)?(?:, )?(?:SecurityType: .*?)?(?:, )?"
+        r"(?:StorageAccountType: .*?)?(?:, )?"
+        r"(?:TestLocation: (?P<location>.+?))?(?:, )?"
+        r"(?:VMGeneration: (?P<vm_generation>.+?))?(?:, )?(?:vTPM: .*?)? }$"
     )
-    # Test Location 'westus2' has VM Size 'Standard_DS1_v2' enabled and has enough
-    #  quota for 'VERIFY-LINUX-CONFIGURATION' deployment
+    # Test Location 'westus2' has VM Size 'Standard_DS1_v2' enabled and has
+    #  enough quota for 'VERIFY-LINUX-CONFIGURATION' deployment Test Location
+    #  'westus2' has VM Size 'Standard_DS1_v2' enabled and has enough quota for
+    #  'VERIFY-DEPLOYMENT-PROVISION' deployment
     CASE_VMSIZE = re.compile(
         r"Test Location '(?P<location>.+)' has VM Size '(?P<vmsize>.+)' enabled and "
         r"has enough quota for '(?P<name>.+)' deployment"
@@ -496,6 +502,7 @@ class LogParser(InitializableMixin):
                     key: value for key, value in case_match.groupdict().items() if value
                 }
             image_match = self.CASE_IMAGE_LOCATION.match(line)
+            location = ""
             if image_match:
                 location = image_match["location"]
                 current_case.update(
@@ -527,11 +534,12 @@ class LogParser(InitializableMixin):
                     f"current case is: '{name}', "
                     f"name in vmsize is: '{temp_name}'. {line}"
                 )
-                assert location == temp_location, (
-                    f"cannot match location between logs. "
-                    f"setup config is: '{location}', "
-                    f"location in vmsize is: '{temp_location}'. {line}"
-                )
+                if location:
+                    assert location == temp_location, (
+                        f"cannot match location between logs. "
+                        f"setup config is: '{location}', "
+                        f"location in vmsize is: '{temp_location}'. {line}"
+                    )
                 current_case.update(
                     {
                         key: value
