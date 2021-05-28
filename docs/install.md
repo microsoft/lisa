@@ -35,6 +35,9 @@ LISA needs to be installed on a computer which has network access the platform a
 change, you might need to restart your shell before moving to next step, to make sure your 
 changes take effect.
 
+:blue_book:	Please run your command prompt or shell with elevated privilege (such as `'Run as 
+Administrator'` on Windows) when you see access denied message when install tools.
+
 
 ## Install Python
 
@@ -44,7 +47,7 @@ Python 3 is recommended. If you found LISA is not compatible with higher version
 
 #### Install Python in Linux
 
-Refer below example to to install Python 3.8 in Ubuntu 20.04.
+Refer below example to install Python 3.8 in Ubuntu 20.04.
 
 ```bash
 sudo apt update
@@ -60,7 +63,7 @@ Windows](https://www.python.org/downloads/windows/). Download and install
 *Windows installer (64-bit)* from Python 3.8 64-bits or higher version.
 
 :warning: Please make sure the `python` directory and its `Scripts` directory are 
-added to your `PATH` environment variable. For exmaple:
+added to your `PATH` environment variable. For example:
 
 ```powershell
 PS C:\github> echo $env:path
@@ -73,7 +76,7 @@ Please install `git` on your computer to clone LISA source code from this repo.
 
 #### Install dependencies in Linux
 
-In Linux, for exmaple, on Ubuntu 20.04, please use below command to install the dependencies:
+In Linux, for example, on Ubuntu 20.04, please use below command to install the dependencies:
 
 ```bash
 sudo apt install git gcc libgirepository1.0-dev libcairo2-dev virtualenv -y
