@@ -95,7 +95,7 @@ function Confirm-WithinPercentage() {
 	param (
 		[double]$num0,
 		[double]$num1,
-		$percent = 20
+		$percent = 25
 	)
 
 	$variation = ($num0 - $num1) / $num1 * 100
