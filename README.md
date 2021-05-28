@@ -5,44 +5,32 @@ Workflow](https://github.com/microsoft/lisa/workflows/CI%20Workflow/badge.svg?br
 [![GitHub
 license](https://img.shields.io/github/license/microsoft/lisa)](https://github.com/microsoft/lisa/blob/main/LICENSE)
 
-**Linux Integration Services Automation (LISA)** is designed to be an end-to-end
-solution for verifying Linux kernels and distributions quality on Microsoft
-virtualization technologies. It can be used on other quality validation, and
-virtualization technologies as well.
+**Linux Integration Services Automation (LISA)** is a Linux quality validation system,
+which consists of two parts：
 
-LISA is composed by two parts,
+* A test framework to drive test execution.
+* A set of test suites to verify Linux kernel/distribution quality.
 
-* A powerful framework to perform tests on Azure, Hyper-V, and other
-  virtualization platforms.
-* A comprehensive test suite to verify the integration between Linux
-  kernels/distributions and Microsoft virtualization platforms.
+`LISA` was originally designed and implemented for Microsoft Azure and 
+Windows HyperV platforms; now it can be used to validate Linux quality on 
+any platforms if the proper orchestrator module implemented.
 
 ## Why LISA
 
-There are a lot of classic tools and tests, which focus on the quality of Linux
-kernels or distributions. They are important to ensure the quality of kernels
-and distributions. The integration validation on virtualization platforms is a
-little different with classic Linux testing. It covers diverse types of
-resources with manageable cost. So that, it needs to plan resources creation and
-deletion automatically.
+* **Scalable**：Benefit from the appropriate abstractions, `LISA` can be used 
+to test the quality of numerous Linux distributions without duplication of code 
+implementation.
 
-LISA focuses on validating the integration of Linux kernels/distributions and
-virtualization platforms. It needs more interactive with virtualization
-platforms to run tests for different purposes, like test different capabilities,
-hardware, and so on.
+* **Customizable**: The test suites created on top of `LISA` can be customized 
+to support different quality validation needs. 
 
-* **End-to-end**: LISA defines several sets of test suites to validate Linux
-  kernels and distributions in Microsoft Azure, Hyper-V, etc. The test suites
-  can help find integration issues easily.
-* **Ease-to-use**: The complexity and diversity of Linux kernels/distributions
-  are wrapped in different components of LISA. When running LISA, it doesn't
-  need to know details. Developers can focus on validation logic, when creating
-  new tests.
-* **Extensibility**: LISA is extendable in many components to support various
-  scenarios, including virtualization platforms, commands, Linux distributions,
-  community test suites, etc. LISA supports to validate Microsoft virtualization
-  platforms natively, but also can be extended to other cloud or on-premises
-  platforms.
+* **Support multiple platforms**: `LISA` is created with modular design, to 
+support various of Linux platforms including Microsoft Azure, Windows HyperV, 
+Linux bare metal, and other cloud based platforms. 
+
+* **End-to-end**: `LISA` supports platform specific orchestrator to create and 
+delete test environment automatically; it also provides flexibility to preserve 
+environment for troubleshooting if test failed.
 
 ## Documents
 
