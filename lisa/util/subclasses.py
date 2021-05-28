@@ -73,6 +73,9 @@ class Factory(InitializableMixin, Generic[T_BASECLASS], SubClassTypeDict):
                 f"cannot find subclass '{type_name}' of {self._base_type.__name__}"
             )
         instance = sub_type.schema().load(raw_runbook)  # type: ignore
+        if hasattr(instance, "mismatched"):
+            if instance.mismatched:
+                raise LisaException(f"found unknown fields: {instance.mismatched}")
         return cast(T_BASECLASS, instance)
 
     def create_by_type_name(self, type_name: str, **kwargs: Any) -> T_BASECLASS:
