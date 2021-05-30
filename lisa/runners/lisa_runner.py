@@ -1,6 +1,7 @@
 # Copyright (c) Microsoft Corporation.
 # Licensed under the MIT license.
 
+import copy
 from typing import Any, List, Optional, cast
 
 from lisa import notifier, schema, search_space
@@ -59,6 +60,7 @@ class LisaRunner(BaseRunner):
         candidate_environments = load_environments(self._runbook.environment)
 
         platform = load_platform(self._runbook.platform)
+        self.platform = platform
         platform.initialize()
         platform_message = PlatformMessage(name=platform.type_name())
         notifier.notify(platform_message)
@@ -350,10 +352,17 @@ class LisaRunner(BaseRunner):
         platform_type_set = search_space.SetSpace[str](
             is_allow_set=True, items=[platform_type]
         )
+        if hasattr(self, "platform"):
+            platform_requirement = cast(
+                schema.Platform, self.platform.runbook
+            ).requirement
+        else:
+            # For compatibility with UT, some UTs has no platform.
+            platform_requirement = None
         for test_result in test_results:
             test_req: TestCaseRequirement = test_result.runtime_data.requirement
 
-            # check if there is playform requirement on test case
+            # check if there is platform requirement on test case
             if test_req.platform_type and len(test_req.platform_type) > 0:
                 check_result = test_req.platform_type.check(platform_type_set)
                 if not check_result.result:
@@ -361,12 +370,21 @@ class LisaRunner(BaseRunner):
 
             if test_result.is_queued:
                 assert test_req.environment
+
+                environment_requirement = copy.copy(test_req.environment)
+                # if platform defined requirement, replace the requirement from
+                # test case.
+                if platform_requirement:
+                    environment_requirement.nodes = [platform_requirement] * len(
+                        test_req.environment.nodes
+                    )
+
                 # if case need a new env to run, force to create one.
                 # if not, get or create one.
                 if test_result.runtime_data.use_new_environment:
-                    existing_environments.from_requirement(test_req.environment)
+                    existing_environments.from_requirement(environment_requirement)
                 else:
-                    existing_environments.get_or_create(test_req.environment)
+                    existing_environments.get_or_create(environment_requirement)
 
     def _check_cancel(self) -> None:
         if self.canceled:

@@ -674,6 +674,9 @@ class Platform(TypedSchema, ExtendableSchemaMixin):
     # yes/always/True: means to keep the environment regardless case fail or pass
     keep_environment: Optional[Union[str, bool]] = False
 
+    # platform can specify a default environment requirement
+    requirement: Optional[Capability] = None
+
     def __post_init__(self, *args: Any, **kwargs: Any) -> None:
         add_secret(self.admin_username, PATTERN_HEADTAIL)
         add_secret(self.admin_password)
