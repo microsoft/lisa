@@ -340,12 +340,6 @@ class AzurePlatform(Platform):
                     for azure_cap in location_info.capabilities:
                         if azure_cap.vm_size == node_runbook.vm_size:
                             predefined_cost += azure_cap.estimated_cost
-                            # set a min value for nic_count
-                            # work around for an azure python sdk bug
-                            # nic_count is 0 when get capability for some sizes
-                            # e.g. Standard_D8a_v3
-                            if azure_cap.capability.nic_count == 0:
-                                azure_cap.capability.nic_count = 1
 
                             min_cap: schema.NodeSpace = req.generate_min_capability(
                                 azure_cap.capability
@@ -393,7 +387,7 @@ class AzurePlatform(Platform):
                     for azure_cap in location_caps:
                         if found_capabilities[req_index]:
                             # found, so skipped
-                            continue
+                            break
 
                         check_result = req.check(azure_cap.capability)
                         if check_result.result:
@@ -1183,6 +1177,11 @@ class AzurePlatform(Platform):
                 node_space.gpu_count = int(sku_capability.value)
                 # update features list if gpu feature is supported
                 node_space.features.update(features.Gpu.name())
+
+        # set a min value for nic_count work around for an azure python sdk bug
+        # nic_count is 0 when get capability for some sizes e.g. Standard_D8a_v3
+        if node_space.nic_count == 0:
+            node_space.nic_count = 1
 
         # all nodes support following features
         node_space.features.update(
