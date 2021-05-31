@@ -16,16 +16,6 @@ variable:
     value: false
 notifier:
   - type: html
-environment:
-  warn_as_error: false
-  environments:
-    - nodes:
-        - type: requirement
-          core_count:
-            min: 2
-          azure:
-            marketplace: $(marketplace_image)
-            location: $(location)
 platform:
   - type: azure
     admin_private_key_file: $(admin_private_key_file)
@@ -35,3 +25,9 @@ platform:
       deploy: $(deploy)
       subscription_id: $(subscription_id)
       wait_delete: $(wait_delete)
+    requirement:
+      core_count:
+        min: 2
+      azure:
+        marketplace: $(marketplace_image)
+        location: $(location)
