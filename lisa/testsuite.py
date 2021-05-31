@@ -93,6 +93,10 @@ class TestResult:
         return self.status == TestStatus.NOTRUN
 
     @property
+    def can_run(self) -> bool:
+        return self.status in [TestStatus.NOTRUN, TestStatus.ASSIGNED]
+
+    @property
     def is_completed(self) -> bool:
         return self.status in [
             TestStatus.FAILED,
