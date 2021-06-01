@@ -143,7 +143,7 @@ Function Assert-ResourceLimitationForDeployment($RGXMLData, [ref]$TargetLocation
 		if ($CurrentTestData.SetupConfig.OsVHD -and $VMGeneration -and !$AllTestVMSizes.$testVMSize.Generations.Contains($VMGeneration)) {
 			$TargetLocation.Value = 'NOT_ENABLED'
 			$overFlowErrors += 1
-			Write-LogErr "Requested VM size: '$testVMSize' with VM generation: '$VMGeneration' is supported, this should be an Azure limitation temporarily, please try other VM Sizes that support HyperVGeneration '$VMGeneration'."
+			Write-LogErr "Requested VM size: '$testVMSize' with VM generation: '$VMGeneration' is NOT supported, this should be an Azure limitation temporarily, please try other VM Sizes that support HyperVGeneration '$VMGeneration'."
 		}
 		elseif (!$AllTestVMSizes.$testVMSize.AvailableLocations) {
 			$TargetLocation.Value = 'NOT_ENABLED'
