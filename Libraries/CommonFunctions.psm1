@@ -210,21 +210,22 @@ Function Add-SetupConfig {
 
     $AddSplittedConfigValue = {
         param ([System.Collections.ArrayList]$TestCollections, [string]$ConfigName, [string]$ConfigValue, [bool]$Force = $false)
+        $newConfigValue = $ConfigValue
         foreach ($test in $TestCollections) {
             if (!$test.SetupConfig.$ConfigName) {
                 # if the $ConfigValue contains certain characters as below, use [System.Security.SecurityElement]::Escape() to avoid exception
                 if ($ConfigValue -imatch "&|<|>|'|""") {
-                    $ConfigValue = [System.Security.SecurityElement]::Escape($ConfigValue)
+                    $newConfigValue = [System.Security.SecurityElement]::Escape($ConfigValue)
                 }
                 if ($null -eq $test.SetupConfig.$ConfigName) {
-                    $test.SetupConfig.InnerXml += "<$ConfigName>$ConfigValue</$ConfigName>"
+                    $test.SetupConfig.InnerXml += "<$ConfigName>$newConfigValue</$ConfigName>"
                 }
                 else {
-                    $test.SetupConfig.$ConfigName = $ConfigValue
+                    $test.SetupConfig.$ConfigName = $newConfigValue
                 }
             }
             elseif ($Force) {
-                $test.SetupConfig.$ConfigName = $ConfigValue
+                $test.SetupConfig.$ConfigName = $newConfigValue
             }
         }
     }
