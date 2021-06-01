@@ -25,13 +25,13 @@ on your OS.
 
 ## Prerequisites
 
-LISA needs to be installed on a computer which has network access the platform and the node to be tested. 
+LISA needs to be installed on a computer which has network access to the platform and the node to be tested. 
 
 - It is recommended that this computer at least has 2 CPU cores and 4GB memory.
 
 ## Notes
 
-:blue_book:	On Windows, after you finished a installation, or made a environment variable 
+:blue_book:	On Windows, after you finished an installation, or made an environment variable 
 change, you might need to restart your shell before moving to next step, to make sure your 
 changes take effect.
 
@@ -62,13 +62,15 @@ Navigate to [Python releases for
 Windows](https://www.python.org/downloads/windows/). Download and install
 *Windows installer (64-bit)* from Python 3.8 64-bits or higher version.
 
-:warning: Please make sure the `python` directory and its `Scripts` directory are 
+:warning: Please make sure the `Python` directory and its `Scripts` directory are 
 added to your `PATH` environment variable. For example:
 
 ```powershell
 PS C:\github> echo $env:path
 ... ...;C:\Users\username\AppData\Local\Programs\Python\Python39;C:\Users\username\AppData\Local\Programs\Python\Python39\Scripts;... ...
 ```
+
+If this is the first time you are installing Python, simply check "add Python to PATH" option in installation.
 
 ## Install dependencies
 

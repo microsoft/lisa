@@ -25,7 +25,7 @@
   - [Debug in ready environment](#debug-in-ready-environment)
   - [Written by non-native English speakers](#written-by-non-native-english-speakers)
 
-Before writing a test case, we strongly recommend that you read the entire document. In addition to how to write test cases, we also believe that the engineering excellence is equally important. After the test case is completed, it will be run thousands of times, and many people will read and troubleshoot it. A good test case can save you and others time.
+Before writing a test case, we strongly recommend that you read the entire document. In addition to how to write test cases, we also believe that the engineering excellence is equally important. After the test case is completed, it will be run thousands of times, and many people will read and troubleshoot it. A good test case can save your and others' time.
 
 ## Understand LISA
 
