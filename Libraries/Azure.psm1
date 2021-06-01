@@ -3111,12 +3111,12 @@ Function Upload-AzureBootAndDeploymentDataToDB ($DeploymentTime, $AllVMData, $Cu
 				#endregion
 
 				#region Host Version checking
-				$foundLineNumber = (Select-String -Path $dmesgFile -Pattern "Hyper-V Host Build").LineNumber
+				$foundLineNumber = (Select-String -Path $dmesgFile -Pattern "Hyper-V Host Build|Hyper-V: Host Build").LineNumber
 				$actualLineNumber = $foundLineNumber - 1
 				$finalLine = (Get-Content -Path $dmesgFile)[$actualLineNumber]
 				$finalLine = $finalLine.Replace('; Vmbus version:4.0', '')
 				$finalLine = $finalLine.Replace('; Vmbus version:3.0', '')
-				$HostVersion = ($finalLine.Split(":")[$finalLine.Split(":").Count - 1 ]).Trim().TrimEnd(";")
+				$HostVersion = ($finalLine.Split(" :")[$finalLine.Split(" :").Count - 1 ]).Trim().TrimEnd(";")
 				#endregion
 			}
 			else {
