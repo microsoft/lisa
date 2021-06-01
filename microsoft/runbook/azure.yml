@@ -3,7 +3,7 @@ parent:
   - path: ./tiers/tier.yml
 variable:
   - name: location
-    value: ""
+    value: "westus2"
   - name: keep_environment
     value: "no"
   - name: resource_group_name
