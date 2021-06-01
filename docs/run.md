@@ -40,7 +40,7 @@ Please follow below steps to configure your local computer to run LISA test agai
     your current session. LISA also supports other Azure authentications, refer to 
     [runbook reference](runbook.md).
     
-    Here, let's choose `Azure CLI` for the setup.
+    Here, let's choose `Azure CLI` for the setup. You should see a page pop up and all your Azure subscriptions.
 
     ```bash
     az login
