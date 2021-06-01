@@ -5,8 +5,6 @@ extension:
 variable:
   - name: tier
     value: 0
-  - name: location
-    value: westus2
   - name: v2_repo_url
     value: https://github.com/microsoft/lisa
   - name: v2_branch
