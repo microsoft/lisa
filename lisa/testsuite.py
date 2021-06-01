@@ -357,6 +357,16 @@ class TestCaseRuntimeData:
         assert self.metadata
         return getattr(self.metadata, key)
 
+    def __repr__(self) -> str:
+        return (
+            f"name: {self.metadata.name}, "
+            f"action: {self.select_action}, "
+            f"times: {self.times}, retry: {self.retry}, "
+            f"new_env: {self.use_new_environment}, "
+            f"ignore_failure: {self.ignore_failure}, "
+            f"env_name: {self.environment_name}"
+        )
+
     def clone(self) -> TestCaseRuntimeData:
         cloned = TestCaseRuntimeData(self.metadata)
         fields = [
