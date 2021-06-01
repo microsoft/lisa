@@ -953,7 +953,7 @@ Class TestController {
 				if ($LISMatch) {
 					$LISVersion = $LISMatch.Split(":").Trim()[1]
 				}
-				$HostBuildMatches = Select-string -Path "$global:LogDir\$($vmData.RoleName)-dmesg.txt" -Pattern "Hyper-V\s*Host.*Build:\s*([^a-zA-Z:;\s]+)"
+				$HostBuildMatches = Select-string -Path "$global:LogDir\$($vmData.RoleName)-dmesg.txt" -Pattern "Hyper-V.*Host.*Build[:| ]([^a-zA-Z:;\s]+)"
 				if ($HostBuildMatches) {
 					$HostVersion = $HostBuildMatches.Matches.Groups[1].Value
 				}

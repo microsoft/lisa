@@ -1961,7 +1961,7 @@ function get_lis_version() {
 
 # Get the version of host
 function get_host_version() {
-	dmesg | grep "Host Build" | sed "s/.*Host Build://"| awk '{print  $1}'| sed "s/;//"
+	dmesg | grep "Host Build" | sed "s/.*Host Build[^0-9]//"| awk '{print  $1}'| sed "s/;//"
 }
 
 # Validate the exit status of previous execution
