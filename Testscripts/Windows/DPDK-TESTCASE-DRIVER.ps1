@@ -247,7 +247,7 @@ collect_VM_properties
 			-username $superUser -password $password -command "cat /root/state.txt"
 		Copy-RemoteFiles -downloadFrom $masterVM.PublicIP -port $masterVM.SSHPort `
 			-username $superUser -password $password -download -downloadTo $LogDir `
-			-files "*.csv, *.txt, *.log, logdir/*.log"
+			-files "*.csv, *.txt, *.log, /root/logdir/*.log"
 
 		$testDataCsv = Import-Csv -Path "${LogDir}\dpdk_test.csv"
 		if (!$testDataCsv) {
