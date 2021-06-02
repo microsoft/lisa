@@ -575,7 +575,7 @@
     <Priority>1</Priority>
     <SetupConfig>
       <SetupType>OneVM</SetupType>
-      <OverrideVMSize>Standard_B4ms</OverrideVMSize>
+      <OverrideVMSize>Standard_D4s_v3</OverrideVMSize>
     </SetupConfig>
   </test>
   <test>
@@ -872,7 +872,6 @@
     <Priority>2</Priority>
     <SetupConfig>
       <SetupType>OneVM</SetupType>
-      <OverrideVMSize>Standard_A4</OverrideVMSize>
     </SetupConfig>
   </test>
   <test>
