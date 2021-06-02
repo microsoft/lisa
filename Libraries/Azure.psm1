@@ -143,7 +143,7 @@ Function Assert-ResourceLimitationForDeployment($RGXMLData, [ref]$TargetLocation
 		if ($CurrentTestData.SetupConfig.OsVHD -and $VMGeneration -and !$AllTestVMSizes.$testVMSize.Generations.Contains($VMGeneration)) {
 			$TargetLocation.Value = 'NOT_ENABLED'
 			$overFlowErrors += 1
-			Write-LogErr "Requested VM size: '$testVMSize' with VM generation: '$VMGeneration' is supported, this should be an Azure limitation temporarily, please try other VM Sizes that support HyperVGeneration '$VMGeneration'."
+			Write-LogErr "Requested VM size: '$testVMSize' with VM generation: '$VMGeneration' is NOT supported, this should be an Azure limitation temporarily, please try other VM Sizes that support HyperVGeneration '$VMGeneration'."
 		}
 		elseif (!$AllTestVMSizes.$testVMSize.AvailableLocations) {
 			$TargetLocation.Value = 'NOT_ENABLED'
@@ -364,7 +364,7 @@ Function PrepareAutoCompleteStorageAccounts ($storageAccountsRGName, $XMLSecretF
 		}
 	}
 	$allAvailableRegions = ((Get-AzResourceProvider -ProviderNamespace "Microsoft.Storage").ResourceTypes | `
-			Where-Object ResourceTypeName -eq "storageaccounts").Locations
+			Where-Object ResourceTypeName -eq "storageaccounts").Locations | where {-not $_.Contains("(")}
 	# Create ResourceGroup for StorageAccounts to run LISAv2
 	$getRGResult = Get-AzResourceGroup -Name $storageAccountsRGName -ErrorAction SilentlyContinue
 	if (!$getRGResult.ResourceGroupName ) {
@@ -383,15 +383,19 @@ Function PrepareAutoCompleteStorageAccounts ($storageAccountsRGName, $XMLSecretF
 	$lisaSAPrefix = 'lisa'
 	$existingLISAStorageAccounts | ForEach-Object {
 		if ($_.StorageAccountName -imatch "^$lisaSAPrefix.+") {
-			$lisaSANum++;
-			if (!$regionStorageMapping[$_.Location]) {
-				$regionStorageMapping[$_.Location] = @{}
-			}
-			if ($_.Sku.Name -imatch "Standard_LRS") {
-				$regionStorageMapping[$_.Location]["StandardStorage"] = $_
-			}
-			elseif ($_.Sku.Name -imatch "Premium_LRS") {
-				$regionStorageMapping[$_.Location]["PremiumStorage"] = $_
+			$location = $_.Location
+			# Skip the location contains '(' in name
+			if (-not $location.contains("(")) {
+				$lisaSANum++;
+				if (!$regionStorageMapping[$location]) {
+					$regionStorageMapping[$location] = @{}
+				}
+				if ($_.Sku.Name -imatch "Standard_LRS") {
+					$regionStorageMapping[$location]["StandardStorage"] = $_
+				}
+				elseif ($_.Sku.Name -imatch "Premium_LRS") {
+					$regionStorageMapping[$location]["PremiumStorage"] = $_
+				}
 			}
 		}
 	}
