@@ -35,6 +35,9 @@ NORMALIZE_PATTERN = re.compile(r"[^\w\d]")
 LIST = "list"
 LIST_CASE = "case"
 
+# notifier
+NOTIFIER_CONSOLE = "console"
+
 # common
 NODES = "nodes"
 NAME = "name"

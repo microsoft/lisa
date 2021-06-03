@@ -9,6 +9,7 @@ from dataclasses_json import dataclass_json
 
 from lisa import notifier, schema
 from lisa.testsuite import TestResultMessage
+from lisa.util import constants
 
 
 @dataclass_json()
@@ -25,7 +26,7 @@ class Console(notifier.Notifier):
 
     @classmethod
     def type_name(cls) -> str:
-        return "console"
+        return constants.NOTIFIER_CONSOLE
 
     @classmethod
     def type_schema(cls) -> Type[schema.TypedSchema]:

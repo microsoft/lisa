@@ -7,7 +7,7 @@ from enum import Enum
 from typing import Any, Dict, List, Optional, Type
 
 from lisa import schema
-from lisa.util import InitializableMixin, subclasses
+from lisa.util import InitializableMixin, constants, subclasses
 from lisa.util.logger import get_logger
 
 
@@ -87,6 +87,9 @@ def initialize(runbooks: List[schema.Notifier]) -> None:
 
     factory = subclasses.Factory[Notifier](Notifier)
     log = get_logger("init", "notifier")
+    if not any(x for x in runbooks if x.type == constants.NOTIFIER_CONSOLE):
+        # add console notifier by default to provide troubleshooting information
+        runbooks.append(schema.Notifier(type=constants.NOTIFIER_CONSOLE))
     for runbook in runbooks:
         notifier = factory.create_by_runbook(runbook=runbook)
         _notifiers.append(notifier)
