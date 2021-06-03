@@ -128,7 +128,11 @@ class VariableTestCase(TestCase):
                 "secret_int": "1****0",
                 "secret_head_tail": "a****h",
             },
-            {"var_in_cmd": variable.VariableEntry("normal", False)},
+            {
+                "var_in_cmd": variable.VariableEntry(
+                    name="var_in_cmd", data="normal", is_used=False
+                )
+            },
         )
         self.assertEqual("12345678-abcd-efab-cdef-1234567890ab", data["list"][0])
         self.assertEqual(1234567890, data["list"][1]["dictInList"])
@@ -238,7 +242,7 @@ class VariableTestCase(TestCase):
 
     def test_variable_not_used(self) -> None:
         variables = self._get_default_variables()
-        variables["unused"] = variable.VariableEntry("value")
+        variables["unused"] = variable.VariableEntry(name="unused", data="value")
         self.assertFalse(variables["unused"].is_used)
         self.assertFalse(variables["normal_value"].is_used)
         self._replace_and_validate(variables, {"normal_entry": "original"})
@@ -306,11 +310,11 @@ class VariableTestCase(TestCase):
 
     def _get_default_variables(self) -> Dict[str, variable.VariableEntry]:
         data = {
-            "normal_value": variable.VariableEntry("original"),
-            "normal_entry": variable.VariableEntry("original"),
-            "secret_guid": variable.VariableEntry("original"),
-            "secret_int": variable.VariableEntry("original"),
-            "secret_head_tail": variable.VariableEntry("original"),
+            "normal_value": variable.VariableEntry("normal_value", "original"),
+            "normal_entry": variable.VariableEntry("normal_entry", "original"),
+            "secret_guid": variable.VariableEntry("secret_guid", "original"),
+            "secret_int": variable.VariableEntry("secret_int", "original"),
+            "secret_head_tail": variable.VariableEntry("secret_head_tail", "original"),
         }
         return data
 
