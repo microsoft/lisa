@@ -10,6 +10,7 @@ from .echo import Echo
 from .gcc import Gcc
 from .git import Git
 from .lscpu import Lscpu
+from .lsmod import Lsmod
 from .lsvmbus import Lsvmbus
 from .make import Make
 from .modinfo import Modinfo
@@ -27,6 +28,7 @@ __all__ = [
     "Gcc",
     "Git",
     "Lscpu",
+    "Lsmod",
     "Lsvmbus",
     "Make",
     "Modinfo",
