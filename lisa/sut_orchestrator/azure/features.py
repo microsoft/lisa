@@ -1,15 +1,18 @@
 # Copyright (c) Microsoft Corporation.
 # Licensed under the MIT license.
 
+
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, Optional
+from typing import TYPE_CHECKING, Any, List, Optional
 
 import requests
 from assertpy import assert_that
 
 from lisa import features
+from lisa.features.gpu import ComputeSDK
 from lisa.node import Node
 from lisa.operating_system import CentOs, Redhat, Suse, Ubuntu
+from lisa.sut_orchestrator.azure.common import AZURE, AzureNodeSchema
 from lisa.util import LisaException
 
 if TYPE_CHECKING:
@@ -83,15 +86,37 @@ class SerialConsole(AzureFeatureMixin, features.SerialConsole):
 
 
 class Gpu(AzureFeatureMixin, features.Gpu):
+    grid_supported_skus = ["Standard_NV"]
+    cuda_supported_skus = ["Standard_NC", "Standard_ND"]
+
+    def is_supported(self) -> bool:
+        # TODO: more supportability can be defined here
+        supported_distro = (CentOs, Redhat, Ubuntu, Suse)
+        if isinstance(self._node.os, supported_distro):
+            return True
+
+        return False
+
     def _initialize(self, *args: Any, **kwargs: Any) -> None:
         super()._initialize(*args, **kwargs)
         self._initialize_information(self._node)
 
-    def _is_supported(self) -> bool:
-        supported_distro = (CentOs, Redhat, Ubuntu, Suse)
-        if not isinstance(self._node.os, supported_distro):
-            return False
-        return True
+    def _get_supported_driver(self) -> List[ComputeSDK]:
+        driver_list = []
+        node_runbook = self._node.capability.get_extended_runbook(
+            AzureNodeSchema, AZURE
+        )
+        if any(map((node_runbook.vm_size).__contains__, self.grid_supported_skus)):
+            driver_list.append(ComputeSDK.GRID)
+        if any(map((node_runbook.vm_size).__contains__, self.cuda_supported_skus)):
+            driver_list.append(ComputeSDK.CUDA)
+
+        if not driver_list:
+            raise LisaException(
+                "No valid Compute SDK found to install for the VM size -"
+                f" {node_runbook.vm_size}."
+            )
+        return driver_list
 
 
 class Sriov(AzureFeatureMixin, features.Sriov):

@@ -3,24 +3,17 @@
 
 import re
 from enum import Enum
+from typing import Any, List, Set
 
-from lisa.base_tools.wget import Wget
+from lisa.base_tools import Uname, Wget
 from lisa.feature import Feature
 from lisa.operating_system import Redhat, Ubuntu
-from lisa.tools import Uname
-from lisa.util import LisaException, SkippedException
+from lisa.sut_orchestrator.azure.tools import LisDriver
+from lisa.tools import Lsmod, Lspci, Lsvmbus
+from lisa.util import LisaException
+from lisa.util.logger import get_logger
 
 FEATURE_NAME_GPU = "Gpu"
-
-ComputeSDK = Enum(
-    "ComputeSDK",
-    [
-        # GRID Driver
-        "GRID",
-        # CUDA Driver
-        "CUDA",
-    ],
-)
 
 # Link to the latest GRID driver
 # The DIR link is
@@ -28,7 +21,22 @@ ComputeSDK = Enum(
 DEFAULT_GRID_DRIVER_URL = "https://go.microsoft.com/fwlink/?linkid=874272"
 
 
+class ComputeSDK(Enum):
+    # GRID Driver
+    GRID = 1
+    # CUDA Driver
+    CUDA = 2
+
+
 class Gpu(Feature):
+    def __init__(self, node: Any, platform: Any) -> None:
+        super().__init__(node, platform)
+        self._log = get_logger("feature", self.name(), self._node.log)
+        self.gpu_vendor: Set[str]
+        # tuple of gpu device names and their device id pattern
+        # e.g. Tesla GPU device has device id "47505500-0001-0000-3130-444531303244"
+        self.gpu_devices = (("Tesla", "47505500", 0), ("A100-SXM4", "44450000", 6))
+
     @classmethod
     def name(cls) -> str:
         return FEATURE_NAME_GPU
@@ -41,8 +49,11 @@ class Gpu(Feature):
     def can_disable(cls) -> bool:
         return True
 
-    def _is_supported(self) -> bool:
-        raise NotImplementedError()
+    def _get_supported_driver(self) -> List[ComputeSDK]:
+        raise NotImplementedError
+
+    def is_supported(self) -> bool:
+        raise NotImplementedError
 
     # download and install NVIDIA grid driver
     def _install_grid_driver(self, driver_url: str) -> None:
@@ -123,28 +134,83 @@ class Gpu(Feature):
                 " is not supported for GPU."
             )
 
-    def check_support(self) -> None:
-        # TODO: more supportability can be defined here
-        if not self._is_supported():
-            raise SkippedException(f"GPU is not supported with distro {self._node.os}")
+    def is_module_loaded(self) -> bool:
+        lsmod_tool = self._node.tools[Lsmod]
+        if not (lsmod_tool.module_exists(vendor) for vendor in self.gpu_vendor):
+            return False
 
-    def install_compute_sdk(
-        self, driver: ComputeSDK = ComputeSDK.CUDA, version: str = ""
-    ) -> None:
+        return True
+
+    def install_compute_sdk(self, version: str = "") -> None:
         # install GPU dependencies before installing driver
         self._install_gpu_dep()
 
+        if isinstance(self._node.os, Redhat):
+            # install LIS driver if not already installed.
+            self._node.tools[LisDriver]
+
         # install the driver
-        if driver == ComputeSDK.GRID:
-            if version == "":
-                version = DEFAULT_GRID_DRIVER_URL
-            self._install_grid_driver(version)
-        elif driver == ComputeSDK.CUDA:
-            if version == "":
-                version = "10.1.105-1"
-            self._install_cuda_driver(version)
-        else:
-            raise LisaException(
-                f"{ComputeSDK} is invalid."
-                "No valid driver SDK name provided to install."
-            )
+        supported_driver = self._get_supported_driver()
+        for driver in supported_driver:
+            if driver == ComputeSDK.GRID:
+                if not version:
+                    version = DEFAULT_GRID_DRIVER_URL
+                    self._install_grid_driver(version)
+                    self.gpu_vendor.add("nvidia")
+            elif driver == ComputeSDK.CUDA:
+                if not version:
+                    version = "10.1.105-1"
+                    self._install_cuda_driver(version)
+                    self.gpu_vendor.add("nvidia")
+            else:
+                raise LisaException(f"{driver} is not a valid value of ComputeSDK")
+
+        if not self.gpu_vendor:
+            raise LisaException("No supported gpu driver/vendor found for this node.")
+
+    def get_gpu_count_with_lsvmbus(self) -> int:
+        lsvmbus_device_count = 0
+        extra_device_count = 0
+
+        lsvmbus_tool = self._node.tools[Lsvmbus]
+        device_list = lsvmbus_tool.get_device_channels_from_lsvmbus()
+        for device in device_list:
+            for name, id, extra_count in self.gpu_devices:
+                if id in device.device_id:
+                    lsvmbus_device_count += 1
+                    extra_device_count = extra_count
+                    self._log.debug(f"GPU device {name} found!")
+                    break
+
+        return lsvmbus_device_count - extra_device_count
+
+    def get_gpu_count_with_lspci(self) -> int:
+        lspci_device_count = 0
+        extra_device_count = 0
+
+        lspci_tool = self._node.tools[Lspci]
+        device_list = lspci_tool.get_device_list()
+        for device in device_list:
+            for name, id, extra_count in self.gpu_devices:
+                if name in device.device_info:
+                    lspci_device_count += 1
+                    extra_device_count = extra_count
+                    self._log.debug(f"GPU device with device Id pattern - {id} found!")
+                    break
+
+        return lspci_device_count - extra_device_count
+
+    def get_gpu_count_with_vendor_cmd(self) -> int:
+        device_count = 0
+
+        if "nvidia" in self.gpu_vendor:
+            result = self._node.execute("nvidia-smi")
+            if result.exit_code != 0 or (result.exit_code == 0 and result.stdout == ""):
+                raise LisaException(
+                    f"nvidia-smi command exited with exit_code {result.exit_code}"
+                )
+            for device_info in result.stdout.splitlines():
+                if any(device_info in device_name for device_name in self.gpu_devices):
+                    device_count += 1
+
+        return device_count
