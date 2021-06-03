@@ -20,6 +20,7 @@ _SECRET_ENV_START = "S_LISA_"
 
 @dataclass
 class VariableEntry:
+    name: str
     data: Any
     is_used: bool = False
 
@@ -289,7 +290,13 @@ def _add_variable(
     mask_pattern_name: str = "",
 ) -> None:
     key = key.lower()
-    current_variables[key] = VariableEntry(value)
+    variable = current_variables.get(key, None)
+    if variable:
+        variable.data = value
+    else:
+        variable = VariableEntry(name=key, data=value)
+        current_variables[key] = variable
+
     pattern = None
     if is_secret:
         if mask_pattern_name:
