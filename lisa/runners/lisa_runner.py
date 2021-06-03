@@ -73,7 +73,7 @@ class LisaRunner(BaseRunner):
 
         # sort environments by status
         available_environments = self._sort_environments(self.environments)
-        available_results = [x for x in self.test_results if x.is_queued]
+        available_results = self._get_runnable_test_results(self.test_results)
 
         # check deleteable environments
         delete_task = self._delete_unused_environments()
@@ -97,9 +97,14 @@ class LisaRunner(BaseRunner):
                 if not environment_results:
                     continue
 
-                return self._associate_environment_test_results(
+                task = self._associate_environment_test_results(
                     environment=environment, test_results=environment_results
                 )
+                # there is more checking conditions. If some conditions doesn't
+                # meet, the task is None. If so, not return, and try next
+                # conditions or skip this test case.
+                if task:
+                    return task
             if not any(x.is_in_use for x in available_environments):
                 # no environment in used, and not fit. those results cannot be run.
                 skipped_test_results = self._skip_test_results(can_run_results)
