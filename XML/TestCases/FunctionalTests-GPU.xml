@@ -44,7 +44,7 @@
     <Priority>1</Priority>
     <SetupConfig>
       <SetupType>OneVM</SetupType>
-      <OverrideVMSize>Standard_NC24</OverrideVMSize>
+      <OverrideVMSize>Standard_NC24s_v2</OverrideVMSize>
     </SetupConfig>
   </test>
   <test>
