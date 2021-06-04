@@ -22,7 +22,7 @@ follow the steps below to set up the corresponding development environment.
 1. Click on the Python version at the bottom left of the editor's window and
    select the Python interpreter which Poetry just created. If you do not find
    it, check [FAQ and troubleshooting](troubleshooting.md) for extra
-   instructions. This step is omportant because it ensures the current workspace
+   instructions. This step is important because it ensures the current workspace
    uses the correct Poetry virtual environment.
 
 1. You can copy the settings below into `.vscode/settings.json`.
@@ -63,6 +63,7 @@ follow the steps below to set up the corresponding development environment.
             "reportUnnecessaryIsInstance": "none",
         },
         "python.languageServer": "Pylance",
+        "markdown.extension.toc.levels": "2..6",
     }
     ```
 
@@ -171,4 +172,3 @@ request for repair. You can also run the check manually.
   messages](https://tbaggery.com/2008/04/19/a-note-about-git-commit-messages.html)
   and [Git best
   practice](http://sethrobertson.github.io/GitBestPractices/#sausage).
-- 
