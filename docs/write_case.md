@@ -1,29 +1,30 @@
 # How to write test cases
 
-- [Understand LISA](#understand-lisa)
-- [Document excellence](#document-excellence)
-  - [Description in metadata](#description-in-metadata)
-  - [Code comments](#code-comments)
-  - [Commit messages](#commit-messages)
-  - [Logging](#logging)
-  - [Error message](#error-message)
-  - [Assertion](#assertion)
-- [Troubleshooting excellence](#troubleshooting-excellence)
-- [Test code excellence](#test-code-excellence)
-  - [Compositions of test](#compositions-of-test)
-  - [Metadata](#metadata)
-    - [Test suite metadata](#test-suite-metadata)
-    - [Test case metadata](#test-case-metadata)
-  - [Test case body](#test-case-body)
-  - [Setup and cleanup](#setup-and-cleanup)
-- [Use components in code](#use-components-in-code)
-  - [Environment and node](#environment-and-node)
-  - [Tool](#tool)
-  - [Scripts](#scripts)
-  - [Features](#features)
-- [Best practices](#best-practices)
-  - [Debug in ready environment](#debug-in-ready-environment)
-  - [Written by non-native English speakers](#written-by-non-native-english-speakers)
+- [How to write test cases](#how-to-write-test-cases)
+  - [Understand LISA](#understand-lisa)
+  - [Document excellence](#document-excellence)
+    - [Description in metadata](#description-in-metadata)
+    - [Code comments](#code-comments)
+    - [Commit messages](#commit-messages)
+    - [Logging](#logging)
+    - [Error message](#error-message)
+    - [Assertion](#assertion)
+  - [Troubleshooting excellence](#troubleshooting-excellence)
+  - [Test code excellence](#test-code-excellence)
+    - [Compositions of test](#compositions-of-test)
+    - [Metadata](#metadata)
+      - [Test suite metadata](#test-suite-metadata)
+      - [Test case metadata](#test-case-metadata)
+    - [Test case body](#test-case-body)
+    - [Setup and cleanup](#setup-and-cleanup)
+  - [Use components in code](#use-components-in-code)
+    - [Environment and node](#environment-and-node)
+    - [Tool](#tool)
+    - [Scripts](#scripts)
+    - [Features](#features)
+  - [Best practices](#best-practices)
+    - [Debug in ready environment](#debug-in-ready-environment)
+    - [Written by non-native English speakers](#written-by-non-native-english-speakers)
 
 Before writing a test case, we strongly recommend that you read the entire document. In addition to how to write test cases, we also believe that the engineering excellence is equally important. After the test case is completed, it will be run thousands of times, and many people will read and troubleshoot it. A good test case can save your and others' time.
 
@@ -65,13 +66,13 @@ The commit message is used to explain why this change was made. The code comment
 
 The log has two purposes, 1) display progress, and 2) troubleshoot.
 
-To show progress, the log should be simple and logical. To troubleshoot, it requires more detailed information. These two goals sound contradictory, but they can be achieved through different INFO and DEBUG levels. LISA always enables the DEBUG level in the file, while the INFO level is the default setting on the console.
+To show progress, the log should be simple and logical. To troubleshoot, it requires more detailed information. These two goals sound contradictory, but they can be achieved through different INFO and DEBUG levels. LISA always enables the DEBUG level in the log file, while the INFO level is the default setting on the console.
 
-In LISA, when writing log lines in the code, consider what the test runner needs to know, not what the developer needs to know. If the developer needs to know something, it should be done in code comments.
+In LISA, when writing log lines in the code, it's recommended to consider what the test runner needs to know, instead of what the developer needs to know, which should be done in code comments.
 
 - **DEBUG** level log should provide the *correct level* detail. The only way to write at the "correct level" is to use it from the beginning.
 
-  When writing code, please continue to use and improve the log. If you need to debug step by step, it means you need to improve the log. If you don’t understand the meaning of the log and others may not, please optimize it. If you find duplicate information, please merge it.
+  When writing code, please keep using and improving the log. If you need to debug step by step, it means you need to improve the log. If you don’t understand the meaning of the log, others may not as well, so please optimize the log at DEBUG level. In addition, if you find duplicate information, please merge it.
 
 - **INFO** level log should be *like a story*, to illustrate what happened.
 

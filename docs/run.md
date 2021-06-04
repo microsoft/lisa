@@ -31,8 +31,8 @@ If you see any error from this run, please check [FAQ and troubleshooting](troub
 
 ### Run in Azure
 
-Please follow below steps to configure your local computer to run LISA test
-against Linux VM on Azure.
+Please follow the steps below to configure your local computer to run LISA
+test against Linux VM on Azure.
 
 1. Sign in to Azure
 
@@ -43,7 +43,8 @@ against Linux VM on Azure.
     subscription to authenticate your current session. LISA also supports other
     Azure authentications, refer to [runbook reference](runbook.md).
 
-    Here, let's choose `Azure CLI` for the setup. You should see a page pop up and all your Azure subscriptions.
+    Here, let's choose `Azure CLI` for the setup. You should see a page pop up and all your Azure
+    subscriptions shown in console.
 
     ```bash
     az login
@@ -58,7 +59,7 @@ against Linux VM on Azure.
     az account show --subscription "<your subscription Name>"
     ```
 
-    Please keep the `<subscription id>` from the output for next use.
+    For now you only need the `<subscription id>` for future use.
 
     ```json
     {
@@ -76,6 +77,9 @@ against Linux VM on Azure.
         }
     }
     ```
+
+    AzureCloud in this example is set to default. You do not need to do that as long as you provide 
+    the correct Azure subscription ID.
 
 3. Prepare SSH key pair
 
@@ -101,13 +105,13 @@ against Linux VM on Azure.
 
 5. Verify test result
 
-    After test completed, you can refer the LISA console log, or the html report
+    After test completed, you can check the LISA console log, or the html report
     file for the test results. See an example html report as below:
 
     ![image](img/smoke_test_result.png)
 
-    Please learn more from [runbook reference](runbook.md) for how to specify
-    more parameters to customize your test.
+    If you want to customize your test using more specified parameters,
+    please refer to [runbook reference](runbook.md) for more information.
 
 ### Run in Ready computers
 
@@ -118,7 +122,7 @@ runbook:
 
 2. Get the SSH public/private key pair which can access this computer.
 
-3. Run LISA with below parameters:
+3. Run LISA with parameters below:
 
     ```bash
     lisa -r ./microsoft/runbook/ready.yml -v public_address:<public address> -v "user_name:<user name>" -v "admin_private_key_file:<private key file>"

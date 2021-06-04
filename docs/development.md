@@ -3,7 +3,6 @@
 This document describes the existing developer tooling we have in place (and what to
 expect of it), as well as our design and development philosophy.
 
-- [Understand LISA](#understand-lisa)
 - [Environment Setup](#environment-setup)
   - [Visual Studio Code](#visual-studio-code)
   - [Emacs](#emacs)
@@ -13,14 +12,6 @@ expect of it), as well as our design and development philosophy.
   - [Code checks](#code-checks)
 - [Extended reading](#extended-reading)
 
-## Understand LISA
-
-It depends on your contribution to LISA, you may need to learn more about LISA. Learn more from the topics below.
-
-- [Concepts](concepts.md) includes design considerations, how components work together.
-- [Extensions](extension.md) includes all extendable components, and how to develop extensions in LISA.
-- [How to write test cases](write_case.md) introduce the guideline to write test cases.
-
 ## Environment Setup
 
 Follow the [installation](install.md) steps to prepare the source code. Then follow
@@ -29,9 +20,11 @@ the steps below to set up the corresponding development environment.
 ### Visual Studio Code
 
 1. Click on the Python version at the bottom left of the editor's
-window and enter the path where the above command was issued. This
-will point the current workspace to use the correct Poetry virtual
-environment.
+window and select the Python interpreter which Poetry just created.
+If you do not find it, check
+[FAQ and troubleshooting](troubleshooting.md) for extra instructions.
+This step is omportant because it ensures the current workspace uses
+the correct Poetry virtual environment.
 
 1. Make sure below settings are in root level of `.vscode/settings.json`.
 
@@ -145,3 +138,4 @@ If the development environment is set up correctly, the following tools will aut
 - [The Hitchhiker’s Guide to Python](https://docs.python-guide.org/). This handcrafted guide exists to provide both novice and expert Python developers a best practice handbook for the installation, configuration, and usage of Python on a daily basis.
 - LISA performs static type checking to help finding bugs. Learn more from [mypy cheat sheet](https://mypy.readthedocs.io/en/latest/cheat_sheet_py3.html) and [typing lib](https://docs.python.org/3/library/typing.html). You can also learn from LISA code.
 - [How to write best commit messages](https://tbaggery.com/2008/04/19/a-note-about-git-commit-messages.html) and [Git best practice](http://sethrobertson.github.io/GitBestPractices/#sausage).
+- 

@@ -1,19 +1,20 @@
 # command line reference
 
-- [common arguments](#common-arguments)
-  - [-r, --runbook](#-r---runbook)
-  - [-d, --debug](#-d---debug)
-  - [-h, --help](#-h---help)
-  - [-v, --variable](#-v---variable)
-- [run](#run)
-- [check](#check)
-- [list](#list)
+- [command line reference](#command-line-reference)
+  - [common arguments](#common-arguments)
+    - [-r, --runbook](#-r---runbook)
+    - [-d, --debug](#-d---debug)
+    - [-h, --help](#-h---help)
+    - [-v, --variable](#-v---variable)
+  - [run](#run)
+  - [check](#check)
+  - [list](#list)
 
 ## common arguments
 
 ### -r, --runbook
 
-Specify the path of [runbook](runbook.md). It can be an absolute path or a relative path. In most usages, this parameter is required.
+Specify the path of [runbook](runbook.md). It can be an absolute path or a relative path. This parameter is required in most cases.
 
 ```sh
 lisa -r ./microsoft/runbook/azure.yml
@@ -21,7 +22,7 @@ lisa -r ./microsoft/runbook/azure.yml
 
 ### -d, --debug
 
-Set the log level output by the console to DEBUG level. By default, the console displays logs with INFO and higher levels. The log file will contain the DEBUG level and is not affected by this setting.
+By default, the console will display INFO or higher level logs, but will not display DEBUG level logs. This option enables the console to output DEBUG level logs. Note the log file will not be affected by this setting and will always contain the DEBUG level messages.
 
 ```sh
 lisa -d
@@ -29,7 +30,7 @@ lisa -d
 
 ### -h, --help
 
-Show help message.
+Show help messages.
 
 ```sh
 lisa -h
@@ -45,10 +46,11 @@ lisa -r ./microsoft/runbook/azure.yml -v location:westus2 -v "gallery_image:Cano
 
 ## run
 
-Run is the default operation. The `run` is optional.
+An optional command since it is the default operation. The following two lines perform the same operation.
 
 ```sh
-lisa run -r ./microsoft/runbook/azure.ym
+lisa run -r ./microsoft/runbook/azure.yml
+lisa -r ./microsoft/runbook/azure.yml
 ```
 
 ## check
@@ -56,20 +58,20 @@ lisa run -r ./microsoft/runbook/azure.ym
 Check whether the specified YAML file and variables are valid.
 
 ```sh
-lisa check -r ./microsoft/runbook/azure.ym
+lisa check -r ./microsoft/runbook/azure.yml
 ```
 
 ## list
 
 Output information of this run.
 
-- The `-t` or `--type` specifies the information type. It supports `case`.
+- `-t` or `--type` specifies the information type. It supports `case`.
 
   ```sh
-  lisa list-r ./microsoft/runbook/local.yml -v tier:0 -t case
+  lisa list -r ./microsoft/runbook/local.yml -v tier:0 -t case
   ```
 
-- When using `-a` or `--all`, it will ignore test case selection, and display all test cases.
+- With `-a` or `--all`, it will ignore test case selection, and display all test cases.
 
   ```sh
   lisa list -r ./microsoft/runbook/local.yml -v tier:0 -t case -a
