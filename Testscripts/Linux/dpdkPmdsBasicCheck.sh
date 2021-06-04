@@ -149,8 +149,10 @@ IFS=',' read -r -a pmd_array <<< "$pmds"
 exitcode=0
 eth1_vfinfo=$(ip addr show master eth1)
 checkCmdExitStatus "ip addr show master eth1"
-eth1_vfname=$(echo $eth1_vfinfo | awk -F ': ' '{print $2}')
+LogMsg "eth1 vfinfo found: $eth1_vfinfo"
+eth1_vfname=$(echo "$eth1_vfinfo" | awk -F ': ' '{print $2}')
 bus_info=$(ethtool -i $eth1_vfname|grep bus-info|awk '{print $2}')
+checkCmdExitStatus "ethtool -i $eth1_vfname|grep bus-info|awk '{print $2}'"
 for pmd in ${pmd_array[@]};do
 	runTestPmd $pmd
 done
