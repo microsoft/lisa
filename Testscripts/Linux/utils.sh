@@ -2430,7 +2430,7 @@ function install_iperf3 () {
 	update_repos
 
 #if 'ip_version" is not passed assume its ipv4
-	if [[ "x$ip_version" =~ "x" ]]
+	if [[ "x$ip_version" == "x" ]]
 	then
 		ip_version=4
 	fi
