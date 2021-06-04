@@ -37,11 +37,6 @@ class SerialConsole(Feature):
         return FEATURE_NAME_SERIAL_CONSOLE
 
     @classmethod
-    def enabled(cls) -> bool:
-        # most platform support shutdown
-        return True
-
-    @classmethod
     def can_disable(cls) -> bool:
         # no reason to disable it, it can not be used
         return False
@@ -54,6 +49,10 @@ class SerialConsole(Feature):
 
     def _initialize(self, *args: Any, **kwargs: Any) -> None:
         self._cached_console_log: Optional[bytes] = None
+
+    def enabled(self) -> bool:
+        # most platform support shutdown
+        return True
 
     def invalidate_cache(self) -> None:
         # sometime, if the serial log accessed too early, it may be empty.

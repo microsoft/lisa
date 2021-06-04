@@ -34,10 +34,6 @@ class Gpu(Feature):
         return FEATURE_NAME_GPU
 
     @classmethod
-    def enabled(cls) -> bool:
-        return True
-
-    @classmethod
     def can_disable(cls) -> bool:
         return True
 
@@ -127,6 +123,9 @@ class Gpu(Feature):
         # TODO: more supportability can be defined here
         if not self._is_supported():
             raise SkippedException(f"GPU is not supported with distro {self._node.os}")
+
+    def enabled(self) -> bool:
+        return True
 
     def install_compute_sdk(
         self, driver: ComputeSDK = ComputeSDK.CUDA, version: str = ""

@@ -19,11 +19,6 @@ class StartStop(Feature):
         return FEATURE_NAME_STARTSTOP
 
     @classmethod
-    def enabled(cls) -> bool:
-        # most platform support shutdown
-        return True
-
-    @classmethod
     def can_disable(cls) -> bool:
         # no reason to disable it, it can not be used
         return False
@@ -36,6 +31,10 @@ class StartStop(Feature):
 
     def _restart(self, wait: bool = True) -> None:
         raise NotImplementedError()
+
+    def enabled(self) -> bool:
+        # most platform support shutdown
+        return True
 
     def stop(self, wait: bool = True) -> None:
         self._log.debug("stopping")

@@ -26,12 +26,11 @@ class Feature(InitializableMixin):
 
     @classmethod
     @abstractmethod
-    def enabled(cls) -> bool:
+    def can_disable(cls) -> bool:
         raise NotImplementedError()
 
-    @classmethod
     @abstractmethod
-    def can_disable(cls) -> bool:
+    def enabled(self) -> bool:
         raise NotImplementedError()
 
     def _initialize(self, *args: Any, **kwargs: Any) -> None:
