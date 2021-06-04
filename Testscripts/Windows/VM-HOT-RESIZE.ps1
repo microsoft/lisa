@@ -33,12 +33,13 @@ function Main {
             $totalTestTimes = (Get-AzVMSize -Location $AllVMData.Location).Length
         }
 
-        for ($i = 0; $i -le $totalTestTimes; $i++) {
+        for ($i = 1; $i -le $totalTestTimes; $i++) {
             $vmSizes = (Get-AzVMSize -ResourceGroupName $AllVMData.ResourceGroupName -VMName $AllVMData.RoleName).Name
             # For economy mode, select a size by random in order to cover as many different serial sizes as possible
             if ($testMode -eq "economy") {
                 $vmSizes = $vmSizes | Get-Random -Count 1
                 if ($loadBalanceName -and ($vmSizes -like "Basic*")) {
+                    $i--
                     continue
                 }
             }
@@ -47,6 +48,7 @@ function Main {
             foreach ($vmSize in $vmSizes) {
                 # Load balancing is not supported for Basic VM sizes.
                 if ($loadBalanceName -and ($vmSize -like "Basic*")) {
+                    $i--
                     continue
                 }
                 if (!($vmSize -in $testedVMSizes)) {
@@ -58,24 +60,41 @@ function Main {
             }
             $Restrictions = ($ComputeSKUs | Where-Object { $_.Locations -eq $AllVMData.Location -and $_.ResourceType -eq "virtualMachines" `
                 -and $_.Name -eq $vmSize}).Restrictions
-            if ( ($Restrictions | Where-Object {$_.Type -eq "Location"}).ReasonCode -eq "NotAvailableForSubscription") {
+            if (($Restrictions | Where-Object {$_.Type -eq "Location"}).ReasonCode -eq "NotAvailableForSubscription") {
                 $i--
                 Write-LogInfo "The $vmSize is not supported by current subscription. Skip it."
-                break
+                continue
             }
             $testedVMSizes += $vmSize
 
             Write-LogInfo "--------------------------------------------------------"
             Write-LogInfo "Resizing the VM to size: $vmSize"
             $VirtualMachine.HardwareProfile.VmSize = $vmSize
-            Update-AzVM -VM $VirtualMachine -ResourceGroupName $AllVMData.ResourceGroupName | Out-Null
+            $cmd_output = Update-AzVM -VM $VirtualMachine -ResourceGroupName $AllVMData.ResourceGroupName 2>&1
             if ($?) {
                 Write-LogInfo "Resize the VM from $previousVMSize to $vmSize successfully"
             } else {
+                if ($cmd_output -match 'in exceeding approved .* Cores quota') {
+                    Write-LogWarn "Resize the VM with $vmSize failed. It's expected - no enough quota."
+                    $i--
+                    continue
+                }
+                if ($cmd_output -match  'resize an existing VM in an Availability Set.*it is possible that the cluster is out of capacity') {
+                    Write-LogWarn "Resize the VM with $vmSize failed. It's expected - cluster is out of capacity."
+                    $i--
+                    continue
+                }
+                if ($cmd_output -match 'since changing from resource disk to non-resource disk VM size and vice-versa is not allowed') {
+                    Write-LogWarn "Resize the VM with $vmSize failed. It's expected."
+                    Write-LogWarn "Resource disk support or not need keep consistent between size $previousVMSize and size $vmSize."
+                    $i--
+                    continue
+                }
+                Write-LogErr "Error output - $cmd_output"
                 $resizeVMSizeFailures += "Resize the VM from $previousVMSize to $vmSize failed"
                 $testResult = "FAIL"
                 Write-LogErr "Resize the VM from $previousVMSize to $vmSize failed"
-                continue
+                break
             }
 
             # Add CPU count and memory checks
@@ -124,7 +143,7 @@ function Main {
         foreach ($vmSize in $allVMSize) {
             $Restrictions = ($ComputeSKUs | Where-Object { $_.Locations -eq $AllVMData.Location -and $_.ResourceType -eq "virtualMachines" `
                 -and $_.Name -eq $vmSize}).Restrictions
-            if ( ($Restrictions | Where-Object {$_.Type -eq "Location"}).ReasonCode -eq "NotAvailableForSubscription") {
+            if (($Restrictions | Where-Object {$_.Type -eq "Location"}).ReasonCode -eq "NotAvailableForSubscription") {
                 Write-LogInfo "The $vmSize is not supported by current subscription. Skip it."
                 break
             }
