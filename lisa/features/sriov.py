@@ -12,18 +12,17 @@ class Sriov(Feature):
         return FEATURE_NAME_SRIOV
 
     @classmethod
-    def enabled(cls) -> bool:
-        return True
-
-    @classmethod
     def can_disable(cls) -> bool:
         return True
 
     def _switch(self, enable: bool) -> None:
         raise NotImplementedError()
 
+    def disable(self) -> None:
+        self._switch(False)
+
     def enable(self) -> None:
         self._switch(True)
 
-    def disable(self) -> None:
-        self._switch(False)
+    def enabled(self) -> bool:
+        raise NotImplementedError()
