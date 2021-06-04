@@ -722,7 +722,7 @@
     <Priority>2</Priority>
     <SetupConfig>
       <SetupType>OneVM</SetupType>
-      <OverrideVMSize>Standard_NV6</OverrideVMSize>
+      <OverrideVMSize>Standard_NV12s_v3</OverrideVMSize>
     </SetupConfig>
   </test>
   <test>
@@ -935,7 +935,7 @@
     <Priority>3</Priority>
     <SetupConfig>
       <setupType>TwoVM2NIC</setupType>
-      <OverrideVMSize>Standard_D64_v3</OverrideVMSize>
+      <OverrideVMSize>Standard_D64s_v3</OverrideVMSize>
       <Networking>SRIOV</Networking>
     </SetupConfig>
   </test>
@@ -953,7 +953,7 @@
     <Priority>3</Priority>
     <SetupConfig>
       <setupType>TwoVM2NIC</setupType>
-      <OverrideVMSize>Standard_D64_v3</OverrideVMSize>
+      <OverrideVMSize>Standard_D64s_v3</OverrideVMSize>
       <Networking>SRIOV</Networking>
     </SetupConfig>
   </test>
@@ -975,7 +975,7 @@
     <Priority>3</Priority>
     <SetupConfig>
       <setupType>TwoVM2NIC</setupType>
-      <OverrideVMSize>Standard_D64_v3</OverrideVMSize>
+      <OverrideVMSize>Standard_D64s_v3</OverrideVMSize>
       <Networking>SRIOV</Networking>
     </SetupConfig>
   </test>
@@ -993,7 +993,7 @@
     <Priority>3</Priority>
     <SetupConfig>
       <setupType>TwoVM2NIC</setupType>
-      <OverrideVMSize>Standard_D64_v3</OverrideVMSize>
+      <OverrideVMSize>Standard_D64s_v3</OverrideVMSize>
       <Networking>SRIOV</Networking>
     </SetupConfig>
    </test>
@@ -1012,7 +1012,7 @@
     <Priority>3</Priority>
     <SetupConfig>
       <SetupType>ThreeVM2NIC</SetupType>
-      <OverrideVMSize>Standard_D64_v3</OverrideVMSize>
+      <OverrideVMSize>Standard_D64s_v3</OverrideVMSize>
       <Networking>SRIOV</Networking>
     </SetupConfig>
   </test>
@@ -1031,7 +1031,7 @@
     <Priority>3</Priority>
     <SetupConfig>
       <SetupType>ThreeVM2NIC</SetupType>
-      <OverrideVMSize>Standard_D64_v3</OverrideVMSize>
+      <OverrideVMSize>Standard_D64s_v3</OverrideVMSize>
       <Networking>SRIOV</Networking>
     </SetupConfig>
   </test>
@@ -1049,7 +1049,7 @@
     <Priority>3</Priority>
     <SetupConfig>
       <SetupType>ThreeVM2NIC</SetupType>
-      <OverrideVMSize>Standard_D64_v3</OverrideVMSize>
+      <OverrideVMSize>Standard_D64s_v3</OverrideVMSize>
       <Networking>SRIOV</Networking>
     </SetupConfig>
   </test>

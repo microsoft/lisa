@@ -787,7 +787,7 @@
     <Priority>1</Priority>
     <SetupConfig>
       <SetupType>OneVM</SetupType>
-      <OverrideVMSize>Standard_D64_v3</OverrideVMSize>
+      <OverrideVMSize>Standard_D64s_v3</OverrideVMSize>
       <SetupScript>.\TestScripts\Windows\SETUP-Config-VM.ps1</SetupScript>
     </SetupConfig>
   </test>
@@ -872,6 +872,7 @@
     <Priority>2</Priority>
     <SetupConfig>
       <SetupType>OneVM</SetupType>
+	    <OverrideVMSize>Standard_DS1_v2</OverrideVMSize>
     </SetupConfig>
   </test>
   <test>
