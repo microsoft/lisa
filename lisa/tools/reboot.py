@@ -2,10 +2,12 @@
 # Licensed under the MIT license.
 
 from datetime import timedelta
+from pathlib import Path
 from time import sleep
 from typing import Any
 
 from lisa.executable import Tool
+from lisa.features import SerialConsole
 from lisa.util import LisaException
 from lisa.util.perf_timer import create_timer
 
@@ -26,6 +28,24 @@ class Reboot(Tool):
 
     def _check_exists(self) -> bool:
         return True
+
+    def reboot_and_check_panic(self, log_path: Path) -> None:
+        try:
+            self.reboot()
+        except Exception as identifier:
+            if self.node.features.is_supported(SerialConsole):
+                # if there is any panic, fail before partial pass
+                serial_console = self.node.features[SerialConsole]
+                serial_console.check_panic(
+                    saved_path=log_path,
+                    stage="reboot",
+                )
+            # if node cannot be connected after reboot, it should be failed.
+            if isinstance(identifier, LisaException) and str(identifier).startswith(
+                "cannot connect to TCP port"
+            ):
+                raise LisaException(f"after reboot, {identifier}")
+            raise identifier
 
     def reboot(self) -> None:
         who = self.node.tools[Who]
