@@ -68,3 +68,6 @@ class Features:
 
         assert feature
         return cast(T_FEATURE, feature)
+
+    def is_supported(self, feature_type: Type[T_FEATURE]) -> bool:
+        return feature_type.name() in self._supported_features

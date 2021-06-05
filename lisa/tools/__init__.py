@@ -1,7 +1,7 @@
 # Copyright (c) Microsoft Corporation.
 # Licensed under the MIT license.
 
-from lisa.base_tools.wget import Wget
+from lisa.base_tools import Uname, Wget
 
 from .cat import Cat
 from .date import Date
@@ -17,7 +17,6 @@ from .make import Make
 from .modinfo import Modinfo
 from .ntttcp import Ntttcp
 from .reboot import Reboot
-from .uname import Uname
 from .uptime import Uptime
 from .who import Who
 
