@@ -22,6 +22,17 @@
 # Source constants file and initialize most common variables
 UtilsInit
 
+# Distro check before proceeding for functionality check
+if [[ $DISTRO_NAME == "centos" || $DISTRO_NAME == "rhel" ]]; then
+    mj=$(echo $DISTRO_VERSION | cut -d "." -f 1)
+    mn=$(echo $DISTRO_VERSION | cut -d "." -f 2)
+    if [ $dj -eq 7 ] && [ $dn -lt 4 ]; then
+        LogErr "Recommended distro version is RHEL/CentOS 7.4 or later"
+        SetTestStateSkipped
+        exit 0
+    fi
+fi
+
 # Check if ethtool exist and install it if not
 if ! VerifyIsEthtool; then
     LogErr "Could not find ethtool in the VM"
@@ -39,7 +50,7 @@ fi
 vmbus_version=$(dmesg | grep "Vmbus version" | awk -F: '{print $(NF)}' | awk -F. '{print $1}')
 if [ "$vmbus_version" -lt "3" ]; then
     LogMsg "Info: Host version older than 2012R2. Skipping test."
-    SetTestStateAborted
+    SetTestStateSkipped
     exit 0
 fi
 
