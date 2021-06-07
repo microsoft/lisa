@@ -86,6 +86,15 @@ function Main {
             $actualMemorySizeInKB = Run-LinuxCmd -username $user -password $password -ip $AllVMData.PublicIP -port $AllVMData.SSHPort   `
                                  -command "grep -i memtotal /proc/meminfo | awk '{ print `$`2 }'"
             $actualMemorySizeInMB = [math]::Truncate($actualMemorySizeInKB/1024)
+
+            # PowerShell api returns wrong CPU cores for constrained vCPU sizes
+            # https://docs.microsoft.com/en-us/azure/virtual-machines/constrained-vcpu
+            if ($expectedCPUCount -ne $actualCPUCount -and $vmSize.Contains("-")) {
+                if ($vmSize.split("-")[1] -imatch "(^[\d]+)") {
+                    $expectedCPUCount = $Matches[1]
+                }
+            }
+
             Write-LogInfo "Expected CPU Count: $expectedCPUCount"
             Write-LogInfo "Actual CPU Count: $actualCPUCount"
             Write-LogInfo "Expected Memory Size in MB: $expectedMemorySizeInMB"

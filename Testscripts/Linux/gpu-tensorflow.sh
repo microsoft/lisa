@@ -40,10 +40,10 @@ InstallCUDAToolKit() {
 
     ubuntu*)
         GetOSVersion
-        CUDA_REPO_PKG="cuda-repo-ubuntu$os_RELEASE//./_$CUDADriverVersion_amd64.deb"
+        CUDA_REPO_PKG="cuda-repo-ubuntu${os_RELEASE//./}_${CUDADriverVersion}_amd64.deb"
         LogMsg "Using $CUDA_REPO_PKG"
 
-        wget http://developer.download.nvidia.com/compute/cuda/repos/ubuntu"$os_RELEASE//./"/x86_64/"$CUDA_REPO_PKG" -O /tmp/"$CUDA_REPO_PKG"
+        wget http://developer.download.nvidia.com/compute/cuda/repos/ubuntu"${os_RELEASE//./}"/x86_64/"$CUDA_REPO_PKG" -O /tmp/"$CUDA_REPO_PKG"
         if [ $? -ne 0 ]; then
             LogErr "Failed to download $CUDA_REPO_PKG"
             SetTestStateAborted
@@ -52,7 +52,7 @@ InstallCUDAToolKit() {
             LogMsg "Successfully downloaded $CUDA_REPO_PKG"
         fi
 
-        apt-key adv --fetch-keys http://developer.download.nvidia.com/compute/cuda/repos/ubuntu"$os_RELEASE//./"/x86_64/7fa2af80.pub
+        apt-key adv --fetch-keys http://developer.download.nvidia.com/compute/cuda/repos/ubuntu"${os_RELEASE//./}"/x86_64/7fa2af80.pub
         dpkg -i /tmp/"$CUDA_REPO_PKG"
         dpkg_configure
         apt update

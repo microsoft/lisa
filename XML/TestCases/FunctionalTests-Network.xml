@@ -773,7 +773,7 @@
     <Priority>1</Priority>
     <SetupConfig>
       <SetupType>OneVM8NIC</SetupType>
-      <OverrideVMSize>Standard_B16ms</OverrideVMSize>
+      <OverrideVMSize>Standard_DS4_v2</OverrideVMSize>
       <SetupScript>.\Testscripts\Windows\SETUP-NET-Add-Max-NIC.ps1</SetupScript>
     </SetupConfig>
   </test>
@@ -792,7 +792,7 @@
     <Priority>1</Priority>
     <SetupConfig>
       <SetupType>OneVM</SetupType>
-      <OverrideVMSize>Standard_B16ms</OverrideVMSize>
+      <OverrideVMSize>Standard_DS4_v2</OverrideVMSize>
     </SetupConfig>
   </test>
   <test>
