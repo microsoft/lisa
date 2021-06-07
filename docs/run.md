@@ -27,12 +27,13 @@ your computer.
 lisa
 ```
 
-If you see any error from this run, please check [FAQ and troubleshooting](troubleshooting.md).
+If you see any error from this run, please check [FAQ and
+troubleshooting](troubleshooting.md).
 
 ### Run in Azure
 
-Please follow the steps below to configure your local computer to run LISA
-test against Linux VM on Azure.
+Please follow the steps below to configure your local computer to run LISA test
+against Linux VM on Azure.
 
 1. Sign in to Azure
 
@@ -43,8 +44,8 @@ test against Linux VM on Azure.
     subscription to authenticate your current session. LISA also supports other
     Azure authentications, refer to [runbook reference](runbook.md).
 
-    Here, let's choose `Azure CLI` for the setup. You should see a page pop up and all your Azure
-    subscriptions shown in console.
+    Here, let's choose `Azure CLI` for the setup. You should see a page pop up
+    and all your Azure subscriptions shown in console.
 
     ```bash
     az login
@@ -78,8 +79,8 @@ test against Linux VM on Azure.
     }
     ```
 
-    AzureCloud in this example is set to default. You do not need to do that as long as you provide 
-    the correct Azure subscription ID.
+    AzureCloud in this example is set to default. You do not need to do that as
+    long as you provide the correct Azure subscription ID.
 
 3. Prepare SSH key pair
 
@@ -110,8 +111,8 @@ test against Linux VM on Azure.
 
     ![image](img/smoke_test_result.png)
 
-    If you want to customize your test using more specified parameters,
-    please refer to [runbook reference](runbook.md) for more information.
+    If you want to customize your test using more specified parameters, please
+    refer to [runbook reference](runbook.md) for more information.
 
 ### Run in Ready computers
 

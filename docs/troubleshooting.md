@@ -1,15 +1,14 @@
 # Troubleshooting
 
-- [Troubleshooting](#troubleshooting)
-  - [Installation](#installation)
-    - [How to use LISA in WSL](#how-to-use-lisa-in-wsl)
-    - [Cannot find package after run `poetry install`](#cannot-find-package-after-run-poetry-install)
-    - [Error: Poetry could not find a pyproject.toml file](#error-poetry-could-not-find-a-pyprojecttoml-file)
-  - [Using VSCode](#using-vscode)
-    - [Cannot find Python Interpreter by Poetry](#cannot-find-python-interpreter-by-poetry)
-    - [VSCode Python extension no longer supports `python.pythonPath` in `setting.json`](#vscode-python-extension-no-longer-supports-pythonpythonpath-in-settingjson)
-  - [Other issues](#other-issues)
-    - [Poetry related questions](#poetry-related-questions)
+- [Installation](#installation)
+  - [How to use LISA in WSL](#how-to-use-lisa-in-wsl)
+  - [Cannot find package after run `poetry install`](#cannot-find-package-after-run-poetry-install)
+  - [Error: Poetry could not find a pyproject.toml file](#error-poetry-could-not-find-a-pyprojecttoml-file)
+- [Using VSCode](#using-vscode)
+  - [Cannot find Python Interpreter by Poetry](#cannot-find-python-interpreter-by-poetry)
+  - [VSCode Python extension no longer supports `python.pythonPath` in `setting.json`](#vscode-python-extension-no-longer-supports-pythonpythonpath-in-settingjson)
+- [Other issues](#other-issues)
+  - [Poetry related questions](#poetry-related-questions)
 
 ## Installation
 
@@ -21,7 +20,7 @@ If you are using WSL, installing Poetry on both Windows and WSL may cause both p
 
 ### Cannot find package after run `poetry install`
 
-Poetry is case sensitive when reading the path. Please make sure the path is consistent all the time and there's no spelling errors or case mismatch.
+Poetry is case sensitive, which means it differentiates directories like `C:\abc` and `C:\ABC` in Windows, although Windows in fact does not allow this (as a case insensitive system). When reading the path, please make sure there's no case mismatch in the path.
 
 ### Error: Poetry could not find a pyproject.toml file
 

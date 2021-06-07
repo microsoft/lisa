@@ -1,12 +1,11 @@
 # Microsoft tests
 
-- [Microsoft tests](#microsoft-tests)
-  - [How to run Microsoft tests](#how-to-run-microsoft-tests)
-    - [Quick start](#quick-start)
-    - [Advanced](#advanced)
-  - [Test priority](#test-priority)
-  - [Test tier](#test-tier)
-  - [Test cases specification](#test-cases-specification)
+- [How to run Microsoft tests](#how-to-run-microsoft-tests)
+  - [Quick start](#quick-start)
+  - [Advanced](#advanced)
+- [Test priority](#test-priority)
+- [Test tier](#test-tier)
+- [Test cases specification](#test-cases-specification)
 
 The test suite in LISA is called Microsoft tests, which are provided by
 Microsoft Linux System Group. This document introduces how Microsoft tests were
