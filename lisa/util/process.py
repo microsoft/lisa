@@ -77,8 +77,7 @@ class Process:
             if not self._is_posix:
                 split_command = ["cmd", "/c", command]
             elif sudo:
-                command = f"sudo -s {command}"
-                split_command = shlex.split(command, posix=self._is_posix)
+                split_command = ["sudo", "sh", "-c", command]
             else:
                 split_command = ["sh", "-c", command]
         else:

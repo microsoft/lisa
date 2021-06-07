@@ -10,7 +10,11 @@ from lisa.executable import Tool
 
 
 class Lscpu(Tool):
+    # CPU(s):              16
     __vcpu_sockets = re.compile(r"^CPU\(s\):[ ]+([\d]+)\r?$", re.M)
+    # Architecture:        x86_64
+    __architecture_pattern = re.compile(r"^Architecture:\s+(.*)?\r$", re.M)
+    __vaild_architecture_list = ["x86_64"]
 
     def _initialize(self, *args: Any, **kwargs: Any) -> None:
         self._core_count: Optional[int] = None
@@ -25,6 +29,22 @@ class Lscpu(Tool):
 
     def _check_exists(self) -> bool:
         return True
+
+    def get_architecture(self, force_run: bool = False) -> str:
+        architecture: str = ""
+        result = self.run(force_run=force_run)
+        matched = self.__architecture_pattern.findall(result.stdout)
+        assert_that(
+            matched,
+            f"architecture should have exact one line, but got {matched}",
+        ).is_length(1)
+        architecture = matched[0]
+        assert_that(
+            [architecture],
+            f"architecture {architecture} must be one of "
+            f"{self.__vaild_architecture_list}.",
+        ).is_subset_of(self.__vaild_architecture_list)
+        return architecture
 
     def get_core_count(self, force_run: bool = False) -> int:
         result = self.run(force_run=force_run)
