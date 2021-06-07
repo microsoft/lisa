@@ -22,6 +22,18 @@ UtilsInit
 #######################################################################
 # Main script body
 #######################################################################
+
+# Distro check before proceeding for functionality check
+if [[ $DISTRO_NAME == "centos" || $DISTRO_NAME == "rhel" ]]; then
+    mj=$(echo $DISTRO_VERSION | cut -d "." -f 1)
+    mn=$(echo $DISTRO_VERSION | cut -d "." -f 2)
+    if [ $dj -eq 7 ] && [ $dn -lt 4 ]; then
+        LogErr "Recommended distro version is RHEL/CentOS 7.4 or later"
+        SetTestStateSkipped
+        exit 0
+    fi
+fi
+
 # Check if ethtool exist and install it if not
 if ! VerifyIsEthtool; then
     LogErr "Could not find ethtool in the VM"
