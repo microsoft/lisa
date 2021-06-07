@@ -11,6 +11,7 @@ from .gcc import Gcc
 from .git import Git
 from .lscpu import Lscpu
 from .lsmod import Lsmod
+from .lspci import Lspci
 from .lsvmbus import Lsvmbus
 from .make import Make
 from .modinfo import Modinfo
@@ -29,6 +30,7 @@ __all__ = [
     "Git",
     "Lscpu",
     "Lsmod",
+    "Lspci",
     "Lsvmbus",
     "Make",
     "Modinfo",
