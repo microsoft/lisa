@@ -7,7 +7,7 @@ from unittest import TestCase
 from lisa import schema
 from lisa.environment import EnvironmentStatus, load_environments
 from lisa.operating_system import Posix, Windows
-from lisa.parameter_parser.runbook import validate_data
+from lisa.parameter_parser.runbook import RunbookBuilder
 from lisa.runner import parse_testcase_filters
 from lisa.tests.test_environment import generate_runbook
 from lisa.testselector import select_testcases
@@ -154,7 +154,7 @@ def generate_cases_result() -> List[TestResult]:
 def select_and_check(
     ut: TestCase, case_runbook: List[Any], expected_descriptions: List[str]
 ) -> List[TestCaseRuntimeData]:
-    runbook = validate_data({constants.TESTCASE: case_runbook})
+    runbook = RunbookBuilder._validate_and_load({constants.TESTCASE: case_runbook})
     case_metadata = generate_cases_metadata()
     runbook.testcase = parse_testcase_filters(runbook.testcase_raw)
     filters = cast(List[schema.TestCase], runbook.testcase)
