@@ -37,7 +37,7 @@ def run(args: Namespace) -> int:
     run_timer = create_timer()
     run_error_message = ""
     try:
-        runner = RootRunner(runbook)
+        runner = RootRunner(runbook_builder=builder)
         asyncio.run(runner.start())
         run_status = notifier.TestRunStatus.SUCCESS
     except Exception as identifier:
