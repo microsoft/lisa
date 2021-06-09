@@ -62,7 +62,7 @@ Function Get-FinalResultHeader($resultArr) {
 		{ ($_ -imatch "FAIL") } { $result = $global:ResultFail; break }
 		{ ($_ -imatch "Abort") } { $result = $global:ResultAborted; break }
 		{ ($_ -imatch "Skip") } { $result = $global:ResultSkipped; break }
-		{ ($_ -imatch "PASS") } { $result = $global:ResultPass; break }
+		{ ($_ -imatch "PASS") } { $result = $global:ResultPass }
 		default { $result = $global:ResultFail }
 	}
 	return $result
