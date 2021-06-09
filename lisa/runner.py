@@ -8,6 +8,7 @@ from typing import Any, Callable, Dict, List, Optional
 
 from lisa import notifier, schema
 from lisa.action import Action
+from lisa.parameter_parser.runbook import RunbookBuilder
 from lisa.testsuite import TestResult, TestStatus
 from lisa.util import BaseClassMixin, InitializableMixin, constants
 from lisa.util.logger import create_file_handler, get_logger, remove_handler
@@ -78,12 +79,13 @@ class RootRunner(Action):
     The entry root runner, which starts other runners.
     """
 
-    def __init__(self, runbook: schema.Runbook) -> None:
+    def __init__(self, runbook_builder: RunbookBuilder) -> None:
         super().__init__()
         self.exit_code: int = 0
 
-        self._max_concurrency = runbook.concurrency
-        self._runbook = runbook
+        self._runbook_builder = runbook_builder
+        self._runbook = runbook_builder.runbook
+        self._max_concurrency = self._runbook.concurrency
         self._log = get_logger("RootRunner")
         self._log.debug(f"max concurrency is {self._max_concurrency}")
         self._runners: List[BaseRunner] = []
