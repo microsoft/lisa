@@ -70,7 +70,7 @@ Function Get-FinalResultHeader($resultArr) {
 	# abort > [ skip | pass ]
 	# pass  > [ skip ]
 	# skip  > []
-
+	Write-LogDbg "Processing result collection: $resultArr "
 	$result = $global:ResultSkipped
 	switch ($resultArr) {
 		{ ($_ -imatch "FAIL") } { $result = $global:ResultFail; break }
@@ -87,6 +87,7 @@ Function Get-FinalResultHeader($resultArr) {
 		}
 		default { $result = $global:ResultFail }
 	}
+	Write-LogDbg "Selected result: $result"
 	return $result
 }
 
