@@ -29,6 +29,12 @@ function Main {
 	$superUser = "root"
 	$testResult = $null
 
+	# This test's upstream source is broken for dpdk > 18.11.
+	# https://dev.azure.com/microsoft/OS/_sprints/taskboard/Linux-Quality/OS/2107?workitem=33700336
+	# tracks the fix for this bug.
+	# for now return skip in all cases.
+	return $global:ResultSkipped
+
 	try {
 		$clientVMData = $null
 		foreach ($vmData in $allVMData) {
