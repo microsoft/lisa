@@ -178,6 +178,16 @@ class TypedSchema:
     type: str = ""
 
 
+@dataclass_json(undefined=Undefined.INCLUDE)
+@dataclass
+class Combinator(TypedSchema):
+    type: str = field(
+        default=constants.COMBINATOR_GRID, metadata=metadata(required=True)
+    )
+
+    delay_parsed: CatchAll = field(default_factory=dict)  # type: ignore
+
+
 @dataclass_json()
 @dataclass
 class Strategy:
@@ -273,7 +283,7 @@ class Variable:
     )
 
     name: str = field(default="")
-    value_raw: Union[str, bool, int, Dict[Any, Any]] = field(
+    value_raw: Union[str, bool, int, Dict[Any, Any], List[Any]] = field(
         default="", metadata=metadata(data_key="value")
     )
 
@@ -287,7 +297,9 @@ class Variable:
             )
 
         if isinstance(self.value_raw, dict):
-            self.value: Union[str, bool, int, VariableEntry] = cast(
+            self.value: Union[
+                str, bool, int, VariableEntry, List[Union[str, bool, int]]
+            ] = cast(
                 VariableEntry,
                 VariableEntry.schema().load(self.value_raw),  # type:ignore
             )
@@ -823,6 +835,7 @@ class Runbook:
     parent: Optional[List[Parent]] = field(default=None)
     extension: Optional[List[Union[str, Extension]]] = field(default=None)
     variable: Optional[List[Variable]] = field(default=None)
+    combinator: Optional[Combinator] = field(default=None)
     artifact: Optional[List[Artifact]] = field(default=None)
     environment: Optional[EnvironmentRoot] = field(default=None)
     notifier: Optional[List[Notifier]] = field(default=None)
