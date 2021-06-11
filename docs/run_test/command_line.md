@@ -1,6 +1,6 @@
-# command line reference
+# Command line reference
 
-- [common arguments](#common-arguments)
+- [Common arguments](#common-arguments)
   - [-r, --runbook](#-r---runbook)
   - [-d, --debug](#-d---debug)
   - [-h, --help](#-h---help)
@@ -9,7 +9,7 @@
 - [check](#check)
 - [list](#list)
 
-## common arguments
+## Common arguments
 
 ### -r, --runbook
 

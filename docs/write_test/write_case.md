@@ -24,8 +24,7 @@
 - [Best practices](#best-practices)
   - [Debug in ready environment](#debug-in-ready-environment)
   - [Written by non-native English speakers](#written-by-non-native-english-speakers)
-      speakers](#written-by-non-native-english-speakers)
-      speakers](#written-by-non-native-english-speakers)
+
 
 Before writing a test case, we strongly recommend that you read the entire
 document. In addition to how to write test cases, we also believe that the
@@ -35,8 +34,7 @@ it. A good test case can save your and others' time.
 
 ## Understand LISA
 
-It depends on your contribution to LISA, you may need to learn more about LISA.
-Learn more from the topics below.
+To get an overview of LISA, you may find the documentation below helpful.
 
 - [Concepts](concepts.md) includes design considerations, how components work
   together. It's important for everyone who wants to write code in LISA.
@@ -50,7 +48,7 @@ Learn more from the topics below.
 
 The documentation is the opportunity to make things clear and easy to maintain.
 A good document does not mean longer is better. Each kind of documentation has
-it's own purpose. Good technical documentation should be *useful and accurate*.
+its own purpose. Good technical documentation should be *useful and accurate*.
 
 The following introduces the principle of each type of document in LISA.
 
@@ -62,10 +60,10 @@ include the purpose and procedures of the test.
 - Test suite metadata. A test suite is a set of test cases with similar test
   purposes or shared steps. Therefore, the metadata should explain why the test
   cases are bundled together.
-- Test case metadata. Each test case has its test purpose, and steps. Since
+- Test case metadata. Each test case has its test purpose and steps. Since
   metadata is used to generate specifications, the main steps of the test logic
   need to be recorded. If it is a regression test case, the bug should be
-  quoted. Including the impact of failure is also good.
+  quoted. It is also good to include the impact of failure.
 
 ### Code comments
 
@@ -80,19 +78,19 @@ valuable. Here are some highlights.
 - Record business logic. Code logic is more detailed than business logic. Some
   complex code logic may not be intuitive for understanding business logic. Code
   comments can help summarize complex code logic.
-- Record trick things. We cannot avoid writing tricky code. For example, magic
+- Record tricky things. We cannot avoid writing tricky code. For example, magic
   numbers, special handling of the Linux version, or other content.
 - Provide regular expression examples. LISA uses many regular expressions to
   parse command output. It is simple and useful, but it may not match. When you
-  need to create or update a regular expression, it needs to check the sample
+  need to create or update a regular expression, you need to check the sample
   for regression. These examples also help to understand what the expression
   does.
 
 ### Commit messages
 
-The commit message is used to explain why this change was made. The code
-comments describe the current state. The commit message describes the reason for
-the change. If you think the content is also suitable for writing in the code,
+The commit message is used to explain why the change was made. The code comments
+describe the current state. The commit message describes the reason for the
+change. If you think the content is also suitable for writing in the code,
 please write it as a code comment.
 
 ### Logging
@@ -142,7 +140,7 @@ which should be done in code comments.
   there should be no error level logs. According to experience, 95% of
   successful runs should not contain any error level logs.
 
-some tips,
+Some tips:
 
 - By reading the log, you should be able to understand the progress without
   having to look at the code. And logs describe business logic, not code logic.
@@ -166,14 +164,13 @@ some tips,
 There are two kinds of error messages in LISA. The first is an error message,
 and it does not fail. It will be printed as stderr and will be more obvious when
 the test case fails. The second is a one-line message in the failed test case.
-This section applies to two of them, but the second one is more important
-because we want it to be the only information that helps understand the failed
-test case.
+This section applies to both, but the second one is more important because we
+want it to be the only information that helps understand the failed test case.
 
 In LISA, failed, skipped, and some passed test cases have a message. It
-specifies the reason the test case failed or skipped. Through this message, the
-user can understand what will happen and can act. Therefore, this message should
-be as helpful as possible.
+specifies the reason why the test case failed or skipped. Through this message,
+the user can understand what will happen and can act. Therefore, this message
+should be as helpful as possible.
 
 The error message should include what happened and how to resolve it. It may not
 be easy to provide all the information for the first time, but guesswork is also
@@ -225,10 +222,9 @@ document](https://github.com/assertpy/assertpy#readme).
 
 ## Troubleshooting excellence
 
-Test failure is a common phenomenon. Therefore, perform troubleshooting
-frequently. There are some useful ways to troubleshoot failures. In the list
-below, the higher items are better than the lower items because of its lower
-cost of analysis.
+Test failure is common. Therefore, perform troubleshooting frequently. There are
+some useful ways to troubleshoot failures. In the list below, the higher items
+are better than the lower items because of their lower cost of analysis.
 
 1. Single line message. A one-line message is sent with the test result status.
    If this message clearly describes the root cause, no other digging is

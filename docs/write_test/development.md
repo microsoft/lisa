@@ -14,7 +14,7 @@ what to expect of it), as well as our design and development philosophy.
 
 ## Environment Setup
 
-Follow the [installation](install.md) steps to prepare the source code. Then
+Follow the [installation](quick_start.md#installation) steps to prepare the source code. Then
 follow the steps below to set up the corresponding development environment.
 
 ### Visual Studio Code
