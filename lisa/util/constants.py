@@ -59,6 +59,7 @@ VARIABLE = "variable"
 
 COMBINATOR = "combinator"
 COMBINATOR_GRID = "grid"
+COMBINATOR_BATCH = "batch"
 
 ENVIRONMENT = "environment"
 ENVIRONMENTS = "environments"
