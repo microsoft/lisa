@@ -2056,7 +2056,7 @@ function detect_linux_distribution() {
 		fi
 	elif [ "$linux_distribution" == "ol" ]; then
 		linux_distribution='oracle'
-	elif echo "$linux_distribution" | grep -qi "debian" || [ "$linux_distribution" == "cbld" ]; then
+	elif echo "$linux_distribution" | grep -Eqi "debian|cbld"; then
 		linux_distribution='debian'
 	fi
 	echo "$(echo "$linux_distribution" | awk '{print tolower($0)}')"
