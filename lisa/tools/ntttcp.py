@@ -5,7 +5,7 @@ import re
 from typing import List, Type
 
 from lisa.executable import Tool
-from lisa.tools import Git, Make
+from lisa.tools import Gcc, Git, Make
 from lisa.util.process import ExecutableResult
 
 
@@ -15,7 +15,7 @@ class Ntttcp(Tool):
 
     @property
     def dependencies(self) -> List[Type[Tool]]:
-        return [Git, Make]
+        return [Git, Make, Gcc]
 
     @property
     def command(self) -> str:
