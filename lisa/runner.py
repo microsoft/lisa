@@ -1,13 +1,13 @@
 # Copyright (c) Microsoft Corporation.
 # Licensed under the MIT license.
 
-import copy
 from logging import FileHandler
 from threading import Lock
-from typing import Any, Callable, Dict, List, Optional
+from typing import Any, Callable, Dict, Iterator, List, Optional
 
 from lisa import notifier, schema
 from lisa.action import Action
+from lisa.combinator import Combinator
 from lisa.parameter_parser.runbook import RunbookBuilder
 from lisa.testsuite import TestResult, TestStatus
 from lisa.util import BaseClassMixin, InitializableMixin, constants
@@ -95,8 +95,6 @@ class RootRunner(Action):
     async def start(self) -> None:
         await super().start()
 
-        self._initialize_runners()
-
         try:
             self._start_loop()
         except Exception as identifer:
@@ -118,10 +116,35 @@ class RootRunner(Action):
     async def close(self) -> None:
         await super().close()
 
-    def _initialize_runners(self) -> None:
+    def _fetch_runners(self) -> Iterator[BaseRunner]:
+        root_runbook = self._runbook_builder.runbook
+
+        if root_runbook.combinator:
+            combinator_factory = Factory[Combinator](Combinator)
+            combinator = combinator_factory.create_by_runbook(root_runbook.combinator)
+
+            del self._runbook_builder.raw_data[constants.COMBINATOR]
+            self._log.debug(
+                f"found combinator '{combinator.type_name()}', to expand runbook."
+            )
+            combinator.initialize()
+            while True:
+                variables = combinator.fetch(self._runbook_builder.variables)
+                if variables is None:
+                    break
+                sub_runbook = self._runbook_builder.resolve(variables)
+                runners = self._generate_runners(sub_runbook)
+                for runner in runners:
+                    yield runner
+        else:
+            # no combinator, use the root runbook
+            for runner in self._generate_runners(root_runbook):
+                yield runner
+
+    def _generate_runners(self, runbook: schema.Runbook) -> Iterator[BaseRunner]:
         # group filters by runner type
         runner_filters: Dict[str, List[schema.BaseTestCaseFilter]] = {}
-        for raw_filter in self._runbook.testcase_raw:
+        for raw_filter in runbook.testcase_raw:
             # by default run all filtered cases unless 'enable' is specified as false
             filter = schema.BaseTestCaseFilter.schema().load(raw_filter)  # type:ignore
             if filter.enable:
@@ -141,15 +164,14 @@ class RootRunner(Action):
                 f"create runner {runner_name} with {len(raw_filters)} filter(s)."
             )
 
-            runbook = copy.copy(self._runbook)
             # keep filters to current runner's only.
             runbook.testcase = parse_testcase_filters(raw_filters)
             runner = factory.create_by_type_name(
                 type_name=runner_name, runbook=runbook, index=len(self._runners)
             )
             runner.initialize()
-
             self._runners.append(runner)
+            yield runner
 
     def _output_results(self, test_results: List[TestResult]) -> None:
         self._log.info("________________________________________")
@@ -182,6 +204,14 @@ class RootRunner(Action):
 
     def _start_loop(self) -> None:
         # in case all of runners are disabled
+        runner_iterator = self._fetch_runners()
+        remaining_runners: List[BaseRunner] = []
+        try:
+            for _ in range(self._max_concurrency):
+                remaining_runners.append(next(runner_iterator))
+        except StopIteration:
+            self._log.debug(f"no more runner found, total {len(remaining_runners)}")
+
         if self._runners:
             run_message = notifier.TestRunMessage(
                 status=notifier.TestRunStatus.RUNNING,
@@ -193,7 +223,7 @@ class RootRunner(Action):
             )
             # set the global task manager for cancellation check
             set_global_task_manager(task_manager)
-            remaining_runners = list(self._runners)
+            has_more_runner = True
 
             # run until no more task and all runner are closed
             while task_manager.wait_worker() or remaining_runners:
@@ -237,3 +267,13 @@ class RootRunner(Action):
                         # finished. Evne in this case, it should try result from
                         # previous runner firstly in next run.
                         break
+
+                while (
+                    len(remaining_runners) < self._max_concurrency and has_more_runner
+                ):
+                    # Fetch runners, if runner count is smaller than concurrency
+                    # count. It makes sure all concurrency can run.
+                    try:
+                        remaining_runners.append(next(runner_iterator))
+                    except StopIteration:
+                        has_more_runner = False
