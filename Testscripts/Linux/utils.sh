@@ -2428,6 +2428,13 @@ function install_iperf3 () {
 	ip_version=$1
 	LogMsg "Detected $DISTRO_NAME $DISTRO_VERSION; installing required packages of iperf3"
 	update_repos
+
+#if 'ip_version" is not passed assume its ipv4
+	if [[ "x$ip_version" == "x" ]]
+	then
+		ip_version=4
+	fi
+
 	case "$DISTRO_NAME" in
 		oracle|rhel|centos)
 			install_epel
