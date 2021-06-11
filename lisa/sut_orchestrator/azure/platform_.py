@@ -255,7 +255,6 @@ class AzurePlatformSchema:
 class AzurePlatform(Platform):
     def __init__(self, runbook: schema.Platform) -> None:
         super().__init__(runbook=runbook)
-        self._environment_counter = 0
         self._eligible_capabilities: Dict[str, List[AzureCapability]] = dict()
         self._locations_data_cache: Dict[str, AzureLocation] = dict()
 
@@ -450,8 +449,7 @@ class AzurePlatform(Platform):
             normalized_run_name = constants.NORMALIZE_PATTERN.sub(
                 "_", constants.RUN_NAME
             )
-            resource_group_name = f"{normalized_run_name}_e{self._environment_counter}"
-            self._environment_counter += 1
+            resource_group_name = f"{normalized_run_name}_e{environment.id}"
             environment_context.resource_group_is_created = True
 
         environment_context.resource_group_name = resource_group_name

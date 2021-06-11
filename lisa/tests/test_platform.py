@@ -7,6 +7,7 @@ from unittest.case import TestCase
 
 from dataclasses_json import dataclass_json
 
+import lisa
 from lisa import schema
 from lisa.environment import (
     Environment,
@@ -141,6 +142,9 @@ def generate_environments() -> Environments:
 
 
 class PlatformTestCase(TestCase):
+    def setUp(self) -> None:
+        lisa.environment._global_environment_id = 0
+
     def test_prepared_env_not_success_with_exception(self) -> None:
         platform = generate_platform()
         platform.set_test_config(return_prepared=False)

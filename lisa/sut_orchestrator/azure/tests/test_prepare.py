@@ -306,7 +306,7 @@ class AzurePrepareTestCase(TestCase):
         self,
         node_req_count: int = 2,
     ) -> Environment:
-        environment = Environment(is_predefined=True, warn_as_error=False)
+        environment = Environment(is_predefined=True, warn_as_error=False, id_=0)
         environment.runbook = schema.Environment()
         if node_req_count > 0:
             environment.runbook.nodes_requirement = []

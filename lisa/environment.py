@@ -9,6 +9,7 @@ from dataclasses import dataclass, field
 from enum import Enum
 from functools import partial
 from pathlib import Path
+from threading import Lock
 from typing import TYPE_CHECKING, Any, Dict, List, Optional
 
 from dataclasses_json import dataclass_json
@@ -53,6 +54,23 @@ EnvironmentStatus = Enum(
         "Deleted",
     ],
 )
+
+_global_environment_id = 0
+_global_environment_id_lock: Lock = Lock()
+
+
+def _get_environment_id() -> int:
+    """
+    Return an unique id crossing threads, runners.
+    """
+    global _global_environment_id_lock
+    global _global_environment_id
+
+    with _global_environment_id_lock:
+        id = _global_environment_id
+        _global_environment_id += 1
+
+    return id
 
 
 @dataclass_json()
@@ -128,7 +146,7 @@ class EnvironmentSpace(search_space.RequirementMixin):
 
 
 class Environment(ContextMixin, InitializableMixin):
-    def __init__(self, is_predefined: bool, warn_as_error: bool) -> None:
+    def __init__(self, is_predefined: bool, warn_as_error: bool, id_: int) -> None:
         super().__init__()
 
         self.nodes: Nodes = Nodes()
@@ -137,6 +155,7 @@ class Environment(ContextMixin, InitializableMixin):
         self.status: EnvironmentStatus = EnvironmentStatus.New
         self.is_predefined: bool = is_predefined
         self.is_new: bool = True
+        self.id = id_
         self.platform: Optional[Platform] = None
         # cost uses to plan order of environments.
         # cheaper env can fit cases earlier to run more cases on it.
@@ -180,10 +199,14 @@ class Environment(ContextMixin, InitializableMixin):
 
     @classmethod
     def create(
-        cls, runbook: schema.Environment, is_predefined: bool, warn_as_error: bool
+        cls,
+        runbook: schema.Environment,
+        is_predefined: bool,
+        warn_as_error: bool,
+        id_: int,
     ) -> Environment:
         environment = Environment(
-            is_predefined=is_predefined, warn_as_error=warn_as_error
+            is_predefined=is_predefined, warn_as_error=warn_as_error, id_=id_
         )
         environment.name = runbook.name
 
@@ -296,14 +319,20 @@ class Environments(EnvironmentsDict):
             topology=requirement.topology,
             nodes_requirement=requirement.nodes,
         )
+        id_ = _get_environment_id()
         return self.from_runbook(
             runbook=runbook,
-            name=f"generated_{len(self.keys())}",
+            name=f"generated_{id_}",
             is_predefined_runbook=False,
+            id_=id_,
         )
 
     def from_runbook(
-        self, runbook: schema.Environment, name: str, is_predefined_runbook: bool
+        self,
+        runbook: schema.Environment,
+        name: str,
+        is_predefined_runbook: bool,
+        id_: int,
     ) -> Optional[Environment]:
         assert runbook
         assert name
@@ -316,6 +345,7 @@ class Environments(EnvironmentsDict):
             runbook=copied_runbook,
             is_predefined=is_predefined_runbook,
             warn_as_error=self.warn_as_error,
+            id_=id_,
         )
         self[name] = env
         log = _get_init_logger()
@@ -335,10 +365,12 @@ def load_environments(
 
         environments_runbook = root_runbook.environments
         for environment_runbook in environments_runbook:
+            id_ = _get_environment_id()
             env = environments.from_runbook(
                 runbook=environment_runbook,
-                name=f"customized_{len(environments)}",
+                name=f"customized_{id_}",
                 is_predefined_runbook=True,
+                id_=id_,
             )
             assert env, "created from runbook shouldn't be None"
     else:
