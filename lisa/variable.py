@@ -24,6 +24,14 @@ class VariableEntry:
     data: Any
     is_used: bool = False
 
+    def copy(self) -> "VariableEntry":
+        return VariableEntry(name=self.name, data=self.data, is_used=self.is_used)
+
+    def update(self, new_variable: "VariableEntry") -> None:
+        if new_variable:
+            self.data = new_variable.data
+            self.is_used = self.is_used or new_variable.is_used
+
 
 def replace_variables(data: Any, variables: Dict[str, VariableEntry]) -> Any:
 
