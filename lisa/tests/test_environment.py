@@ -9,6 +9,7 @@ from unittest import TestCase
 from dataclasses_json import dataclass_json
 from marshmallow import validate
 
+import lisa
 from lisa import node, schema, search_space
 from lisa.environment import load_environments
 from lisa.testsuite import simple_requirement
@@ -171,6 +172,9 @@ def generate_runbook(
 
 
 class EnvironmentTestCase(TestCase):
+    def setUp(self) -> None:
+        lisa.environment._global_environment_id = 0
+
     def test_load_empty_runbook(self) -> None:
         envs = load_environments(None)
         self.assertEqual(0, len(envs))

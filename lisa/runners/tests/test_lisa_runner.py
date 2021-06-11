@@ -4,6 +4,7 @@
 from typing import List, Optional, cast
 from unittest import TestCase
 
+import lisa
 from lisa import schema
 from lisa.environment import EnvironmentStatus, load_environments
 from lisa.runners.lisa_runner import LisaRunner
@@ -50,6 +51,9 @@ def generate_runner(
 
 class RunnerTestCase(TestCase):
     __skipped_no_env = "no available environment"
+
+    def setUp(self) -> None:
+        lisa.environment._global_environment_id = 0
 
     def tearDown(self) -> None:
         cleanup_cases_metadata()  # Necessary side effects!
