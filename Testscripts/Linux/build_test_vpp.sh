@@ -35,9 +35,9 @@ function build_test_vpp () {
 			package_manager_install_flags="-ivh"
 			package_type="rpm"
 			ssh "${1}" ". ${UTIL_FILE} && install_epel"
+			ssh "${1}" ". ${UTIL_FILE} && . ${DPDK_UTIL_FILE} && Install_Dpdk_Dependencies ${1} ${distro}"
 			ssh "${1}" "yum -y --nogpgcheck groupinstall 'Development Tools'"
 			check_exit_status "Install Development Tools on ${1}" "exit"
-			ssh "${1}" ". ${UTIL_FILE} && . ${DPDK_UTIL_FILE} && Install_Dpdk_Dependencies ${1} ${distro}"
 			packages=(kernel-devel-$(uname -r) librdmacm-devel redhat-lsb glibc-static \
 				apr-devel numactl-devel.x86_64 libmnl-devel \
 				check check-devel boost boost-devel selinux-policy selinux-policy-devel \
