@@ -2,11 +2,17 @@
 # Licensed under the MIT license.
 
 import re
+from enum import Enum
 from typing import Any, Optional, Type
 
 from assertpy import assert_that
 
 from lisa.executable import Tool
+
+CpuType = Enum(
+    "CpuType",
+    ["AMD", "Intel"],
+)
 
 
 class Lscpu(Tool):
@@ -56,6 +62,14 @@ class Lscpu(Tool):
         self._core_count = int(matched[0]) * 1
 
         return self._core_count
+
+    def get_cpu_type(self, force_run: bool = False) -> CpuType:
+        result = self.run(force_run=force_run)
+        if "AuthenticAMD" in result.stdout:
+            return CpuType.AMD
+        elif "GenuineIntel" in result.stdout:
+            return CpuType.Intel
+        return CpuType.Intel
 
 
 class WindowsLscpu(Lscpu):
