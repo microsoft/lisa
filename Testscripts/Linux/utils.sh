@@ -223,7 +223,7 @@ function GetDistro() {
 	# Make sure we don't inherit anything
 	declare __DISTRO
 	#Get distro (snipper take from alsa-info.sh)
-	__DISTRO=$(grep -ihs "AlmaLinux\|Ubuntu\|SUSE\|Fedora\|Debian\|CentOS\|Red Hat Enterprise Linux\|clear-linux-os\|CoreOS" /{etc,usr/lib}/{issue,*release,*version})
+	__DISTRO=$(grep -ihs "AlmaLinux\|Ubuntu\|SUSE\|Fedora\|Debian\|CentOS\|Red Hat Enterprise Linux\|clear-linux-os\|CoreOS\|Mariner" /{etc,usr/lib}/{issue,*release,*version})
 	case $__DISTRO in
 		*Ubuntu*14.04*)
 			DISTRO=ubuntu_14.04
@@ -303,6 +303,9 @@ function GetDistro() {
 		ID*=debian)
 			DISTRO=debian
 			;;
+		*ID=*Mariner*)
+			DISTRO=mariner
+			;;
 		*AlmaLinux*8*)
 			DISTRO=almalinux_8
 			;;
@@ -323,6 +326,9 @@ function GetDistro() {
 		;;
 		coreos*)
 			OS_FAMILY="CoreOS"
+		;;
+		mariner*)
+			OS_FAMILY="mariner"
 		;;
 		*)
 			OS_FAMILY="unknown"
@@ -857,8 +863,19 @@ function CreateVlanConfig() {
 			ip addr add "$__ip/$__netmask" dev "$__interface.$__vlanID"
 			ip link set dev "$__interface" up
 			ip link set dev "$__interface.$__vlanID" up
-
 			;;
+
+		mariner)
+			LogMsg "ip link add link $__interface name $__interface.$__vlanID type vlan id $__vlanID"
+			ip link add link "$__interface" name "$__interface.$__vlanID" type vlan id "$__vlanID"
+			LogMsg "ip link set dev $__interface.$__vlanID up"
+			ip link set dev "$__interface.$__vlanID" up
+			LogMsg "ip link set dev "$__interface" up"
+			ip link set dev "$__interface" up
+			LogMsg "ip addr add $__ip/$__netmask dev $__interface.$__vlanID"
+			ip addr add "$__ip/$__netmask" dev "$__interface.$__vlanID"
+			;;
+
 		suse_12*)
 			cat <<-EOF > "$__file_path"
 				TYPE=Ethernet
@@ -1271,6 +1288,11 @@ function CreateIfupConfigFile() {
 					fi
 				fi
 				;;
+
+			mariner)
+				LogMsg "Mariner use systemd-networkd, no need extra step when use dhcp."
+			;;
+
 			*)
 				LogErr "Platform not supported yet!"
 				return 1
@@ -1447,6 +1469,24 @@ function CreateIfupConfigFile() {
 						ifup "$__interface_name"
 					fi
 				fi
+				;;
+
+			mariner)
+				__file_path="/etc/systemd/network/10-static-en.network"
+				touch $__file_path
+				if [ ! -d "$(dirname $__file_path)" ]; then
+					LogErr "$(dirname $__file_path) does not exist! Something is wrong with the network config!"
+					return 1
+				fi
+				cat <<-EOF >> "$__file_path"
+						[Match]
+						Name=$__interface_name
+
+						[Network]
+						Address=$__ip/24
+					EOF
+				chmod 644 "$__file_path"
+				systemctl restart systemd-networkd
 				;;
 			*)
 				LogErr "Platform not supported!"
@@ -1870,6 +1910,11 @@ function GetOSVersion {
         os_PACKAGE="rpm"
         os_CODENAME=""
         os_RELEASE=$(awk '/VERSION_ID=/' /etc/os-release | sed 's/VERSION_ID=//' | sed 's/\"//g')
+    elif [[ -f /etc/os-release ]] && [[ $(cat /etc/os-release) =~ "Mariner" ]]; then
+        os_VENDOR="Microsoft"
+        os_PACKAGE="rpm"
+        os_CODENAME=""
+        os_RELEASE=$(awk '/VERSION_ID=/' /etc/os-release | sed 's/VERSION_ID=//' | sed 's/\"//g')
     fi
     export os_VENDOR os_RELEASE os_UPDATE os_PACKAGE os_CODENAME
 }
@@ -1880,7 +1925,7 @@ function GetGuestGeneration() {
     else
         os_GENERATION=1
     fi
-	LogMsg "Generation: $os_GENERATION"
+    LogMsg "Generation: $os_GENERATION"
 }
 
 #######################################################################
@@ -2064,6 +2109,8 @@ function detect_linux_distribution() {
 		linux_distribution='oracle'
 	elif echo "$linux_distribution" | grep -Eqi "debian|cbld"; then
 		linux_distribution='debian'
+	elif echo "$linux_distribution" | grep -qi "mariner"; then
+		linux_distribution='mariner'
 	fi
 	echo "$(echo "$linux_distribution" | awk '{print tolower($0)}')"
 }
@@ -2071,7 +2118,7 @@ function detect_linux_distribution() {
 # Update reposiotry
 function update_repos() {
 	case "$DISTRO_NAME" in
-		oracle|rhel|centos|almalinux)
+		oracle|rhel|centos|almalinux|mariner)
 			yum clean all
 			;;
 		ubuntu|debian)
@@ -2142,6 +2189,20 @@ function yum_remove () {
 	check_exit_status "yum_remove $package_name" "exit"
 }
 
+# dnf install packages, parameter: package name
+function dnf_install () {
+	package_name=$1
+	sudo dnf -y install $package_name
+	check_exit_status "dnf_install $package_name" "exit"
+}
+
+# dnf remove packages, parameter: package name
+function dnf_remove () {
+	package_name=$1
+	sudo dnf -y remove $package_name
+	check_exit_status "dnf_remove $package_name" "exit"
+}
+
 # Zypper install packages, parameter: package name
 function zypper_install () {
 	package_name=$1
@@ -2180,6 +2241,10 @@ function install_package () {
 				yum_install "$package_name"
 				;;
 
+			mariner)
+				dnf_install "$package_name"
+				;;
+
 			ubuntu|debian)
 				apt_get_install "$package_name"
 				;;
@@ -2205,6 +2270,10 @@ function remove_package () {
 		case "$DISTRO_NAME" in
 			oracle|rhel|centos|almalinux)
 				yum_remove "$package_name"
+				;;
+
+			mariner)
+				dnf_remove "$package_name"
 				;;
 
 			ubuntu|debian)
@@ -2367,6 +2436,21 @@ function install_fio () {
 			mount -t debugfs none /sys/kernel/debug
 			;;
 
+		mariner)
+			dnf -y --nogpgcheck install wget build-essential sysstat blktrace libaio bc libaio-devel gcc kernel-devel kernel-headers binutils glibc-devel zlib-devel
+			if ! command -v fio; then
+				LogMsg "fio is not installed\n Build it from source code now..."
+				fio_version="3.13"
+				wget https://github.com/axboe/fio/archive/fio-${fio_version}.tar.gz
+				tar xvf fio-${fio_version}.tar.gz
+				pushd fio-fio-${fio_version} && ./configure && make && make install
+				popd
+				yes | cp -f /usr/local/bin/fio /bin/
+			fi
+			check_exit_status "install_fio"
+			mount -t debugfs none /sys/kernel/debug
+			;;
+
 		ubuntu|debian)
 			export DEBIAN_FRONTEND=noninteractive
 			dpkg_configure
@@ -2447,6 +2531,29 @@ function install_iperf3 () {
 			install_epel
 			yum -y --nogpgcheck install iperf3 sysstat bc psmisc wget
 			iptables -F
+			;;
+
+		mariner)
+			yum -y --nogpgcheck install gcc make sysstat bc psmisc wget kernel-headers binutils glibc-devel zlib-devel
+			iperf3_version=3.2
+			iperf3_url=https://github.com/esnet/iperf/archive/$iperf3_version.tar.gz
+			wget $iperf3_url
+			if [ $? -ne 0 ]; then
+				LogErr "Failed to download iperf3 from $iperf3_url"
+				return 1
+			fi
+
+			tar xf $iperf3_version.tar.gz
+			pushd iperf-$iperf3_version
+			./configure; make; make install
+			ldconfig
+			popd
+			PATH="$PATH:/usr/local/bin"
+			iperf3 -v > /dev/null 2>&1
+			if [ $? -ne 0 ]; then
+				LogErr "Failed to install iperf3"
+				return 1
+			fi
 			;;
 
 		ubuntu|debian)
@@ -2575,6 +2682,12 @@ function install_lagscope () {
 			systemctl stop firewalld.service || service firewalld stop
 			;;
 
+		mariner)
+			yum -y --nogpgcheck install libaio sysstat git bc make gcc wget cmake kernel-headers binutils glibc-devel zlib-devel
+			build_lagscope "${1}"
+			iptables -F
+			;;
+
 		ubuntu|debian)
 			dpkg_configure
 			install_package "libaio1 sysstat git bc make gcc cmake"
@@ -2643,6 +2756,13 @@ function install_ntttcp () {
 		oracle|rhel|centos|almalinux)
 			install_epel
 			yum -y --nogpgcheck install wget libaio sysstat git bc make gcc dstat psmisc lshw cmake
+			build_ntttcp "${1}"
+			build_lagscope "${2}"
+			iptables -F
+			;;
+
+		mariner)
+			yum -y --nogpgcheck install wget libaio sysstat git bc make gcc dstat psmisc lshw cmake kernel-headers binutils glibc-devel zlib-devel
 			build_ntttcp "${1}"
 			build_lagscope "${2}"
 			iptables -F
@@ -2819,6 +2939,12 @@ function install_netperf () {
 		oracle|rhel|centos|almalinux)
 			install_epel
 			yum -y --nogpgcheck install sysstat make gcc wget
+			build_netperf
+			iptables -F
+			;;
+
+		mariner)
+			yum -y --nogpgcheck install sysstat make gcc wget kernel-headers binutils glibc-devel zlib-devel
 			build_netperf
 			iptables -F
 			;;
@@ -3267,8 +3393,8 @@ function stop_firewall() {
 				return 1
 			fi
 			;;
-		redhat* | centos* | fedora* | almalinux*)
-			service firewalld stop
+		redhat* | centos* | fedora* | almalinux* | mariner*)
+			service firewalld stop || systemctl stop iptables
 			if [ $? -ne 0 ]; then
 				exit 1
 			fi
@@ -3298,7 +3424,7 @@ function Update_Kernel() {
             sudo DEBIAN_FRONTEND=noninteractive apt-get upgrade -y -o Dpkg::Options::="--force-confdef" -o Dpkg::Options::="--force-confold"
             retVal=$?
             ;;
-        redhat* | centos* | fedora* | almalinux*)
+        redhat* | centos* | fedora* | almalinux* | mariner*)
             yum install -y kernel
             retVal=$?
             ;;
@@ -3538,6 +3664,11 @@ function check_package () {
 		case "$DISTRO_NAME" in
 			oracle|rhel|centos|almalinux)
 				yum --showduplicates list "$package_name" > /dev/null 2>&1
+				return $?
+				;;
+
+			mariner)
+				tdnf search "$package_name" > /dev/null 2>&1
 				return $?
 				;;
 
@@ -3855,6 +3986,25 @@ function is_hpc_vm() {
 	fi
 }
 
+function install_sysbench {
+	check_package "sysbench"
+	if [ $? -ne 0 ]; then
+		SYSBENCH_VERSION=1.0.9
+		wget https://github.com/akopytov/sysbench/archive/$SYSBENCH_VERSION.zip
+		unzip $SYSBENCH_VERSION.zip
+		install_package "make ncurses-devel diffutils gcc autoconf automake kernel-headers binutils glibc-devel zlib-devel vim-extra"
+		cd sysbench-1.0.9/
+		bash ./autogen.sh
+		bash ./configure --without-mysql
+		make
+		make install
+		export PATH="/usr/local/bin:${PATH}"
+		cd ..
+	else
+		install_package sysbench
+	fi
+}
+
 # Get name of additional synthetic interface
 function get_extra_synth_nic {
     local ignore_if=$(ip route | grep default | awk '{print $5}')
@@ -3887,5 +4037,25 @@ function found_sys_log() {
 		return 1
 	else
 		return 0
+	fi
+}
+
+function install_mdadm() {
+	which mdadm
+	if [ $? -ne 0 ]; then
+		LogMsg "mdadm not installed\n Installing now..."
+		check_package "mdadm"
+		if [ $? -ne 0 ]; then
+			install_package "git make"
+			LogMsg "mdadm not installed\n Build it from source code now..."
+			git clone https://github.com/neilbrown/mdadm
+			cd mdadm
+			make && make install
+			cd ..
+		else
+			install_package mdadm
+		fi
+		which mdadm
+		check_exit_status "install_mdadm"
 	fi
 }

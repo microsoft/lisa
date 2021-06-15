@@ -1,7 +1,7 @@
 #!/bin/bash
 # Copyright (c) Microsoft Corporation. All rights reserved.
 # Licensed under the Apache License.
-DISTRO=$(grep -ihs "AlmaLinux\|Ubuntu\|Suse\|Fedora\|Debian\|CentOS\|Red Hat Enterprise Linux\|clear-linux-os" /etc/{issue,*release,*version} /usr/lib/os-release)
+DISTRO=$(grep -ihs "AlmaLinux\|Ubuntu\|Suse\|Fedora\|Debian\|CentOS\|Red Hat Enterprise Linux\|clear-linux-os\|mariner" /etc/{issue,*release,*version} /usr/lib/os-release)
 
 if [[ $DISTRO =~ "SUSE Linux Enterprise Server 12" ]];
 then
@@ -23,7 +23,6 @@ then
         echo "Error: Unable to install mdadm"
         exit 1
     fi
-
 elif [[ $DISTRO =~ "Red Hat Enterprise Linux Server release 6" ]];
 then
     echo "Detected RHEL 6.x; Installing required packages"
@@ -63,13 +62,13 @@ elif [[ $DISTRO =~ "clear-linux-os" ]];
 then
     echo "Detected Clear Linux OS. Installing required packages"
     swupd bundle-add performance-tools os-core-dev
-elif [[ $DISTRO =~ "almalinux" ]];
+elif [[ $DISTRO =~ "almalinux" ]] || [[ $DISTRO =~ "mariner" ]];
 then
     echo "Detected $DISTRO. Installing required packages"
     yum -y --nogpgcheck install mdadm
 else
-        echo "Unknown Distro"
-        exit 1
+    echo "Unknown Distro"
+    exit 1
 fi
 
 #Create Raid of All available Data disks

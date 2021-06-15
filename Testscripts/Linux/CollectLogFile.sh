@@ -12,7 +12,7 @@ if [ -z "$hostname" ]; then
         hostname=$(hostname)
 fi
 export PATH="/sbin:/bin:/usr/sbin:/usr/bin"
-dmesg > ${hostname}-dmesg.txt
+sudo dmesg > ${hostname}-dmesg.txt
 cp /var/log/waagent.log ${hostname}-waagent.log.txt
 uname -r > ${hostname}-kernelVersion.txt
 uname -i > ${hostname}-hardwarePlatform.txt
@@ -31,7 +31,7 @@ elif [ -f /etc/SuSE-release ] ; then
         echo "/etc/SuSE-release detected"
         cat /etc/os-release | grep ^PRETTY_NAME | sed 's/"//g' | sed 's/PRETTY_NAME=//g' > ${hostname}-distroVersion.txt
 elif [[ "$release" =~ "UBUNTU" ]] || [[ "$release" =~ "Ubuntu" ]] || [[ "$release" =~ "Debian" ]] || \
-            [[ "$release" =~ "SUSE Linux Enterprise Server 15" ]] || [[ "$release" =~ "CoreOS" ]]; then
+            [[ "$release" =~ "SUSE Linux Enterprise Server 15" ]] || [[ "$release" =~ "CoreOS" ]] || [[ "$release" =~ "Mariner" ]]; then
         NAME=$(cat /etc/os-release | grep ^NAME= | sed 's/"//g' | sed 's/NAME=//g')
         VERSION=$(cat /etc/os-release | grep ^VERSION= | sed 's/"//g' | sed 's/VERSION=//g')
         echo "$NAME $VERSION" > ${hostname}-distroVersion.txt

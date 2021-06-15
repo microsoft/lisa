@@ -212,6 +212,20 @@ ConfigureVF()
                 ip link set eth$__iterator up
                 ip addr add "${staticIP}"/"$NETMASK" broadcast $broadcastAddress dev eth$__iterator
             ;;
+
+            mariner)
+                __file_path="/etc/systemd/network/$__iterator-static-en.network"
+                rm -f $__file_path
+
+                echo "[Match]" >> $__file_path
+                echo "Name=eth$__iterator" >> $__file_path
+                echo "[Network]" >> $__file_path
+                echo "Address=$staticIP/24" >> $__file_path
+
+                ip link set eth$__iterator up
+                ip addr add "${staticIP}"/"$NETMASK" broadcast $broadcastAddress dev eth$__iterator
+            ;;
+
             *)
                 LogErr "$DISTRO does not support in the function call"
                 SetTestStateFailed
@@ -240,6 +254,18 @@ InstallDependencies()
     # Stop firewall
     stop_firewall
 
+    lspci --version
+    if [ $? -ne 0 ]; then
+        LogMsg "INFO: pciutils not found. Trying to install it"
+        update_repos
+        install_package "pciutils"
+        if [ $? -ne 0 ]; then
+            LogMsg "$msg"
+            SetTestStateFailed
+            exit 1
+        fi
+    fi
+
     wget -V > /dev/null 2>&1
     if [ $? -ne 0 ]; then
         update_repos
@@ -253,7 +279,7 @@ InstallDependencies()
 
     # Check if iPerf3 is already installed
     iperf3 -v > /dev/null 2>&1
-    if [ $? -ne 0 ] && [[ $(detect_linux_distribution) != coreos ]]; then
+    if [ $? -ne 0 ] && [[ $(detect_linux_distribution) != coreos ]] && [[ $(detect_linux_distribution) != mariner ]]; then
         update_repos
         gcc -v
         if [ $? -ne 0 ]; then

@@ -39,10 +39,13 @@ function Main {
         return "ABORTED"
     }
 
+    Run-LinuxCmd -ip $Ipv4 -port $VMPort -username $VMUserName -password `
+        $VMPassword -command "cat /etc/issue | grep -i mariner && yum install -y gcc kernel-headers binutils glibc-devel zlib-devel" -runAsSudo -ignoreLinuxExitCode
+
     # Compile gettime.c
     $compileCmd = "gcc /home/${VMUserName}/gettime.c -o /home/${VMUserName}/gettime"
     Run-LinuxCmd -ip $Ipv4 -port $VMPort -username $VMUserName -password `
-        $VMPassword -command $compileCmd -runAsSudo
+        $VMPassword -command $compileCmd -runAsSudo | Out-Null
     if ($? -ne $True) {
         Write-LogErr "Unable to compile gettime.c"
         return "ABORTED"

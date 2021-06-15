@@ -29,7 +29,7 @@ fi
 
 GetDistro
 case $DISTRO in
-    "redhat_7" | "centos_7" | "Fedora" )
+    "redhat_7" | "centos_7" | "Fedora" | "mariner")
         serviceName=$(systemctl list-unit-files | grep -e 'hypervvssd\|[h]v-vss-daemon\|[h]v_vss_daemon'| cut -d " " -f 1)
     ;;
     "redhat_6" | "centos_6")
@@ -46,7 +46,7 @@ esac
 for i in $(echo $serviceName | tr "\r" "\n")
 do
     LogMsg "service $i $serviceAction"
-    service $i $serviceAction
+    service $i $serviceAction || systemctl $serviceAction $i
     if [ $? -ne 0 ]; then
         loginfo="Fail to set VSS Daemon $serviceName as $serviceAction"
         LogErr "$loginfo"

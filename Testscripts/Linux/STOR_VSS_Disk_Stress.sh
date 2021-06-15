@@ -54,6 +54,9 @@ then
     SetTestStateAborted
     exit 1
 fi
+if [[ $(detect_linux_distribution) == 'mariner' ]]; then
+    install_package "make gcc kernel-headers binutils glibc-devel"
+fi
 cd ${ROOTDIR}/src/current
 # Compile iozone
 make linux

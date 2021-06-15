@@ -52,7 +52,7 @@ if [ -z $NewSize ] && [ -n $growSize ]; then
   NewSize=$growSize
   LogMsg "Target parted size is $NewSize"
 fi
-
+install_package "parted"
 # Create the new partition
 parted "$deviceName" -s mklabel gpt mkpart primary 0GB $NewSize
 if [ $? -gt 0 ]; then

@@ -164,13 +164,13 @@ install_dependencies
 if [ $? -ne 0 ]; then
     LogErr "Failed to install dependency packages"
     SetTestStateSkipped
-    exit 1
+    exit 0
 fi
 
 if [[ $DISTRO =~ "debian" && $TEST_NAME =~ "unixbench" ]]; then
     LogMsg "Unsupported distro for unixbench of LKP"
     SetTestStateSkipped
-    exit 1
+    exit 0
 fi
 
 LogMsg "Choose test case..."

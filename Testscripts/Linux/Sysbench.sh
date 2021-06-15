@@ -88,7 +88,7 @@ function Download_Sysbench() {
         SetTestStateFailed
         exit 0
     fi
-
+    install_package unzip
     yes | unzip $SYSBENCH_VERSION.zip
     if [ $? -gt 0 ]; then
         LogErr "Failed to unzip sysbench."
@@ -121,6 +121,14 @@ function Install_Deps() {
         "Sles")
             zypper_install "gcc make automake libtool vim"
         ;;
+        "mariner")
+            install_package "make ncurses-devel diffutils gcc autoconf automake kernel-headers binutils glibc-devel zlib-devel vim"
+            git clone https://github.com/vim/vim
+            cd vim
+            ./configure && make && make install
+            cd ..
+            export PATH=$PATH:/usr/local/bin/
+        ;;
     esac
 
     pushd "$ROOT_DIR/sysbench-$SYSBENCH_VERSION"
@@ -146,13 +154,10 @@ function Install_Deps() {
 }
 
 UtilsInit
-
+install_package wget
 pushd $ROOT_DIR
-
 Download_Sysbench
-
 Install_Deps
-
 popd
 
 FILEIO_PASS=-1

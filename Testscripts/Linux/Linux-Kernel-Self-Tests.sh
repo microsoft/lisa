@@ -103,6 +103,13 @@ function install_dependencies() {
             LogMsg "Dependency package names： ${suse_packages[@]}"
             install_package "${suse_packages[@]}" >> $BUILDING_LOG 2>&1
             ;;
+         mariner)
+            rpm_packages=(make git gcc flex bison clang llvm fuse libcap-ng-devel popt-devel \
+                        libcap-devel fuse-devel elfutils-devel numactl glibc-devel build-essential \
+                        rsync)
+            LogMsg "Dependency package name: ${rpm_packages[@]}"
+            install_package "${rpm_packages[@]}" >> $BUILDING_LOG 2>&1
+            ;;
         *)
             LogErr "Unsupported distro: $DISTRO"
             return 1
@@ -288,6 +295,9 @@ function build_and_run_lks() {
             suse*)
                 LogMsg "Skip targets ($SKIP_TARGETS_NONSUPPORT_SUSE) for suse"
                 skip_targets "$TOTAL_TARGETS" "$SKIP_TARGETS_NONSUPPORT_SUSE"
+                ;;
+            mariner)
+                LogMsg "Skip targets for mariner"
                 ;;
             *)
                 LogErr "Unknown distro $DISTRO"

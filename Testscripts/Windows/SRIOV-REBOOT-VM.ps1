@@ -23,7 +23,7 @@ function Main {
         $VMPassword
     )
 
-    $timeout = 30
+    $timeout = 300
 
     # Get IP
     $ipv4 = Get-IPv4ViaKVP $VMName $HvServer

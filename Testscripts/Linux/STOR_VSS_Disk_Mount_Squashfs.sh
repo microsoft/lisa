@@ -12,9 +12,12 @@
 
 # Source constants file and initialize most common variables
 UtilsInit
-
-install_package squashfs-tools
-check_exit_status "squashfs installation" "exit"
+if [[ $(detect_linux_distribution) == 'mariner' ]]; then
+    rpm -i https://rpmfind.net/linux/openmandriva/openmandriva2013.0/repository/x86_64/main/release/squashfs-tools-4.2-6-omv2013.0.x86_64.rpm
+else
+    install_package squashfs-tools
+    check_exit_status "squashfs installation" "exit"
+fi
 
 testDir="/dir"
 testDirSqsh="dir.sqsh"

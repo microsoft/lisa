@@ -30,8 +30,8 @@ def is_firewall_enabled():
                 if update_match:
                     return update_match.groups()[0].lower() == 'y'
 
-    # The firewall is enabled by default.
-    return True
+    # The firewall is not enabled by default.
+    return False
 
 
 def run(*args):

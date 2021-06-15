@@ -141,7 +141,7 @@ function Main {
         return $currentTestResult.TestResult
     }
 
-    $retVal = Run-LinuxCmd -username $user -password $password -ip $Ipv4 -port $VMPort -command  "ps aux | grep [k]vp"
+    $retVal = Run-LinuxCmd -username $user -password $password -ip $Ipv4 -port $VMPort -command  "ps aux | grep [k]vp" -ignoreLinuxExitCode -runAsSudo
     if (-not $retVal) {
         Write-LogErr "KVP daemon crashed durring read process"
         $testResult = "FAIL"

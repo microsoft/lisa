@@ -71,7 +71,7 @@ else
     exit 0
 fi
 # Send 1GB file from VM1 to VM2 via synthetic interface
-scp -i "$HOME"/.ssh/"$SSH_PRIVATE_KEY" -o StrictHostKeyChecking=no "$output_file" "$remote_user"@"$VF_IP2":/tmp/"$output_file"
+scp -i "$HOME"/.ssh/"$SSH_PRIVATE_KEY" -o StrictHostKeyChecking=no "$HOME/$output_file" "$remote_user"@"$VF_IP2":/tmp/"$output_file"
 if [ 0 -ne $? ]; then
     LogErr "Unable to send the file from VM1 to VM2 ($VF_IP2)"
     SetTestStateFailed
@@ -97,7 +97,7 @@ if [ 0 -ne $? ]; then
     exit 0
 fi
 # Send 1GB file from VM1 to VM2 via VF
-scp -i "$HOME"/.ssh/"$SSH_PRIVATE_KEY" -o StrictHostKeyChecking=no "$output_file" "$remote_user"@"$VF_IP2":/tmp/"$output_file"
+scp -i "$HOME"/.ssh/"$SSH_PRIVATE_KEY" -o StrictHostKeyChecking=no "$HOME/$output_file" "$remote_user"@"$VF_IP2":/tmp/"$output_file"
 if [ 0 -ne $? ]; then
     LogErr "Unable to send the file from VM1 to VM2 ($VF_IP2)"
     SetTestStateFailed

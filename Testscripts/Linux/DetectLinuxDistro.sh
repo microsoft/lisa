@@ -78,6 +78,9 @@ DetectDistro()
                 elif [[ "$tmp" =~ "SUSE Linux Enterprise High Performance Computing" ]]; then
                     echo "SLE_HPC"
                     exitVal=0
+                elif [[ "$tmp" =~ "Mariner" ]]; then
+                    echo "MarinerOS"
+                    exitVal=0
                 else
                     echo "Unknown"
                 fi

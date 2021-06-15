@@ -50,7 +50,7 @@ Verify_RemoteStatus()
 #######################################################################
 GetDistro
 case $DISTRO in
-    centos* | redhat* | fedora* | almalinux*)
+    centos* | redhat* | fedora* | almalinux* | mariner*)
         if [[ $vm2ipv4 != "" ]]; then
             status=$(ssh -i /root/.ssh/"${SSH_PRIVATE_KEY}" -o StrictHostKeyChecking=no root@"${vm2ipv4}" "find /mnt/var/crash/*/vmcore -type f -size +10M; echo $?")
             Verify_RemoteStatus

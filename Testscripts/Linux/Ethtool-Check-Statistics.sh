@@ -138,6 +138,9 @@ SendFile(){
             iptables -t filter -F
             iptables -t nat -F
         fi;;
+        mariner)
+            install_package "make kernel-headers binutils glibc-devel zlib-devel"
+        ;;
     esac
     ./configure > /dev/null 2>&1
     if [ $? -ne 0 ]; then
@@ -156,6 +159,7 @@ SendFile(){
         LogErr "Unable to install netperf."
         return 1
     fi
+    export PATH="/usr/local/bin:${PATH}"
     popd
     LogMsg "Copy files to dependency vm: ${STATIC_IP2}"
     scp -i "$homeDir"/.ssh/"$SSH_PRIVATE_KEY" -o StrictHostKeyChecking=no ${homeDir}/NET-Netperf-Server.sh \

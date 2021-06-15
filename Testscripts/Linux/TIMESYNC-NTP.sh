@@ -46,7 +46,7 @@ UtilsInit
 GetDistro
 # Try to restart ntp. If it fails we try to install it.
 case $DISTRO in
-    redhat_*|centos_*|almalinux*)
+    redhat_*|centos_*|almalinux*|mariner)
         # RHEL 8 does not support ntp, skip test
         if [[ $DISTRO == "centos_8" || $DISTRO == "redhat_8" || $DISTRO == "almalinux_8" ]]; then
             LogMsg "$DISTRO does not support ntp. Test skipped. "
@@ -54,28 +54,36 @@ case $DISTRO in
             exit 0
         fi
         # Check if ntpd is running
-        service ntpd restart
+        service ntpd restart || systemctl restart ntpd
         if [ $? -ne 0 ];then
             LogMsg "Info: ntpd not installed. Trying to install..."
             update_repos
             yum install -y ntp
             check_cmd_result $? "Installed ntpd successfully" "Unable to install ntpd. Aborting"
 
+            yum install -y chkconfig
             chkconfig ntpd on
             check_cmd_result $? "Successfully configure ntpd" "Unable to chkconfig ntpd on. Aborting"
 
             ntpdate pool.ntp.org
             check_cmd_result $? "Successfully update ntpdate to pool.ntp.org" "Unable to set ntpdate. Aborting"
 
-            service ntpd start
+            service ntpd start || systemctl restart ntpd
             check_cmd_result $? "Successfully started ntpd service" "Unable to start ntpd. Aborting"
         fi
-
+        if [[ $DISTRO == "mariner" ]]; then
+            echo "
+            server 0.pool.ntp.org
+            server 1.pool.ntp.org
+            server 2.pool.ntp.org
+            server 3.pool.ntp.org
+            " >> /etc/ntp.conf
+        fi
         # set rtc clock to system time & restart ntpd
         hwclock --systohc
         check_cmd_result $? "Successfully synced RTC clock" "Unable to sync RTC clock to system time. Aborting"
 
-        service ntpd restart
+        service ntpd restart || systemctl restart ntpd
         check_cmd_result $? "Successfully restarted ntpd daemon" "Unable to start ntpd. Aborting"
     ;;
     ubuntu*)
