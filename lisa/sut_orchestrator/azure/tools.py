@@ -74,10 +74,7 @@ class LisDriver(Tool):
 
     @property
     def can_install(self) -> bool:
-        if (
-            isinstance(self.node.os, Redhat)
-            and float(self.node.os.os_version.release) < 7.8
-        ):
+        if isinstance(self.node.os, Redhat) and self.node.os.release_version < "7.8.0":
             return True
 
         return False
