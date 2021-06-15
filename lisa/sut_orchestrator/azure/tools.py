@@ -62,7 +62,7 @@ class VmGeneration(Tool):
 
 class LisDriver(Tool):
     """
-    This is a virtual tool to detect/install LIS (Linus Integration Services) drivers.
+    This is a virtual tool to detect/install LIS (Linux Integration Services) drivers.
     More info  - https://www.microsoft.com/en-us/download/details.aspx?id=55106
     """
 
