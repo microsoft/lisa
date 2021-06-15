@@ -23,14 +23,21 @@ class VariableEntry:
     name: str
     data: Any
     is_used: bool = False
+    is_case_visible: bool = False
 
     def copy(self) -> "VariableEntry":
-        return VariableEntry(name=self.name, data=self.data, is_used=self.is_used)
+        return VariableEntry(
+            name=self.name,
+            data=self.data,
+            is_used=self.is_used,
+            is_case_visible=self.is_case_visible,
+        )
 
     def update(self, new_variable: "VariableEntry") -> None:
         if new_variable:
             self.data = new_variable.data
             self.is_used = self.is_used or new_variable.is_used
+            self.is_case_visible = self.is_case_visible or new_variable.is_case_visible
 
 
 def replace_variables(data: Any, variables: Dict[str, VariableEntry]) -> Any:
@@ -159,6 +166,7 @@ def _load_from_runbook(
                         entry.name,
                         value,
                         is_secret=entry.is_secret,
+                        is_case_visible=entry.is_case_visible,
                     )
                 current_variables.update(loaded_variables)
                 current_variables.update(higher_level_variables)
@@ -196,6 +204,12 @@ def _load_from_file(
     return results
 
 
+def get_case_variables(variables: Dict[str, VariableEntry]) -> Dict[str, Any]:
+    return {
+        name: value.data for name, value in variables.items() if value.is_case_visible
+    }
+
+
 def add_secrets_from_pairs(
     raw_pairs: Optional[List[str]],
 ) -> Dict[str, VariableEntry]:
@@ -223,6 +237,7 @@ def load_from_variable_entry(
     name: str,
     raw_value: Any,
     is_secret: bool = False,
+    is_case_visible: bool = False,
 ) -> Dict[str, VariableEntry]:
 
     assert isinstance(name, str), f"actual: {type(name)}"
@@ -239,11 +254,13 @@ def load_from_variable_entry(
         is_secret = is_secret or raw_value.is_secret
         mask_pattern_name = raw_value.mask
         value = raw_value.value
+        is_case_visible = raw_value.is_case_visible
     _add_variable(
         name,
         value,
         results,
         is_secret=is_secret,
+        is_case_visible=is_case_visible,
         mask_pattern_name=mask_pattern_name,
     )
     return results
@@ -295,14 +312,16 @@ def _add_variable(
     value: Any,
     current_variables: Dict[str, VariableEntry],
     is_secret: bool = False,
+    is_case_visible: bool = False,
     mask_pattern_name: str = "",
 ) -> None:
     key = key.lower()
     variable = current_variables.get(key, None)
     if variable:
         variable.data = value
+        variable.is_case_visible = variable.is_case_visible or is_case_visible
     else:
-        variable = VariableEntry(name=key, data=value)
+        variable = VariableEntry(name=key, data=value, is_case_visible=is_case_visible)
         current_variables[key] = variable
 
     pattern = None

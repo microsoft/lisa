@@ -3,7 +3,7 @@
 
 import copy
 from functools import partial
-from typing import Any, Callable, List, Optional, cast
+from typing import Any, Callable, Dict, List, Optional, cast
 
 from lisa import notifier, schema, search_space
 from lisa.action import ActionStatus
@@ -24,6 +24,7 @@ from lisa.testselector import select_testcases
 from lisa.testsuite import TestCaseRequirement, TestResult, TestStatus, TestSuite
 from lisa.util import LisaException, constants
 from lisa.util.parallel import check_cancelled
+from lisa.variable import VariableEntry
 
 
 class LisaRunner(BaseRunner):
@@ -148,6 +149,7 @@ class LisaRunner(BaseRunner):
                     task_method=self._run_test_task,
                     environment=environment,
                     test_results=selected_test_results,
+                    case_variables=self._case_variables,
                 )
 
             # Check if there is case to run in a connected environment. If so,
@@ -175,6 +177,7 @@ class LisaRunner(BaseRunner):
                     task_method=self._run_test_task,
                     environment=environment,
                     test_results=selected_test_results,
+                    case_variables=self._case_variables,
                 )
 
         return None
@@ -305,7 +308,10 @@ class LisaRunner(BaseRunner):
             self._delete_environment_task(environment=environment, test_results=[])
 
     def _run_test_task(
-        self, environment: Environment, test_results: List[TestResult]
+        self,
+        environment: Environment,
+        test_results: List[TestResult],
+        case_variables: Dict[str, VariableEntry],
     ) -> None:
 
         self._log.debug(
@@ -318,7 +324,11 @@ class LisaRunner(BaseRunner):
         test_suite: TestSuite = suite_metadata.test_class(
             suite_metadata,
         )
-        test_suite.start(environment=environment, case_results=test_results)
+        test_suite.start(
+            environment=environment,
+            case_results=test_results,
+            case_variables=case_variables,
+        )
 
     def _delete_environment_task(
         self, environment: Environment, test_results: List[TestResult]
@@ -362,9 +372,10 @@ class LisaRunner(BaseRunner):
 
     def _generate_task(
         self,
-        task_method: Callable[[Environment, List[TestResult]], None],
+        task_method: Callable[..., None],
         environment: Environment,
         test_results: List[TestResult],
+        **kwargs: Any,
     ) -> Callable[[], List[TestResult]]:
         assert not environment.is_in_use
         environment.is_in_use = True
@@ -373,17 +384,24 @@ class LisaRunner(BaseRunner):
             if test_result.status == TestStatus.QUEUED:
                 test_result.set_status(TestStatus.ASSIGNED, "")
 
-        task = partial(self._run_task, task_method, environment, test_results)
+        task = partial(
+            self._run_task,
+            task_method,
+            environment=environment,
+            test_results=test_results,
+            **kwargs,
+        )
         return task
 
     def _run_task(
         self,
-        task_method: Callable[[Environment, List[TestResult]], None],
+        task_method: Callable[..., None],
         environment: Environment,
         test_results: List[TestResult],
+        **kwargs: Any,
     ) -> List[TestResult]:
         assert environment.is_in_use
-        task_method(environment, test_results)
+        task_method(environment=environment, test_results=test_results, **kwargs)
 
         for test_result in test_results:
             # return assigned but not run casese

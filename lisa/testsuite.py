@@ -3,6 +3,7 @@
 
 from __future__ import annotations
 
+import copy
 from dataclasses import dataclass, field
 from enum import Enum
 from functools import wraps
@@ -417,6 +418,8 @@ class TestSuite:
         environment: Environment,
         # test cases to run, must be a test method in this class.
         case_results: List[TestResult],
+        # case accessible variables
+        case_variables: Dict[str, Any],
     ) -> None:
         suite_error_message = ""
 
@@ -425,6 +428,8 @@ class TestSuite:
         test_kwargs = {
             "environment": environment,
             "node": environment.default_node,
+            # copy to prevent the data is changed and effect other cases.
+            "variables": copy.copy(case_variables),
         }
 
         #  replace to case's logger temporarily
