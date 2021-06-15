@@ -254,9 +254,11 @@ class Extension:
 @dataclass_json()
 @dataclass
 class VariableEntry:
-    is_secret: bool = False
-    mask: str = ""
     value: Union[str, bool, int] = ""
+    is_secret: bool = False
+    # True means this variable can be used in test cases.
+    is_case_visible: bool = False
+    mask: str = ""
 
 
 @dataclass_json()
@@ -286,6 +288,8 @@ class Variable:
     value_raw: Union[str, bool, int, Dict[Any, Any], List[Any]] = field(
         default="", metadata=metadata(data_key="value")
     )
+    # True means this variable can be used in test cases.
+    is_case_visible: bool = False
 
     def __post_init__(self, *args: Any, **kwargs: Any) -> None:
         if self.file and (self.name or self.value_raw):

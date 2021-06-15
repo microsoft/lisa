@@ -1,8 +1,10 @@
 # Copyright (c) Microsoft Corporation.
 # Licensed under the MIT license.
 
-from typing import Any, List, cast
+from typing import Any, Dict, List, cast
 from unittest import TestCase
+
+from assertpy import assert_that
 
 from lisa import schema
 from lisa.environment import EnvironmentStatus, load_environments
@@ -39,6 +41,7 @@ partial_pass = False
 skipped = False
 queued = False
 fail_case_count = 0
+check_variable = False
 
 
 class MockTestSuite(TestSuite):
@@ -53,6 +56,7 @@ class MockTestSuite(TestSuite):
         self.queued = queued
         self.partial_pass = partial_pass
         self.fail_case_count = fail_case_count
+        self.check_variable = check_variable
 
     def set_fail_phase(
         self,
@@ -64,6 +68,7 @@ class MockTestSuite(TestSuite):
         skipped: bool = False,
         queued: bool = False,
         fail_case_count: int = 0,
+        check_variable: bool = False,
     ) -> None:
         self.fail_on_before_suite = fail_on_before_suite
         self.fail_on_after_suite = fail_on_after_suite
@@ -73,6 +78,7 @@ class MockTestSuite(TestSuite):
         self.skipped = skipped
         self.queued = queued
         self.fail_case_count = fail_case_count
+        self.check_variable = check_variable
 
     def before_suite(self, **kwargs: Any) -> None:
         if self.fail_on_before_suite:
@@ -101,13 +107,18 @@ class MockTestSuite(TestSuite):
             self.fail_case_count -= 1
             raise LisaException("mock_ut1 failed")
 
-    def mock_ut2(self, *args: Any, **kwargs: Any) -> None:
-        pass
+    def mock_ut2(self, variables: Dict[str, Any], **kwargs: Any) -> None:
+        if self.check_variable:
+            assert_that(variables).described_as("variable must exists").contains_entry(
+                {"var": 1}
+            )
+        else:
+            assert_that(variables).described_as("variable must not exists").is_empty()
 
 
 class MockTestSuite2(TestSuite):
     def mock_ut3(self, *args: Any, **kwargs: Any) -> None:
-        pass
+        ...
 
 
 def cleanup_cases_metadata() -> None:
@@ -227,7 +238,11 @@ class TestSuiteTestCase(TestCase):
     def test_skip_before_suite_failed(self) -> None:
         test_suite = self.generate_suite_instance()
         test_suite.set_fail_phase(fail_on_before_suite=True)
-        test_suite.start(environment=self.default_env, case_results=self.case_results)
+        test_suite.start(
+            environment=self.default_env,
+            case_results=self.case_results,
+            case_variables={},
+        )
         for result in self.case_results:
             self.assertEqual(TestStatus.SKIPPED, result.status)
             self.assertEqual("before_suite: failed", result.message)
@@ -235,7 +250,23 @@ class TestSuiteTestCase(TestCase):
     def test_pass_after_suite_failed(self) -> None:
         test_suite = self.generate_suite_instance()
         test_suite.set_fail_phase(fail_on_after_suite=True)
-        test_suite.start(environment=self.default_env, case_results=self.case_results)
+        test_suite.start(
+            environment=self.default_env,
+            case_results=self.case_results,
+            case_variables={},
+        )
+        for result in self.case_results:
+            self.assertEqual(TestStatus.PASSED, result.status)
+            self.assertEqual("", result.message)
+
+    def test_variable_exists(self) -> None:
+        test_suite = self.generate_suite_instance()
+        test_suite.set_fail_phase(check_variable=True)
+        test_suite.start(
+            environment=self.default_env,
+            case_results=self.case_results,
+            case_variables={"var": 1},
+        )
         for result in self.case_results:
             self.assertEqual(TestStatus.PASSED, result.status)
             self.assertEqual("", result.message)
@@ -243,7 +274,11 @@ class TestSuiteTestCase(TestCase):
     def test_skip_before_case_failed(self) -> None:
         test_suite = self.generate_suite_instance()
         test_suite.set_fail_phase(fail_on_before_case=True)
-        test_suite.start(environment=self.default_env, case_results=self.case_results)
+        test_suite.start(
+            environment=self.default_env,
+            case_results=self.case_results,
+            case_variables={},
+        )
         for result in self.case_results:
             self.assertEqual(TestStatus.SKIPPED, result.status)
             self.assertEqual("before_case: failed", result.message)
@@ -251,7 +286,11 @@ class TestSuiteTestCase(TestCase):
     def test_pass_after_case_failed(self) -> None:
         test_suite = self.generate_suite_instance()
         test_suite.set_fail_phase(fail_on_after_case=True)
-        test_suite.start(environment=self.default_env, case_results=self.case_results)
+        test_suite.start(
+            environment=self.default_env,
+            case_results=self.case_results,
+            case_variables={},
+        )
         for result in self.case_results:
             self.assertEqual(TestStatus.PASSED, result.status)
             self.assertEqual("", result.message)
@@ -259,7 +298,11 @@ class TestSuiteTestCase(TestCase):
     def test_skip_case_failed(self) -> None:
         test_suite = self.generate_suite_instance()
         test_suite.set_fail_phase(fail_case_count=1)
-        test_suite.start(environment=self.default_env, case_results=self.case_results)
+        test_suite.start(
+            environment=self.default_env,
+            case_results=self.case_results,
+            case_variables={},
+        )
         result = self.case_results[0]
         self.assertEqual(TestStatus.FAILED, result.status)
         self.assertEqual("failed: mock_ut1 failed", result.message)
@@ -272,7 +315,11 @@ class TestSuiteTestCase(TestCase):
         test_suite.set_fail_phase(fail_case_count=1)
         result = self.case_results[0]
         result.runtime_data.retry = 1
-        test_suite.start(environment=self.default_env, case_results=self.case_results)
+        test_suite.start(
+            environment=self.default_env,
+            case_results=self.case_results,
+            case_variables={},
+        )
         self.assertEqual(TestStatus.PASSED, result.status)
         self.assertEqual("", result.message)
         result = self.case_results[1]
@@ -283,7 +330,11 @@ class TestSuiteTestCase(TestCase):
         test_suite = self.generate_suite_instance()
         test_suite.set_fail_phase(partial_pass=True)
         result = self.case_results[0]
-        test_suite.start(environment=self.default_env, case_results=self.case_results)
+        test_suite.start(
+            environment=self.default_env,
+            case_results=self.case_results,
+            case_variables={},
+        )
         self.assertEqual(TestStatus.PASSED, result.status)
         self.assertEqual("warning: mock_ut1 passed with warning", result.message)
         result = self.case_results[1]
@@ -294,7 +345,11 @@ class TestSuiteTestCase(TestCase):
         test_suite = self.generate_suite_instance()
         test_suite.set_fail_phase(skipped=True)
         result = self.case_results[0]
-        test_suite.start(environment=self.default_env, case_results=self.case_results)
+        test_suite.start(
+            environment=self.default_env,
+            case_results=self.case_results,
+            case_variables={},
+        )
         self.assertEqual(TestStatus.SKIPPED, result.status)
         self.assertEqual("skipped: mock_ut1 skipped this run", result.message)
         result = self.case_results[1]
@@ -305,7 +360,11 @@ class TestSuiteTestCase(TestCase):
         test_suite = self.generate_suite_instance()
         test_suite.set_fail_phase(queued=True)
         result = self.case_results[0]
-        test_suite.start(environment=self.default_env, case_results=self.case_results)
+        test_suite.start(
+            environment=self.default_env,
+            case_results=self.case_results,
+            case_variables={},
+        )
         self.assertEqual(TestStatus.QUEUED, result.status)
         self.assertEqual("queued: mock_ut1 kept not run", result.message)
         result = self.case_results[1]
@@ -317,7 +376,11 @@ class TestSuiteTestCase(TestCase):
         test_suite.set_fail_phase(fail_case_count=2)
         result = self.case_results[0]
         result.runtime_data.retry = 1
-        test_suite.start(environment=self.default_env, case_results=self.case_results)
+        test_suite.start(
+            environment=self.default_env,
+            case_results=self.case_results,
+            case_variables={},
+        )
         self.assertEqual(TestStatus.FAILED, result.status)
         self.assertEqual("failed: mock_ut1 failed", result.message)
         result = self.case_results[1]
@@ -329,7 +392,11 @@ class TestSuiteTestCase(TestCase):
         test_suite.set_fail_phase(fail_case_count=2)
         result = self.case_results[0]
         result.runtime_data.ignore_failure = True
-        test_suite.start(environment=self.default_env, case_results=self.case_results)
+        test_suite.start(
+            environment=self.default_env,
+            case_results=self.case_results,
+            case_variables={},
+        )
         self.assertEqual(TestStatus.ATTEMPTED, result.status)
         self.assertEqual("mock_ut1 failed", result.message)
         result = self.case_results[1]

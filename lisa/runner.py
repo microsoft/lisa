@@ -14,6 +14,7 @@ from lisa.util import BaseClassMixin, InitializableMixin, constants
 from lisa.util.logger import create_file_handler, get_logger, remove_handler
 from lisa.util.parallel import TaskManager, cancel, set_global_task_manager
 from lisa.util.subclasses import Factory
+from lisa.variable import VariableEntry, get_case_variables
 
 
 def parse_testcase_filters(raw_filters: List[Any]) -> List[schema.BaseTestCaseFilter]:
@@ -35,13 +36,19 @@ class BaseRunner(BaseClassMixin, InitializableMixin):
     Base runner of other runners. And other runners derived from this one.
     """
 
-    def __init__(self, runbook: schema.Runbook, index: int) -> None:
+    def __init__(
+        self,
+        runbook: schema.Runbook,
+        index: int,
+        case_variables: Dict[str, Any],
+    ) -> None:
         super().__init__()
         self._runbook = runbook
 
         self.id = f"{self.type_name()}_{index}"
         self._log = get_logger("runner", str(index))
         self._log_handler: Optional[FileHandler] = None
+        self._case_variables = case_variables
         self.canceled = False
 
     @property
@@ -133,16 +140,21 @@ class RootRunner(Action):
                 if variables is None:
                     break
                 sub_runbook = self._runbook_builder.resolve(variables)
-                runners = self._generate_runners(sub_runbook)
+                runners = self._generate_runners(sub_runbook, variables)
                 for runner in runners:
                     yield runner
         else:
             # no combinator, use the root runbook
-            for runner in self._generate_runners(root_runbook):
+            for runner in self._generate_runners(
+                root_runbook, self._runbook_builder.variables
+            ):
                 yield runner
 
-    def _generate_runners(self, runbook: schema.Runbook) -> Iterator[BaseRunner]:
+    def _generate_runners(
+        self, runbook: schema.Runbook, variables: Dict[str, VariableEntry]
+    ) -> Iterator[BaseRunner]:
         # group filters by runner type
+        case_variables = get_case_variables(variables)
         runner_filters: Dict[str, List[schema.BaseTestCaseFilter]] = {}
         for raw_filter in runbook.testcase_raw:
             # by default run all filtered cases unless 'enable' is specified as false
@@ -167,7 +179,10 @@ class RootRunner(Action):
             # keep filters to current runner's only.
             runbook.testcase = parse_testcase_filters(raw_filters)
             runner = factory.create_by_type_name(
-                type_name=runner_name, runbook=runbook, index=len(self._runners)
+                type_name=runner_name,
+                runbook=runbook,
+                index=len(self._runners),
+                case_variables=case_variables,
             )
             runner.initialize()
             self._runners.append(runner)
