@@ -4,7 +4,19 @@
 import re
 from dataclasses import dataclass
 from functools import partial
-from typing import TYPE_CHECKING, Any, Iterable, List, Optional, Pattern, Type, Union
+from typing import (
+    TYPE_CHECKING,
+    Any,
+    Dict,
+    Iterable,
+    List,
+    Optional,
+    Pattern,
+    Type,
+    Union,
+)
+
+from semver import VersionInfo
 
 from lisa.base_tools.wget import Wget
 from lisa.executable import Tool
@@ -191,6 +203,18 @@ class Windows(OperatingSystem):
 
 
 class Posix(OperatingSystem, BaseClassMixin):
+    BASEVERSION = re.compile(
+        r"""[vV]?
+        (?P<major>0|[1-9]\d*)
+        (\.\-\_
+        (?P<minor>0|[1-9]\d*)
+        (\.\-\_
+        (?P<patch>0|[1-9]\d*)
+        )?
+        )?""",
+        re.VERBOSE,
+    )
+
     __os_info_pattern = re.compile(
         r"^(?P<name>.*)=[\"\']?(?P<value>.*?)[\"\']?$", re.MULTILINE
     )
@@ -219,6 +243,46 @@ class Posix(OperatingSystem, BaseClassMixin):
     @classmethod
     def name_pattern(cls) -> Pattern[str]:
         return re.compile(f"^{cls.type_name()}$")
+
+    @property
+    def release_version(self) -> VersionInfo:
+        release_version = self._get_os_version().release
+        if VersionInfo.isvalid(release_version):
+            return VersionInfo.parse(release_version)
+
+        return self._coerce_version(release_version)
+
+    def _coerce_version(self, version: str) -> VersionInfo:
+        """
+        Convert an incomplete version string into a semver-compatible Version
+        object
+
+        source -
+        https://python-semver.readthedocs.io/en/latest/usage.html#dealing-with-invalid-versions
+
+        * Tries to detect a "basic" version string (``major.minor.patch``).
+        * If not enough components can be found, missing components are
+            set to zero to obtain a valid semver version.
+
+        :param str version: the version string to convert
+        :return: a tuple with a :class:`Version` instance (or ``None``
+            if it's not a version) and the rest of the string which doesn't
+            belong to a basic version.
+        :rtype: tuple(:class:`Version` | None, str)
+        """
+        match = self.BASEVERSION.search(version)
+        if not match:
+            raise LisaException("The OS version release is not in a valid format")
+
+        ver: Dict[str, Any] = {
+            key: 0 if value is None else int(value)
+            for key, value in match.groupdict().items()
+        }
+        release_version = VersionInfo(**ver)
+        rest = match.string[match.end() :]  # noqa:E203
+        release_version.build = rest
+
+        return release_version
 
     def _install_packages(
         self, packages: Union[List[str]], signed: bool = True
