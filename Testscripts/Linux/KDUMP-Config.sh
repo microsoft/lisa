@@ -7,6 +7,8 @@ dump_path=/var/crash
 kdump_sysconfig=/etc/sysconfig/kdump
 boot_filepath=""
 target_version=2.0.15
+dnf_preview_repo="/etc/yum.repos.d/mariner-preview-update.repo"
+
 #
 # Source utils.sh to get more utils
 # Get $DISTRO, LogMsg directly from utils.sh
@@ -21,6 +23,24 @@ target_version=2.0.15
 #
 UtilsInit
 
+UpdateMarinerPreviewRepo() {
+    echo "UpdateRepo:: Updating repository..."
+cat > ${dnf_preview_repo} << 'EOF'
+[mariner-preview-update]
+name=CBL-Mariner Preview Update $releasever $basearch
+baseurl=https://packages.microsoft.com/cbl-mariner/$releasever/preview/update/$basearch/rpms
+gpgkey=file:///etc/pki/rpm-gpg/MICROSOFT-RPM-GPG-KEY file:///etc/pki/rpm-gpg/MICROSOFT-METADATA-GPG-KEY
+gpgcheck=1
+repo_gpgcheck=1
+enabled=1
+skip_if_unavailable=True
+sslverify=1
+EOF
+    dnf clean all && dnf repolist --refresh
+    return 0
+}
+
+
 Install_Kexec() {
     case $DISTRO in
         centos* | redhat* | fedora* | almalinux*)
@@ -30,6 +50,10 @@ Install_Kexec() {
                     UpdateSummary "Warning: Kexec-tools failed to install."
                 fi
             fi
+        ;;
+        mariner*)
+            [[ ! -f ${dnf_preview_repo} ]] && UpdateMarinerPreviewRepo
+            install_package kexec-tools
         ;;
         ubuntu* | debian*)
             export DEBIAN_FRONTEND=noninteractive
@@ -300,6 +324,42 @@ Config_Debian() {
     fi
 }
 
+Config_mariner() {
+    LogMsg "Configuring kdump (Mariner)..."
+
+    sed -i '/^path/ s/path/#path/g' $kdump_conf
+    if [ $? -ne 0 ]; then
+        LogErr "Failed to comment path in /etc/kdump.conf. Probably kdump is not installed."
+        SetTestStateAborted
+        exit 0
+    else
+        echo path $dump_path >> $kdump_conf
+        LogMsg "Success: Updated the path to /var/crash."
+    fi
+
+    sed -i '/^default/ s/default/#default/g' $kdump_conf
+    if [ $? -ne 0 ]; then
+        LogErr "Failed to comment default behaviour in /etc/kdump_conf. Probably kdump is not installed."
+        SetTestStateAborted
+        exit 0
+    else
+        echo 'default reboot' >>  $kdump_conf
+        UpdateSummary "Success: Updated the default behaviour to reboot."
+    fi
+
+    boot_filepath="/boot/mariner.cfg"
+    # Enable kdump service
+    LogMsg "Enabling kdump"
+    chkconfig kdump on --level 35
+    if [ $? -ne 0 ]; then
+        LogErr "Failed to enable kdump."
+        SetTestStateAborted
+        exit 0
+    else
+        UpdateSummary "Success: kdump enabled."
+    fi
+}
+
 function version_gt() {
 	test "$(printf '%s\n' "$@" | sort -V | head -n 1)" != "$1"
 }
@@ -351,9 +411,12 @@ sed -i --follow-symlinks "s/crashkernel=\S*//g" $boot_filepath
 # Add the crashkernel param
 if [[ $DISTRO != "redhat_8" ]] && [[ $DISTRO != "centos_8" ]] && [[ $DISTRO != "almalinux_8" ]]; then
     sed -i --follow-symlinks "/vmlinuz-$(uname -r)/ s/$/ crashkernel=$crashkernel/" $boot_filepath
+elif [[ $DISTRO = "mariner" ]]; then
+    sed -i --follow-symlinks "/mariner_cmdline=init/s/$/ crashkernel=$crashkernel/" $boot_filepath
 else
     sed -i --follow-symlinks "/kernelopts=root/s/$/ crashkernel=$crashkernel/" $boot_filepath
 fi
+
 if [ $? -ne 0 ]; then
     LogErr "Could not set the new crashkernel value in $boot_filepath"
     SetTestStateAborted
@@ -366,4 +429,4 @@ fi
 mkdir -p /var/crash
 rm -rf /var/crash/*
 SetTestStateCompleted
-
+exit 0

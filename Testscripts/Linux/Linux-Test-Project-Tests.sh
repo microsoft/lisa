@@ -78,6 +78,9 @@ case $DISTRO in
 		install_epel
         install_package "${rpm_packages[@]}"
         ;;
+    "mariner")
+        install_package "git kernel-headers binutils glibc-devel zlib-devel"
+        ;;
     *)
         LogMsg "Unknown distro $DISTRO, continuing to try for RPM installation"
         ;;

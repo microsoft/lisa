@@ -81,7 +81,7 @@ case "$DISTRO_NAME" in
 	suse|opensuse|sles)
 		add_sles_network_utilities_repo
 		;;
-	coreos|clear-linux-os)
+	coreos|clear-linux-os|mariner)
 		;;
 	*)
 		LogErr "Unknown distribution"

@@ -22,6 +22,19 @@ CheckPTPSupport()
     fi
 }
 
+ChangeServiceState()
+{
+    local service_name="$1"
+    local state="$2"
+    
+    if command -v systemctl > /dev/null;then
+        systemctl $state $service_name
+    else
+        service $service_name $state
+    fi
+    return $?
+}
+
 GetDistro
 case $DISTRO in
     centos* | redhat* | fedora* | almalinux*)
@@ -38,6 +51,11 @@ case $DISTRO in
             fi
         fi
     ;;
+    mariner*)
+        chrony_config_path="/etc/chrony.conf"
+        chrony_service_name="chronyd"
+        ntp_service_name=""
+    ;;
     ubuntu* | debian*)
         #Update required before install
         update_repos
@@ -52,6 +70,8 @@ case $DISTRO in
     ;;
      *)
         LogMsg "WARNING: Distro '${distro}' not supported."
+        SetTestStateSkipped
+        exit 0
     ;;
 esac
 
@@ -67,25 +87,25 @@ if [[ $ptp == "hyperv" ]]; then
     fi
 fi
 
-service $chrony_service_name restart
+ChangeServiceState $chrony_service_name restart
 if [ $? -ne 0 ]; then
     LogMsg "ERROR: Chronyd service failed to restart"
 fi
 
 if [[ $Chrony == "off" ]]; then
-    service $chrony_service_name stop
+    ChangeServiceState $chrony_service_name stop
     if [ $? -ne 0 ]; then
         LogMsg "ERROR: Unable to stop chronyd"
         SetTestStateFailed
-        exit 1
+        exit 0
     fi
 
     if [[ -n $ntp_service_name ]]; then
-        service $ntp_service_name stop
+        ChangeServiceState $ntp_service_name stop
         if [ $? -ne 0 ]; then
             LogMsg "ERROR: Unable to stop NTPD"
             SetTestStateFailed
-            exit 1
+            exit 0
         fi
     fi
 fi

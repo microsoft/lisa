@@ -28,7 +28,7 @@ def RunTest(command):
         ResultLog.error('FAIL')
         UpdateState("TestCompleted")
 
-if(distro == "COREOS"):
+if(distro == "COREOS" or distro == "MarinerOS"):
     RunTest("waagent --version")
 else:
     output = Run("pgrep -fa python3.*waagent")

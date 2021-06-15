@@ -26,6 +26,9 @@ Collect_Waagent_Logs() {
     if [ -f /usr/share/oem/bin/waagent ]
     then
         Log "Waagent Version is" '/usr/share/oem/python/bin/python /usr/share/oem/bin/waagent --version' $dirname/Waagent.txt
+    elif [ -f /bin/waagent ]
+    then
+        Log "Waagent Version is" '/bin/waagent --version' $dirname/Waagent.txt
     else
         Log "Waagent Version is" '/usr/sbin/waagent --version' $dirname/Waagent.txt
     fi

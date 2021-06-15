@@ -180,15 +180,21 @@ function Main {
     # Set SSH key for both VMs
     # Setup ssh on VM1
     Copy-RemoteFiles -uploadTo $ipv4 -port $VMPort -files `
-        ".\Testscripts\Linux\enable_passwordless_root.sh,.\Testscripts\Linux\utils.sh,.\Testscripts\Linux\SR-IOV-Utils.sh" `
+        ".\Testscripts\Linux\enable_passwordless_root.sh,.\Testscripts\Linux\utils.sh,.\Testscripts\Linux\SR-IOV-Utils.sh,.\Testscripts\Linux\enable_root.sh" `
         -username $VMUsername -password $VMPassword -upload
     Copy-RemoteFiles -uploadTo $vm2ipv4 -port $VMPort -files `
-        ".\Testscripts\Linux\enable_passwordless_root.sh,.\Testscripts\Linux\utils.sh,.\Testscripts\Linux\SR-IOV-Utils.sh" `
+        ".\Testscripts\Linux\enable_passwordless_root.sh,.\Testscripts\Linux\utils.sh,.\Testscripts\Linux\SR-IOV-Utils.sh,.\Testscripts\Linux\enable_root.sh" `
         -username $VMUsername -password $VMPassword -upload
     Run-LinuxCmd -ip $ipv4 -port $VMPort -username $VMUsername -password `
         $VMPassword -command "chmod +x /home/${VMUsername}/*.sh" -RunAsSudo -ignoreLinuxExitCode:$true
     Run-LinuxCmd -ip $vm2ipv4 -port $VMPort -username $VMUsername -password `
         $VMPassword -command "chmod +x /home/${VMUsername}/*.sh" -RunAsSudo -ignoreLinuxExitCode:$true
+
+    $null = Run-LinuxCmd -ip $ipv4 -port $VMPort -username $VMUserName -password `
+        $VMPassword -command "/home/$VMUserName/enable_root.sh -password $VMPassword" -runAsSudo
+    $null = Run-LinuxCmd -ip $vm2ipv4 -port $VMPort -username $VMUserName -password `
+        $VMPassword -command "/home/$VMUserName/enable_root.sh -password $VMPassword" -runAsSudo
+
     Run-LinuxCmd -ip $ipv4 -port $VMPort -username $VMUsername -password `
         $VMPassword -command "./enable_passwordless_root.sh  /home/$VMUsername ; cp -rf /root/.ssh /home/$VMUsername" -RunAsSudo
 

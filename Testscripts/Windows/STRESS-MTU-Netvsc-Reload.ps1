@@ -63,7 +63,7 @@ function Main {
     Copy-RemoteFiles -uploadTo $Ipv4 -port $VMPort -password $VMPassword -username $VMUserName `
         -files $scriptPath -upload
     $null = Run-LinuxCmd -username $VMUserName -password $VMPassword -ip $Ipv4 -port $VMPort `
-        -command "dos2unix reload_netvsc.sh && sleep 5 && bash reload_netvsc.sh" -RunInBackGround  -RunAsSudo
+        -command "sleep 5 && bash reload_netvsc.sh" -RunInBackGround -RunAsSudo
 
     Start-Sleep -Seconds 600
     $NewIP = Get-IPv4AndWaitForSSHStart -VmName $VMName -HvServer $HvServer -Vmport $VMPort `

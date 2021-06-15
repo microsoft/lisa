@@ -34,6 +34,10 @@ else
 fi
 
 if [ $? == 0 ]; then
+    # Default path of AuthorizedKeysFile in sshd_config is .ssh/authorized_keys
+    # If the distro has different setting. Delete it and use default.
+    sed -i '/^AuthorizedKeysFile/d' $sshd_configFilePath
+
     sed -i 's/.*PermitRootLogin.*/PermitRootLogin yes/g' $sshd_configFilePath
     if [ $? == 0 ]; then
         echo "$sshd_configFilePath verifed for root login."
@@ -69,6 +73,12 @@ if [ $sshdServiceStatus == 0 ]; then
     echo "SSHD_RESTART_SUCCESSFUL"
 else
     echo "SSHD_RESTART_FAIL"
+fi
+
+if [[ -d /run/systemd/system ]];then
+    systemctl disable iptables
+else
+    service iptables disable
 fi
 
 sync

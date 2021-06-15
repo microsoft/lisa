@@ -34,7 +34,7 @@ CheckCallTracesWithDelay 1
 
 # Read/Write mount point
 mkdir $testDir 2> ~/summary.log
-check_exit_status "Create file $testDir" "exit"
+check_exit_status "Create file $testDir" "failed"
 
 dd if=/dev/zero of=/root/testFile bs=64 count=1
 original_file_size=$(du -b /root/testFile | awk '{ print $1}')
@@ -46,26 +46,26 @@ target_file_size=$(du -b $testFile | awk '{ print $1}')
 if [ $original_file_size != $target_file_size ]; then
 	LogErr "File sizes do not match: ${original_file_size} - ${target_file_size}"
 	SetTestStateFailed
-	exit 1
+	exit 0
 fi
 
 target_checksum=$(sha1sum $testFile | awk '{ print $1}')
 if [ $original_checksum != $target_checksum ]; then
 	LogErr "File checksums do not match: ${original_checksum} - ${target_checksum}"
 	SetTestStateFailed
-	exit 1
+	exit 0
 fi
 
 ls $testFile
-check_exit_status "List file $testFile" "exit"
+check_exit_status "List file $testFile" "failed"
 
 cat $testFile
-check_exit_status "Read file $testFile" "exit"
+check_exit_status "Read file $testFile" "failed"
 
 rm $testFile
-check_exit_status "Delete file $testFile" "exit"
+check_exit_status "Delete file $testFile" "failed"
 
 rmdir $testDir
-check_exit_status "Delete directory $testDir" "exit"
+check_exit_status "Delete directory $testDir" "failed"
 
 LogMsg "Successfully run read/write script"

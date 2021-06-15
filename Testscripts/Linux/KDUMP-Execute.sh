@@ -13,6 +13,10 @@ sys_kexec_crash=/sys/kernel/kexec_crash_loaded
     exit 0
 }
 
+. constants.sh || {
+    LogMsg "Warn: No constants.sh found"
+}
+
 #
 # Source constants file and initialize most common variables
 #
@@ -118,19 +122,40 @@ Check_KDUMP()
     fi
 }
 
+Exec_mariner()
+{
+    LogMsg "Waiting 50 seconds for kdump to become active."
+    sleep 50
+
+    timeout=50
+    while [ $timeout -ge 0 ]; do
+        systemctl status kdump | grep "Active: active" &>/dev/null
+        if [ $? -eq 0 ];then
+            break
+        else
+            LogMsg "Wait for kdump service to be active."
+            timeout=$((timeout-5))
+            sleep 5
+        fi
+    done
+    if  [ $timeout -gt 0 ]; then
+        UpdateSummary "Success: kdump service is active after reboot."
+    else
+        LogErr "kdump service is not active after reboot!"
+        SetTestStateFailed
+        exit 0
+    fi
+}
+
 Configure_NMI()
 {
-    if [ -e "/proc/sys/kernel/unknown_nmi_panic" ] ; then
-        sysctl -w kernel.unknown_nmi_panic=1
-        if [ $? -ne 0 ]; then
-            LogErr "Failed to enable kernel to call panic when it receives a NMI."
-            SetTestStateAborted
-            exit 0
-        else
-            UpdateSummary "Success: enabling kernel to call panic when it receives a NMI."
-        fi
+    sysctl -w kernel.unknown_nmi_panic=1
+    if [ $? -ne 0 ]; then
+        LogErr "Failed to enable kernel to call panic when it receives a NMI."
+        SetTestStateAborted
+        exit 0
     else
-        LogMsg "No /proc/sys/kernel/unknown_nmi_panic file. No need to config NMI panic. "
+        UpdateSummary "Success: enabling kernel to call panic when it receives a NMI."
     fi
 }
 
@@ -144,22 +169,18 @@ Configure_NMI()
 # Configure kdump - this has distro specific behaviour
 #
 # Must allow some time for the kdump service to become active
-Configure_NMI
-
 GetDistro
 
-if [[ "$OS_FAMILY" == "Sles" ]];then
-    systemctl start atd
-fi
-Check_KDUMP
+Configure_NMI
+[[ "$OS_FAMILY" == "Sles" ]] && systemctl start atd
 
+Check_KDUMP
 Exec_"${OS_FAMILY}"
 
-#
-# Preparing for the kernel panic
-#
-echo "Preparing for kernel panic..."
-sync
-sleep 10
+LogMsg "Preparing for kernel panic..."
+sync && sleep 10
 
 echo 1 > /proc/sys/kernel/sysrq
+
+SetTestStateCompleted
+exit 0

@@ -113,7 +113,7 @@ if [ 0 -ne $? ]; then
 fi
 
 LogMsg "Starting to listen on port 1234"
-echo "nc -v -w 30 -l -p $port < $filePath &" > $3
+echo "nc -v -w 60 -l -p $port < $filePath &" > $3
 chmod +x $3
 SetTestStateCompleted
 exit 0

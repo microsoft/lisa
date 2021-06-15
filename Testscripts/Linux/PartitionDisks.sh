@@ -19,6 +19,8 @@ if [ ! ${FILESYS} ]; then
     exit 1
 fi
 
+install_package "btrfs-progs btrfs-progs-devel xfsprogs xfsprogs-devel"
+
 command -v mkfs.$FILESYS >> ~/summary.log
 
 if [ $? -ne 0 ]; then

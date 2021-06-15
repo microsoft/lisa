@@ -53,3 +53,10 @@ else
     fi
     echo "KEY_GENERATED_SUCCESSFULLY"
 fi
+
+if [[ -d /run/systemd/system ]];then
+   systemctl stop iptables 2> /dev/null && systemctl disable iptables
+else
+    service iptables stop 2> /dev/null && service iptables disable
+fi
+exit 0

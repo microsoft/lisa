@@ -324,6 +324,11 @@ Function Copy-RemoteFiles($uploadTo, $downloadFrom, $downloadTo, $port, $files, 
 	}
 	elseif ($download) {
 		foreach ($file in $fileList) {
+			if ($username -ne "root") {
+				$chown_cmd = "chown -Rf ${username}: $file"
+				Write-LogInfo "$chown_cmd"
+				$out = Run-LinuxCmd -username $username -password $password -ip $downloadFrom -port $port -command "$chown_cmd" -runAsSudo
+			}
 			Download-RemoteFile -downloadFrom $downloadFrom -downloadTo $downloadTo -port $port -file $file -username $username `
 				-password $password -usePrivateKey $usePrivateKey $maxRetry
 		}

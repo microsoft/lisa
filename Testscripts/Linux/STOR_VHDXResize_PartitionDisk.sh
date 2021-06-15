@@ -20,7 +20,7 @@
 . utils.sh || {
     echo "Error: unable to source utils.sh!"
     echo "TestAborted" > state.txt
-    exit 1
+    exit 0
 }
 
 # Source constants file and initialize most common variables
@@ -29,23 +29,23 @@ UtilsInit
 if [ "${fileSystems:-UNDEFINED}" = "UNDEFINED" ]; then
     LogErr "The test parameter fileSystems is not defined in constants file."
     SetTestStateAborted
-    exit 1
+    exit 0
 fi
 
 if [ "${deviceName:-UNDEFINED}" = "UNDEFINED" ]; then
     LogErr "Parameter deviceName is not defined in constants file."
     SetTestStateAborted
-    exit 1
+    exit 0
 fi
 
 # Verify if guest detects the new drive
 if [ ! -e "$deviceName" ]; then
     LogErr "The Linux guest cannot detect the drive"
     SetTestStateAborted
-    exit 1
+    exit 0
 fi
 LogMsg "The Linux guest detected the drive"
-
+install_package "btrfs-progs btrfs-progs-devel xfsprogs xfsprogs-devel"
 # Prepare Read/Write script for execution
 chmod +x STOR_VHDXResize_ReadWrite.sh
 
@@ -67,7 +67,7 @@ for fs in "${fileSystems[@]}"; do
     # to rm partition, still can show in fdisk -l even it does not exist in fact.
     (echo d; echo w) | fdisk "$deviceName" 2> /dev/null
     (echo n; echo p; echo $fdiskOption; echo ; echo ;echo w) | fdisk "$deviceName" 2> /dev/null
-    check_exit_status "Create partition" "exit"
+    check_exit_status "Create partition" "failed"
     sync
 
     # Format the partition
@@ -85,36 +85,39 @@ for fs in "${fileSystems[@]}"; do
         if [ "$fs" = "ext4" ]; then
             option="-F"
         fi
+	    if [ "$fs" = "ext3" ]; then
+            option="-F"
+        fi
         mount | grep $testPartition
         if [ $? -eq 0 ]; then
             umount $mntDir
         fi
         mkfs -t $fs $option $testPartition
-        check_exit_status "Format partition with $fs" "exit"
+        check_exit_status "Format partition with $fs" "failed"
     fi
 
     if [ $count -eq ${#fileSystems[@]} ]; then
         LogErr "Failed to format partition with ${fileSystems[@]} "
         SetTestStateFailed
-        exit 1
+        exit 0
     fi
 
     if [ ! -e $mntDir ]; then
         mkdir $mntDir
-        check_exit_status "Create mount point" "exit"
+        check_exit_status "Create mount point" "failed"
     fi
 
     mount $testPartition $mntDir
-    check_exit_status "Mount partition" "exit"
+    check_exit_status "Mount partition" "failed"
 
     # Read/Write mount point
     ./STOR_VHDXResize_ReadWrite.sh
 
     umount $mntDir
-    check_exit_status "Unmount partition" "exit"
-
+    check_exit_status "Unmount partition" "failed"
+    sleep 30
     (echo d; echo w) | fdisk "$deviceName" 2> /dev/null
-    check_exit_status "Delete partition" "exit"
+    check_exit_status "Delete partition" "failed"
 
 done
 

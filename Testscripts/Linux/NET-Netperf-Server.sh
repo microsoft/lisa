@@ -153,6 +153,9 @@ suse_12)
         iptables -t filter -F
         iptables -t nat -F
     fi;;
+mariner)
+        install_package "make kernel-headers binutils glibc-devel zlib-devel"
+    ;;
 esac
 ./configure > /dev/null 2>&1
 if [ $? -ne 0 ]; then
@@ -172,7 +175,7 @@ if [ $? -ne 0 ]; then
     SetTestStateFailed
     exit 1
 fi
-
+export PATH="/usr/local/bin:${PATH}"
 #go back to test root folder
 cd ~
 
