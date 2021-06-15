@@ -17,8 +17,19 @@ defined, categorized, and how to have the appropriate coverage.
 
 Microsoft tests are organized under the folder `microsoft/runbook`. The root
 folder contains runbooks for azure, ready, and local. Learn more from [how to
-run LISA tests](run.md) to run different tiers on an image or existing
+run LISA tests](quick_run.md) to run different tiers on an image or existing
 environment.
+
+LISA comes with a set of test suites to verify Linux distro/kernel quality on
+Microsoft's platforms (including Azure, and HyperV). The test cases in those
+test suites are organized with multiple test `Tiers` (`T0`, `T1`, `T2`, `T3`,
+`T4`). 
+
+You can specify the test cases by the test tier, with `-v tier:<tier id>`:
+
+```bash
+lisa -r ./microsoft/runbook/azure.yml -v subscription_id:<subscription id> -v "admin_private_key_file:<private key file>" -v tier:<tier id>
+```
 
 ### Advanced
 
