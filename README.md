@@ -34,14 +34,14 @@ environment for troubleshooting if test failed.
 
 ## Documents
 
-* [Install LISA](docs/install.md)
-* [Run tests](docs/run.md)
-* [Microsoft tests](docs/microsoft_tests.md)
-* [Write test cases in LISA](docs/write_case.md)
-* [Command line reference](docs/command_line.md)
-* [Runbook reference](docs/runbook.md)
-* [Extend and customize LISA](docs/extension.md)
-* [Run previous version LISA (aka LISAv2)](docs/run_legacy.md)
+* [Quick start](docs/quick_start.md)
+* [Run tests](docs/run_test/quick_run.md)
+* [Microsoft tests](docs/run_test/microsoft_tests.md)
+* [Write test cases in LISA](docs/write_test/write_case.md)
+* [Command line reference](docs/run_test/command_line.md)
+* [Runbook reference](docs/run_test/runbook.md)
+* [Extend and customize LISA](docs/write_test/extension.md)
+* [Run previous version LISA (aka LISAv2)](docs/run_test/run_legacy.md)
 
 ## Contribute
 
@@ -53,7 +53,7 @@ document](docs/contributing.md) for details.
 The previous LISA called LISAv2, which is in [master
 branch](https://github.com/microsoft/lisa/tree/master). The previous LISA can be
 used standalone or called from the current LISA. Learn more from [how to run
-LISAv2 test cases](docs/run_legacy.md).
+LISAv2 test cases](docs/run_test/run_legacy.md).
 
 LISA is in active developing, and a lot of exciting features are implementing.
 We're listening your [feedback](https://github.com/microsoft/lisa/issues/new).
