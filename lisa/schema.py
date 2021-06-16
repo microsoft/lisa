@@ -607,12 +607,17 @@ class RemoteNode(Node):
     type: str = constants.ENVIRONMENTS_NODES_REMOTE
     address: str = ""
     port: int = field(
-        default=22, metadata=metadata(validate=validate.Range(min=1, max=65535))
+        default=22,
+        metadata=metadata(
+            field_function=fields.Int, validate=validate.Range(min=1, max=65535)
+        ),
     )
     public_address: str = ""
     public_port: int = field(
         default=22,
-        metadata=metadata(validate=validate.Range(min=1, max=65535)),
+        metadata=metadata(
+            field_function=fields.Int, validate=validate.Range(min=1, max=65535)
+        ),
     )
     username: str = ""
     password: str = ""
@@ -668,7 +673,7 @@ class Environment:
 class EnvironmentRoot:
     max_concurrency: int = field(
         default=1,
-        metadata=metadata(validate=validate.Range(min=1)),
+        metadata=metadata(field_function=fields.Int, validate=validate.Range(min=1)),
     )
     warn_as_error: bool = field(default=False)
     environments: List[Environment] = field(default_factory=list)
@@ -790,9 +795,15 @@ class TestCase(BaseTestCaseFilter):
     )
     # run this group of test cases several times
     # default is 1
-    times: int = field(default=1, metadata=metadata(validate=validate.Range(min=1)))
+    times: int = field(
+        default=1,
+        metadata=metadata(field_function=fields.Int, validate=validate.Range(min=1)),
+    )
     # retry times if fails. Default is 0, not to retry.
-    retry: int = field(default=0, metadata=metadata(validate=validate.Range(min=0)))
+    retry: int = field(
+        default=0,
+        metadata=metadata(field_function=fields.Int, validate=validate.Range(min=0)),
+    )
     # each case with this rule will be run in a new environment.
     use_new_environment: bool = False
     # Once it's set, failed test result will be rewrite to success
