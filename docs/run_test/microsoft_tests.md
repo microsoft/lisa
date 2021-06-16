@@ -17,7 +17,7 @@ defined, categorized, and how to have the appropriate coverage.
 
 Microsoft tests are organized under the folder `microsoft/runbook`. The root
 folder contains runbooks for azure, ready, and local. Learn more from [how to
-run LISA tests](quick_run.md) to run different tiers on an image or existing
+run LISA tests](run.md) to run different tiers on an image or existing
 environment.
 
 LISA comes with a set of test suites to verify Linux distro/kernel quality on
