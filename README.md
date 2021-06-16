@@ -35,7 +35,7 @@ environment for troubleshooting if test failed.
 ## Documents
 
 * [Quick start](docs/quick_start.md)
-* [Run tests](docs/run_test/quick_run.md)
+* [Run tests](docs/run_test/run.md)
 * [Microsoft tests](docs/run_test/microsoft_tests.md)
 * [Write test cases in LISA](docs/write_test/write_case.md)
 * [Command line reference](docs/run_test/command_line.md)
