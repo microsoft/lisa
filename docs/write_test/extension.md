@@ -16,6 +16,7 @@
   - [Implement a hook](#implement-a-hook)
   - [`get_environment_information`](#get_environment_information)
   - [`azure_deploy_failed`](#azure_deploy_failed)
+  - [`azure_update_arm_template`](#azure_update_arm_template)
 
 LISA uses extensions to share code in test cases and makes it flexibly
 applicable to various situations. There are two kinds of extensions.
@@ -253,4 +254,16 @@ def azure_deploy_failed(self, error_message: str) -> None:
     for message, pattern, exception_type in self.__error_maps:
         if pattern.findall(error_message):
             raise exception_type(f"{message}. {error_message}")
+```
+
+### `azure_update_arm_template`
+
+Called when it needs to update ARM template before deploying to Azure.
+
+```python
+    @hookimpl
+    def azure_update_arm_template(
+        self, template: Any, environment: Environment
+    ) -> None:
+        ...
 ```
