@@ -1,43 +1,22 @@
 # Microsoft tests
 
+- [Overview](#overview)
+- [Some terms](#some-terms)
+  - [Test priority](#test-priority)
+  - [Test tier](#test-tier)
 - [How to run Microsoft tests](#how-to-run-microsoft-tests)
-  - [Quick start](#quick-start)
   - [Advanced](#advanced)
-- [Test priority](#test-priority)
-- [Test tier](#test-tier)
 - [Test cases specification](#test-cases-specification)
+
+## Overview
 
 The test suite in LISA is called Microsoft tests, which are provided by
 Microsoft Linux System Group. This document introduces how Microsoft tests were
 defined, categorized, and how to have the appropriate coverage.
 
-## How to run Microsoft tests
+## Some terms
 
-### Quick start
-
-Microsoft tests are organized under the folder `microsoft/runbook`. The root
-folder contains runbooks for azure, ready, and local. Learn more from [how to
-run LISA tests](run.md) to run different tiers on an image or existing
-environment.
-
-LISA comes with a set of test suites to verify Linux distro/kernel quality on
-Microsoft's platforms (including Azure, and HyperV). The test cases in those
-test suites are organized with multiple test `Tiers` (`T0`, `T1`, `T2`, `T3`,
-`T4`). 
-
-You can specify the test cases by the test tier, with `-v tier:<tier id>`:
-
-```bash
-lisa -r ./microsoft/runbook/azure.yml -v subscription_id:<subscription id> -v "admin_private_key_file:<private key file>" -v tier:<tier id>
-```
-
-### Advanced
-
-If you want to verify on specified conditions, like to select some VM size in
-azure, or select test cases by names, learn more from [runbook
-reference](runbook.md).
-
-## Test priority
+### Test priority
 
 The priority of each test case is determined by the impact if it's failed. The
 smaller number means the higher priority. For example, if a high-priority test
@@ -68,7 +47,7 @@ reference. For example, in a cloud environment, one host version may cause
 problems of some Linux virtual machines. The impact is affected by the
 percentage the problematic version also.
 
-## Test tier
+### Test tier
 
 Ideally, all tests should be run to maximize the coverage. But the time and
 resource are limited, and the risks need to be minimized based on the
@@ -86,6 +65,30 @@ P1, P2 test cases are selected in a test run.
 | T2   | P0, P1, P2         | 8 hours          | 2 environments                          | 100% automation                                              |
 | T3   | P0, P1, P2, P3     | 16 hours         | 2 environments                          | 100% automation                                              |
 | T4   | P0, P1, P2, P3, P4 | no limitation    | no limitation                           | 100% automation                                              |
+
+## How to run Microsoft tests
+
+Microsoft tests are organized under the folder `microsoft/runbook`. The root
+folder contains runbooks for azure, ready, and local. Learn more from [how to
+run LISA tests](run.md) to run different tiers on an image or existing
+environment.
+
+LISA comes with a set of test suites to verify Linux distro/kernel quality on
+Microsoft's platforms (including Azure, and HyperV). The test cases in those
+test suites are organized with multiple test `Tiers` (`T0`, `T1`, `T2`, `T3`,
+`T4`). 
+
+You can specify the test cases by the test tier, with `-v tier:<tier id>`:
+
+```bash
+lisa -r ./microsoft/runbook/azure.yml -v subscription_id:<subscription id> -v "admin_private_key_file:<private key file>" -v tier:<tier id>
+```
+
+### Advanced
+
+If you want to verify on specified conditions, like to select some VM size in
+azure, or select test cases by names, learn more from [runbook
+reference](runbook.md).
 
 ## Test cases specification
 
