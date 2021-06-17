@@ -898,8 +898,12 @@ class AzurePlatform(Platform):
                 )
                 arm_parameters.enable_sriov = False
 
-        # load template
         template = self._load_template()
+        plugin_manager.hook.azure_update_arm_template(
+            template=template, environment=environment
+        )
+
+        # composite deployment properties
         parameters = arm_parameters.to_dict()  # type:ignore
         parameters = {k: {"value": v} for k, v in parameters.items()}
         log.debug(f"parameters: {parameters}")

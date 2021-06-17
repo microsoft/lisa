@@ -1,6 +1,7 @@
 import re
-from typing import List, Pattern, Tuple, Type
+from typing import Any, List, Pattern, Tuple, Type
 
+from lisa.environment import Environment
 from lisa.util import SkippedException, hookimpl, hookspec, plugin_manager
 
 
@@ -10,6 +11,19 @@ class AzureHookSpec:
         """
         It can be used to skipped some by design failed deployment, such as deploy gen1
         image on gen2 vm_size.
+        """
+        ...
+
+    @hookspec
+    def azure_update_arm_template(
+        self, template: Any, environment: Environment
+    ) -> None:
+        """
+        Implement it to update loaded arm_template.
+
+        Args:
+            template: the dict object, which is loaded from the arm_template.json.
+            environment: the deploying environment.
         """
         ...
 
