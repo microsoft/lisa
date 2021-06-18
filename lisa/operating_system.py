@@ -362,12 +362,15 @@ class Debian(Linux):
             )
 
     def _package_exists(self, package: str, signed: bool = True) -> bool:
-        command = f"apt list --installed | grep -Ei {package}"
-        result = self._node.execute(command, sudo=True)
-        if result.exit_code == 0:
-            for row in result.stdout.splitlines():
-                if package in row:
-                    return True
+        command = "dpkg --get-selections"
+        result = self._node.execute(command, sudo=True, shell=True)
+        package_pattern = re.compile(f"{package}([ \t]+)install")
+        # Not installed package not shown in the output
+        # Uninstall package will show as deinstall
+        # vim                                             deinstall
+        # vim-common                                      install
+        if len(list(filter(package_pattern.match, result.stdout.splitlines()))) == 1:
+            return True
         return False
 
     def _get_os_version(self) -> OsVersion:
@@ -432,7 +435,7 @@ class Fedora(Linux):
             self._log.debug(f"{packages} is/are installed successfully.")
 
     def _package_exists(self, package: str, signed: bool = True) -> bool:
-        command = f"dnf list installed | grep -Ei {package}"
+        command = f"dnf list installed {package}"
         result = self._node.execute(command, sudo=True)
         if result.exit_code == 0:
             for row in result.stdout.splitlines():
@@ -522,7 +525,7 @@ class Redhat(Fedora):
             )
 
     def _package_exists(self, package: str, signed: bool = True) -> bool:
-        command = f"yum list installed | grep -Ei {package}"
+        command = f"yum list installed {package}"
         result = self._node.execute(command, sudo=True)
         if result.exit_code == 0:
             return True
