@@ -15,8 +15,9 @@ from typing import TYPE_CHECKING, Any, Dict, List, Optional
 from dataclasses_json import dataclass_json
 from marshmallow import validate
 
-from lisa import schema, search_space
+from lisa import notifier, schema, search_space
 from lisa.node import Nodes
+from lisa.notifier import MessageBase
 from lisa.tools import Uname
 from lisa.util import (
     ContextMixin,
@@ -71,6 +72,14 @@ def _get_environment_id() -> int:
         _global_environment_id += 1
 
     return id
+
+
+@dataclass
+class EnvironmentMessage(MessageBase):
+    type: str = "Environment"
+    name: str = ""
+    runbook: schema.Environment = schema.Environment()
+    status: EnvironmentStatus = EnvironmentStatus.New
 
 
 @dataclass_json()
@@ -146,33 +155,55 @@ class EnvironmentSpace(search_space.RequirementMixin):
 
 
 class Environment(ContextMixin, InitializableMixin):
-    def __init__(self, is_predefined: bool, warn_as_error: bool, id_: int) -> None:
+    def __init__(
+        self,
+        is_predefined: bool,
+        warn_as_error: bool,
+        id_: int,
+        runbook: schema.Environment,
+    ) -> None:
         super().__init__()
 
         self.nodes: Nodes = Nodes()
-        self.name: str = ""
-
-        self.status: EnvironmentStatus = EnvironmentStatus.New
+        self.runbook = runbook
+        self.name = runbook.name
         self.is_predefined: bool = is_predefined
         self.is_new: bool = True
         self.id = id_
+        self.warn_as_error = warn_as_error
         self.platform: Optional[Platform] = None
+        self._default_node: Optional[Node] = None
+        self._log = get_logger("env", self.name)
+
         # cost uses to plan order of environments.
         # cheaper env can fit cases earlier to run more cases on it.
         # 1. smaller is higher priority, it can be index of candidate environment
         # 2. 0 means no cost.
         self.cost: int = 0
-        # original runbook or generated from test case which this environment supports
-        self.runbook: schema.Environment
-        self.warn_as_error = warn_as_error
+
         # indicate is this environment is deploying, preparing, testing or not.
         self.is_in_use: bool = False
 
-        self._default_node: Optional[Node] = None
-        self._log = get_logger("env", self.name)
         # Not to set the log path until its first used. Because the path
         # contains environment name, which is not set in __init__.
         self._log_path: Optional[Path] = None
+
+        if not runbook.nodes_requirement and not runbook.nodes:
+            raise LisaException("not found any node or requirement in environment")
+
+        has_default_node = False
+        for node_runbook in runbook.nodes:
+            self.nodes.from_existing(
+                node_runbook=node_runbook,
+                environment_name=self.name,
+                base_log_path=self.log_path,
+            )
+
+            has_default_node = self.__validate_single_default(
+                has_default_node, node_runbook.is_default
+            )
+
+        self.status: EnvironmentStatus = EnvironmentStatus.New
 
     def _initialize(self, *args: Any, **kwargs: Any) -> None:
         if self.status != EnvironmentStatus.Deployed:
@@ -187,6 +218,10 @@ class Environment(ContextMixin, InitializableMixin):
     @status.setter
     def status(self, value: EnvironmentStatus) -> None:
         self._status = value
+        environment_message = EnvironmentMessage(
+            name=self.name, status=self._status, runbook=self.runbook
+        )
+        notifier.notify(environment_message)
 
     @property
     def is_alive(self) -> bool:
@@ -196,37 +231,6 @@ class Environment(ContextMixin, InitializableMixin):
             EnvironmentStatus.Deployed,
             EnvironmentStatus.Connected,
         ]
-
-    @classmethod
-    def create(
-        cls,
-        runbook: schema.Environment,
-        is_predefined: bool,
-        warn_as_error: bool,
-        id_: int,
-    ) -> Environment:
-        environment = Environment(
-            is_predefined=is_predefined, warn_as_error=warn_as_error, id_=id_
-        )
-        environment.name = runbook.name
-
-        has_default_node = False
-
-        if not runbook.nodes_requirement and not runbook.nodes:
-            raise LisaException("not found any node or requirement in environment")
-
-        for node_runbook in runbook.nodes:
-            environment.nodes.from_existing(
-                node_runbook=node_runbook,
-                environment_name=environment.name,
-                base_log_path=environment.log_path,
-            )
-
-            has_default_node = environment.__validate_single_default(
-                has_default_node, node_runbook.is_default
-            )
-        environment.runbook = runbook
-        return environment
 
     @property
     def default_node(self) -> Node:
@@ -341,11 +345,11 @@ class Environments(EnvironmentsDict):
         # make a copy, so that modification on env won't impact test case
         copied_runbook = copy.copy(runbook)
         copied_runbook.name = name
-        env = Environment.create(
-            runbook=copied_runbook,
+        env = Environment(
             is_predefined=is_predefined_runbook,
             warn_as_error=self.warn_as_error,
             id_=id_,
+            runbook=copied_runbook,
         )
         self[name] = env
         log = _get_init_logger()

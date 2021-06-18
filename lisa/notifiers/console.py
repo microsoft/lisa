@@ -8,6 +8,7 @@ from typing import Any, List, Type, cast
 from dataclasses_json import dataclass_json
 
 from lisa import notifier, schema
+from lisa.environment import EnvironmentMessage
 from lisa.testsuite import TestResultMessage
 from lisa.util import constants
 
@@ -39,7 +40,7 @@ class Console(notifier.Notifier):
         )
 
     def _subscribed_message_type(self) -> List[Type[notifier.MessageBase]]:
-        return [TestResultMessage, notifier.TestRunMessage]
+        return [TestResultMessage, notifier.TestRunMessage, EnvironmentMessage]
 
     def _initialize(self, *args: Any, **kwargs: Any) -> None:
         runbook = cast(ConsoleSchema, self.runbook)
