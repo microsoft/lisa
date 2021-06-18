@@ -16,6 +16,7 @@ from .lsvmbus import Lsvmbus
 from .make import Make
 from .modinfo import Modinfo
 from .ntttcp import Ntttcp
+from .nvmecli import Nvmecli
 from .reboot import Reboot
 from .uptime import Uptime
 from .who import Who
@@ -34,6 +35,7 @@ __all__ = [
     "Make",
     "Modinfo",
     "Ntttcp",
+    "Nvmecli",
     "Reboot",
     "Uname",
     "Uptime",
