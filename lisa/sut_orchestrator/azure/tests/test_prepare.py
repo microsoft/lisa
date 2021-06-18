@@ -82,17 +82,6 @@ class AzurePrepareTestCase(TestCase):
         self.assertTrue("notreal" in self._platform._eligible_capabilities)
         self.assertFalse(self._platform._eligible_capabilities["notreal"])
 
-    def test_no_requirement(self) -> None:
-        # if there is no requirement, return success
-        env = self.load_environment(node_req_count=0)
-        self.verify_prepared_nodes(
-            expected_result=True,
-            expected_locations=[],
-            expected_vm_sizes=[],
-            expected_cost=0,
-            environment=env,
-        )
-
     def test_predefined_2nd_location(self) -> None:
         # location predefined in eastus2, so all prepared skip westus2
         env = self.load_environment(node_req_count=2)
@@ -306,15 +295,16 @@ class AzurePrepareTestCase(TestCase):
         self,
         node_req_count: int = 2,
     ) -> Environment:
-        environment = Environment(is_predefined=True, warn_as_error=False, id_=0)
-        environment.runbook = schema.Environment()
+        runbook = schema.Environment()
         if node_req_count > 0:
-            environment.runbook.nodes_requirement = []
-
+            runbook.nodes_requirement = []
             for _ in range(node_req_count):
                 node_req = schema.NodeSpace()
                 _ = node_req.get_extended_runbook(common.AzureNodeSchema, common.AZURE)
-                environment.runbook.nodes_requirement.append(node_req)
+                runbook.nodes_requirement.append(node_req)
+        environment = Environment(
+            is_predefined=True, warn_as_error=False, id_=0, runbook=runbook
+        )
 
         return environment
 
