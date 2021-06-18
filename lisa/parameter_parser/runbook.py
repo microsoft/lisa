@@ -238,7 +238,7 @@ class RunbookBuilder:
         data_from_current: Dict[str, Any],
     ) -> List[Any]:
         old_extensions = self._load_extensions(merged_path, data_from_parent)
-        extensions = self._load_extensions(constants.RUNBOOK_PATH, data_from_current)
+        extensions = self._load_extensions(merged_path, data_from_current)
         # remove duplicate paths
         for old_extension in old_extensions:
             for extension in extensions:
