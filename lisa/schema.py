@@ -311,27 +311,6 @@ class Variable:
             self.value = self.value_raw
 
 
-@dataclass_json()
-@dataclass
-class ArtifactLocation(TypedSchema):
-    type: str = field(
-        default="",
-        metadata=metadata(required=True, validate=validate.OneOf([])),
-    )
-    path: str = field(default="", metadata=metadata(required=True))
-
-    def __post_init__(self, *args: Any, **kwargs: Any) -> None:
-        add_secret(self.path)
-
-
-@dataclass_json()
-@dataclass
-class Artifact(TypedSchema):
-    # name is optional. artifacts can be referred by name or index.
-    name: str = ""
-    locations: List[ArtifactLocation] = field(default_factory=list)
-
-
 @dataclass_json(undefined=Undefined.INCLUDE)
 @dataclass
 class Notifier(TypedSchema):
@@ -355,8 +334,6 @@ class NodeSpace(search_space.RequirementMixin, TypedSchema, ExtendableSchemaMixi
     )
     name: str = ""
     is_default: bool = field(default=False)
-    # optional, if there is only one artifact.
-    artifact: str = field(default="")
     node_count: search_space.CountSpace = field(
         default=search_space.IntRange(min=1),
         metadata=metadata(decoder=search_space.decode_count_space),
@@ -426,7 +403,7 @@ class NodeSpace(search_space.RequirementMixin, TypedSchema, ExtendableSchemaMixi
         """
         return (
             f"type:{self.type},name:{self.name},"
-            f"default:{self.is_default},artifact:{self.artifact},"
+            f"default:{self.is_default},"
             f"count:{self.node_count},core:{self.core_count},"
             f"mem:{self.memory_mb},disk:{self.disk_count},"
             f"nic:{self.nic_count},gpu:{self.gpu_count},"
@@ -851,7 +828,6 @@ class Runbook:
     extension: Optional[List[Union[str, Extension]]] = field(default=None)
     variable: Optional[List[Variable]] = field(default=None)
     combinator: Optional[Combinator] = field(default=None)
-    artifact: Optional[List[Artifact]] = field(default=None)
     environment: Optional[EnvironmentRoot] = field(default=None)
     notifier: Optional[List[Notifier]] = field(default=None)
     platform: List[Platform] = field(default_factory=list)

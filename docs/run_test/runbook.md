@@ -20,25 +20,20 @@
     - [is_secret](#is_secret)
     - [file](#file)
     - [name](#name-2)
-  - [value](#value)
-  - [artifact](#artifact)
-    - [name](#name-3)
-    - [locations](#locations)
-      - [type](#type)
-      - [path](#path-2)
+    - [value](#value)
   - [notifier](#notifier)
     - [console](#console)
       - [log_level](#log_level)
     - [html](#html)
-      - [path](#path-3)
+      - [path](#path-2)
       - [auto_open](#auto_open)
   - [environment](#environment)
     - [environments](#environments)
-      - [name](#name-4)
+      - [name](#name-3)
       - [topology](#topology)
       - [nodes](#nodes)
       - [nodes_requirement](#nodes_requirement)
-        - [type](#type-1)
+        - [type](#type)
   - [platform](#platform)
   - [testcase](#testcase)
     - [criteria](#criteria)
@@ -48,8 +43,9 @@
 ### Configure Azure deployment
 
 Below section is for running cases on Azure platform, it specifies:
-  - admin_private_key_file: the private key file to access the Azure VM.
-  - subscription_id: Azure VM is created under this subscription.
+
+- admin_private_key_file: the private key file to access the Azure VM.
+- subscription_id: Azure VM is created under this subscription.
 
 ```yaml
 platform:
@@ -320,22 +316,11 @@ type: str, optional, default is empty.
 
 Variable name.
 
-### value
+#### value
 
 type: str, optional, default is empty
 
 Value of the paired variable.
-
-### artifact
-
-#### name
-
-#### locations
-
-##### type
-
-##### path
-
 
 ### notifier
 
