@@ -66,24 +66,39 @@ def load_variables(
         env_variables = _load_from_env()
         cmd_variables = add_secrets_from_pairs(higher_level_variables)
     else:
-        current_variables.update(higher_level_variables)
+        merge_variables(current_variables, higher_level_variables)
         env_variables = {}
         cmd_variables = {}
     # current_variables uses to support variable in variable file path
-    current_variables.update(env_variables)
-    current_variables.update(cmd_variables)
+    merge_variables(current_variables, env_variables)
+    merge_variables(current_variables, cmd_variables)
 
     final_variables: Dict[str, VariableEntry] = dict()
-    final_variables.update(
-        _load_from_runbook(runbook_data, higher_level_variables=current_variables)
+    merge_variables(
+        final_variables,
+        _load_from_runbook(runbook_data, higher_level_variables=current_variables),
     )
     if isinstance(higher_level_variables, dict):
-        final_variables.update(higher_level_variables)
+        merge_variables(final_variables, higher_level_variables)
     else:
-        final_variables.update(env_variables)
-        final_variables.update(cmd_variables)
+        merge_variables(final_variables, env_variables)
+        merge_variables(final_variables, cmd_variables)
 
     return final_variables
+
+
+def merge_variables(
+    variables: Dict[str, VariableEntry], new_variables: Dict[str, VariableEntry]
+) -> None:
+    """
+    inplace update variables. If variables don't exist, will create them
+    """
+    for name, new_variable in new_variables.items():
+        variable = variables.get(name, None)
+        if variable:
+            variable.update(new_variable)
+        else:
+            variables[name] = new_variable
 
 
 def _get_undefined_variables(
@@ -168,8 +183,8 @@ def _load_from_runbook(
                         is_secret=entry.is_secret,
                         is_case_visible=entry.is_case_visible,
                     )
-                current_variables.update(loaded_variables)
-                current_variables.update(higher_level_variables)
+                merge_variables(current_variables, loaded_variables)
+                merge_variables(current_variables, higher_level_variables)
                 is_current_updated = True
 
                 left_variables.remove(entry)
