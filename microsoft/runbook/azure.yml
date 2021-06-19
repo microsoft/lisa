@@ -10,6 +10,8 @@ variable:
     value: ""
   - name: marketplace_image
     value: ""
+  - name: vhd
+    value: ""
   - name: deploy
     value: true
   - name: wait_delete
@@ -30,4 +32,5 @@ platform:
         min: 2
       azure:
         marketplace: $(marketplace_image)
+        vhd: $(vhd)
         location: $(location)
