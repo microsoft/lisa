@@ -119,8 +119,9 @@ class LisaRunner(BaseRunner):
         return None
 
     def close(self) -> None:
-        for environment in self.environments:
-            self._delete_environment_task(environment, [])
+        if hasattr(self, "environments") and self.environments:
+            for environment in self.environments:
+                self._delete_environment_task(environment, [])
         super().close()
 
     def _associate_environment_test_results(
