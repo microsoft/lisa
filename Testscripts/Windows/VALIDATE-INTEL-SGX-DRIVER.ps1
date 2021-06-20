@@ -13,9 +13,16 @@ function Main {
         $VMPassword
     )
 
+    # Create test result
+    $currentTestResult = Create-TestResultObject
+    $resultArr = @()
+
     if ($global:detectedDistro -ne "UBUNTU" ) {
         Write-LogInfo "$($global:detectedDistro) is not supported! Test skipped!"
-        return "SKIPPED"
+        $testResult = "SKIPPED"
+        $resultArr += $testResult
+        $currentTestResult.TestResult = Get-FinalResultHeader -resultarr $resultArr
+        return $currentTestResult
     }
 
     $ubuntuVersion = Run-LinuxCmd -Command "cat /etc/issue" `
@@ -25,7 +32,10 @@ function Main {
         $retVal = Run-LinuxCmd -Command "lsmod | grep -i intel_sgx" -username $VMUserName -password $VMPassword -ip $Ipv4 -port $VMPort -ignoreLinuxExitCode
         if (!$retVal) {
             Write-LogErr "Module intel_sgx not load automatically."
-            return "FAIL"
+            $testResult = "FAIL"
+            $resultArr += $testResult
+            $currentTestResult.TestResult = Get-FinalResultHeader -resultarr $resultArr
+            return $currentTestResult
         } else {
             Write-LogInfo "Module intel_sgx load automatically - $retVal."
         }
@@ -34,7 +44,10 @@ function Main {
     if ($ubuntuVersion -notmatch "Ubuntu 18.04") {
         $shortUbuntuVersion = $ubuntuVersion.replace(" \n \l","")
         Write-LogInfo "$shortUbuntuVersion is not supported! Test skipped!"
-        return "SKIPPED"
+        $testResult = "SKIPPED"
+        $resultArr += $testResult
+        $currentTestResult.TestResult = Get-FinalResultHeader -resultarr $resultArr
+        return $currentTestResult
     }
 
     $remoteScript = "validate-intel-sgx-driver.sh"
@@ -59,11 +72,15 @@ function Main {
 
     if ($state -eq "TestCompleted") {
         Write-LogInfo "Test passed successfully!"
-        return "PASS"
+        $testResult = "PASS"
     } else {
         Write-LogErr "Running ${remoteScript} script failed on guest VM ${VMName}"
-        return "FAIL"
+        $testResult = "FAIL"
     }
+
+    $resultArr += $testResult
+    $currentTestResult.TestResult = Get-FinalResultHeader -resultarr $resultArr
+    return $currentTestResult
 }
 
 Main -VMName $AllVMData.RoleName -Ipv4 $AllVMData.PublicIP -VMPort $AllVMData.SSHPort `
