@@ -71,11 +71,11 @@ Function Get-FinalResultHeader($resultArr) {
 	# pass  > [ skip ]
 	# skip  > []
 	Write-LogDbg "Processing result collection: $resultArr."
-	Write-LogDbg "Processing result collection: $resultArr.GetType()."
+	Write-LogDbg "Processing result collection: $($resultArr.length)."
+	Write-LogDbg "Processing result collection: $($resultArr.GetType())."
 	$result = $global:ResultSkipped
 	switch ($resultArr) {
 	{	($_ -imatch "FAIL") } {
-			Write-LogDbg "$_ 1st Fail"
 			$result = $global:ResultFail; break
 		}
 		{ ($_ -imatch "ABORT") } {
