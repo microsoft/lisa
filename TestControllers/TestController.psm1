@@ -452,7 +452,7 @@ Class TestController {
 				$currentTestResult.TestResult = $psScriptTestResult
 			}
 		}
-		if (!$this.TestCaseStatus.contains($currentTestResult.TestResult.Trim())) {
+		if (!$this.TestCaseStatus.contains($currentTestResult.TestResult)) {
 			Write-LogInfo "Test case script result does not match known ones: $($currentTestResult.TestResult)"
 			$currentTestResult.TestResult = Get-FinalResultHeader -resultArr $psScriptTestResult
 			if (!$this.TestCaseStatus.contains($currentTestResult.TestResult)) {
