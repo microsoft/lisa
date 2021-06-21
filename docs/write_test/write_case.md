@@ -23,9 +23,7 @@
   - [Features](#features)
 - [Best practices](#best-practices)
   - [Debug in ready environment](#debug-in-ready-environment)
-  - [Written by non-native English speakers](#written-by-non-native-english-speakers)
-      speakers](#written-by-non-native-english-speakers)
-      speakers](#written-by-non-native-english-speakers)
+  - [Tips for non-native English speakers by non-native English speakers](#tips-for-non-native-english-speakers-by-non-native-english-speakers)
 
 Before writing a test case, we strongly recommend that you read the entire
 document. In addition to how to write test cases, we also believe that the
@@ -50,7 +48,7 @@ Learn more from the topics below.
 
 The documentation is the opportunity to make things clear and easy to maintain.
 A good document does not mean longer is better. Each kind of documentation has
-it's own purpose. Good technical documentation should be *useful and accurate*.
+its own purpose. Good technical documentation should be *useful and accurate*.
 
 The following introduces the principle of each type of document in LISA.
 
@@ -350,8 +348,8 @@ def smoke_test(self, case_name: str) -> None:
 
 Learn more from [test code excellence](#test-code-excellence) and learn how to
 use below LISA components to speed up development. The
-[examples](../../examples/testsuites) and [Microsoft tests](../../microsoft/testsuites) are
-good examples.
+[examples](../../examples/testsuites) and [Microsoft
+tests](../../microsoft/testsuites) are good examples.
 
 The method signature can use environment, node and other arguments like the
 following.
@@ -446,23 +444,23 @@ After the declaration, the usage is like the tool, but it is obtained from
 
 ### Debug in ready environment
 
-When debugging test cases or tools, it can be done in local computer, in the
-ready environment, or in the deployed Azure environment. This can save a lot of
+Debugging test cases or tools can be done on a local computer, in the ready
+environment, or in the deployed Azure environment. The latter can save a lot of
 deployment time.
 
-### Written by non-native English speakers
+### Tips for non-native English speakers by non-native English speakers
 
-Today, there are some great tools to help you create high-quality English
-documents. If writing in English is challenging, please try the following steps.
+Today, there are a lot of great tools to help you create high-quality English
+documents. If writing in English is challenging, please try the following steps:
 
-1. Write in your language first.
-2. Use machine translation such as [Microsoft
+1. Read our documentations.
+2. Write in your language first.
+3. Use machine translation such as [Microsoft
    Translator](https://www.bing.com/translator/) and [Google
-   translate](https://translate.google.com/) to convert to English.
-3. Convert the English version back to your language. If it doesn't make sense
-   now, it means the sentence is too complicated. Make it simpler, and then
-   start from step 1 again.
-4. Once satisfied, please use [Microsoft
+   translate](https://translate.google.com/) to convert it to English.
+4. Convert the English version back to your language and check. If it doesn't
+   make sense after translating back, it means the sentence is too complicated.
+   Make it simpler, and then start from step 1 again.
+5. Once satisfied, you can use [Microsoft
    Editor](https://www.microsoft.com/en-us/microsoft-365/microsoft-editor) to
-   fix the grammar and conventions.
-5. Learning from the above tools, your writing will continue to improve.
+   further refine the grammar and wordings.

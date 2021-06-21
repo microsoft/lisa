@@ -1,13 +1,13 @@
-# Development Guideline
+# Development guidelines
 
 This document describes the existing developer tooling we have in place (and
-what to expect of it), as well as our design and development philosophy.
+what to expect of it).
 
 - [Environment Setup](#environment-setup)
   - [Visual Studio Code](#visual-studio-code)
   - [Emacs](#emacs)
   - [Other setups](#other-setups)
-- [Code guideline](#code-guideline)
+- [Coding guidelines](#coding-guidelines)
   - [Naming Conventions](#naming-conventions)
   - [Code checks](#code-checks)
 - [Extended reading](#extended-reading)
@@ -23,8 +23,9 @@ environment.
 1. Click on the Python version at the bottom left of the editor's window and
    select the Python interpreter which Poetry just created. If you do not find
    it, check [FAQ and troubleshooting](../troubleshooting.md) for extra
-   instructions. This step is important because it ensures the current workspace
-   uses the correct Poetry virtual environment.
+   instructions. This step is important because it ensures that the current
+   workspace uses the correct Poetry virtual environment which provides all
+   dependencies required.
 
 1. You can copy the settings below into `.vscode/settings.json`.
 
@@ -107,7 +108,7 @@ This will create a `.dir-locals.el` file as follows:
 - Install and enable [ShellCheck](https://github.com/koalaman/shellcheck) to
   find bash errors locally.
 
-## Code guideline
+## Coding guidelines
 
 ### Naming Conventions
 
