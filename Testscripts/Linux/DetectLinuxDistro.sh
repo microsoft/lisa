@@ -45,6 +45,9 @@ DetectDistro()
                 elif [[ "$tmp" == *Red* ]]; then
                     echo "REDHAT"
                     exitVal=0
+                elif [[ "$tmp" == *AlmaLinux* ]]; then
+                    echo "AlmaLinux"
+                    exitVal=0
                 else
                     echo "Unknown"
                     exitVal=1
