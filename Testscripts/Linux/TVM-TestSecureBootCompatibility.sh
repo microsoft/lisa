@@ -11,7 +11,7 @@ UtilsInit
 
 GetDistro
 case $DISTRO in
-    redhat*|centos*|oracle*)
+    redhat*|centos*|oracle*|almalinux*)
         echo "[packages-microsoft-com-azurecore]" | tee -a /etc/yum.repos.d/azurecore.repo
         echo "name=packages-microsoft-com-azurecore" | tee -a /etc/yum.repos.d/azurecore.repo
         echo "baseurl=https://packages.microsoft.com/yumrepos/azurecore/" | tee -a /etc/yum.repos.d/azurecore.repo

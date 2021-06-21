@@ -23,7 +23,7 @@ function Main() {
 	basedir=$(pwd)
 
 	# RHEL/CentOS need an extra disk for customized kernel compilation
-	if [[ $storage == "yes" ]] || [[ $DISTRO == *"redhat"* ]] || [[ $DISTRO == *"centos"* ]]; then
+	if [[ $storage == "yes" ]] || [[ $DISTRO == *"redhat"* ]] || [[ $DISTRO == *"centos"* ]] || [[ $DISTRO == *"almalinux"* ]]; then
 		# Set up new disk
 		for key in n p 1 2048 '' t 1 p w
 		do
@@ -77,7 +77,7 @@ function Main() {
 		LogMsg "$?: Installed the required common packages; $req_pkg"
 
 		case $DISTRO in
-			redhat_7|centos_7|redhat_8|centos_8)
+			redhat_7|centos_7|redhat_8|centos_8|almalinux_8)
 				req_pkg="elfutils-libelf-devel ncurses-devel bc elfutils-libelf-devel openssl-devel grub2"
 				;;
 			suse*|sles*)
@@ -101,7 +101,7 @@ function Main() {
 		# Start kernel compilation
 		# RHEL & CentOS need extra space for kernel repo due to different disk partitioning.
 		LogMsg "Clone and compile new kernel from $repo_url"
-		if [[ $DISTRO == *"redhat"* ]] || [[ $DISTRO == *"centos"* ]]; then
+		if [[ $DISTRO == *"redhat"* ]] || [[ $DISTRO == *"centos"* ]] || [[ $DISTRO == *"almalinux"* ]]; then
 			git clone $repo_url data/linux
 			cd data/linux
 			ls /boot/vmlinuz* > old_state.txt
@@ -116,14 +116,14 @@ function Main() {
 
 		config_file="/boot/config-$(uname -r)"
 
-		if [[ $DISTRO == *"redhat"* ]] || [[ $DISTRO == *"centos"* ]]; then
+		if [[ $DISTRO == *"redhat"* ]] || [[ $DISTRO == *"centos"* ]] || [[ $DISTRO == *"almalinux"* ]]; then
 			cp $config_file $basedir/data/linux/.config
 		else
 			cp $config_file $basedir/linux/.config
 		fi
 		LogMsg "$?: Copied the default config file from /boot"
 
-		if [[ $DISTRO == *"redhat"* ]] || [[ $DISTRO == *"centos"* ]]; then
+		if [[ $DISTRO == *"redhat"* ]] || [[ $DISTRO == *"centos"* ]] || [[ $DISTRO == *"almalinux"* ]]; then
 			yes '' | make prepare
 			LogMsg "Did make prepare"
 		else
@@ -131,7 +131,7 @@ function Main() {
 			LogMsg "Did make oldconfig"
 		fi
 
-		if [[ $DISTRO == "redhat_8" ]] || [[ $DISTRO == "centos_8" ]]; then
+		if [[ $DISTRO == "redhat_8" ]] || [[ $DISTRO == "centos_8" ]] || [[ $DISTRO == "almalinux_8" ]]; then
 			# comment out those 3 parameters in RHEL/CentOS 8.x
 			# In 8.x, those new trusted key files need to update. But this is out of scope of testing.
 			# Commented out unnecessary debug kernel parameter.
@@ -156,7 +156,7 @@ function Main() {
 			LogMsg "$?: Ran update-grub2"
 		fi
 
-		if [[ $DISTRO == "redhat_8" ]] || [[ $DISTRO == "centos_8" ]]; then
+		if [[ $DISTRO == "redhat_8" ]] || [[ $DISTRO == "centos_8" ]] || [[ $DISTRO == "almalinux_8" ]]; then
 			ls /boot/vmlinuz* > new_state.txt
 			vmlinux_file=$(diff old_state.txt new_state.txt | tail -n 1 | cut -d ' ' -f2)
 			if [ -f $vmlinux_file ]; then

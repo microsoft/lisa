@@ -13,7 +13,7 @@ param([String] $TestParams,
 
 function Main {
 
-    if ( ( $global:detectedDistro -imatch "CENTOS") -or ($global:detectedDistro -imatch "REDHAT") ) {
+    if ( ( $global:detectedDistro -imatch "CENTOS") -or ($global:detectedDistro -imatch "REDHAT") -or ($global:detectedDistro -imatch "ALMALINUX") ) {
         Write-LogInfo "Test on DISTRO $($global:detectedDistro)"
     }
     else {

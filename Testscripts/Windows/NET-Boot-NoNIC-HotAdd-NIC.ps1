@@ -61,7 +61,7 @@ function Main {
 
     # Configure the NET-Verify-Boot-NoNIC.sh script to be run automatically
     # on boot
-    if ($global:detectedDistro -eq "CENTOS" -or $global:detectedDistro -eq "FEDORA" -or $global:detectedDistro -eq "REDHAT") {
+    if ($global:detectedDistro -eq "CENTOS" -or $global:detectedDistro -eq "FEDORA" -or $global:detectedDistro -eq "REDHAT" -or $global:detectedDistro -eq "ALMALINUX") {
         Run-LinuxCmd -Command "echo '${VMPassword}' | sudo -S -s eval `"export HOME=``pwd``;chmod +x /etc/rc.d/rc.local`"" `
             -Username $VMUserName -password $VMPassword -ip $Ipv4 -port $VMPort `
             -runMaxAllowedTime $Timeout

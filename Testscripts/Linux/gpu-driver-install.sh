@@ -195,7 +195,7 @@ function install_gpu_requirements() {
 	LogMsg "installed wget lshw gcc make"
 
 	case $DISTRO in
-		redhat_7|centos_7|redhat_8)
+		redhat_7|centos_7|redhat_8|almalinux_8)
 			if [[ $DISTRO == "centos_7" ]]; then
 				# for all releases that are moved into vault.centos.org
 				# we have to update the repositories first

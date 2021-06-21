@@ -223,7 +223,7 @@ function GetDistro() {
 	# Make sure we don't inherit anything
 	declare __DISTRO
 	#Get distro (snipper take from alsa-info.sh)
-	__DISTRO=$(grep -ihs "Ubuntu\|SUSE\|Fedora\|Debian\|CentOS\|Red Hat Enterprise Linux\|clear-linux-os\|CoreOS" /{etc,usr/lib}/{issue,*release,*version})
+	__DISTRO=$(grep -ihs "AlmaLinux\|Ubuntu\|SUSE\|Fedora\|Debian\|CentOS\|Red Hat Enterprise Linux\|clear-linux-os\|CoreOS" /{etc,usr/lib}/{issue,*release,*version})
 	case $__DISTRO in
 		*Ubuntu*14.04*)
 			DISTRO=ubuntu_14.04
@@ -300,13 +300,16 @@ function GetDistro() {
 		*ID=*CoreOS*)
 			DISTRO=coreos
 			;;
+		*AlmaLinux*8*)
+			DISTRO=almalinux_8
+			;;
 		*)
 			DISTRO=unknown
 			return 1
 			;;
 	esac
 	case $DISTRO in
-		centos* | redhat* | fedora*)
+		centos* | redhat* | fedora* | almalinux*)
 			OS_FAMILY="Rhel"
 		;;
 		ubuntu* | debian*)
@@ -542,7 +545,7 @@ function SetIPfromDHCP(){
 
 	GetDistro
 	case $DISTRO in
-		redhat*|fedora*|centos*|ubuntu*|debian*)
+		redhat*|fedora*|centos*|ubuntu*|debian*|almalinux*)
 			dhclient -r "$1" ; dhclient "$1"
 			if [ 0 -ne $? ]; then
 				LogErr "Unable to get dhcpd address for interface $1"
@@ -846,7 +849,7 @@ function CreateVlanConfig() {
 
 	GetDistro
 	case $DISTRO in
-		redhat*|centos*|fedora*|debian*|ubuntu*)
+		redhat*|centos*|fedora*|debian*|ubuntu*|almalinux*)
 			ip link add link "$__interface" name "$__interface.$__vlanID" type vlan id "$__vlanID"
 			ip addr add "$__ip/$__netmask" dev "$__interface.$__vlanID"
 			ip link set dev "$__interface" up
@@ -1175,7 +1178,7 @@ function CreateIfupConfigFile() {
 				ip link set "$__interface_name" down
 				ip link set "$__interface_name" up
 				;;
-			redhat_6|centos_6|redhat_7|redhat_8|centos_7|centos_8|fedora*)
+			redhat_6|centos_6|redhat_7|redhat_8|centos_7|centos_8|fedora*|almalinux_8)
 				__file_path="/etc/sysconfig/network-scripts/ifcfg-$__interface_name"
 				if [ ! -d "$(dirname $__file_path)" ]; then
 					LogErr "$(dirname $__file_path) does not exist! Something is wrong with the network config!"
@@ -1348,7 +1351,7 @@ function CreateIfupConfigFile() {
 				ip link set "$__interface_name" down
 				ip link set "$__interface_name" up
 				;;
-			redhat*|centos*|fedora*)
+			redhat*|centos*|fedora*|almalinux*)
 				__file_path="/etc/sysconfig/network-scripts/ifcfg-$__interface_name"
 				if [ ! -d "$(dirname $__file_path)" ]; then
 					LogErr "$(dirname $__file_path) does not exist! Something is wrong with the network config!"
@@ -1476,7 +1479,7 @@ function ControlNetworkManager() {
 
     GetDistro
     case $DISTRO in
-        redhat*|fedora*|centos*)
+        redhat*|fedora*|centos*|almalinux*)
             # check that we have a NetworkManager service running
             service NetworkManager status
             if [ 0 -ne $? ]; then
@@ -1787,7 +1790,7 @@ function GetOSVersion {
         # Fedora release 16 (Verne)
         # XenServer release 6.2.0-70446c (xenenterprise)
         os_CODENAME=""
-        for r in "Red Hat" CentOS Fedora XenServer; do
+        for r in "Red Hat" CentOS Fedora XenServer AlmaLinux; do
             os_VENDOR=$r
             if [[ -n $(grep "${r}" "/etc/redhat-release") ]]; then
                 ver=$(sed -e 's/^.* \([0-9].*\) (\(.*\)).*$/\1\|\2/' /etc/redhat-release)
@@ -2065,7 +2068,7 @@ function detect_linux_distribution() {
 # Update reposiotry
 function update_repos() {
 	case "$DISTRO_NAME" in
-		oracle|rhel|centos)
+		oracle|rhel|centos|almalinux)
 			yum clean all
 			;;
 		ubuntu|debian)
@@ -2170,7 +2173,7 @@ function install_package () {
 	local package_list=("$@")
 	for package_name in "${package_list[@]}"; do
 		case "$DISTRO_NAME" in
-			oracle|rhel|centos)
+			oracle|rhel|centos|almalinux)
 				yum_install "$package_name"
 				;;
 
@@ -2197,7 +2200,7 @@ function remove_package () {
 	local package_list=("$@")
 	for package_name in "${package_list[@]}"; do
 		case "$DISTRO_NAME" in
-			oracle|rhel|centos)
+			oracle|rhel|centos|almalinux)
 				yum_remove "$package_name"
 				;;
 
@@ -2222,7 +2225,7 @@ function remove_package () {
 # Install EPEL repository on RHEL based distros
 function install_epel () {
 	case "$DISTRO_NAME" in
-		oracle|rhel|centos)
+		oracle|rhel|centos|almalinux)
 			yum -y install epel-release
 			if [ $? != 0 ]; then
 				if [[ $DISTRO_VERSION =~ ^6\. ]]; then
@@ -2342,7 +2345,7 @@ function install_fio () {
 	LogMsg "Detected $DISTRO_NAME $DISTRO_VERSION; installing required packages of fio"
 	update_repos
 	case "$DISTRO_NAME" in
-		oracle|rhel|centos)
+		oracle|rhel|centos|almalinux)
 			install_epel
 			if [[ "${DISTRO_VERSION}" == "7.8" ]]; then
 				yum install -y libpmem-devel
@@ -2436,7 +2439,7 @@ function install_iperf3 () {
 	fi
 
 	case "$DISTRO_NAME" in
-		oracle|rhel|centos)
+		oracle|rhel|centos|almalinux)
 			install_epel
 			yum -y --nogpgcheck install iperf3 sysstat bc psmisc wget
 			iptables -F
@@ -2560,7 +2563,7 @@ function install_lagscope () {
 	LogMsg "Detected $DISTRO_NAME $DISTRO_VERSION; installing required packages of lagscope"
 	update_repos
 	case "$DISTRO_NAME" in
-		oracle|rhel|centos)
+		oracle|rhel|centos|almalinux)
 			install_epel
 			yum -y --nogpgcheck install libaio sysstat git bc make gcc wget cmake
 			build_lagscope "${1}"
@@ -2633,7 +2636,7 @@ function install_ntttcp () {
 	LogMsg "Detected $DISTRO_NAME $DISTRO_VERSION; installing required packages of ntttcp"
 	update_repos
 	case "$DISTRO_NAME" in
-		oracle|rhel|centos)
+		oracle|rhel|centos|almalinux)
 			install_epel
 			yum -y --nogpgcheck install wget libaio sysstat git bc make gcc dstat psmisc lshw cmake
 			build_ntttcp "${1}"
@@ -2693,7 +2696,7 @@ function install_apache () {
 	LogMsg "Detected $DISTRO_NAME $DISTRO_VERSION; installing required packages of apache"
 	update_repos
 	case "$DISTRO_NAME" in
-		oracle|rhel|centos)
+		oracle|rhel|centos|almalinux)
 			install_epel
 			yum clean dbcache
 			yum -y --nogpgcheck install sysstat zip httpd httpd-tools dstat
@@ -2728,7 +2731,7 @@ function install_memcached () {
 	LogMsg "Detected $DISTRO_NAME $DISTRO_VERSION; installing required packages of memcached"
 	update_repos
 	case "$DISTRO_NAME" in
-		oracle|rhel|centos)
+		oracle|rhel|centos|almalinux)
 			install_epel
 			yum clean dbcache
 			yum -y --nogpgcheck install git sysstat zip memcached libmemcached dstat openssl-devel autoconf automake \
@@ -2767,7 +2770,7 @@ function install_mariadb() {
 	LogMsg "Detected $DISTRO_NAME $DISTRO_VERSION; installing required packages of mariadb and sysbench"
 	update_repos
 	case "$DISTRO_NAME" in
-		oracle|rhel|centos)
+		oracle|rhel|centos|almalinux)
 			install_epel
 			install_package "make git sysstat gcc automake openssl-devel libtool wget \
 							mariadb mariadb-devel mariadb-server"
@@ -2809,7 +2812,7 @@ function install_netperf () {
 	LogMsg "Detected $DISTRO_NAME $DISTRO_VERSION; installing required packages of netperf"
 	update_repos
 	case "$DISTRO_NAME" in
-		oracle|rhel|centos)
+		oracle|rhel|centos|almalinux)
 			install_epel
 			yum -y --nogpgcheck install sysstat make gcc wget
 			build_netperf
@@ -3259,7 +3262,7 @@ function stop_firewall() {
 				return 1
 			fi
 			;;
-		redhat* | centos* | fedora*)
+		redhat* | centos* | fedora* | almalinux*)
 			service firewalld stop
 			if [ $? -ne 0 ]; then
 				exit 1
@@ -3290,7 +3293,7 @@ function Update_Kernel() {
             sudo DEBIAN_FRONTEND=noninteractive apt-get upgrade -y -o Dpkg::Options::="--force-confdef" -o Dpkg::Options::="--force-confold"
             retVal=$?
             ;;
-        redhat* | centos* | fedora*)
+        redhat* | centos* | fedora* | almalinux*)
             yum install -y kernel
             retVal=$?
             ;;
@@ -3528,7 +3531,7 @@ function check_package () {
 	local package_list=("$@")
 	for package_name in "${package_list[@]}"; do
 		case "$DISTRO_NAME" in
-			oracle|rhel|centos)
+			oracle|rhel|centos|almalinux)
 				yum --showduplicates list "$package_name" > /dev/null 2>&1
 				return $?
 				;;

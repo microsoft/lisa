@@ -155,7 +155,7 @@ ConfigUbuntu()
 
 GetDistro
 case $DISTRO in
-    centos* | redhat* | fedora*)
+    centos* | redhat* | fedora* | almalinux*)
         GetOSVersion 
         if [[ $os_RELEASE.$os_UPDATE =~ ^5.* ]] || [[ $os_RELEASE.$os_UPDATE =~ ^6.* ]] ; then
             UpdateSummary "Skipped config step"

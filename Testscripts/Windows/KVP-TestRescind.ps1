@@ -64,7 +64,7 @@ function Main {
     }
 
     # Check if VM is RedHat 7.3 or later (and if not, check external LIS exists)
-    if(@("REDHAT", "ORACLELINUX", "CENTOS").contains($global:detectedDistro)) {
+    if(@("REDHAT", "ORACLELINUX", "CENTOS", "ALMALINUX").contains($global:detectedDistro)) {
         $supportkernel = "3.10.0.514" #kernel version for RHEL 7.3
         $kernelSupport = Get-VMFeatureSupportStatus -Ipv4 $ipv4 -SSHPort $VMPort -UserName $VMUserName `
                             -Password $VMPassword -SupportKernel $supportkernel

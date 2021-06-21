@@ -29,7 +29,7 @@ function version_lt() { test "$(echo "$@" | tr " " "\n" | sort -rV | head -n 1)"
 
 MIN_VERSION_SUPPORTED="6.7"
 
-if [ $DISTRO_NAME == "centos" ] || [ $DISTRO_NAME == "rhel" ] || [ $DISTRO_NAME == "oracle" ]; then
+if [ $DISTRO_NAME == "centos" ] || [ $DISTRO_NAME == "rhel" ] || [ $DISTRO_NAME == "oracle" ] || [ $DISTRO_NAME == "almalinux" ]; then
     if version_lt $DISTRO_VERSION $MIN_VERSION_SUPPORTED ; then
         LogErr "SRIOV is not supported for Distro's below $MIN_VERSION_SUPPORTED, Test skipped!"
         SetTestStateSkipped

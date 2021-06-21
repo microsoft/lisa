@@ -33,7 +33,7 @@ fi
 
 function Main() {
 	base_dir=$(pwd)
-	if [[ "$DISTRO" =~ "redhat" || "$DISTRO" =~ "centos" ]];then
+	if [[ "$DISTRO" =~ "redhat" || "$DISTRO" =~ "centos" || "$DISTRO" =~ "almalinux" ]];then
 		# RHEL requires bigger disk space for kernel repo and its compilation.
 		# This is Azure mnt disk from the host.
 		linux_path=/mnt/linux
@@ -93,7 +93,7 @@ function Main() {
 		LogMsg "$?: Installed the common required packages; $req_pkg"
 
 		case $DISTRO in
-			redhat_7|centos_7|redhat_8|centos_8)
+			redhat_7|centos_7|redhat_8|centos_8|almalinux_8)
 				req_pkg="elfutils-libelf-devel ncurses-devel bc elfutils-libelf-devel openssl-devel grub2"
 				ls /boot/vmlinuz* > old_state.txt
 				;;
@@ -135,7 +135,7 @@ function Main() {
 		yes '' | make oldconfig
 		LogMsg "$?: Did oldconfig make file"
 
-		if [[ "$DISTRO" =~ "redhat" || "$DISTRO" =~ "centos" ]];then
+		if [[ "$DISTRO" =~ "redhat" || "$DISTRO" =~ "centos" || "$DISTRO" =~ "almalinux" ]];then
 			# Commented out CONFIG_SYSTEM_TRUSTED_KEY parameter for redhat kernel compilation
 			sed -i -e "s/CONFIG_MODULE_SIG_KEY=/#CONFIG_MODULE_SIG_KEY=/g" $linux_path/.config
 			LogMsg "$?: Commented out CONFIG_MODULE_SIG_KEY"
@@ -170,7 +170,7 @@ function Main() {
 		fi
 	fi
 
-	if [[ "$DISTRO" =~ "redhat" || "$DISTRO" =~ "centos" ]];then
+	if [[ "$DISTRO" =~ "redhat" || "$DISTRO" =~ "centos" || "$DISTRO" =~ "almalinux" ]];then
 		_entry=$(cat /etc/default/grub | grep 'rootdelay=')
 		if [ "$_entry" ]; then
 			sed -i -e "s/rootdelay=300/rootdelay=300 resume=$sw_uuid/g" /etc/default/grub

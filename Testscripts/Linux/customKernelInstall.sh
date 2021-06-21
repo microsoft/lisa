@@ -70,7 +70,7 @@ function Install_Build_Deps {
     GetDistro
     update_repos
     case "$DISTRO" in
-    redhat_7|centos_7|redhat_8|centos_8)
+    redhat_7|centos_7|redhat_8|centos_8|almalinux_8)
         install_epel
         LogMsg "Installing package Development Tools"
         yum -y groupinstall "Development Tools"  >> $LOG_FILE 2>&1
@@ -172,7 +172,7 @@ function Build_Kernel() {
     check_exit_status "Install kernel" "exit"
 
     if [[ $DISTRO -eq redhat_7 ]] || [[ $DISTRO -eq centos_7 ]] || \
-    [[ $DISTRO -eq redhat_8 ]] || [[ $DISTRO -eq centos_8 ]]; then
+    [[ $DISTRO -eq redhat_8 ]] || [[ $DISTRO -eq centos_8 ]] || [[ $DISTRO -eq almalinux_8 ]]; then
         LogMsg "Set GRUB_DEFAULT=0 in /etc/default/grub"
         sed -i 's/GRUB_DEFAULT=saved/GRUB_DEFAULT=0/g' /etc/default/grub
         grub2-mkconfig -o /boot/grub2/grub.cfg >> $LOG_FILE 2>&1
@@ -286,7 +286,7 @@ function InstallKernel() {
             SetTestStateCompleted
         fi
     elif [ "${CustomKernel}" == "ppa" ]; then
-        DISTRO=$(grep -ihs "buntu\|Suse\|Fedora\|Debian\|CentOS\|Red Hat Enterprise Linux" /etc/{issue,*release,*version})
+        DISTRO=$(grep -ihs "AlmaLinux\|Ubuntu\|Suse\|Fedora\|Debian\|CentOS\|Red Hat Enterprise Linux" /etc/{issue,*release,*version})
         if [[ $DISTRO =~ "Ubuntu" ]];
         then
             LogMsg "Enabling ppa repository..."
@@ -304,7 +304,7 @@ function InstallKernel() {
             SetTestStateCompleted
         fi
     elif [ "${CustomKernel}" == "latest" ]; then
-        DISTRO=$(grep -ihs "buntu\|Suse\|Fedora\|Debian\|CentOS\|Red Hat Enterprise Linux" /etc/{issue,*release,*version})
+        DISTRO=$(grep -ihs "AlmaLinux\|Ubuntu\|Suse\|Fedora\|Debian\|CentOS\|Red Hat Enterprise Linux" /etc/{issue,*release,*version})
         if [[ $DISTRO =~ "Ubuntu" ]];
         then
             export DEBIAN_FRONTEND=noninteractive
@@ -382,7 +382,7 @@ function InstallKernel() {
     elif [[ $CustomKernel == *.rpm ]]; then
         LogMsg "Custom Kernel:$CustomKernel"
         case "$DISTRO_NAME" in
-            oracle|rhel|centos)
+            oracle|rhel|centos|almalinux)
                 KERNEL_CONFLICTING_PACKAGES="hypervvssd hypervkvpd hypervfcopyd hyperv-daemons hyperv-tools kernel-headers"
                 ;;
             suse|opensuse|sles)

@@ -573,7 +573,7 @@ Function Main {
     $currentTestResult = Create-TestResultObject
     $resultArr = @()
     try {
-        if (!@("REDHAT", "ORACLELINUX", "CENTOS").contains($global:detectedDistro)) {
+        if (!@("REDHAT", "ORACLELINUX", "CENTOS", "ALMALINUX").contains($global:detectedDistro)) {
                 Write-LogInfo "Skip case for UNSUPPORTED distro - $global:detectedDistro"
                 return "SKIPPED"
         }
