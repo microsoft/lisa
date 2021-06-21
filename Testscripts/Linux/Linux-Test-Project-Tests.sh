@@ -69,7 +69,7 @@ case $DISTRO in
             libnuma-dev quota genisoimage db-util unzip exfat-utils)
         install_package "${deb_packages[@]}"
         ;;
-    "redhat"* | "centos"* | "fedora"*)
+    "redhat"* | "centos"* | "fedora"* | "almalinux"*)
 		rpm_packages=(git libaio-devel libattr libcap-devel libdb)
 		# this must be revised later once epel_8 is available
 		if [[ $DISTRO != redhat_8 ]]; then

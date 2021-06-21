@@ -46,9 +46,9 @@ UtilsInit
 GetDistro
 # Try to restart ntp. If it fails we try to install it.
 case $DISTRO in
-    redhat_*|centos_*)
+    redhat_*|centos_*|almalinux*)
         # RHEL 8 does not support ntp, skip test
-        if [[ $DISTRO == "centos_8" || $DISTRO == "redhat_8" ]]; then
+        if [[ $DISTRO == "centos_8" || $DISTRO == "redhat_8" || $DISTRO == "almalinux_8" ]]; then
             LogMsg "$DISTRO does not support ntp. Test skipped. "
             SetTestStateSkipped
             exit 0

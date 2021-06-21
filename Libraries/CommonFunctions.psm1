@@ -1107,7 +1107,7 @@ Function Set-CustomConfigInVMs($CustomKernel, $CustomLIS, $EnableSRIOV, $AllVMDa
 	}
 	if ($retValue -and $CustomLIS) {
 		# LIS is only available Redhat, CentOS and Oracle image which uses Redhat kernel.
-		if(@("REDHAT", "ORACLELINUX", "CENTOS").contains($global:detectedDistro)) {
+		if(@("REDHAT", "ORACLELINUX", "CENTOS", "ALMALINUX").contains($global:detectedDistro)) {
 			Write-LogInfo "Custom LIS: $CustomLIS will be installed on all machines..."
 			$LISUpgradeStatus = Install-CustomLIS -CustomLIS $CustomLIS -allVMData $AllVMData `
 				-customLISBranch $customLISBranch -RestartAfterUpgrade -TestProvider $TestProvider
@@ -2029,7 +2029,7 @@ Function Publish-App([string]$appName, [string]$customIP, [string]$appGitURL, [s
     Copy-RemoteFiles -upload -uploadTo $customIP -port $VMSSHPort -files ".\Testscripts\Linux\utils.sh" `
         -username $user -password $password 2>&1
     $cmd = ". utils.sh && update_repos && install_package 'make build-essential'"
-    if (($global:detectedDistro -imatch "CENTOS") -or ($global:detectedDistro -imatch "REDHAT") ) {
+    if (($global:detectedDistro -imatch "CENTOS") -or ($global:detectedDistro -imatch "REDHAT") -or ($global:detectedDistro -imatch "ALMALINUX") ) {
         $cmd = ". utils.sh && update_repos && install_package 'make kernel-devel gcc-c++'"
     }
     $null = Run-LinuxCmd -username $user -password $password -ip $customIP -port $VMSSHPort -command $cmd -runAsSudo

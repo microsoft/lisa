@@ -10,7 +10,8 @@ function InstallNetcat {
     update_repos
     if [[ "$os_VENDOR" == "Red Hat" ]] || \
     [[ "$os_VENDOR" == "Fedora" ]] || \
-    [[ "$os_VENDOR" == "CentOS" ]]; then
+    [[ "$os_VENDOR" == "CentOS" ]] || \
+    [[ "$os_VENDOR" == "AlmaLinux" ]]; then
         package_name="nc"
         # In RHEL 8 qdiscs are shipped as kernel modules in package named kernel-modules-extra
         if [[ $os_RELEASE =~ 8.* ]]; then

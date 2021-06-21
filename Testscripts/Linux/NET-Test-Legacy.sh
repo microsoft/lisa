@@ -290,7 +290,7 @@ while [ $__synth_iterator -lt ${#SYNTH_NET_INTERFACES[@]} ]; do
         LogMsg "Trying to ping $REMOTE_SERVER from synthetic interface ${SYNTH_NET_INTERFACES[$__synth_iterator]}"
         # In some cases eth1 and eth2 would fail to ping6, restarting the network solves the issue
         if [ "$pingVersion" == "ping6" ] && [ ${#SYNTH_NET_INTERFACES[@]} -ge 1 ]; then
-            if [[ "$DISTRO" == "redhat"* || "$DISTRO" == "centos"* ]]; then
+            if [[ "$DISTRO" == "redhat"* || "$DISTRO" == "centos"* || "$DISTRO" == "almalinux"* ]]; then
                 service network restart
                 if [ $? -ne 0 ]; then
                     LogMsg "Unable to restart network service."
@@ -336,7 +336,7 @@ if [ ${#SYNTH_NET_INTERFACES[@]} -eq $__synth_iterator ]; then
 
             # In some cases eth1 and eth2 would fail to ping6, restarting the network solves the issue
             if [ "$pingVersion" == "ping6" ] && [ ${#SYNTH_NET_INTERFACES[@]} -ge 1 ]; then
-                if [[ "$DISTRO" == "redhat"* || "$DISTRO" == "centos"* ]]; then
+                if [[ "$DISTRO" == "redhat"* || "$DISTRO" == "centos"* || "$DISTRO" == "almalinux"* ]]; then
                     service network restart
                     if [ $? -ne 0 ]; then
                         LogMsg "Unable to restart network service."
@@ -382,7 +382,7 @@ while [ $__legacy_iterator -lt ${#LEGACY_NET_INTERFACES[@]} ]; do
         LogMsg "Trying to ping $REMOTE_SERVER from legacy interface ${LEGACY_NET_INTERFACES[$__legacy_iterator]}"
         # In some cases eth1 and eth2 would fail to ping6, restarting the network solves the issue
         if [ "$pingVersion" == "ping6" ] && [ ${#SYNTH_NET_INTERFACES[@]} -ge 1 ]; then
-            if [[ "$DISTRO" == "redhat"* || "$DISTRO" == "centos"* ]]; then
+            if [[ "$DISTRO" == "redhat"* || "$DISTRO" == "centos"* || "$DISTRO" == "almalinux"* ]]; then
                 service network restart
                 if [ $? -ne 0 ]; then
                     msg="Unable to restart network service."

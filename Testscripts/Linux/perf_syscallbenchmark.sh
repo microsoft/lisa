@@ -71,7 +71,7 @@ cd "${HOMEDIR}"
 #Install required packages for SysCall benchmark
 packages=("gcc" "yasm" "git" "tar" "wget" "dos2unix")
 case "$DISTRO_NAME" in
-	oracle|rhel|centos)
+	oracle|rhel|centos|almalinux)
 		install_epel
 		;;
 	ubuntu|debian)

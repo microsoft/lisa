@@ -36,7 +36,7 @@ CheckSource()
 	mj=$(echo "$DISTRO_VERSION" | cut -d '.' -f 1)
 	mn=$(echo "$DISTRO_VERSION" | cut -d '.' -f 2)
 
-	if [[ $DISTRO_NAME == "centos" || $DISTRO_NAME == "rhel" || $DISTRO_NAME == "oracle" ]];then
+	if [[ $DISTRO_NAME == "centos" || $DISTRO_NAME == "rhel" || $DISTRO_NAME == "oracle" || $DISTRO_NAME == "almalinux" ]];then
 		# Check LIS drivers are installed
 		if rpm -qa | grep kmod-microsoft > /dev/null; then
 			[[ $mj -eq 7 && $mn -lt 5 ]] && clocksource="lis_hv_clocksource_tsc_page"
@@ -153,7 +153,7 @@ case $DISTRO in
 		LogMsg "WARNING: $DISTRO does not support unbinding the current clocksource, only check sourcing"
 		CheckSource
 		;;
-	redhat_9 | redhat_8 | centos_8 | fedora* | clear-linux-os | ubuntu* | suse* | coreos*)
+	redhat_9 | redhat_8 | centos_8 | fedora* | clear-linux-os | ubuntu* | suse* | coreos* | almalinux_8)
 		CheckSource
 		UnbindCurrentSource
 		;;

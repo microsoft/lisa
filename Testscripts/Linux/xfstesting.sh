@@ -42,7 +42,7 @@ ConfigureXFSTestTools() {
             fi
         ;;
 
-        redhat*|centos*|fedora*)
+        redhat*|centos*|fedora*|almalinux*)
             pack_list=(libacl-devel libaio-devel libattr-devel libuuid-devel sqlite xfsdump xfsprogs-devel xfsprogs-qa-devel zlib-devel btrfs-progs-devel llvm-ocaml-devel uuid-devel)
             which python || [ -f /usr/libexec/platform-python ] && ln -s /usr/libexec/platform-python /sbin/python
         ;;
@@ -171,7 +171,7 @@ ConfigureCIFS() {
 Main() {
     # Get VM kernel version. Recommend to 3.12 or later for SMB3.0 in Azure.
     # However, we passed this test in CentOS/RHEL 7.6 or later.
-    if [[ $DISTRO_NAME == "centos" || $DISTRO_NAME == "rhel" ]]; then
+    if [[ $DISTRO_NAME == "centos" || $DISTRO_NAME == "rhel" || $DISTRO_NAME == "almalinux" ]]; then
         dj=$(echo $DISTRO_VERSION | cut -d "." -f 1)
         dn=$(echo $DISTRO_VERSION | cut -d "." -f 2)
         if [ $dj -le 7 ] && [ $dn -lt 6 ]; then

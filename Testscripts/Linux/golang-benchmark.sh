@@ -46,7 +46,7 @@ Prepare_Test_Dependencies()
         dpkg_configure
     fi
     update_repos
-    if [[ "${DISTRO_NAME}" == "centos" ]] || [[ "${DISTRO_NAME}" == "rhel" ]] ; then
+    if [[ "${DISTRO_NAME}" == "centos" ]] || [[ "${DISTRO_NAME}" == "rhel" ]] || [[ "${DISTRO_NAME}" == "almalinux" ]] ; then
         install_package make gcc wget time gmp-devel
     else
         install_package make gcc wget libgmp3-dev

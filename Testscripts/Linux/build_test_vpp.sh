@@ -30,7 +30,7 @@ function build_test_vpp () {
 	package_type=""
 	distro="${DISTRO_NAME}${DISTRO_VERSION}"
 	case "${DISTRO_NAME}" in
-		oracle|rhel|centos)
+		oracle|rhel|centos|almalinux)
 			package_manager="rpm"
 			package_manager_install_flags="-ivh"
 			package_type="rpm"

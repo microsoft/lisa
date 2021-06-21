@@ -114,7 +114,7 @@ function create_data_dir () {
 
 function config_mariadb () {
 	case "$DISTRO_NAME" in
-		oracle|rhel|centos)
+		oracle|rhel|centos|almalinux)
 			# Mariadb is not enabled by default
 			Run_SSHCommand "${server}" "service mariadb stop"
 			Run_SSHCommand "${server}" "echo datadir = ${db_path} | sudo tee --append /etc/my.cnf.d/mariadb-server.cnf"

@@ -78,7 +78,7 @@ function check_da_directories_exist() {
 
 function verify_distro() {
     case $DISTRO in
-        redhat* | centos* | suse*)
+        redhat* | centos* | suse* | almalinux*)
             readonly enable_timeout=60 
             LogMsg "Supported Distro family: $DISTRO"
             ;;

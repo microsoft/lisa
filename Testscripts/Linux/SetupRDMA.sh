@@ -111,7 +111,7 @@ function Main() {
 	# Place the temporary solution for waagent 2.2.45 upgrade.
 	# Upgrade_waagent
 	case $DISTRO in
-		redhat_7|centos_7|redhat_8|centos_8)
+		redhat_7|centos_7|redhat_8|centos_8|almalinux_8)
 			# install required packages regardless VM types.
 			LogMsg "Starting RDMA setup for RHEL/CentOS"
 			# required dependencies
@@ -138,7 +138,7 @@ function Main() {
 					install_package $req_pkg
 					LogMsg "$?: Installed $req_pkg"
 				;;
-				redhat_8|centos_8)
+				redhat_8|centos_8|almalinux_8)
 					req_pkg="python3-devel python2-devel python2-setuptools"
 					install_package $req_pkg
 					LogMsg "$?: Installed $req_pkg"
@@ -491,7 +491,7 @@ function Main() {
 		# HPC-X MPI installation
 		LogMsg  "HPC-X MPI installation running ..."
 		case $DISTRO in
-			redhat*|centos*)
+			redhat*|centos*|almalinux*)
 				hpcx_mpi=$hpcx_mpi_ofed
 				LogMsg "Use $hpcx_mpi in RHEL or CentOS"
 			;;
