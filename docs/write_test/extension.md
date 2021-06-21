@@ -44,7 +44,7 @@ performs deserialization, and then
 [marshmallow](https://marshmallow.readthedocs.io/en/3.0/api_reference.html)
 validates the schema.
 
-See more examples in [schema.py](../lisa/schema.py), if you need to extend
+See more examples in [schema.py](../../lisa/schema.py), if you need to extend
 runbook schema.
 
 #### Which method must be implemented
@@ -55,12 +55,12 @@ everywhere, because it does not support to be used as a type in typing.
 
 ### Notifier
 
-The base class is Notifier in [notifier.py](../lisa/notifier.py). The simplest
-example is [console.py](../lisa/notifiers/console.py). A completed example is
-[html.py](../lisa/notifiers/html.py).
+The base class is Notifier in [notifier.py](../../lisa/notifier.py). The
+simplest example is [console.py](../../lisa/notifiers/console.py). A completed
+example is [html.py](../../lisa/notifiers/html.py).
 
 If the notifier needs to set up from the runbook, implement `TypedSchema`. Learn
-more from `ConsoleSchema` in [console.py](../lisa/notifiers/console.py).
+more from `ConsoleSchema` in [console.py](../../lisa/notifiers/console.py).
 
 Note that the current implementation does not process messages in isolated
 threads, so if the implementation is slow, it may slow down the overall
@@ -68,25 +68,25 @@ operation speed.
 
 ### Tool
 
-The base class is the `Tool` in [executable.py](../lisa/executable.py). All
-examples are in [tools](../lisa/tools).
+The base class is the `Tool` in [executable.py](../../lisa/executable.py). All
+examples are in [tools](../../lisa/tools).
 
-- [cat.py](../lisa/tools/cat.py) is the simplest example.
-- [gcc.py](../lisa/tools/gcc.py) supports installation.
-- [echo.py](../lisa/tools/echo.py) supports Windows.
-- [ntttcp.py](../lisa/tools/ntttcp.py) shows how to specify dependencies between
-  tools through the `dependencies` property.
-- [lsvmbus.py](../lisa/tools/lsvmbus.py) is a complex example. It handles
+- [cat.py](../../lisa/tools/cat.py) is the simplest example.
+- [gcc.py](../../lisa/tools/gcc.py) supports installation.
+- [echo.py](../../lisa/tools/echo.py) supports Windows.
+- [ntttcp.py](../../lisa/tools/ntttcp.py) shows how to specify dependencies
+  between tools through the `dependencies` property.
+- [lsvmbus.py](../../lisa/tools/lsvmbus.py) is a complex example. It handles
   different behaviors of Linux distributions and returns structured results to
   test cases.
 
 In simple terms, the tool runs the command, returns the output, and parses it
 into a structure. When implementing tools, avoid returning original results to
 test cases. It needs to parse the result and return a structured object, such as
-[lsvmbus.py](../lisa/tools/lsvmbus.py). This allows more logic to be shared.
+[lsvmbus.py](../../lisa/tools/lsvmbus.py). This allows more logic to be shared.
 
 Learn more about how to use the tool from
-[helloworld.py](../examples/testsuites/helloworld.py).
+[helloworld.py](../../examples/testsuites/helloworld.py).
 
 ```python
 echo = node.tools[Echo]
@@ -105,7 +105,7 @@ scripts as tools.
 To use the scripts,
 
 1. Define the scripts through `CustomScriptBuilder`. Learn more from
-   [withscript.py](../examples/testsuites/withscript.py).
+   [withscript.py](../../examples/testsuites/withscript.py).
 
     ```python
     self._echo_script = CustomScriptBuilder(
@@ -114,7 +114,7 @@ To use the scripts,
     ```
 
 2. Use it like a tool. Learn more from
-   [withscript.py](../examples/testsuites/withscript.py).
+   [withscript.py](../../examples/testsuites/withscript.py).
 
     ```python
     script: CustomScript = node.tools[self._echo_script]
@@ -130,17 +130,17 @@ feature.
 
 It needs to implement a base class that is called by the test cases. It needs to
 implement common and shareable logic. Learn more from `SerialConsole` in
-[serial_console.py](../lisa/features/serial_console.py).
+[serial_console.py](../../lisa/features/serial_console.py).
 
 #### Support an existing feature in a platform
 
 1. Implement the feature, so that it can work normally. Learn more from the
    `SerialConsole` implementation in Azure's
-   [features.py](../lisa/sut_orchestrator/azure/features.py).
+   [features.py](../../lisa/sut_orchestrator/azure/features.py).
 
 1. The platform should declare which features it supports, and where is the
    implementations of features. Learn more from Azure's
-   [platform_.py](../lisa/sut_orchestrator/azure/platform_.py).
+   [platform_.py](../../lisa/sut_orchestrator/azure/platform_.py).
 
     ```python
     @classmethod
@@ -150,7 +150,7 @@ implement common and shareable logic. Learn more from `SerialConsole` in
 
 1. When preparing an environment, the platform should set the supported features
    on nodes. Learn more from Azure's
-   [platform_.py](../lisa/sut_orchestrator/azure/platform_.py).
+   [platform_.py](../../lisa/sut_orchestrator/azure/platform_.py).
 
     ```python
     node_space.features = search_space.SetSpace[str](is_allow_set=True)
@@ -163,7 +163,7 @@ implement common and shareable logic. Learn more from `SerialConsole` in
 
 1. Declare in the metadata which features are required. If the environment does
    not support this feature, the test case will be skipped. Learn more from
-   [provisioning.py](../microsoft/testsuites/core/provisioning.py).
+   [provisioning.py](../../microsoft/testsuites/core/provisioning.py).
 
     ```python
     requirement=simple_requirement(
@@ -171,7 +171,7 @@ implement common and shareable logic. Learn more from `SerialConsole` in
     ```
 
 1. Using features is like using tools. Learn more from
-   [provisioning.py](../microsoft/testsuites/core/provisioning.py).
+   [provisioning.py](../../microsoft/testsuites/core/provisioning.py).
 
     ```python
     serial_console = node.features[SerialConsole]
@@ -191,21 +191,21 @@ is [to_list.py](../lisa/transfomers/to_list.py).
 
 ### Platform
 
-The base class is [platform_.py](../lisa/platform_.py). The simplest example is
-[ready.py](../lisa/sut_orchestrator/ready.py). A complete example is Azure's
-[platform_.py](../lisa/sut_orchestrator/azure/platform_.py).
+The base class is [platform_.py](../../lisa/platform_.py). The simplest example
+is [ready.py](../../lisa/sut_orchestrator/ready.py). A complete example is
+Azure's [platform_.py](../../lisa/sut_orchestrator/azure/platform_.py).
 
 If a platform needs to specify settings in runbook, it can be implemented in two
 places.
 
 1. Platform schema. Learn more from `AzurePlatformSchema` in Azure's
-   [platform_.py](../lisa/sut_orchestrator/azure/platform_.py).
+   [platform_.py](../../lisa/sut_orchestrator/azure/platform_.py).
 
 1. Node schema. Learn more from `AzureNodeSchema` in Azure's
-   [common.py](../lisa/sut_orchestrator/azure/common.py).
+   [common.py](../../lisa/sut_orchestrator/azure/common.py).
 
 1. Use them in the platform code. Learn more from Azure's
-   [platform_.py](../lisa/sut_orchestrator/azure/platform_.py).
+   [platform_.py](../../lisa/sut_orchestrator/azure/platform_.py).
 
     ```python
     azure_runbook: AzurePlatformSchema = self._runbook.get_extended_runbook(
@@ -224,7 +224,7 @@ increase due to new requirements.
 
 ### Implement a hook
 
-1. Implement a hook. Learn more from [platform_.py](../lisa/platform_.py).
+1. Implement a hook. Learn more from [platform_.py](../../lisa/platform_.py).
 
     ```python
     @hookimpl  # type: ignore
@@ -233,7 +233,7 @@ increase due to new requirements.
     ```
 
 2. Register the hook in place. Learn more from
-   [platform_.py](../lisa/platform_.py)
+   [platform_.py](../../lisa/platform_.py)
 
     ```python
     plugin_manager.register(self)
@@ -258,7 +258,7 @@ def get_environment_information(self, environment: Environment) -> Dict[str, str
 
 Called when Azure deployment fails. This is an opportunity to return a better
 error message. Learn from example in
-[hooks.py](../lisa/sut_orchestrator/azure/hooks.py).
+[hooks.py](../../lisa/sut_orchestrator/azure/hooks.py).
 
 ```python
 @hookimpl  # type: ignore

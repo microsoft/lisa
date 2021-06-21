@@ -220,7 +220,7 @@ When writing the assertion,
   list by `contains` (actual value is superset), `is_subset_of` (actual value is
   subset), and others.
 
-Learn more from [examples](../examples/testsuites) and [assertpy
+Learn more from [examples](../../examples/testsuites) and [assertpy
 document](https://github.com/assertpy/assertpy#readme).
 
 ## Troubleshooting excellence
@@ -292,7 +292,7 @@ test cases.
 - **requirement** defines the default requirements for this test suite and can
   be rewritten at the test case level. Learn more from [concepts](concepts.md).
 
-See [examples](../examples/testsuites) for details.
+See [examples](../../examples/testsuites) for details.
 
 ```python
 @TestSuiteMetadata(
@@ -320,7 +320,7 @@ class Provisioning(TestSuite):
 - **requirement** define the requirements in this case. If no requirement is
   specified, the test suite or global default requirements will be used.
 
-See [examples](../examples/testsuites) for details.
+See [examples](../../examples/testsuites) for details.
 
 ```python
 @TestCaseMetadata(
@@ -350,7 +350,7 @@ def smoke_test(self, case_name: str) -> None:
 
 Learn more from [test code excellence](#test-code-excellence) and learn how to
 use below LISA components to speed up development. The
-[examples](../examples/testsuites) and [Microsoft tests](../microsoft/tests) are
+[examples](../../examples/testsuites) and [Microsoft tests](../../microsoft/testsuites) are
 good examples.
 
 The method signature can use environment, node and other arguments like the

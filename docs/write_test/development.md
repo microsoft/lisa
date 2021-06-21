@@ -14,14 +14,15 @@ what to expect of it), as well as our design and development philosophy.
 
 ## Environment Setup
 
-Follow the [installation](install.md) steps to prepare the source code. Then
-follow the steps below to set up the corresponding development environment.
+Follow the [installation](../quick_start#installation) steps to prepare the
+source code. Then follow the steps below to set up the corresponding development
+environment.
 
 ### Visual Studio Code
 
 1. Click on the Python version at the bottom left of the editor's window and
    select the Python interpreter which Poetry just created. If you do not find
-   it, check [FAQ and troubleshooting](troubleshooting.md) for extra
+   it, check [FAQ and troubleshooting](../troubleshooting.md) for extra
    instructions. This step is important because it ensures the current workspace
    uses the correct Poetry virtual environment.
 
