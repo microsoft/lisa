@@ -17,6 +17,8 @@ if TYPE_CHECKING:
 
 
 _get_init_logger = partial(get_logger, name="os")
+# Red Hat Enterprise Linux Server 7.8 (Maipo) => Maipo
+_redhat_release_pattern_bracket = re.compile(r"^.*\(([^ ]*).*\)$")
 
 
 @dataclass
@@ -44,7 +46,6 @@ class OperatingSystem:
     )
     __os_release_pattern_id = re.compile(r"^ID=\"?([^\" \r\n]+)[^\" \n]*\"?\r?$", re.M)
     __redhat_release_pattern_header = re.compile(r"^([^ ]*) .*$")
-    __redhat_release_pattern_bracket = re.compile(r"^.*\(([^ ]*).*\)$")
     __debian_issue_pattern = re.compile(r"^([^ ]+) ?.*$")
     __release_pattern = re.compile(r"^DISTRIB_ID='?([^ \n']+).*$", re.M)
     __suse_release_pattern = re.compile(r"^(SUSE).*$", re.M)
@@ -135,7 +136,7 @@ class OperatingSystem:
             cmd="cat /etc/redhat-release", no_error_log=True
         )
         yield get_matched_str(cmd_result.stdout, cls.__redhat_release_pattern_header)
-        yield get_matched_str(cmd_result.stdout, cls.__redhat_release_pattern_bracket)
+        yield get_matched_str(cmd_result.stdout, _redhat_release_pattern_bracket)
 
         # for FreeBSD
         cmd_result = typed_node.execute(cmd="uname", no_error_log=True)
@@ -375,7 +376,9 @@ class Debian(Linux):
 
     def _get_os_version(self) -> OsVersion:
         os_version = OsVersion("")
-        cmd_result = self._node.execute(cmd="lsb_release -as", no_error_log=True)
+        cmd_result = self._node.execute(
+            cmd="lsb_release -a", shell=True, no_error_log=True
+        )
         if cmd_result.exit_code == 0 and cmd_result.stdout != "":
             for row in cmd_result.stdout.splitlines():
                 os_release_info = self.__lsb_os_info_pattern.match(row)
@@ -390,8 +393,8 @@ class Debian(Linux):
                 raise LisaException("OS version information not found")
         else:
             raise LisaException(
-                f"Command 'lsb_release -as' failed. exit_code:{cmd_result.exit_code}"
-                f"stderr: {cmd_result.stderr}"
+                f"Command 'lsb_release -a' failed. "
+                f"exit_code:{cmd_result.exit_code} stderr: {cmd_result.stderr}"
             )
 
         return os_version
@@ -412,7 +415,8 @@ class OpenBSD(BSD):
 
 
 class Fedora(Linux):
-    __fedora_release_pattern_version = re.compile(r"^.*release\s+([0-9\.]+).*$")
+    # Red Hat Enterprise Linux Server 7.8 (Maipo) => 7.8
+    _fedora_release_pattern_version = re.compile(r"^.*release\s+([0-9\.]+).*$")
 
     @classmethod
     def name_pattern(cls) -> Pattern[str]:
@@ -458,7 +462,7 @@ class Fedora(Linux):
                     continue
                 os_version.vendor = vendor
                 os_version.release = get_matched_str(
-                    cmd_result.stdout, self.__fedora_release_pattern_version
+                    cmd_result.stdout, self._fedora_release_pattern_version
                 )
                 os_version.codename = get_matched_str(
                     cmd_result.stdout, self.__distro_codename_pattern
@@ -543,10 +547,12 @@ class Redhat(Fedora):
                     continue
                 os_version.vendor = vendor
                 os_version.release = get_matched_str(
-                    cmd_result.stdout, self.__fedora_release_pattern_version
+                    cmd_result.stdout,
+                    Fedora._fedora_release_pattern_version,
                 )
                 os_version.codename = get_matched_str(
-                    cmd_result.stdout, self.__redhat_release_pattern_bracket
+                    cmd_result.stdout,
+                    _redhat_release_pattern_bracket,
                 )
                 break
             if os_version.vendor == "":
