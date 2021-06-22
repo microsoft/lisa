@@ -233,7 +233,6 @@ class SshShell(InitializableMixin):
             "password": self._connection_info.password,
             "private_key_file": self._connection_info.private_key_file,
             "missing_host_key": spur.ssh.MissingHostKey.accept,
-            "connect_timeout": 10,
         }
 
         spur_ssh_shell = spur.SshShell(shell_type=shell_type, **spur_kwargs)
