@@ -7,6 +7,7 @@ from .cat import Cat
 from .date import Date
 from .dmesg import Dmesg
 from .echo import Echo
+from .find import Find
 from .gcc import Gcc
 from .git import Git
 from .lscpu import Lscpu
@@ -26,6 +27,7 @@ __all__ = [
     "Date",
     "Dmesg",
     "Echo",
+    "Find",
     "Gcc",
     "Git",
     "Lscpu",
