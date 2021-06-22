@@ -58,36 +58,13 @@ function ConvertFrom-SetupConfig([object]$SetupConfig, [switch]$WrappingLines) {
 }
 
 Function Get-FinalResultHeader($resultArr) {
-
-	# The following pattern-matching-switch iterates over the array of result
-	# strings and aggregates them into the final result.
-
-	# There is a precedence in how test results can change, illustrated here with
-	# a table of results compared to the other possible results with lower precedence
-	# NOTE: SKIP has the lowest precedence and FAIL has the highest.
-
-	# fail  > [ abort | skipped | pass ]
-	# abort > [ skip | pass ]
-	# pass  > [ skip ]
-	# skip  > []
-	Write-LogDbg "Processing result collection: $resultArr "
-	$result = $global:ResultSkipped
 	switch ($resultArr) {
 		{ ($_ -imatch "FAIL") } { $result = $global:ResultFail; break }
-		{ ($_ -imatch "ABORT") } {
-			$result = $global:ResultAborted;
-			continue;
-		}
-		{ ($_ -imatch "SKIP") } { continue; }
-		{ ($_ -imatch "PASS") } {
-			if ($result -eq $global:ResultSkipped ) {
-				$result = $global:ResultPass;
-			}
-			continue;
-		}
+		{ ($_ -imatch "Abort") } { $result = $global:ResultAborted; break }
+		{ ($_ -imatch "Skip") } { $result = $global:ResultSkipped; break }
+		{ ($_ -imatch "PASS") } { $result = $global:ResultPass; break }
 		default { $result = $global:ResultFail }
 	}
-	Write-LogDbg "Selected result: $result"
 	return $result
 }
 
