@@ -7,6 +7,7 @@ from .cat import Cat
 from .date import Date
 from .dmesg import Dmesg
 from .echo import Echo
+from .fdisk import Fdisk
 from .find import Find
 from .gcc import Gcc
 from .git import Git
@@ -15,7 +16,9 @@ from .lsmod import Lsmod
 from .lspci import Lspci
 from .lsvmbus import Lsvmbus
 from .make import Make
+from .mkfs import Mkfsext, Mkfsxfs
 from .modinfo import Modinfo
+from .mount import Mount
 from .ntttcp import Ntttcp
 from .nvmecli import Nvmecli
 from .reboot import Reboot
@@ -27,6 +30,7 @@ __all__ = [
     "Date",
     "Dmesg",
     "Echo",
+    "Fdisk",
     "Find",
     "Gcc",
     "Git",
@@ -35,7 +39,10 @@ __all__ = [
     "Lspci",
     "Lsvmbus",
     "Make",
+    "Mkfsext",
+    "Mkfsxfs",
     "Modinfo",
+    "Mount",
     "Ntttcp",
     "Nvmecli",
     "Reboot",
