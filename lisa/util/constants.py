@@ -64,6 +64,9 @@ PARENT = "parent"
 EXTENSION = "extension"
 VARIABLE = "variable"
 
+TRANSFORMER = "transformer"
+TRANSFORMER_TOLIST = "tolist"
+
 COMBINATOR = "combinator"
 COMBINATOR_GRID = "grid"
 COMBINATOR_BATCH = "batch"

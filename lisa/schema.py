@@ -180,6 +180,33 @@ class TypedSchema:
 
 @dataclass_json(undefined=Undefined.INCLUDE)
 @dataclass
+class Transformer(TypedSchema):
+    type: str = field(metadata=metadata(required=True))
+
+    # the name can be referenced by other transformers. If it's not specified,
+    # the type will be used.
+    name: str = ""
+    # prefix of generated variables. if it's not specified, the name will be
+    # used. For example, a variable called "a" with the prefix "b", so the
+    # variable name will be "b_a" in the variable dict
+    prefix: str = ""
+
+    # specify which transformers are depended.
+    depends_on: List[str] = field(default_factory=list)
+    # rename some of variables for easier use.
+    rename: Dict[str, str] = field(default_factory=dict)
+
+    delay_parsed: CatchAll = field(default_factory=dict)  # type: ignore
+
+    def __post_init__(self, *args: Any, **kwargs: Any) -> None:
+        if not self.name:
+            self.name = self.type
+        if not self.prefix:
+            self.prefix = self.name
+
+
+@dataclass_json(undefined=Undefined.INCLUDE)
+@dataclass
 class Combinator(TypedSchema):
     type: str = field(
         default=constants.COMBINATOR_GRID, metadata=metadata(required=True)
@@ -834,6 +861,7 @@ class Runbook:
     parent: Optional[List[Parent]] = field(default=None)
     extension: Optional[List[Union[str, Extension]]] = field(default=None)
     variable: Optional[List[Variable]] = field(default=None)
+    transformer: Optional[List[Transformer]] = field(default=None)
     combinator: Optional[Combinator] = field(default=None)
     environment: Optional[EnvironmentRoot] = field(default=None)
     notifier: Optional[List[Notifier]] = field(default=None)
