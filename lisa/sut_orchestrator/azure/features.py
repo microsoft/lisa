@@ -184,3 +184,9 @@ class Sriov(AzureFeatureMixin, features.Sriov):
         )
         sriov_enabled = primary_nic.enable_accelerated_networking
         return sriov_enabled
+
+
+class Nvme(AzureFeatureMixin, features.Nvme):
+    def _initialize(self, *args: Any, **kwargs: Any) -> None:
+        super()._initialize(*args, **kwargs)
+        self._initialize_information(self._node)

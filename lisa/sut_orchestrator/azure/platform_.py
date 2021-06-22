@@ -266,6 +266,7 @@ class AzurePlatform(Platform):
     def supported_features(cls) -> List[Type[Feature]]:
         return [
             features.Gpu,
+            features.Nvme,
             features.SerialConsole,
             features.Sriov,
             features.StartStop,
@@ -1182,6 +1183,8 @@ class AzurePlatform(Platform):
         node_space.name = f"{location}_{resource_sku.name}"
         node_space.features = search_space.SetSpace[str](is_allow_set=True)
         for sku_capability in resource_sku.capabilities:
+            if resource_sku.family in ["standardLSv2Family"]:
+                node_space.features.update([features.Nvme.name()])
             name = sku_capability.name
             if name == "vCPUs":
                 node_space.core_count = int(sku_capability.value)
