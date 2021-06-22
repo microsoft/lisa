@@ -372,7 +372,7 @@ def load_environments(
             id_ = _get_environment_id()
             env = environments.from_runbook(
                 runbook=environment_runbook,
-                name=f"customized_{id_}",
+                name=environment_runbook.name or f"customized_{id_}",
                 is_predefined_runbook=True,
                 id_=id_,
             )
