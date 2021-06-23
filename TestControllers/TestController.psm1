@@ -384,7 +384,7 @@ Class TestController {
 		$script = $CurrentTestData.TestScript
 		$scriptName = $Script.split(".")[0]
 		$scriptExtension = $Script.split(".")[1]
-		$constantsPath = Join-Path $workDir "constants.sh"
+		$constantsPath = Join-Path ((Get-Item -Path $LogDir).Parent.FullName) "constants.sh"
 		$testName = $currentTestData.TestName
 		$currentTestResult = Create-TestResultObject
 
