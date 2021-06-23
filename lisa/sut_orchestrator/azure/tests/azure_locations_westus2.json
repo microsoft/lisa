@@ -4,39 +4,40 @@
     "capabilities": [
         {
             "location": "westus2",
-            "vm_size": "Standard_M208ms_v2",
+            "vm_size": "Standard_D8a_v3",
             "capability": {
                 "type": "requirement",
-                "name": "westus2_Standard_M208ms_v2",
-                "isDefault": false,
+                "name": "westus2_Standard_D8a_v3",
+                "is_default": false,
                 "node_count": 1,
-                "core_count": 208,
-                "memory_mb": 5836800,
+                "core_count": 8,
+                "memory_mb": 32768,
                 "disk_count": {
                     "min": 0,
-                    "max": 64,
+                    "max": 16,
                     "max_inclusive": true
                 },
-                "nic_count": {
-                    "min": 0,
-                    "max": 8,
-                    "max_inclusive": true
-                },
+                "nic_count": 1,
                 "gpu_count": 0,
                 "features": {
-                    "is_allow_set": true
+                    "is_allow_set": true,
+                    "items": [
+                        "StartStop",
+                        "SerialConsole"
+                    ]
                 },
                 "excluded_features": {
-                    "is_allow_set": false
+                    "is_allow_set": false,
+                    "items": []
                 }
             },
-            "estimated_cost": 208,
+            "estimated_cost": 8,
             "resource_sku": {
                 "resource_type": "virtualMachines",
-                "name": "Standard_M208ms_v2",
+                "name": "Standard_D8a_v3",
                 "tier": "Standard",
-                "size": "M208ms_v2",
-                "family": "standardMSv2Family",
+                "size": "D8a_v3",
+                "family": "standardDAv3Family",
                 "locations": [
                     "westus2"
                 ],
@@ -44,25 +45,17 @@
                     {
                         "location": "westus2",
                         "zones": [
+                            "3",
                             "1",
-                            "3"
+                            "2"
                         ],
-                        "zone_details": [
-                            {
-                                "capabilities": [
-                                    {
-                                        "name": "UltraSSDAvailable",
-                                        "value": "True"
-                                    }
-                                ]
-                            }
-                        ]
+                        "zone_details": []
                     }
                 ],
                 "capabilities": [
                     {
                         "name": "MaxResourceVolumeMB",
-                        "value": "4194304"
+                        "value": "204800"
                     },
                     {
                         "name": "OSVhdSizeMB",
@@ -70,35 +63,43 @@
                     },
                     {
                         "name": "vCPUs",
-                        "value": "208"
-                    },
-                    {
-                        "name": "HyperVGenerations",
-                        "value": "V2"
-                    },
-                    {
-                        "name": "MemoryGB",
-                        "value": "5700"
-                    },
-                    {
-                        "name": "MaxDataDiskCount",
-                        "value": "64"
-                    },
-                    {
-                        "name": "MaxWriteAcceleratorDisksAllowed",
                         "value": "8"
                     },
                     {
+                        "name": "MemoryPreservingMaintenanceSupported",
+                        "value": "True"
+                    },
+                    {
+                        "name": "HyperVGenerations",
+                        "value": "V1"
+                    },
+                    {
+                        "name": "MemoryGB",
+                        "value": "32"
+                    },
+                    {
+                        "name": "MaxDataDiskCount",
+                        "value": "16"
+                    },
+                    {
                         "name": "LowPriorityCapable",
-                        "value": "False"
+                        "value": "True"
                     },
                     {
                         "name": "PremiumIO",
-                        "value": "True"
+                        "value": "False"
                     },
                     {
                         "name": "VMDeploymentTypes",
                         "value": "IaaS"
+                    },
+                    {
+                        "name": "vCPUsAvailable",
+                        "value": "8"
+                    },
+                    {
+                        "name": "vCPUsPerCore",
+                        "value": "2"
                     },
                     {
                         "name": "EphemeralOSDiskSupported",
@@ -106,38 +107,14 @@
                     },
                     {
                         "name": "EncryptionAtHostSupported",
-                        "value": "True"
-                    },
-                    {
-                        "name": "AcceleratedNetworkingEnabled",
-                        "value": "True"
-                    },
-                    {
-                        "name": "RdmaEnabled",
                         "value": "False"
                     },
                     {
-                        "name": "MaxNetworkInterfaces",
-                        "value": "8"
+                        "name": "CapacityReservationSupported",
+                        "value": "False"
                     }
                 ],
-                "restrictions": [
-                    {
-                        "type": "Zone",
-                        "values": [
-                            "westus2"
-                        ],
-                        "restriction_info": {
-                            "locations": [
-                                "westus2"
-                            ],
-                            "zones": [
-                                "2"
-                            ]
-                        },
-                        "reason_code": "NotAvailableForSubscription"
-                    }
-                ]
+                "restrictions": []
             }
         },
         {
