@@ -147,7 +147,7 @@ def set_filtered_fields(src: Any, dest: Any, fields: List[str]) -> None:
         if hasattr(src, field_name):
             field_value = getattr(src, field_name)
         else:
-            raise LisaException(f"field {field_name} doesn't exist on src")
+            raise LisaException(f"field '{field_name}' doesn't exist on src")
         if field_value is not None:
             setattr(dest, field_name, field_value)
 

@@ -51,6 +51,9 @@ class BaseRunner(BaseClassMixin, InitializableMixin):
         self._case_variables = case_variables
         self.canceled = False
 
+    def __repr__(self) -> str:
+        return self.id
+
     @property
     def is_done(self) -> bool:
         raise NotImplementedError()
