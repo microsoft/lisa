@@ -42,7 +42,8 @@ class DeviceChannel:
         max_settings = self.__max_settings_pattern.match(raw_str)
         if (not current_settings) or (not max_settings):
             raise LisaException(
-                "Cannot get device channel current and/or max settings information"
+                f"Cannot get {interface} device channel current and/or"
+                " max settings information"
             )
 
         current_param = self.__channel_count_param_pattern.match(
@@ -52,7 +53,9 @@ class DeviceChannel:
             max_settings.group("settings")
         )
         if (not current_param) or (not max_param):
-            raise LisaException("Cannot get device channel current and/or max count")
+            raise LisaException(
+                f"Cannot get {interface} channel current and/or max count"
+            )
 
         self.device_name = interface
         self.current_channels = int(current_param.group("value"))
@@ -78,24 +81,70 @@ class DeviceFeatures:
         r"^[\s]*(?P<name>.*):(?P<value>.*?)?$", re.MULTILINE
     )
 
-    def __init__(self, device: str, device_feature_raw: str) -> None:
-        self._parse_feature_info(device, device_feature_raw)
+    def __init__(self, interface: str, device_feature_raw: str) -> None:
+        self._parse_feature_info(interface, device_feature_raw)
 
-    def _parse_feature_info(self, device: str, raw_str: str) -> None:
+    def _parse_feature_info(self, interface: str, raw_str: str) -> None:
         matched_features_info = self.__feature_info_pattern.match(raw_str)
         if not matched_features_info:
-            raise LisaException("Cannot get device's features settings info")
+            raise LisaException(f"Cannot get {interface} features settings info")
 
-        self.device_name = device
+        self.device_name = interface
         self.enabled_features = []
         for row in matched_features_info.group("value").splitlines():
             feature_info = self.__feature_settings_pattern.match(row)
             if not feature_info:
                 raise LisaException(
-                    "Could not get feature setting in the defined pattern."
+                    f"Could not get feature setting for device {interface}"
+                    " in the defined pattern."
                 )
             if "on" in feature_info.group("value"):
                 self.enabled_features.append(feature_info.group("name"))
+
+
+class DeviceLinkSettings:
+    # ethtool device link settings info is in format -
+    # ~$ ethtool eth0
+    #       Settings for eth0:
+    #           Supported ports: [ ]
+    #           Supported link modes:   Not reported
+    #           Speed: 50000Mb/s
+    #           Duplex: Full
+    #           Port: Other
+    #           PHYAD: 0
+    #           Transceiver: internal
+    #           Auto-negotiation: off
+    _link_settings_info_pattern = re.compile(
+        r"Settings for (?P<interface>[\w]*):[\s]*(?P<value>.*?)$", re.DOTALL
+    )
+    _link_settings_pattern = re.compile(
+        r"^[ \t]*(?P<name>.*):[ \t]*(?P<value>.*?)?$", re.MULTILINE
+    )
+
+    def __init__(self, interface: str, device_link_settings_raw: str) -> None:
+        self._parse_link_settings_info(interface, device_link_settings_raw)
+
+    def _parse_link_settings_info(self, interface: str, raw_str: str) -> None:
+        matched_link_settings_info = self._link_settings_info_pattern.match(raw_str)
+        if not matched_link_settings_info:
+            raise LisaException(f"Cannot get {interface} link settings info")
+
+        self.device_name = interface
+        self.link_settings: Dict[str, str] = {}
+
+        for row in matched_link_settings_info.group("value").splitlines():
+            link_setting_info = self._link_settings_pattern.match(row)
+            if not link_setting_info:
+                continue
+            self.link_settings[
+                link_setting_info.group("name")
+            ] = link_setting_info.group("value")
+
+        if not self.link_settings:
+            raise LisaException(
+                f"Could not get any link settings for device {interface}"
+                " in the defined pattern"
+            )
 
 
 class Ethtool(Tool):
@@ -112,6 +161,7 @@ class Ethtool(Tool):
         self._device_list: List[str] = []
         self._device_channel_map: Dict[str, DeviceChannel] = {}
         self._device_features_map: Dict[str, DeviceFeatures] = {}
+        self._device_link_settings_map: Dict[str, DeviceLinkSettings] = {}
 
     def _install(self) -> bool:
         posix_os: Posix = cast(Posix, self.node.os)
@@ -178,6 +228,23 @@ class Ethtool(Tool):
 
         return device_feature
 
+    def get_device_link_settings(self, interface: str) -> DeviceLinkSettings:
+        if interface in self._device_link_settings_map.keys():
+            return self._device_link_settings_map[interface]
+
+        result = self.run(interface)
+        if result.exit_code != 0:
+            raise LisaException(
+                f"ethtool {interface} command got non-zero"
+                f" exit_code: {result.exit_code}"
+                f" stderr: {result.stderr}"
+            )
+
+        device_link_settings = DeviceLinkSettings(interface, result.stdout)
+        self._device_link_settings_map[interface] = device_link_settings
+
+        return device_link_settings
+
     def get_all_device_channels_info(self) -> List[DeviceChannel]:
         devices_channel_list = []
         self._get_device_list()
@@ -193,3 +260,11 @@ class Ethtool(Tool):
             devices_features_list.append(self.get_device_enabled_features(device))
 
         return devices_features_list
+
+    def get_all_device_link_settings(self) -> List[DeviceLinkSettings]:
+        devices_link_settings_list = []
+        self._get_device_list()
+        for device in self._device_list:
+            devices_link_settings_list.append(self.get_device_link_settings(device))
+
+        return devices_link_settings_list
