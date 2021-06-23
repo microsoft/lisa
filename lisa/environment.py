@@ -205,6 +205,9 @@ class Environment(ContextMixin, InitializableMixin):
 
         self.status: EnvironmentStatus = EnvironmentStatus.New
 
+    def __repr__(self) -> str:
+        return self.name
+
     def _initialize(self, *args: Any, **kwargs: Any) -> None:
         if self.status != EnvironmentStatus.Deployed:
             raise LisaException("environment is not deployed, cannot be initialized")
