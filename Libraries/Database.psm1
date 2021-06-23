@@ -42,10 +42,7 @@ Function Get-SQLQueryOfTelemetryData ($TestPlatform, $TestLocation, $TestCategor
 		$UploadedURL = .\Utilities\UploadFilesToStorageAccount.ps1 -filePaths $uploadFileName `
 			-destinationStorageAccount $testLogStorageAccount -destinationContainer "lisav2logs" `
 			-destinationFolder "$testLogFolder" -destinationStorageKey $testLogStorageAccountKey
-		if ($BuildURL) {
-			$BuildURL = "$BuildURL`consoleFull"
-		}
-		else {
+		if (!$BuildURL) {
 			$BuildURL = ""
 		}
 		$SQLQuery = "INSERT INTO $TableName (DateTimeUTC,TestPlatform,TestLocation,TestCategory,TestArea,TestName,TestResult,ExecutionTag,GuestDistro,KernelVersion,HardwarePlatform,LISVersion,HostVersion,VMSize,VMGeneration,ARMImage,OsVHD,LogFile,BuildURL,TestPassID,FailureReason,TestResultDetails) VALUES "
