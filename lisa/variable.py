@@ -98,7 +98,7 @@ def merge_variables(
         if variable:
             variable.update(new_variable)
         else:
-            variables[name] = new_variable
+            variables[name] = new_variable.copy()
 
 
 def _get_undefined_variables(
