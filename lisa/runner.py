@@ -6,7 +6,7 @@ from logging import FileHandler
 from threading import Lock
 from typing import Any, Callable, Dict, Iterator, List, Optional
 
-from lisa import notifier, schema
+from lisa import notifier, schema, transformer
 from lisa.action import Action
 from lisa.combinator import Combinator
 from lisa.parameter_parser.runbook import RunbookBuilder
@@ -105,6 +105,8 @@ class RootRunner(Action):
         await super().start()
 
         try:
+            transformer.run(self._runbook_builder)
+
             # update runbook for notifiers
             raw_data = copy.deepcopy(self._runbook_builder.raw_data)
             constants.RUNBOOK = replace_variables(
