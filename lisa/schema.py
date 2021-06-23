@@ -673,7 +673,7 @@ class Platform(TypedSchema, ExtendableSchemaMixin):
     keep_environment: Optional[Union[str, bool]] = False
 
     # platform can specify a default environment requirement
-    requirement: Optional[Capability] = None
+    requirement: Optional[Dict[str, Any]] = None
 
     def __post_init__(self, *args: Any, **kwargs: Any) -> None:
         add_secret(self.admin_username, PATTERN_HEADTAIL)
@@ -696,6 +696,13 @@ class Platform(TypedSchema, ExtendableSchemaMixin):
                 raise LisaException(
                     f"keep_environment only can be set as one of {allow_list}"
                 )
+
+        # this requirement in platform will be applied to each test case
+        # requirement. It means the set value will override value in test cases.
+        # But the schema will be validated here. The original NodeSpace object holds
+        if self.requirement:
+            # validate schema of raw inputs
+            Capability.schema().load(self.requirement)  # type: ignore
 
 
 @dataclass_json()
