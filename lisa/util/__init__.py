@@ -171,3 +171,14 @@ def get_matched_str(
             # if something matched, it's like ['matched']
             result = matched_item[0 if first_match else -1]
     return result
+
+
+def deep_update_dict(src: Dict[str, Any], dest: Dict[str, Any]) -> Dict[str, Any]:
+    result = dest.copy()
+
+    for key, value in src.items():
+        if isinstance(value, dict) and key in dest:
+            value = deep_update_dict(value, dest[key])
+        result[key] = value
+
+    return result
