@@ -469,7 +469,7 @@ Class TestController {
 		try {
 			# Prepare test case log folder
 			$currentTestName = $($CurrentTestData.testName)
-			$CurrentTestLogDir = "$global:LogDir\$currentTestName"
+			$CurrentTestLogDir = "$global:LogDir\$currentTestName\$($VmData.RoleName)"
 
 			New-Item -Type Directory -Path $CurrentTestLogDir -ErrorAction SilentlyContinue | Out-Null
 			Set-Variable -Name "LogDir" -Value $CurrentTestLogDir -Scope Global
