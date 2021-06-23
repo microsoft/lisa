@@ -32,7 +32,7 @@ class Gpu(Feature):
     def __init__(self, node: Any, platform: Any) -> None:
         super().__init__(node, platform)
         self._log = get_logger("feature", self.name(), self._node.log)
-        self.gpu_vendor: Set[str]
+        self.gpu_vendor: Set[str] = set()
         # tuple of gpu device names and their device id pattern
         # e.g. Tesla GPU device has device id "47505500-0001-0000-3130-444531303244"
         self.gpu_devices = (("Tesla", "47505500", 0), ("A100-SXM4", "44450000", 6))
