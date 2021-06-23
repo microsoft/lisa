@@ -4,7 +4,6 @@
 from __future__ import annotations
 
 import pathlib
-from abc import ABC, abstractmethod
 from hashlib import sha256
 from typing import TYPE_CHECKING, Any, Dict, List, Optional, Type, TypeVar, Union, cast
 
@@ -20,7 +19,7 @@ if TYPE_CHECKING:
 T = TypeVar("T")
 
 
-class Tool(ABC, InitializableMixin):
+class Tool(InitializableMixin):
     """
     The base class, which wraps an executable, package, or scripts on a node.
     A tool can be installed, and execute on a node. When a tool is needed, call
@@ -67,7 +66,6 @@ class Tool(ABC, InitializableMixin):
         self.__cached_results: Dict[str, Process] = {}
 
     @property
-    @abstractmethod
     def command(self) -> str:
         """
         Return command string, which can be run in console. For example, echo.
