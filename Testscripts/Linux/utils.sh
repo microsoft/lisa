@@ -300,6 +300,9 @@ function GetDistro() {
 		*ID=*CoreOS*)
 			DISTRO=coreos
 			;;
+		ID*=debian)
+			DISTRO=debian
+			;;
 		*AlmaLinux*8*)
 			DISTRO=almalinux_8
 			;;
