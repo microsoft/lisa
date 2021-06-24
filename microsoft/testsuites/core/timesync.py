@@ -131,9 +131,15 @@ class TimeSync(TestSuite):
         lscpu = node.tools[Lscpu]
         if "x86_64" == lscpu.get_architecture():
             cpu_info_result = cat.run("/proc/cpuinfo")
-            assert_that(cpu_info_result.stdout).described_as(
-                "Expected 'constant_tsc' shown up in cpu flags."
-            ).contains("constant_tsc")
+            if CpuType.Intel == lscpu.get_cpu_type():
+                expected_tsc_str = " constant_tsc "
+            elif CpuType.AMD == lscpu.get_cpu_type():
+                expected_tsc_str = " tsc "
+            shown_up_times = cpu_info_result.stdout.count(expected_tsc_str)
+            assert_that(shown_up_times).described_as(
+                f"Expected {expected_tsc_str} shown up times in cpu flags is"
+                " equal to cpu count."
+            ).is_equal_to(lscpu.get_core_count())
 
         # 3. Check clocksource name shown up in dmesg.
         dmesg = node.tools[Dmesg]
