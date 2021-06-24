@@ -1,104 +1,57 @@
-# How to write test cases
+# How to write test suites/cases
 
-- [Overview](#overview)
-- [Compositions of test](#compositions-of-test)
+- [Preparation](#preparation)
+- [Test composition](#test-composition)
   - [Metadata](#metadata)
-    - [Test suite metadata](#test-suite-metadata)
-    - [Test case metadata](#test-case-metadata)
+    - [Metadata in test case](#metadata-in-test-case)
+    - [Metadata in test suite](#metadata-in-test-suite)
   - [Test case body](#test-case-body)
-  - [Setup and cleanup](#setup-and-cleanup)
-- [Use components in code](#use-components-in-code)
+  - [Setup and clean-up](#setup-and-clean-up)
+- [Extensions in code](#extensions-in-code)
   - [Environment and node](#environment-and-node)
   - [Tool](#tool)
   - [Scripts](#scripts)
   - [Features](#features)
 - [Best practices](#best-practices)
   - [Debug in ready environment](#debug-in-ready-environment)
-  - [Tips for non-native English speakers by non-native English speakers](#tips-for-non-native-english-speakers-by-non-native-english-speakers)
 
-## Overview
+## Preparation
 
 Before getting down to do some exciting coding, we recommend that you read the
 following documents to understand LISA development better. In addition to how to
 write test cases, we believe that the engineering excellence is equally
-important. After the test case is completed, it will be run thousands of times,
-and many people will read and troubleshoot it. Therefore, a good test case can
-save your and others' time.
+important. A test case will be run thousands of times, and many people will read
+and troubleshoot it. Therefore, a good test case can save your and others' time.
 
 - [Concepts](concepts.md) includes design considerations, how components work
-  together. It's important for everyone who wants to write code in LISA.
+  together. It's important to everyone who wants to write code in LISA.
 - [Development](development.md) includes how to setup environment, code
-  guidelines, and related topics.
+  guidelines, and other development related topics.
 - [Extensions](extension.md) includes how to develop extensions for LISA. In
   some cases, you may need to implement or improve extensions for new test
   cases.
 
-## Compositions of test
+## Test composition
 
-The LISA test is composed of metadata, setting/cleaning up, and test body.
+The LISA test is composed of metadata, test body and setup/clean-up.
 
 ### Metadata
 
-Metadata is used to provide documentation and the settings of test suites and
-test cases.
+Metadata provides the documentation and the settings of test cases and test
+suites, records the main test logic, and is used to generate specifications.
 
-The description is used to generate test specifications. Therefore, it should
-include the purpose and procedures of the test.
+#### Metadata in test case
 
-- Test suite metadata. A test suite is a set of test cases with similar test
-  purposes or shared steps. Therefore, the metadata should explain why the test
-  cases are bundled together.
-- Test case metadata. Each test case has its test purpose, and steps. Since
-  metadata is used to generate specifications, the main steps of the test logic
-  need to be recorded. If it is a regression test case, the bug should be
-  quoted. Including the impact of failure is also good.
+Each test case should have its own test purpose and steps. If it is a regression
+test case, meaning it touches issues around the fixed bug, the related bug should be
+presented. It is also helpful to include impact of failure in metadata.
 
-#### Test suite metadata
-
-- **area** classifies test suites by belonging. When it needs to have a special
-  validation on some area, it can be used to filter test cases. The values can
-  be provisioning, CPU, memory, storage, network, etc.
-- **category** categorizes test cases by test type. It includes functional,
-  performance, pressure, and community. Performance and stress test cases take
-  longer to run, which is not included in regular operations. Community test
-  cases are wrappers that help provide results comparable to the community.
-- **description** should introduce this test suite, including purpose, coverage,
-  and any other content, which is helpful to understand this test suite.
-- **name** is optional. The default name is the class name and can be replaced
-  with the name field. The name is part of the test name. Just like the name
-  space in a programming language.
-- **requirement** defines the default requirements for this test suite and can
-  be rewritten at the test case level. Learn more from [concepts](concepts.md).
-
-See [examples](../../examples/testsuites) for details.
-
-```python
-@TestSuiteMetadata(
-    area="provisioning",
-    category="functional",
-    description="""
-    This test suite uses to verify if an environment can be provisioned correct or not.
-
-    - The basic smoke test can run on all images to determinate if a image can boot and
-    reboot.
-    - Other provisioning tests verify if an environment can be provisioned with special
-    hardware configurations.
-    """,
-)
-class Provisioning(TestSuite):
-    ...
-```
-
-#### Test case metadata
-
-- **priority** priority depends on the impact of the test case and is used to
-  determine how often to run the case. Learn more from [concepts](concepts.md).
 - **description** explains the purpose and procedures of the test. It is used to
   generate test specification documents.
-- **requirement** define the requirements in this case. If no requirement is
+- **priority** priority depends on the impact of the test case and is used to
+  determine how often to run the case. Learn more from [concepts](concepts.md).
+- **requirement** defines the requirements in this case. If no requirement is
   specified, the test suite or global default requirements will be used.
-
-See [examples](../../examples/testsuites) for details.
 
 ```python
 @TestCaseMetadata(
@@ -110,7 +63,7 @@ See [examples](../../examples/testsuites) for details.
         there is kernel panic.
     2. Connect to SSH port 22, and reboot the node. If there is an error and kernel
         panic, fail the case. If it's not connectable, also fail the case.
-    3. If there is another error, but not kernel panic or tcp connection, pass with
+    3. If there is another error, but not kernel panic or TCP connection, pass with
         warning.
     4. Otherwise, fully passed.
     """,
@@ -124,11 +77,48 @@ def smoke_test(self, case_name: str) -> None:
     ...
 ```
 
+#### Metadata in test suite
+
+A test suite is a set of test cases with similar test purposes or shared steps.
+
+- **area** classifies test suites by their task field. When it needs to have a
+  special validation on some area, it can be used to filter test cases. It can
+  be provisioning, CPU, memory, storage, network, etc.
+- **category** categorizes test cases by test type. It includes functional,
+  performance, pressure, and community. Performance and stress test cases take
+  longer to run, which is not included in regular operations. Community test
+  cases are wrappers that help provide results comparable to the community.
+- **description** should introduce this test suite, including purpose, coverage,
+  why these test cases are bundled together and any other content, which helps
+  understand this test suite.
+- **name** is optional. The default name is the class name and can be replaced
+  with the name field. The name is part of the test name, just like the name
+  space in a programming language.
+- **requirement** defines the default requirements for this test suite and can
+  be rewritten at the test case level. Learn more from [concepts](concepts.md).
+
+See [example tests](../../examples/testsuites) for details.
+
+```python
+@TestSuiteMetadata(
+    area="provisioning",
+    category="functional",
+    description="""
+    This test suite is to verify if an environment can be provisioned correct or not.
+
+    - The basic smoke test can run on all images to determine if a image can boot and
+    reboot.
+    - Other provisioning tests verify if an environment can be provisioned with special
+    hardware configurations.
+    """,
+)
+class Provisioning(TestSuite):
+    ...
+```
+
 ### Test case body
 
-Learn more from [test code excellence](#test-code-excellence) and learn how to
-use below LISA components to speed up development. The
-[examples](../../examples/testsuites) and [Microsoft
+Refer to the [example tests](../../examples/testsuites) and [Microsoft
 tests](../../microsoft/testsuites) are good examples.
 
 The method signature can use environment, node and other arguments like the
@@ -139,9 +129,9 @@ def hello(self, case_name: str, node: Node, environment: Environment) -> None:
     ...
 ```
 
-### Setup and cleanup
+### Setup and clean-up
 
-There are four methods: 1) before_suite, after_suite and 2) before_case,
+There are four methods in two pairs: 1) before_suite, after_suite and 2) before_case,
 after_case. They will be called in the corresponding steps. When writing test
 cases, they are used to share common logic or variables.
 
@@ -161,12 +151,11 @@ def after_case(self, **kwargs: Any) -> None:
     ...
 ```
 
-## Use components in code
+## Extensions in code
 
-LISA wraps the shared logic in the following components. When implementing test
-cases, you may need a new component, and you are welcome to contribute to it.
-Make sure to read [concepts](concepts.md) to understand the following
-components. This section focuses on how to use them in the test code.
+LISA wraps the shared logic in code in different kinds of extensions with the following components. When implementing test
+cases, you may want a new component, and you are welcome to contribute to it.
+Read [concepts](concepts.md) and [how write extensions](extension.md) for further knowledge. This section focuses on how to use them in the test code.
 
 ### Environment and node
 
@@ -227,20 +216,3 @@ After the declaration, the usage is like the tool, but it is obtained from
 Debugging test cases or tools can be done on a local computer, in the ready
 environment, or in the deployed Azure environment. The latter can save a lot of
 deployment time.
-
-### Tips for non-native English speakers by non-native English speakers
-
-Today, there are a lot of great tools to help you create high-quality English
-documents. If writing in English is challenging, please try the following steps:
-
-1. Read our documentations.
-2. Write in your language first.
-3. Use machine translation such as [Microsoft
-   Translator](https://www.bing.com/translator/) and [Google
-   translate](https://translate.google.com/) to convert it to English.
-4. Convert the English version back to your language and check. If it doesn't
-   make sense after translating back, it means the sentence is too complicated.
-   Make it simpler, and then start from step 1 again.
-5. Once satisfied, you can use [Microsoft
-   Editor](https://www.microsoft.com/en-us/microsoft-365/microsoft-editor) to
-   further refine the grammar and wordings.
