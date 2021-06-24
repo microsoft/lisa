@@ -894,7 +894,7 @@ class AzurePlatform(Platform):
                 and features.Sriov.name() not in node.capability.features
             ):
                 self._log.debug(
-                    "use synthetic network since used size doesn't have"
+                    "use synthetic network since used size doesn't have "
                     "sriov capability"
                 )
                 arm_parameters.enable_sriov = False
