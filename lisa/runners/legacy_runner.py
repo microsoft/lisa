@@ -569,7 +569,7 @@ class LogParser(InitializableMixin):
                 cases.append(current_case)
         return cases
 
-    @retry(tries=10, jitter=(1, 2))
+    @retry(tries=30, jitter=(1, 2))
     def _read_log(self) -> str:
         """
         V2 opens log file frequently to write content, copying may be failed due to
@@ -580,7 +580,9 @@ class LogParser(InitializableMixin):
         handle = win32file.CreateFile(
             self._runner_log_path,
             win32file.GENERIC_READ,
-            win32file.FILE_SHARE_READ,
+            win32file.FILE_SHARE_DELETE
+            | win32file.FILE_SHARE_READ
+            | win32file.FILE_SHARE_WRITE,
             None,
             win32file.OPEN_EXISTING,
             0,
