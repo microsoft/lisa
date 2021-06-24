@@ -10,13 +10,15 @@ what to expect of it).
 - [Coding guidelines](#coding-guidelines)
   - [Naming Conventions](#naming-conventions)
   - [Code checks](#code-checks)
-- [Document excellence](#document-excellence)
+  - [Test code excellence](#test-code-excellence)
   - [Code comments](#code-comments)
   - [Commit messages](#commit-messages)
   - [Logging](#logging)
   - [Error message](#error-message)
   - [Assertion](#assertion)
-- [Troubleshooting excellence](#troubleshooting-excellence)
+  - [Troubleshooting excellence](#troubleshooting-excellence)
+  - [Document excellence](#document-excellence)
+  - [Tips for non-native English speakers by non-native English speakers](#tips-for-non-native-english-speakers-by-non-native-english-speakers)
 - [Extended reading](#extended-reading)
 
 ## Environment Setup
@@ -165,31 +167,24 @@ request for repair. You can also run the check manually.
 - [rope](https://github.com/python-rope/rope), provides completion and renaming
   support for pyls.
 
-## Document excellence
+### Test code excellence
 
-The documentation is the opportunity to make things clear and easy to maintain.
-A good document does not mean longer is better. Each kind of documentation has
-its own purpose. Good technical documentation should be *useful and accurate*.
-
-The following introduces the principle of each type of document in LISA.
-
-## Test code excellence
-
-Your code is an example of others, and they will follow your approach.
+Your code would be an example for others, and they might follow your approach.
 Therefore, both good and bad practices will be amplified.
 
-In LISA, test code should be organized according to business logic. This means
+In LISA, test code should be organized according to business logic, which means
 that the code should perform the purpose of the test like a test specification.
 The underlying logic should be implemented elsewhere, such as tools, functions,
 or private methods in test suites.
 
-Be careful when using `sleep`! The only way to use sleep is in polling mode.
-This means that you must wait for something with regular inspections. In the
-inspection cycle, you can wait for a reasonable period. Don't wait for 10
-seconds of sleep. This causes two problems, 1) if it is too short, the case may
-fail; 2) if it is long enough, it will slow down the running speed.
+An example: Be careful when using `sleep`! The only way to use sleep is in
+polling mode. This means that you must wait for something with regular
+inspections. In the inspection cycle, you can wait for a reasonable period.
+Don't wait for 10 seconds of sleep. This causes two problems, 1) if it is too
+short, the case may fail; 2) if it is long enough, it will slow down the running
+speed.
 
-Please keep in mind that your code may be copied by others.
+Please keep in mind that your code may be referred to by others.
 
 ### Code comments
 
@@ -266,7 +261,7 @@ which should be done in code comments.
   there should be no error level logs. According to experience, 95% of
   successful runs should not contain any error level logs.
 
-some tips,
+Some tips:
 
 - By reading the log, you should be able to understand the progress without
   having to look at the code. And logs describe business logic, not code logic.
@@ -347,7 +342,7 @@ When writing the assertion,
 Learn more from [examples](../../examples/testsuites) and [assertpy
 document](https://github.com/assertpy/assertpy#readme).
 
-## Troubleshooting excellence
+### Troubleshooting excellence
 
 Test failure is a common phenomenon. Therefore, perform troubleshooting
 frequently. There are some useful ways to troubleshoot failures. In the list
@@ -371,6 +366,30 @@ In LISA, test cases fail due to exceptions, and exception messages are treated
 as single-line messages. When writing test cases, it's time to adjust the
 exception message. Therefore, after completing the test case, many errors will
 be explained well.
+
+### Document excellence
+
+The documentation is the opportunity to make things clear and easy to maintain.
+A longer document is not always a better document. Each kind of documentation
+has its own purpose. Good technical documentation should be *useful and
+accurate*.
+
+### Tips for non-native English speakers by non-native English speakers
+
+Today, there are a lot of great tools to help you create high-quality English
+documents. If writing in English is challenging, please try the following steps:
+
+1. Read our documentations.
+2. Write in your language first.
+3. Use machine translation such as [Microsoft
+   Translator](https://www.bing.com/translator/) and [Google
+   translate](https://translate.google.com/) to convert it to English.
+4. Convert the English version back to your language and check. If it doesn't
+   make sense after translating back, it means the sentence is too complicated.
+   Make it simpler, and then start from step 1 again.
+5. Once satisfied, you can use [Microsoft
+   Editor](https://www.microsoft.com/en-us/microsoft-365/microsoft-editor) to
+   further refine the grammar and wordings.
 
 ## Extended reading
 
