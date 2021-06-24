@@ -1,15 +1,20 @@
-# Description: This script is used for chercking enabled VM sizes and VM core quota in the given azure subscription.
+# Description: This script is used for checking enabled VM sizes and VM core quota in the given azure subscription.
 # It will upload subscription id and unavailable VM/insufficient VM core to db
 # This script will be executed by 'Penguinator-Validate-Azure-Subscription-Info' pipeline
 # This script should be under .\lisav2\Utilities directory
 
-$clientSecret = "$(CLIENT_SECRET)"
-$clientID = $env:CLIENT_ID
-$tenantID = $env:TENANT_ID
-$subID = $env:SUBSCRIPTION_ID
-$lisaTestCasesXMLPath = ".\lisav2\XML\TestCases"
-$lisaVMConfigsPath = ".\lisav2\XML\VMConfigurations"
-$penguinatorSecureFilePath = $env:PENGUINATOR_SECUREFILEPATH
+Param
+(
+    [String] $clientSecret,
+    [String] $clientID,
+    [String] $tenantID,
+    [String] $subID,
+    [String] $lisaTestCasesXMLPath = '.\lisav2\XML\TestCases',
+    [String] $lisaVMConfigsPath = '.\lisav2\XML\VMConfigurations',
+    [String] $penguinatorSecureFilePath
+)
+
+
 $AllLisaTests = [System.Collections.ArrayList]::new()
 $script:AllTestVMSizes = @{}
 $script:InsufficientVMSizes = [System.Collections.ArrayList]::new()
@@ -21,7 +26,7 @@ function Join-VMConfigFiles ($filePath) {
     $files = Get-ChildItem $filePath
     $finalXml = "<TestSetup>"
     foreach ($file in $files) {
-        $xml = [xml](Get-Content $file.FullName)    
+        $xml = [xml](Get-Content $file.FullName)
         $finalXml += $xml.TestSetup.InnerXml
     }
     $finalXml += "</TestSetup>"
@@ -49,7 +54,7 @@ function Measure-SubscriptionCapabilities() {
         $svmusage = @{}
         # loop through testable locations
         # use Get-AzVMUsage to get the virtual machine core count usage for a location
-        # for each location, map location - value 
+        # for each location, map location - value
         $script:TestableLocations | Foreach-Object {
             $loc = $_
             $svmusage["$_"] = (Get-AzVMUsage -Location $_ | Select-Object @{l = "Location"; e = { $loc } }, @{l = "VMFamily"; e = { $_.Name.Value } }, @{l = "AvailableUsage"; e = { $_.Limit - $_.CurrentValue } }, Limit)
@@ -90,12 +95,12 @@ function Assert-VMSizeAndCoreQuota () {
     foreach ($file in $TestXMLs.FullName) {
         $currentTests = ([xml](Get-Content -Path $file)).TestCases
         foreach ($test in $currentTests.test) {
-            if (!($AllLisaTests | Where-Object {$_.TestName -eq $test.TestName})) {
+            if (!($AllLisaTests | Where-Object {($_.TestName -eq $test.TestName) -or ($test.Priority -ge 3) })) {
                 Write-LogInfo "Collected test: $($test.TestName) from $file"
                 [void]$AllLisaTests.Add($test)
-            } 
+            }
             else {
-                Write-LogWarn "Ignore duplicated test: $($test.TestName) from $file"
+                Write-LogWarn "Ignore duplicated or low priority ($($test.Priority)) test: $($test.TestName) from $file"
             }
         }
     }
@@ -104,8 +109,9 @@ function Assert-VMSizeAndCoreQuota () {
 
     # initialize AllTestVMSizes
     $AllLisaTests.SetupConfig.OverrideVMSize | Sort-Object -Unique | Foreach-Object {
-        if (!($script:AllTestVMSizes.$_)) { 
-            $script:AllTestVMSizes["$_"] = @{} 
+        $_ = $_.Split(",")[0]
+        if (!($script:AllTestVMSizes.$_)) {
+            $script:AllTestVMSizes["$_"] = @{}
         }
     }
     $allTestSetupTypes = $AllLisaTests.SetupConfig.SetupType | Sort-Object -Unique
@@ -129,12 +135,11 @@ function Assert-VMSizeAndCoreQuota () {
 
     # Join all VM configs
     $mergedVMConfigs = Join-VMConfigFiles($lisaVMConfigsPath)
-    
     # Loop through tests
     foreach ($test in $AllLisaTests) {
         Write-LogInfo "Checking test: $($test.TestName)"
         $RGXMLData = $mergedVMConfigs.'TestSetup'.$($test.SetupConfig.SetupType).'ResourceGroup'
-        Assert-ResourceLimitation($RGXMLData, $test)
+        Assert-ResourceLimitation $RGXMLData $test
     }
 }
 
@@ -171,7 +176,7 @@ function Assert-ResourceLimitation($RGXMLData, $CurrentTestData) {
         Write-LogInfo "Estimating VM #$vmCounter usage for $($CurrentTestData.TestName)."
         # this 'OverrideVMSize' is already expanded from CurrentTestData with single value
         if ($CurrentTestData.SetupConfig.OverrideVMSize) {
-            $testVMSize = $CurrentTestData.SetupConfig.OverrideVMSize
+            $testVMSize = $CurrentTestData.SetupConfig.OverrideVMSize.Split(",")[0]
         }
         else {
             $testVMSize = $VM.InstanceSize
@@ -245,7 +250,7 @@ function ExecuteSql($connection, $sql, $parameters, $timeout=30) {
         $command.CommandText = $sql
         $command.CommandTimeout = $timeout
         if ($parameters) {
-            $parameters.Keys | ForEach-Object { $command.Parameters.AddWithValue($_, $parameters[$_]) | Out-Null } 
+            $parameters.Keys | ForEach-Object { $command.Parameters.AddWithValue($_, $parameters[$_]) | Out-Null }
         }
 
         $count = $command.ExecuteNonQuery()
@@ -265,7 +270,7 @@ function QuerySql($connection, $sql, $Parameters, $timeout=30) {
         $command.CommandText = $sql
         $command.CommandTimeout  = $timeout
         if ($parameters) {
-            $parameters.Keys | ForEach-Object { $command.Parameters.AddWithValue($_, $parameters[$_]) | Out-Null } 
+            $parameters.Keys | ForEach-Object { $command.Parameters.AddWithValue($_, $parameters[$_]) | Out-Null }
         }
 
         $dataAdapter = new-object System.Data.SqlClient.SqlDataAdapter
@@ -274,7 +279,7 @@ function QuerySql($connection, $sql, $Parameters, $timeout=30) {
 
         $rows = @()
         if ($dataset.Tables.Rows -isnot [array]) {
-            $rows = @($dataset.Tables.Rows) 
+            $rows = @($dataset.Tables.Rows)
         }
         else {
             $rows = $dataset.Tables.Rows
@@ -330,14 +335,14 @@ try {
     if ($result) {
         Write-LogInfo "$subID exists in db. Updating the record with latest scan result VMs: $InsufficientVMSizeString"
         $sql = "
-        UPDATE SubscriptionScanResults 
+        UPDATE SubscriptionScanResults
         SET InsufficientVMs=@InsufficientVMs
         WHERE SubscriptionId=@subscriptionId"
     }
     else {
         Write-LogInfo "$subID doesn't exist. Inserting new record with latest scan result VMs: $InsufficientVMSizeString"
         $sql = "
-        INSERT INTO SubscriptionScanResults(SubscriptionId, InsufficientVMs) 
+        INSERT INTO SubscriptionScanResults(SubscriptionId, InsufficientVMs)
         VALUES (@subscriptionId, @InsufficientVMs)"
     }
     $parameters = @{"@subscriptionId" = $subID; "@InsufficientVMs" = $InsufficientVMSizeString }
