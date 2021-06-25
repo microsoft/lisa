@@ -6,7 +6,7 @@ import functools
 from argparse import Namespace
 from typing import Iterable, Optional, cast
 
-from lisa import notifier
+from lisa import notifier, schema
 from lisa.parameter_parser.runbook import RunbookBuilder
 from lisa.runner import RootRunner
 from lisa.testselector import select_testcases
@@ -22,14 +22,17 @@ def run(args: Namespace) -> int:
     enable_console_timestamp()
     builder = RunbookBuilder.from_path(args.runbook, args.variables)
 
-    runbook = builder.runbook
-    if runbook.notifier:
-        notifier.initialize(runbooks=runbook.notifier)
+    notifier_data = builder.partial_resolve(constants.NOTIFIER)
+    if notifier_data:
+        notifier_runbook = schema.Notifier.schema().load(  # type: ignore
+            notifier_data, many=True
+        )
+        notifier.initialize(runbooks=notifier_runbook)
     run_message = notifier.TestRunMessage(
-        test_project=runbook.test_project,
-        test_pass=runbook.test_pass,
+        test_project=builder.partial_resolve(constants.TEST_PROJECT),
+        test_pass=builder.partial_resolve(constants.TEST_PASS),
         run_name=constants.RUN_NAME,
-        tags=runbook.tags,
+        tags=builder.partial_resolve(constants.TAGS),
     )
     notifier.notify(run_message)
 
@@ -61,14 +64,13 @@ def check(args: Namespace) -> int:
 
 def list_start(args: Namespace) -> int:
     builder = RunbookBuilder.from_path(args.runbook, args.variables)
-    runbook = builder.runbook
     list_all = cast(Optional[bool], args.list_all)
     log = _get_init_logger("list")
     if args.type == constants.LIST_CASE:
         if list_all:
             cases: Iterable[TestCaseRuntimeData] = select_testcases()
         else:
-            cases = select_testcases(runbook.testcase)
+            cases = select_testcases(builder.partial_resolve(constants.TESTCASE))
         for case_data in cases:
             log.info(
                 f"case: {case_data.name}, suite: {case_data.metadata.suite.name}, "
