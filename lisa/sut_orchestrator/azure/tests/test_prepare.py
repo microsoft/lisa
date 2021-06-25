@@ -71,7 +71,7 @@ class AzurePrepareTestCase(TestCase):
         self.assertEqual(4, node.gpu_count)
 
     def test_not_eligible_dropped(self) -> None:
-        # if a vm size desont' exists, it should be dropped.
+        # if a vm size doesn't exists, it should be dropped.
         # if a location is not eligible, it should be dropped.
         self.verify_exists_vm_size("westus2", "Standard_D8a_v3", True)
         assert self._platform._locations_data_cache
