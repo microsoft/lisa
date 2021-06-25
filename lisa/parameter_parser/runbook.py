@@ -36,8 +36,6 @@ class RunbookBuilder:
 
         self._raw_data: Any = None
         self._variables: Dict[str, VariableEntry] = {}
-        self._runbook: schema.Runbook
-
         constants.RUNBOOK_PATH = self._path.parent
         constants.RUNBOOK_FILE = self._path
 
@@ -51,7 +49,7 @@ class RunbookBuilder:
 
     @property
     def runbook(self) -> schema.Runbook:
-        return self._runbook
+        return self.resolve()
 
     @staticmethod
     def from_path(
@@ -87,40 +85,59 @@ class RunbookBuilder:
         if constants.VARIABLE in data:
             del data[constants.VARIABLE]
 
-        # resolve the default root runbook
-        runbook = builder.resolve(variables)
-        builder._runbook = runbook
+        runbook_name = builder.partial_resolve(constants.NAME)
 
-        raw_data = copy.deepcopy(builder.raw_data)
-        constants.RUNBOOK = replace_variables(raw_data, builder._variables)
-        constants.RUN_NAME = f"lisa_{builder._runbook.name}_{constants.RUN_ID}"
+        constants.RUN_NAME = f"lisa_{runbook_name}_{constants.RUN_ID}"
         builder._log.info(f"run name is '{constants.RUN_NAME}'")
-
-        # log message for unused variables, it's helpful to see which variable
-        # is not used.
-        unused_keys = [key for key, value in variables.items() if not value.is_used]
-        if unused_keys:
-            builder._log.debug(f"variables {unused_keys} are not used.")
-
-        # print runbook later, after __post_init__ executed, so secrets are handled.
-        for key, value in variables.items():
-            builder._log.debug(f"variable '{key}': {value.data}")
 
         return builder
 
-    def resolve(self, variables: Dict[str, VariableEntry]) -> schema.Runbook:
-        raw_data = copy.deepcopy(self.raw_data)
-        try:
-            parsed_data = replace_variables(raw_data, variables)
-        except Exception as identifier:
-            # log current runbook for troubleshooting.
-            self._log.debug(f"parsed runbook data: {raw_data}")
-            raise identifier
+    def resolve(
+        self, variables: Optional[Dict[str, VariableEntry]] = None
+    ) -> schema.Runbook:
+        parsed_data = self._internal_resolve(self.raw_data, variables)
 
         # validate runbook, after extensions loaded
         runbook = self._validate_and_load(parsed_data)
 
         return runbook
+
+    def partial_resolve(
+        self, partial_name: str, variables: Optional[Dict[str, VariableEntry]] = None
+    ) -> Any:
+        result: Any = None
+        if partial_name in self.raw_data:
+            raw_data = copy.deepcopy(self.raw_data[partial_name])
+            result = self._internal_resolve(raw_data, variables)
+
+        return result
+
+    def dump_variables(self) -> None:
+        variables = self.variables
+        # log message for unused variables, it's helpful to see which variable
+        # is not used.
+        unused_keys = [key for key, value in variables.items() if not value.is_used]
+        if unused_keys:
+            self._log.debug(f"variables {unused_keys} are not used.")
+
+        # print runbook later, after __post_init__ executed, so secrets are handled.
+        for key, value in variables.items():
+            self._log.debug(f"variable '{key}': {value.data}")
+
+    def _internal_resolve(
+        self, raw_data: Any, variables: Optional[Dict[str, VariableEntry]] = None
+    ) -> Any:
+        raw_data = copy.deepcopy(raw_data)
+        if variables is None:
+            variables = self.variables
+        try:
+            parsed_data = replace_variables(raw_data, variables)
+        except Exception as identifier:
+            # log current data for troubleshooting.
+            self._log.debug(f"parsed raw data: {raw_data}")
+            raise identifier
+
+        return parsed_data
 
     def _import_extensions(self) -> None:
         # load extended modules

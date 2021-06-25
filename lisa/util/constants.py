@@ -10,9 +10,15 @@ CONFIG_RUNBOOK = "runbook"
 RUN_ID = ""
 RUN_NAME = ""
 
+TEST_PROJECT = "test_project"
+TEST_PASS = "test_pass"
+TAGS = "tags"
+
+CONCURRENCY = "concurrency"
+
 RUNBOOK_FILE: Path
 RUNBOOK_PATH: Path
-RUNBOOK: str
+RUNBOOK: str = ""
 # a global cache path for all runs
 CACHE_PATH: Path
 # The physical path of current run.
@@ -36,6 +42,7 @@ LIST = "list"
 LIST_CASE = "case"
 
 # notifier
+NOTIFIER = "notifier"
 NOTIFIER_CONSOLE = "console"
 
 # common
