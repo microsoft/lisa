@@ -58,12 +58,21 @@ function ConvertFrom-SetupConfig([object]$SetupConfig, [switch]$WrappingLines) {
 }
 
 Function Get-FinalResultHeader($resultArr) {
+	# The following pattern-matching-switch iterates over the array of result
+	# strings and aggregates them into the final result.
+
+	# There is a precedence in how test results can change, illustrated here with
+	# a table of results compared to the other possible results with lower precedence
+	# NOTE: SKIP has the lowest precedence and FAIL & ABORT has the highest.
+
+	Write-LogDbg "Processing result collection: $resultArr "
+	$result = $global:ResultSkipped
 	switch ($resultArr) {
 		{ ($_ -imatch "FAIL") } { $result = $global:ResultFail; break }
-		{ ($_ -imatch "Abort") } { $result = $global:ResultAborted; break }
-		{ ($_ -imatch "Skip") } { $result = $global:ResultSkipped; break }
-		{ ($_ -imatch "PASS") } { $result = $global:ResultPass; break }
-		default { $result = $global:ResultFail }
+		{ ($_ -imatch "ABORT") } { $result = $global:ResultAborted; break }
+		{ ($_ -imatch "PASS") } { $result = $global:ResultPass; continue }
+		{ ($_ -imatch "SKIP") } { continue }
+		default { Write-LogDbg "Caution: Testcase is not returing valid status ($_)" }
 	}
 	return $result
 }
