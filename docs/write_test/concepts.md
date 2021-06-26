@@ -6,6 +6,10 @@
 - [Tools and Scripts](#tools-and-scripts)
 - [Feature](#feature)
 - [Runbook](#runbook)
+- [Combinator](#combinator)
+  - [Grid combinator](#grid-combinator)
+  - [Batch combinator](#batch-combinator)
+- [Transformer](#transformer)
 - [Requirement and Capability](#requirement-and-capability)
 
 ## Test suite and test case
@@ -87,6 +91,36 @@ The configuration of the runbook can be extended to certain components. For
 example, when defining a notifier, you can define its configuration structure
 together. The corresponding configuration will be loaded into the notifier with
 the same schema. The extended configuration also supports variables.
+
+## Combinator
+
+The combinator helps to run large-scale test cases with different variables,
+such as running multiple images with different VM sizes or other variables.
+There are two kinds of combinators provided: grid combinator and batch
+combinator. You can also write your own combinator.
+
+### Grid combinator
+
+A [grid combinator](../../lisa/combinators/grid_combinator.py) selects all the
+combination of provided images and variables. For example, if you are to run 10
+images with 3 different VM sizes ([`img1`, `vm1`], [`img1`, `vm2`], [`img1`,
+`vm3`], [`img2`, `vm1`], etc.), the grid combinator saves you from expanding
+that combination out manually in complete form and would automatically give all
+$10\times3=30$ combinations.
+
+### Batch combinator
+
+A [batch combinator](../../lisa/combinators/batch_combinator.py) instead runs a
+batch of specified combinations. For example, maybe we only want `img1` to run
+with `vm1` but we want `img2` to run with `vm1`, `vm2` and `vm3`, you can give
+the batch combinator such specification and all tests would run as you expect.
+
+## Transformer
+
+The transformers generate variables from other variables, and multiple
+transformers can run one by one to achieve complex transformation. For example,
+the first transformer can build Linux kernel and another one can save the VM to
+a VHD. The two transformers can be reused in other workflows.
 
 ## Requirement and Capability
 

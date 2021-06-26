@@ -11,6 +11,8 @@
     - [Create a new feature](#create-a-new-feature)
     - [Support an existing feature in a platform](#support-an-existing-feature-in-a-platform)
     - [Use a feature](#use-a-feature)
+  - [Combinator](#combinator)
+  - [Transformer](#transformer)
   - [Platform](#platform)
 - [Hooks](#hooks)
   - [Implement a hook](#implement-a-hook)
@@ -176,6 +178,16 @@ implement common and shareable logic. Learn more from `SerialConsole` in
     # if there is any panic, fail before partial pass
     serial_console.check_panic(saved_path=case_path, stage="reboot")
     ```
+
+### Combinator
+
+The base class is [combinator.py](../lisa/combinator.py). The full matrix
+implementation is [grid_combinator.py](../lisa/combinators/grid_combinator.py).
+
+### Transformer
+
+The base class is [transformer.py](../lisa/transformer.py). The simple example
+is [to_list.py](../lisa/transfomers/to_list.py).
 
 ### Platform
 
