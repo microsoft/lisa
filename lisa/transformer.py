@@ -32,6 +32,9 @@ class Transformer(subclasses.BaseClassWithRunbookMixin):
         self._log = get_logger("transformer", self.name)
 
     def run(self, is_dry_run: bool = False) -> Dict[str, VariableEntry]:
+        """
+        Call by the transformer flow, don't override it in subclasses.
+        """
         if is_dry_run:
             # create mock up variables and validate
             output_names = self._output_names
@@ -56,11 +59,16 @@ class Transformer(subclasses.BaseClassWithRunbookMixin):
     @property
     def _output_names(self) -> List[str]:
         """
-        List names of outputs, which are returned after run.
+        List names of outputs, which are returned after run. It uses for
+        pre-validation before the real run. It helps identifying variable name
+        errors early.
         """
         raise NotImplementedError()
 
     def _internal_run(self) -> Dict[str, Any]:
+        """
+        The logic to transform
+        """
         raise NotImplementedError()
 
 

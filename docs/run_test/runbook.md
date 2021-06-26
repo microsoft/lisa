@@ -11,6 +11,7 @@
   - [test_project](#test_project)
   - [test_pass](#test_pass)
   - [tags](#tags)
+  - [concurrency](#concurrency)
   - [parent](#parent)
     - [path](#path)
   - [extension](#extension)
@@ -21,6 +22,17 @@
     - [file](#file)
     - [name](#name-2)
     - [value](#value)
+  - [transformer](#transformer)
+    - [type](#type)
+    - [name](#name-3)
+    - [prefix](#prefix)
+    - [depends_on](#depends_on)
+    - [rename](#rename)
+  - [combinator](#combinator)
+    - [grid combinator](#grid-combinator)
+      - [items](#items)
+    - [batch combinator](#batch-combinator)
+      - [items](#items-1)
   - [notifier](#notifier)
     - [console](#console)
       - [log_level](#log_level)
@@ -29,11 +41,11 @@
       - [auto_open](#auto_open)
   - [environment](#environment)
     - [environments](#environments)
-      - [name](#name-3)
+      - [name](#name-4)
       - [topology](#topology)
       - [nodes](#nodes)
       - [nodes_requirement](#nodes_requirement)
-        - [type](#type)
+        - [type](#type-1)
   - [platform](#platform)
   - [testcase](#testcase)
     - [criteria](#criteria)
@@ -108,13 +120,13 @@ subscription_id:
 
 Below three yaml files will be loaded in this sequence.
 
-```
+```bash
 loading runbook sample.yml
 |-- loading parent tier.yml
 |   |-- loading parent t0.yml
 ```
 
-The variable values in its parent yaml file will be overrided by current yaml
+The variable values in its parent yaml file will be overridden by current yaml
 file. The relative path is always relative to current yaml file.
 
 Part of sample.yml
@@ -204,6 +216,13 @@ tags:
   - test
   - bvt
 ```
+
+### concurrency
+
+type: int, optional, default is 1.
+
+The number of concurrent running environments.
+
 
 ### parent
 
@@ -296,7 +315,7 @@ variable:
 
 #### is_secret
 
-type: boolean, optional, default is False.
+type: bool, optional, default is False.
 
 When set to True, the value of this variable will be masked in log and other
 output information.
@@ -321,6 +340,96 @@ Variable name.
 type: str, optional, default is empty
 
 Value of the paired variable.
+
+### transformer
+
+type: list of Transformer, default is empty
+
+#### type
+
+type: str, required, the type of transformer. See
+[transformers](../../lisa/transformers) for all transformers.
+
+#### name
+
+type: str, optional, default is the `type`.
+
+Unique name of the transformer. It's depended by other transformers.
+If it's not specified, it will use the `type` field. But if there are two
+transformers with the same type, one of them should have name at least.
+
+#### prefix
+
+type: str, optional, default is the `name`.
+
+The prefix of generated variables from this transformer. If it's not specified,
+it will use the `name` field.
+
+#### depends_on
+
+type: list of str, optional, default is None.
+
+The depended transformers. The depended transformers will run before this one.
+
+#### rename
+
+type: Dict[str, str], optional, default is None.
+
+The variables, which need to be renamed. If the variable exists already, its
+value will be overwritten by the transformer. For example, `["to_list_image",
+"image"]` means change the variable name `to_list_image` to `image`. The
+original variable name must exist in the output variables of the transformer.
+
+### combinator
+
+type: str, required.
+
+The type of combinator, for example, `grid` or `batch`.
+
+#### grid combinator
+
+##### items
+
+type: List[Variable], required.
+
+The variables which are in the matrix. Each variable must be a list.
+
+For example,
+
+```yaml
+- type: grid
+  items:
+  - name: image
+    value:
+      - Ubuntu
+      - CentOs
+  - name: vm_size
+    value:
+      - Standard_DS2_v2
+      - Standard_DS3_v2
+      - Standard_DS4_v2
+```
+
+#### batch combinator
+
+##### items
+
+type: List[Dict[str, Any]], required.
+
+Specify batches of variables. Each batch will run once.
+
+For example,
+
+```yaml
+- type: batch
+  items:
+  - image: Ubuntu
+    vm_size: Standard_DS2_v2
+  - image: Ubuntu
+    vm_size: Standard_DS3_v2
+  - image: CentOS
+    vm_size: Standard_DS3_v2
+```
 
 ### notifier
 
