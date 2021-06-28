@@ -55,7 +55,7 @@ Class ReadyProvider : TestProvider
 			foreach ($vmData in $AllVMData) {
 				# get the first active nic device's IPv4 address. This is the temporary approach, as it may not be right for VMs that have multi nic devices.
 				$ipAddrInfo = Run-LinuxCmd -username $global:user -password $global:password -ip $($vmData.PublicIp) -port $($vmData.SSHPort) `
-					-command "ip -4 address | awk -F': ' '!/lo/ {print `$2}' | xargs ip address show" -RunAsSudo
+					-command "ip -4 address | awk -F': ' '!/lo/ {print `$2}' | grep . | head -1 | xargs ip address show" -RunAsSudo
 				$ipAddress = GetIPv4AddressFromIpAddrInfo -ipAddrInfo $ipAddrInfo
 				if ($ipAddress) {
 					$AllVmData[$count].InternalIP = $ipAddress
