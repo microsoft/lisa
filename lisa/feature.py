@@ -47,8 +47,8 @@ class Features:
     def __init__(self, node: Any, platform: Any) -> None:
         self._node: Node = node
         self._platform: Platform = platform
-        self._cache: Dict[str, Feature] = dict()
-        self._supported_features: Dict[str, Type[Feature]] = dict()
+        self._cache: Dict[str, Feature] = {}
+        self._supported_features: Dict[str, Type[Feature]] = {}
         for feature_type in platform.supported_features():
             self._supported_features[feature_type.name()] = feature_type
 

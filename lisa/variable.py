@@ -42,7 +42,7 @@ class VariableEntry:
 
 def replace_variables(data: Any, variables: Dict[str, VariableEntry]) -> Any:
 
-    new_variables: Dict[str, VariableEntry] = dict()
+    new_variables: Dict[str, VariableEntry] = {}
     for key, value in variables.items():
         new_variables[f"$({key})"] = value
 
@@ -61,7 +61,7 @@ def load_variables(
     if higher_level_variables is None:
         higher_level_variables = {}
 
-    current_variables: Dict[str, VariableEntry] = dict()
+    current_variables: Dict[str, VariableEntry] = {}
     if isinstance(higher_level_variables, list):
         env_variables = _load_from_env()
         cmd_variables = add_secrets_from_pairs(higher_level_variables)
@@ -73,7 +73,7 @@ def load_variables(
     merge_variables(current_variables, env_variables)
     merge_variables(current_variables, cmd_variables)
 
-    final_variables: Dict[str, VariableEntry] = dict()
+    final_variables: Dict[str, VariableEntry] = {}
     merge_variables(
         final_variables,
         _load_from_runbook(runbook_data, higher_level_variables=current_variables),
