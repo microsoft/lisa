@@ -128,7 +128,7 @@ def fields_to_dict(src: Any, fields: Iterable[str]) -> Dict[str, Any]:
     assert src
     assert fields
 
-    result: Dict[str, Any] = dict()
+    result: Dict[str, Any] = {}
     for field in fields:
         value = getattr(src, field)
         if value is not None:
@@ -153,7 +153,7 @@ def set_filtered_fields(src: Any, dest: Any, fields: List[str]) -> None:
 
 
 def find_patterns_in_lines(lines: str, patterns: List[Pattern[str]]) -> List[List[str]]:
-    results: List[List[str]] = [list()] * len(patterns)
+    results: List[List[str]] = [[]] * len(patterns)
     for line in lines.splitlines(keepends=False):
         for index, pattern in enumerate(patterns):
             if not results[index]:

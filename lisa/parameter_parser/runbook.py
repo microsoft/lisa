@@ -35,7 +35,7 @@ class RunbookBuilder:
         self._cmd_args = cmd_args
 
         self._raw_data: Any = None
-        self._variables: Dict[str, VariableEntry] = dict()
+        self._variables: Dict[str, VariableEntry] = {}
         self._runbook: schema.Runbook
 
         constants.RUNBOOK_PATH = self._path.parent

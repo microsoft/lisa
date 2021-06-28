@@ -49,7 +49,7 @@ class BatchCombinator(Combinator):
     def _next(self) -> Optional[Dict[str, VariableEntry]]:
         result: Optional[Dict[str, VariableEntry]] = None
         if self._index < len(self._items):
-            result = dict()
+            result = {}
             variables = self._items[self._index]
             self._index += 1
             for name, value in variables.items():

@@ -23,7 +23,7 @@ class BatchCombinatorTestCase(TestCase):
             ],
         )
 
-        current: Dict[str, VariableEntry] = dict()
+        current: Dict[str, VariableEntry] = {}
         current["name2"] = VariableEntry("name2", "2value0")
         current["name3"] = VariableEntry("name3", "3value1")
         combinator = BatchCombinator(runbook=runbook)
@@ -55,7 +55,7 @@ class BatchCombinatorTestCase(TestCase):
             items=[],
         )
 
-        current: Dict[str, VariableEntry] = dict()
+        current: Dict[str, VariableEntry] = {}
         current["name3"] = VariableEntry("name3", "3value1")
         combinator = BatchCombinator(runbook=runbook)
         actual_collection: List[Dict[str, VariableEntry]] = []

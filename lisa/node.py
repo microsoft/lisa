@@ -401,7 +401,7 @@ class Nodes:
     def __init__(self) -> None:
         super().__init__()
         self._default: Optional[Node] = None
-        self._list: List[Node] = list()
+        self._list: List[Node] = []
 
     def __getitem__(self, key: Union[int, str]) -> Node:
         found = None

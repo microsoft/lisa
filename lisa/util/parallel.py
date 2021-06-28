@@ -13,7 +13,7 @@ class TaskManager(Generic[T_RESULT]):
     def __init__(self, max_workers: int, callback: Callable[[T_RESULT], None]) -> None:
         self._pool = ThreadPoolExecutor(max_workers=max_workers)
         self._max_workers = max_workers
-        self._futures: List[Future[T_RESULT]] = list()
+        self._futures: List[Future[T_RESULT]] = []
         self._callback = callback
         self._cancelled = False
 

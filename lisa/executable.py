@@ -442,7 +442,7 @@ class CustomScriptBuilder:
 class Tools:
     def __init__(self, node: Node) -> None:
         self._node = node
-        self._cache: Dict[str, Tool] = dict()
+        self._cache: Dict[str, Tool] = {}
 
     def __getattr__(self, key: str) -> Tool:
         """

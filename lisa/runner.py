@@ -190,7 +190,7 @@ class RootRunner(Action):
 
     def _output_results(self, test_results: List[TestResult]) -> None:
         self._log.info("________________________________________")
-        result_count_dict: Dict[TestStatus, int] = dict()
+        result_count_dict: Dict[TestStatus, int] = {}
         for test_result in test_results:
             self._log.info(
                 f"{test_result.runtime_data.metadata.full_name:>50}: "

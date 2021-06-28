@@ -40,7 +40,7 @@ def replace(
         return sub
 
 
-_secret_list: List[Tuple[str, str]] = list()
+_secret_list: List[Tuple[str, str]] = []
 _secret_set: Set[str] = set()
 
 

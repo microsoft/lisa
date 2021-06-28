@@ -22,13 +22,13 @@ def select_testcases(
     """
     log = _get_logger()
     if init_cases:
-        full_list: Dict[str, TestCaseMetadata] = dict()
+        full_list: Dict[str, TestCaseMetadata] = {}
         for item in init_cases:
             full_list[item.full_name] = item
     else:
         full_list = get_cases_metadata()
     if filters:
-        selected: Dict[str, TestCaseRuntimeData] = dict()
+        selected: Dict[str, TestCaseRuntimeData] = {}
         force_included: Set[str] = set()
         force_excluded: Set[str] = set()
         for filter in filters:
@@ -100,7 +100,7 @@ def _match_cases(
     candidates: Mapping[str, Union[TestCaseRuntimeData, TestCaseMetadata]],
     patterns: List[Callable[[Union[TestCaseRuntimeData, TestCaseMetadata]], bool]],
 ) -> Dict[str, TestCaseRuntimeData]:
-    changed_cases: Dict[str, TestCaseRuntimeData] = dict()
+    changed_cases: Dict[str, TestCaseRuntimeData] = {}
 
     for candidate_name in candidates:
         candidate = candidates[candidate_name]
@@ -190,7 +190,7 @@ def _apply_filter(  # noqa: C901
             raise LisaException(f"unknown criteria key: {runbook_key}")
 
     # match by select Action:
-    changed_cases: Dict[str, TestCaseRuntimeData] = dict()
+    changed_cases: Dict[str, TestCaseRuntimeData] = {}
     is_force = case_runbook.select_action in [
         constants.TESTCASE_SELECT_ACTION_FORCE_INCLUDE,
         constants.TESTCASE_SELECT_ACTION_FORCE_EXCLUDE,
