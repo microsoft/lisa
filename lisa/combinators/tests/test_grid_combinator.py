@@ -30,7 +30,7 @@ class GridCombinatorTestCase(TestCase):
             ],
         )
 
-        current: Dict[str, VariableEntry] = dict()
+        current: Dict[str, VariableEntry] = {}
         current["name2"] = VariableEntry("name2", "2value0")
         current["name3"] = VariableEntry("name3", "3value1")
         combinator = GridCombinator(runbook=runbook)
@@ -62,7 +62,7 @@ class GridCombinatorTestCase(TestCase):
             items=[],
         )
 
-        current: Dict[str, VariableEntry] = dict()
+        current: Dict[str, VariableEntry] = {}
         current["name3"] = VariableEntry("name3", "3value1")
         combinator = GridCombinator(runbook=runbook)
         actual_collection: List[Dict[str, VariableEntry]] = []
@@ -99,7 +99,7 @@ class GridCombinatorTestCase(TestCase):
             ],
         )
 
-        current: Dict[str, VariableEntry] = dict()
+        current: Dict[str, VariableEntry] = {}
         current["name2"] = VariableEntry("name2", "2value0")
         current["name3"] = VariableEntry("name3", "3value1")
         combinator = GridCombinator(runbook=runbook)

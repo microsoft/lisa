@@ -76,7 +76,7 @@ class GridCombinator(Combinator):
                 break
 
         if not is_overflow and self._items:
-            result = dict()
+            result = {}
             for index, item in enumerate(self._items):
                 assert isinstance(item.value, list)
                 loaded_dict = load_from_variable_entry(

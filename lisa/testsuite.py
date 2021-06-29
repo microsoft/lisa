@@ -62,8 +62,8 @@ TestStatus = Enum(
     ],
 )
 
-_all_suites: Dict[str, TestSuiteMetadata] = dict()
-_all_cases: Dict[str, TestCaseMetadata] = dict()
+_all_suites: Dict[str, TestSuiteMetadata] = {}
+_all_cases: Dict[str, TestCaseMetadata] = {}
 
 
 @dataclass
@@ -332,7 +332,7 @@ class TestCaseMetadata:
 
         @wraps(self._func)
         def wrapper(*args: Any, **kwargs: Any) -> None:
-            parameters: Dict[str, Any] = dict()
+            parameters: Dict[str, Any] = {}
             for name in kwargs.keys():
                 if name in func.__annotations__:
                     parameters[name] = kwargs[name]

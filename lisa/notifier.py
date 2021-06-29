@@ -74,7 +74,7 @@ class Notifier(subclasses.BaseClassWithRunbookMixin, InitializableMixin):
 
 
 _notifiers: List[Notifier] = []
-_messages: Dict[type, List[Notifier]] = dict()
+_messages: Dict[type, List[Notifier]] = {}
 # prevent concurrent message conflict.
 _message_queue: List[MessageBase] = []
 _message_queue_lock = threading.Lock()

@@ -110,8 +110,8 @@ def generate_runbook(
     requirement: bool = False,
     local_remote_node_extensions: bool = False,
 ) -> schema.EnvironmentRoot:
-    environments: List[Any] = list()
-    nodes: List[Any] = list()
+    environments: List[Any] = []
+    nodes: List[Any] = []
     if local:
         nodes.append(
             {

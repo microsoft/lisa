@@ -255,8 +255,8 @@ class AzurePlatformSchema:
 class AzurePlatform(Platform):
     def __init__(self, runbook: schema.Platform) -> None:
         super().__init__(runbook=runbook)
-        self._eligible_capabilities: Dict[str, List[AzureCapability]] = dict()
-        self._locations_data_cache: Dict[str, AzureLocation] = dict()
+        self._eligible_capabilities: Dict[str, List[AzureCapability]] = {}
+        self._locations_data_cache: Dict[str, AzureLocation] = {}
 
     @classmethod
     def type_name(cls) -> str:
@@ -1036,7 +1036,7 @@ class AzurePlatform(Platform):
             f"listing vm in resource group "
             f"'{environment_context.resource_group_name}'"
         )
-        vms_map: Dict[str, VirtualMachine] = dict()
+        vms_map: Dict[str, VirtualMachine] = {}
         vms = compute_client.virtual_machines.list(
             environment_context.resource_group_name
         )
@@ -1062,7 +1062,7 @@ class AzurePlatform(Platform):
             f"'{environment_context.resource_group_name}'"
         )
         # load nics
-        nics_map: Dict[str, NetworkInterface] = dict()
+        nics_map: Dict[str, NetworkInterface] = {}
         network_interfaces = network_client.network_interfaces.list(
             environment_context.resource_group_name
         )
@@ -1101,7 +1101,7 @@ class AzurePlatform(Platform):
         public_ip_addresses = network_client.public_ip_addresses.list(
             environment_context.resource_group_name
         )
-        public_ips_map: Dict[str, PublicIPAddress] = dict()
+        public_ips_map: Dict[str, PublicIPAddress] = {}
         for ip_address in public_ip_addresses:
             # nic name is like node-0-nic-2, get vm name part for later pick
             # only find primary nic, which is ended by -nic-0
@@ -1127,7 +1127,7 @@ class AzurePlatform(Platform):
         return public_ips_map
 
     def _initialize_nodes(self, environment: Environment, log: Logger) -> None:
-        node_context_map: Dict[str, Node] = dict()
+        node_context_map: Dict[str, Node] = {}
         for node in environment.nodes.list():
             node_context = get_node_context(node)
             node_context_map[node_context.vm_name] = node
