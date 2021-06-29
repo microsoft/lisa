@@ -53,18 +53,17 @@ Run_Blkdiscard() {
             LogMsg "Unmounted ${namespace}"
         fi
         # Run blkdiscard on partition
-        if [ "${DISTRO_NAME}" = "ubuntu" ] && [ ${DISTRO_VERSION} = "20.10" ]; then
-            blkdiscard -f -v "/dev/${namespace}p1"
-        else
-            blkdiscard -v "/dev/${namespace}p1"
-        fi
+        blkdiscard -v "/dev/${namespace}p1"
         if [ $? -ne 0 ]; then
-            LogErr "Failed to run blkdiscard on ${namespace}"
-            SetTestStateFailed
-            exit 0
-        else
-            LogMsg "blkdiscard ran successfully"
+            blkdiscard -f -v "/dev/${namespace}p1"
+            if [ $? -ne 0 ]; then
+                LogErr "Failed to run blkdiscard on ${namespace}"
+                SetTestStateFailed
+                exit 0
+            fi
         fi
+        LogMsg "blkdiscard ran successfully"
+
         # Check mount after discard
         mount "/dev/${namespace}p1" "$namespace"
         if [ $? -eq 0 ]; then
