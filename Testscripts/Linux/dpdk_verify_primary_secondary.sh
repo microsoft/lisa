@@ -56,7 +56,7 @@ function build_test_dpdk_primary_secondary () {
 	LogMsg "timeout --preserve-status 30 ${RTE_SDK}/${RTE_TARGET}/examples/dpdk-mp_client -l3 \
 		-n4 --proc-type=auto $whitelist_params -- -n 0 2>&1 > $mp_client_log_file"
 	timeout --preserve-status 30 "${RTE_SDK}/${RTE_TARGET}/examples/dpdk-mp_client" -l3 \
-		-n4 --proc-type=auto $whitelist_params -- -n 0 2>&1 > $mp_client_log_file
+		-n4 --proc-type=auto $whitelist_params -- -n 0 > $mp_client_log_file 2>&1
 
 	test_output=$(cat $mp_client_log_file)
 	pkill -f mp_server
