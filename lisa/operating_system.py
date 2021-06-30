@@ -551,7 +551,7 @@ class Redhat(Fedora):
 
     @classmethod
     def name_pattern(cls) -> Pattern[str]:
-        return re.compile("^rhel|Red|Scientific|acronis|Actifio$")
+        return re.compile("^rhel|Red|AlmaLinux|Scientific|acronis|Actifio$")
 
     def _initialize_package_installation(self) -> None:
         # older images cost much longer time when update packages
@@ -606,7 +606,7 @@ class Redhat(Fedora):
             cmd="cat /etc/redhat-release", no_error_log=True
         )
         if cmd_result.exit_code == 0 and cmd_result.stdout != "":
-            for vendor in ["Red Hat", "CentOS", "XenServer"]:
+            for vendor in ["Red Hat", "CentOS", "XenServer", "AlmaLinux"]:
                 if vendor not in cmd_result.stdout:
                     continue
                 os_version.vendor = vendor
