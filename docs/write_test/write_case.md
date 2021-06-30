@@ -25,8 +25,9 @@ and troubleshoot it. Therefore, a good test case can save your and others' time.
 
 - [Concepts](concepts.md) includes design considerations, how components work
   together. It's important to everyone who wants to write code in LISA.
-- [Development](development.md) includes how to setup environment, code
-  guidelines, and other development related topics.
+- [Coding guidelines](guidelines.md) includes guidelines to follow, such as
+  naming, code, comment conventions, etc.
+- [Development setup](setup.md) includes how to setup environment, code checks.
 - [Extensions](extension.md) includes how to develop extensions for LISA. In
   some cases, you may need to implement or improve extensions for new test
   cases.
@@ -43,8 +44,9 @@ suites, records the main test logic, and is used to generate specifications.
 #### Metadata in test case
 
 Each test case should have its own test purpose and steps. If it is a regression
-test case, meaning it touches issues around the fixed bug, the related bug should be
-presented. It is also helpful to include impact of failure in metadata.
+test case, meaning it touches issues around the fixed bug, the related bug
+should be presented. It is also helpful to include impact of failure in
+metadata.
 
 - **description** explains the purpose and procedures of the test. It is used to
   generate test specification documents.
@@ -131,9 +133,9 @@ def hello(self, case_name: str, node: Node, environment: Environment) -> None:
 
 ### Setup and clean-up
 
-There are four methods in two pairs: 1) before_suite, after_suite and 2) before_case,
-after_case. They will be called in the corresponding steps. When writing test
-cases, they are used to share common logic or variables.
+There are four methods in two pairs: 1) before_suite, after_suite and 2)
+before_case, after_case. They will be called in the corresponding steps. When
+writing test cases, they are used to share common logic or variables.
 
 The kwargs supports variables similar to those in test methods.
 
@@ -153,9 +155,11 @@ def after_case(self, **kwargs: Any) -> None:
 
 ## Extensions in code
 
-LISA wraps the shared logic in code in different kinds of extensions with the following components. When implementing test
-cases, you may want a new component, and you are welcome to contribute to it.
-Read [concepts](concepts.md) and [how write extensions](extension.md) for further knowledge. This section focuses on how to use them in the test code.
+LISA wraps the shared logic in code in different kinds of extensions with the
+following components. When implementing test cases, you may want a new
+component, and you are welcome to contribute to it. Read [concepts](concepts.md)
+and [how write extensions](extension.md) for further knowledge. This section
+focuses on how to use them in the test code.
 
 ### Environment and node
 
