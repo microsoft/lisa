@@ -3,11 +3,11 @@
 - [Preparation](#preparation)
 - [Test composition](#test-composition)
   - [Metadata](#metadata)
-    - [Metadata in test case](#metadata-in-test-case)
     - [Metadata in test suite](#metadata-in-test-suite)
+    - [Metadata in test case](#metadata-in-test-case)
   - [Test case body](#test-case-body)
   - [Setup and clean-up](#setup-and-clean-up)
-- [Extensions in code](#extensions-in-code)
+- [Extensions](#extensions)
   - [Environment and node](#environment-and-node)
   - [Tool](#tool)
   - [Scripts](#scripts)
@@ -18,42 +18,78 @@
 ## Preparation
 
 Before getting down to do some exciting coding, we recommend that you read the
-following documents to understand LISA development better. In addition to how to
-write test cases, we believe that the engineering excellence is equally
-important. A test case will be run thousands of times, and many people will read
-and troubleshoot it. Therefore, a good test case can save your and others' time.
+following documents to ensure a better LISA development experience. We believe
+that the engineering excellence is equally important in addition to new test
+cases, since any test case will be run thousands of times, and many people will
+read and troubleshoot it. Therefore, a good test case following the guidelines
+can save everyone's time.
 
-- [Concepts](concepts.md) includes design considerations, how components work
-  together. It's important to everyone who wants to write code in LISA.
-- [Coding guidelines](guidelines.md) includes guidelines to follow, such as
+- [Basic concepts](concepts.md) introduces design considerations and how
+  components work together in LISA. We recommend every LISA developer go through
+  this before coding.
+- [Coding guidelines](guidelines.md) covers our coding guidelines such as
   naming, code, comment conventions, etc.
-- [Development setup](setup.md) includes how to setup environment, code checks.
-- [Extensions](extension.md) includes how to develop extensions for LISA. In
-  some cases, you may need to implement or improve extensions for new test
+- [Development setup](setup.md) introduces how to setup environment and code
+  checks.
+- [Extensions](extension.md) introduces how to develop extensions for LISA. In
+  some cases, you may need to improve or implement extensions for new test
   cases.
 
 ## Test composition
 
-The LISA test is composed of metadata, test body and setup/clean-up.
+The LISA test is composed of [metadata](#metadata), [test body](#test-case-body)
+and [setup/clean-up](#setup-and-clean-up).
 
 ### Metadata
 
-Metadata provides the documentation and the settings of test cases and test
-suites, records the main test logic, and is used to generate specifications.
+Metadata provides documentations and settings for test cases and test suites,
+illustrates the main test logic, and is used to generate specifications. Both of
+the following examples are taken from
+[provision.py](../../microsoft/testsuites/core/provisioning.py). See [example
+tests](../../examples/testsuites) for more examples.
+
+#### Metadata in test suite
+
+A test suite is a set of test cases with similar test purposes or shared steps.
+
+```python
+@TestSuiteMetadata(
+    area="provisioning",
+    category="functional",
+    description="""
+    This test suite is to verify if an environment can be provisioned correct or not.
+
+    - The basic smoke test can run on all images to determine if a image can boot and
+    reboot.
+    - Other provisioning tests verify if an environment can be provisioned with special
+    hardware configurations.
+    """,
+)
+class Provisioning(TestSuite):
+    ...
+```
+
+- **area** classifies test suites by their task field. When it needs to have a
+  special validation on some area, it can be used to filter test cases. It can
+  be provisioning, CPU, memory, storage, network, etc.
+- **category** categorizes test cases by test type. It includes functional,
+  performance, stress, and community. Performance and stress test cases take
+  longer time to run, which are not included in regular operations. Community
+  test cases are wrappers that help provide results comparable to the community.
+- **description** introduces purpose, coverage, why these test cases are bundled
+  together and other content of the test suite, which makes clarity the test
+  suite.
+- **name** is optional. The default name is the class name and will be
+  overridden by this field if provided. It is part of the test name, just like
+  the namespace in a programming language.
+- **requirement** is optional. A test case without this field means it does not
+  have any requirement. It defines the default requirement for this test suite
+  and can be overwritten at the test case level. Learn more from
+  [concepts](concepts.md#requirement-and-capability).
 
 #### Metadata in test case
 
-Each test case should have its own test purpose and steps. If it is a regression
-test case, meaning it touches issues around the fixed bug, the related bug
-should be presented. It is also helpful to include impact of failure in
-metadata.
-
-- **description** explains the purpose and procedures of the test. It is used to
-  generate test specification documents.
-- **priority** priority depends on the impact of the test case and is used to
-  determine how often to run the case. Learn more from [concepts](concepts.md).
-- **requirement** defines the requirements in this case. If no requirement is
-  specified, the test suite or global default requirements will be used.
+A test case is a test that has its own test purpose and steps. 
 
 ```python
 @TestCaseMetadata(
@@ -79,63 +115,52 @@ def smoke_test(self, case_name: str) -> None:
     ...
 ```
 
-#### Metadata in test suite
+- **description** explains the purpose and procedures of the test. As said
+  before, it is also used to generate test specification documents.
+- **priority** depends on the impact of the test case and is used to determine
+  how often to run the case. A lower priority means a test case of more
+  importance, and thus it will be run more often. The lowest value (most
+  prioritized) is `0`.
+- **requirement** defines the requirements in this case. If no requirement
+  specified, the test suite's or the default global requirements will apply.
 
-A test suite is a set of test cases with similar test purposes or shared steps.
-
-- **area** classifies test suites by their task field. When it needs to have a
-  special validation on some area, it can be used to filter test cases. It can
-  be provisioning, CPU, memory, storage, network, etc.
-- **category** categorizes test cases by test type. It includes functional,
-  performance, pressure, and community. Performance and stress test cases take
-  longer to run, which is not included in regular operations. Community test
-  cases are wrappers that help provide results comparable to the community.
-- **description** should introduce this test suite, including purpose, coverage,
-  why these test cases are bundled together and any other content, which helps
-  understand this test suite.
-- **name** is optional. The default name is the class name and can be replaced
-  with the name field. The name is part of the test name, just like the name
-  space in a programming language.
-- **requirement** defines the default requirements for this test suite and can
-  be rewritten at the test case level. Learn more from [concepts](concepts.md).
-
-See [example tests](../../examples/testsuites) for details.
-
-```python
-@TestSuiteMetadata(
-    area="provisioning",
-    category="functional",
-    description="""
-    This test suite is to verify if an environment can be provisioned correct or not.
-
-    - The basic smoke test can run on all images to determine if a image can boot and
-    reboot.
-    - Other provisioning tests verify if an environment can be provisioned with special
-    hardware configurations.
-    """,
-)
-class Provisioning(TestSuite):
-    ...
-```
+Note for a regression test case, which deals with further issues that the fixed
+bug might cause, the related bugs should be presented. It is also helpful to
+include impact of failure in metadata.
 
 ### Test case body
 
-Refer to the [example tests](../../examples/testsuites) and [Microsoft
-tests](../../microsoft/testsuites) are good examples.
+The test case body contains the actual implementations of the test. You can
+import existing `tools` to verify certain purposes. If existing `tools` cannot
+realize your test purpose, it is recommended that you wrap your test codes into
+functions, integrate them into new `tools`, and then only call functions like
+`assert_that` in test case body to verify. The section below explains how to do
+this.
 
-The method signature can use environment, node and other arguments like the
-following.
+The method accepts `environment`, `node` and other arguments as follows. An
+example from [helloworld.py](../../examples/testsuites/helloworld.py):
 
 ```python
 def hello(self, case_name: str, node: Node, environment: Environment) -> None:
     ...
+    assert_that(result.stdout).is_equal_to(hello_world)
+    assert_that(result.stderr).is_equal_to("")
+    assert_that(result.exit_code).is_equal_to(0)
 ```
+
+Find more examples in [example tests](../../examples/testsuites) and [Microsoft
+tests](../../microsoft/testsuites).
 
 ### Setup and clean-up
 
-There are four methods in two pairs: 1) before_suite, after_suite and 2)
-before_case, after_case. They will be called in the corresponding steps. When
-writing test cases, they are used to share common logic or variables.
+There are four methods in two pairs:
+
+1. `before_suite` & `after_suite`
+
+2. `before_case` & `after_case`
+
+They are used to share common logic or variables among test cases. They will be
+called in the corresponding step. 
 
 The kwargs supports variables similar to those in test methods.
 
@@ -153,34 +178,37 @@ def after_case(self, **kwargs: Any) -> None:
     ...
 ```
 
-## Extensions in code
+## Extensions
 
-LISA wraps the shared logic in code in different kinds of extensions with the
-following components. When implementing test cases, you may want a new
-component, and you are welcome to contribute to it. Read [concepts](concepts.md)
-and [how write extensions](extension.md) for further knowledge. This section
-focuses on how to use them in the test code.
+When implementing test cases, you may need to use some existing extensions, or
+you are welcome to create your own. This section focuses on how to use them in
+the test code.
+
+Read 
+- [concepts](concepts.md) to understand which extension does what and
+- [how to write extensions](extension.md) to develop new extensions
 
 ### Environment and node
 
-The environment and node variables are obtained from the method arguments `def
-hello(self, node: Node, environment: Environment)`. If there are multiple nodes
-in the environment, you can get them from `environment.nodes`. The node can run
-any command, but it is recommended to implement the logic in the tool and obtain
-the tool through `node.tools[ToolName]`.
+The `environment` and `node` variables are obtained from the method arguments
+`def hello(self, node: Node, environment: Environment)`. If there are multiple
+nodes in the environment, you can use `environment.nodes` to get them. The node
+per se can run any command, but it is recommended to implement the logic in
+`tools` and obtain the tool by `node.tools[ToolName]`.
 
 ### Tool
 
-When calling `node.tools[ToolName]`, LISA will check if the tool is installed.
-If it is not, LISA will install it. After that, an instance of the tool will be
-returned.  The instance is available until the node is recycled. Therefore, when
-`node.tools[ToolName]` is called again, it will not perform the installation
-again.
+As said, call `node.tools[ToolName]` to obtain the tool. When called, LISA will
+first check if the tool is installed. If not, LISA will install it, and after
+that, an instance of the tool will be returned. The instance is available until
+the node is recycled, which means the same tool is already ready to use when
+`node.tools[ToolName]` is called again, as to avoid the redundant installation.
 
 ### Scripts
 
-The script is like the tool and needs to be uploaded to the node before use.
-Before using the script, you need to define the following script builder.
+The `script`, like the `tool`, needs to be uploaded to the node before use. In
+addition, you need to define the following script builder before using the
+script.
 
 ```python
 self._echo_script = CustomScriptBuilder(
@@ -188,7 +216,7 @@ self._echo_script = CustomScriptBuilder(
 )
 ```
 
-Once defined, it can be used like `script: CustomScript =
+Once defined, the script can be used like `script: CustomScript =
 node.tools[self._echo_script]`.
 
 Please note that it is recommended that you use the tools in LISA instead of
@@ -197,10 +225,9 @@ write logic in Python.
 
 ### Features
 
-This feature needs to be declared in the test requirements of the test suite or
-test case, as shown below. This means that the test case requires this feature,
-and if the feature is not available in the environment, this test case will be
-skipped.
+The `feature` needs to be declared in the requirements of the test suite or test
+case, as shown below. It means that the test case requires the feature, and if
+the feature is not available in the environment, the test case will be skipped.
 
 ```python
 @TestCaseMetadata(
@@ -210,7 +237,7 @@ skipped.
 )
 ```
 
-After the declaration, the usage is like the tool, but it is obtained from
+After the declaration, you can use the feature just like the tool, by calling
 `node.features[SerialConsole]`.
 
 ## Best practices
@@ -218,5 +245,5 @@ After the declaration, the usage is like the tool, but it is obtained from
 ### Debug in ready environment
 
 Debugging test cases or tools can be done on a local computer, in the ready
-environment, or in the deployed Azure environment. The latter can save a lot of
-deployment time.
+environment, or in the deployed Azure environment. We recommend the latter two
+methods as they can save a lot of deployment time.
