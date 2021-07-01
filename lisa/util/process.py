@@ -8,9 +8,10 @@ import signal
 import subprocess
 import time
 from dataclasses import dataclass
-from typing import Dict, Optional
+from typing import Dict, List, Optional, Union
 
 import spur  # type: ignore
+from assertpy.assertpy import AssertionBuilder, assert_that
 from spur.errors import NoSuchCommandError  # type: ignore
 
 from lisa.util.logger import Logger, LogWriter, get_logger
@@ -23,10 +24,23 @@ class ExecutableResult:
     stdout: str
     stderr: str
     exit_code: Optional[int]
+    cmd: Union[str, List[str]]
     elapsed: float
 
     def __str__(self) -> str:
         return self.stdout
+
+    def assert_exit_code(
+        self, expected_exit_code: int = 0, message: str = ""
+    ) -> AssertionBuilder:
+        message = ". ".join([message, f"get unexpected exit code on cmd {self.cmd}"])
+        return assert_that(self.exit_code, message).is_equal_to(expected_exit_code)
+
+    def assert_stderr(
+        self, expected_stderr: str = "", message: str = ""
+    ) -> AssertionBuilder:
+        message = ". ".join([message, f"get unexpected stderr on cmd {self.cmd}"])
+        return assert_that(self.stderr, message).is_equal_to(expected_stderr)
 
 
 # TODO: So much cleanup here. It was using duck typing.
@@ -116,12 +130,14 @@ class Process:
                 store_pid=self._is_posix,
                 encoding="utf-8",
             )
+            # save for logging.
+            self._cmd = split_command
             self._running = True
         except (FileNotFoundError, NoSuchCommandError) as identifier:
             # FileNotFoundError: not found command on Windows
             # NoSuchCommandError: not found command on remote Posix
             self._result = ExecutableResult(
-                "", identifier.strerror, 1, self._timer.elapsed()
+                "", identifier.strerror, 1, split_command, self._timer.elapsed()
             )
             self._log.log(stderr_level, f"not found command: {identifier}")
 
@@ -137,7 +153,6 @@ class Process:
             self.kill()
 
         if self._result is None:
-            # if not isinstance(self._process, ExecutableResult):
             assert self._process
             process_result = self._process.wait_for_result()
             self._stdout_writer.close()
@@ -147,6 +162,7 @@ class Process:
                 process_result.output.strip(),
                 process_result.stderr_output.strip(),
                 process_result.return_code,
+                self._cmd,
                 self._timer.elapsed(),
             )
             # TODO: The spur library is not very good and leaves open
