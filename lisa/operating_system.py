@@ -535,19 +535,15 @@ class Fedora(Linux):
             no_error_log=True,
         )
         if cmd_result.exit_code == 0 and cmd_result.stdout != "":
-            for vendor in ["Fedora", "CentOS", "Red Hat", "XenServer"]:
-                if vendor not in cmd_result.stdout:
-                    continue
-                os_version.vendor = vendor
-                os_version.release = get_matched_str(
-                    cmd_result.stdout, self._fedora_release_pattern_version
-                )
-                os_version.codename = get_matched_str(
-                    cmd_result.stdout, self.__distro_codename_pattern
-                )
-                break
-            if os_version.vendor == "":
+            if "Fedora" not in cmd_result.stdout:
                 raise LisaException("OS version information not found")
+            os_version.vendor = "Fedora"
+            os_version.release = get_matched_str(
+                cmd_result.stdout, self._fedora_release_pattern_version
+            )
+            os_version.codename = get_matched_str(
+                cmd_result.stdout, self.__distro_codename_pattern
+            )
         else:
             raise LisaException(
                 "Error in running command 'cat /etc/fedora-release'"
