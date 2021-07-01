@@ -112,6 +112,21 @@ class RunbookBuilder:
 
         return result
 
+    def derive(
+        self, variables: Optional[Dict[str, VariableEntry]] = None
+    ) -> "RunbookBuilder":
+        """
+        create a new instance with a copy of variables. If the variables is not
+        given, it copies current variables
+        """
+        result = RunbookBuilder(self._path, self._cmd_args)
+        if variables is None:
+            variables = {key: value.copy() for key, value in self.variables.items()}
+        result._variables = variables
+        result._raw_data = self._raw_data
+
+        return result
+
     def dump_variables(self) -> None:
         variables = self.variables
         # log message for unused variables, it's helpful to see which variable
