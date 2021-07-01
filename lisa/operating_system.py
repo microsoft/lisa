@@ -56,7 +56,15 @@ class OperatingSystem:
     __os_release_pattern_name = re.compile(
         r"^NAME=\"?([^\" \r\n]+)[^\" \n]*\"?\r?$", re.M
     )
+    # For example, the ID and ID_LIKE in /etc/os-release of AlmaLinux is:
+    # ID="almalinux"
+    # ID_LIKE="rhel centos fedora"
+    # The __os_release_pattern_id can match "almalinux"
+    # The __os_release_pattern_idlike can match "rhel"
     __os_release_pattern_id = re.compile(r"^ID=\"?([^\" \r\n]+)[^\" \n]*\"?\r?$", re.M)
+    __os_release_pattern_idlike = re.compile(
+        r"^ID_LIKE=\"?([^\" \r\n]+)[^\"\n]*\"?\r?$", re.M
+    )
     __redhat_release_pattern_header = re.compile(r"^([^ ]*) .*$")
     __debian_issue_pattern = re.compile(r"^([^ ]+) ?.*$")
     __release_pattern = re.compile(r"^DISTRIB_ID='?([^ \n']+).*$", re.M)
@@ -142,6 +150,7 @@ class OperatingSystem:
         cmd_result = typed_node.execute(cmd="cat /etc/os-release", no_error_log=True)
         yield get_matched_str(cmd_result.stdout, cls.__os_release_pattern_name)
         yield get_matched_str(cmd_result.stdout, cls.__os_release_pattern_id)
+        cmd_result_os_release = cmd_result
 
         # for RedHat, CentOS 6.x
         cmd_result = typed_node.execute(
@@ -170,6 +179,11 @@ class OperatingSystem:
         # try best for some suse derives, like netiq
         cmd_result = typed_node.execute(cmd="cat /etc/SuSE-release", no_error_log=True)
         yield get_matched_str(cmd_result.stdout, cls.__suse_release_pattern)
+
+        # try best from distros'family through ID_LIKE
+        yield get_matched_str(
+            cmd_result_os_release.stdout, cls.__os_release_pattern_idlike
+        )
 
     def _get_os_version(self) -> OsVersion:
         raise NotImplementedError
