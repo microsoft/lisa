@@ -4,7 +4,7 @@ In this document you will find the test procedure using a powerful cloud
 computing service [Azure](https://azure.microsoft.com/). Follow the steps below
 to configure your local computer and run LISA test against Linux VM on Azure.
 
-1. ### Sign in to Azure
+1. Sign in to Azure
 
     Make sure either [Azure
     CLI](https://docs.microsoft.com/en-us/cli/azure/install-azure-cli) or [Azure
@@ -22,7 +22,7 @@ to configure your local computer and run LISA test against Linux VM on Azure.
     az login
     ```
 
-2. ### Get the subscription ID
+2. Get the subscription ID
 
     A subscription ID is a unique identifier for your server. LISA needs to know
     the Azure subscription ID for your testing. Run below command to retrieve
@@ -56,7 +56,7 @@ to configure your local computer and run LISA test against Linux VM on Azure.
     `isDefault` as true, it's not necessary to do so as long as you provide the
     correct `<subscription id>`.
 
-3. ### Prepare SSH key pair
+3. Prepare SSH key pair
 
     LISA connects to the Azure test VM by SSH with key authentication; please
     have your key pair (public key and private key) ready before running the
@@ -72,7 +72,7 @@ to configure your local computer and run LISA test against Linux VM on Azure.
     :warning:   Don't use passphrase to protect your key. LISA doesn't support
     that.
 
-4. ### Run LISA
+4. Run LISA
 
     Use above `<subscription id>` and `<private key file>` to run LISA with the
     default [runbook](runbook.md). It might take several minutes to complete.
@@ -81,7 +81,7 @@ to configure your local computer and run LISA test against Linux VM on Azure.
     lisa -r ./microsoft/runbook/azure.yml -v subscription_id:<subscription id> -v "admin_private_key_file:<private key file>"
     ```
 
-5. ### Verify test result
+5. Verify test result
 
     After the test is completed, you can check the LISA console log, or the html
     report file for the test results. Refer to [Understand test
