@@ -7,11 +7,15 @@
     - [Metadata in test case](#metadata-in-test-case)
   - [Test case body](#test-case-body)
   - [Setup and clean-up](#setup-and-clean-up)
-- [Extensions](#extensions)
+- [Using extensions](#using-extensions)
   - [Environment and node](#environment-and-node)
   - [Tool](#tool)
   - [Scripts](#scripts)
   - [Features](#features)
+  - [Hooks](#hooks)
+    - [`get_environment_information`](#get_environment_information)
+    - [`azure_deploy_failed`](#azure_deploy_failed)
+    - [`azure_update_arm_template`](#azure_update_arm_template)
 - [Best practices](#best-practices)
   - [Debug in ready environment](#debug-in-ready-environment)
 
@@ -178,7 +182,7 @@ def after_case(self, **kwargs: Any) -> None:
     ...
 ```
 
-## Extensions
+## Using extensions
 
 When implementing test cases, you may need to use some existing extensions, or
 you are welcome to create your own. This section focuses on how to use them in
@@ -239,6 +243,51 @@ the feature is not available in the environment, the test case will be skipped.
 
 After the declaration, you can use the feature just like the tool, by calling
 `node.features[SerialConsole]`.
+
+### Hooks
+
+Hooks are used to insert extension logic in the platform. 
+
+#### `get_environment_information`
+
+It returns the information of an environment. It's called when a test case is
+completed.
+
+Please note that to avoid the mutual influence of hooks, there is no upper
+`try...except...`. If a hook fails, it will fail the entire run. If you find
+such a problem, please solve it first.
+
+```python
+@hookimpl  # type: ignore
+def get_environment_information(self, environment: Environment) -> Dict[str, str]:
+    information: Dict[str, str] = {}
+```
+
+#### `azure_deploy_failed`
+
+Called when Azure deployment fails. This is an opportunity to return a better
+error message. Learn from example in
+[hooks.py](../../lisa/sut_orchestrator/azure/hooks.py).
+
+```python
+@hookimpl  # type: ignore
+def azure_deploy_failed(self, error_message: str) -> None:
+    for message, pattern, exception_type in self.__error_maps:
+        if pattern.findall(error_message):
+            raise exception_type(f"{message}. {error_message}")
+```
+
+#### `azure_update_arm_template`
+
+Called when it needs to update ARM template before deploying to Azure.
+
+```python
+    @hookimpl
+    def azure_update_arm_template(
+        self, template: Any, environment: Environment
+    ) -> None:
+        ...
+```
 
 ## Best practices
 

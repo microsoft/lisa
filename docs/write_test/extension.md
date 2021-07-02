@@ -12,9 +12,6 @@
 - [Platform](#platform)
 - [Hooks](#hooks)
   - [Implement a hook](#implement-a-hook)
-  - [`get_environment_information`](#get_environment_information)
-  - [`azure_deploy_failed`](#azure_deploy_failed)
-  - [`azure_update_arm_template`](#azure_update_arm_template)
 - [Some notes](#some-notes)
   - [Extend schema](#extend-schema)
   - [Which method must be implemented](#which-method-must-be-implemented)
@@ -218,8 +215,7 @@ places.
 
 ## Hooks
 
-Hooks are imported by [pluggy](https://pluggy.readthedocs.io/en/latest/). They
-are used to insert extension logic in the platform. The current list of hooks
+Hooks are imported by [pluggy](https://pluggy.readthedocs.io/en/latest/). The current list of hooks
 will expand due to new requirements. Take a look at [A definitive
 example](https://github.com/pytest-dev/pluggy/blob/master/README.rst) to quickly
 get started with [pluggy](https://pluggy.readthedocs.io/en/latest/).
@@ -254,47 +250,6 @@ get started with [pluggy](https://pluggy.readthedocs.io/en/latest/).
     ```
 
 4. Learn more from hooks in [platform_.py](../../lisa/platform_.py).
-
-### `get_environment_information`
-
-It returns the information of an environment. It's called when a test case is
-completed.
-
-Please note that to avoid the mutual influence of hooks, there is no upper
-`try...except...`. If a hook fails, it will fail the entire run. If you find
-such a problem, please solve it first.
-
-```python
-@hookimpl  # type: ignore
-def get_environment_information(self, environment: Environment) -> Dict[str, str]:
-    information: Dict[str, str] = {}
-```
-
-### `azure_deploy_failed`
-
-Called when Azure deployment fails. This is an opportunity to return a better
-error message. Learn from example in
-[hooks.py](../../lisa/sut_orchestrator/azure/hooks.py).
-
-```python
-@hookimpl  # type: ignore
-def azure_deploy_failed(self, error_message: str) -> None:
-    for message, pattern, exception_type in self.__error_maps:
-        if pattern.findall(error_message):
-            raise exception_type(f"{message}. {error_message}")
-```
-
-### `azure_update_arm_template`
-
-Called when it needs to update ARM template before deploying to Azure.
-
-```python
-    @hookimpl
-    def azure_update_arm_template(
-        self, template: Any, environment: Environment
-    ) -> None:
-        ...
-```
 
 ## Some notes
 
