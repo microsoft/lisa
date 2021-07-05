@@ -33,12 +33,8 @@ first test. See [Run LISA](run_test/run.md) for more detailed information.
 
 ## Write tests
 
-Follow [How to write a test case]() to quickly have your first own test. See
-[Info for developers](write_test/write_case.md) for more detailed information.
-
-- [How-to](write_test/write_case.md)
-- [Extensions](write_test/extension.md)
-- [Code quality](write_test/development.md)
+See [Info for
+developers](write_test/write.md) for more detailed information.
 
 ## FAQ and Troubleshooting
 

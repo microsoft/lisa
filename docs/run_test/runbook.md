@@ -1,5 +1,6 @@
 # Runbook Reference
 
+- [What is a runbook](#what-is-a-runbook)
 - [How-to](#how-to)
   - [Configure Azure deployment](#configure-azure-deployment)
   - [Select and set test cases](#select-and-set-test-cases)
@@ -49,6 +50,16 @@
   - [platform](#platform)
   - [testcase](#testcase)
     - [criteria](#criteria)
+
+## What is a runbook
+
+In simple terms,
+
+> The **runbook** contains all the configurations of LISA operation. It keeps
+you from lengthy command-line commands and makes it easy to adjust
+configurations.
+
+See [runbook](../write_test/concepts.md#runbook) for further knowledge.
 
 ## How-to
 
