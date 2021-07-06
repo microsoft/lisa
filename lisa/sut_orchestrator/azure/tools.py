@@ -38,6 +38,14 @@ class Waagent(Tool):
         found_version = find_patterns_in_lines(result.stdout, [self.__version_pattern])
         return found_version[0][0] if found_version[0] else ""
 
+    def deprovision(self) -> None:
+        # the deprovision doesn't delete user, because the VM may be needed. If
+        # the vm need to be exported clearly, it needs to remove the current
+        # user with below command:
+        # self.run("-deprovision+user --force", sudo=True)
+        result = self.run("-deprovision --force", sudo=True)
+        result.assert_exit_code()
+
 
 class VmGeneration(Tool):
     """
