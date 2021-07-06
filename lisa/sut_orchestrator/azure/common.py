@@ -144,10 +144,13 @@ class AzureNodeSchema:
         return result
 
 
-def get_compute_client(platform: "AzurePlatform") -> ComputeManagementClient:
+def get_compute_client(
+    platform: "AzurePlatform", api_version: Optional[str] = None
+) -> ComputeManagementClient:
     return ComputeManagementClient(
         credential=platform.credential,
         subscription_id=platform.subscription_id,
+        api_version=api_version,
     )
 
 
@@ -160,17 +163,19 @@ def get_network_client(platform: "AzurePlatform") -> ComputeManagementClient:
 
 def get_storage_client(
     credential: DefaultAzureCredential, subscription_id: str
-) -> ComputeManagementClient:
+) -> StorageManagementClient:
     return StorageManagementClient(
         credential=credential,
         subscription_id=subscription_id,
     )
 
 
-def get_storage_account_name(subscription_id: str, location: str) -> str:
+def get_storage_account_name(
+    subscription_id: str, location: str, type: str = "s"
+) -> str:
     subscription_id_postfix = subscription_id[-8:]
     # name should be shorter than 24 charactor
-    return f"lisas{location[0:11]}{subscription_id_postfix}"
+    return f"lisa{type}{location[0:11]}{subscription_id_postfix}"
 
 
 def get_marketplace_ordering_client(
