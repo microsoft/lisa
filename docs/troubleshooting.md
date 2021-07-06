@@ -2,15 +2,15 @@
 
 - [Installation](#installation)
   - [How to use LISA in WSL](#how-to-use-lisa-in-wsl)
-  - [Cannot find package after run `poetry
-    install`](#cannot-find-package-after-run-poetry-install)
+  - [Cannot find package after run \`poetry
+    install\`](#cannot-find-package-after-run-poetry-install)
   - [Error: Poetry could not find a pyproject.toml
     file](#error-poetry-could-not-find-a-pyprojecttoml-file)
 - [Using VSCode](#using-vscode)
   - [Cannot find Python Interpreter by
     Poetry](#cannot-find-python-interpreter-by-poetry)
-  - [VSCode Python extension no longer supports `python.pythonPath` in
-    `setting.json`](#vscode-python-extension-no-longer-supports-pythonpythonpath-in-settingjson)
+  - [VSCode Python extension no longer supports "python.pythonPath" in
+    "setting.json"](#vscode-python-extension-no-longer-supports-pythonpythonpath-in-settingjson)
 - [Other issues](#other-issues)
   - [Poetry related questions](#poetry-related-questions)
 
@@ -25,7 +25,7 @@ your `PATH` before the Windows version, otherwise this error will appear:
 
 > `/usr/bin/env: ‘python\r’: No such file or directory`
 
-### Cannot find package after run `poetry install`
+### Cannot find package after run \`poetry install\`
 
 Poetry is case sensitive, which means it differentiates directories like
 `C:\abc` and `C:\ABC` in Windows, although Windows in fact does not allow this
@@ -51,7 +51,7 @@ interpreter accordingly (in most cases open the path and look for
 poetry env info -p
 ```
 
-### VSCode Python extension no longer supports `python.pythonPath` in `setting.json`
+### VSCode Python extension no longer supports "python.pythonPath" in "setting.json"
 
 > We removed the "python.pythonPath" setting from your settings.json file as the
 > setting is no longer used by the Python extension. You can get the path of

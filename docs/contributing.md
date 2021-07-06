@@ -46,12 +46,14 @@ one](https://github.com/microsoft/lisa/issues/new).
 
 ## Contributing fixes or extensions
 
-If there is a bug and you want to fix it. Feel free to submit a pull request. We
-will review it proactively. Once it's approved, we will merge it.
+If there is a bug and you want to fix it, feel free to do so by submitting a
+pull request. We will review it proactively. Once it's approved, we will merge
+it.
 
 If you'd like to suggest any extension, please submit a pull request.
 
-Learn more on [development guideline](./development.md).
+Learn more from [development guidelines](write_test/guidelines.md) and [how to
+write extensions](write_test/extension.md).
 
 ## Code of Conduct
 
@@ -62,5 +64,5 @@ FAQ](https://opensource.microsoft.com/codeofconduct/faq/) or contact
 [opencode@microsoft.com](mailto:opencode@microsoft.com) with any additional
 questions or comments.
 
-# Thank you!
-Thank you for taking the time to contribute.
+---
+**Thank you for taking the time to contribute!**
