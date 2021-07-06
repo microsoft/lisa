@@ -35,7 +35,7 @@ class AzureFeatureMixin:
 
 class StartStop(AzureFeatureMixin, features.StartStop):
     def _stop(self, wait: bool = True) -> Any:
-        return self._execute(wait, "begin_stop")
+        return self._execute(wait, "begin_deallocate")
 
     def _start(self, wait: bool = True) -> Any:
         return self._execute(wait, "begin_start")
@@ -49,10 +49,11 @@ class StartStop(AzureFeatureMixin, features.StartStop):
 
     def _execute(self, wait: bool, operator: str) -> Any:
         platform: AzurePlatform = self._platform  # type: ignore
-        compute_client = get_compute_client(platform)
+        # The latest version may not be deployed to server side, use specified version.
+        compute_client = get_compute_client(platform, api_version="2020-06-01")
         operator_method = getattr(compute_client.virtual_machines, operator)
         result = operator_method(
-            vm_name=self._vm_name, resource_group_name=self._resource_group_name
+            resource_group_name=self._resource_group_name, vm_name=self._vm_name
         )
         if wait:
             result = wait_operation(result)
