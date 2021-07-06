@@ -37,15 +37,15 @@ class StartStop(Feature):
         return True
 
     def stop(self, wait: bool = True) -> None:
-        self._log.debug("stopping")
+        self._log.info("stopping")
         self._stop(wait=wait)
         self._node.close()
 
     def start(self, wait: bool = True) -> None:
-        self._log.debug("starting")
+        self._log.info("starting")
         self._start(wait=wait)
 
     def restart(self, wait: bool = True) -> None:
-        self._log.debug("restarting")
+        self._log.info("restarting")
         self._restart(wait=wait)
         self._node.close()
