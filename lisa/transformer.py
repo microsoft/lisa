@@ -131,7 +131,7 @@ def _run_transformers(
 ) -> Dict[str, VariableEntry]:
     root_runbook_data = runbook_builder.raw_data
     transfromers_data: List[Any] = root_runbook_data[constants.TRANSFORMER]
-    assert isinstance(transfromers_data, list)
+    assert isinstance(transfromers_data, list), "transfomer in runbook must be a list"
 
     transformers_runbook: List[schema.Transformer] = []
     for runbook_data in transfromers_data:
