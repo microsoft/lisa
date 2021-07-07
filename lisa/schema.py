@@ -691,7 +691,7 @@ class Platform(TypedSchema, ExtendableSchemaMixin):
         metadata=metadata(required=True),
     )
 
-    admin_username: str = "lisatest"
+    admin_username: str = constants.DEFAULT_USER_NAME
     admin_password: str = ""
     admin_private_key_file: str = ""
 

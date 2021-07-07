@@ -37,6 +37,9 @@ PATH_TOOL = "tool"
 GUID_REGEXP = re.compile(r"^[0-9a-f]{8}-([0-9a-f]{4}-){3}[0-9a-f]{12}$|^$")
 NORMALIZE_PATTERN = re.compile(r"[^\w\d]")
 
+# default values
+DEFAULT_USER_NAME = "lisatest"
+
 # list types
 LIST = "list"
 LIST_CASE = "case"
