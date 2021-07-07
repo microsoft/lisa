@@ -18,6 +18,10 @@ class Lsmod(Tool):
         r"^(?P<name>[^\s]+)\s+(?P<size>[^\s]+)\s+(?P<usedby>.*)?$", re.MULTILINE
     )
 
+    @property
+    def command(self) -> str:
+        return self._command
+
     def _check_exists(self) -> bool:
         return True
 

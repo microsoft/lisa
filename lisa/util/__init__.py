@@ -154,10 +154,9 @@ def set_filtered_fields(src: Any, dest: Any, fields: List[str]) -> None:
 
 def find_patterns_in_lines(lines: str, patterns: List[Pattern[str]]) -> List[List[str]]:
     results: List[List[str]] = [[]] * len(patterns)
-    for line in lines.splitlines(keepends=False):
-        for index, pattern in enumerate(patterns):
-            if not results[index]:
-                results[index] = pattern.findall(line)
+    for index, pattern in enumerate(patterns):
+        if not results[index]:
+            results[index] = pattern.findall(lines)
     return results
 
 

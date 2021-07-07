@@ -1,15 +1,23 @@
 # Copyright (c) Microsoft Corporation.
 # Licensed under the MIT license.
-
+import re
 from typing import cast
 
 from lisa.executable import Tool
 from lisa.operating_system import Posix
 from lisa.tools import Git, Make
+from lisa.util import find_patterns_in_lines
+from lisa.util.process import ExecutableResult
 
 
 class Nvmecli(Tool):
     repo = "https://github.com/linux-nvme/nvme-cli"
+    # error_count\t: 0
+    __error_count_pattern = re.compile(r"^error_count.*:[ ]+([\d]+)\r?$", re.M)
+    # [3:3] : 0     NS Management and Attachment Supported
+    __ns_management_attachement_support = "NS Management and Attachment Supported"
+    # [1:1] : 0x1   Format NVM Supported
+    __format_device_support = "Format NVM Supported"
 
     @property
     def command(self) -> str:
@@ -30,6 +38,18 @@ class Nvmecli(Tool):
         code_path = tool_path.joinpath("nvme-cli")
         make.make_and_install(cwd=code_path)
 
+    def create_namespace(self, namespace: str) -> ExecutableResult:
+        return self.run(f"create-ns {namespace}", shell=True, sudo=True)
+
+    def delete_namespace(self, namespace: str, id: int) -> ExecutableResult:
+        return self.run(f"delete-ns -n {id} {namespace}", shell=True, sudo=True)
+
+    def detach_namespace(self, namespace: str, id: int) -> ExecutableResult:
+        return self.run(f"detach-ns -n {id} {namespace}", shell=True, sudo=True)
+
+    def format_namespace(self, namespace: str) -> ExecutableResult:
+        return self.run(f"format {namespace}", shell=True, sudo=True)
+
     def install(self) -> bool:
         if not self._check_exists():
             posix_os: Posix = cast(Posix, self.node.os)
@@ -38,3 +58,22 @@ class Nvmecli(Tool):
             if not self._check_exists():
                 self._install_from_src()
         return self._check_exists()
+
+    def get_error_count(self, namespace: str) -> int:
+        error_log = self.run(f"error-log {namespace}", shell=True, sudo=True)
+        error_count = 0
+        # for row in error_log.stdout.splitlines():
+        errors = find_patterns_in_lines(error_log.stdout, [self.__error_count_pattern])
+        if errors[0]:
+            error_count = sum([int(element) for element in errors[0]])
+        return error_count
+
+    def support_ns_manage_attach(self, device_name: str) -> bool:
+        cmd_result = self.run(f"id-ctrl -H {device_name}", shell=True, sudo=True)
+        cmd_result.assert_exit_code()
+        return self.__ns_management_attachement_support in cmd_result.stdout
+
+    def support_device_format(self, device_name: str) -> bool:
+        cmd_result = self.run(f"id-ctrl -H {device_name}", shell=True, sudo=True)
+        cmd_result.assert_exit_code()
+        return self.__format_device_support in cmd_result.stdout

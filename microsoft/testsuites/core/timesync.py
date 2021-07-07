@@ -160,10 +160,7 @@ class TimeSync(TestSuite):
                     sudo=True,
                     shell=True,
                 )
-                assert_that(cmd_result.exit_code).described_as(
-                    f"Fail to execute command "
-                    f"[echo {clock_source_result.stdout} > {self.unbind_clocksource}]."
-                ).is_equal_to(0)
+                cmd_result.assert_exit_code()
 
                 clock_source_result_expected = _wait_file_changed(
                     node, self.current_clocksource, available_clocksources_array
@@ -225,10 +222,7 @@ class TimeSync(TestSuite):
                     sudo=True,
                     shell=True,
                 )
-                assert_that(cmd_result.exit_code).described_as(
-                    f"Fail to execute command "
-                    f"[echo {clock_event_name} > {self.unbind_clockevent}]."
-                ).is_equal_to(0)
+                cmd_result.assert_exit_code()
 
                 clock_event_result_expected = _wait_file_changed(
                     node, self.current_clockevent, "lapic"
