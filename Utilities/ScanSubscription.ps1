@@ -18,6 +18,7 @@ Param
 $AllLisaTests = [System.Collections.ArrayList]::new()
 $script:AllTestVMSizes = @{}
 $script:InsufficientVMSizes = [System.Collections.ArrayList]::new()
+$script:InsufficientVMFamilyAndQuota = @{}
 
 Import-Module .\lisav2\Libraries\TestLogs.psm1
 
@@ -104,7 +105,8 @@ function Assert-VMSizeAndCoreQuota () {
             }
         }
     }
-    # sort result by priority&name
+    # filter out test cases not support Azure then sort result by priority&name
+    $AllLisaTests = $AllLisaTests | Where-Object {$_.Platform.Contains("Azure")}
     $AllLisaTests = [System.Collections.ArrayList]@($AllLisaTests | Sort-Object -Property @{Expression = {if ($_.Priority) {$_.Priority} else {'9'}}}, TestName)
 
     # initialize AllTestVMSizes
@@ -198,10 +200,11 @@ function Assert-ResourceLimitation($RGXMLData, $CurrentTestData) {
             $vmCPUs = $script:AllTestVMSizes.$testVMSize.vCPUs
             $vmFamily = $script:AllTestVMSizes.$testVMSize.Family
             if ($vmFamilyRequiredCPUs.$vmFamily) {
-                $vmFamilyRequiredCPUs.$vmFamily += [int]$vmCPUs
+                $vmFamilyRequiredCPUs.$vmFamily["requiredCPUs"] += [int]$vmCPUs
             }
             else {
-                $vmFamilyRequiredCPUs["$vmFamily"] = [int]$vmCPUs
+                $vmFamilyRequiredCPUs["$vmFamily"] = @{}
+                $vmFamilyRequiredCPUs.$vmFamily["requiredCPUs"] = [int]$vmCPUs
             }
 
             $vmAvailableLocations = $script:AllTestVMSizes.$testVMSize.AvailableLocations
@@ -212,9 +215,9 @@ function Assert-ResourceLimitation($RGXMLData, $CurrentTestData) {
                 $vmFamilyUsage = $regionVmUsage | Where-Object { $_.Name.Value -imatch "$vmFamily" } | Select-Object CurrentValue, Limit
                 $regionCoresUsage = $regionVmUsage | Where-Object { $_.Name.Value -imatch "$vmFamily" } | Select-Object CurrentValue, Limit
                 $locationErrors = Test-OverflowErrors -ResourceType "$vmFamily" -CurrentValue $vmFamilyUsage.CurrentValue `
-                    -RequiredValue $vmFamilyRequiredCPUs.$vmFamily -MaximumLimit $vmFamilyUsage.Limit -Location $vmAvailableLocations[$index]
+                    -RequiredValue $vmFamilyRequiredCPUs.$vmFamily["requiredCPUs"] -MaximumLimit $vmFamilyUsage.Limit -Location $vmAvailableLocations[$index]
                 $locationErrors += Test-OverflowErrors -ResourceType "Region Total Cores" -CurrentValue $regionCoresUsage.CurrentValue `
-                    -RequiredValue $vmFamilyRequiredCPUs.$vmFamily -MaximumLimit $regionCoresUsage.Limit -Location $vmAvailableLocations[$index]
+                    -RequiredValue $vmFamilyRequiredCPUs.$vmFamily["requiredCPUs"] -MaximumLimit $regionCoresUsage.Limit -Location $vmAvailableLocations[$index]
                 if ($locationErrors -gt 0) {
                     $index++
                 }
@@ -237,11 +240,27 @@ function Assert-ResourceLimitation($RGXMLData, $CurrentTestData) {
                 # Loop over the whole vmAvailableLocation list but found no available location
                 else {
                     Write-LogErr "Estimated resource usage for VM Size: '$testVMSize' exceeded allowed limits."
+                    $vmFamilyRequiredCPUs.$vmFamily["isEnough"] = 'false'
                     [void]$script:InsufficientVMSizes.Add($testVMSize)
                 }
             }
         }
     }
+
+    # loop through $vmFamilyRequiredCPUs, check if we need to update $InsufficientVMFamilyAndQuota
+    foreach ($key in $vmFamilyRequiredCPUs.Keys) {
+        if (!$vmFamilyRequiredCPUs.$key["isEnough"]) {
+            # No 'isEnough' means this vmFamily is enabled and has enough quota
+            continue
+        }
+        if ($script:InsufficientVMFamilyAndQuota.$key -and ($script:InsufficientVMFamilyAndQuota.$key -gt $vmFamilyRequiredCPUs.$key["RequiredCPUs"])) {
+            continue
+        } else {
+            $script:InsufficientVMFamilyAndQuota[$key] = $vmFamilyRequiredCPUs.$key["RequiredCPUs"]
+        }
+    }
+
+    Write-LogInfo "================================================================================"
 }
 
 function ExecuteSql($connection, $sql, $parameters, $timeout=30) {
@@ -325,6 +344,10 @@ try {
 
     $script:InsufficientVMSizes = $script:InsufficientVMSizes | Select-Object -Unique
     $InsufficientVMSizeString = $script:InsufficientVMSizes -join ";"
+    $VMFamilyAndQuotaString = ""
+    foreach ($key in $script:InsufficientVMFamilyAndQuota.Keys) {
+        $VMFamilyAndQuotaString = $VMFamilyAndQuotaString + $key + ':' + [math]::Ceiling($script:InsufficientVMFamilyAndQuota.$key / 100) * 100 + ';'
+    }
 
     $sql = "
     SELECT * FROM SubscriptionScanResults
@@ -336,16 +359,16 @@ try {
         Write-LogInfo "$subID exists in db. Updating the record with latest scan result VMs: $InsufficientVMSizeString"
         $sql = "
         UPDATE SubscriptionScanResults
-        SET InsufficientVMs=@InsufficientVMs
+        SET InsufficientVMs=@InsufficientVMs, VMFamilyAndQuota=@VMFamilyAndQuota
         WHERE SubscriptionId=@subscriptionId"
     }
     else {
         Write-LogInfo "$subID doesn't exist. Inserting new record with latest scan result VMs: $InsufficientVMSizeString"
         $sql = "
-        INSERT INTO SubscriptionScanResults(SubscriptionId, InsufficientVMs)
-        VALUES (@subscriptionId, @InsufficientVMs)"
+        INSERT INTO SubscriptionScanResults(SubscriptionId, InsufficientVMs, VMFamilyAndQuota)
+        VALUES (@subscriptionId, @InsufficientVMs, @VMFamilyAndQuota)"
     }
-    $parameters = @{"@subscriptionId" = $subID; "@InsufficientVMs" = $InsufficientVMSizeString }
+    $parameters = @{"@subscriptionId" = $subID; "@InsufficientVMs" = $InsufficientVMSizeString; "@VMFamilyAndQuota" = $VMFamilyAndQuotaString }
     ExecuteSql $connection $sql $parameters
 }
 catch {
