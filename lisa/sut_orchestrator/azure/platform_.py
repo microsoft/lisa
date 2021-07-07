@@ -687,6 +687,15 @@ class AzurePlatform(Platform):
             credential=self.credential, subscription_id=self.subscription_id
         )
 
+        az_shared_rg_exists = self._rm_client.resource_groups.check_existence(
+            AZURE_SHARED_RG_NAME
+        )
+        if not az_shared_rg_exists:
+            self._log.info(f"Creating Resource group: '{AZURE_SHARED_RG_NAME}'")
+            self._rm_client.resource_groups.create_or_update(
+                AZURE_SHARED_RG_NAME, {"location": RESOURCE_GROUP_LOCATION}
+            )
+
     @lru_cache
     def _load_template(self) -> Any:
         template_file_path = Path(__file__).parent / "arm_template.json"
