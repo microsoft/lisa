@@ -21,6 +21,7 @@ from lisa.util import LisaException, constants, get_date_str, get_datetime_path
 from lisa.util.perf_timer import create_timer
 
 from .common import (
+    AZURE_SHARED_RG_NAME,
     check_or_create_storage_account,
     get_compute_client,
     get_network_client,
@@ -176,7 +177,7 @@ class VhdTransformer(Transformer):
             credential=platform.credential,
             subscription_id=platform.subscription_id,
             account_name=runbook.storage_account_name,
-            resource_group_name=runbook.resource_group_name,
+            resource_group_name=AZURE_SHARED_RG_NAME,
             location=location,
             log=self._log,
         )
