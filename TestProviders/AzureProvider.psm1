@@ -61,6 +61,10 @@ Class AzureProvider : TestProvider {
 					$deployedGroups = $isAllDeployed[1]
 					$DeploymentElapsedTime = $isAllDeployed[3]
 					$allVMData = Get-AllDeploymentData -ResourceGroups $deployedGroups
+
+					# After successful deployment, configure the umask for Linux distro
+					$null = Configure-UmaskInVMs $allVMData $global:user $global:password
+
 					# After each successful deployment, update the $global:detectedDistro for reference by other scripts and logic
 					if ($TestCaseData.SetupConfig.OSType -notcontains "Windows") {
 						$null = Detect-LinuxDistro -VIP $allVMData[0].PublicIP -SSHport $allVMData[0].SSHPort -testVMUser $global:user -testVMPassword $global:password
