@@ -11,6 +11,7 @@ from dataclasses_json import dataclass_json
 from retry import retry
 
 from lisa import schema
+from lisa.environment import Environments, EnvironmentSpace
 from lisa.feature import Features
 from lisa.features import StartStop
 from lisa.node import RemoteNode
@@ -24,6 +25,7 @@ from .common import (
     AZURE_SHARED_RG_NAME,
     check_or_create_storage_account,
     get_compute_client,
+    get_environment_context,
     get_network_client,
     get_node_context,
     get_or_create_storage_container,
@@ -74,6 +76,21 @@ class VhdTransformerSchema(schema.Transformer):
 
     # restore environment or not
     restore: bool = False
+
+
+@dataclass_json
+@dataclass
+class DeployTransformerSchema(schema.Transformer):
+    requirement: schema.Capability = field(default_factory=schema.Capability)
+    resource_group_name: str = ""
+
+
+@dataclass_json
+@dataclass
+class DeleteTransformerSchema(schema.Transformer):
+    resource_group_name: str = field(
+        default="", metadata=schema.metadata(required=True)
+    )
 
 
 class VhdTransformer(Transformer):
@@ -267,6 +284,80 @@ class VhdTransformer(Transformer):
         ), "cannot find public IP address, make sure the VM is in running status."
 
         return public_ip_address
+
+
+class DeployTransformer(Transformer):
+    """
+    deploy a node in transformer phase for further operations
+    """
+
+    __resource_group_name = "resource_group_name"
+
+    @classmethod
+    def type_name(cls) -> str:
+        return "azure_deploy"
+
+    @classmethod
+    def type_schema(cls) -> Type[schema.TypedSchema]:
+        return DeployTransformerSchema
+
+    @property
+    def _output_names(self) -> List[str]:
+        return [self.__resource_group_name]
+
+    def _internal_run(self) -> Dict[str, Any]:
+        platform = _load_platform(self._runbook_builder, self.type_name())
+        runbook: DeployTransformerSchema = self.runbook
+
+        envs = Environments()
+        environment_requirement = EnvironmentSpace()
+        environment_requirement.nodes.append(runbook.requirement)
+        environment = envs.from_requirement(environment_requirement)
+        assert environment
+
+        platform.prepare_environment(environment=environment)
+
+        platform.deploy_environment(environment)
+
+        resource_group_name = get_environment_context(environment).resource_group_name
+
+        return {self.__resource_group_name: resource_group_name}
+
+
+class DeleteTransformer(Transformer):
+    """
+    delete an environment
+    """
+
+    @classmethod
+    def type_name(cls) -> str:
+        return "azure_delete"
+
+    @classmethod
+    def type_schema(cls) -> Type[schema.TypedSchema]:
+        return DeleteTransformerSchema
+
+    @property
+    def _output_names(self) -> List[str]:
+        return []
+
+    def _internal_run(self) -> Dict[str, Any]:
+        platform = _load_platform(self._runbook_builder, self.type_name())
+        runbook: DeleteTransformerSchema = self.runbook
+
+        # mock up environment for deletion
+        envs = Environments()
+        environment_requirement = EnvironmentSpace()
+        environment_requirement.nodes.append(schema.NodeSpace())
+        environment = envs.from_requirement(environment_requirement)
+        assert environment
+        environment_context = get_environment_context(environment)
+        environment_context.resource_group_name = runbook.resource_group_name
+        environment_context.resource_group_is_created = True
+
+        platform.delete_environment(environment)
+
+        return {}
 
 
 def _load_platform(
