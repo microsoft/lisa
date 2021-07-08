@@ -30,7 +30,7 @@ UtilsInit
 PrepareForTest() {
 	lis_tarball_link=$1
 	distro=$(detect_linux_distribution)
-	if [[ $distro == "centos" || $distro == "oracle" || $distro == "rhel" || $distro == "almalinux" ]]; then
+	if [[ $distro == "centos" || $distro == "oracle" || $distro == "rhel" ]]; then
 		lis_tarball_name=${lis_tarball_link##*/}
 		install_package wget
 		LogMsg "Downloading $lis_tarball_link"
