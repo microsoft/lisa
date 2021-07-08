@@ -14,7 +14,8 @@ from lisa import schema
 from lisa.feature import Features
 from lisa.features import StartStop
 from lisa.node import RemoteNode
-from lisa.platform_ import load_platform
+from lisa.parameter_parser.runbook import RunbookBuilder
+from lisa.platform_ import load_platform_from_builder
 from lisa.transformer import Transformer
 from lisa.util import LisaException, constants, get_date_str, get_datetime_path
 from lisa.util.perf_timer import create_timer
@@ -93,18 +94,8 @@ class VhdTransformer(Transformer):
 
     def _internal_run(self) -> Dict[str, Any]:
         runbook: VhdTransformerSchema = self.runbook
-        platform_runbook_data = self._runbook_builder.partial_resolve(
-            constants.PLATFORM
-        )
-        platform_runbook = schema.Platform.schema().load(  # type: ignore
-            platform_runbook_data, many=True
-        )
-        platform = load_platform(platform_runbook)
-        assert isinstance(
-            platform, AzurePlatform
-        ), f"'{self.type_name}' support only Azure platform"
+        platform = _load_platform(self._runbook_builder, self.type_name())
 
-        platform.initialize()
         compute_client = get_compute_client(platform)
         virtual_machine = compute_client.virtual_machines.get(
             runbook.resource_group_name, runbook.vm_name
@@ -263,3 +254,15 @@ class VhdTransformer(Transformer):
         ), "cannot find public IP address, make sure the VM is in running status."
 
         return public_ip_address
+
+
+def _load_platform(
+    runbook_builder: RunbookBuilder, transformer_name: str
+) -> AzurePlatform:
+    platform = load_platform_from_builder(runbook_builder)
+    assert isinstance(
+        platform, AzurePlatform
+    ), f"'{transformer_name}' support only Azure platform"
+
+    platform.initialize()
+    return platform
