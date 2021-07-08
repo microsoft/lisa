@@ -60,6 +60,10 @@ Class HyperVProvider : TestProvider
 
 			$isVmAlive = Is-VmAlive -AllVMDataObject $allVMData
 			if ($isVmAlive -eq "True") {
+
+				# After successful deployment, configure the umask for Linux distro
+				$null = Configure-UmaskInVMs $allVMData $global:user $global:password
+
 				if ($TestCaseData.SetupConfig.OSType -notcontains "Windows") {
 					# After each successful deployment, update the $global:detectedDistro for reference by other scripts and logic
 					$null = Detect-LinuxDistro -VIP $allVMData[0].PublicIP -SSHport $allVMData[0].SSHPort -testVMUser $global:user -testVMPassword $global:password

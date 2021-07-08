@@ -544,6 +544,33 @@ function Is-VmAlive {
     return "False"
 }
 
+Function Configure-Umask([string] $testVMUser, [string] $testVMPassword, [string] $VIP, [int] $SSHPort) {
+    $umask = Run-LinuxCmd -ip $VIP -port $SSHPort -username $testVMUser -password $testVMPassword -command "umask" -runAsSudo
+    if ($umask -ne "0022") {
+        Write-LogInfo "Configure-Umask: Detected umask ($umask)"
+        $distro = Run-LinuxCmd -ip $VIP -port $SSHPort -username $testVMUser -password $testVMPassword -command "cat /etc/os-release | grep ^ID | cut -d= -f2" -runAsSudo
+        if ($distro -eq "mariner") {
+            $null = Run-LinuxCmd -ip $VIP -port $SSHPort -username $testVMUser -password $testVMPassword -command "echo `"umask 0022`" >> /etc/bash.bashrc" -runAsSudo
+        } else {
+            $null = Run-LinuxCmd -ip $VIP -port $SSHPort -username $testVMUser -password $testVMPassword -command "chfn -o umask=0022 $testVMUser" -runAsSudo
+        }
+        $umask = Run-LinuxCmd -ip $VIP -port $SSHPort -username $testVMUser -password $testVMPassword -command "umask" -runAsSudo
+        Write-LogInfo "Configure-Umask: Updated umask ($umask)"
+    }
+
+    if (!($umask -imatch "0022")) {
+        Throw "Incorrect umask ($umask) and will cause problem with further execution."
+    }
+}
+
+Function Configure-UmaskInVMs($allVMData, $userName, $password){
+    foreach ( $vmData in $allVMData ) {
+        if (!$vmData.IsWindows) {
+            Configure-UMask $userName $password $vmData.PublicIP $vmData.SSHPort
+        }
+    }
+}
+
 Function Provision-VMsForLisa($allVMData, $installPackagesOnRoleNames)
 {
 	$keysGenerated = $false
