@@ -89,9 +89,17 @@ collect_VM_properties
             $maximumLat = $matchLine.Split(",").Split("=").Trim().Replace("us","")[3]
             $averageLat = $matchLine.Split(",").Split("=").Trim().Replace("us","")[5]
 
+            $matchLine= (Select-String -Path "$LogDir\lagscope-n*-output.txt" -Pattern "95%\s+\d+").Line
+            $percentile95 = $matchLine.Split("%").Trim()[1]
+
+            $matchLine= (Select-String -Path "$LogDir\lagscope-n*-output.txt" -Pattern "99%\s+\d+").Line
+            $percentile99 = $matchLine.Split("%").Trim()[1]
+
             $currentTestResult.TestSummary += New-ResultSummary -testResult $minimumLat -metaData "Minimum Latency" -checkValues "PASS,FAIL,ABORTED" -testName $currentTestData.testName
             $currentTestResult.TestSummary += New-ResultSummary -testResult $maximumLat -metaData "Maximum Latency" -checkValues "PASS,FAIL,ABORTED" -testName $currentTestData.testName
             $currentTestResult.TestSummary += New-ResultSummary -testResult $averageLat -metaData "Average Latency" -checkValues "PASS,FAIL,ABORTED" -testName $currentTestData.testName
+            $currentTestResult.TestSummary += New-ResultSummary -testResult $percentile95 -metaData "Percentile 95 Latency" -checkValues "PASS,FAIL,ABORTED" -testName $currentTestData.testName
+            $currentTestResult.TestSummary += New-ResultSummary -testResult $percentile99 -metaData "Percentile 99 Latency" -checkValues "PASS,FAIL,ABORTED" -testName $currentTestData.testName
         } catch {
             $currentTestResult.TestSummary += New-ResultSummary -testResult "Error in parsing logs." -metaData "LAGSCOPE" -checkValues "PASS,FAIL,ABORTED" -testName $currentTestData.testName
         }
@@ -158,9 +166,8 @@ collect_VM_properties
                     $resultMap["MaxLatency_us"] = [Decimal]$maximumLat
                     $resultMap["AverageLatency_us"] = [Decimal]$averageLat
                     $resultMap["MinLatency_us"] = [Decimal]$minimumLat
-                    #Percentile Values are not calculated yet. will be added in future
-                    $resultMap["Latency95Percentile_us"] = 0
-                    $resultMap["Latency99Percentile_us"] = 0
+                    $resultMap["Latency95Percentile_us"] = [Decimal]$percentile95
+                    $resultMap["Latency99Percentile_us"] = [Decimal]$percentile99
                     $resultMap["Interval_us"] = [int]$interval
                     $resultMap["Frequency"] = [int]$frequency
                     $currentTestResult.TestResultData += $resultMap
