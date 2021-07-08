@@ -59,8 +59,7 @@ class VhdTransformerSchema(schema.Transformer):
     vm_name: str = "node-0"
 
     # values for SSH connection. public_address is optional, because it can be
-    # retrieved from vm_name. The private_key_file must be provided. Others can
-    # use default values.
+    # retrieved from vm_name. Others can be retrieved from platform.
     public_address: str = ""
     public_port: int = 22
     username: str = constants.DEFAULT_USER_NAME
