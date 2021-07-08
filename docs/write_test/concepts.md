@@ -55,10 +55,10 @@ consistent manner.
 ### Tool and Script
 
 A **tool** includes runnable commands in a node, it needs to be installed and
-can be installed in many ways. 
+can be installed in many ways.
 
 A **script** is also considered a tool, except it can only be uploaded to a
-node. 
+node.
 
 In different Linux distributions, tools may have different installation methods,
 commands, or command-line parameters. LISA tools, however, provide a simple test
@@ -101,7 +101,8 @@ specification and all tests would run as you expect.
 
 ### Transformer
 
-A **transformer** generates variables from other variables, and multiple
+The **transformers** are used to prepare test environments and others before
+test runs. A transformer generates variables from other variables, and multiple
 transformers can run one by one to achieve complex transformation. For example,
 the first transformer can build Linux kernel and another one can save the VM to
 a VHD. The two transformers can be reused in other workflows.
