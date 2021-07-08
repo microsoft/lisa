@@ -73,6 +73,9 @@ class VhdTransformerSchema(schema.Transformer):
     container_name: str = DEFAULT_VHD_CONTAINER_NAME
     file_name_part: str = ""
 
+    # restore environment or not
+    restore: bool = False
+
 
 class VhdTransformer(Transformer):
     """
@@ -106,7 +109,7 @@ class VhdTransformer(Transformer):
 
         vhd_location = self._export_vhd(platform, virtual_machine)
 
-        self._recover_vm(platform, virtual_machine, node)
+        self._restore_vm(platform, virtual_machine, node)
 
         return {self.__url_name: vhd_location}
 
@@ -209,7 +212,7 @@ class VhdTransformer(Transformer):
 
         return vhd_path
 
-    def _recover_vm(
+    def _restore_vm(
         self, platform: AzurePlatform, virtual_machine: Any, node: RemoteNode
     ) -> None:
         runbook: VhdTransformerSchema = self.runbook
@@ -224,8 +227,9 @@ class VhdTransformer(Transformer):
         )
         wait_operation(operation)
 
-        start_stop = node.features[StartStop]
-        start_stop.start()
+        if runbook.restore:
+            start_stop = node.features[StartStop]
+            start_stop.start()
 
     def _get_public_ip_address(
         self, platform: AzurePlatform, virtual_machine: Any
