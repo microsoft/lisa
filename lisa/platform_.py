@@ -181,7 +181,7 @@ def load_platform(platforms_runbook: List[schema.Platform]) -> Platform:
 
     factory = subclasses.Factory[Platform](Platform)
     default_platform: Platform = factory.create_by_runbook(runbook=platforms_runbook[0])
-    log.info(f"activated platform '{default_platform.type_name()}'")
+    log.debug(f"activated platform '{default_platform.type_name()}'")
 
     return default_platform
 
