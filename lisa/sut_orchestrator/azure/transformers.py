@@ -65,7 +65,7 @@ class VhdTransformerSchema(schema.Transformer):
     public_port: int = 22
     username: str = constants.DEFAULT_USER_NAME
     password: str = ""
-    private_key_file: str = field(default="", metadata=schema.metadata(required=True))
+    private_key_file: str = ""
 
     # values for exported vhd. storage_account_name is optional, because it can
     # be the default storage of LISA.
@@ -121,6 +121,15 @@ class VhdTransformer(Transformer):
             runbook.public_address = self._get_public_ip_address(
                 platform, virtual_machine
             )
+
+        platform_runbook: schema.Platform = platform.runbook
+
+        if not runbook.username:
+            runbook.username = platform_runbook.admin_username
+        if not runbook.password:
+            runbook.password = platform_runbook.admin_password
+        if not runbook.private_key_file:
+            runbook.private_key_file = platform_runbook.admin_private_key_file
 
         node_runbook = schema.RemoteNode(
             name=runbook.vm_name,
