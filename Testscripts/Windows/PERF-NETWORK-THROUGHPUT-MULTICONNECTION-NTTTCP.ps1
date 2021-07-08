@@ -61,7 +61,7 @@ function Main {
         #endregion
 
         Write-LogInfo "Getting Systemd Version."
-        $getSystemdVersion = "systemctl --version | head -n1 | awk '{ print `$NF }'"
+        $getSystemdVersion = "systemctl --version | head -n1 | awk '{ print `$2 }'"
         $systemdVersion = (Run-LinuxCmd -ip $clientVMData.PublicIP -port $clientVMData.SSHPort `
             -username $user -password $password -command $getSystemdVersion ).Trim()
         Write-LogInfo "Systemd Version is $systemdVersion. Set Systemd user config file..."
