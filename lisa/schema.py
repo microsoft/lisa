@@ -195,6 +195,8 @@ class Transformer(TypedSchema):
     depends_on: List[str] = field(default_factory=list)
     # rename some of variables for easier use.
     rename: Dict[str, str] = field(default_factory=dict)
+    # enable this transformer or not, only enabled transformers run actually.
+    enabled: bool = True
 
     delay_parsed: CatchAll = field(default_factory=dict)  # type: ignore
 

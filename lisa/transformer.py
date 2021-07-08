@@ -135,9 +135,13 @@ def _run_transformers(
 
     transformers_runbook: List[schema.Transformer] = []
     for runbook_data in transfromers_data:
-        # get raw transformer runbook for replacing variables.
-        runbook = schema.Transformer.schema().load(runbook_data)  # type: ignore
-        transformers_runbook.append(runbook)
+        # get base transformer runbook for replacing variables.
+        runbook: schema.Transformer = schema.Transformer.schema().load(  # type: ignore
+            runbook_data
+        )
+
+        if runbook.enabled:
+            transformers_runbook.append(runbook)
 
     # resort the runbooks, and it's used in real run
     transformers_runbook = _sort(transformers_runbook)
@@ -149,7 +153,7 @@ def _run_transformers(
     factory = subclasses.Factory[Transformer](Transformer)
     for runbook in transformers_runbook:
         # serialize to data for replacing variables
-        runbook_data = runbook.to_dict()
+        runbook_data = runbook.to_dict()  # type: ignore
 
         # replace to validate all variables exist
         replace_variables(runbook_data, copied_variables)

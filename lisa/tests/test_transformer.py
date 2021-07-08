@@ -152,6 +152,24 @@ class TestTransformerCase(TestCase):
             result,
         )
 
+    def test_transformer_skip_disabled(self) -> None:
+        # the second transformer should be skipped, so the value is original.
+        transformers = self._generate_transformers_runbook(2)
+        transformers[0].rename = {"t0_v0": "v0"}
+        transformers[0].enabled = False
+        runbook_builder = self._generate_runbook_builder(transformers)
+
+        result = transformer._run_transformers(runbook_builder)
+        self._validate_variables(
+            {
+                "v0": "original",
+                "va": "original",
+                "t1_v0": "1_0 processed",
+                "t1_v1": "1_1 processed",
+            },
+            result,
+        )
+
     def _validate_variables(
         self, expected: Dict[str, str], actual: Dict[str, VariableEntry]
     ) -> None:
