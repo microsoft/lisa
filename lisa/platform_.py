@@ -13,9 +13,11 @@ from lisa.environment import Environment, EnvironmentStatus
 from lisa.feature import Feature, Features
 from lisa.node import RemoteNode
 from lisa.notifier import MessageBase
+from lisa.parameter_parser.runbook import RunbookBuilder
 from lisa.util import (
     InitializableMixin,
     LisaException,
+    constants,
     hookimpl,
     plugin_manager,
     subclasses,
@@ -182,3 +184,12 @@ def load_platform(platforms_runbook: List[schema.Platform]) -> Platform:
     log.info(f"activated platform '{default_platform.type_name()}'")
 
     return default_platform
+
+
+def load_platform_from_builder(runbook_builder: RunbookBuilder) -> Platform:
+    platform_runbook_data = runbook_builder.partial_resolve(constants.PLATFORM)
+    platform_runbook = schema.Platform.schema().load(  # type: ignore
+        platform_runbook_data, many=True
+    )
+    platform = load_platform(platform_runbook)
+    return platform
