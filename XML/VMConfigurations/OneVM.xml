@@ -318,7 +318,7 @@
         <ResourceGroup>
             <VirtualMachine>
                 <state></state>
-                <InstanceSize>Standard_DS14_v2</InstanceSize>
+                <InstanceSize>Standard_F72s_v2</InstanceSize>
                 <EndPoints>
                     <Name>SSH</Name>
                     <Protocol>tcp</Protocol>
