@@ -313,7 +313,7 @@
             </VirtualMachine>
         </ResourceGroup>
     </OneVM6DiskNested>
-    <OneVM12Disk>
+    <OneVM16Disk>
         <isDeployed>NO</isDeployed>
         <ResourceGroup>
             <VirtualMachine>
@@ -385,9 +385,29 @@
                     <DiskSizeInGB>1023</DiskSizeInGB>
                     <HostCaching>None</HostCaching>
                 </DataDisk>
+                <DataDisk>
+                    <LUN>12</LUN>
+                    <DiskSizeInGB>1023</DiskSizeInGB>
+                    <HostCaching>None</HostCaching>
+                </DataDisk>
+                <DataDisk>
+                    <LUN>13</LUN>
+                    <DiskSizeInGB>1023</DiskSizeInGB>
+                    <HostCaching>None</HostCaching>
+                </DataDisk>
+                <DataDisk>
+                    <LUN>14</LUN>
+                    <DiskSizeInGB>1023</DiskSizeInGB>
+                    <HostCaching>None</HostCaching>
+                </DataDisk>
+                <DataDisk>
+                    <LUN>15</LUN>
+                    <DiskSizeInGB>1023</DiskSizeInGB>
+                    <HostCaching>None</HostCaching>
+                </DataDisk>
             </VirtualMachine>
         </ResourceGroup>
-    </OneVM12Disk>
+    </OneVM16Disk>
     <OneVM12DiskNested>
         <isDeployed>NO</isDeployed>
         <ResourceGroup>
