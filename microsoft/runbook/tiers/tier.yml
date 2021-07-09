@@ -1,4 +1,4 @@
-parent:
+include:
   - path: ./t$(tier).yml
 extension:
   - ../../testsuites/core

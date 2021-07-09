@@ -63,7 +63,7 @@ OPERATION_OVERWRITE = "overwrite"
 # topologies
 ENVIRONMENTS_SUBNET = "subnet"
 
-PARENT = "parent"
+INCLUDE = "include"
 EXTENSION = "extension"
 VARIABLE = "variable"
 

@@ -249,9 +249,9 @@ class Strategy:
 
 @dataclass_json()
 @dataclass
-class Parent:
+class Include:
     """
-    share runbook for similar runs.
+    Inclusion of runbook logic, for similar runs.
     """
 
     path: str = field(default="", metadata=metadata(required=True))
@@ -860,7 +860,7 @@ class Runbook:
     test_pass: str = ""
     tags: Optional[List[str]] = None
     concurrency: int = 1
-    parent: Optional[List[Parent]] = field(default=None)
+    include: Optional[List[Include]] = field(default=None)
     extension: Optional[List[Union[str, Extension]]] = field(default=None)
     variable: Optional[List[Variable]] = field(default=None)
     transformer: Optional[List[Transformer]] = field(default=None)

@@ -217,24 +217,22 @@ class RunbookBuilder:
     def _merge_variables(
         self,
         merged_path: Path,
-        data_from_parent: Dict[str, Any],
+        data_from_include: Dict[str, Any],
         data_from_current: Dict[str, Any],
     ) -> List[Any]:
-        variables_from_parent: List[schema.Variable] = []
+        variables_from_include: List[schema.Variable] = []
         if (
-            constants.VARIABLE in data_from_parent
-            and data_from_parent[constants.VARIABLE]
+            constants.VARIABLE in data_from_include
+            and data_from_include[constants.VARIABLE]
         ):
-            variables_from_parent = [
+            variables_from_include = [
                 schema.Variable.schema().load(variable)  # type: ignore
-                for variable in data_from_parent[constants.VARIABLE]
+                for variable in data_from_include[constants.VARIABLE]
             ]
             # resolve to absolute path
-            for parent_variable in variables_from_parent:
-                if parent_variable.file:
-                    parent_variable.file = str(
-                        (merged_path / parent_variable.file).resolve()
-                    )
+            for included_var in variables_from_include:
+                if included_var.file:
+                    included_var.file = str((merged_path / included_var.file).resolve())
         if (
             constants.VARIABLE in data_from_current
             and data_from_current[constants.VARIABLE]
@@ -246,30 +244,28 @@ class RunbookBuilder:
 
             # remove duplicate items
             for current_variable in variables_from_current:
-                for parent_variable in variables_from_parent:
+                for included_var in variables_from_include:
                     if (
-                        parent_variable.name
-                        and parent_variable.name == current_variable.name
+                        included_var.name and included_var.name == current_variable.name
                     ) or (
-                        parent_variable.file
-                        and parent_variable.file == current_variable.file
+                        included_var.file and included_var.file == current_variable.file
                     ):
-                        variables_from_parent.remove(parent_variable)
+                        variables_from_include.remove(included_var)
                         break
-            variables_from_parent.extend(variables_from_current)
+            variables_from_include.extend(variables_from_current)
 
         # serialize back for loading together
         return [
-            variable.to_dict() for variable in variables_from_parent  # type: ignore
+            variable.to_dict() for variable in variables_from_include  # type: ignore
         ]
 
     def _merge_extensions(
         self,
         merged_path: Path,
-        data_from_parent: Dict[str, Any],
+        data_from_include: Dict[str, Any],
         data_from_current: Dict[str, Any],
     ) -> List[Any]:
-        old_extensions = self._load_extensions(merged_path, data_from_parent)
+        old_extensions = self._load_extensions(merged_path, data_from_include)
         extensions = self._load_extensions(merged_path, data_from_current)
         # remove duplicate paths
         for old_extension in old_extensions:
@@ -289,27 +285,28 @@ class RunbookBuilder:
     def _merge_data(
         self,
         merged_path: Path,
-        data_from_parent: Dict[str, Any],
+        data_from_include: Dict[str, Any],
         data_from_current: Dict[str, Any],
     ) -> Dict[str, Any]:
         """
-        merge parent data to data_from_current. The current data has higher level.
+        Merge included data to data_from_current. The current data has
+        higher precedence.
         """
-        result = data_from_parent.copy()
+        result = data_from_include.copy()
 
         # merge others
         result.update(data_from_current)
 
         # merge variables, latest should be effective last
         variables = self._merge_variables(
-            merged_path, data_from_parent, data_from_current
+            merged_path, data_from_include, data_from_current
         )
         if variables:
             result[constants.VARIABLE] = variables
 
         # merge extensions
         extensions = self._merge_extensions(
-            merged_path, data_from_parent, data_from_current
+            merged_path, data_from_include, data_from_current
         )
         if extensions:
             result[constants.EXTENSION] = extensions
@@ -323,8 +320,9 @@ class RunbookBuilder:
         higher_level_variables: Union[List[str], Dict[str, VariableEntry]],
     ) -> Any:
         """
-        Load runbook, but not to validate. It will be validated after extension
-        imported. To support partial runbooks, it loads recursively.
+        Load runbook, but not to validate. It will be validated after
+        extensions are imported. To support partial runbooks, it loads
+        recursively.
         """
 
         with open(path, "r") as file:
@@ -335,52 +333,53 @@ class RunbookBuilder:
         )
 
         if (
-            constants.PARENT in data_from_current
-            and data_from_current[constants.PARENT]
+            constants.INCLUDE in data_from_current
+            and data_from_current[constants.INCLUDE]
         ):
-            parents_config = data_from_current[constants.PARENT]
+            includes = data_from_current[constants.INCLUDE]
 
             log = _get_init_logger()
             indent = len(used_path) * 4 * " "
 
-            data_from_parent: Dict[str, Any] = {}
-            for parent_config in parents_config:
+            data_from_include: Dict[str, Any] = {}
+            for include_raw in includes:
                 try:
-                    parent: schema.Parent = schema.Parent.schema().load(  # type: ignore
-                        parent_config
-                    )
+                    include: schema.Include
+                    include = schema.Include.schema().load(include_raw)  # type: ignore
                 except Exception as identifer:
                     raise LisaException(
-                        f"error on loading parent node [{parent_config}]: {identifer}"
+                        f"error on loading include node [{include_raw}]: {identifer}"
                     )
-                if parent.strategy:
-                    raise NotImplementedError("Parent doesn't implement Strategy")
+                if include.strategy:
+                    raise NotImplementedError(
+                        "include runbook entry doesn't implement Strategy"
+                    )
 
-                raw_path = parent.path
+                raw_path = include.path
                 if variables:
                     raw_path = replace_variables(raw_path, variables)
                 if raw_path in used_path:
                     raise LisaException(
-                        f"cycle reference parent runbook detected: {raw_path}"
+                        f"circular reference on runbook includes detected: {raw_path}"
                     )
 
-                # use relative path to parent runbook
-                parent_path = (path.parent / raw_path).resolve().absolute()
-                log.debug(f"{indent}loading parent: {raw_path}")
+                # use relative path to included runbook
+                include_path = (path.parent / raw_path).resolve().absolute()
+                log.debug(f"{indent}loading include: {raw_path}")
 
                 # clone a set to support same path is used in different tree.
                 new_used_path = used_path.copy()
                 new_used_path.add(raw_path)
-                parent_data = self._load_data(
-                    parent_path,
+                include_data = self._load_data(
+                    include_path,
                     used_path=new_used_path,
                     higher_level_variables=variables,
                 )
-                data_from_parent = self._merge_data(
-                    parent_path.parent, parent_data, data_from_parent
+                data_from_include = self._merge_data(
+                    include_path.parent, include_data, data_from_include
                 )
             data_from_current = self._merge_data(
-                path.parent, data_from_parent, data_from_current
+                path.parent, data_from_include, data_from_current
             )
 
         return data_from_current
