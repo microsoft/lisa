@@ -39,6 +39,15 @@ class LisaException(Exception):
     ...
 
 
+class UnsupportedOperationException(Exception):
+    """
+    An operation might not be supported. Use this exception to
+    indicate that explicitly.
+    """
+
+    ...
+
+
 class SkippedException(Exception):
     """
     A test case can be skipped based on runtime information.

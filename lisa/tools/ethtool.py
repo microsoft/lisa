@@ -1,10 +1,10 @@
 import re
 from pathlib import PurePath
-from typing import Any, Dict, List, cast
+from typing import Any, Dict, List, Set, cast
 
 from lisa.executable import Tool
 from lisa.operating_system import Posix
-from lisa.util import LisaException
+from lisa.util import LisaException, UnsupportedOperationException
 
 from .find import Find
 
@@ -232,7 +232,7 @@ class Ethtool(Tool):
 
     def _initialize(self, *args: Any, **kwargs: Any) -> None:
         self._command = "ethtool"
-        self._device_list: List[str] = []
+        self._device_set: Set[str] = set()
         self._device_channel_map: Dict[str, DeviceChannel] = {}
         self._device_features_map: Dict[str, DeviceFeatures] = {}
         self._device_link_settings_map: Dict[str, DeviceLinkSettings] = {}
@@ -243,9 +243,9 @@ class Ethtool(Tool):
         posix_os.install_packages("ethtool")
         return self._check_exists()
 
-    def _get_device_list(self) -> None:
-        if self._device_list:
-            return
+    def get_device_list(self, force: bool = False) -> Set[str]:
+        if (not force) and self._device_set:
+            return self._device_set
 
         find_tool = self.node.tools[Find]
         netdirs = find_tool.find_files(
@@ -258,16 +258,14 @@ class Ethtool(Tool):
             if not netdir:
                 continue
             cmd_result = self.node.execute(f"ls {netdir}")
-            if cmd_result.exit_code != 0:
-                raise LisaException(
-                    "Could not find the network device under path {netdir}"
-                    f" exit_code: {cmd_result.exit_code}"
-                    f" stderr: {cmd_result.stderr}"
-                )
-            self._device_list.append(cmd_result.stdout)
+            cmd_result.assert_exit_code(message="Could not find the network device.")
 
-        if not self._device_list:
+            self._device_set.add(cmd_result.stdout)
+
+        if not self._device_set:
             raise LisaException("Did not find any synthetic network interface.")
+
+        return self._device_set
 
     def get_device_channels_info(
         self,
@@ -277,12 +275,8 @@ class Ethtool(Tool):
             return self._device_channel_map[interface]
 
         result = self.run(f"-l {interface}")
-        if result.exit_code != 0:
-            raise LisaException(
-                f"ethtool -l {interface} command got non-zero"
-                f" exit_code: {result.exit_code}"
-                f" stderr: {result.stderr}"
-            )
+        result.assert_exit_code()
+
         device_channel_info = DeviceChannel(interface, result.stdout)
         self._device_channel_map[interface] = device_channel_info
         return device_channel_info
@@ -292,12 +286,8 @@ class Ethtool(Tool):
             return self._device_features_map[interface]
 
         result = self.run(f"-k {interface}")
-        if result.exit_code != 0:
-            raise LisaException(
-                f"ethtool -k {interface} command got non-zero"
-                f" exit_code: {result.exit_code}"
-                f" stderr: {result.stderr}"
-            )
+        result.assert_exit_code()
+
         device_feature = DeviceFeatures(interface, result.stdout)
         self._device_features_map[interface] = device_feature
 
@@ -308,12 +298,7 @@ class Ethtool(Tool):
             return self._device_link_settings_map[interface]
 
         result = self.run(interface)
-        if result.exit_code != 0:
-            raise LisaException(
-                f"ethtool {interface} command got non-zero"
-                f" exit_code: {result.exit_code}"
-                f" stderr: {result.stderr}"
-            )
+        result.assert_exit_code()
 
         device_link_settings = DeviceLinkSettings(interface, result.stdout)
         self._device_link_settings_map[interface] = device_link_settings
@@ -321,54 +306,64 @@ class Ethtool(Tool):
         return device_link_settings
 
     def get_device_ring_buffer_settings(
-        self, interface: str
+        self, interface: str, force: bool = False
     ) -> DeviceRingBufferSettings:
-        if interface in self._device_ring_buffer_settings_map.keys():
+        if (not force) and (interface in self._device_ring_buffer_settings_map.keys()):
             return self._device_ring_buffer_settings_map[interface]
 
-        result = self.run(f"-g {interface}")
-        if result.exit_code != 0:
-            raise LisaException(
-                f"ethtool -g {interface} command got non-zero"
-                f" exit_code: {result.exit_code}"
-                f" stderr: {result.stderr}"
+        result = self.run(f"-g {interface}", force_run=force)
+        if (result.exit_code != 0) and ("Operation not supported" in result.stderr):
+            raise UnsupportedOperationException(
+                f"ethtool -g {interface} operation not supported."
             )
+        result.assert_exit_code(
+            message=f"Couldn't get device {interface} ring buffer settings."
+        )
 
         device_ring_buffer_settings = DeviceRingBufferSettings(interface, result.stdout)
         self._device_ring_buffer_settings_map[interface] = device_ring_buffer_settings
 
         return device_ring_buffer_settings
 
+    def change_device_ring_buffer_settings(
+        self, interface: str, rx: int, tx: int
+    ) -> DeviceRingBufferSettings:
+        change_result = self.run(f"-G {interface} rx {rx} tx {tx}")
+        change_result.assert_exit_code(
+            message=f" Couldn't change device {interface} ring buffer settings."
+        )
+
+        return self.get_device_ring_buffer_settings(interface, force=True)
+
     def get_all_device_channels_info(self) -> List[DeviceChannel]:
         devices_channel_list = []
-        self._get_device_list()
-        for device in self._device_list:
+        devices = self.get_device_list()
+        for device in devices:
             devices_channel_list.append(self.get_device_channels_info(device))
 
         return devices_channel_list
 
     def get_all_device_enabled_features(self) -> List[DeviceFeatures]:
         devices_features_list = []
-        self._get_device_list()
-        for device in self._device_list:
+        devices = self.get_device_list()
+        for device in devices:
             devices_features_list.append(self.get_device_enabled_features(device))
 
         return devices_features_list
 
     def get_all_device_link_settings(self) -> List[DeviceLinkSettings]:
         devices_link_settings_list = []
-        self._get_device_list()
-        for device in self._device_list:
+        devices = self.get_device_list()
+        for device in devices:
             devices_link_settings_list.append(self.get_device_link_settings(device))
 
         return devices_link_settings_list
 
     def get_all_device_ring_buffer_settings(self) -> List[DeviceRingBufferSettings]:
         devices_ring_buffer_settings_list = []
-        self._get_device_list()
-        for device in self._device_list:
+        devices = self.get_device_list()
+        for device in devices:
             devices_ring_buffer_settings_list.append(
                 self.get_device_ring_buffer_settings(device)
             )
-
         return devices_ring_buffer_settings_list
