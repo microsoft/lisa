@@ -3,7 +3,7 @@ import re
 from typing import TYPE_CHECKING
 
 from lisa.executable import Tool
-from lisa.util import LisaException
+from lisa.util import LisaException, is_valid_url
 
 if TYPE_CHECKING:
     from lisa.operating_system import Posix
@@ -12,20 +12,6 @@ if TYPE_CHECKING:
 class Wget(Tool):
     __pattern_path = re.compile(
         r"([\w\W]*?)(-|File) (‘|')(?P<path>.+?)(’|') (saved|already there)"
-    )
-
-    # regex to validate url
-    # source -
-    # https://github.com/django/django/blob/stable/1.3.x/django/core/validators.py#L45
-    __url_pattern = re.compile(
-        r"^(?:http|ftp)s?://"  # http:// or https://
-        r"(?:(?:[A-Z0-9](?:[A-Z0-9-]{0,61}[A-Z0-9])?\.)"
-        r"+(?:[A-Z]{2,6}\.?|[A-Z0-9-]{2,}\.?)|"  # ...domain
-        r"localhost|"  # localhost...
-        r"\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3})"  # ...or ip
-        r"(?::\d+)?"  # optional port
-        r"(?:/?|[/?]\S+)$",
-        re.IGNORECASE,
     )
 
     @property
@@ -49,8 +35,8 @@ class Wget(Tool):
         overwrite: bool = True,
         executable: bool = False,
     ) -> str:
-        if re.match(self.__url_pattern, url) is None:
-            raise LisaException(f"Invalid URL '{url}'")
+        is_valid_url(url)
+
         # create folder when it doesn't exist
         self.node.execute(f"mkdir -p {file_path}", shell=True)
         # combine download file path
