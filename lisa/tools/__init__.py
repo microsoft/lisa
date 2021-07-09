@@ -7,6 +7,7 @@ from .cat import Cat
 from .date import Date
 from .dmesg import Dmesg
 from .echo import Echo
+from .ethtool import Ethtool
 from .fdisk import Fdisk
 from .find import Find
 from .gcc import Gcc
@@ -30,6 +31,7 @@ __all__ = [
     "Date",
     "Dmesg",
     "Echo",
+    "Ethtool",
     "Fdisk",
     "Find",
     "Gcc",
