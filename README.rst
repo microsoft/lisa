@@ -36,21 +36,21 @@ Why LISA
 Documents
 ---------
 
--  `Quick start <docs/quick_start.html>`__
--  `Run tests <docs/run_test/run.html>`__
--  `Microsoft tests <docs/run_test/microsoft_tests.html>`__
--  `Write test cases in LISA <docs/write_test/write_case.html>`__
--  `Command line reference <docs/run_test/command_line.html>`__
--  `Runbook reference <docs/run_test/runbook.html>`__
--  `Extend and customize LISA <docs/write_test/extension.html>`__
+-  `Quick start <https://mslisa.rtfd.io/en/latest/quick_start.html>`__
+-  `Run tests <https://mslisa.rtfd.io/en/latest/docs/run_test/run.html>`__
+-  `Microsoft tests <https://mslisa.rtfd.io/en/latest/docs/run_test/microsoft_tests.html>`__
+-  `Write test cases in LISA <https://mslisa.rtfd.io/en/latest/docs/write_test/write_case.html>`__
+-  `Command line reference <https://mslisa.rtfd.io/en/latest/docs/run_test/command_line.html>`__
+-  `Runbook reference <https://mslisa.rtfd.io/en/latest/docs/run_test/runbook.html>`__
+-  `Extend and customize LISA <https://mslisa.rtfd.io/en/latest/docs/write_test/extension.html>`__
 -  `Run previous version LISA (aka
-   LISAv2) <docs/run_test/run_legacy.html>`__
+   LISAv2) <https://mslisa.rtfd.io/en/latest/docs/run_test/run_legacy.html>`__
 
 Contribute
 ----------
 
 You are very welcome to contribute. Please follow `the contribution
-document <docs/contributing.html>`__ for details.
+document <https://mslisa.rtfd.io/en/latest/docs/contributing.html>`__ for details.
 
 History and road map
 --------------------
@@ -58,7 +58,7 @@ History and road map
 The previous LISA called LISAv2, which is in `master
 branch <https://github.com/microsoft/lisa/tree/master>`__. The previous
 LISA can be used standalone or called from the current LISA. Learn more
-from `how to run LISAv2 test cases <docs/run_test/run_legacy.html>`__.
+from `how to run LISAv2 test cases <https://mslisa.rtfd.io/en/latest/docs/run_test/run_legacy.html>`__.
 
 LISA is in active developing, and a lot of exciting features are
 implementing. We’re listening your
