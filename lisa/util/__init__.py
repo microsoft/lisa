@@ -143,7 +143,9 @@ def get_public_key_data(private_key_file_path: str) -> str:
     return public_key_data
 
 
-def fields_to_dict(src: Any, fields: Iterable[str]) -> Dict[str, Any]:
+def fields_to_dict(
+    src: Any, fields: Iterable[str], is_none_included: bool = False
+) -> Dict[str, Any]:
     """
     copy field values form src to dest, if it's not None
     """
@@ -153,7 +155,7 @@ def fields_to_dict(src: Any, fields: Iterable[str]) -> Dict[str, Any]:
     result: Dict[str, Any] = {}
     for field in fields:
         value = getattr(src, field)
-        if value is not None:
+        if is_none_included or (value is not None):
             result[field] = value
     return result
 
