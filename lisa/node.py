@@ -5,7 +5,7 @@ from __future__ import annotations
 
 from pathlib import Path, PurePath, PurePosixPath, PureWindowsPath
 from random import randint
-from typing import Any, Iterable, List, Optional, Type, TypeVar, Union, cast
+from typing import Any, Dict, Iterable, List, Optional, Type, TypeVar, Union, cast
 
 from lisa import schema
 from lisa.executable import Tools
@@ -59,7 +59,6 @@ class Node(subclasses.BaseClassWithRunbookMixin, ContextMixin, InitializableMixi
         # contains node name, which is not set in __init__.
         self._local_log_path: Optional[Path] = None
         self._support_sudo: Optional[bool] = None
-        self._connection_info: Optional[ConnectionInfo] = None
 
     @property
     def shell(self) -> Shell:
@@ -249,6 +248,20 @@ class RemoteNode(Node):
     def is_remote(self) -> bool:
         return True
 
+    @property
+    def connection_info(self) -> Dict[str, Any]:
+        return fields_to_dict(
+            self._connection_info,
+            [
+                constants.ENVIRONMENTS_NODES_REMOTE_ADDRESS,
+                constants.ENVIRONMENTS_NODES_REMOTE_PORT,
+                constants.ENVIRONMENTS_NODES_REMOTE_USERNAME,
+                constants.ENVIRONMENTS_NODES_REMOTE_PASSWORD,
+                constants.ENVIRONMENTS_NODES_REMOTE_PRIVATE_KEY_FILE,
+            ],
+            is_none_included=True,
+        )
+
     @classmethod
     def type_name(cls) -> str:
         return constants.ENVIRONMENTS_NODES_REMOTE
@@ -297,7 +310,7 @@ class RemoteNode(Node):
         password: str = "",
         private_key_file: str = "",
     ) -> None:
-        if self._connection_info is not None:
+        if hasattr(self, "_connection_info"):
             raise LisaException(
                 "node is set connection information already, cannot set again"
             )
@@ -321,7 +334,7 @@ class RemoteNode(Node):
         assert public_port
         assert port
 
-        self._connection_info = ConnectionInfo(
+        self._connection_info: ConnectionInfo = ConnectionInfo(
             public_address,
             public_port,
             username,
