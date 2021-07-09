@@ -39,7 +39,7 @@ class Transformer(subclasses.BaseClassWithRunbookMixin):
             # create mock up variables and validate
             output_names = self._output_names
             # add prefix
-            variables = {x: VariableEntry(x, "mock value") for x in output_names}
+            variables = {x: "mock value" for x in output_names}
         else:
             self._log.info("transformer is running.")
             variables = self._internal_run()
@@ -52,6 +52,10 @@ class Transformer(subclasses.BaseClassWithRunbookMixin):
                 del unmatched_rename[name]
                 name = self.rename[name]
             results[name] = VariableEntry(name, value)
+        dry_run_string = ""
+        if is_dry_run:
+            dry_run_string = "(dry run)"
+        self._log.debug(f"{dry_run_string}returned variables: {[x for x in results]}")
         if unmatched_rename:
             raise LisaException(f"unmatched rename variable: {unmatched_rename}")
         return results
