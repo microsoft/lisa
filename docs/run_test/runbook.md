@@ -13,7 +13,7 @@
   - [test_pass](#test_pass)
   - [tags](#tags)
   - [concurrency](#concurrency)
-  - [parent](#parent)
+  - [include](#include)
     - [path](#path)
   - [extension](#extension)
     - [name](#name-1)
@@ -133,24 +133,25 @@ Below three yaml files will be loaded in this sequence.
 
 ```bash
 loading runbook sample.yml
-|-- loading parent tier.yml
-|   |-- loading parent t0.yml
+|-- loading include tier.yml
+|   |-- loading include t0.yml
 ```
 
-The variable values in its parent yaml file will be overridden by current yaml
-file. The relative path is always relative to current yaml file.
+The variable values in the included yaml file(s) will be overridden by
+the including yaml file(s). The relative path is always relative to
+the including yaml file.
 
 Part of sample.yml
 
 ```yaml
-parent:
+include:
   - path: ./tier.yml
 ```
 
 Part of tier.yml.
 
 ```yaml
-parent:
+include:
   - path: ./t$(tier).yml
 variable:
   - name: tier
@@ -235,11 +236,12 @@ type: int, optional, default is 1.
 The number of concurrent running environments.
 
 
-### parent
+### include
 
 type: list of path, optional, default is empty
 
-Share the runbook for similar runs.
+Share runbook parts for similar runs, including the shared content via
+that yaml primitive.
 
 #### path
 
@@ -292,12 +294,12 @@ variable:
     value: subscription id B
 ```
 
-The variables values in the runbook have higher priority than the same variables
-defined in its parent runbook file. `${location}` will be replaced with value
-`northeurope`.
+The variable values in the runbook have higher priority than the same
+variables defined in any included runbook file. Thus, `${location}`
+will be replaced with value `northeurope` in the following example.
 
 ```yaml
-parent:
+include:
   - path: tier.yml
 variable:
   - name: location

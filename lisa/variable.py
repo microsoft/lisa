@@ -56,7 +56,7 @@ def load_variables(
     """
     Args::
         higher_level_variables: it has higher level than current variables. It
-         may be from command lines, or parent runbooks.
+        may be from command lines, or included runbooks.
     """
     if higher_level_variables is None:
         higher_level_variables = {}
