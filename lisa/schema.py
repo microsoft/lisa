@@ -625,7 +625,7 @@ class RemoteNode(Node):
             field_function=fields.Int, validate=validate.Range(min=1, max=65535)
         ),
     )
-    username: str = ""
+    username: str = constants.DEFAULT_USER_NAME
     password: str = ""
     private_key_file: str = ""
 
