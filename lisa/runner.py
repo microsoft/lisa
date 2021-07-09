@@ -216,7 +216,7 @@ class RootRunner(Action):
             result_count_dict[test_result.status] = result_count
 
         self._log.info("test result summary")
-        self._log.info(f"  TOTAL      : {len(test_results)}")
+        self._log.info(f"    TOTAL    : {len(test_results)}")
         for key in TestStatus:
             count = result_count_dict.get(key, 0)
             if key == TestStatus.ATTEMPTED and count == 0:
