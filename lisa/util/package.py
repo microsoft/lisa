@@ -83,7 +83,7 @@ def import_package(
     if enable_log:
         log: Optional[Logger] = get_logger("init", "module")
         assert log
-        log.info(f"loading extension from {path}")
+        log.info(f"loading Python extensions from {path}")
     else:
         log = None
 
