@@ -4,7 +4,7 @@
 from dataclasses import dataclass, field
 from pathlib import PurePosixPath
 from time import sleep
-from typing import Any, Dict, List, Type
+from typing import Any, Dict, List, Type, cast
 
 from azure.mgmt.compute.models import GrantAccessData  # type: ignore
 from dataclasses_json import dataclass_json
@@ -303,7 +303,14 @@ class DeployTransformer(Transformer):
 
     @property
     def _output_names(self) -> List[str]:
-        return [self.__resource_group_name]
+        return [
+            self.__resource_group_name,
+            constants.ENVIRONMENTS_NODES_REMOTE_ADDRESS,
+            constants.ENVIRONMENTS_NODES_REMOTE_PORT,
+            constants.ENVIRONMENTS_NODES_REMOTE_USERNAME,
+            constants.ENVIRONMENTS_NODES_REMOTE_PASSWORD,
+            constants.ENVIRONMENTS_NODES_REMOTE_PRIVATE_KEY_FILE,
+        ]
 
     def _internal_run(self) -> Dict[str, Any]:
         platform = _load_platform(self._runbook_builder, self.type_name())
@@ -321,7 +328,15 @@ class DeployTransformer(Transformer):
 
         resource_group_name = get_environment_context(environment).resource_group_name
 
-        return {self.__resource_group_name: resource_group_name}
+        # generate return results
+        results = {
+            self.__resource_group_name: resource_group_name,
+        }
+        node: RemoteNode = cast(RemoteNode, environment.default_node)
+        connection_info = node.connection_info
+        assert connection_info
+        results.update(connection_info)
+        return results
 
 
 class DeleteTransformer(Transformer):
