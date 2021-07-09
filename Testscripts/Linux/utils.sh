@@ -2568,7 +2568,7 @@ function install_lagscope () {
 	case "$DISTRO_NAME" in
 		oracle|rhel|centos|almalinux)
 			install_epel
-			yum -y --nogpgcheck install libaio sysstat git bc make gcc wget cmake
+			yum -y --nogpgcheck install libaio sysstat git bc make gcc wget cmake libarchive
 			build_lagscope "${1}"
 			iptables -F
 			systemctl stop firewalld.service || service firewalld stop
