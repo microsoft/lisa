@@ -20,9 +20,9 @@ How to write test suites/cases
    -  `Features <#features>`__
    -  `Hooks <#hooks>`__
 
-      -  ```get_environment_information`` <#get_environment_information>`__
-      -  ```azure_deploy_failed`` <#azure_deploy_failed>`__
-      -  ```azure_update_arm_template`` <#azure_update_arm_template>`__
+      -  `get_environment_information <#get-environment-information>`__
+      -  `azure_deploy_failed <#azure-deploy-failed>`__
+      -  `azure_update_arm_template <#azure-update-arm-template>`__
 
 -  `Best practices <#best-practices>`__
 
@@ -44,7 +44,7 @@ time.
    developer go through this before coding.
 -  `Coding guidelines <guidelines.html>`__ covers our coding guidelines
    such as naming, code, comment conventions, etc.
--  `Development setup <setup.html>`__ introduces how to setup
+-  `Development setup <dev_setup.html>`__ introduces how to setup
    environment and code checks.
 -  `Extensions <extension.html>`__ introduces how to develop extensions
    for LISA. In some cases, you may need to improve or implement
@@ -279,8 +279,8 @@ Hooks
 
 Hooks are used to insert extension logic in the platform.
 
-``get_environment_information``
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+get_environment_information
+^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 It returns the information of an environment. It’s called when a test
 case is completed.
@@ -295,8 +295,8 @@ If you find such a problem, please solve it first.
    def get_environment_information(self, environment: Environment) -> Dict[str, str]:
        information: Dict[str, str] = {}
 
-``azure_deploy_failed``
-^^^^^^^^^^^^^^^^^^^^^^^
+azure_deploy_failed
+^^^^^^^^^^^^^^^^^^^
 
 Called when Azure deployment fails. This is an opportunity to return a
 better error message. Learn from example in
@@ -310,8 +310,8 @@ better error message. Learn from example in
            if pattern.findall(error_message):
                raise exception_type(f"{message}. {error_message}")
 
-``azure_update_arm_template``
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+azure_update_arm_template
+^^^^^^^^^^^^^^^^^^^^^^^^^
 
 Called when it needs to update ARM template before deploying to Azure.
 

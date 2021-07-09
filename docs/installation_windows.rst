@@ -2,20 +2,20 @@ Install LISA on Windows
 =======================
 
 -  `Install Python on Windows <#install-python-on-windows>`__
--  `Install dependencies on
-   Windows <#install-dependencies-on-windows>`__
+-  `Install dependencies on Windows <#install-dependencies-on-windows>`__
 -  `Clone code <#clone-code>`__
 -  `Install Poetry on Windows <#install-poetry-on-windows>`__
 -  `Verify installation <#verify-installation>`__
 -  `FAQ and Troubleshooting <#faq-and-troubleshooting>`__
 
-:blue_book: On Windows, after you finished an installation, or made an
-environment variable change, you might need to restart your shell before
-moving to next step, to make sure your changes take effect.
 
-:blue_book: Please run your command prompt or shell with elevated
-privilege (such as ``'Run as Administrator'`` on Windows) when you see
-access denied message when install tools.
+|:blue_book:| On Windows, after you finished an installation, or made an
+environment variable change, you might need to restart your shell before moving
+to next step, to make sure your changes take effect.
+
+|:blue_book:| Please run your command prompt or shell with elevated privilege
+(such as ``'Run as Administrator'`` on Windows) when you see access denied
+message when install tools.
 
 Install Python on Windows
 -------------------------
@@ -31,9 +31,11 @@ Windows <https://www.python.org/downloads/windows/>`__. Download and
 install *Windows installer (64-bit)* for Python 3.8 64-bits or higher
 version.
 
-:warning: Please make sure the ``Python`` directory and its ``Scripts``
-directory are added to your ``PATH`` environment variable. To check,
-type in console
+.. warning::
+
+   Please make sure the ``Python`` directory and its ``Scripts``
+   directory are added to your ``PATH`` environment variable. To check,
+   type in console
 
 .. code:: powershell
 
@@ -42,7 +44,7 @@ type in console
 and if you see such two paths in the output, you are good. Otherwise
 please manually add these two paths.
 
-.. code:: powercell
+.. code:: powershell
 
    ...;C:\Users\username\AppData\Local\Programs\Python\Python39;C:\Users\username\AppData\Local\Programs\Python\Python39\Scripts;...
 

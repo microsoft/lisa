@@ -15,8 +15,8 @@ With this document, you will know how to run LISAv2 tests in the current
 LISA. The current LISA clones the LISAv2 repo, start LISAv2, and parse
 LISAv2 log to generate test results with new format.
 
-:construction: WIP :construction:
----------------------------------
+|:construction:| WIP |:construction:|
+-------------------------------------
 
 Attention: Currently we are migrating previous LISAv2 test cases to this
 LISA framework. Before we complete the test case migration, only T0 test

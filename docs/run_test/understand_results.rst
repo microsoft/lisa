@@ -17,8 +17,6 @@ two or more results at the same time.
 .. figure:: ../img/test_results.png
    :alt: test_results
 
-   test_results
-
 Intermediate results
 --------------------
 

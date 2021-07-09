@@ -473,7 +473,7 @@ grid combinator
 items
 '''''
 
-type: List\ `Variable <#variable>`__, required.
+type: List[Variable], required.
 
 The variables which are in the matrix. Each variable must be a list.
 

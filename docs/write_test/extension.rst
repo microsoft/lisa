@@ -73,6 +73,8 @@ return a structured object, such as in
 `lsvmbus.py <../../lisa/tools/lsvmbus.py>`__. This code logic is
 preferred because it allows more coherence.
 
+.. note:
+
    Note, although in `using extensions <write_case.html#extensions>`__
    we told you that installation is automatically checked and done, yet
    you must implement the ``_install`` method with the correct
@@ -178,6 +180,8 @@ Use a feature
 
       requirement=simple_requirement(
           supported_features=[SerialConsole],
+          ...
+          )
 
 2. Using features is like using tools.
 
