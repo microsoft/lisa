@@ -50,9 +50,11 @@ Install Poetry on Linux
 
 Poetry is used to manage Python dependencies of LISA.
 
-:warning: Please enter the root folder of LISA source code to run
-following commands to install poetry, since Poetry manages dependencies
-by the working folder.
+.. warning::
+   
+   Please enter the root folder of LISA source code to run
+   following commands to install poetry, since Poetry manages dependencies
+   by the working folder.
 
 .. code:: bash
 

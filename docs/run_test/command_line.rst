@@ -3,10 +3,10 @@ Command line reference
 
 -  `Common arguments <#common-arguments>`__
 
-   -  `-r, –runbook <#-r---runbook>`__
-   -  `-d, –debug <#-d---debug>`__
-   -  `-h, –help <#-h---help>`__
-   -  `-v, –variable <#-v---variable>`__
+   -  `-r, –runbook <#-r-runbook>`__
+   -  `-d, –debug <#-d-debug>`__
+   -  `-h, –help <#-h-help>`__
+   -  `-v, –variable <#-v-variable>`__
 
 -  `run <#run>`__
 -  `check <#check>`__

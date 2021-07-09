@@ -85,6 +85,9 @@ Visual Studio Code
       install `Markdown All in
       One <https://marketplace.visualstudio.com/items?itemName=yzhang.markdown-all-in-one>`__.
       It helps to maintain the table of contents in the documentation.
+   -  Install
+      `reStructuredText <https://marketplace.visualstudio.com/items?itemName=lextudio.restructuredtext>`__
+      to get better support for documentations.
 
 Emacs
 ~~~~~

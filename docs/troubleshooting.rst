@@ -7,14 +7,14 @@ Troubleshooting
    -  `Cannot find package after run \`poetry
       install\` <#cannot-find-package-after-run-poetry-install>`__
    -  `Error: Poetry could not find a pyproject.toml
-      file <#error-poetry-could-not-find-a-pyprojecttoml-file>`__
+      file <#error-poetry-could-not-find-a-pyproject-toml-file>`__
 
 -  `Using VSCode <#using-vscode>`__
 
    -  `Cannot find Python Interpreter by
       Poetry <#cannot-find-python-interpreter-by-poetry>`__
    -  `VSCode Python extension no longer supports “python.pythonPath” in
-      “setting.json” <#vscode-python-extension-no-longer-supports-pythonpythonpath-in-settingjson>`__
+      “setting.json” <#vscode-python-extension-no-longer-supports-python-pythonpath-in-setting-json>`__
 
 -  `Other issues <#other-issues>`__
 
@@ -32,7 +32,7 @@ binaries are mapped into ``PATH`` of WSL. This means that the WSL
 ``poetry`` binary *must* appear in your ``PATH`` before the Windows
 version, otherwise this error will appear:
 
-   ``/usr/bin/env: ‘python\r’: No such file or directory``
+``/usr/bin/env: ‘python\r’: No such file or directory``
 
 Cannot find package after run \`poetry install\`
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -67,14 +67,16 @@ look for ``\Scripts\python.exe``).
 VSCode Python extension no longer supports “python.pythonPath” in “setting.json”
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-   We removed the “python.pythonPath” setting from your settings.json
-   file as the setting is no longer used by the Python extension. You
-   can get the path of your selected interpreter in the Python output
-   channel.
-
 Refer to
 `DeprecatePythonPath <https://github.com/microsoft/vscode-python/wiki/AB-Experiments>`__
 for more information.
+
+.. TL;DR::
+
+"We removed the “python.pythonPath” setting from your settings.json
+file as the setting is no longer used by the Python extension. You
+can get the path of your selected interpreter in the Python output
+channel."
 
 An alternative way is to simply select the Poetry Python interpreter as
 the default interpreter in the workspace, as in `Cannot find Python
