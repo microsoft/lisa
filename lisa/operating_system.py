@@ -516,13 +516,9 @@ class Fedora(Linux):
             command += " --nogpgcheck"
 
         install_result = self._node.execute(command, sudo=True)
-        if install_result.exit_code != 0:
-            raise LisaException(
-                f"Failed to install {packages}. exit_code: {install_result.exit_code} "
-                f"stderr: {install_result.stderr}"
-            )
-        else:
-            self._log.debug(f"{packages} is/are installed successfully.")
+        install_result.assert_exit_code(0, f"Failed to install {packages}.")
+
+        self._log.debug(f"{packages} is/are installed successfully.")
 
     def _package_exists(self, package: str, signed: bool = True) -> bool:
         command = f"dnf list installed {package}"
@@ -606,7 +602,7 @@ class Redhat(Fedora):
             self._log.debug(f"{packages} is/are installed successfully.")
         else:
             raise LisaException(
-                f"Failed to install {packages}. exit_code: {install_result.exit_code} "
+                f"Failed to install {packages}. exit_code: {install_result.exit_code}, "
                 f"stderr: {install_result.stderr}"
             )
 
@@ -681,7 +677,7 @@ class Suse(Linux):
         install_result = self._node.execute(command, sudo=True)
         if install_result.exit_code in (1, 100):
             raise LisaException(
-                f"Failed to install {packages}. exit_code: {install_result.exit_code}"
+                f"Failed to install {packages}. exit_code: {install_result.exit_code}, "
                 f"stderr: {install_result.stderr}"
             )
         elif install_result.exit_code == 0:
