@@ -417,6 +417,13 @@ class Debian(Linux):
     def name_pattern(cls) -> Pattern[str]:
         return re.compile("^debian|Forcepoint|Kali$")
 
+    def get_apt_error(self, stdout: str) -> List[str]:
+        error_lines: List[str] = []
+        for line in stdout.splitlines(keepends=False):
+            if line.startswith("E: "):
+                error_lines.append(line)
+        return error_lines
+
     def _initialize_package_installation(self) -> None:
         self._node.execute("apt-get update", sudo=True)
 
@@ -431,10 +438,14 @@ class Debian(Linux):
             command += " --allow-unauthenticated"
 
         install_result = self._node.execute(command, sudo=True)
+        # get error lines.
         if install_result.exit_code != 0:
-            raise LisaException(
-                f"Failed to install {packages}. exit_code: {install_result.exit_code}"
-                f"stderr: {install_result.stderr}"
+            install_result.assert_exit_code(
+                0,
+                f"Failed to install {packages}, "
+                f"please check the package name and repo are correct or not.\n"
+                + "\n".join(self.get_apt_error(install_result.stdout))
+                + "\n",
             )
 
     def _package_exists(self, package: str, signed: bool = True) -> bool:
