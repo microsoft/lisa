@@ -18,7 +18,7 @@ from typing import (
 
 from semver import VersionInfo
 
-from lisa.base_tools.wget import Wget
+from lisa.base_tools import Cat, Wget
 from lisa.executable import Tool
 from lisa.util import BaseClassMixin, LisaException, get_matched_str
 from lisa.util.logger import get_logger
@@ -490,6 +490,19 @@ class Ubuntu(Debian):
     @classmethod
     def name_pattern(cls) -> Pattern[str]:
         return re.compile("^Ubuntu|ubuntu$")
+
+    def set_boot_entry(self, entry: str) -> None:
+        self._log.debug(f"set boot entry to: {entry}")
+        self._node.execute(
+            f"sed -i.bak \"s/GRUB_DEFAULT=.*/GRUB_DEFAULT='{entry}'/g\" "
+            f"/etc/default/grub",
+            sudo=True,
+            shell=True,
+        )
+
+        # output to log for troubleshooting
+        cat = self._node.tools[Cat]
+        cat.run("/etc/default/grub")
 
 
 class FreeBSD(BSD):
