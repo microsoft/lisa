@@ -47,9 +47,6 @@ class OsVersion:
     # Update available
     update: str = ""
 
-    def __str__(self) -> str:
-        return self.vendor
-
 
 class OperatingSystem:
     __lsb_release_pattern = re.compile(r"^Description:[ \t]+([\w]+)[ ]+$", re.M)
