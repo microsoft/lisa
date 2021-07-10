@@ -1,10 +1,12 @@
 # Copyright (c) Microsoft Corporation.
 # Licensed under the MIT license.
 
-from datetime import timedelta
+from datetime import datetime, timedelta
 from pathlib import Path
 from time import sleep
 from typing import Any
+
+from func_timeout import FunctionTimedOut, func_set_timeout  # type: ignore
 
 from lisa.executable import Tool
 from lisa.features import SerialConsole
@@ -14,6 +16,12 @@ from lisa.util.perf_timer import create_timer
 from .date import Date
 from .uptime import Uptime
 from .who import Who
+
+
+# this method is easy to stuck on reboot, so use timeout to recycle it faster.
+@func_set_timeout(30)  # type: ignore
+def _who_last(who: Who) -> datetime:
+    return who.last_boot()
 
 
 class Reboot(Tool):
@@ -99,8 +107,12 @@ class Reboot(Tool):
         ):
             try:
                 self.node.close()
-                current_boot_time = who.last_boot()
+                current_boot_time = _who_last(who)
                 connected = True
+            except FunctionTimedOut as identifier:
+                # The FunctionTimedOut must be caught separated, or the process
+                # will exit.
+                self._log.debug(f"ignorable timeout exception: {identifier}")
             except Exception as identifier:
                 # error is ignorable, as ssh may be closed suddenly.
                 self._log.debug(f"ignorable ssh exception: {identifier}")
