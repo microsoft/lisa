@@ -1,9 +1,8 @@
 # Copyright (c) Microsoft Corporation.
 # Licensed under the MIT license.
 
-from lisa.base_tools import Uname, Wget
+from lisa.base_tools import Cat, Uname, Wget
 
-from .cat import Cat
 from .date import Date
 from .dmesg import Dmesg
 from .echo import Echo
