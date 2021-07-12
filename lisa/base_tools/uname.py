@@ -11,10 +11,18 @@ from lisa.util import LisaException
 @dataclass
 class UnameResult:
     has_result: bool
-    uname_version: str = ""
     kernel_version: str = ""
     hardware_platform: str = ""
     operating_system: str = ""
+    uname_version: str = ""
+
+    def __repr__(self) -> str:
+        return (
+            f"kernel version: {self.kernel_version}, "
+            f"hardware platform: {self.hardware_platform}, "
+            f"operating system: {self.operating_system}, "
+            f"uname version: {self.uname_version}, "
+        )
 
 
 class Uname(Tool):
