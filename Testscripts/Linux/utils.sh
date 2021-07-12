@@ -2377,6 +2377,7 @@ function install_fio () {
 
 		sles|sle_hpc)
 			if [[ $DISTRO_VERSION =~ 12|15* ]]; then
+				CheckInstallLockSLES
 				zypper refresh
 				add_sles_benchmark_repo
 				zypper --no-gpg-checks --non-interactive --gpg-auto-import-keys install wget mdadm blktrace libaio1 sysstat bc
