@@ -25,6 +25,9 @@ __url_pattern = re.compile(
 )
 
 
+# used to filter ansi escapes for better layout in log and other place
+__ansi_escape = re.compile(r"\x1B(?:[@-Z\\-_]|\[[0-?]*[ -/]*[@-~])")
+
 # hooks manager helper, they must be same name.
 _NAME_LISA = "lisa"
 plugin_manager = pluggy.PluginManager(_NAME_LISA)
@@ -215,3 +218,7 @@ def is_valid_url(url: str, raise_error: bool = True) -> bool:
         else:
             is_url = False
     return is_url
+
+
+def filter_ansi_escape(content: str) -> str:
+    return __ansi_escape.sub("", content)

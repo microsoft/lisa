@@ -2,22 +2,17 @@
 # Licensed under the MIT license.
 
 import logging
-import re
 import sys
 import time
 from functools import partial
 from typing import Any, Dict, List, Optional, TextIO, Union, cast
 
 from lisa.secret import mask
-from lisa.util import LisaException
+from lisa.util import LisaException, filter_ansi_escape
 
 # to prevent circular import, hard code it here.
 ENV_KEY_RUN_LOCAL_PATH = "LISA_RUN_LOCAL_PATH"
 DEFAULT_LOG_NAME = "lisa"
-
-# We can't afford to let ANSI escape codes trash our
-# stdout stream
-ansi_escape = re.compile(r"\x1B(?:[@-Z\\-_]|\[[0-?]*[ -/]*[@-~])")
 
 
 class Logger(logging.Logger):
@@ -35,7 +30,7 @@ class Logger(logging.Logger):
                 temp_content.append(f"{key}: {value}")
             content = temp_content
         for line in content:
-            line = ansi_escape.sub("", line)
+            line = filter_ansi_escape(line)
             # No good in logging empty lines (and they can happen via
             # SSH stdout)
             if not line or line.isspace():
