@@ -16,7 +16,7 @@ This document describes the existing developer tooling we have in place
 Environment Setup
 -----------------
 
-Follow the `installation <../quick_start#installation>`__ steps to
+Follow the `installation <../quick_start.html#installation>`__ steps to
 prepare the source code. Then follow the steps below to set up the
 corresponding development environment.
 
