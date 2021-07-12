@@ -1,21 +1,18 @@
 Install LISA on Windows
 =======================
 
--  `Install Python on Windows <#install-python-on-windows>`__
--  `Install dependencies on Windows <#install-dependencies-on-windows>`__
--  `Clone code <#clone-code>`__
--  `Install Poetry on Windows <#install-poetry-on-windows>`__
--  `Verify installation <#verify-installation>`__
--  `FAQ and Troubleshooting <#faq-and-troubleshooting>`__
+We will guide you through the installation of LISA on Windows.
 
+.. note::
 
-|:blue_book:| On Windows, after you finished an installation, or made an
-environment variable change, you might need to restart your shell before moving
-to next step, to make sure your changes take effect.
+   On Windows, after you finished an installation, or made an
+   environment variable change, you might need to restart your shell before moving
+   to next step, to make sure your changes take effect.
 
-|:blue_book:| Please run your command prompt or shell with elevated privilege
-(such as ``'Run as Administrator'`` on Windows) when you see access denied
-message when install tools.
+.. note::
+   Please run your command prompt or shell with elevated privilege
+   (such as ``'Run as Administrator'`` on Windows) when you see access denied
+   message when install tools.
 
 Install Python on Windows
 -------------------------

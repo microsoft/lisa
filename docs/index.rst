@@ -10,12 +10,12 @@ Welcome to LISA!
 
 .. toctree::
    :caption: Contents:
-   :maxdepth: 2
+   :maxdepth: 1
    :titlesonly:
 
    Introduction <quick_start>
+   Installation <install>
    Run tests <run_test/run>
-   Microsoft tests <run_test/microsoft_tests>
    Write tests <write_test/write>
    Contributing <contributing>
    Troubleshooting <troubleshooting>

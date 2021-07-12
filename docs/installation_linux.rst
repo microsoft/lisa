@@ -1,12 +1,7 @@
 Install LISA on Linux
 =====================
 
--  `Install Python on Linux <#install-python-on-linux>`__
--  `Install dependencies on Linux <#install-dependencies-on-linux>`__
--  `Clone code <#clone-code>`__
--  `Install Poetry on Linux <#install-poetry-on-linux>`__
--  `Verify installation <#verify-installation>`__
--  `FAQ and Troubleshooting <#faq-and-troubleshooting>`__
+We will guide you through the installation of LISA on Linux.
 
 Install Python on Linux
 -----------------------
