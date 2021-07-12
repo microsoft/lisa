@@ -303,6 +303,9 @@ class Posix(OperatingSystem, BaseClassMixin):
     ) -> None:
         raise NotImplementedError()
 
+    def _update_packages(self, packages: Optional[Union[List[str]]] = None) -> None:
+        raise NotImplementedError()
+
     def _package_exists(self, package: str, signed: bool = True) -> bool:
         raise NotImplementedError()
 
@@ -339,6 +342,21 @@ class Posix(OperatingSystem, BaseClassMixin):
 
         return os_version
 
+    def _get_package_list(
+        self, packages: Union[str, Tool, Type[Tool], List[Union[str, Tool, Type[Tool]]]]
+    ) -> List[str]:
+        package_names: List[str] = []
+        if not isinstance(packages, list):
+            packages = [packages]
+
+        assert isinstance(packages, list), f"actual:{type(packages)}"
+        for item in packages:
+            package_names.append(self.__resolve_package_name(item))
+        if self._first_time_installation:
+            self._first_time_installation = False
+            self._initialize_package_installation()
+        return package_names
+
     def _install_package_from_url(
         self,
         package: str,
@@ -357,17 +375,7 @@ class Posix(OperatingSystem, BaseClassMixin):
         packages: Union[str, Tool, Type[Tool], List[Union[str, Tool, Type[Tool]]]],
         signed: bool = True,
     ) -> None:
-        package_names: List[str] = []
-        if not isinstance(packages, list):
-            packages = [packages]
-
-        assert isinstance(packages, list), f"actual:{type(packages)}"
-        for item in packages:
-            package_names.append(self.__resolve_package_name(item))
-        if self._first_time_installation:
-            self._first_time_installation = False
-            self._initialize_package_installation()
-
+        package_names = self._get_package_list(packages)
         self._install_packages(package_names, signed)
 
     def package_exists(
@@ -380,8 +388,11 @@ class Posix(OperatingSystem, BaseClassMixin):
         package_name = self.__resolve_package_name(package)
         return self._package_exists(package_name)
 
-    def update_packages(self, packages: Union[str, Tool, Type[Tool]]) -> None:
-        raise NotImplementedError
+    def update_packages(
+        self, packages: Union[str, Tool, Type[Tool], List[Union[str, Tool, Type[Tool]]]]
+    ) -> None:
+        package_names = self._get_package_list(packages)
+        self._update_packages(package_names)
 
     def __resolve_package_name(self, package: Union[str, Tool, Type[Tool]]) -> str:
         """
@@ -503,6 +514,15 @@ class Debian(Linux):
 
         return os_version
 
+    def _update_packages(self, packages: Optional[Union[List[str]]] = None) -> None:
+        command = (
+            "DEBIAN_FRONTEND=noninteractive apt-get upgrade -y "
+            '-o Dpkg::Options::="--force-confdef" -o Dpkg::Options::="--force-confold" '
+        )
+        if packages:
+            command += " ".join(packages)
+        self._node.execute(command, sudo=True, timeout=3600)
+
 
 class Ubuntu(Debian):
     @classmethod
@@ -589,33 +609,23 @@ class Fedora(Linux):
 
 
 class Redhat(Fedora):
-    # pattern for expired RHUI client certificate issue
-    __rhui_error_pattern = re.compile(
-        r"([\w\W]*?)SSL peer rejected your certificate as expired.*", re.MULTILINE
-    )
-
     @classmethod
     def name_pattern(cls) -> Pattern[str]:
         return re.compile("^rhel|Red|AlmaLinux|Scientific|acronis|Actifio$")
 
     def _initialize_package_installation(self) -> None:
-        # older images cost much longer time when update packages
-        # smaller sizes cost much longer time when update packages, e.g.
-        #  Basic_A1, Standard_A5, Standard_A1_v2, Standard_D1
-        # redhat rhel 7-lvm 7.7.2019102813 Basic_A1 cost 2371.568 seconds
-        # redhat rhel 8.1 8.1.2020020415 Basic_A0 cost 2409.116 seconds
-        cmd_result = self._node.execute("yum -y update", sudo=True, timeout=3600)
-        # we will hit expired RHUI client certificate issue on old RHEL VM image
-        # use below solution to resolve it
-        # refer https://docs.microsoft.com/en-us/azure/virtual-machines/workloads/redhat/redhat-rhui#azure-rhui-infrastructure # noqa: E501
-        if cmd_result.exit_code != 0 and self.__rhui_error_pattern.match(
-            cmd_result.stdout
-        ):
+        cmd_result = self._node.execute("yum makecache", sudo=True)
+        os_version = self._get_os_version()
+        # We may hit issue when run any yum command, caused by out of date
+        #  rhui-microsoft-azure-rhel package.
+        # Use below command to update rhui-microsoft-azure-rhel package from microsoft
+        #  repo to resolve the issue.
+        # Details please refer https://docs.microsoft.com/en-us/azure/virtual-machines/workloads/redhat/redhat-rhui#azure-rhui-infrastructure # noqa: E501
+        if "Red Hat" == os_version.vendor and cmd_result.exit_code != 0:
             cmd_result = self._node.execute(
-                "yum update -y --disablerepo='*' --enablerepo='*microsoft*' ",
-                sudo=True,
-                timeout=3600,
+                "yum update -y --disablerepo='*' --enablerepo='*microsoft*' ", sudo=True
             )
+            cmd_result = self._node.execute("yum makecache", sudo=True)
 
     def _install_packages(
         self, packages: Union[List[str]], signed: bool = True
@@ -674,6 +684,17 @@ class Redhat(Fedora):
 
         return os_version
 
+    def _update_packages(self, packages: Optional[Union[List[str]]] = None) -> None:
+        command = "yum -y --nogpgcheck update "
+        if packages:
+            command += " ".join(packages)
+        # older images cost much longer time when update packages
+        # smaller sizes cost much longer time when update packages, e.g.
+        #  Basic_A1, Standard_A5, Standard_A1_v2, Standard_D1
+        # redhat rhel 7-lvm 7.7.2019102813 Basic_A1 cost 2371.568 seconds
+        # redhat rhel 8.1 8.1.2020020415 Basic_A0 cost 2409.116 seconds
+        self._node.execute(command, sudo=True, timeout=3600)
+
 
 class CentOs(Redhat):
     @classmethod
@@ -697,7 +718,9 @@ class Suse(Linux):
         return re.compile("^SLES|SUSE|sles|sle-hpc|sle_hpc|opensuse-leap$")
 
     def _initialize_package_installation(self) -> None:
-        self._node.execute("zypper --non-interactive --gpg-auto-import-keys update")
+        self._node.execute(
+            "zypper --non-interactive --gpg-auto-import-keys refresh", sudo=True
+        )
 
     def _install_packages(
         self, packages: Union[List[str]], signed: bool = True
@@ -718,6 +741,12 @@ class Suse(Linux):
                 f"{packages} is/are installed."
                 " A system reboot or package manager restart might be required."
             )
+
+    def _update_packages(self, packages: Optional[Union[List[str]]] = None) -> None:
+        command = "zypper --non-interactive --gpg-auto-import-keys update "
+        if packages:
+            command += " ".join(packages)
+        self._node.execute(command, sudo=True, timeout=3600)
 
 
 class NixOS(Linux):
