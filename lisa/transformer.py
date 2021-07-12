@@ -187,11 +187,19 @@ def run(runbook_builder: RunbookBuilder) -> None:
     # the validation without real run can save time, and fail fast on variable
     # mismatched.
     log.debug("dry run transformers...")
-    mock_variables = _run_transformers(runbook_builder, is_dry_run=True)
+    dry_run_variables = _run_transformers(runbook_builder, is_dry_run=True)
     dry_run_root_runbook = copy.deepcopy(root_runbook_data)
-    replace_variables(dry_run_root_runbook, mock_variables)
+    replace_variables(dry_run_root_runbook, dry_run_variables)
 
     # real run
     log.debug("running transformers...")
     output_variables = _run_transformers(runbook_builder)
     merge_variables(runbook_builder.variables, output_variables)
+
+    for dry_run_variable in dry_run_variables:
+        if dry_run_variable not in output_variables:
+            raise LisaException(
+                f"dry run variable [{dry_run_variable}] is not found "
+                f"in real result {[x for x in output_variables]}. "
+                f"Make sure that real run results presents all dry run results. "
+            )
