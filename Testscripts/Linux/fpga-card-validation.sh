@@ -123,8 +123,35 @@ function validate_cards() {
         SetTestStateAborted
         return 1
     fi
+    echo "****************************" >> TestExecution.log
+    echo "Running xbutil scan" >> TestExecution.log
+    echo "****************************" >> TestExecution.log
     xbutil scan >> TestExecution.log
+
+    echo "****************************" >> TestExecution.log
+    echo "Running xbutil validate" >> TestExecution.log
+    echo "****************************" >> TestExecution.log
     xbutil validate >> TestExecution.log
+
+    echo "****************************" >> TestExecution.log
+    echo "Running xbutil host_mem -d 0 --enable --size 1g" >> TestExecution.log
+    echo "****************************" >> TestExecution.log
+    xbutil host_mem -d 0 --enable --size 1g >> TestExecution.log
+
+    echo "****************************" >> TestExecution.log
+    echo "Running xbutil validate" >> TestExecution.log
+    echo "****************************" >> TestExecution.log
+    xbutil validate >> TestExecution.log
+
+    echo "****************************" >> TestExecution.log
+    echo "Running xbutil reset" >> TestExecution.log
+    echo "****************************" >> TestExecution.log
+    echo "y"| xbutil reset 1>/dev/null 2>> TestExecution.log
+
+    echo "****************************" >> TestExecution.log
+    echo "Running xbutil validate -q" >> TestExecution.log
+    echo "****************************" >> TestExecution.log
+    xbutil validate -q >> TestExecution.log
 }
 
 #######################################################################
@@ -135,7 +162,7 @@ function validate_cards() {
 # Source utils.sh
 . utils.sh || {
     echo "ERROR: unable to source utils.sh!"
-    echo "TestAborted" > state.txt
+    SetTestStateAborted
     exit 0
 }
 UtilsInit
