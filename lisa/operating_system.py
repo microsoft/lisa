@@ -2,6 +2,7 @@
 # Licensed under the MIT license.
 
 import re
+import time
 from dataclasses import dataclass
 from functools import partial
 from typing import (
@@ -22,6 +23,7 @@ from lisa.base_tools import Cat, Wget
 from lisa.executable import Tool
 from lisa.util import BaseClassMixin, LisaException, get_matched_str
 from lisa.util.logger import get_logger
+from lisa.util.perf_timer import create_timer
 from lisa.util.subclasses import Factory
 
 if TYPE_CHECKING:
@@ -424,7 +426,22 @@ class Debian(Linux):
                 error_lines.append(line)
         return error_lines
 
+    def wait_running_package_process(self) -> None:
+        # wait for 5 minutes
+        timeout = 60 * 5
+        timer = create_timer()
+        while timeout > timer.elapsed(False):
+            cmd_result = self._node.execute("pidof dpkg")
+            if cmd_result.exit_code == 1:
+                # not found dpkg process, it's ok to exit.
+                break
+            time.sleep(1)
+
+        if timeout < timer.elapsed():
+            raise Exception("timeout to wait previous dpkg process stop.")
+
     def _initialize_package_installation(self) -> None:
+        self.wait_running_package_process()
         self._node.execute("apt-get update", sudo=True)
 
     def _install_packages(
@@ -437,6 +454,7 @@ class Debian(Linux):
         if not signed:
             command += " --allow-unauthenticated"
 
+        self.wait_running_package_process()
         install_result = self._node.execute(command, sudo=True)
         # get error lines.
         if install_result.exit_code != 0:
