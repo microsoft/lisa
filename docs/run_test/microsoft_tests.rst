@@ -130,7 +130,12 @@ reference <runbook.html>`__.
 Test cases specification
 ------------------------
 
-TODO: add spec of LISA test cases.
+.. admonition:: TODO
 
-Learn more on not migrated `legacy LISAv2
-tests <https://github.com/microsoft/lisa/blob/master/Documents/LISAv2-TestCase-Statistics.html>`__.
+   add spec of LISA test cases.
+
+.. seealso::
+
+   Not migrated `legacy LISAv2
+   tests <https://github.com/microsoft/lisa/blob/master/Documents/LISAv2-TestCase-Statistics.html>`__
+   for more information.

@@ -15,15 +15,16 @@ With this document, you will know how to run LISAv2 tests in the current
 LISA. The current LISA clones the LISAv2 repo, start LISAv2, and parse
 LISAv2 log to generate test results with new format.
 
-|:construction:| WIP |:construction:|
--------------------------------------
 
-Attention: Currently we are migrating previous LISAv2 test cases to this
-LISA framework. Before we complete the test case migration, only T0 test
-cases can be launched on LISA. Other test cases can be executed in LISA
-with “Compatibility mode”, which will invoke a shim layer to call
-LISAv2; so you need to run LISA on a Windows computer and provide the
-secret file.
+.. attention::
+
+   |:construction:| WIP |:construction:|
+   Currently we are migrating previous LISAv2 test cases to this
+   LISA framework. Before we complete the test case migration, only T0 test
+   cases can be launched on LISA. Other test cases can be executed in LISA
+   with “Compatibility mode”, which will invoke a shim layer to call
+   LISAv2; so you need to run LISA on a Windows computer and provide the
+   secret file.
 
 Preparation
 -----------
