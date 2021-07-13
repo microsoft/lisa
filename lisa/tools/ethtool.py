@@ -268,18 +268,36 @@ class Ethtool(Tool):
         return self._device_set
 
     def get_device_channels_info(
-        self,
-        interface: str,
+        self, interface: str, force: bool = False
     ) -> DeviceChannel:
-        if interface in self._device_channel_map.keys():
+        if (not force) and (interface in self._device_channel_map.keys()):
             return self._device_channel_map[interface]
 
-        result = self.run(f"-l {interface}")
-        result.assert_exit_code()
+        result = self.run(f"-l {interface}", force_run=force)
+        if (result.exit_code != 0) and ("Operation not supported" in result.stderr):
+            raise UnsupportedOperationException(
+                "ethtool -l {interface} operation not supported."
+            )
+        result.assert_exit_code(
+            message=f"Couldn't get device {interface} channels info."
+        )
 
         device_channel_info = DeviceChannel(interface, result.stdout)
         self._device_channel_map[interface] = device_channel_info
+
         return device_channel_info
+
+    def change_device_channels_info(
+        self,
+        interface: str,
+        channel_count: int,
+    ) -> DeviceChannel:
+        change_result = self.run(f"-L {interface} combined {channel_count}")
+        change_result.assert_exit_code(
+            message=f" Couldn't change device {interface} channels count."
+        )
+
+        return self.get_device_channels_info(interface, force=True)
 
     def get_device_enabled_features(self, interface: str) -> DeviceFeatures:
         if interface in self._device_features_map.keys():
