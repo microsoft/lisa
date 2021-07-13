@@ -5,7 +5,7 @@ from assertpy import assert_that
 
 from lisa import Node, TestCaseMetadata, TestSuite, TestSuiteMetadata
 from lisa.tools import Ethtool
-from lisa.util import SkippedException, UnsupportedOperationException
+from lisa.util import LisaException, SkippedException, UnsupportedOperationException
 
 
 @TestSuiteMetadata(
@@ -112,3 +112,38 @@ class NetworkSettings(TestSuite):
                 f"Reverting channels count to its original value {channels}"
                 f" didn't succeed. Current Value is {channels_info.current_channels}",
             ).is_equal_to(channels)
+
+    @TestCaseMetadata(
+        description="""
+            This test case verifies required device features are enabled.
+
+            Steps:
+            1. Get the device's enabled features.
+            2. Validate below features are in the list of enbaled features-
+                rx-checksumming
+                tx-checksumming
+                tcp-segmentation-offload
+                scatter-gather
+        """,
+        priority=1,
+    )
+    def validate_device_enabled_features(self, node: Node) -> None:
+        required_features = [
+            "rx-checksumming",
+            "tx-checksumming",
+            "scater-gather",
+            "tcp-segmentation-offload",
+        ]
+        ethtool = node.tools[Ethtool]
+        devices_features = ethtool.get_all_device_enabled_features()
+
+        for device_features in devices_features:
+            enabled_features = device_features.enabled_features
+
+            if not all(feature in enabled_features for feature in required_features):
+                raise LisaException(
+                    "Not all the required features (rx-checksumming, tx-checksumming,"
+                    "scatter-gather, tcp-segmentation-offload) are enabled for"
+                    f" device {device_features.device_name}."
+                    f" Enabled features list - {enabled_features}"
+                )

@@ -299,11 +299,13 @@ class Ethtool(Tool):
 
         return self.get_device_channels_info(interface, force=True)
 
-    def get_device_enabled_features(self, interface: str) -> DeviceFeatures:
-        if interface in self._device_features_map.keys():
+    def get_device_enabled_features(
+        self, interface: str, force: bool = False
+    ) -> DeviceFeatures:
+        if (not force) and (interface in self._device_features_map.keys()):
             return self._device_features_map[interface]
 
-        result = self.run(f"-k {interface}")
+        result = self.run(f"-k {interface}", force_run=force)
         result.assert_exit_code()
 
         device_feature = DeviceFeatures(interface, result.stdout)
