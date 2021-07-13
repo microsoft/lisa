@@ -514,3 +514,15 @@ class Nodes:
         self._list.append(node)
 
         return node
+
+
+def quick_connect(runbook: schema.Node, logger_name: str = "", index: int = -1) -> Node:
+    """
+    setup node information and initialize conneciton.
+    """
+    node = Node.create(index, runbook, logger_name=logger_name)
+    if isinstance(node, RemoteNode):
+        node.set_connection_info_by_runbook()
+    node.initialize()
+
+    return node
