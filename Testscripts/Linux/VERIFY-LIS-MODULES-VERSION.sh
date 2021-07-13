@@ -33,7 +33,7 @@ function check_version_greater_equal() { test "$(echo "$@" | tr " " "\n" | sort 
 GetDistro
 
 case $DISTRO in
-    redhat_*|centos_*|almalinux*)
+    redhat_*|centos_*)
         # Check if vmbus string is recorded in dmesg
         hv_string=$(dmesg | grep "Vmbus version:")
         if [[ ( $hv_string == "" ) || ! ( $hv_string == *"hv_vmbus:"*"Vmbus version:"* ) ]]; then
