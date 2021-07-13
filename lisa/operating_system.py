@@ -120,9 +120,7 @@ class OperatingSystem:
                 )
         else:
             result = Windows(node)
-        log.debug(
-            f"detected OS: '{result.__class__.__name__}' by pattern '{detected_info}'"
-        )
+        log.debug(f"detected OS: '{result.name}' by pattern '{detected_info}'")
         return result
 
     @property
@@ -139,6 +137,10 @@ class OperatingSystem:
             self._os_version = self._get_os_version()
 
         return self._os_version
+
+    @property
+    def name(self) -> str:
+        return self.__class__.__name__
 
     @classmethod
     def _get_detect_string(cls, node: Any) -> Iterable[str]:
