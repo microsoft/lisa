@@ -61,11 +61,10 @@ html_static_path = ["_static"]
 html_theme_options = {
     "collapse_navigation": False,
     "navigation_depth": 2,
-}
-
-html_logo = "img/LSG_Logo.png"
-
-html_theme_options = {
     "logo_only": True,
     "display_version": False,
 }
+
+html_favicon = "favicon.ico"
+
+html_logo = "LSG_Logo.png"
