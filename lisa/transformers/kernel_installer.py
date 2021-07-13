@@ -9,7 +9,7 @@ from typing import Any, Dict, List, Optional, Type, cast
 from dataclasses_json import CatchAll, Undefined, dataclass_json
 
 from lisa import schema
-from lisa.node import Node, RemoteNode
+from lisa.node import Node, quick_connect
 from lisa.operating_system import Ubuntu
 from lisa.secret import PATTERN_HEADTAIL, add_secret
 from lisa.tools import Cat, Uname
@@ -78,7 +78,7 @@ class BaseInstaller(subclasses.BaseClassWithRunbookMixin):
     def __init__(
         self,
         runbook: Any,
-        node: RemoteNode,
+        node: Node,
         parent_log: Logger,
         *args: Any,
         **kwargs: Any,
@@ -112,11 +112,7 @@ class KernelInstallerTransformer(Transformer):
         assert runbook.connection, "connection must be defined."
         assert runbook.installer, "installer must be defined."
 
-        node: RemoteNode = cast(
-            RemoteNode, Node.create(-1, runbook.connection, logger_name="kernel_node")
-        )
-        node.set_connection_info_by_runbook()
-        node.initialize()
+        node = quick_connect(runbook.connection, "installer_node")
 
         uname = node.tools[Uname]
         self._log.info(
@@ -151,7 +147,7 @@ class RepoInstaller(BaseInstaller):
     def __init__(
         self,
         runbook: Any,
-        node: RemoteNode,
+        node: Node,
         parent_log: Logger,
         *args: Any,
         **kwargs: Any,
@@ -175,7 +171,7 @@ class RepoInstaller(BaseInstaller):
 
     def install(self) -> None:
         runbook: RepoInstallerSchema = self.runbook
-        node: RemoteNode = self._node
+        node: Node = self._node
         ubuntu: Ubuntu = cast(Ubuntu, node.os)
         release = node.os.os_version.codename
 
@@ -217,7 +213,7 @@ class RepoInstaller(BaseInstaller):
             ]
         )
 
-    def _get_kernel_version(self, source: str, node: RemoteNode) -> str:
+    def _get_kernel_version(self, source: str, node: Node) -> str:
         # get kernel version from apt packages
         # linux-azure-edge/focal-proposed,now 5.11.0.1011.11~20.04.10 amd64 [installed]
         # output: 5.11.0.1011
@@ -240,7 +236,7 @@ class RepoInstaller(BaseInstaller):
 
         return kernel_version
 
-    def _replace_boot_entry(self, kernel_version: str, node: RemoteNode) -> None:
+    def _replace_boot_entry(self, kernel_version: str, node: Node) -> None:
         self._log.info("updating boot menu...")
         ubuntu: Ubuntu = cast(Ubuntu, node.os)
 
@@ -301,7 +297,7 @@ class PpaInstaller(RepoInstaller):
 
     def install(self) -> None:
         runbook: PpaInstallerSchema = self.runbook
-        node: RemoteNode = self._node
+        node: Node = self._node
 
         # the key is optional
         if runbook.openpgp_key:

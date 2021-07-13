@@ -14,7 +14,7 @@ from lisa import schema
 from lisa.environment import Environments, EnvironmentSpace
 from lisa.feature import Features
 from lisa.features import StartStop
-from lisa.node import RemoteNode
+from lisa.node import Node, RemoteNode, quick_connect
 from lisa.parameter_parser.runbook import RunbookBuilder
 from lisa.platform_ import load_platform_from_builder
 from lisa.transformer import Transformer
@@ -131,7 +131,7 @@ class VhdTransformer(Transformer):
 
     def _prepare_virtual_machine(
         self, platform: AzurePlatform, virtual_machine: Any
-    ) -> RemoteNode:
+    ) -> Node:
         runbook: VhdTransformerSchema = self.runbook
         if not runbook.public_address:
             runbook.public_address = self._get_public_ip_address(
@@ -155,16 +155,11 @@ class VhdTransformer(Transformer):
             password=runbook.password,
             private_key_file=runbook.private_key_file,
         )
-        node = RemoteNode(
-            runbook=node_runbook, index=0, logger_name=f"{self.type_name()}_vm"
-        )
+        node = quick_connect(node_runbook, f"{self.type_name()}_vm")
         node.features = Features(node, platform)
         node_context = get_node_context(node)
         node_context.vm_name = runbook.vm_name
         node_context.resource_group_name = runbook.resource_group_name
-
-        node.set_connection_info_by_runbook()
-        node.initialize()
 
         # prepare vm for exporting
         wa = node.tools[Waagent]
@@ -238,7 +233,7 @@ class VhdTransformer(Transformer):
         return vhd_path
 
     def _restore_vm(
-        self, platform: AzurePlatform, virtual_machine: Any, node: RemoteNode
+        self, platform: AzurePlatform, virtual_machine: Any, node: Node
     ) -> None:
         runbook: VhdTransformerSchema = self.runbook
 
