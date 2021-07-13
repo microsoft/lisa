@@ -4,8 +4,7 @@ Troubleshooting
 -  `Installation <#installation>`__
 
    -  `How to use LISA in WSL <#how-to-use-lisa-in-wsl>`__
-   -  `Cannot find package after run \`poetry
-      install\` <#cannot-find-package-after-run-poetry-install>`__
+   -  `Many missing packages <#many-missing-packages>`__
    -  `Error: Poetry could not find a pyproject.toml
       file <#error-poetry-could-not-find-a-pyproject-toml-file>`__
 
@@ -34,13 +33,15 @@ version, otherwise this error will appear:
 
 ``/usr/bin/env: ‘python\r’: No such file or directory``
 
-Cannot find package after run \`poetry install\`
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+Many missing packages
+~~~~~~~~~~~~~~~~~~~~~
 
 Poetry is case sensitive, which means it differentiates directories like
-``C:\abc`` and ``C:\ABC`` in Windows, although Windows in fact does not
-allow this (as a case insensitive system). When reading the path, please
-make sure there’s no case mismatch in the path.
+``C:\abc`` and ``C:\ABC`` in Windows, although Windows in fact does not allow
+this (as a case insensitive system). When reading the path, please make sure
+there’s no case mismatch in the path. Then run ``poetry install`` again at the
+root folder (where your LISA source code is) to make sure all packages are
+correctly installed.
 
 Error: Poetry could not find a pyproject.toml file
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -71,12 +72,12 @@ Refer to
 `DeprecatePythonPath <https://github.com/microsoft/vscode-python/wiki/AB-Experiments>`__
 for more information.
 
-.. TL;DR::
+.. admonition:: TL;DR
 
-"We removed the “python.pythonPath” setting from your settings.json
-file as the setting is no longer used by the Python extension. You
-can get the path of your selected interpreter in the Python output
-channel."
+   "We removed the “python.pythonPath” setting from your settings.json
+   file as the setting is no longer used by the Python extension. You
+   can get the path of your selected interpreter in the Python output
+   channel."
 
 An alternative way is to simply select the Poetry Python interpreter as
 the default interpreter in the workspace, as in `Cannot find Python
