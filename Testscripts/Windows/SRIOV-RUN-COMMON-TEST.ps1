@@ -87,31 +87,15 @@ function Main {
             }
 
             if ($TestParams.Set_SSH -eq "yes") {
-                Write-LogInfo "Setting SSH keys for both VMs"
-                Copy-RemoteFiles -uploadTo $publicIp -port $vmPort -files `
-                    ".\Testscripts\Linux\enable_passwordless_root.sh,.\Testscripts\Linux\utils.sh,.\Testscripts\Linux\SR-IOV-Utils.sh" `
-                    -username $VMUsername -password $password -upload | Out-Null
-                Copy-RemoteFiles -uploadTo $publicIp -port $dependencyVmData.SSHPort -files `
-                    ".\Testscripts\Linux\enable_passwordless_root.sh,.\Testscripts\Linux\utils.sh,.\Testscripts\Linux\SR-IOV-Utils.sh" `
-                    -username $VMUsername -password $password -upload | Out-Null
-                Run-LinuxCmd -ip $publicIp -port $vmPort -username $VMUsername -password `
-                    $password -command "chmod +x /home/$VMUsername/*.sh" -RunAsSudo | Out-Null
-                Run-LinuxCmd -ip $publicIp -port $dependencyVmData.SSHPort -username $VMUsername -password `
-                    $password -command "chmod +x /home/$VMUsername/*.sh" -RunAsSudo | Out-Null
-                Run-LinuxCmd -ip $publicIp -port $vmPort -username $VMUsername -password `
-                    $password -command "./enable_passwordless_root.sh /home/$VMUsername ; cp -rf /root/.ssh /home/$VMUsername" -RunAsSudo | Out-Null
-
-                # Copy keys from VM1 and setup VM2
-                Copy-RemoteFiles -download -downloadFrom $publicIp -port $vmPort -files `
-                    "/home/$VMUsername/sshFix.tar" -username $VMUsername -password $password -downloadTo $LogDir | Out-Null
-                Copy-RemoteFiles -uploadTo $publicIp -port $dependencyVmData.SSHPort -files "$LogDir\sshFix.tar" `
-                    -username $VMUsername -password $password -upload | Out-Null
-                Run-LinuxCmd -ip $publicIp -port $dependencyVmData.SSHPort -username $VMUsername -password `
-                    $password -command "./enable_passwordless_root.sh /home/$VMUsername ; cp -rf /root/.ssh /home/$VMUsername" -RunAsSudo | Out-Null
+                Provision-VMsForLisa -allVMData $allVMData -installPackagesOnRoleNames "none"
             }
 
             # Install dependencies on both VMs
             if ($TestParams.Install_Dependencies -eq "yes") {
+                Copy-RemoteFiles -uploadTo $publicIp -port $vmPort -files ".\Testscripts\Linux\SR-IOV-Utils.sh" `
+                    -username $VMUsername -password $password -upload | Out-Null
+                Copy-RemoteFiles -uploadTo $publicIp -port $dependencyVmData.SSHPort -files ".\Testscripts\Linux\SR-IOV-Utils.sh" `
+                    -username $VMUsername -password $password -upload | Out-Null
                 Run-LinuxCmd -username $VMUsername -password $password -ip $publicIp -port $vmPort `
                     -command "cp /home/$VMUsername/sriov_constants.sh . ; . SR-IOV-Utils.sh; InstallDependencies" -RunAsSudo -runMaxAllowedTime 600 | Out-Null
                 if (-not $?) {
