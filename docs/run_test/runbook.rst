@@ -580,7 +580,7 @@ environment
 ~~~~~~~~~~~
 
 List of environments. For more information, refer `node and
-environment <https://github.com/microsoft/lisa/blob/main/docs/concepts.html#node-and-environment>`__.
+environment <../write_test/concepts.html#node-and-environment>`__.
 
 environments
 ^^^^^^^^^^^^
@@ -608,7 +608,7 @@ nodes
 
 List of node, it can be a virtual machine on Azure or Hyper-V, bare
 metal or others. For more information, refer `node and
-environment <https://github.com/microsoft/lisa/blob/main/docs/concepts.html#node-and-environment>`__.
+environment <../write_test/concepts.html#node-and-environment>`__.
 
 nodes_requirement
 '''''''''''''''''
