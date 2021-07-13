@@ -166,7 +166,7 @@ class RepoInstaller(BaseInstaller):
     def validate(self) -> None:
         assert isinstance(self._node.os, Ubuntu), (
             f"The '{self.type_name()}' installer only support Ubuntu. "
-            f"The current os is {self._node.os.__class__.__name__}"
+            f"The current os is {self._node.os.name}"
         )
 
     def install(self) -> None:
