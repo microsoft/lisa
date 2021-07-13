@@ -123,35 +123,64 @@ function validate_cards() {
         SetTestStateAborted
         return 1
     fi
-    echo "****************************" >> TestExecution.log
-    echo "Running xbutil scan" >> TestExecution.log
-    echo "****************************" >> TestExecution.log
-    xbutil scan >> TestExecution.log
+    LogMsg "****************************"
+    LogMsg "Running xbutil scan"
+    LogMsg "****************************"
+    xbutil scan >> TestExecution.log 2>&1  
+    if [ $? -ne 0 ]; then
+        LogErr "xbutil scan failed"
+        SetTestStateFailed
+        exit 0
+    fi
+    LogMsg "****************************"
+    LogMsg "Running xbutil validate"
+    LogMsg "****************************"
+    xbutil validate >> TestExecution.log 2>&1
+    if [ $? -ne 0 ]; then
+        LogErr "xbutil validate failed"
+        SetTestStateFailed
+        exit 0
+    fi
 
-    echo "****************************" >> TestExecution.log
-    echo "Running xbutil validate" >> TestExecution.log
-    echo "****************************" >> TestExecution.log
-    xbutil validate >> TestExecution.log
+    LogMsg "****************************"
+    LogMsg "Running xbutil host_mem -d 0 --enable --size 1g"
+    LogMsg "****************************"
+    xbutil host_mem -d 0 --enable --size 1g >> TestExecution.log 2>&1 
+    if [ $? -ne 0 ]; then
+        LogErr "xbutil host_mem failed"
+        SetTestStateFailed
+        exit 0
+    fi
 
-    echo "****************************" >> TestExecution.log
-    echo "Running xbutil host_mem -d 0 --enable --size 1g" >> TestExecution.log
-    echo "****************************" >> TestExecution.log
-    xbutil host_mem -d 0 --enable --size 1g >> TestExecution.log
+    LogMsg "****************************"
+    LogMsg "Running xbutil validate"
+    LogMsg "****************************"
+    xbutil validate >> TestExecution.log 2>&1 
+    if [ $? -ne 0 ]; then
+        LogErr "xbutil validate failed"
+        SetTestStateFailed
+        exit 0
+    fi
 
-    echo "****************************" >> TestExecution.log
-    echo "Running xbutil validate" >> TestExecution.log
-    echo "****************************" >> TestExecution.log
-    xbutil validate >> TestExecution.log
-
-    echo "****************************" >> TestExecution.log
-    echo "Running xbutil reset" >> TestExecution.log
-    echo "****************************" >> TestExecution.log
+    LogMsg "****************************"
+    LogMsg "Running xbutil reset"
+    LogMsg "****************************"
     echo "y"| xbutil reset 1>/dev/null 2>> TestExecution.log
+    if [ $? -ne 0 ]; then
+        LogErr "xbutil reset failed"
+        SetTestStateFailed
+        exit 0
+    fi
 
-    echo "****************************" >> TestExecution.log
-    echo "Running xbutil validate -q" >> TestExecution.log
-    echo "****************************" >> TestExecution.log
-    xbutil validate -q >> TestExecution.log
+    LogMsg "****************************"
+    LogMsg "Running xbutil validate -q"
+    LogMsg "****************************"
+    xbutil validate -q >> TestExecution.log 2>&1
+    if [ $? -ne 0 ]; then
+        LogErr "xbutil validate failed"
+        SetTestStateFailed
+        exit 0
+    fi
 }
 
 #######################################################################
@@ -162,7 +191,7 @@ function validate_cards() {
 # Source utils.sh
 . utils.sh || {
     echo "ERROR: unable to source utils.sh!"
-    SetTestStateAborted
+    echo "TestAborted" > state.txt
     exit 0
 }
 UtilsInit
