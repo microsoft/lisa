@@ -69,3 +69,46 @@ class NetworkSettings(TestSuite):
                 reverted_settings.current_ring_buffer_settings["TX"],
                 "Reverting TX Ringbuffer setting to original value didn't succeed",
             ).is_equal_to(original_tx)
+
+    @TestCaseMetadata(
+        description="""
+            This test case verifies changing device channels count with ethtool.
+
+            Steps:
+            1. Get the current device channels info.
+            2   a. Keep Changing the channel count from min to max value using ethtool.
+                b. Get the channel count info and validate the channel count
+                    value is equal to the new value assigned.
+            3. Revert back the channel count to its original value.
+
+        """,
+        priority=1,
+    )
+    def validate_device_channels_change(self, node: Node) -> None:
+        ethtool = node.tools[Ethtool]
+        try:
+            devices_channels = ethtool.get_all_device_channels_info()
+        except UnsupportedOperationException as identifier:
+            raise SkippedException(identifier)
+
+        for interface_channels_info in devices_channels:
+            interface = interface_channels_info.device_name
+            channels = interface_channels_info.current_channels
+            max_channels = interface_channels_info.max_channels
+
+            for new_channels in range(1, max_channels + 1):
+                channels_info = ethtool.change_device_channels_info(
+                    interface, new_channels
+                )
+                assert_that(
+                    channels_info.current_channels,
+                    f"Setting channels count to {new_channels} didn't succeed",
+                ).is_equal_to(new_channels)
+
+            # revert back the channel count to original value
+            channels_info = ethtool.change_device_channels_info(interface, channels)
+            assert_that(
+                channels_info.current_channels,
+                f"Reverting channels count to its original value {channels}"
+                f" didn't succeed. Current Value is {channels_info.current_channels}",
+            ).is_equal_to(channels)
