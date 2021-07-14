@@ -6,11 +6,20 @@ import re
 
 from lisa.executable import Tool
 from lisa.operating_system import Posix
-from lisa.util import LisaException, get_matched_str
+from lisa.util import LisaException, constants, get_matched_str
+
+
+class CodeExistsException(LisaException):
+    ...
 
 
 class Git(Tool):
     CODE_FOLDER_PATTERN = re.compile(r"Cloning into '(.+)'")
+    CODE_FOLDER_ON_EXISTS_PATTERN = re.compile(
+        r"destination path '(?P<path>.*?)' already exists "
+        r"and is not an empty directory.",
+        re.M,
+    )
 
     @property
     def command(self) -> str:
@@ -31,32 +40,72 @@ class Git(Tool):
         return self._check_exists()
 
     def clone(
-        self, url: str, cwd: pathlib.PurePath, branch: str = "", dir_name: str = ""
-    ) -> None:
+        self,
+        url: str,
+        cwd: pathlib.PurePath,
+        ref: str = "",
+        dir_name: str = "",
+        fail_on_exists: bool = True,
+    ) -> pathlib.PurePath:
+        self.node.shell.mkdir(cwd, exist_ok=True)
+
         cmd = f"clone {url} {dir_name}"
         # git print to stderr for normal info, so set no_error_log to True.
         result = self.run(cmd, cwd=cwd, no_error_log=True)
-        if result.exit_code != 0:
-            raise LisaException(
-                f"Fail to clone the repo."
-                f" It may caused by repo url {url} is incorrect or temp network issue."
-            )
-        code_dir = get_matched_str(result.stderr, self.CODE_FOLDER_PATTERN)
+        if result.exit_code == 0:
+            output = result.stderr
+            if not output:
+                output = result.stdout
+            code_dir = get_matched_str(output, self.CODE_FOLDER_PATTERN)
+        else:
+            stdout = result.stdout
+            code_dir = get_matched_str(stdout, self.CODE_FOLDER_ON_EXISTS_PATTERN)
+            if code_dir:
+                if fail_on_exists:
+                    raise CodeExistsException(f"code or folder exists. {stdout}")
+                else:
+                    self._log.debug(f"path '{code_dir}' exists, clone skipped.")
+            else:
+                raise LisaException(f"failed to clone the repo. {stdout}")
         full_path = cwd / code_dir
-        if branch:
-            self.checkout(branch, cwd=full_path)
+        self._log.debug(f"code path: {full_path}")
+        if ref:
+            self.checkout(ref, cwd=full_path)
+        return full_path
 
-    def checkout(self, branch: str, cwd: pathlib.PurePath) -> None:
+    def checkout(
+        self, ref: str, cwd: pathlib.PurePath, checkout_branch: str = ""
+    ) -> None:
+        if not checkout_branch:
+            # create a temp branch to checkout tag or commit.
+            checkout_branch = f"{constants.RUN_LOGIC_PATH}"
+
         # force run to make sure checkout among branches correctly.
         result = self.run(
-            f"checkout {branch}",
+            f"checkout {ref} -b {checkout_branch}",
             force_run=True,
             cwd=cwd,
             no_info_log=True,
             no_error_log=True,
         )
-        if result.exit_code != 0:
-            raise LisaException(
-                f"Fail to checkout branch."
-                f" It may caused by branch {branch} not exist or temp network issue."
-            )
+        result.assert_exit_code(message=f"failed to checkout branch. {result.stdout}")
+
+    def pull(self, cwd: pathlib.PurePath) -> None:
+        result = self.run(
+            "pull",
+            force_run=True,
+            cwd=cwd,
+            no_info_log=True,
+            no_error_log=True,
+        )
+        result.assert_exit_code(message=f"failed to pull code. {result.stdout}")
+
+    def fetch(self, cwd: pathlib.PurePath) -> None:
+        result = self.run(
+            "fetch -p",
+            force_run=True,
+            cwd=cwd,
+            no_info_log=True,
+            no_error_log=True,
+        )
+        result.assert_exit_code(message=f"failed to fetch code. {result.stdout}")
