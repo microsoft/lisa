@@ -268,6 +268,37 @@ class Posix(OperatingSystem, BaseClassMixin):
 
         return self._coerce_version(release_version)
 
+    def install_packages(
+        self,
+        packages: Union[str, Tool, Type[Tool], List[Union[str, Tool, Type[Tool]]]],
+        signed: bool = True,
+    ) -> None:
+        package_names: List[str] = []
+        if not isinstance(packages, list):
+            packages = [packages]
+
+        assert isinstance(packages, list), f"actual:{type(packages)}"
+        for item in packages:
+            package_names.append(self.__resolve_package_name(item))
+        if self._first_time_installation:
+            self._first_time_installation = False
+            self._initialize_package_installation()
+
+        self._install_packages(package_names, signed)
+
+    def package_exists(
+        self, package: Union[str, Tool, Type[Tool]], signed: bool = True
+    ) -> bool:
+        """
+        Query if a package/tool is installed on the node.
+        Return Value - bool
+        """
+        package_name = self.__resolve_package_name(package)
+        return self._package_exists(package_name)
+
+    def update_packages(self, packages: Union[str, Tool, Type[Tool]]) -> None:
+        raise NotImplementedError
+
     def _coerce_version(self, version: str) -> VersionInfo:
         """
         Convert an incomplete version string into a semver-compatible Version
@@ -371,30 +402,6 @@ class Posix(OperatingSystem, BaseClassMixin):
         wget_tool = self._node.tools[Wget]
         pkg = wget_tool.get(package, str(self._node.working_path))
         self.install_packages(pkg, signed)
-
-    def install_packages(
-        self,
-        packages: Union[str, Tool, Type[Tool], List[Union[str, Tool, Type[Tool]]]],
-        signed: bool = True,
-    ) -> None:
-        package_names = self._get_package_list(packages)
-        self._install_packages(package_names, signed)
-
-    def package_exists(
-        self, package: Union[str, Tool, Type[Tool]], signed: bool = True
-    ) -> bool:
-        """
-        Query if a package/tool is installed on the node.
-        Return Value - bool
-        """
-        package_name = self.__resolve_package_name(package)
-        return self._package_exists(package_name)
-
-    def update_packages(
-        self, packages: Union[str, Tool, Type[Tool], List[Union[str, Tool, Type[Tool]]]]
-    ) -> None:
-        package_names = self._get_package_list(packages)
-        self._update_packages(package_names)
 
     def __resolve_package_name(self, package: Union[str, Tool, Type[Tool]]) -> str:
         """
