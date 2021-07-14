@@ -99,7 +99,7 @@ class LegacyRunner(BaseRunner):
             git.clone(
                 config.repo,
                 cwd=self._working_folder,
-                branch=config.branch,
+                ref=config.branch,
                 dir_name=self._get_dir_name(self.id, index),
             )
 
