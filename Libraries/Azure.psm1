@@ -2160,7 +2160,7 @@ Function Invoke-ResourceGroupDeployment([string]$RGName, $TemplateFile, $UseExis
 	return @{ "Status" = $retValue ; "Error" = $errMsg }
 }
 
-Function Get-AllDeploymentData([string]$ResourceGroups, [string]$PatternOfResourceNamePrefix, [boolean]$UseExistingRG = $false, [int]$MaxRetryCount = 60) {
+Function Get-AllDeploymentData([string]$ResourceGroups, [string]$PatternOfResourceNamePrefix, [boolean]$UseExistingRG = $false, [int]$MaxRetryCount = 120) {
 	$allDeployedVMs = @()
 	function Create-QuickVMNode() {
 		$objNode = New-Object -TypeName PSObject

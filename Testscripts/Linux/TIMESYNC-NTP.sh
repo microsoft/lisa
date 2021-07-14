@@ -97,6 +97,11 @@ case $DISTRO in
         check_cmd_result $? "Successfully restarted ntpd daemon" "Unable to restart ntpd. Aborting"
     ;;
     suse*|sles*)
+        if [[ $DISTRO == "suse_15" ]]; then
+            LogMsg "$DISTRO does not support ntp. Test skipped."
+            SetTestStateSkipped
+            exit 0
+        fi
         #In SLES 12 service name is ntpd, in SLES 11 is ntp
         if  [[ $DISTRO == "suse_11" ]]; then
             srv="ntp"
