@@ -268,6 +268,9 @@ class Posix(OperatingSystem, BaseClassMixin):
 
         return self._coerce_version(release_version)
 
+    def replace_boot_kernel(self, kernel_version: str) -> None:
+        raise NotImplementedError("update boot entry is not implemented")
+
     def install_packages(
         self,
         packages: Union[str, Tool, Type[Tool], List[Union[str, Tool, Type[Tool]]]],
@@ -534,11 +537,79 @@ class Debian(Linux):
 
 
 class Ubuntu(Debian):
+    # gnulinux-5.11.0-1011-azure-advanced-3fdd2548-1430-450b-b16d-9191404598fb
+    # prefix: gnulinux
+    # postfix: advanced-3fdd2548-1430-450b-b16d-9191404598fb
+    __menu_id_parts_pattern = re.compile(
+        r"^(?P<prefix>.*?)-.*-(?P<postfix>.*?-.*?-.*?-.*?-.*?-.*?)?$"
+    )
+
     @classmethod
     def name_pattern(cls) -> Pattern[str]:
         return re.compile("^Ubuntu|ubuntu$")
 
-    def set_boot_entry(self, entry: str) -> None:
+    def replace_boot_kernel(self, kernel_version: str) -> None:
+        # set installed kernel to default
+        #
+        # get boot entry id
+        # postive example:
+        #         menuentry 'Ubuntu, with Linux 5.11.0-1011-azure' --class ubuntu
+        # --class gnu-linux --class gnu --class os $menuentry_id_option
+        # 'gnulinux-5.11.0-1011-azure-advanced-3fdd2548-1430-450b-b16d-9191404598fb' {
+        #
+        # negative example:
+        #         menuentry 'Ubuntu, with Linux 5.11.0-1011-azure (recovery mode)'
+        # --class ubuntu --class gnu-linux --class gnu --class os $menuentry_id_option
+        # 'gnulinux-5.11.0-1011-azure-recovery-3fdd2548-1430-450b-b16d-9191404598fb' {
+        cat = self._node.tools[Cat]
+        menu_id_pattern = re.compile(
+            r"^.*?menuentry '.*?(?:"
+            + kernel_version
+            + r"[^ ]*?)(?<! \(recovery mode\))' "
+            r".*?\$menuentry_id_option .*?'(?P<menu_id>.*)'.*$",
+            re.M,
+        )
+        result = cat.run("/boot/grub/grub.cfg")
+        submenu_id = get_matched_str(result.stdout, menu_id_pattern)
+        assert submenu_id, (
+            f"cannot find sub menu id from grub config by pattern: "
+            f"{menu_id_pattern.pattern}"
+        )
+        self._log.debug(f"matched submenu_id: {submenu_id}")
+
+        # get first level menu id in boot menu
+        # input is the sub menu id like:
+        # gnulinux-5.11.0-1011-azure-advanced-3fdd2548-1430-450b-b16d-9191404598fb
+        # output is,
+        # gnulinux-advanced-3fdd2548-1430-450b-b16d-9191404598fb
+        menu_id = self.__menu_id_parts_pattern.sub(
+            r"\g<prefix>-\g<postfix>", submenu_id
+        )
+        assert menu_id, f"cannot composite menu id from {submenu_id}"
+
+        # composite boot menu in grub
+        menu_entry = f"{menu_id}>{submenu_id}"
+        self._log.debug(f"composited menu_entry: {menu_entry}")
+
+        self._replace_default_entry(menu_entry)
+        self._node.execute("update-grub", sudo=True)
+
+        try:
+            # install tool packages
+            self.install_packages(
+                [
+                    f"linux-tools-{kernel_version}-azure",
+                    f"linux-cloud-tools-{kernel_version}-azure",
+                    f"linux-headers-{kernel_version}-azure",
+                ]
+            )
+        except Exception as identifier:
+            self._log.debug(
+                f"ignorable error on install packages after replaced kernel: "
+                f"{identifier}"
+            )
+
+    def _replace_default_entry(self, entry: str) -> None:
         self._log.debug(f"set boot entry to: {entry}")
         self._node.execute(
             f"sed -i.bak \"s/GRUB_DEFAULT=.*/GRUB_DEFAULT='{entry}'/g\" "
@@ -621,6 +692,11 @@ class Redhat(Fedora):
     @classmethod
     def name_pattern(cls) -> Pattern[str]:
         return re.compile("^rhel|Red|AlmaLinux|Rocky|Scientific|acronis|Actifio$")
+
+    def replace_boot_kernel(self, kernel_version: str) -> None:
+        # Redhat kernel is replaced when installing RPM. For source code
+        # installation, it's implemented in source code installer.
+        ...
 
     def _initialize_package_installation(self) -> None:
         cmd_result = self._node.execute("yum makecache", sudo=True)
