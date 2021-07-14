@@ -3546,6 +3546,7 @@ function check_package () {
 				;;
 
 			suse|opensuse|sles|sle_hpc)
+				CheckInstallLockSLES
 				zypper search "$package_name"
 				return $?
 				;;
