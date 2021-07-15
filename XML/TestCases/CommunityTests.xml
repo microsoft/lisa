@@ -158,4 +158,23 @@
       <OverrideVMSize>Standard_DS4_v2</OverrideVMSize>
     </SetupConfig>
   </test>
+  <test>
+    <TestName>NGINX-COMMUNITY-TESTS</TestName>
+    <TestScript>nginx-community-test.sh</TestScript>
+    <files>.\Testscripts\Linux\utils.sh,.\TestScripts\Linux\nginx-community-test.sh</files>
+    <TestParameters>
+      <param>NGINX_REPO=https://github.com/nginx/nginx.git</param>
+      <param>NGINX_TEST_REPO=https://github.com/nginx/nginx-tests.git</param>
+    </TestParameters>
+    <Timeout>20000</Timeout>
+    <Platform>Azure</Platform>
+    <Category>Community</Category>
+    <Area>NGINX</Area>
+    <Tags>nginx</Tags>
+    <Priority>2</Priority>
+    <SetupConfig>
+      <SetupType>OneVM</SetupType>
+      <OverrideVMSize>Standard_DS4_v2</OverrideVMSize>
+    </SetupConfig>
+  </test>
 </TestCases>

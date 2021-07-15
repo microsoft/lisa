@@ -202,6 +202,19 @@
     </SetupConfig>
   </test>
   <test>
+    <testName>TIMESYNC-CHRONYD</testName>
+    <testScript>timesync_chrony.sh</testScript>
+    <files>.\TestScripts\Linux\timesync_chrony.sh,.\TestScripts\Linux\utils.sh,.\Testscripts\Linux\containers_utils.sh</files>
+    <Platform>Azure,HyperV</Platform>
+    <Category>Functional</Category>
+    <Area>TIME</Area>
+    <Tags>timesync</Tags>
+    <Priority>0</Priority>
+    <SetupConfig>
+      <SetupType>OneVM</SetupType>
+    </SetupConfig>
+  </test>
+  <test>
     <testName>TIME-CLOCKSOURCE</testName>
     <testScript>TIME-CLOCKSOURCE.sh</testScript>
     <files>.\TestScripts\Linux\TIME-CLOCKSOURCE.sh,.\TestScripts\Linux\utils.sh</files>
