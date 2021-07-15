@@ -6,7 +6,7 @@ import re
 from dataclasses import dataclass, field
 from typing import Any, Dict, List, Optional, Type, cast
 
-from dataclasses_json import CatchAll, Undefined, dataclass_json
+from dataclasses_json import dataclass_json
 
 from lisa import schema
 from lisa.node import Node, quick_connect
@@ -18,10 +18,10 @@ from lisa.util import filter_ansi_escape, get_matched_str, subclasses
 from lisa.util.logger import Logger, get_logger
 
 
-@dataclass_json(undefined=Undefined.INCLUDE)
+@dataclass_json()
 @dataclass
-class BaseInstallerSchema(schema.TypedSchema):
-    delay_parsed: CatchAll = field(default_factory=dict)  # type: ignore
+class BaseInstallerSchema(schema.TypedSchema, schema.ExtendableSchemaMixin):
+    ...
 
 
 @dataclass_json()
