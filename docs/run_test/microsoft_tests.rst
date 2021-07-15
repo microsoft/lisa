@@ -73,32 +73,39 @@ Test tiers can be T0, T1, T2, T3, T4. It maps to priorities of test
 cases. For example, T0 means all P0 test cases are selected in a test
 run. T2 means all P0, P1, P2 test cases are selected in a test run.
 
-+---+--------+-------+-------------------+------------------------------+
-| n | test   | time  | resource          | automation requirement       |
-| a | prio   | r     | restriction       |                              |
-| m | rities | estri |                   |                              |
-| e |        | ction |                   |                              |
-+===+========+=======+===================+==============================+
-| T | P0     | 5     | single VM         | 100% automation, and no need |
-| 0 |        | mi    |                   | for manual analysis of       |
-|   |        | nutes |                   | results.                     |
-+---+--------+-------+-------------------+------------------------------+
-| T | P0, P1 | 2     | 2 environments,   | 100% automation, and no need |
-| 1 |        | hours | and two VMs in    | for manual analysis of       |
-|   |        |       | each one          | results.                     |
-+---+--------+-------+-------------------+------------------------------+
-| T | P0,    | 8     | 2 environments    | 100% automation              |
-| 2 | P1, P2 | hours |                   |                              |
-+---+--------+-------+-------------------+------------------------------+
-| T | P0,    | 16    | 2 environments    | 100% automation              |
-| 3 | P1,    | hours |                   |                              |
-|   | P2, P3 |       |                   |                              |
-+---+--------+-------+-------------------+------------------------------+
-| T | P0,    | no    | no limitation     | 100% automation              |
-| 4 | P1,    | limit |                   |                              |
-|   | P2,    | ation |                   |                              |
-|   | P3, P4 |       |                   |                              |
-+---+--------+-------+-------------------+------------------------------+
+.. list-table::
+   :header-rows: 1
+
+   * - name
+     - test priorities
+     - time restriction
+     - resource restriction
+     - automation requirement
+   * - T0
+     - P0
+     - 5 minutes
+     - single VM
+     - 100% automation, and no need for manual analysis of results.
+   * - T1
+     - P0, P1
+     - 2 hours
+     - 2 environments, and two VMs in each one
+     - 100% automation, and no need for manual analysis of results.
+   * - T2
+     - P0, P1, P2
+     - 8 hours
+     - 2 environments
+     - 100% automation
+   * - T3
+     - P0, P1, P2, P3
+     - 16 hours
+     - 2 environments
+     - 100% automation
+   * - T4
+     - P0, P1, P2, P3, P4
+     - no limitation
+     - no limitation
+     - 100% automation
 
 How to run Microsoft tests
 --------------------------

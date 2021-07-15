@@ -10,7 +10,13 @@ Table of Test Cases
 
     |:construction:| WIP |:construction:|
 
-===== ============= ======== ======== ======== ====
-Index LISA TestName Priority Platform Category Area
-===== ============= ======== ======== ======== ====
-===== ============= ======== ======== ======== ====
+.. list-table::
+    :widths: 5 30 5 10 10 10
+    :header-rows: 1
+
+    * - Index
+      - LISA TestName
+      - Priority
+      - Platform
+      - Category
+      - Area
