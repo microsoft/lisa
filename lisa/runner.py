@@ -25,7 +25,7 @@ def parse_testcase_filters(raw_filters: List[Any]) -> List[schema.BaseTestCaseFi
         for raw_filter in raw_filters:
             if constants.TYPE not in raw_filter:
                 raw_filter[constants.TYPE] = constants.TESTCASE_TYPE_LISA
-            filter = factory.create_runbook(raw_filter)
+            filter = factory.load_typed_runbook(raw_filter)
             filters.append(filter)
     else:
         filters = [schema.TestCase(name="test", criteria=schema.Criteria(area="demo"))]
