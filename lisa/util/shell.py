@@ -6,7 +6,6 @@ import os
 import shutil
 import socket
 import sys
-from logging import getLogger
 from pathlib import Path, PurePath
 from time import sleep
 from typing import Any, Dict, List, Mapping, Optional, Sequence, Tuple, Union, cast
@@ -192,7 +191,7 @@ class SshShell(InitializableMixin):
         self._inner_shell: Optional[spur.SshShell] = None
         self._is_connected: bool = False
 
-        paramiko_logger = getLogger("paramiko")
+        paramiko_logger = logging.getLogger("paramiko")
         paramiko_logger.setLevel(logging.WARN)
 
     def _initialize(self, *args: Any, **kwargs: Any) -> None:
