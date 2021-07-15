@@ -9,7 +9,6 @@ import re
 from dataclasses import dataclass, field
 from datetime import datetime
 from functools import lru_cache
-from logging import getLogger
 from pathlib import Path
 from types import SimpleNamespace
 from typing import Any, Dict, List, Optional, Tuple, Type, Union
@@ -671,7 +670,7 @@ class AzurePlatform(Platform):
         self.subscription_id = azure_runbook.subscription_id
 
         # suppress warning message by search for different credential types
-        azure_identity_logger = getLogger("azure.identity")
+        azure_identity_logger = logging.getLogger("azure.identity")
         azure_identity_logger.setLevel(logging.ERROR)
         subscription = self._sub_client.subscriptions.get(self.subscription_id)
         azure_identity_logger.setLevel(logging.WARN)
