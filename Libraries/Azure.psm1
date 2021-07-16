@@ -2191,7 +2191,7 @@ Function Get-AllDeploymentData([string]$ResourceGroups, [string]$PatternOfResour
 		$retryCount = 0
 		while (!$RGVMs -and $retryCount -lt $MaxRetryCount) {
 			Write-LogWarn "    No available Microsoft.Compute/virtualMachines resources, retry..."
-			Start-Sleep -Seconds 2
+			Start-Sleep -Seconds 4
 			$retryCount++
 			$RGVMs = Get-AzResource -ResourceGroupName $ResourceGroup -ResourceType "Microsoft.Compute/virtualMachines" -Verbose
 		}

@@ -61,6 +61,11 @@ Class AzureProvider : TestProvider {
 					$deployedGroups = $isAllDeployed[1]
 					$DeploymentElapsedTime = $isAllDeployed[3]
 					$allVMData = Get-AllDeploymentData -ResourceGroups $deployedGroups
+					if (-not $AllVmData) {
+						$ErrorMessage = "Cannot get the deployed resources."
+						Write-LogErr $ErrorMessage
+						return @{"VmData" = $allVMData; "Error" = $ErrorMessage }
+					}
 
 					# After successful deployment, configure the umask for Linux distro
 					$null = Configure-UmaskInVMs $allVMData $global:user $global:password
