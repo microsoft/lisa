@@ -36,7 +36,7 @@ class Nvmecli(Tool):
         git.clone(self.repo, tool_path)
         make = self.node.tools[Make]
         code_path = tool_path.joinpath("nvme-cli")
-        make.make_and_install(cwd=code_path)
+        make.make_install(cwd=code_path)
 
     def create_namespace(self, namespace: str) -> ExecutableResult:
         return self.run(f"create-ns {namespace}", shell=True, sudo=True)

@@ -2,15 +2,21 @@
 # Licensed under the MIT license.
 
 from pathlib import PurePath
-from typing import cast
+from typing import TYPE_CHECKING, cast
 
 from lisa.executable import Tool
 from lisa.operating_system import Posix
-from lisa.tools import Gcc
-from lisa.util import LisaException
+from lisa.tools import Gcc, Lscpu
+
+if TYPE_CHECKING:
+    from lisa.node import Node
 
 
 class Make(Tool):
+    def __init__(self, node: "Node") -> None:
+        super().__init__(node)
+        self._thread_count = 0
+
     @property
     def command(self) -> str:
         return "make"
@@ -24,14 +30,32 @@ class Make(Tool):
         posix_os.install_packages([self, Gcc])
         return self._check_exists()
 
-    def make_and_install(self, cwd: PurePath) -> None:
-        # make/install can happen on different folder with same parameter,
-        # so force rerun it.
-        make_result = self.run(force_run=True, shell=True, cwd=cwd)
-        if make_result.exit_code == 0:
-            # install with sudo
-            self.node.execute("make install", shell=True, sudo=True, cwd=cwd)
-        else:
-            raise LisaException(
-                f"'make' command got non-zero exit code: {make_result.exit_code}"
-            )
+    def make_install(self, cwd: PurePath, timeout: int = 600) -> None:
+        self.make(arguments="", cwd=cwd, timeout=timeout)
+
+        # install with sudo
+        self.make(arguments="install", cwd=cwd, sudo=True, timeout=timeout)
+
+    def make(
+        self,
+        arguments: str,
+        cwd: PurePath,
+        sudo: bool = False,
+        timeout: int = 600,
+        thread_count: int = 0,
+    ) -> None:
+        if thread_count == 0:
+            if self._thread_count == 0:
+                lscpu = self.node.tools[Lscpu]
+                self._thread_count = lscpu.get_core_count()
+            thread_count = self._thread_count
+
+        # yes '' answers all questions with default value.
+        result = self.node.execute(
+            f"yes '' | make -j{self._thread_count} {arguments}",
+            cwd=cwd,
+            timeout=timeout,
+            sudo=sudo,
+            shell=True,
+        )
+        result.assert_exit_code()
