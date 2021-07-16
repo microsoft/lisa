@@ -134,11 +134,13 @@ def _run_transformers(
     is_dry_run: bool = False,
 ) -> Dict[str, VariableEntry]:
     root_runbook_data = runbook_builder.raw_data
-    transfromers_data: List[Any] = root_runbook_data[constants.TRANSFORMER]
-    assert isinstance(transfromers_data, list), "transfomer in runbook must be a list"
+    transformers_data: List[Any] = root_runbook_data[constants.TRANSFORMER]
+    assert isinstance(
+        transformers_data, list
+    ), f"transfomer in runbook must be a list, but it's {type(transformers_data)}"
 
     transformers_runbook: List[schema.Transformer] = []
-    for runbook_data in transfromers_data:
+    for runbook_data in transformers_data:
         # get base transformer runbook for replacing variables.
         runbook: schema.Transformer = schema.Transformer.schema().load(  # type: ignore
             runbook_data
