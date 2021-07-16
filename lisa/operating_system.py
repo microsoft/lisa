@@ -699,18 +699,17 @@ class Redhat(Fedora):
         ...
 
     def _initialize_package_installation(self) -> None:
-        cmd_result = self._node.execute("yum makecache", sudo=True)
         os_version = self._get_os_version()
         # We may hit issue when run any yum command, caused by out of date
         #  rhui-microsoft-azure-rhel package.
         # Use below command to update rhui-microsoft-azure-rhel package from microsoft
         #  repo to resolve the issue.
         # Details please refer https://docs.microsoft.com/en-us/azure/virtual-machines/workloads/redhat/redhat-rhui#azure-rhui-infrastructure # noqa: E501
-        if "Red Hat" == os_version.vendor and cmd_result.exit_code != 0:
+        if "Red Hat" == os_version.vendor:
             cmd_result = self._node.execute(
                 "yum update -y --disablerepo='*' --enablerepo='*microsoft*' ", sudo=True
             )
-            cmd_result = self._node.execute("yum makecache", sudo=True)
+            cmd_result.assert_exit_code()
 
     def _install_packages(
         self, packages: Union[List[str]], signed: bool = True
