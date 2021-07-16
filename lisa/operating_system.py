@@ -328,9 +328,9 @@ class Posix(OperatingSystem, BaseClassMixin):
             key: 0 if value is None else int(value)
             for key, value in match.groupdict().items()
         }
-        release_version = VersionInfo(**ver)
         rest = match.string[match.end() :]  # noqa:E203
-        release_version.build = rest
+        ver["build"] = rest
+        release_version = VersionInfo(**ver)
 
         return release_version
 
