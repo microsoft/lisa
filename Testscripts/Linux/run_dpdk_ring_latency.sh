@@ -8,6 +8,7 @@ HOMEDIR=$(pwd)
 export RTE_SDK="${HOMEDIR}/dpdk"
 export RTE_TARGET="x86_64-native-linuxapp-gcc"
 export DPDK_RING_PING_PATH="${HOMEDIR}/dpdk-ring-ping"
+export PKG_CONFIG_PATH="$PKG_CONFIG_PATH:/usr/local/lib64/pkgconfig/"
 
 # Source utils.sh
 . utils.sh || {
