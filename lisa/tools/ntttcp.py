@@ -32,7 +32,7 @@ class Ntttcp(Tool):
         git.clone(self.repo, tool_path)
         make = self.node.tools[Make]
         code_path = tool_path.joinpath("ntttcp-for-linux/src")
-        make.make_and_install(cwd=code_path)
+        make.make_install(cwd=code_path)
         return self._check_exists()
 
     def help(self) -> ExecutableResult:
