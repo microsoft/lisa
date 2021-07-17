@@ -19,7 +19,7 @@ from typing import (
 
 from semver import VersionInfo
 
-from lisa.base_tools import Cat, Wget
+from lisa.base_tools import Cat, Sed, Wget
 from lisa.executable import Tool
 from lisa.util import BaseClassMixin, LisaException, get_matched_str
 from lisa.util.logger import get_logger
@@ -611,11 +611,9 @@ class Ubuntu(Debian):
 
     def _replace_default_entry(self, entry: str) -> None:
         self._log.debug(f"set boot entry to: {entry}")
-        self._node.execute(
-            f"sed -i.bak \"s/GRUB_DEFAULT=.*/GRUB_DEFAULT='{entry}'/g\" "
-            f"/etc/default/grub",
-            sudo=True,
-            shell=True,
+        sed = self._node.tools[Sed]
+        sed.replace(
+            "GRUB_DEFAULT=.*", f"GRUB_DEFAULT='{entry}'", "/etc/default/grub", sudo=True
         )
 
         # output to log for troubleshooting
