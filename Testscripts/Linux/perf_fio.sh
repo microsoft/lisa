@@ -57,7 +57,7 @@ RunFIO()
 	if [ $type == "disk" ]; then
 		NUM_JOBS=(1 1 2 2 4 4)
 	else
-		NUM_JOBS=(1 1 2 2 4 4 8 8 8 8 8 8)
+		NUM_JOBS=(1 1 2 2 4 4 8 8 8 16 16 16)
 	fi
 
 	# Log Config
