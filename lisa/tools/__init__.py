@@ -1,7 +1,7 @@
 # Copyright (c) Microsoft Corporation.
 # Licensed under the MIT license.
 
-from lisa.base_tools import Cat, Uname, Wget
+from lisa.base_tools import Cat, Sed, Uname, Wget
 
 from .date import Date
 from .dmesg import Dmesg
@@ -47,6 +47,7 @@ __all__ = [
     "Ntttcp",
     "Nvmecli",
     "Reboot",
+    "Sed",
     "Uname",
     "Uptime",
     "Wget",
