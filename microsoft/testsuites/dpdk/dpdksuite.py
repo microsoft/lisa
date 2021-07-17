@@ -10,6 +10,7 @@ from lisa.features import Sriov
 from lisa.testsuite import simple_requirement
 from lisa.operating_system import Ubuntu, Redhat, CentOs, Oracle
 from lisa.tools import Git
+from typing import List, Dict
 
 
 @TestSuiteMetadata(
@@ -36,11 +37,13 @@ class dpdk(TestSuite):
         assert_that(sriov_is_enabled).described_as(
             "SRIOV was not enabled for this test node."
         )
-        self._install_dpdk_dependencies(node)
+        # self._install_dpdk_dependencies(node)
         self._hugepages_init(node)
         self._hugepages_enable(node)
-        self._install_dpdk(node)
-        self._execute_expect_zero(node, "/usr/local/bin/dpdk-testpmd --version")
+        # self._install_dpdk(node)
+        # self._execute_expect_zero(node, "/usr/local/bin/dpdk-testpmd --version")
+        nics = self._get_nic_names(node)
+        pairings = self._get_primary_secondary_pairings(node, nics)
 
     _ubuntu_packages = [
         "librdmacm-dev",
@@ -84,6 +87,11 @@ class dpdk(TestSuite):
     _ninja_url = (
         "https://github.com/ninja-build/ninja/releases/download/v1.10.2/ninja-linux.zip"
     )
+
+    class NodeNic:
+        name = ""
+        master = ""
+        pci_address = ""
 
     def _install_dpdk_dependencies(self, node: Node) -> None:
         if isinstance(node.os, Ubuntu):
@@ -165,3 +173,34 @@ class dpdk(TestSuite):
         self._execute_expect_zero_with_path(node, "ninja", dpdk_build_path)
         self._execute_expect_zero_with_path(node, "ninja install", dpdk_build_path)
         self._execute_expect_zero_with_path(node, "ldconfig", dpdk_build_path)
+
+    def _get_nic_names(self, node: Node) -> List[str]:
+        result = node.execute(
+            " ls /sys/class/net/ | grep -Ev $(ls /sys/devices/virtual/net)",
+            shell=True,
+            sudo=True,
+        )
+        nic_names = result.stdout.split("\r\n")
+        for item in nic_names:
+            assert_that(item).is_not_equal_to("").described_as(
+                "nic name could not be found"
+            )
+        self.log.info(f"network devices: {nic_names}")
+        return nic_names
+
+    def _get_primary_secondary_pairings(
+        self, node: Node, nic_list: List[str]
+    ) -> Dict[str, str]:
+        master_nics = dict()
+        for nic in nic_list:
+            result = node.execute(f"ls -la /sys/class/net/{nic}")
+            self.log.info(result.stdout)
+            result = node.execute(f"readlink -e /sys/class/net/{nic}/master")
+            if result.exit_code == 0:
+                master_nic = result.stdout.split("/")[-1]
+                assert_that(master_nic).is_in(nic_list).described_as(
+                    f"NIC found during primary/secondary pair search doesn't match known NIC names: {nic_list}"
+                )
+                master_nics[master_nic] = nic
+        self.log.info(f"found primary->secondary nic pairings:\n{master_nics}")
+        return master_nics
