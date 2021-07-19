@@ -144,5 +144,5 @@ Test cases specification
 .. seealso::
 
    Not migrated `legacy LISAv2
-   tests <https://github.com/microsoft/lisa/blob/master/Documents/LISAv2-TestCase-Statistics.html>`__
+   tests <https://github.com/microsoft/lisa/blob/master/Documents/LISAv2-TestCase-Statistics.md>`__
    for more information.

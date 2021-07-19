@@ -59,11 +59,13 @@ body <#test-case-body>`__ and `setup/clean-up <#setup-and-clean-up>`__.
 Metadata
 ~~~~~~~~
 
-Metadata provides documentations and settings for test cases and test
-suites, illustrates the main test logic, and is used to generate
-specifications. Both of the following examples are taken from
-`provision.py <../../microsoft/testsuites/core/provisioning.py>`__. See
-`example tests <../../examples/testsuites>`__ for more examples.
+Metadata provides documentations and settings for test cases and test suites,
+illustrates the main test logic, and is used to generate specifications. Both of
+the following examples are taken from `provision.py
+<https://github.com/microsoft/lisa/blob/main/microsoft/testsuites/core/provisioning.py>`__.
+See `example tests
+<https://github.com/microsoft/lisa/tree/main/examples/testsuites>`__ for more
+examples.
 
 Metadata in test suite
 ^^^^^^^^^^^^^^^^^^^^^^
@@ -161,9 +163,9 @@ wrap your test codes into functions, integrate them into new ``tools``,
 and then only call functions like ``assert_that`` in test case body to
 verify. The section below explains how to do this.
 
-The method accepts ``environment``, ``node`` and other arguments as
-follows. An example from
-`helloworld.py <../../examples/testsuites/helloworld.py>`__:
+The method accepts ``environment``, ``node`` and other arguments as follows. An
+example from `helloworld.py
+<https://github.com/microsoft/lisa/blob/main/examples/testsuites/helloworld.py>`__:
 
 .. code:: python
 
@@ -173,8 +175,10 @@ follows. An example from
        assert_that(result.stderr).is_equal_to("")
        assert_that(result.exit_code).is_equal_to(0)
 
-Find more examples in `example tests <../../examples/testsuites>`__ and
-`Microsoft tests <../../microsoft/testsuites>`__.
+Find more examples in `example tests
+<https://github.com/microsoft/lisa/tree/main/examples/testsuites>`__ and
+`Microsoft tests
+<https://github.com/microsoft/lisa/tree/main/microsoft/testsuites>`__.
 
 Setup and clean-up
 ~~~~~~~~~~~~~~~~~~
@@ -298,9 +302,9 @@ If you find such a problem, please solve it first.
 azure_deploy_failed
 ^^^^^^^^^^^^^^^^^^^
 
-Called when Azure deployment fails. This is an opportunity to return a
-better error message. Learn from example in
-`hooks.py <../../lisa/sut_orchestrator/azure/hooks.py>`__.
+Called when Azure deployment fails. This is an opportunity to return a better
+error message. Learn from example in `hooks.py
+<https://github.com/microsoft/lisa/blob/main/lisa/sut_orchestrator/azure/hooks.py>`__.
 
 .. code:: python
 

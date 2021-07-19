@@ -65,7 +65,8 @@ implementing. We’re listening your
 License
 -------
 
-The entire codebase is under `MIT license <LICENSE>`__.
+The entire codebase is under `MIT license
+<https://github.com/microsoft/lisa/blob/main/LICENSE>`__.
 
 .. |CI Workflow| image:: https://github.com/microsoft/lisa/workflows/CI%20Workflow/badge.svg?branch=main
    :target: https://github.com/microsoft/lisa/actions?query=workflow%3A%22CI+Workflow+for+LISAv3%22+event%3Apush+branch%3Amain

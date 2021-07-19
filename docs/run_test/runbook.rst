@@ -419,8 +419,9 @@ type: list of Transformer, default is empty
 type
 ^^^^
 
-type: str, required, the type of transformer. See
-`transformers <../../lisa/transformers>`__ for all transformers.
+type: str, required, the type of transformer. See `transformers
+<https://github.com/microsoft/lisa/tree/main/lisa/transformers>`__ for all
+transformers.
 
 .. _name-3:
 
