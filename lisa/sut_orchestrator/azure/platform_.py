@@ -916,7 +916,7 @@ class AzurePlatform(Platform):
         # composite deployment properties
         parameters = arm_parameters.to_dict()  # type:ignore
         parameters = {k: {"value": v} for k, v in parameters.items()}
-        log.debug(f"parameters: {parameters}")
+        log.log(f"parameters: {parameters}")
         deployment_properties = DeploymentProperties(
             mode=DeploymentMode.incremental,
             template=template,
