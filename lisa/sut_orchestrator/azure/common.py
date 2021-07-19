@@ -62,19 +62,37 @@ class AzureVmMarketplaceSchema:
 
 @dataclass_json()
 @dataclass
+class SharedImageGallerySchema:
+    subscription_id: str = ""
+    image_gallery: str = ""
+    image_definition: str = ""
+    image_version: str = ""
+
+
+@dataclass_json()
+@dataclass
 class AzureNodeSchema:
     name: str = ""
     vm_size: str = ""
     location: str = ""
+    # Required by shared gallery images which are present in
+    # subscription different from where LISA is run
+    subscription_id: str = ""
     marketplace_raw: Optional[Union[Dict[Any, Any], str]] = field(
         default=None, metadata=schema.metadata(data_key="marketplace")
     )
+    shared_gallery_raw: Optional[Union[Dict[Any, Any], str]] = field(
+        default=None, metadata=schema.metadata(data_key="shared_gallery")
+    )
     vhd: str = ""
     nic_count: int = 1
+
     # for marketplace image, which need to accept terms
     purchase_plan: Optional[AzureVmPurchasePlanSchema] = None
 
     _marketplace: InitVar[Optional[AzureVmMarketplaceSchema]] = None
+
+    _shared_gallery: InitVar[Optional[SharedImageGallerySchema]] = None
 
     @property
     def marketplace(self) -> Optional[AzureVmMarketplaceSchema]:
@@ -132,10 +150,80 @@ class AzureNodeSchema:
         else:
             self.marketplace_raw = value.to_dict()  # type: ignore
 
+    @property
+    def shared_gallery(self) -> Optional[SharedImageGallerySchema]:
+        # this is a safe guard and prevent mypy error on typing
+        if not hasattr(self, "_shared_gallery"):
+            self._shared_gallery: Optional[SharedImageGallerySchema] = None
+        shared_gallery: Optional[SharedImageGallerySchema] = self._shared_gallery
+        if shared_gallery:
+            return shared_gallery
+        if isinstance(self.shared_gallery_raw, dict):
+            # Users decide the cases of image names,
+            #  the inconsistent cases cause the mismatched error in notifiers.
+            # The lower() normalizes the image names,
+            #  it has no impact on deployment.
+            self.shared_gallery_raw = dict(
+                (k, v.lower()) for k, v in self.shared_gallery_raw.items()
+            )
+            shared_gallery = SharedImageGallerySchema.schema().load(  # type: ignore
+                self.shared_gallery_raw
+            )
+            if not shared_gallery.subscription_id:  # type: ignore
+                shared_gallery.subscription_id = self.subscription_id  # type: ignore
+            # this step makes shared_gallery_raw is validated, and
+            # filter out any unwanted content.
+            self.shared_gallery_raw = shared_gallery.to_dict()  # type: ignore
+        elif self.shared_gallery_raw:
+            assert isinstance(
+                self.shared_gallery_raw, str
+            ), f"actual: {type(self.shared_gallery_raw)}"
+            # Users decide the cases of image names,
+            #  the inconsistent cases cause the mismatched error in notifiers.
+            # The lower() normalizes the image names,
+            #  it has no impact on deployment.
+            shared_gallery_strings = re.split(
+                r"[/]+", self.shared_gallery_raw.strip().lower()
+            )
+            if len(shared_gallery_strings) == 4:
+                shared_gallery = SharedImageGallerySchema(*shared_gallery_strings)
+                # shared_gallery_raw is used
+                self.shared_gallery_raw = shared_gallery.to_dict()  # type: ignore
+            elif len(shared_gallery_strings) == 3:
+                shared_gallery = SharedImageGallerySchema(
+                    self.subscription_id, *shared_gallery_strings
+                )
+                # shared_gallery_raw is used
+                self.shared_gallery_raw = shared_gallery.to_dict()  # type: ignore
+            else:
+                raise LisaException(
+                    f"Invalid value for the provided shared gallery "
+                    f"parameter: '{self.shared_gallery_raw}'."
+                    f"The shared gallery parameter should be in the format: "
+                    f"'<subscription_id>/<image_gallery>/<image_definition>"
+                    f"/<image_version>' or '<image_gallery>/<image_definition>"
+                    f"/<image_version>'"
+                )
+        self._shared_gallery = shared_gallery
+        return shared_gallery
+
+    @shared_gallery.setter
+    def shared_gallery(self, value: Optional[SharedImageGallerySchema]) -> None:
+        self._shared_gallery = value
+        if value is None:
+            self.shared_gallery_raw = None
+        else:
+            self.shared_gallery_raw = value.to_dict()  # type: ignore
+
     def get_image_name(self) -> str:
         result = ""
         if self.vhd:
             result = self.vhd
+        elif self.shared_gallery:
+            assert isinstance(
+                self.shared_gallery_raw, dict
+            ), f"actual type: {type(self.shared_gallery_raw)}"
+            result = " ".join([x for x in self.shared_gallery_raw.values()])
         elif self.marketplace:
             assert isinstance(
                 self.marketplace_raw, dict

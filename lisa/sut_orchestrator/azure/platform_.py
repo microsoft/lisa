@@ -839,6 +839,9 @@ class AzurePlatform(Platform):
             azure_node_runbook = node_space.get_extended_runbook(
                 AzureNodeSchema, type_name=AZURE
             )
+            # Subscription Id is used by Shared Gallery images located
+            # in subscription different from where LISA is run
+            azure_node_runbook.subscription_id = self.subscription_id
 
             # init node
             node = environment.nodes.from_requirement(
@@ -859,7 +862,13 @@ class AzurePlatform(Platform):
             if azure_node_runbook.vhd:
                 # vhd is higher priority
                 azure_node_runbook.marketplace = None
-            elif not azure_node_runbook.marketplace:
+                azure_node_runbook.shared_gallery = None
+            elif azure_node_runbook.shared_gallery:
+                azure_node_runbook.marketplace = None
+            elif azure_node_runbook.marketplace:
+                # marketplace value is already set in runbook
+                pass
+            else:
                 # set to default marketplace, if nothing specified
                 azure_node_runbook.marketplace = AzureVmMarketplaceSchema()
 

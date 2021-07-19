@@ -278,7 +278,7 @@
                     "linuxConfiguration": "[if(empty(parameters('admin_key_data')), json('null'), lisa.getLinuxConfiguration(concat('/home/', parameters('admin_username'), '/.ssh/authorized_keys'), parameters('admin_key_data')))]"
                 },
                 "storageProfile": {
-                    "imageReference": "[if(not(empty(parameters('nodes')[copyIndex('vmCopy')]['vhd'])), lisa.getOsDiskVhd(parameters('nodes')[copyIndex('vmCopy')]['name']), lisa.getOsDiskMarketplace(parameters('nodes')[copyIndex('vmCopy')]))]",
+                    "imageReference": "[if(not(empty(parameters('nodes')[copyIndex('vmCopy')]['vhd'])), lisa.getOsDiskVhd(parameters('nodes')[copyIndex('vmCopy')]['name']), if(not(empty(parameters('nodes')[copyIndex('vmCopy')]['shared_gallery'])), lisa.getOsDiskSharedGallery(parameters('nodes')[copyIndex('vmCopy')]['shared_gallery']), lisa.getOsDiskMarketplace(parameters('nodes')[copyIndex('vmCopy')])))]",
                     "osDisk": {
                         "name": "[concat(parameters('nodes')[copyIndex('vmCopy')]['name'], '-osDisk')]",
                         "managedDisk": {
@@ -325,6 +325,20 @@
                     "output": {
                         "type": "object",
                         "value": "[parameters('node')['marketplace']]"
+                    }
+                },
+                "getOsDiskSharedGallery": {
+                    "parameters": [
+                        {
+                            "name": "node",
+                            "type": "object"
+                        }
+                    ],
+                    "output": {
+                        "type": "object",
+                        "value": {
+                            "id": "[resourceId(parameters('node')['subscription_id'], 'None', 'Microsoft.Compute/galleries/images/versions', parameters('node')['image_gallery'], parameters('node')['image_definition'], parameters('node')['image_version'])]"
+                        }
                     }
                 },
                 "getOsDiskVhd": {
