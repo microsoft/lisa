@@ -6,6 +6,7 @@ import json
 import logging
 import os
 import re
+from copy import deepcopy
 from dataclasses import dataclass, field
 from datetime import datetime
 from functools import lru_cache
@@ -917,7 +918,9 @@ class AzurePlatform(Platform):
                 )
                 arm_parameters.enable_sriov = False
 
-        template = self._load_template()
+        # the arm template may be updated by the hooks, so make a copy to avoid
+        # the original template is modified.
+        template = deepcopy(self._load_template())
         plugin_manager.hook.azure_update_arm_template(
             template=template, environment=environment
         )
