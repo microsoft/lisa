@@ -231,6 +231,7 @@ function Main() {
 		ubuntu*)
 			LogMsg "Disable rename ib0 on Ubuntu by adding net.ifnames=0 biosdevname=0 into kernel parameter."
 			sed -ie 's/GRUB_CMDLINE_LINUX="\(.*\)"/GRUB_CMDLINE_LINUX="\1 net.ifnames=0 biosdevname=0"/' /etc/default/grub
+			sed -ie 's/GRUB_CMDLINE_LINUX="\(.*\)"/GRUB_CMDLINE_LINUX="\1 net.ifnames=0 biosdevname=0"/' /etc/default/grub.d/50-cloudimg-settings.cfg
 			update-grub
 			LogMsg "Starting RDMA setup for Ubuntu"
 			hpcx_ver="ubuntu"$VERSION_ID
@@ -444,8 +445,8 @@ function Main() {
 		export PATH=$PATH:"${mpirun_path%/*}"
 		LogMsg "$?: Set $mpirun_path to PATH, $PATH"
 		# add sourcing file in each session
-		echo "source ${mpirun_path%/*}/setvars.sh" >> $HOMEDIR/.bashrc
-
+		setvars=$(find / -name setvars.sh)
+		echo "source ${setvars} > /dev/null 2>&1 " >> $HOMEDIR/.bashrc
 		LogMsg "$?: Completed Intel MPI installation"
 
 	elif [ $mpi_type == "open" ]; then

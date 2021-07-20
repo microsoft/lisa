@@ -60,7 +60,21 @@ function New-FileShare {
     }
     $sharePassword = (Get-AzStorageAccountKey -ResourceGroupName $AllVmData.ResourceGroupName `
         -Name $storageAccountName).Value[0]
-    $shareHost = (Get-AzStorageShare -Context $storageAccount.Context).Uri.Host[0]
+    $share = Get-AzStorageShare -Context $storageAccount.Context
+    if ($null -eq $share) {
+        Write-LogErr "Failed to get the share."
+        Remove-StorageAccount $storageAccountName
+        return 1
+    }
+    if ($null -ne $share[0].Uri) {
+        $shareHost = $share[0].Uri.Host
+    } elseif ($null -ne $share[0].ShareClient.Uri) {
+        $shareHost = $share[0].ShareClient.Uri.Host
+    } else {
+        Write-LogErr "Failed to get the share host."
+        Remove-StorageAccount $storageAccountName
+        return 1
+    }
     $url_main = $shareHost + "/" + $fileShareName
     $url_scratch = $shareHost + "/" + $scratchName
     Add-Content -Value "TEST_DEV=//$url_main" -Path $xfstestsConfig

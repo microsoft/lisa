@@ -144,7 +144,7 @@ function Main {
 				$password "echo $($VmData.RoleName) > /etc/hostname" | Out-Null
 			if ($VmData.RoleName -imatch "Client" -or $VmData.RoleName -imatch "dependency"){
 				Run-LinuxCmd -ip $ServerVMData.PublicIP -port $ServerVMData.SSHPort -username $superUser -password $password `
-					"echo '$($VmData.RoleName) $($VmData.InternalIP)' >> /etc/hosts" | Out-Null
+					"echo '$($VmData.InternalIP) $($VmData.RoleName)' >> /etc/hosts" | Out-Null
 			}
 		}
 		#endregion

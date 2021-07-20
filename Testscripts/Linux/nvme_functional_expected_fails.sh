@@ -34,8 +34,15 @@ for namespace in ${namespace_list}; do
     # Run every command from the list. All of them should fail
     # The list 'expected_fail_cmd_list' can be expanded if required
     for nvme_cmd in "${expected_fail_cmd_list[@]}"; do
-        nvme $nvme_cmd /dev/"$namespace"
-        if [ $? -eq 0 ]; then
+        rm -f result
+        nvme $nvme_cmd /dev/"$namespace"  > result 2>&1
+        return_value=$?
+        output=$(cat result)
+        if [[ $output =~ "FLBAS corresponding to block size 0 not found" ]]; then
+            output=$(nvme $nvme_cmd /dev/"$namespace" --block-size 4096)
+            return_value=$?
+        fi
+        if [ $return_value -eq 0 ]; then
             LogErr "The command 'nvme ${nvme_cmd} $namespace' should have failed!"
             SetTestStateFailed
             exit 0
