@@ -457,6 +457,23 @@ class LisaRunner(BaseRunner):
                 if x.check_environment(environment=environment, save_reason=True)
                 and (not x.runtime_data.use_new_environment or environment.is_new)
             ]
+
+        # only select one test case, which needs the new environment. Others
+        # will be dropped to next environment.
+        if sum(1 for x in results if x.runtime_data.use_new_environment) > 1:
+            new_results: List[TestResult] = []
+            has_new_result: bool = False
+            for x in results:
+                if x.runtime_data.use_new_environment:
+                    # skip from second new result
+                    if has_new_result:
+                        continue
+                    has_new_result = True
+                    new_results.append(x)
+                else:
+                    new_results.append(x)
+            results = new_results
+
         results = self._sort_test_results(results)
         return results
 
