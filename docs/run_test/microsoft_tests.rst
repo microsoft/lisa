@@ -112,7 +112,7 @@ How to run Microsoft tests
 
 Microsoft tests are organized under the folder ``microsoft/runbook``.
 The root folder contains runbooks for azure, ready, and local. Learn
-more from `how to run LISA tests <run.html>`__ to run different tiers on
+more from :doc:`how to run LISA tests <run>` to run different tiers on
 an image or existing environment.
 
 LISA comes with a set of test suites to verify Linux distro/kernel
@@ -130,9 +130,9 @@ You can specify the test cases by the test tier, with
 Advanced
 ~~~~~~~~
 
-If you want to verify on specified conditions, like to select some VM
-size in azure, or select test cases by names, learn more from `runbook
-reference <runbook.html>`__.
+If you want to verify on specified conditions, like to select some VM size in
+azure, or select test cases by names, learn more from :doc:`runbook reference
+<runbook>`.
 
 Test cases specification
 ------------------------

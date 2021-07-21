@@ -31,30 +31,30 @@ How to write test suites/cases
 Preparation
 -----------
 
-Before getting down to do some exciting coding, we recommend that you
-read the following documents to ensure a better LISA development
-experience. We believe that the engineering excellence is equally
-important in addition to new test cases, since any test case will be run
-thousands of times, and many people will read and troubleshoot it.
-Therefore, a good test case following the guidelines can save everyone’s
-time.
+Before getting down to do some exciting coding, we recommend that you read the
+following documents to ensure a better LISA development experience. We believe
+that the engineering excellence is equally important in addition to new test
+cases, since any test case will be run thousands of times, and many people will
+read and troubleshoot it. Therefore, a good test case following the guidelines
+can save everyone’s time.
 
--  `Basic concepts <concepts.html>`__ introduces design considerations
-   and how components work together in LISA. We recommend every LISA
-   developer go through this before coding.
--  `Coding guidelines <guidelines.html>`__ covers our coding guidelines
+-  :doc:`Basic concepts <concepts>` introduces design considerations
+   and how components work together in LISA. We recommend every LISA developer
+   go through this before coding.
+-  :doc:`Coding guidelines <guidelines>` covers our coding guidelines
    such as naming, code, comment conventions, etc.
--  `Development setup <dev_setup.html>`__ introduces how to setup
+-  :doc:`Development setup <dev_setup>` introduces how to setup
    environment and code checks.
--  `Extensions <extension.html>`__ introduces how to develop extensions
-   for LISA. In some cases, you may need to improve or implement
-   extensions for new test cases.
+-  :doc:`Extensions <extension>` introduces how to develop extensions
+   for LISA. In some cases, you may need to improve or implement extensions for
+   new test cases.
 
 Test composition
 ----------------
 
-The LISA test is composed of `metadata <#metadata>`__, `test
-body <#test-case-body>`__ and `setup/clean-up <#setup-and-clean-up>`__.
+The LISA test is composed of :ref:`write_test/write_case:metadata`,
+:ref:`write_test/write_case:test case body` and
+:ref:`write_test/write_case:setup and clean-up`.
 
 Metadata
 ~~~~~~~~
@@ -107,7 +107,7 @@ steps.
 -  **requirement** is optional. A test case without this field means it
    does not have any requirement. It defines the default requirement for
    this test suite and can be overwritten at the test case level. Learn
-   more from `concepts <concepts.html#requirement-and-capability>`__.
+   more from :ref:`write_test/concepts:requirement and capability`.
 
 Metadata in test case
 ^^^^^^^^^^^^^^^^^^^^^
@@ -215,9 +215,8 @@ When implementing test cases, you may need to use some existing
 extensions, or you are welcome to create your own. This section focuses
 on how to use them in the test code.
 
-Read - `concepts <concepts.html>`__ to understand which extension does
-what and - `how to write extensions <extension.html>`__ to develop new
-extensions
+Read :doc:`concepts <concepts>` to understand which extension does what and
+:doc:`how to write extensions <extension>` to develop new extensions.
 
 Environment and node
 ~~~~~~~~~~~~~~~~~~~~

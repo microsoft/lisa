@@ -9,8 +9,7 @@ Run tests on different platforms
 Run on Azure
 ------------
 
-Follow the same procedure in `Getting started with
-Azure <quick_run.html>`__.
+Follow the same procedure in :doc:`Getting started with Azure <quick_run>`.
 
 Run on Azure without deployment
 -------------------------------
@@ -42,12 +41,10 @@ The advantage is it’s not related to any infra. The shortage is that,
 some test cases won’t run in Ready platform, for example, test cases
 cannot get serial log from a VM directly.
 
-``ready`` runbook also supports tests which require multiple computers
-(for example, networking testing); and, it supports password
-authentication too. Learn more from `runbook
-reference <runbook.html>`__.
+``ready`` runbook also supports tests which require multiple computers (for
+example, networking testing); and, it supports password authentication too.
+Learn more from :doc:`runbook reference <runbook>`.
 
-For a comprehensive introduction to LISA supported test parameters and
-runbook schema, please read `command-line
-reference <command_line.html>`__ and `runbook
-reference <runbook.html>`__.
+For a comprehensive introduction to LISA supported test parameters and runbook
+schema, please read :doc:`command-line reference <command_line>` and
+:doc:`runbook reference <runbook>`.

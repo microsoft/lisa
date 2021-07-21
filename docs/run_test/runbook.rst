@@ -87,8 +87,7 @@ The **runbook** contains all the configurations of LISA operation. It
 keeps you from lengthy command-line commands and makes it easy to
 adjust configurations.
 
-See `runbook <../write_test/concepts.html#runbook>`__ for further
-knowledge.
+See :ref:`write_test/concepts:runbook` for further knowledge.
 
 How-to
 ------
@@ -277,7 +276,7 @@ type: int, optional, default is 1.
 The number of concurrent running environments.
 
 include
-~~~~~~
+~~~~~~~
 
 type: list of path, optional, default is empty
 
@@ -345,9 +344,9 @@ value ``subscription id B``.
      - name: subscription_id
        value: subscription id B
 
-The variable values in the runbook have higher priority than the same
-variables defined in any included runbook file. Thus, `${location}`
-will be replaced with value `northeurope` in the following example.
+The variable values in the runbook have higher priority than the same variables
+defined in any included runbook file. Thus, ``${location}`` will be replaced with
+value ``northeurope`` in the following example.
 
 .. code:: yaml
 
@@ -580,8 +579,8 @@ Example of html notifier:
 environment
 ~~~~~~~~~~~
 
-List of environments. For more information, refer `node and
-environment <../write_test/concepts.html#node-and-environment>`__.
+List of environments. For more information, refer to
+:ref:`write_test/concepts:node and environment`.
 
 environments
 ^^^^^^^^^^^^
@@ -607,9 +606,9 @@ The topology of the environment, current only support value “subnet”.
 nodes
 '''''
 
-List of node, it can be a virtual machine on Azure or Hyper-V, bare
-metal or others. For more information, refer `node and
-environment <../write_test/concepts.html#node-and-environment>`__.
+List of node, it can be a virtual machine on Azure or Hyper-V, bare metal or
+others. For more information, refer to :ref:`write_test/concepts:node and
+environment`.
 
 nodes_requirement
 '''''''''''''''''

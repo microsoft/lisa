@@ -26,7 +26,7 @@ How to write extensions in LISA
 
 LISA uses extensions to share code in test cases and makes it flexibly
 applicable to various situations. Before starting to extend, please make
-sure you understand the `concepts <concepts.html>`__ of each extension.
+sure you understand the :doc:`concepts <concepts>` of each extension.
 
 The following content links to the code, which will be constructed using
 docstrings in the future.
@@ -349,4 +349,4 @@ nowhere else, because it is not support as a type in ``typing``.
 
 --------------
 
-Back to `how to write tests <write_case.html>`__.
+Back to :doc:`how to write tests <write_case>`.
