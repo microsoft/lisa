@@ -213,6 +213,56 @@ modules for test cases or extended features.
        path: ../../extensions
      - ../../lisa/microsoft/testsuites/core
 
+Use transformers
+~~~~~~~~~~~~~~~~
+
+Transformers are executed one by one. The order is decided by their
+dependencies. If there is no dependencies, their order in runbook affects the
+execution order.
+
+Below transformer shows how to deploy a VM in Azure, and export it to a VHD.
+Before the exporting, other transformers can be added, like install kernel.
+
+.. code:: yaml
+
+   transformer:
+   - type: azure_deploy
+     requirement:
+       azure:
+         marketplace: redhat rhel 7_9 7.9.2021051701
+   - type: azure_vhd
+     resource_group_name: $(azure_deploy_resource_group_name)
+     rename:
+       azure_vhd_url: vhd
+   - type: azure_delete
+     resource_group_name: $(azure_deploy_resource_group_name)
+
+Below is the transformer to build kernel from source code and patches.
+
+.. code:: yaml
+
+   transformer:
+   - type: azure_deploy
+     requirement:
+       azure:
+         marketplace: $(marketplace_image)
+       core_count: 16
+     enabled: true
+   - type: kernel_installer
+     connection:
+       address: $(azure_deploy_address)
+       private_key_file: $(admin_private_key_file)
+     installer:
+       type: source
+       location:
+         type: repo
+         path: /mnt/code
+         ref: tags/v4.9.184
+       modifier:
+         - type: patch
+           repo: https://github.com/microsoft/azure-linux-kernel.git
+           file_pattern: Patches_Following_Mainline_History/4.9.184/*.patch
+
 Reference
 ---------
 
