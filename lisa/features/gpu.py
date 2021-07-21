@@ -99,8 +99,7 @@ class Gpu(Feature):
             )
         else:
             raise LisaException(
-                f"Distro {self._node.os.__class__.__name__}"
-                "not supported to install CUDA driver."
+                f"Distro {self._node.os.name}" "not supported to install CUDA driver."
             )
 
         # download and install the cuda driver package from the repo
@@ -130,8 +129,7 @@ class Gpu(Feature):
             self._node.os.install_packages(package_name)
         else:
             raise LisaException(
-                f"Distro {self._node.os.__class__.__name__}"
-                " is not supported for GPU."
+                f"Distro {self._node.os.name} is not supported for GPU."
             )
 
     def is_module_loaded(self) -> bool:

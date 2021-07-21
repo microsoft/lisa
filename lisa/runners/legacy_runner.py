@@ -99,7 +99,7 @@ class LegacyRunner(BaseRunner):
             git.clone(
                 config.repo,
                 cwd=self._working_folder,
-                branch=config.branch,
+                ref=config.branch,
                 dir_name=self._get_dir_name(self.id, index),
             )
 
@@ -213,10 +213,11 @@ class ResultStateManager:
                     new_running_cases.remove(running_case)
                     not_matched_results.remove(result)
                     break
-        assert not not_matched_results, (
-            f"not matched should be empty, but {not_matched_results}, "
-            f"parsed running cases: {[running_cases]}"
-        )
+        if not_matched_results:
+            self.log.error(
+                f"not matched should be empty, but {not_matched_results}, "
+                f"parsed running cases: {[running_cases]}"
+            )
 
         # set new running case information
         queued_results = [x for x in self._results if x.status == TestStatus.QUEUED]
@@ -246,10 +247,11 @@ class ResultStateManager:
                     new_completed_cases.remove(completed_case)
                     not_matched_results.remove(result)
                     break
-        assert not not_matched_results, (
-            f"not matched should be empty, but {not_matched_results}, "
-            f"parsed completed cases: {[completed_cases]}"
-        )
+        if not_matched_results:
+            self.log.error(
+                f"not matched should be empty, but {not_matched_results}, "
+                f"parsed completed cases: {[completed_cases]}"
+            )
 
         # set new completed case information
         running_results = [x for x in self._results if x.status == TestStatus.RUNNING]
@@ -266,10 +268,11 @@ class ResultStateManager:
                     running_results.remove(result)
                     not_matched_cases.remove(completed_case)
                     break
-        assert not not_matched_cases, (
-            f"found unmatched completed results: {not_matched_cases}, "
-            f"running results: {running_results}"
-        )
+        if not_matched_cases:
+            self.log.error(
+                f"found unmatched completed results: {not_matched_cases}, "
+                f"running results: {running_results}"
+            )
 
     def _get_name(self, name: str) -> str:
         return f"legacy.{name}"
@@ -569,7 +572,7 @@ class LogParser(InitializableMixin):
                 cases.append(current_case)
         return cases
 
-    @retry(tries=30, jitter=(1, 2))
+    @retry(tries=30, jitter=(1, 2))  # type: ignore
     def _read_log(self) -> str:
         """
         V2 opens log file frequently to write content, copying may be failed due to

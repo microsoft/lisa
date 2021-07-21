@@ -6,22 +6,22 @@ import re
 from dataclasses import dataclass, field
 from typing import Any, Dict, List, Optional, Type, cast
 
-from dataclasses_json import CatchAll, Undefined, dataclass_json
+from dataclasses_json import dataclass_json
 
 from lisa import schema
-from lisa.node import Node, RemoteNode
-from lisa.operating_system import Ubuntu
+from lisa.node import Node, quick_connect
+from lisa.operating_system import Posix, Ubuntu
 from lisa.secret import PATTERN_HEADTAIL, add_secret
-from lisa.tools import Cat, Uname
+from lisa.tools import Uname
 from lisa.transformer import Transformer
 from lisa.util import filter_ansi_escape, get_matched_str, subclasses
 from lisa.util.logger import Logger, get_logger
 
 
-@dataclass_json(undefined=Undefined.INCLUDE)
+@dataclass_json()
 @dataclass
-class BaseInstallerSchema(schema.TypedSchema):
-    delay_parsed: CatchAll = field(default_factory=dict)  # type: ignore
+class BaseInstallerSchema(schema.TypedSchema, schema.ExtendableSchemaMixin):
+    ...
 
 
 @dataclass_json()
@@ -78,7 +78,7 @@ class BaseInstaller(subclasses.BaseClassWithRunbookMixin):
     def __init__(
         self,
         runbook: Any,
-        node: RemoteNode,
+        node: Node,
         parent_log: Logger,
         *args: Any,
         **kwargs: Any,
@@ -90,7 +90,7 @@ class BaseInstaller(subclasses.BaseClassWithRunbookMixin):
     def validate(self) -> None:
         raise NotImplementedError()
 
-    def install(self) -> None:
+    def install(self) -> str:
         raise NotImplementedError()
 
 
@@ -112,11 +112,7 @@ class KernelInstallerTransformer(Transformer):
         assert runbook.connection, "connection must be defined."
         assert runbook.installer, "installer must be defined."
 
-        node: RemoteNode = cast(
-            RemoteNode, Node.create(-1, runbook.connection, logger_name="kernel_node")
-        )
-        node.set_connection_info_by_runbook()
-        node.initialize()
+        node = quick_connect(runbook.connection, "installer_node")
 
         uname = node.tools[Uname]
         self._log.info(
@@ -128,7 +124,11 @@ class KernelInstallerTransformer(Transformer):
         )
 
         installer.validate()
-        installer.install()
+        installed_kernel_version = installer.install()
+        self._log.info(f"installed kernel version: {installed_kernel_version}")
+
+        posix = cast(Posix, node.os)
+        posix.replace_boot_kernel(installed_kernel_version)
 
         self._log.info("rebooting")
         node.reboot()
@@ -141,17 +141,10 @@ class KernelInstallerTransformer(Transformer):
 
 
 class RepoInstaller(BaseInstaller):
-    # gnulinux-5.11.0-1011-azure-advanced-3fdd2548-1430-450b-b16d-9191404598fb
-    # prefix: gnulinux
-    # postfix: advanced-3fdd2548-1430-450b-b16d-9191404598fb
-    __menu_id_parts_pattern = re.compile(
-        r"^(?P<prefix>.*?)-.*-(?P<postfix>.*?-.*?-.*?-.*?-.*?-.*?)?$"
-    )
-
     def __init__(
         self,
         runbook: Any,
-        node: RemoteNode,
+        node: Node,
         parent_log: Logger,
         *args: Any,
         **kwargs: Any,
@@ -170,12 +163,12 @@ class RepoInstaller(BaseInstaller):
     def validate(self) -> None:
         assert isinstance(self._node.os, Ubuntu), (
             f"The '{self.type_name()}' installer only support Ubuntu. "
-            f"The current os is {self._node.os.__class__.__name__}"
+            f"The current os is {self._node.os.name}"
         )
 
-    def install(self) -> None:
+    def install(self) -> str:
         runbook: RepoInstallerSchema = self.runbook
-        node: RemoteNode = self._node
+        node: Node = self._node
         ubuntu: Ubuntu = cast(Ubuntu, node.os)
         release = node.os.os_version.codename
 
@@ -206,18 +199,9 @@ class RepoInstaller(BaseInstaller):
 
         kernel_version = self._get_kernel_version(runbook.source, node)
 
-        self._replace_boot_entry(kernel_version, node)
+        return kernel_version
 
-        # install tool packages
-        ubuntu.install_packages(
-            [
-                f"linux-tools-{kernel_version}-azure",
-                f"linux-cloud-tools-{kernel_version}-azure",
-                f"linux-headers-{kernel_version}-azure",
-            ]
-        )
-
-    def _get_kernel_version(self, source: str, node: RemoteNode) -> str:
+    def _get_kernel_version(self, source: str, node: Node) -> str:
         # get kernel version from apt packages
         # linux-azure-edge/focal-proposed,now 5.11.0.1011.11~20.04.10 amd64 [installed]
         # output: 5.11.0.1011
@@ -240,55 +224,6 @@ class RepoInstaller(BaseInstaller):
 
         return kernel_version
 
-    def _replace_boot_entry(self, kernel_version: str, node: RemoteNode) -> None:
-        self._log.info("updating boot menu...")
-        ubuntu: Ubuntu = cast(Ubuntu, node.os)
-
-        # set installed kernel to default
-        #
-        # get boot entry id
-        # postive example:
-        #         menuentry 'Ubuntu, with Linux 5.11.0-1011-azure' --class ubuntu
-        # --class gnu-linux --class gnu --class os $menuentry_id_option
-        # 'gnulinux-5.11.0-1011-azure-advanced-3fdd2548-1430-450b-b16d-9191404598fb' {
-        #
-        # negative example:
-        #         menuentry 'Ubuntu, with Linux 5.11.0-1011-azure (recovery mode)'
-        # --class ubuntu --class gnu-linux --class gnu --class os $menuentry_id_option
-        # 'gnulinux-5.11.0-1011-azure-recovery-3fdd2548-1430-450b-b16d-9191404598fb' {
-        cat = node.tools[Cat]
-        menu_id_pattern = re.compile(
-            r"^.*?menuentry '.*?(?:"
-            + kernel_version
-            + r"[^ ]*?)(?<! \(recovery mode\))' "
-            r".*?\$menuentry_id_option .*?'(?P<menu_id>.*)'.*$",
-            re.M,
-        )
-        result = cat.run("/boot/grub/grub.cfg")
-        submenu_id = get_matched_str(result.stdout, menu_id_pattern)
-        assert submenu_id, (
-            f"cannot find sub menu id from grub config by pattern: "
-            f"{menu_id_pattern.pattern}"
-        )
-        self._log.debug(f"matched submenu_id: {submenu_id}")
-
-        # get first level menu id in boot menu
-        # input is the sub menu id like:
-        # gnulinux-5.11.0-1011-azure-advanced-3fdd2548-1430-450b-b16d-9191404598fb
-        # output is,
-        # gnulinux-advanced-3fdd2548-1430-450b-b16d-9191404598fb
-        menu_id = self.__menu_id_parts_pattern.sub(
-            r"\g<prefix>-\g<postfix>", submenu_id
-        )
-        assert menu_id, f"cannot composite menu id from {submenu_id}"
-
-        # composite boot menu in grub
-        menu_entry = f"{menu_id}>{submenu_id}"
-        self._log.debug(f"composited menu_entry: {menu_entry}")
-
-        ubuntu.set_boot_entry(menu_entry)
-        node.execute("update-grub", sudo=True)
-
 
 class PpaInstaller(RepoInstaller):
     @classmethod
@@ -299,9 +234,9 @@ class PpaInstaller(RepoInstaller):
     def type_schema(cls) -> Type[schema.TypedSchema]:
         return PpaInstallerSchema
 
-    def install(self) -> None:
+    def install(self) -> str:
         runbook: PpaInstallerSchema = self.runbook
-        node: RemoteNode = self._node
+        node: Node = self._node
 
         # the key is optional
         if runbook.openpgp_key:
@@ -315,4 +250,4 @@ class PpaInstaller(RepoInstaller):
         # replace default repo url
         self.repo_url = runbook.ppa_url
 
-        super().install()
+        return super().install()

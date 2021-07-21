@@ -175,14 +175,12 @@ class ExtendableSchemaMixin:
 @dataclass_json()
 @dataclass
 class TypedSchema:
-    type: str = ""
+    type: str = field(default="", metadata=metadata(required=True))
 
 
-@dataclass_json(undefined=Undefined.INCLUDE)
+@dataclass_json()
 @dataclass
-class Transformer(TypedSchema):
-    type: str = field(metadata=metadata(required=True))
-
+class Transformer(TypedSchema, ExtendableSchemaMixin):
     # the name can be referenced by other transformers. If it's not specified,
     # the type will be used.
     name: str = ""
@@ -198,8 +196,6 @@ class Transformer(TypedSchema):
     # enable this transformer or not, only enabled transformers run actually.
     enabled: bool = True
 
-    delay_parsed: CatchAll = field(default_factory=dict)  # type: ignore
-
     def __post_init__(self, *args: Any, **kwargs: Any) -> None:
         if not self.name:
             self.name = self.type
@@ -207,14 +203,12 @@ class Transformer(TypedSchema):
             self.prefix = self.name
 
 
-@dataclass_json(undefined=Undefined.INCLUDE)
+@dataclass_json()
 @dataclass
-class Combinator(TypedSchema):
+class Combinator(TypedSchema, ExtendableSchemaMixin):
     type: str = field(
         default=constants.COMBINATOR_GRID, metadata=metadata(required=True)
     )
-
-    delay_parsed: CatchAll = field(default_factory=dict)  # type: ignore
 
 
 @dataclass_json()
@@ -340,18 +334,18 @@ class Variable:
             self.value = self.value_raw
 
 
-@dataclass_json(undefined=Undefined.INCLUDE)
+@dataclass_json()
 @dataclass
-class Notifier(TypedSchema):
+class Notifier(TypedSchema, ExtendableSchemaMixin):
     """
     it sends test progress and results to any place wanted.
     detail types are defined in notifier itself, allowed items are handled in code.
     """
 
-    delay_parsed: CatchAll = field(default_factory=dict)  # type: ignore
+    ...
 
 
-@dataclass_json(undefined=Undefined.INCLUDE)
+@dataclass_json()
 @dataclass
 class NodeSpace(search_space.RequirementMixin, TypedSchema, ExtendableSchemaMixin):
     type: str = field(
@@ -590,15 +584,12 @@ class Capability(NodeSpace):
         self.node_count = 1
 
 
-@dataclass_json(undefined=Undefined.INCLUDE)
+@dataclass_json()
 @dataclass
-class Node(TypedSchema):
-    type: str
+class Node(TypedSchema, ExtendableSchemaMixin):
     capability: Capability = field(default_factory=Capability)
     name: str = ""
     is_default: bool = field(default=False)
-
-    delay_parsed: CatchAll = field(default_factory=dict)  # type: ignore
 
 
 @dataclass_json()
@@ -685,7 +676,7 @@ class EnvironmentRoot:
     environments: List[Environment] = field(default_factory=list)
 
 
-@dataclass_json(undefined=Undefined.INCLUDE)
+@dataclass_json()
 @dataclass
 class Platform(TypedSchema, ExtendableSchemaMixin):
     type: str = field(
@@ -759,9 +750,9 @@ class Criteria:
     )
 
 
-@dataclass_json(undefined=Undefined.INCLUDE)
+@dataclass_json()
 @dataclass
-class BaseTestCaseFilter(TypedSchema, BaseClassMixin):
+class BaseTestCaseFilter(TypedSchema, ExtendableSchemaMixin, BaseClassMixin):
     """
     base test case filters for subclass factory
     """
@@ -771,8 +762,6 @@ class BaseTestCaseFilter(TypedSchema, BaseClassMixin):
     )
     # if it's false, current filter is ineffective.
     enable: bool = field(default=True)
-
-    mismatched: CatchAll = field(default_factory=dict)  # type: ignore
 
 
 @dataclass_json()

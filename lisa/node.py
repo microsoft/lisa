@@ -210,6 +210,14 @@ class Node(subclasses.BaseClassWithRunbookMixin, ContextMixin, InitializableMixi
         if self._shell:
             self._shell.close()
 
+    def get_pure_path(self, path: str) -> PurePath:
+        # spurplus doesn't support PurePath, so it needs to resolve by the
+        # node's os here.
+        if self.is_posix:
+            return PurePosixPath(path)
+        else:
+            return PureWindowsPath(path)
+
     def _initialize(self, *args: Any, **kwargs: Any) -> None:
         self.log.info(f"initializing node '{self.name}' {self}")
         self.shell.initialize()
@@ -366,12 +374,7 @@ class RemoteNode(Node):
         echo = self.tools[Echo]
         result = echo.run(working_path, shell=True)
 
-        # PurePath is more reasonable here, but spurplus doesn't support it.
-        if self.is_posix:
-            result_path: PurePath = PurePosixPath(result.stdout)
-        else:
-            result_path = PureWindowsPath(result.stdout)
-        return result_path
+        return self.get_pure_path(result.stdout)
 
 
 class LocalNode(Node):
@@ -514,3 +517,15 @@ class Nodes:
         self._list.append(node)
 
         return node
+
+
+def quick_connect(runbook: schema.Node, logger_name: str = "", index: int = -1) -> Node:
+    """
+    setup node information and initialize conneciton.
+    """
+    node = Node.create(index, runbook, logger_name=logger_name)
+    if isinstance(node, RemoteNode):
+        node.set_connection_info_by_runbook()
+    node.initialize()
+
+    return node

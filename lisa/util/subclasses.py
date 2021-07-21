@@ -64,7 +64,7 @@ class Factory(InitializableMixin, Generic[T_BASECLASS], SubClassTypeDict):
             f"registered: " f"[{', '.join([name for name in self.keys()])}]"
         )
 
-    def create_runbook(self, raw_runbook: Any) -> T_BASECLASS:
+    def load_typed_runbook(self, raw_runbook: Any) -> T_BASECLASS:
         self.initialize()
         type_name = raw_runbook[constants.TYPE]
         sub_type = self.get(type_name)
@@ -73,9 +73,11 @@ class Factory(InitializableMixin, Generic[T_BASECLASS], SubClassTypeDict):
                 f"cannot find subclass '{type_name}' of {self._base_type.__name__}"
             )
         instance = sub_type.schema().load(raw_runbook)  # type: ignore
-        if hasattr(instance, "mismatched"):
-            if instance.mismatched:
-                raise LisaException(f"found unknown fields: {instance.mismatched}")
+        if hasattr(instance, "extended_schemas"):
+            if instance.extended_schemas:
+                raise LisaException(
+                    f"found unknown fields: {instance.extended_schemas}"
+                )
         return cast(T_BASECLASS, instance)
 
     def create_by_type_name(self, type_name: str, **kwargs: Any) -> T_BASECLASS:

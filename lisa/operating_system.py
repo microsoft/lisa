@@ -19,7 +19,7 @@ from typing import (
 
 from semver import VersionInfo
 
-from lisa.base_tools import Cat, Wget
+from lisa.base_tools import Cat, Sed, Wget
 from lisa.executable import Tool
 from lisa.util import BaseClassMixin, LisaException, get_matched_str
 from lisa.util.logger import get_logger
@@ -120,9 +120,7 @@ class OperatingSystem:
                 )
         else:
             result = Windows(node)
-        log.debug(
-            f"detected OS: '{result.__class__.__name__}' by pattern '{detected_info}'"
-        )
+        log.debug(f"detected OS: '{result.name}' by pattern '{detected_info}'")
         return result
 
     @property
@@ -139,6 +137,10 @@ class OperatingSystem:
             self._os_version = self._get_os_version()
 
         return self._os_version
+
+    @property
+    def name(self) -> str:
+        return self.__class__.__name__
 
     @classmethod
     def _get_detect_string(cls, node: Any) -> Iterable[str]:
@@ -266,6 +268,40 @@ class Posix(OperatingSystem, BaseClassMixin):
 
         return self._coerce_version(release_version)
 
+    def replace_boot_kernel(self, kernel_version: str) -> None:
+        raise NotImplementedError("update boot entry is not implemented")
+
+    def install_packages(
+        self,
+        packages: Union[str, Tool, Type[Tool], List[Union[str, Tool, Type[Tool]]]],
+        signed: bool = True,
+    ) -> None:
+        package_names: List[str] = []
+        if not isinstance(packages, list):
+            packages = [packages]
+
+        assert isinstance(packages, list), f"actual:{type(packages)}"
+        for item in packages:
+            package_names.append(self.__resolve_package_name(item))
+        if self._first_time_installation:
+            self._first_time_installation = False
+            self._initialize_package_installation()
+
+        self._install_packages(package_names, signed)
+
+    def package_exists(
+        self, package: Union[str, Tool, Type[Tool]], signed: bool = True
+    ) -> bool:
+        """
+        Query if a package/tool is installed on the node.
+        Return Value - bool
+        """
+        package_name = self.__resolve_package_name(package)
+        return self._package_exists(package_name)
+
+    def update_packages(self, packages: Union[str, Tool, Type[Tool]]) -> None:
+        raise NotImplementedError
+
     def _coerce_version(self, version: str) -> VersionInfo:
         """
         Convert an incomplete version string into a semver-compatible Version
@@ -292,9 +328,9 @@ class Posix(OperatingSystem, BaseClassMixin):
             key: 0 if value is None else int(value)
             for key, value in match.groupdict().items()
         }
-        release_version = VersionInfo(**ver)
         rest = match.string[match.end() :]  # noqa:E203
-        release_version.build = rest
+        ver["build"] = rest
+        release_version = VersionInfo(**ver)
 
         return release_version
 
@@ -369,30 +405,6 @@ class Posix(OperatingSystem, BaseClassMixin):
         wget_tool = self._node.tools[Wget]
         pkg = wget_tool.get(package, str(self._node.working_path))
         self.install_packages(pkg, signed)
-
-    def install_packages(
-        self,
-        packages: Union[str, Tool, Type[Tool], List[Union[str, Tool, Type[Tool]]]],
-        signed: bool = True,
-    ) -> None:
-        package_names = self._get_package_list(packages)
-        self._install_packages(package_names, signed)
-
-    def package_exists(
-        self, package: Union[str, Tool, Type[Tool]], signed: bool = True
-    ) -> bool:
-        """
-        Query if a package/tool is installed on the node.
-        Return Value - bool
-        """
-        package_name = self.__resolve_package_name(package)
-        return self._package_exists(package_name)
-
-    def update_packages(
-        self, packages: Union[str, Tool, Type[Tool], List[Union[str, Tool, Type[Tool]]]]
-    ) -> None:
-        package_names = self._get_package_list(packages)
-        self._update_packages(package_names)
 
     def __resolve_package_name(self, package: Union[str, Tool, Type[Tool]]) -> str:
         """
@@ -525,17 +537,83 @@ class Debian(Linux):
 
 
 class Ubuntu(Debian):
+    # gnulinux-5.11.0-1011-azure-advanced-3fdd2548-1430-450b-b16d-9191404598fb
+    # prefix: gnulinux
+    # postfix: advanced-3fdd2548-1430-450b-b16d-9191404598fb
+    __menu_id_parts_pattern = re.compile(
+        r"^(?P<prefix>.*?)-.*-(?P<postfix>.*?-.*?-.*?-.*?-.*?-.*?)?$"
+    )
+
     @classmethod
     def name_pattern(cls) -> Pattern[str]:
         return re.compile("^Ubuntu|ubuntu$")
 
-    def set_boot_entry(self, entry: str) -> None:
+    def replace_boot_kernel(self, kernel_version: str) -> None:
+        # set installed kernel to default
+        #
+        # get boot entry id
+        # postive example:
+        #         menuentry 'Ubuntu, with Linux 5.11.0-1011-azure' --class ubuntu
+        # --class gnu-linux --class gnu --class os $menuentry_id_option
+        # 'gnulinux-5.11.0-1011-azure-advanced-3fdd2548-1430-450b-b16d-9191404598fb' {
+        #
+        # negative example:
+        #         menuentry 'Ubuntu, with Linux 5.11.0-1011-azure (recovery mode)'
+        # --class ubuntu --class gnu-linux --class gnu --class os $menuentry_id_option
+        # 'gnulinux-5.11.0-1011-azure-recovery-3fdd2548-1430-450b-b16d-9191404598fb' {
+        cat = self._node.tools[Cat]
+        menu_id_pattern = re.compile(
+            r"^.*?menuentry '.*?(?:"
+            + kernel_version
+            + r"[^ ]*?)(?<! \(recovery mode\))' "
+            r".*?\$menuentry_id_option .*?'(?P<menu_id>.*)'.*$",
+            re.M,
+        )
+        result = cat.run("/boot/grub/grub.cfg")
+        submenu_id = get_matched_str(result.stdout, menu_id_pattern)
+        assert submenu_id, (
+            f"cannot find sub menu id from grub config by pattern: "
+            f"{menu_id_pattern.pattern}"
+        )
+        self._log.debug(f"matched submenu_id: {submenu_id}")
+
+        # get first level menu id in boot menu
+        # input is the sub menu id like:
+        # gnulinux-5.11.0-1011-azure-advanced-3fdd2548-1430-450b-b16d-9191404598fb
+        # output is,
+        # gnulinux-advanced-3fdd2548-1430-450b-b16d-9191404598fb
+        menu_id = self.__menu_id_parts_pattern.sub(
+            r"\g<prefix>-\g<postfix>", submenu_id
+        )
+        assert menu_id, f"cannot composite menu id from {submenu_id}"
+
+        # composite boot menu in grub
+        menu_entry = f"{menu_id}>{submenu_id}"
+        self._log.debug(f"composited menu_entry: {menu_entry}")
+
+        self._replace_default_entry(menu_entry)
+        self._node.execute("update-grub", sudo=True)
+
+        try:
+            # install tool packages
+            self.install_packages(
+                [
+                    f"linux-tools-{kernel_version}-azure",
+                    f"linux-cloud-tools-{kernel_version}-azure",
+                    f"linux-headers-{kernel_version}-azure",
+                ]
+            )
+        except Exception as identifier:
+            self._log.debug(
+                f"ignorable error on install packages after replaced kernel: "
+                f"{identifier}"
+            )
+
+    def _replace_default_entry(self, entry: str) -> None:
         self._log.debug(f"set boot entry to: {entry}")
-        self._node.execute(
-            f"sed -i.bak \"s/GRUB_DEFAULT=.*/GRUB_DEFAULT='{entry}'/g\" "
-            f"/etc/default/grub",
-            sudo=True,
-            shell=True,
+        sed = self._node.tools[Sed]
+        sed.replace(
+            "GRUB_DEFAULT=.*", f"GRUB_DEFAULT='{entry}'", "/etc/default/grub", sudo=True
         )
 
         # output to log for troubleshooting
@@ -613,19 +691,23 @@ class Redhat(Fedora):
     def name_pattern(cls) -> Pattern[str]:
         return re.compile("^rhel|Red|AlmaLinux|Scientific|acronis|Actifio$")
 
+    def replace_boot_kernel(self, kernel_version: str) -> None:
+        # Redhat kernel is replaced when installing RPM. For source code
+        # installation, it's implemented in source code installer.
+        ...
+
     def _initialize_package_installation(self) -> None:
-        cmd_result = self._node.execute("yum makecache", sudo=True)
         os_version = self._get_os_version()
         # We may hit issue when run any yum command, caused by out of date
         #  rhui-microsoft-azure-rhel package.
         # Use below command to update rhui-microsoft-azure-rhel package from microsoft
         #  repo to resolve the issue.
         # Details please refer https://docs.microsoft.com/en-us/azure/virtual-machines/workloads/redhat/redhat-rhui#azure-rhui-infrastructure # noqa: E501
-        if "Red Hat" == os_version.vendor and cmd_result.exit_code != 0:
+        if "Red Hat" == os_version.vendor:
             cmd_result = self._node.execute(
                 "yum update -y --disablerepo='*' --enablerepo='*microsoft*' ", sudo=True
             )
-            cmd_result = self._node.execute("yum makecache", sudo=True)
+            cmd_result.assert_exit_code()
 
     def _install_packages(
         self, packages: Union[List[str]], signed: bool = True
