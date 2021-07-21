@@ -55,11 +55,27 @@ class RepoLocationSchema(LocalLocationSchema):
 
 @dataclass_json()
 @dataclass
+class PatchModifierSchema(BaseModifierSchema):
+    repo: str = field(
+        default="",
+        metadata=schema.metadata(
+            required=True,
+        ),
+    )
+    ref: str = ""
+    path: str = ""
+    file_pattern: str = "*.patch"
+
+
+@dataclass_json()
+@dataclass
 class SourceInstallerSchema(BaseInstallerSchema):
     location: Optional[BaseLocationSchema] = field(
         default=None, metadata=schema.metadata(required=True)
     )
 
+    # Steps to modify code by patches and others.
+    modifier: List[BaseModifierSchema] = field(default_factory=list)
 
 
 class SourceInstaller(BaseInstaller):
@@ -95,6 +111,9 @@ class SourceInstaller(BaseInstaller):
         assert node.shell.exists(code_path), f"cannot find code path: {code_path}"
         self._log.info(f"kernel code path: {code_path}")
 
+        # modify code
+        self._modify_code(node=node, code_path=code_path)
+
         self._build_code(node=node, code_path=code_path)
 
         self._install_build(node=node, code_path=code_path)
@@ -127,6 +146,27 @@ class SourceInstaller(BaseInstaller):
 
             result = node.execute("grub2-mkconfig -o /boot/grub2/grub.cfg", sudo=True)
             result.assert_exit_code()
+
+    def _modify_code(self, node: Node, code_path: PurePath) -> None:
+        runbook: SourceInstallerSchema = self.runbook
+        if not runbook.modifier:
+            return
+
+        modifier_runbooks: List[BaseModifierSchema] = runbook.modifier
+        assert isinstance(
+            modifier_runbooks, list
+        ), f"modifier must be a list, but it's {type(modifier_runbooks)}"
+
+        factory = subclasses.Factory[BaseModifier](BaseModifier)
+        for modifier_runbook in modifier_runbooks:
+            modifier = factory.create_by_runbook(
+                runbook=modifier_runbook,
+                node=node,
+                code_path=code_path,
+                parent_log=self._log,
+            )
+            self._log.debug(f"modifying code by {modifier.type_name()}")
+            modifier.modify()
 
     def _build_code(self, node: Node, code_path: PurePath) -> None:
         self._log.info("building code...")
@@ -283,6 +323,45 @@ class LocalLocation(BaseLocation):
     def get_source_code(self) -> PurePath:
         runbook: LocalLocationSchema = self.runbook
         return self._node.get_pure_path(runbook.path)
+
+
+class BaseModifier(subclasses.BaseClassWithRunbookMixin):
+    def __init__(
+        self,
+        runbook: Any,
+        node: Node,
+        code_path: PurePath,
+        parent_log: Logger,
+        *args: Any,
+        **kwargs: Any,
+    ) -> None:
+        super().__init__(runbook, *args, **kwargs)
+        self._node = node
+        self._log = get_logger(self.type_name(), parent=parent_log)
+        self._code_path = code_path
+
+    def modify(self) -> None:
+        raise NotImplementedError()
+
+
+class PatchModifier(BaseModifier):
+    @classmethod
+    def type_name(cls) -> str:
+        return "patch"
+
+    @classmethod
+    def type_schema(cls) -> Type[schema.TypedSchema]:
+        return PatchModifierSchema
+
+    def modify(self) -> None:
+        runbook: PatchModifierSchema = self.runbook
+
+        code_path = _get_code_path(runbook.path, self._node, "patch")
+
+        git = self._node.tools[Git]
+        code_path = git.clone(url=runbook.repo, cwd=code_path, ref=runbook.ref)
+        patches_path = code_path / runbook.file_pattern
+        git.apply(cwd=self._code_path, patches=patches_path)
 
 
 def _get_code_path(path: str, node: Node, default_name: str) -> PurePath:
