@@ -109,3 +109,18 @@ class Git(Tool):
             no_error_log=True,
         )
         result.assert_exit_code(message=f"failed to fetch code. {result.stdout}")
+
+    def apply(
+        self,
+        cwd: pathlib.PurePath,
+        patches: pathlib.PurePath,
+    ) -> None:
+        result = self.run(
+            f"apply {patches}",
+            shell=True,
+            cwd=cwd,
+            force_run=True,
+            no_info_log=True,
+            no_error_log=True,
+        )
+        result.assert_exit_code(message=f"failded on applying patches. {result.stdout}")
