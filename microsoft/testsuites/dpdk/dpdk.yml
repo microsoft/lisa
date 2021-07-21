@@ -1,0 +1,24 @@
+name: dpdk
+parent:
+  - path: ../../runbook/azure.yml
+extension:
+  - .
+platform:
+  - type: azure
+    admin_private_key_file: $(admin_private_key_file)
+    keep_environment: $(keep_environment)
+    azure:
+      resource_group_name: $(resource_group_name)
+      deploy: $(deploy)
+      subscription_id: $(subscription_id)
+      wait_delete: $(wait_delete)
+    requirement:
+      core_count:
+        min: 16
+      azure:
+        vm_size: Standard_D15_v2
+        marketplace: $(marketplace_image)
+        location: $(location)
+testcase:
+  - criteria:
+      name: check_dpdk_build
