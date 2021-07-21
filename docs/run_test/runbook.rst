@@ -13,8 +13,8 @@ Runbook Reference
 -  `Reference <#reference>`__
 
    -  `name <#name>`__
-   -  `test_project <#test_project>`__
-   -  `test_pass <#test_pass>`__
+   -  `test_project <#test-project>`__
+   -  `test_pass <#test-pass>`__
    -  `tags <#tags>`__
    -  `concurrency <#concurrency>`__
    -  `include <#include>`__
@@ -28,7 +28,7 @@ Runbook Reference
 
    -  `variable <#variable>`__
 
-      -  `is_secret <#is_secret>`__
+      -  `is_secret <#is-secret>`__
       -  `file <#file>`__
       -  `name <#name-2>`__
       -  `value <#value>`__
@@ -38,7 +38,7 @@ Runbook Reference
       -  `type <#type>`__
       -  `name <#name-3>`__
       -  `prefix <#prefix>`__
-      -  `depends_on <#depends_on>`__
+      -  `depends_on <#depends-on>`__
       -  `rename <#rename>`__
 
    -  `combinator <#combinator>`__
@@ -55,12 +55,12 @@ Runbook Reference
 
       -  `console <#console>`__
 
-         -  `log_level <#log_level>`__
+         -  `log_level <#log-level>`__
 
       -  `html <#html>`__
 
          -  `path <#path-2>`__
-         -  `auto_open <#auto_open>`__
+         -  `auto_open <#auto-open>`__
 
    -  `environment <#environment>`__
 
@@ -69,7 +69,7 @@ Runbook Reference
          -  `name <#name-4>`__
          -  `topology <#topology>`__
          -  `nodes <#nodes>`__
-         -  `nodes_requirement <#nodes_requirement>`__
+         -  `nodes_requirement <#nodes-requirement>`__
 
             -  `type <#type-1>`__
 
@@ -81,11 +81,10 @@ Runbook Reference
 What is a runbook
 -----------------
 
-In simple terms,
-
-The **runbook** contains all the configurations of LISA operation. It
-keeps you from lengthy command-line commands and makes it easy to
-adjust configurations.
+In simple terms:
+   `The **runbook** contains all the configurations of LISA operation. It keeps
+   you from lengthy command-line commands and makes it easy to adjust
+   configurations.`
 
 See :ref:`write_test/concepts:runbook` for further knowledge.
 
