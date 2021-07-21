@@ -572,7 +572,7 @@ class LogParser(InitializableMixin):
                 cases.append(current_case)
         return cases
 
-    @retry(tries=30, jitter=(1, 2))
+    @retry(tries=30, jitter=(1, 2))  # type: ignore
     def _read_log(self) -> str:
         """
         V2 opens log file frequently to write content, copying may be failed due to

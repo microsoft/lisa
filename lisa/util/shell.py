@@ -138,7 +138,7 @@ class WindowsShellType(object):
 
 
 # retry strategy is the same as spurplus.connect_with_retries.
-@retry(Exception, tries=3, delay=1, logger=None)
+@retry(Exception, tries=3, delay=1, logger=None)  # type: ignore
 def try_connect(connection_info: ConnectionInfo) -> Any:
     # spur always run a posix command and will fail on Windows.
     # So try with paramiko firstly.
