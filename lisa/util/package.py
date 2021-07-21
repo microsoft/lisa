@@ -64,8 +64,8 @@ def _import_root_package(package_name: str, path: Path) -> None:
         name=package_name,
         location=init_file,
     )
-    module = importlib.util.module_from_spec(spec)
     assert spec
+    module = importlib.util.module_from_spec(spec)
     assert spec.loader
     sys.modules[package_name] = module
     if init_file.exists():

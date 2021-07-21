@@ -17,7 +17,7 @@ from lisa.util.perf_timer import create_timer
 from lisa.variable import add_secrets_from_pairs
 
 
-@retry(FileExistsError, tries=10, delay=0.2)
+@retry(FileExistsError, tries=10, delay=0.2)  # type: ignore
 def generate_run_path(root_path: Path) -> Tuple[PurePath, Path]:
     # Get current time and generate a Run ID.
     current_time = datetime.utcnow()
