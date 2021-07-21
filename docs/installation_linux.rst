@@ -90,5 +90,5 @@ computer.
 FAQ and Troubleshooting
 -----------------------
 
-If there’s any problem during the installation, please refer to `FAQ and
-troubleshooting <troubleshooting.html>`__.
+If there’s any problem during the installation, please refer to :doc:`FAQ and
+troubleshooting <troubleshooting>`.

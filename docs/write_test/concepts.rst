@@ -180,5 +180,3 @@ meets all three requirements, so it will run the test cases.
 
 .. figure:: ../img/req_cap.png
    :alt: requirements to capability
-
-   requirements to capability

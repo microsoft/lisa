@@ -33,7 +33,7 @@ LISAv2 should run in the latest Windows 10 client 64 bits, or Windows
 Server 2019 editions.
 
 Follow `LISAv2
-document <https://github.com/microsoft/lisa/blob/master/README.html>`__
+document <https://github.com/microsoft/lisa/blob/master/README.md>`__
 to understand prerequisites and prepare secret files.
 
 Note, you don’t need to clone the LISAv2 yourself, the current LISA will

@@ -18,7 +18,7 @@ Common arguments
 -r, –runbook
 ~~~~~~~~~~~~
 
-Specify the path of `runbook <runbook.html>`__. It can be an absolute
+Specify the path of :doc:`runbook <runbook>`. It can be an absolute
 path or a relative path. This parameter is required in every run other
 than run with -h.
 

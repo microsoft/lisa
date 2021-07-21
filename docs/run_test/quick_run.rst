@@ -8,14 +8,14 @@ Linux VM on Azure.
 
 #. Sign in to Azure
 
-   Make sure either `Azure
-   CLI <https://docs.microsoft.com/en-us/cli/azure/install-azure-cli>`__
-   or `Azure
-   PowerShell <https://docs.microsoft.com/en-us/powershell/azure/install-az-ps>`__
-   has been installed on your local computer. Then log in to your Azure
-   subscription to authenticate your current session. LISA also supports
-   other Azure authentications, for more information, please refer to
-   `runbook reference <runbook.html>`__.
+   Make sure either `Azure CLI
+   <https://docs.microsoft.com/en-us/cli/azure/install-azure-cli>`__ or `Azure
+   PowerShell
+   <https://docs.microsoft.com/en-us/powershell/azure/install-az-ps>`__ has been
+   installed on your local computer. Then log in to your Azure subscription to
+   authenticate your current session. LISA also supports other Azure
+   authentications, for more information, please refer to :doc: `runbook
+   reference <runbook>`.
 
    Here, let’s choose ``Azure CLI`` for the setup. You should see a page
    pop up and all your Azure subscriptions shown in console after
@@ -80,7 +80,7 @@ Linux VM on Azure.
 #. Run LISA
 
    Use above ``<subscription id>`` and ``<private key file>`` to run
-   LISA with the default `runbook <runbook.html>`__. It might take
+   LISA with the default :doc:`runbook <runbook>`. It might take
    several minutes to complete.
 
    .. code:: bash
@@ -89,13 +89,13 @@ Linux VM on Azure.
 
 #. Verify test result
 
-   After the test is completed, you can check the LISA console log, or
-   the html report file for the test results. Refer to `Understand test
-   results <understand_results.html>`__ for more detailed explanation of
-   the logs and report. See an example html report as below:
+   After the test is completed, you can check the LISA console log, or the html
+   report file for the test results. Refer to :doc:`Understand test results
+   <understand_results>` for more detailed explanation of the logs and report.
+   See an example html report as below:
 
    .. figure:: ../img/smoke_test_result.png
       :alt: image
 
 .. note::
-   See `Run LISA <run.html>`__ for more advanced usages.
+   See :doc:`Run LISA <run>` for more advanced usages.
