@@ -703,7 +703,7 @@ class AzurePlatform(Platform):
             template = json.load(f)
         return template
 
-    @retry(tries=10, delay=1, jitter=(0.5, 1))
+    @retry(tries=10, delay=1, jitter=(0.5, 1))  # type: ignore
     def _load_location_info_from_file(
         self, cached_file_name: Path, log: Logger
     ) -> Optional[AzureLocation]:
@@ -1046,7 +1046,7 @@ class AzurePlatform(Platform):
         return errors
 
     # the VM may not be queried after deployed. use retry to mitigate it.
-    @retry(exceptions=LisaException, tries=150, delay=2)
+    @retry(exceptions=LisaException, tries=150, delay=2)  # type: ignore
     def _load_vms(
         self, environment: Environment, log: Logger
     ) -> Dict[str, VirtualMachine]:
@@ -1071,7 +1071,7 @@ class AzurePlatform(Platform):
             )
         return vms_map
 
-    @retry(exceptions=LisaException, tries=150, delay=2)
+    @retry(exceptions=LisaException, tries=150, delay=2)  # type: ignore
     def _load_nics(
         self, environment: Environment, log: Logger
     ) -> Dict[str, NetworkInterface]:
@@ -1107,7 +1107,7 @@ class AzurePlatform(Platform):
             )
         return nics_map
 
-    @retry(exceptions=LisaException, tries=150, delay=2)
+    @retry(exceptions=LisaException, tries=150, delay=2)  # type: ignore
     def _load_public_ips(
         self, environment: Environment, log: Logger
     ) -> Dict[str, PublicIPAddress]:

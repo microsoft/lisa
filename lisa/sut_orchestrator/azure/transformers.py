@@ -39,7 +39,7 @@ DEFAULT_VHD_CONTAINER_NAME = "lisa-vhd-cache"
 DEFAULT_VHD_SUBFIX = "exported"
 
 
-@retry(tries=10, jitter=(1, 2))
+@retry(tries=10, jitter=(1, 2))  # type: ignore
 def _generate_vhd_path(container_client: Any, file_name_part: str = "") -> str:
     path = PurePosixPath(
         f"{get_date_str()}/{get_datetime_path()}_"
