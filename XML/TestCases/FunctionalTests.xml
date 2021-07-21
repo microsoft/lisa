@@ -297,7 +297,7 @@
   </test>
   <test>
     <TestName>LSVMBUS</TestName>
-    <testScript>LSVMBUS.ps1</testScript>
+    <testScript>LSVMBUS.sh</testScript>
     <files>.\TestScripts\Linux\LSVMBUS.sh,.\TestScripts\Linux\utils.sh</files>
     <Platform>Azure,HyperV</Platform>
     <Category>Functional</Category>
@@ -305,8 +305,8 @@
     <Tags>lsvmbus</Tags>
     <Priority>0</Priority>
     <SetupConfig>
-      <SetupType>OneVM</SetupType>
-      <OverrideVMSize>Standard_DS4_v2</OverrideVMSize>
+      <SetupType>OneVM2NIC</SetupType>
+      <OverrideVMSize>Standard_D32s_v3</OverrideVMSize>
     </SetupConfig>
   </test>
   <test>
