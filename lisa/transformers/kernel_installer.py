@@ -125,6 +125,7 @@ class KernelInstallerTransformer(Transformer):
 
         installer.validate()
         installed_kernel_version = installer.install()
+        self._log.info(f"installed kernel version: {installed_kernel_version}")
 
         posix = cast(Posix, node.os)
         posix.replace_boot_kernel(installed_kernel_version)
