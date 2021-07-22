@@ -57,7 +57,7 @@ function install_dependency_package () {
 	LogMsg "Detected $DISTRO_NAME $DISTRO_VERSION; installing required packages of hackbench and schbench"
 	update_repos
 	case "$DISTRO_NAME" in
-		oracle|rhel|centos|almalinux)
+		oracle|rhel|centos|almalinux|rockylinux)
 			install_epel
 			install_package "sysstat zip make gcc git numactl numactl-devel git"
 			;;

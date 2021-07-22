@@ -109,7 +109,7 @@ case $DISTRO in
             UnbindClockEvent
         fi
         ;;
-    redhat_8|centos_8|fedora*|clear-linux-os|almalinux_8|mariner)
+    redhat_8|centos_8|fedora*|clear-linux-os|almalinux_8|mariner|rockylinux_8)
         CheckClockEvent
         CheckTimerInfo
         UnbindClockEvent

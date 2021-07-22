@@ -3,7 +3,7 @@
 # Licensed under the Apache License.
 
 function Check_For_Error() {
-    distro=$(grep -ihs "AlmaLinux\|Ubuntu\|SUSE\|Fedora\|Debian\|CentOS\|Red Hat Enterprise Linux" /etc/{issue,*release,*version})
+    distro=$(grep -ihs "AlmaLinux\|Ubuntu\|SUSE\|Fedora\|Debian\|CentOS\|Red Hat Enterprise Linux\|Rocky Linux" /etc/{issue,*release,*version})
     if [[ $distro = *"ubuntu"* || $distro = *"debian"* ]]; then
         messages="/var/log/syslog"
     else

@@ -11,7 +11,7 @@ echo $csv_file
 rm -rf $csv_file
 echo "Iteration,TestType,BlockSize,Threads,Jobs,TotalIOPS,ReadIOPS,MaxOfReadMeanLatency,ReadMaxLatency,ReadBw,WriteIOPS,MaxOfWriteMeanLatency,WriteMaxLatency,WriteBw" > $csv_file_tmp
 
-if [ $DISTRO_NAME == "centos" ] || [ $DISTRO_NAME == "rhel" ] || [ $DISTRO_NAME == "oracle" ] || [ $DISTRO_NAME == "almalinux" ]; then
+if [ $DISTRO_NAME == "centos" ] || [ $DISTRO_NAME == "rhel" ] || [ $DISTRO_NAME == "oracle" ] || [ $DISTRO_NAME == "almalinux" ] || [ $DISTRO_NAME == "rockylinux" ]; then
     if [[ $DISTRO_VERSION =~ ^6\. ]]; then
         yum -y groupinstall "Development Tools"
         wget ftp://gnu.mirror.iweb.com/gawk/gawk-5.0.0.tar.xz

@@ -43,8 +43,8 @@ EOF
 
 Install_Kexec() {
     case $DISTRO in
-        centos* | redhat* | fedora* | almalinux*)
-            if [[ $DISTRO != "redhat_8" ]] && [[ $DISTRO != "centos_8" ]] && [[ $DISTRO != "almalinux_8" ]]; then
+        centos* | redhat* | fedora* | almalinux* | rockylinux*)
+            if [[ $DISTRO != "redhat_8" ]] && [[ $DISTRO != "centos_8" ]] && [[ $DISTRO != "almalinux_8" ]] && [[ $DISTRO != "rockylinux_8" ]]; then
                 yum_install "kexec-tools kdump-tools makedumpfile"
                 if [ $? -ne 0 ]; then
                     UpdateSummary "Warning: Kexec-tools failed to install."
@@ -395,7 +395,7 @@ Install_Kexec
 # Configure kdump - this has distro specific behaviour
 #
 config_path=$(get_bootconfig_path)
-if [[ $DISTRO != "redhat_8" ]] && [[ $DISTRO != "almalinux_8" ]];then
+if [[ $DISTRO != "redhat_8" ]] && [[ $DISTRO != "almalinux_8" ]] && [[ $DISTRO != "rockylinux_8" ]];then
     if ! grep CONFIG_KEXEC_AUTO_RESERVE=y "$config_path" && [[ "$crashkernel" == "auto" ]];then
         LogErr "crashkernel=auto doesn't work for this distro. Please use this pattern: crashkernel=X@Y."
         SetTestStateSkipped
@@ -409,7 +409,7 @@ Config_"${OS_FAMILY}"
 sed -i --follow-symlinks "s/crashkernel=\S*//g" $boot_filepath
 
 # Add the crashkernel param
-if [[ $DISTRO != "redhat_8" ]] && [[ $DISTRO != "centos_8" ]] && [[ $DISTRO != "almalinux_8" ]]; then
+if [[ $DISTRO != "redhat_8" ]] && [[ $DISTRO != "centos_8" ]] && [[ $DISTRO != "almalinux_8" ]] && [[ $DISTRO != "rockylinux_8" ]]; then
     sed -i --follow-symlinks "/vmlinuz-$(uname -r)/ s/$/ crashkernel=$crashkernel/" $boot_filepath
 elif [[ $DISTRO = "mariner" ]]; then
     sed -i --follow-symlinks "/mariner_cmdline=init/s/$/ crashkernel=$crashkernel/" $boot_filepath

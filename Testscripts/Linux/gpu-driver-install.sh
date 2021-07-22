@@ -28,7 +28,7 @@ grid_driver="https://go.microsoft.com/fwlink/?linkid=874272"
 
 #######################################################################
 function skip_test() {
-	if [[ $driver == "CUDA" ]] && ([[ $DISTRO == *"suse"* ]] || [[ $DISTRO == "redhat_8" ]] || [[ $DISTRO == *"debian"* ]] || [[ $DISTRO == "almalinux_8" ]]); then
+	if [[ $driver == "CUDA" ]] && ([[ $DISTRO == *"suse"* ]] || [[ $DISTRO == "redhat_8" ]] || [[ $DISTRO == *"debian"* ]] || [[ $DISTRO == "almalinux_8" ]] || [[ $DISTRO == "rockylinux_8" ]]); then
 		LogMsg "$DISTRO not supported. Skip the test."
 		SetTestStateSkipped
 		exit 0
@@ -195,7 +195,7 @@ function install_gpu_requirements() {
 	LogMsg "installed wget lshw gcc make"
 
 	case $DISTRO in
-		redhat_7|centos_7|redhat_8|almalinux_8)
+		redhat_7|centos_7|redhat_8|almalinux_8|rockylinux_8)
 			if [[ $DISTRO == "centos_7" ]]; then
 				# for all releases that are moved into vault.centos.org
 				# we have to update the repositories first
