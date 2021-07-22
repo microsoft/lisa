@@ -192,7 +192,7 @@ class RepoInstaller(BaseInstaller):
             f"deb {self.repo_url} {version_name} "
             f"restricted main multiverse universe"
         )
-        ubuntu.wait_running_package_process()
+        ubuntu.wait_running_process("dpkg")
         result = node.execute(f'add-apt-repository "{repo_entry}"', sudo=True)
         if result.exit_code != 0:
             result.assert_exit_code(

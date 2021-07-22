@@ -394,6 +394,20 @@ class Posix(OperatingSystem, BaseClassMixin):
         package_names = self._get_package_list(packages)
         self._update_packages(package_names)
 
+    def wait_running_process(self, process_name: str, timeout: int = 5) -> None:
+        # by default, wait for 5 minutes
+        timeout = 60 * timeout
+        timer = create_timer()
+        while timeout > timer.elapsed(False):
+            cmd_result = self._node.execute(f"pidof {process_name}")
+            if cmd_result.exit_code == 1:
+                # not found dpkg or zypper process, it's ok to exit.
+                break
+            time.sleep(1)
+
+        if timeout < timer.elapsed():
+            raise Exception(f"timeout to wait previous {process_name} process stop.")
+
     def __resolve_package_name(self, package: Union[str, Tool, Type[Tool]]) -> str:
         """
         A package can be a string or a tool or a type of tool.
@@ -437,22 +451,8 @@ class Debian(Linux):
                 error_lines.append(line)
         return error_lines
 
-    def wait_running_package_process(self) -> None:
-        # wait for 5 minutes
-        timeout = 60 * 5
-        timer = create_timer()
-        while timeout > timer.elapsed(False):
-            cmd_result = self._node.execute("pidof dpkg")
-            if cmd_result.exit_code == 1:
-                # not found dpkg process, it's ok to exit.
-                break
-            time.sleep(1)
-
-        if timeout < timer.elapsed():
-            raise Exception("timeout to wait previous dpkg process stop.")
-
     def _initialize_package_installation(self) -> None:
-        self.wait_running_package_process()
+        self.wait_running_process("dpkg")
         self._node.execute("apt-get update", sudo=True)
 
     def _install_packages(
@@ -465,7 +465,7 @@ class Debian(Linux):
         if not signed:
             command += " --allow-unauthenticated"
 
-        self.wait_running_package_process()
+        self.wait_running_process("dpkg")
         install_result = self._node.execute(command, sudo=True)
         # get error lines.
         if install_result.exit_code != 0:
@@ -718,6 +718,7 @@ class Suse(Linux):
         return re.compile("^SLES|SUSE|sles|sle-hpc|sle_hpc|opensuse-leap$")
 
     def _initialize_package_installation(self) -> None:
+        self.wait_running_process("zypper")
         self._node.execute(
             "zypper --non-interactive --gpg-auto-import-keys refresh", sudo=True
         )
@@ -728,6 +729,7 @@ class Suse(Linux):
         command = f"zypper --non-interactive in {' '.join(packages)}"
         if not signed:
             command += " --no-gpg-checks"
+        self.wait_running_process("zypper")
         install_result = self._node.execute(command, sudo=True)
         if install_result.exit_code in (1, 100):
             raise LisaException(
