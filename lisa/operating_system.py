@@ -611,7 +611,7 @@ class Fedora(Linux):
 class Redhat(Fedora):
     @classmethod
     def name_pattern(cls) -> Pattern[str]:
-        return re.compile("^rhel|Red|AlmaLinux|Scientific|acronis|Actifio$")
+        return re.compile("^rhel|Red|AlmaLinux|Rocky|Scientific|acronis|Actifio$")
 
     def _initialize_package_installation(self) -> None:
         cmd_result = self._node.execute("yum makecache", sudo=True)
@@ -661,7 +661,13 @@ class Redhat(Fedora):
             cmd="cat /etc/redhat-release", no_error_log=True
         )
         if cmd_result.exit_code == 0 and cmd_result.stdout != "":
-            for vendor in ["Red Hat", "CentOS", "XenServer", "AlmaLinux"]:
+            for vendor in [
+                "Red Hat",
+                "CentOS",
+                "XenServer",
+                "AlmaLinux",
+                "Rocky Linux",
+            ]:
                 if vendor not in cmd_result.stdout:
                     continue
                 os_version.vendor = vendor
