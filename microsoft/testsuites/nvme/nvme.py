@@ -22,7 +22,7 @@ def _format_mount_disk(
     fdisk = node.tools[Fdisk]
     mount = node.tools[Mount]
     mount.umount(namespace, mount_point)
-    fdisk.make_partition(namespace, file_system)
+    fdisk.make_partition(f"{namespace}p1", file_system)
     mount.mount(f"{namespace}p1", mount_point)
 
 

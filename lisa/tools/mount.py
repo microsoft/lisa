@@ -11,7 +11,9 @@ from lisa.util import LisaException
 
 
 class Mount(Tool):
-    __UMOUNT_ERROR_PATTERN = re.compile(r".*mountpoint not found", re.MULTILINE)
+    __UMOUNT_ERROR_PATTERN = re.compile(
+        r"(.*mountpoint not found|.*no mount point specified)", re.MULTILINE
+    )
 
     @property
     def command(self) -> str:

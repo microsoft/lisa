@@ -21,9 +21,11 @@ from .modinfo import Modinfo
 from .mount import Mount
 from .ntttcp import Ntttcp
 from .nvmecli import Nvmecli
+from .parted import Parted
 from .reboot import Reboot
 from .uptime import Uptime
 from .who import Who
+from .xfstests import Xfstests
 
 __all__ = [
     "Cat",
@@ -46,9 +48,11 @@ __all__ = [
     "Mount",
     "Ntttcp",
     "Nvmecli",
+    "Parted",
     "Reboot",
     "Uname",
     "Uptime",
     "Wget",
     "Who",
+    "Xfstests",
 ]
