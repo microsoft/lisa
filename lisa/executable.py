@@ -154,6 +154,13 @@ class Tool(InitializableMixin):
         result = self.node.execute(
             f"{where_command} {self.command}", shell=True, no_info_log=True
         )
+        if 0 != result.exit_code:
+            result = self.node.execute(
+                f"{where_command} {self.command}",
+                shell=True,
+                sudo=True,
+                no_info_log=True,
+            )
         self._exists = result.exit_code == 0
         return self._exists
 

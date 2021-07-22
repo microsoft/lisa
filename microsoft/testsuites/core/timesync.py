@@ -5,7 +5,7 @@ from typing import List, Optional, Union
 from assertpy import assert_that
 
 from lisa import Node, TestCaseMetadata, TestSuite, TestSuiteMetadata
-from lisa.tools import Cat, Dmesg, Lscpu
+from lisa.tools import Cat, Chrony, Dmesg, Hwclock, Lscpu, Ntp, Ntpstat, Systemctl
 from lisa.tools.lscpu import CpuType
 from lisa.util.perf_timer import create_timer
 
@@ -40,7 +40,11 @@ def _wait_file_changed(
 class TimeSync(TestSuite):
     ptp_registered_msg = "PTP clock support registered"
     hyperv_ptp_udev_rule = "ptp_hyperv"
-    chrony_path = ["/etc/chrony.conf", "/etc/chrony/chrony.conf"]
+    chrony_path = [
+        "/etc/chrony.conf",
+        "/etc/chrony/chrony.conf",
+        "/etc/chrony.d/azure.conf",
+    ]
     current_clocksource = (
         "/sys/devices/system/clocksource/clocksource0/current_clocksource"
     )
@@ -231,3 +235,61 @@ class TimeSync(TestSuite):
                     f"After unbind {clock_event_name}, current clock event should "
                     f"equal to [lapic]."
                 ).is_true()
+
+    @TestCaseMetadata(
+        description="""
+        This test is to check, ntp works properly.
+            1. Stop systemd-timesyncd if this service exists.
+            2. Set rtc clock to system time.
+            3. Restart Ntp service.
+            4. Check and set server setting in config file.
+            5. Restart Ntp service to reload with new config.
+            6. Check leap code using `ntpq -c rv`.
+            7. Check local time is synchronised with time server using `ntpstat`.
+        """,
+        priority=2,
+    )
+    def timesync_ntp(self, node: Node) -> None:
+        ntp = node.tools[Ntp]
+        hwclock = node.tools[Hwclock]
+        systemctl = node.tools[Systemctl]
+        # 1. Stop systemd-timesyncd if this service exists.
+        if systemctl.check_exists:
+            systemctl.stop_service("systemd-timesyncd")
+        # 2. Set rtc clock to system time.
+        hwclock.set_rtc_clock_to_system_time()
+        # 3. Restart Ntp service.
+        ntp.restart()
+        # 4. Check and set server setting in config file.
+        ntp.check_server_setting()
+        # 5. Restart Ntp service to reload with new config.
+        ntp.restart()
+        # 6. Check leap code using `ntpq -c rv`.
+        ntp.check_leap_code()
+        ntpstat = node.tools[Ntpstat]
+        # 7. Check local time is synchronised with time server using `ntpstat`.
+        ntpstat.check_time_sync()
+
+    @TestCaseMetadata(
+        description="""
+        This test is to check chrony works properly.
+            1. Restart chrony service.
+            2. Check and set server setting in config file.
+            3. Restart chrony service to reload with new config.
+            4. Check chrony sources and sourcestats.
+            5. Check chrony tracking.
+        """,
+        priority=2,
+    )
+    def timesync_chrony(self, node: Node) -> None:
+        chrony = node.tools[Chrony]
+        # 1. Restart chrony service.
+        chrony.restart()
+        # 2. Check and set server setting in config file.
+        chrony.check_server_setting()
+        # 3. Restart chrony service to reload with new config.
+        chrony.restart()
+        # 4. Check chrony sources and sourcestats.
+        chrony.check_sources_and_stats()
+        # 5. Check chrony tracking.
+        chrony.check_tracking()

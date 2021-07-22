@@ -7,22 +7,21 @@ from lisa.executable import Tool
 from lisa.operating_system import Posix
 
 
-class Gcc(Tool):
+class Hwclock(Tool):
     @property
     def command(self) -> str:
-        return "gcc"
+        return "hwclock"
 
     @property
     def can_install(self) -> bool:
         return True
 
-    def compile(self, filename: str, output: str = "") -> None:
-        if output:
-            self.run(f"{filename} -o {output}")
-        else:
-            self.run(filename)
-
-    def _install(self) -> bool:
+    def install(self) -> bool:
         posix_os: Posix = cast(Posix, self.node.os)
-        posix_os.install_packages("gcc")
+        package_name = "util-linux"
+        posix_os.install_packages(package_name)
         return self._check_exists()
+
+    def set_rtc_clock_to_system_time(self) -> None:
+        cmd_result = self.run("--systohc", shell=True, sudo=True)
+        cmd_result.assert_exit_code()
