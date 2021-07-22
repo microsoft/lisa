@@ -48,7 +48,8 @@ def UpdateRepos(current_distro):
         #method 'RunUpdate': fix deadlock when using stdout=PIPE and/or stderr=PIPE and the child process generates enough output to a pipe
         RunUpdate("until dpkg --force-all --configure -a; sleep 10; do echo 'Trying again...'; done")
         RunUpdate("apt-get update")
-    elif (current_distro.find("rhel") != -1) or (current_distro.find("Oracle") != -1) or (current_distro.find('centos') != -1) or (current_distro.find('almalinux') != -1):
+    elif (current_distro.find("rhel") != -1) or (current_distro.find("Oracle") != -1) or (current_distro.find('centos') != -1) \
+        or (current_distro.find('almalinux') != -1) or (current_distro.find('rockylinux') != -1):
         RunUpdate("yum -y update")
     elif (current_distro.find("opensuse") != -1) or (current_distro.find("SUSE") != -1) or (current_distro.find("sles") != -1):
         RunUpdate("zypper --non-interactive --gpg-auto-import-keys update")
@@ -144,6 +145,8 @@ def DetectDistro():
                 distribution = 'fedora'
             elif (re.match(r'.*AlmaLinux.*', line, re.M|re.I)):
                 distribution = 'almalinux'
+            elif (re.match(r'.*Rocky Linux.*', line, re.M|re.I)):
+                distribution = 'rockylinux'
                 break
     return [distribution, version]
 
@@ -422,7 +425,8 @@ def InstallPackage(package):
     [current_distro, distro_version] = DetectDistro()
     if (("ubuntu" in current_distro) or  ("Debian" in current_distro)):
         return AptgetPackageInstall(package)
-    elif (("rhel" in current_distro) or ("Oracle" in current_distro) or ("centos" in current_distro) or ("fedora" in current_distro) or ("almalinux" in current_distro)):
+    elif (("rhel" in current_distro) or ("Oracle" in current_distro) or ("centos" in current_distro) \
+        or ("fedora" in current_distro) or ("almalinux" in current_distro) or ("rockylinux" in current_distro)):
         return YumPackageInstall(package)
     elif (("SUSE" in current_distro) or ("opensuse" in current_distro) or ("sles" in current_distro)):
         return ZypperPackageInstall(package)

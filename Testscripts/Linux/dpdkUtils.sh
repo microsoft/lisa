@@ -177,7 +177,7 @@ function Install_Dpdk () {
 	LogMsg "Configuring ${1} ${DISTRO_NAME} ${DISTRO_VERSION} for DPDK test..."
 	packages=(gcc make git tar wget dos2unix psmisc)
 	case "${DISTRO_NAME}" in
-		oracle|rhel|centos|almalinux)
+		oracle|rhel|centos|almalinux|rockylinux)
 			if ! ([ "${DISTRO_NAME}" = "rhel" ] && [[ ${DISTRO_VERSION} == *"8."* ]]) ;then
 				ssh "${1}" ". utils.sh && install_epel"
 			fi
@@ -393,7 +393,7 @@ function Install_Dpdk () {
 		ssh "${1}" "cd $RTE_SDK/$RTE_TARGET && ninja 2>&1 && ninja install 2>&1 && ldconfig"
 		check_exit_status "dpdk build on ${1}" "exit"
 	fi
-	if [[ ${DISTRO_NAME} == rhel || ${DISTRO_NAME} == centos || ${DISTRO_NAME} == almalinux ]]; then
+	if [[ ${DISTRO_NAME} == rhel || ${DISTRO_NAME} == centos || ${DISTRO_NAME} == almalinux || ${DISTRO_NAME} == rockylinux ]]; then
 		# For Distros like RHEL, /usr/local not in default paths. Ref: DPDK Installation Documents
 		ssh ${1} " echo '/usr/local/lib64' >> /etc/ld.so.conf"
 		ssh ${1} " echo '/usr/local/lib' >> /etc/ld.so.conf"

@@ -72,7 +72,7 @@ function create_raid_and_mount() {
 #Install required packages for raid
 packages=("gcc" "git" "tar" "wget" "dos2unix" "mdadm")
 case "$DISTRO_NAME" in
-	oracle|rhel|centos|almalinux)
+	oracle|rhel|centos|almalinux|rockylinux)
 		install_epel
 		;;
 	ubuntu|debian)

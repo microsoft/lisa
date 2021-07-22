@@ -30,7 +30,7 @@ case $DISTRO in
     ;;
 esac
 
-if [[ "$DISTRO" =~ "redhat" ]] || [[ "$DISTRO" =~ "centos" ]] || [[ "$DISTRO" =~ "almalinux" ]]; then
+if [[ "$DISTRO" =~ "redhat" ]] || [[ "$DISTRO" =~ "centos" ]] || [[ "$DISTRO" =~ "almalinux" ]] || [[ "$DISTRO" =~ "rockylinux" ]]; then
     if ! rpm -q hyperv-tools; then
         yum install -y hyperv-tools
     fi
