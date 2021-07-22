@@ -48,6 +48,9 @@ DetectDistro()
                 elif [[ "$tmp" == *AlmaLinux* ]]; then
                     echo "ALMALINUX"
                     exitVal=0
+                elif [[ "$tmp" == *Rocky* ]]; then
+                    echo "ROCKYLINUX"
+                    exitVal=0
                 else
                     echo "Unknown"
                     exitVal=1

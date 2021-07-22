@@ -60,7 +60,7 @@ InstallDotnetSDK() {
             fi
         ;;
 
-        centos*|redhat*|almalinux*)
+        centos*|redhat*|almalinux*|rockylinux*)
             package_name=${package_name}.rpm
             package=https://packages.microsoft.com/config/${distro}/${id}/${package_name}
             if CheckDotnetSDKSupport $package;then
