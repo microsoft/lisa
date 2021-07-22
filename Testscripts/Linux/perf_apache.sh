@@ -81,7 +81,7 @@ fi
 
 GetDistro
 case "$DISTRO_NAME" in
-	oracle|rhel|centos|almalinux)
+	oracle|rhel|centos|almalinux|rockylinux)
 		web_server="httpd"
 		document_path="/var/www/html/test.dat"
 		;;

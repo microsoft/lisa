@@ -259,7 +259,7 @@ for __iterator in ${!SYNTH_NET_INTERFACES[@]}; do
     # In some cases eth1 and eth2 would fail to ping6, restarting the network solves the issue
     if [ "$pingVersion" == "ping6" ] && [ ${#SYNTH_NET_INTERFACES[@]} -gt 1 ]; then
         GetDistro
-        if [[ "$DISTRO" == "redhat"* || "$DISTRO" == "centos"* || "$DISTRO" == "almalinux"* ]]; then
+        if [[ "$DISTRO" == "redhat"* || "$DISTRO" == "centos"* || "$DISTRO" == "almalinux"* || "$DISTRO" == "rockylinux"*  ]]; then
             service network restart
             sleep 5
             if [ $? -ne 0 ]; then

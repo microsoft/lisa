@@ -197,7 +197,7 @@ ConfigureVF()
                 ip addr add "${staticIP}"/"$NETMASK" broadcast $broadcastAddress dev eth$__iterator
             ;;
 
-            redhat_*|centos_*|almalinux*)
+            redhat_*|centos_*|almalinux*|rockylinux*)
                 __file_path="/etc/sysconfig/network-scripts/ifcfg-eth$__iterator"
                 rm -f $__file_path
 

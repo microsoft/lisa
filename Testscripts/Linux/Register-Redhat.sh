@@ -45,7 +45,7 @@ Register_vm()
 #######################################################################
 
 # Check if distro is RHEL.If not, skip the registration.
-DISTRO=$(grep -ihs "AlmaLinux\|Ubuntu\|SUSE\|Fedora\|Debian\|CentOS\|Red Hat Enterprise Linux\|clear-linux-os\|CoreOS" /{etc,usr/lib}/{issue,*release,*version})
+DISTRO=$(grep -ihs "AlmaLinux\|Ubuntu\|SUSE\|Fedora\|Debian\|CentOS\|Red Hat Enterprise Linux\|clear-linux-os\|CoreOS\|Rocky Linux" /{etc,usr/lib}/{issue,*release,*version})
 case $DISTRO in
     *Red*Hat*)
         Register_vm

@@ -1,7 +1,7 @@
 #!/bin/bash
 # Copyright (c) Microsoft Corporation. All rights reserved.
 # Licensed under the Apache License.
-DISTRO=$(grep -ihs "AlmaLinux\|Ubuntu\|Suse\|Fedora\|Debian\|CentOS\|Red Hat Enterprise Linux\|clear-linux-os\|mariner" /etc/{issue,*release,*version} /usr/lib/os-release)
+DISTRO=$(grep -ihs "AlmaLinux\|Ubuntu\|Suse\|Fedora\|Debian\|CentOS\|Red Hat Enterprise Linux\|clear-linux-os\|mariner\|Rocky Linux" /etc/{issue,*release,*version} /usr/lib/os-release)
 
 if [[ $DISTRO =~ "SUSE Linux Enterprise Server 12" ]];
 then
@@ -62,7 +62,7 @@ elif [[ $DISTRO =~ "clear-linux-os" ]];
 then
     echo "Detected Clear Linux OS. Installing required packages"
     swupd bundle-add performance-tools os-core-dev
-elif [[ $DISTRO =~ "almalinux" ]] || [[ $DISTRO =~ "mariner" ]];
+elif [[ $DISTRO =~ "almalinux" ]] || [[ $DISTRO =~ "mariner" ]] || [[ $DISTRO =~ "rockylinux" ]];
 then
     echo "Detected $DISTRO. Installing required packages"
     yum -y --nogpgcheck install mdadm
