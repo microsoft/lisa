@@ -36,10 +36,10 @@ _redhat_release_pattern_bracket = re.compile(r"^.*\(([^ ]*).*\)$")
 
 
 @dataclass
-# OsVersion - To have full distro info.
+# OsInformation - To have full distro info.
 # GetOSVersion() method at below link was useful to get distro info.
 # https://github.com/microsoft/lisa/blob/master/Testscripts/Linux/utils.sh
-class OsVersion:
+class OsInformation:
     # Vendor/Distributor
     vendor: str
     # Release/Version
@@ -76,7 +76,7 @@ class OperatingSystem:
         self._node: Node = node
         self._is_posix = is_posix
         self._log = get_logger(name="os", parent=self._node.log)
-        self._os_version: Optional[OsVersion] = None
+        self._information: Optional[OsInformation] = None
 
     @classmethod
     def create(cls, node: "Node") -> Any:
@@ -132,11 +132,11 @@ class OperatingSystem:
         return self._is_posix
 
     @property
-    def os_version(self) -> OsVersion:
-        if not self._os_version:
-            self._os_version = self._get_os_version()
+    def information(self) -> OsInformation:
+        if not self._information:
+            self._information = self._get_information()
 
-        return self._os_version
+        return self._information
 
     @property
     def name(self) -> str:
@@ -186,7 +186,7 @@ class OperatingSystem:
             cmd_result_os_release.stdout, cls.__os_release_pattern_idlike
         )
 
-    def _get_os_version(self) -> OsVersion:
+    def _get_information(self) -> OsInformation:
         raise NotImplementedError
 
 
@@ -198,24 +198,24 @@ class Windows(OperatingSystem):
     def __init__(self, node: Any) -> None:
         super().__init__(node, is_posix=False)
 
-    def _get_os_version(self) -> OsVersion:
-        os_version = OsVersion("Microsoft Corporation")
+    def _get_information(self) -> OsInformation:
+        information = OsInformation("Microsoft Corporation")
         cmd_result = self._node.execute(
             cmd='systeminfo | findstr /B /C:"OS Version"',
             no_error_log=True,
         )
         if cmd_result.exit_code == 0 and cmd_result.stdout != "":
-            os_version.release = get_matched_str(
+            information.release = get_matched_str(
                 cmd_result.stdout, self.__windows_version_pattern
             )
-            if os_version.release == "":
+            if information.release == "":
                 raise LisaException("OS version information not found")
         else:
             raise LisaException(
                 "Error getting OS version info from systeminfo command"
                 f"exit_code: {cmd_result.exit_code} stderr: {cmd_result.stderr}"
             )
-        return os_version
+        return information
 
 
 class Posix(OperatingSystem, BaseClassMixin):
@@ -262,7 +262,7 @@ class Posix(OperatingSystem, BaseClassMixin):
 
     @property
     def release_version(self) -> VersionInfo:
-        release_version = self._get_os_version().release
+        release_version = self._get_information().release
         if VersionInfo.isvalid(release_version):
             return VersionInfo.parse(release_version)
 
@@ -349,8 +349,8 @@ class Posix(OperatingSystem, BaseClassMixin):
         # sub os can override it, but it's optional
         pass
 
-    def _get_os_version(self) -> OsVersion:
-        os_version = OsVersion("")
+    def _get_information(self) -> OsInformation:
+        information = OsInformation("")
         # try to set OsVersion from info in /etc/os-release.
         cmd_result = self._node.execute(cmd="cat /etc/os-release", no_error_log=True)
         if cmd_result.exit_code != 0:
@@ -364,19 +364,19 @@ class Posix(OperatingSystem, BaseClassMixin):
             if not os_release_info:
                 continue
             if os_release_info.group("name") == "NAME":
-                os_version.vendor = os_release_info.group("value")
+                information.vendor = os_release_info.group("value")
             elif os_release_info.group("name") == "VERSION_ID":
-                os_version.release = os_release_info.group("value")
+                information.release = os_release_info.group("value")
             elif os_release_info.group("name") == "VERSION":
-                os_version.codename = get_matched_str(
+                information.codename = get_matched_str(
                     os_release_info.group("value"),
                     self.__distro_codename_pattern,
                 )
 
-        if os_version.vendor == "":
+        if information.vendor == "":
             raise LisaException("OS version information not found")
 
-        return os_version
+        return information
 
     def _get_package_list(
         self, packages: Union[str, Tool, Type[Tool], List[Union[str, Tool, Type[Tool]]]]
@@ -513,8 +513,8 @@ class Debian(Linux):
             return True
         return False
 
-    def _get_os_version(self) -> OsVersion:
-        os_version = OsVersion("")
+    def _get_information(self) -> OsInformation:
+        information = OsInformation("")
         cmd_result = self._node.execute(
             cmd="lsb_release -a", shell=True, no_error_log=True
         )
@@ -523,12 +523,12 @@ class Debian(Linux):
                 os_release_info = self.__lsb_os_info_pattern.match(row)
                 if os_release_info:
                     if os_release_info.group("name") == "Distributor ID":
-                        os_version.vendor = os_release_info.group("value")
+                        information.vendor = os_release_info.group("value")
                     elif os_release_info.group("name") == "Release":
-                        os_version.release = os_release_info.group("value")
+                        information.release = os_release_info.group("value")
                     elif os_release_info.group("name") == "Codename":
-                        os_version.codename = os_release_info.group("value")
-            if os_version.vendor == "":
+                        information.codename = os_release_info.group("value")
+            if information.vendor == "":
                 raise LisaException("OS version information not found")
         else:
             raise LisaException(
@@ -536,7 +536,7 @@ class Debian(Linux):
                 f"exit_code:{cmd_result.exit_code} stderr: {cmd_result.stderr}"
             )
 
-        return os_version
+        return information
 
     def _update_packages(self, packages: Optional[Union[List[str]]] = None) -> None:
         command = (
@@ -671,8 +671,8 @@ class Fedora(Linux):
 
         return False
 
-    def _get_os_version(self) -> OsVersion:
-        os_version = OsVersion("")
+    def _get_information(self) -> OsInformation:
+        information = OsInformation("")
         cmd_result = self._node.execute(
             # Typical output of 'cat /etc/fedora-release' is -
             # Fedora release 22 (Twenty Two)
@@ -682,11 +682,11 @@ class Fedora(Linux):
         if cmd_result.exit_code == 0 and cmd_result.stdout != "":
             if "Fedora" not in cmd_result.stdout:
                 raise LisaException("OS version information not found")
-            os_version.vendor = "Fedora"
-            os_version.release = get_matched_str(
+            information.vendor = "Fedora"
+            information.release = get_matched_str(
                 cmd_result.stdout, self._fedora_release_pattern_version
             )
-            os_version.codename = get_matched_str(
+            information.codename = get_matched_str(
                 cmd_result.stdout, self.__distro_codename_pattern
             )
         else:
@@ -695,7 +695,7 @@ class Fedora(Linux):
                 f"exit_code: {cmd_result.exit_code} stderr: {cmd_result.stderr}"
             )
 
-        return os_version
+        return information
 
 
 class Redhat(Fedora):
@@ -709,13 +709,13 @@ class Redhat(Fedora):
         ...
 
     def _initialize_package_installation(self) -> None:
-        os_version = self._get_os_version()
+        information = self._get_information()
         # We may hit issue when run any yum command, caused by out of date
         #  rhui-microsoft-azure-rhel package.
         # Use below command to update rhui-microsoft-azure-rhel package from microsoft
         #  repo to resolve the issue.
         # Details please refer https://docs.microsoft.com/en-us/azure/virtual-machines/workloads/redhat/redhat-rhui#azure-rhui-infrastructure # noqa: E501
-        if "Red Hat" == os_version.vendor:
+        if "Red Hat" == information.vendor:
             cmd_result = self._node.execute(
                 "yum update -y --disablerepo='*' --enablerepo='*microsoft*' ", sudo=True
             )
@@ -749,8 +749,8 @@ class Redhat(Fedora):
 
         return False
 
-    def _get_os_version(self) -> OsVersion:
-        os_version = OsVersion("")
+    def _get_information(self) -> OsInformation:
+        information = OsInformation("")
         cmd_result = self._node.execute(
             cmd="cat /etc/redhat-release", no_error_log=True
         )
@@ -764,17 +764,17 @@ class Redhat(Fedora):
             ]:
                 if vendor not in cmd_result.stdout:
                     continue
-                os_version.vendor = vendor
-                os_version.release = get_matched_str(
+                information.vendor = vendor
+                information.release = get_matched_str(
                     cmd_result.stdout,
                     Fedora._fedora_release_pattern_version,
                 )
-                os_version.codename = get_matched_str(
+                information.codename = get_matched_str(
                     cmd_result.stdout,
                     _redhat_release_pattern_bracket,
                 )
                 break
-            if os_version.vendor == "":
+            if information.vendor == "":
                 raise LisaException("OS version information not found")
         else:
             raise LisaException(
@@ -782,7 +782,7 @@ class Redhat(Fedora):
                 f"exit_code: {cmd_result.exit_code} stderr: {cmd_result.stderr}"
             )
 
-        return os_version
+        return information
 
     def _update_packages(self, packages: Optional[Union[List[str]]] = None) -> None:
         command = "yum -y --nogpgcheck update "

@@ -81,17 +81,17 @@ class Gpu(Feature):
     def _install_cuda_driver(self, version: str) -> None:
         self._log.debug("Starting CUDA driver installation")
         cuda_repo = ""
-        os_version = self._node.os.os_version
+        os_information = self._node.os.information
 
         if isinstance(self._node.os, Redhat):
-            release = os_version.release.split(".")[0]
+            release = os_information.release.split(".")[0]
             cuda_repo_pkg = f"cuda-repo-rhel{release}-{version}.x86_64.rpm"
             cuda_repo = (
                 "http://developer.download.nvidia.com/"
                 f"compute/cuda/repos/rhel{release}/x86_64/{cuda_repo_pkg}"
             )
         elif isinstance(self._node.os, Ubuntu):
-            release = re.sub("[^0-9]+", "", os_version.release)
+            release = re.sub("[^0-9]+", "", os_information.release)
             cuda_repo_pkg = f"cuda-repo-ubuntu{release}_{version}_amd64.deb"
             cuda_repo = (
                 "http://developer.download.nvidia.com/compute/"
