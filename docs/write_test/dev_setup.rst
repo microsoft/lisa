@@ -1,8 +1,8 @@
 Development setup
 =================
 
-This document describes the existing developer tooling we have in place
-(and what to expect of it).
+This document describes the existing developer tooling we have in place (and
+what to expect of it).
 
 -  `Environment Setup <#environment-setup>`__
 
@@ -16,19 +16,18 @@ This document describes the existing developer tooling we have in place
 Environment Setup
 -----------------
 
-Follow the `installation <../quick_start.html#installation>`__ steps to
-prepare the source code. Then follow the steps below to set up the
-corresponding development environment.
+Follow the :ref:`quick_start:installation` steps to
+prepare the source code. Then follow the steps below to set up the corresponding
+development environment.
 
 Visual Studio Code
 ~~~~~~~~~~~~~~~~~~
 
 1. Click on the Python version at the bottom left of the editor’s window
-   and select the Python interpreter which Poetry just created. If you
-   do not find it, check `FAQ and
-   troubleshooting <../troubleshooting.html>`__ for extra instructions.
-   This step is important because it ensures that the current workspace
-   uses the correct Poetry virtual environment which provides all
+   and select the Python interpreter which Poetry just created. If you do not
+   find it, check :doc:`FAQ and troubleshooting <../troubleshooting>` for extra
+   instructions. This step is important because it ensures that the current
+   workspace uses the correct Poetry virtual environment which provides all
    dependencies required.
 
 2. You can copy the settings below into ``.vscode/settings.json``.
@@ -70,7 +69,6 @@ Visual Studio Code
               "reportUnnecessaryIsInstance": "none",
           },
           "python.languageServer": "Pylance",
-          "markdown.extension.toc.levels": "2..6",
       }
 
 3. Install extensions.

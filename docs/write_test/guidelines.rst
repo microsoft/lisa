@@ -229,8 +229,9 @@ When writing the assertion,
    ordered list by ``contains`` (actual value is superset),
    ``is_subset_of`` (actual value is subset), and others.
 
-Learn more from `examples <../../examples/testsuites>`__ and `assertpy
-document <https://github.com/assertpy/assertpy#readme>`__.
+Learn more from `examples
+<https://github.com/microsoft/lisa/tree/main/examples/testsuites>`__ and
+`assertpy document <https://github.com/assertpy/assertpy#readme>`__.
 
 Troubleshooting excellence
 --------------------------

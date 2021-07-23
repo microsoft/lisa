@@ -32,20 +32,18 @@ Provide feedback or ask a question
 You are welcome to provide any feedback by `filing an
 issue <https://github.com/microsoft/lisa/issues/new>`__.
 
-When there is any question, please check `FAQ and
-troubleshooting <troubleshooting.html>`__ first. If there is no
-satisfying answer, don’t hesitate to `ask
-us <https://github.com/microsoft/lisa/issues/new>`__.
+When there is any question, please check :doc:`FAQ and troubleshooting
+<troubleshooting>` first. If there is no satisfying answer, don’t hesitate to
+`ask us <https://github.com/microsoft/lisa/issues/new>`__.
 
 Propose or implement a new feature
 ----------------------------------
 
-If you would like to add any additonal feature, please `file an
-issue <https://github.com/microsoft/lisa/issues/new>`__ to describe why
-a feature is needed. Furthermore, if you have a good idea how to
-implement it, please tell us as well. Once we review and agree on that,
-follow `Contributing fixes or
-extensions <#contributing-fixes-or-extensions>`__ to implement.
+If you would like to add any additonal feature, please `file an issue
+<https://github.com/microsoft/lisa/issues/new>`__ to describe why a feature is
+needed. Furthermore, if you have a good idea how to implement it, please tell us
+as well. Once we review and agree on that, follow
+:ref:`contributing:Contributing fixes or extensions` to implement.
 
 Report a bug
 ------------
@@ -65,8 +63,8 @@ approved, we will merge it.
 
 If you’d like to suggest any extension, please submit a pull request.
 
-Learn more from `development guidelines <write_test/guidelines.html>`__
-and `how to write extensions <write_test/extension.html>`__.
+Learn more from :doc:`development guidelines <write_test/guidelines>` and
+:doc:`how to write extensions <write_test/extension>`.
 
 Code of Conduct
 ---------------

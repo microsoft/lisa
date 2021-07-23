@@ -53,19 +53,20 @@ Why LISA
 History and road map
 --------------------
 
-The previous LISA called LISAv2, which is in `master
-branch <https://github.com/microsoft/lisa/tree/master>`__. The previous
-LISA can be used standalone or called from the current LISA. Learn more
-from `how to run LISAv2 test cases <run_test/run_legacy.html>`__.
+The previous LISA called LISAv2, which is in `master branch
+<https://github.com/microsoft/lisa/tree/master>`__. The previous LISA can be
+used standalone or called from the current LISA. Learn more from :doc:`how to
+run LISAv2 test cases <run_test/run_legacy>`.
 
-LISA is in active developing, and a lot of exciting features are
-implementing. We’re listening your
-`feedback <https://github.com/microsoft/lisa/issues/new>`__.
+LISA is in active developing, and a lot of exciting features are implementing.
+We’re listening your `feedback
+<https://github.com/microsoft/lisa/issues/new>`__.
 
 License
 -------
 
-The entire codebase is under `MIT license <LICENSE>`__.
+The entire codebase is under `MIT license
+<https://github.com/microsoft/lisa/blob/main/LICENSE>`__.
 
 .. |CI Workflow| image:: https://github.com/microsoft/lisa/workflows/CI%20Workflow/badge.svg?branch=main
    :target: https://github.com/microsoft/lisa/actions?query=workflow%3A%22CI+Workflow+for+LISAv3%22+event%3Apush+branch%3Amain
