@@ -2114,6 +2114,8 @@ function detect_linux_distribution() {
 		linux_distribution='debian'
 	elif echo "$linux_distribution" | grep -qi "mariner"; then
 		linux_distribution='mariner'
+	elif echo "$linux_distribution" | grep -qi "Rocky"; then
+		linux_distribution='rockylinux'
 	fi
 	echo "$(echo "$linux_distribution" | awk '{print tolower($0)}')"
 }
