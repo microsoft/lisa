@@ -3,7 +3,6 @@
 
 from dataclasses import dataclass, field
 from pathlib import PurePosixPath
-from time import sleep
 from typing import Any, Dict, List, Type, cast
 
 from azure.mgmt.compute.models import GrantAccessData  # type: ignore
@@ -19,7 +18,6 @@ from lisa.parameter_parser.runbook import RunbookBuilder
 from lisa.platform_ import load_platform_from_builder
 from lisa.transformer import Transformer
 from lisa.util import LisaException, constants, get_date_str, get_datetime_path
-from lisa.util.perf_timer import create_timer
 
 from .common import (
     AZURE_SHARED_RG_NAME,
@@ -30,12 +28,13 @@ from .common import (
     get_node_context,
     get_or_create_storage_container,
     get_storage_account_name,
+    wait_copy_blob,
     wait_operation,
 )
 from .platform_ import AzurePlatform
 from .tools import Waagent
 
-DEFAULT_VHD_CONTAINER_NAME = "lisa-vhd-cache"
+DEFAULT_EXPORTED_VHD_CONTAINER_NAME = "lisa-vhd-exported"
 DEFAULT_VHD_SUBFIX = "exported"
 
 
@@ -71,7 +70,7 @@ class VhdTransformerSchema(schema.Transformer):
     # values for exported vhd. storage_account_name is optional, because it can
     # be the default storage of LISA.
     storage_account_name: str = ""
-    container_name: str = DEFAULT_VHD_CONTAINER_NAME
+    container_name: str = DEFAULT_EXPORTED_VHD_CONTAINER_NAME
     file_name_part: str = ""
 
     # restore environment or not
@@ -212,23 +211,9 @@ class VhdTransformer(Transformer):
         vhd_path = f"{container_client.url}/{path}"
         self._log.info(f"copying vhd: {vhd_path}")
         blob_client = container_client.get_blob_client(path)
-        operation = blob_client.start_copy_from_url(
-            sas_url, metadata=None, incremental_copy=False
-        )
+        blob_client.start_copy_from_url(sas_url, metadata=None, incremental_copy=False)
 
-        timeout_timer = create_timer()
-        timeout = 60 * 30
-        while timeout_timer.elapsed(False) < timeout:
-            props = blob_client.get_blob_properties()
-            if props.copy.status == "success":
-                break
-            # the copy is very slow, it may need several minutes. check it every
-            # 2 seconds.
-            sleep(2)
-        if timeout_timer.elapsed() >= timeout:
-            raise LisaException(f"wait copying VHD timeout: {vhd_path}")
-
-        self._log.debug("vhd copied")
+        wait_copy_blob(blob_client, vhd_path, self._log)
 
         return vhd_path
 
