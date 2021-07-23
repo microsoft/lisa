@@ -170,11 +170,11 @@ class RepoInstaller(BaseInstaller):
         runbook: RepoInstallerSchema = self.runbook
         node: Node = self._node
         ubuntu: Ubuntu = cast(Ubuntu, node.os)
-        release = node.os.os_version.codename
+        release = node.os.information.codename
 
         assert (
             release
-        ), f"cannot find codename from the os version: {node.os.os_version}"
+        ), f"cannot find codename from the os version: {node.os.information}"
 
         # add the repo
         if runbook.is_proposed:
