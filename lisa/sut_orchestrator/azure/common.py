@@ -3,6 +3,7 @@
 
 import re
 from dataclasses import InitVar, dataclass, field
+from time import sleep
 from typing import TYPE_CHECKING, Any, Dict, Optional, Union
 
 from azure.identity import DefaultAzureCredential
@@ -20,6 +21,7 @@ from lisa.node import Node
 from lisa.util import LisaException
 from lisa.util.logger import Logger
 from lisa.util.parallel import check_cancelled
+from lisa.util.perf_timer import create_timer
 
 if TYPE_CHECKING:
     from .platform_ import AzurePlatform
@@ -334,3 +336,25 @@ def check_or_create_storage_account(
             parameters=parameters,
         )
         wait_operation(operation)
+
+
+def wait_copy_blob(
+    blob_client: Any,
+    vhd_path: str,
+    log: Logger,
+    timeout: int = 60 * 30,
+) -> None:
+    log.info(f"copying vhd: {vhd_path}")
+
+    timeout_timer = create_timer()
+    while timeout_timer.elapsed(False) < timeout:
+        props = blob_client.get_blob_properties()
+        if props.copy.status == "success":
+            break
+        # the copy is very slow, it may need several minutes. check it every
+        # 2 seconds.
+        sleep(2)
+    if timeout_timer.elapsed() >= timeout:
+        raise LisaException(f"wait copying VHD timeout: {vhd_path}")
+
+    log.debug("vhd copied")
