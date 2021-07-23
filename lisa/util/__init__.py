@@ -8,6 +8,9 @@ from typing import Any, Dict, Iterable, List, Optional, Pattern, Type, TypeVar
 
 import pluggy
 
+from lisa import secret
+from lisa.util import constants
+
 T = TypeVar("T")
 
 # regex to validate url
@@ -231,3 +234,12 @@ def is_valid_url(url: str, raise_error: bool = True) -> bool:
 
 def filter_ansi_escape(content: str) -> str:
     return __ansi_escape.sub("", content)
+
+
+def dump_file(file_name: Path, content: Any) -> None:
+    # This is for path validation. If provided file path isn't under run local path,
+    # an error will be raised. Want to ensure logs only put under run local path
+    file_name.absolute().relative_to(constants.RUN_LOCAL_PATH)
+    file_name.parent.mkdir(parents=True, exist_ok=True)
+    with open(file_name, "w") as f:
+        f.write(secret.replace(content))
