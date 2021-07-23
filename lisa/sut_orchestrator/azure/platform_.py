@@ -11,6 +11,7 @@ from dataclasses import dataclass, field
 from datetime import datetime
 from functools import lru_cache
 from pathlib import Path
+from threading import Lock
 from types import SimpleNamespace
 from typing import Any, Dict, List, Optional, Tuple, Type, Union
 
@@ -68,7 +69,9 @@ from .common import (
     get_marketplace_ordering_client,
     get_network_client,
     get_node_context,
+    get_or_create_storage_container,
     get_storage_account_name,
+    wait_copy_blob,
     wait_operation,
 )
 
@@ -131,6 +134,14 @@ KEY_VM_GENERATION = "vm_generation"
 KEY_KERNEL_VERSION = "kernel_version"
 KEY_WALA_VERSION = "wala_version"
 ATTRIBUTE_FEATURES = "features"
+
+SAS_URL_PATTERN = re.compile(
+    r"^https?://.*?.blob.core.windows.net/.*?\?.*?"
+    r"st=.*?&se=(?P<year>[\d]{4})-(?P<month>[\d]{2})-(?P<day>[\d]{2}).*?&sig=.*$"
+)
+SAS_COPIED_CONTAINER_NAME = "lisa-sas-copied"
+
+_global_sas_vhd_copy_lock = Lock()
 
 
 @dataclass_json()
@@ -861,6 +872,9 @@ class AzurePlatform(Platform):
                 )
             if azure_node_runbook.vhd:
                 # vhd is higher priority
+                azure_node_runbook.vhd = self._get_deployable_vhd_path(
+                    azure_node_runbook.vhd, azure_node_runbook.location, log
+                )
                 azure_node_runbook.marketplace = None
                 azure_node_runbook.shared_gallery = None
             elif azure_node_runbook.shared_gallery:
@@ -1339,3 +1353,52 @@ class AzurePlatform(Platform):
                 publisher=image_info.plan.publisher,
             )
         return plan
+
+    def _get_deployable_vhd_path(
+        self, vhd_path: str, location: str, log: Logger
+    ) -> str:
+        """
+        The sas url is not able to create a vm directly, so this method check if
+        the vhd_path is a sas url. If so, copy it to a location in current
+        subscription, so it can be deployed.
+        """
+        matches = SAS_URL_PATTERN.match(vhd_path)
+        if not matches:
+            return vhd_path
+        log.debug("found the vhd is a sas url, it needs to be copied...")
+
+        original_vhd_path = vhd_path
+        storage_name = get_storage_account_name(
+            subscription_id=self.subscription_id, location=location, type="t"
+        )
+        container_client = get_or_create_storage_container(
+            storage_name, SAS_COPIED_CONTAINER_NAME, self.credential
+        )
+
+        normalized_vhd_name = constants.NORMALIZE_PATTERN.sub("_", vhd_path)
+        # use the expire date to generate the path. It's easy to identify when
+        # the cache can be removed.
+        vhd_path = (
+            f"{matches['year']}{matches['month']}{matches['day']}/"
+            f"{normalized_vhd_name}.vhd"
+        )
+        full_vhd_path = f"{container_client.url}/{vhd_path}"
+
+        # lock here to prevent a vhd is copied in multi-thread
+        global _global_sas_vhd_copy_lock
+        with _global_sas_vhd_copy_lock:
+            blobs = container_client.list_blobs(name_starts_with=vhd_path)
+            for blob in blobs:
+                if blob:
+                    # if it exists, return the link, not to copy again.
+                    log.debug("the sas url is copied already, use it directly.")
+                    return full_vhd_path
+
+            blob_client = container_client.get_blob_client(vhd_path)
+            blob_client.start_copy_from_url(
+                original_vhd_path, metadata=None, incremental_copy=False
+            )
+
+            wait_copy_blob(blob_client, vhd_path, log)
+
+        return full_vhd_path
