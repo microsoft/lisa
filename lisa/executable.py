@@ -61,8 +61,11 @@ class Tool(InitializableMixin):
         # triple states, None means not checked.
         self._exists: Optional[bool] = None
         self._log = get_logger("tool", self.name, self.node.log)
-        # cache the processes with same command line, so that it reduce time to rerun
-        # same commands.
+        # specify the tool is in sudo or not. It may be set to True in
+        # _check_exists
+        self._use_sudo: bool = False
+        # cache the processes with same command line, so that it reduce time to
+        # rerun same commands.
         self.__cached_results: Dict[str, Process] = {}
 
     @property
@@ -147,14 +150,30 @@ class Tool(InitializableMixin):
         isInstalled, and cached result. Builtin tools can override it can return True
         directly to save time.
         """
+        self._exists = False
         if self.node.is_posix:
             where_command = "command -v"
         else:
             where_command = "where"
-        result = self.node.execute(
-            f"{where_command} {self.command}", shell=True, no_info_log=True
-        )
-        self._exists = result.exit_code == 0
+        where_command = f"{where_command} {self.command}"
+        result = self.node.execute(where_command, shell=True, no_info_log=True)
+        if result.exit_code == 0:
+            self._exists = True
+            self._use_sudo = False
+        else:
+            result = self.node.execute(
+                where_command,
+                shell=True,
+                no_info_log=True,
+                sudo=True,
+            )
+            if result.exit_code == 0:
+                self._log.debug(
+                    "executable exists in root paths, "
+                    "sudo always brings in following commands."
+                )
+                self._exists = True
+                self._use_sudo = True
         return self._exists
 
     @property
@@ -201,6 +220,9 @@ class Tool(InitializableMixin):
         else:
             command = self.command
 
+        # If the command exists in sbin, use the root permission, even the sudo
+        # is not specified.
+        sudo = sudo or self._use_sudo
         command_key = f"{command}|{shell}|{sudo}|{cwd}"
         process = self.__cached_results.get(command_key, None)
         if force_run or not process:
