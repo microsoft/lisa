@@ -83,34 +83,40 @@ class LisaRunner(BaseRunner):
             return delete_task
 
         if available_results and available_environments:
-            can_run_results = self._get_same_priority_results(available_results)
-
-            # it means there are test cases and environment, so it needs to
-            # schedule task.
-            for environment in available_environments:
-                if environment.is_in_use:
-                    # skip in used environments
+            for priority in range(6):
+                can_run_results = self._get_results_by_priority(
+                    available_results, priority
+                )
+                if not can_run_results:
                     continue
 
-                environment_results = self._get_runnable_test_results(
-                    test_results=can_run_results, environment=environment
-                )
+                # it means there are test cases and environment, so it needs to
+                # schedule task.
+                for environment in available_environments:
+                    if environment.is_in_use:
+                        # skip in used environments
+                        continue
 
-                if not environment_results:
-                    continue
+                    environment_results = self._get_runnable_test_results(
+                        test_results=can_run_results, environment=environment
+                    )
 
-                task = self._associate_environment_test_results(
-                    environment=environment, test_results=environment_results
-                )
-                # there is more checking conditions. If some conditions doesn't
-                # meet, the task is None. If so, not return, and try next
-                # conditions or skip this test case.
-                if task:
-                    return task
-            if not any(x.is_in_use for x in available_environments):
-                # no environment in used, and not fit. those results cannot be run.
-                skipped_test_results = self._skip_test_results(can_run_results)
-                return lambda: skipped_test_results
+                    if not environment_results:
+                        continue
+
+                    task = self._associate_environment_test_results(
+                        environment=environment, test_results=environment_results
+                    )
+                    # there is more checking conditions. If some conditions doesn't
+                    # meet, the task is None. If so, not return, and try next
+                    # conditions or skip this test case.
+                    if task:
+                        return task
+                if not any(x.is_in_use for x in available_environments):
+                    # no environment in used, and not fit. those results cannot be run.
+                    skipped_test_results = self._skip_test_results(can_run_results)
+                    if skipped_test_results:
+                        return lambda: skipped_test_results
         elif available_results:
             # no available environments, so mark all test results skipped.
             skipped_test_results = self._skip_test_results(available_results)
@@ -353,22 +359,15 @@ class LisaRunner(BaseRunner):
         else:
             environment.status = EnvironmentStatus.Deleted
 
-    def _get_same_priority_results(
-        self, test_results: List[TestResult]
+    def _get_results_by_priority(
+        self, test_results: List[TestResult], priority: int
     ) -> List[TestResult]:
         if not test_results:
             return []
 
-        current_priority = test_results[0].runtime_data.metadata.priority
-        while True:
-            test_results = [
-                x
-                for x in test_results
-                if x.runtime_data.metadata.priority == current_priority
-            ]
-            current_priority += 1
-            if test_results:
-                break
+        test_results = [
+            x for x in test_results if x.runtime_data.metadata.priority == priority
+        ]
 
         return test_results
 
