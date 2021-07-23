@@ -450,22 +450,34 @@ class Debian(Linux):
         return error_lines
 
     def wait_running_package_process(self) -> None:
-        # wait for 5 minutes
-        timeout = 60 * 5
+        is_first_time: bool = True
+        # wait for 10 minutes
+        timeout = 60 * 10
         timer = create_timer()
         while timeout > timer.elapsed(False):
-            cmd_result = self._node.execute("pidof dpkg")
-            if cmd_result.exit_code == 1:
+
+            # fix the dpkg, in case it's broken.
+            dpkg_result = self._node.execute(
+                "dpkg --force-all --configure -a", sudo=True
+            )
+            pidof_result = self._node.execute("pidof dpkg dpkg-deb")
+            if dpkg_result.exit_code == 0 and pidof_result.exit_code == 1:
                 # not found dpkg process, it's ok to exit.
                 break
+            if is_first_time:
+                is_first_time = False
+                self._log.debug("found system dpkg process, waiting it...")
             time.sleep(1)
 
         if timeout < timer.elapsed():
             raise Exception("timeout to wait previous dpkg process stop.")
 
     def _initialize_package_installation(self) -> None:
+        # wait running system package process.
         self.wait_running_package_process()
-        self._node.execute("apt-get update", sudo=True)
+
+        result = self._node.execute("apt-get update", sudo=True)
+        result.assert_exit_code(message="\n".join(self.get_apt_error(result.stdout)))
 
     def _install_packages(
         self, packages: Union[List[str]], signed: bool = True
