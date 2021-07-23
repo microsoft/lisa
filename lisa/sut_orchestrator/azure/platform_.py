@@ -49,6 +49,7 @@ from lisa.util import (
     LisaException,
     SkippedException,
     constants,
+    dump_file,
     get_matched_str,
     get_public_key_data,
     plugin_manager,
@@ -951,6 +952,12 @@ class AzurePlatform(Platform):
             template=template,
             parameters=parameters,
         )
+
+        # dump arm_template and arm_parameters to file
+        template_dump_path = environment.log_path / "arm_template.json"
+        param_dump_path = environment.log_path / "arm_template_parameters.json"
+        dump_file(template_dump_path, json.dumps(template))
+        dump_file(param_dump_path, json.dumps(parameters))
 
         return (
             arm_parameters.location,
