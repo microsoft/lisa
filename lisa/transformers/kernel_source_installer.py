@@ -195,7 +195,7 @@ class SourceInstaller(BaseInstaller):
         result.assert_exit_code()
 
         # the gcc version of Redhat 7.x is too old. Upgrade it.
-        if isinstance(node.os, Redhat) and node.os.release_version < "8.0.0":
+        if isinstance(node.os, Redhat) and node.os.information.version < "8.0.0":
             node.os.install_packages(["devtoolset-8"])
             result = node.execute("mv /bin/gcc /bin/gcc_back", sudo=True)
             result.assert_exit_code()
@@ -219,7 +219,7 @@ class SourceInstaller(BaseInstaller):
             result = node.execute('yum -y groupinstall "Development Tools"', sudo=True)
             result.assert_exit_code()
 
-            if os.release_version < "8.0.0":
+            if os.information.version < "8.0.0":
                 # git from default CentOS/RedHat 7.x does not support git tag format
                 # syntax temporarily use a community repo, then remove it
                 node.execute("yum remove -y git", sudo=True)
