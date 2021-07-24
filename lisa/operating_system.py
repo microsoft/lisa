@@ -40,9 +40,11 @@ _redhat_release_pattern_bracket = re.compile(r"^.*\(([^ ]*).*\)$")
 # GetOSVersion() method at below link was useful to get distro info.
 # https://github.com/microsoft/lisa/blob/master/Testscripts/Linux/utils.sh
 class OsInformation:
-    # Vendor/Distributor
+    # structured version information, for example 8.0.3
+    version: VersionInfo
+    # Examples: Microsoft, Red Hat
     vendor: str
-    # Release/Version
+    # the string edition of version. Examples: 8.3, 18.04
     release: str = ""
     # Codename for the release
     codename: str = ""
@@ -70,6 +72,15 @@ class OperatingSystem:
     __suse_release_pattern = re.compile(r"^(SUSE).*$", re.M)
 
     __posix_factory: Optional[Factory[Any]] = None
+
+    # 10.0.22000.100
+    # 18.04.5
+    # 18.04
+    __version_info_pattern = re.compile(
+        r"^[vV]?(?P<major>[0-9]*?)(?:\.|\-|\_)(?P<minor>[0-9]*?)(?:(?:\.|\-|\_)"
+        r"(?P<patch>[0-9]*?))?(?:(?:\.|\-|\_)(?P<prerelease>.*?))?$",
+        re.VERBOSE,
+    )
 
     def __init__(self, node: "Node", is_posix: bool) -> None:
         super().__init__()
@@ -135,6 +146,7 @@ class OperatingSystem:
     def information(self) -> OsInformation:
         if not self._information:
             self._information = self._get_information()
+            self._log.debug(f"parsed os information: {self._information}")
 
         return self._information
 
@@ -189,48 +201,78 @@ class OperatingSystem:
     def _get_information(self) -> OsInformation:
         raise NotImplementedError
 
+    def _parse_version(self, version: str) -> VersionInfo:
+        """
+        Convert an incomplete version string into a semver-compatible Version
+        object
+
+        source -
+        https://python-semver.readthedocs.io/en/latest/usage.html#dealing-with-invalid-versions
+
+        * Tries to detect a "basic" version string (``major.minor.patch``).
+        * If not enough components can be found, missing components are
+            set to zero to obtain a valid semver version.
+
+        :param str version: the version string to convert
+        :return: a tuple with a :class:`Version` instance (or ``None``
+            if it's not a version) and the rest of the string which doesn't
+            belong to a basic version.
+        :rtype: tuple(:class:`Version` | None, str)
+        """
+        if VersionInfo.isvalid(version):
+            return VersionInfo.parse(version)
+
+        match = self.__version_info_pattern.search(version)
+        if not match:
+            raise LisaException(f"The version is invalid format: {version}")
+
+        ver: Dict[str, Any] = {
+            key: 0 if value is None else int(value)
+            for key, value in match.groupdict().items()
+        }
+        rest = match.string[match.end() :]  # noqa:E203
+        ver["build"] = rest
+        release_version = VersionInfo(**ver)
+
+        return release_version
+
 
 class Windows(OperatingSystem):
+    # Microsoft Windows [Version 10.0.22000.100]
     __windows_version_pattern = re.compile(
-        r"^OS Version:[\"\']?\s+(?P<value>.*?)[\"\']?$"
+        r"^Microsoft Windows \[Version (?P<version>[0-9.]*?)\]$",
+        re.M,
     )
 
     def __init__(self, node: Any) -> None:
         super().__init__(node, is_posix=False)
 
     def _get_information(self) -> OsInformation:
-        information = OsInformation("Microsoft Corporation")
         cmd_result = self._node.execute(
-            cmd='systeminfo | findstr /B /C:"OS Version"',
+            cmd="ver",
+            shell=True,
             no_error_log=True,
         )
-        if cmd_result.exit_code == 0 and cmd_result.stdout != "":
-            information.release = get_matched_str(
-                cmd_result.stdout, self.__windows_version_pattern
-            )
-            if information.release == "":
-                raise LisaException("OS version information not found")
-        else:
+        cmd_result.assert_exit_code(message="error on get os information:")
+        assert cmd_result.stdout, "not found os information from 'ver'"
+
+        version_string = get_matched_str(
+            cmd_result.stdout, self.__windows_version_pattern
+        )
+        if not version_string:
             raise LisaException(
-                "Error getting OS version info from systeminfo command"
-                f"exit_code: {cmd_result.exit_code} stderr: {cmd_result.stderr}"
+                f"OS version information not found in: {cmd_result.stdout}"
             )
+
+        information = OsInformation(
+            version=self._parse_version(version_string),
+            vendor="Microsoft",
+            release=version_string,
+        )
         return information
 
 
 class Posix(OperatingSystem, BaseClassMixin):
-    BASEVERSION = re.compile(
-        r"""[vV]?
-        (?P<major>0|[1-9]\d*)
-        (\.\-\_
-        (?P<minor>0|[1-9]\d*)
-        (\.\-\_
-        (?P<patch>0|[1-9]\d*)
-        )?
-        )?""",
-        re.VERBOSE,
-    )
-
     __os_info_pattern = re.compile(
         r"^(?P<name>.*)=[\"\']?(?P<value>.*?)[\"\']?$", re.MULTILINE
     )
@@ -259,14 +301,6 @@ class Posix(OperatingSystem, BaseClassMixin):
     @classmethod
     def name_pattern(cls) -> Pattern[str]:
         return re.compile(f"^{cls.type_name()}$")
-
-    @property
-    def release_version(self) -> VersionInfo:
-        release_version = self._get_information().release
-        if VersionInfo.isvalid(release_version):
-            return VersionInfo.parse(release_version)
-
-        return self._coerce_version(release_version)
 
     def replace_boot_kernel(self, kernel_version: str) -> None:
         raise NotImplementedError("update boot entry is not implemented")
@@ -302,38 +336,6 @@ class Posix(OperatingSystem, BaseClassMixin):
     def update_packages(self, packages: Union[str, Tool, Type[Tool]]) -> None:
         raise NotImplementedError
 
-    def _coerce_version(self, version: str) -> VersionInfo:
-        """
-        Convert an incomplete version string into a semver-compatible Version
-        object
-
-        source -
-        https://python-semver.readthedocs.io/en/latest/usage.html#dealing-with-invalid-versions
-
-        * Tries to detect a "basic" version string (``major.minor.patch``).
-        * If not enough components can be found, missing components are
-            set to zero to obtain a valid semver version.
-
-        :param str version: the version string to convert
-        :return: a tuple with a :class:`Version` instance (or ``None``
-            if it's not a version) and the rest of the string which doesn't
-            belong to a basic version.
-        :rtype: tuple(:class:`Version` | None, str)
-        """
-        match = self.BASEVERSION.search(version)
-        if not match:
-            raise LisaException("The OS version release is not in a valid format")
-
-        ver: Dict[str, Any] = {
-            key: 0 if value is None else int(value)
-            for key, value in match.groupdict().items()
-        }
-        rest = match.string[match.end() :]  # noqa:E203
-        ver["build"] = rest
-        release_version = VersionInfo(**ver)
-
-        return release_version
-
     def _install_packages(
         self, packages: Union[List[str]], signed: bool = True
     ) -> None:
@@ -350,31 +352,38 @@ class Posix(OperatingSystem, BaseClassMixin):
         pass
 
     def _get_information(self) -> OsInformation:
-        information = OsInformation("")
-        # try to set OsVersion from info in /etc/os-release.
+        # try to set version info from /etc/os-release.
         cmd_result = self._node.execute(cmd="cat /etc/os-release", no_error_log=True)
-        if cmd_result.exit_code != 0:
-            raise LisaException(
-                "Error in running command 'cat /etc/os-release'"
-                f"exit_code: {cmd_result.exit_code} stderr: {cmd_result.stderr}"
-            )
+        cmd_result.assert_exit_code(message="error on get os information")
 
+        vendor: str = ""
+        release: str = ""
+        codename: str = ""
         for row in cmd_result.stdout.splitlines():
             os_release_info = self.__os_info_pattern.match(row)
             if not os_release_info:
                 continue
             if os_release_info.group("name") == "NAME":
-                information.vendor = os_release_info.group("value")
+                vendor = os_release_info.group("value")
             elif os_release_info.group("name") == "VERSION_ID":
-                information.release = os_release_info.group("value")
+                release = os_release_info.group("value")
             elif os_release_info.group("name") == "VERSION":
-                information.codename = get_matched_str(
+                codename = get_matched_str(
                     os_release_info.group("value"),
                     self.__distro_codename_pattern,
                 )
 
-        if information.vendor == "":
-            raise LisaException("OS version information not found")
+        if vendor == "":
+            raise LisaException("OS vendor information not found")
+        if release == "":
+            raise LisaException("OS release information not found")
+
+        information = OsInformation(
+            version=self._parse_version(release),
+            vendor=vendor,
+            release=release,
+            codename=codename,
+        )
 
         return information
 
@@ -514,27 +523,33 @@ class Debian(Linux):
         return False
 
     def _get_information(self) -> OsInformation:
-        information = OsInformation("")
         cmd_result = self._node.execute(
             cmd="lsb_release -a", shell=True, no_error_log=True
         )
-        if cmd_result.exit_code == 0 and cmd_result.stdout != "":
-            for row in cmd_result.stdout.splitlines():
-                os_release_info = self.__lsb_os_info_pattern.match(row)
-                if os_release_info:
-                    if os_release_info.group("name") == "Distributor ID":
-                        information.vendor = os_release_info.group("value")
-                    elif os_release_info.group("name") == "Release":
-                        information.release = os_release_info.group("value")
-                    elif os_release_info.group("name") == "Codename":
-                        information.codename = os_release_info.group("value")
-            if information.vendor == "":
-                raise LisaException("OS version information not found")
-        else:
-            raise LisaException(
-                f"Command 'lsb_release -a' failed. "
-                f"exit_code:{cmd_result.exit_code} stderr: {cmd_result.stderr}"
-            )
+        cmd_result.assert_exit_code(message="error on get os information")
+        assert cmd_result.stdout, "not found os information from 'lsb_release -a'"
+
+        for row in cmd_result.stdout.splitlines():
+            os_release_info = self.__lsb_os_info_pattern.match(row)
+            if os_release_info:
+                if os_release_info.group("name") == "Distributor ID":
+                    vendor = os_release_info.group("value")
+                elif os_release_info.group("name") == "Release":
+                    release = os_release_info.group("value")
+                elif os_release_info.group("name") == "Codename":
+                    codename = os_release_info.group("value")
+
+        if vendor == "":
+            raise LisaException("OS version information not found")
+        if release == "":
+            raise LisaException("OS release information not found")
+
+        information = OsInformation(
+            version=self._parse_version(release),
+            vendor=vendor,
+            release=release,
+            codename=codename,
+        )
 
         return information
 
@@ -672,28 +687,29 @@ class Fedora(Linux):
         return False
 
     def _get_information(self) -> OsInformation:
-        information = OsInformation("")
         cmd_result = self._node.execute(
             # Typical output of 'cat /etc/fedora-release' is -
             # Fedora release 22 (Twenty Two)
             cmd="cat /etc/fedora-release",
             no_error_log=True,
         )
-        if cmd_result.exit_code == 0 and cmd_result.stdout != "":
-            if "Fedora" not in cmd_result.stdout:
-                raise LisaException("OS version information not found")
-            information.vendor = "Fedora"
-            information.release = get_matched_str(
-                cmd_result.stdout, self._fedora_release_pattern_version
-            )
-            information.codename = get_matched_str(
-                cmd_result.stdout, self.__distro_codename_pattern
-            )
-        else:
-            raise LisaException(
-                "Error in running command 'cat /etc/fedora-release'"
-                f"exit_code: {cmd_result.exit_code} stderr: {cmd_result.stderr}"
-            )
+
+        cmd_result.assert_exit_code(message="error on get os information")
+        if "Fedora" not in cmd_result.stdout:
+            raise LisaException("OS version information not found")
+
+        vendor = "Fedora"
+        release = get_matched_str(
+            cmd_result.stdout, self._fedora_release_pattern_version
+        )
+        codename = get_matched_str(cmd_result.stdout, self.__distro_codename_pattern)
+
+        information = OsInformation(
+            version=self._parse_version(release),
+            vendor=vendor,
+            release=release,
+            codename=codename,
+        )
 
         return information
 
@@ -750,37 +766,44 @@ class Redhat(Fedora):
         return False
 
     def _get_information(self) -> OsInformation:
-        information = OsInformation("")
         cmd_result = self._node.execute(
             cmd="cat /etc/redhat-release", no_error_log=True
         )
-        if cmd_result.exit_code == 0 and cmd_result.stdout != "":
-            for vendor in [
-                "Red Hat",
-                "CentOS",
-                "XenServer",
-                "AlmaLinux",
-                "Rocky Linux",
-            ]:
-                if vendor not in cmd_result.stdout:
-                    continue
-                information.vendor = vendor
-                information.release = get_matched_str(
-                    cmd_result.stdout,
-                    Fedora._fedora_release_pattern_version,
-                )
-                information.codename = get_matched_str(
-                    cmd_result.stdout,
-                    _redhat_release_pattern_bracket,
-                )
-                break
-            if information.vendor == "":
-                raise LisaException("OS version information not found")
-        else:
-            raise LisaException(
-                "Error in running command 'cat /etc/redhat-release'"
-                f"exit_code: {cmd_result.exit_code} stderr: {cmd_result.stderr}"
+        cmd_result.assert_exit_code(message="error on get os information:")
+        assert cmd_result.stdout, "not found os information from '/etc/redhat-release'"
+
+        for vendor in [
+            "Red Hat",
+            "CentOS",
+            "XenServer",
+            "AlmaLinux",
+            "Rocky Linux",
+        ]:
+            if vendor not in cmd_result.stdout:
+                continue
+            release = get_matched_str(
+                cmd_result.stdout,
+                Fedora._fedora_release_pattern_version,
             )
+            codename = get_matched_str(
+                cmd_result.stdout,
+                _redhat_release_pattern_bracket,
+            )
+            break
+
+        if vendor == "":
+            raise LisaException(
+                f"OS version information not found in {cmd_result.stdout}"
+            )
+        if release == "":
+            raise LisaException(f"OS release information not found {cmd_result.stdout}")
+
+        information = OsInformation(
+            version=self._parse_version(release),
+            vendor=vendor,
+            release=release,
+            codename=codename,
+        )
 
         return information
 
