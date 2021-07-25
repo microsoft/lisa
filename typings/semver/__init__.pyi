@@ -278,7 +278,7 @@ build='build.10')
         :param str match_expr: operator and version; valid operators are
               <   smaller than
               >   greater than
-              >=  greator or equal than
+              >=  greater or equal than
               <=  smaller or equal than
               ==  equal
               !=  not equal

@@ -271,7 +271,7 @@ name
 type: str, optional, default is “not_named”
 
 Part of the test run name. This name will be used to group results and
-put it in title of the html report, also the created resources’s name
+put it in title of the html report, also the created resources' name
 contains this specified str.
 
 .. code:: yaml

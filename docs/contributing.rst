@@ -39,7 +39,7 @@ When there is any question, please check :doc:`FAQ and troubleshooting
 Propose or implement a new feature
 ----------------------------------
 
-If you would like to add any additonal feature, please `file an issue
+If you would like to add any additional feature, please `file an issue
 <https://github.com/microsoft/lisa/issues/new>`__ to describe why a feature is
 needed. Furthermore, if you have a good idea how to implement it, please tell us
 as well. Once we review and agree on that, follow

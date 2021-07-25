@@ -8,7 +8,7 @@ from lisa.executable import Tool
 from lisa.operating_system import Posix
 from lisa.util import LisaException
 
-# Example output of lspci commnd -
+# Example output of lspci command -
 # lspci -m
 #
 # 00:00.0 "Host bridge" "Intel Corporation" "5520 I/O Hub to ESI Port" -r13
@@ -18,7 +18,7 @@ from lisa.util import LisaException
 # 0b:00.1 "Ethernet controller" "Broadcom Corporation" "NetXtreme II BCM5709 Gigabit
 #    Ethernet" -r20 "Dell" "PowerEdge R610 BCM5709 Gigabit Ethernet"
 #
-# Segregting the ouput in 4 categories -
+# Segregting the output in 4 categories -
 # Slot - 0b:00.1
 # Device Class - Ethernet controller
 # Vendor - Broadcom Corporation

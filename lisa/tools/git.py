@@ -123,4 +123,4 @@ class Git(Tool):
             no_info_log=True,
             no_error_log=True,
         )
-        result.assert_exit_code(message=f"failded on applying patches. {result.stdout}")
+        result.assert_exit_code(message=f"failed on applying patches. {result.stdout}")

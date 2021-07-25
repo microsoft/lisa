@@ -68,7 +68,7 @@ class KernelInstallerTransformerSchema(schema.Transformer):
     connection: Optional[schema.RemoteNode] = field(
         default=None, metadata=schema.metadata(required=True)
     )
-    # the installer's paramerters.
+    # the installer's parameters.
     installer: Optional[BaseInstallerSchema] = field(
         default=None, metadata=schema.metadata(required=True)
     )

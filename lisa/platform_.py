@@ -37,7 +37,7 @@ PlatformStatus = Enum(
 
 @dataclass
 class PlatformMessage(MessageBase):
-    type: str = "Plaform"
+    type: str = "Platform"
     name: str = ""
     status: PlatformStatus = PlatformStatus.INITIALIZED
 
