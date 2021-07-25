@@ -311,17 +311,7 @@ class Posix(OperatingSystem, BaseClassMixin):
         packages: Union[str, Tool, Type[Tool], List[Union[str, Tool, Type[Tool]]]],
         signed: bool = True,
     ) -> None:
-        package_names: List[str] = []
-        if not isinstance(packages, list):
-            packages = [packages]
-
-        assert isinstance(packages, list), f"actual:{type(packages)}"
-        for item in packages:
-            package_names.append(self.__resolve_package_name(item))
-        if self._first_time_installation:
-            self._first_time_installation = False
-            self._initialize_package_installation()
-
+        package_names = self._get_package_list(packages)
         self._install_packages(package_names, signed)
 
     def package_exists(
@@ -334,8 +324,11 @@ class Posix(OperatingSystem, BaseClassMixin):
         package_name = self.__resolve_package_name(package)
         return self._package_exists(package_name)
 
-    def update_packages(self, packages: Union[str, Tool, Type[Tool]]) -> None:
-        raise NotImplementedError
+    def update_packages(
+        self, packages: Union[str, Tool, Type[Tool], List[Union[str, Tool, Type[Tool]]]]
+    ) -> None:
+        package_names = self._get_package_list(packages)
+        self._update_packages(package_names)
 
     def _install_packages(
         self, packages: Union[List[str]], signed: bool = True
@@ -420,6 +413,20 @@ class Posix(OperatingSystem, BaseClassMixin):
         wget_tool = self._node.tools[Wget]
         pkg = wget_tool.get(package, str(self._node.working_path))
         self.install_packages(pkg, signed)
+
+    def wait_running_process(self, process_name: str, timeout: int = 5) -> None:
+        # by default, wait for 5 minutes
+        timeout = 60 * timeout
+        timer = create_timer()
+        while timeout > timer.elapsed(False):
+            cmd_result = self._node.execute(f"pidof {process_name}")
+            if cmd_result.exit_code == 1:
+                # not found dpkg or zypper process, it's ok to exit.
+                break
+            time.sleep(1)
+
+        if timeout < timer.elapsed():
+            raise Exception(f"timeout to wait previous {process_name} process stop.")
 
     def __resolve_package_name(self, package: Union[str, Tool, Type[Tool]]) -> str:
         """
@@ -839,6 +846,7 @@ class Suse(Linux):
         return re.compile("^SLES|SUSE|sles|sle-hpc|sle_hpc|opensuse-leap$")
 
     def _initialize_package_installation(self) -> None:
+        self.wait_running_process("zypper")
         self._node.execute(
             "zypper --non-interactive --gpg-auto-import-keys refresh", sudo=True
         )
@@ -849,6 +857,7 @@ class Suse(Linux):
         command = f"zypper --non-interactive in {' '.join(packages)}"
         if not signed:
             command += " --no-gpg-checks"
+        self.wait_running_process("zypper")
         install_result = self._node.execute(command, sudo=True)
         if install_result.exit_code in (1, 100):
             raise LisaException(
