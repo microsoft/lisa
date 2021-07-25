@@ -766,46 +766,8 @@ class Redhat(Fedora):
         return False
 
     def _get_information(self) -> OsInformation:
-        cmd_result = self._node.execute(
-            cmd="cat /etc/redhat-release", no_error_log=True
-        )
-        cmd_result.assert_exit_code(message="error on get os information:")
-        assert cmd_result.stdout, "not found os information from '/etc/redhat-release'"
-
-        for vendor in [
-            "Red Hat",
-            "CentOS",
-            "XenServer",
-            "AlmaLinux",
-            "Rocky Linux",
-        ]:
-            if vendor not in cmd_result.stdout:
-                continue
-            release = get_matched_str(
-                cmd_result.stdout,
-                Fedora._fedora_release_pattern_version,
-            )
-            codename = get_matched_str(
-                cmd_result.stdout,
-                _redhat_release_pattern_bracket,
-            )
-            break
-
-        if vendor == "":
-            raise LisaException(
-                f"OS version information not found in {cmd_result.stdout}"
-            )
-        if release == "":
-            raise LisaException(f"OS release information not found {cmd_result.stdout}")
-
-        information = OsInformation(
-            version=self._parse_version(release),
-            vendor=vendor,
-            release=release,
-            codename=codename,
-        )
-
-        return information
+        # it's different with fedora, but the same as posix default.
+        return super(Fedora, self)._get_information()
 
     def _update_packages(self, packages: Optional[Union[List[str]]] = None) -> None:
         command = "yum -y --nogpgcheck update "
