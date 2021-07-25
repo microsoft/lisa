@@ -276,7 +276,7 @@ class RootRunner(Action):
                             task_manager.submit_task(task)
                         else:
                             # current runner may not be done, but it doesn't
-                            # have task temporialy. The root runner can start
+                            # have task temporarily. The root runner can start
                             # tasks from next runner.
                             break
                         if not task_manager.has_idle_worker():

@@ -25,7 +25,7 @@ class NetworkSettings(TestSuite):
             2. Change the rx and tx value to new_values using ethtool.
             3. Get the settings again and validate the current rx and tx
                 values are equal to the new_values assigned.
-            4. Revert back the rx and tx value to their orginal values.
+            4. Revert back the rx and tx value to their original values.
 
         """,
         priority=1,
@@ -119,7 +119,7 @@ class NetworkSettings(TestSuite):
 
             Steps:
             1. Get the device's enabled features.
-            2. Validate below features are in the list of enbaled features-
+            2. Validate below features are in the list of enabled features-
                 rx-checksumming
                 tx-checksumming
                 tcp-segmentation-offload

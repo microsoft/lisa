@@ -20,7 +20,7 @@ class Lscpu(Tool):
     __vcpu_sockets = re.compile(r"^CPU\(s\):[ ]+([\d]+)\r?$", re.M)
     # Architecture:        x86_64
     __architecture_pattern = re.compile(r"^Architecture:\s+(.*)?\r$", re.M)
-    __vaild_architecture_list = ["x86_64"]
+    __valid_architecture_list = ["x86_64"]
 
     def _initialize(self, *args: Any, **kwargs: Any) -> None:
         self._core_count: Optional[int] = None
@@ -48,8 +48,8 @@ class Lscpu(Tool):
         assert_that(
             [architecture],
             f"architecture {architecture} must be one of "
-            f"{self.__vaild_architecture_list}.",
-        ).is_subset_of(self.__vaild_architecture_list)
+            f"{self.__valid_architecture_list}.",
+        ).is_subset_of(self.__valid_architecture_list)
         return architecture
 
     def get_core_count(self, force_run: bool = False) -> int:

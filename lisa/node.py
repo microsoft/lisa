@@ -521,7 +521,7 @@ class Nodes:
 
 def quick_connect(runbook: schema.Node, logger_name: str = "", index: int = -1) -> Node:
     """
-    setup node information and initialize conneciton.
+    setup node information and initialize connection.
     """
     node = Node.create(index, runbook, logger_name=logger_name)
     if isinstance(node, RemoteNode):

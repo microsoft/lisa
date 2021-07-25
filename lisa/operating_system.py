@@ -588,7 +588,7 @@ class Ubuntu(Debian):
         # set installed kernel to default
         #
         # get boot entry id
-        # postive example:
+        # positive example:
         #         menuentry 'Ubuntu, with Linux 5.11.0-1011-azure' --class ubuntu
         # --class gnu-linux --class gnu --class os $menuentry_id_option
         # 'gnulinux-5.11.0-1011-azure-advanced-3fdd2548-1430-450b-b16d-9191404598fb' {
