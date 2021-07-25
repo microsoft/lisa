@@ -407,6 +407,7 @@ class EnvironmentHookImpl:
                     fields = ["hardware_platform", "kernel_version"]
                     information_dict = fields_to_dict(linux_information, fields=fields)
                     information.update(information_dict)
+                    information["distro_version"] = node.os.information.full_version
             except Exception as identifier:
                 environment._log.exception(
                     "failed to get environment information", exc_info=identifier
