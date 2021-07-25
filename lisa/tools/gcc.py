@@ -16,6 +16,12 @@ class Gcc(Tool):
     def can_install(self) -> bool:
         return True
 
+    def compile(self, filename: str, output_name: str = "") -> None:
+        if output_name:
+            self.run(f"{filename} -o {output_name}")
+        else:
+            self.run(filename)
+
     def _install(self) -> bool:
         posix_os: Posix = cast(Posix, self.node.os)
         posix_os.install_packages("gcc")
