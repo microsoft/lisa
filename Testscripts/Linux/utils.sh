@@ -3391,6 +3391,7 @@ function stop_firewall() {
 			fi
 			;;
 		ubuntu*|debian*)
+			command -v ufw || return 0
 			ufw disable
 			if [ $? -ne 0 ]; then
 				return 1
