@@ -692,7 +692,10 @@ class AzurePlatform(Platform):
                 f"Cannot find subscription id: '{self.subscription_id}'. "
                 f"Make sure it exists and current account can access it."
             )
-        self._log.info(f"connected to subscription: '{subscription.display_name}'")
+        self._log.info(
+            f"connected to subscription: "
+            f"{subscription.id}, '{subscription.display_name}'"
+        )
 
         self._rm_client = ResourceManagementClient(
             credential=self.credential, subscription_id=self.subscription_id
