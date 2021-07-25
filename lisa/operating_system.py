@@ -50,6 +50,9 @@ class OsInformation:
     codename: str = ""
     # Update available
     update: str = ""
+    # Full name of release and version. Examples: Ubuntu 18.04.5 LTS (Bionic
+    # Beaver), Red Hat Enterprise Linux release 8.3 (Ootpa)
+    full_version: str = "Unknown"
 
 
 class OperatingSystem:
@@ -199,7 +202,7 @@ class OperatingSystem:
         )
 
     def _get_information(self) -> OsInformation:
-        raise NotImplementedError
+        raise NotImplementedError()
 
     def _parse_version(self, version: str) -> VersionInfo:
         """
@@ -256,18 +259,16 @@ class Windows(OperatingSystem):
         cmd_result.assert_exit_code(message="error on get os information:")
         assert cmd_result.stdout, "not found os information from 'ver'"
 
-        version_string = get_matched_str(
-            cmd_result.stdout, self.__windows_version_pattern
-        )
+        full_version = cmd_result.stdout
+        version_string = get_matched_str(full_version, self.__windows_version_pattern)
         if not version_string:
-            raise LisaException(
-                f"OS version information not found in: {cmd_result.stdout}"
-            )
+            raise LisaException(f"OS version information not found in: {full_version}")
 
         information = OsInformation(
             version=self._parse_version(version_string),
             vendor="Microsoft",
             release=version_string,
+            full_version=full_version,
         )
         return information
 
@@ -353,12 +354,14 @@ class Posix(OperatingSystem, BaseClassMixin):
 
     def _get_information(self) -> OsInformation:
         # try to set version info from /etc/os-release.
-        cmd_result = self._node.execute(cmd="cat /etc/os-release", no_error_log=True)
+        cat = self._node.tools[Cat]
+        cmd_result = cat.run("/etc/os-release")
         cmd_result.assert_exit_code(message="error on get os information")
 
         vendor: str = ""
         release: str = ""
         codename: str = ""
+        full_version: str = ""
         for row in cmd_result.stdout.splitlines():
             os_release_info = self.__os_info_pattern.match(row)
             if not os_release_info:
@@ -372,6 +375,8 @@ class Posix(OperatingSystem, BaseClassMixin):
                     os_release_info.group("value"),
                     self.__distro_codename_pattern,
                 )
+            elif os_release_info.group("name") == "PRETTY_NAME":
+                full_version = os_release_info.group("value")
 
         if vendor == "":
             raise LisaException("OS vendor information not found")
@@ -383,6 +388,7 @@ class Posix(OperatingSystem, BaseClassMixin):
             vendor=vendor,
             release=release,
             codename=codename,
+            full_version=full_version,
         )
 
         return information
@@ -538,6 +544,8 @@ class Debian(Linux):
                     release = os_release_info.group("value")
                 elif os_release_info.group("name") == "Codename":
                     codename = os_release_info.group("value")
+                elif os_release_info.group("name") == "Description":
+                    full_version = os_release_info.group("value")
 
         if vendor == "":
             raise LisaException("OS version information not found")
@@ -549,6 +557,7 @@ class Debian(Linux):
             vendor=vendor,
             release=release,
             codename=codename,
+            full_version=full_version,
         )
 
         return information
@@ -695,20 +704,20 @@ class Fedora(Linux):
         )
 
         cmd_result.assert_exit_code(message="error on get os information")
-        if "Fedora" not in cmd_result.stdout:
+        full_version = cmd_result.stdout
+        if "Fedora" not in full_version:
             raise LisaException("OS version information not found")
 
         vendor = "Fedora"
-        release = get_matched_str(
-            cmd_result.stdout, self._fedora_release_pattern_version
-        )
-        codename = get_matched_str(cmd_result.stdout, self.__distro_codename_pattern)
+        release = get_matched_str(full_version, self._fedora_release_pattern_version)
+        codename = get_matched_str(full_version, self.__distro_codename_pattern)
 
         information = OsInformation(
             version=self._parse_version(release),
             vendor=vendor,
             release=release,
             codename=codename,
+            full_version=full_version,
         )
 
         return information
