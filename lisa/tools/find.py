@@ -30,17 +30,17 @@ class Find(Tool):
         cmd = str(start_path)
         if name_pattern:
             if ignore_case:
-                cmd += f" -name '{name_pattern}'"
-            else:
                 cmd += f" -iname '{name_pattern}'"
+            else:
+                cmd += f" -name '{name_pattern}'"
         if path_pattern:
             if ignore_case:
-                cmd += f" -path '{path_pattern}'"
-            else:
                 cmd += f" -ipath '{path_pattern}'"
+            else:
+                cmd += f" -path '{path_pattern}'"
 
         # for possibility of newline character in the file/folder name.
-        cmd += "-print0"
+        cmd += " -print0"
 
         result = self.run(cmd)
         if result.exit_code != 0:
