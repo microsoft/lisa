@@ -434,7 +434,7 @@ Function Invoke-AllResourceGroupDeployments($SetupTypeData, $CurrentTestData, $R
 	Function GenerateAzDeploymentJSONFile($RGName, $ImageName, $VHDName, $RGXMLData, $Location, $azuredeployJSONFilePath, $StorageAccountName) {
 		#Random Data
 		$RGrandomWord = ([System.IO.Path]::GetRandomFileName() -replace '[^a-z]')
-		$RGRandomNumber = Get-Random -Minimum 11111 -Maximum 99999
+		$RGRandomNumber = -join ((48..57) + (97..122) | Get-Random -Count 10 | % {[char]$_})
 
 		$UseManagedDisks = $CurrentTestData.SetupConfig.DiskType -inotcontains "unmanaged"
 		if ($UseManagedDisks) {
