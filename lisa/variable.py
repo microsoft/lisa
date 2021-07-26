@@ -94,7 +94,7 @@ def merge_variables(
     inplace update variables. If variables don't exist, will create them
     """
     for name, new_variable in new_variables.items():
-        variable = variables.get(name, None)
+        variable = variables.get(name)
         if variable:
             variable.update(new_variable)
         else:
@@ -331,7 +331,7 @@ def _add_variable(
     mask_pattern_name: str = "",
 ) -> None:
     key = key.lower()
-    variable = current_variables.get(key, None)
+    variable = current_variables.get(key)
     if variable:
         variable.data = value
         variable.is_case_visible = variable.is_case_visible or is_case_visible

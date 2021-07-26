@@ -140,7 +140,9 @@ class NetworkSettings(TestSuite):
         for device_features in devices_features:
             enabled_features = device_features.enabled_features
 
-            if not all(feature in enabled_features for feature in required_features):
+            if any(
+                feature not in enabled_features for feature in required_features
+            ):
                 raise LisaException(
                     "Not all the required features (rx-checksumming, tx-checksumming,"
                     "scatter-gather, tcp-segmentation-offload) are enabled for"

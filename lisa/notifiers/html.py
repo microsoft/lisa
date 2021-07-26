@@ -111,13 +111,12 @@ class Html(Notifier):
                     (
                         "information",
                         "\n".join(
-                            [
-                                f"{key}: {value}"
-                                for key, value in message.information.items()
-                            ]
+                            f"{key}: {value}"
+                            for key, value in message.information.items()
                         ),
                     )
                 )
+
             self._html_report.pytest_runtest_logreport(report)
 
     def _subscribed_message_type(self) -> List[Type[MessageBase]]:

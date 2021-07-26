@@ -309,14 +309,13 @@ class VariableTestCase(TestCase):
             )
 
     def _get_default_variables(self) -> Dict[str, variable.VariableEntry]:
-        data = {
+        return {
             "normal_value": variable.VariableEntry("normal_value", "original"),
             "normal_entry": variable.VariableEntry("normal_entry", "original"),
             "secret_guid": variable.VariableEntry("secret_guid", "original"),
             "secret_int": variable.VariableEntry("secret_int", "original"),
             "secret_head_tail": variable.VariableEntry("secret_head_tail", "original"),
         }
-        return data
 
     def _replace_and_validate(
         self, variables: Dict[str, variable.VariableEntry], secrets: Dict[str, str]
@@ -343,7 +342,7 @@ class VariableTestCase(TestCase):
         return data
 
     def _get_default_data(self) -> Dict[str, Any]:
-        data = {
+        return {
             "keep": "normal",
             "normal_entry": "$(normal_entry)",
             "headtail": "$(secret_head_tail)",
@@ -351,4 +350,3 @@ class VariableTestCase(TestCase):
             "list": ["$(secret_guid)", {"dictInList": "$(secret_int)"}],
             "two_entries": "1$(normal_entry)2-$-()3$(normal_entry)4",
         }
-        return data

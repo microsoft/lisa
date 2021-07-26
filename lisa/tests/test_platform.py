@@ -136,9 +136,7 @@ def generate_platform(
 
 def generate_environments() -> Environments:
     envs_runbook = generate_env_runbook(local=True, requirement=True)
-    envs = load_environments(envs_runbook)
-
-    return envs
+    return load_environments(envs_runbook)
 
 
 class PlatformTestCase(TestCase):

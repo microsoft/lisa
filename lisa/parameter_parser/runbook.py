@@ -98,9 +98,7 @@ class RunbookBuilder:
         parsed_data = self._internal_resolve(self.raw_data, variables)
 
         # validate runbook, after extensions loaded
-        runbook = self._validate_and_load(parsed_data)
-
-        return runbook
+        return self._validate_and_load(parsed_data)
 
     def partial_resolve(
         self, partial_name: str, variables: Optional[Dict[str, VariableEntry]] = None

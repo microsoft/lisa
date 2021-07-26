@@ -147,10 +147,7 @@ class Tool(InitializableMixin):
         isInstalled, and cached result. Builtin tools can override it can return True
         directly to save time.
         """
-        if self.node.is_posix:
-            where_command = "command -v"
-        else:
-            where_command = "where"
+        where_command = "command -v" if self.node.is_posix else "where"
         result = self.node.execute(
             f"{where_command} {self.command}", shell=True, no_info_log=True
         )
@@ -196,11 +193,7 @@ class Tool(InitializableMixin):
         Run a command async and return the Process. The process is used for async, or
         kill directly.
         """
-        if parameters:
-            command = f"{self.command} {parameters}"
-        else:
-            command = self.command
-
+        command = f"{self.command} {parameters}" if parameters else self.command
         command_key = f"{command}|{shell}|{sudo}|{cwd}"
         process = self.__cached_results.get(command_key, None)
         if force_run or not process:
@@ -284,10 +277,7 @@ class CustomScript(Tool):
         self._files = files
         self._cwd: Union[pathlib.PurePath, pathlib.Path]
 
-        if dependencies:
-            self._dependencies = dependencies
-        else:
-            self._dependencies = []
+        self._dependencies = dependencies or []
 
     def run_async(
         self,
@@ -487,23 +477,22 @@ class Tools:
 
             if not tool.exists:
                 tool_log.debug(f"'{tool.name}' not installed")
-                if tool.can_install:
-                    tool_log.debug(f"{tool.name} is installing")
-                    timer = create_timer()
-                    is_success = tool.install()
-                    if not is_success:
-                        raise LisaException(
-                            f"install '{tool.name}' failed. After installed, "
-                            f"it cannot be detected."
-                        )
-                    tool_log.debug(f"installed in {timer}")
-                else:
+                if not tool.can_install:
                     raise LisaException(
                         f"cannot find [{tool.name}] on [{self._node.name}], "
                         f"{self._node.os.__class__.__name__}, "
                         f"Remote({self._node.is_remote}) "
                         f"and installation of [{tool.name}] isn't enabled in lisa."
                     )
+                tool_log.debug(f"{tool.name} is installing")
+                timer = create_timer()
+                is_success = tool.install()
+                if not is_success:
+                    raise LisaException(
+                        f"install '{tool.name}' failed. After installed, "
+                        f"it cannot be detected."
+                    )
+                tool_log.debug(f"installed in {timer}")
             else:
                 tool_log.debug("installed already")
             self._cache[tool_key] = tool

@@ -70,12 +70,11 @@ class VmBusDevice:
     def parse(self, raw_str: str) -> Any:
         matched_vmbus_device_info = self.__pattern_vmbus_device_info.match(raw_str)
         matched_device_info = self.__pattern_device_info.match(raw_str)
-        if matched_vmbus_device_info:
-            self.id = matched_vmbus_device_info.group("index")
-            self.name = matched_vmbus_device_info.group("name")
-            self.class_id = matched_vmbus_device_info.group("class_id")
-        else:
+        if not matched_vmbus_device_info:
             raise LisaException("cannot find matched vmbus device")
+        self.id = matched_vmbus_device_info.group("index")
+        self.name = matched_vmbus_device_info.group("name")
+        self.class_id = matched_vmbus_device_info.group("class_id")
         if matched_device_info:
             self.device_id = matched_device_info.group("device_id")
         else:
@@ -127,8 +126,8 @@ class Lsvmbus(Tool):
                 self._command = previous_command
             self._command = "/usr/sbin/lsvmbus"
             _exists = super()._check_exists()
-            if not _exists:
-                self._command = previous_command
+        if not _exists:
+            self._command = previous_command
 
         if _exists and isinstance(self.node.os, Ubuntu):
             # fix for issue happen on Canonical UbuntuServer 16.04-LTS 16.04.201703020
@@ -190,11 +189,11 @@ class Lsvmbus(Tool):
             result = self.run("-vv", force_run=force_run, shell=True)
             if result.exit_code != 0:
                 result = self.run("-vv", force_run=force_run, shell=True, sudo=True)
-                if result.exit_code != 0:
-                    raise LisaException(
-                        f"get unexpected non-zero exit code {result.exit_code} "
-                        f"when run {self.command} -vv."
-                    )
+            if result.exit_code != 0:
+                raise LisaException(
+                    f"get unexpected non-zero exit code {result.exit_code} "
+                    f"when run {self.command} -vv."
+                )
             raw_list = re.finditer(PATTERN_VMBUS_DEVICE, result.stdout)
             for vmbus_raw in raw_list:
                 vmbus_device = VmBusDevice(vmbus_raw.group())

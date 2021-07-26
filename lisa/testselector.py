@@ -28,26 +28,9 @@ def select_testcases(
     else:
         full_list = get_cases_metadata()
     if filters:
-        selected: Dict[str, TestCaseRuntimeData] = {}
-        force_included: Set[str] = set()
-        force_excluded: Set[str] = set()
-        for filter in filters:
-            selected = _apply_filter(
-                filter, selected, force_included, force_excluded, full_list
-            )
-        results: List[TestCaseRuntimeData] = []
-        for case in selected.values():
-            times = case.times
-            for index in range(times):
-                if index == 0:
-                    results.append(case)
-                else:
-                    results.append(case.clone())
+        results = _extracted_from_select_testcases_14(filters, full_list)
     else:
-        results = []
-        for metadata in full_list.values():
-            results.append(TestCaseRuntimeData(metadata))
-
+        results = [TestCaseRuntimeData(metadata) for metadata in full_list.values()]
     log.info(f"selected count: {len(results)}")
     for result in results:
         metadata = result.metadata
@@ -59,6 +42,24 @@ def select_testcases(
             f"priority: {metadata.priority}"
         )
     return results
+
+def _extracted_from_select_testcases_14(filters, full_list):
+    selected: Dict[str, TestCaseRuntimeData] = {}
+    force_included: Set[str] = set()
+    force_excluded: Set[str] = set()
+    for filter in filters:
+        selected = _apply_filter(
+            filter, selected, force_included, force_excluded, full_list
+        )
+    result: List[TestCaseRuntimeData] = []
+    for case in selected.values():
+        times = case.times
+        for index in range(times):
+            if index == 0:
+                result.append(case)
+            else:
+                result.append(case.clone())
+    return result
 
 
 def _match_string(
@@ -77,10 +78,9 @@ def _match_priority(
     priority = case.priority
     is_matched: bool = False
     if isinstance(pattern, int):
-        is_matched = priority == pattern
+        return priority == pattern
     else:
-        is_matched = any(x == priority for x in pattern)
-    return is_matched
+        return priority in pattern
 
 
 def _match_tags(
@@ -90,10 +90,9 @@ def _match_tags(
     case_tags = case.tags
     is_matched: bool = False
     if isinstance(criteria_tags, str):
-        is_matched = criteria_tags in case_tags
+        return criteria_tags in case_tags
     else:
-        is_matched = any(x in case_tags for x in criteria_tags)
-    return is_matched
+        return any(x in case_tags for x in criteria_tags)
 
 
 def _match_cases(

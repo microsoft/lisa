@@ -25,19 +25,18 @@ def replace(
     mask: Optional[Union[Pattern[str], Tuple[Pattern[str], str]]] = None,
     sub: str = "******",
 ) -> str:
-    if mask:
-        if isinstance(mask, tuple):
-            configured_sub = mask[1]
-            mask = mask[0]
-        else:
-            configured_sub = sub
-        result = mask.sub(configured_sub, origin)
-        if result == origin:
-            # failed and fallback
-            result = sub
-        return result
-    else:
+    if not mask:
         return sub
+    if isinstance(mask, tuple):
+        configured_sub = mask[1]
+        mask = mask[0]
+    else:
+        configured_sub = sub
+    result = mask.sub(configured_sub, origin)
+    if result == origin:
+        # failed and fallback
+        result = sub
+    return result
 
 
 _secret_list: List[Tuple[str, str]] = []

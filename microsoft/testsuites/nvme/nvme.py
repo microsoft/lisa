@@ -266,7 +266,7 @@ class nvme(TestSuite):
     )
     def nvme_blkdiscard_validation(self, node: Node) -> None:
         os_version = node.os._get_os_version()
-        if "Ubuntu" == os_version.vendor and "14.04" == os_version.release:
+        if os_version.vendor == "Ubuntu" and os_version.release == "14.04":
             raise SkippedException(
                 f"blkdiscard is not supported with distro {os_version.vendor} and "
                 f"version {os_version.release}"
@@ -287,7 +287,7 @@ class nvme(TestSuite):
             blkdiscard = node.execute(
                 f"blkdiscard -v {namespace}p1", shell=True, sudo=True
             )
-            if 0 != blkdiscard.exit_code:
+            if blkdiscard.exit_code != 0:
                 blkdiscard = node.execute(
                     f"blkdiscard -f -v {namespace}p1", shell=True, sudo=True
                 )

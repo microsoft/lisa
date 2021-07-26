@@ -191,5 +191,4 @@ def load_platform_from_builder(runbook_builder: RunbookBuilder) -> Platform:
     platform_runbook = schema.Platform.schema().load(  # type: ignore
         platform_runbook_data, many=True
     )
-    platform = load_platform(platform_runbook)
-    return platform
+    return load_platform(platform_runbook)

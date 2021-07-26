@@ -263,8 +263,9 @@ class AzurePrepareTestCase(TestCase):
         location_info = self._platform._get_location_info(location, self._log)
         self.assertEqual(
             expect_exists,
-            any([x.vm_size == vm_size for x in location_info.capabilities]),
+            any(x.vm_size == vm_size for x in location_info.capabilities),
         )
+
         if expect_exists:
             result = next(x for x in location_info.capabilities if x.vm_size == vm_size)
         return result
@@ -277,12 +278,11 @@ class AzurePrepareTestCase(TestCase):
         self.assertEqual(
             expect_exists,
             any(
-                [
-                    x.vm_size == vm_size
-                    for x in self._platform._eligible_capabilities[location]
-                ]
+                x.vm_size == vm_size
+                for x in self._platform._eligible_capabilities[location]
             ),
         )
+
         if expect_exists:
             result = next(
                 x
@@ -302,11 +302,9 @@ class AzurePrepareTestCase(TestCase):
                 node_req = schema.NodeSpace()
                 _ = node_req.get_extended_runbook(common.AzureNodeSchema, common.AZURE)
                 runbook.nodes_requirement.append(node_req)
-        environment = Environment(
+        return Environment(
             is_predefined=True, warn_as_error=False, id_=0, runbook=runbook
         )
-
-        return environment
 
     def set_node_runbook(
         self,
@@ -353,17 +351,19 @@ class AzurePrepareTestCase(TestCase):
 
             # all cap values must be covered to specified int value, not space
             for node_cap in environment.runbook.nodes_requirement:
-                assert node_cap
-                self.assertIsInstance(node_cap.core_count, int)
-                self.assertIsInstance(node_cap.memory_mb, int)
-                self.assertIsInstance(node_cap.disk_count, int)
-                self.assertIsInstance(node_cap.nic_count, int)
-                self.assertIsInstance(node_cap.gpu_count, int)
-
-                self.assertLessEqual(1, node_cap.core_count)
-                self.assertLessEqual(512, node_cap.memory_mb)
-                self.assertLessEqual(0, node_cap.disk_count)
-                self.assertLessEqual(1, node_cap.nic_count)
-                self.assertLessEqual(0, node_cap.gpu_count)
-
+                self._extracted_from_verify_prepared_nodes_32(node_cap)
         self.assertEqual(expected_cost, environment.cost)
+
+    def _extracted_from_verify_prepared_nodes_32(self, node_cap):
+        assert node_cap
+        self.assertIsInstance(node_cap.core_count, int)
+        self.assertIsInstance(node_cap.memory_mb, int)
+        self.assertIsInstance(node_cap.disk_count, int)
+        self.assertIsInstance(node_cap.nic_count, int)
+        self.assertIsInstance(node_cap.gpu_count, int)
+
+        self.assertLessEqual(1, node_cap.core_count)
+        self.assertLessEqual(512, node_cap.memory_mb)
+        self.assertLessEqual(0, node_cap.disk_count)
+        self.assertLessEqual(1, node_cap.nic_count)
+        self.assertLessEqual(0, node_cap.gpu_count)

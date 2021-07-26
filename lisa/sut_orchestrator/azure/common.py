@@ -108,9 +108,7 @@ class AzureNodeSchema:
                 #  the inconsistent cases cause the mismatched error in notifiers.
                 # The lower() normalizes the image names,
                 #  it has no impact on deployment.
-                self.marketplace_raw = dict(
-                    (k, v.lower()) for k, v in self.marketplace_raw.items()
-                )
+                self.marketplace_raw = {k: v.lower() for k, v in self.marketplace_raw.items()}
                 marketplace = AzureVmMarketplaceSchema.schema().load(  # type: ignore
                     self.marketplace_raw
                 )
@@ -129,11 +127,7 @@ class AzureNodeSchema:
                     r"[:\s]+", self.marketplace_raw.strip().lower()
                 )
 
-                if len(marketplace_strings) == 4:
-                    marketplace = AzureVmMarketplaceSchema(*marketplace_strings)
-                    # marketplace_raw is used
-                    self.marketplace_raw = marketplace.to_dict()  # type: ignore
-                else:
+                if len(marketplace_strings) != 4:
                     raise LisaException(
                         f"Invalid value for the provided marketplace "
                         f"parameter: '{self.marketplace_raw}'."
@@ -141,16 +135,16 @@ class AzureNodeSchema:
                         f"'<Publisher> <Offer> <Sku> <Version>' "
                         f"or '<Publisher>:<Offer>:<Sku>:<Version>'"
                     )
+                marketplace = AzureVmMarketplaceSchema(*marketplace_strings)
+                # marketplace_raw is used
+                self.marketplace_raw = marketplace.to_dict()  # type: ignore
             self._marketplace = marketplace
         return marketplace
 
     @marketplace.setter
     def marketplace(self, value: Optional[AzureVmMarketplaceSchema]) -> None:
         self._marketplace = value
-        if value is None:
-            self.marketplace_raw = None
-        else:
-            self.marketplace_raw = value.to_dict()  # type: ignore
+        self.marketplace_raw = None if value is None else value.to_dict()
 
     @property
     def shared_gallery(self) -> Optional[SharedImageGallerySchema]:
@@ -165,9 +159,10 @@ class AzureNodeSchema:
             #  the inconsistent cases cause the mismatched error in notifiers.
             # The lower() normalizes the image names,
             #  it has no impact on deployment.
-            self.shared_gallery_raw = dict(
-                (k, v.lower()) for k, v in self.shared_gallery_raw.items()
-            )
+            self.shared_gallery_raw = {
+                k: v.lower() for k, v in self.shared_gallery_raw.items()
+            }
+
             shared_gallery = SharedImageGallerySchema.schema().load(  # type: ignore
                 self.shared_gallery_raw
             )
@@ -212,10 +207,7 @@ class AzureNodeSchema:
     @shared_gallery.setter
     def shared_gallery(self, value: Optional[SharedImageGallerySchema]) -> None:
         self._shared_gallery = value
-        if value is None:
-            self.shared_gallery_raw = None
-        else:
-            self.shared_gallery_raw = value.to_dict()  # type: ignore
+        self.shared_gallery_raw = None if value is None else value.to_dict()
 
     def get_image_name(self) -> str:
         result = ""
@@ -225,12 +217,12 @@ class AzureNodeSchema:
             assert isinstance(
                 self.shared_gallery_raw, dict
             ), f"actual type: {type(self.shared_gallery_raw)}"
-            result = " ".join([x for x in self.shared_gallery_raw.values()])
+            result = " ".join(self.shared_gallery_raw.values())
         elif self.marketplace:
             assert isinstance(
                 self.marketplace_raw, dict
             ), f"actual type: {type(self.marketplace_raw)}"
-            result = " ".join([x for x in self.marketplace_raw.values()])
+            result = " ".join(self.marketplace_raw.values())
         return result
 
 

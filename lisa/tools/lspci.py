@@ -74,8 +74,7 @@ class Lspci(Tool):
         self, class_name: str, force_run: bool = False
     ) -> List[str]:
         devices_list = self.get_device_list(force_run)
-        devices_slots = [x.slot for x in devices_list if class_name == x.device_class]
-        return devices_slots
+        return [x.slot for x in devices_list if class_name == x.device_class]
 
     def get_device_list(self, force_run: bool = False) -> List[PciDevice]:
         if (not self._pci_devices) or force_run:
@@ -83,11 +82,11 @@ class Lspci(Tool):
             result = self.run("-m", force_run=force_run, shell=True)
             if result.exit_code != 0:
                 result = self.run("-m", force_run=force_run, shell=True, sudo=True)
-                if result.exit_code != 0:
-                    raise LisaException(
-                        f"get unexpected non-zero exit code {result.exit_code} "
-                        f"when run {self.command} -m."
-                    )
+            if result.exit_code != 0:
+                raise LisaException(
+                    f"get unexpected non-zero exit code {result.exit_code} "
+                    f"when run {self.command} -m."
+                )
             for pci_raw in result.stdout.splitlines():
                 pci_device = PciDevice(pci_raw)
                 self._pci_devices.append(pci_device)
@@ -99,7 +98,7 @@ class Lspci(Tool):
             raise LisaException(f"pci_type {device_type} is not supported to disable.")
         device_type_name = DEVICE_TYPE_DICT[device_type.upper()]
         devices_slot = self._get_devices_slots_by_class_name(device_type_name)
-        if 0 == len(devices_slot):
+        if len(devices_slot) == 0:
             self._log.debug("No matched devices found.")
             return
         for device_slot in devices_slot:

@@ -93,10 +93,7 @@ class Gpu(AzureFeatureMixin, features.Gpu):
     def is_supported(self) -> bool:
         # TODO: more supportability can be defined here
         supported_distro = (CentOs, Redhat, Ubuntu, Suse)
-        if isinstance(self._node.os, supported_distro):
-            return True
-
-        return False
+        return isinstance(self._node.os, supported_distro)
 
     def _initialize(self, *args: Any, **kwargs: Any) -> None:
         super()._initialize(*args, **kwargs)
@@ -172,19 +169,17 @@ class Sriov(AzureFeatureMixin, features.Sriov):
         vm = compute_client.virtual_machines.get(
             self._resource_group_name, self._node.name
         )
-        found_primary = False
-        for nic in vm.network_profile.network_interfaces:
-            if nic.primary:
-                found_primary = True
-                break
+        found_primary = any(
+            nic.primary for nic in vm.network_profile.network_interfaces
+        )
+
         if not found_primary:
             raise LisaException(f"fail to find primary nic for vm {self._node.name}")
         nic_name = nic.id.split("/")[-1]
         primary_nic = network_client.network_interfaces.get(
             self._resource_group_name, nic_name
         )
-        sriov_enabled = primary_nic.enable_accelerated_networking
-        return sriov_enabled
+        return primary_nic.enable_accelerated_networking
 
 
 class Nvme(AzureFeatureMixin, features.Nvme):

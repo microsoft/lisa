@@ -51,11 +51,9 @@ class UtTestCaseRequirement(TestCaseRequirement, RequirementMixin):
             self.platform_type, capability.platform_type
         )
         os = generate_min_capability(self.os_type, capability.os_type)
-        result = TestCaseSchema(
+        return TestCaseSchema(
             environment=environment, platform_type=platform_type, operating_system=os
         )
-
-        return result
 
 
 def ut_simple_requirement(

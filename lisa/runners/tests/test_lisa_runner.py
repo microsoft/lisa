@@ -44,9 +44,7 @@ def generate_runner(
     ]
     if env_runbook:
         runbook.environment = env_runbook
-    runner = LisaRunner(runbook, 0, {})
-
-    return runner
+    return LisaRunner(runbook, 0, {})
 
 
 class RunnerTestCase(TestCase):
@@ -66,18 +64,10 @@ class RunnerTestCase(TestCase):
             [],
             [x for x in envs],
         )
-        runner = generate_runner(None)
-        test_results = generate_cases_result()
-        runner._merge_test_requirements(
-            test_results=test_results,
-            existing_environments=envs,
-            platform_type=constants.PLATFORM_MOCK,
+        test_results = self._extracted_from_test_merge_req_all_generated_9(
+            None, envs, "generated_0"
         )
-        # 3 cases create 3 environments.
-        self.assertListEqual(
-            ["generated_0", "generated_1", "generated_2"],
-            list(envs),
-        )
+
         self.verify_test_results(
             expected_test_order=["mock_ut1", "mock_ut2", "mock_ut3"],
             expected_envs=["", "", ""],
@@ -95,20 +85,10 @@ class RunnerTestCase(TestCase):
             ["customized_0"],
             list(envs),
         )
-        runner = generate_runner(env_runbook)
+        test_results = self._extracted_from_test_merge_req_all_generated_9(
+            env_runbook, envs, "customized_0"
+        )
 
-        test_results = generate_cases_result()
-        runner._merge_test_requirements(
-            test_results=test_results,
-            existing_environments=envs,
-            platform_type=constants.PLATFORM_MOCK,
-        )
-        # 3 cases created only two required environments, as the
-        # simple requirement was met by runbook_0.
-        self.assertListEqual(
-            ["customized_0", "generated_1", "generated_2"],
-            list(envs),
-        )
         self.assertListEqual(
             [TestStatus.QUEUED, TestStatus.QUEUED, TestStatus.QUEUED],
             [x.status for x in test_results],
@@ -156,16 +136,8 @@ class RunnerTestCase(TestCase):
             [],
             list(envs),
         )
-        runner = generate_runner(None)
-        test_results = generate_cases_result()
-        runner._merge_test_requirements(
-            test_results=test_results,
-            existing_environments=envs,
-            platform_type=constants.PLATFORM_MOCK,
-        )
-        self.assertListEqual(
-            ["generated_0", "generated_1", "generated_2"],
-            list(envs),
+        test_results = self._extracted_from_test_merge_req_all_generated_9(
+            None, envs, "generated_0"
         )
 
         self.verify_test_results(
@@ -179,6 +151,18 @@ class RunnerTestCase(TestCase):
             expected_message=["", "", ""],
             test_results=test_results,
         )
+
+    def _extracted_from_test_merge_req_all_generated_9(self, arg0, envs, arg2):
+        runner = generate_runner(arg0)
+        result = generate_cases_result()
+        runner._merge_test_requirements(
+            test_results=result,
+            existing_environments=envs,
+            platform_type=constants.PLATFORM_MOCK,
+        )
+
+        self.assertListEqual([arg2, 'generated_1', 'generated_2'], list(envs))
+        return result
 
     def test_merge_req_platform_type_checked(self) -> None:
         # check if current platform supported,

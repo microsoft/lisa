@@ -47,17 +47,14 @@ class Uname(Tool):
         )
 
         if cmd_result.exit_code != 0:
-            result = UnameResult(False, "", "", "", "")
-        else:
-            match_result = self._key_info_pattern.fullmatch(cmd_result.stdout)
-            if not match_result:
-                raise LisaException(f"no result matched, stdout: '{cmd_result.stdout}'")
-            result = UnameResult(
+            return UnameResult(False, "", "", "", "")
+        match_result = self._key_info_pattern.fullmatch(cmd_result.stdout)
+        if not match_result:
+            raise LisaException(f"no result matched, stdout: '{cmd_result.stdout}'")
+        return UnameResult(
                 has_result=True,
                 kernel_version=match_result.group("kernel_version"),
                 uname_version=match_result.group("uname_version"),
                 hardware_platform=match_result.group("platform"),
                 operating_system=match_result.group("os"),
             )
-
-        return result

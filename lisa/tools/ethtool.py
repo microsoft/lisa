@@ -356,34 +356,17 @@ class Ethtool(Tool):
         return self.get_device_ring_buffer_settings(interface, force=True)
 
     def get_all_device_channels_info(self) -> List[DeviceChannel]:
-        devices_channel_list = []
         devices = self.get_device_list()
-        for device in devices:
-            devices_channel_list.append(self.get_device_channels_info(device))
-
-        return devices_channel_list
+        return [self.get_device_channels_info(device) for device in devices]
 
     def get_all_device_enabled_features(self) -> List[DeviceFeatures]:
-        devices_features_list = []
         devices = self.get_device_list()
-        for device in devices:
-            devices_features_list.append(self.get_device_enabled_features(device))
-
-        return devices_features_list
+        return [self.get_device_enabled_features(device) for device in devices]
 
     def get_all_device_link_settings(self) -> List[DeviceLinkSettings]:
-        devices_link_settings_list = []
         devices = self.get_device_list()
-        for device in devices:
-            devices_link_settings_list.append(self.get_device_link_settings(device))
-
-        return devices_link_settings_list
+        return [self.get_device_link_settings(device) for device in devices]
 
     def get_all_device_ring_buffer_settings(self) -> List[DeviceRingBufferSettings]:
-        devices_ring_buffer_settings_list = []
         devices = self.get_device_list()
-        for device in devices:
-            devices_ring_buffer_settings_list.append(
-                self.get_device_ring_buffer_settings(device)
-            )
-        return devices_ring_buffer_settings_list
+        return [self.get_device_ring_buffer_settings(device) for device in devices]

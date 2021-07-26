@@ -26,19 +26,14 @@ class ResultReason:
     def add_reason(self, reason: str, name: str = "") -> None:
         self.result = False
 
-        if not any(reason in x for x in self.reasons):
-            if ":" in reason:
-                sep = "/"
-            else:
-                sep = ": "
+        if all(reason not in x for x in self.reasons):
+            sep = "/" if ":" in reason else ": "
             if name and self._prefix:
                 reason = f"{self._prefix}/{name}{sep}{reason}"
             elif name:
                 reason = f"{name}{sep}{reason}"
             elif self._prefix:
                 reason = f"{self._prefix}{sep}{reason}"
-            else:
-                pass
             self.reasons.append(reason)
 
     def merge(self, sub_result: Any, name: str = "") -> None:
@@ -98,55 +93,54 @@ class IntRange(RequirementMixin):
         result = ResultReason()
         if capability is None:
             result.add_reason("capability shouldn't be None")
+        elif isinstance(capability, IntRange):
+            if capability.max < self.min:
+                result.add_reason(
+                    f"capability max({capability.max}) is "
+                    f"smaller than requirement min({self.min})"
+                )
+            elif capability.max == self.min and not capability.max_inclusive:
+                result.add_reason(
+                    f"capability max({capability.max}) equals "
+                    f"to requirement min({self.min}), but "
+                    f"capability is not max_inclusive"
+                )
+            elif capability.min > self.max:
+                result.add_reason(
+                    f"capability min({capability.min}) is "
+                    f"bigger than requirement max({self.max})"
+                )
+            elif capability.min == self.max and not self.max_inclusive:
+                result.add_reason(
+                    f"capability min({capability.min}) equals "
+                    f"to requirement max({self.max}), but "
+                    f"requirement is not max_inclusive"
+                )
+        elif isinstance(capability, int):
+            if capability < self.min:
+                result.add_reason(
+                    f"capability({capability}) is "
+                    f"smaller than requirement min({self.min})"
+                )
+            elif capability > self.max:
+                result.add_reason(
+                    f"capability ({capability}) is "
+                    f"bigger than requirement max({self.max})"
+                )
+            elif capability == self.max and not self.max_inclusive:
+                result.add_reason(
+                    f"capability({capability}) equals "
+                    f"to requirement max({self.max}), but "
+                    f"requirement is not max_inclusive"
+                )
         else:
-            if isinstance(capability, IntRange):
-                if capability.max < self.min:
-                    result.add_reason(
-                        f"capability max({capability.max}) is "
-                        f"smaller than requirement min({self.min})"
-                    )
-                elif capability.max == self.min and not capability.max_inclusive:
-                    result.add_reason(
-                        f"capability max({capability.max}) equals "
-                        f"to requirement min({self.min}), but "
-                        f"capability is not max_inclusive"
-                    )
-                elif capability.min > self.max:
-                    result.add_reason(
-                        f"capability min({capability.min}) is "
-                        f"bigger than requirement max({self.max})"
-                    )
-                elif capability.min == self.max and not self.max_inclusive:
-                    result.add_reason(
-                        f"capability min({capability.min}) equals "
-                        f"to requirement max({self.max}), but "
-                        f"requirement is not max_inclusive"
-                    )
-            elif isinstance(capability, int):
-                if capability < self.min:
-                    result.add_reason(
-                        f"capability({capability}) is "
-                        f"smaller than requirement min({self.min})"
-                    )
-                elif capability > self.max:
-                    result.add_reason(
-                        f"capability ({capability}) is "
-                        f"bigger than requirement max({self.max})"
-                    )
-                elif capability == self.max and not self.max_inclusive:
-                    result.add_reason(
-                        f"capability({capability}) equals "
-                        f"to requirement max({self.max}), but "
-                        f"requirement is not max_inclusive"
-                    )
-            else:
-                assert isinstance(capability, list), f"actual: {type(capability)}"
-                temp_result = _one_of_matched(self, capability)
-                if not temp_result.result:
-                    result.add_reason(
-                        "no capability matches requirement, "
-                        f"requirement: {self}, capability: {capability}"
-                    )
+            assert isinstance(capability, list), f"actual: {type(capability)}"
+            temp_result = _one_of_matched(self, capability)
+            if not temp_result.result:
+                result.add_reason(
+                    "no capability matches requirement, "
+                    f"requirement: {self}, capability: {capability}"
+                )
 
         return result
 
@@ -154,10 +148,7 @@ class IntRange(RequirementMixin):
         if isinstance(capability, int):
             result: int = capability
         elif isinstance(capability, IntRange):
-            if self.min < capability.min:
-                result = capability.min
-            else:
-                result = self.min
+            result = max(self.min, capability.min)
         else:
             assert isinstance(capability, list), f"actual: {type(capability)}"
             result = self.max if self.max_inclusive else self.max - 1
@@ -257,7 +248,7 @@ class SetSpace(RequirementMixin, Set[T]):
                     )
             else:
                 inter_set: Set[Any] = self.intersection(capability)
-                if len(inter_set) > 0:
+                if inter_set:
                     names: List[str] = []
                     for item in inter_set:
                         if isinstance(item, type):
@@ -303,46 +294,45 @@ def check_countspace(requirement: CountSpace, capability: CountSpace) -> ResultR
             result.add_reason(
                 "if requirements isn't None, capability shouldn't be None"
             )
-        else:
-            if isinstance(requirement, int):
-                if isinstance(capability, int):
-                    if requirement != capability:
-                        result.add_reason(
-                            "requirement is a number, capability should be exact "
-                            f"much, but requirement: {requirement}, "
-                            f"capability: {capability}"
-                        )
-                elif isinstance(capability, IntRange):
-                    temp_result = capability.check(requirement)
-                    if not temp_result.result:
-                        result.add_reason(
-                            "requirement is a number, capability should include it, "
-                            f"but requirement: {requirement}, capability: {capability}"
-                        )
-                else:
-                    assert isinstance(capability, list), f"actual: {type(capability)}"
-                    temp_requirement = IntRange(min=requirement, max=requirement)
-                    temp_result = _one_of_matched(temp_requirement, capability)
-                    if not temp_result.result:
-                        result.add_reason(
-                            f"requirement is a number, no capability matched, "
-                            f"requirement: {requirement}, capability: {capability}"
-                        )
-            elif isinstance(requirement, IntRange):
-                result.merge(requirement.check(capability))
-            else:
-                assert isinstance(requirement, list), f"actual: {type(requirement)}"
-
-                supported = False
-                for req_item in requirement:
-                    temp_result = req_item.check(capability)
-                    if temp_result.result:
-                        supported = True
-                if not supported:
+        elif isinstance(requirement, int):
+            if isinstance(capability, int):
+                if requirement != capability:
                     result.add_reason(
-                        "no capability matches requirement, "
+                        "requirement is a number, capability should be exact "
+                        f"much, but requirement: {requirement}, "
+                        f"capability: {capability}"
+                    )
+            elif isinstance(capability, IntRange):
+                temp_result = capability.check(requirement)
+                if not temp_result.result:
+                    result.add_reason(
+                        "requirement is a number, capability should include it, "
+                        f"but requirement: {requirement}, capability: {capability}"
+                    )
+            else:
+                assert isinstance(capability, list), f"actual: {type(capability)}"
+                temp_requirement = IntRange(min=requirement, max=requirement)
+                temp_result = _one_of_matched(temp_requirement, capability)
+                if not temp_result.result:
+                    result.add_reason(
+                        f"requirement is a number, no capability matched, "
                         f"requirement: {requirement}, capability: {capability}"
                     )
+        elif isinstance(requirement, IntRange):
+            result.merge(requirement.check(capability))
+        else:
+            assert isinstance(requirement, list), f"actual: {type(requirement)}"
+
+            supported = False
+            for req_item in requirement:
+                temp_result = req_item.check(capability)
+                if temp_result.result:
+                    supported = True
+            if not supported:
+                result.add_reason(
+                    "no capability matches requirement, "
+                    f"requirement: {requirement}, capability: {capability}"
+                )
     return result
 
 
@@ -413,21 +403,15 @@ def generate_min_capability(
         )
 
     result: Optional[T_SEARCH_SPACE] = None
-    if requirement is None:
-        if capability is not None:
-            requirement = capability
+    if requirement is None and capability is not None:
+        requirement = capability
     if isinstance(requirement, list):
         result = None
         for req_item in requirement:
             temp_result = req_item.check(capability)
             if temp_result.result:
                 temp_min = req_item.generate_min_capability(capability)
-                if result is None:
-                    result = temp_min
-                else:
-                    # TODO: multiple matches found, not supported well yet
-                    # It can be improved by implement __eq__, __lt__ functions.
-                    result = min(result, temp_min)
+                result = temp_min if result is None else min(result, temp_min)
     elif requirement is not None:
         result = requirement.generate_min_capability(capability)
 
@@ -436,13 +420,11 @@ def generate_min_capability(
 
 def equal_list(first: Optional[List[Any]], second: Optional[List[Any]]) -> bool:
     if first is None or second is None:
-        result = first is second
-    else:
-        result = len(first) == len(second)
-        result = result and all(
+        return first is second
+    result = len(first) == len(second)
+    return result and all(
             f_item == second[index] for index, f_item in enumerate(first)
         )
-    return result
 
 
 def create_set_space(

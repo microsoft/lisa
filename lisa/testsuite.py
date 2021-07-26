@@ -134,13 +134,12 @@ class TestResult:
             log.debug("case passed with warning", exc_info=exception)
             # case can be passed with a warning.
             self.set_status(TestStatus.PASSED, f"{phase}warning: {exception}")
+        elif self.runtime_data.ignore_failure:
+            log.info(f"case failed and ignored: {exception}")
+            self.set_status(TestStatus.ATTEMPTED, f"{phase}{exception}")
         else:
-            if self.runtime_data.ignore_failure:
-                log.info(f"case failed and ignored: {exception}")
-                self.set_status(TestStatus.ATTEMPTED, f"{phase}{exception}")
-            else:
-                log.error("case failed", exc_info=exception)
-                self.set_status(TestStatus.FAILED, f"{phase}failed: {exception}")
+            log.error("case failed", exc_info=exception)
+            self.set_status(TestStatus.FAILED, f"{phase}failed: {exception}")
 
     def set_status(
         self, new_status: TestStatus, message: Union[str, List[str]]
@@ -277,14 +276,11 @@ class TestSuiteMetadata:
     ) -> None:
         self.name = name
         self.cases: List[TestCaseMetadata] = []
-        self.tags: List[str] = tags if tags else []
+        self.tags: List[str] = tags or []
 
         self.area = area
         self.category = category
-        if tags:
-            self.tags = tags
-        else:
-            self.tags = []
+        self.tags = tags or []
         self.description = description
         self.requirement = requirement
 

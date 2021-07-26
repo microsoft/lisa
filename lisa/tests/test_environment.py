@@ -183,23 +183,19 @@ class EnvironmentTestCase(TestCase):
 
     def test_create_from_runbook_split(self) -> None:
         runbook = generate_runbook(local=True, remote=True)
-        envs = load_environments(runbook)
-        self.assertEqual(2, len(envs))
-        for env in envs.values():
-            for n in env.nodes.list():
-                # mock initializing
-                n._is_initialized = True
-            self.assertEqual(1, len(env.nodes))
+        self._extracted_from_test_create_from_runbook_merged_3(runbook, 2, 1)
 
     def test_create_from_runbook_merged(self) -> None:
         runbook = generate_runbook(is_single_env=True, local=True, remote=True)
+        self._extracted_from_test_create_from_runbook_merged_3(runbook, 1, 2)
+
+    def _extracted_from_test_create_from_runbook_merged_3(self, runbook, arg1, arg2):
         envs = load_environments(runbook)
-        self.assertEqual(1, len(envs))
+        self.assertEqual(arg1, len(envs))
         for env in envs.values():
             for n in env.nodes.list():
-                # mock initializing
                 n._is_initialized = True
-            self.assertEqual(2, len(env.nodes))
+            self.assertEqual(arg2, len(env.nodes))
 
     def test_create_from_runbook_cap(self) -> None:
         runbook = generate_runbook(local=True, requirement=True)

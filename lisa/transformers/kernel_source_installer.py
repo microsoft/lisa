@@ -141,11 +141,11 @@ class SourceInstaller(BaseInstaller):
         # The build for Redhat needs extra steps than RPM package. So put it
         # here, not in OS.
         if isinstance(node.os, Redhat):
-            result = node.execute("grub2-set-default 0", sudo=True)
-            result.assert_exit_code()
-
-            result = node.execute("grub2-mkconfig -o /boot/grub2/grub.cfg", sudo=True)
-            result.assert_exit_code()
+            self._extracted_from__build_code_12(
+                node,
+                "grub2-set-default 0",
+                "grub2-mkconfig -o /boot/grub2/grub.cfg",
+            )
 
     def _modify_code(self, node: Node, code_path: PurePath) -> None:
         runbook: SourceInstallerSchema = self.runbook
@@ -197,18 +197,23 @@ class SourceInstaller(BaseInstaller):
         # the gcc version of Redhat 7.x is too old. Upgrade it.
         if isinstance(node.os, Redhat) and node.os.release_version < "8.0.0":
             node.os.install_packages(["devtoolset-8"])
-            result = node.execute("mv /bin/gcc /bin/gcc_back", sudo=True)
-            result.assert_exit_code()
-            result = node.execute(
-                "ln -s /opt/rh/devtoolset-8/root/usr/bin/gcc /bin/gcc", sudo=True
+            self._extracted_from__build_code_12(
+                node,
+                "mv /bin/gcc /bin/gcc_back",
+                "ln -s /opt/rh/devtoolset-8/root/usr/bin/gcc /bin/gcc",
             )
-            result.assert_exit_code()
 
         make = node.tools[Make]
         make.make(arguments="olddefconfig", cwd=code_path)
 
         # set timeout to 2 hours
         make.make(arguments="", cwd=code_path, timeout=60 * 60 * 2)
+
+    def _extracted_from__build_code_12(self, node, arg1, arg2):
+        result = node.execute(arg1, sudo=True)
+        result.assert_exit_code()
+        result = node.execute(arg2, sudo=True)
+        result.assert_exit_code()
 
     def _install_build_tools(self, node: Node) -> None:
         os = node.os
@@ -366,8 +371,6 @@ class PatchModifier(BaseModifier):
 
 def _get_code_path(path: str, node: Node, default_name: str) -> PurePath:
     if path:
-        code_path = node.get_pure_path(path)
+        return node.get_pure_path(path)
     else:
-        code_path = node.working_path / default_name
-
-    return code_path
+        return node.working_path / default_name

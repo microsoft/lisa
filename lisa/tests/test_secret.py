@@ -13,15 +13,21 @@ class SecretTestCase(TestCase):
         reset()
 
     def test_happen_twice(self) -> None:
-        add_secret("test1", sub="*")
-        result = mask("test1 test1 test3")
-        self.assertEqual(result, "* * test3")
+        self._extracted_from_test_big_contains_small_2(
+            "test1", "*", "test1 test1 test3", "* * test3"
+        )
 
     def test_big_contains_small(self) -> None:
         add_secret("t1", sub="*")
-        add_secret("t1t2", sub="**")
-        result = mask("t1t2 t1 test3")
-        self.assertEqual(result, "** * test3")
+        self._extracted_from_test_big_contains_small_2(
+            "t1t2", "**", "t1t2 t1 test3", "** * test3"
+        )
+
+
+    def _extracted_from_test_big_contains_small_2(self, arg0, sub, arg2, arg3):
+        add_secret(arg0, sub=sub)
+        result = mask(arg2)
+        self.assertEqual(result, arg3)
 
     def test_default_mask(self) -> None:
         add_secret("test1")

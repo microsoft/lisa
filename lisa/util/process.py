@@ -153,43 +153,45 @@ class Process:
             self.kill()
 
         if self._result is None:
-            assert self._process
-            process_result = self._process.wait_for_result()
-            self._stdout_writer.close()
-            self._stderr_writer.close()
-            # cache for future queries, in case it's queried twice.
-            self._result = ExecutableResult(
-                process_result.output.strip(),
-                process_result.stderr_output.strip(),
-                process_result.return_code,
-                self._cmd,
-                self._timer.elapsed(),
-            )
-            # TODO: The spur library is not very good and leaves open
-            # resources (probably due to it starting the process with
-            # `bufsize=0`). We need to replace it, but for now, we
-            # manually close the leaks.
-            if isinstance(self._process, spur.local.LocalProcess):
-                popen: subprocess.Popen[str] = self._process._subprocess
-                if popen.stdin:
-                    popen.stdin.close()
-                if popen.stdout:
-                    popen.stdout.close()
-                if popen.stderr:
-                    popen.stderr.close()
-            elif isinstance(self._process, spur.ssh.SshProcess):
-                if self._process._stdin:
-                    self._process._stdin.close()
-                if self._process._stdout:
-                    self._process._stdout.close()
-                if self._process._stderr:
-                    self._process._stderr.close()
-            self._process = None
-            self._log.debug(
-                f"execution time: {self._timer}, exit code: {self._result.exit_code}"
-            )
-
+            self._extracted_from_wait_result_13()
         return self._result
+
+    def _extracted_from_wait_result_13(self):
+        assert self._process
+        process_result = self._process.wait_for_result()
+        self._stdout_writer.close()
+        self._stderr_writer.close()
+        # cache for future queries, in case it's queried twice.
+        self._result = ExecutableResult(
+            process_result.output.strip(),
+            process_result.stderr_output.strip(),
+            process_result.return_code,
+            self._cmd,
+            self._timer.elapsed(),
+        )
+        # TODO: The spur library is not very good and leaves open
+        # resources (probably due to it starting the process with
+        # `bufsize=0`). We need to replace it, but for now, we
+        # manually close the leaks.
+        if isinstance(self._process, spur.local.LocalProcess):
+            popen: subprocess.Popen[str] = self._process._subprocess
+            if popen.stdin:
+                popen.stdin.close()
+            if popen.stdout:
+                popen.stdout.close()
+            if popen.stderr:
+                popen.stderr.close()
+        elif isinstance(self._process, spur.ssh.SshProcess):
+            if self._process._stdin:
+                self._process._stdin.close()
+            if self._process._stdout:
+                self._process._stdout.close()
+            if self._process._stderr:
+                self._process._stderr.close()
+        self._process = None
+        self._log.debug(
+            f"execution time: {self._timer}, exit code: {self._result.exit_code}"
+        )
 
     def kill(self) -> None:
         if self._process:

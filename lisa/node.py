@@ -105,10 +105,7 @@ class Node(subclasses.BaseClassWithRunbookMixin, ContextMixin, InitializableMixi
                 base_path = constants.RUN_LOCAL_PATH
             path_name = self.name
             if not path_name:
-                if self.index:
-                    index = self.index
-                else:
-                    index = randint(0, 10000)
+                index = self.index or randint(0, 10000)
                 path_name = f"node-{index}"
             self._local_log_path = base_path / path_name
             if self._local_log_path.exists():
@@ -295,16 +292,17 @@ class RemoteNode(Node):
         # use default credential, if they are not specified
         node_runbook = cast(schema.RemoteNode, self.runbook)
         parameters[constants.ENVIRONMENTS_NODES_REMOTE_USERNAME] = (
-            node_runbook.username if node_runbook.username else default_username
+            node_runbook.username or default_username
         )
+
         parameters[constants.ENVIRONMENTS_NODES_REMOTE_PASSWORD] = (
-            node_runbook.password if node_runbook.password else default_password
+            node_runbook.password or default_password
         )
+
         parameters[constants.ENVIRONMENTS_NODES_REMOTE_PRIVATE_KEY_FILE] = (
-            node_runbook.private_key_file
-            if node_runbook.private_key_file
-            else default_private_key_file
+            node_runbook.private_key_file or default_private_key_file
         )
+
 
         self.set_connection_info(**parameters)
 
@@ -361,11 +359,7 @@ class RemoteNode(Node):
         super()._initialize(*args, **kwargs)
 
     def _create_working_path(self) -> PurePath:
-        if self.is_posix:
-            remote_root_path = Path("$HOME")
-        else:
-            remote_root_path = Path("%TEMP%")
-
+        remote_root_path = Path("$HOME") if self.is_posix else Path("%TEMP%")
         working_path = remote_root_path.joinpath(
             constants.PATH_REMOTE_ROOT, constants.RUN_LOGIC_PATH
         ).as_posix()
@@ -460,8 +454,7 @@ class Nodes:
         return self._default
 
     def list(self) -> Iterable[Node]:
-        for node in self._list:
-            yield node
+        yield from self._list
 
     def initialize(self) -> None:
         for node in self._list:
@@ -477,15 +470,9 @@ class Nodes:
         environment_name: str,
         base_log_path: Optional[Path] = None,
     ) -> Node:
-        node = Node.create(
-            index=len(self._list),
-            runbook=node_runbook,
-            logger_name=environment_name,
-            base_log_path=base_log_path,
+        return self._extracted_from_from_requirement_7(
+            node_runbook, environment_name, base_log_path
         )
-        self._list.append(node)
-
-        return node
 
     def from_requirement(
         self,
@@ -508,14 +495,20 @@ class Nodes:
             capability=min_requirement,
             is_default=node_requirement.is_default,
         )
+        return self._extracted_from_from_requirement_7(
+            mock_runbook, environment_name, base_log_path
+        )
+
+
+    def _extracted_from_from_requirement_7(self, runbook, environment_name, base_log_path):
         node = Node.create(
             index=len(self._list),
-            runbook=mock_runbook,
+            runbook=runbook,
             logger_name=environment_name,
             base_log_path=base_log_path,
         )
-        self._list.append(node)
 
+        self._list.append(node)
         return node
 
 

@@ -65,7 +65,7 @@ class Nvmecli(Tool):
         # for row in error_log.stdout.splitlines():
         errors = find_patterns_in_lines(error_log.stdout, [self.__error_count_pattern])
         if errors[0]:
-            error_count = sum([int(element) for element in errors[0]])
+            error_count = sum(int(element) for element in errors[0])
         return error_count
 
     def support_ns_manage_attach(self, device_name: str) -> bool:

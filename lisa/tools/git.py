@@ -60,13 +60,12 @@ class Git(Tool):
         else:
             stdout = result.stdout
             code_dir = get_matched_str(stdout, self.CODE_FOLDER_ON_EXISTS_PATTERN)
-            if code_dir:
-                if fail_on_exists:
-                    raise CodeExistsException(f"code or folder exists. {stdout}")
-                else:
-                    self._log.debug(f"path '{code_dir}' exists, clone skipped.")
-            else:
+            if not code_dir:
                 raise LisaException(f"failed to clone the repo. {stdout}")
+            if fail_on_exists:
+                raise CodeExistsException(f"code or folder exists. {stdout}")
+            else:
+                self._log.debug(f"path '{code_dir}' exists, clone skipped.")
         full_path = cwd / code_dir
         self._log.debug(f"code path: {full_path}")
         if ref:

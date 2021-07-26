@@ -129,7 +129,7 @@ class RootRunner(Action):
         self._output_results(self._results)
 
         # pass failed count to exit code
-        self.exit_code = sum(1 for x in self._results if x.status == TestStatus.FAILED)
+        self.exit_code = sum(x.status == TestStatus.FAILED for x in self._results)
 
     async def stop(self) -> None:
         await super().stop()
@@ -156,14 +156,12 @@ class RootRunner(Action):
                     break
                 sub_runbook = self._runbook_builder.resolve(variables)
                 runners = self._generate_runners(sub_runbook, variables)
-                for runner in runners:
-                    yield runner
+                yield from runners
         else:
             # no combinator, use the root runbook
-            for runner in self._generate_runners(
+            yield from self._generate_runners(
                 root_runbook, self._runbook_builder.variables
-            ):
-                yield runner
+            )
 
     def _generate_runners(
         self, runbook: schema.Runbook, variables: Dict[str, VariableEntry]
@@ -243,67 +241,69 @@ class RootRunner(Action):
             self._log.debug(f"no more runner found, total {len(remaining_runners)}")
 
         if self._runners:
-            run_message = notifier.TestRunMessage(
-                status=notifier.TestRunStatus.RUNNING,
-            )
-            notifier.notify(run_message)
+            self._extracted_from__start_loop_12(remaining_runners, runner_iterator)
 
-            task_manager = TaskManager[List[TestResult]](
-                self._max_concurrency, self._callback_completed
-            )
-            # set the global task manager for cancellation check
-            set_global_task_manager(task_manager)
-            has_more_runner = True
+    def _extracted_from__start_loop_12(self, remaining_runners, runner_iterator):
+        run_message = notifier.TestRunMessage(
+            status=notifier.TestRunStatus.RUNNING,
+        )
+        notifier.notify(run_message)
+
+        task_manager = TaskManager[List[TestResult]](
+            self._max_concurrency, self._callback_completed
+        )
+        # set the global task manager for cancellation check
+        set_global_task_manager(task_manager)
+        has_more_runner = True
 
             # run until no more task and all runner are closed
-            while task_manager.wait_worker() or remaining_runners:
-                assert task_manager.has_idle_worker()
-                has_idle_worker = True
+        while task_manager.wait_worker() or remaining_runners:
+            assert task_manager.has_idle_worker()
+            has_idle_worker = True
 
-                # runners shouldn't mark them done, until all task completed. It
-                # can be checked by test results status or other signals.
-                assert remaining_runners, (
-                    f"no remaining runners, but there are running tasks. "
-                    f"{task_manager._futures}"
-                )
+            # runners shouldn't mark them done, until all task completed. It
+            # can be checked by test results status or other signals.
+            assert remaining_runners, (
+                f"no remaining runners, but there are running tasks. "
+                f"{task_manager._futures}"
+            )
 
-                for runner in remaining_runners:
-                    while not runner.is_done:
-                        # fetch a task and submit
-                        task = runner.fetch_task()
-                        if task:
-                            self._log.debug(f"fetched task from {runner.id}: '{task}'")
-                            task_manager.submit_task(task)
-                        else:
-                            # current runner may not be done, but it doesn't
-                            # have task temporarily. The root runner can start
-                            # tasks from next runner.
-                            break
-                        if not task_manager.has_idle_worker():
-                            has_idle_worker = False
-                            break
-                    if runner.is_done:
-                        # remove fully completed runner.
-                        runner.close()
-                        remaining_runners.remove(runner)
-                        self._log.debug(
-                            f"runner '{runner.id}' is done, "
-                            f"remaining runners {[x.id for x in remaining_runners]}"
-                        )
+            for runner in remaining_runners:
+                while not runner.is_done:
+                    # fetch a task and submit
+                    task = runner.fetch_task()
+                    if not task:
+                        # current runner may not be done, but it doesn't
+                        # have task temporarily. The root runner can start
+                        # tasks from next runner.
                         break
-                    if not has_idle_worker:
-                        # uses the result from previous runner, because the
-                        # worker status may be changed after first runner
-                        # finished. Evne in this case, it should try result from
-                        # previous runner firstly in next run.
+                    self._log.debug(f"fetched task from {runner.id}: '{task}'")
+                    task_manager.submit_task(task)
+                    if not task_manager.has_idle_worker():
+                        has_idle_worker = False
                         break
+                if runner.is_done:
+                    # remove fully completed runner.
+                    runner.close()
+                    remaining_runners.remove(runner)
+                    self._log.debug(
+                        f"runner '{runner.id}' is done, "
+                        f"remaining runners {[x.id for x in remaining_runners]}"
+                    )
+                    break
+                if not has_idle_worker:
+                    # uses the result from previous runner, because the
+                    # worker status may be changed after first runner
+                    # finished. Evne in this case, it should try result from
+                    # previous runner firstly in next run.
+                    break
 
-                while (
-                    len(remaining_runners) < self._max_concurrency and has_more_runner
-                ):
-                    # Fetch runners, if runner count is smaller than concurrency
-                    # count. It makes sure all concurrency can run.
-                    try:
-                        remaining_runners.append(next(runner_iterator))
-                    except StopIteration:
-                        has_more_runner = False
+            while (
+                len(remaining_runners) < self._max_concurrency and has_more_runner
+            ):
+                # Fetch runners, if runner count is smaller than concurrency
+                # count. It makes sure all concurrency can run.
+                try:
+                    remaining_runners.append(next(runner_iterator))
+                except StopIteration:
+                    has_more_runner = False

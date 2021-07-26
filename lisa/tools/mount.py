@@ -38,7 +38,7 @@ class Mount(Tool):
             self.node.execute(f"rm -r {point}", shell=True, sudo=True)
         if (
             not self.__UMOUNT_ERROR_PATTERN.match(cmd_result.stdout)
-            and 0 != cmd_result.exit_code
+            and cmd_result.exit_code != 0
         ):
             raise LisaException(f"Fail to run umount {point}.")
 

@@ -119,16 +119,15 @@ class EnvironmentSpace(search_space.RequirementMixin):
                 f"requirement: {len(self.nodes)}, "
                 f"capability: {len(capability.nodes)}."
             )
-        else:
-            if self.nodes:
-                for index, current_req in enumerate(self.nodes):
-                    current_cap = capability.nodes[index]
-                    result.merge(
-                        search_space.check(current_req, current_cap),
-                        str(index),
-                    )
-                    if not result.result:
-                        break
+        elif self.nodes:
+            for index, current_req in enumerate(self.nodes):
+                current_cap = capability.nodes[index]
+                result.merge(
+                    search_space.check(current_req, current_cap),
+                    str(index),
+                )
+                if not result.result:
+                    break
 
         return result
 
@@ -294,10 +293,7 @@ class Environment(ContextMixin, InitializableMixin):
         return has_default
 
 
-if TYPE_CHECKING:
-    EnvironmentsDict = UserDict[str, Environment]
-else:
-    EnvironmentsDict = UserDict
+EnvironmentsDict = UserDict[str, Environment] if TYPE_CHECKING else UserDict
 
 
 class Environments(EnvironmentsDict):

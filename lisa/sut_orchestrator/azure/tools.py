@@ -61,11 +61,7 @@ class VmGeneration(Tool):
 
     def get_generation(self) -> str:
         cmd_result = self.run()
-        if cmd_result.exit_code == 0:
-            generation = "2"
-        else:
-            generation = "1"
-        return generation
+        return "2" if cmd_result.exit_code == 0 else "1"
 
 
 class LisDriver(Tool):
@@ -82,20 +78,15 @@ class LisDriver(Tool):
 
     @property
     def can_install(self) -> bool:
-        if isinstance(self.node.os, Redhat) and self.node.os.release_version < "7.8.0":
-            return True
-
-        return False
+        return (
+            isinstance(self.node.os, Redhat)
+            and self.node.os.release_version < "7.8.0"
+        )
 
     def _check_exists(self) -> bool:
-        if isinstance(self.node.os, Redhat):
-            # currently LIS is only supported with Redhat
-            # and its derived distros
-            if self.node.os.package_exists(
+        return bool(isinstance(self.node.os, Redhat) and self.node.os.package_exists(
                 "kmod-microsoft-hyper-v"
-            ) and self.node.os.package_exists("microsoft-hyper-v"):
-                return True
-        return False
+            ) and self.node.os.package_exists("microsoft-hyper-v"))
 
     def _install(self) -> bool:
         wget_tool = self.node.tools[Wget]

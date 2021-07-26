@@ -20,12 +20,13 @@ def _wait_file_changed(
     while timout_timer.elapsed(False) < timeout:
         cat = node.tools[Cat]
         result = cat.run(path, force_run=True)
-        if isinstance(expected_value, list):
-            if result.stdout in expected_value:
-                return True
-        else:
-            if result.stdout == expected_value:
-                return True
+        if (
+            isinstance(expected_value, list)
+            and result.stdout in expected_value
+            or not isinstance(expected_value, list)
+            and result.stdout == expected_value
+        ):
+            return True
         sleep(0.5)
     return False
 
@@ -129,7 +130,7 @@ class TimeSync(TestSuite):
 
         # 2. Check CPU flag contains constant_tsc from /proc/cpuinfo.
         lscpu = node.tools[Lscpu]
-        if "x86_64" == lscpu.get_architecture():
+        if lscpu.get_architecture() == "x86_64":
             cpu_info_result = cat.run("/proc/cpuinfo")
             if CpuType.Intel == lscpu.get_cpu_type():
                 expected_tsc_str = " constant_tsc "
@@ -216,7 +217,7 @@ class TimeSync(TestSuite):
 
             # 3. when cpu count is 1 and cpu type is Intel type, unbind current time
             #  clock event, check current time clock event switch to 'lapic'.
-            if CpuType.Intel == lscpu.get_cpu_type() and 1 == core_count:
+            if CpuType.Intel == lscpu.get_cpu_type() and core_count == 1:
                 cmd_result = node.execute(
                     f"echo {clock_event_name} > {self.unbind_clockevent}",
                     sudo=True,

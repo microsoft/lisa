@@ -385,14 +385,13 @@ class LisaRunner(BaseRunner):
             if test_result.status == TestStatus.QUEUED:
                 test_result.set_status(TestStatus.ASSIGNED, "")
 
-        task = partial(
+        return partial(
             self._run_task,
             task_method,
             environment=environment,
             test_results=test_results,
             **kwargs,
         )
-        return task
 
     def _run_task(
         self,
@@ -468,9 +467,7 @@ class LisaRunner(BaseRunner):
                     if has_new_result:
                         continue
                     has_new_result = True
-                    new_results.append(x)
-                else:
-                    new_results.append(x)
+                new_results.append(x)
             results = new_results
 
         results = self._sort_test_results(results)
@@ -510,13 +507,13 @@ class LisaRunner(BaseRunner):
     def _sort_environments(self, environments: List[Environment]) -> List[Environment]:
         results: List[Environment] = []
         # sort environments by the status list
-        sorted_status = [
-            EnvironmentStatus.Connected,
-            EnvironmentStatus.Deployed,
-            EnvironmentStatus.Prepared,
-            EnvironmentStatus.New,
-        ]
         if environments:
+            sorted_status = [
+                EnvironmentStatus.Connected,
+                EnvironmentStatus.Deployed,
+                EnvironmentStatus.Prepared,
+                EnvironmentStatus.New,
+            ]
             for status in sorted_status:
                 results.extend(
                     x for x in environments if x.status == status and x.is_alive

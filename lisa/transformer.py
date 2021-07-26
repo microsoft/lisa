@@ -118,7 +118,7 @@ def _sort_dfs(
     visited.add(transformer.name)
     for item in transformer.depends_on:
         if item not in visited:
-            dependent = transformers.get(item, None)
+            dependent = transformers.get(item)
             if not dependent:
                 raise LisaException(
                     f"transformer '{transformer.name}' "

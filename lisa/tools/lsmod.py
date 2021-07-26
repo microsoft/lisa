@@ -47,7 +47,4 @@ class Lsmod(Tool):
             )
 
         module_info = find_patterns_in_lines(result.stdout, [self.__output_pattern])
-        if any(mod_name in info for info in module_info):
-            return True
-
-        return False
+        return any(mod_name in info for info in module_info)

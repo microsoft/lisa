@@ -43,15 +43,15 @@ class Combinator(subclasses.BaseClassWithRunbookMixin, InitializableMixin):
 
         if new_variables or self._is_first_time:
             result = current_variables.copy()
-            if new_variables:
-                for name, new_variable in new_variables.items():
-                    original_variable = result.get(name, None)
-                    if original_variable:
-                        copied_variable = original_variable.copy()
-                        copied_variable.update(new_variable)
-                        result[name] = copied_variable
-                    else:
-                        result[name] = new_variable
+        if new_variables:
+            for name, new_variable in new_variables.items():
+                original_variable = result.get(name, None)
+                if original_variable:
+                    copied_variable = original_variable.copy()
+                    copied_variable.update(new_variable)
+                    result[name] = copied_variable
+                else:
+                    result[name] = new_variable
 
         self._is_first_time = False
         return result

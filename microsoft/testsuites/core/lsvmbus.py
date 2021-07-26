@@ -69,8 +69,9 @@ class LsVmBus(TestSuite):
     ) -> None:
         # 1. Check expected vmbus device names presented in the lsvmbus output.
         vmbus_devices = VmbusDeviceNames(
-            "1" == node.tools[VmGeneration].get_generation()
+            node.tools[VmGeneration].get_generation() == "1"
         )
+
         lsvmbus_tool = node.tools[Lsvmbus]
         vmbus_devices_list = lsvmbus_tool.get_device_channels_from_lsvmbus()
         actual_vmbus_device_names = [x.name for x in vmbus_devices_list]

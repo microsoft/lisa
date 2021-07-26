@@ -522,18 +522,17 @@ class NodeSpace(search_space.RequirementMixin, TypedSchema, ExtendableSchemaMixi
         min_value: NodeSpace = copy.deepcopy(self)
         assert isinstance(capability, NodeSpace), f"actual: {type(capability)}"
 
-        if self.node_count or capability.node_count:
-            if isinstance(self.node_count, int) and isinstance(
-                capability.node_count, int
-            ):
-                # capability can have more node
-                min_value.node_count = capability.node_count
-            else:
-                min_value.node_count = search_space.generate_min_capability_countspace(
-                    self.node_count, capability.node_count
-                )
-        else:
+        if not self.node_count and not capability.node_count:
             raise LisaException("node_count cannot be zero")
+        if isinstance(self.node_count, int) and isinstance(
+            capability.node_count, int
+        ):
+            # capability can have more node
+            min_value.node_count = capability.node_count
+        else:
+            min_value.node_count = search_space.generate_min_capability_countspace(
+                self.node_count, capability.node_count
+            )
         if self.core_count or capability.core_count:
             min_value.core_count = search_space.generate_min_capability_countspace(
                 self.core_count, capability.core_count

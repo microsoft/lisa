@@ -177,10 +177,7 @@ class RepoInstaller(BaseInstaller):
         ), f"cannot find codename from the os version: {node.os.os_version}"
 
         # add the repo
-        if runbook.is_proposed:
-            version_name = f"{release}-proposed"
-        else:
-            version_name = release
+        version_name = f"{release}-proposed" if runbook.is_proposed else release
         repo_entry = (
             f"deb {self.repo_url} {version_name} "
             f"restricted main multiverse universe"
@@ -197,9 +194,7 @@ class RepoInstaller(BaseInstaller):
         self._log.info(f"installing kernel package: {full_package_name}")
         ubuntu.install_packages(full_package_name)
 
-        kernel_version = self._get_kernel_version(runbook.source, node)
-
-        return kernel_version
+        return self._get_kernel_version(runbook.source, node)
 
     def _get_kernel_version(self, source: str, node: Node) -> str:
         # get kernel version from apt packages

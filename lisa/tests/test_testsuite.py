@@ -157,9 +157,7 @@ def generate_cases_metadata() -> List[TestCaseMetadata]:
 def generate_cases_result() -> List[TestResult]:
     case_metadata = generate_cases_metadata()
 
-    case_results = [TestResult("0", TestCaseRuntimeData(x)) for x in case_metadata]
-
-    return case_results
+    return [TestResult("0", TestCaseRuntimeData(x)) for x in case_metadata]
 
 
 def select_and_check(
@@ -184,10 +182,9 @@ class TestSuiteTestCase(TestCase):
         envs = load_environments(runbook)
         self.default_env = list(envs.values())[0]
         assert self.default_env
-        test_suite = MockTestSuite(
+        return MockTestSuite(
             metadata=suite_metadata,
         )
-        return test_suite
 
     def setUp(self) -> None:
         cleanup_cases_metadata()

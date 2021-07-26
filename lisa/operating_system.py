@@ -204,17 +204,16 @@ class Windows(OperatingSystem):
             cmd='systeminfo | findstr /B /C:"OS Version"',
             no_error_log=True,
         )
-        if cmd_result.exit_code == 0 and cmd_result.stdout != "":
-            os_version.release = get_matched_str(
-                cmd_result.stdout, self.__windows_version_pattern
-            )
-            if os_version.release == "":
-                raise LisaException("OS version information not found")
-        else:
+        if cmd_result.exit_code != 0 or cmd_result.stdout == "":
             raise LisaException(
                 "Error getting OS version info from systeminfo command"
                 f"exit_code: {cmd_result.exit_code} stderr: {cmd_result.stderr}"
             )
+        os_version.release = get_matched_str(
+            cmd_result.stdout, self.__windows_version_pattern
+        )
+        if os_version.release == "":
+            raise LisaException("OS version information not found")
         return os_version
 
 
@@ -330,9 +329,7 @@ class Posix(OperatingSystem, BaseClassMixin):
         }
         rest = match.string[match.end() :]  # noqa:E203
         ver["build"] = rest
-        release_version = VersionInfo(**ver)
-
-        return release_version
+        return VersionInfo(**ver)
 
     def _install_packages(
         self, packages: Union[List[str]], signed: bool = True
@@ -412,17 +409,15 @@ class Posix(OperatingSystem, BaseClassMixin):
         Resolve it to a standard package_name so it can be installed.
         """
         if isinstance(package, str):
-            package_name = package
+            return package
         elif isinstance(package, Tool):
-            package_name = package.package_name
+            return package.package_name
         else:
             assert isinstance(package, type), f"actual:{type(package)}"
             # Create a temp object, it doesn't query.
             # So they can be queried together.
             tool = package.create(self._node)
-            package_name = tool.package_name
-
-        return package_name
+            return tool.package_name
 
 
 class BSD(Posix):
@@ -509,33 +504,33 @@ class Debian(Linux):
         # Uninstall package will show as deinstall
         # vim                                             deinstall
         # vim-common                                      install
-        if len(list(filter(package_pattern.match, result.stdout.splitlines()))) == 1:
-            return True
-        return False
+        return (
+            len(list(filter(package_pattern.match, result.stdout.splitlines())))
+            == 1
+        )
 
     def _get_os_version(self) -> OsVersion:
         os_version = OsVersion("")
         cmd_result = self._node.execute(
             cmd="lsb_release -a", shell=True, no_error_log=True
         )
-        if cmd_result.exit_code == 0 and cmd_result.stdout != "":
-            for row in cmd_result.stdout.splitlines():
-                os_release_info = self.__lsb_os_info_pattern.match(row)
-                if os_release_info:
-                    if os_release_info.group("name") == "Distributor ID":
-                        os_version.vendor = os_release_info.group("value")
-                    elif os_release_info.group("name") == "Release":
-                        os_version.release = os_release_info.group("value")
-                    elif os_release_info.group("name") == "Codename":
-                        os_version.codename = os_release_info.group("value")
-            if os_version.vendor == "":
-                raise LisaException("OS version information not found")
-        else:
+        if cmd_result.exit_code != 0 or cmd_result.stdout == "":
             raise LisaException(
                 f"Command 'lsb_release -a' failed. "
                 f"exit_code:{cmd_result.exit_code} stderr: {cmd_result.stderr}"
             )
 
+        for row in cmd_result.stdout.splitlines():
+            os_release_info = self.__lsb_os_info_pattern.match(row)
+            if os_release_info:
+                if os_release_info.group("name") == "Distributor ID":
+                    os_version.vendor = os_release_info.group("value")
+                elif os_release_info.group("name") == "Release":
+                    os_version.release = os_release_info.group("value")
+                elif os_release_info.group("name") == "Codename":
+                    os_version.codename = os_release_info.group("value")
+        if os_version.vendor == "":
+            raise LisaException("OS version information not found")
         return os_version
 
     def _update_packages(self, packages: Optional[Union[List[str]]] = None) -> None:
@@ -679,22 +674,21 @@ class Fedora(Linux):
             cmd="cat /etc/fedora-release",
             no_error_log=True,
         )
-        if cmd_result.exit_code == 0 and cmd_result.stdout != "":
-            if "Fedora" not in cmd_result.stdout:
-                raise LisaException("OS version information not found")
-            os_version.vendor = "Fedora"
-            os_version.release = get_matched_str(
-                cmd_result.stdout, self._fedora_release_pattern_version
-            )
-            os_version.codename = get_matched_str(
-                cmd_result.stdout, self.__distro_codename_pattern
-            )
-        else:
+        if cmd_result.exit_code != 0 or cmd_result.stdout == "":
             raise LisaException(
                 "Error in running command 'cat /etc/fedora-release'"
                 f"exit_code: {cmd_result.exit_code} stderr: {cmd_result.stderr}"
             )
 
+        if "Fedora" not in cmd_result.stdout:
+            raise LisaException("OS version information not found")
+        os_version.vendor = "Fedora"
+        os_version.release = get_matched_str(
+            cmd_result.stdout, self._fedora_release_pattern_version
+        )
+        os_version.codename = get_matched_str(
+            cmd_result.stdout, self.__distro_codename_pattern
+        )
         return os_version
 
 
@@ -715,7 +709,7 @@ class Redhat(Fedora):
         # Use below command to update rhui-microsoft-azure-rhel package from microsoft
         #  repo to resolve the issue.
         # Details please refer https://docs.microsoft.com/en-us/azure/virtual-machines/workloads/redhat/redhat-rhui#azure-rhui-infrastructure # noqa: E501
-        if "Red Hat" == os_version.vendor:
+        if os_version.vendor == "Red Hat":
             cmd_result = self._node.execute(
                 "yum update -y --disablerepo='*' --enablerepo='*microsoft*' ", sudo=True
             )
@@ -744,44 +738,40 @@ class Redhat(Fedora):
     def _package_exists(self, package: str, signed: bool = True) -> bool:
         command = f"yum list installed {package}"
         result = self._node.execute(command, sudo=True)
-        if result.exit_code == 0:
-            return True
-
-        return False
+        return result.exit_code == 0
 
     def _get_os_version(self) -> OsVersion:
         os_version = OsVersion("")
         cmd_result = self._node.execute(
             cmd="cat /etc/redhat-release", no_error_log=True
         )
-        if cmd_result.exit_code == 0 and cmd_result.stdout != "":
-            for vendor in [
-                "Red Hat",
-                "CentOS",
-                "XenServer",
-                "AlmaLinux",
-                "Rocky Linux",
-            ]:
-                if vendor not in cmd_result.stdout:
-                    continue
-                os_version.vendor = vendor
-                os_version.release = get_matched_str(
-                    cmd_result.stdout,
-                    Fedora._fedora_release_pattern_version,
-                )
-                os_version.codename = get_matched_str(
-                    cmd_result.stdout,
-                    _redhat_release_pattern_bracket,
-                )
-                break
-            if os_version.vendor == "":
-                raise LisaException("OS version information not found")
-        else:
+        if cmd_result.exit_code != 0 or cmd_result.stdout == "":
             raise LisaException(
                 "Error in running command 'cat /etc/redhat-release'"
                 f"exit_code: {cmd_result.exit_code} stderr: {cmd_result.stderr}"
             )
 
+        for vendor in [
+            "Red Hat",
+            "CentOS",
+            "XenServer",
+            "AlmaLinux",
+            "Rocky Linux",
+        ]:
+            if vendor not in cmd_result.stdout:
+                continue
+            os_version.vendor = vendor
+            os_version.release = get_matched_str(
+                cmd_result.stdout,
+                Fedora._fedora_release_pattern_version,
+            )
+            os_version.codename = get_matched_str(
+                cmd_result.stdout,
+                _redhat_release_pattern_bracket,
+            )
+            break
+        if os_version.vendor == "":
+            raise LisaException("OS version information not found")
         return os_version
 
     def _update_packages(self, packages: Optional[Union[List[str]]] = None) -> None:

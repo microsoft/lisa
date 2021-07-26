@@ -88,7 +88,7 @@ class LegacyRunner(BaseRunner):
 
     @property
     def is_done(self) -> bool:
-        return all(x for x in self._completed_flags)
+        return all(self._completed_flags)
 
     def fetch_task(self) -> Optional[Callable[[], List[TestResult]]]:
         try:
@@ -104,13 +104,12 @@ class LegacyRunner(BaseRunner):
             )
 
             self._started_flags[index] = True
-            task = partial(
+            return partial(
                 self._start_sub_test,
                 self._get_dir_name(self.id, index),
                 index,
                 config,
             )
-            return task
         except ValueError:
             # all started, do nothing
             return None
@@ -491,7 +490,7 @@ class LogParser(InitializableMixin):
                 break
         if all_cases:
             # expand for test matrix
-            all_cases = all_cases * int(count / len(all_cases))
+            all_cases *= int(count / len(all_cases))
         return all_cases
 
     def discover_running_cases(self) -> List[Dict[str, str]]:
@@ -560,9 +559,9 @@ class LogParser(InitializableMixin):
                     key: value for key, value in case_match.groupdict().items() if value
                 }
                 # marketplace_image for ARMImage, vhd_image for OsVHD in legacy run
-                if "marketplace_image" in current_case.keys():
+                if "marketplace_image" in current_case:
                     current_case["image"] = current_case.pop("marketplace_image")
-                elif "vhd_image" in current_case.keys():
+                elif "vhd_image" in current_case:
                     current_case["image"] = current_case.pop("vhd_image")
                 else:
                     raise LisaException(

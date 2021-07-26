@@ -99,8 +99,10 @@ def import_package(
     for file in path.glob("**/*.py"):
         file_name = file.stem
         # skip test files and __init__.py
-        if ("tests" == file.parent.stem and file_name.startswith("test_")) or (
-            file.stem == "__init__"
+        if (
+            file.parent.stem == "tests"
+            and file_name.startswith("test_")
+            or file.stem == "__init__"
         ):
             continue
 

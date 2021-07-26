@@ -90,18 +90,7 @@ class SerialConsole(Feature):
             saved_path.mkdir()
 
         if self._cached_console_log is None or force_run:
-            self._node.log.debug("downloading serial log...")
-            log_path = self._node.local_log_path / get_datetime_path()
-            log_path.mkdir(parents=True, exist_ok=True)
-
-            self._cached_console_log = self._get_console_log(saved_path=log_path)
-            self._node.log.debug(
-                f"downloaded serial log size: {len(self._cached_console_log)}"
-            )
-            # anyway save to node log_path for each time it's real queried
-            log_file_name = log_path / NAME_SERIAL_CONSOLE_LOG
-            with open(log_file_name, mode="wb") as f:
-                f.write(self._cached_console_log)
+            self._extracted_from_get_console_log_9()
         else:
             self._node.log.debug("load cached serial log")
 
@@ -112,6 +101,20 @@ class SerialConsole(Feature):
                 f.write(self._cached_console_log)
 
         return self._cached_console_log.decode("utf-8", errors="ignore")
+
+    def _extracted_from_get_console_log_9(self):
+        self._node.log.debug("downloading serial log...")
+        log_path = self._node.local_log_path / get_datetime_path()
+        log_path.mkdir(parents=True, exist_ok=True)
+
+        self._cached_console_log = self._get_console_log(saved_path=log_path)
+        self._node.log.debug(
+            f"downloaded serial log size: {len(self._cached_console_log)}"
+        )
+        # anyway save to node log_path for each time it's real queried
+        log_file_name = log_path / NAME_SERIAL_CONSOLE_LOG
+        with open(log_file_name, mode="wb") as f:
+            f.write(self._cached_console_log)
 
     def check_panic(
         self, saved_path: Optional[Path], stage: str = "", force_run: bool = False

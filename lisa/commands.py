@@ -66,20 +66,19 @@ def list_start(args: Namespace) -> int:
     builder = RunbookBuilder.from_path(args.runbook, args.variables)
     list_all = cast(Optional[bool], args.list_all)
     log = _get_init_logger("list")
-    if args.type == constants.LIST_CASE:
-        if list_all:
-            cases: Iterable[TestCaseRuntimeData] = select_testcases()
-        else:
-            cases = select_testcases(builder.partial_resolve(constants.TESTCASE))
-        for case_data in cases:
-            log.info(
-                f"case: {case_data.name}, suite: {case_data.metadata.suite.name}, "
-                f"area: {case_data.suite.area}, "
-                f"category: {case_data.suite.category}, "
-                f"tags: {','.join(case_data.suite.tags)}, "
-                f"priority: {case_data.priority}"
-            )
-    else:
+    if args.type != constants.LIST_CASE:
         raise LisaException(f"unknown list type '{args.type}'")
+    if list_all:
+        cases: Iterable[TestCaseRuntimeData] = select_testcases()
+    else:
+        cases = select_testcases(builder.partial_resolve(constants.TESTCASE))
+    for case_data in cases:
+        log.info(
+            f"case: {case_data.name}, suite: {case_data.metadata.suite.name}, "
+            f"area: {case_data.suite.area}, "
+            f"category: {case_data.suite.category}, "
+            f"tags: {','.join(case_data.suite.tags)}, "
+            f"priority: {case_data.priority}"
+        )
     log.info("list information here")
     return 0

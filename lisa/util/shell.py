@@ -81,9 +81,9 @@ class ConnectionInfo:
             # use password
             # spurplus doesn't process empty string correctly, use None
             self.private_key_file = None
+        elif not Path(self.private_key_file).exists():
+            raise FileNotFoundError(self.private_key_file)
         else:
-            if not Path(self.private_key_file).exists():
-                raise FileNotFoundError(self.private_key_file)
             self.password = None
 
         if not self.username:
@@ -410,10 +410,7 @@ class LocalShell(InitializableMixin):
         self._inner_shell = spur.LocalShell()
 
     def _initialize(self, *args: Any, **kwargs: Any) -> None:
-        if "win32" == sys.platform:
-            self.is_posix = False
-        else:
-            self.is_posix = True
+        self.is_posix = sys.platform != "win32"
 
     def close(self) -> None:
         ...

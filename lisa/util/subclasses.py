@@ -31,10 +31,7 @@ class BaseClassWithRunbookMixin(BaseClassMixin):
 T_BASECLASS = TypeVar("T_BASECLASS", bound=BaseClassMixin)
 
 
-if TYPE_CHECKING:
-    SubClassTypeDict = UserDict[str, type]
-else:
-    SubClassTypeDict = UserDict
+SubClassTypeDict = UserDict[str, type] if TYPE_CHECKING else UserDict
 
 
 class Factory(InitializableMixin, Generic[T_BASECLASS], SubClassTypeDict):
@@ -73,11 +70,10 @@ class Factory(InitializableMixin, Generic[T_BASECLASS], SubClassTypeDict):
                 f"cannot find subclass '{type_name}' of {self._base_type.__name__}"
             )
         instance = sub_type.schema().load(raw_runbook)  # type: ignore
-        if hasattr(instance, "extended_schemas"):
-            if instance.extended_schemas:
-                raise LisaException(
-                    f"found unknown fields: {instance.extended_schemas}"
-                )
+        if hasattr(instance, "extended_schemas") and instance.extended_schemas:
+            raise LisaException(
+                f"found unknown fields: {instance.extended_schemas}"
+            )
         return cast(T_BASECLASS, instance)
 
     def create_by_type_name(self, type_name: str, **kwargs: Any) -> T_BASECLASS:
