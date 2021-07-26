@@ -1,7 +1,7 @@
 # Description: This script is used for checking enabled VM sizes and VM core quota in the given azure subscription.
 # It will upload subscription id and unavailable VM/insufficient VM core to db
 # This script will be executed by 'Penguinator-Validate-Azure-Subscription-Info' pipeline
-# This script should be under .\lisav2\Utilities directory
+# This script should be under $lisaDir\Utilities directory
 
 Param
 (
@@ -9,18 +9,22 @@ Param
     [String] $clientID,
     [String] $tenantID,
     [String] $subID,
-    [String] $lisaTestCasesXMLPath = '.\lisav2\XML\TestCases',
-    [String] $lisaVMConfigsPath = '.\lisav2\XML\VMConfigurations',
-    [String] $penguinatorSecureFilePath
+    [String] $lisaDir = '.',
+    [String] $lisaTestCasesXMLPath = "$lisaDir\XML\TestCases",
+    [String] $lisaVMConfigsPath = "$lisaDir\XML\VMConfigurations",
+    [String] $penguinatorSecureFilePath,
+    [int] $parrallelCount = 4
 )
 
 
 $AllLisaTests = [System.Collections.ArrayList]::new()
 $script:AllTestVMSizes = @{}
 $script:InsufficientVMSizes = [System.Collections.ArrayList]::new()
+$script:vmFamilyAndRequiredCPUs = @{}
 $script:InsufficientVMFamilyAndQuota = @{}
 
-Import-Module .\lisav2\Libraries\TestLogs.psm1
+
+Import-Module $lisaDir\Libraries\TestLogs.psm1
 
 # Merge VM config files for simpler checking
 function Join-VMConfigFiles ($filePath) {
@@ -31,7 +35,7 @@ function Join-VMConfigFiles ($filePath) {
         $finalXml += $xml.TestSetup.InnerXml
     }
     $finalXml += "</TestSetup>"
-    ([xml]$finalXml).Save(".\lisav2\mergedVMConfig.xml")
+    ([xml]$finalXml).Save("$lisaDir\mergedVMConfig.xml")
     return [xml]$finalXml
 }
 
@@ -39,7 +43,7 @@ function Measure-SubscriptionCapabilities() {
     Write-LogInfo "Measure VM capabilities of current subscription..."
     if (!$script:SubscriptionVMResourceSkus -or !$script:TestableLocations) {
         $regionScopeFromUser = @()
-        $RegionAndStorageMapFile = ".\lisav2\XML\RegionAndStorageAccounts.xml"
+        $RegionAndStorageMapFile = "$lisaDir\XML\RegionAndStorageAccounts.xml"
         if (Test-Path $RegionAndStorageMapFile) {
             $RegionAndStorageMap = [xml](Get-Content $RegionAndStorageMapFile)
             $RegionAndStorageMap.AllRegions.ChildNodes | ForEach-Object { $regionScopeFromUser += $_.LocalName }
@@ -111,9 +115,9 @@ function Assert-VMSizeAndCoreQuota () {
 
     # initialize AllTestVMSizes
     $AllLisaTests.SetupConfig.OverrideVMSize | Sort-Object -Unique | Foreach-Object {
-        $_ = $_.Split(",")[0]
-        if (!($script:AllTestVMSizes.$_)) {
-            $script:AllTestVMSizes["$_"] = @{}
+        $testVM = $_.Split(",")[0]
+        if (!($script:AllTestVMSizes.$testVM)) {
+            $script:AllTestVMSizes["$testVM"] = @{}
         }
     }
     $allTestSetupTypes = $AllLisaTests.SetupConfig.SetupType | Sort-Object -Unique
@@ -137,42 +141,25 @@ function Assert-VMSizeAndCoreQuota () {
 
     # Join all VM configs
     $mergedVMConfigs = Join-VMConfigFiles($lisaVMConfigsPath)
-    # Loop through tests
+
+    # Update required cores for vmfamilies
     foreach ($test in $AllLisaTests) {
-        Write-LogInfo "Checking test: $($test.TestName)"
+        Write-LogInfo "Collecting data of test: $($test.TestName)"
         $RGXMLData = $mergedVMConfigs.'TestSetup'.$($test.SetupConfig.SetupType).'ResourceGroup'
-        Assert-ResourceLimitation $RGXMLData $test
+        Update-VMFamilyRequiredCores $RGXMLData $test
     }
+
+    # Assert if there are enough quotas
+    # foreach ($test in $AllLisaTests) {
+        # $RGXMLData = $mergedVMConfigs.'TestSetup'.$($test.SetupConfig.SetupType).'ResourceGroup'
+    Assert-ResourceLimitation
+    # }
 }
 
-function Assert-ResourceLimitation($RGXMLData, $CurrentTestData) {
-    # TODO: ADDING CHECK FOR NETWORK AND RESOURCE GROUP
-
-    Function Test-OverflowErrors {
-        Param (
-            [string] $ResourceType,
-            [int] $CurrentValue,
-            [int] $RequiredValue,
-            [int] $MaximumLimit,
-            [string] $Location
-        )
-        $AllowedUsagePercentage = 1
-        $ActualLimit = [int]($MaximumLimit * $AllowedUsagePercentage)
-        $Message = "Current '$ResourceType' in region '$Location': Requested: $RequiredValue, Estimated usage after deploy: $($CurrentValue + $RequiredValue), Maximum allowed: $ActualLimit"
-        if (($CurrentValue + $RequiredValue) -le $ActualLimit) {
-            Write-LogDbg $Message
-            return 0
-        }
-        else {
-            Write-LogErr $Message
-            return 1
-        }
-    }
-
+function Update-VMFamilyRequiredCores($RGXMLData, $CurrentTestData) {
     $VMGeneration = $CurrentTestData.SetupConfig.VMGeneration
-    # Verify usage and select Test Location
     $vmCounter = 0
-    $vmFamilyRequiredCPUs = @{}
+    $vmFamilyAndQuotaOfCurrentTest = @{}
     foreach ($VM in $RGXMLData.VirtualMachine) {
         $vmCounter += 1
         Write-LogInfo "Estimating VM #$vmCounter usage for $($CurrentTestData.TestName)."
@@ -199,67 +186,126 @@ function Assert-ResourceLimitation($RGXMLData, $CurrentTestData) {
         else {
             $vmCPUs = $script:AllTestVMSizes.$testVMSize.vCPUs
             $vmFamily = $script:AllTestVMSizes.$testVMSize.Family
-            if ($vmFamilyRequiredCPUs.$vmFamily) {
-                $vmFamilyRequiredCPUs.$vmFamily["requiredCPUs"] += [int]$vmCPUs
+            if ($vmFamilyAndQuotaOfCurrentTest.$vmFamily) {
+                $vmFamilyAndQuotaOfCurrentTest.$vmFamily += [int]$vmCPUs
             }
             else {
-                $vmFamilyRequiredCPUs["$vmFamily"] = @{}
-                $vmFamilyRequiredCPUs.$vmFamily["requiredCPUs"] = [int]$vmCPUs
-            }
-
-            $vmAvailableLocations = $script:AllTestVMSizes.$testVMSize.AvailableLocations
-
-            $index = 0
-            for ($index = 0; $index -lt $vmAvailableLocations.Count; ) {
-                $regionVmUsage = Get-AzVMUsage -Location $vmAvailableLocations[$index]
-                $vmFamilyUsage = $regionVmUsage | Where-Object { $_.Name.Value -imatch "$vmFamily" } | Select-Object CurrentValue, Limit
-                $regionCoresUsage = $regionVmUsage | Where-Object { $_.Name.Value -imatch "$vmFamily" } | Select-Object CurrentValue, Limit
-                $locationErrors = Test-OverflowErrors -ResourceType "$vmFamily" -CurrentValue $vmFamilyUsage.CurrentValue `
-                    -RequiredValue $vmFamilyRequiredCPUs.$vmFamily["requiredCPUs"] -MaximumLimit $vmFamilyUsage.Limit -Location $vmAvailableLocations[$index]
-                $locationErrors += Test-OverflowErrors -ResourceType "Region Total Cores" -CurrentValue $regionCoresUsage.CurrentValue `
-                    -RequiredValue $vmFamilyRequiredCPUs.$vmFamily["requiredCPUs"] -MaximumLimit $regionCoresUsage.Limit -Location $vmAvailableLocations[$index]
-                if ($locationErrors -gt 0) {
-                    $index++
-                }
-                else {
-                    Write-LogInfo "Test Location '$($vmAvailableLocations[$index])' has VM Size '$testVMSize' enabled and has enough quota for '$($CurrentTestData.TestName)' deployment"
-                    break
-                }
-            }
-            if ($index -gt 0) {
-                # Index is larger than 0 but less than vmAvailableLocation size, $vmAvailableLocations[$index] should be the available location
-                if ($index -lt $vmAvailableLocations.Count) {
-                    $locationFamilyUsage = [System.Collections.ArrayList]@()
-                    $vmAvailableLocations | Where-Object {
-                        $loc = $_
-                        $svmusage = (Get-AzVMUsage -Location $_ | Select-Object @{l = "Location"; e = { $loc } }, @{l = "VMFamily"; e = { $_.Name.Value } }, @{l = "AvailableUsage"; e = { $_.Limit - $_.CurrentValue } }, Limit)
-                        $locationFamilyUsage += $svmusage | Where-Object { $_.VMFamily -eq $vmFamily } | Select-Object Location, AvailableUsage
-                    }
-                    $script:AllTestVMSizes.$testVMSize.AvailableLocations = ($locationFamilyUsage | Sort-Object AvailableUsage -Descending | Select-Object -ExpandProperty Location)
-                }
-                # Loop over the whole vmAvailableLocation list but found no available location
-                else {
-                    Write-LogErr "Estimated resource usage for VM Size: '$testVMSize' exceeded allowed limits."
-                    $vmFamilyRequiredCPUs.$vmFamily["isEnough"] = 'false'
-                    [void]$script:InsufficientVMSizes.Add($testVMSize)
-                }
+                $vmFamilyAndQuotaOfCurrentTest[$vmFamily] = [int]$vmCPUs
             }
         }
     }
 
-    # loop through $vmFamilyRequiredCPUs, check if we need to update $InsufficientVMFamilyAndQuota
-    foreach ($key in $vmFamilyRequiredCPUs.Keys) {
-        if (!$vmFamilyRequiredCPUs.$key["isEnough"]) {
+    foreach ($vf in $vmFamilyAndQuotaOfCurrentTest.Keys) {
+        if ($script:vmFamilyAndRequiredCPUs.$vf) {
+            if ($script:vmFamilyAndRequiredCPUs.$vf["requiredCPUs"].Count -lt $parrallelCount) {
+                # less than parrallel count, directly add the case to quota array
+                [void]$script:vmFamilyAndRequiredCPUs.$vf."requiredCPUs".Add($vmFamilyAndQuotaOfCurrentTest.$vf)
+            } else {
+                # array is full, compare new quota with the smallest in the array
+                if ($script:vmFamilyAndRequiredCPUs.$vf["requiredCPUs"][0] -lt $vmFamilyAndQuotaOfCurrentTest.$vf) {
+                    $script:vmFamilyAndRequiredCPUs.$vf["requiredCPUs"][0] = $vmFamilyAndQuotaOfCurrentTest.$vf
+                }
+            }
+            # sort quota array in asending order, so the first element will be the min
+            $temp = $script:vmFamilyAndRequiredCPUs.$vf["requiredCPUs"] | Sort-Object
+            $script:vmFamilyAndRequiredCPUs.$vf["requiredCPUs"] = [System.Collections.ArrayList]::new()
+            foreach ($cpu in $temp) {
+                [void]$script:vmFamilyAndRequiredCPUs.$vf["requiredCPUs"].Add($cpu)
+            }
+        }
+        else {
+            $script:vmFamilyAndRequiredCPUs[$vf] = @{}
+            $script:vmFamilyAndRequiredCPUs.$vf["requiredCPUs"] = [System.Collections.ArrayList]::new()
+            [void]$script:vmFamilyAndRequiredCPUs.$vf."requiredCPUs".Add($vmFamilyAndQuotaOfCurrentTest.$vf)
+        }
+    }
+}
+
+function Assert-ResourceLimitation() {
+    # TODO: ADDING CHECK FOR NETWORK AND RESOURCE GROUP
+
+    Function Test-OverflowErrors {
+        Param (
+            [string] $ResourceType,
+            [int] $CurrentValue,
+            [int] $RequiredValue,
+            [int] $MaximumLimit,
+            [string] $Location
+        )
+        $AllowedUsagePercentage = 1
+        $ActualLimit = [int]($MaximumLimit * $AllowedUsagePercentage)
+        $Message = "Current '$ResourceType' in region '$Location': Requested: $RequiredValue, Estimated usage after deploy: $($CurrentValue + $RequiredValue), Maximum allowed: $ActualLimit"
+        if (($CurrentValue + $RequiredValue) -le $ActualLimit) {
+            Write-LogDbg $Message
+            return 0
+        }
+        else {
+            Write-LogErr $Message
+            return 1
+        }
+    }
+
+    # Verify usage and select Test Location
+    foreach ($testVMSize in $script:AllTestVMSizes.Keys) {
+        $vmAvailableLocations = $script:AllTestVMSizes.$testVMSize.AvailableLocations
+        $vmFamily = $script:AllTestVMSizes.$testVMSize.Family
+        $sumOfVMFamilyQuota = 0
+        foreach ($val in $script:vmFamilyAndRequiredCPUs.$vmFamily["requiredCPUs"]) {
+            $sumOfVMFamilyQuota += $val
+        }
+        $script:vmFamilyAndRequiredCPUs.$vmFamily["sumOfRequiredCPUs"] = $sumOfVMFamilyQuota
+
+        # vmAvailableLocations may contain 0 availableUsage locations, need to filter out
+        $index = 0
+        for ($index = 0; $index -lt $vmAvailableLocations.Count; ) {
+            # 'cores' is the overall region allowed vCPUs
+            $regionVmUsage = Get-AzVMUsage -Location $vmAvailableLocations[$index]
+            $vmFamilyUsage = $regionVmUsage | Where-Object { $_.Name.Value -imatch "$vmFamily" } | Select-Object CurrentValue, Limit
+            $regionCoresUsage = $regionVmUsage | Where-Object { $_.Name.Value -imatch "$vmFamily" } | Select-Object CurrentValue, Limit
+            $locationErrors = Test-OverflowErrors -ResourceType "$vmFamily" -CurrentValue $vmFamilyUsage.CurrentValue `
+                -RequiredValue $sumOfVMFamilyQuota -MaximumLimit $vmFamilyUsage.Limit -Location $vmAvailableLocations[$index]
+            $locationErrors += Test-OverflowErrors -ResourceType "Region Total Cores" -CurrentValue $regionCoresUsage.CurrentValue `
+                -RequiredValue $sumOfVMFamilyQuota -MaximumLimit $regionCoresUsage.Limit -Location $vmAvailableLocations[$index]
+            if ($locationErrors -gt 0) {
+                $index++
+            }
+            else {
+                Write-LogInfo "Test Location '$($vmAvailableLocations[$index])' has VM Size '$testVMSize' enabled and has enough quota for LISA test deployment."
+                break
+            }
+        }
+        if ($index -gt 0) {
+            # Index is larger than 0 but less than vmAvailableLocation size, $vmAvailableLocations[$index] should be the available location
+            if ($index -lt $vmAvailableLocations.Count) {
+                $locationFamilyUsage = [System.Collections.ArrayList]@()
+                $vmAvailableLocations | Where-Object {
+                    $loc = $_
+                    $svmusage = (Get-AzVMUsage -Location $_ | Select-Object @{l = "Location"; e = { $loc } }, @{l = "VMFamily"; e = { $_.Name.Value } }, @{l = "AvailableUsage"; e = { $_.Limit - $_.CurrentValue } }, Limit)
+                    $locationFamilyUsage += $svmusage | Where-Object { $_.VMFamily -eq $vmFamily } | Select-Object Location, AvailableUsage
+                }
+                $script:AllTestVMSizes.$testVMSize.AvailableLocations = ($locationFamilyUsage | Sort-Object AvailableUsage -Descending | Select-Object -ExpandProperty Location)
+            }
+            # Loop over the whole vmAvailableLocation list but found no available location
+            else {
+                Write-LogErr "Estimated resource usage for VM Size: '$testVMSize' exceeded allowed limits."
+                $script:vmFamilyAndRequiredCPUs.$vmFamily["isEnough"] = 'false'
+                [void]$script:InsufficientVMSizes.Add($testVMSize)
+            }
+        }
+    }
+
+    # loop through $vmFamilyRequiredCPUs, check if we need to update $InsufficientVMFamilyAndQuota. $key is vmFamily
+    foreach ($key in $script:vmFamilyAndRequiredCPUs.Keys) {
+        if ($script:InsufficientVMFamilyAndQuota.$key -or !$script:vmFamilyAndRequiredCPUs.$key["isEnough"]) {
+            # Already record this vmFamily in InsufficientVMFamilyAndQuota, no need to change
+            # OR
             # No 'isEnough' means this vmFamily is enabled and has enough quota
             continue
         }
-        if ($script:InsufficientVMFamilyAndQuota.$key -and ($script:InsufficientVMFamilyAndQuota.$key -gt $vmFamilyRequiredCPUs.$key["RequiredCPUs"])) {
-            continue
-        } else {
-            $script:InsufficientVMFamilyAndQuota[$key] = $vmFamilyRequiredCPUs.$key["RequiredCPUs"]
+        else {
+            $script:InsufficientVMFamilyAndQuota[$key] = $script:vmFamilyAndRequiredCPUs.$key["sumOfRequiredCPUs"]
         }
     }
-
     Write-LogInfo "================================================================================"
 }
 
@@ -348,6 +394,7 @@ try {
     foreach ($key in $script:InsufficientVMFamilyAndQuota.Keys) {
         $VMFamilyAndQuotaString = $VMFamilyAndQuotaString + $key + ':' + [math]::Ceiling($script:InsufficientVMFamilyAndQuota.$key / 100) * 100 + ';'
     }
+    $VMFamilyAndQuotaString = $VMFamilyAndQuotaString.TrimEnd(';')
 
     $sql = "
     SELECT * FROM SubscriptionScanResults
