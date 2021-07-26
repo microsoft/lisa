@@ -2122,9 +2122,17 @@ function apt_get_remove () {
 	check_exit_status "apt_get_remove $package_name" "exit"
 }
 
+function update_rhui () {
+	GetDistro
+	if [[ $DISTRO == *"redhat"* ]]; then
+		sudo yum update -y --disablerepo='*' --enablerepo='*microsoft*'
+	fi
+}
+
 # Yum install packages, parameter: package name
 function yum_install () {
 	package_name=$1
+	update_rhui
 	sudo yum -y --nogpgcheck install $package_name
 	check_exit_status "yum_install $package_name" "exit"
 }
@@ -3232,6 +3240,7 @@ function stop_firewall() {
 			fi
 			;;
 		ubuntu*|debian*)
+			command -v ufw || return 0
 			ufw disable
 			if [ $? -ne 0 ]; then
 				return 1
