@@ -724,6 +724,13 @@ class Fedora(Linux):
 
 
 class Redhat(Fedora):
+    # Red Hat Enterprise Linux Server release 6.9 (Santiago)
+    # CentOS release 6.9 (Final)
+    __redhat_information_pattern = re.compile(
+        r"^(?P<vendor>.*?)?(?: Enterprise Linux Server)?(?: release)? "
+        r"(?P<version>[0-9\.]+).\((?P<codename>.*).*\)$"
+    )
+
     @classmethod
     def name_pattern(cls) -> Pattern[str]:
         return re.compile("^rhel|Red|AlmaLinux|Rocky|Scientific|acronis|Actifio$")
@@ -775,8 +782,28 @@ class Redhat(Fedora):
         return False
 
     def _get_information(self) -> OsInformation:
-        # it's different with fedora, but the same as posix default.
-        return super(Fedora, self)._get_information()
+        # The higher version above 7.0 support os-version.
+        try:
+            information = super(Fedora, self)._get_information()
+        except Exception:
+            # Parse /etc/redhat-release to support 6.x.
+            cmd_result = self._node.execute(
+                cmd="cat /etc/redhat-release", no_error_log=True
+            )
+            cmd_result.assert_exit_code()
+            full_version = cmd_result.stdout
+            matches = self.__redhat_information_pattern.match(full_version)
+            assert matches
+            assert matches.group("vendor")
+            information = OsInformation(
+                version=self._parse_version(matches.group("version")),
+                vendor=matches.group("vendor"),
+                release=matches.group("version"),
+                codename=matches.group("codename"),
+                full_version=full_version,
+            )
+
+        return information
 
     def _update_packages(self, packages: Optional[Union[List[str]]] = None) -> None:
         command = "yum -y --nogpgcheck update "
