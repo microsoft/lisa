@@ -30,6 +30,7 @@ def generate_run_path(root_path: Path) -> Tuple[PurePath, Path]:
             f"The run path '{local_path}' already exists, "
             f"and not found an unique path."
         )
+    local_path.mkdir(parents=True)
     return logic_path, local_path
 
 
@@ -43,7 +44,6 @@ def initialize_runtime_folder() -> None:
     # Layout the run time folder structure.
     runs_path = runtime_root.joinpath("runs")
     logic_path, local_path = generate_run_path(runs_path)
-    local_path.mkdir(parents=True)
 
     constants.RUN_ID = logic_path.name
     constants.RUN_LOGIC_PATH = logic_path
