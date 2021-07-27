@@ -55,17 +55,15 @@ class OsInformation:
 
 class OperatingSystem:
     __lsb_release_pattern = re.compile(r"^Description:[ \t]+([\w]+)[ ]+$", re.M)
-    __os_release_pattern_name = re.compile(
-        r"^NAME=\"?([^\" \r\n]+)[^\" \n]*\"?\r?$", re.M
-    )
+    __os_release_pattern_name = re.compile(r"^NAME=\"?([^\" \r\n]+).*?\"?\r?$", re.M)
     # For example, the ID and ID_LIKE in /etc/os-release of AlmaLinux is:
     # ID="almalinux"
     # ID_LIKE="rhel centos fedora"
     # The __os_release_pattern_id can match "almalinux"
     # The __os_release_pattern_idlike can match "rhel"
-    __os_release_pattern_id = re.compile(r"^ID=\"?([^\" \r\n]+)[^\" \n]*\"?\r?$", re.M)
+    __os_release_pattern_id = re.compile(r"^ID=\"?([^\" \r\n]+).*?\"?\r?$", re.M)
     __os_release_pattern_idlike = re.compile(
-        r"^ID_LIKE=\"?([^\" \r\n]+)[^\"\n]*\"?\r?$", re.M
+        r"^ID_LIKE=\"?([^\" \r\n]+).*?\"?\r?$", re.M
     )
     __redhat_release_pattern_header = re.compile(r"^([^ ]*) .*$")
     # Red Hat Enterprise Linux Server 7.8 (Maipo) => Maipo
