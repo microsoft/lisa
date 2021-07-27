@@ -31,8 +31,6 @@ if TYPE_CHECKING:
 
 
 _get_init_logger = partial(get_logger, name="os")
-# Red Hat Enterprise Linux Server 7.8 (Maipo) => Maipo
-_redhat_release_pattern_bracket = re.compile(r"^.*\(([^ ]*).*\)$")
 
 
 @dataclass
@@ -70,6 +68,8 @@ class OperatingSystem:
         r"^ID_LIKE=\"?([^\" \r\n]+)[^\"\n]*\"?\r?$", re.M
     )
     __redhat_release_pattern_header = re.compile(r"^([^ ]*) .*$")
+    # Red Hat Enterprise Linux Server 7.8 (Maipo) => Maipo
+    __redhat_release_pattern_bracket = re.compile(r"^.*\(([^ ]*).*\)$")
     __debian_issue_pattern = re.compile(r"^([^ ]+) ?.*$")
     __release_pattern = re.compile(r"^DISTRIB_ID='?([^ \n']+).*$", re.M)
     __suse_release_pattern = re.compile(r"^(SUSE).*$", re.M)
@@ -173,7 +173,7 @@ class OperatingSystem:
             cmd="cat /etc/redhat-release", no_error_log=True
         )
         yield get_matched_str(cmd_result.stdout, cls.__redhat_release_pattern_header)
-        yield get_matched_str(cmd_result.stdout, _redhat_release_pattern_bracket)
+        yield get_matched_str(cmd_result.stdout, cls.__redhat_release_pattern_bracket)
 
         # for FreeBSD
         cmd_result = typed_node.execute(cmd="uname", no_error_log=True)
