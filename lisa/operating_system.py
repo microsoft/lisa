@@ -55,13 +55,15 @@ class OsInformation:
 
 class OperatingSystem:
     __lsb_release_pattern = re.compile(r"^Description:[ \t]+([\w]+)[ ]+$", re.M)
+    # NAME="Oracle Linux Server"
     __os_release_pattern_name = re.compile(r"^NAME=\"?([^\" \r\n]+).*?\"?\r?$", re.M)
+    __os_release_pattern_id = re.compile(r"^ID=\"?([^\" \r\n]+).*?\"?\r?$", re.M)
+    # The ID_LIKE is to match some unknown distro, but derived from known distros.
     # For example, the ID and ID_LIKE in /etc/os-release of AlmaLinux is:
     # ID="almalinux"
     # ID_LIKE="rhel centos fedora"
     # The __os_release_pattern_id can match "almalinux"
     # The __os_release_pattern_idlike can match "rhel"
-    __os_release_pattern_id = re.compile(r"^ID=\"?([^\" \r\n]+).*?\"?\r?$", re.M)
     __os_release_pattern_idlike = re.compile(
         r"^ID_LIKE=\"?([^\" \r\n]+).*?\"?\r?$", re.M
     )
@@ -731,7 +733,7 @@ class Fedora(Linux):
 class Redhat(Fedora):
     # Red Hat Enterprise Linux Server release 6.9 (Santiago)
     # CentOS release 6.9 (Final)
-    __redhat_information_pattern = re.compile(
+    __legacy_redhat_information_pattern = re.compile(
         r"^(?P<vendor>.*?)?(?: Enterprise Linux Server)?(?: release)? "
         r"(?P<version>[0-9\.]+).\((?P<codename>.*).*\)$"
     )
@@ -808,7 +810,7 @@ class Redhat(Fedora):
             )
             cmd_result.assert_exit_code()
             full_version = cmd_result.stdout
-            matches = self.__redhat_information_pattern.match(full_version)
+            matches = self.__legacy_redhat_information_pattern.match(full_version)
             assert matches
             assert matches.group("vendor")
             information = OsInformation(
