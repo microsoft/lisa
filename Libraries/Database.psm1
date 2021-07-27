@@ -309,6 +309,36 @@ Function Get-VMProperties ($PropertyFilePath) {
 	}
 }
 
+function QuerySql($connection, $sql, $Parameters, $timeout=30) {
+    try {
+        $dataset = new-object "System.Data.Dataset"
+        $command = $connection.CreateCommand()
+        $command.CommandText = $sql
+        $command.CommandTimeout  = $timeout
+        if ($parameters) {
+            $parameters.Keys | ForEach-Object { $command.Parameters.AddWithValue($_, $parameters[$_]) | Out-Null }
+        }
+
+        $dataAdapter = new-object System.Data.SqlClient.SqlDataAdapter
+        $dataAdapter.SelectCommand = $command
+        $null = $dataAdapter.Fill($dataset)
+
+        $rows = @()
+        if ($dataset.Tables.Rows -isnot [array]) {
+            $rows = @($dataset.Tables.Rows)
+        }
+        else {
+            $rows = $dataset.Tables.Rows
+        }
+    }
+    finally {
+        $dataAdapter.Dispose()
+        $dataset.Dispose()
+        $command.Dispose()
+    }
+    return $rows
+}
+
 Function Run-SQLCmd {
 	param (
 		[string] $DBServer,
