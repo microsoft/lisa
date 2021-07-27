@@ -242,6 +242,21 @@ class Ethtool(Tool):
         posix_os.install_packages("ethtool")
         return self._check_exists()
 
+    def get_device_driver(self, interface: str) -> str:
+        _device_driver_pattern = re.compile(
+            r"^[\s]*driver:(?P<value>.*?)?$", re.MULTILINE
+        )
+
+        cmd_result = self.run(f"-i {interface}")
+        cmd_result.assert_exit_code(
+            message=f"Could not find the driver information for {interface}"
+        )
+        driver_info = re.search(_device_driver_pattern, cmd_result.stdout)
+        if not driver_info:
+            raise LisaException(f"No driver information found for device {interface}")
+
+        return driver_info.group("value")
+
     def get_device_list(self, force: bool = False) -> Set[str]:
         if (not force) and self._device_set:
             return self._device_set
@@ -259,7 +274,10 @@ class Ethtool(Tool):
             cmd_result = self.node.execute(f"ls {netdir}")
             cmd_result.assert_exit_code(message="Could not find the network device.")
 
-            self._device_set.add(cmd_result.stdout)
+            # add only the network devices with netvsc driver
+            driver = self.get_device_driver(cmd_result.stdout)
+            if "hv_netvsc" in driver:
+                self._device_set.add(cmd_result.stdout)
 
         if not self._device_set:
             raise LisaException("Did not find any synthetic network interface.")
@@ -291,7 +309,7 @@ class Ethtool(Tool):
         interface: str,
         channel_count: int,
     ) -> DeviceChannel:
-        change_result = self.run(f"-L {interface} combined {channel_count}")
+        change_result = self.run(f"-L {interface} combined {channel_count}", sudo=True)
         change_result.assert_exit_code(
             message=f" Couldn't change device {interface} channels count."
         )
@@ -347,7 +365,7 @@ class Ethtool(Tool):
     def change_device_ring_buffer_settings(
         self, interface: str, rx: int, tx: int
     ) -> DeviceRingBufferSettings:
-        change_result = self.run(f"-G {interface} rx {rx} tx {tx}")
+        change_result = self.run(f"-G {interface} rx {rx} tx {tx}", sudo=True)
         change_result.assert_exit_code(
             message=f" Couldn't change device {interface} ring buffer settings."
         )
