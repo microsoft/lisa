@@ -42,18 +42,40 @@ class NetworkSettings(TestSuite):
             original_rx = int(interface_settings.current_ring_buffer_settings["RX"])
             original_tx = int(interface_settings.current_ring_buffer_settings["TX"])
 
-            # selecting lesser values to avoid crossing max values of Rx and Tx.
-            expected_rx = original_rx - 2
-            expected_tx = original_tx - 2
+            # In the netvsc driver code, default sizes are defined like below -
+            # Recieve Buffer, RX
+            # NETVSC_RECEIVE_BUFFER_DEFAULT = (1024 * 1024 * 16)
+            # NETVSC_RECV_SECTION_SIZE = 1728
+            #
+            # Send Buffer, TX
+            # NETVSC_SEND_BUFFER_DEFAULT =  (1024 * 1024 * 1)
+            # NETVSC_SEND_SECTION_SIZE = 6144
+            original_rxbuffer = round((original_rx * 1728) / (1024 * 1024))
+            original_txbuffer = round((original_tx * 6144) / (1024 * 1024))
+
+            rxbuffer = (
+                (original_rxbuffer - 2)
+                if original_rxbuffer - 2 > 0
+                else (original_rxbuffer + 2)
+            )
+
+            txbuffer = (
+                (original_txbuffer - 2)
+                if original_txbuffer - 2 > 0
+                else (original_txbuffer + 2)
+            )
+
+            expected_rx = int((rxbuffer * 1024 * 1024) / 1728)
+            expected_tx = int((txbuffer * 1024 * 1024) / 6144)
             actual_settings = ethtool.change_device_ring_buffer_settings(
                 interface, expected_rx, expected_tx
             )
             assert_that(
-                actual_settings.current_ring_buffer_settings["RX"],
+                int(actual_settings.current_ring_buffer_settings["RX"]),
                 "Changing RX Ringbuffer setting didn't succeed",
             ).is_equal_to(expected_rx)
             assert_that(
-                actual_settings.current_ring_buffer_settings["TX"],
+                int(actual_settings.current_ring_buffer_settings["TX"]),
                 "Changing TX Ringbuffer setting didn't succeed",
             ).is_equal_to(expected_tx)
 
@@ -62,11 +84,11 @@ class NetworkSettings(TestSuite):
                 interface, original_rx, original_tx
             )
             assert_that(
-                reverted_settings.current_ring_buffer_settings["RX"],
+                int(reverted_settings.current_ring_buffer_settings["RX"]),
                 "Reverting RX Ringbuffer setting to original value didn't succeed",
             ).is_equal_to(original_rx)
             assert_that(
-                reverted_settings.current_ring_buffer_settings["TX"],
+                int(reverted_settings.current_ring_buffer_settings["TX"]),
                 "Reverting TX Ringbuffer setting to original value didn't succeed",
             ).is_equal_to(original_tx)
 
@@ -95,6 +117,13 @@ class NetworkSettings(TestSuite):
             interface = interface_channels_info.device_name
             channels = interface_channels_info.current_channels
             max_channels = interface_channels_info.max_channels
+
+            if max_channels <= 1:
+                self.log.info(
+                    f"Max channels for device {interface} is <= 1."
+                    " Not attempting to change, Skipping."
+                )
+                continue
 
             for new_channels in range(1, max_channels + 1):
                 channels_info = ethtool.change_device_channels_info(
@@ -131,7 +160,7 @@ class NetworkSettings(TestSuite):
         required_features = [
             "rx-checksumming",
             "tx-checksumming",
-            "scater-gather",
+            "scatter-gather",
             "tcp-segmentation-offload",
         ]
         ethtool = node.tools[Ethtool]
@@ -140,10 +169,10 @@ class NetworkSettings(TestSuite):
         for device_features in devices_features:
             enabled_features = device_features.enabled_features
 
-            if not all(feature in enabled_features for feature in required_features):
+            if not set(required_features).issubset(enabled_features):
                 raise LisaException(
                     "Not all the required features (rx-checksumming, tx-checksumming,"
-                    "scatter-gather, tcp-segmentation-offload) are enabled for"
+                    " scatter-gather, tcp-segmentation-offload) are enabled for"
                     f" device {device_features.device_name}."
                     f" Enabled features list - {enabled_features}"
                 )
