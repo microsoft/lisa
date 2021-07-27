@@ -735,6 +735,12 @@ class Redhat(Fedora):
         r"^(?P<vendor>.*?)?(?: Enterprise Linux Server)?(?: release)? "
         r"(?P<version>[0-9\.]+).\((?P<codename>.*).*\)$"
     )
+    # Oracle Linux Server
+    # Red Hat Enterprise Linux Server
+    # Red Hat Enterprise Linux
+    __vendor_pattern = re.compile(
+        r"^(?P<vendor>.*?)?(?: Enterprise)?(?: Linux)?(?: Server)?$"
+    )
 
     @classmethod
     def name_pattern(cls) -> Pattern[str]:
@@ -790,6 +796,11 @@ class Redhat(Fedora):
         # The higher version above 7.0 support os-version.
         try:
             information = super(Fedora, self)._get_information()
+
+            # remove Linux Server in vendor
+            information.vendor = get_matched_str(
+                information.vendor, self.__vendor_pattern
+            )
         except Exception:
             # Parse /etc/redhat-release to support 6.x.
             cmd_result = self._node.execute(
