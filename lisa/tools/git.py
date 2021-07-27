@@ -78,7 +78,7 @@ class Git(Tool):
     ) -> None:
         if not checkout_branch:
             # create a temp branch to checkout tag or commit.
-            checkout_branch = f"{constants.RUN_LOGIC_PATH}"
+            checkout_branch = f"{constants.RUN_ID}"
 
         # force run to make sure checkout among branches correctly.
         result = self.run(
