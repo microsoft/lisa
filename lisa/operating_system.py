@@ -840,7 +840,11 @@ class CentOs(Redhat):
 
 
 class Oracle(Redhat):
-    pass
+    @classmethod
+    def name_pattern(cls) -> Pattern[str]:
+        # The name is "Oracle Linux Server", which doesn't support the default
+        # full match.
+        return re.compile("^Oracle")
 
 
 class CoreOs(Redhat):
