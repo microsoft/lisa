@@ -1,5 +1,4 @@
 import re
-from pathlib import PurePath
 from typing import Any, Dict, List, Set, cast
 
 from lisa.executable import Tool
@@ -24,11 +23,11 @@ from .find import Find
 #   RX Jumbo:       0
 #   TX:             170
 _max_settings_pattern = re.compile(
-    r"Pre-set maximums:(\s+)(?P<settings>.*?)Current hardware settings:",
+    r"Pre-set maximums:[\s+](?P<settings>.*?)Current hardware settings:",
     re.DOTALL,
 )
 _current_settings_pattern = re.compile(
-    r"Current hardware settings:(\s+)(?P<settings>.*?)$", re.DOTALL
+    r"Current hardware settings:[\s+](?P<settings>.*?)$", re.DOTALL
 )
 
 
@@ -54,18 +53,18 @@ class DeviceChannel:
         self._parse_channel_info(interface, device_channel_raw)
 
     def _parse_channel_info(self, interface: str, raw_str: str) -> None:
-        current_settings = _current_settings_pattern.match(raw_str)
-        max_settings = _max_settings_pattern.match(raw_str)
+        current_settings = _current_settings_pattern.search(raw_str)
+        max_settings = _max_settings_pattern.search(raw_str)
         if (not current_settings) or (not max_settings):
             raise LisaException(
                 f"Cannot get {interface} device channel current and/or"
                 " max settings information"
             )
 
-        current_param = self._channel_count_param_pattern.match(
+        current_param = self._channel_count_param_pattern.search(
             current_settings.group("settings")
         )
-        max_param = self._channel_count_param_pattern.match(
+        max_param = self._channel_count_param_pattern.search(
             max_settings.group("settings")
         )
         if (not current_param) or (not max_param):
@@ -101,7 +100,7 @@ class DeviceFeatures:
         self._parse_feature_info(interface, device_feature_raw)
 
     def _parse_feature_info(self, interface: str, raw_str: str) -> None:
-        matched_features_info = self._feature_info_pattern.match(raw_str)
+        matched_features_info = self._feature_info_pattern.search(raw_str)
         if not matched_features_info:
             raise LisaException(f"Cannot get {interface} features settings info")
 
@@ -141,7 +140,7 @@ class DeviceLinkSettings:
         self._parse_link_settings_info(interface, device_link_settings_raw)
 
     def _parse_link_settings_info(self, interface: str, raw_str: str) -> None:
-        matched_link_settings_info = self._link_settings_info_pattern.match(raw_str)
+        matched_link_settings_info = self._link_settings_info_pattern.search(raw_str)
         if not matched_link_settings_info:
             raise LisaException(f"Cannot get {interface} link settings info")
 
@@ -181,8 +180,8 @@ class DeviceRingBufferSettings:
         )
 
     def _parse_ring_buffer_settings_info(self, interface: str, raw_str: str) -> None:
-        current_settings_info = _current_settings_pattern.match(raw_str)
-        max_settings_info = _max_settings_pattern.match(raw_str)
+        current_settings_info = _current_settings_pattern.search(raw_str)
+        max_settings_info = _max_settings_pattern.search(raw_str)
         if (not current_settings_info) or (not max_settings_info):
             raise LisaException(
                 f"Cannot get {interface} device ring buffer current and/or"
@@ -197,7 +196,7 @@ class DeviceRingBufferSettings:
             if not current_setting:
                 continue
             self.current_ring_buffer_settings[
-                current_setting.group("name")
+                current_setting.group("param")
             ] = current_setting.group("value")
 
         if not self.current_ring_buffer_settings:
@@ -211,7 +210,7 @@ class DeviceRingBufferSettings:
             if not max_setting:
                 continue
             self.max_ring_buffer_settings[
-                max_setting.group("name")
+                max_setting.group("param")
             ] = max_setting.group("value")
 
         if not self.max_ring_buffer_settings:
@@ -249,7 +248,7 @@ class Ethtool(Tool):
 
         find_tool = self.node.tools[Find]
         netdirs = find_tool.find_files(
-            PurePath("/sys/devices"),
+            self.node.get_pure_path("/sys/devices"),
             name_pattern="net",
             path_pattern="*vmbus*",
             ignore_case=True,
