@@ -18,6 +18,12 @@ class Nvmecli(Tool):
     __ns_management_attachement_support = "NS Management and Attachment Supported"
     # [1:1] : 0x1   Format NVM Supported
     __format_device_support = "Format NVM Supported"
+    # Higher version nvme-cli add a mandatory parameter `--block-size` after
+    #  v1.6 (not included)
+    # https://github.com/linux-nvme/nvme-cli/blob/v1.7/nvme.c#L3040
+    # FLBAS corresponding to block size 0 not found
+    # Please correct block size, or specify FLBAS directly
+    __missing_block_size_parameter = "FLBAS corresponding to block size 0 not found"
 
     @property
     def command(self) -> str:
@@ -39,7 +45,12 @@ class Nvmecli(Tool):
         make.make_install(cwd=code_path)
 
     def create_namespace(self, namespace: str) -> ExecutableResult:
-        return self.run(f"create-ns {namespace}", shell=True, sudo=True)
+        cmd_result = self.run(f"create-ns {namespace}", shell=True, sudo=True)
+        if self.__missing_block_size_parameter in cmd_result.stdout:
+            cmd_result = self.run(
+                f"create-ns {namespace} --block-size 4096", shell=True, sudo=True
+            )
+        return cmd_result
 
     def delete_namespace(self, namespace: str, id: int) -> ExecutableResult:
         return self.run(f"delete-ns -n {id} {namespace}", shell=True, sudo=True)

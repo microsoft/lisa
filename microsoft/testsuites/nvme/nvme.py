@@ -346,6 +346,12 @@ class nvme(TestSuite):
             format_namespace.assert_exit_code(device_format_exit_code)
             # 3. `nvme create-ns namespace` - create a namespace.
             create_namespace = nvme_cli.create_namespace(namespace)
+            # NVMe Status:INVALID_OPCODE: The associated command opcode field is not
+            #  valid(1) => exit code 1
+            # NVMe status: INVALID_OPCODE: The associated command opcode field is not
+            #  valid(0x1) => exit code 22
+            if "(0x1)" in create_namespace.stdout:
+                ns_management_exit_code = 22
             create_namespace.assert_exit_code(ns_management_exit_code)
             # 4. `nvme delete-ns -n 1 namespace` - delete a namespace.
             delete_namespace = nvme_cli.delete_namespace(namespace, 1)

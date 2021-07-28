@@ -69,8 +69,8 @@ class Chrony(Tool):
 
     @retry(exceptions=LisaException, tries=20, delay=0.5)  # type: ignore
     def check_sources_and_stats(self) -> None:
-        cmd_result = self.run("sources")
+        cmd_result = self.run("sources", force_run=True)
         if self.__service_not_ready in cmd_result.stdout:
             raise LisaException("Service chrony is not ready, retry.")
-        cmd_result = self.run("sourcestats")
+        cmd_result = self.run("sourcestats", force_run=True)
         cmd_result.assert_exit_code()
