@@ -8,6 +8,7 @@ from dataclasses import dataclass, field
 from enum import Enum
 from functools import wraps
 from pathlib import Path
+from time import sleep
 from typing import (
     TYPE_CHECKING,
     Any,
@@ -35,7 +36,7 @@ from lisa.util import (
     get_datetime_path,
     set_filtered_fields,
 )
-from lisa.util.logger import Logger, get_logger
+from lisa.util.logger import Logger, create_file_handler, get_logger, remove_handler
 from lisa.util.perf_timer import Timer, create_timer
 
 if TYPE_CHECKING:
@@ -390,27 +391,28 @@ class TestSuite:
         super().__init__()
         self._metadata = metadata
         self._should_stop = False
-        self.log = get_logger("suite", metadata.name)
+        self.__log = get_logger("suite", metadata.name)
 
-    def before_suite(self, **kwargs: Any) -> None:
+    def before_suite(self, log: Logger, **kwargs: Any) -> None:
         ...
 
-    def after_suite(self, **kwargs: Any) -> None:
+    def after_suite(self, log: Logger, **kwargs: Any) -> None:
         ...
 
-    def before_case(self, **kwargs: Any) -> None:
+    def before_case(self, log: Logger, **kwargs: Any) -> None:
         ...
 
-    def after_case(self, **kwargs: Any) -> None:
+    def after_case(self, log: Logger, **kwargs: Any) -> None:
         ...
 
     def _create_case_log_path(self, case_name: str) -> Path:
         while True:
             path_name = f"{get_datetime_path()}-{case_name}"
-            path = constants.RUN_LOCAL_PATH.joinpath(path_name)
+            path = constants.RUN_LOCAL_PATH / "tests" / path_name
             if not path.exists():
                 break
-        path.mkdir()
+            sleep(0.1)
+        path.mkdir(parents=True)
         return path
 
     def start(
@@ -427,13 +429,14 @@ class TestSuite:
         environment.is_new = False
         test_kwargs = {
             "environment": environment,
+            "log": self.__log,
             "node": environment.default_node,
             # copy to prevent the data is changed and effect other cases.
             "variables": copy.copy(case_variables),
         }
 
         #  replace to case's logger temporarily
-        suite_log = self.log
+        suite_log = self.__log
         is_suite_continue, suite_error_message = self.__suite_method(
             self.before_suite, test_kwargs=test_kwargs, log=suite_log
         )
@@ -442,10 +445,17 @@ class TestSuite:
             case_name = case_result.runtime_data.name
 
             case_result.environment = environment
-            case_log = get_logger("case", f"{case_result.runtime_data.full_name}")
+            case_log = get_logger("case", case_name, parent=self.__log)
+
+            case_log_path = self._create_case_log_path(case_name)
+            case_log_handler = create_file_handler(
+                case_log_path / f"{case_log_path.name}.log", case_log
+            )
 
             case_kwargs = test_kwargs.copy()
             case_kwargs.update({"case_name": case_name})
+            case_kwargs.update({"log": case_log})
+            case_kwargs.update({"log_path": case_log_path})
 
             case_log.info(
                 f"test case '{case_result.runtime_data.full_name}' is running"
@@ -471,6 +481,7 @@ class TestSuite:
             case_log.info(
                 f"result: {case_result.status.name}, " f"elapsed: {total_timer}"
             )
+            remove_handler(case_log_handler, case_log)
 
             if self._should_stop:
                 suite_log.info("received stop message, stop run")

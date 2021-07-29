@@ -31,6 +31,7 @@ from lisa.util import (
     SkippedException,
     constants,
 )
+from lisa.util.logger import Logger
 
 # for other UTs
 fail_on_before_suite = False
@@ -80,19 +81,19 @@ class MockTestSuite(TestSuite):
         self.fail_case_count = fail_case_count
         self.check_variable = check_variable
 
-    def before_suite(self, **kwargs: Any) -> None:
+    def before_suite(self, log: Logger, **kwargs: Any) -> None:
         if self.fail_on_before_suite:
             raise LisaException("failed")
 
-    def after_suite(self, **kwargs: Any) -> None:
+    def after_suite(self, log: Logger, **kwargs: Any) -> None:
         if self.fail_on_after_suite:
             raise LisaException("failed")
 
-    def before_case(self, **kwargs: Any) -> None:
+    def before_case(self, log: Logger, **kwargs: Any) -> None:
         if self.fail_on_before_case:
             raise LisaException("failed")
 
-    def after_case(self, **kwargs: Any) -> None:
+    def after_case(self, log: Logger, **kwargs: Any) -> None:
         if self.fail_on_after_case:
             raise LisaException("failed")
 
