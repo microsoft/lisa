@@ -2,11 +2,12 @@
 # Licensed under the MIT license.
 
 from lisa.feature import Feature
+from lisa.util import SwitchableMixin
 
 FEATURE_NAME_SRIOV = "Sriov"
 
 
-class Sriov(Feature):
+class Sriov(Feature, SwitchableMixin):
     @classmethod
     def name(cls) -> str:
         return FEATURE_NAME_SRIOV
@@ -14,15 +15,6 @@ class Sriov(Feature):
     @classmethod
     def can_disable(cls) -> bool:
         return True
-
-    def _switch(self, enable: bool) -> None:
-        raise NotImplementedError()
-
-    def disable(self) -> None:
-        self._switch(False)
-
-    def enable(self) -> None:
-        self._switch(True)
 
     def enabled(self) -> bool:
         raise NotImplementedError()

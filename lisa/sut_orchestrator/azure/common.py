@@ -14,9 +14,11 @@ from azure.mgmt.storage import StorageManagementClient  # type: ignore
 from azure.mgmt.storage.models import Sku, StorageAccountCreateParameters  # type:ignore
 from azure.storage.blob import BlobServiceClient, ContainerClient  # type: ignore
 from dataclasses_json import dataclass_json
+from marshmallow import validate
 
 from lisa import schema
 from lisa.environment import Environment
+from lisa.features import DiskType
 from lisa.node import Node
 from lisa.util import LisaException
 from lisa.util.logger import Logger
@@ -88,6 +90,10 @@ class AzureNodeSchema:
     )
     vhd: str = ""
     nic_count: int = 1
+    disk_id: str = field(
+        default=DiskType.DISK_STANDARD,
+        metadata=schema.metadata(validate=validate.OneOf(DiskType.get_disk_types())),
+    )
 
     # for marketplace image, which need to accept terms
     purchase_plan: Optional[AzureVmPurchasePlanSchema] = None

@@ -6,7 +6,7 @@ from typing import Optional
 
 from lisa import TestCaseMetadata, TestSuite, TestSuiteMetadata
 from lisa.environment import EnvironmentStatus
-from lisa.features import SerialConsole
+from lisa.features import DiskEphemeral, DiskPremiumLRS, SerialConsole
 from lisa.node import RemoteNode
 from lisa.testsuite import simple_requirement
 from lisa.util import LisaException, PassedException, SkippedException
@@ -49,10 +49,45 @@ class Provisioning(TestSuite):
         ),
     )
     def smoke_test(self, case_name: str, node: RemoteNode) -> None:
+        self._smoke_test(case_name, node)
+
+    @TestCaseMetadata(
+        description="""
+        This case runs smoke test on a node provisioned with emphemeral disk.
+        The test steps are same as `smoke_test`.
+        """,
+        priority=1,
+        requirement=simple_requirement(
+            environment_status=EnvironmentStatus.Deployed,
+            supported_features=[SerialConsole, DiskEphemeral],
+        ),
+    )
+    def verify_deployment_provision_ephemeral_managed_disk(
+        self, case_name: str, node: RemoteNode
+    ) -> None:
+        self._smoke_test(case_name, node)
+
+    @TestCaseMetadata(
+        description="""
+        This case runs smoke test on a node provisioned with premium disk.
+        The test steps are same as `smoke_test`.
+        """,
+        priority=1,
+        requirement=simple_requirement(
+            environment_status=EnvironmentStatus.Deployed,
+            supported_features=[SerialConsole, DiskPremiumLRS],
+        ),
+    )
+    def verify_deployment_provision_premium_disk(
+        self, case_name: str, node: RemoteNode
+    ) -> None:
+        self._smoke_test(case_name, node)
+
+    def _smoke_test(self, case_name: str, node: RemoteNode) -> None:
         case_path: Optional[Path] = None
 
         if not node.is_remote:
-            raise SkippedException("smoke test cannot run on local node.")
+            raise SkippedException("smoke test : {case_name} cannot run on local node.")
 
         is_ready, tcp_error_code = wait_tcp_port_ready(
             node.public_address, node.public_port, log=self.log, timeout=self.TIME_OUT
