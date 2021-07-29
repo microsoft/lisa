@@ -81,7 +81,9 @@ class LegacyRunner(BaseRunner):
 
     def _initialize(self, *args: Any, **kwargs: Any) -> None:
         super()._initialize(*args, **kwargs)
-        self._log_handler = create_file_handler(self._log_file_name, self._local.log)
+        self._log_handler = create_file_handler(
+            Path(self._log_file_name), self._local.log
+        )
         self._configurations: List[schema.LegacyTestCase] = self._runbook.testcase
         self._started_flags: List[bool] = [False] * len(self._configurations)
         self._completed_flags: List[bool] = [False] * len(self._configurations)
