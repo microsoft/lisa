@@ -10,6 +10,7 @@ from lisa.features import Gpu, SerialConsole
 from lisa.testsuite import simple_requirement
 from lisa.tools import Reboot
 from lisa.util import LisaException, SkippedException
+from lisa.util.logger import Logger
 
 
 @TestSuiteMetadata(
@@ -21,18 +22,18 @@ from lisa.util import LisaException, SkippedException
 )
 class gpu(TestSuite):
     def _ensure_driver_installed(
-        self, node: Node, gpu_feature: Gpu, case_path: Path
+        self, node: Node, gpu_feature: Gpu, log_path: Path, log: Logger
     ) -> None:
         if gpu_feature.is_module_loaded():
             return
 
         gpu_feature.install_compute_sdk()
-        self.log.debug(
+        log.debug(
             f"{gpu_feature.gpu_vendor} sdk installed. Will reboot to load driver."
         )
 
         reboot_tool = node.tools[Reboot]
-        reboot_tool.reboot_and_check_panic(case_path)
+        reboot_tool.reboot_and_check_panic(log_path)
 
         if not gpu_feature.is_module_loaded():
             raise LisaException(
@@ -56,13 +57,12 @@ class gpu(TestSuite):
         ),
         priority=1,
     )
-    def validate_load_driver(self, case_name: str, node: Node) -> None:
+    def validate_load_driver(self, node: Node, log_path: Path, log: Logger) -> None:
         gpu_feature = node.features[Gpu]
         if not gpu_feature.is_supported():
             raise SkippedException(f"GPU is not supported with distro {node.os}")
 
-        case_path = self._create_case_log_path(case_name)
-        self._ensure_driver_installed(node, gpu_feature, case_path)
+        self._ensure_driver_installed(node, gpu_feature, log_path, log)
 
     @TestCaseMetadata(
         description="""
@@ -82,13 +82,10 @@ class gpu(TestSuite):
         ),
         priority=2,
     )
-    def validate_gpu_adapter_count(self, case_name: str, node: Node) -> None:
+    def validate_gpu_adapter_count(self, node: Node) -> None:
         gpu_feature = node.features[Gpu]
         if not gpu_feature.is_supported():
             raise SkippedException(f"GPU is not supported with distro {node.os}")
-
-        case_path = self._create_case_log_path(case_name)
-        self._ensure_driver_installed(node, gpu_feature, case_path)
 
         assert isinstance(node.capability.gpu_count, int)
         expected_count = node.capability.gpu_count

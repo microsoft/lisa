@@ -5,7 +5,7 @@ from typing import Any
 
 from assertpy import assert_that
 
-from lisa import Node, TestCaseMetadata, TestSuite, TestSuiteMetadata
+from lisa import Node, TestCaseMetadata, TestSuite, TestSuiteMetadata, Logger
 from lisa.operating_system import Posix
 from lisa.testsuite import simple_requirement
 from lisa.tools import Echo, Uname
@@ -29,16 +29,16 @@ class HelloWorld(TestSuite):
         """,
         priority=0,
     )
-    def hello(self, node: Node) -> None:
+    def hello(self, node: Node, log: Logger) -> None:
         if node.os.is_posix:
             assert isinstance(node.os, Posix)
             info = node.tools[Uname].get_linux_information()
-            self.log.info(
+            log.info(
                 f"release: '{info.uname_version}', version: '{info.kernel_version}', "
                 f"hardware: '{info.hardware_platform}', os: '{info.operating_system}'"
             )
         else:
-            self.log.info("windows operating system")
+            log.info("windows operating system")
 
         # get process output directly.
         echo = node.tools[Echo]
@@ -59,15 +59,15 @@ class HelloWorld(TestSuite):
         node.tools[Echo]
         assert_that(str(node.tools.echo("bye!"))).is_equal_to("bye!")
 
-    def before_suite(self, **kwargs: Any) -> None:
-        self.log.info("setup my test suite")
-        self.log.info(f"see my code at {__file__}")
+    def before_suite(self, log: Logger, **kwargs: Any) -> None:
+        log.info("setup my test suite")
+        log.info(f"see my code at {__file__}")
 
-    def after_suite(self, **kwargs: Any) -> None:
-        self.log.info("clean up my test suite")
+    def after_suite(self, log: Logger, **kwargs: Any) -> None:
+        log.info("clean up my test suite")
 
-    def before_case(self, **kwargs: Any) -> None:
-        self.log.info("before test case")
+    def before_case(self, log: Logger, **kwargs: Any) -> None:
+        log.info("before test case")
 
-    def after_case(self, **kwargs: Any) -> None:
-        self.log.info("after test case")
+    def after_case(self, log: Logger, **kwargs: Any) -> None:
+        log.info("after test case")

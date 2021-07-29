@@ -10,6 +10,7 @@ from lisa.features import DiskEphemeral, DiskPremiumLRS, SerialConsole
 from lisa.node import RemoteNode
 from lisa.testsuite import simple_requirement
 from lisa.util import LisaException, PassedException, SkippedException
+from lisa.util.logger import Logger
 from lisa.util.perf_timer import create_timer
 from lisa.util.shell import wait_tcp_port_ready
 
@@ -48,8 +49,8 @@ class Provisioning(TestSuite):
             supported_features=[SerialConsole],
         ),
     )
-    def smoke_test(self, case_name: str, node: RemoteNode) -> None:
-        self._smoke_test(case_name, node)
+    def smoke_test(self, case_name: str, log: Logger, node: RemoteNode) -> None:
+        self._smoke_test(case_name, log, node)
 
     @TestCaseMetadata(
         description="""
@@ -63,9 +64,9 @@ class Provisioning(TestSuite):
         ),
     )
     def verify_deployment_provision_ephemeral_managed_disk(
-        self, case_name: str, node: RemoteNode
+        self, case_name: str, log: Logger, node: RemoteNode
     ) -> None:
-        self._smoke_test(case_name, node)
+        self._smoke_test(case_name, log, node)
 
     @TestCaseMetadata(
         description="""
@@ -79,18 +80,18 @@ class Provisioning(TestSuite):
         ),
     )
     def verify_deployment_provision_premium_disk(
-        self, case_name: str, node: RemoteNode
+        self, case_name: str, log: Logger, node: RemoteNode
     ) -> None:
-        self._smoke_test(case_name, node)
+        self._smoke_test(case_name, log, node)
 
-    def _smoke_test(self, case_name: str, node: RemoteNode) -> None:
+    def _smoke_test(self, case_name: str, log: Logger, node: RemoteNode) -> None:
         case_path: Optional[Path] = None
 
         if not node.is_remote:
             raise SkippedException("smoke test : {case_name} cannot run on local node.")
 
         is_ready, tcp_error_code = wait_tcp_port_ready(
-            node.public_address, node.public_port, log=self.log, timeout=self.TIME_OUT
+            node.public_address, node.public_port, log=log, timeout=self.TIME_OUT
         )
         if not is_ready:
             serial_console = node.features[SerialConsole]
@@ -103,14 +104,14 @@ class Provisioning(TestSuite):
 
         try:
             timer = create_timer()
-            self.log.info(
+            log.info(
                 f"SSH port 22 is opened, connecting and rebooting '{node.name}'"
             )
             # In this step, the underlying shell will connect to SSH port.
             # If successful, the node will be reboot.
             # If failed, It distinguishes TCP and SSH errors by error messages.
             node.reboot()
-            self.log.info(f"node '{node.name}' rebooted in {timer}")
+            log.info(f"node '{node.name}' rebooted in {timer}")
         except Exception as identifier:
             if not case_path:
                 case_path = self._create_case_log_path(case_name)

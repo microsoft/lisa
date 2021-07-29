@@ -6,6 +6,7 @@ from assertpy import assert_that
 from lisa import Node, TestCaseMetadata, TestSuite, TestSuiteMetadata
 from lisa.tools import Ethtool
 from lisa.util import LisaException, SkippedException, UnsupportedOperationException
+from lisa.util.logger import Logger
 
 
 @TestSuiteMetadata(
@@ -106,7 +107,7 @@ class NetworkSettings(TestSuite):
         """,
         priority=1,
     )
-    def validate_device_channels_change(self, node: Node) -> None:
+    def validate_device_channels_change(self, node: Node, log: Logger) -> None:
         ethtool = node.tools[Ethtool]
         try:
             devices_channels = ethtool.get_all_device_channels_info()
@@ -119,7 +120,7 @@ class NetworkSettings(TestSuite):
             max_channels = interface_channels_info.max_channels
 
             if max_channels <= 1:
-                self.log.info(
+                log.info(
                     f"Max channels for device {interface} is <= 1."
                     " Not attempting to change, Skipping."
                 )
