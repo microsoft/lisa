@@ -759,8 +759,8 @@ class AzurePlatform(Platform):
 
         if location_data:
             delta = datetime.now() - location_data.updated_time
-            # refresh cached locations every 5 days.
-            if delta.days < 5:
+            # refresh cached locations every 1 day.
+            if delta.days < 1:
                 should_refresh = False
                 log.debug(
                     f"{location}: cache used: {location_data.updated_time}, "
