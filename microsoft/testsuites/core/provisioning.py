@@ -4,14 +4,20 @@
 from pathlib import Path
 from typing import Optional
 
-from lisa import TestCaseMetadata, TestSuite, TestSuiteMetadata
+from lisa import (
+    LisaException,
+    Logger,
+    PassedException,
+    RemoteNode,
+    SkippedException,
+    TestCaseMetadata,
+    TestSuite,
+    TestSuiteMetadata,
+    create_timer,
+    simple_requirement,
+)
 from lisa.environment import EnvironmentStatus
 from lisa.features import DiskEphemeral, DiskPremiumLRS, SerialConsole
-from lisa.node import RemoteNode
-from lisa.testsuite import simple_requirement
-from lisa.util import LisaException, PassedException, SkippedException
-from lisa.util.logger import Logger
-from lisa.util.perf_timer import create_timer
 from lisa.util.shell import wait_tcp_port_ready
 
 
@@ -104,9 +110,7 @@ class Provisioning(TestSuite):
 
         try:
             timer = create_timer()
-            log.info(
-                f"SSH port 22 is opened, connecting and rebooting '{node.name}'"
-            )
+            log.info(f"SSH port 22 is opened, connecting and rebooting '{node.name}'")
             # In this step, the underlying shell will connect to SSH port.
             # If successful, the node will be reboot.
             # If failed, It distinguishes TCP and SSH errors by error messages.

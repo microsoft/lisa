@@ -4,12 +4,17 @@ from typing import List, Optional, Union
 
 from assertpy import assert_that
 
-from lisa import Node, TestCaseMetadata, TestSuite, TestSuiteMetadata
+from lisa import (
+    Node,
+    SkippedException,
+    TestCaseMetadata,
+    TestSuite,
+    TestSuiteMetadata,
+    create_timer,
+)
 from lisa.operating_system import Redhat
 from lisa.tools import Cat, Chrony, Dmesg, Hwclock, Lscpu, Ntp, Ntpstat, Service
 from lisa.tools.lscpu import CpuType
-from lisa.util import SkippedException
-from lisa.util.perf_timer import create_timer
 
 
 def _wait_file_changed(

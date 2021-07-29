@@ -2,7 +2,7 @@ import math
 
 from assertpy import assert_that
 
-from lisa import Environment, Node, TestCaseMetadata, TestSuite, TestSuiteMetadata
+from lisa import Node, TestCaseMetadata, TestSuite, TestSuiteMetadata
 from lisa.sut_orchestrator.azure.tools import VmGeneration
 from lisa.tools import Lscpu, Lsvmbus
 
@@ -64,9 +64,7 @@ class LsVmBus(TestSuite):
         """,
         priority=1,
     )
-    def lsvmbus_count_devices_channels(
-        self, environment: Environment, node: Node
-    ) -> None:
+    def lsvmbus_count_devices_channels(self, node: Node) -> None:
         # 1. Check expected vmbus device names presented in the lsvmbus output.
         vmbus_devices = VmbusDeviceNames(
             "1" == node.tools[VmGeneration].get_generation()

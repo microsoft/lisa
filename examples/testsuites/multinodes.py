@@ -5,9 +5,15 @@ from typing import cast
 
 from assertpy import assert_that
 
-from lisa import Environment, Logger, TestCaseMetadata, TestSuite, TestSuiteMetadata
-from lisa.node import RemoteNode
-from lisa.testsuite import simple_requirement
+from lisa import (
+    Environment,
+    Logger,
+    RemoteNode,
+    TestCaseMetadata,
+    TestSuite,
+    TestSuiteMetadata,
+    simple_requirement,
+)
 from lisa.tools import Lscpu, Ntttcp
 
 

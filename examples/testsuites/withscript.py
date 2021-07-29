@@ -6,9 +6,16 @@ from typing import Any
 
 from assertpy import assert_that
 
-from lisa import Node, TestCaseMetadata, TestSuite, TestSuiteMetadata
-from lisa.executable import CustomScript, CustomScriptBuilder
-from lisa.util.perf_timer import create_timer
+from lisa import (
+    CustomScript,
+    CustomScriptBuilder,
+    Logger,
+    Node,
+    TestCaseMetadata,
+    TestSuite,
+    TestSuiteMetadata,
+    create_timer,
+)
 
 
 @TestSuiteMetadata(
@@ -19,7 +26,7 @@ from lisa.util.perf_timer import create_timer
     """,
 )
 class WithScript(TestSuite):
-    def before_suite(self, **kwargs: Any) -> None:
+    def before_suite(self, log: Logger, **kwargs: Any) -> None:
         self._echo_script = CustomScriptBuilder(
             Path(__file__).parent.joinpath("scripts"), ["echo.sh"]
         )
@@ -33,11 +40,11 @@ class WithScript(TestSuite):
         """,
         priority=1,
     )
-    def script(self, node: Node) -> None:
+    def script(self, node: Node, log: Logger) -> None:
         timer1 = create_timer()
         script: CustomScript = node.tools[self._echo_script]
         result1 = script.run()
-        self.log.info(f"first run finished within {timer1}")
+        log.info(f"first run finished within {timer1}")
         timer2 = create_timer()
         result2 = script.run(force_run=True)
         assert_that(result1.stdout).is_equal_to(result2.stdout)
@@ -46,6 +53,6 @@ class WithScript(TestSuite):
             assert_that(
                 timer1.elapsed(), "the second time should be faster, without uploading"
             ).is_greater_than(timer2.elapsed())
-        self.log.info(
+        log.info(
             f"second run finished within {timer2}, total: {timer1.elapsed_text(False)}"
         )

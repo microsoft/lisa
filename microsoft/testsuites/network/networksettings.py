@@ -3,10 +3,17 @@
 
 from assertpy import assert_that
 
-from lisa import Node, TestCaseMetadata, TestSuite, TestSuiteMetadata
+from lisa import (
+    LisaException,
+    Logger,
+    Node,
+    SkippedException,
+    TestCaseMetadata,
+    TestSuite,
+    TestSuiteMetadata,
+    UnsupportedOperationException,
+)
 from lisa.tools import Ethtool
-from lisa.util import LisaException, SkippedException, UnsupportedOperationException
-from lisa.util.logger import Logger
 
 
 @TestSuiteMetadata(

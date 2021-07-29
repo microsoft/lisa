@@ -5,9 +5,15 @@ from typing import Any
 
 from assertpy import assert_that
 
-from lisa import Node, TestCaseMetadata, TestSuite, TestSuiteMetadata, Logger
+from lisa import (
+    Logger,
+    Node,
+    TestCaseMetadata,
+    TestSuite,
+    TestSuiteMetadata,
+    simple_requirement,
+)
 from lisa.operating_system import Posix
-from lisa.testsuite import simple_requirement
 from lisa.tools import Echo, Uname
 
 
