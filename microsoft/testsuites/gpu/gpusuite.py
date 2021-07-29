@@ -5,12 +5,18 @@ from pathlib import Path
 
 from assertpy import assert_that
 
-from lisa import Node, TestCaseMetadata, TestSuite, TestSuiteMetadata
+from lisa import (
+    LisaException,
+    Logger,
+    Node,
+    SkippedException,
+    TestCaseMetadata,
+    TestSuite,
+    TestSuiteMetadata,
+    simple_requirement,
+)
 from lisa.features import Gpu, SerialConsole
-from lisa.testsuite import simple_requirement
 from lisa.tools import Reboot
-from lisa.util import LisaException, SkippedException
-from lisa.util.logger import Logger
 
 
 @TestSuiteMetadata(
