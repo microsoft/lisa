@@ -3,6 +3,7 @@
 
 import copy
 from logging import FileHandler
+from pathlib import Path
 from threading import Lock
 from typing import Any, Callable, Dict, Iterator, List, Optional
 
@@ -82,7 +83,9 @@ class BaseRunner(BaseClassMixin, InitializableMixin):
             self._working_folder = constants.RUN_LOCAL_PATH / runner_path_name
             self._log_file_name = str(self._working_folder / f"{runner_path_name}.log")
             self._working_folder.mkdir(parents=True, exist_ok=True)
-            self._log_handler = create_file_handler(self._log_file_name, self._log)
+            self._log_handler = create_file_handler(
+                Path(self._log_file_name), self._log
+            )
 
 
 class RootRunner(Action):

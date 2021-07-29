@@ -5,6 +5,7 @@ import logging
 import sys
 import time
 from functools import partial
+from pathlib import Path
 from typing import Any, Dict, List, Optional, TextIO, Union, cast
 
 from lisa.secret import mask
@@ -163,7 +164,7 @@ def remove_handler(
 
 
 def create_file_handler(
-    path: str,
+    path: Path,
     logger: Optional[logging.Logger] = None,
     formatter: Optional[logging.Formatter] = None,
 ) -> logging.FileHandler:

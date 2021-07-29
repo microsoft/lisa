@@ -63,7 +63,9 @@ def main() -> int:
         log_level = DEBUG if (args.debug) else INFO
         set_level(log_level)
 
-        create_file_handler(f"{constants.RUN_LOCAL_PATH}/lisa-{constants.RUN_ID}.log")
+        create_file_handler(
+            Path(f"{constants.RUN_LOCAL_PATH}/lisa-{constants.RUN_ID}.log")
+        )
 
         log.info(f"Python version: {sys.version}")
         log.info(f"local time: {datetime.now().astimezone()}")
