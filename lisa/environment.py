@@ -194,8 +194,6 @@ class Environment(ContextMixin, InitializableMixin):
         for node_runbook in runbook.nodes:
             self.create_node_from_exists(
                 node_runbook=node_runbook,
-                environment_name=self.name,
-                base_log_path=self.log_path,
             )
 
             has_default_node = self.__validate_single_default(
@@ -273,14 +271,12 @@ class Environment(ContextMixin, InitializableMixin):
     def create_node_from_exists(
         self,
         node_runbook: schema.Node,
-        environment_name: str,
-        base_log_path: Optional[Path] = None,
     ) -> Node:
         node = Node.create(
             index=len(self.nodes),
             runbook=node_runbook,
-            logger_name=environment_name,
-            base_log_path=base_log_path,
+            base_log_path=self.log_path,
+            parent_logger=self._log,
         )
         self.nodes.append(node)
 
@@ -289,8 +285,6 @@ class Environment(ContextMixin, InitializableMixin):
     def create_node_from_requirement(
         self,
         node_requirement: schema.NodeSpace,
-        environment_name: str,
-        base_log_path: Optional[Path] = None,
     ) -> Node:
         min_requirement = cast(
             schema.Capability,
@@ -310,8 +304,8 @@ class Environment(ContextMixin, InitializableMixin):
         node = Node.create(
             index=len(self.nodes),
             runbook=mock_runbook,
-            logger_name=environment_name,
-            base_log_path=base_log_path,
+            base_log_path=self.log_path,
+            parent_logger=self._log,
         )
         self.nodes.append(node)
 

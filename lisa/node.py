@@ -20,7 +20,7 @@ from lisa.util import (
     fields_to_dict,
     subclasses,
 )
-from lisa.util.logger import get_logger
+from lisa.util.logger import Logger, get_logger
 from lisa.util.process import ExecutableResult, Process
 from lisa.util.shell import ConnectionInfo, LocalShell, Shell, SshShell
 
@@ -36,6 +36,7 @@ class Node(subclasses.BaseClassWithRunbookMixin, ContextMixin, InitializableMixi
         index: int,
         logger_name: str,
         base_log_path: Optional[Path] = None,
+        parent_logger: Optional[Logger] = None,
     ) -> None:
         super().__init__(runbook=runbook)
         self.is_default = runbook.is_default
@@ -50,7 +51,7 @@ class Node(subclasses.BaseClassWithRunbookMixin, ContextMixin, InitializableMixi
         self.tools = Tools(self)
         # the path uses remotely
         node_id = str(self.index) if self.index >= 0 else ""
-        self.log = get_logger(logger_name, node_id)
+        self.log = get_logger(logger_name, node_id, parent=parent_logger)
 
         # The working path will be created in remote node, when it's used.
         self._working_path: Optional[PurePath] = None
@@ -141,6 +142,7 @@ class Node(subclasses.BaseClassWithRunbookMixin, ContextMixin, InitializableMixi
         runbook: schema.Node,
         logger_name: str = "node",
         base_log_path: Optional[Path] = None,
+        parent_logger: Optional[Logger] = None,
     ) -> Node:
         if not cls._factory:
             cls._factory = subclasses.Factory[Node](Node)
@@ -150,6 +152,7 @@ class Node(subclasses.BaseClassWithRunbookMixin, ContextMixin, InitializableMixi
             runbook=runbook,
             logger_name=logger_name,
             base_log_path=base_log_path,
+            parent_logger=parent_logger,
         )
 
         node.log.debug(
@@ -384,12 +387,14 @@ class LocalNode(Node):
         index: int,
         logger_name: str,
         base_log_path: Optional[Path],
+        parent_logger: Optional[Logger] = None,
     ) -> None:
         super().__init__(
             index=index,
             runbook=runbook,
             logger_name=logger_name,
             base_log_path=base_log_path,
+            parent_logger=parent_logger,
         )
 
         self._shell = LocalShell()
@@ -475,11 +480,18 @@ class Nodes:
         self._list.append(node)
 
 
-def quick_connect(runbook: schema.Node, logger_name: str = "", index: int = -1) -> Node:
+def quick_connect(
+    runbook: schema.Node,
+    logger_name: str = "",
+    index: int = -1,
+    parent_logger: Optional[Logger] = None,
+) -> Node:
     """
     setup node information and initialize connection.
     """
-    node = Node.create(index, runbook, logger_name=logger_name)
+    node = Node.create(
+        index, runbook, logger_name=logger_name, parent_logger=parent_logger
+    )
     if isinstance(node, RemoteNode):
         node.set_connection_info_by_runbook()
     node.initialize()
