@@ -62,7 +62,7 @@ class SecretTestCase(TestCase):
 
         with self.assertLogs("lisa") as cm:
             log.info("t1t2 2")
-        self.assertListEqual(["INFO:lisa:** 2"], cm.output)
+        self.assertListEqual(["INFO:lisa.:** 2"], cm.output)
 
     def test_stdout(self) -> None:
         add_secret("t1", sub="*")
@@ -78,4 +78,4 @@ class SecretTestCase(TestCase):
         add_secret("t2")
         with self.assertLogs("lisa") as cm:
             log.info("with args t2: %s", "t1")
-        self.assertListEqual(["INFO:lisa:with args ******: ******"], cm.output)
+        self.assertListEqual(["INFO:lisa.:with args ******: ******"], cm.output)
