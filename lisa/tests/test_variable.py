@@ -294,7 +294,7 @@ class VariableTestCase(TestCase):
             with self.assertLogs("lisa") as cm:
                 log.info(f"MUST_SECRET[{value}]")
             self.assertListEqual(
-                [f"INFO:lisa:MUST_SECRET[{expected_value}]"],
+                [f"INFO:lisa.:MUST_SECRET[{expected_value}]"],
                 cm.output,
                 f"key: {secret_name}, value: {value}, "
                 f"expected: {expected_value}  should be secret",
@@ -303,7 +303,7 @@ class VariableTestCase(TestCase):
             with self.assertLogs("lisa") as cm:
                 log.info(f"MUST_NOT_SECRET[{unsecured_value}]")
             self.assertListEqual(
-                [f"INFO:lisa:MUST_NOT_SECRET[{unsecured_value}]"],
+                [f"INFO:lisa.:MUST_NOT_SECRET[{unsecured_value}]"],
                 cm.output,
                 f"key: {key}, value: {unsecured_value} shouldn't be secret",
             )

@@ -184,16 +184,8 @@ def get_logger(
         name = ""
     if id_:
         name = f"{name}[{id_}]"
-    root_logger = cast(Logger, _get_root_logger())
-    if not name:
-        logger = root_logger
-    else:
-        if parent:
-            parent_name = parent.name
-            if parent_name.startswith(f"{DEFAULT_LOG_NAME}."):
-                parent_name = parent_name[len(DEFAULT_LOG_NAME) + 1 :]
-            if not parent_name.endswith("]"):
-                parent_name = f"{parent_name}."
-            name = f"{parent_name}{name}"
-        logger = cast(Logger, root_logger.getChild(name))
+    if not parent:
+        parent = cast(Logger, _get_root_logger())
+    logger = cast(Logger, parent.getChild(name))
+
     return logger
