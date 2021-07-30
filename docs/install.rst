@@ -1,5 +1,5 @@
-Installation
-============
+Installation & Update
+=====================
 
 Currently we support installation on Linux & Windows.
 
@@ -8,3 +8,4 @@ Currently we support installation on Linux & Windows.
  
     Installation on Linux <installation_linux>
     Installation on Windows <installation_windows>
+    Updating LISA <update>

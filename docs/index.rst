@@ -44,7 +44,7 @@ Why LISA
    :hidden:
 
    Introduction <quick_start>
-   Installation <install>
+   Installation & Update <install>
    Run tests <run_test/run>
    Write tests <write_test/write>
    Contributing <contributing>
@@ -72,6 +72,6 @@ The entire codebase is under `MIT license
    :target: https://github.com/microsoft/lisa/actions?query=workflow%3A%22CI+Workflow+for+LISAv3%22+event%3Apush+branch%3Amain
 .. |GitHub license| image:: https://img.shields.io/github/license/microsoft/lisa
    :target: https://github.com/microsoft/lisa/blob/main/LICENSE
-.. |Docs| image:: https://readthedocs.org/projects/mslisa/badge/?version=latest
-   :target: https://mslisa.readthedocs.io/en/latest/?badge=latest
+.. |Docs| image:: https://readthedocs.org/projects/mslisa/badge/?version=main
+   :target: https://mslisa.readthedocs.io/en/main/?badge=main
    :alt: Documentation Status
