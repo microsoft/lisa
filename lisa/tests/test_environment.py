@@ -14,6 +14,7 @@ from lisa import node, schema, search_space
 from lisa.environment import load_environments
 from lisa.testsuite import simple_requirement
 from lisa.util import constants
+from lisa.util.logger import Logger
 
 CUSTOM_LOCAL = "custom_local"
 CUSTOM_REMOTE = "custom_remote"
@@ -40,12 +41,14 @@ class CustomLocalNode(node.LocalNode):
         runbook: CustomLocalNodeSchema,
         logger_name: str,
         base_log_path: Optional[Path] = None,
+        parent_logger: Optional[Logger] = None,
     ) -> None:
         super().__init__(
             index=index,
             runbook=runbook,
             logger_name=logger_name,
             base_log_path=base_log_path,
+            parent_logger=parent_logger,
         )
         self.custom_local_field = runbook.custom_local_field
         assert (
@@ -82,12 +85,14 @@ class CustomRemoteNode(node.RemoteNode):
         runbook: CustomRemoteNodeSchema,
         logger_name: str,
         base_log_path: Optional[Path] = None,
+        parent_logger: Optional[Logger] = None,
     ) -> None:
         super().__init__(
             index=index,
             runbook=runbook,
             logger_name=logger_name,
             base_log_path=base_log_path,
+            parent_logger=parent_logger,
         )
         self.custom_remote_field = runbook.custom_remote_field
         assert (
