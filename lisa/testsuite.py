@@ -36,7 +36,13 @@ from lisa.util import (
     get_datetime_path,
     set_filtered_fields,
 )
-from lisa.util.logger import Logger, create_file_handler, get_logger, remove_handler
+from lisa.util.logger import (
+    Logger,
+    add_handler,
+    create_file_handler,
+    get_logger,
+    remove_handler,
+)
 from lisa.util.perf_timer import Timer, create_timer
 
 if TYPE_CHECKING:
@@ -451,6 +457,7 @@ class TestSuite:
             case_log_handler = create_file_handler(
                 case_log_path / f"{case_log_path.name}.log", case_log
             )
+            add_handler(case_log_handler, environment.log)
 
             case_kwargs = test_kwargs.copy()
             case_kwargs.update({"case_name": case_name})
@@ -482,6 +489,7 @@ class TestSuite:
                 f"result: {case_result.status.name}, " f"elapsed: {total_timer}"
             )
             remove_handler(case_log_handler, case_log)
+            remove_handler(case_log_handler, environment.log)
 
             if self._should_stop:
                 suite_log.info("received stop message, stop run")
