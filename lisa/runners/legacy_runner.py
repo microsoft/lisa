@@ -120,10 +120,8 @@ class LegacyRunner(BaseRunner):
     def close(self) -> None:
         super().close()
         assert self._log_handler
-        remove_handler(
-            self._log_handler,
-            self._local.log,
-        )
+        remove_handler(self._log_handler, self._local.log)
+        self._log_handler.close()
 
     def _start_sub_test(
         self, id_: str, index: int, configuration: schema.LegacyTestCase
