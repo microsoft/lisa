@@ -471,52 +471,8 @@ class Nodes:
         for node in self._list:
             node.close()
 
-    def from_existing(
-        self,
-        node_runbook: schema.Node,
-        environment_name: str,
-        base_log_path: Optional[Path] = None,
-    ) -> Node:
-        node = Node.create(
-            index=len(self._list),
-            runbook=node_runbook,
-            logger_name=environment_name,
-            base_log_path=base_log_path,
-        )
+    def append(self, node: Node) -> None:
         self._list.append(node)
-
-        return node
-
-    def from_requirement(
-        self,
-        node_requirement: schema.NodeSpace,
-        environment_name: str,
-        base_log_path: Optional[Path] = None,
-    ) -> Node:
-        min_requirement = cast(
-            schema.Capability,
-            node_requirement.generate_min_capability(node_requirement),
-        )
-        assert isinstance(min_requirement.node_count, int), (
-            f"must be int after generate_min_capability, "
-            f"actual: {min_requirement.node_count}"
-        )
-        # node count should be expanded in platform already
-        assert min_requirement.node_count == 1, f"actual: {min_requirement.node_count}"
-        mock_runbook = schema.RemoteNode(
-            type=constants.ENVIRONMENTS_NODES_REMOTE,
-            capability=min_requirement,
-            is_default=node_requirement.is_default,
-        )
-        node = Node.create(
-            index=len(self._list),
-            runbook=mock_runbook,
-            logger_name=environment_name,
-            base_log_path=base_log_path,
-        )
-        self._list.append(node)
-
-        return node
 
 
 def quick_connect(runbook: schema.Node, logger_name: str = "", index: int = -1) -> Node:

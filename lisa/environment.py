@@ -10,13 +10,13 @@ from enum import Enum
 from functools import partial
 from pathlib import Path
 from threading import Lock
-from typing import TYPE_CHECKING, Any, Dict, List, Optional
+from typing import TYPE_CHECKING, Any, Dict, List, Optional, cast
 
 from dataclasses_json import dataclass_json
 from marshmallow import validate
 
 from lisa import notifier, schema, search_space
-from lisa.node import Nodes
+from lisa.node import Node, Nodes
 from lisa.notifier import MessageBase
 from lisa.tools import Uname
 from lisa.util import (
@@ -33,7 +33,6 @@ from lisa.util import (
 from lisa.util.logger import get_logger
 
 if TYPE_CHECKING:
-    from lisa.node import Node
     from lisa.platform_ import Platform
 
 
@@ -193,7 +192,7 @@ class Environment(ContextMixin, InitializableMixin):
 
         has_default_node = False
         for node_runbook in runbook.nodes:
-            self.nodes.from_existing(
+            self.create_node_from_exists(
                 node_runbook=node_runbook,
                 environment_name=self.name,
                 base_log_path=self.log_path,
@@ -270,6 +269,53 @@ class Environment(ContextMixin, InitializableMixin):
         ):
             result.nodes.extend(self.runbook.nodes_requirement)
         return result
+
+    def create_node_from_exists(
+        self,
+        node_runbook: schema.Node,
+        environment_name: str,
+        base_log_path: Optional[Path] = None,
+    ) -> Node:
+        node = Node.create(
+            index=len(self.nodes),
+            runbook=node_runbook,
+            logger_name=environment_name,
+            base_log_path=base_log_path,
+        )
+        self.nodes.append(node)
+
+        return node
+
+    def create_node_from_requirement(
+        self,
+        node_requirement: schema.NodeSpace,
+        environment_name: str,
+        base_log_path: Optional[Path] = None,
+    ) -> Node:
+        min_requirement = cast(
+            schema.Capability,
+            node_requirement.generate_min_capability(node_requirement),
+        )
+        assert isinstance(min_requirement.node_count, int), (
+            f"must be int after generate_min_capability, "
+            f"actual: {min_requirement.node_count}"
+        )
+        # node count should be expanded in platform already
+        assert min_requirement.node_count == 1, f"actual: {min_requirement.node_count}"
+        mock_runbook = schema.RemoteNode(
+            type=constants.ENVIRONMENTS_NODES_REMOTE,
+            capability=min_requirement,
+            is_default=node_requirement.is_default,
+        )
+        node = Node.create(
+            index=len(self.nodes),
+            runbook=mock_runbook,
+            logger_name=environment_name,
+            base_log_path=base_log_path,
+        )
+        self.nodes.append(node)
+
+        return node
 
     def get_information(self) -> Dict[str, str]:
         final_information: Dict[str, str] = {}
