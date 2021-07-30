@@ -127,6 +127,21 @@ class BaseClassMixin:
         raise NotImplementedError()
 
 
+class SwitchableMixin:
+    """
+    This mixin could be used to switch the state of objects.
+    """
+
+    def _switch(self, enable: bool) -> None:
+        raise NotImplementedError()
+
+    def disable(self) -> None:
+        self._switch(False)
+
+    def enable(self) -> None:
+        self._switch(True)
+
+
 def get_date_str(current: Optional[datetime] = None) -> str:
     if current is None:
         current = datetime.now()

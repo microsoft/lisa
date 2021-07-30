@@ -24,7 +24,10 @@
                 },
                 "gpu_count": 0,
                 "features": {
-                    "is_allow_set": true
+                    "is_allow_set": true,
+                    "items": [
+                        "DiskStandardLRS"
+                    ]
                 },
                 "excluded_features": {
                     "is_allow_set": false
@@ -162,7 +165,10 @@
                 },
                 "gpu_count": 0,
                 "features": {
-                    "is_allow_set": true
+                    "is_allow_set": true,
+                    "items": [
+                        "DiskStandardLRS"
+                    ]
                 },
                 "excluded_features": {
                     "is_allow_set": false
@@ -310,7 +316,8 @@
                 "features": {
                     "is_allow_set": true,
                     "items": [
-                        "StartStop"
+                        "StartStop",
+                        "DiskStandardLRS"
                     ]
                 },
                 "excluded_features": {

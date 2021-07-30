@@ -40,6 +40,7 @@ from retry import retry
 from lisa import schema, search_space
 from lisa.environment import Environment
 from lisa.feature import Feature
+from lisa.features import DiskType
 from lisa.node import Node, RemoteNode
 from lisa.platform_ import Platform
 from lisa.secret import PATTERN_GUID, PATTERN_HEADTAIL, add_secret
@@ -279,6 +280,9 @@ class AzurePlatform(Platform):
     def supported_features(cls) -> List[Type[Feature]]:
         return [
             features.Gpu,
+            features.DiskEphemeral,
+            features.DiskPremiumLRS,
+            features.DiskStandardLRS,
             features.Nvme,
             features.SerialConsole,
             features.Sriov,
@@ -302,7 +306,6 @@ class AzurePlatform(Platform):
         3. check capability for each node by order of pattern.
         4. get min capability for each match
         """
-
         is_success: bool = True
 
         if environment.runbook.nodes_requirement:
@@ -359,9 +362,10 @@ class AzurePlatform(Platform):
                     for azure_cap in location_info.capabilities:
                         if azure_cap.vm_size == node_runbook.vm_size:
                             predefined_cost += azure_cap.estimated_cost
-
-                            min_cap: schema.NodeSpace = req.generate_min_capability(
-                                azure_cap.capability
+                            min_cap: schema.NodeSpace = (
+                                self._node_generate_min_capability(
+                                    req, azure_cap.capability
+                                )
                             )
                             # apply azure specified values
                             # they will pass into arm template
@@ -410,7 +414,9 @@ class AzurePlatform(Platform):
 
                         check_result = req.check(azure_cap.capability)
                         if check_result.result:
-                            min_cap = req.generate_min_capability(azure_cap.capability)
+                            min_cap = self._node_generate_min_capability(
+                                req, azure_cap.capability
+                            )
 
                             # apply azure specified values
                             # they will pass into arm template
@@ -753,8 +759,8 @@ class AzurePlatform(Platform):
 
         if location_data:
             delta = datetime.now() - location_data.updated_time
-            # refresh cached locations every 5 days.
-            if delta.days < 5:
+            # refresh cached locations every 1 day.
+            if delta.days < 1:
                 should_refresh = False
                 log.debug(
                     f"{location}: cache used: {location_data.updated_time}, "
@@ -851,6 +857,8 @@ class AzurePlatform(Platform):
             assert isinstance(
                 node_space, schema.NodeSpace
             ), f"actual: {type(node_space)}"
+            assert node_space.features, "No disk feature present."
+
             azure_node_runbook = node_space.get_extended_runbook(
                 AzureNodeSchema, type_name=AZURE
             )
@@ -899,6 +907,10 @@ class AzurePlatform(Platform):
                 azure_node_runbook.purchase_plan = self._process_marketplace_image_plan(
                     azure_node_runbook.location, azure_node_runbook.marketplace
                 )
+
+            # Set disk type
+            azure_node_runbook.disk_id = AzurePlatform._get_disk_id(node_space.features)
+
             # save parsed runbook back, for example, the version of marketplace may be
             # parsed from latest to a specified version.
             node.capability.set_extended_runbook(azure_node_runbook)
@@ -1251,6 +1263,12 @@ class AzurePlatform(Platform):
                 if eval(sku_capability.value) is True:
                     # update features list if sriov feature is supported
                     node_space.features.update([features.Sriov.name()])
+            elif name == "PremiumIO":
+                if eval(sku_capability.value) is True:
+                    node_space.features.update([features.DiskPremiumLRS.name()])
+            elif name == "EphemeralOSDiskSupported":
+                if eval(sku_capability.value) is True:
+                    node_space.features.update([features.DiskEphemeral.name()])
 
         # set a min value for nic_count work around for an azure python sdk bug
         # nic_count is 0 when get capability for some sizes e.g. Standard_D8a_v3
@@ -1259,7 +1277,11 @@ class AzurePlatform(Platform):
 
         # all nodes support following features
         node_space.features.update(
-            [features.StartStop.name(), features.SerialConsole.name()]
+            [
+                features.StartStop.name(),
+                features.SerialConsole.name(),
+                features.DiskStandardLRS.name(),
+            ]
         )
 
         return node_space
@@ -1412,3 +1434,73 @@ class AzurePlatform(Platform):
             wait_copy_blob(blob_client, vhd_path, log)
 
         return full_vhd_path
+
+    def _node_generate_min_capability(
+        self, req_cap: schema.NodeSpace, azure_cap: schema.NodeSpace
+    ) -> schema.NodeSpace:
+        assert azure_cap.features, "Azure node has no disk features."
+        assert (
+            AzurePlatform._get_disk_feature_count(req_cap.features) <= 1
+        ), "Multiple disk feature found in node requirement."
+
+        if (
+            req_cap.features is None
+            or AzurePlatform._get_disk_feature_count(req_cap.features) == 0
+        ):
+            # If no disk type feature is specified, use least
+            # cost available disk from azure_cap
+            min_cost_disk = AzurePlatform._get_min_cost_disk(azure_cap.features)
+        else:
+            min_cost_disk = AzurePlatform._get_min_cost_disk(req_cap.features)
+
+        # Remove features which are mutually exclusive to `min_cost_disk`
+        # For Example : If `min_cost_disk` is set as `DiskStandardLRS`, then
+        # `DiskPremiumLRS` and `DiskEphemeral` will be removed from
+        # azure_cap_copy.features
+        azure_cap_copy = copy.deepcopy(azure_cap)
+        assert (
+            azure_cap_copy.features is not None
+        ), "Azure node copy has no disk features."
+        azure_cap_copy.features.update(copy.deepcopy(azure_cap.features.items))
+        for me_feature_group in features.MUTUALLY_EXCLUSIVE_FEATURES:
+            if min_cost_disk in me_feature_group:
+                features_to_remove = set(me_feature_group)
+                features_to_remove.discard(min_cost_disk)
+                azure_cap_copy.features.difference_update(features_to_remove)
+
+        # Generate min capability node
+        min_cap: schema.NodeSpace = req_cap.generate_min_capability(azure_cap_copy)
+        return min_cap
+
+    @staticmethod
+    def _get_disk_feature_count(
+        node_features: Optional[search_space.SetSpace[str]],
+    ) -> int:
+        # Ensure that node_features contains either no disk type
+        # or only one of DiskEphemeral, DiskPremiumLRS or DiskStandardLRS
+        if node_features is None:
+            return 0
+        disk_features = set(DiskType.get_disk_types())
+        return len(node_features & disk_features)
+
+    @staticmethod
+    def _get_min_cost_disk(node_features: search_space.SetSpace[str]) -> str:
+        if DiskType.DISK_STANDARD in node_features:
+            return DiskType.DISK_STANDARD
+        elif DiskType.DISK_EPHEMERAL in node_features:
+            return DiskType.DISK_EPHEMERAL
+        elif DiskType.DISK_PREMIUM in node_features:
+            return DiskType.DISK_PREMIUM
+        else:
+            raise LisaException("No disk feature present.")
+
+    @staticmethod
+    def _get_disk_id(node_features: search_space.SetSpace[str]) -> str:
+        if DiskType.DISK_EPHEMERAL in node_features:
+            return features.DiskEphemeral.get_disk_id()
+        elif DiskType.DISK_PREMIUM in node_features:
+            return features.DiskPremiumLRS.get_disk_id()
+        elif DiskType.DISK_STANDARD in node_features:
+            return features.DiskStandardLRS.get_disk_id()
+        else:
+            raise LisaException("No disk feature present.")

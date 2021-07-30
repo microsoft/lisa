@@ -9,6 +9,7 @@ import requests
 from assertpy import assert_that
 
 from lisa import features
+from lisa.features.disks import DiskType
 from lisa.features.gpu import ComputeSDK
 from lisa.node import Node
 from lisa.operating_system import CentOs, Redhat, Suse, Ubuntu
@@ -24,6 +25,14 @@ from .common import (
     get_node_context,
     wait_operation,
 )
+
+MUTUALLY_EXCLUSIVE_FEATURES: List[List[str]] = [
+    [
+        DiskType.DISK_EPHEMERAL,
+        DiskType.DISK_PREMIUM,
+        DiskType.DISK_STANDARD,
+    ]
+]
 
 
 class AzureFeatureMixin:
@@ -191,3 +200,33 @@ class Nvme(AzureFeatureMixin, features.Nvme):
     def _initialize(self, *args: Any, **kwargs: Any) -> None:
         super()._initialize(*args, **kwargs)
         self._initialize_information(self._node)
+
+
+class DiskEphemeral(AzureFeatureMixin, features.DiskEphemeral):
+    def _initialize(self, *args: Any, **kwargs: Any) -> None:
+        super()._initialize(*args, **kwargs)
+        self._initialize_information(self._node)
+
+    @staticmethod
+    def get_disk_id() -> str:
+        return "Ephemeral"
+
+
+class DiskPremiumLRS(AzureFeatureMixin, features.DiskPremiumLRS):
+    def _initialize(self, *args: Any, **kwargs: Any) -> None:
+        super()._initialize(*args, **kwargs)
+        self._initialize_information(self._node)
+
+    @staticmethod
+    def get_disk_id() -> str:
+        return "Premium_LRS"
+
+
+class DiskStandardLRS(AzureFeatureMixin, features.DiskStandardLRS):
+    def _initialize(self, *args: Any, **kwargs: Any) -> None:
+        super()._initialize(*args, **kwargs)
+        self._initialize_information(self._node)
+
+    @staticmethod
+    def get_disk_id() -> str:
+        return "Standard_LRS"
