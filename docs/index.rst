@@ -7,7 +7,7 @@
 Welcome to Linux Integration Services Automation (LISA)!
 ========================================================
 
-|CI Workflow| |GitHub license|
+|CI Workflow| |GitHub license| |Docs|
 
 **Linux Integration Services Automation (LISA)** is a Linux quality
 validation system, which consists of two parts：
@@ -72,3 +72,6 @@ The entire codebase is under `MIT license
    :target: https://github.com/microsoft/lisa/actions?query=workflow%3A%22CI+Workflow+for+LISAv3%22+event%3Apush+branch%3Amain
 .. |GitHub license| image:: https://img.shields.io/github/license/microsoft/lisa
    :target: https://github.com/microsoft/lisa/blob/main/LICENSE
+.. |Docs| image:: https://readthedocs.org/projects/mslisa/badge/?version=latest
+   :target: https://mslisa.readthedocs.io/en/latest/?badge=latest
+   :alt: Documentation Status
