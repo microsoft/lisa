@@ -172,7 +172,7 @@ class Environment(ContextMixin, InitializableMixin):
         self.warn_as_error = warn_as_error
         self.platform: Optional[Platform] = None
         self._default_node: Optional[Node] = None
-        self._log = get_logger("env", self.name)
+        self.log = get_logger("env", self.name)
 
         # cost uses to plan order of environments.
         # cheaper env can fit cases earlier to run more cases on it.
@@ -276,7 +276,7 @@ class Environment(ContextMixin, InitializableMixin):
             index=len(self.nodes),
             runbook=node_runbook,
             base_log_path=self.log_path,
-            parent_logger=self._log,
+            parent_logger=self.log,
         )
         self.nodes.append(node)
 
@@ -305,7 +305,7 @@ class Environment(ContextMixin, InitializableMixin):
             index=len(self.nodes),
             runbook=mock_runbook,
             base_log_path=self.log_path,
-            parent_logger=self._log,
+            parent_logger=self.log,
         )
         self.nodes.append(node)
 
@@ -449,7 +449,7 @@ class EnvironmentHookImpl:
                     information.update(information_dict)
                     information["distro_version"] = node.os.information.full_version
             except Exception as identifier:
-                environment._log.exception(
+                environment.log.exception(
                     "failed to get environment information", exc_info=identifier
                 )
 
