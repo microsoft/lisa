@@ -867,7 +867,7 @@ class AzurePlatform(Platform):
             azure_node_runbook.subscription_id = self.subscription_id
 
             # init node
-            node = environment.nodes.from_requirement(
+            node = environment.create_node_from_requirement(
                 node_space,
                 environment_name=environment.name,
                 base_log_path=environment.log_path,
