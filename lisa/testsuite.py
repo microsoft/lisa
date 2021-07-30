@@ -490,6 +490,7 @@ class TestSuite:
             )
             remove_handler(case_log_handler, case_log)
             remove_handler(case_log_handler, environment.log)
+            case_log_handler.close()
 
             if self._should_stop:
                 suite_log.info("received stop message, stop run")

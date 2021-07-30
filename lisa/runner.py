@@ -71,6 +71,7 @@ class BaseRunner(BaseClassMixin, InitializableMixin):
     def close(self) -> None:
         if self._log_handler:
             remove_handler(self._log_handler)
+            self._log_handler.close()
 
     def _initialize(self, *args: Any, **kwargs: Any) -> None:
         # do not put this logic to __init__, since the mkdir takes time.
