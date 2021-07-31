@@ -257,4 +257,4 @@ def dump_file(file_name: Path, content: Any) -> None:
     file_name.absolute().relative_to(constants.RUN_LOCAL_PATH)
     file_name.parent.mkdir(parents=True, exist_ok=True)
     with open(file_name, "w") as f:
-        f.write(secret.replace(content))
+        f.write(secret.mask(content))
