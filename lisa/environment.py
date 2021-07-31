@@ -196,7 +196,7 @@ class Environment(ContextMixin, InitializableMixin):
                 node_runbook=node_runbook,
             )
 
-            has_default_node = self.__validate_single_default(
+            has_default_node = self._validate_single_default(
                 has_default_node, node_runbook.is_default
             )
 
@@ -204,12 +204,6 @@ class Environment(ContextMixin, InitializableMixin):
 
     def __repr__(self) -> str:
         return self.name
-
-    def _initialize(self, *args: Any, **kwargs: Any) -> None:
-        if self.status != EnvironmentStatus.Deployed:
-            raise LisaException("environment is not deployed, cannot be initialized")
-        self.nodes.initialize()
-        self.status = EnvironmentStatus.Connected
 
     @property
     def status(self) -> EnvironmentStatus:
@@ -253,9 +247,6 @@ class Environment(ContextMixin, InitializableMixin):
             self._log_path.mkdir(parents=True)
         return self._log_path
 
-    def close(self) -> None:
-        self.nodes.close()
-
     @property
     def capability(self) -> EnvironmentSpace:
         result = EnvironmentSpace(topology=self.runbook.topology)
@@ -267,6 +258,9 @@ class Environment(ContextMixin, InitializableMixin):
         ):
             result.nodes.extend(self.runbook.nodes_requirement)
         return result
+
+    def close(self) -> None:
+        self.nodes.close()
 
     def create_node_from_exists(
         self,
@@ -324,7 +318,13 @@ class Environment(ContextMixin, InitializableMixin):
 
         return final_information
 
-    def __validate_single_default(
+    def _initialize(self, *args: Any, **kwargs: Any) -> None:
+        if self.status != EnvironmentStatus.Deployed:
+            raise LisaException("environment is not deployed, cannot be initialized")
+        self.nodes.initialize()
+        self.status = EnvironmentStatus.Connected
+
+    def _validate_single_default(
         self, has_default: bool, is_default: Optional[bool]
     ) -> bool:
         if is_default:
