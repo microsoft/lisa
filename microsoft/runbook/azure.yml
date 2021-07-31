@@ -12,6 +12,8 @@ variable:
     value: ""
   - name: vhd
     value: ""
+  - name: vm_size
+    value: ""
   - name: deploy
     value: true
   - name: wait_delete
@@ -34,3 +36,4 @@ platform:
         marketplace: $(marketplace_image)
         vhd: $(vhd)
         location: $(location)
+        vm_size: $(vm_size)
