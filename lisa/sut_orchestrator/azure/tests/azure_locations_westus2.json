@@ -417,6 +417,450 @@
                 ],
                 "restrictions": []
             }
+        },
+        {
+            "location": "westus2",
+            "vm_size": "Standard_A2m_v2",
+            "capability": {
+                "type": "requirement",
+                "name": "westus2_Standard_A2m_v2",
+                "is_default": false,
+                "node_count": 1,
+                "core_count": 2,
+                "memory_mb": 16384,
+                "disk_count": {
+                    "min": 0,
+                    "max": 4,
+                    "max_inclusive": true
+                },
+                "nic_count": {
+                    "min": 0,
+                    "max": 2,
+                    "max_inclusive": true
+                },
+                "gpu_count": 0,
+                "features": {
+                    "is_allow_set": true,
+                    "items": [
+                        "StartStop",
+                        "SerialConsole",
+                        "DiskStandardLRS"
+                    ]
+                },
+                "excluded_features": {
+                    "is_allow_set": false,
+                    "items": []
+                }
+            },
+            "estimated_cost": 2,
+            "resource_sku": {
+                "resource_type": "virtualMachines",
+                "name": "Standard_A2m_v2",
+                "tier": "Standard",
+                "size": "A2m_v2",
+                "family": "standardAv2Family",
+                "locations": [
+                    "westus2"
+                ],
+                "location_info": [
+                    {
+                        "location": "westus2",
+                        "zones": [
+                            "1",
+                            "3",
+                            "2"
+                        ],
+                        "zone_details": []
+                    }
+                ],
+                "capabilities": [
+                    {
+                        "name": "MaxResourceVolumeMB",
+                        "value": "20480"
+                    },
+                    {
+                        "name": "OSVhdSizeMB",
+                        "value": "1047552"
+                    },
+                    {
+                        "name": "vCPUs",
+                        "value": "2"
+                    },
+                    {
+                        "name": "MemoryPreservingMaintenanceSupported",
+                        "value": "True"
+                    },
+                    {
+                        "name": "HyperVGenerations",
+                        "value": "V1"
+                    },
+                    {
+                        "name": "MemoryGB",
+                        "value": "16"
+                    },
+                    {
+                        "name": "MaxDataDiskCount",
+                        "value": "4"
+                    },
+                    {
+                        "name": "LowPriorityCapable",
+                        "value": "True"
+                    },
+                    {
+                        "name": "PremiumIO",
+                        "value": "False"
+                    },
+                    {
+                        "name": "VMDeploymentTypes",
+                        "value": "IaaS,PaaS"
+                    },
+                    {
+                        "name": "vCPUsAvailable",
+                        "value": "2"
+                    },
+                    {
+                        "name": "ACUs",
+                        "value": "100"
+                    },
+                    {
+                        "name": "vCPUsPerCore",
+                        "value": "1"
+                    },
+                    {
+                        "name": "CombinedTempDiskAndCachedIOPS",
+                        "value": "2000"
+                    },
+                    {
+                        "name": "CombinedTempDiskAndCachedReadBytesPerSecond",
+                        "value": "41943040"
+                    },
+                    {
+                        "name": "CombinedTempDiskAndCachedWriteBytesPerSecond",
+                        "value": "20971520"
+                    },
+                    {
+                        "name": "EphemeralOSDiskSupported",
+                        "value": "False"
+                    },
+                    {
+                        "name": "EncryptionAtHostSupported",
+                        "value": "False"
+                    },
+                    {
+                        "name": "CapacityReservationSupported",
+                        "value": "True"
+                    },
+                    {
+                        "name": "AcceleratedNetworkingEnabled",
+                        "value": "False"
+                    },
+                    {
+                        "name": "RdmaEnabled",
+                        "value": "False"
+                    },
+                    {
+                        "name": "MaxNetworkInterfaces",
+                        "value": "2"
+                    }
+                ],
+                "restrictions": []
+            }
+        },
+        {
+            "location": "westus2",
+            "vm_size": "Standard_A2_v2",
+            "capability": {
+                "type": "requirement",
+                "name": "westus2_Standard_A2_v2",
+                "is_default": false,
+                "node_count": 1,
+                "core_count": 2,
+                "memory_mb": 4096,
+                "disk_count": {
+                    "min": 0,
+                    "max": 4,
+                    "max_inclusive": true
+                },
+                "nic_count": {
+                    "min": 0,
+                    "max": 2,
+                    "max_inclusive": true
+                },
+                "gpu_count": 0,
+                "features": {
+                    "is_allow_set": true,
+                    "items": [
+                        "StartStop",
+                        "SerialConsole",
+                        "DiskStandardLRS"
+                    ]
+                },
+                "excluded_features": {
+                    "is_allow_set": false,
+                    "items": []
+                }
+            },
+            "estimated_cost": 2,
+            "resource_sku": {
+                "resource_type": "virtualMachines",
+                "name": "Standard_A2_v2",
+                "tier": "Standard",
+                "size": "A2_v2",
+                "family": "standardAv2Family",
+                "locations": [
+                    "westus2"
+                ],
+                "location_info": [
+                    {
+                        "location": "westus2",
+                        "zones": [
+                            "1",
+                            "3",
+                            "2"
+                        ],
+                        "zone_details": []
+                    }
+                ],
+                "capabilities": [
+                    {
+                        "name": "MaxResourceVolumeMB",
+                        "value": "20480"
+                    },
+                    {
+                        "name": "OSVhdSizeMB",
+                        "value": "1047552"
+                    },
+                    {
+                        "name": "vCPUs",
+                        "value": "2"
+                    },
+                    {
+                        "name": "MemoryPreservingMaintenanceSupported",
+                        "value": "True"
+                    },
+                    {
+                        "name": "HyperVGenerations",
+                        "value": "V1"
+                    },
+                    {
+                        "name": "MemoryGB",
+                        "value": "4"
+                    },
+                    {
+                        "name": "MaxDataDiskCount",
+                        "value": "4"
+                    },
+                    {
+                        "name": "LowPriorityCapable",
+                        "value": "True"
+                    },
+                    {
+                        "name": "PremiumIO",
+                        "value": "False"
+                    },
+                    {
+                        "name": "VMDeploymentTypes",
+                        "value": "IaaS,PaaS"
+                    },
+                    {
+                        "name": "vCPUsAvailable",
+                        "value": "2"
+                    },
+                    {
+                        "name": "ACUs",
+                        "value": "100"
+                    },
+                    {
+                        "name": "vCPUsPerCore",
+                        "value": "1"
+                    },
+                    {
+                        "name": "CombinedTempDiskAndCachedIOPS",
+                        "value": "2000"
+                    },
+                    {
+                        "name": "CombinedTempDiskAndCachedReadBytesPerSecond",
+                        "value": "41943040"
+                    },
+                    {
+                        "name": "CombinedTempDiskAndCachedWriteBytesPerSecond",
+                        "value": "20971520"
+                    },
+                    {
+                        "name": "EphemeralOSDiskSupported",
+                        "value": "False"
+                    },
+                    {
+                        "name": "EncryptionAtHostSupported",
+                        "value": "False"
+                    },
+                    {
+                        "name": "CapacityReservationSupported",
+                        "value": "True"
+                    },
+                    {
+                        "name": "AcceleratedNetworkingEnabled",
+                        "value": "False"
+                    },
+                    {
+                        "name": "RdmaEnabled",
+                        "value": "False"
+                    },
+                    {
+                        "name": "MaxNetworkInterfaces",
+                        "value": "2"
+                    }
+                ],
+                "restrictions": []
+            }
+        },
+        {
+            "location": "westus2",
+            "vm_size": "Standard_A2m_v2",
+            "capability": {
+                "type": "requirement",
+                "name": "westus2_Standard_A2m_v2",
+                "is_default": false,
+                "node_count": 1,
+                "core_count": 2,
+                "memory_mb": 16384,
+                "disk_count": {
+                    "min": 0,
+                    "max": 4,
+                    "max_inclusive": true
+                },
+                "nic_count": {
+                    "min": 0,
+                    "max": 2,
+                    "max_inclusive": true
+                },
+                "gpu_count": 0,
+                "features": {
+                    "is_allow_set": true,
+                    "items": [
+                        "StartStop",
+                        "SerialConsole",
+                        "DiskStandardLRS"
+                    ]
+                },
+                "excluded_features": {
+                    "is_allow_set": false,
+                    "items": []
+                }
+            },
+            "estimated_cost": 2,
+            "resource_sku": {
+                "resource_type": "virtualMachines",
+                "name": "Standard_A2m_v2",
+                "tier": "Standard",
+                "size": "A2m_v2",
+                "family": "standardAv2Family",
+                "locations": [
+                    "westus2"
+                ],
+                "location_info": [
+                    {
+                        "location": "westus2",
+                        "zones": [
+                            "1",
+                            "3",
+                            "2"
+                        ],
+                        "zone_details": []
+                    }
+                ],
+                "capabilities": [
+                    {
+                        "name": "MaxResourceVolumeMB",
+                        "value": "20480"
+                    },
+                    {
+                        "name": "OSVhdSizeMB",
+                        "value": "1047552"
+                    },
+                    {
+                        "name": "vCPUs",
+                        "value": "2"
+                    },
+                    {
+                        "name": "MemoryPreservingMaintenanceSupported",
+                        "value": "True"
+                    },
+                    {
+                        "name": "HyperVGenerations",
+                        "value": "V1"
+                    },
+                    {
+                        "name": "MemoryGB",
+                        "value": "16"
+                    },
+                    {
+                        "name": "MaxDataDiskCount",
+                        "value": "4"
+                    },
+                    {
+                        "name": "LowPriorityCapable",
+                        "value": "True"
+                    },
+                    {
+                        "name": "PremiumIO",
+                        "value": "False"
+                    },
+                    {
+                        "name": "VMDeploymentTypes",
+                        "value": "IaaS,PaaS"
+                    },
+                    {
+                        "name": "vCPUsAvailable",
+                        "value": "2"
+                    },
+                    {
+                        "name": "ACUs",
+                        "value": "100"
+                    },
+                    {
+                        "name": "vCPUsPerCore",
+                        "value": "1"
+                    },
+                    {
+                        "name": "CombinedTempDiskAndCachedIOPS",
+                        "value": "2000"
+                    },
+                    {
+                        "name": "CombinedTempDiskAndCachedReadBytesPerSecond",
+                        "value": "41943040"
+                    },
+                    {
+                        "name": "CombinedTempDiskAndCachedWriteBytesPerSecond",
+                        "value": "20971520"
+                    },
+                    {
+                        "name": "EphemeralOSDiskSupported",
+                        "value": "False"
+                    },
+                    {
+                        "name": "EncryptionAtHostSupported",
+                        "value": "False"
+                    },
+                    {
+                        "name": "CapacityReservationSupported",
+                        "value": "True"
+                    },
+                    {
+                        "name": "AcceleratedNetworkingEnabled",
+                        "value": "False"
+                    },
+                    {
+                        "name": "RdmaEnabled",
+                        "value": "False"
+                    },
+                    {
+                        "name": "MaxNetworkInterfaces",
+                        "value": "2"
+                    }
+                ],
+                "restrictions": []
+            }
         }
     ]
 }

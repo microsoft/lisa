@@ -189,6 +189,21 @@ class AzurePrepareTestCase(TestCase):
             environment=env,
         )
 
+    def test_partial_match(self) -> None:
+        # the "A2" should match Standard_A2_v2, instead of Standard_A2m_v2. The
+        # test data has two Standard_A2m_v2, so the test case can gurantee the
+        # problem won't be hidden by different behavior.
+        env = self.load_environment(node_req_count=2)
+        self.set_node_runbook(env, 0, location="", vm_size="A2m")
+        self.set_node_runbook(env, 1, location="", vm_size="A2")
+        self.verify_prepared_nodes(
+            expected_result=True,
+            expected_locations=["westus2", "westus2"],
+            expected_vm_sizes=["Standard_A2m_v2", "Standard_A2_v2"],
+            expected_cost=4,
+            environment=env,
+        )
+
     def test_normal_req_in_same_location(self) -> None:
         # normal requirement will be in same location of predefined
         env = self.load_environment(node_req_count=2)
