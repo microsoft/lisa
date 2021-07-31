@@ -9,6 +9,7 @@ import re
 from copy import deepcopy
 from dataclasses import dataclass, field
 from datetime import datetime
+from difflib import SequenceMatcher
 from functools import lru_cache
 from pathlib import Path
 from threading import Lock
@@ -359,30 +360,37 @@ class AzurePlatform(Platform):
                     location_info: AzureLocation = self._get_location_info(
                         location_name, log
                     )
+                    matched_score: float = 0
+                    matched_cap: Optional[AzureCapability] = None
+                    matcher = SequenceMatcher(None, node_runbook.vm_size.lower(), "")
                     for azure_cap in location_info.capabilities:
-                        if azure_cap.vm_size == node_runbook.vm_size:
-                            predefined_cost += azure_cap.estimated_cost
-                            min_cap: schema.NodeSpace = (
-                                self._node_generate_min_capability(
-                                    req, azure_cap.capability
-                                )
-                            )
-                            # apply azure specified values
-                            # they will pass into arm template
-                            min_runbook = min_cap.get_extended_runbook(
-                                AzureNodeSchema, AZURE
-                            )
-                            # the location may not be set
-                            min_runbook.location = location_name
-                            min_runbook.vm_size = azure_cap.vm_size
-                            assert isinstance(min_cap.nic_count, int)
-                            min_runbook.nic_count = min_cap.nic_count
-                            if not existing_location:
-                                existing_location = location_name
-                            predefined_caps[req_index] = min_cap
-                            found_or_skipped = True
-                            break
-                    if not found_or_skipped:
+                        matcher.set_seq2(azure_cap.vm_size.lower())
+                        if (
+                            node_runbook.vm_size.lower() in azure_cap.vm_size.lower()
+                            and matched_score < matcher.ratio()
+                        ):
+                            matched_cap = azure_cap
+                            matched_score = matcher.ratio()
+                    if matched_cap:
+                        predefined_cost += matched_cap.estimated_cost
+                        min_cap: schema.NodeSpace = self._node_generate_min_capability(
+                            req, matched_cap.capability
+                        )
+                        # apply azure specified values
+                        # they will pass into arm template
+                        min_runbook = min_cap.get_extended_runbook(
+                            AzureNodeSchema, AZURE
+                        )
+                        # the location may not be set
+                        min_runbook.location = location_name
+                        min_runbook.vm_size = matched_cap.vm_size
+                        assert isinstance(min_cap.nic_count, int)
+                        min_runbook.nic_count = min_cap.nic_count
+                        if not existing_location:
+                            existing_location = location_name
+                        predefined_caps[req_index] = min_cap
+                        found_or_skipped = True
+                    else:
                         # if not found any, skip and try next location
                         break
                 if found_or_skipped:
