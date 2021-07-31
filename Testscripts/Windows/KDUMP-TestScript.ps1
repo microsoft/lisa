@@ -4,6 +4,42 @@
 param([String] $TestParams,
       [object] $AllVmData)
 
+function Is-VmReadyAfterPanic([string] $VMUserName, [string] $VMPassword, [string] $ip, [int] $port) {
+    if ($global:sshPrivateKey) {
+        $usePrivateKey = $true
+        $credential = $global:sshPrivateKey
+    }
+    else {
+        $usePrivateKey = $false
+        $credential = $VMPassword
+    }
+    $pLinkJobTimeoutInSeconds = 90
+    $plinkJob = Start-Job -ScriptBlock {
+        Set-Location $args[0];
+        if ($Using:usePrivateKey) {
+            $output = Write-Output "y" | .\Tools\plink.exe -ssh -C -v -i $args[1] -P $Using:port "$Using:VMUserName@$Using:ip" "sudo -S bash -c 'uname -s'" 2> $null
+        }
+        else {
+            $output = Write-Output "y" | .\Tools\plink.exe -ssh -C -v -pw $args[1] -P $Using:port "$Using:VMUserName@$Using:ip" "echo $Using:password | sudo -S bash -c 'uname -s'" 2> $null
+        }
+        Write-Output $output
+    } -ArgumentList $PWD, $credential, $VMUserName
+
+    $plinkJob | Wait-Job -Timeout $pLinkJobTimeoutInSeconds | Out-Null
+    if ($plinkJob.State -eq "Running") {
+        Remove-Job -Job $plinkJob -Force | Out-Null
+    }
+    # No matter the Job ended with "Completed" or not, just read and remove-Job
+    $plinkJobConsoleOutput = [string](Receive-Job -Job $plinkJob 2>&1)
+    Remove-Job -Job $plinkJob -Force | Out-Null
+
+    Write-LogDbg "Is-VmReadyAfterPanic::Output: $plinkJobConsoleOutput"
+    if ($plinkJobConsoleOutput -eq "Linux") {
+        return $true
+    }
+    return $false
+}
+
 function Main {
     param (
         $VMName,
@@ -115,6 +151,9 @@ function Main {
         Write-LogWarn "Distro is not supported or kernel config does not allow auto"
         return "SKIPPED"
     }
+
+    $waitToStartTime=900
+
     # Rebooting the VM in order to apply the kdump settings
     Run-LinuxCmd -username $VMUserName -password $VMPassword -ip $Ipv4 -port $VMPort `
         -command "sync; reboot" -runAsSudo -RunInBackGround | Out-Null
@@ -122,7 +161,7 @@ function Main {
     Start-Sleep -Seconds 10 # Wait for kvp & ssh services stop
 
     # Wait for VM boot up and update ip address
-    Wait-ForVMToStartSSH -Ipv4addr $Ipv4 -StepTimeout 360 | Out-Null
+    Wait-ForVMToStartSSH -Ipv4addr $Ipv4 -StepTimeout $waitToStartTime | Out-Null
 
     # Prepare the kdump related
     $retVal = Run-LinuxCmd -username $VMUserName -password $VMPassword -ip $Ipv4 -port $VMPort `
@@ -173,7 +212,17 @@ function Main {
     }
 
     # Wait for VM boot up and update ip address
-    Wait-ForVMToStartSSH -Ipv4addr $Ipv4 -StepTimeout 600 | Out-Null
+    $waitTimeOut = $waitToStartTime
+    while ($waitTimeOut -gt 0) {
+        $sts = Is-VmReadyAfterPanic $VMUserName $VMPassword $Ipv4 $VMPort
+        Write-LogInfo "Is-VmReadyAfterPanic: returned $sts"
+        if ($sts) {
+            break
+        }
+        $waitTimeOut -= 30
+        Start-Sleep -Seconds 30
+        Write-LogInfo "waitTimeOut: $waitTimeOut"
+    }
 
     # Verifying if the kernel panic process creates a vmcore file of size 10M+
     $retVal = Run-LinuxCmd -username $VMUserName -password $VMPassword -ip $Ipv4 -port $VMPort `
