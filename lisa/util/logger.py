@@ -145,6 +145,9 @@ def add_handler(
     logger: Optional[logging.Logger] = None,
     formatter: Optional[logging.Formatter] = None,
 ) -> None:
+    if "unittest" in sys.modules:
+        return None
+
     if logger is None:
         logger = _get_root_logger()
     # always include details in log file
@@ -158,6 +161,9 @@ def add_handler(
 def remove_handler(
     log_handler: logging.Handler, logger: Optional[logging.Logger] = None
 ) -> None:
+    if "unittest" in sys.modules:
+        return None
+
     if logger is None:
         logger = _get_root_logger()
     logger.removeHandler(log_handler)
@@ -168,6 +174,10 @@ def create_file_handler(
     logger: Optional[logging.Logger] = None,
     formatter: Optional[logging.Formatter] = None,
 ) -> logging.FileHandler:
+    # skip to create log file in UT
+    if "unittest" in sys.modules:
+        return None  # type: ignore
+
     file_handler = logging.FileHandler(path, "w", "utf-8")
     add_handler(file_handler, logger, formatter)
     return file_handler
