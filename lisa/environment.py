@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import copy
+import sys
 from collections import UserDict
 from dataclasses import dataclass, field
 from enum import Enum
@@ -30,7 +31,7 @@ from lisa.util import (
     hookspec,
     plugin_manager,
 )
-from lisa.util.logger import get_logger
+from lisa.util.logger import create_file_handler, get_logger, remove_handler
 
 if TYPE_CHECKING:
     from lisa.platform_ import Platform
@@ -232,6 +233,10 @@ class Environment(ContextMixin, InitializableMixin):
 
     @property
     def log_path(self) -> Path:
+        # avoid to create path for UT. There may be path conflict in UT.
+        if "unittest" in sys.modules:
+            return Path()
+
         if not self._log_path:
             self._log_path = (
                 constants.RUN_LOCAL_PATH
@@ -260,6 +265,9 @@ class Environment(ContextMixin, InitializableMixin):
         return result
 
     def close(self) -> None:
+        if hasattr(self, "_log_handler") and self._log_handler:
+            remove_handler(self._log_handler, self.log)
+            self._log_handler.close()
         self.nodes.close()
 
     def create_node_from_exists(
@@ -321,6 +329,10 @@ class Environment(ContextMixin, InitializableMixin):
     def _initialize(self, *args: Any, **kwargs: Any) -> None:
         if self.status != EnvironmentStatus.Deployed:
             raise LisaException("environment is not deployed, cannot be initialized")
+
+        self._log_handler = create_file_handler(
+            self.log_path / "environment.log", self.log
+        )
         self.nodes.initialize()
         self.status = EnvironmentStatus.Connected
 
