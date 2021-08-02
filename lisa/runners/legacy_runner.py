@@ -15,7 +15,13 @@ from retry import retry
 from lisa import schema
 from lisa.node import Node
 from lisa.runner import BaseRunner
-from lisa.testsuite import TestCaseMetadata, TestCaseRuntimeData, TestResult, TestStatus
+from lisa.testsuite import (
+    TestCaseMetadata,
+    TestCaseRuntimeData,
+    TestResult,
+    TestStatus,
+    TestSuiteMetadata,
+)
 from lisa.tools import Git
 from lisa.util import InitializableMixin, LisaException, constants
 from lisa.util.logger import Logger, create_file_handler, get_logger, remove_handler
@@ -161,6 +167,8 @@ class ResultStateManager:
     All discover methods in LogParser are stateless, and this class merge them together.
     """
 
+    test_suite_metadata = TestSuiteMetadata("legacy", "", "")
+
     def __init__(self, id_: str, log: Logger) -> None:
         self._results: List[TestResult] = []
         self.log = log
@@ -192,6 +200,7 @@ class ResultStateManager:
                 case_metadata = TestCaseMetadata("")
                 case_metadata.name = all_cases[i]["name"]
                 case_metadata.full_name = f"legacy.{case_metadata.name}"
+                case_metadata.suite = self.test_suite_metadata
                 case_runtime_data = TestCaseRuntimeData(case_metadata)
                 # create result message for new cases
                 result = TestResult(
