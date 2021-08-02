@@ -82,6 +82,7 @@ class TestResultMessage(notifier.MessageBase):
     status: TestStatus = TestStatus.QUEUED
     message: str = ""
     information: Dict[str, str] = field(default_factory=dict)
+    log_file: Optional[Path] = None
 
 
 @dataclass
@@ -95,6 +96,7 @@ class TestResult:
     environment: Optional[Environment] = None
     check_results: Optional[search_space.ResultReason] = None
     information: Dict[str, Any] = field(default_factory=dict)
+    log_file: Optional[Path] = None
 
     @property
     def is_queued(self) -> bool:
@@ -200,7 +202,7 @@ class TestResult:
         if hasattr(self, "_timer"):
             self.elapsed = self._timer.elapsed(False)
 
-        fields = ["status", "elapsed", "id_"]
+        fields = ["status", "elapsed", "id_", "log_file"]
         result_message = TestResultMessage()
         set_filtered_fields(self, result_message, fields=fields)
 
@@ -454,9 +456,8 @@ class TestSuite:
             case_log = get_logger("case", case_name, parent=self.__log)
 
             case_log_path = self._create_case_log_path(case_name)
-            case_log_handler = create_file_handler(
-                case_log_path / f"{case_log_path.name}.log", case_log
-            )
+            case_log_file = case_log_path / f"{case_log_path.name}.log"
+            case_log_handler = create_file_handler(case_log_file, case_log)
             add_handler(case_log_handler, environment.log)
 
             case_kwargs = test_kwargs.copy()
@@ -469,6 +470,7 @@ class TestSuite:
             )
             is_continue: bool = is_suite_continue
             total_timer = create_timer()
+            case_result.log_file = case_log_file.relative_to(constants.RUN_LOCAL_PATH)
             case_result.set_status(TestStatus.RUNNING, "")
 
             if is_continue:
