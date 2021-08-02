@@ -33,6 +33,7 @@ from lisa.util import (
     QueuedException,
     SkippedException,
     constants,
+    fields_to_dict,
     get_datetime_path,
     set_filtered_fields,
 )
@@ -205,6 +206,19 @@ class TestResult:
         fields = ["status", "elapsed", "id_", "log_file"]
         result_message = TestResultMessage()
         set_filtered_fields(self, result_message, fields=fields)
+
+        metadata_fields = [
+            "area",
+            "category",
+            "tags",
+            "description",
+            "priority",
+            "owner",
+        ]
+        metadata_information = fields_to_dict(
+            src=self.runtime_data.metadata, fields=metadata_fields
+        )
+        self.information.update(metadata_information)
 
         # get information of default node, and send to notifier.
         if self.environment:
