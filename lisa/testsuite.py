@@ -283,6 +283,7 @@ class TestSuiteMetadata:
         tags: Optional[List[str]] = None,
         name: str = "",
         requirement: TestCaseRequirement = DEFAULT_REQUIREMENT,
+        owner: str = "Microsoft",
     ) -> None:
         self.name = name
         self.cases: List[TestCaseMetadata] = []
@@ -296,6 +297,7 @@ class TestSuiteMetadata:
             self.tags = []
         self.description = description
         self.requirement = requirement
+        self.owner = owner
 
     def __call__(self, test_class: Type[TestSuite]) -> Callable[..., object]:
         self.test_class = test_class
@@ -318,6 +320,7 @@ class TestCaseMetadata:
         self,
         description: str,
         priority: int = 2,
+        owner: str = "",
         requirement: Optional[TestCaseRequirement] = None,
     ) -> None:
         self.suite: TestSuiteMetadata
@@ -326,6 +329,8 @@ class TestCaseMetadata:
         self.description = description
         if requirement:
             self.requirement = requirement
+
+        self._owner = owner
 
     def __getattr__(self, key: str) -> Any:
         # return attributes of test suite, if it's not redefined in case level
@@ -348,6 +353,13 @@ class TestCaseMetadata:
             func(*args, **parameters)
 
         return wrapper
+
+    @property
+    def owner(self) -> str:
+        if self._owner:
+            return self._owner
+
+        return self.suite.owner
 
 
 class TestCaseRuntimeData:
