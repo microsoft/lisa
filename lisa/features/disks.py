@@ -41,7 +41,7 @@ class DiskPremiumLRS(Feature, SwitchableMixin):
         raise NotImplementedError
 
 
-class DiskStandardLRS(Feature, SwitchableMixin):
+class DiskStandardHDDLRS(Feature, SwitchableMixin):
     @classmethod
     def name(cls) -> str:
         return cls.__name__
@@ -78,7 +78,7 @@ class DiskStandardSSDLRS(Feature, SwitchableMixin):
 class DiskType:
     DISK_EPHEMERAL: str = DiskEphemeral.name()
     DISK_PREMIUM: str = DiskPremiumLRS.name()
-    DISK_STANDARD: str = DiskStandardLRS.name()
+    DISK_STANDARD_HDD: str = DiskStandardHDDLRS.name()
     DISK_STANDARD_SSD: str = DiskStandardSSDLRS.name()
 
     @staticmethod
@@ -86,6 +86,6 @@ class DiskType:
         return [
             DiskType.DISK_EPHEMERAL,
             DiskType.DISK_PREMIUM,
-            DiskType.DISK_STANDARD,
+            DiskType.DISK_STANDARD_HDD,
             DiskType.DISK_STANDARD_SSD,
         ]

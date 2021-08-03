@@ -283,7 +283,7 @@ class AzurePlatform(Platform):
             features.Gpu,
             features.DiskEphemeral,
             features.DiskPremiumLRS,
-            features.DiskStandardLRS,
+            features.DiskStandardHDDLRS,
             features.Nvme,
             features.SerialConsole,
             features.Sriov,
@@ -1286,7 +1286,7 @@ class AzurePlatform(Platform):
             [
                 features.StartStop.name(),
                 features.SerialConsole.name(),
-                features.DiskStandardLRS.name(),
+                features.DiskStandardHDDLRS.name(),
                 features.DiskStandardSSDLRS.name(),
             ]
         )
@@ -1461,9 +1461,9 @@ class AzurePlatform(Platform):
             min_cost_disk = AzurePlatform._get_min_cost_disk(req_cap.features)
 
         # Remove features which are mutually exclusive to `min_cost_disk`
-        # For Example : If `min_cost_disk` is set as `DiskStandardLRS`, then
+        # For Example : If `min_cost_disk` is set as `DiskStandardHDDLRS`, then
         # `DiskStandardSSDLRS`, `DiskPremiumLRS` and `DiskEphemeral` will be
-        # removed fromazure_cap_copy.features
+        # removed from azure_cap_copy.features
         azure_cap_copy = copy.deepcopy(azure_cap)
         assert (
             azure_cap_copy.features is not None
@@ -1484,7 +1484,8 @@ class AzurePlatform(Platform):
         node_features: Optional[search_space.SetSpace[str]],
     ) -> int:
         # Ensure that node_features contains either no disk type
-        # or only one of DiskEphemeral, DiskPremiumLRS or DiskStandardLRS
+        # or only one of DiskEphemeral, DiskPremiumLRS, DiskStandardHDDLRS
+        # or DiskStandardSSDLRS
         if node_features is None:
             return 0
         disk_features = set(DiskType.get_disk_types())
@@ -1492,8 +1493,8 @@ class AzurePlatform(Platform):
 
     @staticmethod
     def _get_min_cost_disk(node_features: search_space.SetSpace[str]) -> str:
-        if DiskType.DISK_STANDARD in node_features:
-            return DiskType.DISK_STANDARD
+        if DiskType.DISK_STANDARD_HDD in node_features:
+            return DiskType.DISK_STANDARD_HDD
         elif DiskType.DISK_STANDARD_SSD in node_features:
             return DiskType.DISK_STANDARD_SSD
         elif DiskType.DISK_EPHEMERAL in node_features:
@@ -1509,8 +1510,8 @@ class AzurePlatform(Platform):
             return features.DiskEphemeral.get_disk_id()
         elif DiskType.DISK_PREMIUM in node_features:
             return features.DiskPremiumLRS.get_disk_id()
-        elif DiskType.DISK_STANDARD in node_features:
-            return features.DiskStandardLRS.get_disk_id()
+        elif DiskType.DISK_STANDARD_HDD in node_features:
+            return features.DiskStandardHDDLRS.get_disk_id()
         elif DiskType.DISK_STANDARD_SSD in node_features:
             return features.DiskStandardSSDLRS.get_disk_id()
         else:

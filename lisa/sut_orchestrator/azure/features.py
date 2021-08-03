@@ -30,7 +30,7 @@ MUTUALLY_EXCLUSIVE_FEATURES: List[List[str]] = [
     [
         DiskType.DISK_EPHEMERAL,
         DiskType.DISK_PREMIUM,
-        DiskType.DISK_STANDARD,
+        DiskType.DISK_STANDARD_HDD,
         DiskType.DISK_STANDARD_SSD,
     ]
 ]
@@ -223,7 +223,7 @@ class DiskPremiumLRS(AzureFeatureMixin, features.DiskPremiumLRS):
         return "Premium_LRS"
 
 
-class DiskStandardLRS(AzureFeatureMixin, features.DiskStandardLRS):
+class DiskStandardHDDLRS(AzureFeatureMixin, features.DiskStandardHDDLRS):
     def _initialize(self, *args: Any, **kwargs: Any) -> None:
         super()._initialize(*args, **kwargs)
         self._initialize_information(self._node)
