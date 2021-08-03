@@ -134,6 +134,7 @@ A test case is a test that has its own test purpose and steps.
            environment_status=EnvironmentStatus.Deployed,
            supported_features=[SerialConsole],
        ),
+       timeout=3600,
    )
    def smoke_test(self, case_name: str) -> None:
        ...
@@ -148,6 +149,10 @@ A test case is a test that has its own test purpose and steps.
 -  **requirement** defines the requirements in this case. If no
    requirement specified, the test suite’s or the default global
    requirements will apply.
+-  **timeout** defines when the test case will be ended by timeout. The default
+   value is 3600 seconds. It applies to test method and before/after test case
+   methods as well. The timeout of before/after suite is 3600, which is not
+   changeable.
 
 Note for a regression test case, which deals with further issues that
 the fixed bug might cause, the related bugs should be presented. It is
