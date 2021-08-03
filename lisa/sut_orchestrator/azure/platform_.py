@@ -1287,6 +1287,7 @@ class AzurePlatform(Platform):
                 features.StartStop.name(),
                 features.SerialConsole.name(),
                 features.DiskStandardLRS.name(),
+                features.DiskStandardSSDLRS.name(),
             ]
         )
 
@@ -1461,8 +1462,8 @@ class AzurePlatform(Platform):
 
         # Remove features which are mutually exclusive to `min_cost_disk`
         # For Example : If `min_cost_disk` is set as `DiskStandardLRS`, then
-        # `DiskPremiumLRS` and `DiskEphemeral` will be removed from
-        # azure_cap_copy.features
+        # `DiskStandardSSDLRS`, `DiskPremiumLRS` and `DiskEphemeral` will be
+        # removed fromazure_cap_copy.features
         azure_cap_copy = copy.deepcopy(azure_cap)
         assert (
             azure_cap_copy.features is not None
@@ -1493,6 +1494,8 @@ class AzurePlatform(Platform):
     def _get_min_cost_disk(node_features: search_space.SetSpace[str]) -> str:
         if DiskType.DISK_STANDARD in node_features:
             return DiskType.DISK_STANDARD
+        elif DiskType.DISK_STANDARD_SSD in node_features:
+            return DiskType.DISK_STANDARD_SSD
         elif DiskType.DISK_EPHEMERAL in node_features:
             return DiskType.DISK_EPHEMERAL
         elif DiskType.DISK_PREMIUM in node_features:
@@ -1508,5 +1511,7 @@ class AzurePlatform(Platform):
             return features.DiskPremiumLRS.get_disk_id()
         elif DiskType.DISK_STANDARD in node_features:
             return features.DiskStandardLRS.get_disk_id()
+        elif DiskType.DISK_STANDARD_SSD in node_features:
+            return features.DiskStandardSSDLRS.get_disk_id()
         else:
             raise LisaException("No disk feature present.")
