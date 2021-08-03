@@ -21,6 +21,7 @@ from typing import (
     Union,
 )
 
+from func_timeout import FunctionTimedOut, func_timeout  # type: ignore
 from retry.api import retry_call
 
 from lisa import notifier, schema, search_space
@@ -335,12 +336,14 @@ class TestCaseMetadata:
         description: str,
         priority: int = 2,
         owner: str = "",
+        timeout: int = 3600,
         requirement: Optional[TestCaseRequirement] = None,
     ) -> None:
         self.suite: TestSuiteMetadata
 
         self.priority = priority
         self.description = description
+        self.timeout = timeout
         if requirement:
             self.requirement = requirement
 
@@ -498,20 +501,32 @@ class TestSuite:
             total_timer = create_timer()
             case_result.log_file = case_log_file.relative_to(constants.RUN_LOCAL_PATH)
             case_result.set_status(TestStatus.RUNNING, "")
+            case_timeout = case_result.runtime_data.metadata.timeout
 
             if is_continue:
                 is_continue = self.__before_case(
-                    case_result, test_kwargs=case_kwargs, log=case_log
+                    case_result=case_result,
+                    timeout=case_timeout,
+                    test_kwargs=case_kwargs,
+                    log=case_log,
                 )
             else:
                 case_result.set_status(TestStatus.SKIPPED, suite_error_message)
 
             if is_continue:
                 self.__run_case(
-                    case_result=case_result, test_kwargs=case_kwargs, log=case_log
+                    case_result=case_result,
+                    timeout=case_timeout,
+                    test_kwargs=case_kwargs,
+                    log=case_log,
                 )
 
-            self.__after_case(case_result, test_kwargs=case_kwargs, log=case_log)
+            self.__after_case(
+                case_result=case_result,
+                timeout=case_timeout,
+                test_kwargs=case_kwargs,
+                log=case_log,
+            )
 
             case_log.info(
                 f"result: {case_result.status.name}, " f"elapsed: {total_timer}"
@@ -538,8 +553,13 @@ class TestSuite:
         timer = create_timer()
         method_name = method.__name__
         try:
-            # use retry to pass dynamic parameters
-            method(**test_kwargs)
+            self.__call_with_retry_and_timeout(
+                method,
+                retries=0,
+                timeout=3600,
+                log=log,
+                test_kwargs=test_kwargs,
+            )
         except Exception as identifier:
             result = False
             message = f"{method_name}: {identifier}"
@@ -547,38 +567,46 @@ class TestSuite:
         return result, message
 
     def __before_case(
-        self, case_result: TestResult, test_kwargs: Dict[str, Any], log: Logger
+        self,
+        case_result: TestResult,
+        timeout: int,
+        test_kwargs: Dict[str, Any],
+        log: Logger,
     ) -> bool:
         result: bool = True
 
         timer = create_timer()
         try:
-            retry_call(
+            self.__call_with_retry_and_timeout(
                 self.before_case,
-                fkwargs=test_kwargs,
-                exceptions=Exception,
-                tries=case_result.runtime_data.retry + 1,
-                logger=log,
+                retries=case_result.runtime_data.retry,
+                timeout=timeout,
+                log=log,
+                test_kwargs=test_kwargs,
             )
         except Exception as identifier:
             log.error("before_case: ", exc_info=identifier)
             case_result.set_status(TestStatus.SKIPPED, f"before_case: {identifier}")
             result = False
-        log.debug(f"before_case end in {timer}")
 
+        log.debug(f"before_case end in {timer}")
         return result
 
     def __after_case(
-        self, case_result: TestResult, test_kwargs: Dict[str, Any], log: Logger
+        self,
+        case_result: TestResult,
+        timeout: int,
+        test_kwargs: Dict[str, Any],
+        log: Logger,
     ) -> None:
         timer = create_timer()
         try:
-            retry_call(
+            self.__call_with_retry_and_timeout(
                 self.after_case,
-                fkwargs=test_kwargs,
-                exceptions=Exception,
-                tries=case_result.runtime_data.retry + 1,
-                logger=log,
+                retries=case_result.runtime_data.retry,
+                timeout=timeout,
+                log=log,
+                test_kwargs=test_kwargs,
             )
         except Exception as identifier:
             # after case doesn't impact test case result.
@@ -586,24 +614,53 @@ class TestSuite:
         log.debug(f"after_case end in {timer}")
 
     def __run_case(
-        self, case_result: TestResult, test_kwargs: Dict[str, Any], log: Logger
+        self,
+        case_result: TestResult,
+        timeout: int,
+        test_kwargs: Dict[str, Any],
+        log: Logger,
     ) -> None:
         timer = create_timer()
         case_name = case_result.runtime_data.name
         test_method = getattr(self, case_name)
 
         try:
-            retry_call(
+            self.__call_with_retry_and_timeout(
                 test_method,
-                fkwargs=test_kwargs,
-                exceptions=Exception,
-                tries=case_result.runtime_data.retry + 1,
-                logger=log,
+                retries=case_result.runtime_data.retry,
+                timeout=timeout,
+                log=log,
+                test_kwargs=test_kwargs,
             )
             case_result.set_status(TestStatus.PASSED, "")
         except Exception as identifier:
             case_result.handle_exception(exception=identifier, log=log)
         log.debug(f"case end in {timer}")
+
+    def __call_with_retry_and_timeout(
+        self,
+        method: Callable[..., Any],
+        retries: int,
+        timeout: int,
+        log: Logger,
+        test_kwargs: Dict[str, Any],
+    ) -> None:
+        try:
+            retry_call(
+                func_timeout,
+                fkwargs={
+                    "timeout": timeout,
+                    "func": method,
+                    "kwargs": test_kwargs,
+                },
+                exceptions=Exception,
+                tries=retries + 1,
+                logger=log,
+            )
+        except FunctionTimedOut:
+            # FunctionTimedOut is a special exception. If it's not captured
+            # explicitly, it will make the whole program exit.
+            raise TimeoutError(f"time out in {timeout} seconds.")
 
 
 def get_suites_metadata() -> Dict[str, TestSuiteMetadata]:
