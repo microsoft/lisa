@@ -285,7 +285,23 @@
                         "managedDisk": "[if(not(equals(parameters('nodes')[copyIndex('vmCopy')]['disk_id'], 'Ephemeral')), json(concat('{\"storageAccountType\": \"',parameters('nodes')[copyIndex('vmCopy')]['disk_id'],'\"}')), json('null'))]",
                         "caching": "[if(equals(parameters('nodes')[copyIndex('vmCopy')]['disk_id'], 'Ephemeral'), 'ReadOnly', 'ReadWrite')]",
                         "createOption": "FromImage"
-                    }
+                    },
+                    "copy": [
+                        {
+                            "name": "dataDisks",
+                            "count": "[parameters('nodes')[copyIndex('vmCopy')]['data_disk_count']]",
+                            "input": {
+                                "lun": "[copyIndex('dataDisks')]",
+                                "name": "[concat(parameters('nodes')[copyIndex('vmCopy')]['name'], '-dataDisks', copyIndex('dataDisks'))]",
+                                "createOption": "Empty",
+                                "diskSizeGB": "[parameters('nodes')[copyIndex('vmCopy')]['data_disk_size']]",
+                                "caching": "[parameters('nodes')[copyIndex('vmCopy')]['data_disk_caching_type']]",
+                                "managedDisk": {
+                                    "storageAccountType": "[parameters('nodes')[copyIndex('vmCopy')]['disk_id']]"
+                                }
+                            }
+                        }
+                    ]
                 },
                 "networkProfile": {
                     "copy": [
