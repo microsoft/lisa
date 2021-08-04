@@ -17,7 +17,12 @@ from lisa import (
     simple_requirement,
 )
 from lisa.environment import EnvironmentStatus
-from lisa.features import DiskEphemeral, DiskPremiumLRS, SerialConsole
+from lisa.features import (
+    DiskEphemeral,
+    DiskPremiumLRS,
+    DiskStandardSSDLRS,
+    SerialConsole,
+)
 from lisa.util.shell import wait_tcp_port_ready
 
 
@@ -56,6 +61,22 @@ class Provisioning(TestSuite):
         ),
     )
     def smoke_test(self, case_name: str, log: Logger, node: RemoteNode) -> None:
+        self._smoke_test(case_name, log, node)
+
+    @TestCaseMetadata(
+        description="""
+        This case runs smoke test on a node provisioned with standard ssd disk.
+        The test steps are same as `smoke_test`.
+        """,
+        priority=1,
+        requirement=simple_requirement(
+            environment_status=EnvironmentStatus.Deployed,
+            supported_features=[SerialConsole, DiskStandardSSDLRS],
+        ),
+    )
+    def verify_deployment_provision_standard_ssd_disk(
+        self, case_name: str, log: Logger, node: RemoteNode
+    ) -> None:
         self._smoke_test(case_name, log, node)
 
     @TestCaseMetadata(

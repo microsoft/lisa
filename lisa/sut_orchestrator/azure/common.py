@@ -91,7 +91,7 @@ class AzureNodeSchema:
     vhd: str = ""
     nic_count: int = 1
     disk_id: str = field(
-        default=DiskType.DISK_STANDARD,
+        default=DiskType.DISK_STANDARD_HDD,
         metadata=schema.metadata(validate=validate.OneOf(DiskType.get_disk_types())),
     )
 

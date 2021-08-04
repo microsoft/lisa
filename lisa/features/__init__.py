@@ -1,7 +1,13 @@
 # Copyright (c) Microsoft Corporation.
 # Licensed under the MIT license.
 
-from .disks import DiskEphemeral, DiskPremiumLRS, DiskStandardLRS, DiskType
+from .disks import (
+    DiskEphemeral,
+    DiskPremiumLRS,
+    DiskStandardHDDLRS,
+    DiskStandardSSDLRS,
+    DiskType,
+)
 from .gpu import Gpu
 from .nvme import Nvme
 from .serial_console import SerialConsole
@@ -11,7 +17,8 @@ from .startstop import StartStop
 __all__ = [
     "DiskEphemeral",
     "DiskPremiumLRS",
-    "DiskStandardLRS",
+    "DiskStandardHDDLRS",
+    "DiskStandardSSDLRS",
     "DiskType",
     "Gpu",
     "Nvme",
