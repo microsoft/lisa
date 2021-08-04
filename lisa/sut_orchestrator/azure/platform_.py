@@ -974,8 +974,8 @@ class AzurePlatform(Platform):
         # dump arm_template and arm_parameters to file
         template_dump_path = environment.log_path / "arm_template.json"
         param_dump_path = environment.log_path / "arm_template_parameters.json"
-        dump_file(template_dump_path, json.dumps(template))
-        dump_file(param_dump_path, json.dumps(parameters))
+        dump_file(template_dump_path, json.dumps(template, indent=4))
+        dump_file(param_dump_path, json.dumps(parameters, indent=4))
 
         return (
             arm_parameters.location,
