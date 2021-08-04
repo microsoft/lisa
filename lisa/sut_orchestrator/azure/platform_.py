@@ -388,6 +388,10 @@ class AzurePlatform(Platform):
                         min_runbook.nic_count = min_cap.nic_count
                         assert isinstance(min_cap.data_disk_count, int)
                         min_runbook.data_disk_count = min_cap.data_disk_count
+                        assert isinstance(min_cap.data_disk_caching_type, str)
+                        min_runbook.data_disk_caching_type = (
+                            min_cap.data_disk_caching_type
+                        )
                         if not existing_location:
                             existing_location = location_name
                         predefined_caps[req_index] = min_cap
@@ -452,6 +456,12 @@ class AzurePlatform(Platform):
                                 min_cap.data_disk_count, int
                             ), f"actual: {min_cap.data_disk_count}"
                             node_runbook.data_disk_count = min_cap.data_disk_count
+                            assert isinstance(
+                                min_cap.data_disk_caching_type, str
+                            ), f"actual: {min_cap.data_disk_caching_type}"
+                            node_runbook.data_disk_caching_type = (
+                                min_cap.data_disk_caching_type
+                            )
 
                             estimated_cost += azure_cap.estimated_cost
 

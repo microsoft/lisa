@@ -373,6 +373,18 @@ class NodeSpace(search_space.RequirementMixin, TypedSchema, ExtendableSchemaMixi
         default=search_space.IntRange(min=0),
         metadata=metadata(decoder=search_space.decode_count_space),
     )
+    data_disk_caching_type: str = field(
+        default=constants.DATADISK_CACHING_TYPE_NONE,
+        metadata=metadata(
+            validate=validate.OneOf(
+                [
+                    constants.DATADISK_CACHING_TYPE_NONE,
+                    constants.DATADISK_CACHING_TYPE_READONLY,
+                    constants.DATADISK_CACHING_TYPE_READYWRITE,
+                ]
+            ),
+        ),
+    )
     nic_count: search_space.CountSpace = field(
         default=search_space.IntRange(min=1),
         metadata=metadata(decoder=search_space.decode_count_space),
@@ -414,6 +426,7 @@ class NodeSpace(search_space.RequirementMixin, TypedSchema, ExtendableSchemaMixi
             and self.core_count == o.core_count
             and self.memory_mb == o.memory_mb
             and self.data_disk_count == o.data_disk_count
+            and self.data_disk_caching_type == o.data_disk_caching_type
             and self.nic_count == o.nic_count
             and self.gpu_count == o.gpu_count
             and self.features == o.features
@@ -429,6 +442,7 @@ class NodeSpace(search_space.RequirementMixin, TypedSchema, ExtendableSchemaMixi
             f"default:{self.is_default},"
             f"count:{self.node_count},core:{self.core_count},"
             f"mem:{self.memory_mb},disk:{self.data_disk_count},"
+            f"disk_caching:{self.data_disk_caching_type},"
             f"nic:{self.nic_count},gpu:{self.gpu_count},"
             f"f:{self.features},ef:{self.excluded_features},"
             f"{super().__repr__()}"

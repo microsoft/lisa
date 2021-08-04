@@ -20,7 +20,7 @@ from lisa import schema
 from lisa.environment import Environment
 from lisa.features import DiskType
 from lisa.node import Node
-from lisa.util import LisaException
+from lisa.util import constants, LisaException
 from lisa.util.logger import Logger
 from lisa.util.parallel import check_cancelled
 from lisa.util.perf_timer import create_timer
@@ -91,6 +91,18 @@ class AzureNodeSchema:
     vhd: str = ""
     nic_count: int = 1
     data_disk_count: int = 0
+    data_disk_caching_type: str = field(
+        default=constants.DATADISK_CACHING_TYPE_NONE,
+        metadata=schema.metadata(
+            validate=validate.OneOf(
+                [
+                    constants.DATADISK_CACHING_TYPE_NONE,
+                    constants.DATADISK_CACHING_TYPE_READONLY,
+                    constants.DATADISK_CACHING_TYPE_READYWRITE,
+                ]
+            )
+        ),
+    )
     disk_id: str = field(
         default=DiskType.DISK_STANDARD_HDD,
         metadata=schema.metadata(validate=validate.OneOf(DiskType.get_disk_types())),
