@@ -12,7 +12,7 @@
                 "node_count": 1,
                 "core_count": 8,
                 "memory_mb": 32768,
-                "disk_count": {
+                "data_disk_count": {
                     "min": 0,
                     "max": 16,
                     "max_inclusive": true
@@ -128,7 +128,7 @@
                 "node_count": 1,
                 "core_count": 1,
                 "memory_mb": 3584,
-                "disk_count": {
+                "data_disk_count": {
                     "min": 0,
                     "max": 4,
                     "max_inclusive": true
@@ -277,7 +277,7 @@
                 "node_count": 1,
                 "core_count": 2,
                 "memory_mb": 7168,
-                "disk_count": {
+                "data_disk_count": {
                     "min": 0,
                     "max": 8,
                     "max_inclusive": true
@@ -428,7 +428,7 @@
                 "node_count": 1,
                 "core_count": 2,
                 "memory_mb": 16384,
-                "disk_count": {
+                "data_disk_count": {
                     "min": 0,
                     "max": 4,
                     "max_inclusive": true
@@ -576,7 +576,7 @@
                 "node_count": 1,
                 "core_count": 2,
                 "memory_mb": 4096,
-                "disk_count": {
+                "data_disk_count": {
                     "min": 0,
                     "max": 4,
                     "max_inclusive": true
@@ -724,7 +724,7 @@
                 "node_count": 1,
                 "core_count": 2,
                 "memory_mb": 16384,
-                "disk_count": {
+                "data_disk_count": {
                     "min": 0,
                     "max": 4,
                     "max_inclusive": true

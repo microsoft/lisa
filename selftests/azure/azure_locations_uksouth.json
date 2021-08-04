@@ -12,7 +12,7 @@
                 "node_count": 1,
                 "core_count": 208,
                 "memory_mb": 5836800,
-                "disk_count": {
+                "data_disk_count": {
                     "min": 0,
                     "max": 64,
                     "max_inclusive": true
@@ -153,7 +153,7 @@
                 "node_count": 1,
                 "core_count": 1,
                 "memory_mb": 3584,
-                "disk_count": {
+                "data_disk_count": {
                     "min": 0,
                     "max": 4,
                     "max_inclusive": true
@@ -302,7 +302,7 @@
                 "node_count": 1,
                 "core_count": 2,
                 "memory_mb": 7168,
-                "disk_count": {
+                "data_disk_count": {
                     "min": 0,
                     "max": 8,
                     "max_inclusive": true

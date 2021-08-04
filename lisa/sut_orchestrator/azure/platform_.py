@@ -1236,7 +1236,7 @@ class AzurePlatform(Platform):
         node_space = schema.NodeSpace(
             node_count=1,
             core_count=0,
-            disk_count=0,
+            data_disk_count=0,
             memory_mb=0,
             nic_count=0,
             gpu_count=0,
@@ -1252,7 +1252,7 @@ class AzurePlatform(Platform):
             if name == "vCPUs":
                 node_space.core_count = int(sku_capability.value)
             elif name == "MaxDataDiskCount":
-                node_space.disk_count = search_space.IntRange(
+                node_space.data_disk_count = search_space.IntRange(
                     max=int(sku_capability.value)
                 )
             elif name == "MemoryGB":

@@ -66,7 +66,7 @@ class AzurePrepareTestCase(TestCase):
         self.assertEqual(48, node.core_count)
         self.assertEqual(458752, node.memory_mb)
         self.assertEqual(search_space.IntRange(min=0, max=8), node.nic_count)
-        self.assertEqual(search_space.IntRange(min=0, max=32), node.disk_count)
+        self.assertEqual(search_space.IntRange(min=0, max=32), node.data_disk_count)
         self.assertEqual(4, node.gpu_count)
 
     def test_not_eligible_dropped(self) -> None:
@@ -370,13 +370,13 @@ class AzurePrepareTestCase(TestCase):
                 assert node_cap
                 self.assertIsInstance(node_cap.core_count, int)
                 self.assertIsInstance(node_cap.memory_mb, int)
-                self.assertIsInstance(node_cap.disk_count, int)
+                self.assertIsInstance(node_cap.data_disk_count, int)
                 self.assertIsInstance(node_cap.nic_count, int)
                 self.assertIsInstance(node_cap.gpu_count, int)
 
                 self.assertLessEqual(1, node_cap.core_count)
                 self.assertLessEqual(512, node_cap.memory_mb)
-                self.assertLessEqual(0, node_cap.disk_count)
+                self.assertLessEqual(0, node_cap.data_disk_count)
                 self.assertLessEqual(1, node_cap.nic_count)
                 self.assertLessEqual(0, node_cap.gpu_count)
 
