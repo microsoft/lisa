@@ -16,11 +16,11 @@ from azure.storage.blob import BlobServiceClient, ContainerClient  # type: ignor
 from dataclasses_json import dataclass_json
 from marshmallow import validate
 
-from lisa import schema
+from lisa import schema, search_space
 from lisa.environment import Environment
 from lisa.features import DiskType
 from lisa.node import Node
-from lisa.util import constants, LisaException
+from lisa.util import LisaException, constants
 from lisa.util.logger import Logger
 from lisa.util.parallel import check_cancelled
 from lisa.util.perf_timer import create_timer
@@ -103,6 +103,8 @@ class AzureNodeSchema:
             )
         ),
     )
+    data_disk_iops: int = 500
+    data_disk_size: int = 32
     disk_id: str = field(
         default=DiskType.DISK_STANDARD_HDD,
         metadata=schema.metadata(validate=validate.OneOf(DiskType.get_disk_types())),
@@ -381,3 +383,65 @@ def wait_copy_blob(
         raise LisaException(f"wait copying VHD timeout: {vhd_path}")
 
     log.debug("vhd copied")
+
+
+def get_data_disk_size(
+    node_features: search_space.SetSpace[str], data_disk_iops: int
+) -> int:
+    if DiskType.DISK_EPHEMERAL in node_features:
+        raise LisaException(f"{DiskType.DISK_EPHEMERAL} only can be OS disk type.")
+    elif DiskType.DISK_PREMIUM in node_features:
+        return DataDisk.get_size(DiskType.DISK_PREMIUM, data_disk_iops)
+    elif DiskType.DISK_STANDARD_HDD in node_features:
+        return DataDisk.get_size(DiskType.DISK_STANDARD_HDD, data_disk_iops)
+    elif DiskType.DISK_STANDARD_SSD in node_features:
+        return DataDisk.get_size(DiskType.DISK_STANDARD_SSD, data_disk_iops)
+    else:
+        raise LisaException("No data disk feature present.")
+
+
+class DataDisk:
+    # refer https://docs.microsoft.com/en-us/azure/virtual-machines/disks-types
+    IOPS_SIZE_DICT: Dict[str, Dict[int, int]] = {
+        DiskType.DISK_PREMIUM: {
+            120: 4,
+            240: 64,
+            500: 128,
+            1100: 256,
+            2300: 512,
+            5000: 1024,
+            7500: 2048,
+            16000: 8192,
+            18000: 16384,
+            20000: 32767,
+        },
+        DiskType.DISK_STANDARD_HDD: {
+            500: 32,
+            1300: 8192,
+            2000: 16384,
+        },
+        DiskType.DISK_STANDARD_SSD: {
+            500: 4,
+            2000: 8192,
+            4000: 16384,
+            6000: 32767,
+        },
+    }
+
+    @staticmethod
+    def get_size(disk_type: str, data_disk_iops: int = 120) -> int:
+        if disk_type in [
+            DiskType.DISK_PREMIUM,
+            DiskType.DISK_STANDARD_HDD,
+            DiskType.DISK_STANDARD_SSD,
+        ]:
+            iops_dict = DataDisk.IOPS_SIZE_DICT[disk_type]
+            iops = [key for key in iops_dict.keys() if key >= data_disk_iops]
+            if not iops:
+                raise LisaException(
+                    f"IOPS {data_disk_iops} is invaild for disk type {disk_type}."
+                )
+            min_iops = min(iops)
+            return iops_dict[min_iops]
+        else:
+            raise LisaException(f"Data disk type {disk_type} is unsupported.")

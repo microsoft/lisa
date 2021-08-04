@@ -385,6 +385,14 @@ class NodeSpace(search_space.RequirementMixin, TypedSchema, ExtendableSchemaMixi
             ),
         ),
     )
+    data_disk_iops: search_space.CountSpace = field(
+        default=search_space.IntRange(min=1),
+        metadata=metadata(decoder=search_space.decode_count_space),
+    )
+    data_disk_size: search_space.CountSpace = field(
+        default=search_space.IntRange(min=1),
+        metadata=metadata(decoder=search_space.decode_count_space),
+    )
     nic_count: search_space.CountSpace = field(
         default=search_space.IntRange(min=1),
         metadata=metadata(decoder=search_space.decode_count_space),
@@ -427,6 +435,7 @@ class NodeSpace(search_space.RequirementMixin, TypedSchema, ExtendableSchemaMixi
             and self.memory_mb == o.memory_mb
             and self.data_disk_count == o.data_disk_count
             and self.data_disk_caching_type == o.data_disk_caching_type
+            and self.data_disk_iops == o.data_disk_iops
             and self.nic_count == o.nic_count
             and self.gpu_count == o.gpu_count
             and self.features == o.features
@@ -443,6 +452,7 @@ class NodeSpace(search_space.RequirementMixin, TypedSchema, ExtendableSchemaMixi
             f"count:{self.node_count},core:{self.core_count},"
             f"mem:{self.memory_mb},disk:{self.data_disk_count},"
             f"disk_caching:{self.data_disk_caching_type},"
+            f"disk_iops:{self.data_disk_iops},"
             f"nic:{self.nic_count},gpu:{self.gpu_count},"
             f"f:{self.features},ef:{self.excluded_features},"
             f"{super().__repr__()}"
@@ -498,6 +508,12 @@ class NodeSpace(search_space.RequirementMixin, TypedSchema, ExtendableSchemaMixi
                 self.data_disk_count, capability.data_disk_count
             ),
             "data_disk_count",
+        )
+        result.merge(
+            search_space.check_countspace(
+                self.data_disk_iops, capability.data_disk_iops
+            ),
+            "data_disk_iops",
         )
         result.merge(
             search_space.check_countspace(self.nic_count, capability.nic_count),

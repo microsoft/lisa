@@ -68,6 +68,7 @@ from .common import (
     AzureVmPurchasePlanSchema,
     check_or_create_storage_account,
     get_compute_client,
+    get_data_disk_size,
     get_environment_context,
     get_marketplace_ordering_client,
     get_network_client,
@@ -1491,6 +1492,12 @@ class AzurePlatform(Platform):
                 features_to_remove.discard(min_cost_disk)
                 azure_cap_copy.features.difference_update(features_to_remove)
 
+        assert isinstance(req_cap.data_disk_count, search_space.IntRange)
+        if req_cap.data_disk_count.min > 0:
+            assert isinstance(req_cap.data_disk_iops, search_space.IntRange)
+            req_cap.data_disk_size = get_data_disk_size(
+                azure_cap_copy.features, req_cap.data_disk_iops.min
+            )
         # Generate min capability node
         min_cap: schema.NodeSpace = req_cap.generate_min_capability(azure_cap_copy)
         return min_cap
