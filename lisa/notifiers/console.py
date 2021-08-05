@@ -1,6 +1,7 @@
 # Copyright (c) Microsoft Corporation.
 # Licensed under the MIT license.
 
+import copy
 import logging
 from dataclasses import dataclass
 from typing import Any, List, Type, cast
@@ -34,6 +35,12 @@ class Console(notifier.Notifier):
         return ConsoleSchema
 
     def _received_message(self, message: notifier.MessageBase) -> None:
+        if isinstance(message, TestResultMessage):
+            # The description of test result is too long to display. Hide it for
+            # log readability.
+            message = copy.deepcopy(message)
+            description = message.information.get("description", "")
+            message.information["description"] = f"<{len(description)} bytes>"
         self._log.log(
             getattr(logging, self._log_level),
             f"received message [{message.type}]: {message}",
