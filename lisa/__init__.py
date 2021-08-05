@@ -10,6 +10,7 @@ from lisa.testsuite import (
     TestCaseMetadata,
     TestSuite,
     TestSuiteMetadata,
+    node_requirement,
     simple_requirement,
 )
 from lisa.util import (
@@ -36,6 +37,7 @@ __all__ = [
     "TestSuite",
     "UnsupportedOperationException",
     "create_timer",
+    "node_requirement",
     "simple_requirement",
 ]
 
