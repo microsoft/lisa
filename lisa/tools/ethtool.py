@@ -309,7 +309,9 @@ class Ethtool(Tool):
         interface: str,
         channel_count: int,
     ) -> DeviceChannel:
-        change_result = self.run(f"-L {interface} combined {channel_count}", sudo=True)
+        change_result = self.run(
+            f"-L {interface} combined {channel_count}", sudo=True, force_run=True
+        )
         change_result.assert_exit_code(
             message=f" Couldn't change device {interface} channels count."
         )
@@ -365,7 +367,9 @@ class Ethtool(Tool):
     def change_device_ring_buffer_settings(
         self, interface: str, rx: int, tx: int
     ) -> DeviceRingBufferSettings:
-        change_result = self.run(f"-G {interface} rx {rx} tx {tx}", sudo=True)
+        change_result = self.run(
+            f"-G {interface} rx {rx} tx {tx}", sudo=True, force_run=True
+        )
         change_result.assert_exit_code(
             message=f" Couldn't change device {interface} ring buffer settings."
         )
