@@ -127,26 +127,30 @@ class AzureNodeSchema:
                 assert isinstance(
                     self.marketplace_raw, str
                 ), f"actual: {type(self.marketplace_raw)}"
-                # Users decide the cases of image names,
-                #  the inconsistent cases cause the mismatched error in notifiers.
-                # The lower() normalizes the image names,
-                #  it has no impact on deployment.
-                marketplace_strings = re.split(
-                    r"[:\s]+", self.marketplace_raw.strip().lower()
-                )
 
-                if len(marketplace_strings) == 4:
-                    marketplace = AzureVmMarketplaceSchema(*marketplace_strings)
-                    # marketplace_raw is used
-                    self.marketplace_raw = marketplace.to_dict()  # type: ignore
-                else:
-                    raise LisaException(
-                        f"Invalid value for the provided marketplace "
-                        f"parameter: '{self.marketplace_raw}'."
-                        f"The marketplace parameter should be in the format: "
-                        f"'<Publisher> <Offer> <Sku> <Version>' "
-                        f"or '<Publisher>:<Offer>:<Sku>:<Version>'"
+                self.marketplace_raw = self.marketplace_raw.strip()
+
+                if self.marketplace_raw:
+                    # Users decide the cases of image names,
+                    #  the inconsistent cases cause the mismatched error in notifiers.
+                    # The lower() normalizes the image names,
+                    #  it has no impact on deployment.
+                    marketplace_strings = re.split(
+                        r"[:\s]+", self.marketplace_raw.lower()
                     )
+
+                    if len(marketplace_strings) == 4:
+                        marketplace = AzureVmMarketplaceSchema(*marketplace_strings)
+                        # marketplace_raw is used
+                        self.marketplace_raw = marketplace.to_dict()  # type: ignore
+                    else:
+                        raise LisaException(
+                            f"Invalid value for the provided marketplace "
+                            f"parameter: '{self.marketplace_raw}'."
+                            f"The marketplace parameter should be in the format: "
+                            f"'<Publisher> <Offer> <Sku> <Version>' "
+                            f"or '<Publisher>:<Offer>:<Sku>:<Version>'"
+                        )
             self._marketplace = marketplace
         return marketplace
 
