@@ -6,6 +6,7 @@ from lisa.operating_system import Posix
 from lisa.util import LisaException, UnsupportedOperationException
 
 from .find import Find
+from .lscpu import Lscpu
 
 # Few ethtool device settings follow similar pattern like -
 #   ethtool device channel info from "ethtool -l eth0"
@@ -300,6 +301,13 @@ class Ethtool(Tool):
         )
 
         device_channel_info = DeviceChannel(interface, result.stdout)
+
+        # Find the vCPU count to accurately get max channels for the device.
+        lscpu = self.node.tools[Lscpu]
+        vcpu_count = lscpu.get_core_count(force_run=True)
+        if vcpu_count < device_channel_info.max_channels:
+            device_channel_info.max_channels = vcpu_count
+
         self._device_channel_map[interface] = device_channel_info
 
         return device_channel_info
