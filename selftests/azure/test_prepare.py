@@ -9,10 +9,9 @@ from azure.mgmt.compute.models import ResourceSku  # type: ignore
 
 from lisa import schema, search_space
 from lisa.environment import Environment
+from lisa.sut_orchestrator.azure import common, platform_
 from lisa.util import LisaException, SkippedException, constants
 from lisa.util.logger import get_logger
-
-from .. import common, platform_
 
 
 class AzurePrepareTestCase(TestCase):

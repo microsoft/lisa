@@ -16,9 +16,9 @@ from lisa.search_space import (
     check,
     generate_min_capability,
 )
-from lisa.tests.test_search_space import SearchSpaceTestCase
 from lisa.testsuite import DEFAULT_REQUIREMENT, TestCaseRequirement, simple_requirement
 from lisa.util import constants
+from selftests.test_search_space import SearchSpaceTestCase
 
 
 @dataclass

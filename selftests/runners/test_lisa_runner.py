@@ -8,15 +8,10 @@ import lisa
 from lisa import schema
 from lisa.environment import EnvironmentStatus, load_environments
 from lisa.runners.lisa_runner import LisaRunner
-from lisa.tests import test_platform, test_testsuite
-from lisa.tests.test_environment import generate_runbook as generate_env_runbook
-from lisa.tests.test_testsuite import (
-    cleanup_cases_metadata,
-    generate_cases_metadata,
-    generate_cases_result,
-)
 from lisa.testsuite import TestResult, TestStatus, simple_requirement
 from lisa.util import LisaException, constants
+from selftests import test_platform, test_testsuite
+from selftests.test_environment import generate_runbook as generate_env_runbook
 
 
 def generate_runner(
@@ -56,7 +51,7 @@ class RunnerTestCase(TestCase):
         lisa.environment._global_environment_id = 0
 
     def tearDown(self) -> None:
-        cleanup_cases_metadata()  # Necessary side effects!
+        test_testsuite.cleanup_cases_metadata()  # Necessary side effects!
 
     def test_merge_req_create_on_new(self) -> None:
         # if no predefined envs, can generate from requirement
@@ -67,7 +62,7 @@ class RunnerTestCase(TestCase):
             [x for x in envs],
         )
         runner = generate_runner(None)
-        test_results = generate_cases_result()
+        test_results = test_testsuite.generate_cases_result()
         runner._merge_test_requirements(
             test_results=test_results,
             existing_environments=envs,
@@ -97,7 +92,7 @@ class RunnerTestCase(TestCase):
         )
         runner = generate_runner(env_runbook)
 
-        test_results = generate_cases_result()
+        test_results = test_testsuite.generate_cases_result()
         runner._merge_test_requirements(
             test_results=test_results,
             existing_environments=envs,
@@ -126,7 +121,7 @@ class RunnerTestCase(TestCase):
         )
         runner = generate_runner(env_runbook)
 
-        test_results = generate_cases_result()
+        test_results = test_testsuite.generate_cases_result()
         for test_result in test_results:
             test_result.runtime_data.use_new_environment = True
         runner._merge_test_requirements(
@@ -157,7 +152,7 @@ class RunnerTestCase(TestCase):
             list(envs),
         )
         runner = generate_runner(None)
-        test_results = generate_cases_result()
+        test_results = test_testsuite.generate_cases_result()
         runner._merge_test_requirements(
             test_results=test_results,
             existing_environments=envs,
@@ -192,7 +187,7 @@ class RunnerTestCase(TestCase):
             list(envs),
         )
         runner = generate_runner(None)
-        test_results = generate_cases_result()
+        test_results = test_testsuite.generate_cases_result()
         for test_result in test_results:
             metadata = test_result.runtime_data.metadata
             metadata.requirement = simple_requirement(
@@ -225,7 +220,7 @@ class RunnerTestCase(TestCase):
         # 1. with predefined env of 1 simple node, so ut2 don't need a new env
         # 2. ut3 need 8 cores, and predefined env target to meet all core requirement,
         #    so it can run any case with core requirements.
-        generate_cases_metadata()
+        test_testsuite.generate_cases_metadata()
         env_runbook = generate_env_runbook(is_single_env=True, remote=True)
         runner = generate_runner(env_runbook)
         test_results = self._run_all_tests(runner)
@@ -249,7 +244,7 @@ class RunnerTestCase(TestCase):
         # similar with test_fit_a_predefined_env, but predefined 2 nodes,
         # it doesn't equal to any case req, but reusable for all cases.
 
-        generate_cases_metadata()
+        test_testsuite.generate_cases_metadata()
         env_runbook = generate_env_runbook(is_single_env=True, local=True, remote=True)
         runner = generate_runner(env_runbook)
         test_results = self._run_all_tests(runner)
@@ -271,7 +266,7 @@ class RunnerTestCase(TestCase):
     def test_case_new_env_run_only_1_needed_customized(self) -> None:
         # same predefined env as test_fit_a_bigger_env,
         # but all case want to run on a new env
-        generate_cases_metadata()
+        test_testsuite.generate_cases_metadata()
         env_runbook = generate_env_runbook(is_single_env=True, local=True, remote=True)
         runner = generate_runner(env_runbook, case_use_new_env=True)
         test_results = self._run_all_tests(runner)
@@ -293,7 +288,7 @@ class RunnerTestCase(TestCase):
     def test_case_new_env_run_only_1_needed_generated(self) -> None:
         # same predefined env as test_fit_a_bigger_env,
         # but all case want to run on a new env
-        generate_cases_metadata()
+        test_testsuite.generate_cases_metadata()
         env_runbook = generate_env_runbook()
         runner = generate_runner(env_runbook, case_use_new_env=True, times=2)
         test_results = self._run_all_tests(runner)
@@ -358,7 +353,7 @@ class RunnerTestCase(TestCase):
         # two 1 node env predefined, but only customized_0 go to deploy
         # no cases assigned to customized_1, as fit cases run on customized_0 already
 
-        generate_cases_metadata()
+        test_testsuite.generate_cases_metadata()
         env_runbook = generate_env_runbook(local=True, remote=True)
         runner = generate_runner(env_runbook)
         test_results = self._run_all_tests(runner)
@@ -387,7 +382,7 @@ class RunnerTestCase(TestCase):
         # In future, will add retry on wait more resource.
         platform_schema = test_platform.MockPlatformSchema()
         platform_schema.wait_more_resource_error = True
-        generate_cases_metadata()
+        test_testsuite.generate_cases_metadata()
         env_runbook = generate_env_runbook(is_single_env=True, local=True)
         runner = generate_runner(env_runbook, platform_schema=platform_schema)
         test_results = self._run_all_tests(runner)
@@ -418,7 +413,7 @@ class RunnerTestCase(TestCase):
     def test_skipped_on_suite_failure(self) -> None:
         # First two tests were skipped because the setup is made to fail.
         test_testsuite.fail_on_before_suite = True
-        generate_cases_metadata()
+        test_testsuite.generate_cases_metadata()
         env_runbook = generate_env_runbook(is_single_env=True, local=True, remote=True)
         runner = generate_runner(env_runbook)
         test_results = self._run_all_tests(runner)
@@ -447,7 +442,7 @@ class RunnerTestCase(TestCase):
         # test env not prepared, so test cases cannot find an env to run
         platform_schema = test_platform.MockPlatformSchema()
         platform_schema.return_prepared = False
-        generate_cases_metadata()
+        test_testsuite.generate_cases_metadata()
         runner = generate_runner(None, platform_schema=platform_schema)
 
         test_results = self._run_all_tests(runner)
@@ -502,7 +497,7 @@ class RunnerTestCase(TestCase):
         # env prepared, but deployment failed, so cases failed
         platform_schema = test_platform.MockPlatformSchema()
         platform_schema.deployed_status = EnvironmentStatus.Prepared
-        generate_cases_metadata()
+        test_testsuite.generate_cases_metadata()
         env_runbook = generate_env_runbook()
         runner = generate_runner(env_runbook, platform_schema=platform_schema)
         test_results = self._run_all_tests(runner)

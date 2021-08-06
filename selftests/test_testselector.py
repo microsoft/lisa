@@ -3,8 +3,8 @@
 
 from unittest import TestCase
 
-from lisa.tests.test_testsuite import cleanup_cases_metadata, select_and_check
 from lisa.util import LisaException, constants
+from selftests.test_testsuite import cleanup_cases_metadata, select_and_check
 
 
 class SelectorTestCase(TestCase):

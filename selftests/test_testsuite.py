@@ -11,7 +11,6 @@ from lisa.environment import EnvironmentStatus, load_environments
 from lisa.operating_system import Posix, Windows
 from lisa.parameter_parser.runbook import RunbookBuilder
 from lisa.runner import parse_testcase_filters
-from lisa.tests.test_environment import generate_runbook
 from lisa.testselector import select_testcases
 from lisa.testsuite import (
     TestCaseMetadata,
@@ -32,6 +31,7 @@ from lisa.util import (
     constants,
 )
 from lisa.util.logger import Logger
+from selftests.test_environment import generate_runbook
 
 # for other UTs
 fail_on_before_suite = False
