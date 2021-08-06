@@ -119,7 +119,12 @@ function Main {
     Run-LinuxCmd -username $VMUserName -password $VMPassword -ip $Ipv4 -port $VMPort `
         -command "sync; reboot" -runAsSudo -RunInBackGround | Out-Null
     Write-LogInfo "Rebooting VM $VMName after kdump configuration..."
-    Start-Sleep -Seconds 10 # Wait for kvp & ssh services stop
+
+    # We need extend the sleep time.
+    # If sleeping a shorter time after reboot, the network may haven't stopped even if the VM is rebooting.
+    # Then Wait-ForVMToStartSSH will return ture. We will get a pseudomorph that the VM has startup after reboot.
+    # But actually not. Then KDUMP-Execute may failed for network error.
+    Start-Sleep -Seconds 20 # Wait for kvp & ssh services stop
 
     # Wait for VM boot up and update ip address
     Wait-ForVMToStartSSH -Ipv4addr $Ipv4 -StepTimeout 360 | Out-Null
