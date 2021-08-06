@@ -39,20 +39,19 @@ class Combinator(subclasses.BaseClassWithRunbookMixin, InitializableMixin):
         """
         result: Optional[Dict[str, VariableEntry]] = None
 
-        new_variables = self._next()
+        new_values = self._next()
 
-        if new_variables or self._is_first_time:
+        if new_values or self._is_first_time:
             result = current_variables.copy()
-            if new_variables:
-                for name, new_variable in new_variables.items():
+            if new_values:
+                for name, new_value in new_values.items():
                     original_variable = result.get(name, None)
                     if original_variable:
                         copied_variable = original_variable.copy()
-                        copied_variable.update(new_variable)
+                        copied_variable.data = new_value
                         result[name] = copied_variable
                     else:
-                        result[name] = new_variable
-
+                        result[name] = VariableEntry(name, new_value)
         self._is_first_time = False
         return result
 
@@ -63,7 +62,7 @@ class Combinator(subclasses.BaseClassWithRunbookMixin, InitializableMixin):
         """
         ...
 
-    def _next(self) -> Optional[Dict[str, VariableEntry]]:
+    def _next(self) -> Optional[Dict[str, Any]]:
         """
         subclasses should implement this method to return a combination. Return
         None means no more.

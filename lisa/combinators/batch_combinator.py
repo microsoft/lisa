@@ -9,7 +9,6 @@ from dataclasses_json import dataclass_json
 from lisa import schema
 from lisa.combinator import Combinator
 from lisa.util import constants
-from lisa.variable import VariableEntry, load_from_variable_entry
 
 
 @dataclass_json()
@@ -46,13 +45,9 @@ class BatchCombinator(Combinator):
     def type_schema(cls) -> Type[schema.TypedSchema]:
         return BatchCombinatorSchema
 
-    def _next(self) -> Optional[Dict[str, VariableEntry]]:
-        result: Optional[Dict[str, VariableEntry]] = None
+    def _next(self) -> Optional[Dict[str, Any]]:
+        result: Optional[Dict[str, Any]] = None
         if self._index < len(self._items):
-            result = {}
-            variables = self._items[self._index]
+            result = self._items[self._index]
             self._index += 1
-            for name, value in variables.items():
-                loaded_dict = load_from_variable_entry(name, value)
-                result.update(loaded_dict)
         return result
