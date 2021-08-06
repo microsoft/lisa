@@ -11,7 +11,7 @@ from lisa.parameter_parser.runbook import RunbookBuilder
 from lisa.runner import RootRunner
 from lisa.testselector import select_testcases
 from lisa.testsuite import TestCaseRuntimeData
-from lisa.util import LisaException, constants
+from lisa.util import LisaException, constants, hookspec, plugin_manager
 from lisa.util.logger import enable_console_timestamp, get_logger
 from lisa.util.perf_timer import create_timer
 
@@ -52,8 +52,17 @@ def run(args: Namespace) -> int:
         )
         notifier.notify(run_message)
         notifier.finalize()
+        run_finalize()
 
     return runner.exit_code
+
+
+def run_finalize() -> None:
+    try:
+        plugin_manager.hook.on_run_finalize()
+    except Exception as exception:
+        log = _get_init_logger("run_finalize")
+        log.info(f"run_finalize failed with error {exception}")
 
 
 # check runbook
@@ -83,3 +92,15 @@ def list_start(args: Namespace) -> int:
         raise LisaException(f"unknown list type '{args.type}'")
     log.info("list information here")
     return 0
+
+
+class CommandHookSpec:
+    @hookspec
+    def on_run_finalize(self) -> None:
+        """
+        Take action when run runner is being finalized
+        """
+        ...
+
+
+plugin_manager.add_hookspecs(CommandHookSpec)
