@@ -84,6 +84,13 @@ function EvaluateTestResult() {
 }
 UtilsInit
 
+# https://github.com/docker/compose/releases only contain releases for amd64/x86_64
+# When https://github.com/docker/compose/issues/6831 is merged, we should add support
+# for other architecture
+if [[ $(uname -m) != "x86_64" ]];then
+    HandleSkip "The Docker Compose only support amd64/x86_64 architecture now" 0
+fi
+
 GetDistro
 update_repos
 
