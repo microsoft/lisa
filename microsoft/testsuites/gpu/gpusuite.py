@@ -26,7 +26,7 @@ from lisa.tools import Reboot
     This test suite runs the gpu test cases.
     """,
 )
-class gpu(TestSuite):
+class gpu(TestSuite):  # noqa
     def _ensure_driver_installed(
         self, node: Node, gpu_feature: Gpu, log_path: Path, log: Logger
     ) -> None:
