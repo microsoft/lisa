@@ -12,13 +12,13 @@ run:
 
 # Run unit tests
 test:
-	@poetry run python -X dev -m unittest discover -v lisa
+	@poetry run python -X dev -m unittest discover
 
 # Generate coverage report (slow, reruns LISA and tests)
 coverage:
 	@poetry run coverage erase
-	@poetry run coverage run lisa/main.py 2>/dev/null
-	@poetry run coverage run --append -m unittest discover lisa 2>/dev/null
+	@poetry run coverage run lisa/main.py
+	@poetry run coverage run --append -m unittest discover
 	@poetry run coverage report --skip-empty --include=lisa*,examples*,microsoft/testsuites* --omit=lisa/tests/* --precision 2
 
 # Run syntactic, semantic, formatting and type checkers
