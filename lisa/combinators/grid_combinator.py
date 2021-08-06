@@ -2,14 +2,13 @@
 # Licensed under the MIT license.
 
 from dataclasses import dataclass, field
-from typing import Dict, List, Optional, Type
+from typing import Any, Dict, List, Optional, Type
 
 from dataclasses_json import dataclass_json
 
 from lisa import schema
 from lisa.combinator import Combinator
 from lisa.util import constants
-from lisa.variable import VariableEntry, load_from_variable_entry
 
 
 @dataclass_json()
@@ -60,8 +59,8 @@ class GridCombinator(Combinator):
     def type_schema(cls) -> Type[schema.TypedSchema]:
         return GridCombinatorSchema
 
-    def _next(self) -> Optional[Dict[str, VariableEntry]]:
-        result: Optional[Dict[str, VariableEntry]] = None
+    def _next(self) -> Optional[Dict[str, Any]]:
+        result: Optional[Dict[str, Any]] = None
         is_overflow: bool = False
         carry = 1
         for item_index in range(len(self._indexes)):
@@ -79,8 +78,5 @@ class GridCombinator(Combinator):
             result = {}
             for index, item in enumerate(self._items):
                 assert isinstance(item.value, list)
-                loaded_dict = load_from_variable_entry(
-                    item.name, item.value[self._indexes[index]], item.is_secret
-                )
-                result.update(loaded_dict)
+                result[item.name] = item.value[self._indexes[index]]
         return result
