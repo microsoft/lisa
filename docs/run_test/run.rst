@@ -8,6 +8,7 @@ Run LISA
    Learn Microsoft tests <microsoft_tests>
    Learn legacy tests <run_legacy>
    Test table <test_table>
+   Test specifications <test_spec>
    Run tests on different platforms <platform>
    Use runbook <runbook>
    Use command line <command_line>

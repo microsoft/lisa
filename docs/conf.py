@@ -11,10 +11,11 @@
 # documentation root, use os.path.abspath to make it absolute, like shown here.
 #
 import os
+import subprocess
 import sys
+from pathlib import Path
 
 sys.path.insert(0, os.path.abspath("../"))
-
 
 # -- Project information -----------------------------------------------------
 
@@ -66,3 +67,12 @@ html_theme_options = {
     "logo_only": True,
     "display_version": False,
 }
+
+# -- Test pipelines ----------------------------------------------------------
+
+base_path = Path(__file__).parent
+test_table_pipeline = base_path / "tools/test_table_gen.py"
+test_spec_pipeline = base_path / "tools/test_spec_gen.py"
+
+subprocess.call(["python", test_table_pipeline])
+subprocess.call(["python", test_spec_pipeline])
