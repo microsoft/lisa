@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import copy
+import sys
 from dataclasses import dataclass, field
 from enum import Enum
 from functools import wraps
@@ -449,7 +450,9 @@ class TestSuite:
             if not path.exists():
                 break
             sleep(0.1)
-        path.mkdir(parents=True)
+        # avoid to create folder for UT
+        if "unittest" not in sys.modules:
+            path.mkdir(parents=True)
         return path
 
     def start(
