@@ -101,6 +101,10 @@ class TestResult:
     information: Dict[str, Any] = field(default_factory=dict)
     log_file: Optional[Path] = None
 
+    def __post_init__(self, *args: Any, **kwargs: Any) -> None:
+        self._send_result_message()
+        self._timer: Timer
+
     @property
     def is_queued(self) -> bool:
         return self.status == TestStatus.QUEUED
@@ -117,10 +121,6 @@ class TestResult:
             TestStatus.SKIPPED,
             TestStatus.ATTEMPTED,
         ]
-
-    def __post_init__(self, *args: Any, **kwargs: Any) -> None:
-        self._send_result_message()
-        self._timer: Timer
 
     @property
     def name(self) -> str:
