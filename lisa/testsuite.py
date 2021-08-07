@@ -37,6 +37,8 @@ from lisa.util import (
     constants,
     fields_to_dict,
     get_datetime_path,
+    hookspec,
+    plugin_manager,
     set_filtered_fields,
 )
 from lisa.util.logger import (
@@ -125,6 +127,10 @@ class TestResult:
     @property
     def name(self) -> str:
         return self.runtime_data.metadata.name
+
+    @hookspec
+    def update_test_result_message(self, message: TestResultMessage) -> None:
+        ...
 
     def handle_exception(
         self, exception: Exception, log: Logger, phase: str = ""
@@ -228,6 +234,10 @@ class TestResult:
         result_message.information.update(self.information)
         result_message.message = self.message[0:2048] if self.message else ""
         result_message.name = self.runtime_data.metadata.full_name
+
+        # some extensions may need to update or fill information.
+        plugin_manager.hook.update_test_result_message(message=result_message)
+
         notifier.notify(result_message)
 
 
@@ -724,3 +734,6 @@ def _add_case_to_suite(
 ) -> None:
     test_case.suite = test_suite
     test_suite.cases.append(test_case)
+
+
+plugin_manager.add_hookspecs(TestResult)
