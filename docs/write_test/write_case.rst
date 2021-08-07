@@ -287,6 +287,21 @@ Hooks
 
 Hooks are used to insert extension logic in the platform.
 
+update_test_result_message
+^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Called when a test result message will be sent to notifier. In this hook, the
+result message can be modified for extension. But be carefully, it may break
+other functionality.
+
+.. code:: python
+
+      @hookimpl
+      def update_test_result_message(
+            self, message: TestResultMessage
+      ) -> None:
+            ...
+
 get_environment_information
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
@@ -330,6 +345,7 @@ Called when it needs to update ARM template before deploying to Azure.
            self, template: Any, environment: Environment
        ) -> None:
            ...
+
 
 Best practices
 --------------
