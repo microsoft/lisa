@@ -87,7 +87,7 @@ class TestResultMessage(notifier.MessageBase):
     status: TestStatus = TestStatus.QUEUED
     message: str = ""
     information: Dict[str, str] = field(default_factory=dict)
-    log_file: Optional[Path] = None
+    log_file: str = ""
 
 
 @dataclass
@@ -101,7 +101,7 @@ class TestResult:
     environment: Optional[Environment] = None
     check_results: Optional[search_space.ResultReason] = None
     information: Dict[str, Any] = field(default_factory=dict)
-    log_file: Optional[Path] = None
+    log_file: str = ""
 
     def __post_init__(self, *args: Any, **kwargs: Any) -> None:
         self._send_result_message()
@@ -512,7 +512,9 @@ class TestSuite:
             )
             is_continue: bool = is_suite_continue
             total_timer = create_timer()
-            case_result.log_file = case_log_file.relative_to(constants.RUN_LOCAL_PATH)
+            case_result.log_file = case_log_file.relative_to(
+                constants.RUN_LOCAL_PATH
+            ).as_posix()
             case_result.set_status(TestStatus.RUNNING, "")
             case_timeout = case_result.runtime_data.metadata.timeout
 
