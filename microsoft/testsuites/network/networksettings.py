@@ -142,13 +142,14 @@ class NetworkSettings(TestSuite):
                     f"Setting channels count to {new_channels} didn't succeed",
                 ).is_equal_to(new_channels)
 
-            # revert back the channel count to original value
-            channels_info = ethtool.change_device_channels_info(interface, channels)
-            assert_that(
-                channels_info.current_channels,
-                f"Reverting channels count to its original value {channels}"
-                f" didn't succeed. Current Value is {channels_info.current_channels}",
-            ).is_equal_to(channels)
+            if new_channels != channels:
+                # revert back the channel count to original value
+                channels_info = ethtool.change_device_channels_info(interface, channels)
+                assert_that(
+                    channels_info.current_channels,
+                    f"Reverting channels count to its original value {channels} didn't"
+                    f" succeed. Current Value is {channels_info.current_channels}",
+                ).is_equal_to(channels)
 
     @TestCaseMetadata(
         description="""
