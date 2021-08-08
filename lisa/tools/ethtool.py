@@ -292,7 +292,7 @@ class Ethtool(Tool):
             return self._device_channel_map[interface]
 
         result = self.run(f"-l {interface}", force_run=force)
-        if (result.exit_code != 0) and ("Operation not supported" in result.stderr):
+        if (result.exit_code != 0) and ("Operation not supported" in result.stdout):
             raise UnsupportedOperationException(
                 "ethtool -l {interface} operation not supported."
             )
@@ -359,7 +359,7 @@ class Ethtool(Tool):
             return self._device_ring_buffer_settings_map[interface]
 
         result = self.run(f"-g {interface}", force_run=force)
-        if (result.exit_code != 0) and ("Operation not supported" in result.stderr):
+        if (result.exit_code != 0) and ("Operation not supported" in result.stdout):
             raise UnsupportedOperationException(
                 f"ethtool -g {interface} operation not supported."
             )
