@@ -185,3 +185,54 @@ class NetworkSettings(TestSuite):
                     f" device {device_features.device_name}."
                     f" Enabled features list - {enabled_features}"
                 )
+
+    @TestCaseMetadata(
+        description="""
+            This test case verifies changing device's GRO and LRO setting takes
+            into affect.
+
+            Steps:
+            1. Get the device's generic-receive-offload and large-receive-offload
+                settings.
+            2. Try flipping the GRO and LRO settings and validate it takes affect.
+            3. Revert back the settings to original values.
+        """,
+        priority=1,
+    )
+    def validate_device_gro_lro_settings_change(self, node: Node) -> None:
+        ethtool = node.tools[Ethtool]
+
+        devices_gro_lro_settings = ethtool.get_all_device_gro_lro_settings()
+
+        for device_settings in devices_gro_lro_settings:
+            interface = device_settings.interface
+            original_gro_setting = device_settings.gro_setting
+            original_lro_setting = device_settings.lro_setting
+
+            new_gro_setting = not original_gro_setting
+            new_lro_setting = not original_lro_setting
+
+            new_settings = ethtool.change_device_gro_lro_settings(
+                interface, new_gro_setting, new_lro_setting
+            )
+            assert_that(
+                new_settings.gro_setting,
+                "Changing GRO setting didn't succeed",
+            ).is_equal_to(new_gro_setting)
+            assert_that(
+                new_settings.lro_setting,
+                "Changing LRO setting didn't succeed",
+            ).is_equal_to(new_lro_setting)
+
+            # Revert the settings back to original values
+            reverted_settings = ethtool.change_device_gro_lro_settings(
+                interface, original_gro_setting, original_lro_setting
+            )
+            assert_that(
+                reverted_settings.gro_setting,
+                "Reverting GRO setting to original value didn't succeed",
+            ).is_equal_to(original_gro_setting)
+            assert_that(
+                reverted_settings.lro_setting,
+                "Reverting LRO setting to original value didn't succeed",
+            ).is_equal_to(original_lro_setting)
