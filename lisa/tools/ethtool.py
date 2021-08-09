@@ -221,6 +221,15 @@ class DeviceRingBufferSettings:
             )
 
 
+class DeviceGroLroSettings:
+    def __init__(
+        self, interface: str, gro_setting: bool = False, lro_setting: bool = True
+    ) -> None:
+        self.interface = interface
+        self.gro_setting = gro_setting
+        self.lro_setting = lro_setting
+
+
 class Ethtool(Tool):
     @property
     def command(self) -> str:
@@ -237,6 +246,7 @@ class Ethtool(Tool):
         self._device_features_map: Dict[str, DeviceFeatures] = {}
         self._device_link_settings_map: Dict[str, DeviceLinkSettings] = {}
         self._device_ring_buffer_settings_map: Dict[str, DeviceRingBufferSettings] = {}
+        self._device_gro_lro_settings_map: Dict[str, DeviceGroLroSettings] = {}
 
     def _install(self) -> bool:
         posix_os: Posix = cast(Posix, self.node.os)
@@ -340,6 +350,44 @@ class Ethtool(Tool):
 
         return device_feature
 
+    def get_device_gro_lro_settings(
+        self, interface: str, force: bool = False
+    ) -> DeviceGroLroSettings:
+        if (not force) and (interface in self._device_gro_lro_settings_map.keys()):
+            return self._device_gro_lro_settings_map[interface]
+
+        gro_setting = False
+        lro_setting = False
+        device_features = self.get_device_enabled_features(interface, force)
+        for feature in device_features.enabled_features:
+            if "generic-receive-offload" in feature:
+                gro_setting = True
+            if "large-receive-offload" in feature:
+                lro_setting = True
+
+        device_gro_lro_settings = DeviceGroLroSettings(
+            interface, gro_setting, lro_setting
+        )
+        self._device_gro_lro_settings_map[interface] = device_gro_lro_settings
+
+        return device_gro_lro_settings
+
+    def change_device_gro_lro_settings(
+        self, interface: str, gro_setting: bool, lro_setting: bool
+    ) -> DeviceGroLroSettings:
+        gro = "on" if gro_setting else "off"
+        lro = "on" if lro_setting else "off"
+        change_result = self.run(
+            f"-K {interface} gro {gro} lro {lro}",
+            sudo=True,
+            force_run=True,
+        )
+        change_result.assert_exit_code(
+            message=f" Couldn't change device {interface} GRO LRO settings."
+        )
+
+        return self.get_device_gro_lro_settings(interface, force=True)
+
     def get_device_link_settings(self, interface: str) -> DeviceLinkSettings:
         if interface in self._device_link_settings_map.keys():
             return self._device_link_settings_map[interface]
@@ -399,6 +447,14 @@ class Ethtool(Tool):
             devices_features_list.append(self.get_device_enabled_features(device))
 
         return devices_features_list
+
+    def get_all_device_gro_lro_settings(self) -> List[DeviceGroLroSettings]:
+        devices_gro_lro_settings = []
+        devices = self.get_device_list()
+        for device in devices:
+            devices_gro_lro_settings.append(self.get_device_gro_lro_settings(device))
+
+        return devices_gro_lro_settings
 
     def get_all_device_link_settings(self) -> List[DeviceLinkSettings]:
         devices_link_settings_list = []
