@@ -34,6 +34,7 @@ def update_file(filename: Path, test_paths: List[Path]) -> None:
 
         for test_path in test_paths:
             for root, _, files in os.walk(test_path):
+                files.sort()  # to ensure the order
                 for file in files:
                     if file.endswith(".py"):
                         # print("Processing " + file)
@@ -76,6 +77,9 @@ def _write_suite(file: TextIO, metadata: Dict[str, str]) -> None:
         file (TextIO): test spec file
         metadata (Dict[str, str]): test suite metadata
     """
+    file.write(".. _" + metadata["name"] + ":\n")  # custom anchor
+    file.write("\n")
+
     file.write(".. class:: ")
     file.write(metadata["name"] + "\n")  # Test Suite Name
     file.write("    :noindex:" + "\n")
@@ -102,6 +106,9 @@ def _write_case(file: TextIO, metadata: Dict[str, str]) -> None:
         file (TextIO): test spec file
         metadata (Dict[str, str]): test case metadata
     """
+    file.write(".. _" + metadata["name"] + ":\n")  # custom anchor
+    file.write("\n")
+
     file.write("    .. method:: ")
     file.write(metadata["name"] + "\n")  # Test Case Name
     file.write("        :noindex:" + "\n")

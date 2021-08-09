@@ -38,6 +38,7 @@ def update_table(filename: Path, test_paths: List[Path]) -> None:
         res = []  # name, priority, platform, category, area etc.
         for test_path in test_paths:
             for root, _, files in os.walk(test_path):
+                files.sort()  # to ensure the order
                 for file in files:
                     if file.endswith(".py"):
                         # print("Processing " + file)
@@ -102,10 +103,24 @@ def _update_line(file: TextIO, metadata: Dict[str, str], index: int) -> None:
         index (int): no.# of test case
     """
     file.write("    * - " + str(index) + "\n")  # Index
-    file.write("      - " + metadata["suite_name"] + "\n")  # Test Suite Name
-    file.write("      - " + metadata["case_name"] + "\n")  # Test Case Name
+    file.write(
+        "      - "
+        + ":ref:`"
+        + metadata["suite_name"]
+        + " <"
+        + metadata["suite_name"]
+        + ">`\n"
+    )  # Test Suite Name
+    file.write(
+        "      - "
+        + ":ref:`"
+        + metadata["case_name"]
+        + " <"
+        + metadata["case_name"]
+        + ">`\n"
+    )  # Test Case Name
     file.write("      - " + str(metadata["priority"]) + "\n")  # Priority
-    file.write("      - " + "Azure, Ready" + "\n")  # Platform
+    file.write("      - " + "Azure, Ready" + "\n")  # Platform - defaults to both
     file.write("      - " + metadata["category"] + "\n")  # Category
     file.write("      - " + metadata["area"] + "\n")  # Area
 
