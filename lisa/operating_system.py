@@ -733,9 +733,10 @@ class Fedora(Linux):
 class Redhat(Fedora):
     # Red Hat Enterprise Linux Server release 6.9 (Santiago)
     # CentOS release 6.9 (Final)
+    # CentOS Linux release 8.3.2011
     __legacy_redhat_information_pattern = re.compile(
-        r"^(?P<vendor>.*?)?(?: Enterprise Linux Server)?(?: release)? "
-        r"(?P<version>[0-9\.]+).\((?P<codename>.*).*\)$"
+        r"^(?P<vendor>.*?)?(?: Enterprise Linux Server)?(?: Linux)?"
+        r"(?: release)? (?P<version>[0-9\.]+)(?: \((?P<codename>.*).*\))?$"
     )
     # Oracle Linux Server
     # Red Hat Enterprise Linux Server
@@ -804,14 +805,15 @@ class Redhat(Fedora):
                 information.vendor, self.__vendor_pattern
             )
         except Exception:
-            # Parse /etc/redhat-release to support 6.x.
+            # Parse /etc/redhat-release to support 6.x and 8.x. Refer to
+            # examples of __legacy_redhat_information_pattern.
             cmd_result = self._node.execute(
                 cmd="cat /etc/redhat-release", no_error_log=True
             )
             cmd_result.assert_exit_code()
             full_version = cmd_result.stdout
             matches = self.__legacy_redhat_information_pattern.match(full_version)
-            assert matches
+            assert matches, f"cannot match version information from: {full_version}"
             assert matches.group("vendor")
             information = OsInformation(
                 version=self._parse_version(matches.group("version")),
