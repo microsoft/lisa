@@ -346,8 +346,9 @@ class TestCaseMetadata:
         self,
         description: str,
         priority: int = 2,
-        owner: str = "",
         timeout: int = 3600,
+        use_new_environment: bool = False,
+        owner: str = "",
         requirement: Optional[TestCaseRequirement] = None,
     ) -> None:
         self.suite: TestSuiteMetadata
@@ -355,6 +356,7 @@ class TestCaseMetadata:
         self.priority = priority
         self.description = description
         self.timeout = timeout
+        self.use_new_environment = use_new_environment
         if requirement:
             self.requirement = requirement
 
@@ -398,7 +400,7 @@ class TestCaseRuntimeData:
         self.select_action: str = ""
         self.times: int = 1
         self.retry: int = 0
-        self.use_new_environment: bool = False
+        self.use_new_environment: bool = metadata.use_new_environment
         self.ignore_failure: bool = False
         self.environment_name: str = ""
 
