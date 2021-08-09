@@ -34,6 +34,7 @@ class HelloWorld(TestSuite):
             2. echo hello world!
         """,
         priority=0,
+        use_new_environment=True,
     )
     def hello(self, node: Node, log: Logger) -> None:
         if node.os.is_posix:

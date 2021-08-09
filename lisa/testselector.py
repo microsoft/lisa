@@ -118,11 +118,13 @@ def _apply_settings(
     fields = [
         constants.TESTCASE_TIMES,
         constants.TESTCASE_RETRY,
-        constants.TESTCASE_USE_NEW_ENVIRONMENT,
         constants.TESTCASE_IGNORE_FAILURE,
         constants.ENVIRONMENT,
     ]
     set_filtered_fields(case_runbook, applied_case_data, fields)
+    applied_case_data.use_new_environment = (
+        applied_case_data.use_new_environment or case_runbook.use_new_environment
+    )
 
     # use default value from selector
     applied_case_data.select_action = action

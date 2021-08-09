@@ -86,6 +86,7 @@ steps.
        - Other provisioning tests verify if an environment can be provisioned with special
        hardware configurations.
        """,
+       owner="Microsoft",
    )
    class Provisioning(TestSuite):
        ...
@@ -108,6 +109,8 @@ steps.
    does not have any requirement. It defines the default requirement for
    this test suite and can be overwritten at the test case level. Learn
    more from :ref:`write_test/concepts:requirement and capability`.
+-  **owner** defines the owner of this test case. The default value is
+   "Microsoft". The owner information displays in test list, and used for support.
 
 Metadata in test case
 ^^^^^^^^^^^^^^^^^^^^^
@@ -135,6 +138,8 @@ A test case is a test that has its own test purpose and steps.
            supported_features=[SerialConsole],
        ),
        timeout=3600,
+       use_new_environment=False,
+       owner="",
    )
    def smoke_test(self, case_name: str) -> None:
        ...
@@ -153,6 +158,10 @@ A test case is a test that has its own test purpose and steps.
    value is 3600 seconds. It applies to test method and before/after test case
    methods as well. The timeout of before/after suite is 3600, which is not
    changeable.
+-  **use_new_environment** specify if this test case need a new environment. The
+   default value is False. If it's True, the test case will run in a new
+   deployed environment.
+-  **owner** Refer to the owner property of test suite.
 
 Note for a regression test case, which deals with further issues that
 the fixed bug might cause, the related bugs should be presented. It is
