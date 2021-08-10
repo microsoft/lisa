@@ -11,10 +11,11 @@ from pathlib import Path
 from typing import Dict, List, TextIO
 
 from doc_generator import (  # type: ignore
+    TESTS,
     ClassVisitor,
     FuncVisitor,
     extract_metadata,
-    load_test_path,
+    load_path,
 )
 
 base_path = Path(__file__).parent
@@ -34,7 +35,6 @@ def update_file(filename: Path, test_paths: List[Path]) -> None:
 
         for test_path in test_paths:
             for root, _, files in os.walk(test_path):
-                files.sort()  # to ensure the order
                 for file in files:
                     if file.endswith(".py"):
                         # print("Processing " + file)
@@ -47,15 +47,15 @@ def update_file(filename: Path, test_paths: List[Path]) -> None:
                         cls_visitor.visit(tree)
                         func_visitor.visit(tree)
 
-                        for suite in extract_metadata(cls_visitor.classes):
+                        for suite in extract_metadata(cls_visitor.get_suites()):
                             _write_suite(test_spec, suite)
-                            for case in extract_metadata(func_visitor.functions):
+                            for case in extract_metadata(func_visitor.get_cases()):
                                 _write_case(test_spec, case)
 
 
 def _write_title(file: TextIO) -> None:
     """
-    A helper function to write the test spec title
+    Writes the title of test specifications
 
     Args:
         file (TextIO): test spec file
@@ -71,7 +71,7 @@ def _write_title(file: TextIO) -> None:
 
 def _write_suite(file: TextIO, metadata: Dict[str, str]) -> None:
     """
-    A helper function to write info of a test suite.
+    Writes info of a test suite.
 
     Args:
         file (TextIO): test spec file
@@ -100,7 +100,7 @@ def _write_suite(file: TextIO, metadata: Dict[str, str]) -> None:
 
 def _write_case(file: TextIO, metadata: Dict[str, str]) -> None:
     """
-    A helper function to write info of a test case.
+    Writes info of a test case.
 
     Args:
         file (TextIO): test spec file
@@ -131,7 +131,7 @@ def _write_description(
     file: TextIO, metadata: Dict[str, str], is_suite: bool = False
 ) -> None:
     """
-    A helper function to write description of a test suite/case.
+    Writes the description of a test suite/case.
 
     Args:
         file (TextIO): test spec file
@@ -164,7 +164,7 @@ def _write_description(
 
 
 if __name__ == "__main__":
-    data = load_test_path()
+    data = load_path(TESTS)
     test_paths = [(base_path / Path(x.get("value"))).resolve() for x in data]
 
     update_file(file_path, test_paths)

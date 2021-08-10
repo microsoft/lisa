@@ -7,7 +7,8 @@ from typing import Any, Dict, List, Set
 
 import yaml
 
-tests = Path("./test_paths.yaml")
+TESTS = Path("./test_paths.yaml")
+EXTS = Path("./api_paths.yaml")
 
 
 # TODO - API
@@ -19,41 +20,46 @@ class DocGenerator:
 
 class ClassVisitor(ast.NodeVisitor):
     def __init__(self) -> None:
-        self.classes: Set[Any] = set()
+        self._class_names: Set[Any] = set()
+        self._suites: Set[Any] = set()
 
     def visit_ClassDef(self, node: ast.ClassDef) -> None:  # noqa
+        """
+        Overrides parent method in ast.NodeVisitor, traverses all classes
+        """
         decorators = node.decorator_list
-        assert decorators is not None
         for deco in decorators:
-            if deco.func.id == "TestSuiteMetadata":  # type: ignore
-                self.classes.add(node)
+            if isinstance(deco, ast.Call):
+                if deco.func.id == "TestSuiteMetadata":  # type: ignore
+                    self._suites.add(node)
+        if isinstance(node, ast.ClassDef):
+            self._class_names.add(node.name)
 
-    # TODO - API
-    def extract_fields(self) -> Dict[str, str]:
-        pass
+    def get_suites(self) -> Set[Any]:
+        return self._suites
+
+    def get_class_names(self) -> Set[Any]:
+        return self._class_names
 
 
 class FuncVisitor(ast.NodeVisitor):
     def __init__(self) -> None:
-        self.functions: Set[Any] = set()
-        self.names: Set[Any] = set()
-        self.constants: Set[Any] = set()
+        self._cases: Set[Any] = set()
+        self._names: Set[Any] = set()
+        self._constants: Set[Any] = set()
+
+    def get_cases(self) -> Set[Any]:
+        return self._cases
 
     def visit_FunctionDef(self, node: ast.FunctionDef) -> None:  # noqa
+        """
+        Overrides parent method in ast.NodeVisitor, traverses all functions
+        """
         decorators = node.decorator_list
-        assert decorators is not None
         for deco in decorators:
-            if deco.func.id == "TestCaseMetadata":  # type: ignore
-                self.functions.add(node)
-
-
-# TODO - API
-class ConstVisitor(ast.NodeVisitor):
-    def visit_Name(self, node: ast.Name) -> Any:  # noqa
-        print("Name:", node.id)
-
-    def visit_Constant(self, node: ast.Constant) -> Any:  # noqa
-        print("Const:", node.value)
+            if isinstance(deco, ast.Call):
+                if deco.func.id == "TestCaseMetadata":  # type: ignore
+                    self._cases.add(node)
 
 
 def add_req(s: str, req: str) -> str:
@@ -113,9 +119,18 @@ def extract_metadata(nodes: Set[Any]) -> List[Dict[str, str]]:
     return all_metadata
 
 
-def load_test_path(test_path: Path = tests) -> Dict[str, str]:
+def load_path(file_path: Path) -> Dict[str, str]:
+    """
+    load file paths from a user-friendly yaml file
+
+    Args:
+        file_path (Path): path to the yaml file
+
+    Returns:
+        Dict[str, str]: usually name as key and path as value
+    """
     base_path = Path(__file__).parent
-    path = (base_path / test_path).resolve()
+    path = (base_path / file_path).resolve()
 
     with open(path, "r") as file:
         data: Dict[str, str] = yaml.safe_load(file)
