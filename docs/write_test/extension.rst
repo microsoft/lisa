@@ -1,5 +1,5 @@
-How to write extensions in LISA
-===============================
+How to write an extension in LISA
+=================================
 
 -  `Notifier <#notifier>`__
 -  `Tool <#tool>`__
@@ -34,10 +34,10 @@ docstrings in the future.
 Notifier
 --------
 
-The base class is the ``Notifier`` in `notifier.py
-<https://github.com/microsoft/lisa/blob/main/lisa/notifier.py>`__. All examples
-are in `notifier
-<https://github.com/microsoft/lisa/tree/main/lisa/notifiers>`__.
+The base class is the :class:`Notifier` in ``notifiers``. All examples are in
+`notifier <https://github.com/microsoft/lisa/tree/main/lisa/notifiers>`__.
+
+.. autoclass:: lisa.notifier.Notifier
 
 -  `console.py
    <https://github.com/microsoft/lisa/blob/main/lisa/notifiers/console.py>`__ is
@@ -57,10 +57,10 @@ operation speed.
 Tool
 ----
 
-The base class is the ``Tool`` in `executable.py
-<https://github.com/microsoft/lisa/blob/main/lisa/executable.py>`__. All
-examples are in `tools
-<https://github.com/microsoft/lisa/blob/main/lisa/tools>`__.
+The base class is the :class:`Tool` in ``executable``. All examples
+are in `tools <https://github.com/microsoft/lisa/blob/main/lisa/tools>`__.
+
+.. autoclass:: lisa.executable.Tool
 
 -  `cat.py
    <https://github.com/microsoft/lisa/blob/main/lisa/base_tools/cat.py>`__
@@ -87,7 +87,7 @@ code logic is preferred because it allows more coherence.
 
 .. note:
 
-   Note, although in `using extensions <write_case.html#extensions>`__ we told
+   Although in `using extensions <write_case.html#extensions>`__ we told
    you that installation is automatically checked and done, yet you must
    implement the ``_install`` method with the correct dependency as a
    prerequisite. See `gcc.py
@@ -111,8 +111,9 @@ using it** unless there are serious performance issues or other reasons,
 because it will return the original results to the test case. You can
 also package custom scripts as tools.
 
-The base class is the ``CustomScript`` in `executable.py
-<https://github.com/microsoft/lisa/blob/main/lisa/executable.py>`__.
+The base class is the :class:`CustomScript` in ``executable``.
+
+.. autoclass:: lisa.executable.CustomScript
 
 To use the scripts,
 
@@ -138,11 +139,12 @@ To use the scripts,
 Feature
 -------
 
-The base class is `feature.py
-<https://github.com/microsoft/lisa/blob/main/lisa/feature.py>`__. All examples
-are in `features <https://github.com/microsoft/lisa/tree/main/lisa/features>`__
-and Azure’s `features.py
+The base class is :class:`Feature` in ``feature``. All examples are in `features
+<https://github.com/microsoft/lisa/tree/main/lisa/features>`__ and Azure’s
+`features.py
 <https://github.com/microsoft/lisa/blob/main/lisa/sut_orchestrator/azure/features.py>`__.
+
+.. autoclass:: lisa.feature.Feature
 
 The following content takes ``SerialConsole`` as an example to introduce
 the feature.
@@ -214,10 +216,10 @@ Use a feature
 Combinator
 ----------
 
-The base class is `combinator.py
-<https://github.com/microsoft/lisa/blob/main/lisa/combinator.py>`__. All
-examples are in `combinators
-<https://github.com/microsoft/lisa/tree/main/lisa/combinators>`__.
+The base class is :class:`Combinator` in ``combinator``. All examples are in
+`combinators <https://github.com/microsoft/lisa/tree/main/lisa/combinators>`__.
+
+.. autoclass:: lisa.combinator.Combinator
 
 -  `grid_combinator.py
    <https://github.com/microsoft/lisa/blob/main/lisa/combinators/grid_combinator.py>`__
@@ -229,10 +231,11 @@ examples are in `combinators
 Transformer
 -----------
 
-The base class is `transformer.py
-<https://github.com/microsoft/lisa/blob/main/lisa/transformer.py>`__. All
-examples are in `transformers
+The base class is :class:`Transformer` in ``transformer``. All examples are in
+`transformers
 <https://github.com/microsoft/lisa/tree/main/lisa/transformers>`__.
+
+.. autoclass:: lisa.transformer.Transformer
 
 -  `to_list.py
    <https://github.com/microsoft/lisa/blob/main/lisa/transformers/to_list.py>`__
@@ -241,8 +244,10 @@ examples are in `transformers
 Platform
 --------
 
-The base class is `platform_.py
-<https://github.com/microsoft/lisa/blob/main/lisa/platform_.py>`__.
+The base class is :class:`Platform` in ``platform_``.
+
+.. autoclass:: lisa.platform_.Platform
+   :undoc-members:
 
 -  `ready.py
    <https://github.com/microsoft/lisa/blob/main/lisa/sut_orchestrator/ready.py>`__
