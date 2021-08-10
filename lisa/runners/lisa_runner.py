@@ -194,7 +194,12 @@ class LisaRunner(BaseRunner):
         available_environments = self._sort_environments(self.environments)
         # check deleteable environments
         for environment in available_environments:
-            if environment.is_in_use:
+            # if an environment is in using, or not deployed, they won't be
+            # deleted until end of runner.
+            if environment.is_in_use or environment.status in [
+                EnvironmentStatus.New,
+                EnvironmentStatus.Prepared,
+            ]:
                 continue
 
             can_run_results = self._get_runnable_test_results(
