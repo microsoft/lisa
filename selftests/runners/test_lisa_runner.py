@@ -546,7 +546,7 @@ class RunnerTestCase(TestCase):
         self.verify_env_results(
             expected_prepared=["customized_0"],
             expected_deployed_envs=[],
-            expected_deleted_envs=["customized_0"],
+            expected_deleted_envs=[],
             runner=runner,
         )
         self.verify_test_results(
@@ -631,4 +631,5 @@ class RunnerTestCase(TestCase):
                 temp_test_results = task()
                 if temp_test_results:
                     test_results.extend(temp_test_results)
+
         return test_results
