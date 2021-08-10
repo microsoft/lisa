@@ -11,10 +11,11 @@ from pathlib import Path
 from typing import Dict, List, TextIO
 
 from doc_generator import (  # type: ignore
+    TESTS,
     ClassVisitor,
     FuncVisitor,
     extract_metadata,
-    load_test_path,
+    load_path,
 )
 
 base_path = Path(__file__).parent
@@ -38,7 +39,6 @@ def update_table(filename: Path, test_paths: List[Path]) -> None:
         res = []  # name, priority, platform, category, area etc.
         for test_path in test_paths:
             for root, _, files in os.walk(test_path):
-                files.sort()  # to ensure the order
                 for file in files:
                     if file.endswith(".py"):
                         # print("Processing " + file)
@@ -51,10 +51,10 @@ def update_table(filename: Path, test_paths: List[Path]) -> None:
                         cls_visitor.visit(tree)
                         func_visitor.visit(tree)
 
-                        for case in extract_metadata(func_visitor.functions):
+                        for case in extract_metadata(func_visitor.get_cases()):
                             case["case_name"] = case["name"]
                             del case["name"]
-                            for suite in extract_metadata(cls_visitor.classes):
+                            for suite in extract_metadata(cls_visitor.get_suites()):
                                 suite["suite_name"] = suite["name"]
                                 del suite["name"]
                                 res.append({**suite, **case})  # merge two dicts
@@ -64,6 +64,12 @@ def update_table(filename: Path, test_paths: List[Path]) -> None:
 
 
 def _write_title(file: TextIO) -> None:
+    """
+    Writes the title of the test table
+
+    Args:
+        file (TextIO): test table
+    """
     link = "https://github.com/microsoft/lisa/blob/master/Documents/LISAv2-TestCase-Statistics.md"  # noqa: E501
     title = "Table of Test Cases"
     file.write(title + "\n")
@@ -95,7 +101,7 @@ def _write_title(file: TextIO) -> None:
 
 def _update_line(file: TextIO, metadata: Dict[str, str], index: int) -> None:
     """
-    A helper function to write to test table.
+    Writes a row in test table.
 
     Args:
         file (TextIO): test table
@@ -126,7 +132,7 @@ def _update_line(file: TextIO, metadata: Dict[str, str], index: int) -> None:
 
 
 if __name__ == "__main__":
-    data = load_test_path()
+    data = load_path(TESTS)
     test_paths = [(base_path / Path(x.get("value"))).resolve() for x in data]
 
     update_table(table_path, test_paths)
