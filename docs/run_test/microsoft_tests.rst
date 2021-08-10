@@ -137,9 +137,7 @@ azure, or select test cases by names, learn more from :doc:`runbook reference
 Test cases specification
 ------------------------
 
-.. admonition:: TODO
-
-   add spec of LISA test cases.
+Refer to :doc:`Test specification <test_spec>`.
 
 .. seealso::
 
