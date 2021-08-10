@@ -49,11 +49,9 @@ class ResultReason:
 
 
 class RequirementMixin:
-    @abstractmethod
     def check(self, capability: Any) -> ResultReason:
         raise NotImplementedError()
 
-    @abstractmethod
     def _generate_min_capability(self, capability: Any) -> Any:
         raise NotImplementedError()
 
