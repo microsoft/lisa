@@ -16,7 +16,7 @@ from lisa.util import constants
 
 @dataclass_json()
 @dataclass
-class ConsoleSchema(schema.TypedSchema):
+class ConsoleSchema(schema.Notifier):
     log_level: str = logging.getLevelName(logging.DEBUG)
 
 
