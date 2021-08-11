@@ -223,7 +223,7 @@ class DeviceRingBufferSettings:
 
 class DeviceGroLroSettings:
     def __init__(
-        self, interface: str, gro_setting: bool = False, lro_setting: bool = True
+        self, interface: str, gro_setting: bool = False, lro_setting: bool = False
     ) -> None:
         self.interface = interface
         self.gro_setting = gro_setting
