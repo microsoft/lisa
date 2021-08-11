@@ -342,7 +342,9 @@ class Notifier(TypedSchema, ExtendableSchemaMixin):
     detail types are defined in notifier itself, allowed items are handled in code.
     """
 
-    ...
+    # A notifier is disabled, if it's false. It helps to disable notifier by
+    # variables.
+    enabled: bool = True
 
 
 @dataclass_json()

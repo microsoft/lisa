@@ -91,6 +91,10 @@ def initialize(runbooks: List[schema.Notifier]) -> None:
         # add console notifier by default to provide troubleshooting information
         runbooks.append(schema.Notifier(type=constants.NOTIFIER_CONSOLE))
     for runbook in runbooks:
+        if not runbook.enabled:
+            log.debug(f"skipped notifier [{runbook.type}], because it's not enabled.")
+            continue
+
         notifier = factory.create_by_runbook(runbook=runbook)
         _notifiers.append(notifier)
 

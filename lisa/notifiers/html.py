@@ -20,7 +20,7 @@ from lisa.util import LisaException, constants
 
 @dataclass_json()
 @dataclass
-class HtmlSchema(schema.TypedSchema):
+class HtmlSchema(schema.Notifier):
     path: str = "lisa.html"
     """
     open html report in browser for convenient at local
