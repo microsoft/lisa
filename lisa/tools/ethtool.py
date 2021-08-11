@@ -259,6 +259,47 @@ class DeviceGroLroSettings:
         )
 
 
+class DeviceRssHashKey:
+    # ethtool device rss hash key info is in format:
+    # ethtool -x eth0
+    #   RX flow hash indirection table for eth0 with 4 RX ring(s):
+    #   0:      0     1     2     3     0     1     2     3
+    #   8:      0     1     2     3     0     1     2     3
+    #   16:     0     1     2     3     0     1     2     3
+    #   24:     0     1     2     3     0     1     2     3
+    #   32:     0     1     2     3     0     1     2     3
+    #   40:     0     1     2     3     0     1     2     3
+    #   48:     0     1     2     3     0     1     2     3
+    #   56:     0     1     2     3     0     1     2     3
+    #   64:     0     1     2     3     0     1     2     3
+    #   72:     0     1     2     3     0     1     2     3
+    #   80:     0     1     2     3     0     1     2     3
+    #   88:     0     1     2     3     0     1     2     3
+    #   96:     0     1     2     3     0     1     2     3
+    #   104:    0     1     2     3     0     1     2     3
+    #   112:    0     1     2     3     0     1     2     3
+    #   120:    0     1     2     3     0     1     2     3
+    #   RSS hash key:
+    #   6d:5a:56:da:25:5b:0e:c2:41:67:25:3d:43:a3:8f:b0:d0:ca:2b:cb:ae:7b:30:b4:77:cb:2d:a3:80:30:f2:0c:6a:42:b7:3b:be:ac:01:fa
+
+    _rss_hash_key_pattern = re.compile(
+        r"^RSS hash key:[\s+](?P<value>.*?)?$", re.MULTILINE
+    )
+
+    def __init__(self, interface: str, device_rss_hash_info_raw: str) -> None:
+        self._parse_rss_hash_key(interface, device_rss_hash_info_raw)
+
+    def _parse_rss_hash_key(self, interface: str, raw_str: str) -> None:
+        hash_key_pattern = self._rss_hash_key_pattern.search(raw_str)
+        if not hash_key_pattern:
+            raise LisaException(
+                f"Cannot get {interface} device rss hash key information"
+            )
+
+        self.interface = interface
+        self.rss_hash_key = hash_key_pattern.group("value")
+
+
 class DeviceSettings:
     def __init__(
         self,
@@ -270,6 +311,7 @@ class DeviceSettings:
         self.device_link_settings: Optional[DeviceLinkSettings] = None
         self.device_ringbuffer_settings: Optional[DeviceRingBufferSettings] = None
         self.device_gro_lro_settings: Optional[DeviceGroLroSettings] = None
+        self.device_rss_hash_key: Optional[DeviceRssHashKey] = None
 
 
 class Ethtool(Tool):
@@ -299,6 +341,7 @@ class Ethtool(Tool):
         device_link_settings: Optional[DeviceLinkSettings] = None,
         device_ringbuffer_settings: Optional[DeviceRingBufferSettings] = None,
         device_gro_lro_settings: Optional[DeviceGroLroSettings] = None,
+        device_rss_hash_key: Optional[DeviceRssHashKey] = None,
     ) -> None:
         device = self._device_settings_map.get(name, None)
         if device is None:
@@ -316,6 +359,8 @@ class Ethtool(Tool):
             device.device_ringbuffer_settings = device_ringbuffer_settings
         if device_gro_lro_settings:
             device.device_gro_lro_settings = device_gro_lro_settings
+        if device_rss_hash_key:
+            device.device_rss_hash_key = device_rss_hash_key
 
     def get_device_driver(self, interface: str) -> str:
         _device_driver_pattern = re.compile(
@@ -499,6 +544,41 @@ class Ethtool(Tool):
 
         return self.get_device_ring_buffer_settings(interface, force=True)
 
+    def get_device_rss_hash_key(
+        self, interface: str, force: bool = False
+    ) -> DeviceRssHashKey:
+        if not force:
+            device = self._device_settings_map.get(interface, None)
+            if device and device.device_rss_hash_key:
+                return device.device_rss_hash_key
+
+        result = self.run(f"-x {interface}", force_run=force)
+        if (result.exit_code != 0) and ("Operation not supported" in result.stdout):
+            raise UnsupportedOperationException(
+                f"ethtool -x {interface} operation not supported."
+            )
+        result.assert_exit_code(
+            message=f"Couldn't get device {interface} ring buffer settings."
+        )
+        device_rss_hash_key = DeviceRssHashKey(interface, result.stdout)
+        self._set_device(interface, device_rss_hash_key=device_rss_hash_key)
+
+        return device_rss_hash_key
+
+    def change_device_rss_hash_key(
+        self, interface: str, hash_key: str
+    ) -> DeviceRssHashKey:
+        result = self.run(f"-X {interface} hkey {hash_key}", sudo=True, force_run=True)
+        if (result.exit_code != 0) and ("Operation not supported" in result.stdout):
+            raise UnsupportedOperationException(
+                f"Changing RSS hash key with 'ethtool -X {interface}' not supported."
+            )
+        result.assert_exit_code(
+            message=f" Couldn't change device {interface} hash key."
+        )
+
+        return self.get_device_rss_hash_key(interface, force=True)
+
     def get_all_device_channels_info(self) -> List[DeviceChannel]:
         devices_channel_list = []
         devices = self.get_device_list()
@@ -539,3 +619,11 @@ class Ethtool(Tool):
                 self.get_device_ring_buffer_settings(device)
             )
         return devices_ring_buffer_settings_list
+
+    def get_all_device_rss_hash_key(self) -> List[DeviceRssHashKey]:
+        devices_rss_hash_keys = []
+        devices = self.get_device_list()
+        for device in devices:
+            devices_rss_hash_keys.append(self.get_device_rss_hash_key(device))
+
+        return devices_rss_hash_keys
