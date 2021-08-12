@@ -10,12 +10,41 @@
 # add these directories to sys.path here. If the directory is relative to the
 # documentation root, use os.path.abspath to make it absolute, like shown here.
 #
-import os
 import subprocess
 import sys
 from pathlib import Path
 
-sys.path.insert(0, os.path.abspath("../"))
+import toml
+
+root_dir = Path(__file__).parents[1]
+pyproj = root_dir / "pyproject.toml"
+requirement = root_dir / "docs" / "requirements.txt"
+
+sys.path.insert(0, str(root_dir.resolve()))
+sys.path.insert(0, str((root_dir / "docs" / "tools").resolve()))
+sys.path.insert(0, str((root_dir / "lisa").resolve()))
+
+data = toml.load(pyproj)
+dependencies = data["tool"]["poetry"]["dependencies"]
+sphinx_dependencies = data["tool"]["poetry"]["dev-dependencies"]
+
+with open(requirement, "w") as req:
+    for module, version in dependencies.items():
+        if str(version)[0] != "^":
+            version = version["version"]
+        if str(module) in ["python", "pypiwin32", "PyGObject"]:
+            continue
+        req.write(str(module))
+        req.write(">=")
+        req.write(str(version)[1:])
+        req.write("\n")
+
+    for module, version in sphinx_dependencies.items():
+        if str(module)[:6].lower() == "sphinx":
+            req.write(str(module))
+            req.write(">=")
+            req.write(str(version)[1:])
+            req.write("\n")
 
 # -- Project information -----------------------------------------------------
 
@@ -31,10 +60,17 @@ release = ""
 # coming with Sphinx (named 'sphinx.ext.*') or your custom ones.
 extensions = [
     "sphinx.ext.autodoc",
+    "sphinx.ext.viewcode",
     "sphinxemoji.sphinxemoji",
     "sphinx.ext.autosectionlabel",
     "sphinx_copybutton",
 ]
+
+autodoc_default_options = {
+    "members": True,
+    "undoc-members": False,
+    "private-members": True,
+}
 
 autosectionlabel_prefix_document = True
 
@@ -68,7 +104,7 @@ html_theme_options = {
     "display_version": False,
 }
 
-# -- Test pipelines ----------------------------------------------------------
+# -- Test auto-generation pipelines ------------------------------------------
 
 base_path = Path(__file__).parent
 test_table_pipeline = base_path / "tools/test_table_gen.py"

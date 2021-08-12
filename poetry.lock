@@ -1586,6 +1586,14 @@ optional = false
 python-versions = "*"
 
 [[package]]
+name = "types-toml"
+version = "0.1.5"
+description = "Typing stubs for toml"
+category = "main"
+optional = false
+python-versions = "*"
+
+[[package]]
 name = "typing"
 version = "3.7.4.3"
 description = "Type Hints for Python"
@@ -1648,7 +1656,7 @@ watchmedo = ["PyYAML (>=3.10)", "argh (>=0.24.1)"]
 [metadata]
 lock-version = "1.1"
 python-versions = "^3.8"
-content-hash = "432e6ecf7e140f026eecee9347fcdb83d450a8d6ed7d3df659965388d0d27af4"
+content-hash = "06c9394bb194c3c284e52f0534cad3880706c4a7c9e5d294567a1655b23539cc"
 
 [metadata.files]
 alabaster = [
@@ -2625,6 +2633,10 @@ types-requests = [
 types-retry = [
     {file = "types-retry-0.1.3.tar.gz", hash = "sha256:a81397633b3a5c621c01975919e43a11301fb854f6af66088f783b8cd4473f53"},
     {file = "types_retry-0.1.3-py2.py3-none-any.whl", hash = "sha256:9ff6a3570f7fbe42c6580c8a422c191453bfa16a46e346003b5990e0bc03da40"},
+]
+types-toml = [
+    {file = "types-toml-0.1.5.tar.gz", hash = "sha256:fc5e1df92c245404e4360c63568e9f0e732b0cabea7a220a4788d52b78f5dc59"},
+    {file = "types_toml-0.1.5-py3-none-any.whl", hash = "sha256:dd00526680595aad0eade682bd8a9e9513e9b4b8932daed159925fe446fc90a9"},
 ]
 typing = [
     {file = "typing-3.7.4.3-py2-none-any.whl", hash = "sha256:283d868f5071ab9ad873e5e52268d611e851c870a2ba354193026f2dfb29d8b5"},
