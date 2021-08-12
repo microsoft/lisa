@@ -192,25 +192,39 @@ class NetworkSettings(TestSuite):
             into affect.
 
             Steps:
-            1. Get the device's generic-receive-offload and large-receive-offload
+            1. Get all the device's generic-receive-offload and large-receive-offload
                 settings.
-            2. Try flipping the GRO and LRO settings and validate it takes affect.
-            3. Revert back the settings to original values.
+            2. If both GRO and LRO settings are "[fixed]" then skip testing specific
+                device.
+            3. Try flipping the GRO and LRO settings and validate it takes affect.
+            4. Revert back the settings to original values.
         """,
         priority=1,
     )
-    def validate_device_gro_lro_settings_change(self, node: Node) -> None:
+    def validate_device_gro_lro_settings_change(self, node: Node, log: Logger) -> None:
         ethtool = node.tools[Ethtool]
 
+        skip_test = True
         devices_gro_lro_settings = ethtool.get_all_device_gro_lro_settings()
+        for settings in devices_gro_lro_settings:
+            interface = settings.interface
+            if settings.gro_fixed and settings.lro_fixed:
+                log.info(
+                    "The GRO and LRO settings are fixed and cannot be changed for"
+                    f" device {interface}. Skipping test for this device"
+                )
+                continue
 
-        for device_settings in devices_gro_lro_settings:
-            interface = device_settings.interface
-            original_gro_setting = device_settings.gro_setting
-            original_lro_setting = device_settings.lro_setting
+            skip_test = False
+            original_gro_setting = settings.gro_setting
+            original_lro_setting = settings.lro_setting
 
-            new_gro_setting = not original_gro_setting
-            new_lro_setting = not original_lro_setting
+            new_gro_setting = (
+                original_gro_setting if settings.gro_fixed else not original_gro_setting
+            )
+            new_lro_setting = (
+                original_lro_setting if settings.lro_fixed else not original_lro_setting
+            )
 
             new_settings = ethtool.change_device_gro_lro_settings(
                 interface, new_gro_setting, new_lro_setting
@@ -236,3 +250,9 @@ class NetworkSettings(TestSuite):
                 reverted_settings.lro_setting,
                 "Reverting LRO setting to original value didn't succeed",
             ).is_equal_to(original_lro_setting)
+
+        if skip_test:
+            raise SkippedException(
+                "GRO and LRO settings for all the devices are fixed and cannot be"
+                " changed. Skipping test."
+            )

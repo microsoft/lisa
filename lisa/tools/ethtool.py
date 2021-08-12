@@ -222,12 +222,41 @@ class DeviceRingBufferSettings:
 
 
 class DeviceGroLroSettings:
-    def __init__(
-        self, interface: str, gro_setting: bool = False, lro_setting: bool = False
-    ) -> None:
+    # ethtool device feature info is in format -
+    # ~$ ethtool -k eth0
+    #       Features for eth0:
+    #       generic-receive-offload: on
+    #       large-receive-offload: off [fixed]
+
+    _gro_settings_pattern = re.compile(
+        r"^generic-receive-offload:[\s+](?P<value>.*?)?$", re.MULTILINE
+    )
+    _lro_settings_pattern = re.compile(
+        r"^large-receive-offload:[\s+](?P<value>.*?)?$", re.MULTILINE
+    )
+
+    def __init__(self, interface: str, device_gro_lro_settings_raw: str) -> None:
+        self._parse_gro_lro_settings_info(interface, device_gro_lro_settings_raw)
+
+    def _parse_gro_lro_settings_info(self, interface: str, raw_str: str) -> None:
+        gro_setting_pattern = self._gro_settings_pattern.search(raw_str)
+        lro_setting_pattern = self._lro_settings_pattern.search(raw_str)
+        if (not gro_setting_pattern) or (not lro_setting_pattern):
+            raise LisaException(
+                f"Cannot get {interface} device gro and/or lro settings information"
+            )
+
         self.interface = interface
-        self.gro_setting = gro_setting
-        self.lro_setting = lro_setting
+
+        self.gro_setting = True if "on" in gro_setting_pattern.group("value") else False
+        self.gro_fixed = (
+            True if "[fixed]" in gro_setting_pattern.group("value") else False
+        )
+
+        self.lro_setting = True if "on" in lro_setting_pattern.group("value") else False
+        self.lro_fixed = (
+            True if "[fixed]" in lro_setting_pattern.group("value") else False
+        )
 
 
 class DeviceSettings:
@@ -397,18 +426,10 @@ class Ethtool(Tool):
             if device and device.device_gro_lro_settings:
                 return device.device_gro_lro_settings
 
-        gro_setting = False
-        lro_setting = False
-        device_features = self.get_device_enabled_features(interface, force)
-        for feature in device_features.enabled_features:
-            if "generic-receive-offload" in feature:
-                gro_setting = True
-            if "large-receive-offload" in feature:
-                lro_setting = True
+        result = self.run(f"-k {interface}", force_run=force)
+        result.assert_exit_code()
 
-        device_gro_lro_settings = DeviceGroLroSettings(
-            interface, gro_setting, lro_setting
-        )
+        device_gro_lro_settings = DeviceGroLroSettings(interface, result.stdout)
         self._set_device(interface, device_gro_lro_settings=device_gro_lro_settings)
 
         return device_gro_lro_settings
