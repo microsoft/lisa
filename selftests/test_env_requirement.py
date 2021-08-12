@@ -16,7 +16,12 @@ from lisa.search_space import (
     check,
     generate_min_capability,
 )
-from lisa.testsuite import DEFAULT_REQUIREMENT, TestCaseRequirement, simple_requirement
+from lisa.testsuite import (
+    DEFAULT_REQUIREMENT,
+    TestCaseRequirement,
+    node_requirement,
+    simple_requirement,
+)
 from lisa.util import constants
 from selftests.test_search_space import SearchSpaceTestCase
 
@@ -60,7 +65,6 @@ class UtTestCaseRequirement(TestCaseRequirement, RequirementMixin):
 
 def ut_simple_requirement(
     min_count: int = 1,
-    node: Optional[schema.NodeSpace] = None,
     supported_platform_type: Optional[List[str]] = None,
     unsupported_platform_type: Optional[List[str]] = None,
     supported_os: Optional[List[Type[OperatingSystem]]] = None,
@@ -68,7 +72,6 @@ def ut_simple_requirement(
 ) -> UtTestCaseRequirement:
     simple = simple_requirement(
         min_count=min_count,
-        node=node,
         supported_platform_type=supported_platform_type,
         unsupported_platform_type=unsupported_platform_type,
         supported_os=supported_os,
@@ -78,6 +81,27 @@ def ut_simple_requirement(
         environment=simple.environment,
         platform_type=simple.platform_type,
         os_type=simple.os_type,
+    )
+
+
+def ut_node_requirement(
+    node: schema.NodeSpace,
+    supported_platform_type: Optional[List[str]] = None,
+    unsupported_platform_type: Optional[List[str]] = None,
+    supported_os: Optional[List[Type[OperatingSystem]]] = None,
+    unsupported_os: Optional[List[Type[OperatingSystem]]] = None,
+) -> UtTestCaseRequirement:
+    node_require = node_requirement(
+        node,
+        supported_platform_type,
+        unsupported_platform_type,
+        supported_os,
+        unsupported_os,
+    )
+    return UtTestCaseRequirement(
+        environment=node_require.environment,
+        platform_type=node_require.platform_type,
+        os_type=node_require.os_type,
     )
 
 
@@ -179,13 +203,12 @@ class RequirementTestCase(SearchSpaceTestCase):
             requirements=[
                 UT_DEFAULT_REQUIREMENT,
                 ut_simple_requirement(supported_os=[Linux]),
-                ut_simple_requirement(
+                ut_node_requirement(
                     node=schema.NodeSpace(core_count=IntRange(4, 8)),
                     supported_os=[Linux],
                 ),
-                ut_simple_requirement(
-                    min_count=2,
-                    node=schema.NodeSpace(core_count=IntRange(4, 8)),
+                ut_node_requirement(
+                    node=schema.NodeSpace(node_count=2, core_count=IntRange(4, 8)),
                     supported_os=[Linux],
                 ),
                 UtTestCaseRequirement(
@@ -194,9 +217,10 @@ class RequirementTestCase(SearchSpaceTestCase):
                     ),
                     os_type=SetSpace(is_allow_set=True, items=[Linux]),
                 ),
-                ut_simple_requirement(
-                    min_count=1,
-                    node=schema.NodeSpace(core_count=IntRange(4, 8), gpu_count=1),
+                ut_node_requirement(
+                    node=schema.NodeSpace(
+                        node_count=1, core_count=IntRange(4, 8), gpu_count=1
+                    ),
                     supported_os=[Linux],
                 ),
             ],

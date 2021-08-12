@@ -429,7 +429,7 @@ class DataDisk:
     }
 
     @staticmethod
-    def get_size(disk_type: str, data_disk_iops: int = 120) -> int:
+    def get_size(disk_type: str, data_disk_iops: int = 1) -> int:
         if disk_type in [
             DiskType.DISK_PREMIUM,
             DiskType.DISK_STANDARD_HDD,
