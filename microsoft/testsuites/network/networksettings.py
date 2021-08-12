@@ -121,6 +121,7 @@ class NetworkSettings(TestSuite):
         except UnsupportedOperationException as identifier:
             raise SkippedException(identifier)
 
+        skip_test = True
         for interface_channels_info in devices_channels:
             interface = interface_channels_info.device_name
             channels = interface_channels_info.current_channels
@@ -133,6 +134,7 @@ class NetworkSettings(TestSuite):
                 )
                 continue
 
+            skip_test = False
             for new_channels in range(1, max_channels + 1):
                 channels_info = ethtool.change_device_channels_info(
                     interface, new_channels
@@ -150,6 +152,12 @@ class NetworkSettings(TestSuite):
                     f"Reverting channels count to its original value {channels} didn't"
                     f" succeed. Current Value is {channels_info.current_channels}",
                 ).is_equal_to(channels)
+
+        if skip_test:
+            raise SkippedException(
+                "Max Channel count for all the devices is <=1 and cannot be"
+                " tested for changing. Skipping test."
+            )
 
     @TestCaseMetadata(
         description="""
