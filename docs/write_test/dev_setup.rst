@@ -11,6 +11,7 @@ what to expect of it).
    -  `Other setups <#other-setups>`__
 
 -  `Code checks <#code-checks>`__
+-  `Local Documentation <#local-documentation>`__
 -  `Extended reading <#extended-reading>`__
 
 Environment Setup
@@ -84,8 +85,10 @@ Visual Studio Code
       One <https://marketplace.visualstudio.com/items?itemName=yzhang.markdown-all-in-one>`__.
       It helps to maintain the table of contents in the documentation.
    -  Install
-      `reStructuredText <https://marketplace.visualstudio.com/items?itemName=lextudio.restructuredtext>`__
-      to get better support for documentations.
+      `reStructuredText
+      <https://marketplace.visualstudio.com/items?itemName=lextudio.restructuredtext>`__
+      to get a syntax checker for reStructuredText. To preview the document, see
+      :ref:`write_test/dev_setup:local documentation`.
 
 Emacs
 ~~~~~
@@ -140,6 +143,25 @@ manually.
    allows us to find potential errors by annotating and checking types.
 -  `rope <https://github.com/python-rope/rope>`__, provides completion
    and renaming support for pyls.
+
+Local Documentation
+-------------------
+
+It's recommended to build the documentation locally using ``Sphinx`` for preview.
+
+To do so, in ``./lisa/docs``, run 
+
+.. code:: bash
+
+   poetry run make html
+
+You can find all generated documents in ``./lisa/docs/_build/html`` folder. Open
+them with a browser to view.
+
+.. note::
+   If there are already generated documents in ``./lisa/docs/_build/html``, run
+   ``poetry run make clean`` to ensure the documentation is clean and not
+   affected by the previous build.
 
 Extended reading
 ----------------
