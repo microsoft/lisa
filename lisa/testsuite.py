@@ -158,11 +158,17 @@ class TestResult:
             self.set_status(TestStatus.FAILED, f"{phase}{exception}")
         else:
             if self.runtime_data.ignore_failure:
-                log.info(f"case failed and ignored: {exception}")
+                log.info(
+                    f"case failed and ignored. "
+                    f"{exception.__class__.__name__}: {exception}"
+                )
                 self.set_status(TestStatus.ATTEMPTED, f"{phase}{exception}")
             else:
                 log.error("case failed", exc_info=exception)
-                self.set_status(TestStatus.FAILED, f"{phase}failed: {exception}")
+                self.set_status(
+                    TestStatus.FAILED,
+                    f"{phase}failed. {exception.__class__.__name__}: {exception}",
+                )
 
     def set_status(
         self, new_status: TestStatus, message: Union[str, List[str]]
