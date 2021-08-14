@@ -287,7 +287,16 @@ class RootRunner(Action):
                         # fetch a task and submit
                         task = runner.fetch_task()
                         if task:
-                            self._log.debug(f"fetched task from {runner.id}: '{task}'")
+                            # the message may be too long to display.
+                            task_message = str(task)
+                            task_message = (
+                                task_message
+                                if len(task_message) < 200
+                                else f"{task_message[:200]}..."
+                            )
+                            self._log.debug(
+                                f"fetched task from {runner.id}: '{task_message}'"
+                            )
                             task_manager.submit_task(task)
                         else:
                             # current runner may not be done, but it doesn't
