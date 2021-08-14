@@ -307,7 +307,7 @@ class TestSuiteTestCase(TestCase):
         )
         result = self.case_results[0]
         self.assertEqual(TestStatus.FAILED, result.status)
-        self.assertEqual("failed: mock_ut1 failed", result.message)
+        self.assertEqual("failed. LisaException: mock_ut1 failed", result.message)
         result = self.case_results[1]
         self.assertEqual(TestStatus.PASSED, result.status)
         self.assertEqual("", result.message)
@@ -384,7 +384,7 @@ class TestSuiteTestCase(TestCase):
             case_variables={},
         )
         self.assertEqual(TestStatus.FAILED, result.status)
-        self.assertEqual("failed: mock_ut1 failed", result.message)
+        self.assertEqual("failed. LisaException: mock_ut1 failed", result.message)
         result = self.case_results[1]
         self.assertEqual(TestStatus.PASSED, result.status)
         self.assertEqual("", result.message)

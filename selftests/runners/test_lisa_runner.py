@@ -458,7 +458,9 @@ class RunnerTestCase(TestCase):
             runner=runner,
         )
 
-        no_available_env = "deployment failed: no capability found for environment: "
+        no_available_env = (
+            "deployment failed. LisaException: no capability found for environment: "
+        )
         self.verify_test_results(
             expected_test_order=["mock_ut1", "mock_ut2", "mock_ut3"],
             expected_envs=[
@@ -521,7 +523,8 @@ class RunnerTestCase(TestCase):
             runner=runner,
         )
         no_available_env = (
-            "deployment failed: expected status is EnvironmentStatus.Prepared"
+            "deployment failed. LisaException: "
+            "expected status is EnvironmentStatus.Prepared"
         )
         self.verify_test_results(
             expected_test_order=["mock_ut1", "mock_ut2", "mock_ut3"],
