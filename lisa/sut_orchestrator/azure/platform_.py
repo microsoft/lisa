@@ -895,9 +895,7 @@ class AzurePlatform(Platform):
                 )
 
             # Set disk type
-            azure_node_runbook.disk_type = AzurePlatform._get_disk_id(
-                node_space.features
-            )
+            azure_node_runbook.disk_type = AzurePlatform._get_disk_id(node_space)
 
             # save parsed runbook back, for example, the version of marketplace may be
             # parsed from latest to a specified version.
@@ -931,10 +929,7 @@ class AzurePlatform(Platform):
         )
         if arm_parameters.enable_sriov is None:
             arm_parameters.enable_sriov = True
-            if (
-                node.capability.features
-                and features.Sriov.name() not in node.capability.features
-            ):
+            if node.capability.has_feature(features.Sriov.name()):
                 self._log.debug(
                     "use synthetic network since used size doesn't have "
                     "sriov capability"
@@ -1227,14 +1222,16 @@ class AzurePlatform(Platform):
             memory_mb=0,
             nic_count=0,
             gpu_count=0,
-            features=search_space.SetSpace[str](is_allow_set=True),
-            excluded_features=search_space.SetSpace[str](is_allow_set=False),
         )
         node_space.name = f"{location}_{resource_sku.name}"
-        node_space.features = search_space.SetSpace[str](is_allow_set=True)
+        node_space.features = search_space.SetSpace[schema.FeatureSettings](
+            is_allow_set=True
+        )
         for sku_capability in resource_sku.capabilities:
             if resource_sku.family in ["standardLSv2Family"]:
-                node_space.features.update([features.Nvme.name()])
+                node_space.features.add(
+                    schema.FeatureSettings.create(features.Nvme.name())
+                )
             name = sku_capability.name
             if name == "vCPUs":
                 node_space.core_count = int(sku_capability.value)
@@ -1251,7 +1248,9 @@ class AzurePlatform(Platform):
             elif name == "GPUs":
                 node_space.gpu_count = int(sku_capability.value)
                 # update features list if gpu feature is supported
-                node_space.features.update([features.Gpu.name()])
+                node_space.features.add(
+                    schema.FeatureSettings.create(features.Gpu.name())
+                )
             elif name == "AcceleratedNetworkingEnabled":
                 # refer https://docs.microsoft.com/en-us/azure/virtual-machines/dcv2-series#configuration # noqa: E501
                 # standardDCSv2Family doesn't support `Accelerated Networking`
@@ -1261,13 +1260,19 @@ class AzurePlatform(Platform):
                     continue
                 if eval(sku_capability.value) is True:
                     # update features list if sriov feature is supported
-                    node_space.features.update([features.Sriov.name()])
+                    node_space.features.add(
+                        schema.FeatureSettings.create(features.Sriov.name())
+                    )
             elif name == "PremiumIO":
                 if eval(sku_capability.value) is True:
-                    node_space.features.update([features.DiskPremiumLRS.name()])
+                    node_space.features.add(
+                        schema.FeatureSettings.create(features.DiskPremiumLRS.name())
+                    )
             elif name == "EphemeralOSDiskSupported":
                 if eval(sku_capability.value) is True:
-                    node_space.features.update([features.DiskEphemeral.name()])
+                    node_space.features.add(
+                        schema.FeatureSettings.create(features.DiskEphemeral.name())
+                    )
 
         # set a min value for nic_count work around for an azure python sdk bug
         # nic_count is 0 when get capability for some sizes e.g. Standard_D8a_v3
@@ -1277,10 +1282,10 @@ class AzurePlatform(Platform):
         # all nodes support following features
         node_space.features.update(
             [
-                features.StartStop.name(),
-                features.SerialConsole.name(),
-                features.DiskStandardHDDLRS.name(),
-                features.DiskStandardSSDLRS.name(),
+                schema.FeatureSettings.create(features.StartStop.name()),
+                schema.FeatureSettings.create(features.SerialConsole.name()),
+                schema.FeatureSettings.create(features.DiskStandardHDDLRS.name()),
+                schema.FeatureSettings.create(features.DiskStandardSSDLRS.name()),
             ]
         )
 
@@ -1509,20 +1514,20 @@ class AzurePlatform(Platform):
     def _node_generate_min_capability(
         self, req_cap: schema.NodeSpace, azure_cap: schema.NodeSpace
     ) -> schema.NodeSpace:
-        assert azure_cap.features, "Azure node has no disk features."
+        assert azure_cap.features, "Azure: node has no feature found."
         assert (
-            AzurePlatform._get_disk_feature_count(req_cap.features) <= 1
+            AzurePlatform._get_disk_feature_count(req_cap) <= 1
         ), "Multiple disk feature found in node requirement."
 
         if (
             req_cap.features is None
-            or AzurePlatform._get_disk_feature_count(req_cap.features) == 0
+            or AzurePlatform._get_disk_feature_count(req_cap) == 0
         ):
             # If no disk type feature is specified, use least
             # cost available disk from azure_cap
-            min_cost_disk = AzurePlatform._get_min_cost_disk(azure_cap.features)
+            min_cost_disk = AzurePlatform._get_min_cost_disk(azure_cap)
         else:
-            min_cost_disk = AzurePlatform._get_min_cost_disk(req_cap.features)
+            min_cost_disk = AzurePlatform._get_min_cost_disk(req_cap)
 
         # Remove features which are mutually exclusive to `min_cost_disk`
         # For Example : If `min_cost_disk` is set as `DiskStandardHDDLRS`, then
@@ -1591,38 +1596,41 @@ class AzurePlatform(Platform):
 
     @staticmethod
     def _get_disk_feature_count(
-        node_features: Optional[search_space.SetSpace[str]],
+        node_capability: schema.NodeSpace,
     ) -> int:
         # Ensure that node_features contains either no disk type
         # or only one of DiskEphemeral, DiskPremiumLRS, DiskStandardHDDLRS
         # or DiskStandardSSDLRS
-        if node_features is None:
+        if not node_capability.features:
             return 0
-        disk_features = set(DiskType.get_disk_types())
-        return len(node_features & disk_features)
+        count_disk_features = 0
+        for disk_feature_type in DiskType.get_disk_types():
+            if node_capability.has_feature(disk_feature_type):
+                count_disk_features += 1
+        return count_disk_features
 
     @staticmethod
-    def _get_min_cost_disk(node_features: search_space.SetSpace[str]) -> str:
-        if DiskType.DISK_STANDARD_HDD in node_features:
-            return DiskType.DISK_STANDARD_HDD
-        elif DiskType.DISK_STANDARD_SSD in node_features:
-            return DiskType.DISK_STANDARD_SSD
-        elif DiskType.DISK_EPHEMERAL in node_features:
-            return DiskType.DISK_EPHEMERAL
-        elif DiskType.DISK_PREMIUM in node_features:
-            return DiskType.DISK_PREMIUM
+    def _get_min_cost_disk(node_capability: schema.NodeSpace) -> schema.FeatureSettings:
+        if node_capability.has_feature(DiskType.DISK_STANDARD_HDD):
+            return schema.FeatureSettings.create(DiskType.DISK_STANDARD_HDD)
+        elif node_capability.has_feature(DiskType.DISK_STANDARD_SSD):
+            return schema.FeatureSettings.create(DiskType.DISK_STANDARD_SSD)
+        elif node_capability.has_feature(DiskType.DISK_EPHEMERAL):
+            return schema.FeatureSettings.create(DiskType.DISK_EPHEMERAL)
+        elif node_capability.has_feature(DiskType.DISK_PREMIUM):
+            return schema.FeatureSettings.create(DiskType.DISK_PREMIUM)
         else:
             raise LisaException("No disk feature present.")
 
     @staticmethod
-    def _get_disk_id(node_features: search_space.SetSpace[str]) -> str:
-        if DiskType.DISK_EPHEMERAL in node_features:
+    def _get_disk_id(node_capability: schema.NodeSpace) -> str:
+        if node_capability.has_feature(DiskType.DISK_EPHEMERAL):
             return features.DiskEphemeral.get_disk_id()
-        elif DiskType.DISK_PREMIUM in node_features:
+        elif node_capability.has_feature(DiskType.DISK_PREMIUM):
             return features.DiskPremiumLRS.get_disk_id()
-        elif DiskType.DISK_STANDARD_HDD in node_features:
+        elif node_capability.has_feature(DiskType.DISK_STANDARD_HDD):
             return features.DiskStandardHDDLRS.get_disk_id()
-        elif DiskType.DISK_STANDARD_SSD in node_features:
+        elif node_capability.has_feature(DiskType.DISK_STANDARD_SSD):
             return features.DiskStandardSSDLRS.get_disk_id()
         else:
             raise LisaException("No disk feature present.")

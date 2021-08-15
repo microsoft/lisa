@@ -343,7 +343,65 @@ class Notifier(TypedSchema, ExtendableSchemaMixin):
 
 
 @dataclass_json()
-@dataclass
+@dataclass()
+class FeatureSettings(
+    search_space.RequirementMixin, TypedSchema, ExtendableSchemaMixin
+):
+    """
+    It's the default feature setting. It's used by features without settings,
+    and it's the base class of specified settings.
+    """
+
+    def __eq__(self, o: object) -> bool:
+        assert isinstance(o, FeatureSettings), f"actual: {type(o)}"
+        return self.type == o.type
+
+    def __repr__(self) -> str:
+        return self.type
+
+    def __hash__(self) -> int:
+        return hash(self._get_key())
+
+    @staticmethod
+    def create(type: str) -> "FeatureSettings":
+        # If a feature has no setting, it will return the default settings.
+        return FeatureSettings(type=type)
+
+    def check(self, capability: Any) -> search_space.ResultReason:
+        assert isinstance(capability, FeatureSettings), f"actual: {type(capability)}"
+        # default FeatureSetting is a place holder, nothing to do.
+        result = search_space.ResultReason()
+        if self.type != capability.type:
+            result.add_reason(
+                f"settings are different, "
+                f"requirement: {self.type}, capability: {capability.type}"
+            )
+
+        return result
+
+    def _get_key(self) -> str:
+        return self.type
+
+    def _generate_min_capability(self, capability: Any) -> Any:
+        # default FeatureSetting is a place holder, nothing to do.
+        return FeatureSettings.create(self.type)
+
+
+@dataclass_json()
+@dataclass()
+class FeaturesSpace(
+    search_space.SetSpace[Union[str, FeatureSettings]],
+):
+    def __post_init__(self, *args: Any, **kwargs: Any) -> None:
+        if self.items:
+            for index, item in enumerate(self.items):
+                if isinstance(item, dict):
+                    item = load_by_type(FeatureSettings, item)
+                    self.items[index] = item
+
+
+@dataclass_json()
+@dataclass()
 class NodeSpace(search_space.RequirementMixin, TypedSchema, ExtendableSchemaMixin):
     type: str = field(
         default=constants.ENVIRONMENTS_NODES_REQUIREMENT,
@@ -400,28 +458,24 @@ class NodeSpace(search_space.RequirementMixin, TypedSchema, ExtendableSchemaMixi
     )
     # all features on requirement should be included.
     # all features on capability can be included.
-    features: Optional[search_space.SetSpace[str]] = field(
+    _features: Optional[FeaturesSpace] = field(
         default=None,
-        metadata=metadata(
-            decoder=search_space.decode_set_space,
-            allow_none=True,
-        ),
+        metadata=metadata(allow_none=True, data_key="features"),
     )
     # set by requirements
     # capability's is ignored
-    excluded_features: Optional[search_space.SetSpace[str]] = field(
+    _excluded_features: Optional[FeaturesSpace] = field(
         default=None,
         metadata=metadata(
-            decoder=search_space.decode_set_space,
             allow_none=True,
+            data_key="excluded_features",
         ),
     )
 
     def __post_init__(self, *args: Any, **kwargs: Any) -> None:
-        if self.features is not None:
-            self.features.is_allow_set = True
-        if self.excluded_features is not None:
-            self.excluded_features.is_allow_set = False
+        # clarify types to avoid type errors in properties.
+        self._features: Optional[search_space.SetSpace[FeatureSettings]]
+        self._excluded_features: Optional[search_space.SetSpace[FeatureSettings]]
 
     def __eq__(self, o: object) -> bool:
         assert isinstance(o, NodeSpace), f"actual: {type(o)}"
@@ -454,6 +508,36 @@ class NodeSpace(search_space.RequirementMixin, TypedSchema, ExtendableSchemaMixi
             f"f:{self.features},ef:{self.excluded_features},"
             f"{super().__repr__()}"
         )
+
+    @property
+    def features(self) -> Optional[search_space.SetSpace[FeatureSettings]]:
+        self._features = self._create_feature_settings_list(self._features)
+        if self._features is not None:
+            self._features.is_allow_set = True
+        return cast(Optional[search_space.SetSpace[FeatureSettings]], self._features)
+
+    @features.setter
+    def features(self, value: Optional[search_space.SetSpace[FeatureSettings]]) -> None:
+        self._features = cast(FeaturesSpace, value)
+
+    @property
+    def excluded_features(self) -> Optional[search_space.SetSpace[FeatureSettings]]:
+        if not self._excluded_features:
+            self._excluded_features = self._create_feature_settings_list(
+                self._excluded_features
+            )
+            if self._excluded_features is not None:
+                self._excluded_features.is_allow_set = False
+
+        return cast(
+            Optional[search_space.SetSpace[FeatureSettings]], self._excluded_features
+        )
+
+    @excluded_features.setter
+    def excluded_features(
+        self, value: Optional[search_space.SetSpace[FeatureSettings]]
+    ) -> None:
+        self._excluded_features = cast(FeaturesSpace, value)
 
     def check(self, capability: Any) -> search_space.ResultReason:
         result = search_space.ResultReason()
@@ -520,15 +604,26 @@ class NodeSpace(search_space.RequirementMixin, TypedSchema, ExtendableSchemaMixi
             search_space.check_countspace(self.gpu_count, capability.gpu_count),
             "gpu_count",
         )
-        result.merge(
-            search_space.check(self.features, capability.features),
-            "features",
-        )
+        if self.features:
+            for feature in self.features:
+                cap_feature = self._find_feature_by_type(
+                    feature.type, capability.features
+                )
+                if cap_feature:
+                    result.merge(feature.check(cap_feature))
+                else:
+                    result.add_reason(
+                        f"no feature '{feature.type}' found in capability"
+                    )
         if self.excluded_features:
-            result.merge(
-                self.excluded_features.check(capability.features),
-                "excluded_features",
-            )
+            for feature in self.excluded_features:
+                cap_feature = self._find_feature_by_type(
+                    feature.type, capability.excluded_features
+                )
+                if cap_feature:
+                    result.add_reason(
+                        f"excluded feature '{feature.type}' found in capability"
+                    )
 
         return result
 
@@ -544,6 +639,13 @@ class NodeSpace(search_space.RequirementMixin, TypedSchema, ExtendableSchemaMixi
             expanded_copy.node_count = 1
             expanded_requirements.append(expanded_copy)
         return expanded_requirements
+
+    def has_feature(self, find_type: str) -> bool:
+        result = False
+        if not self.features:
+            return result
+
+        return any(feature for feature in self.features if feature.type == find_type)
 
     def _generate_min_capability(self, capability: Any) -> Any:
         # copy to duplicate extended schema
@@ -592,12 +694,91 @@ class NodeSpace(search_space.RequirementMixin, TypedSchema, ExtendableSchemaMixi
             min_value.gpu_count = 0
 
         if capability.features:
-            min_value.features = search_space.SetSpace[str](is_allow_set=True)
-            min_value.features.update(capability.features)
+            min_value.features = search_space.SetSpace[FeatureSettings](
+                is_allow_set=True
+            )
+            for original_cap_feature in capability.features:
+                capability_feature = self._get_or_create_feature_settings(
+                    original_cap_feature
+                )
+                requirement_feature = (
+                    self._find_feature_by_type(capability_feature.type, self.features)
+                    or capability_feature
+                )
+                min_feature = requirement_feature.generate_min_capability(
+                    capability_feature
+                )
+                min_value.features.add(min_feature)
         if capability.excluded_features:
-            min_value.excluded_features = search_space.SetSpace[str](is_allow_set=False)
-            min_value.excluded_features.update(capability.excluded_features)
+            # TODO: the min value for excluded feature is not clear. It may need
+            # to be improved with real scenarios.
+            min_value.excluded_features = search_space.SetSpace[FeatureSettings](
+                is_allow_set=False
+            )
+            for original_cap_feature in capability.excluded_features:
+                capability_feature = self._get_or_create_feature_settings(
+                    original_cap_feature
+                )
+                requirement_feature = (
+                    self._find_feature_by_type(
+                        capability_feature.type, self.excluded_features
+                    )
+                    or capability_feature
+                )
+                min_feature = requirement_feature.generate_min_capability(
+                    capability_feature
+                )
+                min_value.excluded_features.add(min_feature)
         return min_value
+
+    def _find_feature_by_type(
+        self,
+        find_type: str,
+        features: Optional[search_space.SetSpace[Any]],
+    ) -> Optional[FeatureSettings]:
+        result: Optional[FeatureSettings] = None
+        if not features:
+            return result
+
+        is_found = False
+        for original_feature in features.items:
+            feature = self._get_or_create_feature_settings(original_feature)
+            if feature.type == find_type:
+                is_found = True
+                break
+        if is_found:
+            result = feature
+
+        return result
+
+    def _create_feature_settings_list(
+        self, features: Optional[search_space.SetSpace[Any]]
+    ) -> Optional[FeaturesSpace]:
+        result: Optional[FeaturesSpace] = None
+        if features is None:
+            return result
+
+        result = cast(
+            FeaturesSpace,
+            search_space.SetSpace[FeatureSettings](is_allow_set=features.is_allow_set),
+        )
+        for raw_feature in features.items:
+            feature = self._get_or_create_feature_settings(raw_feature)
+            result.add(feature)
+
+        return result
+
+    def _get_or_create_feature_settings(self, feature: Any) -> FeatureSettings:
+        if isinstance(feature, str):
+            feature_setting = FeatureSettings.create(feature)
+        elif isinstance(feature, FeatureSettings):
+            feature_setting = feature
+        else:
+            raise LisaException(
+                f"unsupported type {type(feature)} found in features, "
+                "only str and FeatureSettings supported."
+            )
+        return feature_setting
 
 
 @dataclass_json()
