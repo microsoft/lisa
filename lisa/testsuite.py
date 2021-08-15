@@ -266,19 +266,23 @@ def _create_test_case_requirement(
     unsupported_platform_type: Optional[List[str]] = None,
     supported_os: Optional[List[Type[OperatingSystem]]] = None,
     unsupported_os: Optional[List[Type[OperatingSystem]]] = None,
-    supported_features: Optional[List[Type[Feature]]] = None,
-    unsupported_features: Optional[List[Type[Feature]]] = None,
+    supported_features: Optional[
+        List[Union[Type[Feature], schema.FeatureSettings, str]]
+    ] = None,
+    unsupported_features: Optional[
+        List[Union[Type[Feature], schema.FeatureSettings, str]]
+    ] = None,
     environment_status: EnvironmentStatus = EnvironmentStatus.Connected,
 ) -> TestCaseRequirement:
     if supported_features:
-        node.features = search_space.SetSpace[str](
+        node.features = search_space.SetSpace[schema.FeatureSettings](
             is_allow_set=True,
-            items=[x.name() for x in supported_features],
+            items=[Feature.get_feature_settings(x) for x in supported_features],
         )
     if unsupported_features:
-        node.excluded_features = search_space.SetSpace[str](
+        node.excluded_features = search_space.SetSpace[schema.FeatureSettings](
             is_allow_set=False,
-            items=[x.name() for x in unsupported_features],
+            items=[Feature.get_feature_settings(x) for x in unsupported_features],
         )
     nodes: List[schema.NodeSpace] = [node]
 
@@ -328,8 +332,12 @@ def simple_requirement(
     unsupported_platform_type: Optional[List[str]] = None,
     supported_os: Optional[List[Type[OperatingSystem]]] = None,
     unsupported_os: Optional[List[Type[OperatingSystem]]] = None,
-    supported_features: Optional[List[Type[Feature]]] = None,
-    unsupported_features: Optional[List[Type[Feature]]] = None,
+    supported_features: Optional[
+        List[Union[Type[Feature], schema.FeatureSettings, str]]
+    ] = None,
+    unsupported_features: Optional[
+        List[Union[Type[Feature], schema.FeatureSettings, str]]
+    ] = None,
     environment_status: EnvironmentStatus = EnvironmentStatus.Connected,
 ) -> TestCaseRequirement:
     """

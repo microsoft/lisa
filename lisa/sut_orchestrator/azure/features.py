@@ -8,7 +8,7 @@ from typing import TYPE_CHECKING, Any, List, Optional
 import requests
 from assertpy import assert_that
 
-from lisa import features
+from lisa import features, schema
 from lisa.features.disks import DiskType
 from lisa.features.gpu import ComputeSDK
 from lisa.node import Node
@@ -26,12 +26,12 @@ from .common import (
     wait_operation,
 )
 
-MUTUALLY_EXCLUSIVE_FEATURES: List[List[str]] = [
+MUTUALLY_EXCLUSIVE_FEATURES: List[List[schema.FeatureSettings]] = [
     [
-        DiskType.DISK_EPHEMERAL,
-        DiskType.DISK_PREMIUM,
-        DiskType.DISK_STANDARD_HDD,
-        DiskType.DISK_STANDARD_SSD,
+        schema.FeatureSettings.create(DiskType.DISK_EPHEMERAL),
+        schema.FeatureSettings.create(DiskType.DISK_PREMIUM),
+        schema.FeatureSettings.create(DiskType.DISK_STANDARD_HDD),
+        schema.FeatureSettings.create(DiskType.DISK_STANDARD_SSD),
     ]
 ]
 
