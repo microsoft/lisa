@@ -11,7 +11,6 @@ from lisa.operating_system import Redhat, Ubuntu
 from lisa.sut_orchestrator.azure.tools import LisDriver
 from lisa.tools import Lsmod, Lspci, Lsvmbus
 from lisa.util import LisaException
-from lisa.util.logger import get_logger
 
 FEATURE_NAME_GPU = "Gpu"
 
@@ -29,13 +28,9 @@ class ComputeSDK(Enum):
 
 
 class Gpu(Feature):
-    def __init__(self, node: Any, platform: Any) -> None:
-        super().__init__(node, platform)
-        self._log = get_logger("feature", self.name(), self._node.log)
-        self.gpu_vendor: Set[str] = set()
-        # tuple of gpu device names and their device id pattern
-        # e.g. Tesla GPU device has device id "47505500-0001-0000-3130-444531303244"
-        self.gpu_devices = (("Tesla", "47505500", 0), ("A100-SXM4", "44450000", 6))
+    # tuple of gpu device names and their device id pattern
+    # e.g. Tesla GPU device has device id "47505500-0001-0000-3130-444531303244"
+    gpu_devices = (("Tesla", "47505500", 0), ("A100-SXM4", "44450000", 6))
 
     @classmethod
     def name(cls) -> str:
@@ -49,10 +44,13 @@ class Gpu(Feature):
     def can_disable(cls) -> bool:
         return True
 
-    def _get_supported_driver(self) -> List[ComputeSDK]:
+    def is_supported(self) -> bool:
         raise NotImplementedError
 
-    def is_supported(self) -> bool:
+    def _initialize(self, *args: Any, **kwargs: Any) -> None:
+        self.gpu_vendor: Set[str] = set()
+
+    def _get_supported_driver(self) -> List[ComputeSDK]:
         raise NotImplementedError
 
     # download and install NVIDIA grid driver
