@@ -2,12 +2,11 @@
 # Licensed under the MIT license.
 
 import re
-from typing import Any, List
+from typing import List
 
 from lisa.feature import Feature
 from lisa.tools import Lspci, Nvmecli
 from lisa.tools.lspci import PciDevice
-from lisa.util.logger import get_logger
 
 FEATURE_NAME_NVME = "NVME"
 
@@ -25,10 +24,6 @@ class Nvme(Feature):
     )
     _pci_device_name = "Non-Volatile memory controller"
     _ls_devices: str = ""
-
-    def __init__(self, node: Any, platform: Any) -> None:
-        super().__init__(node, platform)
-        self._log = get_logger("feature", self.name(), self._node.log)
 
     @classmethod
     def name(cls) -> str:

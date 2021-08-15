@@ -1,19 +1,12 @@
 # Copyright (c) Microsoft Corporation.
 # Licensed under the MIT license.
 
-from typing import Any
-
 from lisa.feature import Feature
-from lisa.util.logger import get_logger
 
 FEATURE_NAME_STARTSTOP = "StartStop"
 
 
 class StartStop(Feature):
-    def __init__(self, node: Any, platform: Any) -> None:
-        super().__init__(node, platform)
-        self._log = get_logger("feature", self.name(), self._node.log)
-
     @classmethod
     def name(cls) -> str:
         return FEATURE_NAME_STARTSTOP
