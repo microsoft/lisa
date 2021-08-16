@@ -684,8 +684,11 @@ class Ubuntu(Debian):
     def _replace_default_entry(self, entry: str) -> None:
         self._log.debug(f"set boot entry to: {entry}")
         sed = self._node.tools[Sed]
-        sed.replace(
-            "GRUB_DEFAULT=.*", f"GRUB_DEFAULT='{entry}'", "/etc/default/grub", sudo=True
+        sed.substitute(
+            regexp="GRUB_DEFAULT=.*",
+            replacement=f"GRUB_DEFAULT='{entry}'",
+            file="/etc/default/grub",
+            sudo=True,
         )
 
         # output to log for troubleshooting
