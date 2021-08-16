@@ -9,14 +9,43 @@ class Sed(Tool):
     def command(self) -> str:
         return "sed"
 
-    def replace(
-        self, searched: str, replaced: str, file: str, sudo: bool = False
+    def substitute(
+        self,
+        regexp: str,
+        replacement: str,
+        file: str,
+        match_lines: str = "",
+        sudo: bool = False,
     ) -> None:
         # always force run, make sure it happens every time.
-        searched = searched.replace('"', '\\"')
-        replaced = replaced.replace('"', '\\"')
+        match_lines = match_lines.replace('"', '\\"')
+        regexp = regexp.replace('"', '\\"')
+        replacement = replacement.replace('"', '\\"')
+        if match_lines != "":
+            cmd = f'-i.bak "/{match_lines}/s/{regexp}/{replacement}/g" {file}'
+        else:
+            cmd = f'-i.bak "s/{regexp}/{replacement}/g" {file}'
+
         result = self.run(
-            f'-i.bak "s/{searched}/{replaced}/g" {file}',
+            cmd,
+            force_run=True,
+            no_error_log=True,
+            no_info_log=True,
+            sudo=sudo,
+            shell=True,
+        )
+        result.assert_exit_code(message=result.stdout)
+
+    def append(
+        self,
+        text: str,
+        file: str,
+        sudo: bool = False,
+    ) -> None:
+        # always force run, make sure it happens every time.
+        text = text.replace('"', '\\"')
+        result = self.run(
+            f"-i.bak '$a{text}' {file}",
             force_run=True,
             no_error_log=True,
             no_info_log=True,
