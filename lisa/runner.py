@@ -11,8 +11,8 @@ from lisa import notifier, schema, transformer
 from lisa.action import Action
 from lisa.combinator import Combinator
 from lisa.parameter_parser.runbook import RunbookBuilder
-from lisa.testsuite import TestResult, TestStatus
-from lisa.util import BaseClassMixin, InitializableMixin, constants
+from lisa.testsuite import TestResult, TestResultMessage, TestStatus
+from lisa.util import BaseClassMixin, InitializableMixin, LisaException, constants
 from lisa.util.logger import create_file_handler, get_logger, remove_handler
 from lisa.util.parallel import TaskManager, cancel, set_global_task_manager
 from lisa.util.subclasses import Factory
@@ -31,6 +31,39 @@ def parse_testcase_filters(raw_filters: List[Any]) -> List[schema.BaseTestCaseFi
     else:
         filters = [schema.TestCase(name="test", criteria=schema.Criteria(area="demo"))]
     return filters
+
+
+def print_results(
+    test_results: List[Any],
+    output_method: Callable[[str], Any],
+) -> None:
+    output_method("________________________________________")
+    result_count_dict: Dict[TestStatus, int] = {}
+    for test_result in test_results:
+        if isinstance(test_result, TestResult):
+            result_name = test_result.runtime_data.metadata.full_name
+            result_status = test_result.status
+        elif isinstance(test_result, TestResultMessage):
+            result_name = test_result.name
+            result_status = test_result.status
+        else:
+            raise LisaException(f"Unknown result type: '{type(test_result)}'")
+        output_method(
+            f"{result_name:>50}: {result_status.name:<8} {test_result.message}"
+        )
+        result_count = result_count_dict.get(result_status, 0)
+        result_count += 1
+        result_count_dict[result_status] = result_count
+
+    output_method("test result summary")
+    output_method(f"    TOTAL    : {len(test_results)}")
+    for key in result_count_dict.keys():
+        count = result_count_dict.get(key, 0)
+        if key == TestStatus.ATTEMPTED and count == 0:
+            # attempted is confusing if user don't know it.
+            # so hide it if there is no attempted cases.
+            continue
+        output_method(f"    {key.name:<9}: {count}")
 
 
 class BaseRunner(BaseClassMixin, InitializableMixin):
@@ -130,7 +163,7 @@ class RootRunner(Action):
             for runner in self._runners:
                 runner.close()
 
-        self._output_results(self._results)
+        print_results(self._results, self._log.info)
 
         # pass failed count to exit code
         self.exit_code = sum(1 for x in self._results if x.status == TestStatus.FAILED)
@@ -206,28 +239,6 @@ class RootRunner(Action):
             runner.initialize()
             self._runners.append(runner)
             yield runner
-
-    def _output_results(self, test_results: List[TestResult]) -> None:
-        self._log.info("________________________________________")
-        result_count_dict: Dict[TestStatus, int] = {}
-        for test_result in test_results:
-            self._log.info(
-                f"{test_result.runtime_data.metadata.full_name:>50}: "
-                f"{test_result.status.name:<8} {test_result.message}"
-            )
-            result_count = result_count_dict.get(test_result.status, 0)
-            result_count += 1
-            result_count_dict[test_result.status] = result_count
-
-        self._log.info("test result summary")
-        self._log.info(f"    TOTAL    : {len(test_results)}")
-        for key in TestStatus:
-            count = result_count_dict.get(key, 0)
-            if key == TestStatus.ATTEMPTED and count == 0:
-                # attempted is confusing, if user don't know it.
-                # so hide it, if there is no attempted cases.
-                continue
-            self._log.info(f"    {key.name:<9}: {count}")
 
     def _callback_completed(self, results: List[TestResult]) -> None:
         self._results_lock.acquire()
