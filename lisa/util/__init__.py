@@ -7,6 +7,7 @@ from pathlib import Path
 from typing import Any, Dict, Iterable, List, Optional, Pattern, Type, TypeVar
 
 import pluggy
+from semver import VersionInfo
 
 from lisa import secret
 from lisa.util import constants
@@ -30,6 +31,15 @@ __url_pattern = re.compile(
 
 # used to filter ansi escapes for better layout in log and other place
 __ansi_escape = re.compile(r"\x1B(?:[@-Z\\-_]|\[[0-?]*[ -/]*[@-~])")
+
+# 10.0.22000.100
+# 18.04.5
+# 18.04
+__version_info_pattern = re.compile(
+    r"^[vV]?(?P<major>[0-9]*?)(?:\.|\-|\_)(?P<minor>[0-9]*?)(?:(?:\.|\-|\_)"
+    r"(?P<patch>[0-9]*?))?(?:(?:\.|\-|\_)(?P<prerelease>.*?))?$",
+    re.VERBOSE,
+)
 
 # hooks manager helper, they must be same name.
 _NAME_LISA = "lisa"
@@ -258,3 +268,39 @@ def dump_file(file_name: Path, content: Any) -> None:
     file_name.parent.mkdir(parents=True, exist_ok=True)
     with open(file_name, "w") as f:
         f.write(secret.mask(content))
+
+
+def parse_version(version: str) -> VersionInfo:
+    """
+    Convert an incomplete version string into a semver-compatible Version
+    object
+
+    source -
+    https://python-semver.readthedocs.io/en/latest/usage.html#dealing-with-invalid-versions
+
+    * Tries to detect a "basic" version string (``major.minor.patch``).
+    * If not enough components can be found, missing components are
+        set to zero to obtain a valid semver version.
+
+    :param str version: the version string to convert
+    :return: a tuple with a :class:`Version` instance (or ``None``
+        if it's not a version) and the rest of the string which doesn't
+        belong to a basic version.
+    :rtype: tuple(:class:`Version` | None, str)
+    """
+    if VersionInfo.isvalid(version):
+        return VersionInfo.parse(version)
+
+    match = __version_info_pattern.search(version)
+    if not match:
+        raise LisaException(f"The version is invalid format: {version}")
+
+    ver: Dict[str, Any] = {
+        key: 0 if value is None else int(value)
+        for key, value in match.groupdict().items()
+    }
+    rest = match.string[match.end() :]  # noqa:E203
+    ver["build"] = rest
+    release_version = VersionInfo(**ver)
+
+    return release_version

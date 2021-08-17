@@ -175,7 +175,7 @@ class SourceInstaller(BaseInstaller):
         kernel_information = uname.get_linux_information()
 
         result = node.execute(
-            f"cp /boot/config-{kernel_information.kernel_version} .config",
+            f"cp /boot/config-{kernel_information.kernel_version_raw} .config",
             cwd=code_path,
         )
         result.assert_exit_code()

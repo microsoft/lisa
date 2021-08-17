@@ -4,21 +4,24 @@
 import re
 from dataclasses import dataclass
 
+from semver import VersionInfo
+
 from lisa.executable import Tool
-from lisa.util import LisaException
+from lisa.util import LisaException, parse_version
 
 
 @dataclass
 class UnameResult:
     has_result: bool
-    kernel_version: str = ""
+    kernel_version: VersionInfo
+    kernel_version_raw: str = ""
     hardware_platform: str = ""
     operating_system: str = ""
     uname_version: str = ""
 
     def __repr__(self) -> str:
         return (
-            f"kernel version: {self.kernel_version}, "
+            f"kernel version: {self.kernel_version_raw}, "
             f"hardware platform: {self.hardware_platform}, "
             f"operating system: {self.operating_system}, "
             f"uname version: {self.uname_version}, "
@@ -45,16 +48,16 @@ class Uname(Tool):
         cmd_result = self.run(
             "-vrio", force_run=force_run, no_error_log=no_error_log, no_info_log=True
         )
-
         if cmd_result.exit_code != 0:
-            result = UnameResult(False, "", "", "", "")
+            result = UnameResult(False, VersionInfo(0))
         else:
             match_result = self._key_info_pattern.fullmatch(cmd_result.stdout)
             if not match_result:
                 raise LisaException(f"no result matched, stdout: '{cmd_result.stdout}'")
             result = UnameResult(
                 has_result=True,
-                kernel_version=match_result.group("kernel_version"),
+                kernel_version=parse_version(match_result.group("kernel_version")),
+                kernel_version_raw=match_result.group("kernel_version"),
                 uname_version=match_result.group("uname_version"),
                 hardware_platform=match_result.group("platform"),
                 operating_system=match_result.group("os"),
