@@ -3,7 +3,7 @@
 
 import re
 from enum import Enum
-from typing import Any, Optional, Type
+from typing import Any, List, Optional, Type
 
 from assertpy import assert_that
 
@@ -15,12 +15,38 @@ CpuType = Enum(
 )
 
 
+class CPUInfo:
+    def __init__(
+        self,
+        cpu: str,
+        numa_node: str,
+        socket: str,
+        l1_data_cache: str,
+        l1_instruction_cache: str,
+        l2_cache: str,
+        l3_cache: str,
+    ) -> None:
+        self.cpu = cpu
+        self.numa_node = numa_node
+        self.socket = socket
+        self.l1_data_cache = l1_data_cache
+        self.l1_instruction_cache = l1_instruction_cache
+        self.l2_cache = l2_cache
+        self.l3_cache = l3_cache
+
+
 class Lscpu(Tool):
     # CPU(s):              16
     __vcpu_sockets = re.compile(r"^CPU\(s\):[ ]+([\d]+)\r?$", re.M)
     # Architecture:        x86_64
     __architecture_pattern = re.compile(r"^Architecture:\s+(.*)?\r$", re.M)
     __valid_architecture_list = ["x86_64"]
+    # Capture patterns of the form `0 0 0 0:0:0:0`
+    _core_numa_mappings = re.compile(
+        r".*(?P<cpu>\d+).+(?P<numa_node>\d+).+(?P<socket>\d+)"
+        r".+(?P<l1_data_cache>\d+):(?P<l1_instruction_cache>\d+)"
+        r":(?P<l2_cache>\d+):(?P<l3_cache>\d+)$"
+    )
 
     def _initialize(self, *args: Any, **kwargs: Any) -> None:
         self._core_count: Optional[int] = None
@@ -70,6 +96,33 @@ class Lscpu(Tool):
         elif "GenuineIntel" in result.stdout:
             return CpuType.Intel
         return CpuType.Intel
+
+    def get_cpu_info(self) -> List[CPUInfo]:
+        # `lscpu --extended=cpu,node,socket,cache` command return the
+        # cpu info in the format :
+        # CPU NODE SOCKET L1d:L1i:L2:L3
+        # 0    0        0 0:0:0:0
+        # 1    0        0 0:0:0:0
+        result = self.run("--extended=cpu,node,socket,cache").stdout
+        mappings_with_header = result.splitlines(keepends=False)
+        mappings = mappings_with_header[1:]
+        assert len(mappings) > 0
+        output: List[CPUInfo] = []
+        for item in mappings:
+            match_result = self._core_numa_mappings.fullmatch(item)
+            assert match_result
+            output.append(
+                CPUInfo(
+                    cpu=match_result.group("cpu"),
+                    numa_node=match_result.group("numa_node"),
+                    socket=match_result.group("socket"),
+                    l1_data_cache=match_result.group("l1_data_cache"),
+                    l1_instruction_cache=match_result.group("l1_instruction_cache"),
+                    l2_cache=match_result.group("l2_cache"),
+                    l3_cache=match_result.group("l3_cache"),
+                )
+            )
+        return output
 
 
 class WindowsLscpu(Lscpu):
