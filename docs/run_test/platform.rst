@@ -19,6 +19,7 @@ Running using vhd
 To run using vhd, add the following to runbook :
 
 .. code:: yaml
+
    platform:
    - type: azure
       ...
@@ -41,6 +42,7 @@ Running using marketplace
 To run using marketplace image, add the following to runbook :
 
 .. code:: yaml
+
    platform:
    - type: azure
       ...
@@ -57,6 +59,7 @@ to runbook if the shared image gallery is in the same
 subscription that is used to run LISA :
 
 .. code:: yaml
+
    platform:
    - type: azure
       ...
@@ -72,6 +75,7 @@ credential used to run LISA has access to the shared image
 gallery.
 
 .. code:: yaml
+
    platform:
    - type: azure
       ...
