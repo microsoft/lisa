@@ -172,7 +172,7 @@ def generate_runbook(
         for n in nodes:
             environments.append({"nodes": [n]})
 
-    data = {"max_concurrency": 2, constants.ENVIRONMENTS: environments}
+    data = {constants.ENVIRONMENTS: environments}
     return schema.load_by_type(schema.EnvironmentRoot, data)
 
 
@@ -184,7 +184,6 @@ class EnvironmentTestCase(TestCase):
         envs = load_environments(None)
         self.assertEqual(0, len(envs))
         self.assertEqual(False, envs.warn_as_error)
-        self.assertEqual(1, envs.max_concurrency)
 
     def test_create_from_runbook_split(self) -> None:
         runbook = generate_runbook(local=True, remote=True)

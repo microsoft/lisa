@@ -692,10 +692,6 @@ class Environment:
 @dataclass_json()
 @dataclass
 class EnvironmentRoot:
-    max_concurrency: int = field(
-        default=1,
-        metadata=metadata(field_function=fields.Int, validate=validate.Range(min=1)),
-    )
     warn_as_error: bool = field(default=False)
     environments: List[Environment] = field(default_factory=list)
 
