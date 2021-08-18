@@ -120,8 +120,8 @@ class ExtendableSchemaMixin:
                 runbook_type=runbook_type, type_name=type_name
             )
             if self.extended_schemas and type_name in self.extended_schemas:
-                self._extended_runbook: T = runbook_type.schema().load(  # type:ignore
-                    self.extended_schemas[type_name]
+                self._extended_runbook: T = load_by_type(
+                    runbook_type, self.extended_schemas[type_name]
                 )
             else:
                 # value may be filled outside, so hold and return an object.
@@ -266,7 +266,7 @@ class Extension:
             if isinstance(extension, str):
                 extension = Extension(path=extension)
             elif isinstance(extension, dict):
-                extension = Extension.schema().load(extension)  # type: ignore
+                extension = load_by_type(Extension, extension)
             results.append(extension)
 
         return results
@@ -324,10 +324,7 @@ class Variable:
         if isinstance(self.value_raw, dict):
             self.value: Union[
                 str, bool, int, VariableEntry, List[Union[str, bool, int]]
-            ] = cast(
-                VariableEntry,
-                VariableEntry.schema().load(self.value_raw),  # type:ignore
-            )
+            ] = load_by_type(VariableEntry, self.value_raw)
         else:
             self.value = self.value_raw
 
@@ -676,18 +673,14 @@ class Environment:
             for node_raw in self.nodes_raw:
                 node_type = node_raw[constants.TYPE]
                 if node_type == constants.ENVIRONMENTS_NODES_REQUIREMENT:
-                    original_req: NodeSpace = NodeSpace.schema().load(  # type:ignore
-                        node_raw
-                    )
+                    original_req: NodeSpace = load_by_type(NodeSpace, node_raw)
                     expanded_req = original_req.expand_by_node_count()
                     if self.nodes_requirement is None:
                         self.nodes_requirement = []
                     self.nodes_requirement.extend(expanded_req)
                 else:
                     # load base schema for future parsing
-                    node: Node = Node.schema().load(  # type:ignore
-                        node_raw
-                    )
+                    node: Node = load_by_type(Node, node_raw)
                     results.append(node)
             self.nodes_raw = None
 
@@ -764,7 +757,7 @@ class Platform(TypedSchema, ExtendableSchemaMixin):
         # But the schema will be validated here. The original NodeSpace object holds
         if self.requirement:
             # validate schema of raw inputs
-            Capability.schema().load(self.requirement)  # type: ignore
+            load_by_type(Capability, self.requirement)
 
 
 @dataclass_json()
@@ -916,3 +909,26 @@ class Runbook:
                 }
             ]
         self.testcase: List[Any] = []
+
+
+def load_by_type(schema_type: Type[T], raw_runbook: Any, many: bool = False) -> T:
+    """
+    Convert dict, list or base typed schema to specified typed schema.
+    """
+    if type(raw_runbook) == schema_type:
+        return raw_runbook
+
+    if not isinstance(raw_runbook, dict) and not many:
+        raw_runbook = raw_runbook.to_dict()
+
+    result: T = schema_type.schema().load(raw_runbook, many=many)  # type: ignore
+    return result
+
+
+def load_by_type_many(schema_type: Type[T], raw_runbook: Any) -> List[T]:
+    """
+    Convert raw list to list of typed schema. It has different returned type
+    with load_by_type.
+    """
+    result = load_by_type(schema_type, raw_runbook=raw_runbook, many=True)
+    return cast(List[T], result)

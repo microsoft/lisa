@@ -137,9 +137,7 @@ class TestTransformerCase(TestCase):
     def test_transformer_no_name(self) -> None:
         # no name, the type will be used. in name
         transformers_data: List[Any] = [{"type": MOCK, "items": {"v0": "v0_1"}}]
-        transformers = schema.Transformer.schema().load(  # type: ignore
-            transformers_data, many=True
-        )
+        transformers = schema.load_by_type_many(schema.Transformer, transformers_data)
         runbook_builder = self._generate_runbook_builder(transformers)
 
         result = transformer._run_transformers(runbook_builder)
@@ -199,10 +197,8 @@ class TestTransformerCase(TestCase):
             items: Dict[str, str] = dict()
             for item_index in range(index + 1):
                 items[f"v{item_index}"] = f"{index}_{item_index}"
-            runbook: schema.Transformer = (
-                schema.Transformer.schema().load(  # type:ignore
-                    {"type": MOCK, "name": f"t{index}", "items": items}
-                )
+            runbook: schema.Transformer = schema.load_by_type(
+                schema.Transformer, {"type": MOCK, "name": f"t{index}", "items": items}
             )
             results.append(runbook)
 

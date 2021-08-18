@@ -226,7 +226,7 @@ class RunbookBuilder:
             and data_from_include[constants.VARIABLE]
         ):
             variables_from_include = [
-                schema.Variable.schema().load(variable)  # type: ignore
+                schema.load_by_type(schema.Variable, variable)
                 for variable in data_from_include[constants.VARIABLE]
             ]
             # resolve to absolute path
@@ -238,7 +238,7 @@ class RunbookBuilder:
             and data_from_current[constants.VARIABLE]
         ):
             variables_from_current: List[schema.Variable] = [
-                schema.Variable.schema().load(variable)  # type: ignore
+                schema.load_by_type(schema.Variable, variable)
                 for variable in data_from_current[constants.VARIABLE]
             ]
 
@@ -345,7 +345,7 @@ class RunbookBuilder:
             for include_raw in includes:
                 try:
                     include: schema.Include
-                    include = schema.Include.schema().load(include_raw)  # type: ignore
+                    include = schema.load_by_type(schema.Include, include_raw)
                 except Exception as identifer:
                     raise LisaException(
                         f"error on loading include node [{include_raw}]: {identifer}"

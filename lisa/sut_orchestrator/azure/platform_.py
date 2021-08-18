@@ -723,9 +723,7 @@ class AzurePlatform(Platform):
             try:
                 with open(cached_file_name, "r") as f:
                     loaded_data: Dict[str, Any] = json.load(f)
-                loaded_obj = AzureLocation.schema().load(  # type:ignore
-                    loaded_data
-                )
+                loaded_obj = schema.load_by_type(AzureLocation, loaded_data)
             except Exception as identifier:
                 # if schema changed, There may be exception, remove cache and retry
                 # Note: retry on this method depends on decorator

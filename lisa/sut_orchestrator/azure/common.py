@@ -132,8 +132,8 @@ class AzureNodeSchema:
                 self.marketplace_raw = dict(
                     (k, v.lower()) for k, v in self.marketplace_raw.items()
                 )
-                marketplace = AzureVmMarketplaceSchema.schema().load(  # type: ignore
-                    self.marketplace_raw
+                marketplace = schema.load_by_type(
+                    AzureVmMarketplaceSchema, self.marketplace_raw
                 )
                 # this step makes marketplace_raw is validated, and
                 # filter out any unwanted content.
@@ -193,11 +193,11 @@ class AzureNodeSchema:
             self.shared_gallery_raw = dict(
                 (k, v.lower()) for k, v in self.shared_gallery_raw.items()
             )
-            shared_gallery = SharedImageGallerySchema.schema().load(  # type: ignore
-                self.shared_gallery_raw
+            shared_gallery = schema.load_by_type(
+                SharedImageGallerySchema, self.shared_gallery_raw
             )
-            if not shared_gallery.subscription_id:  # type: ignore
-                shared_gallery.subscription_id = self.subscription_id  # type: ignore
+            if not shared_gallery.subscription_id:
+                shared_gallery.subscription_id = self.subscription_id
             # this step makes shared_gallery_raw is validated, and
             # filter out any unwanted content.
             self.shared_gallery_raw = shared_gallery.to_dict()  # type: ignore

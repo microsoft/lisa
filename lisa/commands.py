@@ -24,9 +24,7 @@ def run(args: Namespace) -> int:
 
     notifier_data = builder.partial_resolve(constants.NOTIFIER)
     if notifier_data:
-        notifier_runbook = schema.Notifier.schema().load(  # type: ignore
-            notifier_data, many=True
-        )
+        notifier_runbook = schema.load_by_type_many(schema.Notifier, notifier_data)
         notifier.initialize(runbooks=notifier_runbook)
     run_message = notifier.TestRunMessage(
         test_project=builder.partial_resolve(constants.TEST_PROJECT),
