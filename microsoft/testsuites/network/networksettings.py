@@ -337,3 +337,52 @@ class NetworkSettings(TestSuite):
                 reverted_settings.rss_hash_key,
                 "Reverting RSS hash key to original value didn't succeed",
             ).is_equal_to(original_hkey)
+
+    @TestCaseMetadata(
+        description="""
+            This test case verifies whether changing device's RX hash level
+            for tcp and udp takes into affect.
+
+            Steps:
+                Note: Same steps are used for both TCP and UDP.
+            1. Get all the device's RX hash level status.
+            2. Depending on current setting, change to enabled/disabled.
+            3. Validate changing the hash level setting.
+            4. Revert back the settings to original values.
+        """,
+        priority=2,
+    )
+    def validate_device_rx_hash_level_change(self, node: Node, log: Logger) -> None:
+        ethtool = node.tools[Ethtool]
+
+        # Run the test for both TCP and UDP
+        test_protocols = ["tcp4", "udp4"]
+
+        for protocol in test_protocols:
+            try:
+                devices_rx_hlevel_info = ethtool.get_all_device_rx_hash_level(protocol)
+            except UnsupportedOperationException as identifier:
+                raise SkippedException(identifier)
+
+            for device_hlevel_info in devices_rx_hlevel_info:
+                interface = device_hlevel_info.interface
+                original_hlevel = device_hlevel_info.protocol_hash_map[protocol]
+                expected_hlevel = not original_hlevel
+
+                new_settings = ethtool.change_device_rx_hash_level(
+                    interface, protocol, expected_hlevel
+                )
+                assert_that(
+                    new_settings.protocol_hash_map[protocol],
+                    f"Changing RX hash level for {protocol} didn't succeed",
+                ).is_equal_to(expected_hlevel)
+
+                # Revert the settings back to original values
+                reverted_settings = ethtool.change_device_rx_hash_level(
+                    interface, protocol, original_hlevel
+                )
+                assert_that(
+                    reverted_settings.protocol_hash_map[protocol],
+                    f"Reverting RX hash level for {protocol} to original value"
+                    " didn't succeed",
+                ).is_equal_to(original_hlevel)
