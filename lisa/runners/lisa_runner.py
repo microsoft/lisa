@@ -608,10 +608,8 @@ class LisaRunner(BaseRunner):
                         node_requirement_data = deep_update_dict(
                             platform_requirement_data, node_requirement_data
                         )
-                        node_requirement = (
-                            schema.NodeSpace.schema().load(  # type: ignore
-                                node_requirement_data
-                            )
+                        node_requirement = schema.load_by_type(
+                            schema.NodeSpace, node_requirement_data
                         )
                         environment_requirement.nodes[index] = node_requirement
 

@@ -188,8 +188,6 @@ def load_platform(platforms_runbook: List[schema.Platform]) -> Platform:
 
 def load_platform_from_builder(runbook_builder: RunbookBuilder) -> Platform:
     platform_runbook_data = runbook_builder.partial_resolve(constants.PLATFORM)
-    platform_runbook = schema.Platform.schema().load(  # type: ignore
-        platform_runbook_data, many=True
-    )
+    platform_runbook = schema.load_by_type_many(schema.Platform, platform_runbook_data)
     platform = load_platform(platform_runbook)
     return platform

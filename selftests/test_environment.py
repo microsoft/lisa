@@ -173,7 +173,7 @@ def generate_runbook(
             environments.append({"nodes": [n]})
 
     data = {"max_concurrency": 2, constants.ENVIRONMENTS: environments}
-    return schema.EnvironmentRoot.schema().load(data)  # type: ignore
+    return schema.load_by_type(schema.EnvironmentRoot, data)
 
 
 class EnvironmentTestCase(TestCase):

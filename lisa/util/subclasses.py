@@ -20,7 +20,7 @@ class BaseClassWithRunbookMixin(BaseClassMixin):
     ) -> "BaseClassWithRunbookMixin":
         if cls.type_schema() != type(runbook):
             # reload if type is defined in subclass
-            runbook = cls.type_schema().schema().load(runbook.to_dict())  # type:ignore
+            runbook = schema.load_by_type(cls.type_schema(), runbook)
         return cls(runbook=runbook, **kwargs)
 
     @classmethod
@@ -72,7 +72,7 @@ class Factory(InitializableMixin, Generic[T_BASECLASS], SubClassTypeDict):
             raise LisaException(
                 f"cannot find subclass '{type_name}' of {self._base_type.__name__}"
             )
-        instance = sub_type.schema().load(raw_runbook)  # type: ignore
+        instance: Any = schema.load_by_type(sub_type, raw_runbook)
         if hasattr(instance, "extended_schemas"):
             if instance.extended_schemas:
                 raise LisaException(

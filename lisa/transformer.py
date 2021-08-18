@@ -142,8 +142,8 @@ def _run_transformers(
     transformers_runbook: List[schema.Transformer] = []
     for runbook_data in transformers_data:
         # get base transformer runbook for replacing variables.
-        runbook: schema.Transformer = schema.Transformer.schema().load(  # type: ignore
-            runbook_data
+        runbook: schema.Transformer = schema.load_by_type(
+            schema.Transformer, runbook_data
         )
 
         if runbook.enabled:
@@ -165,7 +165,7 @@ def _run_transformers(
         replace_variables(runbook_data, copied_variables)
 
         # revert to runbook
-        runbook = schema.Transformer.schema().load(runbook_data)  # type: ignore
+        runbook = schema.load_by_type(schema.Transformer, runbook_data)
 
         derived_builder = runbook_builder.derive(copied_variables)
         transformer = factory.create_by_runbook(

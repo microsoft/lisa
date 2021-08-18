@@ -210,7 +210,7 @@ class RootRunner(Action):
         runner_filters: Dict[str, List[schema.BaseTestCaseFilter]] = {}
         for raw_filter in runbook.testcase_raw:
             # by default run all filtered cases unless 'enable' is specified as false
-            filter = schema.BaseTestCaseFilter.schema().load(raw_filter)  # type:ignore
+            filter = schema.load_by_type(schema.BaseTestCaseFilter, raw_filter)
             if filter.enable:
                 raw_filters: List[schema.BaseTestCaseFilter] = runner_filters.get(
                     filter.type, []

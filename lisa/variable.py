@@ -4,7 +4,7 @@
 import os
 import re
 from dataclasses import dataclass
-from typing import Any, Dict, List, Optional, Union, cast
+from typing import Any, Dict, List, Optional, Union
 
 import yaml
 
@@ -142,10 +142,8 @@ def _load_from_runbook(
     current_variables = higher_level_variables.copy()
 
     if constants.VARIABLE in runbook_data:
-        variable_entries: List[
-            schema.Variable
-        ] = schema.Variable.schema().load(  # type:ignore
-            runbook_data[constants.VARIABLE], many=True
+        variable_entries: List[schema.Variable] = schema.load_by_type_many(
+            schema.Variable, runbook_data[constants.VARIABLE]
         )
 
         left_variables = variable_entries.copy()
@@ -262,10 +260,7 @@ def load_from_variable_entry(
         value = raw_value
     else:
         if isinstance(raw_value, dict):
-            raw_value = cast(
-                schema.VariableEntry,
-                schema.VariableEntry.schema().load(raw_value),  # type: ignore
-            )
+            raw_value = schema.load_by_type(schema.VariableEntry, raw_value)
         is_secret = is_secret or raw_value.is_secret
         mask_pattern_name = raw_value.mask
         value = raw_value.value

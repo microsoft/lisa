@@ -116,40 +116,46 @@ class RequirementTestCase(SearchSpaceTestCase):
     def test_supported_simple_requirement(self) -> None:
         n1 = schema.NodeSpace()
         n1 = n1.generate_min_capability(n1)
-        n4 = schema.NodeSpace.schema().load(  # type:ignore
-            {"type": constants.ENVIRONMENTS_NODES_REQUIREMENT, "core_count": 4}
+        n4 = schema.load_by_type(
+            schema.NodeSpace,
+            {"type": constants.ENVIRONMENTS_NODES_REQUIREMENT, "core_count": 4},
         )
         n4 = n4.generate_min_capability(n4)
-        n4g1 = schema.NodeSpace.schema().load(  # type:ignore
+        n4g1 = schema.load_by_type(
+            schema.NodeSpace,
             {
                 "type": constants.ENVIRONMENTS_NODES_REQUIREMENT,
                 "core_count": 4,
                 "gpu_count": 1,
-            }
+            },
         )
         n4g1 = n4g1.generate_min_capability(n4g1)
-        n6 = schema.NodeSpace.schema().load(  # type:ignore
-            {"type": constants.ENVIRONMENTS_NODES_REQUIREMENT, "core_count": 6}
+        n6 = schema.load_by_type(
+            schema.NodeSpace,
+            {"type": constants.ENVIRONMENTS_NODES_REQUIREMENT, "core_count": 6},
         )
         n6 = n6.generate_min_capability(n6)
-        n6g2 = schema.NodeSpace.schema().load(  # type:ignore
+        n6g2 = schema.load_by_type(
+            schema.NodeSpace,
             {
                 "type": constants.ENVIRONMENTS_NODES_REQUIREMENT,
                 "core_count": 6,
                 "gpu_count": 2,
-            }
+            },
         )
         n6g2 = n6g2.generate_min_capability(n6g2)
-        n6g1 = schema.NodeSpace.schema().load(  # type:ignore
+        n6g1 = schema.load_by_type(
+            schema.NodeSpace,
             {
                 "type": constants.ENVIRONMENTS_NODES_REQUIREMENT,
                 "core_count": 6,
                 "gpu_count": 1,
-            }
+            },
         )
         n6g1 = n6g1.generate_min_capability(n6g1)
-        n10 = schema.NodeSpace.schema().load(  # type:ignore
-            {"type": constants.ENVIRONMENTS_NODES_REQUIREMENT, "core_count": 10}
+        n10 = schema.load_by_type(
+            schema.NodeSpace,
+            {"type": constants.ENVIRONMENTS_NODES_REQUIREMENT, "core_count": 10},
         )
         n10 = n10.generate_min_capability(n10)
 

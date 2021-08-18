@@ -120,7 +120,7 @@ def generate_platform(
         "admin_password": admin_password,
         "admin_private_key_file": admin_key_file,
     }
-    runbook = schema.Platform.schema().load(runbook_data)  # type: ignore
+    runbook = schema.load_by_type(schema.Platform, runbook_data)
     platform = load_platform([runbook])
     platform.initialize()
     try:
