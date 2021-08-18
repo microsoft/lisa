@@ -93,13 +93,22 @@ function Main {
 
 		# Verify if each extra NIC gets IP
 		for ($nicNr = 1; $nicNr -le $extraNICs; $nicNr++) {
+			$retry_count = 0
+			$ipCount = 0
 			Write-LogInfo "Checking IP for Extra NIC #${nicNr}"
-			$ipAddr = "10.0.0.${nicNr}0"
-			$ipCount = Run-LinuxCmd -ip $AllVMData.PublicIP -port $AllVMData.SSHPort -username $user -password `
-				$password -command "export PATH=`$PATH:/usr/sbin ; ip a | grep -c $ipAddr" -ignoreLinuxExitCode:$true
-			if ($ipCount -eq 1) {
-				Write-LogInfo "Extra NIC #${nicNr} is correctly configured!"
-			} else {
+			while ($retry_count -le 30) {
+				$ipAddr = "10.0.0.${nicNr}0"
+				$ipCount = Run-LinuxCmd -ip $AllVMData.PublicIP -port $AllVMData.SSHPort -username $user -password `
+					$password -command "export PATH=`$PATH:/usr/sbin ; ip a | grep -c $ipAddr" -ignoreLinuxExitCode:$true
+				if ($ipCount -eq 1) {
+					Write-LogInfo "Extra NIC #${nicNr} is correctly configured!"
+					break
+				}
+				Write-LogInfo "Extra NIC #${nicNr} didnt get the configured IP!, Check again"
+				Start-Sleep -Seconds 10
+				$retry_count += 1
+			}
+			if ($ipCount -ne 1) {
 				Write-LogErr "Extra NIC #${nicNr} didn't get the expected IP ${ipAddr}"
 				return "FAIL"
 			}
