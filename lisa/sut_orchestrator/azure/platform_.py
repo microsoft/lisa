@@ -68,6 +68,7 @@ from .common import (
     AzureVmPurchasePlanSchema,
     check_or_create_storage_account,
     get_compute_client,
+    get_data_disk_size,
     get_environment_context,
     get_marketplace_ordering_client,
     get_network_client,
@@ -386,6 +387,12 @@ class AzurePlatform(Platform):
                         min_runbook.vm_size = matched_cap.vm_size
                         assert isinstance(min_cap.nic_count, int)
                         min_runbook.nic_count = min_cap.nic_count
+                        assert isinstance(min_cap.data_disk_count, int)
+                        min_runbook.data_disk_count = min_cap.data_disk_count
+                        assert isinstance(min_cap.data_disk_caching_type, str)
+                        min_runbook.data_disk_caching_type = (
+                            min_cap.data_disk_caching_type
+                        )
                         if not existing_location:
                             existing_location = location_name
                         predefined_caps[req_index] = min_cap
@@ -446,6 +453,16 @@ class AzurePlatform(Platform):
                                 min_cap.nic_count, int
                             ), f"actual: {min_cap.nic_count}"
                             node_runbook.nic_count = min_cap.nic_count
+                            assert isinstance(
+                                min_cap.data_disk_count, int
+                            ), f"actual: {min_cap.data_disk_count}"
+                            node_runbook.data_disk_count = min_cap.data_disk_count
+                            assert isinstance(
+                                min_cap.data_disk_caching_type, str
+                            ), f"actual: {min_cap.data_disk_caching_type}"
+                            node_runbook.data_disk_caching_type = (
+                                min_cap.data_disk_caching_type
+                            )
 
                             estimated_cost += azure_cap.estimated_cost
 
@@ -1236,7 +1253,7 @@ class AzurePlatform(Platform):
         node_space = schema.NodeSpace(
             node_count=1,
             core_count=0,
-            disk_count=0,
+            data_disk_count=0,
             memory_mb=0,
             nic_count=0,
             gpu_count=0,
@@ -1252,7 +1269,7 @@ class AzurePlatform(Platform):
             if name == "vCPUs":
                 node_space.core_count = int(sku_capability.value)
             elif name == "MaxDataDiskCount":
-                node_space.disk_count = search_space.IntRange(
+                node_space.data_disk_count = search_space.IntRange(
                     max=int(sku_capability.value)
                 )
             elif name == "MemoryGB":
@@ -1475,6 +1492,12 @@ class AzurePlatform(Platform):
                 features_to_remove.discard(min_cost_disk)
                 azure_cap_copy.features.difference_update(features_to_remove)
 
+        assert isinstance(req_cap.data_disk_count, search_space.IntRange)
+        if req_cap.data_disk_count.min > 0:
+            assert isinstance(req_cap.data_disk_iops, search_space.IntRange)
+            req_cap.data_disk_size = get_data_disk_size(
+                azure_cap_copy.features, req_cap.data_disk_iops.min
+            )
         # Generate min capability node
         min_cap: schema.NodeSpace = req_cap.generate_min_capability(azure_cap_copy)
         return min_cap

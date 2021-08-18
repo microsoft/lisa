@@ -663,8 +663,8 @@ nodes_requirement
 '''''''''''''''''
 
 List of testing required environments, by default node_count (default is
-1), core_count (default is 1), memory_mb (default is 512 MB), disk_count
-(default is 1), nic_count (default is 1), gpu_count (default is 0). The
+1), core_count (default is 1), memory_mb (default is 512 MB), data_disk_count
+(default is 0), nic_count (default is 1), gpu_count (default is 0). The
 node can be created once the node requirement is met.
 
 .. _type-1:

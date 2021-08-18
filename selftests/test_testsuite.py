@@ -21,6 +21,7 @@ from lisa.testsuite import (
     TestSuiteMetadata,
     get_cases_metadata,
     get_suites_metadata,
+    node_requirement,
     simple_requirement,
 )
 from lisa.util import (
@@ -147,7 +148,7 @@ def generate_cases_metadata() -> List[TestCaseMetadata]:
         "c2",
         "des2",
         ["t2", "t3"],
-        requirement=simple_requirement(node=schema.NodeSpace(core_count=8)),
+        requirement=node_requirement(node=schema.NodeSpace(core_count=8)),
     )
     suite_metadata2(MockTestSuite2)
     ut_cases[2](MockTestSuite2.mock_ut3)

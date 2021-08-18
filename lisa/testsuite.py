@@ -249,10 +249,8 @@ class TestCaseRequirement:
     os_type: Optional[search_space.SetSpace[Type[OperatingSystem]]] = None
 
 
-def simple_requirement(
-    min_count: int = 1,
-    min_nic_count: int = 1,
-    node: Optional[schema.NodeSpace] = None,
+def _create_test_case_requirement(
+    node: schema.NodeSpace,
     supported_platform_type: Optional[List[str]] = None,
     unsupported_platform_type: Optional[List[str]] = None,
     supported_os: Optional[List[Type[OperatingSystem]]] = None,
@@ -261,14 +259,6 @@ def simple_requirement(
     unsupported_features: Optional[List[Type[Feature]]] = None,
     environment_status: EnvironmentStatus = EnvironmentStatus.Connected,
 ) -> TestCaseRequirement:
-    """
-    define a simple requirement to support most test cases.
-    """
-    if node is None:
-        node = schema.NodeSpace()
-
-    node.node_count = search_space.IntRange(min=min_count)
-    node.nic_count = search_space.IntRange(min=min_nic_count)
     if supported_features:
         node.features = search_space.SetSpace[str](
             is_allow_set=True,
@@ -294,6 +284,61 @@ def simple_requirement(
         platform_type=platform_types,
         os_type=os,
         environment_status=environment_status,
+    )
+
+
+def node_requirement(
+    node: schema.NodeSpace,
+    supported_platform_type: Optional[List[str]] = None,
+    unsupported_platform_type: Optional[List[str]] = None,
+    supported_os: Optional[List[Type[OperatingSystem]]] = None,
+    unsupported_os: Optional[List[Type[OperatingSystem]]] = None,
+    environment_status: EnvironmentStatus = EnvironmentStatus.Connected,
+) -> TestCaseRequirement:
+    return _create_test_case_requirement(
+        node,
+        supported_platform_type,
+        unsupported_platform_type,
+        supported_os,
+        unsupported_os,
+        None,
+        None,
+        environment_status,
+    )
+
+
+def simple_requirement(
+    min_count: int = 1,
+    min_nic_count: int = 1,
+    min_data_disk_count: int = 0,
+    data_disk_caching_type: str = constants.DATADISK_CACHING_TYPE_NONE,
+    data_disk_iops: int = 1,
+    supported_platform_type: Optional[List[str]] = None,
+    unsupported_platform_type: Optional[List[str]] = None,
+    supported_os: Optional[List[Type[OperatingSystem]]] = None,
+    unsupported_os: Optional[List[Type[OperatingSystem]]] = None,
+    supported_features: Optional[List[Type[Feature]]] = None,
+    unsupported_features: Optional[List[Type[Feature]]] = None,
+    environment_status: EnvironmentStatus = EnvironmentStatus.Connected,
+) -> TestCaseRequirement:
+    """
+    define a simple requirement to support most test cases.
+    """
+    node = schema.NodeSpace()
+    node.node_count = search_space.IntRange(min=min_count)
+    node.nic_count = search_space.IntRange(min=min_nic_count)
+    node.data_disk_count = search_space.IntRange(min=min_data_disk_count)
+    node.data_disk_caching_type = data_disk_caching_type
+    node.data_disk_iops = search_space.IntRange(min=data_disk_iops)
+    return _create_test_case_requirement(
+        node,
+        supported_platform_type,
+        unsupported_platform_type,
+        supported_os,
+        unsupported_os,
+        supported_features,
+        unsupported_features,
+        environment_status,
     )
 
 
