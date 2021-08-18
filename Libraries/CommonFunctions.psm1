@@ -497,7 +497,7 @@ function Is-VmAlive {
     Write-LogInfo "Trying to connect to deployed VMs."
 
     $retryCount = 0
-    $kernelPanicPeriod = 3
+    $kernelPanicPeriod = $MaxRetryCount
 
     do {
         $deadVms = 0
