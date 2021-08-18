@@ -5,23 +5,13 @@ import re
 import time
 from dataclasses import dataclass
 from functools import partial
-from typing import (
-    TYPE_CHECKING,
-    Any,
-    Dict,
-    Iterable,
-    List,
-    Optional,
-    Pattern,
-    Type,
-    Union,
-)
+from typing import TYPE_CHECKING, Any, Iterable, List, Optional, Pattern, Type, Union
 
 from semver import VersionInfo
 
 from lisa.base_tools import Cat, Sed, Wget
 from lisa.executable import Tool
-from lisa.util import BaseClassMixin, LisaException, get_matched_str
+from lisa.util import BaseClassMixin, LisaException, get_matched_str, parse_version
 from lisa.util.logger import get_logger
 from lisa.util.perf_timer import create_timer
 from lisa.util.subclasses import Factory
@@ -75,15 +65,6 @@ class OperatingSystem:
     __suse_release_pattern = re.compile(r"^(SUSE).*$", re.M)
 
     __posix_factory: Optional[Factory[Any]] = None
-
-    # 10.0.22000.100
-    # 18.04.5
-    # 18.04
-    __version_info_pattern = re.compile(
-        r"^[vV]?(?P<major>[0-9]*?)(?:\.|\-|\_)(?P<minor>[0-9]*?)(?:(?:\.|\-|\_)"
-        r"(?P<patch>[0-9]*?))?(?:(?:\.|\-|\_)(?P<prerelease>.*?))?$",
-        re.VERBOSE,
-    )
 
     def __init__(self, node: "Node", is_posix: bool) -> None:
         super().__init__()
@@ -205,39 +186,7 @@ class OperatingSystem:
         raise NotImplementedError()
 
     def _parse_version(self, version: str) -> VersionInfo:
-        """
-        Convert an incomplete version string into a semver-compatible Version
-        object
-
-        source -
-        https://python-semver.readthedocs.io/en/latest/usage.html#dealing-with-invalid-versions
-
-        * Tries to detect a "basic" version string (``major.minor.patch``).
-        * If not enough components can be found, missing components are
-            set to zero to obtain a valid semver version.
-
-        :param str version: the version string to convert
-        :return: a tuple with a :class:`Version` instance (or ``None``
-            if it's not a version) and the rest of the string which doesn't
-            belong to a basic version.
-        :rtype: tuple(:class:`Version` | None, str)
-        """
-        if VersionInfo.isvalid(version):
-            return VersionInfo.parse(version)
-
-        match = self.__version_info_pattern.search(version)
-        if not match:
-            raise LisaException(f"The version is invalid format: {version}")
-
-        ver: Dict[str, Any] = {
-            key: 0 if value is None else int(value)
-            for key, value in match.groupdict().items()
-        }
-        rest = match.string[match.end() :]  # noqa:E203
-        ver["build"] = rest
-        release_version = VersionInfo(**ver)
-
-        return release_version
+        return parse_version(version)
 
 
 class Windows(OperatingSystem):
