@@ -613,9 +613,4 @@ class LisaRunner(BaseRunner):
                         )
                         environment_requirement.nodes[index] = node_requirement
 
-                # if case need a new env to run, force to create one.
-                # if not, get or create one.
-                if test_result.runtime_data.use_new_environment:
-                    existing_environments.from_requirement(environment_requirement)
-                else:
-                    existing_environments.get_or_create(environment_requirement)
+                existing_environments.from_requirement(environment_requirement)

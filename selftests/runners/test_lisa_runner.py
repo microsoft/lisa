@@ -81,9 +81,8 @@ class RunnerTestCase(TestCase):
             test_results=test_results,
         )
 
-    def test_merge_req_run_not_create_on_equal(self) -> None:
-        # when merging requirement from test cases,
-        # it won't create new, if predefined exact match test case needs
+    def test_merge_req(self) -> None:
+        # each test case will create an environment candidate.
         env_runbook = generate_env_runbook(remote=True)
         envs = load_environments(env_runbook)
         self.assertListEqual(
@@ -98,14 +97,16 @@ class RunnerTestCase(TestCase):
             existing_environments=envs,
             platform_type=constants.PLATFORM_MOCK,
         )
-        # 3 cases created only two required environments, as the
-        # simple requirement was met by runbook_0.
         self.assertListEqual(
-            ["customized_0", "generated_1", "generated_2"],
+            ["customized_0", "generated_1", "generated_2", "generated_3"],
             list(envs),
         )
         self.assertListEqual(
-            [TestStatus.QUEUED, TestStatus.QUEUED, TestStatus.QUEUED],
+            [
+                TestStatus.QUEUED,
+                TestStatus.QUEUED,
+                TestStatus.QUEUED,
+            ],
             [x.status for x in test_results],
         )
 
