@@ -356,11 +356,9 @@ class Environments(EnvironmentsDict):
     def __init__(
         self,
         warn_as_error: bool = False,
-        max_concurrency: int = 1,
     ) -> None:
         super().__init__()
         self.warn_as_error = warn_as_error
-        self.max_concurrency = max_concurrency
 
     def get_or_create(self, requirement: EnvironmentSpace) -> Optional[Environment]:
         result: Optional[Environment] = None
@@ -419,7 +417,6 @@ def load_environments(
     if root_runbook:
         environments = Environments(
             warn_as_error=root_runbook.warn_as_error,
-            max_concurrency=root_runbook.max_concurrency,
         )
 
         environments_runbook = root_runbook.environments
