@@ -19,6 +19,16 @@
 }
 UtilsInit
 
+# Skip NVME-MAX-DISK-VALIDATION for centos_7.5 and below
+GetDistro
+mj=$(echo "$DISTRO_VERSION" | cut -d '.' -f 1)
+mn=$(echo "$DISTRO_VERSION" | cut -d '.' -f 2)
+if [[ $current_test_name == NVME-MAX-DISK-VALIDATION && $DISTRO == centos_7 && $mj -eq 7 && $mn -le 5 ]];then
+        LogMsg "WARNING: NVME-MAX-DISK-VALIDATION is not to be run on $DISTRO $mj.$mn."
+        SetTestStateSkipped
+        exit 0
+fi
+
 # Count the NVME disks
 disk_count=$(ls -l /dev | grep -w nvme[0-9]$ | awk '{print $10}' | wc -l)
 if [ "$disk_count" -eq "0" ]; then

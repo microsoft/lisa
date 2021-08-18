@@ -26,6 +26,7 @@
     <files>.\Testscripts\Linux\utils.sh,.\Testscripts\Linux\nvme_basic_validation.sh</files>
     <testParameters>
       <param>nvme_version=NVME_VERSION</param>
+      <param>current_test_name=NVME-MAX-DISK-VALIDATION</param>
     </testParameters>
     <Timeout>1200</Timeout>
     <Platform>Azure</Platform>
