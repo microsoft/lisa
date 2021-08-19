@@ -96,6 +96,15 @@ class VmBusDevice:
 
         self.channel_vp_map = channel_vp_map_list
 
+    def __str__(self) -> str:
+        return (
+            f"id : {self.id}, name : {self.name}, class id : {self.class_id}, "
+            f"device id : {self.device_id}, channel map : {self.channel_vp_map}"
+        )
+
+    def __repr__(self) -> str:
+        return self.__str__()
+
 
 class Lsvmbus(Tool):
     __pattern_not_found = re.compile(r"(.*WARNING: lsvmbus not found for kernel*)")
