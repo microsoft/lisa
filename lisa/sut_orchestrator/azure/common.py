@@ -105,7 +105,7 @@ class AzureNodeSchema:
     )
     data_disk_iops: int = 500
     data_disk_size: int = 32
-    disk_id: str = field(
+    disk_type: str = field(
         default=DiskType.DISK_STANDARD_HDD,
         metadata=schema.metadata(validate=validate.OneOf(DiskType.get_disk_types())),
     )
