@@ -66,14 +66,15 @@ def ChangeHostName(expectedHost):
     Run("hostname " + changed_hostname)
     fail_error_warn_count = Run("tail -f waagent.log | grep -E 'fail|error|warning' | wc -l")
     RunLog.info("Start to sleep for 120 seconds.")
-    Run("sleep 120")
     expected_filter_string = "Detected hostname change: {0} -> {1}".format(expectedHost, changed_hostname)
-    matchCount = Run("grep -i '"+expected_filter_string+"' /var/log/waagent.log | wc -l")
-    RunLog.info('Get matchCount {0}'.format(matchCount))
-    # Changed matchCount condition to be >= 1 since it showed up 4 times in waagent.log file.
-    if int(matchCount.rstrip()) >= 1 and CheckHostName(changed_hostname) and int(fail_error_warn_count.rstrip()) == 0:
-        return True
-    else:
-        return False
+    for i in range(5):
+        Run("sleep 60")
+        matchCount = Run("grep -i '" + expected_filter_string + "' /var/log/waagent.log | wc -l")
+        RunLog.info('Get matchCount {0}'.format(matchCount))
+        # Changed matchCount condition to be >= 1 since it showed up 4 times in waagent.log file.
+        if int(matchCount.rstrip()) >= 1 and CheckHostName(changed_hostname) and int(fail_error_warn_count.rstrip()) == 0:
+            return True
+
+    return False
 
 RunTest(expectedHostname)
