@@ -30,6 +30,7 @@ from lisa.environment import EnvironmentSpace, EnvironmentStatus
 from lisa.feature import Feature
 from lisa.operating_system import OperatingSystem, Windows
 from lisa.util import (
+    BadEnvironmentStateException,
     LisaException,
     PassedException,
     QueuedException,
@@ -152,6 +153,10 @@ class TestResult:
             log.debug("case passed with warning", exc_info=exception)
             # case can be passed with a warning.
             self.set_status(TestStatus.PASSED, f"{phase}warning: {exception}")
+        elif isinstance(exception, BadEnvironmentStateException):
+            # TODO : Recycle or delete environment
+            log.error("case failed with environment in bad state", exc_info=exception)
+            self.set_status(TestStatus.FAILED, f"{phase}{exception}")
         else:
             if self.runtime_data.ignore_failure:
                 log.info(f"case failed and ignored: {exception}")

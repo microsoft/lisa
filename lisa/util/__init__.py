@@ -88,6 +88,15 @@ class PassedException(Exception):
     ...
 
 
+class BadEnvironmentStateException(Exception):
+    """
+    A test might leave the environment in bad state after failing. Use this exception
+    to indicate the environment is in a bad state.
+    """
+
+    ...
+
+
 class ContextMixin:
     def get_context(self, context_type: Type[T]) -> T:
         if not hasattr(self, "_context"):
