@@ -387,6 +387,45 @@ class FeatureSettings(
         return FeatureSettings.create(self.type)
 
 
+class DiskType(str, Enum):
+    PremiumLRS = "PremiumLRS"
+    Ephemeral = "Ephemeral"
+    StandardHDDLRS = "StandardHDDLRS"
+    StandardSSDLRS = "StandardSSDLRS"
+
+
+def _decode_disk_type(data: Any) -> Any:
+    if isinstance(data, dict):
+        new_disk_type = search_space.SetSpace[DiskType](is_allow_set=True)
+        types = data.get("items", [])
+        for item in types:
+            new_disk_type.add(DiskType(item))
+        decoded_data: Optional[
+            Union[search_space.SetSpace[DiskType], DiskType]
+        ] = new_disk_type
+    elif isinstance(data, str):
+        decoded_data = DiskType(data)
+    else:
+        raise LisaException(f"unkonwn disk_type: {type(data)}")
+    return decoded_data
+
+
+@dataclass_json()
+@dataclass()
+class DiskOptionSettings(FeatureSettings):
+    type: str = constants.FEATURE_DISK
+    disk_type: Optional[Union[search_space.SetSpace[DiskType], DiskType]] = field(
+        default=DiskType.StandardHDDLRS,
+        metadata=metadata(decoder=_decode_disk_type),
+    )
+
+    def __hash__(self) -> int:
+        return super().__hash__()
+
+    def _get_key(self) -> str:
+        return f"{super()._get_key()}/{self.disk_type}"
+
+
 @dataclass_json()
 @dataclass()
 class FeaturesSpace(
@@ -424,10 +463,12 @@ class NodeSpace(search_space.RequirementMixin, TypedSchema, ExtendableSchemaMixi
         default=search_space.IntRange(min=512),
         metadata=metadata(decoder=search_space.decode_count_space),
     )
+
     data_disk_count: search_space.CountSpace = field(
         default=search_space.IntRange(min=0),
         metadata=metadata(decoder=search_space.decode_count_space),
     )
+    disk: Optional[DiskOptionSettings] = None
     data_disk_caching_type: str = field(
         default=constants.DATADISK_CACHING_TYPE_NONE,
         metadata=metadata(
@@ -484,6 +525,7 @@ class NodeSpace(search_space.RequirementMixin, TypedSchema, ExtendableSchemaMixi
             and self.node_count == o.node_count
             and self.core_count == o.core_count
             and self.memory_mb == o.memory_mb
+            and self.disk == o.disk
             and self.data_disk_count == o.data_disk_count
             and self.data_disk_caching_type == o.data_disk_caching_type
             and self.data_disk_iops == o.data_disk_iops
@@ -584,6 +626,8 @@ class NodeSpace(search_space.RequirementMixin, TypedSchema, ExtendableSchemaMixi
             search_space.check_countspace(self.memory_mb, capability.memory_mb),
             "memory_mb",
         )
+        if self.disk:
+            result.merge(self.disk.check(capability.disk))
         result.merge(
             search_space.check_countspace(
                 self.data_disk_count, capability.data_disk_count
@@ -676,6 +720,11 @@ class NodeSpace(search_space.RequirementMixin, TypedSchema, ExtendableSchemaMixi
             )
         else:
             raise LisaException("memory_mb cannot be zero")
+        if self.disk or capability.disk:
+            min_value.disk = search_space.generate_min_capability(
+                self.disk, capability.disk
+            )
+
         if self.data_disk_count or capability.data_disk_count:
             min_value.data_disk_count = search_space.generate_min_capability_countspace(
                 self.data_disk_count, capability.data_disk_count

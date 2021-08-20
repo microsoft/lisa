@@ -2,14 +2,15 @@
 # Licensed under the MIT license.
 
 
+from dataclasses import dataclass
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, List, Optional
+from typing import TYPE_CHECKING, Any, Dict, List, Optional, Type
 
 import requests
 from assertpy import assert_that
+from dataclasses_json import dataclass_json
 
-from lisa import features, schema
-from lisa.features.disks import DiskType
+from lisa import features, schema, search_space
 from lisa.features.gpu import ComputeSDK
 from lisa.node import Node
 from lisa.operating_system import CentOs, Redhat, Suse, Ubuntu
@@ -25,15 +26,6 @@ from .common import (
     get_node_context,
     wait_operation,
 )
-
-MUTUALLY_EXCLUSIVE_FEATURES: List[List[schema.FeatureSettings]] = [
-    [
-        schema.FeatureSettings.create(DiskType.DISK_EPHEMERAL),
-        schema.FeatureSettings.create(DiskType.DISK_PREMIUM),
-        schema.FeatureSettings.create(DiskType.DISK_STANDARD_HDD),
-        schema.FeatureSettings.create(DiskType.DISK_STANDARD_SSD),
-    ]
-]
 
 
 class AzureFeatureMixin:
@@ -203,41 +195,135 @@ class Nvme(AzureFeatureMixin, features.Nvme):
         self._initialize_information(self._node)
 
 
-class DiskEphemeral(AzureFeatureMixin, features.DiskEphemeral):
+# disk types are ordered by commonly and cost. The earlier is lower cost.
+_ordered_disk_types: List[schema.DiskType] = [
+    schema.DiskType.StandardHDDLRS,
+    schema.DiskType.StandardSSDLRS,
+    schema.DiskType.Ephemeral,
+    schema.DiskType.PremiumLRS,
+]
+
+
+@dataclass_json()
+@dataclass()
+class AzureDiskOptionSettings(schema.DiskOptionSettings):
+    def __hash__(self) -> int:
+        return super().__hash__()
+
+    # It uses to override requirement operations.
+    def check(self, capability: Any) -> search_space.ResultReason:
+        assert isinstance(
+            capability, AzureDiskOptionSettings
+        ), f"actual: {type(capability)}"
+        result = super().check(capability)
+
+        if self.disk_type is not None and (
+            capability is None or capability.disk_type is None
+        ):
+            result.add_reason("capability doesn't have disk_type.")
+
+        if self.disk_type:
+            has_meet_disk_type = False
+            if isinstance(self.disk_type, schema.DiskType):
+                req_disk_types = search_space.SetSpace[schema.DiskType](
+                    items=[self.disk_type]
+                )
+            else:
+                req_disk_types = self.disk_type
+            for req_disk_type in req_disk_types:
+                if isinstance(capability.disk_type, schema.DiskType):
+                    if req_disk_type == capability.disk_type:
+                        has_meet_disk_type = True
+                        break
+                else:
+                    assert isinstance(capability.disk_type, search_space.SetSpace)
+                    if req_disk_type in capability.disk_type:
+                        has_meet_disk_type = True
+                        break
+            if not has_meet_disk_type:
+                result.add_reason(
+                    f"no disk type supported in capability. "
+                    f"requirement: {self.disk_type}, "
+                    f"capability: {capability.disk_type}"
+                )
+
+        return result
+
+    def _generate_min_capability(self, capability: Any) -> Any:
+        assert isinstance(
+            capability, AzureDiskOptionSettings
+        ), f"actual: {type(capability)}"
+        assert (
+            capability.disk_type
+        ), "capability should have at least one disk type, but it's None"
+        cap_disk_type = capability.disk_type
+        if isinstance(cap_disk_type, search_space.SetSpace):
+            assert (
+                len(cap_disk_type) > 0
+            ), "capability should have at least one disk type, but it's empty"
+        elif isinstance(cap_disk_type, schema.DiskType):
+            cap_disk_type = search_space.SetSpace[schema.DiskType](
+                is_allow_set=True, items=[cap_disk_type]
+            )
+        else:
+            raise LisaException(
+                f"unknown disk type on capability, type: {cap_disk_type}"
+            )
+
+        # if there is no requirement, copy capability to get min one.
+        if self.disk_type is None:
+            req_disk_type = capability.disk_type
+        else:
+            req_disk_type = self.disk_type
+
+        # find the min disk type from the order by cost.
+        min_disk_type: Optional[schema.DiskType] = None
+        for expected_disk_type in _ordered_disk_types:
+            if (
+                expected_disk_type in req_disk_type
+                and expected_disk_type in capability.disk_type
+            ):
+                min_disk_type = expected_disk_type
+                break
+        assert min_disk_type, (
+            "Cannot find min capability on disk type, "
+            f"requirement: {self.disk_type}"
+            f"capability: {capability.disk_type}"
+        )
+        min_cap = AzureDiskOptionSettings(disk_type=min_disk_type)
+
+        return min_cap
+
+
+class Disk(AzureFeatureMixin, features.Disk):
+    """
+    This Disk feature is mainly to associate Azure disk options settings.
+    """
+
+    @classmethod
+    def settings_type(cls) -> Type[schema.FeatureSettings]:
+        return AzureDiskOptionSettings
+
     def _initialize(self, *args: Any, **kwargs: Any) -> None:
         super()._initialize(*args, **kwargs)
         self._initialize_information(self._node)
 
-    @staticmethod
-    def get_disk_id() -> str:
-        return "Ephemeral"
+
+__disk_type_mapping: Dict[schema.DiskType, str] = {
+    schema.DiskType.PremiumLRS: "Premium_LRS",
+    schema.DiskType.Ephemeral: "Ephemeral",
+    schema.DiskType.StandardHDDLRS: "Standard_LRS",
+    schema.DiskType.StandardSSDLRS: "StandardSSD_LRS",
+}
 
 
-class DiskPremiumLRS(AzureFeatureMixin, features.DiskPremiumLRS):
-    def _initialize(self, *args: Any, **kwargs: Any) -> None:
-        super()._initialize(*args, **kwargs)
-        self._initialize_information(self._node)
+def get_azure_disk_type(disk_type: schema.DiskType) -> str:
+    assert isinstance(disk_type, schema.DiskType), (
+        f"the disk_type must be one value when calling get_disk_type. "
+        f"But it's {disk_type}"
+    )
 
-    @staticmethod
-    def get_disk_id() -> str:
-        return "Premium_LRS"
+    result = __disk_type_mapping.get(disk_type, None)
+    assert result, f"unkonwn disk type: {disk_type}"
 
-
-class DiskStandardHDDLRS(AzureFeatureMixin, features.DiskStandardHDDLRS):
-    def _initialize(self, *args: Any, **kwargs: Any) -> None:
-        super()._initialize(*args, **kwargs)
-        self._initialize_information(self._node)
-
-    @staticmethod
-    def get_disk_id() -> str:
-        return "Standard_LRS"
-
-
-class DiskStandardSSDLRS(AzureFeatureMixin, features.DiskStandardSSDLRS):
-    def _initialize(self, *args: Any, **kwargs: Any) -> None:
-        super()._initialize(*args, **kwargs)
-        self._initialize_information(self._node)
-
-    @staticmethod
-    def get_disk_id() -> str:
-        return "StandardSSD_LRS"
+    return result

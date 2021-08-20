@@ -71,7 +71,8 @@ class Provisioning(TestSuite):
         priority=1,
         requirement=simple_requirement(
             environment_status=EnvironmentStatus.Deployed,
-            supported_features=[SerialConsole, DiskStandardSSDLRS],
+            disk=DiskStandardSSDLRS,
+            supported_features=[SerialConsole],
         ),
     )
     def verify_deployment_provision_standard_ssd_disk(
@@ -87,7 +88,8 @@ class Provisioning(TestSuite):
         priority=1,
         requirement=simple_requirement(
             environment_status=EnvironmentStatus.Deployed,
-            supported_features=[SerialConsole, DiskEphemeral],
+            disk=DiskEphemeral,
+            supported_features=[SerialConsole],
         ),
     )
     def verify_deployment_provision_ephemeral_managed_disk(
@@ -103,7 +105,8 @@ class Provisioning(TestSuite):
         priority=1,
         requirement=simple_requirement(
             environment_status=EnvironmentStatus.Deployed,
-            supported_features=[SerialConsole, DiskPremiumLRS],
+            disk=DiskPremiumLRS,
+            supported_features=[SerialConsole],
         ),
     )
     def verify_deployment_provision_premium_disk(

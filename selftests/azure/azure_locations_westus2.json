@@ -22,9 +22,21 @@
                 "features": {
                     "is_allow_set": true,
                     "items": [
-                        "StartStop",
-                        "SerialConsole",
-                        "DiskStandardHDDLRS"
+                        {
+                            "type": "StartStop"
+                        },
+                        {
+                            "type": "SerialConsole"
+                        },
+                        {
+                            "type": "Disk",
+                            "disk_type": {
+                                "is_allow_set": true,
+                                "items": [
+                                    "StandardHDDLRS"
+                                ]
+                            }
+                        }
                     ]
                 },
                 "excluded_features": {
@@ -142,7 +154,15 @@
                 "features": {
                     "is_allow_set": true,
                     "items": [
-                        "DiskStandardHDDLRS"
+                        {
+                            "type": "Disk",
+                            "disk_type": {
+                                "is_allow_set": true,
+                                "items": [
+                                    "StandardHDDLRS"
+                                ]
+                            }
+                        }
                     ]
                 },
                 "excluded_features": {
@@ -291,8 +311,18 @@
                 "features": {
                     "is_allow_set": true,
                     "items": [
-                        "StartStop",
-                        "DiskStandardHDDLRS"
+                        {
+                            "type": "StartStop"
+                        },
+                        {
+                            "type": "Disk",
+                            "disk_type": {
+                                "is_allow_set": true,
+                                "items": [
+                                    "StandardHDDLRS"
+                                ]
+                            }
+                        }
                     ]
                 },
                 "excluded_features": {
@@ -442,9 +472,21 @@
                 "features": {
                     "is_allow_set": true,
                     "items": [
-                        "StartStop",
-                        "SerialConsole",
-                        "DiskStandardHDDLRS"
+                        {
+                            "type": "StartStop"
+                        },
+                        {
+                            "type": "SerialConsole"
+                        },
+                        {
+                            "type": "Disk",
+                            "disk_type": {
+                                "is_allow_set": true,
+                                "items": [
+                                    "StandardHDDLRS"
+                                ]
+                            }
+                        }
                     ]
                 },
                 "excluded_features": {
@@ -590,9 +632,21 @@
                 "features": {
                     "is_allow_set": true,
                     "items": [
-                        "StartStop",
-                        "SerialConsole",
-                        "DiskStandardHDDLRS"
+                        {
+                            "type": "StartStop"
+                        },
+                        {
+                            "type": "SerialConsole"
+                        },
+                        {
+                            "type": "Disk",
+                            "disk_type": {
+                                "is_allow_set": true,
+                                "items": [
+                                    "StandardHDDLRS"
+                                ]
+                            }
+                        }
                     ]
                 },
                 "excluded_features": {
@@ -738,9 +792,21 @@
                 "features": {
                     "is_allow_set": true,
                     "items": [
-                        "StartStop",
-                        "SerialConsole",
-                        "DiskStandardHDDLRS"
+                        {
+                            "type": "StartStop"
+                        },
+                        {
+                            "type": "SerialConsole"
+                        },
+                        {
+                            "type": "Disk",
+                            "disk_type": {
+                                "is_allow_set": true,
+                                "items": [
+                                    "StandardHDDLRS"
+                                ]
+                            }
+                        }
                     ]
                 },
                 "excluded_features": {

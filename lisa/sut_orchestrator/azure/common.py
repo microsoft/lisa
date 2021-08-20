@@ -18,7 +18,6 @@ from marshmallow import validate
 
 from lisa import schema, search_space
 from lisa.environment import Environment
-from lisa.features import DiskType
 from lisa.node import Node
 from lisa.util import LisaException, constants
 from lisa.util.logger import Logger
@@ -105,10 +104,7 @@ class AzureNodeSchema:
     )
     data_disk_iops: int = 500
     data_disk_size: int = 32
-    disk_type: str = field(
-        default=DiskType.DISK_STANDARD_HDD,
-        metadata=schema.metadata(validate=validate.OneOf(DiskType.get_disk_types())),
-    )
+    disk_type: str = ""
 
     # for marketplace image, which need to accept terms
     purchase_plan: Optional[AzureVmPurchasePlanSchema] = None
@@ -386,16 +382,16 @@ def wait_copy_blob(
 
 
 def get_data_disk_size(
-    node_features: search_space.SetSpace[str], data_disk_iops: int
+    node_features: search_space.SetSpace[schema.DiskType], data_disk_iops: int
 ) -> int:
-    if DiskType.DISK_EPHEMERAL in node_features:
-        raise LisaException(f"{DiskType.DISK_EPHEMERAL} only can be OS disk type.")
-    elif DiskType.DISK_PREMIUM in node_features:
-        return DataDisk.get_size(DiskType.DISK_PREMIUM, data_disk_iops)
-    elif DiskType.DISK_STANDARD_HDD in node_features:
-        return DataDisk.get_size(DiskType.DISK_STANDARD_HDD, data_disk_iops)
-    elif DiskType.DISK_STANDARD_SSD in node_features:
-        return DataDisk.get_size(DiskType.DISK_STANDARD_SSD, data_disk_iops)
+    if schema.DiskType.Ephemeral in node_features:
+        raise LisaException(f"{schema.DiskType.Ephemeral} only can be OS disk type.")
+    elif schema.DiskType.PremiumLRS in node_features:
+        return DataDisk.get_size(schema.DiskType.PremiumLRS, data_disk_iops)
+    elif schema.DiskType.StandardHDDLRS in node_features:
+        return DataDisk.get_size(schema.DiskType.StandardHDDLRS, data_disk_iops)
+    elif schema.DiskType.StandardSSDLRS in node_features:
+        return DataDisk.get_size(schema.DiskType.StandardSSDLRS, data_disk_iops)
     else:
         raise LisaException("No data disk feature present.")
 
@@ -444,8 +440,8 @@ class DataDiskSchema:
 
 class DataDisk:
     # refer https://docs.microsoft.com/en-us/azure/virtual-machines/disks-types
-    IOPS_SIZE_DICT: Dict[str, Dict[int, int]] = {
-        DiskType.DISK_PREMIUM: {
+    IOPS_SIZE_DICT: Dict[schema.DiskType, Dict[int, int]] = {
+        schema.DiskType.PremiumLRS: {
             120: 4,
             240: 64,
             500: 128,
@@ -457,12 +453,12 @@ class DataDisk:
             18000: 16384,
             20000: 32767,
         },
-        DiskType.DISK_STANDARD_HDD: {
+        schema.DiskType.StandardHDDLRS: {
             500: 32,
             1300: 8192,
             2000: 16384,
         },
-        DiskType.DISK_STANDARD_SSD: {
+        schema.DiskType.StandardSSDLRS: {
             500: 4,
             2000: 8192,
             4000: 16384,
@@ -471,11 +467,11 @@ class DataDisk:
     }
 
     @staticmethod
-    def get_size(disk_type: str, data_disk_iops: int = 1) -> int:
+    def get_size(disk_type: schema.DiskType, data_disk_iops: int = 1) -> int:
         if disk_type in [
-            DiskType.DISK_PREMIUM,
-            DiskType.DISK_STANDARD_HDD,
-            DiskType.DISK_STANDARD_SSD,
+            schema.DiskType.PremiumLRS,
+            schema.DiskType.StandardHDDLRS,
+            schema.DiskType.StandardSSDLRS,
         ]:
             iops_dict = DataDisk.IOPS_SIZE_DICT[disk_type]
             iops = [key for key in iops_dict.keys() if key >= data_disk_iops]

@@ -40,6 +40,9 @@ NORMALIZE_PATTERN = re.compile(r"[^\w\d]")
 # default values
 DEFAULT_USER_NAME = "lisatest"
 
+# feature names
+FEATURE_DISK = "Disk"
+
 # list types
 LIST = "list"
 LIST_CASE = "case"
