@@ -1,7 +1,6 @@
 # Copyright (c) Microsoft Corporation.
 # Licensed under the MIT license.
 
-from abc import abstractmethod
 from typing import TYPE_CHECKING, Any, Dict, Optional, Type, TypeVar, cast
 
 from lisa.util import InitializableMixin, LisaException
@@ -20,16 +19,13 @@ class Feature(InitializableMixin):
         self._log = get_logger("feature", self.name(), self._node.log)
 
     @classmethod
-    @abstractmethod
     def name(cls) -> str:
         raise NotImplementedError()
 
     @classmethod
-    @abstractmethod
     def can_disable(cls) -> bool:
         raise NotImplementedError()
 
-    @abstractmethod
     def enabled(self) -> bool:
         raise NotImplementedError()
 
