@@ -61,6 +61,12 @@
             "metadata": {
                 "description": "properties of availability set"
             }
+        },
+        "data_disks": {
+            "type": "array",
+            "metadata": {
+                "description": "data disk array."
+            }
         }
     },
     "variables": {
@@ -70,7 +76,23 @@
         "vnet_id": "[resourceId('Microsoft.Network/virtualNetworks/', variables('virtual_network_name'))]",
         "node_count": "[length(parameters('nodes'))]",
         "availability_set_name": "lisa-availabilitySet",
-        "default_subnetId": "[concat(variables('vnet_id'),'/subnets/', variables('default_subnet'))]"
+        "default_subnetId": "[concat(variables('vnet_id'),'/subnets/', variables('default_subnet'))]",
+        "copy": [
+            {
+                "name": "data_disks",
+                "count": "[length(parameters('data_disks'))]",
+                "input": {
+                    "name": "[concat('lisa-data-disks', copyIndex('data_disks'))]",
+                    "createOption": "[parameters('data_disks')[copyIndex('data_disks')].create_option]",
+                    "caching": "[parameters('data_disks')[copyIndex('data_disks')].caching_type]",
+                    "diskSizeGB": "[parameters('data_disks')[copyIndex('data_disks')].size]",
+                    "lun": "[copyIndex('data_disks')]",
+                    "managedDisk": {
+                        "storageAccountType": "[parameters('data_disks')[copyIndex('data_disks')].type]"
+                    }
+                }
+            }
+        ]
     },
     "resources": [
         {
@@ -286,22 +308,7 @@
                         "caching": "[if(equals(parameters('nodes')[copyIndex('vmCopy')]['disk_id'], 'Ephemeral'), 'ReadOnly', 'ReadWrite')]",
                         "createOption": "FromImage"
                     },
-                    "copy": [
-                        {
-                            "name": "dataDisks",
-                            "count": "[parameters('nodes')[copyIndex('vmCopy')]['data_disk_count']]",
-                            "input": {
-                                "lun": "[copyIndex('dataDisks')]",
-                                "name": "[concat(parameters('nodes')[copyIndex('vmCopy')]['name'], '-dataDisks', copyIndex('dataDisks'))]",
-                                "createOption": "Empty",
-                                "diskSizeGB": "[parameters('nodes')[copyIndex('vmCopy')]['data_disk_size']]",
-                                "caching": "[parameters('nodes')[copyIndex('vmCopy')]['data_disk_caching_type']]",
-                                "managedDisk": {
-                                    "storageAccountType": "[parameters('nodes')[copyIndex('vmCopy')]['disk_id']]"
-                                }
-                            }
-                        }
-                    ]
+                    "dataDisks": "[variables('data_disks')]"
                 },
                 "networkProfile": {
                     "copy": [

@@ -4,7 +4,7 @@
 import re
 from dataclasses import InitVar, dataclass, field
 from time import sleep
-from typing import TYPE_CHECKING, Any, Dict, Optional, Union
+from typing import TYPE_CHECKING, Any, Dict, List, Optional, Union
 
 from azure.identity import DefaultAzureCredential
 from azure.mgmt.compute import ComputeManagementClient  # type: ignore
@@ -398,6 +398,48 @@ def get_data_disk_size(
         return DataDisk.get_size(DiskType.DISK_STANDARD_SSD, data_disk_iops)
     else:
         raise LisaException("No data disk feature present.")
+
+
+class DataDiskCreateOption:
+    DATADISK_CREATE_OPTION_TYPE_EMPTY: str = "Empty"
+    DATADISK_CREATE_OPTION_TYPE_FROM_IMAGE: str = "FromImage"
+    DATADISK_CREATE_OPTION_TYPE_ATTACH: str = "Attach"
+
+    @staticmethod
+    def get_create_option() -> List[str]:
+        return [
+            DataDiskCreateOption.DATADISK_CREATE_OPTION_TYPE_EMPTY,
+            DataDiskCreateOption.DATADISK_CREATE_OPTION_TYPE_FROM_IMAGE,
+            DataDiskCreateOption.DATADISK_CREATE_OPTION_TYPE_ATTACH,
+        ]
+
+
+@dataclass_json()
+@dataclass
+class DataDiskSchema:
+    caching_type: str = field(
+        default=constants.DATADISK_CACHING_TYPE_NONE,
+        metadata=schema.metadata(
+            validate=validate.OneOf(
+                [
+                    constants.DATADISK_CACHING_TYPE_NONE,
+                    constants.DATADISK_CACHING_TYPE_READONLY,
+                    constants.DATADISK_CACHING_TYPE_READYWRITE,
+                ]
+            )
+        ),
+    )
+    size: int = 32
+    type: str = field(
+        default=DiskType.DISK_STANDARD_HDD,
+        metadata=schema.metadata(validate=validate.OneOf(DiskType.get_disk_types())),
+    )
+    create_option: str = field(
+        default=DataDiskCreateOption.DATADISK_CREATE_OPTION_TYPE_EMPTY,
+        metadata=schema.metadata(
+            validate=validate.OneOf(DataDiskCreateOption.get_create_option())
+        ),
+    )
 
 
 class DataDisk:
