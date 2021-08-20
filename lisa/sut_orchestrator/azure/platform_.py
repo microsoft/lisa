@@ -22,6 +22,7 @@ from azure.mgmt.compute.models import (  # type: ignore
     PurchasePlan,
     ResourceSku,
     VirtualMachine,
+    VirtualMachineImage,
 )
 from azure.mgmt.marketplaceordering.models import AgreementTerms  # type: ignore
 from azure.mgmt.network.models import NetworkInterface, PublicIPAddress  # type: ignore
@@ -66,6 +67,8 @@ from .common import (
     AzureNodeSchema,
     AzureVmMarketplaceSchema,
     AzureVmPurchasePlanSchema,
+    DataDiskCreateOption,
+    DataDiskSchema,
     check_or_create_storage_account,
     get_compute_client,
     get_data_disk_size,
@@ -187,6 +190,7 @@ class AzureArmParameter:
     availability_set_properties: Dict[str, Any] = field(default_factory=dict)
     enable_sriov: Optional[bool] = None
     nodes: List[AzureNodeSchema] = field(default_factory=list)
+    data_disks: List[DataDiskSchema] = field(default_factory=list)
 
     def __post_init__(self, *args: Any, **kwargs: Any) -> None:
         add_secret(self.admin_username, PATTERN_HEADTAIL)
@@ -387,6 +391,7 @@ class AzurePlatform(Platform):
                         min_runbook.vm_size = matched_cap.vm_size
                         assert isinstance(min_cap.nic_count, int)
                         min_runbook.nic_count = min_cap.nic_count
+
                         assert isinstance(min_cap.data_disk_count, int)
                         min_runbook.data_disk_count = min_cap.data_disk_count
                         assert isinstance(min_cap.data_disk_caching_type, str)
@@ -453,16 +458,6 @@ class AzurePlatform(Platform):
                                 min_cap.nic_count, int
                             ), f"actual: {min_cap.nic_count}"
                             node_runbook.nic_count = min_cap.nic_count
-                            assert isinstance(
-                                min_cap.data_disk_count, int
-                            ), f"actual: {min_cap.data_disk_count}"
-                            node_runbook.data_disk_count = min_cap.data_disk_count
-                            assert isinstance(
-                                min_cap.data_disk_caching_type, str
-                            ), f"actual: {min_cap.data_disk_caching_type}"
-                            node_runbook.data_disk_caching_type = (
-                                min_cap.data_disk_caching_type
-                            )
 
                             estimated_cost += azure_cap.estimated_cost
 
@@ -939,6 +934,11 @@ class AzurePlatform(Platform):
             node.capability.set_extended_runbook(azure_node_runbook)
             nodes_parameters.append(azure_node_runbook)
 
+            # Set data disk array
+            arm_parameters.data_disks = self._generate_data_disks(
+                node, azure_node_runbook
+            )
+
             if not arm_parameters.location:
                 # take first one's location
                 arm_parameters.location = azure_node_runbook.location
@@ -1368,14 +1368,7 @@ class AzurePlatform(Platform):
         1. Get image_info to check if there is a plan.
         2. If there is a plan, it may need to check and accept terms.
         """
-        compute_client = get_compute_client(self)
-        image_info = compute_client.virtual_machine_images.get(
-            location=location,
-            publisher_name=marketplace.publisher,
-            offer=marketplace.offer,
-            skus=marketplace.sku,
-            version=marketplace.version,
-        )
+        image_info = self._get_image_info(location, marketplace)
         plan: Optional[AzureVmPurchasePlanSchema] = None
         if image_info.plan:
             # if there is a plan, it may need to accept term.
@@ -1502,6 +1495,46 @@ class AzurePlatform(Platform):
         min_cap: schema.NodeSpace = req_cap.generate_min_capability(azure_cap_copy)
         return min_cap
 
+    def _generate_data_disks(
+        self,
+        node: Node,
+        azure_node_runbook: AzureNodeSchema,
+    ) -> List[DataDiskSchema]:
+        data_disks: List[DataDiskSchema] = []
+        if azure_node_runbook.marketplace:
+            marketplace = self._get_image_info(
+                azure_node_runbook.location, azure_node_runbook.marketplace
+            )
+            # some images has data disks by default
+            # e.g. microsoft-ads linux-data-science-vm linuxdsvm 21.05.27
+            # we have to inject below part when dataDisks section added in
+            #  arm template,
+            # otherwise will see below exception:
+            # deployment failed: InvalidParameter: StorageProfile.dataDisks.lun
+            #  does not have required value(s) for image specified in
+            #  storage profile.
+            for default_data_disk in marketplace.data_disk_images:
+                data_disks.append(
+                    DataDiskSchema(
+                        node.capability.data_disk_caching_type,
+                        default_data_disk.additional_properties["sizeInGb"],
+                        azure_node_runbook.disk_id,
+                        DataDiskCreateOption.DATADISK_CREATE_OPTION_TYPE_FROM_IMAGE,
+                    )
+                )
+        assert isinstance(node.capability.data_disk_count, int)
+        for _disk_index in range(node.capability.data_disk_count):
+            assert isinstance(node.capability.data_disk_size, int)
+            data_disks.append(
+                DataDiskSchema(
+                    node.capability.data_disk_caching_type,
+                    node.capability.data_disk_size,
+                    azure_node_runbook.disk_id,
+                    DataDiskCreateOption.DATADISK_CREATE_OPTION_TYPE_EMPTY,
+                )
+            )
+        return data_disks
+
     @staticmethod
     def _get_disk_feature_count(
         node_features: Optional[search_space.SetSpace[str]],
@@ -1539,3 +1572,17 @@ class AzurePlatform(Platform):
             return features.DiskStandardSSDLRS.get_disk_id()
         else:
             raise LisaException("No disk feature present.")
+
+    def _get_image_info(
+        self, location: str, marketplace: Optional[AzureVmMarketplaceSchema]
+    ) -> VirtualMachineImage:
+        compute_client = get_compute_client(self)
+        assert isinstance(marketplace, AzureVmMarketplaceSchema)
+        image_info = compute_client.virtual_machine_images.get(
+            location=location,
+            publisher_name=marketplace.publisher,
+            offer=marketplace.offer,
+            skus=marketplace.sku,
+            version=marketplace.version,
+        )
+        return image_info
