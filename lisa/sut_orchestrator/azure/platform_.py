@@ -895,7 +895,9 @@ class AzurePlatform(Platform):
                 )
 
             # Set disk type
-            azure_node_runbook.disk_id = AzurePlatform._get_disk_id(node_space.features)
+            azure_node_runbook.disk_type = AzurePlatform._get_disk_id(
+                node_space.features
+            )
 
             # save parsed runbook back, for example, the version of marketplace may be
             # parsed from latest to a specified version.
@@ -1570,7 +1572,7 @@ class AzurePlatform(Platform):
                     DataDiskSchema(
                         node.capability.data_disk_caching_type,
                         default_data_disk.additional_properties["sizeInGb"],
-                        azure_node_runbook.disk_id,
+                        azure_node_runbook.disk_type,
                         DataDiskCreateOption.DATADISK_CREATE_OPTION_TYPE_FROM_IMAGE,
                     )
                 )
@@ -1581,7 +1583,7 @@ class AzurePlatform(Platform):
                 DataDiskSchema(
                     node.capability.data_disk_caching_type,
                     node.capability.data_disk_size,
-                    azure_node_runbook.disk_id,
+                    azure_node_runbook.disk_type,
                     DataDiskCreateOption.DATADISK_CREATE_OPTION_TYPE_EMPTY,
                 )
             )
