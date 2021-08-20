@@ -2,11 +2,11 @@
 # Licensed under the MIT license.
 
 from .disks import (
+    Disk,
     DiskEphemeral,
     DiskPremiumLRS,
     DiskStandardHDDLRS,
     DiskStandardSSDLRS,
-    DiskType,
 )
 from .gpu import Gpu
 from .nvme import Nvme
@@ -15,11 +15,11 @@ from .sriov import Sriov
 from .startstop import StartStop
 
 __all__ = [
+    "Disk",
     "DiskEphemeral",
     "DiskPremiumLRS",
     "DiskStandardHDDLRS",
     "DiskStandardSSDLRS",
-    "DiskType",
     "Gpu",
     "Nvme",
     "SerialConsole",

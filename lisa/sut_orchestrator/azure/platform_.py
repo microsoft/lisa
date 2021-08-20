@@ -39,10 +39,8 @@ from dataclasses_json import dataclass_json
 from marshmallow import fields, validate
 from retry import retry
 
-from lisa import schema, search_space
+from lisa import feature, schema, search_space
 from lisa.environment import Environment
-from lisa.feature import Feature
-from lisa.features import DiskType
 from lisa.node import Node, RemoteNode
 from lisa.platform_ import Platform
 from lisa.secret import PATTERN_GUID, PATTERN_HEADTAIL, add_secret
@@ -158,6 +156,10 @@ class AzureCapability:
     capability: schema.NodeSpace
     estimated_cost: int
     resource_sku: Dict[str, Any]
+
+    def __post_init__(self, *args: Any, **kwargs: Any) -> None:
+        # reload features settings with platform specified types.
+        _convert_to_azure_node_space(self.capability)
 
 
 @dataclass_json()
@@ -282,12 +284,10 @@ class AzurePlatform(Platform):
         return AZURE
 
     @classmethod
-    def supported_features(cls) -> List[Type[Feature]]:
+    def supported_features(cls) -> List[Type[feature.Feature]]:
         return [
+            features.Disk,
             features.Gpu,
-            features.DiskEphemeral,
-            features.DiskPremiumLRS,
-            features.DiskStandardHDDLRS,
             features.Nvme,
             features.SerialConsole,
             features.Sriov,
@@ -323,8 +323,11 @@ class AzurePlatform(Platform):
             existing_location: str = ""
             predefined_cost: int = 0
 
-            # check locations
             for req in nodes_requirement:
+                # covert to azure node space, so the azure extensions can be loaded.
+                _convert_to_azure_node_space(req)
+
+                # check locations
                 # apply azure specified values
                 # they will pass into arm template
                 node_runbook: AzureNodeSchema = req.get_extended_runbook(
@@ -853,7 +856,6 @@ class AzurePlatform(Platform):
             assert isinstance(
                 node_space, schema.NodeSpace
             ), f"actual: {type(node_space)}"
-            assert node_space.features, "No disk feature present."
 
             azure_node_runbook = node_space.get_extended_runbook(
                 AzureNodeSchema, type_name=AZURE
@@ -861,50 +863,15 @@ class AzurePlatform(Platform):
             # Subscription Id is used by Shared Gallery images located
             # in subscription different from where LISA is run
             azure_node_runbook.subscription_id = self.subscription_id
-
             # init node
             node = environment.create_node_from_requirement(
                 node_space,
             )
-            if not azure_node_runbook.name:
-                azure_node_runbook.name = f"node-{len(nodes_parameters)}"
-            if not azure_node_runbook.vm_size:
-                raise LisaException("vm_size is not detected before deploy")
-            if not azure_node_runbook.location:
-                raise LisaException("location is not detected before deploy")
-            if azure_node_runbook.nic_count <= 0:
-                raise LisaException(
-                    f"nic_count need at least 1, but {azure_node_runbook.nic_count}"
-                )
-            if azure_node_runbook.vhd:
-                # vhd is higher priority
-                azure_node_runbook.vhd = self._get_deployable_vhd_path(
-                    azure_node_runbook.vhd, azure_node_runbook.location, log
-                )
-                azure_node_runbook.marketplace = None
-                azure_node_runbook.shared_gallery = None
-            elif azure_node_runbook.shared_gallery:
-                azure_node_runbook.marketplace = None
-            elif azure_node_runbook.marketplace:
-                # marketplace value is already set in runbook
-                pass
-            else:
-                # set to default marketplace, if nothing specified
-                azure_node_runbook.marketplace = AzureVmMarketplaceSchema()
-
-            if azure_node_runbook.marketplace:
-                # resolve Latest to specified version
-                azure_node_runbook.marketplace = self._parse_marketplace_image(
-                    azure_node_runbook.location, azure_node_runbook.marketplace
-                )
-            if azure_node_runbook.marketplace and not azure_node_runbook.purchase_plan:
-                azure_node_runbook.purchase_plan = self._process_marketplace_image_plan(
-                    azure_node_runbook.location, azure_node_runbook.marketplace
-                )
-
-            # Set disk type
-            azure_node_runbook.disk_type = AzurePlatform._get_disk_id(node_space)
-
+            azure_node_runbook = self._create_node_runbook(
+                len(nodes_parameters),
+                node_space,
+                log,
+            )
             # save parsed runbook back, for example, the version of marketplace may be
             # parsed from latest to a specified version.
             node.capability.set_extended_runbook(azure_node_runbook)
@@ -975,6 +942,61 @@ class AzurePlatform(Platform):
                 "parameters": Deployment(properties=deployment_properties),
             },
         )
+
+    def _create_node_runbook(
+        self,
+        index: int,
+        node_space: schema.NodeSpace,
+        log: Logger,
+    ) -> AzureNodeSchema:
+        azure_node_runbook = node_space.get_extended_runbook(
+            AzureNodeSchema, type_name=AZURE
+        )
+
+        if not azure_node_runbook.name:
+            azure_node_runbook.name = f"node-{index}"
+        if not azure_node_runbook.vm_size:
+            raise LisaException("vm_size is not detected before deploy")
+        if not azure_node_runbook.location:
+            raise LisaException("location is not detected before deploy")
+        if azure_node_runbook.nic_count <= 0:
+            raise LisaException(
+                f"nic_count need at least 1, but {azure_node_runbook.nic_count}"
+            )
+        if azure_node_runbook.vhd:
+            # vhd is higher priority
+            azure_node_runbook.vhd = self._get_deployable_vhd_path(
+                azure_node_runbook.vhd, azure_node_runbook.location, log
+            )
+            azure_node_runbook.marketplace = None
+            azure_node_runbook.shared_gallery = None
+        elif azure_node_runbook.shared_gallery:
+            azure_node_runbook.marketplace = None
+        elif azure_node_runbook.marketplace:
+            # marketplace value is already set in runbook
+            pass
+        else:
+            # set to default marketplace, if nothing specified
+            azure_node_runbook.marketplace = AzureVmMarketplaceSchema()
+
+        if azure_node_runbook.marketplace:
+            # resolve Latest to specified version
+            azure_node_runbook.marketplace = self._parse_marketplace_image(
+                azure_node_runbook.location, azure_node_runbook.marketplace
+            )
+        if azure_node_runbook.marketplace and not azure_node_runbook.purchase_plan:
+            azure_node_runbook.purchase_plan = self._process_marketplace_image_plan(
+                azure_node_runbook.location, azure_node_runbook.marketplace
+            )
+
+        # Set disk type
+        assert node_space.disk, "node space must have disk defined."
+        assert isinstance(node_space.disk.disk_type, schema.DiskType)
+        azure_node_runbook.disk_type = features.get_azure_disk_type(
+            node_space.disk.disk_type
+        )
+
+        return azure_node_runbook
 
     def _validate_template(
         self, deployment_parameters: Dict[str, Any], log: Logger
@@ -1235,6 +1257,10 @@ class AzurePlatform(Platform):
         node_space.features = search_space.SetSpace[schema.FeatureSettings](
             is_allow_set=True
         )
+        node_space.disk = features.AzureDiskOptionSettings()
+        node_space.disk.disk_type = search_space.SetSpace[schema.DiskType](
+            is_allow_set=True, items=[]
+        )
         for sku_capability in resource_sku.capabilities:
             if resource_sku.family in ["standardLSv2Family"]:
                 node_space.features.add(
@@ -1273,14 +1299,10 @@ class AzurePlatform(Platform):
                     )
             elif name == "PremiumIO":
                 if eval(sku_capability.value) is True:
-                    node_space.features.add(
-                        schema.FeatureSettings.create(features.DiskPremiumLRS.name())
-                    )
+                    node_space.disk.disk_type.add(schema.DiskType.PremiumLRS)
             elif name == "EphemeralOSDiskSupported":
                 if eval(sku_capability.value) is True:
-                    node_space.features.add(
-                        schema.FeatureSettings.create(features.DiskEphemeral.name())
-                    )
+                    node_space.disk.disk_type.add(schema.DiskType.Ephemeral)
 
         # set a min value for nic_count work around for an azure python sdk bug
         # nic_count is 0 when get capability for some sizes e.g. Standard_D8a_v3
@@ -1292,10 +1314,10 @@ class AzurePlatform(Platform):
             [
                 schema.FeatureSettings.create(features.StartStop.name()),
                 schema.FeatureSettings.create(features.SerialConsole.name()),
-                schema.FeatureSettings.create(features.DiskStandardHDDLRS.name()),
-                schema.FeatureSettings.create(features.DiskStandardSSDLRS.name()),
             ]
         )
+        node_space.disk.disk_type.add(schema.DiskType.StandardHDDLRS)
+        node_space.disk.disk_type.add(schema.DiskType.StandardSSDLRS)
 
         return node_space
 
@@ -1522,44 +1544,17 @@ class AzurePlatform(Platform):
     def _node_generate_min_capability(
         self, req_cap: schema.NodeSpace, azure_cap: schema.NodeSpace
     ) -> schema.NodeSpace:
-        assert azure_cap.features, "Azure: node has no feature found."
-        assert (
-            AzurePlatform._get_disk_feature_count(req_cap) <= 1
-        ), "Multiple disk feature found in node requirement."
-
-        if (
-            req_cap.features is None
-            or AzurePlatform._get_disk_feature_count(req_cap) == 0
-        ):
-            # If no disk type feature is specified, use least
-            # cost available disk from azure_cap
-            min_cost_disk = AzurePlatform._get_min_cost_disk(azure_cap)
-        else:
-            min_cost_disk = AzurePlatform._get_min_cost_disk(req_cap)
-
-        # Remove features which are mutually exclusive to `min_cost_disk`
-        # For Example : If `min_cost_disk` is set as `DiskStandardHDDLRS`, then
-        # `DiskStandardSSDLRS`, `DiskPremiumLRS` and `DiskEphemeral` will be
-        # removed from azure_cap_copy.features
-        azure_cap_copy = copy.deepcopy(azure_cap)
-        assert (
-            azure_cap_copy.features is not None
-        ), "Azure node copy has no disk features."
-        azure_cap_copy.features.update(copy.deepcopy(azure_cap.features.items))
-        for me_feature_group in features.MUTUALLY_EXCLUSIVE_FEATURES:
-            if min_cost_disk in me_feature_group:
-                features_to_remove = set(me_feature_group)
-                features_to_remove.discard(min_cost_disk)
-                azure_cap_copy.features.difference_update(features_to_remove)
-
         assert isinstance(req_cap.data_disk_count, search_space.IntRange)
+        assert azure_cap.features
         if req_cap.data_disk_count.min > 0:
             assert isinstance(req_cap.data_disk_iops, search_space.IntRange)
+            assert azure_cap.disk
+            assert isinstance(azure_cap.disk.disk_type, search_space.SetSpace)
             req_cap.data_disk_size = get_data_disk_size(
-                azure_cap_copy.features, req_cap.data_disk_iops.min
+                azure_cap.disk.disk_type, req_cap.data_disk_iops.min
             )
         # Generate min capability node
-        min_cap: schema.NodeSpace = req_cap.generate_min_capability(azure_cap_copy)
+        min_cap: schema.NodeSpace = req_cap.generate_min_capability(azure_cap)
         return min_cap
 
     def _generate_data_disks(
@@ -1590,7 +1585,7 @@ class AzurePlatform(Platform):
                     )
                 )
         assert isinstance(node.capability.data_disk_count, int)
-        for _disk_index in range(node.capability.data_disk_count):
+        for _ in range(node.capability.data_disk_count):
             assert isinstance(node.capability.data_disk_size, int)
             data_disks.append(
                 DataDiskSchema(
@@ -1601,47 +1596,6 @@ class AzurePlatform(Platform):
                 )
             )
         return data_disks
-
-    @staticmethod
-    def _get_disk_feature_count(
-        node_capability: schema.NodeSpace,
-    ) -> int:
-        # Ensure that node_features contains either no disk type
-        # or only one of DiskEphemeral, DiskPremiumLRS, DiskStandardHDDLRS
-        # or DiskStandardSSDLRS
-        if not node_capability.features:
-            return 0
-        count_disk_features = 0
-        for disk_feature_type in DiskType.get_disk_types():
-            if node_capability.has_feature(disk_feature_type):
-                count_disk_features += 1
-        return count_disk_features
-
-    @staticmethod
-    def _get_min_cost_disk(node_capability: schema.NodeSpace) -> schema.FeatureSettings:
-        if node_capability.has_feature(DiskType.DISK_STANDARD_HDD):
-            return schema.FeatureSettings.create(DiskType.DISK_STANDARD_HDD)
-        elif node_capability.has_feature(DiskType.DISK_STANDARD_SSD):
-            return schema.FeatureSettings.create(DiskType.DISK_STANDARD_SSD)
-        elif node_capability.has_feature(DiskType.DISK_EPHEMERAL):
-            return schema.FeatureSettings.create(DiskType.DISK_EPHEMERAL)
-        elif node_capability.has_feature(DiskType.DISK_PREMIUM):
-            return schema.FeatureSettings.create(DiskType.DISK_PREMIUM)
-        else:
-            raise LisaException("No disk feature present.")
-
-    @staticmethod
-    def _get_disk_id(node_capability: schema.NodeSpace) -> str:
-        if node_capability.has_feature(DiskType.DISK_EPHEMERAL):
-            return features.DiskEphemeral.get_disk_id()
-        elif node_capability.has_feature(DiskType.DISK_PREMIUM):
-            return features.DiskPremiumLRS.get_disk_id()
-        elif node_capability.has_feature(DiskType.DISK_STANDARD_HDD):
-            return features.DiskStandardHDDLRS.get_disk_id()
-        elif node_capability.has_feature(DiskType.DISK_STANDARD_SSD):
-            return features.DiskStandardSSDLRS.get_disk_id()
-        else:
-            raise LisaException("No disk feature present.")
 
     def _get_image_info(
         self, location: str, marketplace: Optional[AzureVmMarketplaceSchema]
@@ -1656,3 +1610,22 @@ class AzurePlatform(Platform):
             version=marketplace.version,
         )
         return image_info
+
+
+def _convert_to_azure_node_space(node_space: schema.NodeSpace) -> None:
+    if node_space:
+        if node_space.features:
+            new_settings = search_space.SetSpace[schema.FeatureSettings](
+                is_allow_set=True
+            )
+            for current_settings in node_space.features:
+                # reload to type specified settings
+                settings_type = feature.get_feature_settings_type_by_name(
+                    current_settings.type, AzurePlatform.supported_features()
+                )
+                new_settings.add(schema.load_by_type(settings_type, current_settings))
+            node_space.features = new_settings
+        if node_space.disk:
+            node_space.disk = schema.load_by_type(
+                features.AzureDiskOptionSettings, node_space.disk
+            )

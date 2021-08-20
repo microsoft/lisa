@@ -14,7 +14,7 @@ from typing import (
 )
 
 from lisa import schema
-from lisa.util import InitializableMixin, LisaException
+from lisa.util import InitializableMixin, LisaException, constants
 from lisa.util.logger import get_logger
 
 if TYPE_CHECKING:
@@ -84,6 +84,8 @@ class Features:
         if node.capability.features:
             for feature_settings in node.capability.features:
                 self._feature_settings[feature_settings.type] = feature_settings
+        if node.capability.disk:
+            self._feature_settings[constants.FEATURE_DISK] = node.capability.disk
 
     def __getitem__(self, feature_type: Type[T_FEATURE]) -> T_FEATURE:
         feature_name = feature_type.name()
