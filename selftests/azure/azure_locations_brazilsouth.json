@@ -12,10 +12,29 @@
                 "node_count": 1,
                 "core_count": 208,
                 "memory_mb": 5836800,
-                "data_disk_count": {
-                    "min": 0,
-                    "max": 64,
-                    "max_inclusive": true
+                "disk": {
+                    "type": "Disk",
+                    "data_disk_count": {
+                        "min": 0,
+                        "max": 64,
+                        "max_inclusive": true
+                    },
+                    "disk_type": {
+                        "is_allow_set": true,
+                        "items": [
+                            "StandardHDDLRS"
+                        ]
+                    },
+                    "data_disk_iops": {
+                        "min": 1,
+                        "max": 9223372036854775807,
+                        "max_inclusive": true
+                    },
+                    "data_disk_size": {
+                        "min": 1,
+                        "max": 9223372036854775807,
+                        "max_inclusive": true
+                    }
                 },
                 "nic_count": {
                     "min": 0,
@@ -25,17 +44,7 @@
                 "gpu_count": 0,
                 "features": {
                     "is_allow_set": true,
-                    "items": [
-                        {
-                            "type": "Disk",
-                            "disk_type": {
-                                "is_allow_set": true,
-                                "items": [
-                                    "StandardHDDLRS"
-                                ]
-                            }
-                        }
-                    ]
+                    "items": []
                 },
                 "excluded_features": {
                     "is_allow_set": false
@@ -161,10 +170,29 @@
                 "node_count": 1,
                 "core_count": 1,
                 "memory_mb": 3584,
-                "data_disk_count": {
-                    "min": 0,
-                    "max": 4,
-                    "max_inclusive": true
+                "disk": {
+                    "type": "Disk",
+                    "data_disk_count": {
+                        "min": 0,
+                        "max": 4,
+                        "max_inclusive": true
+                    },
+                    "disk_type": {
+                        "is_allow_set": true,
+                        "items": [
+                            "StandardHDDLRS"
+                        ]
+                    },
+                    "data_disk_iops": {
+                        "min": 1,
+                        "max": 9223372036854775807,
+                        "max_inclusive": true
+                    },
+                    "data_disk_size": {
+                        "min": 1,
+                        "max": 9223372036854775807,
+                        "max_inclusive": true
+                    }
                 },
                 "nic_count": {
                     "min": 0,
@@ -174,17 +202,7 @@
                 "gpu_count": 0,
                 "features": {
                     "is_allow_set": true,
-                    "items": [
-                        {
-                            "type": "Disk",
-                            "disk_type": {
-                                "is_allow_set": true,
-                                "items": [
-                                    "StandardHDDLRS"
-                                ]
-                            }
-                        }
-                    ]
+                    "items": []
                 },
                 "excluded_features": {
                     "is_allow_set": false
@@ -318,10 +336,29 @@
                 "node_count": 1,
                 "core_count": 2,
                 "memory_mb": 7168,
-                "data_disk_count": {
-                    "min": 0,
-                    "max": 8,
-                    "max_inclusive": true
+                "disk": {
+                    "type": "Disk",
+                    "data_disk_count": {
+                        "min": 0,
+                        "max": 8,
+                        "max_inclusive": true
+                    },
+                    "disk_type": {
+                        "is_allow_set": true,
+                        "items": [
+                            "StandardHDDLRS"
+                        ]
+                    },
+                    "data_disk_iops": {
+                        "min": 1,
+                        "max": 9223372036854775807,
+                        "max_inclusive": true
+                    },
+                    "data_disk_size": {
+                        "min": 1,
+                        "max": 9223372036854775807,
+                        "max_inclusive": true
+                    }
                 },
                 "nic_count": {
                     "min": 0,
@@ -334,15 +371,6 @@
                     "items": [
                         {
                             "type": "StartStop"
-                        },
-                        {
-                            "type": "Disk",
-                            "disk_type": {
-                                "is_allow_set": true,
-                                "items": [
-                                    "StandardHDDLRS"
-                                ]
-                            }
                         }
                     ]
                 },

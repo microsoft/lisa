@@ -420,12 +420,89 @@ class DiskOptionSettings(FeatureSettings):
         default=DiskType.StandardHDDLRS,
         metadata=metadata(decoder=_decode_disk_type),
     )
+    data_disk_count: search_space.CountSpace = field(
+        default=search_space.IntRange(min=0),
+        metadata=metadata(decoder=search_space.decode_count_space),
+    )
+    data_disk_caching_type: str = field(
+        default=constants.DATADISK_CACHING_TYPE_NONE,
+        metadata=metadata(
+            validate=validate.OneOf(
+                [
+                    constants.DATADISK_CACHING_TYPE_NONE,
+                    constants.DATADISK_CACHING_TYPE_READONLY,
+                    constants.DATADISK_CACHING_TYPE_READYWRITE,
+                ]
+            ),
+        ),
+    )
+    data_disk_iops: search_space.CountSpace = field(
+        default=None,
+        metadata=metadata(allow_none=True, decoder=search_space.decode_count_space),
+    )
+    data_disk_size: search_space.CountSpace = field(
+        default=None,
+        metadata=metadata(allow_none=True, decoder=search_space.decode_count_space),
+    )
+
+    def __eq__(self, o: object) -> bool:
+        assert isinstance(o, DiskOptionSettings), f"actual: {type(o)}"
+        return (
+            self.type == o.type
+            and self.disk_type == o.disk_type
+            and self.data_disk_count == o.data_disk_count
+            and self.data_disk_caching_type == o.data_disk_caching_type
+            and self.data_disk_iops == o.data_disk_iops
+            and self.data_disk_size == o.data_disk_size
+        )
+
+    def __repr__(self) -> str:
+        return (
+            f"disk_type:{self.disk_type},"
+            f"count:{self.data_disk_count},"
+            f"caching:{self.data_disk_caching_type},"
+            f"iops:{self.data_disk_iops},"
+            f"size:{self.data_disk_size}"
+        )
+
+    def __str__(self) -> str:
+        return self.__repr__()
 
     def __hash__(self) -> int:
         return super().__hash__()
 
+    def check(self, capability: Any) -> search_space.ResultReason:
+        result = super().check(capability)
+
+        result.merge(
+            search_space.check_countspace(
+                self.data_disk_count, capability.data_disk_count
+            ),
+            "data_disk_count",
+        )
+        result.merge(
+            search_space.check_countspace(
+                self.data_disk_iops, capability.data_disk_iops
+            ),
+            "data_disk_iops",
+        )
+        return result
+
     def _get_key(self) -> str:
-        return f"{super()._get_key()}/{self.disk_type}"
+        return (
+            f"{super()._get_key()}/{self.disk_type}/"
+            f"{self.data_disk_count}/{self.data_disk_caching_type}/"
+            f"{self.data_disk_iops}/{self.data_disk_size}"
+        )
+
+    def _generate_min_capability(self, capability: Any) -> Any:
+        assert isinstance(capability, DiskOptionSettings), f"actual: {type(capability)}"
+        min_value = DiskOptionSettings()
+        if self.data_disk_count or capability.data_disk_count:
+            min_value.data_disk_count = search_space.generate_min_capability_countspace(
+                self.data_disk_count, capability.data_disk_count
+            )
+        return min_value
 
 
 @dataclass_json()
@@ -465,32 +542,7 @@ class NodeSpace(search_space.RequirementMixin, TypedSchema, ExtendableSchemaMixi
         default=search_space.IntRange(min=512),
         metadata=metadata(decoder=search_space.decode_count_space),
     )
-
-    data_disk_count: search_space.CountSpace = field(
-        default=search_space.IntRange(min=0),
-        metadata=metadata(decoder=search_space.decode_count_space),
-    )
     disk: Optional[DiskOptionSettings] = None
-    data_disk_caching_type: str = field(
-        default=constants.DATADISK_CACHING_TYPE_NONE,
-        metadata=metadata(
-            validate=validate.OneOf(
-                [
-                    constants.DATADISK_CACHING_TYPE_NONE,
-                    constants.DATADISK_CACHING_TYPE_READONLY,
-                    constants.DATADISK_CACHING_TYPE_READYWRITE,
-                ]
-            ),
-        ),
-    )
-    data_disk_iops: search_space.CountSpace = field(
-        default=search_space.IntRange(min=1),
-        metadata=metadata(decoder=search_space.decode_count_space),
-    )
-    data_disk_size: search_space.CountSpace = field(
-        default=search_space.IntRange(min=1),
-        metadata=metadata(decoder=search_space.decode_count_space),
-    )
     nic_count: search_space.CountSpace = field(
         default=search_space.IntRange(min=1),
         metadata=metadata(decoder=search_space.decode_count_space),
@@ -528,9 +580,6 @@ class NodeSpace(search_space.RequirementMixin, TypedSchema, ExtendableSchemaMixi
             and self.core_count == o.core_count
             and self.memory_mb == o.memory_mb
             and self.disk == o.disk
-            and self.data_disk_count == o.data_disk_count
-            and self.data_disk_caching_type == o.data_disk_caching_type
-            and self.data_disk_iops == o.data_disk_iops
             and self.nic_count == o.nic_count
             and self.gpu_count == o.gpu_count
             and self.features == o.features
@@ -545,9 +594,7 @@ class NodeSpace(search_space.RequirementMixin, TypedSchema, ExtendableSchemaMixi
             f"type:{self.type},name:{self.name},"
             f"default:{self.is_default},"
             f"count:{self.node_count},core:{self.core_count},"
-            f"mem:{self.memory_mb},disk:{self.data_disk_count},"
-            f"disk_caching:{self.data_disk_caching_type},"
-            f"disk_iops:{self.data_disk_iops},"
+            f"mem:{self.memory_mb},disk:{self.disk},"
             f"nic:{self.nic_count},gpu:{self.gpu_count},"
             f"f:{self.features},ef:{self.excluded_features},"
             f"{super().__repr__()}"
@@ -630,18 +677,6 @@ class NodeSpace(search_space.RequirementMixin, TypedSchema, ExtendableSchemaMixi
         )
         if self.disk:
             result.merge(self.disk.check(capability.disk))
-        result.merge(
-            search_space.check_countspace(
-                self.data_disk_count, capability.data_disk_count
-            ),
-            "data_disk_count",
-        )
-        result.merge(
-            search_space.check_countspace(
-                self.data_disk_iops, capability.data_disk_iops
-            ),
-            "data_disk_iops",
-        )
         result.merge(
             search_space.check_countspace(self.nic_count, capability.nic_count),
             "nic_count",
@@ -727,10 +762,6 @@ class NodeSpace(search_space.RequirementMixin, TypedSchema, ExtendableSchemaMixi
                 self.disk, capability.disk
             )
 
-        if self.data_disk_count or capability.data_disk_count:
-            min_value.data_disk_count = search_space.generate_min_capability_countspace(
-                self.data_disk_count, capability.data_disk_count
-            )
         if self.nic_count or capability.nic_count:
             min_value.nic_count = search_space.generate_min_capability_countspace(
                 self.nic_count, capability.nic_count

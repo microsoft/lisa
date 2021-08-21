@@ -16,7 +16,7 @@ from azure.storage.blob import BlobServiceClient, ContainerClient  # type: ignor
 from dataclasses_json import dataclass_json
 from marshmallow import validate
 
-from lisa import schema, search_space
+from lisa import schema
 from lisa.environment import Environment
 from lisa.node import Node
 from lisa.util import LisaException, constants
@@ -381,21 +381,6 @@ def wait_copy_blob(
     log.debug("vhd copied")
 
 
-def get_data_disk_size(
-    node_features: search_space.SetSpace[schema.DiskType], data_disk_iops: int
-) -> int:
-    if schema.DiskType.Ephemeral in node_features:
-        raise LisaException(f"{schema.DiskType.Ephemeral} only can be OS disk type.")
-    elif schema.DiskType.PremiumLRS in node_features:
-        return DataDisk.get_size(schema.DiskType.PremiumLRS, data_disk_iops)
-    elif schema.DiskType.StandardHDDLRS in node_features:
-        return DataDisk.get_size(schema.DiskType.StandardHDDLRS, data_disk_iops)
-    elif schema.DiskType.StandardSSDLRS in node_features:
-        return DataDisk.get_size(schema.DiskType.StandardSSDLRS, data_disk_iops)
-    else:
-        raise LisaException("No data disk feature present.")
-
-
 class DataDiskCreateOption:
     DATADISK_CREATE_OPTION_TYPE_EMPTY: str = "Empty"
     DATADISK_CREATE_OPTION_TYPE_FROM_IMAGE: str = "FromImage"
@@ -427,8 +412,17 @@ class DataDiskSchema:
     )
     size: int = 32
     type: str = field(
-        default=DiskType.DISK_STANDARD_HDD,
-        metadata=schema.metadata(validate=validate.OneOf(DiskType.get_disk_types())),
+        default=schema.DiskType.StandardHDDLRS,
+        metadata=schema.metadata(
+            validate=validate.OneOf(
+                [
+                    schema.DiskType.StandardHDDLRS,
+                    schema.DiskType.StandardSSDLRS,
+                    schema.DiskType.PremiumLRS,
+                    schema.DiskType.Ephemeral,
+                ]
+            )
+        ),
     )
     create_option: str = field(
         default=DataDiskCreateOption.DATADISK_CREATE_OPTION_TYPE_EMPTY,
