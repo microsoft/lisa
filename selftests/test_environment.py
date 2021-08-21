@@ -142,7 +142,7 @@ def generate_runbook(
                 constants.TYPE: constants.ENVIRONMENTS_NODES_REQUIREMENT,
                 "node_count": 2,
                 "core_count": 8,
-                "data_disk_count": {"min": 1},
+                "disk": {"data_disk_count": {"min": 1}},
                 "nic_count": {"min": 1, "max": 1},
             }
         )
@@ -215,20 +215,24 @@ class EnvironmentTestCase(TestCase):
             # mock initializing
             n._is_initialized = True
         self.assertEqual(search_space.IntRange(min=4), n.capability.core_count)
-        self.assertEqual(search_space.IntRange(min=0), n.capability.data_disk_count)
+
+        self.assertIsNone(n.capability.disk)
         # check from env capability
         env_cap = env.capability
         self.assertEqual(1, len(env_cap.nodes))
         self.assertEqual(search_space.IntRange(min=4), env_cap.nodes[0].core_count)
-        self.assertEqual(search_space.IntRange(min=0), env_cap.nodes[0].data_disk_count)
+        self.assertIsNone(env_cap.nodes[0].disk)
 
         # test pure node_requirement
         env = envs.get("customized_1")
         assert env
         env_cap = env.capability
+        assert env_cap.nodes[0].disk
         self.assertEqual(2, len(env_cap.nodes))
         self.assertEqual(8, env_cap.nodes[0].core_count)
-        self.assertEqual(search_space.IntRange(min=1), env_cap.nodes[0].data_disk_count)
+        self.assertEqual(
+            search_space.IntRange(min=1), env_cap.nodes[0].disk.data_disk_count
+        )
         self.assertEqual(
             search_space.IntRange(min=1, max=1), env_cap.nodes[0].nic_count
         )

@@ -373,6 +373,21 @@ def generate_min_capability_countspace(
     return result
 
 
+def count_space_to_int_range(count_space: CountSpace) -> IntRange:
+    if count_space is None:
+        result = IntRange(min=sys.maxsize * -1, max=sys.maxsize)
+    elif isinstance(count_space, int):
+        result = IntRange(min=count_space, max=count_space)
+    elif isinstance(count_space, IntRange):
+        result = count_space
+    else:
+        raise LisaException(
+            f"unsupported type: {type(count_space)}, value: '{count_space}'"
+        )
+
+    return result
+
+
 def check(
     requirement: Union[T_SEARCH_SPACE, List[T_SEARCH_SPACE], None],
     capability: Union[T_SEARCH_SPACE, List[T_SEARCH_SPACE], None],

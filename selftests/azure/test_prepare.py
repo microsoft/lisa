@@ -66,7 +66,10 @@ class AzurePrepareTestCase(TestCase):
         self.assertEqual(48, node.core_count)
         self.assertEqual(458752, node.memory_mb)
         self.assertEqual(search_space.IntRange(min=0, max=8), node.nic_count)
-        self.assertEqual(search_space.IntRange(min=0, max=32), node.data_disk_count)
+        assert node.disk
+        self.assertEqual(
+            search_space.IntRange(min=0, max=32), node.disk.data_disk_count
+        )
         self.assertEqual(4, node.gpu_count)
 
     def test_not_eligible_dropped(self) -> None:
@@ -372,15 +375,16 @@ class AzurePrepareTestCase(TestCase):
             # all cap values must be covered to specified int value, not space
             for node_cap in environment.runbook.nodes_requirement:
                 assert node_cap
+                assert node_cap.disk
                 self.assertIsInstance(node_cap.core_count, int)
                 self.assertIsInstance(node_cap.memory_mb, int)
-                self.assertIsInstance(node_cap.data_disk_count, int)
+                self.assertIsInstance(node_cap.disk.data_disk_count, int)
                 self.assertIsInstance(node_cap.nic_count, int)
                 self.assertIsInstance(node_cap.gpu_count, int)
 
                 self.assertLessEqual(1, node_cap.core_count)
                 self.assertLessEqual(512, node_cap.memory_mb)
-                self.assertLessEqual(0, node_cap.data_disk_count)
+                self.assertLessEqual(0, node_cap.disk.data_disk_count)
                 self.assertLessEqual(1, node_cap.nic_count)
                 self.assertLessEqual(0, node_cap.gpu_count)
 

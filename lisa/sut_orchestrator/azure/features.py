@@ -4,7 +4,7 @@
 
 from dataclasses import dataclass
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, Dict, List, Optional, Type
+from typing import TYPE_CHECKING, Any, Dict, List, Optional, Tuple, Type
 
 import requests
 from assertpy import assert_that
@@ -203,6 +203,33 @@ _ordered_disk_types: List[schema.DiskType] = [
     schema.DiskType.PremiumLRS,
 ]
 
+# Tuple: (IOPS, Disk Size)
+_disk_size_iops_map: Dict[schema.DiskType, List[Tuple[int, int]]] = {
+    schema.DiskType.PremiumLRS: [
+        (120, 4),
+        (240, 64),
+        (500, 128),
+        (1100, 256),
+        (2300, 512),
+        (5000, 1024),
+        (7500, 2048),
+        (16000, 8192),
+        (18000, 16384),
+        (20000, 32767),
+    ],
+    schema.DiskType.StandardHDDLRS: [
+        (500, 32),
+        (1300, 8192),
+        (2000, 16384),
+    ],
+    schema.DiskType.StandardSSDLRS: [
+        (500, 4),
+        (2000, 8192),
+        (4000, 16384),
+        (6000, 32767),
+    ],
+}
+
 
 @dataclass_json()
 @dataclass()
@@ -247,15 +274,36 @@ class AzureDiskOptionSettings(schema.DiskOptionSettings):
                     f"capability: {capability.disk_type}"
                 )
 
+        result.merge(
+            search_space.check_countspace(
+                self.data_disk_count, capability.data_disk_count
+            ),
+            "data_disk_count",
+        )
+        result.merge(
+            search_space.check_countspace(
+                self.data_disk_iops, capability.data_disk_iops
+            ),
+            "data_disk_iops",
+        )
+        result.merge(
+            search_space.check_countspace(
+                self.data_disk_size, capability.data_disk_size
+            ),
+            "data_disk_size",
+        )
+
         return result
 
     def _generate_min_capability(self, capability: Any) -> Any:
         assert isinstance(
             capability, AzureDiskOptionSettings
         ), f"actual: {type(capability)}"
+
         assert (
             capability.disk_type
         ), "capability should have at least one disk type, but it's None"
+        min_value = AzureDiskOptionSettings()
         cap_disk_type = capability.disk_type
         if isinstance(cap_disk_type, search_space.SetSpace):
             assert (
@@ -290,9 +338,83 @@ class AzureDiskOptionSettings(schema.DiskOptionSettings):
             f"requirement: {self.disk_type}"
             f"capability: {capability.disk_type}"
         )
-        min_cap = AzureDiskOptionSettings(disk_type=min_disk_type)
+        min_value.disk_type = min_disk_type
 
-        return min_cap
+        # below values affect data disk only.
+        if self.data_disk_count is not None or capability.data_disk_count is not None:
+            min_value.data_disk_count = search_space.generate_min_capability_countspace(
+                self.data_disk_count, capability.data_disk_count
+            )
+
+        disk_type_iops = _disk_size_iops_map.get(min_disk_type, None)
+        # ignore unsupported disk type like Ephemeral. It supports only os
+        # disk. Calculate for iops, if it has value. If not, try disk size
+        if disk_type_iops:
+            if self.data_disk_iops:
+                req_disk_iops = search_space.count_space_to_int_range(
+                    self.data_disk_iops
+                )
+                cap_disk_iops = search_space.count_space_to_int_range(
+                    capability.data_disk_iops
+                )
+                min_iops = max(req_disk_iops.min, cap_disk_iops.min)
+                max_iops = min(req_disk_iops.max, cap_disk_iops.max)
+
+                min_value.data_disk_iops = min(
+                    iops
+                    for iops, _ in disk_type_iops
+                    if iops >= min_iops and iops <= max_iops
+                )
+                min_value.data_disk_size = self._get_disk_size_from_iops(
+                    min_value.data_disk_iops, disk_type_iops
+                )
+            elif self.data_disk_size:
+                req_disk_size = search_space.count_space_to_int_range(
+                    self.data_disk_size
+                )
+                cap_disk_size = search_space.count_space_to_int_range(
+                    capability.data_disk_size
+                )
+                min_size = max(req_disk_size.min, cap_disk_size.min)
+                max_size = min(req_disk_size.max, cap_disk_size.max)
+
+                min_value.data_disk_iops = min(
+                    iops
+                    for iops, disk_size in disk_type_iops
+                    if disk_size >= min_size and disk_size <= max_size
+                )
+                min_value.data_disk_size = self._get_disk_size_from_iops(
+                    min_value.data_disk_iops, disk_type_iops
+                )
+            else:
+                # if req is not specified, query minimum value.
+                cap_disk_size = search_space.count_space_to_int_range(
+                    capability.data_disk_size
+                )
+                min_value.data_disk_iops = min(
+                    iops
+                    for iops, _ in disk_type_iops
+                    if iops >= cap_disk_size.min and iops <= cap_disk_size.max
+                )
+                min_value.data_disk_size = self._get_disk_size_from_iops(
+                    min_value.data_disk_iops, disk_type_iops
+                )
+        else:
+            # The Ephemeral doesn't support data disk, but it needs a value.
+            min_value.data_disk_iops = 0
+            min_value.data_disk_size = 0
+
+        # all caching types are supported, so just take the value from requirement.
+        min_value.data_disk_caching_type = self.data_disk_caching_type
+
+        return min_value
+
+    def _get_disk_size_from_iops(
+        self, data_disk_iops: int, disk_type_iops: List[Tuple[int, int]]
+    ) -> int:
+        return next(
+            disk_size for iops, disk_size in disk_type_iops if iops == data_disk_iops
+        )
 
 
 class Disk(AzureFeatureMixin, features.Disk):

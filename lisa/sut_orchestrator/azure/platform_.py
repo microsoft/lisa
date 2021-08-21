@@ -68,7 +68,6 @@ from .common import (
     DataDiskSchema,
     check_or_create_storage_account,
     get_compute_client,
-    get_data_disk_size,
     get_environment_context,
     get_marketplace_ordering_client,
     get_network_client,
@@ -435,7 +434,6 @@ class AzurePlatform(Platform):
 
                         check_result = req.check(azure_cap.capability)
                         if check_result.result:
-
                             min_cap = self._generate_min_capability(
                                 req, azure_cap, azure_cap.location
                             )
@@ -987,6 +985,17 @@ class AzurePlatform(Platform):
         azure_node_runbook.disk_type = features.get_azure_disk_type(
             node_space.disk.disk_type
         )
+        azure_node_runbook.data_disk_caching_type = (
+            node_space.disk.data_disk_caching_type
+        )
+        assert isinstance(
+            node_space.disk.data_disk_iops, int
+        ), f"actual: {type(node_space.disk.data_disk_iops)}"
+        azure_node_runbook.data_disk_iops = node_space.disk.data_disk_iops
+        assert isinstance(
+            node_space.disk.data_disk_size, int
+        ), f"actual: {type(node_space.disk.data_disk_size)}"
+        azure_node_runbook.data_disk_size = node_space.disk.data_disk_size
 
         return azure_node_runbook
 
@@ -1240,7 +1249,6 @@ class AzurePlatform(Platform):
         node_space = schema.NodeSpace(
             node_count=1,
             core_count=0,
-            data_disk_count=0,
             memory_mb=0,
             nic_count=0,
             gpu_count=0,
@@ -1253,6 +1261,8 @@ class AzurePlatform(Platform):
         node_space.disk.disk_type = search_space.SetSpace[schema.DiskType](
             is_allow_set=True, items=[]
         )
+        node_space.disk.data_disk_iops = search_space.IntRange(min=0)
+        node_space.disk.data_disk_size = search_space.IntRange(min=0)
         for sku_capability in resource_sku.capabilities:
             if resource_sku.family in ["standardLSv2Family"]:
                 node_space.features.add(
@@ -1262,7 +1272,7 @@ class AzurePlatform(Platform):
             if name == "vCPUs":
                 node_space.core_count = int(sku_capability.value)
             elif name == "MaxDataDiskCount":
-                node_space.data_disk_count = search_space.IntRange(
+                node_space.disk.data_disk_count = search_space.IntRange(
                     max=int(sku_capability.value)
                 )
             elif name == "MemoryGB":
@@ -1415,13 +1425,20 @@ class AzurePlatform(Platform):
         node_space = schema.NodeSpace(
             node_count=1,
             core_count=search_space.IntRange(min=1),
-            data_disk_count=search_space.IntRange(min=0),
             memory_mb=search_space.IntRange(min=0),
             nic_count=search_space.IntRange(min=1),
             gpu_count=search_space.IntRange(min=0),
-            features=search_space.SetSpace[str](is_allow_set=True),
-            excluded_features=search_space.SetSpace[str](is_allow_set=False),
         )
+        node_space.disk = features.AzureDiskOptionSettings()
+        node_space.disk.data_disk_count = search_space.IntRange(min=0)
+        node_space.disk.disk_type = search_space.SetSpace[schema.DiskType](
+            is_allow_set=True, items=[]
+        )
+        node_space.disk.disk_type.add(schema.DiskType.PremiumLRS)
+        node_space.disk.disk_type.add(schema.DiskType.Ephemeral)
+        node_space.disk.disk_type.add(schema.DiskType.StandardHDDLRS)
+        node_space.disk.disk_type.add(schema.DiskType.StandardSSDLRS)
+
         azure_capability = AzureCapability(
             location=location,
             vm_size=vm_size,
@@ -1431,21 +1448,18 @@ class AzurePlatform(Platform):
         )
 
         node_space.name = f"{location}_{vm_size}"
-        node_space.features = search_space.SetSpace[str](is_allow_set=True)
-        node_space.nic_count = 1
+        node_space.features = search_space.SetSpace[schema.FeatureSettings](
+            is_allow_set=True
+        )
 
         # all nodes support following features
         node_space.features.update(
             [
-                features.Nvme.name(),
-                features.Gpu.name(),
-                features.Sriov.name(),
-                features.StartStop.name(),
-                features.SerialConsole.name(),
-                features.DiskStandardHDDLRS.name(),
-                features.DiskStandardSSDLRS.name(),
-                features.DiskPremiumLRS.name(),
-                features.DiskEphemeral.name(),
+                schema.FeatureSettings.create(features.Nvme.name()),
+                schema.FeatureSettings.create(features.Gpu.name()),
+                schema.FeatureSettings.create(features.Sriov.name()),
+                schema.FeatureSettings.create(features.StartStop.name()),
+                schema.FeatureSettings.create(features.SerialConsole.name()),
             ]
         )
 
@@ -1457,8 +1471,8 @@ class AzurePlatform(Platform):
         azure_capability: AzureCapability,
         location: str,
     ) -> schema.NodeSpace:
-        min_cap = self._node_generate_min_capability(
-            requirement, azure_capability.capability
+        min_cap: schema.NodeSpace = requirement.generate_min_capability(
+            azure_capability.capability
         )
         # Ppply azure specified values. They will pass into arm template
         azure_node_runbook = min_cap.get_extended_runbook(AzureNodeSchema, AZURE)
@@ -1473,14 +1487,16 @@ class AzurePlatform(Platform):
         azure_node_runbook.vm_size = azure_capability.vm_size
         assert isinstance(min_cap.nic_count, int), f"actual: {min_cap.nic_count}"
         azure_node_runbook.nic_count = min_cap.nic_count
+
+        assert min_cap.disk, "disk must exists"
         assert isinstance(
-            min_cap.data_disk_count, int
-        ), f"actual: {min_cap.data_disk_count}"
-        azure_node_runbook.data_disk_count = min_cap.data_disk_count
+            min_cap.disk.data_disk_count, int
+        ), f"actual: {min_cap.disk.data_disk_count}"
+        azure_node_runbook.data_disk_count = min_cap.disk.data_disk_count
         assert isinstance(
-            min_cap.data_disk_caching_type, str
-        ), f"actual: {min_cap.data_disk_caching_type}"
-        azure_node_runbook.data_disk_caching_type = min_cap.data_disk_caching_type
+            min_cap.disk.data_disk_caching_type, str
+        ), f"actual: {min_cap.disk.data_disk_caching_type}"
+        azure_node_runbook.data_disk_caching_type = min_cap.disk.data_disk_caching_type
 
         return min_cap
 
@@ -1533,28 +1549,13 @@ class AzurePlatform(Platform):
 
         return full_vhd_path
 
-    def _node_generate_min_capability(
-        self, req_cap: schema.NodeSpace, azure_cap: schema.NodeSpace
-    ) -> schema.NodeSpace:
-        assert isinstance(req_cap.data_disk_count, search_space.IntRange)
-        assert azure_cap.features
-        if req_cap.data_disk_count.min > 0:
-            assert isinstance(req_cap.data_disk_iops, search_space.IntRange)
-            assert azure_cap.disk
-            assert isinstance(azure_cap.disk.disk_type, search_space.SetSpace)
-            req_cap.data_disk_size = get_data_disk_size(
-                azure_cap.disk.disk_type, req_cap.data_disk_iops.min
-            )
-        # Generate min capability node
-        min_cap: schema.NodeSpace = req_cap.generate_min_capability(azure_cap)
-        return min_cap
-
     def _generate_data_disks(
         self,
         node: Node,
         azure_node_runbook: AzureNodeSchema,
     ) -> List[DataDiskSchema]:
         data_disks: List[DataDiskSchema] = []
+        assert node.capability.disk
         if azure_node_runbook.marketplace:
             marketplace = self._get_image_info(
                 azure_node_runbook.location, azure_node_runbook.marketplace
@@ -1570,19 +1571,21 @@ class AzurePlatform(Platform):
             for default_data_disk in marketplace.data_disk_images:
                 data_disks.append(
                     DataDiskSchema(
-                        node.capability.data_disk_caching_type,
+                        node.capability.disk.data_disk_caching_type,
                         default_data_disk.additional_properties["sizeInGb"],
                         azure_node_runbook.disk_type,
                         DataDiskCreateOption.DATADISK_CREATE_OPTION_TYPE_FROM_IMAGE,
                     )
                 )
-        assert isinstance(node.capability.data_disk_count, int)
-        for _ in range(node.capability.data_disk_count):
-            assert isinstance(node.capability.data_disk_size, int)
+        assert isinstance(
+            node.capability.disk.data_disk_count, int
+        ), f"actual: {type(node.capability.disk.data_disk_count)}"
+        for _ in range(node.capability.disk.data_disk_count):
+            assert isinstance(node.capability.disk.data_disk_size, int)
             data_disks.append(
                 DataDiskSchema(
-                    node.capability.data_disk_caching_type,
-                    node.capability.data_disk_size,
+                    node.capability.disk.data_disk_caching_type,
+                    node.capability.disk.data_disk_size,
                     azure_node_runbook.disk_type,
                     DataDiskCreateOption.DATADISK_CREATE_OPTION_TYPE_EMPTY,
                 )
