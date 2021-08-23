@@ -3,6 +3,8 @@
 
 from typing import Optional, Type
 
+from assertpy.assertpy import assert_that
+
 from lisa.executable import Tool
 
 
@@ -17,6 +19,22 @@ class Echo(Tool):
 
     def _check_exists(self) -> bool:
         return True
+
+    def write_to_file(
+        self,
+        value: str,
+        file: str,
+        shell: bool = False,
+        sudo: bool = False,
+    ) -> None:
+        # Run `echo <value> > <file>`
+        result = self.run(
+            f"{value} > {file}",
+            force_run=True,
+            shell=shell,
+            sudo=sudo,
+        ).stdout
+        assert_that(result).does_not_contain("Permission denied")
 
 
 class WindowsEcho(Echo):
