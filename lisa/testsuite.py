@@ -90,6 +90,10 @@ class TestResultMessage(notifier.MessageBase):
     information: Dict[str, str] = field(default_factory=dict)
     log_file: str = ""
 
+    @property
+    def is_completed(self) -> bool:
+        return _is_completed_status(self.status)
+
 
 @dataclass
 class TestResult:
@@ -118,12 +122,7 @@ class TestResult:
 
     @property
     def is_completed(self) -> bool:
-        return self.status in [
-            TestStatus.FAILED,
-            TestStatus.PASSED,
-            TestStatus.SKIPPED,
-            TestStatus.ATTEMPTED,
-        ]
+        return _is_completed_status(self.status)
 
     @property
     def name(self) -> str:
@@ -788,6 +787,15 @@ def _add_case_to_suite(
 ) -> None:
     test_case.suite = test_suite
     test_suite.cases.append(test_case)
+
+
+def _is_completed_status(status: TestStatus) -> bool:
+    return status in [
+        TestStatus.FAILED,
+        TestStatus.PASSED,
+        TestStatus.SKIPPED,
+        TestStatus.ATTEMPTED,
+    ]
 
 
 plugin_manager.add_hookspecs(TestResult)
