@@ -11,3 +11,14 @@ class Cat(Tool):
 
     def _check_exists(self) -> bool:
         return True
+
+    def read_from_file(
+        self,
+        file: str,
+        force_run: bool = False,
+        sudo: bool = False,
+    ) -> str:
+        # Run `cat <file>`
+        result = self.run(file, force_run=force_run, sudo=sudo)
+        result.assert_exit_code(message=f"Error : {result.stdout}")
+        return result.stdout

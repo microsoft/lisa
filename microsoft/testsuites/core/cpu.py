@@ -1,14 +1,23 @@
 # Copyright (c) Microsoft Corporation.
 # Licensed under the MIT license.
 
+from pathlib import PurePosixPath
+
 from assertpy.assertpy import assert_that
 
 from lisa import Logger, testsuite
 from lisa.base_tools.cat import Cat
 from lisa.base_tools.uname import Uname
 from lisa.node import Node
+from lisa.tools.echo import Echo
 from lisa.tools.lscpu import Lscpu
-from lisa.util import SkippedException
+from lisa.tools.lsvmbus import Lsvmbus
+from lisa.util import BadEnvironmentStateException, SkippedException
+
+
+class CPUState:
+    OFFLINE: str = "0"
+    ONLINE: str = "1"
 
 
 @testsuite.TestSuiteMetadata(
@@ -19,6 +28,61 @@ from lisa.util import SkippedException
     """,
 )
 class CPU(testsuite.TestSuite):
+    def _set_cpu_state(self, cpu_id: str, state: str, node: Node) -> bool:
+        file_path = f"/sys/devices/system/cpu/cpu{cpu_id}/online"
+        file_exists = node.shell.exists(PurePosixPath(file_path))
+        if file_exists:
+            node.tools[Echo].write_to_file(state, file_path, shell=True, sudo=True)
+        result = node.tools[Cat].read_from_file(file_path, force_run=True, sudo=True)
+        return result == state
+
+    @testsuite.TestCaseMetadata(
+        description="""
+            This test will check that CPU assigned to lsvmbus
+            channels cannot be put offline.
+            Steps :
+            1. Get the list of lsvmbus channel cpu mappings using
+            command `lsvmbus -vv`.
+            2. Create a set of cpu's assigned to lsvmbus channels.
+            3. Try to put cpu offline by running
+            `echo 0 > /sys/devices/system/cpu/cpu/<cpu_id>/online`.
+            Note : We skip cpu 0 as it handles system interrupts.
+            4. Ensure that cpu is still online by checking state '1' in
+            `/sys/devices/system/cpu/cpu/<target_cpu>/online`.
+            """,
+        priority=2,
+    )
+    def cpu_verify_vmbus_force_online(self, node: Node, log: Logger) -> None:
+        cpu_count = node.tools[Lscpu].get_core_count()
+        log.debug(f"{cpu_count} CPU cores detected...")
+
+        channels = node.tools[Lsvmbus].get_device_channels_from_lsvmbus()
+        mapped_cpu = set()
+        for channel in channels:
+            for channel_vp_map in channel.channel_vp_map:
+                target_cpu = channel_vp_map.target_cpu
+                if target_cpu != "0":
+                    mapped_cpu.add(target_cpu)
+
+        for target_cpu in mapped_cpu:
+            log.debug(f"Checking CPU {target_cpu} on /sys/device/....")
+            result = self._set_cpu_state(target_cpu, CPUState.OFFLINE, node)
+            if result:
+                # Try to bring CPU back to it's original state
+                reset = self._set_cpu_state(target_cpu, CPUState.ONLINE, node)
+                exception_message = (
+                    f"Expected CPU {target_cpu} state : {CPUState.ONLINE}(online), "
+                    f"actual state : {CPUState.OFFLINE}(offline). CPU's mapped to "
+                    f"LSVMBUS channels shouldn't be in state "
+                    f"{CPUState.OFFLINE}(offline)."
+                )
+                if not reset:
+                    raise BadEnvironmentStateException(
+                        exception_message,
+                        f"The test failed leaving CPU {target_cpu} in a bad state.",
+                    )
+                raise AssertionError(exception_message)
+
     @testsuite.TestCaseMetadata(
         description="""
         This test case will check that L3 cache is correctly mapped
