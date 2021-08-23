@@ -233,7 +233,7 @@ class dpdk(TestSuite):
                 f"NOTE: Truncating result since output is larger than 1024.\n{result.stdout[:512]}\n.......(content has been truncated).......\n{result.stdout[-512:]}"
             )
         else:
-            self.log.debug(f"{cmd}:\n{result.stdout}")  # TODO: debug
+            self.log.debug(f"{cmd}:\n{result.stdout}")
 
         return result.stdout
 
