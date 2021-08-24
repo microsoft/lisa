@@ -456,10 +456,11 @@ class EnvironmentHookImpl:
                 if node.is_connected and node.is_posix:
                     uname = node.tools[Uname]
                     linux_information = uname.get_linux_information()
-                    fields = ["hardware_platform", "kernel_version"]
+                    fields = ["hardware_platform"]
                     information_dict = fields_to_dict(linux_information, fields=fields)
                     information.update(information_dict)
                     information["distro_version"] = node.os.information.full_version
+                    information["kernel_version"] = linux_information.kernel_version_raw
             except Exception as identifier:
                 environment.log.exception(
                     "failed to get environment information", exc_info=identifier
