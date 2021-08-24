@@ -108,7 +108,7 @@ class CPU(testsuite.TestSuite):
         8   0    0      8   8   8  8
         9   1    1      9   9   9  9
         """,
-        priority=1,
+        priority=2,
     )
     def l3_cache_check(self, node: Node, log: Logger) -> None:
         cmdline = node.tools[Cat].run("/proc/cmdline").stdout
