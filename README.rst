@@ -16,7 +16,7 @@ on any platforms if the proper orchestrator module implemented.
 Why LISA
 --------
 
--  **Scalable**：Benefit from the appropriate abstractions, ``LISA``
+-  **Scalable**: Benefit from the appropriate abstractions, ``LISA``
    can be used to test the quality of numerous Linux distributions
    without duplication of code implementation.
 
