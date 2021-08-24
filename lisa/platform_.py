@@ -165,11 +165,18 @@ class Platform(subclasses.BaseClassWithRunbookMixin, InitializableMixin):
 
     def delete_environment(self, environment: Environment) -> None:
         log = get_logger(f"del[{environment.name}]", parent=self._log)
-        log.debug("deleting")
+
         environment.close()
+        if self.runbook.keep_environment == constants.ENVIRONMENT_KEEP_ALWAYS:
+            log.info(
+                f"skipped to delete environment {environment.name}, "
+                f"as runbook set to keep environment."
+            )
+        else:
+            log.debug("deleting")
+            self._delete_environment(environment, log)
+            log.debug("deleted")
         environment.status = EnvironmentStatus.Deleted
-        self._delete_environment(environment, log)
-        log.debug("deleted")
 
 
 def load_platform(platforms_runbook: List[schema.Platform]) -> Platform:

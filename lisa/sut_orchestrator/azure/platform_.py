@@ -513,11 +513,6 @@ class AzurePlatform(Platform):
                 f"skipped to delete resource group: {resource_group_name}, "
                 f"as it's not created by this run."
             )
-        elif self.runbook.keep_environment == constants.ENVIRONMENT_KEEP_ALWAYS:
-            log.info(
-                f"skipped to delete resource group: {resource_group_name}, "
-                f"as runbook set to keep environment."
-            )
         elif self._azure_runbook.dry_run:
             log.info(
                 f"skipped to delete resource group: {resource_group_name}, "
