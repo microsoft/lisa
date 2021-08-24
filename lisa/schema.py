@@ -3,7 +3,6 @@
 
 import copy
 from dataclasses import dataclass, field
-from enum import Enum
 from typing import Any, Callable, Dict, List, Optional, Type, TypeVar, Union, cast
 
 from dataclasses_json import (
@@ -30,7 +29,6 @@ Schema is dealt with three components,
 
 
 T = TypeVar("T")
-keep_env_keys = Enum("keep_env_keys", ["no", "always", "failed"])
 
 
 def metadata(
@@ -721,7 +719,7 @@ class Platform(TypedSchema, ExtendableSchemaMixin):
 
     # no/False: means to delete the environment regardless case fail or pass
     # yes/always/True: means to keep the environment regardless case fail or pass
-    keep_environment: Optional[Union[str, bool]] = False
+    keep_environment: Optional[Union[str, bool]] = constants.ENVIRONMENT_KEEP_NO
 
     # platform can specify a default environment requirement
     requirement: Optional[Dict[str, Any]] = None
@@ -740,9 +738,22 @@ class Platform(TypedSchema, ExtendableSchemaMixin):
                     "one of admin_password and admin_private_key_file must be set"
                 )
 
+        if isinstance(self.keep_environment, bool):
+            if self.keep_environment:
+                self.keep_environment = constants.ENVIRONMENT_KEEP_ALWAYS
+            else:
+                self.keep_environment = constants.ENVIRONMENT_KEEP_NO
+        allow_list = [
+            constants.ENVIRONMENT_KEEP_ALWAYS,
+            constants.ENVIRONMENT_KEEP_FAILED,
+            constants.ENVIRONMENT_KEEP_NO,
+        ]
+        assert isinstance(self.keep_environment, str), (
+            f"keep_environment should be {allow_list} or bool, "
+            f"but it's {type(self.keep_environment)}, '{self.keep_environment}'"
+        )
         if isinstance(self.keep_environment, str):
             self.keep_environment = self.keep_environment.lower()
-            allow_list = [x for x in keep_env_keys.__members__.keys()]
             if self.keep_environment not in allow_list:
                 raise LisaException(
                     f"keep_environment only can be set as one of {allow_list}"
