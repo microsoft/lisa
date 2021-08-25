@@ -215,9 +215,7 @@ class SourceInstaller(BaseInstaller):
         self._log.info("installing build tools")
         if isinstance(os, Redhat):
             os.install_packages(["elfutils-libelf-devel", "openssl-devel", "dwarves"])
-
-            result = node.execute('yum -y groupinstall "Development Tools"', sudo=True)
-            result.assert_exit_code()
+            os.group_install_packages("Development Tools")
 
             if os.information.version < "8.0.0":
                 # git from default CentOS/RedHat 7.x does not support git tag format
