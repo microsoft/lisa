@@ -10,7 +10,7 @@ from azure.mgmt.compute.models import ResourceSku  # type: ignore
 from lisa import schema, search_space
 from lisa.environment import Environment
 from lisa.sut_orchestrator.azure import common, platform_
-from lisa.util import LisaException, SkippedException, constants
+from lisa.util import LisaException, constants
 from lisa.util.logger import get_logger
 
 
@@ -170,10 +170,14 @@ class AzurePrepareTestCase(TestCase):
         # vm size is not found
         env = self.load_environment(node_req_count=1)
         self.set_node_runbook(env, 0, location="", vm_size="not_exist")
-        with self.assertRaises(SkippedException) as cm:
-            self._platform._prepare_environment(env, self._log)
-        message = "cannot find predefined vm size [not_exist] in location"
-        self.assertEqual(message, str(cm.exception)[0 : len(message)])
+        # The mock up capability is matched.
+        self.verify_prepared_nodes(
+            expected_result=True,
+            expected_locations=["westus2"],
+            expected_vm_sizes=["not_exist"],
+            expected_cost=0,
+            environment=env,
+        )
 
     def test_predefined_wont_be_override(self) -> None:
         # predefined node won't be overridden in loop
