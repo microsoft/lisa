@@ -200,12 +200,12 @@ _ordered_disk_types: List[schema.DiskType] = [
     schema.DiskType.StandardHDDLRS,
     schema.DiskType.StandardSSDLRS,
     schema.DiskType.Ephemeral,
-    schema.DiskType.PremiumLRS,
+    schema.DiskType.PremiumSSDLRS,
 ]
 
 # Tuple: (IOPS, Disk Size)
 _disk_size_iops_map: Dict[schema.DiskType, List[Tuple[int, int]]] = {
-    schema.DiskType.PremiumLRS: [
+    schema.DiskType.PremiumSSDLRS: [
         (120, 4),
         (240, 64),
         (500, 128),
@@ -432,7 +432,7 @@ class Disk(AzureFeatureMixin, features.Disk):
 
 
 __disk_type_mapping: Dict[schema.DiskType, str] = {
-    schema.DiskType.PremiumLRS: "Premium_LRS",
+    schema.DiskType.PremiumSSDLRS: "Premium_LRS",
     schema.DiskType.Ephemeral: "Ephemeral",
     schema.DiskType.StandardHDDLRS: "Standard_LRS",
     schema.DiskType.StandardSSDLRS: "StandardSSD_LRS",

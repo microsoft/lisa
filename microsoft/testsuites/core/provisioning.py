@@ -19,7 +19,7 @@ from lisa import (
 from lisa.environment import EnvironmentStatus
 from lisa.features import (
     DiskEphemeral,
-    DiskPremiumLRS,
+    DiskPremiumSSDLRS,
     DiskStandardSSDLRS,
     SerialConsole,
 )
@@ -105,7 +105,7 @@ class Provisioning(TestSuite):
         priority=1,
         requirement=simple_requirement(
             environment_status=EnvironmentStatus.Deployed,
-            disk=DiskPremiumLRS,
+            disk=DiskPremiumSSDLRS,
             supported_features=[SerialConsole],
         ),
     )

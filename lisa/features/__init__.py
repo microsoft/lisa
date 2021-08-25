@@ -4,7 +4,7 @@
 from .disks import (
     Disk,
     DiskEphemeral,
-    DiskPremiumLRS,
+    DiskPremiumSSDLRS,
     DiskStandardHDDLRS,
     DiskStandardSSDLRS,
 )
@@ -17,7 +17,7 @@ from .startstop import StartStop
 __all__ = [
     "Disk",
     "DiskEphemeral",
-    "DiskPremiumLRS",
+    "DiskPremiumSSDLRS",
     "DiskStandardHDDLRS",
     "DiskStandardSSDLRS",
     "Gpu",

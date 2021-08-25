@@ -1309,7 +1309,7 @@ class AzurePlatform(Platform):
                     )
             elif name == "PremiumIO":
                 if eval(sku_capability.value) is True:
-                    node_space.disk.disk_type.add(schema.DiskType.PremiumLRS)
+                    node_space.disk.disk_type.add(schema.DiskType.PremiumSSDLRS)
             elif name == "EphemeralOSDiskSupported":
                 if eval(sku_capability.value) is True:
                     node_space.disk.disk_type.add(schema.DiskType.Ephemeral)
@@ -1442,7 +1442,7 @@ class AzurePlatform(Platform):
         node_space.disk.disk_type = search_space.SetSpace[schema.DiskType](
             is_allow_set=True, items=[]
         )
-        node_space.disk.disk_type.add(schema.DiskType.PremiumLRS)
+        node_space.disk.disk_type.add(schema.DiskType.PremiumSSDLRS)
         node_space.disk.disk_type.add(schema.DiskType.Ephemeral)
         node_space.disk.disk_type.add(schema.DiskType.StandardHDDLRS)
         node_space.disk.disk_type.add(schema.DiskType.StandardSSDLRS)

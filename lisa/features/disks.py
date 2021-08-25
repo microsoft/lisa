@@ -21,6 +21,6 @@ class Disk(Feature):
 
 
 DiskEphemeral = schema.DiskOptionSettings(disk_type=schema.DiskType.Ephemeral)
-DiskPremiumLRS = schema.DiskOptionSettings(disk_type=schema.DiskType.PremiumLRS)
+DiskPremiumSSDLRS = schema.DiskOptionSettings(disk_type=schema.DiskType.PremiumSSDLRS)
 DiskStandardHDDLRS = schema.DiskOptionSettings(disk_type=schema.DiskType.StandardHDDLRS)
 DiskStandardSSDLRS = schema.DiskOptionSettings(disk_type=schema.DiskType.StandardSSDLRS)

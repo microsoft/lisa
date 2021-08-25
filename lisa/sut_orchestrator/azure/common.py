@@ -418,7 +418,7 @@ class DataDiskSchema:
                 [
                     schema.DiskType.StandardHDDLRS,
                     schema.DiskType.StandardSSDLRS,
-                    schema.DiskType.PremiumLRS,
+                    schema.DiskType.PremiumSSDLRS,
                     schema.DiskType.Ephemeral,
                 ]
             )
@@ -435,7 +435,7 @@ class DataDiskSchema:
 class DataDisk:
     # refer https://docs.microsoft.com/en-us/azure/virtual-machines/disks-types
     IOPS_SIZE_DICT: Dict[schema.DiskType, Dict[int, int]] = {
-        schema.DiskType.PremiumLRS: {
+        schema.DiskType.PremiumSSDLRS: {
             120: 4,
             240: 64,
             500: 128,
@@ -463,7 +463,7 @@ class DataDisk:
     @staticmethod
     def get_size(disk_type: schema.DiskType, data_disk_iops: int = 1) -> int:
         if disk_type in [
-            schema.DiskType.PremiumLRS,
+            schema.DiskType.PremiumSSDLRS,
             schema.DiskType.StandardHDDLRS,
             schema.DiskType.StandardSSDLRS,
         ]:

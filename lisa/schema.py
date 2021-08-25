@@ -390,7 +390,7 @@ class FeatureSettings(
 
 
 class DiskType(str, Enum):
-    PremiumLRS = "PremiumLRS"
+    PremiumSSDLRS = "PremiumSSDLRS"
     Ephemeral = "Ephemeral"
     StandardHDDLRS = "StandardHDDLRS"
     StandardSSDLRS = "StandardSSDLRS"
