@@ -189,7 +189,6 @@ class SshShell(InitializableMixin):
         self.is_remote = True
         self._connection_info = connection_info
         self._inner_shell: Optional[spur.SshShell] = None
-        self._is_connected: bool = False
 
         paramiko_logger = logging.getLogger("paramiko")
         paramiko_logger.setLevel(logging.WARN)
