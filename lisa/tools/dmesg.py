@@ -4,6 +4,8 @@
 import re
 from typing import List
 
+from semver import VersionInfo
+
 from lisa.executable import Tool
 from lisa.util import LisaException
 from lisa.util.process import ExecutableResult
@@ -17,6 +19,12 @@ class Dmesg(Tool):
         re.compile("rcu_sched detected stalls on"),
         re.compile("BUG: soft lockup"),
     ]
+
+    # [   3.191822] hv_vmbus: Hyper-V Host Build:18362-10.0-3-0.3294; Vmbus version:3.0
+    # [   3.191822] hv_vmbus: Vmbus version:3.0
+    __vmbus_version_pattern = re.compile(
+        r"\[\s+\d+.\d+\]\s+hv_vmbus:.*Vmbus version:(?P<major>\d+).(?P<minor>\d+)"
+    )
 
     @property
     def command(self) -> str:
@@ -56,6 +64,23 @@ class Dmesg(Tool):
             else:
                 self._log.debug(error_message)
         return result
+
+    def get_vmbus_version(self) -> VersionInfo:
+        result = self._run()
+        result.assert_exit_code(
+            message=f"exit code should be zero, but actually {result.exit_code}"
+        )
+        raw_vmbus_version = re.finditer(self.__vmbus_version_pattern, result.stdout)
+        for vmbus_version in raw_vmbus_version:
+            matched_vmbus_version = self.__vmbus_version_pattern.match(
+                vmbus_version.group()
+            )
+            if matched_vmbus_version:
+                major = matched_vmbus_version.group("major")
+                minor = matched_vmbus_version.group("minor")
+                self._log.info(f"vmbus version is {major}.{minor}")
+                return VersionInfo(int(major), int(minor))
+        raise LisaException("No find matched vmbus version in dmesg")
 
     def _run(self, force_run: bool = False) -> ExecutableResult:
         # sometime it need sudo, we can retry
