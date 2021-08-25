@@ -23,15 +23,21 @@ class Mount(Tool):
     def can_install(self) -> bool:
         return True
 
-    def mount(self, disk_name: str, point: str) -> None:
+    def mount(self, disk_name: str, point: str, type: str = "") -> None:
         self.node.shell.mkdir(PurePosixPath(point), exist_ok=True)
+        if type:
+            type = f"-t {type}"
         cmd_result = self.node.execute(
-            f"mount {disk_name} {point}", shell=True, sudo=True
+            f"mount {type} {disk_name} {point}", shell=True, sudo=True
         )
         cmd_result.assert_exit_code()
 
-    def umount(self, disk_name: str, point: str, erase: bool = True) -> None:
-        cmd_result = self.node.execute(f"umount {point}", shell=True, sudo=True)
+    def umount(
+        self, disk_name: str, point: str, erase: bool = True, type: str = ""
+    ) -> None:
+        if type:
+            type = f"-t {type}"
+        cmd_result = self.node.execute(f"umount {type} {point}", shell=True, sudo=True)
         if erase:
             fdisk = self.node.tools[Fdisk]
             fdisk.delete_partition(disk_name)
