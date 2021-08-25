@@ -378,26 +378,11 @@ class AzurePlatform(Platform):
                             matched_score = matcher.ratio()
                     if matched_cap:
                         predefined_cost += matched_cap.estimated_cost
-                        min_cap: schema.NodeSpace = self._node_generate_min_capability(
-                            req, matched_cap.capability
-                        )
-                        # apply azure specified values
-                        # they will pass into arm template
-                        min_runbook = min_cap.get_extended_runbook(
-                            AzureNodeSchema, AZURE
-                        )
-                        # the location may not be set
-                        min_runbook.location = location_name
-                        min_runbook.vm_size = matched_cap.vm_size
-                        assert isinstance(min_cap.nic_count, int)
-                        min_runbook.nic_count = min_cap.nic_count
 
-                        assert isinstance(min_cap.data_disk_count, int)
-                        min_runbook.data_disk_count = min_cap.data_disk_count
-                        assert isinstance(min_cap.data_disk_caching_type, str)
-                        min_runbook.data_disk_caching_type = (
-                            min_cap.data_disk_caching_type
+                        min_cap = self._generate_min_capability(
+                            req, matched_cap, location_name
                         )
+
                         if not existing_location:
                             existing_location = location_name
                         predefined_caps[req_index] = min_cap
@@ -434,30 +419,10 @@ class AzurePlatform(Platform):
 
                         check_result = req.check(azure_cap.capability)
                         if check_result.result:
-                            min_cap = self._node_generate_min_capability(
-                                req, azure_cap.capability
-                            )
 
-                            # apply azure specified values
-                            # they will pass into arm template
-                            node_runbook = min_cap.get_extended_runbook(
-                                AzureNodeSchema, AZURE
+                            min_cap = self._generate_min_capability(
+                                req, azure_cap, azure_cap.location
                             )
-                            if node_runbook.location:
-                                assert node_runbook.location == azure_cap.location, (
-                                    f"predefined location [{node_runbook.location}] "
-                                    f"must be same as "
-                                    f"cap location [{azure_cap.location}]"
-                                )
-
-                            # will pass into arm template
-                            node_runbook.location = azure_cap.location
-                            if not node_runbook.vm_size:
-                                node_runbook.vm_size = azure_cap.vm_size
-                            assert isinstance(
-                                min_cap.nic_count, int
-                            ), f"actual: {min_cap.nic_count}"
-                            node_runbook.nic_count = min_cap.nic_count
 
                             estimated_cost += azure_cap.estimated_cost
 
@@ -1402,6 +1367,39 @@ class AzurePlatform(Platform):
                 publisher=image_info.plan.publisher,
             )
         return plan
+
+    def _generate_min_capability(
+        self,
+        requirement: schema.NodeSpace,
+        azure_capability: AzureCapability,
+        location: str,
+    ) -> schema.NodeSpace:
+        min_cap = self._node_generate_min_capability(
+            requirement, azure_capability.capability
+        )
+        # Ppply azure specified values. They will pass into arm template
+        azure_node_runbook = min_cap.get_extended_runbook(AzureNodeSchema, AZURE)
+        if azure_node_runbook.location:
+            assert azure_node_runbook.location == location, (
+                f"predefined location [{azure_node_runbook.location}] "
+                f"must be same as "
+                f"cap location [{location}]"
+            )
+        # the location may not be set
+        azure_node_runbook.location = location
+        azure_node_runbook.vm_size = azure_capability.vm_size
+        assert isinstance(min_cap.nic_count, int), f"actual: {min_cap.nic_count}"
+        azure_node_runbook.nic_count = min_cap.nic_count
+        assert isinstance(
+            min_cap.data_disk_count, int
+        ), f"actual: {min_cap.data_disk_count}"
+        azure_node_runbook.data_disk_count = min_cap.data_disk_count
+        assert isinstance(
+            min_cap.data_disk_caching_type, str
+        ), f"actual: {min_cap.data_disk_caching_type}"
+        azure_node_runbook.data_disk_caching_type = min_cap.data_disk_caching_type
+
+        return min_cap
 
     def _get_deployable_vhd_path(
         self, vhd_path: str, location: str, log: Logger
