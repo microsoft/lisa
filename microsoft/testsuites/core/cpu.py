@@ -5,14 +5,15 @@ from pathlib import PurePosixPath
 
 from assertpy.assertpy import assert_that
 
-from lisa import Logger, testsuite
-from lisa.base_tools.cat import Cat
-from lisa.base_tools.uname import Uname
-from lisa.node import Node
-from lisa.tools.echo import Echo
-from lisa.tools.lscpu import Lscpu
-from lisa.tools.lsvmbus import Lsvmbus
-from lisa.util import BadEnvironmentStateException, LisaException, SkippedException
+from lisa import (
+    BadEnvironmentStateException,
+    LisaException,
+    Logger,
+    Node,
+    SkippedException,
+    testsuite,
+)
+from lisa.tools import Cat, Echo, Lscpu, Lsvmbus, Uname
 
 
 class CPUState:
