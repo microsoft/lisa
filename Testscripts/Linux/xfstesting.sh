@@ -88,6 +88,8 @@ ConfigureXFSTestTools() {
     rm -rf $xfs_folder
     git clone $xfs_git_url $xfs_folder
     pushd $xfs_folder
+    git checkout 065ca65561b1e647a24516a254ca8772f588cbfc
+    sed -i 's/chprojid_fail//'  src/Makefile
     ./configure
     make -j $(nproc)
     make install
