@@ -1246,7 +1246,7 @@ class AzurePlatform(Platform):
                 private_key_file=node_context.private_key_file,
             )
 
-    def _resource_sku_to_capability(
+    def _resource_sku_to_capability(  # noqa: C901
         self, location: str, resource_sku: ResourceSku
     ) -> schema.NodeSpace:
         # fill in default values, in case no capability meet.
@@ -1283,6 +1283,12 @@ class AzurePlatform(Platform):
                 # update features list if gpu feature is supported
                 node_space.features.update([features.Gpu.name()])
             elif name == "AcceleratedNetworkingEnabled":
+                # refer https://docs.microsoft.com/en-us/azure/virtual-machines/dcv2-series#configuration # noqa: E501
+                # standardDCSv2Family doesn't support `Accelerated Networking`
+                # but API return `True`, fix this issue temporarily
+                # will revert it till bug fixed.
+                if "standardDCSv2Family" == resource_sku.family:
+                    continue
                 if eval(sku_capability.value) is True:
                     # update features list if sriov feature is supported
                     node_space.features.update([features.Sriov.name()])
