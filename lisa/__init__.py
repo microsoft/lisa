@@ -18,6 +18,7 @@ from lisa.util import (
     LisaException,
     PassedException,
     SkippedException,
+    UnsupportedDistroException,
     UnsupportedOperationException,
 )
 from lisa.util.logger import Logger, init_logger
@@ -37,6 +38,7 @@ __all__ = [
     "TestSuiteMetadata",
     "TestCaseMetadata",
     "TestSuite",
+    "UnsupportedDistroException",
     "UnsupportedOperationException",
     "create_timer",
     "node_requirement",

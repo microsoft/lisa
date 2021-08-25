@@ -61,6 +61,20 @@ class UnsupportedOperationException(Exception):
     ...
 
 
+class UnsupportedDistroException(Exception):
+    """
+    This exception is used to indicate that a test case does not support the testing
+    distro.
+    """
+
+    def __init__(self, name: str, version: VersionInfo) -> None:
+        self.name = name
+        self.version = version
+
+    def __str__(self) -> str:
+        return f"Unsupported distro {self.name} {self.version}"
+
+
 class SkippedException(Exception):
     """
     A test case can be skipped based on runtime information.
