@@ -50,7 +50,6 @@ from lisa.sut_orchestrator.azure.tools import VmGeneration, Waagent
 from lisa.tools import Dmesg, Modinfo
 from lisa.util import (
     LisaException,
-    SkippedException,
     constants,
     dump_file,
     get_matched_str,
@@ -394,12 +393,26 @@ class AzurePlatform(Platform):
                     # if found all, skip other locations
                     break
             if not found_or_skipped:
-                # no location meet requirement
-                raise SkippedException(
-                    f"cannot find predefined vm size [{node_runbook.vm_size}] "
-                    f"in locations {locations}. "
-                    f"it may not be supported in current subscription."
-                )
+                # no location/vm_size meets requirement, so generate mockup to
+                # continue to test. It applies to some preview vm_size may not
+                # be listed by API.
+                location = next((x for x in locations))
+                for req_index, req in enumerate(nodes_requirement):
+                    if not node_runbook.vm_size or predefined_caps[req_index]:
+                        continue
+
+                    log.info(
+                        f"Cannot find vm_size {node_runbook.vm_size} in {location}. "
+                        f"Mockup capability to run tests."
+                    )
+                    mock_up_capability = self._generate_mockup_capability(
+                        node_runbook.vm_size, location
+                    )
+                    min_cap = self._generate_min_capability(
+                        req, mock_up_capability, location
+                    )
+                    predefined_caps[req_index] = min_cap
+
             for location_name in locations:
                 # in each location, all node must be found
                 # fill them as None and check after met capability
@@ -1367,6 +1380,51 @@ class AzurePlatform(Platform):
                 publisher=image_info.plan.publisher,
             )
         return plan
+
+    def _generate_mockup_capability(
+        self, vm_size: str, location: str
+    ) -> AzureCapability:
+
+        # some vm size cannot be queried from API, so use default capability to
+        # run with best guess on capability.
+        node_space = schema.NodeSpace(
+            node_count=1,
+            core_count=search_space.IntRange(min=1),
+            data_disk_count=search_space.IntRange(min=0),
+            memory_mb=search_space.IntRange(min=0),
+            nic_count=search_space.IntRange(min=1),
+            gpu_count=search_space.IntRange(min=0),
+            features=search_space.SetSpace[str](is_allow_set=True),
+            excluded_features=search_space.SetSpace[str](is_allow_set=False),
+        )
+        azure_capability = AzureCapability(
+            location=location,
+            vm_size=vm_size,
+            estimated_cost=4,
+            capability=node_space,
+            resource_sku={},
+        )
+
+        node_space.name = f"{location}_{vm_size}"
+        node_space.features = search_space.SetSpace[str](is_allow_set=True)
+        node_space.nic_count = 1
+
+        # all nodes support following features
+        node_space.features.update(
+            [
+                features.Nvme.name(),
+                features.Gpu.name(),
+                features.Sriov.name(),
+                features.StartStop.name(),
+                features.SerialConsole.name(),
+                features.DiskStandardHDDLRS.name(),
+                features.DiskStandardSSDLRS.name(),
+                features.DiskPremiumLRS.name(),
+                features.DiskEphemeral.name(),
+            ]
+        )
+
+        return azure_capability
 
     def _generate_min_capability(
         self,
