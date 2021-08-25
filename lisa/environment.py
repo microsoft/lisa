@@ -53,6 +53,8 @@ EnvironmentStatus = Enum(
         "Connected",
         # deleted by platform
         "Deleted",
+        # the environment is in a bad state, and need to be deleted.
+        "Bad",
     ],
 )
 
@@ -201,6 +203,7 @@ class Environment(ContextMixin, InitializableMixin):
                 has_default_node, node_runbook.is_default
             )
 
+        self._status: Optional[EnvironmentStatus] = None
         self.status: EnvironmentStatus = EnvironmentStatus.New
 
     def __repr__(self) -> str:
@@ -208,15 +211,18 @@ class Environment(ContextMixin, InitializableMixin):
 
     @property
     def status(self) -> EnvironmentStatus:
+        assert self._status
         return self._status
 
     @status.setter
     def status(self, value: EnvironmentStatus) -> None:
-        self._status = value
-        environment_message = EnvironmentMessage(
-            name=self.name, status=self._status, runbook=self.runbook
-        )
-        notifier.notify(environment_message)
+        # sometimes there are duplicated messages, ignore if no change.
+        if self._status != value:
+            self._status = value
+            environment_message = EnvironmentMessage(
+                name=self.name, status=self._status, runbook=self.runbook
+            )
+            notifier.notify(environment_message)
 
     @property
     def is_alive(self) -> bool:

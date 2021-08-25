@@ -153,9 +153,11 @@ class TestResult:
             # case can be passed with a warning.
             self.set_status(TestStatus.PASSED, f"{phase}warning: {exception}")
         elif isinstance(exception, BadEnvironmentStateException):
-            # TODO : Recycle or delete environment
             log.error("case failed with environment in bad state", exc_info=exception)
             self.set_status(TestStatus.FAILED, f"{phase}{exception}")
+
+            assert self.environment
+            self.environment.status = EnvironmentStatus.Bad
         else:
             if self.runtime_data.ignore_failure:
                 log.info(
