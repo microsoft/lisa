@@ -327,8 +327,6 @@ def simple_requirement(
     min_nic_count: int = 1,
     min_data_disk_count: int = 0,
     disk: Optional[schema.DiskOptionSettings] = None,
-    data_disk_caching_type: str = constants.DATADISK_CACHING_TYPE_NONE,
-    data_disk_iops: int = 1,
     supported_platform_type: Optional[List[str]] = None,
     unsupported_platform_type: Optional[List[str]] = None,
     supported_os: Optional[List[Type[OperatingSystem]]] = None,
@@ -347,11 +345,11 @@ def simple_requirement(
     node = schema.NodeSpace()
     node.node_count = search_space.IntRange(min=min_count)
     node.nic_count = search_space.IntRange(min=min_nic_count)
-    if disk:
+    if min_data_disk_count or disk:
+        if not disk:
+            disk = schema.DiskOptionSettings()
         node.disk = disk
         node.disk.data_disk_count = search_space.IntRange(min=min_data_disk_count)
-        node.disk.data_disk_caching_type = data_disk_caching_type
-        node.disk.data_disk_iops = search_space.IntRange(min=data_disk_iops)
     return _create_test_case_requirement(
         node,
         supported_platform_type,
