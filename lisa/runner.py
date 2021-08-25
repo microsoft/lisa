@@ -57,7 +57,7 @@ def print_results(
 
     output_method("test result summary")
     output_method(f"    TOTAL    : {len(test_results)}")
-    for key in result_count_dict.keys():
+    for key in TestStatus:
         count = result_count_dict.get(key, 0)
         if key == TestStatus.ATTEMPTED and count == 0:
             # attempted is confusing if user don't know it.
