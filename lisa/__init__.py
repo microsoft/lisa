@@ -14,6 +14,7 @@ from lisa.testsuite import (
     simple_requirement,
 )
 from lisa.util import (
+    BadEnvironmentStateException,
     LisaException,
     PassedException,
     SkippedException,
@@ -23,6 +24,7 @@ from lisa.util.logger import Logger, init_logger
 from lisa.util.perf_timer import create_timer
 
 __all__ = [
+    "BadEnvironmentStateException",
     "CustomScript",
     "CustomScriptBuilder",
     "Environment",
