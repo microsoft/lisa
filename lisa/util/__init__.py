@@ -246,12 +246,20 @@ def get_matched_str(
 
 
 def deep_update_dict(src: Dict[str, Any], dest: Dict[str, Any]) -> Dict[str, Any]:
-    result = dest.copy()
+    if isinstance(dest, int) or isinstance(dest, bool) or isinstance(dest, float):
+        result = dest
+    else:
+        result = dest.copy()
 
-    for key, value in src.items():
-        if isinstance(value, dict) and key in dest:
-            value = deep_update_dict(value, dest[key])
-        result[key] = value
+    if isinstance(result, dict):
+        for key, value in src.items():
+            if isinstance(value, dict) and key in dest:
+                value = deep_update_dict(value, dest[key])
+            result[key] = value
+    elif isinstance(src, dict):
+        result = src.copy()
+    else:
+        result = src
 
     return result
 
