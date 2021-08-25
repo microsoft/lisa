@@ -14,6 +14,7 @@ from lisa.executable import Tool
 from lisa.util import BaseClassMixin, LisaException, get_matched_str, parse_version
 from lisa.util.logger import get_logger
 from lisa.util.perf_timer import create_timer
+from lisa.util.process import ExecutableResult
 from lisa.util.subclasses import Factory
 
 if TYPE_CHECKING:
@@ -703,6 +704,12 @@ class Redhat(Fedora):
         # installation, it's implemented in source code installer.
         ...
 
+    def group_install_packages(self, group_name: str) -> None:
+        # trigger to run _initialize_package_installation
+        self._get_package_list(group_name)
+        result = self._node.execute(f'yum -y groupinstall "{group_name}"', sudo=True)
+        self.__verify_package_result(result, group_name)
+
     def _initialize_package_installation(self) -> None:
         information = self._get_information()
         # We may hit issue when run any yum command, caused by out of date
@@ -724,17 +731,7 @@ class Redhat(Fedora):
             command += " --nogpgcheck"
 
         install_result = self._node.execute(command, sudo=True)
-        # yum returns exit_code=1 if package is already installed.
-        # We do not want to fail if exit_code=1.
-        if install_result.exit_code == 1:
-            self._log.debug(f"{packages} is/are already installed.")
-        elif install_result.exit_code == 0:
-            self._log.debug(f"{packages} is/are installed successfully.")
-        else:
-            raise LisaException(
-                f"Failed to install {packages}. exit_code: {install_result.exit_code}, "
-                f"stderr: {install_result.stderr}"
-            )
+        self.__verify_package_result(install_result, packages)
 
     def _package_exists(self, package: str, signed: bool = True) -> bool:
         command = f"yum list installed {package}"
@@ -784,6 +781,18 @@ class Redhat(Fedora):
         # redhat rhel 7-lvm 7.7.2019102813 Basic_A1 cost 2371.568 seconds
         # redhat rhel 8.1 8.1.2020020415 Basic_A0 cost 2409.116 seconds
         self._node.execute(command, sudo=True, timeout=3600)
+
+    def __verify_package_result(self, result: ExecutableResult, packages: Any) -> None:
+        # yum returns exit_code=1 if package is already installed.
+        # We do not want to fail if exit_code=1.
+        if result.exit_code == 1:
+            self._log.debug(f"{packages} is/are already installed.")
+        elif result.exit_code == 0:
+            self._log.debug(f"{packages} is/are installed successfully.")
+        else:
+            raise LisaException(
+                f"Failed to install {packages}. exit_code: {result.exit_code}"
+            )
 
 
 class CentOs(Redhat):
