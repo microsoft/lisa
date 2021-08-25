@@ -27,6 +27,7 @@ from .ntttcp import Ntttcp
 from .nvmecli import Nvmecli
 from .reboot import Reboot
 from .service import Service
+from .sysctl import Sysctl
 from .timedatectl import Timedatectl
 from .uptime import Uptime
 from .who import Who
@@ -60,6 +61,7 @@ __all__ = [
     "Sed",
     "Uname",
     "Service",
+    "Sysctl",
     "Timedatectl",
     "Uptime",
     "Wget",
