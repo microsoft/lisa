@@ -92,8 +92,8 @@ AZURE_INTERNAL_ERROR_PATTERN = re.compile(
 VM_SIZE_FALLBACK_PATTERNS = [
     # exclude Standard_DS1_v2, because one core is too slow,
     # and doesn't work in some distro
-    re.compile(r"Standard_DS((?!1)[\d]{1}|[\d]{2,})_v2"),
-    re.compile(r"Standard_A((?!1)[\d]{1}|[\d]{2,})"),
+    re.compile(r"Standard_DS((?!1)[\d])_v2"),
+    re.compile(r"Standard_DS([\d]{2})_v2"),
     re.compile(r".*"),
 ]
 LOCATIONS = [
