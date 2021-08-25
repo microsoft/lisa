@@ -343,6 +343,15 @@ class LisaRunner(BaseRunner):
             case_variables=case_variables,
         )
 
+        if environment.status == EnvironmentStatus.Bad:
+            self._log.debug(
+                f"delete environment '{environment.name}', "
+                f"because it's in status Bad."
+            )
+            self._delete_environment_task(
+                environment=environment, test_results=test_results
+            )
+
     def _delete_environment_task(
         self, environment: Environment, test_results: List[TestResult]
     ) -> None:
