@@ -391,6 +391,17 @@ class SshShell(InitializableMixin):
             consistent=self.is_posix,
         )
 
+    def copy_back(self, node_path: PurePath, local_path: PurePath) -> None:
+        self.initialize()
+        assert self._inner_shell
+        node_path_str = self._purepath_to_str(node_path)
+        local_path_str = self._purepath_to_str(local_path)
+        self._inner_shell.get(
+            node_path_str,
+            local_path_str,
+            consistent=self.is_posix,
+        )
+
     def _purepath_to_str(
         self, path: Union[Path, PurePath, str]
     ) -> Union[Path, PurePath, str]:
@@ -491,9 +502,10 @@ class LocalShell(InitializableMixin):
 
     def copy(self, local_path: PurePath, node_path: PurePath) -> None:
         self.mkdir(node_path.parent, parents=True, exist_ok=True)
-        assert isinstance(local_path, Path), f"actual: {type(local_path)}"
-        assert isinstance(node_path, Path), f"actual: {type(node_path)}"
         shutil.copy(local_path, node_path)
+
+    def copy_back(self, node_path: PurePath, local_path: PurePath) -> None:
+        self.copy(local_path=node_path, node_path=local_path)
 
 
 Shell = Union[LocalShell, SshShell]
