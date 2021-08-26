@@ -24,13 +24,14 @@ class Echo(Tool):
         self,
         value: str,
         file: str,
+        shell: bool = False,
         sudo: bool = False,
     ) -> None:
         # Run `echo <value> > <file>`
         result = self.run(
             f"{value} > {file}",
             force_run=True,
-            shell=True,
+            shell=shell,
             sudo=sudo,
         ).stdout
         assert_that(result).does_not_contain("Permission denied")
