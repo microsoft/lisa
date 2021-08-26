@@ -333,7 +333,11 @@ class LisaRunner(BaseRunner):
             f"status {environment.status.name}"
         )
         assert test_results
-        suite_metadata = test_results[0].runtime_data.metadata.suite
+        assert len(test_results) == 1, (
+            f"single test result to run, " f"but {len(test_results)} found."
+        )
+        test_result = test_results[0]
+        suite_metadata = test_result.runtime_data.metadata.suite
         test_suite: TestSuite = suite_metadata.test_class(
             suite_metadata,
         )
@@ -503,21 +507,9 @@ class LisaRunner(BaseRunner):
                 (x for x in to_run_results if x.runtime_data.use_new_environment),
                 None,
             )
-            if to_run_test_result:
-                to_run_test_results: List[TestResult] = [to_run_test_result]
-            else:
-                first_test_result = to_run_results[0]
-                to_run_test_results = []
-                for result in to_run_results:
-                    if (
-                        result.runtime_data.metadata.suite.name
-                        == first_test_result.runtime_data.metadata.suite.name
-                    ):
-                        to_run_test_results.append(result)
-                    else:
-                        # take case with same priority or near cases
-                        break
-            to_run_results = to_run_test_results
+            if not to_run_test_result:
+                to_run_test_result = to_run_results[0]
+            to_run_results = [to_run_test_result]
 
         return to_run_results
 
