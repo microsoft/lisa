@@ -2,7 +2,6 @@
 # Licensed under the MIT license.
 
 from pathlib import Path
-from typing import Optional
 
 from lisa import (
     LisaException,
@@ -60,8 +59,8 @@ class Provisioning(TestSuite):
             supported_features=[SerialConsole],
         ),
     )
-    def smoke_test(self, case_name: str, log: Logger, node: RemoteNode) -> None:
-        self._smoke_test(case_name, log, node)
+    def smoke_test(self, log: Logger, node: RemoteNode, log_path: Path) -> None:
+        self._smoke_test(log, node, log_path)
 
     @TestCaseMetadata(
         description="""
@@ -76,13 +75,13 @@ class Provisioning(TestSuite):
         ),
     )
     def verify_deployment_provision_standard_ssd_disk(
-        self, case_name: str, log: Logger, node: RemoteNode
+        self, log: Logger, node: RemoteNode, log_path: Path
     ) -> None:
-        self._smoke_test(case_name, log, node)
+        self._smoke_test(log, node, log_path)
 
     @TestCaseMetadata(
         description="""
-        This case runs smoke test on a node provisioned with emphemeral disk.
+        This case runs smoke test on a node provisioned with ephemeral disk.
         The test steps are same as `smoke_test`.
         """,
         priority=1,
@@ -93,9 +92,9 @@ class Provisioning(TestSuite):
         ),
     )
     def verify_deployment_provision_ephemeral_managed_disk(
-        self, case_name: str, log: Logger, node: RemoteNode
+        self, log: Logger, node: RemoteNode, log_path: Path
     ) -> None:
-        self._smoke_test(case_name, log, node)
+        self._smoke_test(log, node, log_path)
 
     @TestCaseMetadata(
         description="""
@@ -110,13 +109,11 @@ class Provisioning(TestSuite):
         ),
     )
     def verify_deployment_provision_premium_disk(
-        self, case_name: str, log: Logger, node: RemoteNode
+        self, log: Logger, node: RemoteNode, log_path: Path
     ) -> None:
-        self._smoke_test(case_name, log, node)
+        self._smoke_test(log, node, log_path)
 
-    def _smoke_test(self, case_name: str, log: Logger, node: RemoteNode) -> None:
-        case_path: Optional[Path] = None
-
+    def _smoke_test(self, log: Logger, node: RemoteNode, log_path: Path) -> None:
         if not node.is_remote:
             raise SkippedException("smoke test : {case_name} cannot run on local node.")
 
@@ -125,8 +122,7 @@ class Provisioning(TestSuite):
         )
         if not is_ready:
             serial_console = node.features[SerialConsole]
-            case_path = self._create_case_log_path(case_name)
-            serial_console.check_panic(saved_path=case_path, stage="bootup")
+            serial_console.check_panic(saved_path=log_path, stage="bootup")
             raise LisaException(
                 f"Cannot connect to [{node.public_address}:{node.public_port}], "
                 f"error code: {tcp_error_code}, no panic found in serial log"
@@ -141,11 +137,9 @@ class Provisioning(TestSuite):
             node.reboot()
             log.info(f"node '{node.name}' rebooted in {timer}")
         except Exception as identifier:
-            if not case_path:
-                case_path = self._create_case_log_path(case_name)
             serial_console = node.features[SerialConsole]
             # if there is any panic, fail before partial pass
-            serial_console.check_panic(saved_path=case_path, stage="reboot")
+            serial_console.check_panic(saved_path=log_path, stage="reboot")
 
             # if node cannot be connected after reboot, it should be failed.
             if isinstance(identifier, LisaException) and str(identifier).startswith(
