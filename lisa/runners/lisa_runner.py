@@ -347,6 +347,23 @@ class LisaRunner(BaseRunner):
             case_variables=case_variables,
         )
 
+        # keep failed environment, not to delete
+        if (
+            test_result.is_completed
+            and test_result.status != TestStatus.PASSED
+            and self.platform.runbook.keep_environment
+            == constants.ENVIRONMENT_KEEP_FAILED
+        ):
+            self._log.debug(
+                f"keep environment '{environment.name}', "
+                f"because keep_environment is 'failed', "
+                f"and test case '{test_result.name}' failed on it."
+            )
+            environment.status = EnvironmentStatus.Deleted
+
+        # if an environment is in bad status, it will be deleted, not run more
+        # test cases. But if the setting is to keep failed environment, it may
+        # be kept in above logic.
         if environment.status == EnvironmentStatus.Bad:
             self._log.debug(
                 f"delete environment '{environment.name}', "
