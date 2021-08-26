@@ -24,6 +24,7 @@ class TestResultInformation:
 @dataclass
 class EnvironmentInformation:
     name: str
+    status: str
     information: str
     prepared_time: Optional[datetime] = None
     deployed_time: Optional[datetime] = None
@@ -101,10 +102,13 @@ class EnvironmentStats(notifier.Notifier):
         env_info = self._environments.get(environment.name, None)
         if not env_info:
             env_info = EnvironmentInformation(
-                name=environment.name, information=str(environment.runbook)
+                name=environment.name,
+                status=environment.status.name,
+                information=str(environment.runbook),
             )
             self._environments[environment.name] = env_info
 
+        env_info.status = environment.status.name
         if environment.status == EnvironmentStatus.Prepared:
             env_info.prepared_time = datetime.now()
         elif environment.status == EnvironmentStatus.Deployed:
@@ -122,12 +126,13 @@ class EnvironmentStats(notifier.Notifier):
 
     def _dump_environments(self, f: TextIO) -> None:
         f.write(
-            f"{'name':<20} {'prepared_time':<30} {'deployed_time':<30} "
+            f"{'name':<15} {'status':<15} {'prepared_time':<30} {'deployed_time':<30} "
             f"{'deleted_time':<30} results\n"
         )
         for env_result in self._environments.values():
             f.write(
-                f"{env_result.name:<20} {str(env_result.prepared_time):<30} "
+                f"{env_result.name:<15} {env_result.status:<15} "
+                f"{str(env_result.prepared_time):<30} "
                 f"{str(env_result.deployed_time):<30} "
                 f"{str(env_result.deleted_time):<30} "
                 f"{', '.join([x.id for x in env_result.results])}\n"
