@@ -892,14 +892,13 @@ class AzurePlatform(Platform):
         arm_parameters.storage_name = get_storage_account_name(
             self.subscription_id, arm_parameters.location
         )
-        if arm_parameters.enable_sriov is None:
+        if node.capability.has_feature(features.Sriov.name()):
             arm_parameters.enable_sriov = True
-            if node.capability.has_feature(features.Sriov.name()):
-                self._log.debug(
-                    "use synthetic network since used size doesn't have "
-                    "sriov capability"
-                )
-                arm_parameters.enable_sriov = False
+        else:
+            self._log.debug(
+                "use synthetic network since used size doesn't have Sriov capability"
+            )
+            arm_parameters.enable_sriov = False
 
         # the arm template may be updated by the hooks, so make a copy to avoid
         # the original template is modified.
