@@ -315,7 +315,9 @@ def parse_version(version: str) -> VersionInfo:
     ver: Dict[str, Any] = {
         key: 0 if value is None else int(value)
         for key, value in match.groupdict().items()
+        if key != "prerelease"
     }
+    ver["prerelease"] = match["prerelease"]
     rest = match.string[match.end() :]  # noqa:E203
     ver["build"] = rest
     release_version = VersionInfo(**ver)
