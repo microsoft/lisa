@@ -23,13 +23,17 @@ class Mount(Tool):
     def can_install(self) -> bool:
         return True
 
-    def mount(self, disk_name: str, point: str, type: str = "") -> None:
+    def mount(
+        self, disk_name: str, point: str, type: str = "", options: str = ""
+    ) -> None:
         self.node.shell.mkdir(PurePosixPath(point), exist_ok=True)
+        runline = [self.command]
         if type:
-            type = f"-t {type}"
-        cmd_result = self.node.execute(
-            f"mount {type} {disk_name} {point}", shell=True, sudo=True
-        )
+            runline.append(f"-t {type}")
+        if options:
+            runline.append(f"-o {options}")
+        runline.append(f"{disk_name} {point}")
+        cmd_result = self.node.execute(" ".join(runline), shell=True, sudo=True)
         cmd_result.assert_exit_code()
 
     def umount(
