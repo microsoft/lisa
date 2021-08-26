@@ -34,6 +34,20 @@ class CPUInfo:
         self.l2_cache = l2_cache
         self.l3_cache = l3_cache
 
+    def __str__(self) -> str:
+        return (
+            f"cpu : {self.cpu}, "
+            f"numa_node : {self.numa_node}, "
+            f"socket : {self.socket}, "
+            f"l1_data_cache : , {self.l1_data_cache}, "
+            f"l1_instruction_cache : {self.l1_instruction_cache}, "
+            f"l2_cache : {self.l2_cache}, "
+            f"l3_cache : {self.l3_cache}"
+        )
+
+    def __repr__(self) -> str:
+        return self.__str__()
+
 
 class Lscpu(Tool):
     # CPU(s):              16
@@ -41,11 +55,12 @@ class Lscpu(Tool):
     # Architecture:        x86_64
     __architecture_pattern = re.compile(r"^Architecture:\s+(.*)?\r$", re.M)
     __valid_architecture_list = ["x86_64"]
-    # Capture patterns of the form `0 0 0 0:0:0:0`
+    # 0 0 0 0:0:0:0
+    # 96 0 10 1:1:1:0
     _core_numa_mappings = re.compile(
-        r".*(?P<cpu>\d+).+(?P<numa_node>\d+).+(?P<socket>\d+)"
-        r".+(?P<l1_data_cache>\d+):(?P<l1_instruction_cache>\d+)"
-        r":(?P<l2_cache>\d+):(?P<l3_cache>\d+)$"
+        r"\s*(?P<cpu>\d+)\s+(?P<numa_node>\d+)\s+(?P<socket>\d+)\s+"
+        r"(?P<l1_data_cache>\d+):(?P<l1_instruction_cache>\d+):"
+        r"(?P<l2_cache>\d+):(?P<l3_cache>\d+)$"
     )
 
     def _initialize(self, *args: Any, **kwargs: Any) -> None:

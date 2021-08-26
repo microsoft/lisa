@@ -12,7 +12,7 @@ from lisa.node import Node
 from lisa.tools.echo import Echo
 from lisa.tools.lscpu import Lscpu
 from lisa.tools.lsvmbus import Lsvmbus
-from lisa.util import BadEnvironmentStateException, SkippedException
+from lisa.util import BadEnvironmentStateException, LisaException, SkippedException
 
 
 class CPUState:
@@ -28,11 +28,12 @@ class CPUState:
     """,
 )
 class CPU(testsuite.TestSuite):
+    def _get_cpu_config_file(self, cpu_id: str) -> str:
+        return f"/sys/devices/system/cpu/cpu{cpu_id}/online"
+
     def _set_cpu_state(self, cpu_id: str, state: str, node: Node) -> bool:
-        file_path = f"/sys/devices/system/cpu/cpu{cpu_id}/online"
-        file_exists = node.shell.exists(PurePosixPath(file_path))
-        if file_exists:
-            node.tools[Echo].write_to_file(state, file_path, shell=True, sudo=True)
+        file_path = self._get_cpu_config_file(cpu_id)
+        node.tools[Echo].write_to_file(state, file_path, sudo=True)
         result = node.tools[Cat].read_from_file(file_path, force_run=True, sudo=True)
         return result == state
 
@@ -56,15 +57,32 @@ class CPU(testsuite.TestSuite):
         cpu_count = node.tools[Lscpu].get_core_count()
         log.debug(f"{cpu_count} CPU cores detected...")
 
+        # Find CPUs(except CPU0) which are mapped to LSVMBUS channels and have
+        # `sys/devices/system/cpu/cpu/cpu<id>/online` file present.
         channels = node.tools[Lsvmbus].get_device_channels_from_lsvmbus()
-        mapped_cpu = set()
+        is_non_zero_cpu_id_mapped = False
+        mapped_cpu_set = set()
         for channel in channels:
             for channel_vp_map in channel.channel_vp_map:
                 target_cpu = channel_vp_map.target_cpu
-                if target_cpu != "0":
-                    mapped_cpu.add(target_cpu)
+                if target_cpu == "0":
+                    continue
+                is_non_zero_cpu_id_mapped = True
+                file_path = self._get_cpu_config_file(target_cpu)
+                file_exists = node.shell.exists(PurePosixPath(file_path))
+                if file_exists:
+                    mapped_cpu_set.add(target_cpu)
 
-        for target_cpu in mapped_cpu:
+        # Fail test if `/sys/devices/system/cpu/cpu/cpu<id>/online` file does
+        # not exist for all CPUs(except CPU0) mapped to LSVMBUS channels. This
+        # is to catch distros which have this unexpected behaviour.
+        if is_non_zero_cpu_id_mapped and not mapped_cpu_set:
+            raise LisaException(
+                "/sys/devices/system/cpu/cpu/cpu<id>/online file"
+                "does not exists for all CPUs mapped to LSVMBUS channels."
+            )
+
+        for target_cpu in mapped_cpu_set:
             log.debug(f"Checking CPU {target_cpu} on /sys/device/....")
             result = self._set_cpu_state(target_cpu, CPUState.OFFLINE, node)
             if result:
@@ -108,7 +126,7 @@ class CPU(testsuite.TestSuite):
         8   0    0      8   8   8  8
         9   1    1      9   9   9  9
         """,
-        priority=1,
+        priority=2,
     )
     def l3_cache_check(self, node: Node, log: Logger) -> None:
         cmdline = node.tools[Cat].run("/proc/cmdline").stdout
