@@ -5,6 +5,7 @@ import re
 import time
 from dataclasses import dataclass
 from functools import partial
+from pathlib import Path
 from typing import TYPE_CHECKING, Any, Iterable, List, Optional, Pattern, Type, Union
 
 from semver import VersionInfo
@@ -138,6 +139,9 @@ class OperatingSystem:
     @property
     def name(self) -> str:
         return self.__class__.__name__
+
+    def capture_system_information(self, saved_path: Path) -> None:
+        ...
 
     @classmethod
     def _get_detect_string(cls, node: Any) -> Iterable[str]:
@@ -279,6 +283,20 @@ class Posix(OperatingSystem, BaseClassMixin):
     ) -> None:
         package_names = self._get_package_list(packages)
         self._update_packages(package_names)
+
+    def capture_system_information(self, saved_path: Path) -> None:
+        # avoid to involve node, it's ok if some command doesn't exist.
+        self._node.execute("uname -vrio").save_stdout_to_file(saved_path / "uname.txt")
+        self._node.execute(
+            "uptime -s || last reboot -F | head -1 | awk '{print $9,$6,$7,$8}'",
+            shell=True,
+        ).save_stdout_to_file(saved_path / "uptime.txt")
+        self._node.execute("modinfo hv_netvsc").save_stdout_to_file(
+            saved_path / "modinfo-hv_netvsc.txt"
+        )
+        self._node.shell.copy_back(
+            self._node.get_pure_path("/etc/os-release"), saved_path / "os-release.txt"
+        )
 
     def _install_packages(
         self, packages: Union[List[str]], signed: bool = True
@@ -709,6 +727,13 @@ class Redhat(Fedora):
         self._get_package_list(group_name)
         result = self._node.execute(f'yum -y groupinstall "{group_name}"', sudo=True)
         self.__verify_package_result(result, group_name)
+
+    def capture_system_information(self, saved_path: Path) -> None:
+        super().capture_system_information(saved_path)
+        self._node.shell.copy_back(
+            self._node.get_pure_path("/etc/redhat-release"),
+            saved_path / "redhat-release.txt",
+        )
 
     def _initialize_package_installation(self) -> None:
         information = self._get_information()

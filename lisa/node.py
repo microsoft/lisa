@@ -18,6 +18,7 @@ from lisa.util import (
     LisaException,
     constants,
     fields_to_dict,
+    get_datetime_path,
     subclasses,
 )
 from lisa.util.logger import Logger, get_logger
@@ -221,10 +222,20 @@ class Node(subclasses.BaseClassWithRunbookMixin, ContextMixin, InitializableMixi
         else:
             return PureWindowsPath(path)
 
+    def capture_system_information(self, name: str = "") -> None:
+        """
+        download key files or outputs of commands to a subfolder of the node.
+        """
+        saved_path = self.local_log_path / f"{get_datetime_path()}_captured_{name}"
+        saved_path.mkdir(parents=True, exist_ok=True)
+        self.log.debug(f"capturing system information to {saved_path}.")
+        self.os.capture_system_information(saved_path)
+
     def _initialize(self, *args: Any, **kwargs: Any) -> None:
         self.log.info(f"initializing node '{self.name}' {self}")
         self.shell.initialize()
         self.os: OperatingSystem = OperatingSystem.create(self)
+        self.capture_system_information("started")
 
     def _execute(
         self,

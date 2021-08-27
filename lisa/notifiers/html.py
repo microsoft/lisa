@@ -125,7 +125,7 @@ class Html(Notifier):
 
     def _initialize(self, *args: Any, **kwargs: Any) -> None:
         runbook = cast(HtmlSchema, self.runbook)
-        # disable global catpure, because it causes "handle is invalid" error in
+        # disable global capture, because it causes "handle is invalid" error in
         # Windows 11
         global_config = Config.fromdictargs({"capture": "no"}, {})
         self._session = pytest.Session.from_config(global_config)
