@@ -8,6 +8,7 @@ import signal
 import subprocess
 import time
 from dataclasses import dataclass
+from pathlib import Path
 from typing import Dict, List, Optional, Union
 
 import spur  # type: ignore
@@ -35,6 +36,11 @@ class ExecutableResult:
     ) -> AssertionBuilder:
         message = "\n".join([message, f"get unexpected exit code on cmd {self.cmd}"])
         return assert_that(self.exit_code, message).is_equal_to(expected_exit_code)
+
+    def save_stdout_to_file(self, saved_path: Path) -> "ExecutableResult":
+        with open(saved_path, "w") as f:
+            f.write(self.stdout)
+        return self
 
 
 # TODO: So much cleanup here. It was using duck typing.
