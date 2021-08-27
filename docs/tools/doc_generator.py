@@ -29,8 +29,8 @@ class ClassVisitor(ast.NodeVisitor):
         """
         decorators = node.decorator_list
         for deco in decorators:
-            if isinstance(deco, ast.Call):
-                if deco.func.id == "TestSuiteMetadata":  # type: ignore
+            if isinstance(deco, ast.Call) and isinstance(deco.func, ast.Name):
+                if deco.func.id == "TestSuiteMetadata":
                     self._suites.add(node)
         if isinstance(node, ast.ClassDef):
             self._class_names.add(node.name)
@@ -57,8 +57,8 @@ class FuncVisitor(ast.NodeVisitor):
         """
         decorators = node.decorator_list
         for deco in decorators:
-            if isinstance(deco, ast.Call):
-                if deco.func.id == "TestCaseMetadata":  # type: ignore
+            if isinstance(deco, ast.Call) and isinstance(deco.func, ast.Name):
+                if deco.func.id == "TestCaseMetadata":
                     self._cases.add(node)
 
 
@@ -106,8 +106,8 @@ def extract_metadata(nodes: Set[Any]) -> List[Dict[str, str]]:
                             val += req.value.attr  # type: ignore
                         elif isinstance(req.value, ast.Constant):
                             val = req.arg + "=" + str(req.value.value)  # type: ignore
-                        else:
-                            for r in req.value.elts:  # type: ignore
+                        elif isinstance(req.value, ast.List):
+                            for r in req.value.elts:
                                 if isinstance(r, ast.Name):
                                     val = add_req(val, r.id)  # type: ignore
                 else:
@@ -119,7 +119,7 @@ def extract_metadata(nodes: Set[Any]) -> List[Dict[str, str]]:
     return all_metadata
 
 
-def load_path(file_path: Path) -> Dict[str, str]:
+def load_path(file_path: Path) -> List[Dict[str, str]]:
     """
     load file paths from a user-friendly yaml file
 
@@ -133,6 +133,6 @@ def load_path(file_path: Path) -> Dict[str, str]:
     path = (base_path / file_path).resolve()
 
     with open(path, "r") as file:
-        data: Dict[str, str] = yaml.safe_load(file)
+        data: List[Dict[str, str]] = yaml.safe_load(file)
 
     return data

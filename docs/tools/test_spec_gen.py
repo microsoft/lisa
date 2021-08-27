@@ -8,21 +8,15 @@ Update test_spec.rst with test metadata
 import ast
 import os
 from pathlib import Path
-from typing import Dict, List, TextIO
+from typing import Dict, TextIO
 
-from doc_generator import (  # type: ignore
-    TESTS,
-    ClassVisitor,
-    FuncVisitor,
-    extract_metadata,
-    load_path,
-)
+from .doc_generator import TESTS, ClassVisitor, FuncVisitor, extract_metadata, load_path
 
 base_path = Path(__file__).parent
 file_path = (base_path / "../run_test/test_spec.rst").resolve()  # path of test_spec.rst
 
 
-def update_file(filename: Path, test_paths: List[Path]) -> None:
+def update_file() -> None:
     """
     Updates (rewrites) test specifications.
 
@@ -30,7 +24,10 @@ def update_file(filename: Path, test_paths: List[Path]) -> None:
         filename (Path): the path to the test spec
         test_paths (List[Path]): a list of directories containing tests
     """
-    with open(filename, "w") as test_spec:
+    data = load_path(TESTS)
+    test_paths = [(base_path / Path(x.get("value", ""))).resolve() for x in data]
+
+    with open(file_path, "w") as test_spec:
         _write_title(test_spec)
 
         for test_path in test_paths:
@@ -161,10 +158,3 @@ def _write_description(
         except IndexError:
             pass
     file.write("\n")
-
-
-if __name__ == "__main__":
-    data = load_path(TESTS)
-    test_paths = [(base_path / Path(x.get("value"))).resolve() for x in data]
-
-    update_file(file_path, test_paths)
