@@ -107,8 +107,8 @@ html_theme_options = {
 # -- Test auto-generation pipelines ------------------------------------------
 
 base_path = Path(__file__).parent
-test_table_pipeline = base_path / "tools/test_table_gen.py"
+test_summary_pipeline = base_path / "tools/test_summary_gen.py"
 test_spec_pipeline = base_path / "tools/test_spec_gen.py"
 
-subprocess.call(["python", test_table_pipeline])
+subprocess.call(["python", test_summary_pipeline])
 subprocess.call(["python", test_spec_pipeline])
