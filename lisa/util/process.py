@@ -36,12 +36,6 @@ class ExecutableResult:
         message = "\n".join([message, f"get unexpected exit code on cmd {self.cmd}"])
         return assert_that(self.exit_code, message).is_equal_to(expected_exit_code)
 
-    def assert_stderr(
-        self, expected_stderr: str = "", message: str = ""
-    ) -> AssertionBuilder:
-        message = "\n".join([message, f"get unexpected stderr on cmd {self.cmd}"])
-        return assert_that(self.stderr, message).is_equal_to(expected_stderr)
-
 
 # TODO: So much cleanup here. It was using duck typing.
 class Process:
