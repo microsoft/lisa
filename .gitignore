@@ -19,5 +19,5 @@ htmlcov
 /docs/_build
 
 # auto-generated test table & specifications
-/docs/run_test/test_table.rst
+/docs/run_test/test_summary.rst
 /docs/run_test/test_spec.rst

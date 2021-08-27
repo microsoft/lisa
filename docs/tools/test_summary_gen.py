@@ -2,7 +2,7 @@
 # Licensed under the MIT license.
 
 """
-Update test_table.rst with test metadata
+Update test_summary.rst with test metadata
 """
 
 import ast
@@ -19,12 +19,10 @@ from doc_generator import (  # type: ignore
 )
 
 base_path = Path(__file__).parent
-table_path = (
-    base_path / "../run_test/test_table.rst"
-).resolve()  # path of test_table.rst
+table_path = (base_path / "../run_test/test_summary.rst").resolve()
 
 
-def update_table(filename: Path, test_paths: List[Path]) -> None:
+def update_summary(filename: Path, test_paths: List[Path]) -> None:
     """
     Updates (rewrites) test table.
 
@@ -71,7 +69,7 @@ def _write_title(file: TextIO) -> None:
         file (TextIO): test table
     """
     link = "https://github.com/microsoft/lisa/blob/master/Documents/LISAv2-TestCase-Statistics.md"  # noqa: E501
-    title = "Table of Test Cases"
+    title = "Test Cases"
     file.write(title + "\n")
     file.write("=" * len(title) + "\n")
     file.write("\n")
@@ -135,4 +133,4 @@ if __name__ == "__main__":
     data = load_path(TESTS)
     test_paths = [(base_path / Path(x.get("value"))).resolve() for x in data]
 
-    update_table(table_path, test_paths)
+    update_summary(table_path, test_paths)
