@@ -116,7 +116,7 @@ class EnvironmentStats(notifier.Notifier):
         elif environment.status == EnvironmentStatus.Deleted:
             env_info.deleted_time = datetime.now()
 
-        self._update_information()
+        self._update_information(force=True)
 
     def _update_information(self, force: bool = False) -> None:
         if self._last_updated_time.elapsed(False) > self._update_frequence or force:
