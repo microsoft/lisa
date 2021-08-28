@@ -105,6 +105,7 @@ class Html(Notifier):
                 longrepr=message.message,
                 when="call",
                 duration=message.elapsed,
+                duration_formatter="%H:%M:%S.%f",
             )
             if message.information:
                 report.sections.append(
