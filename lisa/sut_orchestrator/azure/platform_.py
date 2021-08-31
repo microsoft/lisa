@@ -607,6 +607,34 @@ class AzurePlatform(Platform):
 
         return result
 
+    def _get_platform_information(self, environment: Environment) -> Dict[str, str]:
+        result: Dict[str, str] = {}
+        azure_runbook: AzurePlatformSchema = self.runbook.get_extended_runbook(
+            AzurePlatformSchema
+        )
+
+        result[AZURE_RG_NAME_KEY] = get_environment_context(
+            environment
+        ).resource_group_name
+        if azure_runbook.availability_set_properties:
+            for (
+                property_name,
+                property_value,
+            ) in azure_runbook.availability_set_properties.items():
+                if property_name in [
+                    "platformFaultDomainCount",
+                    "platformUpdateDomainCount",
+                ]:
+                    continue
+                if isinstance(property_value, dict):
+                    for key, value in property_value.items():
+                        result[key] = value
+        if azure_runbook.availability_set_tags:
+            for key, value in azure_runbook.availability_set_tags.items():
+                result[key] = value
+
+        return result
+
     def _get_environment_information(self, environment: Environment) -> Dict[str, str]:
         information: Dict[str, str] = {}
         node_runbook: Optional[AzureNodeSchema] = None
@@ -639,6 +667,8 @@ class AzurePlatform(Platform):
                     information[KEY_WALA_VERSION] = wala_version
             except Exception as identifier:
                 node.log.exception("error on get waagent version", exc_info=identifier)
+
+            information.update(self._get_platform_information(environment))
 
             if node.is_connected and node.is_posix:
                 information.update(self._get_node_information(node))
