@@ -6,7 +6,8 @@ from typing import TYPE_CHECKING, cast
 
 from lisa.executable import Tool
 from lisa.operating_system import Posix
-from lisa.tools import Gcc, Lscpu
+from lisa.tools import Gcc
+from lisa.tools.lscpu import Lscpu
 
 if TYPE_CHECKING:
     from lisa.node import Node
