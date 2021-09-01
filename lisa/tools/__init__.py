@@ -13,6 +13,7 @@ from .find import Find
 from .gcc import Gcc
 from .git import Git
 from .hwclock import Hwclock
+from .kdump import KdumpBase
 from .lscpu import Lscpu
 from .lsmod import Lsmod
 from .lspci import Lspci
@@ -45,6 +46,7 @@ __all__ = [
     "Gcc",
     "Git",
     "Hwclock",
+    "KdumpBase",
     "Lscpu",
     "Lsmod",
     "Lspci",
