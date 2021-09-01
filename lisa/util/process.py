@@ -141,7 +141,12 @@ class Process:
             )
             self._log.log(stderr_level, f"not found command: {identifier}")
 
-    def wait_result(self, timeout: float = 600) -> ExecutableResult:
+    def wait_result(
+        self,
+        timeout: float = 600,
+        expected_exit_code: Optional[int] = None,
+        expected_exit_code_failure_message: str = "",
+    ) -> ExecutableResult:
         timer = create_timer()
 
         while self.is_running() and timeout >= timer.elapsed(False):
@@ -187,6 +192,12 @@ class Process:
             self._process = None
             self._log.debug(
                 f"execution time: {self._timer}, exit code: {self._result.exit_code}"
+            )
+
+        if expected_exit_code:
+            self._result.assert_exit_code(
+                expected_exit_code=expected_exit_code,
+                message=expected_exit_code_failure_message,
             )
 
         return self._result
