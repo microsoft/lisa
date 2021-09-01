@@ -7,6 +7,8 @@ Troubleshooting
    -  `Many missing packages <#many-missing-packages>`__
    -  `Error: Poetry could not find a pyproject.toml
       file <#error-poetry-could-not-find-a-pyproject-toml-file>`__
+   -  `Error: Poetry \"The virtual environment seems to be broken\" 
+      <#error-poetry-the-virtual-environment-seems-to-be-broken>`__
 
 -  `Using VSCode <#using-vscode>`__
 
@@ -49,6 +51,12 @@ Error: Poetry could not find a pyproject.toml file
 Poetry provides different packages according to the folder, and depends
 on the ``pyproject.toml`` file in the current folder. Make sure to run
 ``poetry`` in the root folder of LISA.
+
+Error: Poetry "The virtual environment seems to be broken"
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Ensure that ``python3 --version`` returns python3.8 before trying to install poetry. If the command points to an older version of python3, you must uninstall then reinstall poetry after ensuring that virtualenv is installed with pip3 using python3.8. 
+
 
 Using VSCode
 ------------
