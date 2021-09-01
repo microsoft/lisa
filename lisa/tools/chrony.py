@@ -48,7 +48,7 @@ class Chrony(Tool):
         service = self.node.tools[Service]
         service.restart_service(service_name)
 
-    @retry(exceptions=LisaException, tries=120, delay=0.5)  # type: ignore
+    @retry(exceptions=LisaException, tries=240, delay=0.5)  # type: ignore
     def check_tracking(self) -> None:
         cmd_result = self.run("tracking", force_run=True)
         cmd_result.assert_exit_code()
