@@ -249,6 +249,8 @@ class Tool(InitializableMixin):
         no_info_log: bool = True,
         cwd: Optional[pathlib.PurePath] = None,
         timeout: int = 600,
+        expected_exit_code: Optional[int] = None,
+        expected_exit_code_failure_message: str = "",
     ) -> ExecutableResult:
         """
         Run a process and wait for result.
@@ -262,7 +264,11 @@ class Tool(InitializableMixin):
             no_info_log=no_info_log,
             cwd=cwd,
         )
-        return process.wait_result(timeout=timeout)
+        return process.wait_result(
+            timeout=timeout,
+            expected_exit_code=expected_exit_code,
+            expected_exit_code_failure_message=expected_exit_code_failure_message,
+        )
 
     def get_tool_path(self) -> pathlib.PurePath:
         """
@@ -344,6 +350,8 @@ class CustomScript(Tool):
         no_info_log: bool = True,
         cwd: Optional[pathlib.PurePath] = None,
         timeout: int = 600,
+        expected_exit_code: Optional[int] = None,
+        expected_exit_code_failure_message: str = "",
     ) -> ExecutableResult:
         process = self.run_async(
             parameters=parameters,
@@ -354,7 +362,11 @@ class CustomScript(Tool):
             no_info_log=no_info_log,
             cwd=cwd,
         )
-        return process.wait_result(timeout=timeout)
+        return process.wait_result(
+            timeout=timeout,
+            expected_exit_code=expected_exit_code,
+            expected_exit_code_failure_message=expected_exit_code_failure_message,
+        )
 
     @property
     def name(self) -> str:

@@ -173,6 +173,8 @@ class Node(subclasses.BaseClassWithRunbookMixin, ContextMixin, InitializableMixi
         no_info_log: bool = True,
         cwd: Optional[PurePath] = None,
         timeout: int = 600,
+        expected_exit_code: Optional[int] = None,
+        expected_exit_code_failure_message: str = "",
     ) -> ExecutableResult:
         process = self.execute_async(
             cmd,
@@ -182,7 +184,11 @@ class Node(subclasses.BaseClassWithRunbookMixin, ContextMixin, InitializableMixi
             no_info_log=no_info_log,
             cwd=cwd,
         )
-        return process.wait_result(timeout=timeout)
+        return process.wait_result(
+            timeout=timeout,
+            expected_exit_code=expected_exit_code,
+            expected_exit_code_failure_message=expected_exit_code_failure_message,
+        )
 
     def execute_async(
         self,
