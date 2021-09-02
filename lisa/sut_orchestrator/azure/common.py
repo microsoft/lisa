@@ -6,7 +6,6 @@ from dataclasses import InitVar, dataclass, field
 from time import sleep
 from typing import TYPE_CHECKING, Any, Dict, List, Optional, Union
 
-from azure.identity import DefaultAzureCredential
 from azure.mgmt.compute import ComputeManagementClient  # type: ignore
 from azure.mgmt.marketplaceordering import MarketplaceOrderingAgreements  # type: ignore
 from azure.mgmt.network import NetworkManagementClient  # type: ignore
@@ -274,7 +273,7 @@ def get_network_client(platform: "AzurePlatform") -> ComputeManagementClient:
 
 
 def get_storage_client(
-    credential: DefaultAzureCredential, subscription_id: str
+    credential: Any, subscription_id: str
 ) -> StorageManagementClient:
     return StorageManagementClient(
         credential=credential,
@@ -321,7 +320,7 @@ def wait_operation(operation: Any) -> Any:
 
 
 def get_or_create_storage_container(
-    storage_account_name: str, container_name: str, credential: DefaultAzureCredential
+    storage_account_name: str, container_name: str, credential: Any
 ) -> ContainerClient:
     """
     Create a Azure Storage container if it does not exist.
@@ -336,7 +335,7 @@ def get_or_create_storage_container(
 
 
 def check_or_create_storage_account(
-    credential: DefaultAzureCredential,
+    credential: Any,
     subscription_id: str,
     account_name: str,
     resource_group_name: str,
