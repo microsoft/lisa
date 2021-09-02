@@ -3,12 +3,14 @@
 
 
 from dataclasses import dataclass
+from os import unlink
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Dict, List, Optional, Tuple, Type
 
 import requests
 from assertpy import assert_that
 from dataclasses_json import dataclass_json
+from PIL import Image
 
 from lisa import features, schema, search_space
 from lisa.features.gpu import ComputeSDK
@@ -76,12 +78,16 @@ class SerialConsole(AzureFeatureMixin, features.SerialConsole):
             )
         )
         if saved_path:
-            screenshot_name = saved_path.joinpath("serial_console.bmp")
+            screenshot_raw_name = saved_path.joinpath("serial_console.bmp")
+            screenshot_name = saved_path.joinpath("serial_console.png")
             screenshot_response = requests.get(
                 diagnostic_data.console_screenshot_blob_uri
             )
-            with open(screenshot_name, mode="wb") as f:
+            with open(screenshot_raw_name, mode="wb") as f:
                 f.write(screenshot_response.content)
+            with Image.open(screenshot_raw_name) as image:
+                image.save(screenshot_name, "PNG", optimize=True)
+            unlink(screenshot_raw_name)
 
         log_response = requests.get(diagnostic_data.serial_console_log_blob_uri)
 
