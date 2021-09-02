@@ -25,6 +25,7 @@ class Echo(Tool):
         value: str,
         file: str,
         sudo: bool = False,
+        timeout: int = 60,
     ) -> None:
         # Run `echo <value> > <file>`
         result = self.run(
@@ -32,6 +33,7 @@ class Echo(Tool):
             force_run=True,
             shell=True,
             sudo=sudo,
+            timeout=timeout,
         ).stdout
         assert_that(result).does_not_contain("Permission denied")
 
