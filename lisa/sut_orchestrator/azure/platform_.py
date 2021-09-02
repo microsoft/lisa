@@ -26,10 +26,7 @@ from azure.mgmt.compute.models import (  # type: ignore
 )
 from azure.mgmt.marketplaceordering.models import AgreementTerms  # type: ignore
 from azure.mgmt.network.models import NetworkInterface, PublicIPAddress  # type: ignore
-from azure.mgmt.resource import (  # type: ignore
-    ResourceManagementClient,
-    SubscriptionClient,
-)
+from azure.mgmt.resource import SubscriptionClient  # type: ignore
 from azure.mgmt.resource.resources.models import (  # type: ignore
     Deployment,
     DeploymentMode,
@@ -66,6 +63,7 @@ from .common import (
     AzureVmPurchasePlanSchema,
     DataDiskCreateOption,
     DataDiskSchema,
+    check_or_create_resource_group,
     check_or_create_storage_account,
     get_compute_client,
     get_environment_context,
@@ -73,6 +71,7 @@ from .common import (
     get_network_client,
     get_node_context,
     get_or_create_storage_container,
+    get_resource_management_client,
     get_storage_account_name,
     wait_copy_blob,
     wait_operation,
@@ -725,18 +724,17 @@ class AzurePlatform(Platform):
             f"{subscription.id}, '{subscription.display_name}'"
         )
 
-        self._rm_client = ResourceManagementClient(
-            credential=self.credential, subscription_id=self.subscription_id
+        check_or_create_resource_group(
+            self.credential,
+            self.subscription_id,
+            AZURE_SHARED_RG_NAME,
+            RESOURCE_GROUP_LOCATION,
+            self._log,
         )
 
-        az_shared_rg_exists = self._rm_client.resource_groups.check_existence(
-            AZURE_SHARED_RG_NAME
+        self._rm_client = get_resource_management_client(
+            self.credential, self.subscription_id
         )
-        if not az_shared_rg_exists:
-            self._log.info(f"Creating Resource group: '{AZURE_SHARED_RG_NAME}'")
-            self._rm_client.resource_groups.create_or_update(
-                AZURE_SHARED_RG_NAME, {"location": RESOURCE_GROUP_LOCATION}
-            )
 
     @lru_cache
     def _load_template(self) -> Any:
