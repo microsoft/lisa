@@ -10,6 +10,7 @@ from azure.identity import DefaultAzureCredential
 from azure.mgmt.compute import ComputeManagementClient  # type: ignore
 from azure.mgmt.marketplaceordering import MarketplaceOrderingAgreements  # type: ignore
 from azure.mgmt.network import NetworkManagementClient  # type: ignore
+from azure.mgmt.resource import ResourceManagementClient  # type: ignore
 from azure.mgmt.storage import StorageManagementClient  # type: ignore
 from azure.mgmt.storage.models import Sku, StorageAccountCreateParameters  # type:ignore
 from azure.storage.blob import BlobServiceClient, ContainerClient  # type: ignore
@@ -281,6 +282,14 @@ def get_storage_client(
     )
 
 
+def get_resource_management_client(
+    credential: Any, subscription_id: str
+) -> ResourceManagementClient:
+    return ResourceManagementClient(
+        credential=credential, subscription_id=subscription_id
+    )
+
+
 def get_storage_account_name(
     subscription_id: str, location: str, type: str = "s"
 ) -> str:
@@ -357,6 +366,22 @@ def check_or_create_storage_account(
             parameters=parameters,
         )
         wait_operation(operation)
+
+
+def check_or_create_resource_group(
+    credential: Any,
+    subscription_id: str,
+    resource_group_name: str,
+    location: str,
+    log: Logger,
+) -> None:
+    rm_client = get_resource_management_client(credential, subscription_id)
+    az_shared_rg_exists = rm_client.resource_groups.check_existence(resource_group_name)
+    if not az_shared_rg_exists:
+        log.info(f"Creating Resource group: '{AZURE_SHARED_RG_NAME}'")
+        rm_client.resource_groups.create_or_update(
+            AZURE_SHARED_RG_NAME, {"location": location}
+        )
 
 
 def wait_copy_blob(
