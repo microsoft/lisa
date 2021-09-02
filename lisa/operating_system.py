@@ -228,7 +228,7 @@ class Windows(OperatingSystem):
 
 
 class Posix(OperatingSystem, BaseClassMixin):
-    __os_info_pattern = re.compile(
+    _os_info_pattern = re.compile(
         r"^(?P<name>.*)=[\"\']?(?P<value>.*?)[\"\']?$", re.MULTILINE
     )
     # output of /etc/fedora-release - Fedora release 22 (Twenty Two)
@@ -243,7 +243,7 @@ class Posix(OperatingSystem, BaseClassMixin):
     #   Description:	Scientific Linux release 6.7 (Carbon)
     # In most of the distros, the text in the brackets is the codename.
     # This regex gets the codename for the ditsro
-    __distro_codename_pattern = re.compile(r"^.*\(([^)]+)")
+    _distro_codename_pattern = re.compile(r"^.*\(([^)]+)")
 
     def __init__(self, node: Any) -> None:
         super().__init__(node, is_posix=True)
@@ -324,7 +324,7 @@ class Posix(OperatingSystem, BaseClassMixin):
         codename: str = ""
         full_version: str = ""
         for row in cmd_result.stdout.splitlines():
-            os_release_info = self.__os_info_pattern.match(row)
+            os_release_info = self._os_info_pattern.match(row)
             if not os_release_info:
                 continue
             if os_release_info.group("name") == "NAME":
@@ -334,7 +334,7 @@ class Posix(OperatingSystem, BaseClassMixin):
             elif os_release_info.group("name") == "VERSION":
                 codename = get_matched_str(
                     os_release_info.group("value"),
-                    self.__distro_codename_pattern,
+                    self._distro_codename_pattern,
                 )
             elif os_release_info.group("name") == "PRETTY_NAME":
                 full_version = os_release_info.group("value")
@@ -424,10 +424,6 @@ class Linux(Posix):
 
 
 class Debian(Linux):
-    __lsb_os_info_pattern = re.compile(
-        r"^(?P<name>.*):(\s+)(?P<value>.*?)?$", re.MULTILINE
-    )
-
     @classmethod
     def name_pattern(cls) -> Pattern[str]:
         return re.compile("^debian|Forcepoint|Kali$")
@@ -504,26 +500,44 @@ class Debian(Linux):
         return False
 
     def _get_information(self) -> OsInformation:
-        cmd_result = self._node.execute(
-            cmd="lsb_release -a", shell=True, no_error_log=True
-        )
+        # try to set version info from /etc/os-release.
+        cat = self._node.tools[Cat]
+        cmd_result = cat.run("/etc/os-release")
         cmd_result.assert_exit_code(message="error on get os information")
-        assert cmd_result.stdout, "not found os information from 'lsb_release -a'"
 
+        vendor: str = ""
+        release: str = ""
+        codename: str = ""
+        full_version: str = ""
         for row in cmd_result.stdout.splitlines():
-            os_release_info = self.__lsb_os_info_pattern.match(row)
-            if os_release_info:
-                if os_release_info.group("name") == "Distributor ID":
-                    vendor = os_release_info.group("value")
-                elif os_release_info.group("name") == "Release":
-                    release = os_release_info.group("value")
-                elif os_release_info.group("name") == "Codename":
-                    codename = os_release_info.group("value")
-                elif os_release_info.group("name") == "Description":
-                    full_version = os_release_info.group("value")
+            os_release_info = super()._os_info_pattern.match(row)
+            if not os_release_info:
+                continue
+            if os_release_info.group("name") == "NAME":
+                vendor = os_release_info.group("value")
+            elif os_release_info.group("name") == "VERSION":
+                codename = get_matched_str(
+                    os_release_info.group("value"),
+                    super()._distro_codename_pattern,
+                )
+            elif os_release_info.group("name") == "PRETTY_NAME":
+                full_version = os_release_info.group("value")
+
+        # version return from /etc/os-release is integer in debian
+        # so get the precise version from /etc/debian_version
+        # e.g.
+        # marketplace image - credativ debian 9-backports 9.20190313.0
+        # version from /etc/os-release is 9
+        # version from /etc/debian_version is 9.8
+        # marketplace image - debian debian-10 10-backports-gen2 0.20210201.535
+        # version from /etc/os-release is 10
+        # version from /etc/debian_version is 10.7
+        cmd_result = cat.run("/etc/debian_version")
+        cmd_result.assert_exit_code(message="error on get debian version")
+        release = cmd_result.stdout
 
         if vendor == "":
-            raise LisaException("OS version information not found")
+            raise LisaException("OS vendor information not found")
         if release == "":
             raise LisaException("OS release information not found")
 
@@ -548,6 +562,9 @@ class Debian(Linux):
 
 
 class Ubuntu(Debian):
+    __lsb_os_info_pattern = re.compile(
+        r"^(?P<name>.*):(\s+)(?P<value>.*?)?$", re.MULTILINE
+    )
     # gnulinux-5.11.0-1011-azure-advanced-3fdd2548-1430-450b-b16d-9191404598fb
     # prefix: gnulinux
     # postfix: advanced-3fdd2548-1430-450b-b16d-9191404598fb
@@ -620,6 +637,40 @@ class Ubuntu(Debian):
                 f"{identifier}"
             )
 
+    def _get_information(self) -> OsInformation:
+        cmd_result = self._node.execute(
+            cmd="lsb_release -a", shell=True, no_error_log=True
+        )
+        cmd_result.assert_exit_code(message="error on get os information")
+        assert cmd_result.stdout, "not found os information from 'lsb_release -a'"
+
+        for row in cmd_result.stdout.splitlines():
+            os_release_info = self.__lsb_os_info_pattern.match(row)
+            if os_release_info:
+                if os_release_info.group("name") == "Distributor ID":
+                    vendor = os_release_info.group("value")
+                elif os_release_info.group("name") == "Release":
+                    release = os_release_info.group("value")
+                elif os_release_info.group("name") == "Codename":
+                    codename = os_release_info.group("value")
+                elif os_release_info.group("name") == "Description":
+                    full_version = os_release_info.group("value")
+
+        if vendor == "":
+            raise LisaException("OS vendor information not found")
+        if release == "":
+            raise LisaException("OS release information not found")
+
+        information = OsInformation(
+            version=self._parse_version(release),
+            vendor=vendor,
+            release=release,
+            codename=codename,
+            full_version=full_version,
+        )
+
+        return information
+
     def _replace_default_entry(self, entry: str) -> None:
         self._log.debug(f"set boot entry to: {entry}")
         sed = self._node.tools[Sed]
@@ -685,7 +736,7 @@ class Fedora(Linux):
 
         vendor = "Fedora"
         release = get_matched_str(full_version, self._fedora_release_pattern_version)
-        codename = get_matched_str(full_version, self.__distro_codename_pattern)
+        codename = get_matched_str(full_version, self._distro_codename_pattern)
 
         information = OsInformation(
             version=self._parse_version(release),
