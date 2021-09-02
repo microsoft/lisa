@@ -749,6 +749,12 @@ class Fedora(Linux):
         return information
 
 
+class CoreOs(Fedora):
+    @classmethod
+    def name_pattern(cls) -> Pattern[str]:
+        return re.compile("^coreos|Flatcar|flatcar$")
+
+
 class Redhat(Fedora):
     # Red Hat Enterprise Linux Server release 6.9 (Santiago)
     # CentOS release 6.9 (Final)
@@ -883,12 +889,6 @@ class Oracle(Redhat):
         # The name is "Oracle Linux Server", which doesn't support the default
         # full match.
         return re.compile("^Oracle")
-
-
-class CoreOs(Redhat):
-    @classmethod
-    def name_pattern(cls) -> Pattern[str]:
-        return re.compile("^coreos|Flatcar|flatcar$")
 
 
 class Suse(Linux):
