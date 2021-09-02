@@ -819,7 +819,7 @@ flake8-polyfill = ">=1.0.2,<2"
 name = "pillow"
 version = "8.3.1"
 description = "Python Imaging Library (Fork)"
-category = "dev"
+category = "main"
 optional = false
 python-versions = ">=3.6"
 
@@ -1554,6 +1554,14 @@ python-versions = "*"
 types-cryptography = "*"
 
 [[package]]
+name = "types-pillow"
+version = "8.3.3"
+description = "Typing stubs for Pillow"
+category = "dev"
+optional = false
+python-versions = "*"
+
+[[package]]
 name = "types-python-dateutil"
 version = "0.1.4"
 description = "Typing stubs for python-dateutil"
@@ -1656,7 +1664,7 @@ watchmedo = ["PyYAML (>=3.10)", "argh (>=0.24.1)"]
 [metadata]
 lock-version = "1.1"
 python-versions = "^3.8"
-content-hash = "06c9394bb194c3c284e52f0534cad3880706c4a7c9e5d294567a1655b23539cc"
+content-hash = "2d1703132ca20756367b97808b20f7ce48d54f2f7bab52f07afe4c96e38ed136"
 
 [metadata.files]
 alabaster = [
@@ -1751,6 +1759,11 @@ cffi = [
     {file = "cffi-1.14.6-cp27-cp27m-win_amd64.whl", hash = "sha256:7bcac9a2b4fdbed2c16fa5681356d7121ecabf041f18d97ed5b8e0dd38a80224"},
     {file = "cffi-1.14.6-cp27-cp27mu-manylinux1_i686.whl", hash = "sha256:ed38b924ce794e505647f7c331b22a693bee1538fdf46b0222c4717b42f744e7"},
     {file = "cffi-1.14.6-cp27-cp27mu-manylinux1_x86_64.whl", hash = "sha256:e22dcb48709fc51a7b58a927391b23ab37eb3737a98ac4338e2448bef8559b33"},
+    {file = "cffi-1.14.6-cp35-cp35m-macosx_10_9_x86_64.whl", hash = "sha256:aedb15f0a5a5949ecb129a82b72b19df97bbbca024081ed2ef88bd5c0a610534"},
+    {file = "cffi-1.14.6-cp35-cp35m-manylinux1_i686.whl", hash = "sha256:48916e459c54c4a70e52745639f1db524542140433599e13911b2f329834276a"},
+    {file = "cffi-1.14.6-cp35-cp35m-manylinux1_x86_64.whl", hash = "sha256:f627688813d0a4140153ff532537fbe4afea5a3dffce1f9deb7f91f848a832b5"},
+    {file = "cffi-1.14.6-cp35-cp35m-win32.whl", hash = "sha256:f0010c6f9d1a4011e429109fda55a225921e3206e7f62a0c22a35344bfd13cca"},
+    {file = "cffi-1.14.6-cp35-cp35m-win_amd64.whl", hash = "sha256:57e555a9feb4a8460415f1aac331a2dc833b1115284f7ded7278b54afc5bd218"},
     {file = "cffi-1.14.6-cp36-cp36m-macosx_10_9_x86_64.whl", hash = "sha256:e8c6a99be100371dbb046880e7a282152aa5d6127ae01783e37662ef73850d8f"},
     {file = "cffi-1.14.6-cp36-cp36m-manylinux1_i686.whl", hash = "sha256:19ca0dbdeda3b2615421d54bef8985f72af6e0c47082a8d26122adac81a95872"},
     {file = "cffi-1.14.6-cp36-cp36m-manylinux1_x86_64.whl", hash = "sha256:d950695ae4381ecd856bcaf2b1e866720e4ab9a1498cba61c602e56630ca7195"},
@@ -2617,6 +2630,10 @@ types-ipaddress = [
 types-paramiko = [
     {file = "types-paramiko-0.1.7.tar.gz", hash = "sha256:51ce59aea222c47d0590e2b8d8cefbc5aeb469d8bf6368e4f06ad3c61c932c72"},
     {file = "types_paramiko-0.1.7-py2.py3-none-any.whl", hash = "sha256:9fb9f3a363c99ae735148a7ce3c28adbe8f87797ec3c8cce3103899acbdebfa8"},
+]
+types-pillow = [
+    {file = "types-Pillow-8.3.3.tar.gz", hash = "sha256:056b5385167284555714ab499ac2a4f81f6bbb9babf9e5b24c886e6c54ddc6ef"},
+    {file = "types_Pillow-8.3.3-py3-none-any.whl", hash = "sha256:54de6632d031f1cdde670182c5aedbddf5427418acf8325235d6767f9214355b"},
 ]
 types-python-dateutil = [
     {file = "types-python-dateutil-0.1.4.tar.gz", hash = "sha256:e6486ca27b6dde73e0ec079a9e1b03e208766e6bc7f1e08964a7e9104a5c7d7a"},
