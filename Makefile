@@ -30,7 +30,7 @@ flake8:
 
 # This runs the static type checking
 mypy:
-	@poetry run mypy --strict --exclude '.venv/.*' --namespace-packages --implicit-reexport .
+	@poetry run mypy --strict --exclude '.venv/.*' --namespace-packages --implicit-reexport --config-file pyproject.toml -p docs -p lisa -p microsoft
 
 # Print current Python virtualenv
 venv:
