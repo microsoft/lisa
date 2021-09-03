@@ -629,10 +629,12 @@ class AzurePlatform(Platform):
                     continue
                 if isinstance(property_value, dict):
                     for key, value in property_value.items():
-                        result[key] = value
+                        if value:
+                            result[key] = value
         if azure_runbook.availability_set_tags:
             for key, value in azure_runbook.availability_set_tags.items():
-                result[key] = value
+                if value:
+                    result[key] = value
 
         return result
 
