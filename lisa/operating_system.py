@@ -294,9 +294,13 @@ class Posix(OperatingSystem, BaseClassMixin):
         self._node.execute("modinfo hv_netvsc").save_stdout_to_file(
             saved_path / "modinfo-hv_netvsc.txt"
         )
-        self._node.shell.copy_back(
-            self._node.get_pure_path("/etc/os-release"), saved_path / "os-release.txt"
-        )
+        try:
+            self._node.shell.copy_back(
+                self._node.get_pure_path("/etc/os-release"),
+                saved_path / "os-release.txt",
+            )
+        except FileNotFoundError:
+            self._log.debug("File /etc/os-release doesn't exist.")
 
     def _install_packages(
         self, packages: Union[List[str]], signed: bool = True
@@ -421,6 +425,12 @@ class BSD(Posix):
 
 class Linux(Posix):
     ...
+
+
+class CoreOs(Linux):
+    @classmethod
+    def name_pattern(cls) -> Pattern[str]:
+        return re.compile("^coreos|Flatcar|flatcar$")
 
 
 class Debian(Linux):
@@ -749,12 +759,6 @@ class Fedora(Linux):
         return information
 
 
-class CoreOs(Fedora):
-    @classmethod
-    def name_pattern(cls) -> Pattern[str]:
-        return re.compile("^coreos|Flatcar|flatcar$")
-
-
 class Redhat(Fedora):
     # Red Hat Enterprise Linux Server release 6.9 (Santiago)
     # CentOS release 6.9 (Final)
@@ -881,6 +885,13 @@ class CentOs(Redhat):
     @classmethod
     def name_pattern(cls) -> Pattern[str]:
         return re.compile("^CentOS|Centos|centos|clear-linux-os$")
+
+    def capture_system_information(self, saved_path: Path) -> None:
+        super(Linux, self).capture_system_information(saved_path)
+        self._node.shell.copy_back(
+            self._node.get_pure_path("/etc/centos-release"),
+            saved_path / "centos-release.txt",
+        )
 
 
 class Oracle(Redhat):
