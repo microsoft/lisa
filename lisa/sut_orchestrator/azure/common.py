@@ -377,9 +377,9 @@ def check_or_create_resource_group(
     rm_client = get_resource_management_client(credential, subscription_id)
     az_shared_rg_exists = rm_client.resource_groups.check_existence(resource_group_name)
     if not az_shared_rg_exists:
-        log.info(f"Creating Resource group: '{AZURE_SHARED_RG_NAME}'")
+        log.info(f"Creating Resource group: '{resource_group_name}'")
         rm_client.resource_groups.create_or_update(
-            AZURE_SHARED_RG_NAME, {"location": location}
+            resource_group_name, {"location": location}
         )
 
 
