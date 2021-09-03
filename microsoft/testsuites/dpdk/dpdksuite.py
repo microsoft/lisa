@@ -8,6 +8,7 @@ from assertpy import assert_that
 
 from lisa import Logger, Node, TestCaseMetadata, TestSuite, TestSuiteMetadata
 from lisa.features import Sriov
+from lisa.features.network_interface import NetworkInterface
 from lisa.testsuite import simple_requirement
 from lisa.tools import Echo, Lspci, Mount
 from microsoft.testsuites.dpdk.dpdktestpmd import DpdkTestpmd
@@ -26,13 +27,13 @@ class Dpdk(TestSuite):
             This test case checks DPDK can be built and installed correctly.
         """,
         requirement=simple_requirement(
-            supported_features=[Sriov],
+            network_interface=Sriov,
         ),
         priority=1,
     )
     def check_dpdk_build(self, node: Node, log: Logger) -> None:
-        sriov_feature = node.features[Sriov]
-        sriov_is_enabled = sriov_feature.enabled()
+        network_interface_feature = node.features[NetworkInterface]
+        sriov_is_enabled = network_interface_feature.is_enabled_sriov()
         log.info(f"Verify SRIOV is enabled: {sriov_is_enabled}")
         assert_that(sriov_is_enabled).described_as(
             "SRIOV was not enabled for this test node."
