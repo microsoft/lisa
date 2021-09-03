@@ -11,17 +11,21 @@
 # documentation root, use os.path.abspath to make it absolute, like shown here.
 #
 
+import sys
 from pathlib import Path
 from typing import List
 
 import toml
 
-from docs.tools import update_file, update_summary
-
 root_dir = Path(__file__).parent.parent
 pyproj = root_dir / "pyproject.toml"
 requirement = root_dir / "docs" / "requirements.txt"
 
+# to import lisa package
+sys.path.insert(0, str(root_dir))
+sys.path.insert(0, str(root_dir / "docs"))
+
+from tools import update_file, update_summary  # type: ignore # noqa: E402
 
 data = toml.load(pyproj)
 dependencies = data["tool"]["poetry"]["dependencies"]
