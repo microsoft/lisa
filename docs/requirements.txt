@@ -18,6 +18,7 @@ spurplus>=2.3.4
 semver>=2.13.0
 pep8-naming>=0.12.0
 types-toml>=0.1.5
+Pillow>=8.3.1
 Sphinx>=4.1.0
 sphinx-argparse>=0.2.5
 sphinx-rtd-theme>=0.5.2
