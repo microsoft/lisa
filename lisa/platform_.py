@@ -99,14 +99,13 @@ class Platform(subclasses.BaseClassWithRunbookMixin, InitializableMixin):
 
     @hookimpl
     def get_environment_information(self, environment: Environment) -> Dict[str, str]:
-        information: Dict[str, str] = {}
-
         assert environment.platform
-        if environment.platform.type_name() != self.type_name():
-            # prevent multiple platform can be activated in future, it should call for
-            #  right platform only.
-            return information
+        if environment.platform != self:
+            # when multiple platforms are created by multiple runners, it should
+            #  call for right platform only.
+            return {}
 
+        information: Dict[str, str] = {}
         information["platform"] = environment.platform.type_name()
         try:
             information.update(
