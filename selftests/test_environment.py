@@ -143,7 +143,14 @@ def generate_runbook(
                 "node_count": 2,
                 "core_count": 8,
                 "disk": {"data_disk_count": {"min": 1}},
-                "nic_count": {"min": 1, "max": 1},
+                "network_interface": {
+                    "type": "NetworkInterface",
+                    "data_path": {
+                        "is_allow_set": True,
+                        "items": ["Sriov", "Synthetic"],
+                    },
+                    "nic_count": {"min": 1, "max": 1, "max_inclusive": True},
+                },
             }
         )
     if local_remote_node_extensions:
@@ -228,13 +235,15 @@ class EnvironmentTestCase(TestCase):
         assert env
         env_cap = env.capability
         assert env_cap.nodes[0].disk
+        assert env_cap.nodes[0].network_interface
         self.assertEqual(2, len(env_cap.nodes))
         self.assertEqual(8, env_cap.nodes[0].core_count)
         self.assertEqual(
             search_space.IntRange(min=1), env_cap.nodes[0].disk.data_disk_count
         )
         self.assertEqual(
-            search_space.IntRange(min=1, max=1), env_cap.nodes[0].nic_count
+            search_space.IntRange(min=1, max=1),
+            env_cap.nodes[0].network_interface.nic_count,
         )
 
     def test_create_from_requirement(self) -> None:

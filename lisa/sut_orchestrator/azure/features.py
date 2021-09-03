@@ -135,12 +135,21 @@ class Gpu(AzureFeatureMixin, features.Gpu):
         return driver_list
 
 
-class Sriov(AzureFeatureMixin, features.Sriov):
+class NetworkInterface(AzureFeatureMixin, features.NetworkInterface):
+    """
+    This Network interface feature is mainly to associate Azure
+    network interface options settings.
+    """
+
+    @classmethod
+    def settings_type(cls) -> Type[schema.FeatureSettings]:
+        return schema.NetworkInterfaceOptionSettings
+
     def _initialize(self, *args: Any, **kwargs: Any) -> None:
         super()._initialize(*args, **kwargs)
         self._initialize_information(self._node)
 
-    def _switch(self, enable: bool) -> None:
+    def _switch_sriov(self, enable: bool) -> None:
         azure_platform: AzurePlatform = self._platform  # type: ignore
         network_client = get_network_client(azure_platform)
         compute_client = get_compute_client(azure_platform)
@@ -179,7 +188,7 @@ class Sriov(AzureFeatureMixin, features.Sriov):
                     f"networking into status [{enable}]"
                 ).is_equal_to(enable)
 
-    def enabled(self) -> bool:
+    def is_enabled_sriov(self) -> bool:
         azure_platform: AzurePlatform = self._platform  # type: ignore
         network_client = get_network_client(azure_platform)
         compute_client = get_compute_client(azure_platform)
@@ -257,36 +266,10 @@ class AzureDiskOptionSettings(schema.DiskOptionSettings):
         ), f"actual: {type(capability)}"
         result = super().check(capability)
 
-        if self.disk_type is not None and (
-            capability is None or capability.disk_type is None
-        ):
-            result.add_reason("capability doesn't have disk_type.")
-
-        if self.disk_type:
-            has_meet_disk_type = False
-            if isinstance(self.disk_type, schema.DiskType):
-                req_disk_types = search_space.SetSpace[schema.DiskType](
-                    items=[self.disk_type]
-                )
-            else:
-                req_disk_types = self.disk_type
-            for req_disk_type in req_disk_types:
-                if isinstance(capability.disk_type, schema.DiskType):
-                    if req_disk_type == capability.disk_type:
-                        has_meet_disk_type = True
-                        break
-                else:
-                    assert isinstance(capability.disk_type, search_space.SetSpace)
-                    if req_disk_type in capability.disk_type:
-                        has_meet_disk_type = True
-                        break
-            if not has_meet_disk_type:
-                result.add_reason(
-                    f"no disk type supported in capability. "
-                    f"requirement: {self.disk_type}, "
-                    f"capability: {capability.disk_type}"
-                )
-
+        result.merge(
+            search_space.check_setspace(self.disk_type, capability.disk_type),
+            "disk_type",
+        )
         result.merge(
             search_space.check_countspace(
                 self.data_disk_count, capability.data_disk_count
@@ -331,27 +314,11 @@ class AzureDiskOptionSettings(schema.DiskOptionSettings):
                 f"unknown disk type on capability, type: {cap_disk_type}"
             )
 
-        # if there is no requirement, copy capability to get min one.
-        if self.disk_type is None:
-            req_disk_type = capability.disk_type
-        else:
-            req_disk_type = self.disk_type
-
-        # find the min disk type from the order by cost.
-        min_disk_type: Optional[schema.DiskType] = None
-        for expected_disk_type in _ordered_disk_types:
-            if (
-                expected_disk_type in req_disk_type
-                and expected_disk_type in capability.disk_type
-            ):
-                min_disk_type = expected_disk_type
-                break
-        assert min_disk_type, (
-            "Cannot find min capability on disk type, "
-            f"requirement: {self.disk_type}"
-            f"capability: {capability.disk_type}"
+        min_value.disk_type = (
+            search_space.generate_min_capability_setspace_from_priority(
+                self.disk_type, capability.disk_type, _ordered_disk_types
+            )
         )
-        min_value.disk_type = min_disk_type
 
         # below values affect data disk only.
         if self.data_disk_count is not None or capability.data_disk_count is not None:
@@ -359,7 +326,7 @@ class AzureDiskOptionSettings(schema.DiskOptionSettings):
                 self.data_disk_count, capability.data_disk_count
             )
 
-        disk_type_iops = _disk_size_iops_map.get(min_disk_type, None)
+        disk_type_iops = _disk_size_iops_map.get(min_value.disk_type, None)
         # ignore unsupported disk type like Ephemeral. It supports only os
         # disk. Calculate for iops, if it has value. If not, try disk size
         if disk_type_iops:

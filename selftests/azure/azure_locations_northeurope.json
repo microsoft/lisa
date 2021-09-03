@@ -36,10 +36,20 @@
                         "max_inclusive": true
                     }
                 },
-                "nic_count": {
-                    "min": 0,
-                    "max": 8,
-                    "max_inclusive": true
+                "network_interface": {
+                    "type": "NetworkInterface",
+                    "data_path": {
+                        "is_allow_set": true,
+                        "items": [
+                            "Sriov",
+                            "Synthetic"
+                        ]
+                    },
+                    "nic_count": {
+                        "min": 1,
+                        "max": 8,
+                        "max_inclusive": true
+                    }
                 },
                 "gpu_count": 0,
                 "features": {
@@ -194,10 +204,20 @@
                         "max_inclusive": true
                     }
                 },
-                "nic_count": {
-                    "min": 0,
-                    "max": 2,
-                    "max_inclusive": true
+                "network_interface": {
+                    "type": "NetworkInterface",
+                    "data_path": {
+                        "is_allow_set": true,
+                        "items": [
+                            "Sriov",
+                            "Synthetic"
+                        ]
+                    },
+                    "nic_count": {
+                        "min": 1,
+                        "max": 2,
+                        "max_inclusive": true
+                    }
                 },
                 "gpu_count": 0,
                 "features": {
@@ -360,10 +380,20 @@
                         "max_inclusive": true
                     }
                 },
-                "nic_count": {
-                    "min": 0,
-                    "max": 2,
-                    "max_inclusive": true
+                "network_interface": {
+                    "type": "NetworkInterface",
+                    "data_path": {
+                        "is_allow_set": true,
+                        "items": [
+                            "Sriov",
+                            "Synthetic"
+                        ]
+                    },
+                    "nic_count": {
+                        "min": 1,
+                        "max": 2,
+                        "max_inclusive": true
+                    }
                 },
                 "gpu_count": 0,
                 "features": {

@@ -3,7 +3,7 @@
 
 import sys
 from dataclasses import dataclass, field
-from typing import Any, Iterable, List, Optional, Set, TypeVar, Union
+from typing import Any, Iterable, List, Optional, Set, Type, TypeVar, Union
 
 from dataclasses_json import dataclass_json
 
@@ -293,6 +293,22 @@ def decode_set_space(data: Any) -> Any:
     return result
 
 
+def decode_set_space_by_type(
+    data: Any, base_type: Type[T]
+) -> Optional[Union[SetSpace[T], T]]:
+    if isinstance(data, dict):
+        new_data = SetSpace[T](is_allow_set=True)
+        types = data.get("items", [])
+        for item in types:
+            new_data.add(base_type(item))  # type: ignore
+        decoded_data: Optional[Union[SetSpace[T], T]] = new_data
+    elif isinstance(data, str):
+        decoded_data = base_type(data)  # type: ignore
+    else:
+        raise LisaException(f"unknown data type: {type(data)}")
+    return decoded_data
+
+
 def check_countspace(requirement: CountSpace, capability: CountSpace) -> ResultReason:
     result = ResultReason()
     if requirement is not None:
@@ -371,6 +387,69 @@ def generate_min_capability_countspace(
                 result = min(result, temp_min)
 
     return result
+
+
+def check_setspace(
+    requirement: Optional[Union[SetSpace[T], T]],
+    capability: Optional[Union[SetSpace[T], T]],
+) -> ResultReason:
+    result = ResultReason()
+    if capability is None:
+        result.add_reason("capability shouldn't be None")
+    else:
+        if requirement is not None:
+            has_met_check = False
+            if not isinstance(capability, SetSpace):
+                capability = SetSpace[T](items=[capability])
+            if not isinstance(requirement, SetSpace):
+                requirement = SetSpace[T](items=[requirement])
+            for item in requirement:
+                if item in capability:
+                    has_met_check = True
+                    break
+            if not has_met_check:
+                result.add_reason(
+                    f"requirement not supported in capability. "
+                    f"requirement: {requirement}, "
+                    f"capability: {capability}"
+                )
+    return result
+
+
+def generate_min_capability_setspace_from_priority(
+    requirement: Optional[Union[SetSpace[T], T]],
+    capability: Optional[Union[SetSpace[T], T]],
+    priority_list: List[T],
+) -> T:
+    check_result = check_setspace(requirement, capability)
+    if not check_result.result:
+        raise LisaException(
+            "cannot get min value, capability doesn't support requirement"
+        )
+
+    assert capability is not None, "Capability shouldn't be None"
+
+    # Ensure that both cap and req are instance of SetSpace
+    if not isinstance(capability, SetSpace):
+        capability = SetSpace[T](items=[capability])
+    if requirement is None:
+        requirement = capability
+    elif not isinstance(requirement, SetSpace):
+        requirement = SetSpace[T](items=[requirement])
+
+    # Find min capability
+    min_cap: Optional[T] = None
+    for item in priority_list:
+        if item in requirement and item in capability:
+            min_cap = item
+            break
+    assert min_cap, (
+        "Cannot find min capability on data path, "
+        f"requirement: {requirement}"
+        f"capability: {capability}"
+    )
+
+    return min_cap
 
 
 def count_space_to_int_range(count_space: CountSpace) -> IntRange:

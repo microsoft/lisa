@@ -65,7 +65,10 @@ class AzurePrepareTestCase(TestCase):
         node = self._platform._resource_sku_to_capability("eastus2", resource_sku)
         self.assertEqual(48, node.core_count)
         self.assertEqual(458752, node.memory_mb)
-        self.assertEqual(search_space.IntRange(min=0, max=8), node.nic_count)
+        assert node.network_interface
+        self.assertEqual(
+            search_space.IntRange(min=1, max=8), node.network_interface.nic_count
+        )
         assert node.disk
         self.assertEqual(
             search_space.IntRange(min=0, max=32), node.disk.data_disk_count
@@ -122,7 +125,11 @@ class AzurePrepareTestCase(TestCase):
         # the code path of predefined and normal is different, so test it twice
         env = self.load_environment(node_req_count=1)
         assert env.runbook.nodes_requirement
-        env.runbook.nodes_requirement.append(schema.NodeSpace(nic_count=3))
+        env.runbook.nodes_requirement.append(
+            schema.NodeSpace(
+                network_interface=schema.NetworkInterfaceOptionSettings(nic_count=3)
+            )
+        )
         self.set_node_runbook(env, 1, location="eastus2")
         self.verify_prepared_nodes(
             expected_result=True,
@@ -268,7 +275,11 @@ class AzurePrepareTestCase(TestCase):
         # the code path of predefined and normal is different, so test it twice
         env = self.load_environment(node_req_count=1)
         assert env.runbook.nodes_requirement
-        env.runbook.nodes_requirement.append(schema.NodeSpace(nic_count=3))
+        env.runbook.nodes_requirement.append(
+            schema.NodeSpace(
+                network_interface=schema.NetworkInterfaceOptionSettings(nic_count=3)
+            )
+        )
         self.verify_prepared_nodes(
             expected_result=True,
             expected_locations=["eastus2", "eastus2"],
@@ -376,16 +387,17 @@ class AzurePrepareTestCase(TestCase):
             for node_cap in environment.runbook.nodes_requirement:
                 assert node_cap
                 assert node_cap.disk
+                assert node_cap.network_interface
                 self.assertIsInstance(node_cap.core_count, int)
                 self.assertIsInstance(node_cap.memory_mb, int)
                 self.assertIsInstance(node_cap.disk.data_disk_count, int)
-                self.assertIsInstance(node_cap.nic_count, int)
+                self.assertIsInstance(node_cap.network_interface.nic_count, int)
                 self.assertIsInstance(node_cap.gpu_count, int)
 
                 self.assertLessEqual(1, node_cap.core_count)
                 self.assertLessEqual(512, node_cap.memory_mb)
                 self.assertLessEqual(0, node_cap.disk.data_disk_count)
-                self.assertLessEqual(1, node_cap.nic_count)
+                self.assertLessEqual(1, node_cap.network_interface.nic_count)
                 self.assertLessEqual(0, node_cap.gpu_count)
 
         self.assertEqual(expected_cost, environment.cost)
