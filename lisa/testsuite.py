@@ -327,9 +327,10 @@ def node_requirement(
 def simple_requirement(
     min_count: int = 1,
     min_core_count: int = 1,
-    min_nic_count: int = 1,
-    min_data_disk_count: int = 0,
+    min_nic_count: Optional[int] = None,
+    min_data_disk_count: Optional[int] = None,
     disk: Optional[schema.DiskOptionSettings] = None,
+    network_interface: Optional[schema.NetworkInterfaceOptionSettings] = None,
     supported_platform_type: Optional[List[str]] = None,
     unsupported_platform_type: Optional[List[str]] = None,
     supported_os: Optional[List[Type[OperatingSystem]]] = None,
@@ -348,12 +349,21 @@ def simple_requirement(
     node = schema.NodeSpace()
     node.node_count = search_space.IntRange(min=min_count)
     node.core_count = search_space.IntRange(min=min_core_count)
-    node.nic_count = search_space.IntRange(min=min_nic_count)
+
     if min_data_disk_count or disk:
         if not disk:
             disk = schema.DiskOptionSettings()
+        if min_data_disk_count:
+            disk.data_disk_count = search_space.IntRange(min=min_data_disk_count)
         node.disk = disk
-        node.disk.data_disk_count = search_space.IntRange(min=min_data_disk_count)
+
+    if min_nic_count or network_interface:
+        if not network_interface:
+            network_interface = schema.NetworkInterfaceOptionSettings()
+        if min_nic_count:
+            network_interface.nic_count = search_space.IntRange(min=min_nic_count)
+        node.network_interface = network_interface
+
     return _create_test_case_requirement(
         node,
         supported_platform_type,

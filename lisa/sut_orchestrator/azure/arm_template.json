@@ -20,12 +20,6 @@
                 "description": "location"
             }
         },
-        "enable_sriov": {
-            "type": "bool",
-            "metadata": {
-                "description": "enable accelerated network"
-            }
-        },
         "nodes": {
             "type": "array",
             "metadata": {
@@ -154,7 +148,7 @@
                         "value": "[variables('default_subnetId')]"
                     },
                     "enable_sriov": {
-                        "value": "[parameters('enable_sriov')]"
+                        "value": "[parameters('nodes')[copyIndex('vmCopy')]['enable_sriov']]"
                     }
                 },
                 "mode": "Incremental",

@@ -89,6 +89,7 @@ class AzureNodeSchema:
     )
     vhd: str = ""
     nic_count: int = 1
+    enable_sriov: bool = False
     data_disk_count: int = 0
     data_disk_caching_type: str = field(
         default=constants.DATADISK_CACHING_TYPE_NONE,
