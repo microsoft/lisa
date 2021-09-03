@@ -479,8 +479,12 @@ class AzurePlatform(Platform):
                     log.info(
                         f"creating or updating resource group: [{resource_group_name}]"
                     )
-                    self._rm_client.resource_groups.create_or_update(
-                        resource_group_name, {"location": RESOURCE_GROUP_LOCATION}
+                    check_or_create_resource_group(
+                        self.credential,
+                        subscription_id=self.subscription_id,
+                        resource_group_name=resource_group_name,
+                        location=RESOURCE_GROUP_LOCATION,
+                        log=log,
                     )
                 else:
                     log.info(f"reusing resource group: [{resource_group_name}]")
