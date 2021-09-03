@@ -10,7 +10,7 @@ from typing import TYPE_CHECKING, Any, Dict, List, Optional, Tuple, Type
 import requests
 from assertpy import assert_that
 from dataclasses_json import dataclass_json
-from PIL import Image
+from PIL import Image, UnidentifiedImageError
 
 from lisa import features, schema, search_space
 from lisa.features.gpu import ComputeSDK
@@ -85,8 +85,15 @@ class SerialConsole(AzureFeatureMixin, features.SerialConsole):
             )
             with open(screenshot_raw_name, mode="wb") as f:
                 f.write(screenshot_response.content)
-            with Image.open(screenshot_raw_name) as image:
-                image.save(screenshot_name, "PNG", optimize=True)
+            try:
+
+                with Image.open(screenshot_raw_name) as image:
+                    image.save(screenshot_name, "PNG", optimize=True)
+            except UnidentifiedImageError:
+                self._log.debug(
+                    "The screenshot is not generated, delete it. "
+                    "The reason may be the VM is not started."
+                )
             unlink(screenshot_raw_name)
 
         log_response = requests.get(diagnostic_data.serial_console_log_blob_uri)
