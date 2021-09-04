@@ -70,7 +70,6 @@ class DpdkTestpmd(Tool):
         "kernel-modules-extra",
         "kernel-headers",
     ]
-    _rte_target = "x86_64-native-linuxapp-gcc"
     _dpdk_github = "https://github.com/DPDK/dpdk.git"
     _ninja_url = (
         "https://github.com/ninja-build/ninja/releases/"

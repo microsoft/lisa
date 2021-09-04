@@ -10,6 +10,7 @@ from lisa import Logger, Node, TestCaseMetadata, TestSuite, TestSuiteMetadata
 from lisa.features import Sriov
 from lisa.testsuite import simple_requirement
 from lisa.tools import Echo, Lspci, Mount
+from lisa.operating_system import Ubuntu, Redhat
 from microsoft.testsuites.dpdk.dpdktestpmd import DpdkTestpmd
 
 
@@ -19,15 +20,18 @@ from microsoft.testsuites.dpdk.dpdktestpmd import DpdkTestpmd
     description="""
     This test suite check DPDK functionality
     """,
+    requirement=simple_requirement(
+        supported_features=[Sriov],
+        min_core_count=8,
+        min_nic_count=2,
+        supported_os=[Ubuntu, Redhat],
+    ),
 )
 class Dpdk(TestSuite):
     @TestCaseMetadata(
         description="""
             This test case checks DPDK can be built and installed correctly.
         """,
-        requirement=simple_requirement(
-            supported_features=[Sriov],
-        ),
         priority=1,
     )
     def check_dpdk_build(self, node: Node, log: Logger) -> None:
