@@ -28,3 +28,4 @@ class NetworkInterface(Feature):
 
 
 Sriov = NetworkInterfaceOptionSettings(data_path=schema.NetworkDataPath.Sriov)
+Synthetic = NetworkInterfaceOptionSettings(data_path=schema.NetworkDataPath.Synthetic)
