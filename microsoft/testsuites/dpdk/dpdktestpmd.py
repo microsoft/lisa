@@ -77,8 +77,12 @@ class DpdkTestpmd(Tool):
         "download/v1.10.2/ninja-linux.zip"
     )
 
-    def __execute_assert_zero(self, cmd: str, path: PurePath) -> str:
-        result = self.node.execute(cmd, sudo=True, shell=True, cwd=path)
+    def __execute_assert_zero(
+        self, cmd: str, path: PurePath, timeout: int = 600
+    ) -> str:
+        result = self.node.execute(
+            cmd, sudo=True, shell=True, cwd=path, timeout=timeout
+        )
         assert_that(result.exit_code).is_zero()
         return result.stdout
 
@@ -102,7 +106,7 @@ class DpdkTestpmd(Tool):
             self.__execute_assert_zero("meson build", dpdk_path)
             dpdk_build_path = dpdk_path.joinpath("build")
             self.__execute_assert_zero("which ninja", dpdk_build_path)
-            self.__execute_assert_zero("ninja", dpdk_build_path)
+            self.__execute_assert_zero("ninja", dpdk_build_path, timeout=1200)
             self.__execute_assert_zero("ninja install", dpdk_build_path)
             self.__execute_assert_zero("ldconfig", dpdk_build_path)
             return True
