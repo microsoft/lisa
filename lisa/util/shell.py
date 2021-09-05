@@ -302,6 +302,8 @@ class SshShell(InitializableMixin):
             self._inner_shell.mkdir(
                 path_str, mode=mode, parents=parents, exist_ok=exist_ok
             )
+        except PermissionError:
+            self._inner_shell.run(command=["sudo", "mkdir", "-p", path_str])
         except SSHException as identifier:
             # no sftp, try commands
             if "Channel closed." in str(identifier):

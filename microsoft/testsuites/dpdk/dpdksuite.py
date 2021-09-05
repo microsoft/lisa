@@ -25,8 +25,13 @@ class Dpdk(TestSuite):
     @TestCaseMetadata(
         description="""
             This test case checks DPDK can be built and installed correctly.
+            Prerequisites, accelerated networking must be enabled.
+            The VM should have at least two network interfaces,
+             with one interface for management.
+            More detailes refer https://docs.microsoft.com/en-us/azure/virtual-network/setup-dpdk#prerequisites # noqa: E501
         """,
         requirement=simple_requirement(
+            min_nic_count=2,
             network_interface=Sriov,
         ),
         priority=1,
@@ -79,15 +84,13 @@ class Dpdk(TestSuite):
 
     def _hugepages_init(self, node: Node) -> None:
         mount = node.tools[Mount]
-        # When using hugetlbfs the first parameter is ignored, so it could be anything
-        mount.run(" -t hugetlbfs ignored /mnt/huge", sudo=True)
-        mount.run("-t hugetlbfs -o 'pagesize=1G' ignored /mnt/huge-1G", sudo=True)
-
-        # TODO: swap to this once the mount tool issue is fixed
-        #           https://github.com/microsoft/lisa/issues/1505
-        # mount.mount("nodev", "/mnt/huge", type="hugetlbfs")
-        # mount.mount("nodev", "/mnt/huge-1G",
-        #              type="hugetlbfs", options="'pagesize=1G'")
+        mount.mount(disk_name="nodev", point="/mnt/huge", type="hugetlbfs")
+        mount.mount(
+            disk_name="nodev",
+            point="/mnt/huge-1G",
+            type="hugetlbfs",
+            options="pagesize=1G",
+        )
 
     def _hugepages_enable(self, node: Node, log: Logger) -> None:
         echo = node.tools[Echo]
