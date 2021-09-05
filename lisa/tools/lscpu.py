@@ -51,7 +51,10 @@ class CPUInfo:
 
 class Lscpu(Tool):
     # CPU(s):              16
-    __vcpu_sockets = re.compile(r"^CPU\(s\):[ ]+([\d]+)\r?$", re.M)
+    __vcpu = re.compile(r"^CPU\(s\):[ ]+([\d]+)\r?$", re.M)
+    __thread_per_core = re.compile(r"^Thread\(s\) per core:[ ]+([\d]+)\r?$", re.M)
+    __core_per_socket = re.compile(r"^Core\(s\) per socket:[ ]+([\d]+)\r?$", re.M)
+    __sockets = re.compile(r"^Socket\(s\):[ ]+([\d]+)\r?$", re.M)
     # Architecture:        x86_64
     __architecture_pattern = re.compile(r"^Architecture:\s+(.*)?\r$", re.M)
     __valid_architecture_list = ["x86_64"]
@@ -95,7 +98,7 @@ class Lscpu(Tool):
 
     def get_core_count(self, force_run: bool = False) -> int:
         result = self.run(force_run=force_run)
-        matched = self.__vcpu_sockets.findall(result.stdout)
+        matched = self.__vcpu.findall(result.stdout)
         assert_that(
             len(matched),
             f"cpu count should have exact one line, but got {matched}",
@@ -103,6 +106,36 @@ class Lscpu(Tool):
         self._core_count = int(matched[0]) * 1
 
         return self._core_count
+
+    def get_thread_per_core_count(self, force_run: bool = False) -> int:
+        result = self.run(force_run=force_run)
+        matched = self.__thread_per_core.findall(result.stdout)
+        assert_that(
+            len(matched),
+            f"thread per core count should have exact one line, but got {matched}",
+        ).is_equal_to(1)
+
+        return int(matched[0]) * 1
+
+    def get_core_per_socket_count(self, force_run: bool = False) -> int:
+        result = self.run(force_run=force_run)
+        matched = self.__core_per_socket.findall(result.stdout)
+        assert_that(
+            len(matched),
+            f"core per socket count should have exact one line, but got {matched}",
+        ).is_equal_to(1)
+
+        return int(matched[0]) * 1
+
+    def get_socket_count(self, force_run: bool = False) -> int:
+        result = self.run(force_run=force_run)
+        matched = self.__sockets.findall(result.stdout)
+        assert_that(
+            len(matched),
+            f"socket count should have exact one line, but got {matched}",
+        ).is_equal_to(1)
+
+        return int(matched[0]) * 1
 
     def get_cpu_type(self, force_run: bool = False) -> CpuType:
         result = self.run(force_run=force_run)
