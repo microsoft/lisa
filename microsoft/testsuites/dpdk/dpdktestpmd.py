@@ -182,8 +182,18 @@ class DpdkTestpmd(Tool):
         return True
 
     def _generate_testpmd_command(self, nic_to_include: str) -> str:
+        #   testpmd \
+        #   -l <core-list> \
+        #   -n <num of mem channels> \
+        #   -w <pci address of the device you plan to use> \
+        #   --vdev="net_vdev_netvsc<id>,iface=<the iface to attach to>" \
+        #   -- --port-topology=chained \
+        #   --nb-cores <number of cores to use for test pmd> \
+        #   --forward-mode=txonly \
+        #   --eth-peer=<port id>,<receiver peer MAC address> \
+        #   --stats-period <display interval in seconds>
         return (
-            f"{self._testpmd_install_path} -l 2,3 -n 4 --proc-type=primary "
+            f"{self._testpmd_install_path} -l 0-1 -n 4 --proc-type=primary "
             + f"{nic_to_include} -- --forward-mode=txonly -a --stats-period 1"
         )
 
