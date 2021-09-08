@@ -24,7 +24,6 @@ from microsoft.testsuites.dpdk.dpdktestpmd import DpdkTestpmd
         supported_features=[Sriov],
         min_core_count=8,
         min_nic_count=2,
-        supported_os=[Ubuntu, Redhat],
     ),
 )
 class Dpdk(TestSuite):
