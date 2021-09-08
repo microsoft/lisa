@@ -46,7 +46,7 @@ class Lsmod(Tool):
             )
 
         module_info = find_patterns_in_lines(result.stdout, [self.__output_pattern])
-        if any(mod_name in info for info in module_info):
+        if any(mod_name in info for sublist in module_info for info in sublist):
             return True
 
         return False
