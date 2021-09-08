@@ -204,6 +204,7 @@ class Process:
 
     def kill(self) -> None:
         if self._process:
+            self._log.debug(f"Killing process : {self._id_}")
             if self._shell.is_remote:
                 # Support remote Posix so far
                 self._process.send_signal(9)
