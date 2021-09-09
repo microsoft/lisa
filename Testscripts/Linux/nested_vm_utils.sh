@@ -46,7 +46,8 @@ Install_KVM_Dependencies()
         SetTestStateSkipped
         exit 0
     fi
-    lscpu | grep -i vt
+    #lscpu | grep -i vt
+    lscpu | grep -i "vt\|AMD-V"
     if [ $? != 0 ]; then
         LogMsg "CPU type is not VT-x. Skip the test."
         SetTestStateSkipped
@@ -58,7 +59,7 @@ Install_KVM_Dependencies()
     if [ $? -eq 0 ]; then
         install_package bridge-utils
     fi
-    lsmod | grep kvm_intel
+    lsmod | grep "kvm_intel\|kvm_amd"
     exit_status=$?
     if [ $exit_status -ne 0 ]; then
         LogErr "Failed to install KVM"
