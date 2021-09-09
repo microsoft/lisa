@@ -20,6 +20,11 @@ from microsoft.testsuites.dpdk.dpdktestpmd import DpdkTestpmd
     description="""
     This test suite check DPDK functionality
     """,
+    requirement=simple_requirement(
+        min_core_count=8,
+        min_nic_count=2,
+        network_interface=Sriov,
+    ),
 )
 class Dpdk(TestSuite):
     @TestCaseMetadata(
@@ -30,10 +35,6 @@ class Dpdk(TestSuite):
              with one interface for management.
             More detailes refer https://docs.microsoft.com/en-us/azure/virtual-network/setup-dpdk#prerequisites # noqa: E501
         """,
-        requirement=simple_requirement(
-            min_nic_count=2,
-            network_interface=Sriov,
-        ),
         priority=1,
     )
     def check_dpdk_build(self, node: Node, log: Logger) -> None:
