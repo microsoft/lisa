@@ -30,6 +30,7 @@ from .reboot import Reboot
 from .service import Service
 from .sysctl import Sysctl
 from .tar import Tar
+from .taskset import TaskSet
 from .timedatectl import Timedatectl
 from .uptime import Uptime
 from .who import Who
@@ -66,6 +67,7 @@ __all__ = [
     "Service",
     "Sysctl",
     "Tar",
+    "TaskSet",
     "Timedatectl",
     "Uptime",
     "Wget",
