@@ -1,6 +1,7 @@
 # Copyright (c) Microsoft Corporation.
 # Licensed under the MIT license.
 from __future__ import annotations
+from lisa.tools.syscall_benchmark import SysCallBenchmark
 
 import re
 import time
@@ -18,7 +19,7 @@ from lisa import (
     SkippedException,
     testsuite,
 )
-from lisa.tools import Cat, Echo, Lscpu, Lsvmbus, TaskSet, Uname
+from lisa.tools import Cat, Echo, Git, Lscpu, Lsvmbus, TaskSet, Uname
 
 
 class CPUState:
@@ -118,7 +119,7 @@ class CPU(testsuite.TestSuite):
         priority=2,
     )
     def cpu_verify_vmbus_force_online(self, node: Node, log: Logger) -> None:
-        cpu_count = node.tools[Lscpu].get_core_count()
+        cpu_count = node.tools[Lscpu].clone()
         log.debug(f"{cpu_count} CPU cores detected...")
 
         # Find CPUs(except CPU0) which are mapped to LSVMBUS channels and have
@@ -226,7 +227,7 @@ class CPU(testsuite.TestSuite):
     def cpu_count_check(self, node: Node, log: Logger) -> None:
         lscpu = node.tools[Lscpu]
         # 1. Get vCPU count.
-        cpu_count = lscpu.get_core_count()
+        cpu_count = lscpu.clone()
         log.debug(f"{cpu_count} CPU cores detected...")
         # 2. Caculate vCPU count by core_per_socket_count * socket_count *
         #  thread_per_core_count.
@@ -274,7 +275,7 @@ class CPU(testsuite.TestSuite):
     )
     def verify_vmbus_interrupts(self, node: Node, log: Logger) -> None:
         found_hyperv_interrupt = False
-        cpu_count = node.tools[Lscpu].get_core_count()
+        cpu_count = node.tools[Lscpu].clone()
         log.debug(f"{cpu_count} CPU cores detected...")
 
         self._create_stimer_interrupts(node, cpu_count)
@@ -331,6 +332,15 @@ class CPU(testsuite.TestSuite):
         # Fail test execution if these hyper-v interrupts are not showing up
         if not found_hyperv_interrupt:
             raise LisaException("Hyper-V interrupts are not recorded.")
+
+    @testsuite.TestCaseMetadata(
+        description="""
+        """,
+        priority=3,
+    )
+    def perf_syscall_benchmark(self, node: Node, log: Logger) -> None:
+        result = node.tools[SysCallBenchmark].get_benchmark()
+        print(result)
 
     def _get_cpu_config_file(self, cpu_id: str) -> str:
         return f"/sys/devices/system/cpu/cpu{cpu_id}/online"
