@@ -12,7 +12,7 @@ from lisa import schema
 from lisa.node import Node
 from lisa.operating_system import Redhat, Ubuntu
 from lisa.tools import Echo, Git, Make, Uname
-from lisa.util import LisaException, subclasses
+from lisa.util import LisaException, field_metadata, subclasses
 from lisa.util.logger import Logger, get_logger
 
 from .kernel_installer import BaseInstaller, BaseInstallerSchema
@@ -35,7 +35,7 @@ class BaseLocationSchema(schema.TypedSchema, schema.ExtendableSchemaMixin):
 class LocalLocationSchema(BaseLocationSchema):
     path: str = field(
         default="",
-        metadata=schema.metadata(
+        metadata=field_metadata(
             required=True,
         ),
     )
@@ -58,7 +58,7 @@ class RepoLocationSchema(LocalLocationSchema):
 class PatchModifierSchema(BaseModifierSchema):
     repo: str = field(
         default="",
-        metadata=schema.metadata(
+        metadata=field_metadata(
             required=True,
         ),
     )
@@ -71,7 +71,7 @@ class PatchModifierSchema(BaseModifierSchema):
 @dataclass
 class SourceInstallerSchema(BaseInstallerSchema):
     location: Optional[BaseLocationSchema] = field(
-        default=None, metadata=schema.metadata(required=True)
+        default=None, metadata=field_metadata(required=True)
     )
 
     # Steps to modify code by patches and others.

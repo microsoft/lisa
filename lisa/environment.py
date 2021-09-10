@@ -25,6 +25,7 @@ from lisa.util import (
     InitializableMixin,
     LisaException,
     constants,
+    field_metadata,
     fields_to_dict,
     get_datetime_path,
     hookimpl,
@@ -95,7 +96,7 @@ class EnvironmentSpace(search_space.RequirementMixin):
 
     topology: str = field(
         default=constants.ENVIRONMENTS_SUBNET,
-        metadata=schema.metadata(
+        metadata=field_metadata(
             validate=validate.OneOf([constants.ENVIRONMENTS_SUBNET])
         ),
     )

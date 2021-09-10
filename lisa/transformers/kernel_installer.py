@@ -14,7 +14,7 @@ from lisa.operating_system import Posix, Ubuntu
 from lisa.secret import PATTERN_HEADTAIL, add_secret
 from lisa.tools import Uname
 from lisa.transformer import Transformer
-from lisa.util import filter_ansi_escape, get_matched_str, subclasses
+from lisa.util import field_metadata, filter_ansi_escape, get_matched_str, subclasses
 from lisa.util.logger import Logger, get_logger
 
 
@@ -32,7 +32,7 @@ class RepoInstallerSchema(BaseInstallerSchema):
     # linux-image-4.18.0-1025-azure
     source: str = field(
         default="proposed",
-        metadata=schema.metadata(
+        metadata=field_metadata(
             required=True,
         ),
     )
@@ -50,7 +50,7 @@ class PpaInstallerSchema(RepoInstallerSchema):
     # The URL of PPA url, and it may need to include credential.
     ppa_url: str = field(
         default="",
-        metadata=schema.metadata(
+        metadata=field_metadata(
             required=True,
         ),
     )
@@ -66,11 +66,11 @@ class PpaInstallerSchema(RepoInstallerSchema):
 class KernelInstallerTransformerSchema(schema.Transformer):
     # the SSH connection information to the node
     connection: Optional[schema.RemoteNode] = field(
-        default=None, metadata=schema.metadata(required=True)
+        default=None, metadata=field_metadata(required=True)
     )
     # the installer's parameters.
     installer: Optional[BaseInstallerSchema] = field(
-        default=None, metadata=schema.metadata(required=True)
+        default=None, metadata=field_metadata(required=True)
     )
 
 

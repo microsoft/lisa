@@ -20,7 +20,7 @@ from marshmallow import validate
 from lisa import schema
 from lisa.environment import Environment
 from lisa.node import Node
-from lisa.util import LisaException, constants
+from lisa.util import LisaException, constants, field_metadata
 from lisa.util.logger import Logger
 from lisa.util.parallel import check_cancelled
 from lisa.util.perf_timer import create_timer
@@ -88,10 +88,10 @@ class AzureNodeSchema:
     # subscription different from where LISA is run
     subscription_id: str = ""
     marketplace_raw: Optional[Union[Dict[Any, Any], str]] = field(
-        default=None, metadata=schema.metadata(data_key="marketplace")
+        default=None, metadata=field_metadata(data_key="marketplace")
     )
     shared_gallery_raw: Optional[Union[Dict[Any, Any], str]] = field(
-        default=None, metadata=schema.metadata(data_key="shared_gallery")
+        default=None, metadata=field_metadata(data_key="shared_gallery")
     )
     vhd: str = ""
     nic_count: int = 1
@@ -99,7 +99,7 @@ class AzureNodeSchema:
     data_disk_count: int = 0
     data_disk_caching_type: str = field(
         default=constants.DATADISK_CACHING_TYPE_NONE,
-        metadata=schema.metadata(
+        metadata=field_metadata(
             validate=validate.OneOf(
                 [
                     constants.DATADISK_CACHING_TYPE_NONE,
@@ -437,7 +437,7 @@ class DataDiskCreateOption:
 class DataDiskSchema:
     caching_type: str = field(
         default=constants.DATADISK_CACHING_TYPE_NONE,
-        metadata=schema.metadata(
+        metadata=field_metadata(
             validate=validate.OneOf(
                 [
                     constants.DATADISK_CACHING_TYPE_NONE,
@@ -450,7 +450,7 @@ class DataDiskSchema:
     size: int = 32
     type: str = field(
         default=schema.DiskType.StandardHDDLRS,
-        metadata=schema.metadata(
+        metadata=field_metadata(
             validate=validate.OneOf(
                 [
                     schema.DiskType.StandardHDDLRS,
@@ -463,7 +463,7 @@ class DataDiskSchema:
     )
     create_option: str = field(
         default=DataDiskCreateOption.DATADISK_CREATE_OPTION_TYPE_EMPTY,
-        metadata=schema.metadata(
+        metadata=field_metadata(
             validate=validate.OneOf(DataDiskCreateOption.get_create_option())
         ),
     )

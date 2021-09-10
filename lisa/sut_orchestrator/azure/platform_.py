@@ -47,6 +47,7 @@ from lisa.util import (
     LisaException,
     constants,
     dump_file,
+    field_metadata,
     get_matched_str,
     get_public_key_data,
     plugin_manager,
@@ -165,7 +166,7 @@ class AzureCapability:
 class AzureLocation:
     updated_time: datetime = field(
         default_factory=datetime.now,
-        metadata=schema.metadata(
+        metadata=field_metadata(
             fields.DateTime,
             encoder=datetime.isoformat,
             decoder=datetime.fromisoformat,
@@ -207,20 +208,20 @@ class AzureArmParameter:
 class AzurePlatformSchema:
     service_principal_tenant_id: str = field(
         default="",
-        metadata=schema.metadata(
+        metadata=field_metadata(
             validate=validate.Regexp(constants.GUID_REGEXP),
         ),
     )
     service_principal_client_id: str = field(
         default="",
-        metadata=schema.metadata(
+        metadata=field_metadata(
             validate=validate.Regexp(constants.GUID_REGEXP),
         ),
     )
     service_principal_key: str = field(default="")
     subscription_id: str = field(
         default="",
-        metadata=schema.metadata(
+        metadata=field_metadata(
             validate=validate.Regexp(constants.GUID_REGEXP),
         ),
     )
@@ -232,7 +233,7 @@ class AzurePlatformSchema:
 
     log_level: str = field(
         default=logging.getLevelName(logging.WARN),
-        metadata=schema.metadata(
+        metadata=field_metadata(
             validate=validate.OneOf(
                 [
                     logging.getLevelName(logging.ERROR),

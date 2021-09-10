@@ -5,7 +5,7 @@ import copy
 from dataclasses import dataclass, field
 from enum import Enum
 from functools import partial
-from typing import Any, Callable, Dict, List, Optional, Type, TypeVar, Union, cast
+from typing import Any, Dict, List, Optional, Type, TypeVar, Union, cast
 
 from dataclasses_json import (
     CatchAll,
@@ -18,7 +18,7 @@ from marshmallow import ValidationError, fields, validate
 
 from lisa import search_space
 from lisa.secret import PATTERN_HEADTAIL, add_secret
-from lisa.util import BaseClassMixin, LisaException, constants
+from lisa.util import BaseClassMixin, LisaException, constants, field_metadata
 
 """
 Schema is dealt with three components,
@@ -31,27 +31,6 @@ Schema is dealt with three components,
 
 
 T = TypeVar("T")
-
-
-def metadata(
-    field_function: Optional[Callable[..., Any]] = None, *args: Any, **kwargs: Any
-) -> Any:
-    """
-    wrap for shorter
-    """
-    if field_function is None:
-        field_function = fields.Raw
-    assert field_function
-    encoder = kwargs.pop("encoder", None)
-    decoder = kwargs.pop("decoder", None)
-    # keep data_key for underlying marshmallow
-    field_name = kwargs.get("data_key")
-    return config(
-        field_name=cast(str, field_name),
-        encoder=encoder,
-        decoder=decoder,
-        mm_field=field_function(*args, **kwargs),
-    )
 
 
 class ListableValidator(validate.Validator):
@@ -175,7 +154,7 @@ class ExtendableSchemaMixin:
 @dataclass_json()
 @dataclass
 class TypedSchema:
-    type: str = field(default="", metadata=metadata(required=True))
+    type: str = field(default="", metadata=field_metadata(required=True))
 
 
 @dataclass_json()
@@ -207,7 +186,7 @@ class Transformer(TypedSchema, ExtendableSchemaMixin):
 @dataclass
 class Combinator(TypedSchema, ExtendableSchemaMixin):
     type: str = field(
-        default=constants.COMBINATOR_GRID, metadata=metadata(required=True)
+        default=constants.COMBINATOR_GRID, metadata=field_metadata(required=True)
     )
 
 
@@ -225,10 +204,10 @@ class Strategy:
     add: add non-exist, not replace exist.
     """
 
-    node_path: str = field(default="", metadata=metadata(required=True))
+    node_path: str = field(default="", metadata=field_metadata(required=True))
     operation: str = field(
         default=constants.OPERATION_OVERWRITE,
-        metadata=metadata(
+        metadata=field_metadata(
             required=True,
             validate=validate.OneOf(
                 [
@@ -248,7 +227,7 @@ class Include:
     Inclusion of runbook logic, for similar runs.
     """
 
-    path: str = field(default="", metadata=metadata(required=True))
+    path: str = field(default="", metadata=field_metadata(required=True))
     strategy: Union[List[Strategy], Strategy, None] = None
 
 
@@ -302,14 +281,14 @@ class Variable:
     # continue to support v2 format. it's simple.
     file: str = field(
         default="",
-        metadata=metadata(
+        metadata=field_metadata(
             validate=validate.Regexp(r"([\w\W]+[.](xml|yml|yaml)$)|(^$)")
         ),
     )
 
     name: str = field(default="")
     value_raw: Union[str, bool, int, Dict[Any, Any], List[Any]] = field(
-        default="", metadata=metadata(data_key="value")
+        default="", metadata=field_metadata(data_key="value")
     )
     # True means this variable can be used in test cases.
     is_case_visible: bool = False
@@ -402,17 +381,17 @@ class DiskOptionSettings(FeatureSettings):
     type: str = constants.FEATURE_DISK
     disk_type: Optional[Union[search_space.SetSpace[DiskType], DiskType]] = field(
         default=DiskType.StandardHDDLRS,
-        metadata=metadata(
+        metadata=field_metadata(
             decoder=partial(search_space.decode_set_space_by_type, base_type=DiskType)
         ),
     )
     data_disk_count: search_space.CountSpace = field(
         default=search_space.IntRange(min=0),
-        metadata=metadata(decoder=search_space.decode_count_space),
+        metadata=field_metadata(decoder=search_space.decode_count_space),
     )
     data_disk_caching_type: str = field(
         default=constants.DATADISK_CACHING_TYPE_NONE,
-        metadata=metadata(
+        metadata=field_metadata(
             validate=validate.OneOf(
                 [
                     constants.DATADISK_CACHING_TYPE_NONE,
@@ -424,11 +403,15 @@ class DiskOptionSettings(FeatureSettings):
     )
     data_disk_iops: search_space.CountSpace = field(
         default=None,
-        metadata=metadata(allow_none=True, decoder=search_space.decode_count_space),
+        metadata=field_metadata(
+            allow_none=True, decoder=search_space.decode_count_space
+        ),
     )
     data_disk_size: search_space.CountSpace = field(
         default=None,
-        metadata=metadata(allow_none=True, decoder=search_space.decode_count_space),
+        metadata=field_metadata(
+            allow_none=True, decoder=search_space.decode_count_space
+        ),
     )
 
     def __eq__(self, o: object) -> bool:
@@ -510,7 +493,7 @@ class NetworkInterfaceOptionSettings(FeatureSettings):
         Union[search_space.SetSpace[NetworkDataPath], NetworkDataPath]
     ] = field(
         default=NetworkDataPath.Synthetic,
-        metadata=metadata(
+        metadata=field_metadata(
             decoder=partial(
                 search_space.decode_set_space_by_type, base_type=NetworkDataPath
             )
@@ -518,7 +501,7 @@ class NetworkInterfaceOptionSettings(FeatureSettings):
     )
     nic_count: search_space.CountSpace = field(
         default=search_space.IntRange(min=1),
-        metadata=metadata(decoder=search_space.decode_count_space),
+        metadata=field_metadata(decoder=search_space.decode_count_space),
     )
 
     def __eq__(self, o: object) -> bool:
@@ -598,7 +581,7 @@ class FeaturesSpace(
 class NodeSpace(search_space.RequirementMixin, TypedSchema, ExtendableSchemaMixin):
     type: str = field(
         default=constants.ENVIRONMENTS_NODES_REQUIREMENT,
-        metadata=metadata(
+        metadata=field_metadata(
             required=True,
             validate=validate.OneOf([constants.ENVIRONMENTS_NODES_REQUIREMENT]),
         ),
@@ -607,33 +590,33 @@ class NodeSpace(search_space.RequirementMixin, TypedSchema, ExtendableSchemaMixi
     is_default: bool = field(default=False)
     node_count: search_space.CountSpace = field(
         default=search_space.IntRange(min=1),
-        metadata=metadata(decoder=search_space.decode_count_space),
+        metadata=field_metadata(decoder=search_space.decode_count_space),
     )
     core_count: search_space.CountSpace = field(
         default=search_space.IntRange(min=1),
-        metadata=metadata(decoder=search_space.decode_count_space),
+        metadata=field_metadata(decoder=search_space.decode_count_space),
     )
     memory_mb: search_space.CountSpace = field(
         default=search_space.IntRange(min=512),
-        metadata=metadata(decoder=search_space.decode_count_space),
+        metadata=field_metadata(decoder=search_space.decode_count_space),
     )
     disk: Optional[DiskOptionSettings] = None
     network_interface: Optional[NetworkInterfaceOptionSettings] = None
     gpu_count: search_space.CountSpace = field(
         default=search_space.IntRange(min=0),
-        metadata=metadata(decoder=search_space.decode_count_space),
+        metadata=field_metadata(decoder=search_space.decode_count_space),
     )
     # all features on requirement should be included.
     # all features on capability can be included.
     _features: Optional[FeaturesSpace] = field(
         default=None,
-        metadata=metadata(allow_none=True, data_key="features"),
+        metadata=field_metadata(allow_none=True, data_key="features"),
     )
     # set by requirements
     # capability's is ignored
     _excluded_features: Optional[FeaturesSpace] = field(
         default=None,
-        metadata=metadata(
+        metadata=field_metadata(
             allow_none=True,
             data_key="excluded_features",
         ),
@@ -960,14 +943,14 @@ class RemoteNode(Node):
     address: str = ""
     port: int = field(
         default=22,
-        metadata=metadata(
+        metadata=field_metadata(
             field_function=fields.Int, validate=validate.Range(min=1, max=65535)
         ),
     )
     public_address: str = ""
     public_port: int = field(
         default=22,
-        metadata=metadata(
+        metadata=field_metadata(
             field_function=fields.Int, validate=validate.Range(min=1, max=65535)
         ),
     )
@@ -987,11 +970,13 @@ class Environment:
     name: str = field(default="")
     topology: str = field(
         default=constants.ENVIRONMENTS_SUBNET,
-        metadata=metadata(validate=validate.OneOf([constants.ENVIRONMENTS_SUBNET])),
+        metadata=field_metadata(
+            validate=validate.OneOf([constants.ENVIRONMENTS_SUBNET])
+        ),
     )
     nodes_raw: Optional[List[Any]] = field(
         default=None,
-        metadata=metadata(data_key=constants.NODES),
+        metadata=field_metadata(data_key=constants.NODES),
     )
     nodes_requirement: Optional[List[NodeSpace]] = None
 
@@ -1028,7 +1013,7 @@ class EnvironmentRoot:
 class Platform(TypedSchema, ExtendableSchemaMixin):
     type: str = field(
         default=constants.PLATFORM_READY,
-        metadata=metadata(required=True),
+        metadata=field_metadata(required=True),
     )
 
     admin_username: str = constants.DEFAULT_USER_NAME
@@ -1100,13 +1085,13 @@ class Criteria:
     # the runbook is complex to convert, so manual overwrite it in __post_init__.
     priority: Optional[Union[int, List[int]]] = field(
         default=None,
-        metadata=metadata(
+        metadata=field_metadata(
             validate=ListableValidator(int, validate.Range(min=0, max=4))
         ),
     )
     # tags is a simple way to include test cases within same topic.
     tags: Optional[Union[str, List[str]]] = field(
-        default=None, metadata=metadata(validate=ListableValidator(str))
+        default=None, metadata=field_metadata(validate=ListableValidator(str))
     )
 
 
@@ -1129,7 +1114,7 @@ class BaseTestCaseFilter(TypedSchema, ExtendableSchemaMixin, BaseClassMixin):
 class TestCase(BaseTestCaseFilter):
     type: str = field(
         default=constants.TESTCASE_TYPE_LISA,
-        metadata=metadata(
+        metadata=field_metadata(
             validate=validate.OneOf([constants.TESTCASE_TYPE_LISA]),
         ),
     )
@@ -1159,12 +1144,16 @@ class TestCase(BaseTestCaseFilter):
     # default is 1
     times: int = field(
         default=1,
-        metadata=metadata(field_function=fields.Int, validate=validate.Range(min=1)),
+        metadata=field_metadata(
+            field_function=fields.Int, validate=validate.Range(min=1)
+        ),
     )
     # retry times if fails. Default is 0, not to retry.
     retry: int = field(
         default=0,
-        metadata=metadata(field_function=fields.Int, validate=validate.Range(min=0)),
+        metadata=field_metadata(
+            field_function=fields.Int, validate=validate.Range(min=0)
+        ),
     )
     # each case with this rule will be run in a new environment.
     use_new_environment: bool = False
@@ -1185,7 +1174,7 @@ class TestCase(BaseTestCaseFilter):
 class LegacyTestCase(BaseTestCaseFilter):
     type: str = field(
         default=constants.TESTCASE_TYPE_LEGACY,
-        metadata=metadata(
+        metadata=field_metadata(
             required=True,
             validate=validate.OneOf([constants.TESTCASE_TYPE_LEGACY]),
         ),
@@ -1219,7 +1208,7 @@ class Runbook:
     platform: List[Platform] = field(default_factory=list)
     #  will be parsed in runner.
     testcase_raw: List[Any] = field(
-        default_factory=list, metadata=metadata(data_key=constants.TESTCASE)
+        default_factory=list, metadata=field_metadata(data_key=constants.TESTCASE)
     )
 
     def __post_init__(self, *args: Any, **kwargs: Any) -> None:
