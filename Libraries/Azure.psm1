@@ -2492,8 +2492,22 @@ Function Set-SRIOVinAzureVMs {
 		foreach ( $TargetVM in $TargettedVMs) {
 			$VMName = $TargetVM.RoleName
 			$ResourceGroup = $TargetVM.ResourceGroupName
-			$AllNics = Get-AzNetworkInterface -ResourceGroupName $ResourceGroup `
-			| Where-Object { $($_.VirtualMachine.Id | Split-Path -leaf) -eq $VMName }
+			# Sometimes Get-AzNetworkInterface returns null, retry 120 times
+			$retry_count = 0
+			While ($retry_count -lt 120) {
+				$AllNics = Get-AzNetworkInterface -ResourceGroupName $ResourceGroup `
+				| Where-Object { $($_.VirtualMachine.Id | Split-Path -leaf) -eq $VMName }
+				$retry_count++
+				if ($null -eq $AllNics) {
+					Start-Sleep -Seconds 1
+					Write-LogInfo "Get-AzNetworkInterface for $VMName of $ResourceGroup return $null. Retry..."
+				} else {
+					break
+				}
+			}
+			if ($null -eq $AllNics) {
+				throw "It's failed to get network interface for $VMName of $ResourceGroup. Get-AzNetworkInterface return $null."
+			}
 
 			if ($Enable) {
 				$DesiredState = "Enabled"
