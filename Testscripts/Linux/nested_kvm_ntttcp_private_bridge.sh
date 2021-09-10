@@ -135,7 +135,8 @@ Prepare_Client() {
 	echo "nicName=$NIC_NAME" >> ${CONSTANTS_FILE}
 	Remote_Copy_Wrapper "root" $CLIENT_HOST_FWD_PORT "${CONSTANTS_FILE}" "put"
 	Log_Msg "Reboot the nested client VM" $log_file
-	Reboot_Nested_VM -user "root" -passwd $NestedUserPassword -port $CLIENT_HOST_FWD_PORT
+	Remote_Exec_Wrapper "root" $CLIENT_HOST_FWD_PORT "reboot"
+	sleep 120
 	Bring_Up_Nic_With_Private_Ip $CLIENT_IP_ADDR $CLIENT_HOST_FWD_PORT
 }
 
@@ -159,7 +160,8 @@ Prepare_Server() {
 	Remote_Exec_Wrapper "root" $SERVER_HOST_FWD_PORT "md5sum /root/.ssh/id_rsa > /root/servermd5sum.log"
 	Remote_Copy_Wrapper "root" $SERVER_HOST_FWD_PORT "servermd5sum.log" "get"
 	Log_Msg "Reboot the nested server VM" $log_file
-	Reboot_Nested_VM -user "root" -passwd $NestedUserPassword -port $SERVER_HOST_FWD_PORT
+	Remote_Exec_Wrapper "root" $SERVER_HOST_FWD_PORT "reboot"
+	sleep 120
 	Bring_Up_Nic_With_Private_Ip $SERVER_IP_ADDR $SERVER_HOST_FWD_PORT
 }
 
@@ -192,10 +194,15 @@ Bring_Up_Nic_With_Private_Ip() {
 			exit 0
 		else
 			sleep 30
+			rm -f nestedip
 			Log_Msg "Try to bring up the nested VM NIC with private IP, left retry times: $retry_times" $log_file
-			Remote_Exec_Wrapper "root" $host_fwd_port "dhclient $NIC_NAME"
-			Remote_Exec_Wrapper "root" $host_fwd_port "ip addr add $ip_addr/24 dev $NIC_NAME && ip link set $NIC_NAME up"
-			Remote_Exec_Wrapper "root" $host_fwd_port "ip addr show dev $NIC_NAME | grep -i $ip_addr/24"
+			Remote_Exec_Wrapper "root" $host_fwd_port "ip addr add $ip_addr/24 dev $NIC_NAME"
+			sleep 2
+			Remote_Exec_Wrapper "root" $host_fwd_port "ip link set $NIC_NAME up"
+			sleep 2
+			Remote_Exec_Wrapper "root" $host_fwd_port "ip addr show dev $NIC_NAME > nestedip"
+			Remote_Copy_Wrapper "root" $host_fwd_port "nestedip" "get"
+			cat nestedip | grep "$ip_addr"
 			exit_status=$?
 		fi
 	done
