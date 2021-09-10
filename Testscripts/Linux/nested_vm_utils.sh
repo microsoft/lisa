@@ -155,8 +155,8 @@ Start_Nested_VM()
     LogMsg "Run command: $cmd"
     $cmd
     LogMsg "Wait for the nested VM to boot up ..."
-    sleep 10
-    retry_times=20
+    sleep 20
+    retry_times=30
     exit_status=1
     while [ $exit_status -ne 0 ] && [ $retry_times -gt 0 ];
     do
