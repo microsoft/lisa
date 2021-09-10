@@ -23,6 +23,7 @@
     exit 2
 }
 
+CPU_MODEL=""
 ICA_TESTRUNNING="TestRunning"      # The test is running
 ICA_TESTCOMPLETED="TestCompleted"  # The test completed successfully
 ICA_TESTABORTED="TestAborted"      # Error during the setup of the test
@@ -49,9 +50,20 @@ Install_KVM_Dependencies()
     #lscpu | grep -i vt
     lscpu | grep -i "vt\|AMD-V"
     if [ $? != 0 ]; then
-        LogMsg "CPU type is not VT-x. Skip the test."
+        LogMsg "Virtualization is not enabled in CPU. Skip the test."
         SetTestStateSkipped
         exit 0
+    else
+        VIRTUALIZATION=$(lscpu | grep -i "vt\|AMD-V" | awk '{print $2}')
+        if [[ "${VIRTUALIZATION}" == "AMD-V" ]];then
+            CPU_MODEL="EPYC"
+        elif [[ "${VIRTUALIZATION}" == "VT-x" ]];then
+            CPU_MODEL="host"
+        else
+            LogMsg "Virtualization is not detected"
+            SetTestStateSkipped
+            exit 0
+        fi
     fi
     update_repos
     install_package qemu-kvm
