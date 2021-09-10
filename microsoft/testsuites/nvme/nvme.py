@@ -17,6 +17,7 @@ from lisa.features import Nvme
 from lisa.sut_orchestrator.azure.platform_ import AzurePlatform
 from lisa.tools import Cat, Fdisk, Lscpu, Lspci, Mount, Nvmecli
 from lisa.tools.fdisk import FileSystem
+from lisa.util import constants
 
 
 def _format_mount_disk(
@@ -380,6 +381,6 @@ class nvme(TestSuite):  # noqa
     def nvme_rescind_validation(self, node: Node) -> None:
         lspci = node.tools[Lspci]
         # 1. Disable NVME devices.
-        lspci.disable_devices(device_type="NVME")
+        lspci.disable_devices(device_type=constants.DEVICE_TYPE_NVME)
         # 2. Enable NVME device.
         lspci.enable_devices()
