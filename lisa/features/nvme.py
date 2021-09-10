@@ -2,13 +2,17 @@
 # Licensed under the MIT license.
 
 import re
-from typing import List
+from dataclasses import dataclass, field
+from typing import Any, List, Type
 
+from dataclasses_json import dataclass_json
+
+from lisa import schema, search_space
 from lisa.feature import Feature
+from lisa.schema import FeatureSettings
 from lisa.tools import Lspci, Nvmecli
 from lisa.tools.lspci import PciDevice
-
-FEATURE_NAME_NVME = "NVME"
+from lisa.util import field_metadata
 
 
 class Nvme(Feature):
@@ -26,8 +30,8 @@ class Nvme(Feature):
     _ls_devices: str = ""
 
     @classmethod
-    def name(cls) -> str:
-        return FEATURE_NAME_NVME
+    def settings_type(cls) -> Type[schema.FeatureSettings]:
+        return NvmeSettings
 
     @classmethod
     def enabled(cls) -> bool:
@@ -80,3 +84,51 @@ class Nvme(Feature):
                 "ls -l /dev/nvme*", shell=True, sudo=True
             )
             self._ls_devices = execute_results.stdout
+
+
+@dataclass_json()
+@dataclass()
+class NvmeSettings(FeatureSettings):
+    type: str = "Nvme"
+    disk_count: search_space.CountSpace = field(
+        default=search_space.IntRange(min=0),
+        metadata=field_metadata(decoder=search_space.decode_count_space),
+    )
+
+    def __eq__(self, o: object) -> bool:
+        assert isinstance(o, NvmeSettings), f"actual: {type(o)}"
+        return self.type == o.type and self.disk_count == o.disk_count
+
+    def __repr__(self) -> str:
+        return f"disk_count:{self.disk_count}"
+
+    def __str__(self) -> str:
+        return self.__repr__()
+
+    def __hash__(self) -> int:
+        return super().__hash__()
+
+    def _get_key(self) -> str:
+        return f"{super()._get_key()}/{self.disk_count}"
+
+    def check(self, capability: Any) -> search_space.ResultReason:
+        assert isinstance(capability, NvmeSettings), f"actual: {type(capability)}"
+        result = super().check(capability)
+
+        result.merge(
+            search_space.check_countspace(self.disk_count, capability.disk_count),
+            "disk_count",
+        )
+
+        return result
+
+    def _generate_min_capability(self, capability: Any) -> Any:
+        assert isinstance(capability, NvmeSettings), f"actual: {type(capability)}"
+        min_value = NvmeSettings()
+
+        if self.disk_count or capability.disk_count:
+            min_value.disk_count = search_space.generate_min_capability_countspace(
+                self.disk_count, capability.disk_count
+            )
+
+        return min_value

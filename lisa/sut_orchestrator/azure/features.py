@@ -13,6 +13,7 @@ from dataclasses_json import dataclass_json
 from PIL import Image, UnidentifiedImageError
 
 from lisa import features, schema, search_space
+from lisa.features import NvmeSettings
 from lisa.features.gpu import ComputeSDK
 from lisa.node import Node
 from lisa.operating_system import CentOs, Redhat, Suse, Ubuntu
@@ -212,6 +213,10 @@ class NetworkInterface(AzureFeatureMixin, features.NetworkInterface):
 
 
 class Nvme(AzureFeatureMixin, features.Nvme):
+    @classmethod
+    def settings_type(cls) -> Type[schema.FeatureSettings]:
+        return NvmeSettings
+
     def _initialize(self, *args: Any, **kwargs: Any) -> None:
         super()._initialize(*args, **kwargs)
         self._initialize_information(self._node)
