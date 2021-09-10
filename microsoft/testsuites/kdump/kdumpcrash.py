@@ -98,8 +98,7 @@ class KdumpCrash(TestSuite):
         ),
     )
     def kdumpcrash_validate_smp(self, node: Node, log: Logger) -> None:
-        self.trigger_kdump_cmd = "taskset -c 1 echo c > /proc/sysrq-trigger"
-        self._kdump_test(node, log)
+        self._trigger_kdump_on_specified_cpu(1, node, log)
 
     @TestCaseMetadata(
         description="""
