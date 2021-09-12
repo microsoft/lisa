@@ -13,8 +13,7 @@ from lisa import (
     TestSuiteMetadata,
     simple_requirement,
 )
-from lisa.features import Nvme, NvmeSettings
-from lisa.features.network_interface import Sriov
+from lisa.features import Nvme, NvmeSettings, Sriov
 from lisa.sut_orchestrator.azure.platform_ import AzurePlatform
 from lisa.tools import Cat, Fdisk, Lscpu, Lspci, Mount, Nvmecli
 from lisa.tools.fdisk import FileSystem

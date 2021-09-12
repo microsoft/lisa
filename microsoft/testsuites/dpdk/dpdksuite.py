@@ -7,8 +7,7 @@ from typing import Dict, List
 from assertpy import assert_that
 
 from lisa import Logger, Node, TestCaseMetadata, TestSuite, TestSuiteMetadata
-from lisa.features import Sriov
-from lisa.features.network_interface import NetworkInterface
+from lisa.features import NetworkInterface, Sriov
 from lisa.testsuite import simple_requirement
 from lisa.tools import Echo, Lspci, Mount
 from microsoft.testsuites.dpdk.dpdktestpmd import DpdkTestpmd
