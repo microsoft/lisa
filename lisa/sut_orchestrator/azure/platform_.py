@@ -38,6 +38,7 @@ from retry import retry
 
 from lisa import feature, schema, search_space
 from lisa.environment import Environment
+from lisa.features import NvmeSettings
 from lisa.node import Node, RemoteNode
 from lisa.platform_ import Platform
 from lisa.secret import PATTERN_GUID, PATTERN_HEADTAIL, add_secret
@@ -47,6 +48,7 @@ from lisa.util import (
     LisaException,
     constants,
     dump_file,
+    field_metadata,
     get_matched_str,
     get_public_key_data,
     plugin_manager,
@@ -165,7 +167,7 @@ class AzureCapability:
 class AzureLocation:
     updated_time: datetime = field(
         default_factory=datetime.now,
-        metadata=schema.metadata(
+        metadata=field_metadata(
             fields.DateTime,
             encoder=datetime.isoformat,
             decoder=datetime.fromisoformat,
@@ -207,20 +209,20 @@ class AzureArmParameter:
 class AzurePlatformSchema:
     service_principal_tenant_id: str = field(
         default="",
-        metadata=schema.metadata(
+        metadata=field_metadata(
             validate=validate.Regexp(constants.GUID_REGEXP),
         ),
     )
     service_principal_client_id: str = field(
         default="",
-        metadata=schema.metadata(
+        metadata=field_metadata(
             validate=validate.Regexp(constants.GUID_REGEXP),
         ),
     )
     service_principal_key: str = field(default="")
     subscription_id: str = field(
         default="",
-        metadata=schema.metadata(
+        metadata=field_metadata(
             validate=validate.Regexp(constants.GUID_REGEXP),
         ),
     )
@@ -232,7 +234,7 @@ class AzurePlatformSchema:
 
     log_level: str = field(
         default=logging.getLevelName(logging.WARN),
-        metadata=schema.metadata(
+        metadata=field_metadata(
             validate=validate.OneOf(
                 [
                     logging.getLevelName(logging.ERROR),
@@ -1298,13 +1300,15 @@ class AzurePlatform(Platform):
             schema.NetworkDataPath
         ](is_allow_set=True, items=[])
         for sku_capability in resource_sku.capabilities:
-            if resource_sku.family in ["standardLSv2Family"]:
-                node_space.features.add(
-                    schema.FeatureSettings.create(features.Nvme.name())
-                )
             name = sku_capability.name
             if name == "vCPUs":
                 node_space.core_count = int(sku_capability.value)
+                if resource_sku.family in ["standardLSv2Family"]:
+                    # refer https://docs.microsoft.com/en-us/azure/virtual-machines/lsv2-series # noqa: E501
+                    # NVMe disk count = vCPU / 8
+                    nvme = NvmeSettings()
+                    nvme.disk_count = int(node_space.core_count / 8)
+                    node_space.features.add(nvme)
             elif name == "MaxDataDiskCount":
                 node_space.disk.data_disk_count = search_space.IntRange(
                     max=int(sku_capability.value)

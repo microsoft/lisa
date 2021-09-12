@@ -9,8 +9,8 @@ from .disks import (
     DiskStandardSSDLRS,
 )
 from .gpu import Gpu
-from .network_interface import NetworkInterface, Sriov
-from .nvme import Nvme
+from .network_interface import NetworkInterface, Sriov, Synthetic
+from .nvme import Nvme, NvmeSettings
 from .serial_console import SerialConsole
 from .startstop import StartStop
 
@@ -22,8 +22,10 @@ __all__ = [
     "DiskStandardSSDLRS",
     "Gpu",
     "Nvme",
+    "NvmeSettings",
     "SerialConsole",
     "NetworkInterface",
     "Sriov",
+    "Synthetic",
     "StartStop",
 ]

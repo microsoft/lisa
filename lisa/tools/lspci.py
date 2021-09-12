@@ -6,7 +6,8 @@ from typing import Any, Dict, List
 
 from lisa.executable import Tool
 from lisa.operating_system import Posix
-from lisa.util import LisaException
+from lisa.tools import Echo
+from lisa.util import LisaException, constants
 
 # Example output of lspci command -
 # lspci -m
@@ -31,9 +32,9 @@ PATTERN_PCI_DEVICE = re.compile(
 )
 
 DEVICE_TYPE_DICT: Dict[str, str] = {
-    "SRIOV": "Ethernet controller",
-    "NVME": "Non-Volatile memory controller",
-    "GPU": "3D controller",
+    constants.DEVICE_TYPE_SRIOV: "Ethernet controller",
+    constants.DEVICE_TYPE_NVME: "Non-Volatile memory controller",
+    constants.DEVICE_TYPE_GPU: "3D controller",
 }
 
 
@@ -70,9 +71,10 @@ class Lspci(Tool):
             self.node.os.install_packages("pciutils")
         return self._check_exists()
 
-    def _get_devices_slots_by_class_name(
-        self, class_name: str, force_run: bool = False
-    ) -> List[str]:
+    def get_devices_slots(self, device_type: str, force_run: bool = False) -> List[str]:
+        if device_type.upper() not in DEVICE_TYPE_DICT.keys():
+            raise LisaException(f"pci_type {device_type} is not supported to disable.")
+        class_name = DEVICE_TYPE_DICT[device_type.upper()]
         devices_list = self.get_device_list(force_run)
         devices_slots = [x.slot for x in devices_list if class_name == x.device_class]
         return devices_slots
@@ -94,26 +96,19 @@ class Lspci(Tool):
 
         return self._pci_devices
 
-    def disable_devices(self, device_type: str) -> None:
-        if device_type.upper() not in DEVICE_TYPE_DICT.keys():
-            raise LisaException(f"pci_type {device_type} is not supported to disable.")
-        device_type_name = DEVICE_TYPE_DICT[device_type.upper()]
-        devices_slot = self._get_devices_slots_by_class_name(device_type_name)
+    def disable_devices(self, device_type: str) -> int:
+        devices_slot = self.get_devices_slots(device_type)
+        echo = self.node.tools[Echo]
         if 0 == len(devices_slot):
             self._log.debug("No matched devices found.")
-            return
+            return len(devices_slot)
         for device_slot in devices_slot:
-            cmd_result = self.node.execute(
-                f"echo 1 > /sys/bus/pci/devices/{device_slot}/remove",
-                shell=True,
-                sudo=True,
+            echo.write_to_file(
+                "1", f"/sys/bus/pci/devices/{device_slot}/remove", sudo=True
             )
-            cmd_result.assert_exit_code()
-        if len(self._get_devices_slots_by_class_name(device_type_name, True)) > 0:
-            raise LisaException(f"Fail to disable {device_type_name} devices.")
+        if len(self.get_devices_slots(device_type, True)) > 0:
+            raise LisaException(f"Fail to disable {device_type} devices.")
+        return len(devices_slot)
 
     def enable_devices(self) -> None:
-        cmd_result = self.node.execute(
-            "echo 1 > /sys/bus/pci/rescan", shell=True, sudo=True
-        )
-        cmd_result.assert_exit_code()
+        self.node.tools[Echo].write_to_file("1", "/sys/bus/pci/rescan", sudo=True)

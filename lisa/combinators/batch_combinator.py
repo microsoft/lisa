@@ -8,14 +8,14 @@ from dataclasses_json import dataclass_json
 
 from lisa import schema
 from lisa.combinator import Combinator
-from lisa.util import constants
+from lisa.util import constants, field_metadata
 
 
 @dataclass_json()
 @dataclass
 class BatchCombinatorSchema(schema.Combinator):
     items: List[Dict[str, Any]] = field(
-        default_factory=list, metadata=schema.metadata(required=True)
+        default_factory=list, metadata=field_metadata(required=True)
     )
 
 

@@ -13,10 +13,11 @@ from lisa import (
     TestSuiteMetadata,
     simple_requirement,
 )
-from lisa.features import Nvme
+from lisa.features import Nvme, NvmeSettings, Sriov
 from lisa.sut_orchestrator.azure.platform_ import AzurePlatform
 from lisa.tools import Cat, Fdisk, Lscpu, Lspci, Mount, Nvmecli
 from lisa.tools.fdisk import FileSystem
+from lisa.util import constants
 
 
 def _format_mount_disk(
@@ -63,41 +64,20 @@ class nvme(TestSuite):  # noqa
         ),
     )
     def nvme_basic_validation(self, environment: Environment, node: Node) -> None:
-        # 1. Get nvme devices and nvme namespaces from /dev/ folder,
-        #  compare the count of nvme namespaces and nvme devices.
-        nvme = node.features[Nvme]
-        nvme_device = nvme.get_devices()
-        nvme_namespace = nvme.get_namespaces()
-        assert_that(nvme_device).described_as(
-            "nvme devices count should be equal to namespace count by listing devices "
-            "under folder /dev."
-        ).is_length(len(nvme_namespace))
+        self._validate_nvme_disk(environment, node)
 
-        # 2. Compare the count of nvme namespaces return from `nvme list`
-        #  and list nvme namespaces under /dev/.
-        nvme_namespace_cli = nvme.get_namespaces_from_cli()
-        assert_that(nvme_namespace_cli).described_as(
-            "nvme namespace count should be consistent between listed devides under "
-            "folder /dev and return value from [nvme list]."
-        ).is_length(len(nvme_namespace))
-
-        # 3. Compare nvme devices count return from `lspci`
-        #  and list nvme devices under /dev/.
-        nvme_device_from_lspci = nvme.get_devices_from_lspci()
-        assert_that(nvme_device).described_as(
-            "nvme devices count should be consistent between return value from [lspci] "
-            "and listed devices under folder /dev."
-        ).is_length(len(nvme_device_from_lspci))
-
-        # 4. Azure platform only, nvme devices count should equal to
-        #  actual vCPU count / 8.
-        if isinstance(environment.platform, AzurePlatform):
-            lscpu_tool = node.tools[Lscpu]
-            core_count = lscpu_tool.get_core_count()
-            expected_count = math.ceil(core_count / 8)
-            assert_that(nvme_namespace).described_as(
-                "nvme devices count should be equal to [vCPU/8]."
-            ).is_length(expected_count)
+    @TestCaseMetadata(
+        description="""
+        This case runs nvme_basic_validation test against 10 NVMe disks.
+        The test steps are same as `nvme_basic_validation`.
+        """,
+        priority=2,
+        requirement=simple_requirement(
+            supported_features=[NvmeSettings(disk_count=10)],
+        ),
+    )
+    def nvme_max_disk_validation(self, environment: Environment, node: Node) -> None:
+        self._validate_nvme_disk(environment, node)
 
     @TestCaseMetadata(
         description="""
@@ -380,6 +360,74 @@ class nvme(TestSuite):  # noqa
     def nvme_rescind_validation(self, node: Node) -> None:
         lspci = node.tools[Lspci]
         # 1. Disable NVME devices.
-        lspci.disable_devices(device_type="NVME")
+        lspci.disable_devices(device_type=constants.DEVICE_TYPE_NVME)
         # 2. Enable NVME device.
         lspci.enable_devices()
+
+    @TestCaseMetadata(
+        description="""
+        This test case does following steps to verify VM working normally during
+         disable and enable nvme and sriov devices.
+        1. Disable PCI devices.
+        2. Enable PCI devices.
+        3. Get PCI devices slots.
+        4. Check PCI devices are back after rescan.
+        """,
+        priority=2,
+        requirement=simple_requirement(
+            network_interface=Sriov,
+            supported_features=[Nvme],
+        ),
+    )
+    def nvme_sriov_rescind_validation(self, node: Node) -> None:
+        lspci = node.tools[Lspci]
+        device_types = [constants.DEVICE_TYPE_NVME, constants.DEVICE_TYPE_SRIOV]
+        for device_type in device_types:
+            # 1. Disable PCI devices.
+            before_pci_count = lspci.disable_devices(device_type)
+            # 2. Enable PCI devices.
+            lspci.enable_devices()
+            # 3. Get PCI devices slots.
+            after_devices_slots = lspci.get_devices_slots(device_type, True)
+            # 4. Check PCI devices are back after rescan.
+            assert_that(
+                after_devices_slots,
+                "After rescan, the disabled PCI devices should be back.",
+            ).is_length(before_pci_count)
+
+    def _validate_nvme_disk(self, environment: Environment, node: Node) -> None:
+        # 1. Get nvme devices and nvme namespaces from /dev/ folder,
+        #  compare the count of nvme namespaces and nvme devices.
+        nvme = node.features[Nvme]
+        nvme_device = nvme.get_devices()
+        nvme_namespace = nvme.get_namespaces()
+        assert_that(nvme_device).described_as(
+            "nvme devices count should be equal to namespace count by listing devices "
+            "under folder /dev."
+        ).is_length(len(nvme_namespace))
+
+        # 2. Compare the count of nvme namespaces return from `nvme list`
+        #  and list nvme namespaces under /dev/.
+        nvme_namespace_cli = nvme.get_namespaces_from_cli()
+        assert_that(nvme_namespace_cli).described_as(
+            "nvme namespace count should be consistent between listed devides under "
+            "folder /dev and return value from [nvme list]."
+        ).is_length(len(nvme_namespace))
+
+        # 3. Compare nvme devices count return from `lspci`
+        #  and list nvme devices under /dev/.
+        nvme_device_from_lspci = nvme.get_devices_from_lspci()
+        assert_that(nvme_device).described_as(
+            "nvme devices count should be consistent between return value from [lspci] "
+            "and listed devices under folder /dev."
+        ).is_length(len(nvme_device_from_lspci))
+
+        # 4. Azure platform only, nvme devices count should equal to
+        #  actual vCPU count / 8.
+        if isinstance(environment.platform, AzurePlatform):
+            lscpu_tool = node.tools[Lscpu]
+            core_count = lscpu_tool.get_core_count()
+            expected_count = math.ceil(core_count / 8)
+            assert_that(nvme_namespace).described_as(
+                "nvme devices count should be equal to [vCPU/8]."
+            ).is_length(expected_count)

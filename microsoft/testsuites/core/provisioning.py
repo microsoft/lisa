@@ -21,8 +21,9 @@ from lisa.features import (
     DiskPremiumSSDLRS,
     DiskStandardSSDLRS,
     SerialConsole,
+    Sriov,
+    Synthetic,
 )
-from lisa.features.network_interface import Sriov, Synthetic
 from lisa.util.shell import wait_tcp_port_ready
 
 

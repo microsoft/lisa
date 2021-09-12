@@ -4,9 +4,22 @@
 import re
 from datetime import datetime
 from pathlib import Path
-from typing import Any, Dict, Iterable, List, Optional, Pattern, Type, TypeVar
+from typing import (
+    Any,
+    Callable,
+    Dict,
+    Iterable,
+    List,
+    Optional,
+    Pattern,
+    Type,
+    TypeVar,
+    cast,
+)
 
 import pluggy
+from dataclasses_json import config
+from marshmallow import fields
 from semver import VersionInfo
 
 from lisa import secret
@@ -337,3 +350,24 @@ def parse_version(version: str) -> VersionInfo:
     release_version = VersionInfo(**ver)
 
     return release_version
+
+
+def field_metadata(
+    field_function: Optional[Callable[..., Any]] = None, *args: Any, **kwargs: Any
+) -> Any:
+    """
+    wrap for shorter
+    """
+    if field_function is None:
+        field_function = fields.Raw
+    assert field_function
+    encoder = kwargs.pop("encoder", None)
+    decoder = kwargs.pop("decoder", None)
+    # keep data_key for underlying marshmallow
+    field_name = kwargs.get("data_key")
+    return config(
+        field_name=cast(str, field_name),
+        encoder=encoder,
+        decoder=decoder,
+        mm_field=field_function(*args, **kwargs),
+    )

@@ -17,7 +17,13 @@ from lisa.node import Node, RemoteNode, quick_connect
 from lisa.parameter_parser.runbook import RunbookBuilder
 from lisa.platform_ import load_platform_from_builder
 from lisa.transformer import Transformer
-from lisa.util import LisaException, constants, get_date_str, get_datetime_path
+from lisa.util import (
+    LisaException,
+    constants,
+    field_metadata,
+    get_date_str,
+    get_datetime_path,
+)
 
 from .common import (
     AZURE_SHARED_RG_NAME,
@@ -54,9 +60,7 @@ def _generate_vhd_path(container_client: Any, file_name_part: str = "") -> str:
 @dataclass
 class VhdTransformerSchema(schema.Transformer):
     # resource group and vm name to be exported
-    resource_group_name: str = field(
-        default="", metadata=schema.metadata(required=True)
-    )
+    resource_group_name: str = field(default="", metadata=field_metadata(required=True))
     vm_name: str = "node-0"
 
     # values for SSH connection. public_address is optional, because it can be
@@ -87,9 +91,7 @@ class DeployTransformerSchema(schema.Transformer):
 @dataclass_json
 @dataclass
 class DeleteTransformerSchema(schema.Transformer):
-    resource_group_name: str = field(
-        default="", metadata=schema.metadata(required=True)
-    )
+    resource_group_name: str = field(default="", metadata=field_metadata(required=True))
 
 
 class VhdTransformer(Transformer):

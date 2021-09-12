@@ -13,7 +13,7 @@ import lisa
 from lisa import node, schema, search_space
 from lisa.environment import load_environments
 from lisa.testsuite import simple_requirement
-from lisa.util import constants
+from lisa.util import constants, field_metadata
 from lisa.util.logger import Logger
 
 CUSTOM_LOCAL = "custom_local"
@@ -25,7 +25,7 @@ CUSTOM_REMOTE = "custom_remote"
 class CustomLocalNodeSchema(schema.LocalNode):
     type: str = field(
         default=CUSTOM_LOCAL,
-        metadata=schema.metadata(
+        metadata=field_metadata(
             required=True,
             validate=validate.OneOf([CUSTOM_LOCAL]),
         ),
@@ -69,7 +69,7 @@ class CustomLocalNode(node.LocalNode):
 class CustomRemoteNodeSchema(schema.RemoteNode):
     type: str = field(
         default=CUSTOM_REMOTE,
-        metadata=schema.metadata(
+        metadata=field_metadata(
             required=True,
             validate=validate.OneOf([CUSTOM_REMOTE]),
         ),
