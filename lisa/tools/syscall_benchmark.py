@@ -69,16 +69,17 @@ class SysCallBenchmark(Tool):
 
     def _install_dependencies(self) -> bool:
         posix_os: Posix = cast(Posix, self.node.os)
+        print(self.node.os.information)
         if isinstance(self.node.os, Redhat) or isinstance(self.node.os, Oracle):
             package_name = "epel-release"
             try:
                 self.node.os.install_packages(package_name)
             except:
-                if re.match("^6.", self.node.os.information.version):
+                if self.node.os.information.version.major == 6:
                     epel_rpm_url = "https://dl.fedoraproject.org/pub/epel/epel-release-latest-6.noarch.rpm"
-                elif re.match("^7.", self.node.os.information.version):
+                elif self.node.os.information.version.major == 7:
                     epel_rpm_url = "https://dl.fedoraproject.org/pub/epel/epel-release-latest-7.noarch.rpm"
-                elif re.match("8.0.", self.node.os.information.version):
+                elif self.node.os.information.version.major == 8:
                     epel_rpm_url = "https://dl.fedoraproject.org/pub/epel/epel-release-latest-8.noarch.rpm"
                 else:
                     raise LisaException(
@@ -86,9 +87,25 @@ class SysCallBenchmark(Tool):
                     )
                 self.__execute_assert_zero(f"rpm -ivh {epel_rpm_url}")
         elif isinstance(self.node.os, Suse):
-            pass
+            if (
+                self.node.os.information.vendor == "sles"
+                or self.node.os.information.vendor == "sle_hpc"
+            ):
+                if re.match("11*", self.node.os.information.version):
+                    repo_url = "https://download.opensuse.org/repositories/network:/utilities/SLE_11_SP4/network:utilities.repo"
+                elif re.match("12*", self.node.os.information.version):
+                    repo_url = "https://download.opensuse.org/repositories/network:utilities/SLE_12_SP3/network:utilities.repo"
+                elif re.match("15*", self.node.os.information.version):
+                    repo_url = "https://download.opensuse.org/repositories/network:utilities/SLE_15/network:utilities.repo"
+                else:
+                    raise LisaException(
+                        "Unsupported SLES version $DISTRO_VERSION for add_sles_network_utilities_repo"
+                    )
+                self.node.os.wait_running_process("zypper")
+                self.__execute_assert_zero(f"zypper addrepo {repo_url}")
+                self.__execute_assert_zero(f"zypper --no-gpg-checks refresh")
         elif isinstance(self.node.os, Ubuntu) or isinstance(self.node.os, Debian):
             pass
         else:
-            raise SkippedException("Unknown distribution...")
+            raise LisaException("Unknown distribution...")
         posix_os.install_packages(list(self._common_packages))

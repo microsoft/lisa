@@ -7,9 +7,9 @@ variable:
   - name: keep_environment
     value: "always"
   - name: resource_group_name
-    value: "lisa_azure_default_20210910_181754_092_e0"
-  - name: marketplace_image
     value: ""
+  - name: marketplace_image
+    value: "redhat rhel 7lvm-gen2 7.6.2021051702"
   - name: vhd
     value: ""
   - name: vm_size
