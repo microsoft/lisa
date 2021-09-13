@@ -54,7 +54,8 @@ class Dpdk(TestSuite):
         test_nic = node_nic_info.get_nic(node_nic_info.get_upper_nics()[-1])
         vdev_type = "net_vdev_netvsc0"
         testpmd_include_str = test_nic.testpmd_include(vdev_type)
-        testpmd_output = testpmd.run_with_timeout(testpmd_include_str, 30)
+        testpmd_cmd = testpmd._generate_testpmd_command(testpmd_include_str, "txonly")
+        testpmd_output = testpmd.run_with_timeout(testpmd_cmd, 30)
         tx_pps = testpmd.get_tx_pps_from_testpmd_output(testpmd_output)
         log.info(
             f"TX-PPS:{tx_pps} from {test_nic._upper}/{test_nic._lower}:"
@@ -83,8 +84,9 @@ class Dpdk(TestSuite):
     )
     def check_3node_forwarding(self, environment: Environment, log: Logger) -> None:
         # setup and unwrap the resources for this test
+
         nodes = environment.nodes.list()
-        node_pool = Pool(3).map(lambda node: DpdkTestKit(node, log), nodes)
+        node_pool = [DpdkTestKit(node, log) for node in nodes]
         sender_kit, forwader_kit, receiver_kit = node_pool
 
         # grab a nic and run testpmd
@@ -93,17 +95,7 @@ class Dpdk(TestSuite):
         node_nic_info = sender_kit.node_nic_info
         testpmd = sender_kit.testpmd
 
-        test_nic = node_nic_info.get_nic(node_nic_info.get_upper_nics()[-1])
-        testpmd_include_str = test_nic.testpmd_include(vdev_type)
-        testpmd_output = testpmd.run_with_timeout(testpmd_include_str, 30)
-        tx_pps = testpmd.get_tx_pps_from_testpmd_output(testpmd_output)
-        log.info(
-            f"TX-PPS:{tx_pps} from {test_nic._upper}/{test_nic._lower}:"
-            + f"{test_nic._pci_slot}"
-        )
-        assert_that(tx_pps).described_as(
-            f"TX-PPS ({tx_pps}) should have been greater than 2^20 (~1m) PPS."
-        ).is_greater_than(2 ** 20)
+        # TODO: stub test, just submitting refactoring PR
 
 
 def hugepages_init(node: Node) -> None:
