@@ -29,44 +29,23 @@ class Dpdk(TestSuite):
              with one interface for management.
             More detailes refer https://docs.microsoft.com/en-us/azure/virtual-network/setup-dpdk#prerequisites # noqa: E501
         """,
+        priority=2,
         requirement=simple_requirement(
             min_nic_count=2,
             network_interface=Sriov,
         ),
-        priority=1,
     )
     def check_dpdk_build(self, node: Node, log: Logger) -> None:
-        network_interface_feature = node.features[NetworkInterface]
-        sriov_is_enabled = network_interface_feature.is_enabled_sriov()
-        log.info(f"Verify SRIOV is enabled: {sriov_is_enabled}")
-        assert_that(sriov_is_enabled).described_as(
-            "SRIOV was not enabled for this test node."
-        ).is_true()
-
-        # dump some info about the pci devices before we start
-        lspci = node.tools[Lspci]
-        log.info(f"LSPCI Info:\n{lspci.run().stdout}\n")
-
-        # enable hugepages (required by dpdk)
-        self._hugepages_init(node)
-        self._hugepages_enable(node, log)
-
-        # initialize testpmd tool (installs dpdk)
-        testpmd = DpdkTestpmd(node)
-        testpmd.install()
-
-        # initialize node nic info class (gathers info about nic devices)
-        node_nic_info = NodeNicInfo(node)
-        assert_that(len(node_nic_info)).described_as(
-            "Test needs at least 2 NICs on the test node."
-        ).is_greater_than_or_equal_to(2)
-        log.info(node_nic_info)
+        # setup and unwrap the resources for this test
+        test_kit = initialize_node_resources(node, log)
+        node_nic_info, testpmd = test_kit.node_nic_info, test_kit.testpmd
 
         # grab a nic and run testpmd
         test_nic = node_nic_info.get_nic(node_nic_info.get_upper_nics()[-1])
         vdev_type = "net_vdev_netvsc0"
         testpmd_include_str = test_nic.testpmd_include(vdev_type)
-        testpmd_output = testpmd.run_with_timeout(testpmd_include_str, 30)
+        testpmd_cmd = testpmd._generate_testpmd_command(testpmd_include_str, "txonly")
+        testpmd_output = testpmd.run_for_n_seconds(testpmd_cmd, 10)
         tx_pps = testpmd.get_tx_pps_from_testpmd_output(testpmd_output)
         log.info(
             f"TX-PPS:{tx_pps} from {test_nic._upper}/{test_nic._lower}:"
@@ -81,28 +60,31 @@ class Dpdk(TestSuite):
         result.assert_exit_code()
         return result.stdout
 
-    def _hugepages_init(self, node: Node) -> None:
-        mount = node.tools[Mount]
-        mount.mount(disk_name="nodev", point="/mnt/huge", type="hugetlbfs")
-        mount.mount(
-            disk_name="nodev",
-            point="/mnt/huge-1G",
-            type="hugetlbfs",
-            options="pagesize=1G",
-        )
 
-    def _hugepages_enable(self, node: Node, log: Logger) -> None:
-        echo = node.tools[Echo]
-        echo.write_to_file(
-            "1024",
-            "/sys/devices/system/node/node0/hugepages/hugepages-2048kB/nr_hugepages",
-            sudo=True,
-        )
-        echo.write_to_file(
-            "1",
-            "/sys/devices/system/node/node0/hugepages/hugepages-1048576kB/nr_hugepages",
-            sudo=True,
-        )
+def _init_hugepages(node: Node) -> None:
+    mount = node.tools[Mount]
+    mount.mount(disk_name="nodev", point="/mnt/huge", type="hugetlbfs")
+    mount.mount(
+        disk_name="nodev",
+        point="/mnt/huge-1G",
+        type="hugetlbfs",
+        options="pagesize=1G",
+    )
+    _enable_hugepages(node)
+
+
+def _enable_hugepages(node: Node) -> None:
+    echo = node.tools[Echo]
+    echo.write_to_file(
+        "1024",
+        "/sys/devices/system/node/node0/hugepages/hugepages-2048kB/nr_hugepages",
+        sudo=True,
+    )
+    echo.write_to_file(
+        "1",
+        "/sys/devices/system/node/node0/hugepages/hugepages-1048576kB/nr_hugepages",
+        sudo=True,
+    )
 
 
 class NicInfo:
@@ -244,3 +226,35 @@ class NodeNicInfo:
         for nic in self._nics:
             _str += f"{self._nics[nic]}"
         return _str
+
+
+class NodeResources:
+    def __init__(self, _node_nic_info: NodeNicInfo, _testpmd: DpdkTestpmd) -> None:
+        self.node_nic_info = _node_nic_info
+        self.testpmd = _testpmd
+
+
+def initialize_node_resources(node: Node, log: Logger) -> NodeResources:
+    network_interface_feature = node.features[NetworkInterface]
+    sriov_is_enabled = network_interface_feature.is_enabled_sriov()
+    log.info(f"Node[{node.name}] Verify SRIOV is enabled: {sriov_is_enabled}")
+    assert_that(sriov_is_enabled).described_as(
+        f"SRIOV was not enabled for this test node ({node.name})"
+    ).is_true()
+
+    # dump some info about the pci devices before we start
+    lspci = node.tools[Lspci]
+    log.info(f"Node[{node.name}] LSPCI Info:\n{lspci.run().stdout}\n")
+    # init and enable hugepages (required by dpdk)
+    _init_hugepages(node)
+
+    # initialize testpmd tool (installs dpdk)
+    testpmd = DpdkTestpmd(node)
+    testpmd.install()
+
+    # initialize node nic info class (gathers info about nic devices)
+    node_nic_info = NodeNicInfo(node)
+    assert_that(len(node_nic_info)).described_as(
+        "Test needs at least 2 NICs on the test node."
+    ).is_greater_than_or_equal_to(2)
+    return NodeResources(node_nic_info, testpmd)
