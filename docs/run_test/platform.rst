@@ -45,7 +45,7 @@ parameter is necessary, and should be specified as 2.
 Use marketplace image
 ^^^^^^^^^^^^^^^^^^^^^
 
-To run using marketplace image, add the following to runbook :
+To run using marketplace image, add the following to runbook:
 
 .. code:: yaml
 
