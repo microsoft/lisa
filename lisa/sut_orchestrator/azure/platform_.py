@@ -273,6 +273,11 @@ class AzurePlatformSchema:
 
 
 class AzurePlatform(Platform):
+    _diagnostic_storage_container_pattern = re.compile(
+        r"(https:\/\/)(?P<storage_name>.*)([.].*){4}\/" r"(?P<container_name>.*)\/",
+        re.M,
+    )
+
     def __init__(self, runbook: schema.Platform) -> None:
         super().__init__(runbook=runbook)
         self._eligible_capabilities: Dict[str, List[AzureCapability]] = {}
@@ -523,6 +528,7 @@ class AzurePlatform(Platform):
                 f"as it's a dry run."
             )
         else:
+            self._delete_boot_diagnostic_container(resource_group_name, log)
             assert self._rm_client
             log.info(
                 f"deleting resource group: {resource_group_name}, "
@@ -541,6 +547,42 @@ class AzurePlatform(Platform):
                     raise LisaException(f"error on deleting resource group: {result}")
             else:
                 log.debug("not wait deleting")
+
+    def _delete_boot_diagnostic_container(
+        self, resource_group_name: str, log: Logger
+    ) -> None:
+        compute_client = get_compute_client(self)
+        vms = compute_client.virtual_machines.list(resource_group_name)
+        for vm in vms:
+            diagnostic_data = (
+                compute_client.virtual_machines.retrieve_boot_diagnostics_data(
+                    resource_group_name=resource_group_name, vm_name=vm.name
+                )
+            )
+            if diagnostic_data:
+                # https://storageaccountname.blob.core.windows.net:443/bootdiagnostics-node0-30779088-9b10-4074-8c27-98b91f1d8b70/node-0.30779088-9b10-4074-8c27-98b91f1d8b70.serialconsole.log?sv=2018-03-28&sr=b&sig=mJEsvk9WunbKHfBs1lo1jcIBe4owq1brP8Kw3qXTQJA%3d&se=2021-09-14T08%3a55%3a38Z&sp=r # noqa: E501
+                blob_uri = diagnostic_data.console_screenshot_blob_uri
+                if blob_uri:
+                    matched = self._diagnostic_storage_container_pattern.match(blob_uri)
+                    assert matched
+                    # => storageaccountname
+                    storage_name = matched.group("storage_name")
+                    # => bootdiagnostics-node0-30779088-9b10-4074-8c27-98b91f1d8b70
+                    container_name = matched.group("container_name")
+                    container_client = get_or_create_storage_container(
+                        storage_name, container_name, self.credential
+                    )
+                    log.debug(
+                        f"deleting boot diagnostic container: {container_name}"
+                        f" under storage account {storage_name} of vm {vm.name}"
+                    )
+                    try:
+                        container_client.delete_container()
+                    except Exception as identifer:
+                        log.debug(
+                            f"exception on deleting boot diagnostic container:"
+                            f" {identifer}"
+                        )
 
     def _get_node_information(self, node: Node) -> Dict[str, str]:
         information: Dict[str, Any] = {}
