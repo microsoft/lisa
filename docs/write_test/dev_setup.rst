@@ -36,40 +36,44 @@ Visual Studio Code
    .. code:: json
 
       {
-          "markdown.extension.toc.levels": "2..6",
-          "python.analysis.typeCheckingMode": "strict",
-          "python.formatting.provider": "black",
-          "python.linting.enabled": true,
-          "python.linting.flake8Enabled": true,
-          "python.linting.mypyEnabled": true,
-          "python.linting.pylintEnabled": false,
-          "editor.formatOnSave": true,
-          "python.linting.mypyArgs": [
-              "--strict",
-              "--namespace-packages",
-              "--implicit-reexport",
-              "--show-column-numbers"
-          ],
-          "python.sortImports.path": "isort",
-          "python.analysis.useLibraryCodeForTypes": false,
-          "python.analysis.autoImportCompletions": false,
-          "files.eol": "\n",
-          "terminal.integrated.env.windows": {
-              "mypypath": "${workspaceFolder}\\typings"
-          },
-          "python.analysis.diagnosticSeverityOverrides": {
-              "reportUntypedClassDecorator": "none",
-              "reportUnknownMemberType": "none",
-              "reportGeneralTypeIssues": "none",
-              "reportUnknownVariableType": "none",
-              "reportUnknownArgumentType": "none",
-              "reportUnknownParameterType": "none",
-              "reportUnboundVariable": "none",
-              "reportPrivateUsage": "none",
-              "reportImportCycles": "none",
-              "reportUnnecessaryIsInstance": "none",
-          },
-          "python.languageServer": "Pylance",
+         "markdown.extension.toc.levels": "2..6",
+         "python.analysis.typeCheckingMode": "strict",
+         "python.formatting.provider": "black",
+         "python.linting.enabled": true,
+         "python.linting.flake8Enabled": true,
+         "python.linting.mypyEnabled": true,
+         "python.linting.pylintEnabled": false,
+         "editor.formatOnSave": true,
+         "python.linting.mypyArgs": [
+            "--strict",
+            "--namespace-packages",
+            "--implicit-reexport",
+            "--show-column-numbers"
+         ],
+         "python.sortImports.path": "isort",
+         "editor.codeActionsOnSave": {
+            "source.organizeImports": true
+         },
+         "python.analysis.useLibraryCodeForTypes": false,
+         "python.analysis.autoImportCompletions": false,
+         "files.eol": "\n",
+         "terminal.integrated.env.windows": {
+            "mypypath": "${workspaceFolder}\\typings"
+         },
+         "python.analysis.diagnosticSeverityOverrides": {
+            "reportUntypedClassDecorator": "none",
+            "reportUnknownMemberType": "none",
+            "reportGeneralTypeIssues": "none",
+            "reportUnknownVariableType": "none",
+            "reportUnknownArgumentType": "none",
+            "reportUnknownParameterType": "none",
+            "reportUnboundVariable": "none",
+            "reportPrivateUsage": "none",
+            "reportImportCycles": "none",
+            "reportUnnecessaryIsInstance": "none",
+            "reportPrivateImportUsage": "none"
+         },
+         "python.languageServer": "Pylance"
       }
 
 3. Install extensions.
