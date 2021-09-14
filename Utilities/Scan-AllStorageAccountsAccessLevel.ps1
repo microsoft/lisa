@@ -125,10 +125,19 @@ $i = 0
 foreach ($storage in $allStorageAccounts) {
     Write-Host "Current Storage Account: $($storage.StorageAccountName). Region: $($storage.Location)"
     Write-Host "Get-AzStorageAccountKey -ResourceGroupName $($storage.ResourceGroupName) -Name $($storage.StorageAccountName)..."
-    $storageKey = (Get-AzStorageAccountKey -ResourceGroupName $storage.ResourceGroupName -Name $storage.StorageAccountName)[0].Value
-    $context = New-AzStorageContext -StorageAccountName $storage.StorageAccountName -StorageAccountKey $storageKey
-    Write-Host "Get-AzStorageContainer..."
-    $containers = Get-AzStorageContainer -Context $context
+    try {
+        $storageKey = (Get-AzStorageAccountKey -ResourceGroupName $storage.ResourceGroupName -Name $storage.StorageAccountName)[0].Value
+        $context = New-AzStorageContext -StorageAccountName $storage.StorageAccountName -StorageAccountKey $storageKey
+        Write-Host "Get-AzStorageContainer..."
+        $containers = Get-AzStorageContainer -Context $context
+    } catch {
+        $line = $_.InvocationInfo.ScriptLineNumber
+        $script_name = ($_.InvocationInfo.ScriptName).Replace($PWD,".")
+        $ErrorMessage =  $_.Exception.Message
+
+        Write-LogErr "EXCEPTION: $ErrorMessage"
+        Write-LogErr "Source: Line $line in script $script_name."
+    }
     $containerCounter = 0
     foreach ($container in $containers) {
         $containerCounter += 1
