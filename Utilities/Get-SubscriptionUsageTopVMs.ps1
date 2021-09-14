@@ -128,53 +128,65 @@ foreach ($vm in $allVMStatus) {
         $deallocated = $true
     } else {
         $PowerStatusString = " [ON] "
-}
-Write-LogInfo "[$($(Get-Date) - $then)] $PowerStatusString -Name $($vm.Name) -ResourceGroup $($vm.ResourceGroupName) Size=$($vm.HardwareProfile.VmSize)"
-$storageKind = "None"
-$ageDays = -1
-$idleDays = -1
+  }
+  Write-LogInfo "[$($(Get-Date) - $then)] $PowerStatusString -Name $($vm.Name) -ResourceGroup $($vm.ResourceGroupName) Size=$($vm.HardwareProfile.VmSize)"
+  $storageKind = "None"
+  $ageDays = -1
+  $idleDays = -1
 
-if ($vm.StorageProfile.OsDisk.Vhd.Uri) {
-    $vhd = $vm.StorageProfile.OsDisk.Vhd.Uri
-    $storageAccount = $vhd.Split("/")[2].Split(".")[0]
-    $container = $vhd.Split("/")[3]
-    $blob = $vhd.Split("/")[4]
-    $storageKind = "blob"
-    $foo = $sas | Where-Object {  $($_.StorageAccountName -eq $storageAccount) -and $($_.Location -eq $vm.Location) }
-    Set-AzCurrentStorageAccount -ResourceGroupName $foo.ResourceGroupName -Name $storageAccount > $null
-    $blobDetails = Get-AzStorageBlob -Container $container -Blob $blob
-    $copyCompletion = $blobDetails.ICloudBlob.CopyState.CompletionTime
-    $lastWriteTime = $blobDetails.LastModified
-    $age = $($(Get-Date)-$copyCompletion.DateTime)
-    $idle = $($(Get-Date)-$lastWriteTime.DateTime)
-    $ageDays = $age.Days
-    $idleDays = $idle.Days
-    Write-LogInfo " Age = $ageDays  Idle = $idleDays"
-} else {
-    $storageKind = "disk"
-    Write-LogInfo "Running:  Get-AzDisk -ResourceGroupName $($vm.ResourceGroupName) -DiskName $($vm.StorageProfile.OsDisk.Name)"
-    $osdisk = Get-AzDisk -ResourceGroupName $vm.ResourceGroupName -DiskName $vm.StorageProfile.OsDisk.Name
-    if ($osdisk.TimeCreated) {
-        $age = $($(Get-Date) - $osDisk.TimeCreated)
-        $ageDays = $($age.Days)
-        Write-LogInfo " Age = $($age.Days)"
+  try {
+    if ($vm.StorageProfile.OsDisk.Vhd.Uri) {
+        $vhd = $vm.StorageProfile.OsDisk.Vhd.Uri
+        $storageAccount = $vhd.Split("/")[2].Split(".")[0]
+        $container = $vhd.Split("/")[3]
+        $blob = $vhd.Split("/")[4]
+        $storageKind = "blob"
+        $foo = $sas | Where-Object {  $($_.StorageAccountName -eq $storageAccount) -and $($_.Location -eq $vm.Location) }
+        Set-AzCurrentStorageAccount -ResourceGroupName $foo.ResourceGroupName -Name $storageAccount > $null
+        $blobDetails = Get-AzStorageBlob -Container $container -Blob $blob
+        $copyCompletion = $blobDetails.ICloudBlob.CopyState.CompletionTime
+        $lastWriteTime = $blobDetails.LastModified
+        $age = $($(Get-Date)-$copyCompletion.DateTime)
+        $idle = $($(Get-Date)-$lastWriteTime.DateTime)
+        $ageDays = $age.Days
+        $idleDays = $idle.Days
+        Write-LogInfo " Age = $ageDays  Idle = $idleDays"
+    } else {
+        $storageKind = "disk"
+        Write-LogInfo "Running:  Get-AzDisk -ResourceGroupName $($vm.ResourceGroupName) -DiskName $($vm.StorageProfile.OsDisk.Name)"
+        $osdisk = Get-AzDisk -ResourceGroupName $vm.ResourceGroupName -DiskName $vm.StorageProfile.OsDisk.Name
+        if ($osdisk.TimeCreated) {
+            $age = $($(Get-Date) - $osDisk.TimeCreated)
+            $ageDays = $($age.Days)
+            Write-LogInfo " Age = $($age.Days)"
+        }
     }
-}
-$coreCount = $allSizes[ $vm.Location ] | Where-Object { $_.Name -eq $($vm.HardwareProfile.VmSize) }
-$newEntry = @{
-    Name=$vm.Name
-    resourceGroup=$vm.ResourceGroupName
-    location=$vm.Location
-    coreCount=$coreCount.NumberOfCores
-    vmSize=$($vm.HardwareProfile.VmSize)
-    Age=$ageDays
-    Idle=$idleDays
-    Weight=$($coreCount.NumberOfCores * $ageDays)
-    StorageKind=$storageKind
-    Deallocated=$deallocated
-}
+  } catch {
+    # Some resource is deleted just now, may have some errors when get them
+    # We record log and continue running
+    $line = $_.InvocationInfo.ScriptLineNumber
+    $script_name = ($_.InvocationInfo.ScriptName).Replace($PWD,".")
+    $ErrorMessage =  $_.Exception.Message
 
-$finalResults += $newEntry
+    Write-LogErr "EXCEPTION: $ErrorMessage"
+    Write-LogErr "Source: Line $line in script $script_name."
+  }
+
+  $coreCount = $allSizes[ $vm.Location ] | Where-Object { $_.Name -eq $($vm.HardwareProfile.VmSize) }
+  $newEntry = @{
+      Name=$vm.Name
+      resourceGroup=$vm.ResourceGroupName
+      location=$vm.Location
+      coreCount=$coreCount.NumberOfCores
+      vmSize=$($vm.HardwareProfile.VmSize)
+      Age=$ageDays
+      Idle=$idleDays
+      Weight=$($coreCount.NumberOfCores * $ageDays)
+      StorageKind=$storageKind
+      Deallocated=$deallocated
+  }
+
+  $finalResults += $newEntry
 }
 Write-LogInfo "FinalResults.Count = $($finalResults.Count)"
 if ($finalResults) {
