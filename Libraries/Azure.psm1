@@ -2250,14 +2250,29 @@ Function Get-AllDeploymentData([string]$ResourceGroups, [string]$PatternOfResour
 				}
 			}
 			if ($NICdata) {
-				$AllNICs = Get-AzNetworkInterface -ResourceGroupName $ResourceGroup
+				# Sometimes Get-AzNetworkInterface returns null, retry 120 times
+				$retry_count = 0
+				While ($retry_count -lt 120) {
+					$AllNics = Get-AzNetworkInterface -ResourceGroupName $ResourceGroup
+					$retry_count++
+					if ($null -eq $AllNics) {
+						Start-Sleep -Seconds 1
+						Write-LogInfo "Get-AzNetworkInterface for $ResourceGroup return $null. Retry..."
+					} else {
+						break
+					}
+				}
 				foreach ($nic in $NICdata) {
 					$nicDetails = $AllNICs | Where-Object { $_.Name -eq $nic.Name }
-					if (($nic.Name.Replace("-PrimaryNIC", "") -eq $testVM.Name) -and ( $nic.Name -imatch "PrimaryNIC")) {
-						$QuickVMNode.InternalIP = "$($nicDetails.IpConfigurations[0].PrivateIPAddress)"
-					}
-					if (($nic.Name.Replace("-ExtraNetworkCard-1", "") -eq $testVM.Name) -and ($nic.Name -imatch "ExtraNetworkCard-1")) {
-						$QuickVMNode.SecondInternalIP = "$($nicDetails.IpConfigurations[0].PrivateIPAddress)"
+					if ($nicDetails) {
+						if (($nic.Name.Replace("-PrimaryNIC", "") -eq $testVM.Name) -and ( $nic.Name -imatch "PrimaryNIC")) {
+							$QuickVMNode.InternalIP = "$($nicDetails.IpConfigurations[0].PrivateIPAddress)"
+						}
+						if (($nic.Name.Replace("-ExtraNetworkCard-1", "") -eq $testVM.Name) -and ($nic.Name -imatch "ExtraNetworkCard-1")) {
+							$QuickVMNode.SecondInternalIP = "$($nicDetails.IpConfigurations[0].PrivateIPAddress)"
+						}
+					} else {
+						Write-Error "No $($nic.Name) network interface. Please double check."
 					}
 				}
 			}
@@ -2591,8 +2606,22 @@ Function Set-SRIOVinAzureVMs {
 					}
 				}
 
-				$AllNics = Get-AzNetworkInterface -ResourceGroupName $ResourceGroup `
-				| Where-Object { $($_.VirtualMachine.Id | Split-Path -leaf) -eq $VMName }
+				# Sometimes Get-AzNetworkInterface returns null, retry 120 times
+				$retry_count = 0
+				While ($retry_count -lt 120) {
+					$AllNics = Get-AzNetworkInterface -ResourceGroupName $ResourceGroup `
+					| Where-Object { $($_.VirtualMachine.Id | Split-Path -leaf) -eq $VMName }
+					$retry_count++
+					if ($null -eq $AllNics) {
+						Start-Sleep -Seconds 1
+						Write-LogInfo "Get-AzNetworkInterface for $VMName of $ResourceGroup return $null. Retry..."
+					} else {
+						break
+					}
+				}
+				if ($null -eq $AllNics) {
+					throw "It's failed to get network interface for $VMName of $ResourceGroup. Get-AzNetworkInterface return $null."
+				}
 				if ($Enable) {
 					if (Check-CurrentNICStatus) {
 						Write-LogInfo "Accelerated Networking successfully enabled for all NICs in $VMName."
