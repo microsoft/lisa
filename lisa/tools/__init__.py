@@ -20,6 +20,7 @@ from .lsvmbus import Lsvmbus
 from .make import Make
 from .mkfs import Mkfsext, Mkfsxfs
 from .modinfo import Modinfo
+from .modprobe import Modprobe
 from .mount import Mount
 from .ntp import Ntp
 from .ntpstat import Ntpstat
@@ -51,6 +52,7 @@ __all__ = [
     "Mkfsext",
     "Mkfsxfs",
     "Modinfo",
+    "Modprobe",
     "Mount",
     "Ntp",
     "Ntpstat",
