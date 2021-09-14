@@ -98,6 +98,9 @@ class DpdkTestpmd(Tool):
         return [Git, Wget]
 
     def _install(self) -> bool:
+        result = self.node.execute("which dpdk-tespmd")  # TODO: make a which/where tool
+        if result.exit_code == 0:  # tools are already installed
+            return True
         if self._install_dependencies():
             node = self.node
             git_tool = node.tools[Git]
@@ -181,7 +184,7 @@ class DpdkTestpmd(Tool):
         )
         return True
 
-    def _generate_testpmd_command(self, nic_to_include: str) -> str:
+    def _generate_testpmd_command(self, nic_to_include: str, mode: str) -> str:
         #   testpmd \
         #   -l <core-list> \
         #   -n <num of mem channels> \
@@ -194,17 +197,17 @@ class DpdkTestpmd(Tool):
         #   --stats-period <display interval in seconds>
         return (
             f"{self._testpmd_install_path} -l 0-1 -n 4 --proc-type=primary "
-            + f"{nic_to_include} -- --forward-mode=txonly -a --stats-period 1"
+            + f"{nic_to_include} -- --forward-mode={mode} -a --stats-period 1"
         )
 
-    def run_with_timeout(self, nic_to_include: str, timeout: int) -> str:
+    def run_for_n_seconds(self, cmd: str, timeout: int) -> str:
         timer_proc = self.node.execute_async(
-            f"sleep {timeout} && killall -s INT {self._testpmd_install_path}",
+            f"sleep {timeout} && killall -s INT {cmd.split()[0]}",
             sudo=True,
             shell=True,
         )
         testpmd_proc = self.node.execute_async(
-            self._generate_testpmd_command(nic_to_include),
+            cmd,
             sudo=True,
         )
         timer_proc.wait_result()
