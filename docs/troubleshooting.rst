@@ -12,10 +12,8 @@ Troubleshooting
 
 -  `Using VSCode <#using-vscode>`__
 
-   -  `Cannot find Python Interpreter by
-      Poetry <#cannot-find-python-interpreter-by-poetry>`__
-   -  `VSCode Python extension no longer supports “python.pythonPath” in
-      “setting.json” <#vscode-python-extension-no-longer-supports-python-pythonpath-in-setting-json>`__
+   -  `Cannot find Python Interpreter by Poetry <#cannot-find-python-interpreter-by-poetry>`__
+   -  `VSCode Python extension no longer supports “python.pythonPath” in “setting.json” <#vscode-python-extension-no-longer-supports-python-pythonpath-in-setting-json>`__
 
 -  `Other issues <#other-issues>`__
 
@@ -53,7 +51,7 @@ on the ``pyproject.toml`` file in the current folder. Make sure to run
 ``poetry`` in the root folder of LISA.
 
 Error: Poetry "The virtual environment seems to be broken"
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 Ensure that ``python3 --version`` returns python3.8 before trying to install poetry. If the command points to an older version of python3, you must uninstall then reinstall poetry after ensuring that virtualenv is installed with pip3 using python3.8. 
 
