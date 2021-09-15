@@ -1027,6 +1027,11 @@ class AzurePlatform(Platform):
             raise LisaException("vm_size is not detected before deploy")
         if not azure_node_runbook.location:
             raise LisaException("location is not detected before deploy")
+        if azure_node_runbook.hyperv_generation not in [1, 2]:
+            raise LisaException(
+                "hyperv_generation need value 1 or 2, "
+                f"but {azure_node_runbook.hyperv_generation}",
+            )
         if azure_node_runbook.vhd:
             # vhd is higher priority
             azure_node_runbook.vhd = self._get_deployable_vhd_path(
