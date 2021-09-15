@@ -94,6 +94,7 @@ class AzureNodeSchema:
         default=None, metadata=field_metadata(data_key="shared_gallery")
     )
     vhd: str = ""
+    hyperv_generation: int = 1
     nic_count: int = 1
     enable_sriov: bool = False
     data_disk_count: int = 0
