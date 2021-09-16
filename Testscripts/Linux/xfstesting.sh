@@ -18,7 +18,9 @@ xfs_folder="xfstests"
 dbench_folder="dbench"
 xfs_git_url="git://git.kernel.org/pub/scm/fs/xfs/xfstests-dev.git"
 dbench_git_url="https://github.com/sahlberg/dbench.git"
-excluded_tests="generic/211 generic/430 generic/431 generic/434 /xfs/438 xfs/490 btrfs/007 btrfs/178"
+# exclude btrfs/244 temporarily for below commit not picked up by distro vendor
+# https://git.kernel.org/pub/scm/linux/kernel/git/next/linux-next.git/commit/fs/btrfs/volumes.c?id=e4571b8c5e9ffa1e85c0c671995bd4dcc5c75091
+excluded_tests="generic/211 generic/430 generic/431 generic/434 /xfs/438 xfs/490 btrfs/007 btrfs/178 btrfs/244"
 excluded_cifs="generic/013 generic/014 generic/070 generic/117 generic/430 generic/431 generic/434 generic/438 generic/476"
 . utils.sh || {
     echo "ERROR: unable to source utils.sh!"
