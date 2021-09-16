@@ -132,10 +132,12 @@ class Gpu(Feature):
 
     def is_module_loaded(self) -> bool:
         lsmod_tool = self._node.tools[Lsmod]
-        if not (lsmod_tool.module_exists(vendor) for vendor in self.gpu_vendor):
-            return False
+        if (len(self.gpu_vendor) > 0) and all(
+            lsmod_tool.module_exists(vendor) for vendor in self.gpu_vendor
+        ):
+            return True
 
-        return True
+        return False
 
     def install_compute_sdk(self, version: str = "") -> None:
         # install GPU dependencies before installing driver
