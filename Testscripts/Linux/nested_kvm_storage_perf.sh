@@ -129,6 +129,7 @@ Run_Fio()
     remote_copy -host localhost -user root -passwd $NestedUserPassword -port $HostFwdPort -filename ./gawk -remote_path /root -cmd put
     remote_copy -host localhost -user root -passwd $NestedUserPassword -port $HostFwdPort -filename ./JSON.awk -remote_path /root -cmd put
 
+    sleep 300
     Log_Msg "Start to run StartFioTest.sh on nested VM" $log_file
     remote_exec -host localhost -user root -passwd $NestedUserPassword -port $HostFwdPort '/root/StartFioTest.sh'
 }
