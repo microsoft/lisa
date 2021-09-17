@@ -29,8 +29,8 @@ function Main {
 
     # nc.exe should be in Tools
     if (-not (Test-Path $netcatBinPath)) {
-        Write-LogErr "Unable to find netcat binary"
-        return "FAIL"
+        Write-LogWarn "Unable to find netcat binary"
+        return "SKIPPED"
     }
 
     # Copy dependency files to VM
