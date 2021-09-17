@@ -35,8 +35,6 @@ LISAv2 includes below test suite categories:
 * pscp.exe
 * kvp_client32
 * kvp_client64
-* nc.exe
-* nc64.exe
 
 4. For running Azure tests, you must have a valid Windows Azure Subscription, if you want to enable ssh key authentication on Azure platform, please refer [here](https://docs.microsoft.com/en-us/azure/virtual-machines/linux/ssh-from-windows) for generating SSH key pairs.
 
