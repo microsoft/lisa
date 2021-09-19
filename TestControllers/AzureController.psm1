@@ -313,6 +313,14 @@ Class AzureController : TestController {
 				Add-SetupConfig -AllTests $AllTests -ConfigName "PlatformFaultDomainCount" -ConfigValue $this.CustomParams.PlatformFaultDomainCount -Force $this.ForceCustom
 				Add-SetupConfig -AllTests $AllTests -ConfigName "PlatformUpdateDomainCount" -ConfigValue $this.CustomParams.PlatformUpdateDomainCount -Force $this.ForceCustom
 			}
+			
+			if ($this.CustomParams.VmgsFile) {
+				Add-SetupConfig -AllTests $AllTests -ConfigName "VmgsFile" -ConfigValue $this.CustomParams.VmgsFile -Force $true
+			}
+
+			if ($this.CustomParams.VmType) {
+				Add-SetupConfig -AllTests $AllTests -ConfigName "VmType" -ConfigValue $this.CustomParams.VmType -Force $true
+			}
 
 			# Multiple TestLocations (parameter '-TestLocation' with value like 'eastus,westus') means to deploy from different Regions,
 			# so spliting with default Splitby (','), and apply multi single ConfigValues to $AllTests one by one.
