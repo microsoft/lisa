@@ -32,12 +32,6 @@ function Main {
                     $testVmExtraNICs = $testVmNICs | Where-Object {$_.Primary -eq $False}
                 }
             }
-            if ($null -eq $testVmData) {
-                throw "It's failed to get VM data. testVmData is null."
-            }
-            if ($null -eq $dependencyVmData) {
-                throw "It's failed to get VM data. dependencyVmData is null."
-            }
 
             $vmPort = $testVmData.SSHPort
             $publicIp = $testVmData.PublicIP
