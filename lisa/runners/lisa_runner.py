@@ -390,7 +390,12 @@ class LisaRunner(BaseRunner):
         ) or (
             environment.status == EnvironmentStatus.Prepared and environment.is_in_use
         ):
-            self.platform.delete_environment(environment)
+            try:
+                self.platform.delete_environment(environment)
+            except Exception as identifier:
+                self._log.debug(
+                    f"error on deleting environment '{environment.name}': {identifier}"
+                )
         else:
             environment.status = EnvironmentStatus.Deleted
 
