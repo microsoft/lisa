@@ -528,12 +528,17 @@ class AzurePlatform(Platform):
                 f"as it's a dry run."
             )
         else:
-            self._delete_boot_diagnostic_container(resource_group_name, log)
             assert self._rm_client
             log.info(
                 f"deleting resource group: {resource_group_name}, "
                 f"wait: {self._azure_runbook.wait_delete}"
             )
+            try:
+                self._delete_boot_diagnostic_container(resource_group_name, log)
+            except Exception as identifer:
+                log.debug(
+                    f"exception on deleting boot diagnostic container: {identifer}"
+                )
             delete_operation: Any = None
             try:
                 delete_operation = self._rm_client.resource_groups.begin_delete(
