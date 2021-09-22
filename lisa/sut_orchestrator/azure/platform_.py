@@ -529,6 +529,11 @@ class AzurePlatform(Platform):
             )
         else:
             assert self._rm_client
+            az_rg_exists = self._rm_client.resource_groups.check_existence(
+                resource_group_name
+            )
+            if not az_rg_exists:
+                return
             log.info(
                 f"deleting resource group: {resource_group_name}, "
                 f"wait: {self._azure_runbook.wait_delete}"
