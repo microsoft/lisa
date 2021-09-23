@@ -65,7 +65,7 @@ class LisaException(Exception):
     ...
 
 
-class UnsupportedOperationException(Exception):
+class UnsupportedOperationException(LisaException):
     """
     An operation might not be supported. Use this exception to
     indicate that explicitly.
@@ -74,7 +74,7 @@ class UnsupportedOperationException(Exception):
     ...
 
 
-class UnsupportedDistroException(Exception):
+class UnsupportedDistroException(LisaException):
     """
     This exception is used to indicate that a test case does not support the testing
     distro.
@@ -88,7 +88,7 @@ class UnsupportedDistroException(Exception):
         return f"Unsupported distro {self.name} {self.version}"
 
 
-class SkippedException(Exception):
+class SkippedException(LisaException):
     """
     A test case can be skipped based on runtime information.
     """
@@ -96,7 +96,7 @@ class SkippedException(Exception):
     ...
 
 
-class QueuedException(Exception):
+class QueuedException(LisaException):
     """
     If current environment doesn't meet requirement of a test case, it can be set to
     not run and try next environment.
@@ -105,7 +105,7 @@ class QueuedException(Exception):
     ...
 
 
-class PassedException(Exception):
+class PassedException(LisaException):
     """
     A test case may verify several things, but part of verification cannot be done. In
     this situation, the test case may be considered to passed also. Raise this
@@ -115,7 +115,7 @@ class PassedException(Exception):
     ...
 
 
-class BadEnvironmentStateException(Exception):
+class BadEnvironmentStateException(LisaException):
     """
     A test might leave the environment in bad state after failing. Use this exception
     to indicate the environment is in a bad state.
