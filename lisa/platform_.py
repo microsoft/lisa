@@ -17,6 +17,8 @@ from lisa.parameter_parser.runbook import RunbookBuilder
 from lisa.util import (
     InitializableMixin,
     LisaException,
+    NotMeetRequirementException,
+    SkippedException,
     constants,
     hookimpl,
     plugin_manager,
@@ -138,7 +140,11 @@ class Platform(subclasses.BaseClassWithRunbookMixin, InitializableMixin):
                     default_private_key_file=platform_runbook.admin_private_key_file,
                 )
 
-        is_success = self._prepare_environment(environment, log)
+        try:
+            is_success = self._prepare_environment(environment, log)
+        except NotMeetRequirementException as identifier:
+            raise SkippedException(identifier)
+
         if is_success:
             environment.status = EnvironmentStatus.Prepared
         else:
