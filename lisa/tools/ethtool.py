@@ -283,7 +283,7 @@ class DeviceRssHashKey:
     #   6d:5a:56:da:25:5b:0e:c2:41:67:25:3d:43:a3:8f:b0:d0:ca:2b:cb:ae:7b:30:b4:77:cb:2d:a3:80:30:f2:0c:6a:42:b7:3b:be:ac:01:fa
 
     _rss_hash_key_pattern = re.compile(
-        r"^RSS hash key:[\s+](?P<value>.*?)?$", re.MULTILINE
+        r"^RSS hash key:.*\s+(?P<value>.*?)$", re.MULTILINE
     )
 
     def __init__(self, interface: str, device_rss_hash_info_raw: str) -> None:

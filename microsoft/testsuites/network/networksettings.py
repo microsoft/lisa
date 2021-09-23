@@ -285,10 +285,8 @@ class NetworkSettings(TestSuite):
         uname = node.tools[Uname]
         linux_info = uname.get_linux_information()
 
-        if isinstance(node.os, Debian):
+        if isinstance(node.os, Debian) or isinstance(node.os, Redhat):
             min_supported_kernel = "5.0.0"
-        elif isinstance(node.os, Redhat):
-            min_supported_kernel = "4.0.0"
         elif isinstance(node.os, Suse):
             min_supported_kernel = "4.12.14"
         else:
