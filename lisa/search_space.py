@@ -7,7 +7,7 @@ from typing import Any, Iterable, List, Optional, Set, Type, TypeVar, Union
 
 from dataclasses_json import dataclass_json
 
-from lisa.util import LisaException
+from lisa.util import LisaException, NotMeetRequirementException
 
 T = TypeVar("T")
 
@@ -57,7 +57,7 @@ class RequirementMixin:
     def generate_min_capability(self, capability: Any) -> Any:
         check_result = self.check(capability)
         if not check_result.result:
-            raise LisaException(
+            raise NotMeetRequirementException(
                 "cannot get min value, capability doesn't support requirement:"
                 f"{check_result.reasons}"
             )
@@ -364,7 +364,7 @@ def generate_min_capability_countspace(
 ) -> int:
     check_result = check_countspace(requirement, capability)
     if not check_result.result:
-        raise LisaException(
+        raise NotMeetRequirementException(
             "cannot get min value, capability doesn't support requirement"
         )
     if requirement is None:
@@ -423,7 +423,7 @@ def generate_min_capability_setspace_from_priority(
 ) -> T:
     check_result = check_setspace(requirement, capability)
     if not check_result.result:
-        raise LisaException(
+        raise NotMeetRequirementException(
             "cannot get min value, capability doesn't support requirement"
         )
 
@@ -499,7 +499,7 @@ def generate_min_capability(
 ) -> Any:
     check_result = check(requirement, capability)
     if not check_result.result:
-        raise LisaException(
+        raise NotMeetRequirementException(
             "cannot get min value, capability doesn't support requirement"
         )
 
