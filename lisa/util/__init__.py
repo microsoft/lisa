@@ -124,6 +124,14 @@ class BadEnvironmentStateException(LisaException):
     ...
 
 
+class NotMeetRequirementException(LisaException):
+    """
+    Raise when the capability doesn't meet the requirement.
+    """
+
+    ...
+
+
 class ContextMixin:
     def get_context(self, context_type: Type[T]) -> T:
         if not hasattr(self, "_context"):
