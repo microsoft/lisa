@@ -80,7 +80,7 @@ class CodeTimer:
 
     def __exit__(self, exc_type, exc_value, traceback):
         self.took = (timeit.default_timer() - self.start) * 1000.0
-        self.log.info("Code block" + self.name + " took: " + str(self.took) + " ms")
+        self.log.debug("Code block" + self.name + " took: " + str(self.took) + " ms")
 
 
 class BaseRunner(BaseClassMixin, InitializableMixin):
@@ -311,7 +311,7 @@ class RootRunner(Action):
                 with CodeTimer("has idle worker loop", self._log):
                     while task_manager.has_idle_worker():
                         for runner in remaining_runners:
-                            self._log.info(f"Checking runner {runner.id} for tasks...")
+                            self._log.debug(f"Checking runner {runner.id} for tasks...")
                             while not runner.is_done and task_manager.has_idle_worker():
                                 # fetch a task and submit
                                 with CodeTimer("fetch task", self._log):
@@ -323,7 +323,7 @@ class RootRunner(Action):
                                     # current runner may not be done, but it doesn't
                                     # have task temporarily. The root runner can start
                                     # tasks from next runner.
-                                    self._log.info(
+                                    self._log.debug(
                                         f"No task available for runner: {runner.id}"
                                     )
                                     break
