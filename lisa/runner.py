@@ -3,6 +3,7 @@
 
 import copy
 import time
+import timeit
 from logging import FileHandler
 from pathlib import Path
 from threading import Lock
@@ -14,7 +15,8 @@ from lisa.combinator import Combinator
 from lisa.parameter_parser.runbook import RunbookBuilder
 from lisa.testsuite import TestResult, TestResultMessage, TestStatus
 from lisa.util import BaseClassMixin, InitializableMixin, LisaException, constants
-from lisa.util.logger import create_file_handler, get_logger, remove_handler
+from lisa.util import logger
+from lisa.util.logger import Logger, create_file_handler, get_logger, remove_handler
 from lisa.util.parallel import Task, TaskManager, cancel, set_global_task_manager
 from lisa.util.perf_timer import create_timer
 from lisa.util.subclasses import Factory
@@ -66,6 +68,19 @@ def print_results(
             # so hide it if there is no attempted cases.
             continue
         output_method(f"    {key.name:<9}: {count}")
+
+
+class CodeTimer:
+    def __init__(self, name: str, log: Logger):
+        self.name = " '" + name + "'" if name else ""
+        self.log = log
+
+    def __enter__(self):
+        self.start = timeit.default_timer()
+
+    def __exit__(self, exc_type, exc_value, traceback):
+        self.took = (timeit.default_timer() - self.start) * 1000.0
+        self.log.debug("Code block" + self.name + " took: " + str(self.took) + " ms")
 
 
 class BaseRunner(BaseClassMixin, InitializableMixin):
@@ -282,6 +297,8 @@ class RootRunner(Action):
 
             # run until no more task and all runner are closed
             while task_manager.wait_worker() or remaining_runners:
+                self._log.info("Idle workers available. Checking runners...")
+
                 assert task_manager.has_idle_worker()
 
                 # runners shouldn't mark them done, until all task completed. It
@@ -291,40 +308,50 @@ class RootRunner(Action):
                     f"{task_manager._futures}"
                 )
 
-                while task_manager.has_idle_worker():
-                    for runner in remaining_runners:
-                        while not runner.is_done and task_manager.has_idle_worker():
-                            # fetch a task and submit
-                            task = runner.fetch_task()
-                            if task:
-                                task_manager.submit_task(task)
-                            else:
-                                # current runner may not be done, but it doesn't
-                                # have task temporarily. The root runner can start
-                                # tasks from next runner.
-                                self._log.debug(
-                                    f"No task available for runner: {runner.id}"
+                with CodeTimer("has idle worker loop", self._log):
+                    while task_manager.has_idle_worker():
+                        for runner in remaining_runners:
+                            self._log.info(f"Checking runner {runner.id} for tasks...")
+                            while not runner.is_done and task_manager.has_idle_worker():
+                                # fetch a task and submit
+                                with CodeTimer("fetch task", self._log):
+                                    task = runner.fetch_task()
+                                if task:
+                                    with CodeTimer("submit task", self._log):
+                                        task_manager.submit_task(task)
+                                else:
+                                    # current runner may not be done, but it doesn't
+                                    # have task temporarily. The root runner can start
+                                    # tasks from next runner.
+                                    self._log.info(
+                                        f"No task available for runner: {runner.id}"
+                                    )
+                                    break
+                            if runner.is_done:
+                                # remove fully completed runner.
+                                runner.close()
+                                remaining_runners.remove(runner)
+                                self._log.info(
+                                    f"runner '{runner.id}' is done, "
+                                    f"remaining runners {[x.id for x in remaining_runners]}"
                                 )
-                                break
-                        if runner.is_done:
-                            # remove fully completed runner.
-                            runner.close()
-                            remaining_runners.remove(runner)
-                            self._log.debug(
-                                f"runner '{runner.id}' is done, "
-                                f"remaining runners {[x.id for x in remaining_runners]}"
-                            )
 
                     if task_manager.has_idle_worker():
                         if has_more_runner:
                             # Add new runner if idle workers are available.
                             try:
                                 remaining_runners.append(next(runner_iterator))
+                                self._log.info(
+                                    f"Added runner {remaining_runners[-1].id}"
+                                )
                             except StopIteration:
                                 has_more_runner = False
                         else:
                             # Reduce CPU utilization from infinite loop when idle
                             # workers are present but no task to run.
+                            self._log.info(
+                                f"Idle worker available but no runner available..."
+                            )
                             time.sleep(1)
 
                     if not remaining_runners and not has_more_runner:
