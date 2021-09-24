@@ -256,7 +256,7 @@ class RootRunner(Action):
         finally:
             self._results_lock.release()
 
-    def _start_loop(self) -> None:
+    def _start_loop(self) -> None:  # noqa: C901
         # in case all of runners are disabled
         runner_iterator = self._fetch_runners()
         remaining_runners: List[BaseRunner] = []
@@ -275,6 +275,7 @@ class RootRunner(Action):
             task_manager = TaskManager[List[TestResult]](
                 self._max_concurrency, self._callback_completed
             )
+
             # set the global task manager for cancellation check
             set_global_task_manager(task_manager)
             has_more_runner = True
@@ -282,7 +283,6 @@ class RootRunner(Action):
             # run until no more task and all runner are closed
             while task_manager.wait_worker() or remaining_runners:
                 assert task_manager.has_idle_worker()
-                has_idle_worker = True
 
                 # runners shouldn't mark them done, until all task completed. It
                 # can be checked by test results status or other signals.
@@ -291,52 +291,41 @@ class RootRunner(Action):
                     f"{task_manager._futures}"
                 )
 
-                for runner in remaining_runners:
-                    while not runner.is_done:
-                        # fetch a task and submit
-                        task = runner.fetch_task()
-                        if task:
-                            # the message may be too long to display.
-                            task_message = str(task)
-                            task_message = (
-                                task_message
-                                if len(task_message) < 200
-                                else f"{task_message[:200]}..."
-                            )
+                while task_manager.has_idle_worker():
+                    for runner in remaining_runners:
+                        while not runner.is_done and task_manager.has_idle_worker():
+                            # fetch a task and submit
+                            task = runner.fetch_task()
+                            if task:
+                                task_manager.submit_task(task)
+                            else:
+                                # current runner may not be done, but it doesn't
+                                # have task temporarily. The root runner can start
+                                # tasks from next runner.
+                                self._log.debug(
+                                    f"No task available for runner: {runner.id}"
+                                )
+                                break
+                        if runner.is_done:
+                            # remove fully completed runner.
+                            runner.close()
+                            remaining_runners.remove(runner)
                             self._log.debug(
-                                f"fetched task from {runner.id}: '{task_message}'"
+                                f"runner '{runner.id}' is done, "
+                                f"remaining runners {[x.id for x in remaining_runners]}"
                             )
-                            task_manager.submit_task(task)
-                        else:
-                            # current runner may not be done, but it doesn't
-                            # have task temporarily. The root runner can start
-                            # tasks from next runner.
-                            break
-                        if not task_manager.has_idle_worker():
-                            has_idle_worker = False
-                            break
-                    if runner.is_done:
-                        # remove fully completed runner.
-                        runner.close()
-                        remaining_runners.remove(runner)
-                        self._log.debug(
-                            f"runner '{runner.id}' is done, "
-                            f"remaining runners {[x.id for x in remaining_runners]}"
-                        )
-                        break
-                    if not has_idle_worker:
-                        # uses the result from previous runner, because the
-                        # worker status may be changed after first runner
-                        # finished. Evne in this case, it should try result from
-                        # previous runner firstly in next run.
-                        break
 
-                while (
-                    len(remaining_runners) < self._max_concurrency and has_more_runner
-                ):
-                    # Fetch runners, if runner count is smaller than concurrency
-                    # count. It makes sure all concurrency can run.
-                    try:
-                        remaining_runners.append(next(runner_iterator))
-                    except StopIteration:
-                        has_more_runner = False
+                    if task_manager.has_idle_worker():
+                        if has_more_runner:
+                            # Add new runner if idle workers are available.
+                            try:
+                                remaining_runners.append(next(runner_iterator))
+                            except StopIteration:
+                                has_more_runner = False
+                        else:
+                            # Reduce CPU utilization from infinite loop when idle
+                            # workers are present but no task to run.
+                            time.sleep(1)
+
+                    if not remaining_runners and not has_more_runner:
+                        break
