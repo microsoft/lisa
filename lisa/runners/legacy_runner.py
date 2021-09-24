@@ -8,7 +8,7 @@ import re
 import time
 from functools import partial
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, Callable, Dict, Iterable, List, Optional, Pattern
+from typing import TYPE_CHECKING, Any, Dict, Iterable, List, Optional, Pattern
 
 from retry import retry
 
@@ -25,7 +25,7 @@ from lisa.testsuite import (
 from lisa.tools import Git
 from lisa.util import InitializableMixin, LisaException, constants
 from lisa.util.logger import Logger, create_file_handler, get_logger, remove_handler
-from lisa.util.parallel import check_cancelled
+from lisa.util.parallel import Task, check_cancelled
 from lisa.util.process import Process
 
 # uses to prevent read conflict on log files
@@ -98,7 +98,7 @@ class LegacyRunner(BaseRunner):
     def is_done(self) -> bool:
         return all(x for x in self._completed_flags)
 
-    def fetch_task(self) -> Optional[Callable[[], List[TestResult]]]:
+    def fetch_task(self) -> Optional[Task[List[TestResult]]]:
         try:
             index = self._started_flags.index(False)
 
@@ -118,7 +118,7 @@ class LegacyRunner(BaseRunner):
                 index,
                 config,
             )
-            return task
+            return Task(self.get_unique_task_id(), task, self._log)
         except ValueError:
             # all started, do nothing
             return None

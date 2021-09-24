@@ -23,7 +23,7 @@ from lisa.runner import BaseRunner
 from lisa.testselector import select_testcases
 from lisa.testsuite import TestCaseRequirement, TestResult, TestStatus, TestSuite
 from lisa.util import LisaException, constants, deep_update_dict
-from lisa.util.parallel import check_cancelled
+from lisa.util.parallel import Task, check_cancelled
 from lisa.variable import VariableEntry
 
 
@@ -63,14 +63,14 @@ class LisaRunner(BaseRunner):
         )
         return is_all_results_completed and is_all_environment_completed
 
-    def fetch_task(self) -> Optional[Callable[[], List[TestResult]]]:
+    def fetch_task(self) -> Optional[Task[List[TestResult]]]:
         test_results = self._prepare_environments(
             platform=self.platform,
             test_results=self.test_results,
         )
         if test_results:
             # return failed prepared results
-            return lambda: test_results
+            return Task(self.get_unique_task_id(), lambda: test_results, self._log)
 
         # sort environments by status
         available_environments = self._sort_environments(self.environments)
@@ -80,7 +80,7 @@ class LisaRunner(BaseRunner):
         # check deleteable environments
         delete_task = self._delete_unused_environments()
         if delete_task:
-            return delete_task
+            return Task(self.get_unique_task_id(), delete_task, self._log)
 
         if available_results and available_environments:
             for priority in range(6):
@@ -111,18 +111,26 @@ class LisaRunner(BaseRunner):
                     # meet, the task is None. If so, not return, and try next
                     # conditions or skip this test case.
                     if task:
-                        return task
+                        return Task(self.get_unique_task_id(), task, self._log)
                 if not any(x.is_in_use for x in available_environments):
                     # no environment in used, and not fit. those results cannot be run.
                     skipped_test_results = self._skip_test_results(can_run_results)
                     if skipped_test_results:
-                        return lambda: skipped_test_results
+                        return Task(
+                            self.get_unique_task_id(),
+                            lambda: skipped_test_results,
+                            self._log,
+                        )
         elif available_results:
             # no available environments, so mark all test results skipped.
             skipped_test_results = self._skip_test_results(available_results)
 
             self.status = ActionStatus.SUCCESS
-            return lambda: skipped_test_results
+            return Task(
+                self.get_unique_task_id(),
+                lambda: skipped_test_results,
+                self._log,
+            )
         return None
 
     def close(self) -> None:
@@ -133,18 +141,19 @@ class LisaRunner(BaseRunner):
 
     def _associate_environment_test_results(
         self, environment: Environment, test_results: List[TestResult]
-    ) -> Optional[Callable[[], List[TestResult]]]:
+    ) -> Optional[Task[List[TestResult]]]:
         check_cancelled()
 
         assert test_results
         can_run_results = test_results
         # deploy
         if environment.status == EnvironmentStatus.Prepared and can_run_results:
-            return self._generate_task(
+            task = self._generate_task(
                 task_method=self._deploy_environment_task,
                 environment=environment,
                 test_results=can_run_results,
             )
+            return Task(self.get_unique_task_id(), task, self._log)
 
         # run on deployed environment
         can_run_results = [x for x in can_run_results if x.can_run]
@@ -153,12 +162,13 @@ class LisaRunner(BaseRunner):
                 test_results=test_results, environment=environment
             )
             if selected_test_results:
-                return self._generate_task(
+                task = self._generate_task(
                     task_method=self._run_test_task,
                     environment=environment,
                     test_results=selected_test_results,
                     case_variables=self._case_variables,
                 )
+                return Task(self.get_unique_task_id(), task, self._log)
 
             # Check if there is case to run in a connected environment. If so,
             # initialize the environment
@@ -168,10 +178,15 @@ class LisaRunner(BaseRunner):
                 environment=environment,
             )
             if initialization_results:
-                return self._generate_task(
+                task = self._generate_task(
                     task_method=self._initialize_environment_task,
                     environment=environment,
                     test_results=initialization_results,
+                )
+                return Task(
+                    self.get_unique_task_id(),
+                    task,
+                    self._log,
                 )
 
         # run on connected environment
@@ -181,16 +196,17 @@ class LisaRunner(BaseRunner):
                 test_results=test_results, environment=environment
             )
             if selected_test_results:
-                return self._generate_task(
+                task = self._generate_task(
                     task_method=self._run_test_task,
                     environment=environment,
                     test_results=selected_test_results,
                     case_variables=self._case_variables,
                 )
+                return Task(self.get_unique_task_id(), task, self._log)
 
         return None
 
-    def _delete_unused_environments(self) -> Optional[Callable[[], List[TestResult]]]:
+    def _delete_unused_environments(self) -> Optional[Task[List[TestResult]]]:
         available_environments = self._sort_environments(self.environments)
         # check deleteable environments
         for environment in available_environments:
@@ -210,11 +226,12 @@ class LisaRunner(BaseRunner):
                 self._log.debug(
                     f"generating delete environment task on '{environment.name}'"
                 )
-                return self._generate_task(
+                task = self._generate_task(
                     task_method=self._delete_environment_task,
                     environment=environment,
                     test_results=[],
                 )
+                return Task(self.get_unique_task_id(), task, self._log)
         return None
 
     def _prepare_environments(
@@ -417,7 +434,7 @@ class LisaRunner(BaseRunner):
         environment: Environment,
         test_results: List[TestResult],
         **kwargs: Any,
-    ) -> Callable[[], List[TestResult]]:
+    ) -> Task[List[TestResult]]:
         assert not environment.is_in_use
         environment.is_in_use = True
         for test_result in test_results:
@@ -432,7 +449,7 @@ class LisaRunner(BaseRunner):
             test_results=test_results,
             **kwargs,
         )
-        return task
+        return Task(self.get_unique_task_id(), task, self._log)
 
     def _run_task(
         self,
