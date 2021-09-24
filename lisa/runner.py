@@ -314,7 +314,7 @@ class RootRunner(Action):
                 with CodeTimer("has idle worker loop", self._log):
                     while task_manager.has_idle_worker():
                         for runner in remaining_runners:
-                            self._log.info(f"Checking runner {runner.id} for tasks...")
+                            self._log.debug(f"Checking runner {runner.id} for tasks...")
                             while not runner.is_done and task_manager.has_idle_worker():
                                 # fetch a task and submit
                                 with CodeTimer("fetch task", self._log):
