@@ -375,7 +375,7 @@ class nvme(TestSuite):  # noqa
         """,
         priority=2,
         requirement=simple_requirement(
-            network_interface=Sriov,
+            network_interface=Sriov(),
             supported_features=[Nvme],
         ),
     )
