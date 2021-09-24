@@ -313,23 +313,29 @@ class RootRunner(Action):
 
                 with CodeTimer("has idle worker loop", self._log):
                     while task_manager.has_idle_worker():
-                        for runner in remaining_runners:
-                            self._log.debug(f"Checking runner {runner.id} for tasks...")
-                            while not runner.is_done and task_manager.has_idle_worker():
-                                # fetch a task and submit
-                                with CodeTimer("fetch task", self._log):
-                                    task = runner.fetch_task()
-                                if task:
-                                    with CodeTimer("submit task", self._log):
-                                        task_manager.submit_task(task)
-                                else:
-                                    # current runner may not be done, but it doesn't
-                                    # have task temporarily. The root runner can start
-                                    # tasks from next runner.
-                                    self._log.debug(
-                                        f"No task available for runner: {runner.id}"
-                                    )
-                                    break
+                        with CodeTimer("runner submit task loop", self._log):
+                            for runner in remaining_runners:
+                                self._log.debug(
+                                    f"Checking runner {runner.id} for tasks..."
+                                )
+                                while (
+                                    not runner.is_done
+                                    and task_manager.has_idle_worker()
+                                ):
+                                    # fetch a task and submit
+                                    with CodeTimer("fetch task", self._log):
+                                        task = runner.fetch_task()
+                                    if task:
+                                        with CodeTimer("submit task", self._log):
+                                            task_manager.submit_task(task)
+                                    else:
+                                        # current runner may not be done, but it doesn't
+                                        # have task temporarily. The root runner can start
+                                        # tasks from next runner.
+                                        self._log.debug(
+                                            f"No task available for runner: {runner.id}"
+                                        )
+                                        break
 
                         [
                             runner.close()
