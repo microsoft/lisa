@@ -145,6 +145,9 @@ class BaseRunner(BaseClassMixin, InitializableMixin):
                 Path(self._log_file_name), self._log
             )
 
+    def __eq__(self, o: object) -> bool:
+        return self.id == o.id
+
 
 class RootRunner(Action):
     """
@@ -310,8 +313,8 @@ class RootRunner(Action):
 
                 with CodeTimer("has idle worker loop", self._log):
                     while task_manager.has_idle_worker():
-                        for runner in copy.deepcopy(remaining_runners):
-                            self._log.debug(f"Checking runner {runner.id} for tasks...")
+                        for runner in remaining_runners:
+                            self._log.info(f"Checking runner {runner.id} for tasks...")
                             while not runner.is_done and task_manager.has_idle_worker():
                                 # fetch a task and submit
                                 with CodeTimer("fetch task", self._log):
@@ -327,33 +330,37 @@ class RootRunner(Action):
                                         f"No task available for runner: {runner.id}"
                                     )
                                     break
-                            if runner.is_done:
-                                # remove fully completed runner.
-                                runner.close()
-                                remaining_runners.remove(runner)
-                                self._log.info(
-                                    f"runner '{runner.id}' is done, "
-                                    f"remaining runners {[x.id for x in remaining_runners]}"
-                                    f"Idle workers : {task_manager.has_idle_worker()}"
-                                )
 
-                    if task_manager.has_idle_worker():
-                        if has_more_runner:
-                            # Add new runner if idle workers are available.
-                            try:
-                                remaining_runners.append(next(runner_iterator))
-                                self._log.info(
-                                    f"Added runner {remaining_runners[-1].id}"
-                                )
-                            except StopIteration:
-                                has_more_runner = False
-                        else:
-                            # Reduce CPU utilization from infinite loop when idle
-                            # workers are present but no task to run.
-                            self._log.info(
-                                f"Idle worker available but no runner available..."
-                            )
-                            time.sleep(1)
+                        [
+                            runner.close()
+                            for runner in remaining_runners
+                            if runner.is_done
+                        ]
+                        remaining_runners = [
+                            runner for runner in remaining_runners if not runner.is_done
+                        ]
+                        self._log.info(
+                            f"remaining runners {[x.id for x in remaining_runners]}"
+                            f"Idle workers : {task_manager.has_idle_worker()}"
+                        )
 
-                    if not remaining_runners and not has_more_runner:
-                        break
+                        if task_manager.has_idle_worker():
+                            if has_more_runner:
+                                # Add new runner if idle workers are available.
+                                try:
+                                    remaining_runners.append(next(runner_iterator))
+                                    self._log.info(
+                                        f"Added runner {remaining_runners[-1].id}"
+                                    )
+                                except StopIteration:
+                                    has_more_runner = False
+                            else:
+                                # Reduce CPU utilization from infinite loop when idle
+                                # workers are present but no task to run.
+                                self._log.info(
+                                    f"Idle worker available but no runner available..."
+                                )
+                                time.sleep(1)
+
+                        if not remaining_runners and not has_more_runner:
+                            break
