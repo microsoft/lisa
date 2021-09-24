@@ -80,7 +80,7 @@ class CodeTimer:
 
     def __exit__(self, exc_type, exc_value, traceback):
         self.took = (timeit.default_timer() - self.start) * 1000.0
-        self.log.debug("Code block" + self.name + " took: " + str(self.took) + " ms")
+        self.log.info("Code block" + self.name + " took: " + str(self.took) + " ms")
 
 
 class BaseRunner(BaseClassMixin, InitializableMixin):
