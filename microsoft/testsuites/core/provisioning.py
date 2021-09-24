@@ -73,7 +73,7 @@ class Provisioning(TestSuite):
         priority=1,
         requirement=simple_requirement(
             environment_status=EnvironmentStatus.Deployed,
-            network_interface=Synthetic,
+            network_interface=Synthetic(),
             supported_features=[SerialConsole],
         ),
     )
@@ -90,7 +90,7 @@ class Provisioning(TestSuite):
         priority=1,
         requirement=simple_requirement(
             environment_status=EnvironmentStatus.Deployed,
-            disk=DiskStandardSSDLRS,
+            disk=DiskStandardSSDLRS(),
             supported_features=[SerialConsole],
         ),
     )
@@ -107,7 +107,7 @@ class Provisioning(TestSuite):
         priority=1,
         requirement=simple_requirement(
             environment_status=EnvironmentStatus.Deployed,
-            disk=DiskEphemeral,
+            disk=DiskEphemeral(),
             supported_features=[SerialConsole],
         ),
     )
@@ -124,7 +124,7 @@ class Provisioning(TestSuite):
         priority=1,
         requirement=simple_requirement(
             environment_status=EnvironmentStatus.Deployed,
-            disk=DiskPremiumSSDLRS,
+            disk=DiskPremiumSSDLRS(),
             supported_features=[SerialConsole],
         ),
     )
@@ -141,7 +141,7 @@ class Provisioning(TestSuite):
         priority=1,
         requirement=simple_requirement(
             environment_status=EnvironmentStatus.Deployed,
-            network_interface=Sriov,
+            network_interface=Sriov(),
             supported_features=[SerialConsole],
         ),
     )

@@ -1,6 +1,7 @@
 # Copyright (c) Microsoft Corporation.
 # Licensed under the MIT license.
 
+from functools import partial
 from typing import Type
 
 from lisa import schema
@@ -20,7 +21,13 @@ class Disk(Feature):
         return True
 
 
-DiskEphemeral = schema.DiskOptionSettings(disk_type=schema.DiskType.Ephemeral)
-DiskPremiumSSDLRS = schema.DiskOptionSettings(disk_type=schema.DiskType.PremiumSSDLRS)
-DiskStandardHDDLRS = schema.DiskOptionSettings(disk_type=schema.DiskType.StandardHDDLRS)
-DiskStandardSSDLRS = schema.DiskOptionSettings(disk_type=schema.DiskType.StandardSSDLRS)
+DiskEphemeral = partial(schema.DiskOptionSettings, disk_type=schema.DiskType.Ephemeral)
+DiskPremiumSSDLRS = partial(
+    schema.DiskOptionSettings, disk_type=schema.DiskType.PremiumSSDLRS
+)
+DiskStandardHDDLRS = partial(
+    schema.DiskOptionSettings, disk_type=schema.DiskType.StandardHDDLRS
+)
+DiskStandardSSDLRS = partial(
+    schema.DiskOptionSettings, disk_type=schema.DiskType.StandardSSDLRS
+)

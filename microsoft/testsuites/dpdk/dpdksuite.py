@@ -32,7 +32,7 @@ class Dpdk(TestSuite):
         priority=2,
         requirement=simple_requirement(
             min_nic_count=2,
-            network_interface=Sriov,
+            network_interface=Sriov(),
         ),
     )
     def check_dpdk_build(self, node: Node, log: Logger) -> None:

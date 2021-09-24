@@ -1,6 +1,7 @@
 # Copyright (c) Microsoft Corporation.
 # Licensed under the MIT license.
 
+from functools import partial
 from typing import Type
 
 from lisa import schema
@@ -27,5 +28,7 @@ class NetworkInterface(Feature):
         raise NotImplementedError
 
 
-Sriov = NetworkInterfaceOptionSettings(data_path=schema.NetworkDataPath.Sriov)
-Synthetic = NetworkInterfaceOptionSettings(data_path=schema.NetworkDataPath.Synthetic)
+Sriov = partial(NetworkInterfaceOptionSettings, data_path=schema.NetworkDataPath.Sriov)
+Synthetic = partial(
+    NetworkInterfaceOptionSettings, data_path=schema.NetworkDataPath.Synthetic
+)
