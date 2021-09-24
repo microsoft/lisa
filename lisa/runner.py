@@ -347,7 +347,7 @@ class RootRunner(Action):
                         ]
                         self._log.info(
                             f"remaining runners {[x.id for x in remaining_runners]}"
-                            f"Idle workers : {task_manager.has_idle_worker()}"
+                            f"Idle workers : {len(task_manager._futures)}"
                         )
 
                         if task_manager.has_idle_worker():
