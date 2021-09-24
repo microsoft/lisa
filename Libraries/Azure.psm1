@@ -1328,7 +1328,7 @@ Function Invoke-AllResourceGroupDeployments($SetupTypeData, $CurrentTestData, $R
 			#region virtualMachines
 			Write-LogInfo "Adding Virtual Machine $vmName"
 			Add-Content -Value "$($indents[2]){" -Path $jsonFile
-			Add-Content -Value "$($indents[3])^apiVersion^: ^2020-12-01^," -Path $jsonFile
+			Add-Content -Value "$($indents[3])^apiVersion^: ^2021-07-01^," -Path $jsonFile
 			Add-Content -Value "$($indents[3])^type^: ^Microsoft.Compute/virtualMachines^," -Path $jsonFile
 			Add-Content -Value "$($indents[3])^name^: ^$vmName^," -Path $jsonFile
 			Add-Content -Value "$($indents[3])^location^: ^[variables('location')]^," -Path $jsonFile
@@ -1529,7 +1529,15 @@ Function Invoke-AllResourceGroupDeployments($SetupTypeData, $CurrentTestData, $R
 					Add-Content -Value "$($indents[6])^name^: ^$vmName-OSDisk^," -Path $jsonFile
 					Add-Content -Value "$($indents[6])^managedDisk^: " -Path $jsonFile
 					Add-Content -Value "$($indents[6]){" -Path $jsonFile
-					Add-Content -Value "$($indents[7])^storageAccountType^: ^$StorageAccountType^" -Path $jsonFile
+					if ($CurrentTestData.SetupConfig.vCST) {
+						Add-Content -Value "$($indents[7])^storageAccountType^: ^$StorageAccountType^," -Path $jsonFile
+						Add-Content -Value "$($indents[7])^securityProfile^: " -Path $jsonFile
+						Add-Content -Value "$($indents[7]){" -Path $jsonFile
+						Add-Content -Value "$($indents[8])^securityEncryptionType^: ^$($CurrentTestData.SetupConfig.vCST)^" -Path $jsonFile
+						Add-Content -Value "$($indents[7])}" -Path $jsonFile
+					} else {
+						Add-Content -Value "$($indents[7])^storageAccountType^: ^$StorageAccountType^" -Path $jsonFile
+					}
 					Add-Content -Value "$($indents[6])}," -Path $jsonFile
 					if ($UseEphemeralOSDisk) {
 						Add-Content -Value "$($indents[6])^caching^: ^ReadOnly^," -Path $jsonFile

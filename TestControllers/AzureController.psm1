@@ -314,6 +314,18 @@ Class AzureController : TestController {
 				Add-SetupConfig -AllTests $AllTests -ConfigName "PlatformUpdateDomainCount" -ConfigValue $this.CustomParams.PlatformUpdateDomainCount -Force $this.ForceCustom
 			}
 
+			if ($this.CustomParams.SecurityType) {
+				Add-SetupConfig -AllTests $AllTests -ConfigName "SecurityType" -ConfigValue $this.CustomParams.SecurityType -Force $this.ForceCustom
+			}
+
+			if ($this.CustomParams.vTPM) {
+				Add-SetupConfig -AllTests $AllTests -ConfigName "vTPM" -ConfigValue $this.CustomParams.vTPM -Force $this.ForceCustom
+			}
+
+			if ($this.CustomParams.vCST) {
+				Add-SetupConfig -AllTests $AllTests -ConfigName "vCST" -ConfigValue $this.CustomParams.vCST -Force $this.ForceCustom
+			}
+
 			# Multiple TestLocations (parameter '-TestLocation' with value like 'eastus,westus') means to deploy from different Regions,
 			# so spliting with default Splitby (','), and apply multi single ConfigValues to $AllTests one by one.
 			Add-SetupConfig -AllTests $AllTests -ConfigName "TestLocation" -ConfigValue $this.CustomParams["TestLocation"] -Force $this.ForceCustom
