@@ -351,13 +351,16 @@ class RootRunner(Action):
                         )
 
                         if task_manager.has_idle_worker():
-                            while (
-                                has_more_runner
-                                and len(remaining_runners) < self._max_concurrency
-                            ):
+                            if has_more_runner:
                                 # Add new runner if idle workers are available.
                                 try:
-                                    remaining_runners.append(next(runner_iterator))
+                                    while True:
+                                        remaining_runners.append(next(runner_iterator))
+                                        if (
+                                            len(remaining_runners)
+                                            > self._max_concurrency
+                                        ):
+                                            break
                                     self._log.info(
                                         f"Added runner {remaining_runners[-1].id}"
                                     )
