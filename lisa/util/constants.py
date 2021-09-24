@@ -103,6 +103,7 @@ PLATFORM_MOCK = "mock"
 TESTCASE = "testcase"
 TESTCASE_TYPE_LISA = "lisa"
 TESTCASE_TYPE_LEGACY = "legacy"
+TESTCASE_TYPE_MOCK = "mock"
 
 # test case fields
 TESTCASE_CRITERIA = "criteria"

@@ -1191,6 +1191,22 @@ class LegacyTestCase(BaseTestCaseFilter):
 
 @dataclass_json()
 @dataclass
+class MockTestCase(BaseTestCaseFilter):
+    type: str = field(
+        default=constants.TESTCASE_TYPE_MOCK,
+        metadata=field_metadata(
+            required=True,
+            validate=validate.OneOf([constants.TESTCASE_TYPE_MOCK]),
+        ),
+    )
+
+    @classmethod
+    def type_name(cls) -> str:
+        return constants.TESTCASE_TYPE_MOCK
+
+
+@dataclass_json()
+@dataclass
 class Runbook:
     # run name prefix to help grouping results and put it in title.
     name: str = "not_named"
