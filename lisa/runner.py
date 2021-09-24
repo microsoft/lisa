@@ -361,9 +361,9 @@ class RootRunner(Action):
                                             > self._max_concurrency
                                         ):
                                             break
-                                    self._log.info(
-                                        f"Added runner {remaining_runners[-1].id}"
-                                    )
+                                        self._log.info(
+                                            f"Added runner {remaining_runners[-1].id}"
+                                        )
                                 except StopIteration:
                                     has_more_runner = False
                             else:
