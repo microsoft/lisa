@@ -1,6 +1,7 @@
 # Copyright (c) Microsoft Corporation.
 # Licensed under the MIT license.
 
+import os
 import re
 from pathlib import PurePath
 from typing import List, Type
@@ -98,7 +99,7 @@ class DpdkTestpmd(Tool):
         return [Git, Wget]
 
     def _install(self) -> bool:
-        result = self.node.execute("which dpdk-tespmd")  # TODO: make a which/where tool
+        result = self.node.execute("which dpdk-testpmd")
         if result.exit_code == 0:  # tools are already installed
             return True
         if self._install_dependencies():
@@ -115,6 +116,33 @@ class DpdkTestpmd(Tool):
             return True
         else:
             return False
+
+    def _reconfigure_forwarding(self, address: str) -> None:
+        result = self.node.execute("which dpdk-testpmd")
+        result.assert_exit_code()  # ensure tools are already installed
+        file_content = ""
+
+        # prepare new macfwd.c from template c file
+        filedir = os.path.dirname(os.path.abspath(__file__))
+        with open(os.path.join(filedir, "macfwd_template.c"), "r") as macfwd_file:
+            file_content = macfwd_file.read()
+            address_to_array = address.replace(".", ",")
+            file_content.replace("IP_ADDRESS_REPLACEMENT_STR", address_to_array)
+        tmpfile = os.path.join(filedir, "macfwd.c")
+        with open(tmpfile, "x") as file_to_copy:
+            file_to_copy.write(file_content)
+
+        # locate the dir and copy the new macfwd.c file
+        dpdk_path = self.node.working_path.joinpath("dpdk")
+        dpdk_build_path = dpdk_path.joinpath("build")
+        dst = dpdk_path.joinpath("app").joinpath("test-pmd")
+        self.node.shell.copy(PurePath(tmpfile), dst)
+
+        # remove the local tmpfile and rebuild dpdk
+        os.remove(tmpfile)
+        self.__execute_assert_zero("ninja", dpdk_build_path, timeout=1200)
+        self.__execute_assert_zero("ninja install", dpdk_build_path)
+        self.__execute_assert_zero("ldconfig", dpdk_build_path)
 
     def _install_dependencies(self) -> bool:
         node = self.node
@@ -184,7 +212,9 @@ class DpdkTestpmd(Tool):
         )
         return True
 
-    def _generate_testpmd_command(self, nic_to_include: str, mode: str) -> str:
+    def _generate_testpmd_command(
+        self, nic_to_include: str, mode: str, extra_args=""
+    ) -> str:
         #   testpmd \
         #   -l <core-list> \
         #   -n <num of mem channels> \
@@ -197,7 +227,7 @@ class DpdkTestpmd(Tool):
         #   --stats-period <display interval in seconds>
         return (
             f"{self._testpmd_install_path} -l 0-1 -n 4 --proc-type=primary "
-            + f"{nic_to_include} -- --forward-mode={mode} -a --stats-period 1"
+            + f"{nic_to_include} {extra_args} -- --forward-mode={mode} -a --stats-period 1"
         )
 
     def run_for_n_seconds(self, cmd: str, timeout: int) -> str:

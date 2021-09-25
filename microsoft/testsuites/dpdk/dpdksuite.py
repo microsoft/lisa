@@ -1,16 +1,28 @@
 # Copyright (c) Microsoft Corporation.
 # Licensed under the MIT license.
 
+import ipaddress
 import itertools
-from typing import Dict, List
+import re
+import threading
+from typing import Dict, List, Tuple
 
 from assertpy import assert_that
 
-from lisa import Logger, Node, TestCaseMetadata, TestSuite, TestSuiteMetadata
+from lisa import (
+    Environment,
+    Logger,
+    Node,
+    TestCaseMetadata,
+    TestSuite,
+    TestSuiteMetadata,
+)
 from lisa.features import NetworkInterface, Sriov
 from lisa.testsuite import simple_requirement
 from lisa.tools import Echo, Lspci, Mount
 from microsoft.testsuites.dpdk.dpdktestpmd import DpdkTestpmd
+
+vdev_type = "net_vdev_netvsc0"
 
 
 @TestSuiteMetadata(
@@ -42,7 +54,7 @@ class Dpdk(TestSuite):
 
         # grab a nic and run testpmd
         test_nic = node_nic_info.get_nic(node_nic_info.get_upper_nics()[-1])
-        vdev_type = "net_vdev_netvsc0"
+
         testpmd_include_str = test_nic.testpmd_include(vdev_type)
         testpmd_cmd = testpmd._generate_testpmd_command(testpmd_include_str, "txonly")
         testpmd_output = testpmd.run_for_n_seconds(testpmd_cmd, 10)
@@ -55,10 +67,54 @@ class Dpdk(TestSuite):
             f"TX-PPS ({tx_pps}) should have been greater than 2^20 (~1m) PPS."
         ).is_greater_than(2 ** 20)
 
-    def _execute_expect_zero(self, node: Node, cmd: str) -> str:
-        result = node.execute(cmd, sudo=True, shell=True)
-        result.assert_exit_code()
-        return result.stdout
+    @TestCaseMetadata(
+        description="""
+            Tests a more realistic sender/forwarder/receiver setup.
+        """,
+        priority=2,
+        requirement=simple_requirement(
+            min_nic_count=2,
+            network_interface=Sriov,
+            min_count=3,
+        ),
+    )
+    def check_3node_forwarding(self, environment: Environment, log: Logger) -> None:
+        test_kits = _init_nodes_concurrent(environment, log)
+        for item in test_kits:
+            # use these to quiet flake up
+            log.info(f"found node info: {item.node_nic_info}")
+        sender, forwarder, receiver = test_kits
+
+        snd_nic, fwd_nic, rcv_nic = [x.node_nic_info.get_nic("eth1") for x in test_kits]
+
+        forwarder.testpmd._reconfigure_forwarding(rcv_nic._ip_addr)
+
+        """ snd_inc, fwd_inc, rcv_inc = [
+            x.testpmd_include(vdev_type) for x in [snd_nic, fwd_nic, rcv_nic]
+        ]
+
+        # TODO: forwarder needs macfwd.c code edited to allow forwarding to receiver
+        snd_cmd = sender.testpmd._generate_testpmd_command(
+            snd_inc,
+            "txonly",
+            extra_args=f"--tx-ip={snd_nic._ip_addr},{fwd_nic._ip_addr}",
+        )
+        fwd_cmd = forwarder.testpmd._generate_testpmd_command(fwd_inc, "mac")
+
+        rcv_cmd = receiver.testpmd._generate_testpmd_command(rcv_inc, "rxonly")
+
+        kit_cmd_pairs = {
+            sender: snd_cmd,
+            forwarder: fwd_cmd,
+            receiver: rcv_cmd,
+        }
+        testpmd_outputs = _run_testpmd_concurrent(kit_cmd_pairs, log)
+
+        log.info(f"receiver: {testpmd_outputs[receiver]}")
+        log.info(f"sender: {testpmd_outputs[sender]}")
+        log.info(f"forwarder: {testpmd_outputs[forwarder]}") """
+
+        # TODO: rest of test in future commit.
 
 
 def _init_hugepages(node: Node) -> None:
@@ -94,11 +150,18 @@ class NicInfo:
     # paired with a lower SRIOV Virtual Function (VF) device that
     # enables the passthrough to the physical NIC.
 
-    def __init__(self, upper: str, lower: str = "", pci_slot: str = "") -> None:
+    def __init__(
+        self,
+        upper: str,
+        lower: str = "",
+        pci_slot: str = "",
+    ) -> None:
         self._has_secondary = lower != "" or pci_slot == ""
         self._upper = upper
         self._lower = lower
         self._pci_slot = pci_slot
+        self._ip_addr = ""
+        self._mac_addr = ""
 
     def has_secondary(self) -> bool:
         return self._has_secondary
@@ -109,6 +172,8 @@ class NicInfo:
             f"upper: {self._upper}\n"
             f"lower: {self._lower}\n"
             f"pci_slot: {self._pci_slot}\n"
+            f"ip_addr: {self._ip_addr}\n"
+            f"mac_addr: {self._mac_addr}\n"
         )
 
     def testpmd_include(self, vdev_type: str) -> str:
@@ -176,9 +241,9 @@ class NodeNicInfo:
         assert_that(self.is_empty()).is_false()
 
     def _get_default_nic(self, node: Node, nic_list: List[str]) -> str:
-        cmd = "ip route | grep default | awk '{print $5}'"
-        default_interface = node.execute(cmd)
-        assert_that(default_interface.exit_code).is_zero()
+        cmd = "/sbin/ip route | grep default | awk '{print $5}'"
+        default_interface = node.execute(cmd, shell=True, sudo=True)
+        default_interface.assert_exit_code()
         assert_that(len(default_interface.stdout)).is_greater_than(0)
         default_interface_name = default_interface.stdout.strip()
         assert_that(default_interface_name in nic_list).described_as(
@@ -189,10 +254,64 @@ class NodeNicInfo:
         ).is_true()
         return default_interface_name
 
+    def _get_host_if_info(self, node: Node) -> None:
+        # for parsing ip addr show (ipv4)
+        _ip_regex = (
+            r"inet\s+([0-9a-fA-F]{1,3}\.[0-9a-fA-F]{1,3}\."
+            r"[0-9a-fA-F]{1,3}\.[0-9a-fA-F]{1,3})"
+        )
+        _mac_regex = (
+            r"ether\s+([0-9a-fA-F]{2}:[0-9a-fA-F]{1,3}:"
+            r"[0-9a-fA-F]{2}:[0-9a-fA-F]{2}:"
+            r"[0-9a-fA-F]{2}:[0-9a-fA-F]{2})"
+        )
+
+        for nic in self.get_upper_nics():
+            # get ip and mac
+            result = node.execute(f"/sbin/ip addr show {nic}", shell=True)
+            result.assert_exit_code()
+            ip_match = re.search(_ip_regex, result.stdout)
+            mac_match = re.search(_mac_regex, result.stdout)
+
+            if ip_match and mac_match:
+                # check we found matches for both
+                for match in [ip_match, mac_match]:
+                    assert_that(len(match.groups())).described_as(
+                        (
+                            f"(IP) Trouble parsing `ip addr show {nic}` output."
+                            " Number of match groups was unexpected."
+                        )
+                    ).is_equal_to(1)
+
+                ip_addr = ip_match.group(1)
+                mac_addr = mac_match.group(1)
+
+                # double check IP address looks right
+                try:
+                    ipaddress.ip_address(ip_addr)
+                except ValueError:
+                    assert_that(False).described_as(
+                        f"{ip_addr} was not recognized as an IP Address."
+                    ).is_true()
+
+                # save them both off
+                self.get_nic(nic)._ip_addr = ip_addr
+                self.get_nic(nic)._mac_addr = mac_addr
+            else:
+                assert_that(False).described_as(
+                    f"Could not parse output of ip addr show {nic}"
+                ).is_true()
+
     def __init__(self, node: Node):
         self._nics: Dict[str, NicInfo] = dict()
         nics = self._get_nic_names(node)
         self._get_node_nic_info(node, nics)
+        default_nic = self._get_default_nic(node, nics)
+        awk_cmd = "awk '{print $2}'"
+        self.ip_addr = node.execute(
+            f"/sbin/ip addr show {default_nic} | grep inet | {awk_cmd}"
+        ).stdout.strip()
+        self._get_host_if_info(node)
 
     def append(self, next_node: NicInfo) -> None:
         self._nics[next_node._upper] = next_node
@@ -229,9 +348,12 @@ class NodeNicInfo:
 
 
 class NodeResources:
-    def __init__(self, _node_nic_info: NodeNicInfo, _testpmd: DpdkTestpmd) -> None:
+    def __init__(
+        self, _node: Node, _node_nic_info: NodeNicInfo, _testpmd: DpdkTestpmd
+    ) -> None:
         self.node_nic_info = _node_nic_info
         self.testpmd = _testpmd
+        self.node = _node
 
 
 def initialize_node_resources(node: Node, log: Logger) -> NodeResources:
@@ -257,4 +379,53 @@ def initialize_node_resources(node: Node, log: Logger) -> NodeResources:
     assert_that(len(node_nic_info)).described_as(
         "Test needs at least 2 NICs on the test node."
     ).is_greater_than_or_equal_to(2)
-    return NodeResources(node_nic_info, testpmd)
+    return NodeResources(node, node_nic_info, testpmd)
+
+
+def _threaded_resource_init(
+    node: Node, log: Logger, output: List[NodeResources]
+) -> None:
+    # threading.Thread target function, results aggregated into output list
+    output.append(initialize_node_resources(node, log))
+
+
+def _threaded_testpmd(
+    node_cmd_pair: Tuple[NodeResources, str],
+    log: Logger,
+    output: Dict[NodeResources, str],
+) -> None:
+    testkit, cmd = node_cmd_pair
+    output[testkit] = testkit.testpmd.run_for_n_seconds(cmd, 10)
+
+
+def _run_testpmd_concurrent(
+    node_cmd_pairs: Dict[NodeResources, str], log: Logger
+) -> Dict[NodeResources, str]:
+    output: Dict[NodeResources, str] = dict()
+    threads: List[threading.Thread] = []
+    for pair in node_cmd_pairs.items():
+        threads.append(
+            threading.Thread(target=_threaded_testpmd, args=(pair, log, output))
+        )
+    for thread in threads:
+        thread.start()
+    for thread in threads:
+        thread.join()
+    return output
+
+
+def _init_nodes_concurrent(
+    environment: Environment, log: Logger
+) -> List[NodeResources]:
+    # Use threading module to parallelize the IO-bound node init.
+    test_kits: List[NodeResources] = []
+    threads: List[threading.Thread] = []
+    for node in environment.nodes.list():
+        thread = threading.Thread(
+            target=_threaded_resource_init, args=((node, log, test_kits))
+        )
+        thread.start()
+        threads.append(thread)
+    for thread in threads:
+        thread.join()
+    return test_kits
