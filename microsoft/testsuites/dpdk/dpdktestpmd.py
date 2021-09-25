@@ -2,12 +2,14 @@
 # Licensed under the MIT license.
 
 import re
+import time
 from pathlib import PurePath
 from typing import List, Type
 
 from assertpy import assert_that
 
 from lisa.executable import Tool
+from lisa.nic import NicInfo
 from lisa.operating_system import CentOs, Redhat, Ubuntu
 from lisa.tools import Git, Lspci, Wget
 from lisa.util import SkippedException
@@ -98,7 +100,8 @@ class DpdkTestpmd(Tool):
         return [Git, Wget]
 
     def _install(self) -> bool:
-        result = self.node.execute("which dpdk-tespmd")  # TODO: make a which/where tool
+        self._last_run_output = ""
+        result = self.node.execute("which dpdk-testpmd")
         if result.exit_code == 0:  # tools are already installed
             return True
         if self._install_dependencies():
@@ -121,8 +124,10 @@ class DpdkTestpmd(Tool):
         cwd = node.working_path
         lspci = node.tools[Lspci]
         device_list = lspci.get_device_list()
-        connect_x3 = any(["ConnectX-3" in dev.device_info for dev in device_list])
-        if connect_x3:
+        self.is_connect_x3 = any(
+            ["ConnectX-3" in dev.device_info for dev in device_list]
+        )
+        if self.is_connect_x3:
             mellanox_drivers = "mlx4_core mlx4_ib"
         else:
             mellanox_drivers = "mlx5_core mlx5_ib"
@@ -152,17 +157,15 @@ class DpdkTestpmd(Tool):
             # TODO: Workaround for type checker below
             node.os.install_packages(list(self._redhat_packages))
 
-            if connect_x3:
+            if not self.is_connect_x3:
                 self.__execute_assert_zero(
-                    "modprobe -a ib_core ib_uverbs mlx4_en mlx4_core mlx5_core mlx4_ib"
-                    + " mlx5_ib",
-                    cwd,
-                )  # add mellanox drivers
-            else:
-                self.__execute_assert_zero(
-                    "dracut --add-drivers 'mlx5_ib ib_uverbs' -f", cwd
+                    f"dracut --add-drivers '{mellanox_drivers} ib_uverbs' -f", cwd
                 )
-
+            self.__execute_assert_zero(
+                "modprobe -a ib_core ib_uverbs mlx4_en mlx4_core mlx5_core mlx4_ib"
+                + " mlx5_ib",
+                cwd,
+            )  # add mellanox drivers
             self.__execute_assert_zero("systemctl enable rdma", cwd)
             self.__execute_assert_zero("pip3 install --upgrade meson", cwd)
             self.__execute_assert_zero("ln -s /usr/local/bin/meson /usr/bin/meson", cwd)
@@ -179,12 +182,26 @@ class DpdkTestpmd(Tool):
                 f"This os {node.os} is not implemented by the DPDK suite."
             )
         self.__execute_assert_zero(
-            f"modprobe -a uio ib_uverbs rdma_ucm ib_umad ib_ipoib {mellanox_drivers}",
+            f"modprobe -a ib_uverbs rdma_ucm ib_umad ib_ipoib {mellanox_drivers}",
             cwd,
         )
         return True
 
-    def _generate_testpmd_command(self, nic_to_include: str, mode: str) -> str:
+    def generate_testpmd_include(self, node_nic: NicInfo, vdev_id: int) -> str:
+        assert_that(node_nic.has_lower).is_true().described_as(
+            (
+                f"This interface {node_nic.upper} does not have a lower interface "
+                "and pci slot associated with it. Aborting."
+            )
+        )
+        return (
+            f'--vdev="net_vdev_netvsc{vdev_id},iface={node_nic.upper}"'
+            f' --allow "{node_nic.pci_slot}"'
+        )
+
+    def generate_testpmd_command(
+        self, nic_to_include: NicInfo, vdev_id: int, mode: str, extra_args: str = ""
+    ) -> str:
         #   testpmd \
         #   -l <core-list> \
         #   -n <num of mem channels> \
@@ -195,12 +212,16 @@ class DpdkTestpmd(Tool):
         #   --forward-mode=txonly \
         #   --eth-peer=<port id>,<receiver peer MAC address> \
         #   --stats-period <display interval in seconds>
+        nic_include_info = self.generate_testpmd_include(nic_to_include, vdev_id)
         return (
             f"{self._testpmd_install_path} -l 0-1 -n 4 --proc-type=primary "
-            + f"{nic_to_include} -- --forward-mode={mode} -a --stats-period 1"
+            f"{nic_include_info} -- --forward-mode={mode} {extra_args} "
+            "-a --stats-period 1"
         )
 
     def run_for_n_seconds(self, cmd: str, timeout: int) -> str:
+        self._last_run_timeout = timeout
+        self.node.log.info(f"{self.node.name} running: {cmd}")
         timer_proc = self.node.execute_async(
             f"sleep {timeout} && killall -s INT {cmd.split()[0]}",
             sudo=True,
@@ -210,16 +231,40 @@ class DpdkTestpmd(Tool):
             cmd,
             sudo=True,
         )
+        time.sleep(timeout)
         timer_proc.wait_result()
         proc_result = testpmd_proc.wait_result()
+        self._last_run_output = proc_result.stdout
         return proc_result.stdout
 
-    def get_tx_pps_from_testpmd_output(self, output: str) -> int:
-        matches = re.findall(r"Tx-pps:\s+([0-9]+)", output)
-        assert_that(len(matches)).described_as(
+    TX_PPS_KEY = "transmit-packets-per-second"
+    RX_PPS_KEY = "receive-packets-per-second"
+
+    testpmd_output_regex = {
+        TX_PPS_KEY: r"Tx-pps:\s+([0-9]+)",
+        RX_PPS_KEY: r"Rx-pps:\s+([0-9]+)",
+    }
+
+    def get_from_testpmd_output(self, search_key_constant: str) -> int:
+        assert_that(self._last_run_output).described_as(
+            "Could not find output from last testpmd run."
+        ).is_not_equal_to("")
+        matches = re.findall(
+            self.testpmd_output_regex[search_key_constant], self._last_run_output
+        )
+        remove_zeros = [x for x in map(int, matches) if x != 0]
+        assert_that(len(remove_zeros)).described_as(
             (
                 "Could not locate any performance data spew from "
-                "this testpmd run. ('Tx-pps:' was not found in output)."
+                f"this testpmd run. ({self.testpmd_output_regex[search_key_constant]}"
+                " was not found in output)."
             )
         ).is_greater_than(0)
-        return int(matches[-1])
+        total = sum(remove_zeros)
+        return total // len(remove_zeros)
+
+    def get_rx_pps(self) -> int:
+        return self.get_from_testpmd_output(self.RX_PPS_KEY)
+
+    def get_tx_pps(self) -> int:
+        return self.get_from_testpmd_output(self.TX_PPS_KEY)

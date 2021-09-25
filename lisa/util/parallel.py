@@ -1,8 +1,15 @@
 # Copyright (c) Microsoft Corporation.
 # Licensed under the MIT license.
-
-from concurrent.futures import FIRST_COMPLETED, Future, ThreadPoolExecutor, wait
+from concurrent.futures import (
+    ALL_COMPLETED,
+    FIRST_COMPLETED,
+    Future,
+    ThreadPoolExecutor,
+    wait,
+)
 from typing import Any, Callable, Dict, Generic, List, Optional, TypeVar
+
+from assertpy import assert_that
 
 from lisa.util.logger import Logger, get_logger
 from lisa.util.perf_timer import create_timer
@@ -90,13 +97,13 @@ class TaskManager(Generic[T_RESULT]):
     def has_idle_worker(self) -> bool:
         return len(self._futures) < self._max_workers
 
-    def wait_worker(self) -> bool:
+    def wait_worker(self, return_condition: str = FIRST_COMPLETED) -> bool:
         """
         Return:
             True, if there is running worker.
         """
 
-        done_futures, _ = wait(self._futures[:], return_when=FIRST_COMPLETED)
+        done_futures, _ = wait(self._futures[:], return_when=return_condition)
         for future in done_futures:
             # join exceptions of subthreads to main thread
             result = future.result()
@@ -107,6 +114,10 @@ class TaskManager(Generic[T_RESULT]):
             self._future_task_map[future].close()
             self._future_task_map.pop(future)
         return len(self._futures) > 0
+
+    def wait_for_all_workers(self) -> None:
+        remaining_worker_count = self.wait_worker(return_condition=ALL_COMPLETED)
+        assert_that(remaining_worker_count).is_zero()
 
 
 _default_task_manager: Optional[TaskManager[Any]] = None
