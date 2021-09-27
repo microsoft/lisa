@@ -77,6 +77,7 @@ function Install_XDPDump(){
 
     local install_ip="${1}"
     LogMsg "Cloning and building xdpdump"
+    ssh ${install_ip} "rm -rf bpf-samples"
     ssh ${install_ip} "git clone --recurse-submodules ${repo_url}"
     ssh ${install_ip} "cd bpf-samples/xdpdump && make"
     check_exit_status "xdpdump build on ${install_ip}" "exit"
