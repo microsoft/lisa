@@ -16,9 +16,18 @@
 #######################################################################
 
 supported_kernels=(ppa proposed proposed-azure proposed-edge latest
-                    linuxnext netnext upstream-stable)
+                    linuxnext netnext upstream-stable linux-image-azure-lts-18.04
+                    esm linux-azure-fips linux-image-azure-lts-20.04 linux-image-azure-fde)
 tarDestination="./linux-source"
 packageDir=$(pwd)
+
+declare -A KERNEL_DICT
+KERNEL_DICT=([proposed-azure]="linux-azure"
+            [proposed-edge]="linux-azure-edge"
+            [linux-image-azure-lts-18.04]="linux-image-azure-lts-18.04"
+            [linux-image-azure-lts-20.04]="linux-image-azure-lts-20.04"
+            [linux-image-azure-fde]="linux-image-azure-fde"
+            )
 # Source utils.sh
 . utils.sh || {
     echo "ERROR: unable to source utils.sh!"
@@ -247,18 +256,58 @@ function InstallKernel() {
             LogMsg "CUSTOM_KERNEL_SUCCESS"
             SetTestStateCompleted
         fi
-    elif [ "${CustomKernel}" == "proposed-azure" ]; then
+    elif [[ "${CustomKernel}" =~ proposed-azure|proposed-edge|linux-image-azure-lts-18.04|linux-image-azure-lts-20.04|linux-image-azure-fde ]]; then
         export DEBIAN_FRONTEND=noninteractive
-        release=$(lsb_release -c -s)
-        LogMsg "Enabling proposed repository for $release distro"
-        echo "deb http://archive.ubuntu.com/ubuntu/ ${release}-proposed restricted main multiverse universe" >> /etc/apt/sources.list
-        rm -rf /etc/apt/preferences.d/proposed-updates
-        LogMsg "Installing linux-azure kernel from $release proposed repository."
-        apt-get clean all
-        apt-get -y update >> $LOG_FILE 2>&1
-        CheckInstallLockUbuntu
-        apt-get install -yq linux-azure/"$release" >> $LOG_FILE 2>&1
+        kernel="${KERNEL_DICT[$CustomKernel]}"
+        if [[ "${CustomKernel}" = linux-image-azure-fde ]]; then
+            add-apt-repository -y ppa:canonical-kernel-team/azure-test
+            apt-get -y update >> $LOG_FILE 2>&1
+            apt install -y linux-image-azure-fde >> $LOG_FILE 2>&1
+        else
+            release=$(lsb_release -c -s)
+            LogMsg "Enabling proposed repository for $release distro"
+            echo "deb http://archive.ubuntu.com/ubuntu/ ${release}-proposed restricted main multiverse universe" >> /etc/apt/sources.list
+            rm -rf /etc/apt/preferences.d/proposed-updates
+            LogMsg "Installing $kernel kernel from $release proposed repository."
+            apt-get clean all
+            apt-get -y update >> $LOG_FILE 2>&1
+            CheckInstallLockUbuntu
+            apt-get install -yq "$kernel"/"$release-proposed" >> $LOG_FILE 2>&1
+        fi
         kernelInstallStatus=$?
+        if [ $kernelInstallStatus -ne 0 ]; then
+            LogMsg "CUSTOM_KERNEL_FAIL"
+            SetTestStateFailed
+        else
+            apt autoremove -y
+            output=$(apt search "${CustomKernel}" 2>/dev/null | grep -i "${CustomKernel}")
+            output=$(echo $output | cut -d ' ' -f 2 |  cut -d. -f-4)
+            kernel_version=$output
+            output=$(cat /boot/grub/grub.cfg | grep -i "$output" | grep -i menuentry | grep -v recovery | cut -d ' ' -f 15)
+            output=$(echo $output | sed -r "s/[']+//g")
+            sub_a=$(echo $output | cut -d '-' -f 1)
+            sub_b=$(echo $output | cut -d '-' -f 5-10)
+            prefix="$sub_a-$sub_b"
+            sed -i.bak "s/GRUB_DEFAULT=.*/GRUB_DEFAULT='$prefix>$output'/g" /etc/default/grub
+            update-grub
+            LogMsg "Install linux-tools-$kernel_version-azure linux-cloud-tools-$kernel_version-azure linux-headers-$kernel_version-azure"
+            apt install -y linux-tools-$kernel_version-azure linux-cloud-tools-$kernel_version-azure linux-headers-$kernel_version-azure
+            LogMsg "CUSTOM_KERNEL_SUCCESS"
+            SetTestStateCompleted
+        fi
+    elif [ "${CustomKernel}" == "esm" ]; then
+        DISTRO=$(grep -ihs "buntu\|Suse\|Fedora\|Debian\|CentOS\|Red Hat Enterprise Linux" /etc/{issue,*release,*version})
+        if [[ $DISTRO =~ "Ubuntu" ]];
+        then
+            LogMsg "Enabling esm repository..."
+            release=$(lsb_release -c -s)
+            apt-key adv --keyserver keyserver.ubuntu.com --recv-keys $publicKey
+            add-apt-repository -y "deb $kernelurl $release main"
+            apt -y update >> $LOG_FILE 2>&1
+            LogMsg "Installing linux-azure from ppa repository."
+            apt install -y linux-azure >> $LOG_FILE 2>&1
+            kernelInstallStatus=$?
+        fi
         if [ $kernelInstallStatus -ne 0 ]; then
             LogMsg "CUSTOM_KERNEL_FAIL"
             SetTestStateFailed
@@ -266,22 +315,32 @@ function InstallKernel() {
             LogMsg "CUSTOM_KERNEL_SUCCESS"
             SetTestStateCompleted
         fi
-    elif [ "${CustomKernel}" == "proposed-edge" ]; then
-        export DEBIAN_FRONTEND=noninteractive
-        release=$(lsb_release -c -s)
-        LogMsg "Enabling proposed repository for $release distro"
-        echo "deb http://archive.ubuntu.com/ubuntu/ ${release}-proposed restricted main multiverse universe" >> /etc/apt/sources.list
-        rm -rf /etc/apt/preferences.d/proposed-updates
-        LogMsg "Installing linux-azure-edge kernel from $release proposed repository."
-        apt-get clean all
-        apt-get -y update >> $LOG_FILE 2>&1
-        CheckInstallLockUbuntu
-        apt-get install -yq linux-azure-edge/"$release" >> $LOG_FILE 2>&1
-        kernelInstallStatus=$?
+    elif [ "${CustomKernel}" == "linux-azure-fips" ]; then
+        DISTRO=$(grep -ihs "buntu\|Suse\|Fedora\|Debian\|CentOS\|Red Hat Enterprise Linux" /etc/{issue,*release,*version})
+        if [[ $DISTRO =~ "Ubuntu" ]];
+        then
+            LogMsg "Enabling fips repository..."
+            release=$(lsb_release -c -s)
+            apt-key adv --keyserver keyserver.ubuntu.com --recv-keys  $publicKey
+            sudo add-apt-repository -y "deb $kernelurl $release main"
+            apt -y update >> $LOG_FILE 2>&1
+            LogMsg "Installing linux-azure-fips from ppa repository."
+            apt install -y ${CustomKernel}/${release} >> $LOG_FILE 2>&1
+            kernelInstallStatus=$?
+        fi
         if [ $kernelInstallStatus -ne 0 ]; then
             LogMsg "CUSTOM_KERNEL_FAIL"
             SetTestStateFailed
         else
+            output=$(dpkg -l | grep -i "${CustomKernel} ")
+            output=$(echo $output | cut -d ' ' -f 3 |  cut -d. -f-4)
+            kernel_version=$output
+            sub_b=$(cat /boot/grub/grub.cfg | grep -i "$output" | grep -i menuentry | grep -v recovery | cut -d \' -f 2)
+            sub_a="Advanced options for Ubuntu>"
+            replaced="$sub_a$sub_b"
+            echo $replaced >> $LOG_FILE 2>&1
+            sed -i.bak "s/GRUB_DEFAULT=.*/GRUB_DEFAULT='$replaced'/g" /etc/default/grub
+            update-grub
             LogMsg "CUSTOM_KERNEL_SUCCESS"
             SetTestStateCompleted
         fi
