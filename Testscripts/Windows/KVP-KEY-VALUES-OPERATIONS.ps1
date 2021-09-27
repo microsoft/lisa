@@ -32,10 +32,17 @@ Function Confirm-KVPKey {
           echo "32 bit architecture was detected"
           kvp_client="kvp_client32"
       else
-          echo "Unable to detect OS architecture"
-          exit 1
+          uname -a | grep aarch64
+          if [ $? -eq 0 ]; then
+              LogMsg "arm 64 bit architecture was detected"
+              kvp_client="kvp_client_arm64"
+          else
+              echo "Unable to detect OS architecture"
+              exit 1
+          fi
       fi
   fi
+
   # Make sure we have the kvp_client tool
   if [ ! -e ~/${kvp_client} ]; then
       echo "${kvp_client} tool is not on the system"

@@ -5,9 +5,9 @@
     <files>.\Testscripts\Linux\utils.sh,.\Testscripts\Linux\nested_vm_utils.sh,.\Testscripts\Linux\nested_kvm_basic_test.sh</files>
     <TestParameters>
       <!--The nested image should be qcow2 format, and accessible from a public URL-->
-      <param>NestedImageUrl=NESTED_IMAGE_URL</param>
-      <param>NestedUser=NESTED_VM_USER</param>
-      <param>NestedUserPassword=NESTED_VM_PASSWORD</param>
+      <param>NestedImageUrl=&apos;https://eosgnestedstorage.blob.core.windows.net/images/nested-ubuntu-4.15.0-111-generic.qcow2?st=2020-07-17T09%3A06%3A07Z&amp;se=2023-07-18T09%3A06%3A00Z&amp;sp=rl&amp;sv=2018-03-28&amp;sr=c&amp;sig=dhiXUGaNUDcsZEVVCzAzzJJ52m73oaBt2QhOEoDoKX4%3D&apos;</param>
+      <param>NestedUser=nesteduser</param>
+      <param>NestedUserPassword=P@ssw0rd</param>
       <param>HostFwdPort=60022</param>
     </TestParameters>
     <Timeout>1200</Timeout>
@@ -27,9 +27,9 @@
     <files>.\Testscripts\Linux\utils.sh,.\Testscripts\Linux\nested_vm_utils.sh,.\Testscripts\Linux\nested_kvm_ntttcp_private_bridge.sh,.\Testscripts\Linux\enable_root.sh,.\Testscripts\Linux\enable_passwordless_root.sh,.\Testscripts\Linux\perf_ntttcp.sh</files>
     <TestParameters>
       <!--The nested image should be qcow2 format, and accessible from a public URL-->
-      <param>NestedImageUrl=NESTED_IMAGE_URL</param>
-      <param>NestedUser=NESTED_VM_USER</param>
-      <param>NestedUserPassword='NESTED_VM_PASSWORD'</param>
+      <param>NestedImageUrl=&apos;https://eosgnestedstorage.blob.core.windows.net/images/nested-ubuntu-4.15.0-111-generic.qcow2?st=2020-07-17T09%3A06%3A07Z&amp;se=2023-07-18T09%3A06%3A00Z&amp;sp=rl&amp;sv=2018-03-28&amp;sr=c&amp;sig=dhiXUGaNUDcsZEVVCzAzzJJ52m73oaBt2QhOEoDoKX4%3D&apos;</param>
+      <param>NestedUser=nesteduser</param>
+      <param>NestedUserPassword='P@ssw0rd'</param>
       <param>NestedCpuNum=8</param>
       <param>NestedMemMB=8192</param>
       <param>NestedNetDevice=virtio-net-pci</param>
@@ -55,9 +55,9 @@
     <files>.\Testscripts\Linux\utils.sh,.\Testscripts\Linux\nested_vm_utils.sh,.\Testscripts\Linux\nested_kvm_storage_perf.sh,.\Testscripts\Linux\nested_kvm_perf_fio.sh,.\Testscripts\Linux\enable_root.sh,.\Testscripts\Linux\enable_passwordless_root.sh,.\Testscripts\Linux\fio_jason_parser.sh,.\Testscripts\Linux\JSON.awk,.\Tools\gawk</files>
     <TestParameters>
       <!--The nested image should be qcow2 format, and accessible from a public URL-->
-      <param>NestedImageUrl=NESTED_IMAGE_URL</param>
-      <param>NestedUser=NESTED_VM_USER</param>
-      <param>NestedUserPassword='NESTED_VM_PASSWORD'</param>
+      <param>NestedImageUrl=&apos;https://eosgnestedstorage.blob.core.windows.net/images/nested-ubuntu-4.15.0-111-generic.qcow2?st=2020-07-17T09%3A06%3A07Z&amp;se=2023-07-18T09%3A06%3A00Z&amp;sp=rl&amp;sv=2018-03-28&amp;sr=c&amp;sig=dhiXUGaNUDcsZEVVCzAzzJJ52m73oaBt2QhOEoDoKX4%3D&apos;</param>
+      <param>NestedUser=nesteduser</param>
+      <param>NestedUserPassword='P@ssw0rd'</param>
       <param>NestedCpuNum=8</param>
       <param>NestedMemMB=8192</param>
       <param>HostFwdPort=60022</param>
@@ -88,9 +88,9 @@
     <files>.\Testscripts\Linux\utils.sh,.\Testscripts\Linux\nested_vm_utils.sh,.\Testscripts\Linux\nested_kvm_storage_perf.sh,.\Testscripts\Linux\nested_kvm_perf_fio.sh,.\Testscripts\Linux\enable_root.sh,.\Testscripts\Linux\enable_passwordless_root.sh,.\Testscripts\Linux\fio_jason_parser.sh,.\Testscripts\Linux\JSON.awk,.\Tools\gawk</files>
     <TestParameters>
       <!--The nested image should be qcow2 format, and accessible from a public URL-->
-      <param>NestedImageUrl=NESTED_IMAGE_URL</param>
-      <param>NestedUser=NESTED_VM_USER</param>
-      <param>NestedUserPassword='NESTED_VM_PASSWORD'</param>
+      <param>NestedImageUrl=&apos;https://eosgnestedstorage.blob.core.windows.net/images/nested-ubuntu-4.15.0-111-generic.qcow2?st=2020-07-17T09%3A06%3A07Z&amp;se=2023-07-18T09%3A06%3A00Z&amp;sp=rl&amp;sv=2018-03-28&amp;sr=c&amp;sig=dhiXUGaNUDcsZEVVCzAzzJJ52m73oaBt2QhOEoDoKX4%3D&apos;</param>
+      <param>NestedUser=nesteduser</param>
+      <param>NestedUserPassword='P@ssw0rd'</param>
       <param>NestedCpuNum=8</param>
       <param>NestedMemMB=8192</param>
       <param>HostFwdPort=60022</param>
@@ -119,9 +119,9 @@
     <files>.\Testscripts\Linux\utils.sh,.\Testscripts\Linux\nested_vm_utils.sh,.\Testscripts\Linux\nested_kvm_storage_perf.sh,.\Testscripts\Linux\nested_kvm_perf_fio.sh,.\Testscripts\Linux\enable_root.sh,.\Testscripts\Linux\enable_passwordless_root.sh,.\Testscripts\Linux\fio_jason_parser.sh,.\Testscripts\Linux\JSON.awk,.\Tools\gawk</files>
     <TestParameters>
       <!--The nested image should be qcow2 format, and accessible from a public URL-->
-      <param>NestedImageUrl=NESTED_IMAGE_URL</param>
-      <param>NestedUser=NESTED_VM_USER</param>
-      <param>NestedUserPassword='NESTED_VM_PASSWORD'</param>
+      <param>NestedImageUrl=&apos;https://eosgnestedstorage.blob.core.windows.net/images/nested-ubuntu-4.15.0-111-generic.qcow2?st=2020-07-17T09%3A06%3A07Z&amp;se=2023-07-18T09%3A06%3A00Z&amp;sp=rl&amp;sv=2018-03-28&amp;sr=c&amp;sig=dhiXUGaNUDcsZEVVCzAzzJJ52m73oaBt2QhOEoDoKX4%3D&apos;</param>
+      <param>NestedUser=nesteduser</param>
+      <param>NestedUserPassword='P@ssw0rd'</param>
       <param>NestedCpuNum=8</param>
       <param>NestedMemMB=8192</param>
       <param>HostFwdPort=60022</param>
@@ -152,9 +152,9 @@
     <files>.\Testscripts\Linux\utils.sh,.\Testscripts\Linux\nested_vm_utils.sh,.\Testscripts\Linux\nested_kvm_storage_perf.sh,.\Testscripts\Linux\nested_kvm_perf_fio.sh,.\Testscripts\Linux\enable_root.sh,.\Testscripts\Linux\enable_passwordless_root.sh,.\Testscripts\Linux\fio_jason_parser.sh,.\Testscripts\Linux\JSON.awk,.\Tools\gawk</files>
     <TestParameters>
       <!--The nested image should be qcow2 format, and accessible from a public URL-->
-      <param>NestedImageUrl=NESTED_IMAGE_URL</param>
-      <param>NestedUser=NESTED_VM_USER</param>
-      <param>NestedUserPassword='NESTED_VM_PASSWORD'</param>
+      <param>NestedImageUrl=&apos;https://eosgnestedstorage.blob.core.windows.net/images/nested-ubuntu-4.15.0-111-generic.qcow2?st=2020-07-17T09%3A06%3A07Z&amp;se=2023-07-18T09%3A06%3A00Z&amp;sp=rl&amp;sv=2018-03-28&amp;sr=c&amp;sig=dhiXUGaNUDcsZEVVCzAzzJJ52m73oaBt2QhOEoDoKX4%3D&apos;</param>
+      <param>NestedUser=nesteduser</param>
+      <param>NestedUserPassword='P@ssw0rd'</param>
       <param>NestedCpuNum=8</param>
       <param>NestedMemMB=8192</param>
       <param>HostFwdPort=60022</param>
@@ -184,9 +184,9 @@
     <files>.\Testscripts\Linux\utils.sh,.\Testscripts\Linux\nested_vm_utils.sh,.\Testscripts\Linux\nested_kvm_ntttcp_different_l1_public_bridge.sh,.\Testscripts\Linux\enable_root.sh,.\Testscripts\Linux\enable_passwordless_root.sh,.\Testscripts\Linux\perf_ntttcp.sh</files>
     <TestParameters>
       <!--The nested image should be qcow2 format, and accessible from a public URL-->
-      <param>NestedImageUrl=NESTED_IMAGE_URL</param>
-      <param>NestedUser=NESTED_VM_USER</param>
-      <param>NestedUserPassword='NESTED_VM_PASSWORD'</param>
+      <param>NestedImageUrl=&apos;https://eosgnestedstorage.blob.core.windows.net/images/nested-ubuntu-4.15.0-111-generic.qcow2?st=2020-07-17T09%3A06%3A07Z&amp;se=2023-07-18T09%3A06%3A00Z&amp;sp=rl&amp;sv=2018-03-28&amp;sr=c&amp;sig=dhiXUGaNUDcsZEVVCzAzzJJ52m73oaBt2QhOEoDoKX4%3D&apos;</param>
+      <param>NestedUser=nesteduser</param>
+      <param>NestedUserPassword='P@ssw0rd'</param>
       <param>NestedCpuNum=8</param>
       <param>NestedMemMB=8192</param>
       <param>NestedNetDevice=virtio-net-pci</param>
@@ -215,8 +215,8 @@
     <TestParameters>
       <!--The nested image should be vhd format, and accessible from a public URL-->
       <param>NestedImageUrl=NESTED_VHD_URL</param>
-      <param>NestedUser=NESTED_VM_USER</param>
-      <param>NestedUserPassword='NESTED_VM_PASSWORD'</param>
+      <param>NestedUser=nesteduser</param>
+      <param>NestedUserPassword='P@ssw0rd'</param>
       <param>NestedCpuNum=8</param>
       <param>NestedMemMB=8192</param>
       <param>testDuration=60</param>
@@ -244,9 +244,9 @@
     <files>.\Testscripts\Linux\utils.sh,.\Testscripts\Linux\nested_vm_utils.sh,.\Testscripts\Linux\nested_kvm_ntttcp_different_l1_nat.sh,.\Testscripts\Linux\enable_root.sh,.\Testscripts\Linux\enable_passwordless_root.sh,.\Testscripts\Linux\perf_ntttcp.sh,.\Testscripts\Linux\nat_qemu_ifup.sh,</files>
     <TestParameters>
       <!--The nested image should be qcow2 format, and accessible from a public URL-->
-      <param>NestedImageUrl=NESTED_IMAGE_URL</param>
-      <param>NestedUser=NESTED_VM_USER</param>
-      <param>NestedUserPassword='NESTED_VM_PASSWORD'</param>
+      <param>NestedImageUrl=&apos;https://eosgnestedstorage.blob.core.windows.net/images/nested-ubuntu-4.15.0-111-generic.qcow2?st=2020-07-17T09%3A06%3A07Z&amp;se=2023-07-18T09%3A06%3A00Z&amp;sp=rl&amp;sv=2018-03-28&amp;sr=c&amp;sig=dhiXUGaNUDcsZEVVCzAzzJJ52m73oaBt2QhOEoDoKX4%3D&apos;</param>
+      <param>NestedUser=nesteduser</param>
+      <param>NestedUserPassword='P@ssw0rd'</param>
       <param>NestedCpuNum=8</param>
       <param>NestedMemMB=8192</param>
       <param>NestedNetDevice=virtio-net-pci</param>
@@ -274,9 +274,9 @@
     <files>.\Testscripts\Linux\utils.sh,.\Testscripts\Linux\nested_vm_utils.sh,.\Testscripts\Linux\nested_kvm_lagscope_different_l1_public_bridge.sh,.\Testscripts\Linux\enable_root.sh,.\Testscripts\Linux\enable_passwordless_root.sh,.\Testscripts\Linux\perf_lagscope.sh</files>
     <TestParameters>
       <!--The nested image should be qcow2 format, and accessible from a public URL-->
-      <param>NestedImageUrl=NESTED_IMAGE_URL</param>
-      <param>NestedUser=NESTED_VM_USER</param>
-      <param>NestedUserPassword='NESTED_VM_PASSWORD'</param>
+      <param>NestedImageUrl=&apos;https://eosgnestedstorage.blob.core.windows.net/images/nested-ubuntu-4.15.0-111-generic.qcow2?st=2020-07-17T09%3A06%3A07Z&amp;se=2023-07-18T09%3A06%3A00Z&amp;sp=rl&amp;sv=2018-03-28&amp;sr=c&amp;sig=dhiXUGaNUDcsZEVVCzAzzJJ52m73oaBt2QhOEoDoKX4%3D&apos;</param>
+      <param>NestedUser=nesteduser</param>
+      <param>NestedUserPassword='P@ssw0rd'</param>
       <param>NestedCpuNum=8</param>
       <param>NestedMemMB=8192</param>
       <param>NestedNetDevice=virtio-net-pci</param>
@@ -301,9 +301,9 @@
     <files>.\Testscripts\Linux\utils.sh,.\Testscripts\Linux\nested_vm_utils.sh,.\Testscripts\Linux\nested_kvm_ntttcp_different_l1_nat.sh,.\Testscripts\Linux\enable_root.sh,.\Testscripts\Linux\enable_passwordless_root.sh,.\Testscripts\Linux\perf_ntttcp.sh,.\Testscripts\Linux\nat_qemu_ifup.sh,</files>
     <TestParameters>
       <!--The nested image should be qcow2 format, and accessible from a public URL-->
-      <param>NestedImageUrl=NESTED_IMAGE_URL</param>
-      <param>NestedUser=NESTED_VM_USER</param>
-      <param>NestedUserPassword='NESTED_VM_PASSWORD'</param>
+      <param>NestedImageUrl=&apos;https://eosgnestedstorage.blob.core.windows.net/images/nested-ubuntu-4.15.0-111-generic.qcow2?st=2020-07-17T09%3A06%3A07Z&amp;se=2023-07-18T09%3A06%3A00Z&amp;sp=rl&amp;sv=2018-03-28&amp;sr=c&amp;sig=dhiXUGaNUDcsZEVVCzAzzJJ52m73oaBt2QhOEoDoKX4%3D&apos;</param>
+      <param>NestedUser=nesteduser</param>
+      <param>NestedUserPassword='P@ssw0rd'</param>
       <param>NestedCpuNum=8</param>
       <param>NestedMemMB=8192</param>
       <param>NestedNetDevice=virtio-net-pci</param>
@@ -330,8 +330,8 @@
     <TestParameters>
       <!-- The nested image should be vhd format, it's a local path, a SMB path, or a public URL  -->
       <param>NestedImageUrl=NESTED_VHD_PATH</param>
-      <param>NestedUser=NESTED_VM_USER</param>
-      <param>NestedUserPassword='NESTED_VM_PASSWORD'</param>
+      <param>NestedUser=nesteduser</param>
+      <param>NestedUserPassword='P@ssw0rd'</param>
       <param>NestedCpuNum=8</param>
       <param>NestedMemMB=8192</param>
       <param>HostFwdPort=60022</param>
@@ -365,8 +365,8 @@
     <TestParameters>
       <!-- The nested image should be vhd format, it's a local path, a SMB path, or a public URL  -->
       <param>NestedImageUrl=NESTED_VHD_PATH</param>
-      <param>NestedUser=NESTED_VM_USER</param>
-      <param>NestedUserPassword='NESTED_VM_PASSWORD'</param>
+      <param>NestedUser=nesteduser</param>
+      <param>NestedUserPassword='P@ssw0rd'</param>
       <param>NestedCpuNum=8</param>
       <param>NestedMemMB=8192</param>
       <param>HostFwdPort=60022</param>
@@ -401,8 +401,8 @@
     <TestParameters>
       <!--The nested image should be vhd format, and accessible from a public URL-->
       <param>NestedImageUrl=NESTED_VHD_URL</param>
-      <param>NestedUser=NESTED_VM_USER</param>
-      <param>NestedUserPassword='NESTED_VM_PASSWORD'</param>
+      <param>NestedUser=nesteduser</param>
+      <param>NestedUserPassword='P@ssw0rd'</param>
       <param>NestedCpuNum=8</param>
       <param>NestedMemMB=8192</param>
       <param>HostFwdPort=60022</param>
@@ -435,8 +435,8 @@
     <TestParameters>
       <!--The nested image should be vhd format, and accessible from a public URL-->
       <param>NestedImageUrl=NESTED_VHD_URL</param>
-      <param>NestedUser=NESTED_VM_USER</param>
-      <param>NestedUserPassword='NESTED_VM_PASSWORD'</param>
+      <param>NestedUser=nesteduser</param>
+      <param>NestedUserPassword='P@ssw0rd'</param>
       <param>NestedCpuNum=8</param>
       <param>NestedMemMB=8192</param>
       <param>HostFwdPort=60022</param>
@@ -470,9 +470,9 @@
     <files>.\Testscripts\Linux\utils.sh,.\Testscripts\Linux\nested_vm_utils.sh,.\Testscripts\Linux\nested_kvm_netperf_pps.sh,.\Testscripts\Linux\enable_root.sh,.\Testscripts\Linux\enable_passwordless_root.sh,.\Testscripts\Linux\perf_netperf.sh</files>
     <TestParameters>
       <!--The nested image should be qcow2 format, and accessible from a public URL-->
-      <param>NestedImageUrl=NESTED_IMAGE_URL</param>
-      <param>NestedUser=NESTED_VM_USER</param>
-      <param>NestedUserPassword='NESTED_VM_PASSWORD'</param>
+      <param>NestedImageUrl=&apos;https://eosgnestedstorage.blob.core.windows.net/images/nested-ubuntu-4.15.0-111-generic.qcow2?st=2020-07-17T09%3A06%3A07Z&amp;se=2023-07-18T09%3A06%3A00Z&amp;sp=rl&amp;sv=2018-03-28&amp;sr=c&amp;sig=dhiXUGaNUDcsZEVVCzAzzJJ52m73oaBt2QhOEoDoKX4%3D&apos;</param>
+      <param>NestedUser=nesteduser</param>
+      <param>NestedUserPassword='P@ssw0rd'</param>
       <param>NestedCpuNum=8</param>
       <param>NestedMemMB=8192</param>
       <param>NestedNetDevice=virtio-net-pci</param>
@@ -498,9 +498,9 @@
     <files>.\Testscripts\Linux\utils.sh,.\Testscripts\Linux\nested_vm_utils.sh,.\Testscripts\Linux\nested_kvm_netperf_pps_nat.sh,.\Testscripts\Linux\enable_root.sh,.\Testscripts\Linux\enable_passwordless_root.sh,.\Testscripts\Linux\perf_netperf.sh,.\Testscripts\Linux\nat_qemu_ifup.sh</files>
     <TestParameters>
       <!--The nested image should be qcow2 format, and accessible from a public URL-->
-      <param>NestedImageUrl=NESTED_IMAGE_URL</param>
-      <param>NestedUser=NESTED_VM_USER</param>
-      <param>NestedUserPassword='NESTED_VM_PASSWORD'</param>
+      <param>NestedImageUrl=&apos;https://eosgnestedstorage.blob.core.windows.net/images/nested-ubuntu-4.15.0-111-generic.qcow2?st=2020-07-17T09%3A06%3A07Z&amp;se=2023-07-18T09%3A06%3A00Z&amp;sp=rl&amp;sv=2018-03-28&amp;sr=c&amp;sig=dhiXUGaNUDcsZEVVCzAzzJJ52m73oaBt2QhOEoDoKX4%3D&apos;</param>
+      <param>NestedUser=nesteduser</param>
+      <param>NestedUserPassword='P@ssw0rd'</param>
       <param>NestedCpuNum=8</param>
       <param>NestedMemMB=8192</param>
       <param>NestedNetDevice=virtio-net-pci</param>
@@ -525,8 +525,8 @@
     <TestParameters>
       <!--The nested image should be vhd format, and accessible from a public URL-->
       <param>NestedImageUrl=NESTED_VHD_URL</param>
-      <param>NestedUser=NESTED_VM_USER</param>
-      <param>NestedUserPassword='NESTED_VM_PASSWORD'</param>
+      <param>NestedUser=nesteduser</param>
+      <param>NestedUserPassword='P@ssw0rd'</param>
       <param>NestedCpuNum=8</param>
       <param>NestedMemMB=8192</param>
       <param>NestedNetDevice=virtio-net-pci</param>
@@ -556,8 +556,8 @@
     <TestParameters>
       <!--The nested image should be vhd format, and accessible from a public URL-->
       <param>NestedImageUrl=NESTED_VHD_URL</param>
-      <param>NestedUser=NESTED_VM_USER</param>
-      <param>NestedUserPassword='NESTED_VM_PASSWORD'</param>
+      <param>NestedUser=nesteduser</param>
+      <param>NestedUserPassword='P@ssw0rd'</param>
       <param>NestedCpuNum=8</param>
       <param>NestedMemMB=8192</param>
       <param>NestedNetDevice=virtio-net-pci</param>

@@ -5,8 +5,8 @@
 
 #######################################################################
 #
-# netperf_server.sh
-#         This script starts netperf in server mode on dependency VM.
+# ntttcp_server.sh
+#         This script starts ntttcp in server mode on dependency VM.
 #######################################################################
 cd ~
 
@@ -34,18 +34,8 @@ fi
 update_repos
 install_package "wget make gcc"
 
-#Download NETPERF
-wget https://github.com/HewlettPackard/netperf/archive/netperf-2.7.0.tar.gz > /dev/null 2>&1
-if [ $? -ne 0 ]; then
-    LogMsg "Unable to download netperf."
-    SetTestStateFailed
-    exit 1
-fi
-tar -xvf netperf-2.7.0.tar.gz > /dev/null 2>&1
-
-#Get the root directory of the tarball
-rootDir="netperf-netperf-2.7.0"
-cd ${rootDir}
+#install ntttcp
+install_ntttcp
 
 #Distro specific setup
 GetDistro
@@ -153,40 +143,16 @@ suse_12)
         iptables -t filter -F
         iptables -t nat -F
     fi;;
-mariner)
-        install_package "make kernel-headers binutils glibc-devel zlib-devel"
-    ;;
 esac
-./configure --build=arm-linux  > /dev/null 2>&1
-if [ $? -ne 0 ]; then
-    LogMsg "Unable to configure make file for netperf."
-    SetTestStateFailed
-    exit 1
-fi
-make > /dev/null 2>&1
-if [ $? -ne 0 ]; then
-    LogMsg "Unable to build netperf."
-    SetTestStateFailed
-    exit 1
-fi
-make install > /dev/null 2>&1
-if [ $? -ne 0 ]; then
-    LogMsg "Unable to install netperf."
-    SetTestStateFailed
-    exit 1
-fi
-export PATH="/usr/local/bin:${PATH}"
-#go back to test root folder
-cd ~
 
-# Start netperf server instances
-LogMsg "Starting netperf in server mode."
+# Start ntttcp server instances
+LogMsg "Starting ntttcp in server mode."
 
-echo "netperfRunning" > state.txt
-LogMsg "Netperf server instances are now ready to run."
-netserver -L ${STATIC_IP2} >> ~/summary.log
+echo "ntttcp Running" > state.txt
+LogMsg "ntttcp server instances are now ready to run."
+ulimit -n 204800 && ntttcp -r${STATIC_IP2} -P 64 -t 300 -e -W 1 -C 1 >> ~/summary.log
 if [ $? -ne 0 ]; then
-    LogMsg "Unable to start netperf in server mode."
+    LogMsg "Unable to start ntttcp in server mode."
     SetTestStateFailed
     exit 1
 fi

@@ -142,7 +142,7 @@ SendFile(){
             install_package "make kernel-headers binutils glibc-devel zlib-devel"
         ;;
     esac
-    ./configure > /dev/null 2>&1
+    ./configure --build=arm-linux > /dev/null 2>&1
     if [ $? -ne 0 ]; then
         LogErr "Unable to configure make file for netperf."
         return 1

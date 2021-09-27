@@ -32,7 +32,7 @@ CheckClockEvent()
         exit 0
     else
         __clockevent=$(cat $current_clockevent)
-        if [[ "$__clockevent" == "Hyper-V clockevent" ]]; then
+        if [[ "$__clockevent" == $CLOCKEVENT ]]; then
             LogMsg "Test successful. Proper file was found. Clockevent file content is: $__clockevent"
         else
             LogMsg "Test failed. Proper file was NOT found."
@@ -46,7 +46,7 @@ CheckClockEvent()
 CheckTimerInfo()
 {
     timer_list="/proc/timer_list"
-    clockevent_count=$(grep -c "Hyper-V clockevent" < $timer_list)
+    clockevent_count=$(grep -c "$CLOCKEVENT" < $timer_list)
     event_handler_count=$(grep -c "hrtimer_interrupt" < $timer_list)
     if [ "$clockevent_count" -eq "$VCPU" ] && [ "$event_handler_count" -eq "$VCPU" ]; then
         LogMsg "Test successful. Check both clockevent count and event_handler count equal vcpu count."
@@ -66,11 +66,10 @@ UnbindClockEvent()
         LogMsg "AMD cpu or SMP vcpus not support unbind clockevent"
     else
         clockevent_unbind_file="/sys/devices/system/clockevents/clockevent0/unbind_device"
-        clockevent="Hyper-V clockevent"
-        if echo "$clockevent" > $clockevent_unbind_file
+        if echo "$CLOCKEVENT" > $clockevent_unbind_file
         then
             _clockevent=$(cat /sys/devices/system/clockevents/clockevent0/current_device)
-            if [ "$_clockevent" == "lapic" ]; then
+            if [ "$_clockevent" == "$SECOND_CLOCKEVENT" ]; then
                 LogMsg "Test successful. After unbind, current clockevent device is $_clockevent"
             else
                 LogMsg "Test failed. After unbind, current clockevent device is $_clockevent"
@@ -78,7 +77,7 @@ UnbindClockEvent()
                 exit 0
             fi
         else
-            LogMsg "Test failed. Can not unbind '$clockevent'"
+            LogMsg "Test failed. Can not unbind '$CLOCKEVENT'"
             SetTestStateFailed
             exit 0
         fi
@@ -90,6 +89,15 @@ UnbindClockEvent()
 #
 GetDistro
 VCPU=$(nproc)
+
+if [[ $(lscpu | grep -i "Architecture" | awk '{print $NF}') == "x86_64" ]]
+then
+    CLOCKEVENT="Hyper-V clockevent"
+    SECOND_CLOCKEVENT="lapic"
+else
+    CLOCKEVENT="arch_sys_timer"
+    SECOND_CLOCKEVENT="dummy_timer"
+fi
 case $DISTRO in
     redhat_6 | centos_6)
         LogMsg "WARNING: $DISTRO does not support Hyper-V clockevent."

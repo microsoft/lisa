@@ -95,8 +95,15 @@ function Main {
         $retVal = Run-LinuxCmd -username $VMUserName -password $VMPassword -ip $Ipv4 -port $VMPort `
                     -command "uname -a | grep i686" -runAsSudo
         if (-not ($retVal)) {
-            Write-LogErr "Could not determine OS architecture"
-            return "FAIL"
+            $retVal = Run-LinuxCmd -username $VMUserName -password $VMPassword -ip $Ipv4 -port $VMPort `
+                        -command "uname -a | grep aarch64" -runAsSudo
+            if (-not ($retVal)) {
+                Write-LogErr "Could not determine OS architecture"
+                return "FAIL"
+            } else {
+                Write-LogInfo "arm 64 bit architecture detected"
+                $kvpClient = "kvp_client_arm64"
+            }
         } else {
             Write-LogInfo "32 bit architecture detected"
             $kvpClient = "kvp_client32"
