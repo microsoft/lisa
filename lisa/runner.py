@@ -14,7 +14,8 @@ from lisa.parameter_parser.runbook import RunbookBuilder
 from lisa.testsuite import TestResult, TestResultMessage, TestStatus
 from lisa.util import BaseClassMixin, InitializableMixin, LisaException, constants
 from lisa.util.logger import create_file_handler, get_logger, remove_handler
-from lisa.util.parallel import TaskManager, cancel, set_global_task_manager
+from lisa.util.parallel import Task, TaskManager, cancel, set_global_task_manager
+from lisa.util.perf_timer import create_timer
 from lisa.util.subclasses import Factory
 from lisa.variable import VariableEntry, get_case_variables, replace_variables
 
@@ -81,9 +82,11 @@ class BaseRunner(BaseClassMixin, InitializableMixin):
         self._runbook = runbook
 
         self.id = f"{self.type_name()}_{index}"
+        self._task_id = -1
         self._log = get_logger("runner", str(index))
         self._log_handler: Optional[FileHandler] = None
         self._case_variables = case_variables
+        self._timer = create_timer()
         self.canceled = False
 
     def __repr__(self) -> str:
@@ -93,7 +96,7 @@ class BaseRunner(BaseClassMixin, InitializableMixin):
     def is_done(self) -> bool:
         raise NotImplementedError()
 
-    def fetch_task(self) -> Optional[Callable[[], List[TestResult]]]:
+    def fetch_task(self) -> Optional[Task[List[TestResult]]]:
         """
 
         return:
@@ -102,9 +105,14 @@ class BaseRunner(BaseClassMixin, InitializableMixin):
         raise NotImplementedError()
 
     def close(self) -> None:
+        self._log.debug(f"Runner finished in {self._timer.elapsed()}s.")
         if self._log_handler:
             remove_handler(self._log_handler)
             self._log_handler.close()
+
+    def generate_task_id(self) -> int:
+        self._task_id += 1
+        return self._task_id
 
     def _initialize(self, *args: Any, **kwargs: Any) -> None:
         # do not put this logic to __init__, since the mkdir takes time.
