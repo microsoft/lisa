@@ -2168,7 +2168,17 @@ function apt_get_install () {
 	package_name=$1
 	dpkg_configure
 	sudo DEBIAN_FRONTEND=noninteractive apt --fix-broken install -y
-	sudo DEBIAN_FRONTEND=noninteractive apt-get install -y --force-yes $package_name
+	return_code=-1
+	until [ $return_code -eq 0 ]; do
+		LogMsg "return_code $return_code, retry apt_get_install"
+		sleep 2
+		sudo DEBIAN_FRONTEND=noninteractive apt-get install -y --force-yes $package_name
+		return_code=$?
+		if [[ $return_code == 0 ]]; then
+			break
+		fi
+	done
+	[[ $return_code == 0 ]]
 	check_exit_status "apt_get_install $package_name" "exit"
 }
 
@@ -2416,12 +2426,13 @@ function add_sles_network_utilities_repo () {
 }
 
 function dpkg_configure () {
-	retry=100
-	until [ $retry -le 0 ]; do
+	retry=1
+	until [ $retry -ge 100 ]; do
+		LogMsg "Trying the $retry time(s) to run dpkg --configure"
 		sudo dpkg --force-all --configure -a && break
-		retry=$[$retry - 1]
-		sleep 6
-		LogMsg 'Trying again to run dpkg --configure ...'
+		retry=$[$retry + 1]
+		LogMsg "Sleep for 30s"
+		sleep 30
 	done
 }
 
