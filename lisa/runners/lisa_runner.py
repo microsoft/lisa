@@ -3,7 +3,7 @@
 
 import copy
 from functools import partial
-from typing import Any, Callable, Dict, List, Optional, cast
+from typing import Any, Callable, Dict, List, Optional, Union, cast
 
 from lisa import notifier, schema, search_space
 from lisa.action import ActionStatus
@@ -63,14 +63,14 @@ class LisaRunner(BaseRunner):
         )
         return is_all_results_completed and is_all_environment_completed
 
-    def fetch_task(self) -> Optional[Task[List[TestResult]]]:
+    def fetch_task(self) -> Union[None, List[TestResult], Task[List[TestResult]]]:
         test_results = self._prepare_environments(
             platform=self.platform,
             test_results=self.test_results,
         )
         if test_results:
             # return failed prepared results
-            return Task(self.generate_task_id(), lambda: test_results, self._log)
+            return test_results
 
         # sort environments by status
         available_environments = self._sort_environments(self.environments)
@@ -116,21 +116,13 @@ class LisaRunner(BaseRunner):
                     # no environment in used, and not fit. those results cannot be run.
                     skipped_test_results = self._skip_test_results(can_run_results)
                     if skipped_test_results:
-                        return Task(
-                            self.generate_task_id(),
-                            lambda: skipped_test_results,
-                            self._log,
-                        )
+                        return skipped_test_results
         elif available_results:
             # no available environments, so mark all test results skipped.
             skipped_test_results = self._skip_test_results(available_results)
 
             self.status = ActionStatus.SUCCESS
-            return Task(
-                self.generate_task_id(),
-                lambda: skipped_test_results,
-                self._log,
-            )
+            return skipped_test_results
         return None
 
     def close(self) -> None:
