@@ -23,7 +23,7 @@ from lisa.runner import BaseRunner
 from lisa.testselector import select_testcases
 from lisa.testsuite import TestCaseRequirement, TestResult, TestStatus, TestSuite
 from lisa.util import LisaException, constants, deep_update_dict
-from lisa.util.parallel import check_cancelled
+from lisa.util.parallel import Task, check_cancelled
 from lisa.variable import VariableEntry
 
 
@@ -63,14 +63,14 @@ class LisaRunner(BaseRunner):
         )
         return is_all_results_completed and is_all_environment_completed
 
-    def fetch_task(self) -> Optional[Callable[[], List[TestResult]]]:
+    def fetch_task(self) -> Optional[Task[List[TestResult]]]:
         test_results = self._prepare_environments(
             platform=self.platform,
             test_results=self.test_results,
         )
         if test_results:
             # return failed prepared results
-            return lambda: test_results
+            return Task(self.generate_task_id(), lambda: test_results, self._log)
 
         # sort environments by status
         available_environments = self._sort_environments(self.environments)
@@ -116,13 +116,21 @@ class LisaRunner(BaseRunner):
                     # no environment in used, and not fit. those results cannot be run.
                     skipped_test_results = self._skip_test_results(can_run_results)
                     if skipped_test_results:
-                        return lambda: skipped_test_results
+                        return Task(
+                            self.generate_task_id(),
+                            lambda: skipped_test_results,
+                            self._log,
+                        )
         elif available_results:
             # no available environments, so mark all test results skipped.
             skipped_test_results = self._skip_test_results(available_results)
 
             self.status = ActionStatus.SUCCESS
-            return lambda: skipped_test_results
+            return Task(
+                self.generate_task_id(),
+                lambda: skipped_test_results,
+                self._log,
+            )
         return None
 
     def close(self) -> None:
@@ -133,7 +141,7 @@ class LisaRunner(BaseRunner):
 
     def _associate_environment_test_results(
         self, environment: Environment, test_results: List[TestResult]
-    ) -> Optional[Callable[[], List[TestResult]]]:
+    ) -> Optional[Task[List[TestResult]]]:
         check_cancelled()
 
         assert test_results
@@ -190,7 +198,7 @@ class LisaRunner(BaseRunner):
 
         return None
 
-    def _delete_unused_environments(self) -> Optional[Callable[[], List[TestResult]]]:
+    def _delete_unused_environments(self) -> Optional[Task[List[TestResult]]]:
         available_environments = self._sort_environments(self.environments)
         # check deleteable environments
         for environment in available_environments:
@@ -417,7 +425,7 @@ class LisaRunner(BaseRunner):
         environment: Environment,
         test_results: List[TestResult],
         **kwargs: Any,
-    ) -> Callable[[], List[TestResult]]:
+    ) -> Task[List[TestResult]]:
         assert not environment.is_in_use
         environment.is_in_use = True
         for test_result in test_results:
@@ -432,7 +440,7 @@ class LisaRunner(BaseRunner):
             test_results=test_results,
             **kwargs,
         )
-        return task
+        return Task(self.generate_task_id(), task, self._log)
 
     def _run_task(
         self,
