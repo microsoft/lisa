@@ -10,6 +10,7 @@ from lisa.environment import EnvironmentStatus, load_environments
 from lisa.runners.lisa_runner import LisaRunner
 from lisa.testsuite import TestResult, TestStatus, simple_requirement
 from lisa.util import LisaException, constants
+from lisa.util.parallel import Task
 from selftests import test_platform, test_testsuite
 from selftests.test_environment import generate_runbook as generate_env_runbook
 
@@ -632,7 +633,10 @@ class RunnerTestCase(TestCase):
         while not runner.is_done:
             task = runner.fetch_task()
             if task:
-                temp_test_results = task()
+                if isinstance(task, Task):
+                    temp_test_results = task()
+                elif isinstance(task, List):
+                    temp_test_results = task
                 if temp_test_results:
                     test_results.extend(temp_test_results)
 

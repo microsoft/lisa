@@ -5,7 +5,7 @@ import copy
 from logging import FileHandler
 from pathlib import Path
 from threading import Lock
-from typing import Any, Callable, Dict, Iterator, List, Optional
+from typing import Any, Callable, Dict, Iterator, List, Optional, Union
 
 from lisa import notifier, schema, transformer
 from lisa.action import Action
@@ -96,7 +96,7 @@ class BaseRunner(BaseClassMixin, InitializableMixin):
     def is_done(self) -> bool:
         raise NotImplementedError()
 
-    def fetch_task(self) -> Optional[Task[List[TestResult]]]:
+    def fetch_task(self) -> Union[None, List[TestResult], Task[List[TestResult]]]:
         """
 
         return:
@@ -255,87 +255,79 @@ class RootRunner(Action):
         finally:
             self._results_lock.release()
 
+    def _submit_runner_tasks(
+        self,
+        runner: BaseRunner,
+        task_manager: TaskManager[List[TestResult]],
+    ) -> None:
+        while not runner.is_done and task_manager.has_idle_worker():
+            # fetch a task and submit
+            task = runner.fetch_task()
+            if task:
+                if isinstance(task, Task):
+                    task_manager.submit_task(task)
+                elif isinstance(task, List):
+                    self._callback_completed(task)
+                else:
+                    raise LisaException(f"Unknown task type: '{type(task)}'")
+            else:
+                # current runner may not be done, but it doesn't
+                # have task temporarily. The root runner can start
+                # tasks from next runner.
+                self._log.debug(f"No task available for runner: {runner.id}")
+                break
+
     def _start_loop(self) -> None:
         # in case all of runners are disabled
         runner_iterator = self._fetch_runners()
         remaining_runners: List[BaseRunner] = []
-        try:
-            for _ in range(self._max_concurrency):
-                remaining_runners.append(next(runner_iterator))
-        except StopIteration:
-            self._log.debug(f"no more runner found, total {len(remaining_runners)}")
 
-        if self._runners:
-            run_message = notifier.TestRunMessage(
-                status=notifier.TestRunStatus.RUNNING,
-            )
-            notifier.notify(run_message)
+        run_message = notifier.TestRunMessage(
+            status=notifier.TestRunStatus.RUNNING,
+        )
+        notifier.notify(run_message)
 
-            task_manager = TaskManager[List[TestResult]](
-                self._max_concurrency, self._callback_completed
-            )
-            # set the global task manager for cancellation check
-            set_global_task_manager(task_manager)
-            has_more_runner = True
+        task_manager = TaskManager[List[TestResult]](
+            self._max_concurrency, self._callback_completed
+        )
 
-            # run until no more task and all runner are closed
-            while task_manager.wait_worker() or remaining_runners:
-                assert task_manager.has_idle_worker()
-                has_idle_worker = True
+        # set the global task manager for cancellation check
+        set_global_task_manager(task_manager)
+        has_more_runner = True
 
-                # runners shouldn't mark them done, until all task completed. It
-                # can be checked by test results status or other signals.
-                assert remaining_runners, (
-                    f"no remaining runners, but there are running tasks. "
-                    f"{task_manager._futures}"
-                )
+        # run until no idle workers are available and all runner are closed
+        while task_manager.wait_worker() or has_more_runner or remaining_runners:
+            assert task_manager.has_idle_worker()
 
-                for runner in remaining_runners:
-                    while not runner.is_done:
-                        # fetch a task and submit
-                        task = runner.fetch_task()
-                        if task:
-                            # the message may be too long to display.
-                            task_message = str(task)
-                            task_message = (
-                                task_message
-                                if len(task_message) < 200
-                                else f"{task_message[:200]}..."
-                            )
-                            self._log.debug(
-                                f"fetched task from {runner.id}: '{task_message}'"
-                            )
-                            task_manager.submit_task(task)
-                        else:
-                            # current runner may not be done, but it doesn't
-                            # have task temporarily. The root runner can start
-                            # tasks from next runner.
-                            break
-                        if not task_manager.has_idle_worker():
-                            has_idle_worker = False
-                            break
+            # submit tasks until idle workers are available
+            while task_manager.has_idle_worker():
+                for runner in remaining_runners[:]:
+                    self._submit_runner_tasks(runner, task_manager)
                     if runner.is_done:
-                        # remove fully completed runner.
                         runner.close()
                         remaining_runners.remove(runner)
+
+                # remove completed runners
+                self._log.debug(
+                    f"Workers used : {len(task_manager._futures)}, "
+                    f"remaining runners {[x.id for x in remaining_runners]} "
+                )
+
+                if task_manager.has_idle_worker():
+                    if has_more_runner:
+                        # add new runner upto max concurrency if idle workers
+                        # are available
+                        try:
+                            while len(remaining_runners) < self._max_concurrency:
+                                runner = next(runner_iterator)
+                                remaining_runners.append(runner)
+                                self._log.debug(f"Added runner {runner.id}")
+                        except StopIteration:
+                            has_more_runner = False
+                    else:
+                        # reduce CPU utilization from infinite loop when idle
+                        # workers are present but no task to run.
                         self._log.debug(
-                            f"runner '{runner.id}' is done, "
-                            f"remaining runners {[x.id for x in remaining_runners]}"
+                            "Idle worker available but no runner available..."
                         )
                         break
-                    if not has_idle_worker:
-                        # uses the result from previous runner, because the
-                        # worker status may be changed after first runner
-                        # finished. Evne in this case, it should try result from
-                        # previous runner firstly in next run.
-                        break
-
-                while (
-                    len(remaining_runners) < self._max_concurrency and has_more_runner
-                ):
-                    # Fetch runners, if runner count is smaller than concurrency
-                    # count. It makes sure all concurrency can run.
-                    try:
-                        remaining_runners.append(next(runner_iterator))
-                    except StopIteration:
-                        has_more_runner = False
