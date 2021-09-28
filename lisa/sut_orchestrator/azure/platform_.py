@@ -1249,18 +1249,13 @@ class AzurePlatform(Platform):
 
     @retry(exceptions=LisaException, tries=150, delay=2)  # type: ignore
     def _load_public_ips(
-        self, environment: Environment, log: Logger
+        self, resource_group_name: str, log: Logger
     ) -> Dict[str, PublicIPAddress]:
         network_client = get_network_client(self)
-        environment_context = get_environment_context(environment=environment)
-
-        log.debug(
-            f"listing public ips in resource group "
-            f"'{environment_context.resource_group_name}'"
-        )
+        log.debug(f"listing public ips in resource group '{resource_group_name}'")
         # get public IP
         public_ip_addresses = network_client.public_ip_addresses.list(
-            environment_context.resource_group_name
+            resource_group_name
         )
         public_ips_map: Dict[str, PublicIPAddress] = {}
         for ip_address in public_ip_addresses:
@@ -1283,7 +1278,7 @@ class AzurePlatform(Platform):
         if not public_ips_map:
             raise LisaException(
                 f"deployment succeeded, but public ips not found in 5 minutes "
-                f"from '{environment_context.resource_group_name}'"
+                f"from '{resource_group_name}'"
             )
         return public_ips_map
 
@@ -1295,8 +1290,9 @@ class AzurePlatform(Platform):
 
         vms_map: Dict[str, VirtualMachine] = self._load_vms(environment, log)
         nics_map: Dict[str, NetworkInterface] = self._load_nics(environment, log)
+        environment_context = get_environment_context(environment=environment)
         public_ips_map: Dict[str, PublicIPAddress] = self._load_public_ips(
-            environment, log
+            environment_context.resource_group_name, log
         )
 
         for vm_name, node in node_context_map.items():
@@ -1708,6 +1704,16 @@ class AzurePlatform(Platform):
             version=marketplace.version,
         )
         return image_info
+
+    def load_public_ip(self, node: Node, log: Logger) -> str:
+        node_context = get_node_context(node)
+        vm_name = node_context.vm_name
+        resource_group_name = node_context.resource_group_name
+        public_ips_map: Dict[str, PublicIPAddress] = self._load_public_ips(
+            resource_group_name=resource_group_name, log=self._log
+        )
+        assert public_ips_map[vm_name] and public_ips_map[vm_name].ip_address
+        return public_ips_map[vm_name].ip_address  # type: ignore
 
 
 def _convert_to_azure_node_space(node_space: schema.NodeSpace) -> None:
