@@ -5,7 +5,7 @@
 from dataclasses import dataclass
 from os import unlink
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, Dict, List, Optional, Tuple, Type
+from typing import TYPE_CHECKING, Any, Dict, List, Optional, Tuple, Type, cast
 
 import requests
 from assertpy import assert_that
@@ -15,7 +15,7 @@ from PIL import Image, UnidentifiedImageError
 from lisa import features, schema, search_space
 from lisa.features import NvmeSettings
 from lisa.features.gpu import ComputeSDK
-from lisa.node import Node
+from lisa.node import Node, RemoteNode
 from lisa.operating_system import CentOs, Redhat, Suse, Ubuntu
 from lisa.sut_orchestrator.azure.common import AZURE, AzureNodeSchema
 from lisa.util import LisaException
@@ -43,7 +43,13 @@ class StartStop(AzureFeatureMixin, features.StartStop):
         return self._execute(wait, "begin_deallocate")
 
     def _start(self, wait: bool = True) -> Any:
-        return self._execute(wait, "begin_start")
+        result = self._execute(wait, "begin_start")
+        # on the Azure platform, after stop, start vm
+        # the public ip address will change, so reload here
+        self._node = cast(RemoteNode, self._node)
+        platform: AzurePlatform = self._platform  # type: ignore
+        self._node.public_address = platform.load_public_ip(self._node, self._log)
+        return result
 
     def _restart(self, wait: bool = True) -> Any:
         return self._execute(wait, "begin_restart")
