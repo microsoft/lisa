@@ -213,7 +213,7 @@ function Main {
         # If the number is negative, convert it to possitive and if it is a one or two digit number use the filesize value
         $ddFileSize = $ddFileSize * -1
         if ($ddFileSize.length -eq 1 -or $ddFileSize.length -eq 2) {
-            $ddFileSize = $filesize
+            $ddFileSize = [math]::Round($filesize/1MB)
         }
     }
 
