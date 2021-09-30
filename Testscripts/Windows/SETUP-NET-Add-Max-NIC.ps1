@@ -83,19 +83,17 @@ function Main {
     # Hot Add a Synthetic NIC to the SUT VM.  Specify a NIC name of "Hot Add NIC".
     # This will make it easy to later identify the NIC to remove.
     #
-    if ($test_type.Length -eq 2) {
-        foreach ($test in $test_type) {
-            if ($test -eq "legacy") {
+    foreach ($test in $test_type) {
+        if ($test -eq "legacy") {
+            # legacy network adapter only works with gen 1 VM
+            $vmGeneration = Get-VMGeneration -vmName $VMName -hvServer $HvServer
+            if ($vmGeneration -eq 1) {
                 Add-NICs $VMName $HvServer $test $network_type $legacyNICs
             } else {
-                Add-NICs $VMName $HvServer $test $network_type $syntheticNICs
+                Write-LogInfo "Legacy network adapter only works with gen 1 VM. Gen 2 VM does not add legacy network adapter"
             }
-        }
-    } else {
-        if ($test_type -eq "legacy") {
-            Add-NICs $VMName $HvServer $test_type $network_type $legacyNICs
         } else {
-            Add-NICs $VMName $HvServer $test_type $network_type $syntheticNICs
+            Add-NICs $VMName $HvServer $test $network_type $syntheticNICs
         }
     }
 
