@@ -45,7 +45,12 @@ if [ ! -e "$deviceName" ]; then
     exit 0
 fi
 LogMsg "The Linux guest detected the drive"
-install_package "btrfs-progs btrfs-progs-devel xfsprogs xfsprogs-devel"
+GetDistro
+if [[ "$DISTRO" == ubuntu* || "$DISTRO" == debian* ]]; then
+    install_package "btrfs-progs xfsprogs"
+else
+    install_package "btrfs-progs btrfs-progs-devel xfsprogs xfsprogs-devel"
+fi
 # Prepare Read/Write script for execution
 chmod +x STOR_VHDXResize_ReadWrite.sh
 

@@ -19,7 +19,12 @@ if [ ! ${FILESYS} ]; then
     exit 1
 fi
 
-install_package "btrfs-progs btrfs-progs-devel xfsprogs xfsprogs-devel"
+GetDistro
+if [[ "$DISTRO" == ubuntu* || "$DISTRO" == debian* ]]; then
+    install_package "btrfs-progs xfsprogs"
+else
+    install_package "btrfs-progs btrfs-progs-devel xfsprogs xfsprogs-devel"
+fi
 
 command -v mkfs.$FILESYS >> ~/summary.log
 
