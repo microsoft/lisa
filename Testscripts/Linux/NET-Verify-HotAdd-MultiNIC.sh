@@ -49,6 +49,7 @@ function Add_Nic {
 
     LogMsg "Bringing up ${eth_name}"
     ifup ${eth_name}
+    
     sleep 5
     # Verify the new NIC received an IP v4 address
     LogMsg "Verify the new NIC has an IPv4 address"

@@ -2128,7 +2128,9 @@ function update_repos() {
 			;;
 		ubuntu|debian)
 			dpkg_configure
+			LogMsg "in update_repos after dpkg_configure, start apt update"
 			apt-get update
+			LogMsg "end update"
 			;;
 		suse|opensuse|sles|sle_hpc)
 			_ret=$(zypper refresh)
@@ -2476,6 +2478,7 @@ function install_fio () {
 			;;
 
 		ubuntu|debian)
+			LogMsg "in install_fio ubuntu"
 			export DEBIAN_FRONTEND=noninteractive
 			dpkg_configure
 			install_package "pciutils gawk mdadm wget sysstat blktrace bc fio"
