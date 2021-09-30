@@ -741,13 +741,13 @@ Function New-BackupSetup {
 		[String] $HvServer
 	)
 	# Install the Windows Server Backup
-	$winFeatureName = "Windows-Server-Backup"
-	if ((Get-WindowsFeature $winFeatureName).InstallState -ne "Installed") {
-		Write-LogInfo "Installing the $winFeatureName ..."
-		if ( (Add-WindowsFeature $winFeatureName).Success -eq "True" ) {
-			Write-LogInfo "Install the $winFeatureName successfully"
+	$winFeatureName = "WindowsServerBackup"
+	if ((Get-WindowsOptionalFeature -Online -FeatureName $winFeatureName).State -ne "Enabled") {
+		Write-LogInfo "Enabling the $winFeatureName ..."
+		if ( (Enable-WindowsOptionalFeature -Online -FeatureName $winFeatureName -All).Online -eq "True" ) {
+			Write-LogInfo "Enabling the $winFeatureName successfully"
 		} else {
-			Write-LogErr "Install the $winFeatureName failed"
+			Write-LogErr "Enabling the $winFeatureName failed"
 			return $False
 		}
 	}
