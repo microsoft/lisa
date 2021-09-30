@@ -31,15 +31,20 @@ function Configure_HV_Interfaces
         let EXPECTED_INTERFACES_NO=$EXPECTED_INTERFACES_NO+$HV_SYNTHETIC_NICS
     fi
 
-    if [ ! -z "${HV_LEGACY_NICS+x}" ]; then
-        config_path=$(get_bootconfig_path)
-        grep "CONFIG_NET_TULIP=y\|CONFIG_TULIP=m" "$config_path"
-        if [ $? -ne 0 ]; then
-            LogErr "Tulip driver is not configured. Test skipped"
-            SetTestStateSkipped
-            exit 0
+    # Handle test variables
+    GetGuestGeneration
+    if [ "$os_GENERATION" -eq 1 ]; then
+        # Legacy network adapter only works with gen 1 VM.
+        if [ ! -z "${HV_LEGACY_NICS+x}" ]; then
+            config_path=$(get_bootconfig_path)
+            grep "CONFIG_NET_TULIP=y\|CONFIG_TULIP=m" "$config_path"
+            if [ $? -ne 0 ]; then
+                LogErr "Tulip driver is not configured. Test skipped"
+                SetTestStateSkipped
+                exit 0
+            fi
+            let EXPECTED_INTERFACES_NO=$EXPECTED_INTERFACES_NO+$HV_LEGACY_NICS
         fi
-        let EXPECTED_INTERFACES_NO=$EXPECTED_INTERFACES_NO+$HV_LEGACY_NICS
     fi
 
     # Check how many interfaces are visible to the VM
