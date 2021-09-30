@@ -26,26 +26,40 @@ UtilsInit
 CheckSource()
 {
 	LogMsg "Running CheckSource"
-	current_clocksource="/sys/devices/system/clocksource/clocksource0/current_clocksource"
-
-	# Microsoft LIS installed guest RH6.X, RH7.0-RH7.4 has lis_hv_clocksource_tsc_page
-	# Without Microsoft LIS:
-	# 1. RH6.X (<6.9) & RH7.X (<7.2) has clocksource_tsc_page
-	# 2. All other guest distro variant has hyperv_clocksource_tsc_page
-	clocksource="hyperv_clocksource_tsc_page"
-	mj=$(echo "$DISTRO_VERSION" | cut -d '.' -f 1)
-	mn=$(echo "$DISTRO_VERSION" | cut -d '.' -f 2)
-
-	if [[ $DISTRO_NAME == "centos" || $DISTRO_NAME == "rhel" || $DISTRO_NAME == "oracle" || $DISTRO_NAME == "almalinux" || $DISTRO_NAME == "rockylinux" ]];then
-		# Check LIS drivers are installed
-		if rpm -qa | grep kmod-microsoft > /dev/null; then
-			[[ $mj -eq 7 && $mn -lt 5 ]] && clocksource="lis_hv_clocksource_tsc_page"
+	# check cpu with tsc, for Intel CPU shows constant_tsc, for AMD cpu, only tsc
+	if [[ $(lscpu | grep -i "Architecture" | awk '{print $NF}') == "x86_64" ]]
+	then
+		if grep -q tsc /proc/cpuinfo
+		then
+			LogMsg "Test successful. /proc/cpuinfo contains flag tsc"
 		else
-			# Without LIS, RH6.X (<6.9) & RH7.X (<7.2) has hyperv_clocksource
-			[[ ($mj -eq 7 && $mn -lt 2) || ($mj -eq 6 && $mn -lt 9) ]] && clocksource="hyperv_clocksource"
+			LogErr "Test failed. /proc/cpuinfo does not contain flag tsc"
+			SetTestStateFailed
+			exit 0
 		fi
+		# Microsoft LIS installed guest RH6.X, RH7.0-RH7.4 has lis_hv_clocksource_tsc_page
+		# Without Microsoft LIS:
+		# 1. RH6.X (<6.9) & RH7.X (<7.2) has clocksource_tsc_page
+		# 2. All other guest distro variant has hyperv_clocksource_tsc_page
+		clocksource="hyperv_clocksource_tsc_page"
+		mj=$(echo "$DISTRO_VERSION" | cut -d '.' -f 1)
+		mn=$(echo "$DISTRO_VERSION" | cut -d '.' -f 2)
+
+		if [[ $DISTRO_NAME == "centos" || $DISTRO_NAME == "rhel" || $DISTRO_NAME == "oracle" || $DISTRO_NAME == "almalinux" || $DISTRO_NAME == "rockylinux" ]];then
+			# Check LIS drivers are installed
+			if rpm -qa | grep kmod-microsoft > /dev/null; then
+				[[ $mj -eq 7 && $mn -lt 5 ]] && clocksource="lis_hv_clocksource_tsc_page"
+			else
+				# Without LIS, RH6.X (<6.9) & RH7.X (<7.2) has hyperv_clocksource
+				[[ ($mj -eq 7 && $mn -lt 2) || ($mj -eq 6 && $mn -lt 9) ]] && clocksource="hyperv_clocksource"
+			fi
+		fi
+	else
+		LogMsg "The architecture is not x86_64. No need to check flag tsc"
+		clocksource="arch_sys_counter"
 	fi
 
+	current_clocksource="/sys/devices/system/clocksource/clocksource0/current_clocksource"
 	LogMsg "Temporary clocksource: $clocksource"
 
 	if ! [[ $(find $current_clocksource -type f -size +0M) ]]; then
@@ -63,21 +77,6 @@ CheckSource()
 			SetTestStateFailed
 			exit 0
 		fi
-	fi
-
-	# check cpu with tsc, for Intel CPU shows constant_tsc, for AMD cpu, only tsc
-	if [[ $(lscpu | grep -i "Architecture" | awk '{print $NF}') == "x86_64" ]]
-	then
-		if grep -q tsc /proc/cpuinfo
-		then
-			LogMsg "Test successful. /proc/cpuinfo contains flag tsc"
-		else
-			LogErr "Test failed. /proc/cpuinfo does not contain flag tsc"
-			SetTestStateFailed
-			exit 0
-		fi
-	else
-		LogMsg "The architecture is not x86_64. No need to check flag tsc"
 	fi
 
 	# check dmesg with hyperv_clocksource
