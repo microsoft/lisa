@@ -48,6 +48,11 @@ function Add_Nic {
     fi
 
     LogMsg "Bringing up ${eth_name}"
+    ifup_cmd=$(command -v ifup )
+    if ! [ "$ifup_cmd" ]; then
+        LogMsg "ifup is not installed. Install ifupdown package"
+        install_package "ifupdown"
+    fi
     ifup ${eth_name}
     sleep 5
     # Verify the new NIC received an IP v4 address
