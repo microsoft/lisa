@@ -267,6 +267,8 @@ _disk_size_iops_map: Dict[schema.DiskType, List[Tuple[int, int]]] = {
 @dataclass_json()
 @dataclass()
 class AzureDiskOptionSettings(schema.DiskOptionSettings):
+    has_resource_disk : Optional[bool] = None
+    
     def __hash__(self) -> int:
         return super().__hash__()
 
@@ -298,6 +300,10 @@ class AzureDiskOptionSettings(schema.DiskOptionSettings):
                 self.data_disk_size, capability.data_disk_size
             ),
             "data_disk_size",
+        )
+        result.merge(
+            search_space.check_boolean(self.has_resource_disk, capability.has_resource_disk),
+            "has_resource_disk",
         )
 
         return result
@@ -397,6 +403,8 @@ class AzureDiskOptionSettings(schema.DiskOptionSettings):
 
         # all caching types are supported, so just take the value from requirement.
         min_value.data_disk_caching_type = self.data_disk_caching_type
+        
+        min_value.has_resource_disk = search_space.generate_min_capability_boolean(self.has_resource_disk, capability.has_resource_disk)
 
         return min_value
 

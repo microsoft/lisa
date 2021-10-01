@@ -452,6 +452,34 @@ def generate_min_capability_setspace_from_priority(
     return min_cap
 
 
+def check_boolean(requirement: Optional[bool], capability: Optional[bool]) -> ResultReason:
+    result = ResultReason()
+    if requirement is not None:
+        if capability is None:
+            result.add_reason(
+                "if requirements isn't None, capability shouldn't be None"
+            )
+        else:
+            if requirement != capability:
+                result.add_reason(
+                    "requirement is a truth value, capability should be exact "
+                    f"match, requirement: {requirement}, "
+                    f"capability: {capability}"
+                )
+    
+    return result
+
+def generate_min_capability_boolean(
+    requirement: Optional[bool], capability: Optional[bool]
+) -> int:
+    check_result = check_boolean(requirement, capability)
+    if not check_result.result:
+        raise NotMeetRequirementException(
+            "cannot get min value, capability doesn't support requirement"
+        )
+    return capability
+
+
 def count_space_to_int_range(count_space: CountSpace) -> IntRange:
     if count_space is None:
         result = IntRange(min=sys.maxsize * -1, max=sys.maxsize)

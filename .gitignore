@@ -21,3 +21,5 @@ htmlcov
 # auto-generated test table & specifications
 /docs/run_test/test_summary.rst
 /docs/run_test/test_spec.rst
+
+.venv
