@@ -5,6 +5,7 @@ import ipaddress
 import itertools
 import re
 import threading
+import time
 from typing import Dict, List, Tuple
 
 from assertpy import assert_that
@@ -58,7 +59,7 @@ class Dpdk(TestSuite):
         testpmd_include_str = test_nic.testpmd_include(vdev_type)
         testpmd_cmd = testpmd._generate_testpmd_command(testpmd_include_str, "txonly")
         testpmd_output = testpmd.run_for_n_seconds(testpmd_cmd, 10)
-        tx_pps = testpmd.get_tx_pps_from_testpmd_output(testpmd_output)
+        tx_pps = _get_tx_pps_from_testpmd_output(testpmd_output)
         log.info(
             f"TX-PPS:{tx_pps} from {test_nic._upper}/{test_nic._lower}:"
             + f"{test_nic._pci_slot}"
@@ -75,46 +76,47 @@ class Dpdk(TestSuite):
         requirement=simple_requirement(
             min_nic_count=2,
             network_interface=Sriov,
-            min_count=3,
+            min_count=2,
         ),
     )
-    def check_3node_forwarding(self, environment: Environment, log: Logger) -> None:
+    def check_2node_snd_rcv(self, environment: Environment, log: Logger) -> None:
         test_kits = _init_nodes_concurrent(environment, log)
-        for item in test_kits:
-            # use these to quiet flake up
-            log.info(f"found node info: {item.node_nic_info}")
-        sender, forwarder, receiver = test_kits
+        sender, receiver = test_kits
 
-        snd_nic, fwd_nic, rcv_nic = [x.node_nic_info.get_nic("eth1") for x in test_kits]
-
-        forwarder.testpmd._reconfigure_forwarding(rcv_nic._ip_addr)
-
-        """ snd_inc, fwd_inc, rcv_inc = [
-            x.testpmd_include(vdev_type) for x in [snd_nic, fwd_nic, rcv_nic]
+        # helpful to have the public ip for debugging
+        external_ips = [
+            x.node.execute("curl ifconfig.me").stdout for x in [sender, receiver]
         ]
+        log.debug((f"\nsender:{external_ips[0]}\nreceiver:{external_ips[1]}\n"))
 
-        # TODO: forwarder needs macfwd.c code edited to allow forwarding to receiver
+        snd_nic, rcv_nic = [x.node_nic_info.get_nic("eth1") for x in test_kits]
+        snd_inc, rcv_inc = [x.testpmd_include(vdev_type) for x in [snd_nic, rcv_nic]]
+
         snd_cmd = sender.testpmd._generate_testpmd_command(
             snd_inc,
             "txonly",
-            extra_args=f"--tx-ip={snd_nic._ip_addr},{fwd_nic._ip_addr}",
+            extra_args=f"--tx-ip={snd_nic._ip_addr},{rcv_nic._ip_addr}",
         )
-        fwd_cmd = forwarder.testpmd._generate_testpmd_command(fwd_inc, "mac")
-
         rcv_cmd = receiver.testpmd._generate_testpmd_command(rcv_inc, "rxonly")
 
         kit_cmd_pairs = {
             sender: snd_cmd,
-            forwarder: fwd_cmd,
             receiver: rcv_cmd,
         }
-        testpmd_outputs = _run_testpmd_concurrent(kit_cmd_pairs, log)
 
-        log.info(f"receiver: {testpmd_outputs[receiver]}")
-        log.info(f"sender: {testpmd_outputs[sender]}")
-        log.info(f"forwarder: {testpmd_outputs[forwarder]}") """
+        testpmd_outputs = _run_testpmd_concurrent(kit_cmd_pairs, 10, log)
 
-        # TODO: rest of test in future commit.
+        log.info(testpmd_outputs[receiver])
+        log.info(testpmd_outputs[sender])
+
+        rcv_rx_pps = _get_rx_pps_from_testpmd_output(testpmd_outputs[receiver])
+        snd_tx_pps = _get_tx_pps_from_testpmd_output(testpmd_outputs[sender])
+        log.info(f"receiver rx-pps: {rcv_rx_pps}")
+        log.info(f"sender tx-pps: {snd_tx_pps}")
+
+        # differences in NIC model can lead to different snd/rcv counts
+        assert_that(rcv_rx_pps).is_greater_than(2 ** 20)
+        assert_that(snd_tx_pps).is_greater_than(2 ** 20)
 
 
 def _init_hugepages(node: Node) -> None:
@@ -391,24 +393,30 @@ def _threaded_resource_init(
 
 def _threaded_testpmd(
     node_cmd_pair: Tuple[NodeResources, str],
+    seconds: int,
     log: Logger,
     output: Dict[NodeResources, str],
 ) -> None:
     testkit, cmd = node_cmd_pair
-    output[testkit] = testkit.testpmd.run_for_n_seconds(cmd, 10)
+    output[testkit] = testkit.testpmd.run_for_n_seconds(cmd, seconds)
 
 
 def _run_testpmd_concurrent(
-    node_cmd_pairs: Dict[NodeResources, str], log: Logger
+    node_cmd_pairs: Dict[NodeResources, str],
+    seconds: int,
+    log: Logger,
 ) -> Dict[NodeResources, str]:
     output: Dict[NodeResources, str] = dict()
     threads: List[threading.Thread] = []
     for pair in node_cmd_pairs.items():
         threads.append(
-            threading.Thread(target=_threaded_testpmd, args=(pair, log, output))
+            threading.Thread(
+                target=_threaded_testpmd, args=(pair, seconds, log, output)
+            )
         )
     for thread in threads:
         thread.start()
+    threads.reverse()
     for thread in threads:
         thread.join()
     return output
@@ -429,3 +437,29 @@ def _init_nodes_concurrent(
     for thread in threads:
         thread.join()
     return test_kits
+
+
+def _get_tx_pps_from_testpmd_output(output: str) -> int:
+    matches = re.findall(r"Tx-pps:\s+([0-9]+)", output)
+    remove_zeros = [x for x in map(int, matches) if x != 0]
+    assert_that(len(remove_zeros)).described_as(
+        (
+            "Could not locate any performance data spew from "
+            "this testpmd run. ('Tx-pps:' was not found in output)."
+        )
+    ).is_greater_than(0)
+    total = sum(remove_zeros)
+    return total // len(remove_zeros)
+
+
+def _get_rx_pps_from_testpmd_output(output: str) -> int:
+    matches = re.findall(r"Rx-pps:\s+([0-9]+)", output)
+    remove_zeros = [x for x in map(int, matches) if x != 0]
+    assert_that(len(remove_zeros)).described_as(
+        (
+            "Could not locate any performance data spew from "
+            "this testpmd run. ('Rx-pps:' was not found in output)."
+        )
+    ).is_greater_than(0)
+    total = sum(remove_zeros)
+    return total // len(remove_zeros)

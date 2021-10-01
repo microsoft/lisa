@@ -2,10 +2,9 @@
 # Licensed under the MIT license.
 
 import os
-import re
 from pathlib import PurePath
 from typing import List, Type
-
+import time
 from assertpy import assert_that
 
 from lisa.executable import Tool
@@ -117,7 +116,9 @@ class DpdkTestpmd(Tool):
         else:
             return False
 
-    def _reconfigure_forwarding(self, address: str) -> None:
+    def _reconfigure_forwarding(
+        self, src_ip_addr: str, dst_ip_addr: str, dst_mac_addr: str
+    ) -> None:
         result = self.node.execute("which dpdk-testpmd")
         result.assert_exit_code()  # ensure tools are already installed
         file_content = ""
@@ -126,20 +127,30 @@ class DpdkTestpmd(Tool):
         filedir = os.path.dirname(os.path.abspath(__file__))
         with open(os.path.join(filedir, "macfwd_template.c"), "r") as macfwd_file:
             file_content = macfwd_file.read()
-            address_to_array = address.replace(".", ",")
-            file_content.replace("IP_ADDRESS_REPLACEMENT_STR", address_to_array)
+            src_ip_addr_array = src_ip_addr.replace(".", ",")
+            dst_ip_addr_array = dst_ip_addr.replace(".", ",")
+            dst_mac_addr_array = ["0x" + x for x in dst_mac_addr.split(":")]
+            file_content = file_content.replace(
+                "DST_IP_ADDRESS_REPLACEMENT_STR", dst_ip_addr_array
+            )
+            file_content = file_content.replace(
+                "SRC_IP_ADDRESS_REPLACEMENT_STR", src_ip_addr_array
+            )
+            file_content = file_content.replace(
+                "MAC_ADDRESS_REPLACEMENT_STRING", ",".join(dst_mac_addr_array)
+            )
         tmpfile = os.path.join(filedir, "macfwd.c")
-        with open(tmpfile, "x") as file_to_copy:
+        with open(tmpfile, "w") as file_to_copy:
             file_to_copy.write(file_content)
 
         # locate the dir and copy the new macfwd.c file
         dpdk_path = self.node.working_path.joinpath("dpdk")
         dpdk_build_path = dpdk_path.joinpath("build")
-        dst = dpdk_path.joinpath("app").joinpath("test-pmd")
+        dst = dpdk_path.joinpath("app").joinpath("test-pmd").joinpath("macfwd.c")
         self.node.shell.copy(PurePath(tmpfile), dst)
 
         # remove the local tmpfile and rebuild dpdk
-        os.remove(tmpfile)
+        # os.remove(tmpfile)
         self.__execute_assert_zero("ninja", dpdk_build_path, timeout=1200)
         self.__execute_assert_zero("ninja install", dpdk_build_path)
         self.__execute_assert_zero("ldconfig", dpdk_build_path)
@@ -149,8 +160,10 @@ class DpdkTestpmd(Tool):
         cwd = node.working_path
         lspci = node.tools[Lspci]
         device_list = lspci.get_device_list()
-        connect_x3 = any(["ConnectX-3" in dev.device_info for dev in device_list])
-        if connect_x3:
+        self.is_connect_x3 = any(
+            ["ConnectX-3" in dev.device_info for dev in device_list]
+        )
+        if self.is_connect_x3:
             mellanox_drivers = "mlx4_core mlx4_ib"
         else:
             mellanox_drivers = "mlx5_core mlx5_ib"
@@ -180,17 +193,15 @@ class DpdkTestpmd(Tool):
             # TODO: Workaround for type checker below
             node.os.install_packages(list(self._redhat_packages))
 
-            if connect_x3:
-                self.__execute_assert_zero(
-                    "modprobe -a ib_core ib_uverbs mlx4_en mlx4_core mlx5_core mlx4_ib"
-                    + " mlx5_ib",
-                    cwd,
-                )  # add mellanox drivers
-            else:
+            if not self.is_connect_x3:
                 self.__execute_assert_zero(
                     "dracut --add-drivers 'mlx5_ib ib_uverbs' -f", cwd
                 )
-
+            self.__execute_assert_zero(
+                "modprobe -a ib_core ib_uverbs mlx4_en mlx4_core mlx5_core mlx4_ib"
+                + " mlx5_ib",
+                cwd,
+            )  # add mellanox drivers
             self.__execute_assert_zero("systemctl enable rdma", cwd)
             self.__execute_assert_zero("pip3 install --upgrade meson", cwd)
             self.__execute_assert_zero("ln -s /usr/local/bin/meson /usr/bin/meson", cwd)
@@ -213,7 +224,7 @@ class DpdkTestpmd(Tool):
         return True
 
     def _generate_testpmd_command(
-        self, nic_to_include: str, mode: str, extra_args=""
+        self, nic_to_include: str, mode: str, extra_args: str = ""
     ) -> str:
         #   testpmd \
         #   -l <core-list> \
@@ -227,10 +238,11 @@ class DpdkTestpmd(Tool):
         #   --stats-period <display interval in seconds>
         return (
             f"{self._testpmd_install_path} -l 0-1 -n 4 --proc-type=primary "
-            + f"{nic_to_include} {extra_args} -- --forward-mode={mode} -a --stats-period 1"
+            f"{nic_to_include} -- --forward-mode={mode} {extra_args} -a --stats-period 1"
         )
 
     def run_for_n_seconds(self, cmd: str, timeout: int) -> str:
+        self.node.log.info(f"{self.node.name} running: {cmd}")
         timer_proc = self.node.execute_async(
             f"sleep {timeout} && killall -s INT {cmd.split()[0]}",
             sudo=True,
@@ -240,16 +252,7 @@ class DpdkTestpmd(Tool):
             cmd,
             sudo=True,
         )
+        time.sleep(timeout)
         timer_proc.wait_result()
         proc_result = testpmd_proc.wait_result()
         return proc_result.stdout
-
-    def get_tx_pps_from_testpmd_output(self, output: str) -> int:
-        matches = re.findall(r"Tx-pps:\s+([0-9]+)", output)
-        assert_that(len(matches)).described_as(
-            (
-                "Could not locate any performance data spew from "
-                "this testpmd run. ('Tx-pps:' was not found in output)."
-            )
-        ).is_greater_than(0)
-        return int(matches[-1])

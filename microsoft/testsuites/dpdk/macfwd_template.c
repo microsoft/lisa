@@ -58,7 +58,9 @@ pkt_burst_mac_forward(struct fwd_stream *fs)
 	uint64_t ol_flags = 0;
 	uint64_t tx_offloads;
 	uint64_t start_tsc = 0;
-
+	uint8_t peer_addr[] = {
+        MAC_ADDRESS_REPLACEMENT_STRING
+    };
 	get_start_cycles(&start_tsc);
 
 	/*
@@ -87,7 +89,7 @@ pkt_burst_mac_forward(struct fwd_stream *fs)
 						       void *));
 		mb = pkts_burst[i];
 		eth_hdr = rte_pktmbuf_mtod(mb, struct rte_ether_hdr *);
-		rte_ether_addr_copy(&peer_eth_addrs[fs->peer_addr],
+		rte_ether_addr_copy( peer_addr,//&peer_eth_addrs[fs->peer_addr],
 				&eth_hdr->d_addr);
 		rte_ether_addr_copy(&ports[fs->tx_port].eth_addr,
 				&eth_hdr->s_addr);
@@ -95,8 +97,11 @@ pkt_burst_mac_forward(struct fwd_stream *fs)
 		mb->ol_flags |= ol_flags;
 		rte_ipv4_hdr1 = rte_pktmbuf_mtod_offset(mb, struct rte_ipv4_hdr *, sizeof(struct rte_ether_hdr));
         rte_ipv4_hdr1->dst_addr = rte_be_to_cpu_32(RTE_IPV4(
-            IP_ADDRESS_REPLACEMENT_STR
+            DST_IP_ADDRESS_REPLACEMENT_STR
         ));
+		rte_ipv4_hdr1->src_addr = rte_be_to_cpu_32(RTE_IPV4(
+			SRC_IP_ADDRESS_REPLACEMENT_STR
+		));
         mb->l2_len = sizeof(struct rte_ether_hdr);
 		mb->l3_len = sizeof(struct rte_ipv4_hdr);
 		mb->vlan_tci = txp->tx_vlan_id;
