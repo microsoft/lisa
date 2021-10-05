@@ -1396,6 +1396,19 @@ class AzurePlatform(Platform):
             elif name == "EphemeralOSDiskSupported":
                 if eval(sku_capability.value) is True:
                     node_space.disk.disk_type.add(schema.DiskType.Ephemeral)
+
+        # some vm size do not have resource disk present
+        # https://docs.microsoft.com/en-us/azure/virtual-machines/azure-vms-no-temp-disk
+        if resource_sku.family in [
+            "standardDv4Family",
+            "standardDsv4Family",
+            "standardEv4Family",
+            "standardEsv4Family",
+        ]:
+            node_space.disk.has_resource_disk = False
+        else:
+            node_space.disk.has_resource_disk = True
+
         # all nodes support following features
         node_space.features.update(
             [

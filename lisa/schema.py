@@ -427,11 +427,11 @@ class DiskOptionSettings(FeatureSettings):
 
     def __repr__(self) -> str:
         return (
-            f"disk_type:{self.disk_type},"
-            f"count:{self.data_disk_count},"
-            f"caching:{self.data_disk_caching_type},"
-            f"iops:{self.data_disk_iops},"
-            f"size:{self.data_disk_size}"
+            f"disk_type: {self.disk_type},"
+            f"count: {self.data_disk_count},"
+            f"caching: {self.data_disk_caching_type},"
+            f"iops: {self.data_disk_iops},"
+            f"size: {self.data_disk_size}"
         )
 
     def __str__(self) -> str:
