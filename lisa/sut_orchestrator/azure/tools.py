@@ -2,17 +2,22 @@
 # Licensed under the MIT license.
 
 import re
-from typing import Any, List, Type
+from typing import Any, Dict, List, Type
 
-from lisa.base_tools.wget import Wget
+from lisa.base_tools import Cat, Wget
 from lisa.executable import Tool
-from lisa.operating_system import Redhat
+from lisa.operating_system import CoreOs, Redhat
 from lisa.tools import Modinfo
 from lisa.util import LisaException, find_patterns_in_lines
 
 
 class Waagent(Tool):
     __version_pattern = re.compile(r"(?<=\-)([^\s]+)")
+
+    # ResourceDisk.MountPoint=/mnt
+    # ResourceDisk.EnableSwap=n
+    # ResourceDisk.EnableSwap=y
+    _key_value_regex = re.compile(r"^\s*(?P<key>\S+)=(?P<value>\S+)\s*$")
 
     @property
     def command(self) -> str:
@@ -45,6 +50,41 @@ class Waagent(Tool):
         # self.run("-deprovision+user --force", sudo=True)
         result = self.run("-deprovision --force", sudo=True)
         result.assert_exit_code()
+
+    def get_configuration(self) -> Dict[str, str]:
+        if isinstance(self.node.os, CoreOs):
+            waagent_conf_file = "/usr/share/oem/waagent.conf"
+        else:
+            waagent_conf_file = "/etc/waagent.conf"
+
+        config = {}
+        cfg = self.node.tools[Cat].run(waagent_conf_file).stdout
+        for line in cfg.splitlines():
+            matched = self._key_value_regex.fullmatch(line)
+            if matched:
+                config[matched.group("key")] = matched.group("value")
+
+        return config
+
+    def get_root_device_timeout(self) -> int:
+        waagent_configuration = self.get_configuration()
+        return int(waagent_configuration["OS.RootDeviceScsiTimeout"])
+
+    def get_resource_disk_mount_point(self) -> str:
+        waagent_configuration = self.get_configuration()
+        return waagent_configuration["ResourceDisk.MountPoint"]
+
+    def is_swap_enabled(self) -> bool:
+        waagent_configuration = self.get_configuration()
+        is_swap_enabled = waagent_configuration["ResourceDisk.EnableSwap"]
+        if is_swap_enabled == "y":
+            return True
+        elif is_swap_enabled == "n":
+            return False
+        else:
+            raise LisaException(
+                f"Unknown value for ResourceDisk.EnableSwap : {is_swap_enabled}"
+            )
 
 
 class VmGeneration(Tool):
