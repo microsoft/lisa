@@ -75,6 +75,10 @@ class TaskManager(Generic[T_RESULT]):
     def __exit__(self, exc_type: Any, exc_val: Any, exc_tb: Any) -> Optional[bool]:
         return self._pool.__exit__(exc_type, exc_val, exc_tb)
 
+    @property
+    def running_count(self) -> int:
+        return len(self._futures)
+
     def submit_task(self, task: Task[T_RESULT]) -> None:
         future: Future[T_RESULT] = self._pool.submit(task)
         self._future_task_map[future] = task
