@@ -18,7 +18,7 @@ from lisa.features.gpu import ComputeSDK
 from lisa.node import Node, RemoteNode
 from lisa.operating_system import CentOs, Redhat, Suse, Ubuntu
 from lisa.sut_orchestrator.azure.common import AZURE, AzureNodeSchema
-from lisa.util import LisaException
+from lisa.util import LisaException, NotMeetRequirementException
 
 if TYPE_CHECKING:
     from .platform_ import AzurePlatform
@@ -267,8 +267,20 @@ _disk_size_iops_map: Dict[schema.DiskType, List[Tuple[int, int]]] = {
 @dataclass_json()
 @dataclass()
 class AzureDiskOptionSettings(schema.DiskOptionSettings):
+    has_resource_disk: Optional[bool] = None
+
     def __hash__(self) -> int:
         return super().__hash__()
+
+    def __str__(self) -> str:
+        return self.__repr__()
+
+    def __repr__(self) -> str:
+        return f"has_resource_disk: {self.has_resource_disk},{super().__repr__()}"
+
+    def __eq__(self, o: object) -> bool:
+        assert isinstance(o, AzureDiskOptionSettings), f"actual: {type(o)}"
+        return self.has_resource_disk == o.has_resource_disk and super().__eq__(o)
 
     # It uses to override requirement operations.
     def check(self, capability: Any) -> search_space.ResultReason:
@@ -298,6 +310,12 @@ class AzureDiskOptionSettings(schema.DiskOptionSettings):
                 self.data_disk_size, capability.data_disk_size
             ),
             "data_disk_size",
+        )
+        result.merge(
+            self._check_has_resource_disk(
+                self.has_resource_disk, capability.has_resource_disk
+            ),
+            "has_resource_disk",
         )
 
         return result
@@ -398,6 +416,10 @@ class AzureDiskOptionSettings(schema.DiskOptionSettings):
         # all caching types are supported, so just take the value from requirement.
         min_value.data_disk_caching_type = self.data_disk_caching_type
 
+        min_value.has_resource_disk = self._generate_min_capability_has_resource_disk(
+            self.has_resource_disk, capability.has_resource_disk
+        )
+
         return min_value
 
     def _get_disk_size_from_iops(
@@ -406,6 +428,40 @@ class AzureDiskOptionSettings(schema.DiskOptionSettings):
         return next(
             disk_size for iops, disk_size in disk_type_iops if iops == data_disk_iops
         )
+
+    def _check_has_resource_disk(
+        self, requirement: Optional[bool], capability: Optional[bool]
+    ) -> search_space.ResultReason:
+        result = search_space.ResultReason()
+        # if requirement is none, capability can be either of True or False
+        # else requirement should match capability
+        if requirement is not None:
+            if capability is None:
+                result.add_reason(
+                    "if requirements isn't None, capability shouldn't be None"
+                )
+            else:
+                if requirement != capability:
+                    result.add_reason(
+                        "requirement is a truth value, capability should be exact "
+                        f"match, requirement: {requirement}, "
+                        f"capability: {capability}"
+                    )
+
+        return result
+
+    def _generate_min_capability_has_resource_disk(
+        self, requirement: Optional[bool], capability: Optional[bool]
+    ) -> Optional[bool]:
+        check_result = self._check_has_resource_disk(requirement, capability)
+        if not check_result.result:
+            raise NotMeetRequirementException(
+                "cannot get min value, capability doesn't support requirement"
+            )
+        return capability
+
+    def _get_key(self) -> str:
+        return f"{super()._get_key()}/{self.has_resource_disk}"
 
 
 class Disk(AzureFeatureMixin, features.Disk):
