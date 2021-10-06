@@ -13,7 +13,13 @@ from retry import retry
 
 from lisa.parameter_parser.argparser import parse_args
 from lisa.util import constants, get_datetime_path
-from lisa.util.logger import create_file_handler, get_logger, remove_handler, set_level
+from lisa.util.logger import (
+    create_file_handler,
+    get_logger,
+    remove_handler,
+    set_level,
+    uninit_logger,
+)
 from lisa.util.perf_timer import create_timer
 from lisa.variable import add_secrets_from_pairs
 
@@ -85,6 +91,7 @@ def main() -> int:
         log.info(f"completed in {total_timer}")
         if file_handler:
             remove_handler(log_handler=file_handler, logger=log)
+        uninit_logger()
 
     return exit_code
 
