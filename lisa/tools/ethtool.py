@@ -815,6 +815,34 @@ class Ethtool(Tool):
 
         return self.get_device_rx_hash_level(interface, protocol, force_run=True)
 
+    def get_device_sg_settings(
+        self, interface: str, force_run: bool = False
+    ) -> DeviceSgSettings:
+        device = self._get_or_create_device_setting(interface)
+        if not force_run and device.device_sg_settings:
+            return device.device_sg_settings
+
+        result = self.run(f"-k {interface}", force_run=force_run)
+        result.assert_exit_code()
+
+        device.device_sg_settings = DeviceSgSettings(interface, result.stdout)
+        return device.device_sg_settings
+
+    def change_device_sg_settings(
+        self, interface: str, sg_setting: bool
+    ) -> DeviceSgSettings:
+        sg = "on" if sg_setting else "off"
+        change_result = self.run(
+            f"-K {interface} sg {sg}",
+            sudo=True,
+            force_run=True,
+        )
+        change_result.assert_exit_code(
+            message=f" Couldn't change device {interface} scatter-gather settings."
+        )
+
+        return self.get_device_sg_settings(interface, force_run=True)
+
     def get_device_statistics(
         self, interface: str, force_run: bool = False
     ) -> Dict[str, int]:
@@ -823,11 +851,15 @@ class Ethtool(Tool):
             return device.statistics
 
         statistics: Dict[str, int] = {}
-        result = self.run(
-            f"-S {interface}",
-            expected_exit_code=0,
-            expected_exit_code_failure_message="failed on get statistcs from ethtool.",
-        )
+        result = self.run(f"-S {interface}", force_run=True)
+        if (result.exit_code != 0) and (
+            "Operation not supported" in result.stdout
+            or "no stats available" in result.stdout
+        ):
+            raise UnsupportedOperationException(
+                f"ethtool -S {interface} operation not supported."
+            )
+        result.assert_exit_code(message=f"Couldn't get device {interface} statistics.")
 
         items = find_groups_in_lines(result.stdout, self._statistics_pattern)
         statistics = {x["name"]: int(x["value"]) for x in items}
@@ -906,33 +938,15 @@ class Ethtool(Tool):
 
         return devices_rx_hash_level
 
-    def get_device_sg_settings(
-        self, interface: str, force_run: bool = False
-    ) -> DeviceSgSettings:
-        device = self._get_or_create_device_setting(interface)
-        if not force_run and device.device_sg_settings:
-            return device.device_sg_settings
+    def get_all_device_statistics(self) -> List[Dict[str, int]]:
+        devices_statistics = []
+        devices = self.get_device_list()
+        for device in devices:
+            devices_statistics.append(
+                self.get_device_statistics(device, force_run=True)
+            )
 
-        result = self.run(f"-k {interface}", force_run=force_run)
-        result.assert_exit_code()
-
-        device.device_sg_settings = DeviceSgSettings(interface, result.stdout)
-        return device.device_sg_settings
-
-    def change_device_sg_settings(
-        self, interface: str, sg_setting: bool
-    ) -> DeviceSgSettings:
-        sg = "on" if sg_setting else "off"
-        change_result = self.run(
-            f"-K {interface} sg {sg}",
-            sudo=True,
-            force_run=True,
-        )
-        change_result.assert_exit_code(
-            message=f" Couldn't change device {interface} scatter-gather settings."
-        )
-
-        return self.get_device_sg_settings(interface, force_run=True)
+        return devices_statistics
 
     def _get_or_create_device_setting(self, interface: str) -> DeviceSettings:
         settings = self._device_settings_map.get(interface, None)

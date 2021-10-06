@@ -3,24 +3,29 @@
 
 import re
 from pathlib import PurePosixPath
-from typing import Dict, List, Union
+from typing import Any, Dict, List, Union, cast
 
 from assertpy import assert_that
 
 from lisa import (
+    Environment,
     LisaException,
     Logger,
     Node,
+    RemoteNode,
     SkippedException,
     TestCaseMetadata,
     TestSuite,
     TestSuiteMetadata,
     UnsupportedOperationException,
+    node_requirement,
+    schema,
 )
 from lisa.base_tools import Uname
 from lisa.operating_system import Debian, Redhat, Suse
-from lisa.tools import Ethtool, Modinfo, Nm
+from lisa.tools import Cat, Ethtool, Iperf3, Modinfo, Nm
 from lisa.util import find_patterns_in_lines
+from microsoft.testsuites.network.common import cleanup_iperf3, stop_firewall
 
 
 @TestSuiteMetadata(
@@ -31,6 +36,30 @@ from lisa.util import find_patterns_in_lines
     """,
 )
 class NetworkSettings(TestSuite):
+
+    # regex for filtering per vmbus channel stats from the full device statistics.
+    # [{'name': 'tx_scattered', 'value': '0'},
+    #  {'name': 'tx_no_memory', 'value': '0'},
+    #  {'name': 'tx_no_space', 'value': '0'},
+    #  {'name': 'tx_too_big', 'value': '0'},
+    #  {'name': 'vf_rx_packets', 'value': '228'},
+    #  {'name': 'vf_rx_bytes', 'value': '1158450'},
+    #  {'name': 'vf_tx_packets', 'value': '966'},
+    #  {'name': 'tx_queue_0_packets', 'value': '0'},
+    #  {'name': 'tx_queue_0_bytes', 'value': '0'},
+    #  {'name': 'rx_queue_0_packets', 'value': '91'},
+    #  {'name': 'rx_queue_0_bytes', 'value': '28378'},
+    #  {'name': 'rx_queue_0_xdp_drop', 'value': '0'},
+    #  {'name': 'tx_queue_1_packets', 'value': '0'},
+    #  {'name': 'tx_queue_1_bytes', 'value': '0'},
+    #  {'name': 'rx_queue_1_packets', 'value': '1108'},
+    #  {'name': 'rx_queue_1_bytes', 'value': '1415269'},
+    #  {'name': 'rx_queue_1_xdp_drop', 'value': '0'},
+    #  {'name': 'tx_queue_2_packets', 'value': '0'},]
+    _queue_stats_regex = re.compile(r"[tr]x_queue_(?P<name>[\d]+)_packets")
+    _tx_queue_stats_regex = re.compile(r"tx_queue_(?P<name>[\d]+)_packets")
+    _rx_queue_stats_regex = re.compile(r"rx_queue_(?P<name>[\d]+)_packets")
+
     @TestCaseMetadata(
         description="""
             This test case verifies if ring buffer settings can be changed with ethtool.
@@ -493,6 +522,103 @@ class NetworkSettings(TestSuite):
                 f"Setting msg flags by number - {original_msg_level_number} didn't"
                 f" succeed. Current value is {reverted_settings.msg_level_number}",
             ).is_equal_to(int(original_msg_level_number, 16))
+
+    @TestCaseMetadata(
+        description="""
+            This test case verifies that device statistics can be captured.
+
+            Steps:
+            1. Get all the device's statistics.
+            2. Validate device statistics lists per queue statistics as well.
+            3. Run traffic using iperf3 and validate traffic is evenly distributed
+                among different VMBUS channel queues.
+        """,
+        priority=2,
+        requirement=node_requirement(
+            node=schema.NodeSpace(
+                node_count=2,
+            )
+        ),
+    )
+    def validate_device_statistics(self, environment: Environment, log: Logger) -> None:
+        client_iperf3_log = "iperfResults.log"
+        server_node = cast(RemoteNode, environment.nodes[0])
+        client_node = cast(RemoteNode, environment.nodes[1])
+        ethtool = client_node.tools[Ethtool]
+
+        try:
+            devices_statistics = ethtool.get_all_device_statistics()
+        except UnsupportedOperationException as identifier:
+            raise SkippedException(identifier)
+
+        for device_stats in devices_statistics:
+            per_queue_packets = {
+                k: v
+                for (k, v) in device_stats.items()
+                if self._queue_stats_regex.search(k)
+            }
+
+            assert_that(
+                per_queue_packets,
+                "Statistics per VMBUS channel are empty. It might be because the driver"
+                " is not supported or because of very old kernel.",
+            ).is_not_empty()
+
+        # preparation work before launch iperf3
+        stop_firewall(environment)
+
+        # run iperf3 on server side and client side
+        # iperfResults.log stored client side log
+        source_iperf3 = server_node.tools[Iperf3]
+        dest_iperf3 = client_node.tools[Iperf3]
+        source_iperf3.run_as_server()
+        dest_iperf3.run_as_client(
+            server_node.internal_address, client_iperf3_log, parallel_number=64
+        )
+
+        # wait for a while then check any error shown up in iperfResults.log
+        dest_cat = client_node.tools[Cat]
+        iperf_log = dest_cat.read(client_iperf3_log, sudo=True, force_run=True)
+        assert_that(iperf_log).does_not_contain("error")
+
+        # validate from the stats that traffic is evenly spread
+        try:
+            devices_statistics = ethtool.get_all_device_statistics()
+        except UnsupportedOperationException as identifier:
+            raise SkippedException(identifier)
+
+        for device_stats in devices_statistics:
+            per_tx_queue_packets = [
+                v
+                for (k, v) in device_stats.items()
+                if self._tx_queue_stats_regex.search(k)
+            ]
+
+            # No queue should receive/transmit 30% more packets than other queues
+            # If it does, failure should be reported
+            min_tx_queue_packets = min(per_tx_queue_packets)
+            max_tx_queue_packets = max(per_tx_queue_packets)
+            assert_that(
+                ((max_tx_queue_packets - min_tx_queue_packets) / min_tx_queue_packets),
+                "Statistics show traffic is not evenly distributed among tx queues",
+            ).is_less_than_or_equal_to(0.3)
+
+            per_rx_queue_packets = [
+                v
+                for (k, v) in device_stats.items()
+                if self._rx_queue_stats_regex.search(k)
+            ]
+
+            min_rx_queue_packets = min(per_rx_queue_packets)
+            max_rx_queue_packets = max(per_rx_queue_packets)
+            assert_that(
+                ((max_rx_queue_packets - min_rx_queue_packets) / min_rx_queue_packets),
+                "Statistics show traffic is not evenly distributed among rx queues",
+            ).is_less_than_or_equal_to(0.3)
+
+    def after_case(self, log: Logger, **kwargs: Any) -> None:
+        environment: Environment = kwargs.pop("environment")
+        cleanup_iperf3(environment)
 
     def _check_msg_level_change_supported(self, node: Node) -> None:
         msg_level_symbols: Union[str, List[str]]
