@@ -25,6 +25,7 @@ class AzurePrepareTestCase(TestCase):
         platform_runbook = schema.Platform()
         self._platform = platform_.AzurePlatform(platform_runbook)
         self._platform._azure_runbook = platform_.AzurePlatformSchema()
+        self._platform.subscription_id = "mockup subscription id"
 
         # trigger data to be cached
         locations = ["westus2", "eastus2", "notreal"]
@@ -80,12 +81,13 @@ class AzurePrepareTestCase(TestCase):
         # if a location is not eligible, it should be dropped.
         self.verify_exists_vm_size("westus2", "Standard_D8a_v3", True)
         assert self._platform._locations_data_cache
-        self.assertTrue("notreal" in self._platform._locations_data_cache)
+        notreal_key = self._platform._get_location_key("notreal")
+        self.assertTrue(notreal_key in self._platform._locations_data_cache)
 
         assert self._platform._eligible_capabilities
         self.verify_eligible_vm_size("westus2", "notreal", False)
-        self.assertTrue("notreal" in self._platform._eligible_capabilities)
-        self.assertFalse(self._platform._eligible_capabilities["notreal"])
+        self.assertTrue(notreal_key in self._platform._eligible_capabilities)
+        self.assertFalse(self._platform._eligible_capabilities[notreal_key])
 
     def test_predefined_2nd_location(self) -> None:
         # location predefined in eastus2, so all prepared skip westus2
@@ -306,19 +308,20 @@ class AzurePrepareTestCase(TestCase):
     ) -> Optional[platform_.AzureCapability]:
         result = None
         assert self._platform._eligible_capabilities
+        key = self._platform._get_location_key(location)
         self.assertEqual(
             expect_exists,
             any(
                 [
                     x.vm_size == vm_size
-                    for x in self._platform._eligible_capabilities[location]
+                    for x in self._platform._eligible_capabilities[key]
                 ]
             ),
         )
         if expect_exists:
             result = next(
                 x
-                for x in self._platform._eligible_capabilities[location]
+                for x in self._platform._eligible_capabilities[key]
                 if x.vm_size == vm_size
             )
         return result
