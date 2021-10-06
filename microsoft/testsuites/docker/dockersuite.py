@@ -16,10 +16,51 @@ from lisa.util import SkippedException
     area="docker",
     category="functional",
     description="""
-    This test suite runs the docker test cases for java, python, dotnet, and wordpress.
+    This test suite runs the docker test cases for java, python, dotnet 3.1
+    , dotnet5.0, and wordpress.
     """,
 )
 class docker(TestSuite):  # noqa
+    @TestCaseMetadata(
+        description="""
+            This test case creates and runs a dotnet app using docker
+
+            Steps:
+            1. Install Dotnet 3.1 sdk
+            2. Install Docker
+            3. Copy dotnet dockerfile into node
+            4. Create docker image and run docker container
+            5. Check results of docker run against dotnet string identifier
+        """,
+        priority=2,
+    )
+    def docker_dotnet31_app(self, node: Node) -> None:
+        dockerfile = "dotnet31.Dockerfile"
+
+        self._execute_docker_test(
+            node, "dotnetimage", "dotnetapp", "Hello World!", "", dockerfile
+        )
+
+    @TestCaseMetadata(
+        description="""
+            This test case creates and runs a dotnet app using docker
+
+            Steps:
+            1. Install Dotnet 5.0 sdk
+            2. Install Docker
+            3. Copy dotnet dockerfile into node
+            4. Create docker image and run docker container
+            5. Check results of docker run against dotnet string identifier
+        """,
+        priority=2,
+    )
+    def docker_dotnet50_app(self, node: Node) -> None:
+        dockerfile = "dotnet50.Dockerfile"
+
+        self._execute_docker_test(
+            node, "dotnetimage", "dotnetapp", "Hello World!", "", dockerfile
+        )
+
     @TestCaseMetadata(
         description="""
             This test case creates and runs a java app using docker
@@ -81,7 +122,8 @@ class docker(TestSuite):  # noqa
         docker_tool = self._verify_and_remove_containers(
             node, docker_image_name, docker_container_name
         )
-        self._copy_to_node(node, prog_src)
+        if prog_src:
+            self._copy_to_node(node, prog_src)
         self._copy_to_node(node, dockerfile)
         self._run_and_verify_results(
             node,
