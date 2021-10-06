@@ -16,6 +16,7 @@ from .hwclock import Hwclock
 from .kdump import KdumpBase
 from .lsblk import Lsblk
 from .lscpu import Lscpu
+from .lsinitrd import Lsinitrd
 from .lsmod import Lsmod
 from .lspci import Lspci
 from .lsvmbus import Lsvmbus
@@ -55,6 +56,7 @@ __all__ = [
     "KdumpBase",
     "Lsblk",
     "Lscpu",
+    "Lsinitrd",
     "Lsmod",
     "Lspci",
     "Lsvmbus",
