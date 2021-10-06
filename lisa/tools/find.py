@@ -23,6 +23,7 @@ class Find(Tool):
         name_pattern: str = "",
         path_pattern: str = "",
         ignore_case: bool = False,
+        sudo: bool = False,
     ) -> List[str]:
         if not self.node.shell.exists(start_path):
             raise LisaException(f"Path {start_path} does not exist.")
@@ -42,7 +43,7 @@ class Find(Tool):
         # for possibility of newline character in the file/folder name.
         cmd += " -print0"
 
-        result = self.run(cmd)
+        result = self.run(cmd, sudo=sudo)
         if result.exit_code != 0:
             raise LisaException(
                 f"{cmd} command got non-zero exit code: {result.exit_code}"
