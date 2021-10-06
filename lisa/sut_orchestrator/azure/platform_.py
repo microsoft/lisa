@@ -10,7 +10,6 @@ from copy import deepcopy
 from dataclasses import dataclass, field
 from datetime import datetime
 from difflib import SequenceMatcher
-from functools import lru_cache
 from pathlib import Path
 from threading import Lock
 from types import SimpleNamespace
@@ -75,6 +74,7 @@ from .common import (
     get_or_create_storage_container,
     get_resource_management_client,
     get_storage_account_name,
+    global_credential_access_lock,
     wait_copy_blob,
     wait_operation,
 )
@@ -277,11 +277,17 @@ class AzurePlatform(Platform):
         r"(https:\/\/)(?P<storage_name>.*)([.].*){4}\/" r"(?P<container_name>.*)\/",
         re.M,
     )
+    _arm_template: Any = None
+
+    _credentials: Dict[str, DefaultAzureCredential] = {}
+    _locations_data_cache: Dict[str, AzureLocation] = {}
+    _eligible_capabilities: Dict[str, List[AzureCapability]] = {}
 
     def __init__(self, runbook: schema.Platform) -> None:
         super().__init__(runbook=runbook)
-        self._eligible_capabilities: Dict[str, List[AzureCapability]] = {}
-        self._locations_data_cache: Dict[str, AzureLocation] = {}
+
+        # for type detection
+        self.credential: DefaultAzureCredential
 
     @classmethod
     def type_name(cls) -> str:
@@ -751,36 +757,8 @@ class AzurePlatform(Platform):
         assert azure_runbook, "platform runbook cannot be empty"
         self._azure_runbook = azure_runbook
 
-        # set azure log to warn level only
-        logging.getLogger("azure").setLevel(azure_runbook.log_level)
-
-        if azure_runbook.service_principal_tenant_id:
-            os.environ["AZURE_TENANT_ID"] = azure_runbook.service_principal_tenant_id
-        if azure_runbook.service_principal_client_id:
-            os.environ["AZURE_CLIENT_ID"] = azure_runbook.service_principal_client_id
-        if azure_runbook.service_principal_key:
-            os.environ["AZURE_CLIENT_SECRET"] = azure_runbook.service_principal_key
-
-        self.credential = DefaultAzureCredential()
-        self._sub_client = SubscriptionClient(self.credential)
-
         self.subscription_id = azure_runbook.subscription_id
-
-        # suppress warning message by search for different credential types
-        azure_identity_logger = logging.getLogger("azure.identity")
-        azure_identity_logger.setLevel(logging.ERROR)
-        subscription = self._sub_client.subscriptions.get(self.subscription_id)
-        azure_identity_logger.setLevel(logging.WARN)
-
-        if not subscription:
-            raise LisaException(
-                f"Cannot find subscription id: '{self.subscription_id}'. "
-                f"Make sure it exists and current account can access it."
-            )
-        self._log.info(
-            f"connected to subscription: "
-            f"{subscription.id}, '{subscription.display_name}'"
-        )
+        self._initialize_credential()
 
         check_or_create_resource_group(
             self.credential,
@@ -794,12 +772,60 @@ class AzurePlatform(Platform):
             self.credential, self.subscription_id
         )
 
-    @lru_cache
+    def _initialize_credential(self) -> None:
+        azure_runbook = self._azure_runbook
+
+        credential_key = (
+            f"{azure_runbook.service_principal_tenant_id}_"
+            f"{azure_runbook.service_principal_client_id}"
+        )
+        credential = self._credentials.get(credential_key, None)
+        if not credential:
+            # set azure log to warn level only
+            logging.getLogger("azure").setLevel(azure_runbook.log_level)
+
+            if azure_runbook.service_principal_tenant_id:
+                os.environ[
+                    "AZURE_TENANT_ID"
+                ] = azure_runbook.service_principal_tenant_id
+            if azure_runbook.service_principal_client_id:
+                os.environ[
+                    "AZURE_CLIENT_ID"
+                ] = azure_runbook.service_principal_client_id
+            if azure_runbook.service_principal_key:
+                os.environ["AZURE_CLIENT_SECRET"] = azure_runbook.service_principal_key
+            credential = DefaultAzureCredential()
+
+            with SubscriptionClient(credential) as self._sub_client:
+                # suppress warning message by search for different credential types
+                azure_identity_logger = logging.getLogger("azure.identity")
+                azure_identity_logger.setLevel(logging.ERROR)
+                with global_credential_access_lock:
+                    subscription = self._sub_client.subscriptions.get(
+                        self.subscription_id
+                    )
+                azure_identity_logger.setLevel(logging.WARN)
+
+            if not subscription:
+                raise LisaException(
+                    f"Cannot find subscription id: '{self.subscription_id}'. "
+                    f"Make sure it exists and current account can access it."
+                )
+            self._log.info(
+                f"connected to subscription: "
+                f"{subscription.id}, '{subscription.display_name}'"
+            )
+
+            self._credentials[credential_key] = credential
+
+        self.credential = credential
+
     def _load_template(self) -> Any:
-        template_file_path = Path(__file__).parent / "arm_template.json"
-        with open(template_file_path, "r") as f:
-            template = json.load(f)
-        return template
+        if self._arm_template is None:
+            template_file_path = Path(__file__).parent / "arm_template.json"
+            with open(template_file_path, "r") as f:
+                self._arm_template = json.load(f)
+        return self._arm_template
 
     @retry(tries=10, delay=1, jitter=(0.5, 1))  # type: ignore
     def _load_location_info_from_file(
@@ -826,7 +852,8 @@ class AzurePlatform(Platform):
             f"azure_locations_{location}.json"
         )
         should_refresh: bool = True
-        location_data = self._locations_data_cache.get(location, None)
+        key = self._get_location_key(location)
+        location_data = self._locations_data_cache.get(key, None)
         if not location_data:
             location_data = self._load_location_info_from_file(
                 cached_file_name=cached_file_name, log=log
@@ -838,20 +865,20 @@ class AzurePlatform(Platform):
             if delta.days < 1:
                 should_refresh = False
                 log.debug(
-                    f"{location}: cache used: {location_data.updated_time}, "
+                    f"{key}: cache used: {location_data.updated_time}, "
                     f"sku count: {len(location_data.capabilities)}"
                 )
             else:
                 log.debug(
-                    f"{location}: cache timeout: {location_data.updated_time},"
+                    f"{key}: cache timeout: {location_data.updated_time},"
                     f"sku count: {len(location_data.capabilities)}"
                 )
         else:
-            log.debug(f"{location}: no cache found")
+            log.debug(f"{key}: no cache found")
         if should_refresh:
             compute_client = get_compute_client(self)
 
-            log.debug(f"{location}: querying")
+            log.debug(f"{key}: querying")
             all_skus: List[AzureCapability] = []
             paged_skus = compute_client.resource_skus.list(
                 f"location eq '{location}'"
@@ -889,17 +916,13 @@ class AzurePlatform(Platform):
                         log.error(f"unknown sku: {sku_obj}")
                         raise identifier
             location_data = AzureLocation(location=location, capabilities=all_skus)
-            self._locations_data_cache[location_data.location] = location_data
             log.debug(f"{location}: saving to disk")
             with open(cached_file_name, "w") as f:
                 json.dump(location_data.to_dict(), f)  # type: ignore
-            log.debug(
-                f"{location_data.location}: new data, "
-                f"sku: {len(location_data.capabilities)}"
-            )
+            log.debug(f"{key}: new data, " f"sku: {len(location_data.capabilities)}")
 
         assert location_data
-        self._locations_data_cache[location] = location_data
+        self._locations_data_cache[key] = location_data
         return location_data
 
     def _create_deployment_parameters(
@@ -1432,7 +1455,8 @@ class AzurePlatform(Platform):
 
         location_capabilities: List[AzureCapability] = []
 
-        if location not in self._eligible_capabilities:
+        key = self._get_location_key(location)
+        if key not in self._eligible_capabilities:
             location_info: AzureLocation = self._get_location_info(location, log)
             # loop all fall back levels
             for fallback_pattern in VM_SIZE_FALLBACK_PATTERNS:
@@ -1446,13 +1470,13 @@ class AzurePlatform(Platform):
                 # sort by rough cost
                 level_capabilities.sort(key=lambda x: (x.estimated_cost))
                 log.debug(
-                    f"{location}, pattern '{fallback_pattern.pattern}'"
+                    f"{key}, pattern '{fallback_pattern.pattern}'"
                     f" {len(level_capabilities)} candidates: "
                     f"{[x.vm_size for x in level_capabilities]}"
                 )
                 location_capabilities.extend(level_capabilities)
-            self._eligible_capabilities[location] = location_capabilities
-        return self._eligible_capabilities[location]
+            self._eligible_capabilities[key] = location_capabilities
+        return self._eligible_capabilities[key]
 
     def _parse_marketplace_image(
         self, location: str, marketplace: AzureVmMarketplaceSchema
@@ -1719,6 +1743,9 @@ class AzurePlatform(Platform):
             version=marketplace.version,
         )
         return image_info
+
+    def _get_location_key(self, location: str) -> str:
+        return f"{self.subscription_id}_{location}"
 
     def load_public_ip(self, node: Node, log: Logger) -> str:
         node_context = get_node_context(node)
