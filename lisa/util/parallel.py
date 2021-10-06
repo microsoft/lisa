@@ -92,6 +92,7 @@ class TaskManager(Generic[T_RESULT]):
             raise LisaException("Tasks are cancelled")
 
     def has_idle_worker(self) -> bool:
+        self._process_done_futures()
         return len(self._futures) < self._max_workers
 
     def wait_worker(self) -> bool:
@@ -100,17 +101,21 @@ class TaskManager(Generic[T_RESULT]):
             True, if there is running worker.
         """
 
-        done_futures, _ = wait(self._futures[:], return_when=FIRST_COMPLETED)
-        for future in done_futures:
-            # join exceptions of subthreads to main thread
-            result = future.result()
-            # removed finished threads
-            self._futures.remove(future)
-            # exception will throw at this point
-            self._callback(result)
-            self._future_task_map[future].close()
-            self._future_task_map.pop(future)
+        wait(self._futures[:], return_when=FIRST_COMPLETED)
+        self._process_done_futures()
         return len(self._futures) > 0
+
+    def _process_done_futures(self) -> None:
+        for future in self._futures[:]:
+            if future.done():
+                # join exceptions of subthreads to main thread
+                result = future.result()
+                # removed finished threads
+                self._futures.remove(future)
+                # exception will throw at this point
+                self._callback(result)
+                self._future_task_map[future].close()
+                self._future_task_map.pop(future)
 
 
 _default_task_manager: Optional[TaskManager[Any]] = None
