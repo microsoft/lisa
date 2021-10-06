@@ -1,18 +1,19 @@
 # Copyright (c) Microsoft Corporation.
 # Licensed under the MIT license.
 
+
 import sys
 import traceback
 from datetime import datetime
-from logging import DEBUG, INFO
+from logging import DEBUG, INFO, FileHandler
 from pathlib import Path, PurePath
-from typing import Tuple
+from typing import Optional, Tuple
 
 from retry import retry
 
 from lisa.parameter_parser.argparser import parse_args
 from lisa.util import constants, get_datetime_path
-from lisa.util.logger import create_file_handler, get_logger, set_level
+from lisa.util.logger import create_file_handler, get_logger, remove_handler, set_level
 from lisa.util.perf_timer import create_timer
 from lisa.variable import add_secrets_from_pairs
 
@@ -54,6 +55,7 @@ def main() -> int:
     total_timer = create_timer()
     log = get_logger()
     exit_code: int = 0
+    file_handler: Optional[FileHandler] = None
 
     try:
         initialize_runtime_folder()
@@ -63,7 +65,7 @@ def main() -> int:
         log_level = DEBUG if (args.debug) else INFO
         set_level(log_level)
 
-        create_file_handler(
+        file_handler = create_file_handler(
             Path(f"{constants.RUN_LOCAL_PATH}/lisa-{constants.RUN_ID}.log")
         )
 
@@ -81,6 +83,8 @@ def main() -> int:
         assert isinstance(exit_code, int), f"actual: {type(exit_code)}"
     finally:
         log.info(f"completed in {total_timer}")
+        if file_handler:
+            remove_handler(log_handler=file_handler, logger=log)
 
     return exit_code
 
