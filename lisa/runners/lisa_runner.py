@@ -464,7 +464,7 @@ class LisaRunner(BaseRunner):
         result.handle_exception(exception=exception, log=self._log, phase="deployment")
         self._log.info(
             f"'{environment.name}' attached to test case "
-            f"'{result.runtime_data.metadata.full_name}': "
+            f"'{result.runtime_data.metadata.full_name}({result.id_})': "
             f"{exception}"
         )
 
