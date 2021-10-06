@@ -105,7 +105,7 @@ class BaseRunner(BaseClassMixin, InitializableMixin):
         raise NotImplementedError()
 
     def close(self) -> None:
-        self._log.debug(f"Runner finished in {self._timer.elapsed()}s.")
+        self._log.debug(f"Runner finished in {self._timer.elapsed_text()}.")
         if self._log_handler:
             remove_handler(self._log_handler)
             self._log_handler.close()
@@ -142,6 +142,8 @@ class RootRunner(Action):
         self._runbook_builder = runbook_builder
 
         self._log = get_logger("RootRunner")
+        # this is to hold active runners, and will close them, if there is any
+        # global error.
         self._runners: List[BaseRunner] = []
         self._results: List[TestResult] = []
         self._results_lock: Lock = Lock()
@@ -276,7 +278,6 @@ class RootRunner(Action):
                 # current runner may not be done, but it doesn't
                 # have task temporarily. The root runner can start
                 # tasks from next runner.
-                self._log.debug(f"No task available for runner: {runner.id}")
                 break
 
     def _start_loop(self) -> None:
@@ -312,8 +313,8 @@ class RootRunner(Action):
 
                 # remove completed runners
                 self._log.debug(
-                    f"Workers used : {len(task_manager._futures)}, "
-                    f"remaining runners {[x.id for x in remaining_runners]} "
+                    f"running count: {task_manager.running_count}, "
+                    f"id: {[x.id for x in remaining_runners]} "
                 )
 
                 if task_manager.has_idle_worker():
@@ -330,7 +331,5 @@ class RootRunner(Action):
                     else:
                         # reduce CPU utilization from infinite loop when idle
                         # workers are present but no task to run.
-                        self._log.debug(
-                            "Idle worker available but no runner available..."
-                        )
+                        self._log.debug("Idle worker available but no new runner...")
                         break
