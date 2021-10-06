@@ -333,7 +333,6 @@ class DeviceRxHashLevel:
             if self._tcp_udp_rx_hash_level_enable_pattern.search(raw_str)
             else False
         )
-        print(f"protocol {protocol}, protocol_hash_map {self.protocol_hash_map}")
 
 
 class DeviceSettings:
