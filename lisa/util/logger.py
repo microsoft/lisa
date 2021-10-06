@@ -119,6 +119,8 @@ _format = logging.Formatter(
 )
 
 _console_handler = logging.StreamHandler()
+_original_stdout = sys.stdout
+_original_stderr = sys.stderr
 
 
 def init_logger() -> None:
@@ -134,6 +136,13 @@ def init_logger() -> None:
     stderr_logger = get_logger("stderr")
     sys.stdout = cast(TextIO, LogWriter(stdout_logger, logging.INFO))
     sys.stderr = cast(TextIO, LogWriter(stderr_logger, logging.ERROR))
+
+
+def uninit_logger() -> None:
+    # release stdout and stderr. prevent some thread errors may overrides the
+    # whole log file.
+    sys.stdout = _original_stdout
+    sys.stderr = _original_stderr
 
 
 def enable_console_timestamp() -> None:
