@@ -59,6 +59,7 @@ class Process:
         self._log = get_logger("cmd", id_, parent=parent_logger)
         self._process: Optional[spur.local.LocalProcess] = None
         self._result: Optional[ExecutableResult] = None
+        self._sudo: bool = False
 
     def start(
         self,
@@ -84,6 +85,8 @@ class Process:
         self.stderr_logger = get_logger("stderr", parent=self._log)
         self._stdout_writer = LogWriter(logger=self.stdout_logger, level=stdout_level)
         self._stderr_writer = LogWriter(logger=self.stderr_logger, level=stderr_level)
+
+        self._sudo = sudo
 
         # command may be Path object, convert it to str
         command = str(command)
@@ -200,6 +203,9 @@ class Process:
                 message=expected_exit_code_failure_message,
             )
 
+        if self._is_posix and self._sudo:
+            self._result.stdout = self._filter_sudo_result(self._result.stdout)
+
         return self._result
 
     def kill(self) -> None:
@@ -217,3 +223,12 @@ class Process:
         if self._running and self._process:
             self._running = self._process.is_running()
         return self._running
+
+    def _filter_sudo_result(self, raw_input: str) -> str:
+        # this warning message may break commands, so remove it from the first line
+        # of standard output.
+        if raw_input.startswith("sudo: unable to resolve host"):
+            lines = raw_input.splitlines(keepends=True)
+            raw_input = "".join(lines[1:])
+            self._log.debug(f'found error message in sudo: "{lines[0]}"')
+        return raw_input
