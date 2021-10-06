@@ -15,6 +15,7 @@ from .git import Git
 from .hwclock import Hwclock
 from .kdump import KdumpBase
 from .lscpu import Lscpu
+from .lsinitrd import Lsinitrd
 from .lsmod import Lsmod
 from .lspci import Lspci
 from .lsvmbus import Lsvmbus
@@ -50,6 +51,7 @@ __all__ = [
     "Hwclock",
     "KdumpBase",
     "Lscpu",
+    "Lsinitrd",
     "Lsmod",
     "Lspci",
     "Lsvmbus",
