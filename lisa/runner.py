@@ -145,6 +145,7 @@ class RootRunner(Action):
         self._runners: List[BaseRunner] = []
         self._results: List[TestResult] = []
         self._results_lock: Lock = Lock()
+        self._runner_count: int = 0
 
     async def start(self) -> None:
         await super().start()
@@ -241,11 +242,12 @@ class RootRunner(Action):
             runner = factory.create_by_type_name(
                 type_name=runner_name,
                 runbook=runbook,
-                index=len(self._runners),
+                index=self._runner_count,
                 case_variables=case_variables,
             )
             runner.initialize()
             self._runners.append(runner)
+            self._runner_count += 1
             yield runner
 
     def _callback_completed(self, results: List[TestResult]) -> None:
@@ -306,6 +308,7 @@ class RootRunner(Action):
                     if runner.is_done:
                         runner.close()
                         remaining_runners.remove(runner)
+                        self._runners.remove(runner)
 
                 # remove completed runners
                 self._log.debug(
