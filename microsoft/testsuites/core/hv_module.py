@@ -1,13 +1,22 @@
 # Copyright (c) Microsoft Corporation.
 # Licensed under the MIT license.
 
+from typing import List
+
 from assertpy import assert_that
 from semver import VersionInfo
 
-from lisa import Logger, RemoteNode, TestCaseMetadata, TestSuite, TestSuiteMetadata
+from lisa import (
+    Logger,
+    RemoteNode,
+    TestCaseMetadata,
+    TestSuite,
+    TestSuiteMetadata,
+    simple_requirement,
+)
 from lisa.operating_system import Redhat
 from lisa.sut_orchestrator.azure.tools import LisDriver
-from lisa.tools import Lsmod, Modinfo, Modprobe, Uname
+from lisa.tools import Find, Lsinitrd, Lsmod, Modinfo, Modprobe, Uname
 from lisa.util import SkippedException
 
 
@@ -22,6 +31,7 @@ from lisa.util import SkippedException
     It is responsible for ensuring the Hyper V drivers are all present,
     are included in initrd, and are all the same version.
     """,
+    requirement=simple_requirement(supported_platform_type=["azure", "ready"]),
 )
 class HvModule(TestSuite):
     @TestCaseMetadata(
@@ -57,6 +67,98 @@ class HvModule(TestSuite):
             assert_that(module_version).described_as(
                 f"Version of {module} does not match LIS version"
             ).is_equal_to(lis_version)
+
+    @TestCaseMetadata(
+        description="""
+        This test case will ensure all necessary hv_modules are present in
+        initrd. This is achieved by
+        1. Skipping any modules that are loaded directly in the kernel
+        2. Find the path of initrd file
+        3. Use lsinitrd tool to check whether a necessary module is missing
+        """,
+        priority=2,
+    )
+    def verify_initrd_modules(
+        self, case_name: str, log: Logger, node: RemoteNode
+    ) -> None:
+
+        # 1) Takes all of the necessary modules and removes
+        #    those that are statically loaded into the kernel
+        all_necessary_hv_modules_file_names = {
+            "hv_storvsc": "hv_storvsc.ko",
+            "hv_netvsc": "hv_netvsc.ko",
+            "hv_vmbus": "hv_vmbus.ko",
+            "hid_hyperv": "hid-hyperv.ko",
+            "hyperv_keyboard": "hyperv-keyboard.ko",
+        }
+        skip_modules = self._get_directly_loaded_modules(node)
+        hv_modules_file_names = {
+            k: v
+            for (k, v) in all_necessary_hv_modules_file_names.items()
+            if k not in skip_modules
+        }
+
+        # 2) Find the path of initrd
+        uname = node.tools[Uname]
+        kernel_version = uname.get_linux_information().kernel_version_raw
+        find = node.tools[Find]
+        initrd_possible_file_names = [
+            f"initrd-{kernel_version}",
+            f"initramfs-{kernel_version}.img",
+            f"initrd.img-{kernel_version}",
+        ]
+
+        initrd_file_path = ""
+        for file_name in initrd_possible_file_names:
+            result = find.find_files(node.get_pure_path("/boot"), file_name, sudo=True)
+            if result and result[0]:
+                initrd_file_path = result[0]
+                break
+
+        # 3) Use lsinitrd to check whether a necessary module
+        #    is missing.
+        lsinitrd = node.tools[Lsinitrd]
+        missing_modules = []
+        for module in hv_modules_file_names:
+            if not lsinitrd.has_module(
+                module_file_name=hv_modules_file_names[module],
+                initrd_file_path=initrd_file_path,
+            ):
+                missing_modules.append(module)
+
+        assert_that(missing_modules).described_as(
+            "Required Hyper-V modules are missing from initrd."
+        ).is_length(0)
+
+    def _get_directly_loaded_modules(self, node: RemoteNode) -> List[str]:
+        """
+        Returns the hv_modules that are directly loaded into the kernel and
+        therefore would not show up in lsmod or be needed in initrd.
+        """
+        hv_modules_configuration = {
+            "hv_storvsc": "CONFIG_HYPERV_STORAGE",
+            "hv_netvsc": "CONFIG_HYPERV_NET",
+            "hv_vmbus": "CONFIG_HYPERV",
+            "hv_utils": "CONFIG_HYPERV_UTILS",
+            "hid_hyperv": "CONFIG_HID_HYPERV_MOUSE",
+            "hv_balloon": "CONFIG_HYPERV_BALLOON",
+            "hyperv_keyboard": "CONFIG_HYPERV_KEYBOARD",
+        }
+        uname = node.tools[Uname]
+        kernel_version = uname.get_linux_information().kernel_version_raw
+        config_path = f"/boot/config-{kernel_version}"
+
+        modules = []
+        for module in hv_modules_configuration:
+            if (
+                node.execute(
+                    f"grep ^{hv_modules_configuration[module]}=y {config_path}"
+                ).exit_code
+                == 0
+            ):
+                modules.append(module)
+
+        return modules
 
     @TestCaseMetadata(
         description="""
@@ -102,7 +204,7 @@ class HvModule(TestSuite):
             "Not all Hyper V drivers are present."
         ).is_length(0)
 
-    def _get_expected_modules(self, node: RemoteNode) -> list[str]:
+    def _get_expected_modules(self, node: RemoteNode) -> List[str]:
         """
         Returns the hv_modules that are not directly loaded into the kernel and
         therefore would be expected to show up in lsmod.
