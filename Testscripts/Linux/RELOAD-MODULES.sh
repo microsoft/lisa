@@ -30,7 +30,7 @@ fi
 
 HYPERV_MODULES=(hv_vmbus hv_netvsc hv_storvsc hv_utils hv_balloon hid_hyperv hyperv_keyboard hyperv_fb)
 MODULES_TO_RELOAD=(hv_netvsc)
-MODULES_NOT_TO_RELOAD=(hyperv_fb)
+MODULES_NOT_TO_RELOAD=()
 skip_modules=()
 config_path=$(get_bootconfig_path)
 
