@@ -1,6 +1,8 @@
 # Copyright (c) Microsoft Corporation.
 # Licensed under the MIT license.
 
+from typing import List
+
 from assertpy import assert_that
 from semver import VersionInfo
 
@@ -102,7 +104,7 @@ class HvModule(TestSuite):
             "Not all Hyper V drivers are present."
         ).is_length(0)
 
-    def _get_expected_modules(self, node: RemoteNode) -> list[str]:
+    def _get_expected_modules(self, node: RemoteNode) -> List[str]:
         """
         Returns the hv_modules that are not directly loaded into the kernel and
         therefore would be expected to show up in lsmod.
