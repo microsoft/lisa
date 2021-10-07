@@ -576,7 +576,12 @@ class AzurePlatform(Platform):
                 )
             )
             if diagnostic_data:
-                # https://storageaccountname.blob.core.windows.net:443/bootdiagnostics-node0-30779088-9b10-4074-8c27-98b91f1d8b70/node-0.30779088-9b10-4074-8c27-98b91f1d8b70.serialconsole.log?sv=2018-03-28&sr=b&sig=mJEsvk9WunbKHfBs1lo1jcIBe4owq1brP8Kw3qXTQJA%3d&se=2021-09-14T08%3a55%3a38Z&sp=r # noqa: E501
+                # A sample url,
+                # https://storageaccountname.blob.core.windows.net:443/
+                # bootdiagnostics-node0-30779088-9b10-4074-8c27-98b91f1d8b70/
+                # node-0.30779088-9b10-4074-8c27-98b91f1d8b70.serialconsole.log
+                # ?sv=2018-03-28&sr=b&sig=mJEsvk9WunbKHfBs1lo1jcIBe4owq1brP8Kw3qXTQJA%3d&
+                # se=2021-09-14T08%3a55%3a38Z&sp=r
                 blob_uri = diagnostic_data.console_screenshot_blob_uri
                 if blob_uri:
                     matched = self._diagnostic_storage_container_pattern.match(blob_uri)
@@ -1659,6 +1664,15 @@ class AzurePlatform(Platform):
         original_vhd_path = vhd_path
         storage_name = get_storage_account_name(
             subscription_id=self.subscription_id, location=location, type="t"
+        )
+
+        check_or_create_storage_account(
+            self.credential,
+            self.subscription_id,
+            storage_name,
+            AZURE_SHARED_RG_NAME,
+            location,
+            log,
         )
         container_client = get_or_create_storage_container(
             storage_name, SAS_COPIED_CONTAINER_NAME, self.credential
