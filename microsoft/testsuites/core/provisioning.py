@@ -165,7 +165,7 @@ class Provisioning(TestSuite):
     def verify_reboot_in_platform(
         self, log: Logger, node: RemoteNode, log_path: Path
     ) -> None:
-        self._smoke_test(log, node, log_path, reboot_in_platform=False)
+        self._smoke_test(log, node, log_path, reboot_in_platform=True)
 
     @TestCaseMetadata(
         description="""
@@ -186,7 +186,7 @@ class Provisioning(TestSuite):
             log,
             node,
             log_path,
-            reboot_in_platform=False,
+            reboot_in_platform=True,
             is_restart=False,
         )
 
@@ -195,7 +195,7 @@ class Provisioning(TestSuite):
         log: Logger,
         node: RemoteNode,
         log_path: Path,
-        reboot_in_platform: bool = True,
+        reboot_in_platform: bool = False,
         wait: bool = True,
         is_restart: bool = True,
     ) -> None:
@@ -220,14 +220,12 @@ class Provisioning(TestSuite):
             # If successful, the node will be reboot.
             # If failed, It distinguishes TCP and SSH errors by error messages.
             if reboot_in_platform:
-                node.reboot()
-            else:
                 start_stop = node.features[StartStop]
-                if not is_restart:
+                if is_restart:
+                    start_stop.restart(wait=wait)
+                else:
                     start_stop.stop(wait=wait)
                     start_stop.start(wait=wait)
-                else:
-                    start_stop.restart(wait=wait)
                 is_ready, tcp_error_code = wait_tcp_port_ready(
                     node.public_address,
                     node.public_port,
@@ -241,6 +239,8 @@ class Provisioning(TestSuite):
                         f"Cannot connect to [{node.public_address}:{node.public_port}],"
                         f" error code: {tcp_error_code}, no panic found in serial log"
                     )
+            else:
+                node.reboot()
             log.info(f"node '{node.name}' rebooted in {timer}")
         except Exception as identifier:
             serial_console = node.features[SerialConsole]
