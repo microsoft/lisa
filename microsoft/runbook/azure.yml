@@ -1,10 +1,7 @@
 name: azure default
 include:
   - path: ./tiers/tier.yml
-  - path: ../testsuites/test
 variable:
-  - name: test_case
-    value: "nested_kvm_storage_single_disk"
   - name: location
     value: "westus2"
   - name: keep_environment

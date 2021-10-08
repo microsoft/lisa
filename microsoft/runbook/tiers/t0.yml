@@ -1,3 +1,3 @@
 testcase:
   - criteria:
-      priority: 0
+      name: "nested_kvm_storage_single_disk"
