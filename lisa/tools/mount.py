@@ -1,8 +1,9 @@
 # Copyright (c) Microsoft Corporation.
 # Licensed under the MIT license.
 import re
+from dataclasses import dataclass
 from pathlib import PurePosixPath
-from typing import cast
+from typing import List, cast
 
 from lisa.executable import Tool
 from lisa.operating_system import Posix
@@ -10,9 +11,46 @@ from lisa.tools import Fdisk
 from lisa.util import LisaException
 
 
+@dataclass
+class PartitionInfo(object):
+    name: str
+    disk: str
+    mount_point: str
+    type: str
+
+    # /dev/sda1
+    # /dev/sdc
+    _disk_regex = re.compile(r"\s*\/dev\/(?P<disk>\D+).*")
+
+    def __init__(self, name: str, mount_point: str, type: str) -> None:
+        self.name = name
+        self.mount_point = mount_point
+        self.type = type
+        matched = self._disk_regex.fullmatch(name)
+        assert matched
+        self.disk = matched.group("disk")
+
+    def __str__(self) -> str:
+        return self.__repr__()
+
+    def __repr__(self) -> str:
+        return (
+            f"name: {self.name}, "
+            f"disk: {self.disk}, "
+            f"mount_point: {self.mount_point}, "
+            f"type: {self.type}"
+        )
+
+
 class Mount(Tool):
     __UMOUNT_ERROR_PATTERN = re.compile(
         r".*(mountpoint not found|no mount point specified)", re.MULTILINE
+    )
+
+    # /dev/sda1 on / type ext4 (rw,relatime,discard)
+    # /dev/sda1 on /mnt/a type ext4 (rw,relatime,discard)
+    _partition_info_regex = re.compile(
+        r"\s*/dev/(?P<name>.*)\s+on\s+(?P<mount_point>.*)\s+type\s+(?P<type>.*)\s+.*"
     )
 
     @property
@@ -51,6 +89,28 @@ class Mount(Tool):
             and 0 != cmd_result.exit_code
         ):
             raise LisaException(f"Fail to run umount {point}.")
+
+    def get_partition_info(self) -> List[PartitionInfo]:
+        # partition entries in the output are of the form
+        # /dev/<name> on <mount_point> type <type>
+        # Example:
+        # /dev/sda1 on / type ext4
+        output: str = self.run().stdout
+        partition_info: List[PartitionInfo] = []
+        for line in output.splitlines():
+            matched = self._partition_info_regex.fullmatch(line)
+            if matched:
+                partition_name = matched.group("name")
+                partition_info.append(
+                    PartitionInfo(
+                        f"/dev/{partition_name}",
+                        matched.group("mount_point"),
+                        matched.group("type"),
+                    )
+                )
+
+        self._log.debug(f"Found disk partitions : {partition_info}")
+        return partition_info
 
     def _install(self) -> bool:
         posix_os: Posix = cast(Posix, self.node.os)
