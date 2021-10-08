@@ -4,6 +4,7 @@
 import threading
 from dataclasses import dataclass
 from enum import Enum
+from functools import partial
 from typing import Any, Dict, List, Optional, Type
 
 from lisa import schema
@@ -37,6 +38,9 @@ class TestRunMessage(MessageBase):
     tags: Optional[List[str]] = None
     run_name: str = ""
     message: str = ""
+
+
+init_logger = partial(get_logger, "init", "notifier")
 
 
 class Notifier(subclasses.BaseClassWithRunbookMixin, InitializableMixin):
@@ -86,32 +90,42 @@ _notifying_lock = threading.Lock()
 def initialize(runbooks: List[schema.Notifier]) -> None:
 
     factory = subclasses.Factory[Notifier](Notifier)
-    log = get_logger("init", "notifier")
+    log = init_logger()
+
     if not any(x for x in runbooks if x.type == constants.NOTIFIER_CONSOLE):
         # add console notifier by default to provide troubleshooting information
         runbooks.append(schema.Notifier(type=constants.NOTIFIER_CONSOLE))
+
     for runbook in runbooks:
         if not runbook.enabled:
             log.debug(f"skipped notifier [{runbook.type}], because it's not enabled.")
             continue
 
         notifier = factory.create_by_runbook(runbook=runbook)
-        _notifiers.append(notifier)
+        register_notifier(notifier)
 
-        subscribed_message_types: List[
-            Type[MessageBase]
-        ] = notifier._subscribed_message_type()
 
-        for message_type in subscribed_message_types:
-            registered_notifiers = _messages.get(message_type, [])
-            registered_notifiers.append(notifier)
-            _messages[message_type] = registered_notifiers
-        log.debug(
-            f"registered [{notifier.type_name()}] "
-            f"on messages: {[x.type for x in subscribed_message_types]}"
-        )
+def register_notifier(notifier: Notifier) -> None:
+    """
+    register internal notifiers
+    """
+    log = init_logger()
+    _notifiers.append(notifier)
+    subscribed_message_types: List[
+        Type[MessageBase]
+    ] = notifier._subscribed_message_type()
 
-        notifier.initialize()
+    for message_type in subscribed_message_types:
+        registered_notifiers = _messages.get(message_type, [])
+        registered_notifiers.append(notifier)
+        _messages[message_type] = registered_notifiers
+
+    log.debug(
+        f"registered [{notifier.type_name()}] "
+        f"on messages: {[x.type for x in subscribed_message_types]}"
+    )
+
+    notifier.initialize()
 
 
 def notify(message: MessageBase) -> None:
