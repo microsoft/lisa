@@ -1489,13 +1489,14 @@ class AzurePlatform(Platform):
         compute_client = get_compute_client(self)
         new_marketplace = copy.copy(marketplace)
         if marketplace.version.lower() == "latest":
-            # latest doesn't work, it needs a specified version.
-            versioned_images = compute_client.virtual_machine_images.list(
-                location=location,
-                publisher_name=marketplace.publisher,
-                offer=marketplace.offer,
-                skus=marketplace.sku,
-            )
+            with global_credential_access_lock:
+                # latest doesn't work, it needs a specified version.
+                versioned_images = compute_client.virtual_machine_images.list(
+                    location=location,
+                    publisher_name=marketplace.publisher,
+                    offer=marketplace.offer,
+                    skus=marketplace.sku,
+                )
             # any one should be the same to get purchase plan
             new_marketplace.version = versioned_images[-1].name
         return new_marketplace
@@ -1749,13 +1750,14 @@ class AzurePlatform(Platform):
     ) -> VirtualMachineImage:
         compute_client = get_compute_client(self)
         assert isinstance(marketplace, AzureVmMarketplaceSchema)
-        image_info = compute_client.virtual_machine_images.get(
-            location=location,
-            publisher_name=marketplace.publisher,
-            offer=marketplace.offer,
-            skus=marketplace.sku,
-            version=marketplace.version,
-        )
+        with global_credential_access_lock:
+            image_info = compute_client.virtual_machine_images.get(
+                location=location,
+                publisher_name=marketplace.publisher,
+                offer=marketplace.offer,
+                skus=marketplace.sku,
+                version=marketplace.version,
+            )
         return image_info
 
     def _get_location_key(self, location: str) -> str:
