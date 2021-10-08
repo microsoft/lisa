@@ -4,12 +4,12 @@
 import copy
 from logging import FileHandler
 from pathlib import Path
-from threading import Lock
-from typing import Any, Callable, Dict, Iterator, List, Optional, Union
+from typing import Any, Callable, Dict, Iterator, List, Optional, Type, Union
 
 from lisa import notifier, schema, transformer
 from lisa.action import Action
 from lisa.combinator import Combinator
+from lisa.notifier import register_notifier
 from lisa.parameter_parser.runbook import RunbookBuilder
 from lisa.testsuite import TestResult, TestResultMessage, TestStatus
 from lisa.util import BaseClassMixin, InitializableMixin, LisaException, constants
@@ -35,16 +35,13 @@ def parse_testcase_filters(raw_filters: List[Any]) -> List[schema.BaseTestCaseFi
 
 
 def print_results(
-    test_results: List[Any],
+    test_results: Union[List[TestResult], List[TestResultMessage]],
     output_method: Callable[[str], Any],
 ) -> None:
     output_method("________________________________________")
     result_count_dict: Dict[TestStatus, int] = {}
     for test_result in test_results:
-        if isinstance(test_result, TestResult):
-            result_name = test_result.runtime_data.metadata.full_name
-            result_status = test_result.status
-        elif isinstance(test_result, TestResultMessage):
+        if isinstance(test_result, TestResultMessage):
             result_name = test_result.name
             result_status = test_result.status
         else:
@@ -65,6 +62,31 @@ def print_results(
             # so hide it if there is no attempted cases.
             continue
         output_method(f"    {key.name:<9}: {count}")
+
+
+class RunnerResult(notifier.Notifier):
+    """
+    This is an internal notifier. It uses to collect test results for runner.
+    """
+
+    @classmethod
+    def type_name(cls) -> str:
+        # no type_name, not able to import from yaml book.
+        return ""
+
+    @classmethod
+    def type_schema(cls) -> Type[schema.TypedSchema]:
+        return schema.Notifier
+
+    def _received_message(self, message: notifier.MessageBase) -> None:
+        assert isinstance(message, TestResultMessage), f"actual: {type(message)}"
+        self.results[message.id_] = message
+
+    def _subscribed_message_type(self) -> List[Type[notifier.MessageBase]]:
+        return [TestResultMessage]
+
+    def _initialize(self, *args: Any, **kwargs: Any) -> None:
+        self.results: Dict[str, TestResultMessage] = {}
 
 
 class BaseRunner(BaseClassMixin, InitializableMixin):
@@ -145,8 +167,6 @@ class RootRunner(Action):
         # this is to hold active runners, and will close them, if there is any
         # global error.
         self._runners: List[BaseRunner] = []
-        self._results: List[TestResult] = []
-        self._results_lock: Lock = Lock()
         self._runner_count: int = 0
 
     async def start(self) -> None:
@@ -166,6 +186,9 @@ class RootRunner(Action):
             self._max_concurrency = runbook.concurrency
             self._log.debug(f"max concurrency is {self._max_concurrency}")
 
+            self._results_collector = RunnerResult(schema.Notifier())
+            register_notifier(self._results_collector)
+
             self._start_loop()
         except Exception as identifer:
             cancel()
@@ -174,10 +197,11 @@ class RootRunner(Action):
             for runner in self._runners:
                 runner.close()
 
-        print_results(self._results, self._log.info)
+        results = [x for x in self._results_collector.results.values()]
+        print_results(results, self._log.info)
 
         # pass failed count to exit code
-        self.exit_code = sum(1 for x in self._results if x.status == TestStatus.FAILED)
+        self.exit_code = sum(1 for x in results if x.status == TestStatus.FAILED)
 
     async def stop(self) -> None:
         await super().stop()
@@ -252,13 +276,6 @@ class RootRunner(Action):
             self._runner_count += 1
             yield runner
 
-    def _callback_completed(self, results: List[TestResult]) -> None:
-        self._results_lock.acquire()
-        try:
-            self._results.extend(results)
-        finally:
-            self._results_lock.release()
-
     def _submit_runner_tasks(
         self,
         runner: BaseRunner,
@@ -271,7 +288,8 @@ class RootRunner(Action):
                 if isinstance(task, Task):
                     task_manager.submit_task(task)
                 elif isinstance(task, List):
-                    self._callback_completed(task)
+                    # do nothing, the test results is parsed from message.
+                    ...
                 else:
                     raise LisaException(f"Unknown task type: '{type(task)}'")
             else:
@@ -290,9 +308,7 @@ class RootRunner(Action):
         )
         notifier.notify(run_message)
 
-        task_manager = TaskManager[List[TestResult]](
-            self._max_concurrency, self._callback_completed
-        )
+        task_manager = TaskManager[List[TestResult]](self._max_concurrency, None)
 
         # set the global task manager for cancellation check
         set_global_task_manager(task_manager)
