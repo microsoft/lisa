@@ -29,6 +29,8 @@ class UnameResult:
 
 
 class Uname(Tool):
+    # 5.4.0-1056-azure #58~18.04.1-Ubuntu SMP Wed Jul 28 23:14:18 UTC 2021
+    #   x86_64 GNU/Linux
     _key_info_pattern = re.compile(
         r"(?P<kernel_version>[^ ]*?) (?P<uname_version>[\w\W]*) (?P<platform>[\w\W]+?) "
         r"(?P<os>[\w\W]+?)$"
