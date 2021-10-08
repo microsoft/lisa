@@ -1,14 +1,16 @@
 # Copyright (c) Microsoft Corporation.
 # Licensed under the MIT license.
 
-from typing import List, Optional, cast
+from typing import List, Optional, Union, cast
 from unittest import TestCase
 
 import lisa
 from lisa import schema
 from lisa.environment import EnvironmentStatus, load_environments
+from lisa.notifier import register_notifier
+from lisa.runner import RunnerResult
 from lisa.runners.lisa_runner import LisaRunner
-from lisa.testsuite import TestResult, TestStatus, simple_requirement
+from lisa.testsuite import TestResult, TestResultMessage, TestStatus, simple_requirement
 from lisa.util import LisaException, constants
 from lisa.util.parallel import Task
 from selftests import test_platform, test_testsuite
@@ -568,20 +570,31 @@ class RunnerTestCase(TestCase):
         expected_envs: List[str],
         expected_status: List[TestStatus],
         expected_message: List[str],
-        test_results: List[TestResult],
+        test_results: Union[List[TestResultMessage], List[TestResult]],
     ) -> None:
 
+        test_names: List[str] = []
+        env_names: List[str] = []
+        for test_result in test_results:
+            if isinstance(test_result, TestResult):
+                test_names.append(test_result.runtime_data.metadata.name)
+                env_names.append(
+                    test_result.environment.name
+                    if test_result.environment is not None
+                    else ""
+                )
+            else:
+                assert isinstance(test_result, TestResultMessage)
+                test_names.append(test_result.name.split(".")[1])
+                env_names.append(test_result.information.get("environment", ""))
         self.assertListEqual(
             expected_test_order,
-            [x.runtime_data.metadata.name for x in test_results],
+            test_names,
             "test order inconsistent",
         )
         self.assertListEqual(
             expected_envs,
-            [
-                x.environment.name if x.environment is not None else ""
-                for x in test_results
-            ],
+            env_names,
             "test env inconsistent",
         )
         self.assertListEqual(
@@ -626,18 +639,16 @@ class RunnerTestCase(TestCase):
             "deleted envs inconsistent",
         )
 
-    def _run_all_tests(self, runner: LisaRunner) -> List[TestResult]:
-        test_results: List[TestResult] = []
+    def _run_all_tests(self, runner: LisaRunner) -> List[TestResultMessage]:
+        results_collector = RunnerResult(schema.Notifier())
+        register_notifier(results_collector)
+
         runner.initialize()
 
         while not runner.is_done:
             task = runner.fetch_task()
             if task:
                 if isinstance(task, Task):
-                    temp_test_results = task()
-                elif isinstance(task, List):
-                    temp_test_results = task
-                if temp_test_results:
-                    test_results.extend(temp_test_results)
+                    task()
 
-        return test_results
+        return [x for x in results_collector.results.values()]
