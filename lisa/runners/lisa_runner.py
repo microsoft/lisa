@@ -3,7 +3,7 @@
 
 import copy
 from functools import partial
-from typing import Any, Callable, Dict, List, Optional, Union, cast
+from typing import Any, Callable, Dict, List, Optional, cast
 
 from lisa import notifier, schema, search_space
 from lisa.action import ActionStatus
@@ -63,14 +63,10 @@ class LisaRunner(BaseRunner):
         )
         return is_all_results_completed and is_all_environment_completed
 
-    def fetch_task(self) -> Union[None, List[TestResult], Task[List[TestResult]]]:
-        test_results = self._prepare_environments(
+    def fetch_task(self) -> Optional[Task[None]]:
+        self._prepare_environments(
             platform=self.platform,
-            test_results=self.test_results,
         )
-        if test_results:
-            # return failed prepared results
-            return test_results
 
         # sort environments by status
         available_environments = self._sort_environments(self.environments)
@@ -114,15 +110,11 @@ class LisaRunner(BaseRunner):
                         return task
                 if not any(x.is_in_use for x in available_environments):
                     # no environment in used, and not fit. those results cannot be run.
-                    skipped_test_results = self._skip_test_results(can_run_results)
-                    if skipped_test_results:
-                        return skipped_test_results
+                    self._skip_test_results(can_run_results)
         elif available_results:
             # no available environments, so mark all test results skipped.
-            skipped_test_results = self._skip_test_results(available_results)
-
+            self._skip_test_results(available_results)
             self.status = ActionStatus.SUCCESS
-            return skipped_test_results
         return None
 
     def close(self) -> None:
@@ -133,7 +125,7 @@ class LisaRunner(BaseRunner):
 
     def _associate_environment_test_results(
         self, environment: Environment, test_results: List[TestResult]
-    ) -> Optional[Task[List[TestResult]]]:
+    ) -> Optional[Task[None]]:
         check_cancelled()
 
         assert test_results
@@ -190,7 +182,7 @@ class LisaRunner(BaseRunner):
 
         return None
 
-    def _delete_unused_environments(self) -> Optional[Task[List[TestResult]]]:
+    def _delete_unused_environments(self) -> Optional[Task[None]]:
         available_environments = self._sort_environments(self.environments)
         # check deleteable environments
         for environment in available_environments:
@@ -220,10 +212,9 @@ class LisaRunner(BaseRunner):
     def _prepare_environments(
         self,
         platform: Platform,
-        test_results: List[TestResult],
-    ) -> List[TestResult]:
+    ) -> None:
         if self._is_prepared:
-            return []
+            return
 
         runbook_environments = load_environments(self._runbook.environment)
         if not runbook_environments:
@@ -243,7 +234,7 @@ class LisaRunner(BaseRunner):
                 prepared_environments.append(prepared_environment)
             except Exception as identifier:
                 matched_results = self._get_runnable_test_results(
-                    test_results=test_results,
+                    test_results=self.test_results,
                     environment=candidate_environment,
                 )
                 if not matched_results:
@@ -255,7 +246,7 @@ class LisaRunner(BaseRunner):
                         "features into this environment.",
                     )
                     matched_results = [
-                        result for result in test_results if result.is_queued
+                        result for result in self.test_results if result.is_queued
                     ]
                 if not matched_results:
                     raise LisaException(
@@ -276,7 +267,7 @@ class LisaRunner(BaseRunner):
 
         self._is_prepared = True
         self.environments = prepared_environments
-        return [x for x in self.test_results if x.is_completed]
+        return
 
     def _deploy_environment_task(
         self, environment: Environment, test_results: List[TestResult]
@@ -417,7 +408,7 @@ class LisaRunner(BaseRunner):
         environment: Environment,
         test_results: List[TestResult],
         **kwargs: Any,
-    ) -> Task[List[TestResult]]:
+    ) -> Task[None]:
         assert not environment.is_in_use
         environment.is_in_use = True
         for test_result in test_results:
@@ -440,7 +431,7 @@ class LisaRunner(BaseRunner):
         environment: Environment,
         test_results: List[TestResult],
         **kwargs: Any,
-    ) -> List[TestResult]:
+    ) -> None:
         assert environment.is_in_use
         task_method(environment=environment, test_results=test_results, **kwargs)
 
@@ -449,7 +440,6 @@ class LisaRunner(BaseRunner):
             if test_result.status == TestStatus.ASSIGNED:
                 test_result.set_status(TestStatus.QUEUED, "")
         environment.is_in_use = False
-        return [x for x in test_results if x.is_completed]
 
     def _attach_failed_environment_to_result(
         self,
@@ -573,22 +563,18 @@ class LisaRunner(BaseRunner):
         self,
         test_results: List[TestResult],
         additional_reason: str = "no available environment",
-    ) -> List[TestResult]:
-        # no available environments, so mark all test results skipped.
-        skipped_test_results: List[TestResult] = []
+    ) -> None:
         for test_result in test_results:
             if test_result.is_completed:
                 # already completed, don't skip it.
                 continue
 
-            skipped_test_results.append(test_result)
             if test_result.check_results and test_result.check_results.reasons:
                 reasons = f"{additional_reason}: {test_result.check_results.reasons}"
             else:
                 reasons = additional_reason
 
             test_result.set_status(TestStatus.SKIPPED, reasons)
-        return skipped_test_results
 
     def _merge_test_requirements(
         self,

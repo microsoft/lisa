@@ -98,7 +98,7 @@ class LegacyRunner(BaseRunner):
     def is_done(self) -> bool:
         return all(x for x in self._completed_flags)
 
-    def fetch_task(self) -> Optional[Task[List[TestResult]]]:
+    def fetch_task(self) -> Optional[Task[None]]:
         try:
             index = self._started_flags.index(False)
 
@@ -131,7 +131,7 @@ class LegacyRunner(BaseRunner):
 
     def _start_sub_test(
         self, id_: str, index: int, configuration: schema.LegacyTestCase
-    ) -> List[TestResult]:
+    ) -> None:
         """
         entry point of each LISAv2 process.
         """
@@ -147,7 +147,7 @@ class LegacyRunner(BaseRunner):
         # track test progress
         log = get_logger(id_=id_, parent=self._log)
         try:
-            results = _track_progress(
+            _track_progress(
                 process=process, working_dir=code_path, log=log, runner=self, id_=id_
             )
         finally:
@@ -156,7 +156,6 @@ class LegacyRunner(BaseRunner):
                 process.kill()
 
         self._completed_flags[index] = True
-        return results
 
     def _get_dir_name(self, id_: str, index: int) -> str:
         return f"{id_}_{index}"
@@ -640,7 +639,7 @@ def _find_matched_files(
 
 def _track_progress(
     process: Process, working_dir: Path, log: Logger, runner: LegacyRunner, id_: str
-) -> List[TestResult]:
+) -> None:
     # discovered all cases
     all_cases: List[Dict[str, str]] = []
     process_exiting: bool = False
@@ -705,8 +704,4 @@ def _track_progress(
     # Handle cases which aborted in deployment stage
     for result in case_states.results:
         if result.status == TestStatus.RUNNING:
-            result.status = TestStatus.FAILED
-            result.message = "Case fail in deployment stage."
-            result._send_result_message()
-
-    return case_states.results
+            result.set_status(TestStatus.FAILED, "Case fail in deployment stage.")

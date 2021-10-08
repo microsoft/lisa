@@ -4,14 +4,14 @@
 import copy
 from logging import FileHandler
 from pathlib import Path
-from typing import Any, Callable, Dict, Iterator, List, Optional, Type, Union
+from typing import Any, Callable, Dict, Iterator, List, Optional, Type
 
 from lisa import notifier, schema, transformer
 from lisa.action import Action
 from lisa.combinator import Combinator
 from lisa.notifier import register_notifier
 from lisa.parameter_parser.runbook import RunbookBuilder
-from lisa.testsuite import TestResult, TestResultMessage, TestStatus
+from lisa.testsuite import TestResultMessage, TestStatus
 from lisa.util import BaseClassMixin, InitializableMixin, LisaException, constants
 from lisa.util.logger import create_file_handler, get_logger, remove_handler
 from lisa.util.parallel import Task, TaskManager, cancel, set_global_task_manager
@@ -35,17 +35,15 @@ def parse_testcase_filters(raw_filters: List[Any]) -> List[schema.BaseTestCaseFi
 
 
 def print_results(
-    test_results: Union[List[TestResult], List[TestResultMessage]],
+    test_results: List[TestResultMessage],
     output_method: Callable[[str], Any],
 ) -> None:
     output_method("________________________________________")
     result_count_dict: Dict[TestStatus, int] = {}
     for test_result in test_results:
-        if isinstance(test_result, TestResultMessage):
-            result_name = test_result.name
-            result_status = test_result.status
-        else:
-            raise LisaException(f"Unknown result type: '{type(test_result)}'")
+        result_name = test_result.name
+        result_status = test_result.status
+
         output_method(
             f"{result_name:>50}: {result_status.name:<8} {test_result.message}"
         )
@@ -118,7 +116,7 @@ class BaseRunner(BaseClassMixin, InitializableMixin):
     def is_done(self) -> bool:
         raise NotImplementedError()
 
-    def fetch_task(self) -> Union[None, List[TestResult], Task[List[TestResult]]]:
+    def fetch_task(self) -> Optional[Task[None]]:
         """
 
         return:
@@ -279,7 +277,7 @@ class RootRunner(Action):
     def _submit_runner_tasks(
         self,
         runner: BaseRunner,
-        task_manager: TaskManager[List[TestResult]],
+        task_manager: TaskManager[None],
     ) -> None:
         while not runner.is_done and task_manager.has_idle_worker():
             # fetch a task and submit
@@ -287,9 +285,6 @@ class RootRunner(Action):
             if task:
                 if isinstance(task, Task):
                     task_manager.submit_task(task)
-                elif isinstance(task, List):
-                    # do nothing, the test results is parsed from message.
-                    ...
                 else:
                     raise LisaException(f"Unknown task type: '{type(task)}'")
             else:
@@ -308,7 +303,7 @@ class RootRunner(Action):
         )
         notifier.notify(run_message)
 
-        task_manager = TaskManager[List[TestResult]](self._max_concurrency, None)
+        task_manager = TaskManager[None](self._max_concurrency)
 
         # set the global task manager for cancellation check
         set_global_task_manager(task_manager)
