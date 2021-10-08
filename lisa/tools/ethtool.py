@@ -31,6 +31,39 @@ _current_settings_pattern = re.compile(
     r"Current hardware settings:[\s+](?P<settings>.*?)$", re.DOTALL
 )
 
+# Some device settings are retrieved like below -
+#
+# ~$ ethtool eth0
+#       Settings for eth0:
+#           Supported ports: [ ]
+#           Supported link modes:   Not reported
+#           Speed: 50000Mb/s
+#           Duplex: Full
+#           Port: Other
+#           PHYAD: 0
+#           Transceiver: internal
+#           Auto-negotiation: off
+# Cannot get wake-on-lan settings: Operation not permitted
+#           Current message level: 0x000000f7 (247)
+#                                  drv probe link ifdown ifup rx_err tx_err
+#           Link detected: yes
+
+_settings_info_pattern = re.compile(
+    r"Settings for (?P<interface>[\w]*):[\s]*(?P<value>.*?)$", re.DOTALL
+)
+_link_settings_pattern = re.compile(
+    r"^[ \t]*(?P<name>.*):[ \t]*(?P<value>.*?)?$", re.MULTILINE
+)
+# Current message level: 0x000000f7 (247)
+_msg_level_number_pattern = re.compile(
+    r"Current message level:[\s]*(?P<value>.*?)?$", re.MULTILINE
+)
+# Current message level: 0x000000f7 (247)
+#                        drv probe link ifdown ifup rx_err tx_err
+_msg_level_name_pattern = re.compile(
+    r"Current message level:.*\n[\s]*(?P<value>.*?)?$", re.MULTILINE
+)
+
 
 class DeviceChannel:
     # ethtool device channel info is in format -
@@ -119,37 +152,27 @@ class DeviceFeatures:
 
 
 class DeviceLinkSettings:
-    # ethtool device link settings info is in format -
-    # ~$ ethtool eth0
-    #       Settings for eth0:
-    #           Supported ports: [ ]
-    #           Supported link modes:   Not reported
-    #           Speed: 50000Mb/s
-    #           Duplex: Full
-    #           Port: Other
-    #           PHYAD: 0
-    #           Transceiver: internal
-    #           Auto-negotiation: off
-    _link_settings_info_pattern = re.compile(
-        r"Settings for (?P<interface>[\w]*):[\s]*(?P<value>.*?)$", re.DOTALL
-    )
-    _link_settings_pattern = re.compile(
-        r"^[ \t]*(?P<name>.*):[ \t]*(?P<value>.*?)?$", re.MULTILINE
-    )
-
-    def __init__(self, interface: str, device_link_settings_raw: str) -> None:
-        self._parse_link_settings_info(interface, device_link_settings_raw)
+    def __init__(
+        self,
+        interface: str,
+        device_settings_raw: Optional[str] = None,
+        link_settings: Optional[Dict[str, str]] = None,
+    ) -> None:
+        self.device_name = interface
+        if device_settings_raw:
+            self._parse_link_settings_info(interface, device_settings_raw)
+        if link_settings:
+            self.link_settings = link_settings
 
     def _parse_link_settings_info(self, interface: str, raw_str: str) -> None:
-        matched_link_settings_info = self._link_settings_info_pattern.search(raw_str)
+        matched_link_settings_info = _settings_info_pattern.search(raw_str)
         if not matched_link_settings_info:
             raise LisaException(f"Cannot get {interface} link settings info")
 
-        self.device_name = interface
-        self.link_settings: Dict[str, str] = {}
+        self.link_settings = {}
 
         for row in matched_link_settings_info.group("value").splitlines():
-            link_setting_info = self._link_settings_pattern.match(row)
+            link_setting_info = _link_settings_pattern.match(row)
             if not link_setting_info:
                 continue
             self.link_settings[
@@ -161,6 +184,55 @@ class DeviceLinkSettings:
                 f"Could not get any link settings for device {interface}"
                 " in the defined pattern"
             )
+
+        # capture the message level settings as well for efficiency
+        msg_level_number_pattern = _msg_level_number_pattern.search(raw_str)
+        msg_level_name_pattern = _msg_level_name_pattern.search(raw_str)
+        if msg_level_number_pattern and msg_level_name_pattern:
+            self.msg_level_number = msg_level_number_pattern.group("value")
+            self.msg_level_name = msg_level_name_pattern.group("value")
+
+
+class DeviceMessageLevel:
+    def __init__(
+        self,
+        interface: str,
+        device_settings_raw: Optional[str] = None,
+        msg_level_number: Optional[str] = None,
+        msg_level_name: Optional[str] = None,
+    ) -> None:
+        self.device_name = interface
+        if device_settings_raw:
+            self._parse_msg_level_info(interface, device_settings_raw)
+        if msg_level_number:
+            self.msg_level_number = msg_level_number
+        if msg_level_name:
+            self.msg_level_name = msg_level_name
+
+    def _parse_msg_level_info(self, interface: str, raw_str: str) -> None:
+        matched_settings_info = _settings_info_pattern.search(raw_str)
+        if not matched_settings_info:
+            raise LisaException(f"Cannot get {interface} settings info")
+
+        msg_level_number_pattern = _msg_level_number_pattern.search(raw_str)
+        msg_level_name_pattern = _msg_level_name_pattern.search(raw_str)
+        if (not msg_level_number_pattern) or (not msg_level_name_pattern):
+            raise LisaException(
+                f"Cannot get {interface} device message level information."
+            )
+
+        self.msg_level_number = msg_level_number_pattern.group("value")
+        self.msg_level_name = msg_level_name_pattern.group("value")
+
+        # capture the link settings as well for efficiency
+        self.link_settings: Dict[str, str] = {}
+        for row in matched_settings_info.group("value").splitlines():
+            link_setting_info = _link_settings_pattern.match(row)
+            if not link_setting_info:
+                continue
+            self.link_settings[
+                link_setting_info.group("name")
+            ] = link_setting_info.group("value")
 
 
 class DeviceRingBufferSettings:
@@ -344,6 +416,7 @@ class DeviceSettings:
         self.device_channel: Optional[DeviceChannel] = None
         self.device_features: Optional[DeviceFeatures] = None
         self.device_link_settings: Optional[DeviceLinkSettings] = None
+        self.device_msg_level: Optional[DeviceMessageLevel] = None
         self.device_ringbuffer_settings: Optional[DeviceRingBufferSettings] = None
         self.device_gro_lro_settings: Optional[DeviceGroLroSettings] = None
         self.device_rss_hash_key: Optional[DeviceRssHashKey] = None
@@ -375,6 +448,7 @@ class Ethtool(Tool):
         device_channels: Optional[DeviceChannel] = None,
         device_features: Optional[DeviceFeatures] = None,
         device_link_settings: Optional[DeviceLinkSettings] = None,
+        device_message_level: Optional[DeviceMessageLevel] = None,
         device_ringbuffer_settings: Optional[DeviceRingBufferSettings] = None,
         device_gro_lro_settings: Optional[DeviceGroLroSettings] = None,
         device_rss_hash_key: Optional[DeviceRssHashKey] = None,
@@ -392,6 +466,8 @@ class Ethtool(Tool):
             device.device_features = device_features
         if device_link_settings:
             device.device_link_settings = device_link_settings
+        if device_message_level:
+            device.device_msg_level = device_message_level
         if device_ringbuffer_settings:
             device.device_ringbuffer_settings = device_ringbuffer_settings
         if device_gro_lro_settings:
@@ -542,10 +618,86 @@ class Ethtool(Tool):
         result = self.run(interface)
         result.assert_exit_code()
 
-        device_link_settings = DeviceLinkSettings(interface, result.stdout)
-        self._set_device(interface, device_link_settings=device_link_settings)
+        link_settings = DeviceLinkSettings(interface, result.stdout)
+        self._set_device(interface, device_link_settings=link_settings)
 
-        return device_link_settings
+        # Caching the message level settings if captured in DeviceLinkSettings.
+        # Not returning this info from this method. Only caching.
+        if link_settings.msg_level_number and link_settings.msg_level_name:
+            msg_level_settings = DeviceMessageLevel(
+                interface,
+                msg_level_number=link_settings.msg_level_number,
+                msg_level_name=link_settings.msg_level_name,
+            )
+            self._set_device(interface, device_message_level=msg_level_settings)
+
+        return link_settings
+
+    def get_device_msg_level(self, interface: str, force: bool) -> DeviceMessageLevel:
+        if not force:
+            device = self._device_settings_map.get(interface, None)
+            if device and device.device_msg_level:
+                return device.device_msg_level
+
+        result = self.run(interface, force_run=force)
+        if (result.exit_code != 0) and ("Operation not supported" in result.stdout):
+            raise UnsupportedOperationException(
+                f"ethtool {interface} operation not supported."
+            )
+        result.assert_exit_code(
+            message=f"Couldn't get device {interface} message level information"
+        )
+
+        msg_level_settings = DeviceMessageLevel(interface, result.stdout)
+        self._set_device(interface, device_message_level=msg_level_settings)
+
+        # caching the link settings if captured in DeviceMessageLevel.
+        # will not this info from this method. Only caching.
+        if msg_level_settings.link_settings:
+            link_settings = DeviceLinkSettings(
+                interface, link_settings=msg_level_settings.link_settings
+            )
+            self._set_device(interface, device_link_settings=link_settings)
+
+        return msg_level_settings
+
+    def set_unset_device_message_flag_by_name(
+        self, interface: str, msg_flag: List[str], set: bool
+    ) -> DeviceMessageLevel:
+        if set:
+            result = self.run(
+                f"-s {interface} msglvl {' on '.join(flag for flag in msg_flag)} on",
+                sudo=True,
+                force_run=True,
+            )
+            result.assert_exit_code(
+                message=f" Couldn't set device {interface} message flag/s {msg_flag}."
+            )
+        else:
+            result = self.run(
+                f"-s {interface} msglvl {' off '.join(flag for flag in msg_flag)} off",
+                sudo=True,
+                force_run=True,
+            )
+            result.assert_exit_code(
+                message=f" Couldn't unset device {interface} message flag/s {msg_flag}."
+            )
+
+        return self.get_device_msg_level(interface, force=True)
+
+    def set_device_message_flag_by_num(
+        self, interface: str, msg_flag: str
+    ) -> DeviceMessageLevel:
+        result = self.run(
+            f"-s {interface} msglvl {msg_flag}",
+            sudo=True,
+            force_run=True,
+        )
+        result.assert_exit_code(
+            message=f" Couldn't set device {interface} message flag {msg_flag}."
+        )
+
+        return self.get_device_msg_level(interface, force=True)
 
     def get_device_ring_buffer_settings(
         self, interface: str, force: bool = False
