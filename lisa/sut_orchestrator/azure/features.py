@@ -27,6 +27,7 @@ from .common import (
     get_compute_client,
     get_network_client,
     get_node_context,
+    global_credential_access_lock,
     wait_operation,
 )
 
@@ -79,11 +80,12 @@ class SerialConsole(AzureFeatureMixin, features.SerialConsole):
     def _get_console_log(self, saved_path: Optional[Path]) -> bytes:
         platform: AzurePlatform = self._platform  # type: ignore
         compute_client = get_compute_client(platform)
-        diagnostic_data = (
-            compute_client.virtual_machines.retrieve_boot_diagnostics_data(
-                resource_group_name=self._resource_group_name, vm_name=self._vm_name
+        with global_credential_access_lock:
+            diagnostic_data = (
+                compute_client.virtual_machines.retrieve_boot_diagnostics_data(
+                    resource_group_name=self._resource_group_name, vm_name=self._vm_name
+                )
             )
-        )
         if saved_path:
             screenshot_raw_name = saved_path.joinpath("serial_console.bmp")
             screenshot_name = saved_path.joinpath("serial_console.png")
