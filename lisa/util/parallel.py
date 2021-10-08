@@ -60,7 +60,9 @@ class Task(Generic[T_RESULT]):
 
 
 class TaskManager(Generic[T_RESULT]):
-    def __init__(self, max_workers: int, callback: Callable[[T_RESULT], None]) -> None:
+    def __init__(
+        self, max_workers: int, callback: Optional[Callable[[T_RESULT], None]] = None
+    ) -> None:
         self._log = get_logger("TaskManager")
         self._pool = ThreadPoolExecutor(max_workers=max_workers)
         self._max_workers = max_workers
@@ -113,7 +115,8 @@ class TaskManager(Generic[T_RESULT]):
                 # removed finished threads
                 self._futures.remove(future)
                 # exception will throw at this point
-                self._callback(result)
+                if self._callback:
+                    self._callback(result)
                 self._future_task_map[future].close()
                 self._future_task_map.pop(future)
 
