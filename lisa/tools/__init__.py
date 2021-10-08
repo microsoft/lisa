@@ -6,6 +6,7 @@ from lisa.base_tools import Cat, Sed, Uname, Wget
 from .chrony import Chrony
 from .date import Date
 from .dmesg import Dmesg
+from .docker import Docker
 from .echo import Echo
 from .ethtool import Ethtool
 from .fdisk import Fdisk
@@ -41,6 +42,7 @@ __all__ = [
     "Chrony",
     "Date",
     "Dmesg",
+    "Docker",
     "Echo",
     "Ethtool",
     "Fdisk",
