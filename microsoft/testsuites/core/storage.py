@@ -19,7 +19,7 @@ from lisa.features import Disk
 from lisa.sut_orchestrator.azure.common import AZURE
 from lisa.sut_orchestrator.azure.features import AzureDiskOptionSettings
 from lisa.sut_orchestrator.azure.tools import Waagent
-from lisa.tools import Cat, Swap
+from lisa.tools import Cat, Echo, Swap
 from lisa.util import get_matched_str
 
 
@@ -48,7 +48,10 @@ class Storage(TestSuite):
         self,
         node: RemoteNode,
     ) -> None:
-        os_disk = node.features[Disk].get_os_disk()
+        os_disk_mount_point = "/"
+        os_disk = (
+            node.features[Disk].get_partition_with_mount_point(os_disk_mount_point).disk
+        )
         root_device_timeout_from_waagent = node.tools[Waagent].get_root_device_timeout()
         root_device_timeout_from_distro = int(
             node.tools[Cat].run(f"/sys/block/{os_disk}/device/timeout").stdout
@@ -66,7 +69,7 @@ class Storage(TestSuite):
         only store data such as page or swap files.
         Steps:
         1. Get the mount point for the resource disk. If `/var/log/cloud-init.log`
-        file is present, mount location is `\\mnt`, otherwise it is obtained from
+        file is present, mount location is `/mnt`, otherwise it is obtained from
         `ResourceDisk.MountPoint` entry in `waagent.conf` configuration file.
         2. Verify that "/dev/<disk> <mount_point>` entry is present in
         `/etc/mtab` file and the disk should not be equal to os disk.
@@ -79,7 +82,12 @@ class Storage(TestSuite):
     )
     def verify_resource_disk_mtab_entry(self, log: Logger, node: RemoteNode) -> None:
         resource_disk_mount_point = self._get_resource_disk_mount_point(log, node)
-        os_disk = node.features[Disk].get_os_disk()
+        # os disk(root disk) is the entry with mount point `/' in the output
+        # of `mount` command
+        os_disk_mount_point = "/"
+        os_disk = (
+            node.features[Disk].get_partition_with_mount_point(os_disk_mount_point).disk
+        )
         mtab = node.tools[Cat].run("/etc/mtab").stdout
         resource_disk_from_mtab = get_matched_str(
             mtab, self._get_mtab_mount_point_regex(resource_disk_mount_point)
@@ -108,6 +116,44 @@ class Storage(TestSuite):
             is_swap_enabled_distro,
             "swap cofiguration from waagent.conf and distro should match",
         ).is_equal_to(is_swap_enabled_wa_agent)
+
+    @TestCaseMetadata(
+        description="""
+        This test will check that the file IO operations are working correctly
+        Steps:
+        1. Get the mount point for the resource disk. If `/var/log/cloud-init.log`
+        file is present, mount location is `/mnt`, otherwise it is obtained from
+        `ResourceDisk.MountPoint` entry in `waagent.conf` configuration file.
+        2. Verify that resource disk is mounted from the output of `mount` command.
+        3. Write a text file to the resource disk.
+        4. Read the text file and verify that content is same.
+        """,
+        priority=1,
+        requirement=simple_requirement(
+            disk=AzureDiskOptionSettings(has_resource_disk=True),
+            supported_platform_type=[AZURE],
+        ),
+    )
+    def verify_resource_disk_io(self, log: Logger, node: RemoteNode) -> None:
+        resource_disk_mount_point = self._get_resource_disk_mount_point(log, node)
+
+        # verify that resource disk is mounted
+        # function returns successfully if disk matching mount point is present
+        node.features[Disk].get_partition_with_mount_point(resource_disk_mount_point)
+
+        file_path = f"{resource_disk_mount_point}/sample.txt"
+        original_text = "Writing to resource disk!!!"
+
+        # write content to the file
+        node.tools[Echo].write_to_file(original_text, file_path, sudo=True)
+
+        # read content from the file
+        read_text = node.tools[Cat].read_from_file(file_path, force_run=True, sudo=True)
+
+        assert_that(
+            read_text,
+            "content read from file should be equal to content written to file",
+        ).is_equal_to(original_text)
 
     def _get_resource_disk_mount_point(
         self,
