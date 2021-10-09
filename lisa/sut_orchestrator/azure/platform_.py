@@ -1240,7 +1240,9 @@ class AzurePlatform(Platform):
             )
         return vms_map
 
-    @retry(exceptions=LisaException, tries=150, delay=2)  # type: ignore
+    # Use Exception, because there may be credential conflict error. Make it
+    # retriable.
+    @retry(exceptions=Exception, tries=150, delay=2)  # type: ignore
     def _load_nics(
         self, environment: Environment, log: Logger
     ) -> Dict[str, NetworkInterface]:
