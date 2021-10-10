@@ -105,12 +105,12 @@ class Gpu(Feature):
 
     def _install_gpu_dep(self) -> None:
         uname_tool = self._node.tools[Uname]
-        uname_ver = uname_tool.get_linux_information().uname_version
+        kernel_ver = uname_tool.get_linux_information().kernel_version
 
         # install dependency libraries for distros
         if isinstance(self._node.os, Redhat):
             # install the kernel-devel and kernel-header packages
-            package_name = f"kernel-devel-{uname_ver} kernel-headers-{uname_ver}"
+            package_name = f"kernel-devel-{kernel_ver} kernel-headers-{kernel_ver}"
             self._node.os.install_packages(package_name)
             # mesa-libEGL install/update is require to avoid a conflict between
             # libraries - bugzilla.redhat 1584740
@@ -121,8 +121,8 @@ class Gpu(Feature):
             self._node.os.install_packages(package_name, signed=False)
         elif isinstance(self._node.os, Ubuntu):
             package_name = (
-                f"build-essential libelf-dev linux-tools-{uname_ver}"
-                f" linux-cloud-tools-{uname_ver} python libglvnd-dev ubuntu-desktop"
+                f"build-essential libelf-dev linux-tools-{kernel_ver}"
+                f" linux-cloud-tools-{kernel_ver} python libglvnd-dev ubuntu-desktop"
             )
             self._node.os.install_packages(package_name)
         else:
