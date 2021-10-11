@@ -36,6 +36,7 @@ class Lsmod(Tool):
         no_error_log: bool = True,
     ) -> bool:
         result = self.run(
+            sudo=True,
             force_run=force_run,
             no_info_log=no_info_log,
             no_error_log=no_error_log,
