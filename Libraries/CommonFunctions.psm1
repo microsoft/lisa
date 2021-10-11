@@ -710,10 +710,21 @@ function Install-CustomKernel ($CustomKernel, $allVMData, [switch]$RestartAfterU
 	try {
 		$currentKernelVersion = ""
 		$global:FinalKernelVersion = ""
+		# kerneltype;publickey:keyvalue;kernelurl:http
 		$CustomKernel = $CustomKernel.Trim()
+		$CustomKernelArray = $CustomKernel.split(";")
+		$CustomKernel = $CustomKernelArray[0]
+		if ($CustomKernelArray.length -eq 2) {
+			$CustomKernelKey = $CustomKernelArray[1]
+		}
+		if ($CustomKernelArray.length -eq 3) {
+			$CustomKernelKey = $CustomKernelArray[1]
+			$CustomKernelUrl = $CustomKernelArray[2]
+		}
 		# when adding new kernels here, also update script customKernelInstall.sh
 		$SupportedKernels = "ppa", "proposed", "proposed-azure", "proposed-edge",
-			"latest", "linuxnext", "netnext", "upstream-stable"
+		"latest", "linuxnext", "netnext", "upstream-stable", "linux-image-azure-lts-18.04",
+		"esm", "linux-azure-fips", "linux-image-azure-lts-20.04", "linux-image-azure-fde"
 
 		if ( ($CustomKernel -notin $SupportedKernels) -and !($CustomKernel.EndsWith(".deb")) -and `
 		!($CustomKernel.EndsWith(".rpm")) -and !($CustomKernel.EndsWith(".tar.gz")) -and !($CustomKernel.EndsWith(".tar")) ) {
@@ -743,8 +754,15 @@ function Install-CustomKernel ($CustomKernel, $allVMData, [switch]$RestartAfterU
 				$Null = Run-LinuxCmd -ip $vmData.PublicIP -port $vmData.SSHPort -username $user -password $password -command "chmod +x *.sh" -runAsSudo
 				$currentKernelVersion = Run-LinuxCmd -ip $vmData.PublicIP -port $vmData.SSHPort -username $user -password $password -command "uname -r"
 				Write-LogInfo "Executing $scriptName ..."
+				$command = "/home/$user/$scriptName -CustomKernel '$CustomKernelLabel' -logFolder /home/$user"
+				if ($CustomKernelKey) {
+					$command += " -publicKey '$CustomKernelKey'"
+				}
+				if ($CustomKernelUrl) {
+					$command += " -kernelurl '$CustomKernelUrl'"
+				}
 				$jobID = Run-LinuxCmd -ip $vmData.PublicIP -port $vmData.SSHPort -username $user `
-					-password $password -command "/home/$user/$scriptName -CustomKernel '$CustomKernelLabel' -logFolder /home/$user" `
+					-password $password -command $command `
 					-RunInBackground -runAsSudo
 				$packageInstallObj = New-Object PSObject
 				Add-member -InputObject $packageInstallObj -MemberType NoteProperty -Name ID -Value $jobID
