@@ -125,7 +125,7 @@ class BaseRunner(BaseClassMixin, InitializableMixin):
         raise NotImplementedError()
 
     def close(self) -> None:
-        self._log.debug(f"Runner finished in {self._timer.elapsed_text()}.")
+        self._log.info(f"Runner finished in {self._timer.elapsed_text()}.")
         if self._log_handler:
             remove_handler(self._log_handler)
             self._log_handler.close()
@@ -182,7 +182,7 @@ class RootRunner(Action):
             self._runbook_builder.dump_variables()
 
             self._max_concurrency = runbook.concurrency
-            self._log.debug(f"max concurrency is {self._max_concurrency}")
+            self._log.info(f"max concurrency is {self._max_concurrency}")
 
             self._results_collector = RunnerResult(schema.Notifier())
             register_notifier(self._results_collector)
@@ -216,7 +216,7 @@ class RootRunner(Action):
             combinator = combinator_factory.create_by_runbook(root_runbook.combinator)
 
             del self._runbook_builder.raw_data[constants.COMBINATOR]
-            self._log.debug(
+            self._log.info(
                 f"found combinator '{combinator.type_name()}', to expand runbook."
             )
             combinator.initialize()
@@ -252,12 +252,12 @@ class RootRunner(Action):
                     runner_filters[filter.type] = raw_filters
                 raw_filters.append(raw_filter)
             else:
-                self._log.debug(f"Skip disabled filter: {raw_filter}.")
+                self._log.info(f"Skip disabled filter: {raw_filter}.")
 
         # initialize runners
         factory = Factory[BaseRunner](BaseRunner)
         for runner_name, raw_filters in runner_filters.items():
-            self._log.debug(
+            self._log.info(
                 f"create runner {runner_name} with {len(raw_filters)} filter(s)."
             )
 
@@ -280,14 +280,17 @@ class RootRunner(Action):
         task_manager: TaskManager[None],
     ) -> None:
         while not runner.is_done and task_manager.has_idle_worker():
+            self._log.info(f"checking for task...{runner.id}")
             # fetch a task and submit
             task = runner.fetch_task()
             if task:
                 if isinstance(task, Task):
+                    self._log.info(f"Submitting task..{runner.id}")
                     task_manager.submit_task(task)
                 else:
                     raise LisaException(f"Unknown task type: '{type(task)}'")
             else:
+                self._log.info(f"No task available..{runner.id}")
                 # current runner may not be done, but it doesn't
                 # have task temporarily. The root runner can start
                 # tasks from next runner.
@@ -311,10 +314,12 @@ class RootRunner(Action):
 
         # run until no idle workers are available and all runner are closed
         while task_manager.wait_worker() or has_more_runner or remaining_runners:
+            self._log.info("Found idle workers in wait worker...")
             assert task_manager.has_idle_worker()
 
             # submit tasks until idle workers are available
             while task_manager.has_idle_worker():
+                self._log.info("Found idle workers...")
                 for runner in remaining_runners[:]:
                     self._submit_runner_tasks(runner, task_manager)
                     if runner.is_done:
@@ -323,7 +328,7 @@ class RootRunner(Action):
                         self._runners.remove(runner)
 
                 # remove completed runners
-                self._log.debug(
+                self._log.info(
                     f"running count: {task_manager.running_count}, "
                     f"id: {[x.id for x in remaining_runners]} "
                 )
@@ -336,11 +341,12 @@ class RootRunner(Action):
                             while len(remaining_runners) < self._max_concurrency:
                                 runner = next(runner_iterator)
                                 remaining_runners.append(runner)
-                                self._log.debug(f"Added runner {runner.id}")
+                                self._log.info(f"Added runner {runner.id}")
                         except StopIteration:
+                            self._log.info(f"No runner to add...")
                             has_more_runner = False
                     else:
                         # reduce CPU utilization from infinite loop when idle
                         # workers are present but no task to run.
-                        self._log.debug("Idle worker available but no new runner...")
+                        self._log.info("Idle worker available but no new runner...")
                         break

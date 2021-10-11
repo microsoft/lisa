@@ -102,12 +102,14 @@ class TaskManager(Generic[T_RESULT]):
         Return:
             True, if there is running worker.
         """
-
+        self._log.info(f"Waiting for a task to complete...")
         wait(self._futures[:], return_when=FIRST_COMPLETED)
+        self._log.info(f"Completed wait...")
         self._process_done_futures()
         return len(self._futures) > 0
 
     def _process_done_futures(self) -> None:
+        self._log.info(f"Removing futures started...")
         for future in self._futures[:]:
             if future.done():
                 # join exceptions of subthreads to main thread
@@ -119,6 +121,7 @@ class TaskManager(Generic[T_RESULT]):
                     self._callback(result)
                 self._future_task_map[future].close()
                 self._future_task_map.pop(future)
+        self._log.info(f"Removing futures completed...")
 
 
 _default_task_manager: Optional[TaskManager[Any]] = None
