@@ -30,20 +30,13 @@ class Modinfo(Tool):
     ) -> str:
         result = self.run(
             mod_name,
+            sudo=True,
             force_run=force_run,
             no_info_log=no_info_log,
             no_error_log=no_error_log,
+            expected_exit_code=0,
+            expected_exit_code_failure_message=f"Modinfo failed for module {mod_name}",
         )
-        if result.exit_code != 0:
-            # CentOS may not include the path when started,
-            # specify path and try again.
-            self._command = "/usr/sbin/modinfo"
-            result = self.run(
-                mod_name,
-                force_run=force_run,
-                no_info_log=no_info_log,
-                no_error_log=no_error_log,
-            )
         return result.stdout
 
     def get_version(
