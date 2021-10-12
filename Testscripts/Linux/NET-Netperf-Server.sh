@@ -35,7 +35,7 @@ update_repos
 install_package "wget make gcc"
 
 #Download NETPERF
-wget https://github.com/HewlettPackard/netperf/archive/netperf-2.7.0.tar.gz > /dev/null 2>&1
+wget --no-check-certificate https://github.com/HewlettPackard/netperf/archive/netperf-2.7.0.tar.gz > /dev/null 2>&1
 if [ $? -ne 0 ]; then
     LogMsg "Unable to download netperf."
     SetTestStateFailed

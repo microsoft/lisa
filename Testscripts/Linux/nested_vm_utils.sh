@@ -89,7 +89,7 @@ Install_KVM_Dependencies()
         install_package aria2
     else
         install_package make
-        wget https://github.com/q3aql/aria2-static-builds/releases/download/v1.35.0/aria2-1.35.0-linux-gnu-64bit-build1.tar.bz2
+        wget --no-check-certificate https://github.com/q3aql/aria2-static-builds/releases/download/v1.35.0/aria2-1.35.0-linux-gnu-64bit-build1.tar.bz2
         tar -xf aria2-1.35.0-linux-gnu-64bit-build1.tar.bz2
         cd aria2-1.35.0-linux-gnu-64bit-build1/
         make install

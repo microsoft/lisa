@@ -2358,7 +2358,7 @@ function install_sshpass () {
 			LogMsg "sshpass not installed\n Build it from source code now..."
 			package_name="sshpass-1.06"
 			source_url="https://sourceforge.net/projects/sshpass/files/sshpass/1.06/$package_name.tar.gz"
-			wget $source_url
+			wget --no-check-certificate $source_url
 			tar -xf "$package_name.tar.gz"
 			cd $package_name
 			./configure --prefix=/usr/ && make && make install
@@ -2576,8 +2576,8 @@ function install_iperf3 () {
 				apt-get -y install iperf3
 			elif [[ "${DISTRO_NAME}" == "debian" ]]; then
 				# Debian default repositories has 3.0 iperf3 version, which is not supported by automation.
-				wget https://iperf.fr/download/ubuntu/iperf3_3.1.3-1_amd64.deb
-				wget https://iperf.fr/download/ubuntu/libiperf0_3.1.3-1_amd64.deb
+				wget --no-check-certificate https://iperf.fr/download/ubuntu/iperf3_3.1.3-1_amd64.deb
+				wget --no-check-certificate https://iperf.fr/download/ubuntu/libiperf0_3.1.3-1_amd64.deb
 				dpkg -i iperf3_3.1.3-1_amd64.deb libiperf0_3.1.3-1_amd64.deb
 			fi
 			if [ $ip_version -eq 6 ] && [[ $DISTRO_VERSION =~ 16 ]]; then
@@ -3722,7 +3722,7 @@ function install_nvme_cli() {
                     install_package "$package"
                 fi
             done
-            wget https://github.com/linux-nvme/nvme-cli/archive/${nvme_version}.tar.gz
+            wget --no-check-certificate https://github.com/linux-nvme/nvme-cli/archive/${nvme_version}.tar.gz
             tar xvf ${nvme_version}.tar.gz
             pushd nvme-cli-${nvme_version/v/} && make && make install
             popd
@@ -3954,7 +3954,7 @@ function check_lsvmbus() {
 	lsvmbus_path=$(which lsvmbus)
 	if [[ -z "$lsvmbus_path" ]] || ! $lsvmbus_path > /dev/null 2>&1; then
 		install_package wget
-		wget https://raw.githubusercontent.com/torvalds/linux/master/tools/hv/lsvmbus
+		wget --no-check-certificate https://raw.githubusercontent.com/torvalds/linux/master/tools/hv/lsvmbus
 		chmod +x lsvmbus
 		if [[ "$DISTRO" =~ "coreos" ]]; then
 			export PATH=$PATH:/usr/share/oem/python/bin/

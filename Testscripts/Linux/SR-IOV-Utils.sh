@@ -289,7 +289,7 @@ InstallDependencies()
         if [ $? -ne 0 ]; then
             install_package "make"
         fi
-        wget $iperf3_url
+        wget--no-check-certificate $iperf3_url
         if [ $? -ne 0 ]; then
             LogErr "Failed to download iperf3 from $iperf3_url"
             SetTestStateFailed

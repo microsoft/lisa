@@ -67,7 +67,7 @@ Install_Kexec() {
                 kexec_version=$(kexec --v | awk -F' ' '{print $2}')
                 if version_gt "${target_version}" "${kexec_version}"; then
                     apt_get_install "make gcc"
-                    wget "https://mirrors.edge.kernel.org/pub/linux/utils/kernel/kexec/kexec-tools-${kexecVersion}.tar.gz"
+                    wget --no-check-certificate "https://mirrors.edge.kernel.org/pub/linux/utils/kernel/kexec/kexec-tools-${kexecVersion}.tar.gz"
                     kexec_tar=$(find -name "kexec-tools*" -type f)
                     tar xf "${kexec_tar}"
                     kexec_folder=$(find -name "kexec-tools*" -type d)

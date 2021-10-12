@@ -89,7 +89,7 @@ function InstallCUDADrivers() {
 		CUDA_REPO_PKG="cuda-repo-rhel7-$CUDADriverVersion.x86_64.rpm"
 		LogMsg "Using $CUDA_REPO_PKG"
 
-		wget http://developer.download.nvidia.com/compute/cuda/repos/rhel7/x86_64/"$CUDA_REPO_PKG" -O /tmp/"$CUDA_REPO_PKG"
+		wget --no-check-certificate http://developer.download.nvidia.com/compute/cuda/repos/rhel7/x86_64/"$CUDA_REPO_PKG" -O /tmp/"$CUDA_REPO_PKG"
 		if [ $? -ne 0 ]; then
 			LogErr "Failed to download $CUDA_REPO_PKG"
 			SetTestStateAborted
@@ -120,7 +120,7 @@ function InstallCUDADrivers() {
 		CUDA_REPO_PKG="cuda-repo-ubuntu${os_RELEASE//./}_${CUDADriverVersion}_amd64.deb"
 		LogMsg "Using ${CUDA_REPO_PKG}"
 
-		wget http://developer.download.nvidia.com/compute/cuda/repos/ubuntu"${os_RELEASE//./}"/x86_64/"${CUDA_REPO_PKG}" -O /tmp/"${CUDA_REPO_PKG}"
+		wget --no-check-certificate http://developer.download.nvidia.com/compute/cuda/repos/ubuntu"${os_RELEASE//./}"/x86_64/"${CUDA_REPO_PKG}" -O /tmp/"${CUDA_REPO_PKG}"
 		if [ $? -ne 0 ]; then
 			LogErr "Failed to download $CUDA_REPO_PKG"
 			SetTestStateAborted
@@ -154,7 +154,7 @@ function InstallCUDADrivers() {
 
 function InstallGRIDdrivers() {
 	LogMsg "Starting GRID driver installation"
-	wget "$grid_driver" -O /tmp/NVIDIA-Linux-x86_64-grid.run
+	wget --no-check-certificate "$grid_driver" -O /tmp/NVIDIA-Linux-x86_64-grid.run
 	if [ $? -ne 0 ]; then
 		LogErr "Failed to download the GRID driver!"
 		SetTestStateAborted
