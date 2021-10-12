@@ -1,6 +1,10 @@
 # Copyright (c) Microsoft Corporation.
 # Licensed under the MIT license.
 
+# import re
+from pathlib import PurePosixPath
+from typing import Dict, List, Union
+
 from assertpy import assert_that
 
 from lisa import (
@@ -15,7 +19,7 @@ from lisa import (
 )
 from lisa.base_tools import Uname
 from lisa.operating_system import Debian, Redhat, Suse
-from lisa.tools import Ethtool
+from lisa.tools import Ethtool, Modinfo, Nm
 
 
 @TestSuiteMetadata(
@@ -384,3 +388,160 @@ class NetworkSettings(TestSuite):
                     f"Reverting RX hash level for {protocol} to original value"
                     " didn't succeed",
                 ).is_equal_to(original_hlevel)
+
+    @TestCaseMetadata(
+        description="""
+            This test case verifies whether setting/unsetting device's
+            message level flag takes into affect.
+
+            Steps:
+            1. Verify Get/Set message level supported on kernel version.
+            2. Get all the device's message level number and name setting.
+            2. Depending on current setting, set/unset a message flag by number
+                and name.
+            3. Validate changing the message level flag setting.
+            4. Revert back the setting to original value.
+        """,
+        priority=2,
+    )
+    def validate_device_msg_level_change(self, node: Node, log: Logger) -> None:
+        # Check if feature is supported by the kernel
+        self._check_msg_level_change_supported(node)
+
+        msg_types: Dict[str, str] = {
+            "probe": "0x0002",
+            "tx_done": "0x0400",
+            "rx_status": "0x0800",
+        }
+
+        ethtool = node.tools[Ethtool]
+        devices_msg_level = ethtool.get_all_device_msg_level()
+
+        for msg_level_info in devices_msg_level:
+            interface = msg_level_info.device_name
+            original_msg_level_number = msg_level_info.msg_level_number
+            original_msg_level_name = msg_level_info.msg_level_name
+
+            name_test_flag = []
+            number_test_flag = 0
+
+            for msg_key, msg_value in msg_types.items():
+                if msg_key not in original_msg_level_name:
+                    name_test_flag.append(msg_key)
+                    number_test_flag += int(msg_value, 16)
+
+            # variable to indicate set or unset
+            set = True
+
+            # if test message flags are already set, pick first test flag in list.
+            # validate change by first unsetting the flag and then unsetting
+            if not name_test_flag and not number_test_flag:
+                first_pair = list(msg_types.items())[0]
+                name_test_flag.append(first_pair[0])
+                number_test_flag = int(first_pair[1], 16)
+                set = False
+
+            # Testing set/unset message level by name
+            new_settings = ethtool.set_unset_device_message_flag_by_name(
+                interface, name_test_flag, set
+            )
+            if set:
+                assert_that(
+                    new_settings.msg_level_name,
+                    f"Setting msg flags - {' '.join(name_test_flag)} didn't"
+                    f" succeed. Current value is {new_settings.msg_level_name}",
+                ).contains(" ".join(name_test_flag))
+            else:
+                assert_that(
+                    new_settings.msg_level_name,
+                    f"Setting msg flags by name - {' '.join(name_test_flag)} didn't"
+                    f" succeed. Current value is {new_settings.msg_level_name}",
+                ).does_not_contain(" ".join(name_test_flag))
+
+            reverted_settings = ethtool.set_unset_device_message_flag_by_name(
+                interface, name_test_flag, not set
+            )
+            if not set:
+                assert_that(
+                    reverted_settings.msg_level_name,
+                    f"Setting msg flags by name - {' '.join(name_test_flag)} didn't"
+                    f" succeed. Current value is {reverted_settings.msg_level_name}",
+                ).contains(" ".join(name_test_flag))
+            else:
+                assert_that(
+                    reverted_settings.msg_level_name,
+                    f"Setting msg flags by name - {' '.join(name_test_flag)} didn't"
+                    f" succeed. Current value is {reverted_settings.msg_level_name}",
+                ).does_not_contain(" ".join(name_test_flag))
+
+            # Testing set message level by number
+            new_settings = ethtool.set_device_message_flag_by_num(
+                interface, str(hex(number_test_flag))
+            )
+            assert_that(
+                int(new_settings.msg_level_number, 16),
+                f"Setting msg flags by number - {str(hex(number_test_flag))} didn't"
+                f" succeed. Current value is {new_settings.msg_level_number}",
+            ).is_equal_to(number_test_flag)
+
+            reverted_settings = ethtool.set_device_message_flag_by_num(
+                interface, original_msg_level_number
+            )
+            assert_that(
+                int(reverted_settings.msg_level_number, 16),
+                f"Setting msg flags by number - {original_msg_level_number} didn't"
+                f" succeed. Current value is {reverted_settings.msg_level_number}",
+            ).is_equal_to(int(original_msg_level_number, 16))
+
+    def _check_msg_level_change_supported(self, node: Node) -> None:
+        msg_level_symbols: Union[str, List[str]]
+
+        uname_tool = node.tools[Uname]
+        kernel_version = uname_tool.get_linux_information().kernel_version
+
+        modinfo = node.tools[Modinfo]
+        netvsc_module = modinfo.get_filename("hv_netvsc")
+        if netvsc_module:
+            # remove any escape character at the end of string
+            netvsc_module = netvsc_module.strip()
+            # if the module is archived as xz, extract it to check symbols
+            if netvsc_module.endswith(".xz"):
+                node.execute(
+                    f"cp {netvsc_module} {node.working_path}/", cwd=node.working_path
+                )
+                node.execute(
+                    f"xz -d {node.working_path}/{netvsc_module.rsplit('/', 1)[-1]}",
+                    cwd=node.working_path,
+                )
+                netvsc_module = node.execute(
+                    f"ls {node.working_path}/hv_netvsc*",
+                    shell=True,
+                    cwd=node.working_path,
+                ).stdout
+
+            assert node.shell.exists(
+                PurePosixPath(netvsc_module)
+            ), f"{netvsc_module} doesn't exist."
+
+            nm = node.tools[Nm]
+            msg_level_symbols = nm.get_symbol_table(netvsc_module)
+        else:
+            # if the module is builtin
+            command = f"grep 'netvsc.*msglevel' '/boot/System.map-{kernel_version}'"
+            result = node.execute(
+                command,
+                shell=True,
+                sudo=True,
+                expected_exit_code=0,
+                expected_exit_code_failure_message="Couldn't get the message level"
+                "symbols in System map.",
+            )
+            msg_level_symbols = result.stdout
+
+        if ("netvsc_get_msglevel" not in msg_level_symbols) or (
+            "netvsc_set_msglevel" not in msg_level_symbols
+        ):
+            raise SkippedException(
+                f"Get/Set message level not supported on {kernel_version},"
+                " Skipping test."
+            )

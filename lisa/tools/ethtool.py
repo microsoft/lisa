@@ -56,7 +56,7 @@ _link_settings_pattern = re.compile(
 )
 # Current message level: 0x000000f7 (247)
 _msg_level_number_pattern = re.compile(
-    r"Current message level:[\s]*(?P<value>.*?)?$", re.MULTILINE
+    r"Current message level:[\s]*(?P<value>\w*).*?$", re.MULTILINE
 )
 # Current message level: 0x000000f7 (247)
 #                        drv probe link ifdown ifup rx_err tx_err
@@ -633,7 +633,9 @@ class Ethtool(Tool):
 
         return link_settings
 
-    def get_device_msg_level(self, interface: str, force: bool) -> DeviceMessageLevel:
+    def get_device_msg_level(
+        self, interface: str, force: bool = False
+    ) -> DeviceMessageLevel:
         if not force:
             device = self._device_settings_map.get(interface, None)
             if device and device.device_msg_level:
@@ -858,6 +860,14 @@ class Ethtool(Tool):
             devices_link_settings_list.append(self.get_device_link_settings(device))
 
         return devices_link_settings_list
+
+    def get_all_device_msg_level(self) -> List[DeviceMessageLevel]:
+        devices_msg_level_list = []
+        devices = self.get_device_list()
+        for device in devices:
+            devices_msg_level_list.append(self.get_device_msg_level(device))
+
+        return devices_msg_level_list
 
     def get_all_device_ring_buffer_settings(self) -> List[DeviceRingBufferSettings]:
         devices_ring_buffer_settings_list = []
