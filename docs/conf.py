@@ -33,13 +33,15 @@ sphinx_dependencies = data["tool"]["poetry"]["dev-dependencies"]
 
 with open(requirement, "w") as req:
     for module, version in dependencies.items():
-        if str(version)[0] != "^":
-            version = version["version"]
-        if str(module) in ["python", "pypiwin32", "PyGObject"]:
+        version = str(version)
+        assert isinstance(module, str)
+        if module in ["python", "pypiwin32", "PyGObject"]:
             continue
-        req.write(str(module))
+        if version.startswith("^"):
+            version = version[1:]
+        req.write(module)
         req.write(">=")
-        req.write(str(version)[1:])
+        req.write(version)
         req.write("\n")
 
     for module, version in sphinx_dependencies.items():
