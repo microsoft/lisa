@@ -597,7 +597,7 @@ class LisaRunner(BaseRunner):
 
             # check if there is platform requirement on test case
             if test_req.platform_type and len(test_req.platform_type) > 0:
-                check_result = test_req.platform_type.check(platform_type_set)
+                check_result = platform_type_set.check(test_req.platform_type)
                 if not check_result.result:
                     test_result.set_status(TestStatus.SKIPPED, check_result.reasons)
 
