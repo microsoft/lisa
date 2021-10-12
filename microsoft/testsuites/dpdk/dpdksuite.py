@@ -1,10 +1,11 @@
 # Copyright (c) Microsoft Corporation.
 # Licensed under the MIT license.
 
+import re
 from collections import deque
 from typing import Dict, List, Tuple
 
-from assertpy import assert_that
+from assertpy import assert_that, fail
 
 from lisa import (
     Environment,
@@ -19,12 +20,13 @@ from lisa import (
 from lisa.features import NetworkInterface, Sriov
 from lisa.nic import Nics
 from lisa.testsuite import simple_requirement
-from lisa.tools import Echo, Lspci, Mount
+from lisa.tools import Echo, Git, Lspci, Make, Mount
 from lisa.util import constants
 from lisa.util.parallel import Task, TaskManager
 from microsoft.testsuites.dpdk.dpdktestpmd import DpdkTestpmd
 
 VDEV_TYPE = "net_vdev_netvsc"
+MAX_RING_PING_LIMIT_NS = 200000
 
 
 @TestSuiteMetadata(
@@ -35,6 +37,12 @@ VDEV_TYPE = "net_vdev_netvsc"
     """,
 )
 class Dpdk(TestSuite):
+
+    # regex for parsing ring ping output for the final line,
+    # grabbing the max latency of 99.999% of data in nanoseconds.
+    # ex: percentile 99.999 = 12302
+    _ring_ping_percentile_regex = re.compile(r"percentile 99.999 = ([0-9]+)")
+
     @TestCaseMetadata(
         description="""
             This test case checks DPDK can be built and installed correctly.
@@ -66,6 +74,71 @@ class Dpdk(TestSuite):
         assert_that(tx_pps).described_as(
             f"TX-PPS ({tx_pps}) should have been greater than 2^20 (~1m) PPS."
         ).is_greater_than(2 ** 20)
+
+    @TestCaseMetadata(
+        description="""
+            This test runs the dpdk ring ping utility from:
+            https://github.com/shemminger/dpdk-ring-ping
+            to measure the maximum latency for 99.999 percent of packets during
+            the test run. The maximum should be under 200000 nanoseconds
+            (.2 milliseconds).
+        """,
+        priority=2,
+        requirement=simple_requirement(
+            min_nic_count=2,
+            network_interface=Sriov(),
+        ),
+    )
+    def verify_dpdk_ring_ping(self, node: Node, log: Logger) -> None:
+        # setup and unwrap the resources for this test
+        test_kit = initialize_node_resources(node, log)
+        testpmd = test_kit.testpmd
+
+        # grab a nic and run testpmd
+        git = node.tools[Git]
+        make = node.tools[Make]
+        echo = node.tools[Echo]
+        rping_build_env_vars = [
+            "export RTE_TARGET=build",
+            f"export RTE_SDK={testpmd.dpdk_cwd.as_posix()}",
+        ]
+        echo.write_to_file(",".join(rping_build_env_vars), "~/.bashrc", append=True)
+        git_path = git.clone(
+            "https://github.com/shemminger/dpdk-ring-ping.git", cwd=node.working_path
+        )
+        make.run(
+            shell=True,
+            cwd=git_path,
+            expected_exit_code=0,
+            expected_exit_code_failure_message="make could not build rping project.",
+        ).assert_exit_code()
+        # run ringping for 30 seconds
+        runcmd = "./build/rping -c 0xC0 -n 2 --no-pci --no-huge -- -d 5 -t 10"
+        result = node.execute(
+            runcmd,
+            shell=True,
+            cwd=git_path,
+            expected_exit_code=0,
+            expected_exit_code_failure_message="rping program failed to run correctly.",
+        )
+        result.assert_exit_code()
+        # get the max latency for 99.999 percent of enqueued 'packets'.
+        result_regex = self._ring_ping_percentile_regex.search(result.stdout)
+        if result_regex and len(result_regex.groups()) == 1:
+            max_ping_measured = int(result_regex.group(1))
+            assert_that(max_ping_measured).described_as(
+                (
+                    f"RingPing measured {max_ping_measured} as maximum ping latency,"
+                    f" maximum should be less than {MAX_RING_PING_LIMIT_NS}"
+                )
+            ).is_less_than(MAX_RING_PING_LIMIT_NS)
+        else:
+            fail(
+                (
+                    "Could not get latency data from rping result. "
+                    f"Search was for 'percentile 99.999 = ([0-9]+)'\n{result.stdout}\n"
+                )
+            )
 
     @TestCaseMetadata(
         description="""
@@ -124,7 +197,7 @@ class Dpdk(TestSuite):
         log.info(f"receiver rx-pps: {rcv_rx_pps}")
         log.info(f"sender tx-pps: {snd_tx_pps}")
 
-        # differences in NIC model throughput can lead to different snd/rcv counts
+        # differences in NIC type throughput can lead to different snd/rcv counts
         assert_that(rcv_rx_pps).described_as(
             "Throughput for RECEIVE was below the correct order-of-magnitude"
         ).is_greater_than(2 ** 20)

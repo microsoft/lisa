@@ -11,7 +11,7 @@ from assertpy import assert_that
 from lisa.executable import Tool
 from lisa.nic import NicInfo
 from lisa.operating_system import CentOs, Redhat, Ubuntu
-from lisa.tools import Git, Lspci, Wget
+from lisa.tools import Echo, Git, Lspci, Wget
 from lisa.util import SkippedException
 
 
@@ -107,7 +107,8 @@ class DpdkTestpmd(Tool):
         if self._install_dependencies():
             node = self.node
             git_tool = node.tools[Git]
-            git_tool.clone(self._dpdk_github, cwd=node.working_path)
+            echo_tool = node.tools[Echo]
+            self.dpdk_cwd = git_tool.clone(self._dpdk_github, cwd=node.working_path)
             dpdk_path = self.node.working_path.joinpath("dpdk")
             self.__execute_assert_zero("meson build", dpdk_path)
             dpdk_build_path = dpdk_path.joinpath("build")
@@ -115,6 +116,15 @@ class DpdkTestpmd(Tool):
             self.__execute_assert_zero("ninja", dpdk_build_path, timeout=1200)
             self.__execute_assert_zero("ninja install", dpdk_build_path)
             self.__execute_assert_zero("ldconfig", dpdk_build_path)
+            library_bashrc_lines = [
+                "export PKG_CONFIG_PATH=${PKG_CONFIG_PATH}:/usr/local/lib64/pkgconfig/",
+                "export LD_LIBRARY_PATH=${LD_LIBRARY_PATH}:/usr/local/lib64/",
+            ]
+            echo_tool.write_to_file(
+                ";".join(library_bashrc_lines),
+                "~/.bashrc",
+                append=True,
+            )
             return True
         else:
             return False
