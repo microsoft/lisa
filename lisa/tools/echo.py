@@ -26,10 +26,14 @@ class Echo(Tool):
         file: str,
         sudo: bool = False,
         timeout: int = 60,
+        append: bool = False,
     ) -> None:
         # Run `echo <value> > <file>`
+        operator = ">"
+        if append:
+            operator = ">>"
         result = self.run(
-            f"{value} > {file}",
+            f"{value} {operator} {file}",
             force_run=True,
             shell=True,
             sudo=sudo,
