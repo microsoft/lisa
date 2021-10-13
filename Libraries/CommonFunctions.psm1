@@ -710,7 +710,7 @@ function Install-CustomKernel ($CustomKernel, $allVMData, [switch]$RestartAfterU
 	try {
 		$currentKernelVersion = ""
 		$global:FinalKernelVersion = ""
-		# kerneltype;publickey:keyvalue;kernelurl:http
+		# kerneltype;publickey;kernelurl
 		$CustomKernel = $CustomKernel.Trim()
 		$CustomKernelArray = $CustomKernel.split(";")
 		$CustomKernel = $CustomKernelArray[0]
@@ -722,6 +722,19 @@ function Install-CustomKernel ($CustomKernel, $allVMData, [switch]$RestartAfterU
 			$CustomKernelUrl = $CustomKernelArray[2]
 		}
 		# when adding new kernels here, also update script customKernelInstall.sh
+		# Sample combination -
+		# Distro/Release	Kernel Type					Before Upgrade		After Upgrade
+		# focal 20.04		proposed-edge				5.8.0-1036-azure	5.11.0-1011-azure
+		# focal 20.04		proposed-azure				5.8.0-1036-azure	5.8.0-1038-azure
+		# focal 20.04		linux-image-azure-lts-20.04	5.8.0-1036-azure 	5.4.0-1052-azure
+		# bionic 18.04		proposed-azure				5.4.0-1051-azure	5.4.0-1052-azure
+		# bionic 18.04		proposed-edge				5.4.0-1051-azure	5.4.0-1052-azure
+		# bionic 18.04		linux-image-azure-lts-18.04	5.4.0-1051-azure	4.15.0-1120-azure
+		# hirsute 21.04		proposed-azure				5.11.0-1009-azure	5.11.0-1011-azure
+		# trusty 14.04		esm							4.4.0-148-generic	4.15.0-1120-azure
+		# xenial 16.04		esm							4.15.0-1113-azure	4.15.0-1120-azure
+		# bionic 18.04		proposed-azure-fips			5.4.0-1051-azure	4.15.0-2032-azure-fips
+		# [Need specify public key and repo url for esm and proposed-azure-fips]
 		$SupportedKernels = "ppa", "proposed", "proposed-azure", "proposed-edge",
 		"latest", "linuxnext", "netnext", "upstream-stable", "linux-image-azure-lts-18.04",
 		"esm", "linux-azure-fips", "linux-image-azure-lts-20.04", "linux-image-azure-fde"
