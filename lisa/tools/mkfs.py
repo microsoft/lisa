@@ -1,10 +1,17 @@
 # Copyright (c) Microsoft Corporation.
 # Licensed under the MIT license.
 import re
+from enum import Enum
 from typing import cast
 
 from lisa.executable import Tool
 from lisa.operating_system import Posix
+from lisa.util import LisaException
+
+FileSystem = Enum(
+    "mkfs",
+    ["xfs", "ext2", "ext3", "ext4", "btrfs"],
+)
 
 
 class Mkfs(Tool):
@@ -31,8 +38,29 @@ class Mkfs(Tool):
             )
         cmd_result.assert_exit_code()
 
+    def format_disk(self, disk_name: str, file_system: FileSystem) -> None:
+        if file_system == FileSystem.xfs:
+            mkfs_xfs = self.node.tools[Mkfsxfs]
+            mkfs_xfs.mkfs(disk_name, file_system)
+        elif file_system in [FileSystem.ext2, FileSystem.ext3, FileSystem.ext4]:
+            mkfs_ext = self.node.tools[Mkfsext]
+            mkfs_ext.mkfs(disk_name, file_system)
+        elif file_system in [FileSystem.btrfs]:
+            mkfs_btrfs = self.node.tools[Mkfsbtrfs]
+            mkfs_btrfs.mkfs(disk_name, file_system)
+        else:
+            raise LisaException(f"Unrecognized file system {file_system}.")
+
 
 class Mkfsxfs(Mkfs):
+    @property
+    def command(self) -> str:
+        return "mkfs.xfs"
+
+    @property
+    def can_install(self) -> bool:
+        return True
+
     def _install(self) -> bool:
         posix_os: Posix = cast(Posix, self.node.os)
         posix_os.install_packages("xfsprogs")
@@ -40,7 +68,30 @@ class Mkfsxfs(Mkfs):
 
 
 class Mkfsext(Mkfs):
+    @property
+    def command(self) -> str:
+        return "mkfs.ext4"
+
+    @property
+    def can_install(self) -> bool:
+        return True
+
     def _install(self) -> bool:
         posix_os: Posix = cast(Posix, self.node.os)
         posix_os.install_packages("e2fsprogs")
+        return self._check_exists()
+
+
+class Mkfsbtrfs(Mkfs):
+    @property
+    def command(self) -> str:
+        return "mkfs.btrfs"
+
+    @property
+    def can_install(self) -> bool:
+        return True
+
+    def _install(self) -> bool:
+        posix_os: Posix = cast(Posix, self.node.os)
+        posix_os.install_packages("btrfs-progs")
         return self._check_exists()

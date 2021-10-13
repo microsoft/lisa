@@ -82,7 +82,7 @@ class Mount(Tool):
         cmd_result = self.node.execute(f"umount {type} {point}", shell=True, sudo=True)
         if erase:
             fdisk = self.node.tools[Fdisk]
-            fdisk.delete_partition(disk_name)
+            fdisk.delete_partitions(disk_name)
             self.node.execute(f"rm -r {point}", shell=True, sudo=True)
         if (
             not self.__UMOUNT_ERROR_PATTERN.match(cmd_result.stdout)
