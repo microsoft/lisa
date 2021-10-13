@@ -78,6 +78,9 @@ class Nvme(Feature):
         ]
         return devices_from_lspci
 
+    def get_raw_data_disks(self) -> List[str]:
+        return self.get_namespaces()
+
     def _get_device_from_ls(self, force_run: bool = False) -> None:
         if (not self._ls_devices) or force_run:
             execute_results = self._node.execute(

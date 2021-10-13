@@ -2,7 +2,7 @@
 # Licensed under the MIT license.
 
 from functools import partial
-from typing import Type
+from typing import List, Type
 
 from assertpy.assertpy import assert_that
 
@@ -40,6 +40,9 @@ class Disk(Feature):
         self._log.debug(f"disk: {partition}, mount_point: {mount_point}")
 
         return partition
+
+    def get_raw_data_disks(self) -> List[str]:
+        raise NotImplementedError
 
 
 DiskEphemeral = partial(schema.DiskOptionSettings, disk_type=schema.DiskType.Ephemeral)
