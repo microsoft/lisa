@@ -27,7 +27,6 @@ class Ntttcp(Tool):
 
     def _install(self) -> bool:
         tool_path = self.get_tool_path()
-        self.node.shell.mkdir(tool_path, exist_ok=True)
         git = self.node.tools[Git]
         git.clone(self.repo, tool_path)
         make = self.node.tools[Make]

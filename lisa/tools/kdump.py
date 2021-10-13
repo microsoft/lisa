@@ -92,7 +92,6 @@ class Kexec(Tool):
 
     def _install_from_src(self) -> None:
         tool_path = self.get_tool_path()
-        self.node.shell.mkdir(tool_path, exist_ok=True)
         wget = self.node.tools[Wget]
         kexec_tar = wget.get(self._kexec_repo, str(tool_path))
         tar = self.node.tools[Tar]

@@ -5,7 +5,7 @@ from enum import Enum
 from typing import cast
 
 from lisa.executable import Tool
-from lisa.operating_system import Posix
+from lisa.operating_system import Posix, Suse
 from lisa.util import LisaException
 
 FileSystem = Enum(
@@ -28,13 +28,13 @@ class Mkfs(Tool):
         return True
 
     # command - mkfs.xfs, mkfs.ext2, mkfs.ext3, mkfs.ext4
-    def mkfs(self, disk: str, command: str) -> None:
+    def mkfs(self, disk: str, file_system: FileSystem) -> None:
         cmd_result = self.node.execute(
-            f"echo y | {command} {disk}", shell=True, sudo=True
+            f"echo y | {file_system} {disk}", shell=True, sudo=True
         )
         if self.__EXIST_FILE_SYSTEM_PATTERN.match(cmd_result.stdout):
             cmd_result = self.node.execute(
-                f"echo y | {command} -f {disk}", shell=True, sudo=True
+                f"echo y | {file_system} -f {disk}", shell=True, sudo=True
             )
         cmd_result.assert_exit_code()
 
@@ -93,5 +93,8 @@ class Mkfsbtrfs(Mkfs):
 
     def _install(self) -> bool:
         posix_os: Posix = cast(Posix, self.node.os)
-        posix_os.install_packages("btrfs-progs")
+        package = "btrfs-progs"
+        if isinstance(self.node.os, Suse):
+            package = "btrfsprogs"
+        posix_os.install_packages(package)
         return self._check_exists()
