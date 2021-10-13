@@ -1,7 +1,7 @@
 # Copyright (c) Microsoft Corporation.
 # Licensed under the MIT license.
 
-
+import re
 from dataclasses import dataclass
 from os import unlink
 from pathlib import Path
@@ -17,7 +17,7 @@ from lisa.features import NvmeSettings
 from lisa.features.gpu import ComputeSDK
 from lisa.node import Node, RemoteNode
 from lisa.operating_system import CentOs, Redhat, Suse, Ubuntu
-from lisa.util import LisaException, NotMeetRequirementException
+from lisa.util import LisaException, NotMeetRequirementException, find_patterns_in_lines
 
 if TYPE_CHECKING:
     from .platform_ import AzurePlatform
@@ -479,6 +479,24 @@ class Disk(AzureFeatureMixin, features.Disk):
     def _initialize(self, *args: Any, **kwargs: Any) -> None:
         super()._initialize(*args, **kwargs)
         self._initialize_information(self._node)
+
+    def get_raw_data_disks(self) -> List[str]:
+        pattern = re.compile(r"/dev/disk/azure/scsi[1-9]/lun[0-9][0-9]?", re.M)
+        # /dev/disk/azure/scsi1/lun0
+        cmd_result = self._node.execute(
+            "ls -d /dev/disk/azure/scsi*/*", shell=True, sudo=True
+        )
+        matched = find_patterns_in_lines(cmd_result.stdout, [pattern])
+        assert matched[0]
+        disk_array: List[str] = [""] * len(matched[0])
+        for disk in matched[0]:
+            # readlink -f /dev/disk/azure/scsi1/lun0
+            # /dev/sdc
+            cmd_result = self._node.execute(
+                f"readlink -f {disk}", shell=True, sudo=True
+            )
+            disk_array[int(disk.split("/")[-1].replace("lun", ""))] = cmd_result.stdout
+        return disk_array
 
 
 __disk_type_mapping: Dict[schema.DiskType, str] = {
