@@ -275,7 +275,9 @@ class Tool(InitializableMixin):
         compose a path, if the tool need to be installed
         """
         assert self.node.working_path, "working path is not initialized"
-        return self.node.working_path.joinpath(constants.PATH_TOOL, self.name)
+        path = self.node.working_path.joinpath(constants.PATH_TOOL, self.name)
+        self.node.shell.mkdir(path, exist_ok=True)
+        return path
 
     def __call__(
         self,

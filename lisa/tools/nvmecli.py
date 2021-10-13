@@ -37,7 +37,6 @@ class Nvmecli(Tool):
         posix_os: Posix = cast(Posix, self.node.os)
         posix_os.install_packages([Git, Make, "pkg-config"])
         tool_path = self.get_tool_path()
-        self.node.shell.mkdir(tool_path, exist_ok=True)
         git = self.node.tools[Git]
         git.clone(self.repo, tool_path)
         make = self.node.tools[Make]

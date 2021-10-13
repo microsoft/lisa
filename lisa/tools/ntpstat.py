@@ -29,7 +29,6 @@ class Ntpstat(Tool):
 
     def _install_from_src(self) -> None:
         tool_path = self.get_tool_path()
-        self.node.shell.mkdir(tool_path, exist_ok=True)
         git = self.node.tools[Git]
         git.clone(self.repo, tool_path)
         gcc = self.node.tools[Gcc]
