@@ -8,7 +8,7 @@ from lisa.base_tools import Cat, Wget
 from lisa.executable import Tool
 from lisa.operating_system import CoreOs, Redhat
 from lisa.tools import Modinfo
-from lisa.util import LisaException, find_patterns_in_lines
+from lisa.util import LisaException, find_patterns_in_lines, get_matched_str
 
 
 class Waagent(Tool):
@@ -121,6 +121,10 @@ class LisDriver(Tool):
         return [Wget, Modinfo]
 
     @property
+    def command(self) -> str:
+        return "modinfo hv_vmbus"
+
+    @property
     def can_install(self) -> bool:
         if (
             isinstance(self.node.os, Redhat)
@@ -159,10 +163,12 @@ class LisDriver(Tool):
             )
         return True
 
-    def get_version(self) -> str:
-        cmd_result = self.run()
-        if cmd_result.exit_code == 0:
-            found_version = find_patterns_in_lines(
-                cmd_result.stdout, [self.__version_pattern]
-            )
-        return found_version[0][0] if (found_version and found_version[0]) else ""
+    def get_version(self, force: bool = False) -> str:
+        cmd_result = self.run(
+            force_run=force,
+            expected_exit_code=0,
+            expected_exit_code_failure_message="hv_vmbus module not found/loaded.",
+        )
+
+        found_version = get_matched_str(cmd_result.stdout, self.__version_pattern)
+        return found_version if found_version else ""
