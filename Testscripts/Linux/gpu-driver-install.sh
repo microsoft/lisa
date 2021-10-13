@@ -58,8 +58,8 @@ function skip_test() {
 				fi
 			fi
 			if [[ $DISTRO == "ubuntu_x" ]]; then
-				# skip other ubuntu version than 16.04 and 18.04
-				if [[ $VERSION_ID != "16.04" && $VERSION_ID != "18.04" ]]; then
+				# skip other ubuntu version than 16.04, 18.04, 20.04, 21.04
+				if [[ $VERSION_ID != "16.04" && $VERSION_ID != "18.04" && $VERSION_ID != "20.04" && $VERSION_ID != "21.04" ]]; then
 					unsupport_flag=1
 				fi
 			fi
@@ -113,7 +113,7 @@ function InstallCUDADrivers() {
 	ubuntu*)
 		GetOSVersion
 		# Temporary fix till driver for ubuntu19 and ubuntu20 series list under http://developer.download.nvidia.com/compute/cuda/repos/
-		if [[ $os_RELEASE =~ 19.* ]] || [[ $os_RELEASE =~ 20.* ]]; then
+		if [[ $os_RELEASE =~ 19.* ]] || [[ $os_RELEASE =~ 20.* ]] || [[ $os_RELEASE =~ 21.* ]]; then
 			LogMsg "There is no cuda driver for $os_RELEASE, used the one for 18.10"
 			os_RELEASE="18.10"
 		fi
