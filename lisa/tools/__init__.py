@@ -24,6 +24,7 @@ from .mkfs import Mkfsext, Mkfsxfs
 from .modinfo import Modinfo
 from .modprobe import Modprobe
 from .mount import Mount
+from .nm import Nm
 from .ntp import Ntp
 from .ntpstat import Ntpstat
 from .ntttcp import Ntttcp
@@ -63,6 +64,7 @@ __all__ = [
     "Modinfo",
     "Modprobe",
     "Mount",
+    "Nm",
     "Ntp",
     "Ntpstat",
     "Ntttcp",
