@@ -56,6 +56,7 @@ If you add a custom test menu, you will need to re-build the Jenkins menu, and t
 
             ii. For Azure
                 $ARMImageName: The ARM image name
+                $SharedImageGallery: The shared image gallery path
 
             iii. For HyperV
                 $HyperVInstanceSize: The VM size of VM on HyperV

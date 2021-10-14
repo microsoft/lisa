@@ -50,7 +50,11 @@ function Send-ResultToDatabase ($GlobalConfig, $logDir) {
         $l1GuestOSType    = "Linux"
         $l1GuestSize = $AllVMData.InstanceSize
         $l1GuestKernelVersion    = Get-Content "$logDir\VM_properties.csv" | Select-String "Kernel version"| ForEach-Object{$_ -replace ",Kernel version,",""}
-        $imageName = $CurrentTestData.SetupConfig.ARMImageName
+        if ($CurrentTestData.SetupConfig.SharedImageGallery) {
+            $imageName = $CurrentTestData.SetupConfig.SharedImageGallery
+        } else {
+            $imageName = $CurrentTestData.SetupConfig.ARMImageName
+        }
 
         # Get L2 guest info
         $l2GuestDistro    = Get-Content "$logDir\nested_properties.csv" | Select-String "OS type"| ForEach-Object{$_ -replace ",OS type,",""}

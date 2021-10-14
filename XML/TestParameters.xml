@@ -43,6 +43,7 @@
 	<TestLocation></TestLocation>
 	<RGIdentifier></RGIdentifier>
 	<ARMImageName></ARMImageName>
+	<SharedImageGallery></SharedImageGallery>
 	<StorageAccount></StorageAccount>
 
 	<!-- [Required] for Two Hosts HyperV -->

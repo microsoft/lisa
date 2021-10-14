@@ -25,6 +25,12 @@ function Start-LISAv2 {
 		# [Required] for Azure.
 		[string] $TestLocation="",
 		[string] $ARMImageName = "",
+		# Required for Azure if -ARMImageName and -OsVHD is not provided
+		# If the shared image gallery is in the same subscription that is used to run LISA, this parameter can be:
+		#     <image_gallery>/<image_definition>/<image_version>
+		# otherwise, this parameter should be:
+		#     <subscription_id>/<image_gallery>/<image_definition>/<image_version>
+		[string] $SharedImageGallery = "",
 		[string] $StorageAccount="",
 
 		# [Required] for Two Hosts HyperV
@@ -32,7 +38,7 @@ function Start-LISAv2 {
 
 		# [Required] Common for HyperV and Azure.
 		[string] $RGIdentifier = "",
-		[string] $OsVHD = "",   #... [Azure: Required only if -ARMImageName is not provided.]
+		[string] $OsVHD = "",   #... [Azure: Required if -ARMImageName and -SharedImageGallery are not provided.]
 								#... [HyperV: Mandatory]
 								#... [WSL: Mandatory, which can be the URL of the distro, or the path to the distro file on the local host]
 								#... [Ready: Not needed, and will be ignored if provided]
@@ -202,7 +208,7 @@ function Start-LISAv2 {
 			Write-LogInfo "Test $global:testId finished"
 
 			# Output text summary
-			$plainTextSummary = $testController.TestSummary.GetPlainTextSummary($OsVHD, $testController.ARMImageName, $OverrideVMSize)
+			$plainTextSummary = $testController.TestSummary.GetPlainTextSummary($OsVHD, $testController.ARMImageName, $testController.SharedImageGallery, $OverrideVMSize)
 			Write-LogInfo $plainTextSummary
 
 			# Zip the test log folder

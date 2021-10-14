@@ -286,7 +286,7 @@ Class TestSummary
 		$this.TestPriority = $TestPriority
 	}
 
-	[string] GetPlainTextSummary ($OSVHD, $ARMImageName, $OverrideVMSize)
+	[string] GetPlainTextSummary ($OSVHD, $ARMImageName, $SharedImageGallery, $OverrideVMSize)
 	{
 		$testDuration= [Datetime]::Now.ToUniversalTime() - $this.TestStartTime
 		$durationStr=$testDuration.Days.ToString() + ":" +  $testDuration.hours.ToString() + ":" + $testDuration.minutes.ToString()
@@ -302,6 +302,10 @@ Class TestSummary
 				$imageInfo = $_.Split(' ')
 				$str += "`r`nARM Image Under Test  : " + "$($imageInfo[0]) : $($imageInfo[1]) : $($imageInfo[2]) : $($imageInfo[3])"
 			}
+		}
+		# This is 'SharedImageGallery' from Controller
+		if ($SharedImageGallery) {
+			$str += "`r`nShared Image Under Test  : " + "$SharedImageGallery"
 		}
 		if ($OverrideVMSize) {
 			$overrideVMSizeArr = @($OverrideVMSize.Trim(", ").Split(',').Trim())
