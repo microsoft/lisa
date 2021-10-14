@@ -14,6 +14,7 @@ from .gcc import Gcc
 from .git import Git
 from .hwclock import Hwclock
 from .kdump import KdumpBase
+from .lsblk import Lsblk
 from .lscpu import Lscpu
 from .lsmod import Lsmod
 from .lspci import Lspci
@@ -49,6 +50,7 @@ __all__ = [
     "Git",
     "Hwclock",
     "KdumpBase",
+    "Lsblk",
     "Lscpu",
     "Lsmod",
     "Lspci",
