@@ -53,7 +53,7 @@ VerifyVF()
         if [ $? -ne 0 ]; then
             LogMsg "$msg"
             SetTestStateFailed
-            exit 1
+            exit 0
         fi
     fi
 
@@ -69,7 +69,7 @@ VerifyVF()
     if [ $? -ne 0 ]; then
         LogMsg "No Mellanox or Intel NIC with SR-IOV support found!"
         SetTestStateFailed
-        exit 1
+        exit 0
     fi
 
     if [ -z "$VF_IP1" ]; then
@@ -94,7 +94,7 @@ VerifyVF()
     if [ $? -ne 0 ]; then
         LogErr "VF device $vf_interface was not found!"
         SetTestStateFailed
-        exit 1
+        exit 0
     fi
 
 
@@ -126,7 +126,7 @@ Create1Gfile()
     if [ 0 -ne $? ]; then
         LogErr "Unable to create file $output_file in $HOME"
         SetTestStateFailed
-        exit 1
+        exit 0
     fi
 
     LogMsg "Successfully created $output_file"
@@ -247,7 +247,7 @@ InstallDependencies()
         if [ $? -ne 0 ]; then
             LogMsg "$msg"
             SetTestStateFailed
-            exit 1
+            exit 0
         fi
     fi
 
@@ -267,7 +267,7 @@ InstallDependencies()
         if [ $? -ne 0 ]; then
             LogErr "Failed to download iperf3 from $iperf3_url"
             SetTestStateFailed
-            exit 1
+            exit 0
         fi
 
         tar xf $iperf3_version.tar.gz
@@ -282,7 +282,7 @@ InstallDependencies()
         if [ $? -ne 0 ]; then
             LogErr "Failed to install iperf3"
             SetTestStateFailed
-            exit 1
+            exit 0
         fi
     else
         install_iperf3
