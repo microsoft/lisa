@@ -431,7 +431,7 @@ Function PrepareAutoCompleteStorageAccounts ($storageAccountsRGName, $XMLSecretF
 }
 
 Function Invoke-AllResourceGroupDeployments($SetupTypeData, $CurrentTestData, $RGIdentifier, $UseExistingRG, $ResourceCleanup, [boolean]$EnableNSG = $false) {
-	Function GenerateAzDeploymentJSONFile($RGName, $ImageName, $VHDName, $RGXMLData, $Location, $azuredeployJSONFilePath, $StorageAccountName) {
+	Function GenerateAzDeploymentJSONFile($RGName, $ImageName, $SharedImageName, $VHDName, $RGXMLData, $Location, $azuredeployJSONFilePath, $StorageAccountName) {
 		#Random Data
 		$RGrandomWord = ([System.IO.Path]::GetRandomFileName() -replace '[^a-z]')
 		$RGRandomNumber = Get-Random -Minimum 11111 -Maximum 99999
@@ -518,7 +518,7 @@ Function Invoke-AllResourceGroupDeployments($SetupTypeData, $CurrentTestData, $R
 		Write-LogInfo "Generating Template : $azuredeployJSONFilePath"
 		$jsonFile = $azuredeployJSONFilePath
 
-		if ($ImageName -and !$VHDName) {
+		if ($ImageName -and !$VHDName -and !$SharedImageName) {
 			$imageInfo = $ImageName.Split(' ')
 			$publisher = $imageInfo[0]
 			$offer = $imageInfo[1]
@@ -1334,7 +1334,7 @@ Function Invoke-AllResourceGroupDeployments($SetupTypeData, $CurrentTestData, $R
 			Add-Content -Value "$($indents[3])^type^: ^Microsoft.Compute/virtualMachines^," -Path $jsonFile
 			Add-Content -Value "$($indents[3])^name^: ^$vmName^," -Path $jsonFile
 			Add-Content -Value "$($indents[3])^location^: ^[variables('location')]^," -Path $jsonFile
-			if ($ImageName -and !$VHDName) {
+			if ($ImageName -and !$VHDName -and !$SharedImageName) {
 				if ($version -ne "latest") {
 					$used_image = Get-AzVMImage -Location $Location -PublisherName $publisher -Offer $offer -Skus $sku -Version $version
 				}
@@ -1445,7 +1445,7 @@ Function Invoke-AllResourceGroupDeployments($SetupTypeData, $CurrentTestData, $R
 			#region Storage Profile
 			Add-Content -Value "$($indents[4])^storageProfile^: " -Path $jsonFile
 			Add-Content -Value "$($indents[4]){" -Path $jsonFile
-			if ($ImageName -and !$VHDName) {
+			if ($ImageName -and !$VHDName -and !$SharedImageName) {
 				Write-LogInfo ">>> Using ARMImage : $publisher : $offer : $sku : $version"
 				Add-Content -Value "$($indents[5])^imageReference^ : " -Path $jsonFile
 				Add-Content -Value "$($indents[5]){" -Path $jsonFile
@@ -1455,12 +1455,28 @@ Function Invoke-AllResourceGroupDeployments($SetupTypeData, $CurrentTestData, $R
 				Add-Content -Value "$($indents[6])^version^: ^$version^" -Path $jsonFile
 				Add-Content -Value "$($indents[5])}," -Path $jsonFile
 			}
+			elseif($SharedImageName -and !$VHDName){
+				Write-LogInfo ">>> Using shared image : $SharedImageName"
+				Add-Content -Value "$($indents[5])^imageReference^ : " -Path $jsonFile
+				Add-Content -Value "$($indents[5]){" -Path $jsonFile
+
+				$sharedImageInfo = $SharedImageName.Split('/')
+				if ($sharedImageInfo.Count -eq 4) {
+					$imageResource = "$($sharedImageInfo[1])/providers/Microsoft.Compute/galleries/$($sharedImageInfo[1])/images/$($sharedImageInfo[2])/versions/$($sharedImageInfo[3])"
+					Add-Content -Value "$($indents[6])^Id^: ^/subscriptions/$($sharedImageInfo[0])/resourceGroups/$imageResource^," -Path $jsonFile
+				} else {
+					$imageResource = "$($sharedImageInfo[0])/providers/Microsoft.Compute/galleries/$($sharedImageInfo[0])/images/$($sharedImageInfo[1])/versions/$($sharedImageInfo[2])"
+					Add-Content -Value "$($indents[6])^Id^: ^[concat('/subscriptions/',subscription().subscriptionId,'/resourceGroups/$imageResource')]^," -Path $jsonFile
+				}
+				Add-Content -Value "$($indents[5])}," -Path $jsonFile
+			}
 			elseif ($VHDName -and $UseManagedDisks) {
 				Add-Content -Value "$($indents[5])^imageReference^ : " -Path $jsonFile
 				Add-Content -Value "$($indents[5]){" -Path $jsonFile
 				Add-Content -Value "$($indents[6])^id^: ^[resourceId('Microsoft.Compute/images', '$RGName-Image')]^," -Path $jsonFile
 				Add-Content -Value "$($indents[5])}," -Path $jsonFile
 			}
+
 			Add-Content -Value "$($indents[5])^osDisk^ : " -Path $jsonFile
 			Add-Content -Value "$($indents[5]){" -Path $jsonFile
 			if ($VHDName) {
@@ -1693,6 +1709,7 @@ Function Invoke-AllResourceGroupDeployments($SetupTypeData, $CurrentTestData, $R
 		$osVHDName = ($CurrentTestData.SetupConfig.OsVHD.Split("?")[0] -split("/$sourceContainer/"))[-1]
 	}
 	$osImage = $CurrentTestData.SetupConfig.ARMImageName
+	$SharedImage = $CurrentTestData.SetupConfig.SharedImageGallery
 	$location = $CurrentTestData.SetupConfig.TestLocation
 	if (!$location) {
 		Write-LogInfo "'TestLocation' is not set from Run-LISAv2 parameter, or '$($CurrentTestData.TestName)' does not define the expected 'TestLocation' from SetupConfig section.`nLISAv2 will auto select an available TestLocation (Azure Region) for deployment and testing"
@@ -1782,7 +1799,7 @@ Function Invoke-AllResourceGroupDeployments($SetupTypeData, $CurrentTestData, $R
 				Write-LogInfo "test platform is : $testPlatform"
 				if ($isRGReady -eq "True") {
 					$azureDeployJSONFilePath = Join-Path $env:TEMP "$groupName.json"
-					$null = GenerateAzDeploymentJSONFile -RGName $groupName -ImageName $osImage -VHDName $osVHDName -RGXMLData $RG -Location $location `
+					$null = GenerateAzDeploymentJSONFile -RGName $groupName -ImageName $osImage -SharedImageName $SharedImage -VHDName $osVHDName -RGXMLData $RG -Location $location `
 						-azuredeployJSONFilePath $azureDeployJSONFilePath -StorageAccountName $updatedStorageAccount
 
 					$DeploymentStartTime = (Get-Date)
@@ -2728,7 +2745,7 @@ Function Get-TestSetupKey ([object] $TestData) {
 	$TestData.SetupConfig.SetupType, $TestData.SetupConfig.OverrideVMSize, $TestData.SetupConfig.Networking, `
 	$TestData.SetupConfig.DiskType, $TestData.SetupConfig.OSDiskType, $TestData.SetupConfig.SwitchName, `
 	$TestData.SetupConfig.ImageType, $TestData.SetupConfig.OSType, $TestData.SetupConfig.StorageAccountType, `
-	$TestData.SetupConfig.TestLocation, $TestData.SetupConfig.ARMImageName, $TestData.SetupConfig.OsVHD, `
+	$TestData.SetupConfig.TestLocation, $TestData.SetupConfig.ARMImageName, $TestData.SetupConfig.SharedImageGallery, $TestData.SetupConfig.OsVHD, `
 	$TestData.SetupConfig.VMGeneration, $TestData.SetupConfig.SecureBoot, $TestData.SetupConfig.vTPM `
 	-join ','
 }

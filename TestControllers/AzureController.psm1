@@ -29,6 +29,7 @@ using Module "..\TestProviders\AzureProvider.psm1"
 
 Class AzureController : TestController {
 	[string] $ARMImageName
+	[string] $SharedImageGallery
 	[string] $StorageAccount
 
 	AzureController() {
@@ -65,10 +66,16 @@ Class AzureController : TestController {
 			$this.SyncEquivalentCustomParameters("ARMImageName", $this.ARMImageName)
 		}
 
+		$this.SharedImageGallery = $ParamTable["SharedImageGallery"]
+		if ($this.SharedImageGallery) {
+			$this.SharedImageGallery = $this.SharedImageGallery -replace '/{2,}', '/'
+		}
+		$this.SyncEquivalentCustomParameters("SharedImageGallery", $this.SharedImageGallery)
+
 		# Validate -ARMImageName and -OsVHD
 		# when both OsVHD and ARMImageName exist, parameterErrors += "..."
-		if ($this.OsVHD -and $this.ARMImageName) {
-			$parameterErrors += "'-OsVHD' could not coexist with '-ARMImageName' when testing against 'Azure' Platform."
+		if ($this.OsVHD -and $this.ARMImageName -or $this.OsVHD -and $this.SharedImageGallery) {
+			$parameterErrors += "'-OsVHD' could not coexist with '-ARMImageName' or '-SharedImageGallery' when testing against 'Azure' Platform."
 		}
 		elseif ($this.OsVHD) {
 			if ($this.OsVHD -and [System.IO.Path]::GetExtension($this.OsVHD) -ne ".vhd" -and !$this.OsVHD.Contains("vhd")) {
@@ -78,11 +85,23 @@ Class AzureController : TestController {
 				$parameterErrors += "-VMGeneration '$($this.VMGeneration)' is not supported."
 			}
 		}
-		elseif (!$this.ARMImageName) {
-			# Both $this.OsVHD and $this.ARMImageName are empty, <DefaultARMImageName> from .\XML\GlobalConfigurations.xml should be applied as default value
+		elseif ($this.ARMImageName -and $this.SharedImageGallery) {
+			$parameterErrors += "'ARMImageName' could not coexist with 'SharedImageGallery' when testing against 'Azure' Platform."
+		}
+		elseif (!$this.ARMImageName -and !$this.SharedImageGallery) {
+			# Both $this.OsVHD and $this.ARMImageName, $this.SharedImageGallery are empty, <DefaultARMImageName> from .\XML\GlobalConfigurations.xml should be applied as default value
 			# $this.GlobalConfig has been set by base ([TestController]$this).ParseAndValidateParameters() at the beginning of this overwritten function
 			if (!$this.GlobalConfig.Global.Azure.DefaultARMImageName) {
-				$parameterErrors += "-OsVHD <'VHD_Name.vhd'>, or -ARMImageName '<Publisher> <Offer> <Sku> <Version>,<Publisher> <Offer> <Sku> <Version>,...', or <DefaultARMImageName> from .\XML\GlobalConfigurations.xml if required."
+				$parameterErrors += "-OsVHD <'VHD_Name.vhd'>, or -ARMImageName '<Publisher> <Offer> <Sku> <Version>,<Publisher> <Offer> <Sku> <Version>,...', " + `
+							"or -SharedImageGallery '<subscription_id>/<image_gallery>/<image_definition>/<image_version>', <DefaultARMImageName> from .\XML\GlobalConfigurations.xml if required."
+			}
+		}
+		elseif ($this.SharedImageGallery) {
+			$parameterCount = $this.SharedImageGallery.Split("/").Trim().Count
+			if ($parameterCount -lt 3 -or $parameterCount -gt 4) {
+				$parameterErrors += "Invalid value for the provided SharedImageGallery parameter: <'$($this.SharedImageGallery)'>." + `
+						"The SharedImageGallery should be in the format: 'subscription_id>/<image_gallery>/<image_definition>/<image_version>' " + `
+						"Or '<image_gallery>/<image_definition>/<image_version>' if the shared image gallery is in the same subscription that is used to run LISA."
 			}
 		}
 		elseif ($this.ARMImageName) {
@@ -323,9 +342,14 @@ Class AzureController : TestController {
 			}
 			Add-SetupConfig -AllTests $AllTests -ConfigName "OverrideVMSize" -ConfigValue $this.CustomParams["OverrideVMSize"] -Force $this.ForceCustom
 			Add-SetupConfig -AllTests $AllTests -ConfigName "OsVHD" -ConfigValue $this.CustomParams["OsVHD"] -Force $this.ForceCustom
-			# 'OsVHD' should not coexist with 'ARMImageName', when OsVHD exist, take OsVHD as prioritized than ARMImageName
+			# 'OsVHD' should not coexist with 'ARMImageName' and 'SharedImageGallery', when OsVHD exist, take OsVHD as prioritized than ARMImageName and SharedImageGallery
 			if (!$this.CustomParams["OsVHD"]) {
-				Add-SetupConfig -AllTests $AllTests -ConfigName "ARMImageName" -ConfigValue $this.CustomParams["ARMImageName"] -DefaultConfigValue $this.GlobalConfig.Global.Azure.DefaultARMImageName -Force $this.ForceCustom
+				if (!$this.CustomParams["SharedImageGallery"]) {
+					# 'SharedImageGallery' should not coexist with 'ARMImageName', take 'SharedImageGallery' as prioritized than 'ARMImageName'.
+					Add-SetupConfig -AllTests $AllTests -ConfigName "ARMImageName" -ConfigValue $this.CustomParams["ARMImageName"] -DefaultConfigValue $this.GlobalConfig.Global.Azure.DefaultARMImageName -Force $this.ForceCustom
+				} else {
+					Add-SetupConfig -AllTests $AllTests -ConfigName "SharedImageGallery" -ConfigValue $this.CustomParams["SharedImageGallery"] -Force $this.ForceCustom
+				}
 			}
 			else {
 				# Only when 'OsVHD' exist from parameters, then we should Add-SetupConfig for 'VMGeneration',

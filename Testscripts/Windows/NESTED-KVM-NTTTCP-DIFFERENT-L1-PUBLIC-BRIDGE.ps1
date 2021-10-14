@@ -54,7 +54,11 @@ function Send-ResultToDatabase ($GlobalConfig, $logDir, $currentTestData) {
 			$flag=0
 		}
 
-		$imageName = $CurrentTestData.SetupConfig.ARMImageName
+		if ($CurrentTestData.SetupConfig.SharedImageGallery) {
+			$imageName = $CurrentTestData.SetupConfig.SharedImageGallery
+		} else {
+			$imageName = $CurrentTestData.SetupConfig.ARMImageName
+		}
 
 		foreach ( $param in $currentTestData.TestParameters.param)
 		{

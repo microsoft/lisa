@@ -160,7 +160,7 @@ Please follow the steps mentioned at [here](https://docs.microsoft.com/en-us/azu
                 <!--This 'ARMStorageAccount' is mandatory if '-StorageAccount' is not specified when Run-LISAv2.ps1, otherwise, it's optional-->
                 <ARMStorageAccount>ExistingStorage_Standard</ARMStorageAccount>
             </Subscription>
-            <!--This 'DefaultARMImageName' is the default value for '-ARMImageName' from Azure Gallery, when '-OsVHD' and '-ARMImageName' both are not specified form Run-LISAv2 test parameters-->
+            <!--This 'DefaultARMImageName' is the default value for '-ARMImageName' from Azure Gallery, when '-OsVHD', '-SharedImageGallery' and '-ARMImageName' are not specified form Run-LISAv2 test parameters-->
             <DefaultARMImageName>Canonical UbuntuServer 18.04-LTS Latest</DefaultARMImageName>
         </Azure>
         <HyperV>
@@ -197,7 +197,7 @@ Please follow the steps mentioned at [here](https://docs.microsoft.com/en-us/azu
 3. There are two ways to run LISAv2 tests:
   * Note when testing with 'Azure' platform:
 
-    * `-ARMImageName` is optional when testing with Azure Gallery Images (`-OsVHD` is used for testing with custom image). If both `-ARMImageName` and `-OsVHD` are not provided from Run-LISAv2.ps1 parameters, LISAv2 will try to use `<DefaultARMImageName>` from .\XML\GlobalConfigurations.xml as value of `-ARMImageName`. In this case, if `<DefaultARMImageName>` is not defined from `.\XML\GlobalConfigurations.xml`, exeption will be thrown.
+    * `-ARMImageName` is optional when testing with Azure Gallery Images (`-OsVHD` is used for testing with custom image). If `-ARMImageName`, `-SharedImageGallery` and `-OsVHD` are not provided from Run-LISAv2.ps1 parameters, LISAv2 will try to use `<DefaultARMImageName>` from .\XML\GlobalConfigurations.xml as value of `-ARMImageName`. In this case, if `<DefaultARMImageName>` is not defined from `.\XML\GlobalConfigurations.xml`, exeption will be thrown.
 
     * `-TestLocation` is optional. If `-TestLocation` is not provided from Run-LISAv2.ps1 parameters, LISAv2 will use the pre-defined `<TestLocation>` from test definition xml for each test case. If test case does not have any specific `<TestLocation>`, LISAv2 will choose an Azure Region automatically per test case Vm Size and Vm Family from current subscription context. The auto-selected TestLocation (Azure Region) is likely to have the most available vCPUs Compute resources for the target Vm Size and Vm Family of current test case. The available vCPU resources of all enabled Azure Regions is calculated and ordered by LISAv2 dynamically based on the current Compute vCPUs resource usage of current subscription when necessary. Run-LISAv2 without `-TestLocation` can be used when Compute resources for testing VM Sizes are not coming from single Azure Region, but distributed from different Azure Regions, in that case, running selected test cases all in once of LISAv2 execution is possible. If the target VM Size is not enabled from any region of current subscription, LISAv2 will report exception. If LISAv2 could not deploy a target Vm Size due to vCPUs Compute resource is not enough temporarily, LISAv2 will wait for at most 1 hour for any released Compute resources, and then continue the testing when resources getting available, or abort the current test case when waiting timeout.
 

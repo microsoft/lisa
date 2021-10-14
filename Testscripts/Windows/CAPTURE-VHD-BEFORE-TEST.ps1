@@ -40,9 +40,12 @@ function Main {
             $Append += "-$env:BUILD_NUMBER"
         }
         #Copy the OS VHD with different name.
-        if ($CurrentTestData.SetupConfig.ARMImageName) {
+        if ($CurrentTestData.SetupConfig.ARMImageName -and !$CurrentTestData.SetupConfig.SharedImageGallery) {
             $ARMImage = $CurrentTestData.SetupConfig.ARMImageName.Split(" ")
             $newVHDName = "EOSG-AUTOBUILT-$($ARMImage[0])-$($ARMImage[1])-$($ARMImage[2])-$($ARMImage[3])-$Append"
+        } elseif ($CurrentTestData.SetupConfig.SharedImageGallery) {
+            $sharedImage = $CurrentTestData.SetupConfig.SharedImageGallery.Replace('/','-')
+            $newVHDName = "EOSG-AUTOBUILT-$sharedImage-$Append"
         }
         if ($global:BaseOsVHD) {
             $OSVhd = $global:BaseOsVHD.Split('/')[-1]

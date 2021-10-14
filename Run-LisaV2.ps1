@@ -56,6 +56,12 @@ Param(
 	# [Required] for Azure.
 	[string] $TestLocation="",
 	[string] $ARMImageName = "",
+	# Required for Azure if -ARMImageName and -OsVHD are not provided
+	# If the shared image is in the same subscription that is used to run LISA, this parameter can be:
+	#     <image_gallery>/<image_definition>/<image_version>
+	# otherwise, this parameter should be:
+	#     <subscription_id>/<image_gallery>/<image_definition>/<image_version>
+	[string] $SharedImageGallery = "",
 	[string] $StorageAccount="",
 
 	# [Required] for Two Hosts HyperV
@@ -63,7 +69,7 @@ Param(
 
 	# [Required] Common for HyperV and Azure.
 	[string] $RGIdentifier = "",
-	[string] $OsVHD = "",   #... [Azure: Required only if -ARMImageName is not provided.]
+	[string] $OsVHD = "",   #... [Azure: Required only if -ARMImageName and -SharedImageGallery are not provided.]
 							#... [HyperV: Mandatory]
 							#... [WSL: Mandatory, which can be the URL of the distro, or the path to the distro file on the local host]
 							#... [Ready: Not needed, and will be ignored if provided]
