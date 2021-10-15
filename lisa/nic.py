@@ -3,12 +3,14 @@
 
 import ipaddress
 import itertools
+import os
 import re
 from typing import Any, Dict, List, Tuple
 
 from assertpy import assert_that, fail
 
 from lisa import Node
+from lisa.tools import Echo
 from lisa.util import InitializableMixin, LisaException
 
 
@@ -31,6 +33,8 @@ class NicInfo:
         self.pci_slot = pci_slot
         self.ip_addr = ""
         self.mac_addr = ""
+        self.dev_uuid = ""
+        self.bound_driver = "hv_netvsc"  # NOTE: azure default
 
     def __str__(self) -> str:
         return (
@@ -135,11 +139,24 @@ class Nics(InitializableMixin):
     def nic_info_is_present(self, nic_name: str) -> bool:
         return nic_name in self.get_upper_nics() or nic_name in self.get_lower_nics()
 
+    def unbind(self, nic: NicInfo, driver_module: str) -> None:
+        echo = self._node.tools[Echo]
+        echo.write_to_file(
+            nic.dev_uuid, f"/sys/bus/vmbus/drivers/{driver_module}/unbind", sudo=True
+        )
+
+    def bind(self, nic: NicInfo, driver_module: str) -> None:
+        echo = self._node.tools[Echo]
+        echo.write_to_file(
+            nic.dev_uuid, f"/sys/bus/vmbus/drivers/{driver_module}/bind", sudo=True
+        )
+
     def _initialize(self, *args: Any, **kwargs: Any) -> None:
         self._nic_names = self._get_nic_names()
         self._get_node_nic_info()
         self.default_nic = self._get_default_nic()
         self._get_host_if_info()
+        self._get_nic_uuids()
 
     def _get_nic_names(self) -> List[str]:
         # identify all of the nics on the device, excluding tunnels and loopbacks etc.
@@ -164,6 +181,21 @@ class Nics(InitializableMixin):
         base_device_result.assert_exit_code()
         # todo check addr matches expectation
         return base_device_result.stdout
+
+    def _get_nic_uuid(self, nic_name: str) -> str:
+        full_dev_path = self._node.execute(
+            f"readlink /sys/class/net/{nic_name}/device",
+            expected_exit_code_failure_message=(
+                f"could not get sysfs device info for {nic_name}"
+            ),
+        )
+        uuid = os.path.basename(full_dev_path.stdout.strip())
+        self._node.log.debug(f"{nic_name} UUID:{uuid}")
+        return uuid
+
+    def _get_nic_uuids(self) -> None:
+        for nic in self.get_upper_nics():
+            self._nics[nic].dev_uuid = self._get_nic_uuid(nic)
 
     def _get_node_nic_info(self) -> None:
         # Identify which nics are slaved to master devices.

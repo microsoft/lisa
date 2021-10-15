@@ -38,6 +38,8 @@ class Echo(Tool):
             shell=True,
             sudo=sudo,
             timeout=timeout,
+            expected_exit_code=0,
+            expected_exit_code_failure_message=f"echo failed to write to {file}",
         ).stdout
         assert_that(result).does_not_contain("Permission denied")
 
