@@ -6,7 +6,7 @@ import time
 from pathlib import PurePath
 from typing import List, Type
 
-from assertpy import assert_that
+from assertpy import assert_that, fail
 
 from lisa.executable import Tool
 from lisa.nic import NicInfo
@@ -197,20 +197,40 @@ class DpdkTestpmd(Tool):
         )
         return True
 
-    def generate_testpmd_include(self, node_nic: NicInfo, vdev_id: int) -> str:
+    def generate_testpmd_include(
+        self,
+        node_nic: NicInfo,
+        vdev_id: int,
+    ) -> str:
+        # handle generating different flags for pmds/device combos for testpmd
         assert_that(node_nic.has_lower).is_true().described_as(
             (
                 f"This interface {node_nic.upper} does not have a lower interface "
                 "and pci slot associated with it. Aborting."
             )
         )
-        return (
-            f'--vdev="net_vdev_netvsc{vdev_id},iface={node_nic.upper}"'
-            f' --allow "{node_nic.pci_slot}"'
-        )
+        vdev_info = ""
+        if node_nic.bound_driver == "hv_netvsc":
+            vdev_info = f'--vdev="net_vdev_netvsc{vdev_id},iface={node_nic.upper}"'
+        elif node_nic.bound_driver == "uio_hv_generic":
+            pass
+        else:
+            fail(
+                (
+                    f"Unknown driver({node_nic.bound_driver}) bound to "
+                    f"{node_nic.upper}/{node_nic.lower}."
+                    "Cannot generate testpmd include arguments."
+                )
+            )
+        return vdev_info + f' --allow "{node_nic.pci_slot}"'
 
     def generate_testpmd_command(
-        self, nic_to_include: NicInfo, vdev_id: int, mode: str, extra_args: str = ""
+        self,
+        nic_to_include: NicInfo,
+        vdev_id: int,
+        mode: str,
+        pmd: str,
+        extra_args: str = "",
     ) -> str:
         #   testpmd \
         #   -l <core-list> \

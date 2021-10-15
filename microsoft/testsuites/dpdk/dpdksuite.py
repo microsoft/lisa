@@ -18,7 +18,7 @@ from lisa import (
     TestSuiteMetadata,
 )
 from lisa.features import NetworkInterface, Sriov
-from lisa.nic import Nics
+from lisa.nic import NicInfo, Nics
 from lisa.testsuite import simple_requirement
 from lisa.tools import Echo, Git, Lspci, Make, Mount
 from lisa.util import constants
@@ -45,6 +45,7 @@ class Dpdk(TestSuite):
 
     @TestCaseMetadata(
         description="""
+            netvsc direct pmd version.
             This test case checks DPDK can be built and installed correctly.
             Prerequisites, accelerated networking must be enabled.
             The VM should have at least two network interfaces,
@@ -57,14 +58,38 @@ class Dpdk(TestSuite):
             network_interface=Sriov(),
         ),
     )
-    def verify_dpdk_build(self, node: Node, log: Logger) -> None:
+    def verify_dpdk_build_netvsc(self, node: Node, log: Logger) -> None:
+        self._verify_dpdk_build(node, log, "netvsc")
+
+    @TestCaseMetadata(
+        description="""
+            failsafe (azure default, recommended) version.
+            This test case checks DPDK can be built and installed correctly.
+            Prerequisites, accelerated networking must be enabled.
+            The VM should have at least two network interfaces,
+            with one interface for management.
+            More details: https://docs.microsoft.com/en-us/azure/virtual-network/setup-dpdk#prerequisites # noqa: E501
+        """,
+        priority=2,
+        requirement=simple_requirement(
+            min_nic_count=2,
+            network_interface=Sriov(),
+        ),
+    )
+    def verify_dpdk_build_failsafe(self, node: Node, log: Logger) -> None:
+        self._verify_dpdk_build(node, log, "failsafe")
+
+    def _verify_dpdk_build(self, node: Node, log: Logger, pmd: str) -> None:
         # setup and unwrap the resources for this test
-        test_kit = initialize_node_resources(node, log)
+        test_kit = initialize_node_resources(node, log, pmd)
         node_nic_info, testpmd = test_kit.node_nic_info, test_kit.testpmd
 
         # grab a nic and run testpmd
         test_nic_id, test_nic = node_nic_info.get_test_nic()
-        testpmd_cmd = testpmd.generate_testpmd_command(test_nic, test_nic_id, "txonly")
+
+        testpmd_cmd = testpmd.generate_testpmd_command(
+            test_nic, test_nic_id, "txonly", pmd
+        )
         testpmd.run_for_n_seconds(testpmd_cmd, 10)
         tx_pps = testpmd.get_tx_pps()
         log.info(
@@ -82,16 +107,17 @@ class Dpdk(TestSuite):
             to measure the maximum latency for 99.999 percent of packets during
             the test run. The maximum should be under 200000 nanoseconds
             (.2 milliseconds).
+            Not dependent on any specific PMD.
         """,
         priority=2,
         requirement=simple_requirement(
-            min_nic_count=2,
+            min_nic_count=1,
             network_interface=Sriov(),
         ),
     )
     def verify_dpdk_ring_ping(self, node: Node, log: Logger) -> None:
         # setup and unwrap the resources for this test
-        test_kit = initialize_node_resources(node, log)
+        test_kit = initialize_node_resources(node, log, "failsafe")
         testpmd = test_kit.testpmd
 
         # grab a nic and run testpmd
@@ -102,7 +128,7 @@ class Dpdk(TestSuite):
             "export RTE_TARGET=build",
             f"export RTE_SDK={testpmd.dpdk_cwd.as_posix()}",
         ]
-        echo.write_to_file(",".join(rping_build_env_vars), "~/.bashrc", append=True)
+        echo.write_to_file(";".join(rping_build_env_vars), "~/.bashrc", append=True)
         git_path = git.clone(
             "https://github.com/shemminger/dpdk-ring-ping.git", cwd=node.working_path
         )
@@ -142,7 +168,7 @@ class Dpdk(TestSuite):
 
     @TestCaseMetadata(
         description="""
-            Tests a basic sender/receiver setup.
+            Tests a basic sender/receiver setup for default failsafe driver setup.
             Sender sends the packets, receiver receives them.
             We check both to make sure the received traffic is within the expected
             order-of-magnitude.
@@ -154,7 +180,35 @@ class Dpdk(TestSuite):
             min_count=2,
         ),
     )
-    def verify_dpdk_send_receive(self, environment: Environment, log: Logger) -> None:
+    def verify_dpdk_send_receive_failsafe(
+        self, environment: Environment, log: Logger
+    ) -> None:
+        self._verify_dpdk_send_receive(environment, log, "failsafe")
+
+    @TestCaseMetadata(
+        description="""
+            Tests a basic sender/receiver setup for direct netvsc pmd setup.
+            Sender sends the packets, receiver receives them.
+            We check both to make sure the received traffic is within the expected
+            order-of-magnitude.
+        """,
+        priority=2,
+        requirement=simple_requirement(
+            min_nic_count=2,
+            network_interface=Sriov(),
+            min_count=2,
+        ),
+    )
+    def verify_dpdk_send_receive_netvsc(
+        self, environment: Environment, log: Logger
+    ) -> None:
+        self._verify_dpdk_send_receive(environment, log, "netvsc")
+
+    def _verify_dpdk_send_receive(
+        self, environment: Environment, log: Logger, pmd: str
+    ) -> None:
+
+        # helpful to have the public ips labeled for debugging
         external_ips = []
         for node in environment.nodes.list():
             if isinstance(node, RemoteNode):
@@ -165,10 +219,9 @@ class Dpdk(TestSuite):
                 raise SkippedException()
         log.debug((f"\nsender:{external_ips[0]}\nreceiver:{external_ips[1]}\n"))
 
-        test_kits = _init_nodes_concurrent(environment, log)
+        test_kits = _init_nodes_concurrent(environment, log, pmd)
         sender, receiver = test_kits
 
-        # helpful to have the public ip for debugging
         (snd_id, snd_nic), (rcv_id, rcv_nic) = [
             x.node_nic_info.get_test_nic() for x in test_kits
         ]
@@ -177,9 +230,12 @@ class Dpdk(TestSuite):
             snd_nic,
             snd_id,
             "txonly",
+            pmd,
             extra_args=f"--tx-ip={snd_nic.ip_addr},{rcv_nic.ip_addr}",
         )
-        rcv_cmd = receiver.testpmd.generate_testpmd_command(rcv_nic, rcv_id, "rxonly")
+        rcv_cmd = receiver.testpmd.generate_testpmd_command(
+            rcv_nic, rcv_id, "rxonly", pmd
+        )
 
         kit_cmd_pairs = {
             sender: snd_cmd,
@@ -188,9 +244,9 @@ class Dpdk(TestSuite):
 
         results = _run_testpmd_concurrent(kit_cmd_pairs, 15, log)
 
-        log.info(f"\nSENDER:\n{results[sender]}")
-
-        log.info(f"\nRECEIVER:\n{results[receiver]}")
+        # helpful to have the outputs labeled
+        log.debug(f"\nSENDER:\n{results[sender]}")
+        log.debug(f"\nRECEIVER:\n{results[receiver]}")
 
         rcv_rx_pps = receiver.testpmd.get_rx_pps()
         snd_tx_pps = sender.testpmd.get_tx_pps()
@@ -241,7 +297,54 @@ class DpdkTestResources:
         self.node = _node
 
 
-def initialize_node_resources(node: Node, log: Logger) -> DpdkTestResources:
+def bind_nic_to_dpdk_pmd(nics: Nics, nic: NicInfo, pmd: str) -> None:
+    if pmd == "netvsc":
+        current_driver = nic.bound_driver
+        if current_driver == "uio_hv_generic":
+            return
+        nics.unbind(nic, current_driver)
+        # uio_hv_generic needs some special steps to enable
+        enable_uio_hv_generic_for_nic(nics._node, nic)
+        # bind_dev_to_new_driver
+        nics.bind(nic, "uio_hv_generic")
+        nic.bound_driver = "uio_hv_generic"
+    elif pmd == "failsafe":
+        current_driver = nic.bound_driver
+        if current_driver == "hv_netvsc":
+            return
+        nics.unbind(nic, current_driver)
+        nics.bind(nic, "hv_netvsc")
+        nic.bound_driver = "hv_netvsc"
+    else:
+        fail(f"Unrecognized pmd {pmd} passed to test init procedure.")
+
+
+def enable_uio_hv_generic_for_nic(node: Node, nic: NicInfo) -> None:
+
+    # hv_uio_generic driver uuid, a constant value used by vmbus.
+    # https://doc.dpdk.org/guides/nics/netvsc.html#installation
+    hv_uio_generic_uuid = "f8615163-df3e-46c5-913f-f2d2f965ed0e"
+
+    # using netvsc pmd directly for dpdk on hv counterintuitively requires
+    # you to enable to uio_hv_generic driver, steps are found:
+    # https://doc.dpdk.org/guides/nics/netvsc.html#installation
+
+    echo = node.tools[Echo]
+    node.execute(
+        "modprobe uio_hv_generic",
+        sudo=True,
+        expected_exit_code=0,
+        expected_exit_code_failure_message="Could not load uio_hv_generic driver.",
+    )
+    # vmbus magic to enable uio_hv_generic
+    echo.write_to_file(
+        hv_uio_generic_uuid,
+        "/sys/bus/vmbus/drivers/uio_hv_generic/new_id",
+        sudo=True,
+    )
+
+
+def initialize_node_resources(node: Node, log: Logger, pmd: str) -> DpdkTestResources:
     network_interface_feature = node.features[NetworkInterface]
     sriov_is_enabled = network_interface_feature.is_enabled_sriov()
     log.info(f"Node[{node.name}] Verify SRIOV is enabled: {sriov_is_enabled}")
@@ -265,6 +368,10 @@ def initialize_node_resources(node: Node, log: Logger) -> DpdkTestResources:
     assert_that(len(node_nic_info)).described_as(
         "Test needs at least 2 NICs on the test node."
     ).is_greater_than_or_equal_to(2)
+
+    # bind test nic to desired pmd
+    _, nic_to_bind = node_nic_info.get_test_nic()
+    bind_nic_to_dpdk_pmd(node_nic_info, nic_to_bind, pmd)
     return DpdkTestResources(node, node_nic_info, testpmd)
 
 
@@ -299,7 +406,7 @@ def _run_testpmd_concurrent(
 
 
 def _init_nodes_concurrent(
-    environment: Environment, log: Logger
+    environment: Environment, log: Logger, pmd: str
 ) -> List[DpdkTestResources]:
     # Use threading module to parallelize the IO-bound node init.
     test_kits: List[DpdkTestResources] = []
@@ -311,7 +418,7 @@ def _init_nodes_concurrent(
     def run_node_init() -> DpdkTestResources:
         # pop a node from the deque and initialize it.
         node = nodes.pop()
-        return initialize_node_resources(node, log)
+        return initialize_node_resources(node, log, pmd)
 
     task_manager = TaskManager[DpdkTestResources](
         len(environment.nodes), thread_callback
