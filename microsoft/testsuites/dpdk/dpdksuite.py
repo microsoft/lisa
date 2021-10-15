@@ -339,7 +339,7 @@ def enable_uio_hv_generic_for_nic(node: Node, nic: NicInfo) -> None:
     # vmbus magic to enable uio_hv_generic
     echo.write_to_file(
         hv_uio_generic_uuid,
-        "/sys/bus/vmbus/drivers/uio_hv_generic/new_id",
+        node.get_pure_path("/sys/bus/vmbus/drivers/uio_hv_generic/new_id"),
         sudo=True,
     )
 
