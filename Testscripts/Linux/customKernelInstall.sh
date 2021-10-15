@@ -282,7 +282,7 @@ function InstallKernel() {
             apt autoremove -y
             output=$(apt search "${CustomKernel}" 2>/dev/null | grep -i "${CustomKernel}")
             output=$(echo $output | cut -d ' ' -f 2 |  cut -d. -f-4)
-            kernel_version=$output
+            kernel_version=$(echo $output | cut -d '.' -f 1-3)-$(echo $output | cut -d '.' -f 4)
             output=$(cat /boot/grub/grub.cfg | grep -i "$output" | grep -i menuentry | grep -v recovery | cut -d ' ' -f 15)
             output=$(echo $output | sed -r "s/[']+//g")
             sub_a=$(echo $output | cut -d '-' -f 1)

@@ -65,7 +65,6 @@ function Upgrade_waagent {
 	else
 		install_package net-tools
 	fi
-
 	git clone https://github.com/Azure/WALinuxAgent
 	cd WALinuxAgent
 	sed -i -e 's/# OS.EnableRDMA=y/OS.EnableRDMA=y/g' ./config/waagent.conf
