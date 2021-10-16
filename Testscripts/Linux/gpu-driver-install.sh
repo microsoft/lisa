@@ -35,7 +35,7 @@ function skip_test() {
 	fi
 
 	# https://docs.microsoft.com/en-us/azure/virtual-machines/linux/n-series-driver-setup
-	# Only support Ubuntu 16.04 LTS, 18.04 LTS, RHEL/CentOS 7.0 ~ 7.7, SLES 12 SP2
+	# Only support Ubuntu 16.04 LTS, 18.04 LTS, RHEL/CentOS 7.0 ~ 7.9, SLES 12 SP2
 	# Azure HPC team defines GRID driver support scope.
 	if [[ $driver == "GRID" ]]; then
 		support_distro="redhat_7 centos_7 ubuntu_x suse_12"
@@ -44,16 +44,16 @@ function skip_test() {
 		source /etc/os-release
 		if [[ "$support_distro" == *"$DISTRO"* ]]; then
 			if [[ $DISTRO == "redhat_7" ]]; then
-				# RHEL 7.8 should be skipped
+				# RHEL 7.x > 7.9 should be skipped
 				_minor_ver=$(echo $VERSION_ID | cut -d'.' -f 2)
-				if [ $_minor_ver -gt 7 ]; then
+				if [[ $_minor_ver -gt 9 ]]; then
 					unsupport_flag=1
 				fi
 			fi
 			if [[ $DISTRO == "centos_7" ]]; then
-				# CentOS 7.8 should be skipped
+				# 7.x > 7.9 should be skipped
 				_minor_ver=$(cat /etc/centos-release | cut -d ' ' -f 4 | cut -d '.' -f 2)
-				if [ $_minor_ver -gt 7 ]; then
+				if [[ $_minor_ver -gt 9 ]]; then
 					unsupport_flag=1
 				fi
 			fi
@@ -64,10 +64,10 @@ function skip_test() {
 				fi
 			fi
 			if [[ $DISTRO == "suse_12" ]]; then
-				# skip others except SLES 12 SP2 BYOS and SAP,
+				# skip others except SLES 12 SP2 BYOS and SAP and SLES 15 SP2,
 				# However, they use default-kernel and no repo to Azure customer.
 				# This test will fail until SUSE enables azure-kernel for GRID driver installation
-				if [ $VERSION_ID != "12.2" ];then
+				if [ $VERSION_ID != "12.2" || $VERSION_ID != "15.2" ];then
 					unsupport_flag=1
 				fi
 			fi
@@ -86,20 +86,33 @@ function InstallCUDADrivers() {
 	LogMsg "Starting CUDA driver installation"
 	case $DISTRO in
 	redhat_7|centos_7)
-		CUDA_REPO_PKG="cuda-repo-rhel7-$CUDADriverVersion.x86_64.rpm"
-		LogMsg "Using $CUDA_REPO_PKG"
+		CUDA_REPO_PKG="cuda-repo-rhel7-${CUDADriverVersion}.x86_64.rpm"
+		LogMsg "Using ${CUDA_REPO_PKG}"
 
-		wget http://developer.download.nvidia.com/compute/cuda/repos/rhel7/x86_64/"$CUDA_REPO_PKG" -O /tmp/"$CUDA_REPO_PKG"
+		wget http://developer.download.nvidia.com/compute/cuda/repos/rhel7/x86_64/"${CUDA_REPO_PKG}" -O /tmp/"${CUDA_REPO_PKG}"
 		if [ $? -ne 0 ]; then
-			LogErr "Failed to download $CUDA_REPO_PKG"
+			LogErr "Failed to download ${CUDA_REPO_PKG}"
 			SetTestStateAborted
 			return 1
 		else
-			LogMsg "Successfully downloaded the $CUDA_REPO_PKG file in /tmp directory"
+			LogMsg "Successfully downloaded the ${CUDA_REPO_PKG} file in /tmp directory"
 		fi
 
-		rpm -ivh /tmp/"$CUDA_REPO_PKG"
-		LogMsg "Installed the rpm package, $CUDA_REPO_PKG"
+		rpm -ivh /tmp/"${CUDA_REPO_PKG}"
+		LogMsg "Installed the rpm package, ${CUDA_REPO_PKG}"
+
+		# For RHEL/CentOS, it might be needed to install vulkan-filesystem to install CUDA drivers.
+		# Download and Install vulkan-filesystem
+		wget http://mirror.centos.org/centos/7/os/x86_64/Packages/vulkan-filesystem-1.1.97.0-1.el7.noarch.rpm -O /tmp/vulkan-filesystem-1.1.97.0-1.el7.noarch.rpm
+		if [ $? -ne 0 ]; then
+			LogErr "Failed to download vulkan-filesystem rpm"
+			SetTestStateAborted
+			return 1
+		else
+			LogMsg "Successfully downloaded the vulkan-filesystem rpm file in /tmp directory"
+		fi
+		yum -y install /tmp/vulkan-filesystem-1.1.97.0-1.el7.noarch.rpm
+
 		yum --nogpgcheck -y install cuda-drivers > $HOME/install_drivers.log 2>&1
 		if [ $? -ne 0 ]; then
 			LogErr "Failed to install the cuda-drivers!"
@@ -122,16 +135,16 @@ function InstallCUDADrivers() {
 
 		wget http://developer.download.nvidia.com/compute/cuda/repos/ubuntu"${os_RELEASE//./}"/x86_64/"${CUDA_REPO_PKG}" -O /tmp/"${CUDA_REPO_PKG}"
 		if [ $? -ne 0 ]; then
-			LogErr "Failed to download $CUDA_REPO_PKG"
+			LogErr "Failed to download ${CUDA_REPO_PKG}"
 			SetTestStateAborted
 			return 1
 		else
-			LogMsg "Successfully downloaded $CUDA_REPO_PKG"
+			LogMsg "Successfully downloaded ${CUDA_REPO_PKG}"
 		fi
 
 		apt-key adv --fetch-keys http://developer.download.nvidia.com/compute/cuda/repos/ubuntu"${os_RELEASE//./}"/x86_64/7fa2af80.pub
-		dpkg -i /tmp/"$CUDA_REPO_PKG"
-		LogMsg "Installed $CUDA_REPO_PKG"
+		dpkg -i /tmp/"${CUDA_REPO_PKG}"
+		LogMsg "Installed ${CUDA_REPO_PKG}"
 		dpkg_configure
 		apt update
 
