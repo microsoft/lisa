@@ -31,7 +31,7 @@ function Start-Validation {
     $gpuName = "Tesla"
     $deviceIDPattern = "Device_ID.*47505500"
     if ($allVMData.InstanceSize -imatch "Standard_ND96") {
-        $gpuName = "A100-SXM4"
+        $gpuName = "A100-SXM"
         $expectedGPUBridgeCount = 6
         $deviceIDPattern = "Device_ID.*44450000"
     }
@@ -221,42 +221,51 @@ function Main {
         Write-Debug "Added GPU driver name to constants.sh file"
 
         # For CentOS and RedHat the requirement is to install LIS RPMs
+        [int]$majorVersion = Run-LinuxCmd -username $user -password $password -ip $allVMData.PublicIP -port $allVMData.SSHPort `
+            -command ". utils.sh && GetOSVersion && echo `$os_RELEASE"
+        [int]$minorVersion = Run-LinuxCmd -username $userName -password $password -ip $allVMData.PublicIP -port $allVMData.SSHPort `
+            -command ". utils.sh && GetOSVersion && echo `$os_UPDATE"
+
         if (@("REDHAT", "CENTOS").contains($global:detectedDistro)) {
-            # HPC images already have the LIS RPMs installed
-            $sts = Run-LinuxCmd -ip $allVMData.PublicIP -port $allVMData.SSHPort -username $user -password $password `
-                -command "rpm -qa | grep kmod-microsoft-hyper-v && rpm -qa | grep microsoft-hyper-v" -ignoreLinuxExitCode
-            Write-Debug "Checking if HPC image has rpm packages already. Here is query result: $sts"
+            # LIS drivers are only required for RHEL/CentOS versions < 7.8
+            if ((($majorVersion -eq 7) -and ($minorVersion -lt 8)) -or $majorVersion -lt 7) {
+                Write-LogWarn "RHEL ${majorVersion}.${minorVersion} requires LIS driver installation"
+                # HPC images already have the LIS RPMs installed
+                $sts = Run-LinuxCmd -ip $allVMData.PublicIP -port $allVMData.SSHPort -username $user -password $password `
+                    -command "rpm -qa | grep kmod-microsoft-hyper-v && rpm -qa | grep microsoft-hyper-v" -ignoreLinuxExitCode
+                Write-Debug "Checking if HPC image has rpm packages already. Here is query result: $sts"
 
-            if (-not $sts) {
-                # Download and install the latest LIS version
-                Run-LinuxCmd -ip $allVMData.PublicIP -port $allVMData.SSHPort -username $superuser -password $password `
-                    -command "which wget || (. ./utils.sh && install_package wget)" -runAsSudo -ignoreLinuxExitCode | Out-Null
-                Run-LinuxCmd -ip $allVMData.PublicIP -port $allVMData.SSHPort -username $superuser `
-                    -password $password -command "wget -q https://aka.ms/lis -O - | tar -xz" -ignoreLinuxExitCode | Out-Null
-                Write-Debug "Installed the latest LIS package"
-                Run-LinuxCmd -ip $allVMData.PublicIP -port $allVMData.SSHPort -username $superuser `
-                    -password $password -command "cd LISISO && ./install.sh > installLIS.log" -ignoreLinuxExitCode | Out-Null
-                $installLIS = Run-LinuxCmd -ip $allVMData.PublicIP -port $allVMData.SSHPort -username $superuser `
-                    -password $password -command "cat /$superuser/LISISO/installLIS.log" -ignoreLinuxExitCode
-                Write-Debug "Checking installLIS log: $installLIS"
+                if (-not $sts) {
+                    # Download and install the latest LIS version
+                    Run-LinuxCmd -ip $allVMData.PublicIP -port $allVMData.SSHPort -username $superuser -password $password `
+                        -command "which wget || (. ./utils.sh && install_package wget)" -runAsSudo -ignoreLinuxExitCode | Out-Null
+                    Run-LinuxCmd -ip $allVMData.PublicIP -port $allVMData.SSHPort -username $superuser `
+                        -password $password -command "wget -q https://aka.ms/lis -O - | tar -xz" -ignoreLinuxExitCode | Out-Null
+                    Write-Debug "Installed the latest LIS package"
+                    Run-LinuxCmd -ip $allVMData.PublicIP -port $allVMData.SSHPort -username $superuser `
+                        -password $password -command "cd LISISO && ./install.sh > installLIS.log" -ignoreLinuxExitCode | Out-Null
+                    $installLIS = Run-LinuxCmd -ip $allVMData.PublicIP -port $allVMData.SSHPort -username $superuser `
+                        -password $password -command "cat /$superuser/LISISO/installLIS.log" -ignoreLinuxExitCode
+                    Write-Debug "Checking installLIS log: $installLIS"
 
-                if ($installLIS -imatch "Unsupported kernel version") {
-                    Write-LogInfo "Unsupported kernel version!"
-                    $currentTestResult.TestSummary += New-ResultSummary -testName $CurrentTestData.testName -testResult "Unsupported kernel version!"
-                    $currentTestResult.TestResult = Get-FinalResultHeader -resultarr "SKIPPED"
-                    return $currentTestResult
-                } elseif ($installLIS -imatch "Linux Integration Services for Hyper-V has been installed") {
-                    Write-LogInfo "LIS has been installed successfully!"
-                } else {
-                    Write-LogErr "Unable to install the LIS RPMs!"
-                    $currentTestResult.TestResult = Get-FinalResultHeader -resultarr "ABORTED"
-                    return $currentTestResult
-                }
-                # Restart VM to load the new LIS drivers
-                if (-not $TestProvider.RestartAllDeployments($allVMData)) {
-                    Write-LogErr "Unable to connect to VM after restart!"
-                    $currentTestResult.TestResult = Get-FinalResultHeader -resultarr "ABORTED"
-                    return $currentTestResult
+                    if ($installLIS -imatch "Unsupported kernel version") {
+                        Write-LogInfo "Unsupported kernel version!"
+                        $currentTestResult.TestSummary += New-ResultSummary -testName $CurrentTestData.testName -testResult "Unsupported kernel version!"
+                        $currentTestResult.TestResult = Get-FinalResultHeader -resultarr "SKIPPED"
+                        return $currentTestResult
+                    } elseif ($installLIS -imatch "Linux Integration Services for Hyper-V has been installed") {
+                        Write-LogInfo "LIS has been installed successfully!"
+                    } else {
+                        Write-LogErr "Unable to install the LIS RPMs!"
+                        $currentTestResult.TestResult = Get-FinalResultHeader -resultarr "ABORTED"
+                        return $currentTestResult
+                    }
+                    # Restart VM to load the new LIS drivers
+                    if (-not $TestProvider.RestartAllDeployments($allVMData)) {
+                        Write-LogErr "Unable to connect to VM after restart!"
+                        $currentTestResult.TestResult = Get-FinalResultHeader -resultarr "ABORTED"
+                        return $currentTestResult
+                    }
                 }
             }
         }

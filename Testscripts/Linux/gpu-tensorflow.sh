@@ -15,7 +15,7 @@ InstallCUDAToolKit() {
     LogMsg "Install CUDA toolkit packages $CudaToolkitVersion..."
     case $DISTRO in
     redhat_7|centos_7)
-        CUDA_REPO_PKG="cuda-repo-rhel7-$CUDADriverVersion.x86_64.rpm"
+        CUDA_REPO_PKG="cuda-repo-rhel7-${CUDADriverVersion}.x86_64.rpm"
         LogMsg "Using $CUDA_REPO_PKG"
 
         wget http://developer.download.nvidia.com/compute/cuda/repos/rhel7/x86_64/"$CUDA_REPO_PKG" -O /tmp/"$CUDA_REPO_PKG"
