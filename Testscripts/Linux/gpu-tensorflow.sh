@@ -16,18 +16,18 @@ InstallCUDAToolKit() {
     case $DISTRO in
     redhat_7|centos_7)
         CUDA_REPO_PKG="cuda-repo-rhel7-${CUDADriverVersion}.x86_64.rpm"
-        LogMsg "Using $CUDA_REPO_PKG"
+        LogMsg "Using ${CUDA_REPO_PKG}"
 
-        wget http://developer.download.nvidia.com/compute/cuda/repos/rhel7/x86_64/"$CUDA_REPO_PKG" -O /tmp/"$CUDA_REPO_PKG"
+        wget http://developer.download.nvidia.com/compute/cuda/repos/rhel7/x86_64/"${CUDA_REPO_PKG}" -O /tmp/"${CUDA_REPO_PKG}"
         if [ $? -ne 0 ]; then
-            LogErr "Failed to download $CUDA_REPO_PKG"
+            LogErr "Failed to download ${CUDA_REPO_PKG}"
             SetTestStateAborted
             exit 1
         else
-            LogMsg "Successfully downloaded $CUDA_REPO_PKG"
+            LogMsg "Successfully downloaded ${CUDA_REPO_PKG}"
         fi
 
-        rpm -ivh /tmp/"$CUDA_REPO_PKG"
+        rpm -ivh /tmp/"${CUDA_REPO_PKG}"
         yum --nogpgcheck -y install $CudaToolkitVersion
         if [ $? -ne 0 ]; then
             LogErr "Failed to install the CUDA toolkit $CudaToolkitVersion!"
@@ -41,19 +41,19 @@ InstallCUDAToolKit() {
     ubuntu*)
         GetOSVersion
         CUDA_REPO_PKG="cuda-repo-ubuntu${os_RELEASE//./}_${CUDADriverVersion}_amd64.deb"
-        LogMsg "Using $CUDA_REPO_PKG"
+        LogMsg "Using ${CUDA_REPO_PKG}"
 
-        wget http://developer.download.nvidia.com/compute/cuda/repos/ubuntu"${os_RELEASE//./}"/x86_64/"$CUDA_REPO_PKG" -O /tmp/"$CUDA_REPO_PKG"
+        wget http://developer.download.nvidia.com/compute/cuda/repos/ubuntu"${os_RELEASE//./}"/x86_64/"${CUDA_REPO_PKG}" -O /tmp/"${CUDA_REPO_PKG}"
         if [ $? -ne 0 ]; then
-            LogErr "Failed to download $CUDA_REPO_PKG"
+            LogErr "Failed to download ${CUDA_REPO_PKG}"
             SetTestStateAborted
             exit 1
         else
-            LogMsg "Successfully downloaded $CUDA_REPO_PKG"
+            LogMsg "Successfully downloaded ${CUDA_REPO_PKG}"
         fi
 
         apt-key adv --fetch-keys http://developer.download.nvidia.com/compute/cuda/repos/ubuntu"${os_RELEASE//./}"/x86_64/7fa2af80.pub
-        dpkg -i /tmp/"$CUDA_REPO_PKG"
+        dpkg -i /tmp/"${CUDA_REPO_PKG}"
         dpkg_configure
         apt update
         apt -y --allow-unauthenticated install $CudaToolkitVersion
@@ -75,26 +75,27 @@ Prepare_Test_Dependencies() {
         dpkg_configure
     fi
     update_repos
-    packages=("wget" "python" "git" "python-pip")
+    packages=("wget" "python3" "git" "python-pip")
     install_package "${packages[@]}"
 
     # Install all CUDA Toolkit packages required to develop CUDA applications.
     InstallCUDAToolKit
 
     LogMsg "Install tensorflow-gpu $TensorflowVersion..."
-    python -m pip install --upgrade pip
-    LogMsg "Ensured the latest pip version"
-    if [ x"$TensorflowVersion" != "xlatest" ]; then
-        pip install --upgrade "tensorflow-gpu==$TensorflowVersion"
-        LogMsg "Installed the latest tensorflow-gpu $TensorflowVersion"
+    python3 -m pip install -U pip
+    python3 -m pip install -U setuptools
+    LogMsg "Ensure the latest pip version"
+    if [ "$TensorflowVersion" != "" ]; then
+        python3 -m pip install -U "tensorflow-gpu==$TensorflowVersion"
+        LogMsg "Installed the tensorflow-gpu $TensorflowVersion"
     else
-        pip install --upgrade tf-nightly-gpu
-        LogMsg "Installed the tensorflow-gpu nightly build"
+        python3 -m pip install -U "tensorflow-gpu"
+        LogMsg "Installed the tensorflow gpu."
     fi
 
     LogMsg "Install $CudnnPackage..."
-    wget -t 5 "$CudnnPackage" -O cuda.tgz -o download_cudnn.log
-    tar -zxf cuda.tgz
+    wget -t 5 "$CudnnPackage" -O /tmp/cuda.tgz -o download_cudnn.log
+    tar -zxf /tmp/cuda.tgz --directory /tmp/
     if [ $? -ne 0 ]; then
         LogErr "Failed CuDNN $CudnnPackage installation"
         SetTestStateAborted
@@ -103,16 +104,21 @@ Prepare_Test_Dependencies() {
         LogMsg "Successfully installed CuDNN $CudnnPackage"
     fi
 
-    sudo cp -p cuda/lib64/libcudnn* /usr/lib/x86_64-linux-gnu
+    if [[ $DISTRO_NAME == "debian" ]] || [[ $DISTRO_NAME == "ubuntu" ]] ; then
+        sudo cp -p /tmp/cuda/lib64/libcudnn* /usr/lib/x86_64-linux-gnu
+    else
+        sudo cp -p /tmp/cuda/lib64/libcudnn* /usr/lib64/
+    fi
+
     if [ $? -ne 0 ]; then
-        LogErr "Failed to copy cuda/lib64/libcudnn* to /usr/lib/x86_64-linux-gnu"
+        LogErr "Failed to copy cuda/lib64/libcudnn* to /usr/lib/x86_64-linux-gnu or /usr/lib64/"
         SetTestStateAborted
         exit 1
     else
-        LogMsg "Successfully copied cuda/lib64/libcudnn* to /usr/lib/x86_64-linux-gnu"
+        LogMsg "Successfully copied cuda/lib64/libcudnn* to /usr/lib/x86_64-linux-gnu or /usr/lib64/"
     fi
 
-    echo -e "import tensorflow; print(tensorflow.__version__)" | python
+    echo -e "import tensorflow; print(tensorflow.__version__)" | python3
     if [ $? -ne 0 ]; then
         LogErr "Failed to import tensorflow-gpu $TensorflowVersion"
         SetTestStateAborted
@@ -121,7 +127,7 @@ Prepare_Test_Dependencies() {
         LogMsg "Successfully import tensorflow-gpu $TensorflowVersion"
     fi
 
-    git clone $BenchmarkTool
+    git clone $BenchmarkTool /tmp/benchmarks
     if [ $? -ne 0 ]; then
         LogErr "Failed to clone out the benchmark tool, $BenchmarkTool"
         SetTestStateAborted
@@ -136,7 +142,7 @@ Prepare_Test_Dependencies() {
     export LD_LIBRARY_PATH=/usr/local/cuda/lib64${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}
 
     # Try to run the benchmark test by default value.
-    python benchmarks/scripts/tf_cnn_benchmarks/tf_cnn_benchmarks.py
+    python3 /tmp/benchmarks/scripts/tf_cnn_benchmarks/tf_cnn_benchmarks.py
     if [ $? -ne 0 ]; then
         LogErr "Try to run benchmark test failed [$?]: %python benchmarks/scripts/tf_cnn_benchmarks/tf_cnn_benchmarks.py"
         LogErr "Please check the compatibility among the versions of CUDA Driver, CUDA Toolkit, Tensorflow and CudnnPackage"
@@ -209,12 +215,12 @@ Run_GPU_Benchmark_Test() {
        gpucount=$i
     done
 
-    MODES=(inception3 vgg16 alexnet resnet50 resnet152)
+    MODES=(alexnet resnet50)
     BATCH_SIZE=(32 64 128 512)
     if [ ! -e $HOME/test_results ]; then
         mkdir -p "$HOME/test_results"
     fi
-    declare -A max_batch_size_per_mode=([inception3]=64 [vgg16]=128 [alexnet]=512 [resnet50]=64 [resnet152]=32)
+    declare -A max_batch_size_per_mode=([alexnet]=512 [resnet50]=64)
 
     for mode in "${MODES[@]}"
     do

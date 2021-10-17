@@ -93,7 +93,7 @@ function Main {
                 if ($param -match "TensorflowVersion") {
                     $TensorflowVersion = $param.Replace("TensorflowVersion=","").Replace('"',"")
                     if (-not $TensorflowVersion) {
-                        $TensorflowVersion = "tf-nightly-gpu"
+                        $TensorflowVersion = "tensorflow-gpu"
                     }
                     Write-Debug "TensorFlow version: $TensorflowVersion"
                 }
