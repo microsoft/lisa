@@ -198,6 +198,46 @@ class HvModule(TestSuite):
             "Not all Hyper V drivers are present."
         ).is_length(0)
 
+    @TestCaseMetadata(
+        description="""
+        This test case will reload hyper-v modules as a stress test.
+        """,
+        priority=1,
+    )
+    def reload_hyperv_modules(self, case_name: str, log: Logger, node: Node) -> None:
+        # Constants
+        module = "hv_netvsc"
+        loop_count = 100
+
+        if isinstance(node.os, Redhat):
+            try:
+                log.debug("Checking LIS installation before reload.")
+                node.tools[LisDriver]
+            except Exception:
+                log.debug("Updating LIS failed. Moving on to attempt reload.")
+
+        if module not in self._get_expected_modules(node):
+            raise SkippedException(
+                f"{module} is loaded statically into the "
+                "kernel and therefore can not be reloaded"
+            )
+
+        for i in range(loop_count):
+            result = node.execute(
+                f"modprobe -r -v {module}; modprobe -v {module}; "
+                "ip link set eth0 down; ip link set eth0 up; dhclient -r; dhclient",
+                sudo=True,
+                shell=True,
+                expected_exit_code=0,
+                expected_exit_code_failure_message=f"{module} failed to reload",
+            )
+            did_unload = "rmmod" in result.stdout
+            did_reload = "insmod" in result.stdout
+            assert_that(did_unload and did_reload).described_as(
+                f"{module} reload did not perform rmmod and insmod "
+                f"on iteration #{i+1}. Output: {result.stdout}"
+            ).is_true()
+
     def _get_expected_modules(self, node: Node) -> List[str]:
         """
         Returns the hv_modules that are not directly loaded into the kernel and
