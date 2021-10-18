@@ -16,7 +16,7 @@ from lisa import (
     simple_requirement,
 )
 from lisa.features import Disk
-from lisa.sut_orchestrator.azure.common import AZURE
+from lisa.sut_orchestrator import AZURE
 from lisa.sut_orchestrator.azure.features import AzureDiskOptionSettings
 from lisa.sut_orchestrator.azure.tools import Waagent
 from lisa.tools import Cat, Echo, Swap

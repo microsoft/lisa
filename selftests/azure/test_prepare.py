@@ -9,6 +9,7 @@ from azure.mgmt.compute.models import ResourceSku  # type: ignore
 
 from lisa import schema, search_space
 from lisa.environment import Environment
+from lisa.sut_orchestrator import AZURE
 from lisa.sut_orchestrator.azure import common, platform_
 from lisa.util import LisaException, constants
 from lisa.util.logger import get_logger
@@ -335,7 +336,7 @@ class AzurePrepareTestCase(TestCase):
             runbook.nodes_requirement = []
             for _ in range(node_req_count):
                 node_req = schema.NodeSpace()
-                _ = node_req.get_extended_runbook(common.AzureNodeSchema, common.AZURE)
+                _ = node_req.get_extended_runbook(common.AzureNodeSchema, AZURE)
                 runbook.nodes_requirement.append(node_req)
         environment = Environment(
             is_predefined=True, warn_as_error=False, id_=0, runbook=runbook
@@ -353,7 +354,7 @@ class AzurePrepareTestCase(TestCase):
         assert environment.runbook.nodes_requirement
         node_runbook = environment.runbook.nodes_requirement[
             index
-        ].get_extended_runbook(common.AzureNodeSchema, common.AZURE)
+        ].get_extended_runbook(common.AzureNodeSchema, AZURE)
         node_runbook.location = location
         node_runbook.vm_size = vm_size
 
@@ -373,7 +374,7 @@ class AzurePrepareTestCase(TestCase):
 
             # get node runbook for validating
             nodes_runbook = [
-                x.get_extended_runbook(common.AzureNodeSchema, common.AZURE)
+                x.get_extended_runbook(common.AzureNodeSchema, AZURE)
                 for x in environment.runbook.nodes_requirement
             ]
 
