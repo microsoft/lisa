@@ -41,7 +41,6 @@ from lisa.features import NvmeSettings
 from lisa.node import Node, RemoteNode
 from lisa.platform_ import Platform
 from lisa.secret import PATTERN_GUID, PATTERN_HEADTAIL, add_secret
-from lisa.sut_orchestrator.azure.tools import VmGeneration, Waagent
 from lisa.tools import Dmesg, Modinfo
 from lisa.util import (
     LisaException,
@@ -55,9 +54,9 @@ from lisa.util import (
 )
 from lisa.util.logger import Logger
 
+from .. import AZURE
 from . import features
 from .common import (
-    AZURE,
     AZURE_SHARED_RG_NAME,
     AzureNodeSchema,
     AzureVmMarketplaceSchema,
@@ -78,6 +77,7 @@ from .common import (
     wait_copy_blob,
     wait_operation,
 )
+from .tools import VmGeneration, Waagent
 
 # used by azure
 AZURE_DEPLOYMENT_NAME = "lisa_default_deployment_script"

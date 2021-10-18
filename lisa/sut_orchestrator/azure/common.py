@@ -28,7 +28,6 @@ from lisa.util.perf_timer import create_timer
 if TYPE_CHECKING:
     from .platform_ import AzurePlatform
 
-AZURE = "azure"
 AZURE_SHARED_RG_NAME = "lisa_shared_resource"
 
 

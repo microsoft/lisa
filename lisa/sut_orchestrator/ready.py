@@ -6,14 +6,15 @@ from typing import List, Type
 from lisa.environment import Environment
 from lisa.feature import Feature
 from lisa.platform_ import Platform
-from lisa.util import constants
 from lisa.util.logger import Logger
+
+from . import READY
 
 
 class ReadyPlatform(Platform):
     @classmethod
     def type_name(cls) -> str:
-        return constants.PLATFORM_READY
+        return READY
 
     @classmethod
     def supported_features(cls) -> List[Type[Feature]]:

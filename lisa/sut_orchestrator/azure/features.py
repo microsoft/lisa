@@ -17,13 +17,14 @@ from lisa.features import NvmeSettings
 from lisa.features.gpu import ComputeSDK
 from lisa.node import Node, RemoteNode
 from lisa.operating_system import CentOs, Redhat, Suse, Ubuntu
-from lisa.sut_orchestrator.azure.common import AZURE, AzureNodeSchema
 from lisa.util import LisaException, NotMeetRequirementException
 
 if TYPE_CHECKING:
     from .platform_ import AzurePlatform
 
+from .. import AZURE
 from .common import (
+    AzureNodeSchema,
     get_compute_client,
     get_network_client,
     get_node_context,
