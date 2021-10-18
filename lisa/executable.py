@@ -75,7 +75,7 @@ class Tool(InitializableMixin):
         The command can be different under different conditions. For example,
         package management is 'yum' on CentOS, but 'apt' on Ubuntu.
         """
-        raise NotImplementedError()
+        raise NotImplementedError("'command' is not implemented")
 
     @property
     def can_install(self) -> bool:
@@ -83,7 +83,7 @@ class Tool(InitializableMixin):
         Indicates if the tool supports installation or not. If it can return true,
         installInternal must be implemented.
         """
-        raise NotImplementedError()
+        raise NotImplementedError("'can_install' is not implemented")
 
     @classmethod
     def _windows_tool(cls) -> Optional[Type[Tool]]:
@@ -119,7 +119,7 @@ class Tool(InitializableMixin):
         are depended, specify them in dependencies. Other tools can be used here,
         refer to ntttcp implementation.
         """
-        raise NotImplementedError()
+        raise NotImplementedError("'install' is not implemented")
 
     def _initialize(self, *args: Any, **kwargs: Any) -> None:
         """
