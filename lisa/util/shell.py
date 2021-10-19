@@ -334,24 +334,29 @@ class SshShell(InitializableMixin):
         path_str = self._purepath_to_str(path)
         sftp_attributes: paramiko.SFTPAttributes = self._inner_shell.stat(path_str)
 
-        result = os.stat_result(())
-        result.st_atime = (
-            sftp_attributes.st_atime if sftp_attributes.st_atime is not None else 0
-        )
-        result.st_gid = (
-            sftp_attributes.st_gid if sftp_attributes.st_gid is not None else 0
-        )
-        result.st_mode = (
-            sftp_attributes.st_mode if sftp_attributes.st_mode is not None else 0
-        )
-        result.st_mtime = (
-            sftp_attributes.st_mtime if sftp_attributes.st_mtime is not None else 0
-        )
-        result.st_size = (
-            sftp_attributes.st_size if sftp_attributes.st_size is not None else 0
-        )
-        result.st_uid = (
-            sftp_attributes.st_uid if sftp_attributes.st_uid is not None else 0
+        result = os.stat_result(
+            (
+                # st_mode
+                sftp_attributes.st_mode if sftp_attributes.st_mode is not None else 0,
+                # st_ino
+                0,
+                # st_dev
+                0,
+                # st_nlink
+                0,
+                # st_uid
+                sftp_attributes.st_uid if sftp_attributes.st_uid is not None else 0,
+                # st_gid
+                sftp_attributes.st_gid if sftp_attributes.st_gid is not None else 0,
+                # st_size
+                sftp_attributes.st_size if sftp_attributes.st_size is not None else 0,
+                # st_atime
+                sftp_attributes.st_atime if sftp_attributes.st_atime is not None else 0,
+                # st_mtime
+                sftp_attributes.st_mtime if sftp_attributes.st_mtime is not None else 0,
+                # st_ctime
+                0,
+            )
         )
         return result
 
