@@ -141,7 +141,7 @@ class Dpdk(TestSuite):
             expected_exit_code_failure_message="make could not build rping project.",
         ).assert_exit_code()
         # run ringping for 30 seconds
-        runcmd = "./build/rping -c 0xC0 -n 2 --no-pci --no-huge -- -d 5 -t 10"
+        runcmd = "./build/rping -c 0x03 -n 2 --no-pci --no-huge -- -d 5 -t 10"
         result = node.execute(
             runcmd,
             shell=True,
