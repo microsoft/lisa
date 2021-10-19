@@ -4,10 +4,12 @@
 import re
 from typing import Any, Dict, List, Type
 
+from assertpy import assert_that
+
 from lisa.base_tools import Cat, Wget
 from lisa.executable import Tool
 from lisa.operating_system import CoreOs, Redhat
-from lisa.tools import Modinfo
+from lisa.tools import Gcc, Modinfo, Uname
 from lisa.util import LisaException, find_patterns_in_lines, get_matched_str
 
 
@@ -171,3 +173,98 @@ class LisDriver(Tool):
 
         found_version = get_matched_str(cmd_result.stdout, self.__version_pattern)
         return found_version if found_version else ""
+
+
+class KvpClient(Tool):
+    """
+    The KVP client is used to check kvp service status.
+    """
+
+    _binaries: Dict[str, str] = {
+        "x86_64": "https://raw.githubusercontent.com/microsoft/"
+        "lis-test/master/WS2012R2/lisa/tools/KVP/kvp_client64",
+        "i686": "https://raw.githubusercontent.com/microsoft/"
+        "lis-test/master/WS2012R2/lisa/tools/KVP/kvp_client32",
+    }
+    _command_name = "kvp_client"
+    _source_location = (
+        "https://raw.githubusercontent.com/microsoft/"
+        "lis-test/master/WS2012R2/lisa/tools/KVP/kvp_client.c"
+    )
+    # Pool is 0
+    # Pool is 1
+    _pool_pattern = re.compile(r"^Pool is (\d+)\r?$", re.M)
+    # Key: HostName; Value: ABC000111222333
+    _key_value_pattern = re.compile(
+        r"^Key: (?P<key>.*); Value: (?P<value>.*)\r?$", re.M
+    )
+    # Num records is 16
+    _count_record_pattern = re.compile(r"Num records is (\d+)\r?$", re.M)
+
+    @property
+    def command(self) -> str:
+        return str(self.node.working_path / self._command_name)
+
+    @property
+    def can_install(self) -> bool:
+        return True
+
+    def get_pool_count(self) -> int:
+        output = self.run(
+            expected_exit_code=0,
+            expected_exit_code_failure_message="failed to run kvp_client",
+        ).stdout
+        matched_lines = find_patterns_in_lines(output, [self._pool_pattern])
+        return len(matched_lines[0])
+
+    def get_pool_records(self, pool_id: int, force_run: bool = False) -> Dict[str, str]:
+        result = self.run(
+            str(pool_id),
+            force_run=force_run,
+            expected_exit_code=0,
+            expected_exit_code_failure_message="failed to get pool",
+        )
+        matched_lines = find_patterns_in_lines(result.stdout, [self._key_value_pattern])
+        records = {item[0]: item[1] for item in matched_lines[0]}
+
+        count = int(get_matched_str(result.stdout, self._count_record_pattern))
+
+        assert_that(records, "result count is not the same as stats").is_length(count)
+
+        return records
+
+    def get_host_name(self) -> str:
+        items = self.get_pool_records(3)
+        host_name = items.get("HostName", "")
+
+        return host_name
+
+    def _install(self) -> bool:
+        uname = self.node.tools[Uname]
+        architecture = uname.get_linux_information().hardware_platform
+        binary_location = self._binaries.get(architecture, "")
+        if binary_location:
+            self._install_by_download(binary_location)
+        else:
+            self._install_by_build()
+
+        return self._check_exists()
+
+    def _install_by_download(self, binary_location: str) -> None:
+        wget = self.node.tools[Wget]
+        wget.get(
+            url=binary_location,
+            file_path=str(self.node.working_path),
+            filename=self._command_name,
+            executable=True,
+        )
+
+    def _install_by_build(self) -> None:
+        wget = self.node.tools[Wget]
+        source_file = wget.get(
+            url=self._source_location,
+            file_path=str(self.node.working_path),
+        )
+
+        gcc = self.node.tools[Gcc]
+        gcc.compile(filename=source_file, output_name=self.command)
