@@ -122,7 +122,7 @@ class DpdkTestpmd(Tool):
             ]
             echo_tool.write_to_file(
                 ";".join(library_bashrc_lines),
-                "~/.bashrc",
+                node.get_pure_path("~/.bashrc"),
                 append=True,
             )
             return True

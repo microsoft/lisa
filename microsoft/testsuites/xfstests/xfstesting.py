@@ -13,22 +13,11 @@ from lisa import (
     simple_requirement,
 )
 from lisa.features import Disk, Nvme
-from lisa.operating_system import Debian, Redhat, Suse
+from lisa.operating_system import Redhat
 from lisa.tools import Fdisk, FileSystem, Mkfs, Mount, Parted, Uname, Xfstests
 
 _scratch_folder = "/root/scratch"
 _test_folder = "/root/test"
-
-
-def _check_supported(node: Node) -> None:
-    if not (
-        isinstance(node.os, Redhat)
-        or isinstance(node.os, Suse)
-        or isinstance(node.os, Debian)
-    ):
-        raise SkippedException(
-            f"Current distro {node.os.name} doesn't support xfstesting."
-        )
 
 
 def _configure_disk(
@@ -92,7 +81,6 @@ class Xfstesting(TestSuite):
         priority=3,
     )
     def xfstesting_generic_standard_datadisk_validation(self, node: Node) -> None:
-        _check_supported(node)
         disk = node.features[Disk]
         data_disks = disk.get_raw_data_disks()
         self._execute_xfstests(
@@ -119,7 +107,6 @@ class Xfstesting(TestSuite):
         priority=3,
     )
     def xfstesting_xfs_standard_datadisk_validation(self, node: Node) -> None:
-        _check_supported(node)
         disk = node.features[Disk]
         data_disks = disk.get_raw_data_disks()
         self._execute_xfstests(
@@ -147,7 +134,6 @@ class Xfstesting(TestSuite):
         priority=3,
     )
     def xfstesting_ext4_standard_datadisk_validation(self, node: Node) -> None:
-        _check_supported(node)
         disk = node.features[Disk]
         data_disks = disk.get_raw_data_disks()
         self._execute_xfstests(
@@ -175,7 +161,6 @@ class Xfstesting(TestSuite):
         priority=3,
     )
     def xfstesting_btrfs_standard_datadisk_validation(self, node: Node) -> None:
-        _check_supported(node)
         disk = node.features[Disk]
         data_disks = disk.get_raw_data_disks()
         self._execute_xfstests(
@@ -200,7 +185,6 @@ class Xfstesting(TestSuite):
         ),
     )
     def xfstesting_generic_nvme_datadisk_validation(self, node: Node) -> None:
-        _check_supported(node)
         nvme_disk = node.features[Nvme]
         nvme_data_disks = nvme_disk.get_raw_data_disks()
         self._execute_xfstests(
@@ -223,7 +207,6 @@ class Xfstesting(TestSuite):
         ),
     )
     def xfstesting_xfs_nvme_datadisk_validation(self, node: Node) -> None:
-        _check_supported(node)
         nvme_disk = node.features[Nvme]
         nvme_data_disks = nvme_disk.get_raw_data_disks()
         self._execute_xfstests(
@@ -246,7 +229,6 @@ class Xfstesting(TestSuite):
         ),
     )
     def xfstesting_ext4_nvme_datadisk_validation(self, node: Node) -> None:
-        _check_supported(node)
         nvme_disk = node.features[Nvme]
         nvme_data_disks = nvme_disk.get_raw_data_disks()
         self._execute_xfstests(
@@ -270,7 +252,6 @@ class Xfstesting(TestSuite):
         ),
     )
     def xfstesting_btrfs_nvme_datadisk_validation(self, node: Node) -> None:
-        _check_supported(node)
         nvme_disk = node.features[Nvme]
         nvme_data_disks = nvme_disk.get_raw_data_disks()
         self._execute_xfstests(
