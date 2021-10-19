@@ -86,12 +86,13 @@ function Main() {
 		echo 8 > /etc/yum/vars/releasever
 		LogMsg "$?: Applied a mitigation for $DISTRO to /etc/yum/vars/releasever"
 	fi
-	# CentOS-HPC 7.5 or older versions only support ND device. This lis-next has a bug.
-	# https://github.com/LIS/lis-next/blob/master/hv-rhel7.x/hv/Makefile#L20
+
 	mj=$(echo "$DISTRO_VERSION" | cut -d '.' -f 1)
 	mn=$(echo "$DISTRO_VERSION" | cut -d '.' -f 2)
 
-	if [[ $is_nd == "yes" && $DISTRO == 'centos_7' && $mj -eq 7 && $mn -gt 5 ]]; then
+	# only CentOS-HPC 7.6 or older versions support ND device. This lis-next has a bug.
+	# https://github.com/LIS/lis-next/blob/master/hv-rhel7.x/hv/Makefile#L20
+	if [[ $is_nd == "yes" && $DISTRO == 'centos_7' && $mj -eq 7 && $mn -gt 6 ]]; then
 		LogErr "ND test only support CentOS-HPC 7.5 or earlier version. Abort!"
 		SetTestStateAborted
 		exit 0
@@ -119,7 +120,7 @@ function Main() {
 			req_pkg="kernel-devel-$(uname -r) redhat-rpm-config rpm-build gcc gcc-gfortran libdb-devel gcc-c++ glibc-devel zlib-devel numactl numactl-devel binutils-devel iptables-devel libstdc++-devel libselinux-devel elfutils-devel libtool java libstdc++.i686 gtk2 atk cairo tcl tk createrepo byacc.x86_64 net-tools tcsh"
 			install_package $req_pkg
 			LogMsg "$?: Installed required packages $req_pkg"
-			if [[ ! $(grep 7.8 /etc/redhat-release) ]]; then
+			if ! [[ $DISTRO_VERSION =~ ^7\.[8-9] ]]; then
 				req_pkg="valgrind-devel libmnl-devel libnl3-devel"
 				install_package $req_pkg
 				LogMsg "$?: Installed required packages $req_pkg"
