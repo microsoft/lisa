@@ -260,7 +260,11 @@ def set_filtered_fields(src: Any, dest: Any, fields: List[str]) -> None:
             setattr(dest, field_name, field_value)
 
 
-def find_patterns_in_lines(lines: str, patterns: List[Pattern[str]]) -> List[List[str]]:
+def find_patterns_in_lines(lines: str, patterns: List[Pattern[str]]) -> List[List[Any]]:
+    """
+    For each pattern: if a pattern needs one return, it returns [str]. if it
+    needs multiple return, it retuns like [(str, str)].
+    """
     results: List[List[str]] = [[]] * len(patterns)
     for index, pattern in enumerate(patterns):
         if not results[index]:
