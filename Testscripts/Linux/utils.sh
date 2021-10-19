@@ -2183,7 +2183,11 @@ function apt_get_remove () {
 function update_rhui () {
 	GetDistro
 	if [[ $DISTRO == *"redhat"* ]]; then
-		sudo yum update -y --disablerepo='*' --enablerepo='*microsoft*'
+		# No EUS support for RHEL 7.8 and 7.9
+		# https://docs.microsoft.com/en-us/azure/virtual-machines/workloads/redhat/redhat-rhui
+		if ! [[ $DISTRO_VERSION =~ ^7\.[8-9]\. ]]; then
+			sudo yum update -y --disablerepo='*' --enablerepo='*microsoft*'
+		fi
 	fi
 }
 
@@ -2432,7 +2436,7 @@ function install_fio () {
 	case "$DISTRO_NAME" in
 		oracle|rhel|centos|almalinux|rockylinux)
 			install_epel
-			if [[ "${DISTRO_VERSION}" == "7.8" ]]; then
+			if [[ $DISTRO_VERSION =~ ^7\.[8-9]\. ]]; then
 				yum install -y libpmem-devel
 			fi
 			yum -y --nogpgcheck install wget sysstat mdadm blktrace libaio fio bc libaio-devel gcc gcc-c++ kernel-devel
