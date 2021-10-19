@@ -31,6 +31,7 @@ from .ntp import Ntp
 from .ntpstat import Ntpstat
 from .ntttcp import Ntttcp
 from .nvmecli import Nvmecli
+from .pgrep import Pgrep, ProcessInfo
 from .reboot import Reboot
 from .service import Service
 from .swap import Swap
@@ -73,6 +74,8 @@ __all__ = [
     "Ntpstat",
     "Ntttcp",
     "Nvmecli",
+    "Pgrep",
+    "ProcessInfo",
     "Reboot",
     "Sed",
     "Uname",
