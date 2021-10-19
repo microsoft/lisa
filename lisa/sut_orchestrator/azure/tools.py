@@ -40,8 +40,7 @@ class Waagent(Tool):
         if result.exit_code != 0:
             self._command = "python3 /usr/sbin/waagent"
             result = self.run("-version")
-        found_version = find_patterns_in_lines(result.stdout, [self.__version_pattern])
-        return found_version[0][0] if found_version[0] else ""
+        return get_matched_str(result.stdout, self.__version_pattern)
 
     def deprovision(self) -> None:
         # the deprovision doesn't delete user, because the VM may be needed. If
