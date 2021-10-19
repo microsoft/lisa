@@ -47,7 +47,7 @@ jobs:
     strategy:
       parallel: 1
     pool:
-      vmImage: 'Ubuntu 16.04'
+      vmImage: 'Ubuntu 18.04'
     steps:
     - task: UsePythonVersion@0
     - powershell:
@@ -65,7 +65,7 @@ jobs:
     strategy:
       parallel: 1
     pool:
-      vmImage: 'Ubuntu 16.04'
+      vmImage: 'Ubuntu 18.04'
     steps:
     - script:
         sudo apt update > /dev/null && sudo apt install -y shellcheck > /dev/null;
