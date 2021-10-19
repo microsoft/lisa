@@ -184,7 +184,6 @@ for mode in ${modes[*]}; do
 	fi
 
 	# Start pktgen on Sender
-	forwarderSecondMAC=$((ssh ${forwarder} "ip link show ${nicName}") | grep ether | awk '{print $2}')
 	LogMsg "Starting dpdk-testpmd on ${sender}"
 	core=1
 	trx_rx_ips=$(Get_Trx_Rx_Ip_Flags "${forwarder}")
