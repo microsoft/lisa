@@ -156,7 +156,7 @@ class Xfstests(Tool):
                 f"TEST_DIR={test_folder}",
             ]
         )
-        echo.write_to_file(content, str(config_path))
+        echo.write_to_file(content, config_path)
 
     def set_excluded_tests(self, exclude_tests: str) -> None:
         if exclude_tests:
@@ -165,4 +165,4 @@ class Xfstests(Tool):
             if self.node.shell.exists(exclude_file_path):
                 self.node.shell.remove(exclude_file_path)
             echo = self.node.tools[Echo]
-            echo.write_to_file(exclude_tests, str(exclude_file_path))
+            echo.write_to_file(exclude_tests, exclude_file_path)

@@ -142,13 +142,17 @@ class Nics(InitializableMixin):
     def unbind(self, nic: NicInfo, driver_module: str) -> None:
         echo = self._node.tools[Echo]
         echo.write_to_file(
-            nic.dev_uuid, f"/sys/bus/vmbus/drivers/{driver_module}/unbind", sudo=True
+            nic.dev_uuid,
+            self._node.get_pure_path(f"/sys/bus/vmbus/drivers/{driver_module}/unbind"),
+            sudo=True,
         )
 
     def bind(self, nic: NicInfo, driver_module: str) -> None:
         echo = self._node.tools[Echo]
         echo.write_to_file(
-            nic.dev_uuid, f"/sys/bus/vmbus/drivers/{driver_module}/bind", sudo=True
+            nic.dev_uuid,
+            self._node.get_pure_path(f"/sys/bus/vmbus/drivers/{driver_module}/bind"),
+            sudo=True,
         )
 
     def _initialize(self, *args: Any, **kwargs: Any) -> None:

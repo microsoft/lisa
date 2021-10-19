@@ -1,6 +1,6 @@
 # Copyright (c) Microsoft Corporation.
 # Licensed under the MIT license.
-
+from pathlib import PurePath
 from typing import Optional, Type
 
 from assertpy.assertpy import assert_that
@@ -23,7 +23,7 @@ class Echo(Tool):
     def write_to_file(
         self,
         value: str,
-        file: str,
+        file: PurePath,
         sudo: bool = False,
         timeout: int = 60,
         append: bool = False,

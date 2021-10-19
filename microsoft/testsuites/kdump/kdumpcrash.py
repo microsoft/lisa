@@ -240,7 +240,7 @@ class KdumpCrash(TestSuite):
         kdump.check_crashkernel_loaded(self.crash_kernel)
         # Activate the magic SysRq option
         echo = node.tools[Echo]
-        echo.write_to_file("1", "/proc/sys/kernel/sysrq", sudo=True)
+        echo.write_to_file("1", node.get_pure_path("/proc/sys/kernel/sysrq"), sudo=True)
         node.execute("sync", shell=True, sudo=True)
 
         try:

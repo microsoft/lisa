@@ -128,7 +128,9 @@ class Dpdk(TestSuite):
             "export RTE_TARGET=build",
             f"export RTE_SDK={testpmd.dpdk_cwd.as_posix()}",
         ]
-        echo.write_to_file(";".join(rping_build_env_vars), "~/.bashrc", append=True)
+        echo.write_to_file(
+            ";".join(rping_build_env_vars), node.get_pure_path("~/.bashrc"), append=True
+        )
         git_path = git.clone(
             "https://github.com/shemminger/dpdk-ring-ping.git", cwd=node.working_path
         )
@@ -278,12 +280,16 @@ def _enable_hugepages(node: Node) -> None:
     echo = node.tools[Echo]
     echo.write_to_file(
         "1024",
-        "/sys/devices/system/node/node0/hugepages/hugepages-2048kB/nr_hugepages",
+        node.get_pure_path(
+            "/sys/devices/system/node/node0/hugepages/hugepages-2048kB/nr_hugepages"
+        ),
         sudo=True,
     )
     echo.write_to_file(
         "1",
-        "/sys/devices/system/node/node0/hugepages/hugepages-1048576kB/nr_hugepages",
+        node.get_pure_path(
+            "/sys/devices/system/node/node0/hugepages/hugepages-1048576kB/nr_hugepages"
+        ),
         sudo=True,
     )
 

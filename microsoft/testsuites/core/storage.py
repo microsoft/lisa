@@ -151,7 +151,9 @@ class Storage(TestSuite):
         original_text = "Writing to resource disk!!!"
 
         # write content to the file
-        node.tools[Echo].write_to_file(original_text, file_path, sudo=True)
+        node.tools[Echo].write_to_file(
+            original_text, node.get_pure_path(file_path), sudo=True
+        )
 
         # read content from the file
         read_text = node.tools[Cat].read_from_file(file_path, force_run=True, sudo=True)

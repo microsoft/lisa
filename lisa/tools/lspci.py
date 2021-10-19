@@ -1,6 +1,5 @@
 # Copyright (c) Microsoft Corporation.
 # Licensed under the MIT license.
-
 import re
 from typing import Any, Dict, List
 
@@ -104,11 +103,15 @@ class Lspci(Tool):
             return len(devices_slot)
         for device_slot in devices_slot:
             echo.write_to_file(
-                "1", f"/sys/bus/pci/devices/{device_slot}/remove", sudo=True
+                "1",
+                self.node.get_pure_path(f"/sys/bus/pci/devices/{device_slot}/remove"),
+                sudo=True,
             )
         if len(self.get_devices_slots(device_type, True)) > 0:
             raise LisaException(f"Fail to disable {device_type} devices.")
         return len(devices_slot)
 
     def enable_devices(self) -> None:
-        self.node.tools[Echo].write_to_file("1", "/sys/bus/pci/rescan", sudo=True)
+        self.node.tools[Echo].write_to_file(
+            "1", self.node.get_pure_path("/sys/bus/pci/rescan"), sudo=True
+        )
