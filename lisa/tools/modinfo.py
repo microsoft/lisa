@@ -5,7 +5,7 @@ import re
 from typing import Any
 
 from lisa.executable import Tool
-from lisa.util import find_patterns_in_lines, get_matched_str
+from lisa.util import get_matched_str
 
 
 class Modinfo(Tool):
@@ -58,8 +58,7 @@ class Modinfo(Tool):
             no_info_log=no_info_log,
             no_error_log=no_error_log,
         )
-        found_version = find_patterns_in_lines(output, [self.__version_pattern])
-        return found_version[0][0] if found_version[0] else ""
+        return get_matched_str(output, self.__version_pattern)
 
     def get_filename(
         self,
