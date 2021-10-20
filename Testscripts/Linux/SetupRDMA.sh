@@ -56,7 +56,7 @@ function Upgrade_waagent {
 	# This is only temporary solution, WILL BE REMOVED as soon as 2.2.45 release in each image.
 	LogMsg "Starting waagent upgrade"
 	ln -s /usr/bin/python3 /usr/bin/python
-	if [[ $DISTRO =~ "suse" ]] || if [[ $DISTRO =~  "sles" ]]; then
+	if [[ $DISTRO =~ "suse" ]] || [[ $DISTRO =~  "sles" ]]; then
 		# add net-tools-deprecated package to work around https://github.com/Azure/WALinuxAgent/issues/1712
 		check_package "net-tools-deprecated"
 			if [ $? -eq 0 ]; then
