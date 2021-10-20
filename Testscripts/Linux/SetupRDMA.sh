@@ -56,19 +56,25 @@ function Upgrade_waagent {
 	# This is only temporary solution, WILL BE REMOVED as soon as 2.2.45 release in each image.
 	LogMsg "Starting waagent upgrade"
 	ln -s /usr/bin/python3 /usr/bin/python
-	if [[ $DISTRO == suse_15 ]]; then
-		install_package net-tools-deprecated
+	if [[ $DISTRO =~ "suse" ]] || if [[ $DISTRO =~  "sles" ]]; then
+		# add net-tools-deprecated package to work around https://github.com/Azure/WALinuxAgent/issues/1712
+		check_package "net-tools-deprecated"
+			if [ $? -eq 0 ]; then
+				install_package net-tools-deprecated
+			fi
 	else
 		install_package net-tools
 	fi
-	wget https://github.com/Azure/WALinuxAgent/archive/v2.2.45.tar.gz
-	tar xvzf v2.2.45.tar.gz
-	cd WALinuxAgent-2.2.45
-	sed -i -e 's/# OS.EnableRDMA=y/OS.EnableRDMA=y/g' /root/WALinuxAgent-2.2.45/config/waagent.conf
-	sed -i -e 's/# AutoUpdate.Enabled=y/AutoUpdate.Enabled=y/g' /root/WALinuxAgent-2.2.45/config/waagent.conf
+
+	git clone https://github.com/Azure/WALinuxAgent
+    cd WALinuxAgent
+	sed -i -e 's/# OS.EnableRDMA=y/OS.EnableRDMA=y/g' ./config/waagent.conf
+	sed -i -e 's/# AutoUpdate.Enabled=y/AutoUpdate.Enabled=y/g' ./config/waagent.conf
 	python3 setup.py install --force
 	LogMsg "$?: Completed the waagent upgrade"
 	LogMsg "Restart waagent service"
+	# Run this command to reload the upgraded waagent
+	systemctl daemon-reload
 	if [[ $DISTRO == "ubuntu"* ]]; then
 		service walinuxagent restart
 	else
@@ -109,15 +115,15 @@ function Main() {
 	LogMsg "$?: Set memlock values to unlimited for both soft and hard"
 	hpcx_ver=""
 	source /etc/os-release
-	# Place the temporary solution for waagent 2.2.45 upgrade.
-	# Upgrade_waagent
+	# Upgrade waagent to latest (without this step, all the IB nics doesnt get IP address assigned).
+	Upgrade_waagent
 	case $DISTRO in
 		redhat_7|centos_7|redhat_8|centos_8|almalinux_8|rockylinux_8)
 			# install required packages regardless VM types.
 			LogMsg "Starting RDMA setup for RHEL/CentOS"
 			# required dependencies
 			grep 7.5 /etc/redhat-release || grep 7.6 /etc/redhat-release && curl https://partnerpipelineshare.blob.core.windows.net/kernel-devel-rpms/CentOS-Vault.repo > /etc/yum.repos.d/CentOS-Vault.repo
-			req_pkg="kernel-devel-$(uname -r) redhat-rpm-config rpm-build gcc gcc-gfortran libdb-devel gcc-c++ glibc-devel zlib-devel numactl numactl-devel binutils-devel iptables-devel libstdc++-devel libselinux-devel elfutils-devel libtool java libstdc++.i686 gtk2 atk cairo tcl tk createrepo byacc.x86_64 net-tools tcsh"
+			req_pkg="kernel-devel-$(uname -r) redhat-rpm-config rpm-build gcc gcc-gfortran libdb-devel gcc-c++ glibc-devel zlib-devel numactl numactl-devel binutils-devel iptables-devel libstdc++-devel libselinux-devel elfutils-devel libtool java libstdc++.i686 gtk2 atk cairo tcl tk createrepo byacc.x86_64 tcsh"
 			install_package $req_pkg
 			LogMsg "$?: Installed required packages $req_pkg"
 			if ! [[ $DISTRO_VERSION =~ ^7\.[8-9] ]]; then
@@ -200,11 +206,6 @@ function Main() {
 			# install required packages
 			LogMsg "Starting RDMA setup for SUSE"
 			req_pkg="bzip expect glibc-32bit glibc-devel libgcc_s1 libgcc_s1-32bit libpciaccess-devel gcc-c++ gcc-fortran rdma-core libibverbs-devel librdmacm1 libibverbs-utils bison flex numactl"
-			# add net-tools-deprecated package to work around https://github.com/Azure/WALinuxAgent/issues/1712
-			check_package "net-tools-deprecated"
-			if [ $? -eq 0 ]; then
-				req_pkg+=" net-tools-deprecated"
-			fi
 			LogMsg "Installing required packages, $req_pkg"
 			install_package $req_pkg
 			# force install package that is known to have broken dependencies
