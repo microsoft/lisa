@@ -228,6 +228,12 @@ class Node(subclasses.BaseClassWithRunbookMixin, ContextMixin, InitializableMixi
         else:
             return PureWindowsPath(path)
 
+    def get_case_working_path(self, case_unique_name: str) -> PurePath:
+        working_path = self.working_path / "tests" / case_unique_name
+        self.shell.mkdir(path=working_path, exist_ok=True)
+
+        return working_path
+
     def capture_system_information(self, name: str = "") -> None:
         """
         download key files or outputs of commands to a subfolder of the node.
