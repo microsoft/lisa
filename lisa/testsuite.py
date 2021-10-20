@@ -567,12 +567,13 @@ class TestSuite:
             case_log = get_logger("case", case_name, parent=self.__log)
 
             case_log_path = self.__create_case_log_path(case_name)
+            case_unique_name = case_log_path.name
             case_log_file = case_log_path / f"{case_log_path.name}.log"
             case_log_handler = create_file_handler(case_log_file, case_log)
             add_handler(case_log_handler, environment.log)
 
             case_kwargs = test_kwargs.copy()
-            case_kwargs.update({"case_name": case_name})
+            case_kwargs.update({"case_name": case_unique_name})
             case_kwargs.update({"log": case_log})
             case_kwargs.update({"log_path": case_log_path})
 
