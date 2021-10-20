@@ -67,10 +67,11 @@ function Upgrade_waagent {
 	fi
 
 	git clone https://github.com/Azure/WALinuxAgent
-    cd WALinuxAgent
+	cd WALinuxAgent
 	sed -i -e 's/# OS.EnableRDMA=y/OS.EnableRDMA=y/g' ./config/waagent.conf
 	sed -i -e 's/# AutoUpdate.Enabled=y/AutoUpdate.Enabled=y/g' ./config/waagent.conf
-	python3 setup.py install --force
+	waagent -version | grep -i "Python: 2." && python2 setup.py install --force
+	waagent -version | grep -i "Python: 3." && python3 setup.py install --force
 	LogMsg "$?: Completed the waagent upgrade"
 	LogMsg "Restart waagent service"
 	# Run this command to reload the upgraded waagent
