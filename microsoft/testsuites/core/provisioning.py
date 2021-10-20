@@ -63,7 +63,7 @@ class Provisioning(TestSuite):
         ),
     )
     def smoke_test(self, log: Logger, node: RemoteNode, log_path: Path) -> None:
-        self._smoke_test(log, node, log_path)
+        self._smoke_test(log, node, log_path, "smoke_test")
 
     @TestCaseMetadata(
         description="""
@@ -80,7 +80,9 @@ class Provisioning(TestSuite):
     def verify_deployment_provision_synthetic_nic(
         self, log: Logger, node: RemoteNode, log_path: Path
     ) -> None:
-        self._smoke_test(log, node, log_path)
+        self._smoke_test(
+            log, node, log_path, "verify_deployment_provision_synthetic_nic"
+        )
 
     @TestCaseMetadata(
         description="""
@@ -97,7 +99,9 @@ class Provisioning(TestSuite):
     def verify_deployment_provision_standard_ssd_disk(
         self, log: Logger, node: RemoteNode, log_path: Path
     ) -> None:
-        self._smoke_test(log, node, log_path)
+        self._smoke_test(
+            log, node, log_path, "verify_deployment_provision_standard_ssd_disk"
+        )
 
     @TestCaseMetadata(
         description="""
@@ -114,7 +118,9 @@ class Provisioning(TestSuite):
     def verify_deployment_provision_ephemeral_managed_disk(
         self, log: Logger, node: RemoteNode, log_path: Path
     ) -> None:
-        self._smoke_test(log, node, log_path)
+        self._smoke_test(
+            log, node, log_path, "verify_deployment_provision_ephemeral_managed_disk"
+        )
 
     @TestCaseMetadata(
         description="""
@@ -131,7 +137,9 @@ class Provisioning(TestSuite):
     def verify_deployment_provision_premium_disk(
         self, log: Logger, node: RemoteNode, log_path: Path
     ) -> None:
-        self._smoke_test(log, node, log_path)
+        self._smoke_test(
+            log, node, log_path, "verify_deployment_provision_premium_disk"
+        )
 
     @TestCaseMetadata(
         description="""
@@ -148,7 +156,7 @@ class Provisioning(TestSuite):
     def verify_deployment_provision_sriov(
         self, log: Logger, node: RemoteNode, log_path: Path
     ) -> None:
-        self._smoke_test(log, node, log_path)
+        self._smoke_test(log, node, log_path, "verify_deployment_provision_sriov")
 
     @TestCaseMetadata(
         description="""
@@ -165,7 +173,13 @@ class Provisioning(TestSuite):
     def verify_reboot_in_platform(
         self, log: Logger, node: RemoteNode, log_path: Path
     ) -> None:
-        self._smoke_test(log, node, log_path, reboot_in_platform=True)
+        self._smoke_test(
+            log,
+            node,
+            log_path,
+            reboot_in_platform=True,
+            case_name="verify_reboot_in_platform",
+        )
 
     @TestCaseMetadata(
         description="""
@@ -186,6 +200,7 @@ class Provisioning(TestSuite):
             log,
             node,
             log_path,
+            "verify_stop_start_in_platform",
             reboot_in_platform=True,
             is_restart=False,
         )
@@ -195,12 +210,13 @@ class Provisioning(TestSuite):
         log: Logger,
         node: RemoteNode,
         log_path: Path,
+        case_name: str,
         reboot_in_platform: bool = False,
         wait: bool = True,
         is_restart: bool = True,
     ) -> None:
         if not node.is_remote:
-            raise SkippedException("smoke test : {case_name} cannot run on local node.")
+            raise SkippedException(f"smoke test: {case_name} cannot run on local node.")
 
         is_ready, tcp_error_code = wait_tcp_port_ready(
             node.public_address, node.public_port, log=log, timeout=self.TIME_OUT
