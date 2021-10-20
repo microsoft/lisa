@@ -8,7 +8,7 @@ from semver import VersionInfo
 
 from lisa import (
     Logger,
-    RemoteNode,
+    Node,
     TestCaseMetadata,
     TestSuite,
     TestSuiteMetadata,
@@ -43,9 +43,7 @@ class HvModule(TestSuite):
         """,
         priority=1,
     )
-    def verify_lis_modules_version(
-        self, case_name: str, log: Logger, node: RemoteNode
-    ) -> None:
+    def verify_lis_modules_version(self, node: Node) -> None:
         if not isinstance(node.os, Redhat):
             raise SkippedException(
                 f"{node.os.name} not supported. "
@@ -78,9 +76,7 @@ class HvModule(TestSuite):
         """,
         priority=2,
     )
-    def verify_initrd_modules(
-        self, case_name: str, log: Logger, node: RemoteNode
-    ) -> None:
+    def verify_initrd_modules(self, node: Node) -> None:
 
         # 1) Takes all of the necessary modules and removes
         #    those that are statically loaded into the kernel
@@ -130,7 +126,7 @@ class HvModule(TestSuite):
             "Required Hyper-V modules are missing from initrd."
         ).is_length(0)
 
-    def _get_directly_loaded_modules(self, node: RemoteNode) -> List[str]:
+    def _get_directly_loaded_modules(self, node: Node) -> List[str]:
         """
         Returns the hv_modules that are directly loaded into the kernel and
         therefore would not show up in lsmod or be needed in initrd.
@@ -168,9 +164,7 @@ class HvModule(TestSuite):
         """,
         priority=1,
     )
-    def verify_hyperv_modules(
-        self, case_name: str, log: Logger, node: RemoteNode
-    ) -> None:
+    def verify_hyperv_modules(self, log: Logger, node: Node) -> None:
         hv_modules = self._get_expected_modules(node)
         distro_version = node.os.information.version
 
@@ -204,7 +198,7 @@ class HvModule(TestSuite):
             "Not all Hyper V drivers are present."
         ).is_length(0)
 
-    def _get_expected_modules(self, node: RemoteNode) -> List[str]:
+    def _get_expected_modules(self, node: Node) -> List[str]:
         """
         Returns the hv_modules that are not directly loaded into the kernel and
         therefore would be expected to show up in lsmod.
