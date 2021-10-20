@@ -534,18 +534,6 @@ class TestSuite:
     def after_case(self, log: Logger, **kwargs: Any) -> None:
         ...
 
-    def _create_case_log_path(self, case_name: str) -> Path:
-        while True:
-            path_name = f"{get_datetime_path()}-{case_name}"
-            path = constants.RUN_LOCAL_PATH / "tests" / path_name
-            if not path.exists():
-                break
-            sleep(0.1)
-        # avoid to create folder for UT
-        if "unittest" not in sys.modules:
-            path.mkdir(parents=True)
-        return path
-
     def start(
         self,
         environment: Environment,
@@ -578,7 +566,7 @@ class TestSuite:
             case_result.environment = environment
             case_log = get_logger("case", case_name, parent=self.__log)
 
-            case_log_path = self._create_case_log_path(case_name)
+            case_log_path = self.__create_case_log_path(case_name)
             case_log_file = case_log_path / f"{case_log_path.name}.log"
             case_log_handler = create_file_handler(case_log_file, case_log)
             add_handler(case_log_handler, environment.log)
@@ -640,6 +628,21 @@ class TestSuite:
 
     def stop(self) -> None:
         self._should_stop = True
+
+    def __create_case_log_path(self, case_name: str) -> Path:
+        while True:
+            path = (
+                constants.RUN_LOCAL_PATH
+                / "tests"
+                / f"{get_datetime_path()}-{case_name}"
+            )
+            if not path.exists():
+                break
+            sleep(0.1)
+        # avoid to create folder for UT
+        if "unittest" not in sys.modules:
+            path.mkdir(parents=True)
+        return path
 
     def __suite_method(
         self, method: Callable[..., Any], test_kwargs: Dict[str, Any], log: Logger
