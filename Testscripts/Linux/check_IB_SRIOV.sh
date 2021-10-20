@@ -38,7 +38,7 @@ function Main() {
 	if [ $_type == "0" ] || [ $_type == "1" ]; then
 		LogMsg "This is HPC VM. Check out the waagent config parameter - OS.EnableRDMA"
 		output=$(cat /etc/waagent.conf | grep ^OS.EnableRDMA=y)
-		if [ $output == "OS.EnableRDMA=y" ]; then
+		if [ "$output" == "OS.EnableRDMA=y" ]; then
 			LogMsg "Verified waagent config OS.EnableRDMA=y set successfully"
 		else
 			LogErr "Found waagent configuration of OS.EnableRDMA=y was missing or commented out"
