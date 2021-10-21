@@ -50,6 +50,8 @@ class DpdkTestpmd(Tool):
         "python3-pyelftools",
         "libelf-dev",
         "rdma-core",
+        "ibverbs-providers",
+        "rdma-core",
     ]
 
     _redhat_packages = [
@@ -152,6 +154,23 @@ class DpdkTestpmd(Tool):
                 )
                 self.__execute_assert_zero("pip3 install --upgrade ninja", cwd)
             elif "20.04" in node.os.information.release:
+                # 20-04 requires backports to be added for dpdk related fixes
+                node.execute(
+                    "sudo add-apt-repository ppa:canonical-server/server-backports -y",
+                    sudo=True,
+                    expected_exit_code=0,
+                    expected_exit_code_failure_message=(
+                        "Could not add backports repo."
+                    ),
+                )
+                node.execute(
+                    "sudo apt-get update -y",
+                    sudo=True,
+                    expected_exit_code=0,
+                    expected_exit_code_failure_message=(
+                        "Error with apt-get update (post-backports repo add)"
+                    ),
+                )
                 node.os.install_packages(list(self._ubuntu_packages_2004))
             self.__execute_assert_zero(
                 "modprobe -a rdma_cm rdma_ucm ib_core ib_uverbs",
