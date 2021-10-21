@@ -309,10 +309,11 @@ class Xfstesting(TestSuite):
         xfstests = node.tools[Xfstests]
         xfstests.set_local_config(scratch_dev, _scratch_folder, test_dev, _test_folder)
         xfstests.set_excluded_tests(excluded_tests)
-        node.execute(
+        cmd_results = node.execute(
             f"bash check -g {test_type}/quick -E exclude.txt",
             sudo=True,
             shell=True,
             cwd=xfstests.get_xfstests_path(),
             timeout=self.TIME_OUT,
         )
+        xfstests.check_test_results(cmd_results.stdout)
