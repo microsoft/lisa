@@ -1,13 +1,13 @@
 # Copyright (c) Microsoft Corporation.
 # Licensed under the MIT license.
-
+import re
 from pathlib import PurePath
 from typing import List, Type, cast
 
 from lisa.executable import Tool
 from lisa.operating_system import Debian, Posix, Redhat, Suse
-from lisa.tools import Echo
-from lisa.util import LisaException
+from lisa.tools import Cat, Echo
+from lisa.util import LisaException, find_patterns_in_lines
 
 from .git import Git
 from .make import Make
@@ -80,6 +80,20 @@ class Xfstests(Tool):
         "xfsprogs-devel",
         "lib-devel",
     ]
+    # Passed all 35 tests
+    __all_pass_pattern = re.compile(
+        r"([\w\W]*?)Passed all (?P<pass_count>\d+) tests", re.MULTILINE
+    )
+    # Failed 22 of 514 tests
+    __fail_pattern = re.compile(
+        r"([\w\W]*?)Failed (?P<fail_count>\d+) of (?P<total_count>\d+) tests",
+        re.MULTILINE,
+    )
+    # Failures: generic/079 generic/193 generic/230 generic/256 generic/314 generic/317 generic/318 generic/355 generic/382 generic/523 generic/536 generic/553 generic/554 generic/565 generic/566 generic/587 generic/594 generic/597 generic/598 generic/600 generic/603 generic/646 # noqa: E501
+    __fail_cases_pattern = re.compile(
+        r"([\w\W]*?)Failures: (?P<fail_cases>.*)",
+        re.MULTILINE,
+    )
 
     @property
     def command(self) -> str:
@@ -166,3 +180,37 @@ class Xfstests(Tool):
                 self.node.shell.remove(exclude_file_path)
             echo = self.node.tools[Echo]
             echo.write_to_file(exclude_tests, exclude_file_path)
+
+    def check_test_results(self, raw_message: str) -> None:
+        xfstests_path = self.get_xfstests_path()
+        results_path = xfstests_path.joinpath("results/check.log")
+        if not self.node.shell.exists(results_path):
+            raise LisaException(
+                f"Result path {results_path} doesn't exist, please check testing runs"
+                " well or not."
+            )
+        results = self.node.tools[Cat].run(str(results_path), sudo=True)
+        results.assert_exit_code()
+        pass_match = self.__all_pass_pattern.match(results.stdout)
+        if pass_match:
+            pass_count = pass_match.group("pass_count")
+            self._log.debug(
+                f"All pass in xfstests, total pass case count is {pass_count}."
+            )
+            return
+        fail_match = self.__fail_pattern.match(results.stdout)
+        assert fail_match
+        fail_count = fail_match.group("fail_count")
+        total_count = fail_match.group("total_count")
+        fail_cases_match = self.__fail_cases_pattern.match(results.stdout)
+        assert fail_cases_match
+        fail_info = ""
+        fail_cases = fail_cases_match.group("fail_cases")
+        for fail_case in fail_cases.split():
+            fail_info += find_patterns_in_lines(
+                raw_message, [re.compile(f".*{fail_case}.*$", re.MULTILINE)]
+            )[0][0]
+        raise LisaException(
+            f"Fail {fail_count} cases of total {total_count}, fail cases"
+            f" {fail_cases}, details {fail_info}, please investigate."
+        )
