@@ -44,6 +44,13 @@
                 "description": "public key data"
             }
         },
+        "subnet_count": {
+            "type": "int",
+            "defaultValue": 1,
+            "metadata": {
+                "description": "created subnet count"
+            }
+        },
         "availability_set_tags": {
             "type": "object",
             "metadata": {
@@ -66,11 +73,10 @@
     "variables": {
         "shared_rg_name": "lisa_shared_resource",
         "virtual_network_name": "lisa-virtualNetwork",
-        "default_subnet": "lisa-subnetForPrimaryNIC",
         "vnet_id": "[resourceId('Microsoft.Network/virtualNetworks/', variables('virtual_network_name'))]",
         "node_count": "[length(parameters('nodes'))]",
         "availability_set_name": "lisa-availabilitySet",
-        "default_subnetId": "[concat(variables('vnet_id'),'/subnets/', variables('default_subnet'))]"
+        "subnet_prefix": "lisa-subnet-"
     },
     "resources": [
         {
@@ -88,9 +94,9 @@
             "apiVersion": "2020-05-01",
             "type": "Microsoft.Network/publicIPAddresses",
             "location": "[parameters('location')]",
-            "name": "[concat(parameters('nodes')[copyIndex('vmCopy')]['name'],'-public-ip')]",
+            "name": "[concat(parameters('nodes')[copyIndex('publicIpCopy')]['name'],'-public-ip')]",
             "copy": {
-                "name": "vmCopy",
+                "name": "publicIpCopy",
                 "count": "[variables('node_count')]"
             },
             "properties": {
@@ -108,11 +114,15 @@
                         "10.0.0.0/16"
                     ]
                 },
-                "subnets": [
+                "copy": [
                     {
-                        "name": "[variables('default_subnet')]",
-                        "properties": {
-                            "addressPrefix": "10.0.0.0/24"
+                        "name": "subnets",
+                        "count": "[parameters('subnet_count')]",
+                        "input": {
+                            "name": "[concat(variables('subnet_prefix'), copyIndex('subnets'))]",
+                            "properties": {
+                                "addressPrefix": "[concat('10.0.', copyIndex('subnets'), '.0/24')]"
+                            }
                         }
                     }
                 ]
@@ -122,12 +132,12 @@
             "type": "Microsoft.Resources/deployments",
             "apiVersion": "2019-10-01",
             "copy": {
-                "name": "vmCopy",
+                "name": "nicCopy",
                 "count": "[variables('node_count')]"
             },
-            "name": "[concat(parameters('nodes')[copyIndex('vmCopy')]['name'],'-networkInterfaces')]",
+            "name": "[concat(parameters('nodes')[copyIndex('nicCopy')]['name'],'-networkInterfaces')]",
             "dependsOn": [
-                "[resourceId('Microsoft.Network/publicIPAddresses/', concat(parameters('nodes')[copyIndex('vmCopy')]['name'],'-public-ip'))]",
+                "[resourceId('Microsoft.Network/publicIPAddresses/', concat(parameters('nodes')[copyIndex('nicCopy')]['name'],'-public-ip'))]",
                 "[variables('vnet_id')]"
             ],
             "properties": {
@@ -136,19 +146,22 @@
                 },
                 "parameters": {
                     "vmName": {
-                        "value": "[parameters('nodes')[copyIndex('vmCopy')]['name']]"
+                        "value": "[parameters('nodes')[copyIndex('nicCopy')]['name']]"
                     },
                     "nic_count": {
-                        "value": "[parameters('nodes')[copyIndex('vmCopy')]['nic_count']]"
+                        "value": "[parameters('nodes')[copyIndex('nicCopy')]['nic_count']]"
                     },
                     "location": {
                         "value": "[parameters('location')]"
                     },
-                    "default_subnetId": {
-                        "value": "[variables('default_subnetId')]"
+                    "vnet_id": {
+                        "value": "[variables('vnet_id')]"
+                    },
+                    "subnet_prefix": {
+                        "value": "[variables('subnet_prefix')]"
                     },
                     "enable_sriov": {
-                        "value": "[parameters('nodes')[copyIndex('vmCopy')]['enable_sriov']]"
+                        "value": "[parameters('nodes')[copyIndex('nicCopy')]['enable_sriov']]"
                     }
                 },
                 "mode": "Incremental",
@@ -165,7 +178,10 @@
                         "location": {
                             "type": "string"
                         },
-                        "default_subnetId": {
+                        "vnet_id": {
+                            "type": "string"
+                        },
+                        "subnet_prefix": {
                             "type": "string"
                         },
                         "enable_sriov": {
@@ -177,10 +193,10 @@
                             "apiVersion": "2020-05-01",
                             "type": "Microsoft.Network/networkInterfaces",
                             "copy": {
-                                "name": "nicCopy",
+                                "name": "internalNicCopy",
                                 "count": "[parameters('nic_count')]"
                             },
-                            "name": "[concat(parameters('vmName'), '-nic-', copyIndex('nicCopy'))]",
+                            "name": "[concat(parameters('vmName'), '-nic-', copyIndex('internalNicCopy'))]",
                             "location": "[parameters('location')]",
                             "properties": {
                                 "ipConfigurations": [
@@ -188,9 +204,9 @@
                                         "name": "IPv4Config",
                                         "properties": {
                                             "privateIPAddressVersion": "IPv4",
-                                            "publicIPAddress": "[if(equals(0, copyIndex('nicCopy')), network.getPublicIpAddress(parameters('vmName')), json('null'))]",
+                                            "publicIPAddress": "[if(equals(0, copyIndex('internalNicCopy')), network.getPublicIpAddress(parameters('vmName')), json('null'))]",
                                             "subnet": {
-                                                "id": "[parameters('default_subnetId')]"
+                                                "id": "[concat(parameters('vnet_id'),'/subnets/', concat(parameters('subnet_prefix'), copyIndex('internalNicCopy')))]"
                                             },
                                             "privateIPAllocationMethod": "Dynamic"
                                         }
