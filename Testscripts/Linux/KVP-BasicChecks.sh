@@ -61,9 +61,15 @@ else
         LogMsg "32 bit architecture was detected"
         kvp_client="kvp_client32"
     else
-        LogErr "Unable to detect OS architecture"
-        SetTestStateAborted
-        exit 0
+        uname -a | grep aarch64
+        if [ $? -eq 0 ]; then
+            LogMsg "arm 64 bit architecture was detected"
+            kvp_client="kvp_client_arm64"
+        else
+            LogErr "Unable to detect OS architecture"
+            SetTestStateAborted
+            exit 0
+        fi
     fi
 fi
 
