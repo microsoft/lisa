@@ -187,6 +187,7 @@ class AzureArmParameter:
     admin_username: str = ""
     admin_password: str = ""
     admin_key_data: str = ""
+    subnet_count: int = 1
     availability_set_tags: Dict[str, str] = field(default_factory=dict)
     availability_set_properties: Dict[str, Any] = field(default_factory=dict)
     nodes: List[AzureNodeSchema] = field(default_factory=list)
@@ -1006,6 +1007,10 @@ class AzurePlatform(Platform):
         arm_parameters.storage_name = get_storage_account_name(
             self.subscription_id, arm_parameters.location
         )
+
+        # In Azure, each VM should have only one nic in one subnet. So calculate
+        # the max nic count, and set to subnet count.
+        arm_parameters.subnet_count = max(x.nic_count for x in arm_parameters.nodes)
 
         # the arm template may be updated by the hooks, so make a copy to avoid
         # the original template is modified.
