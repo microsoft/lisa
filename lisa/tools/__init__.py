@@ -35,6 +35,7 @@ from .parted import Parted
 from .pgrep import Pgrep, ProcessInfo
 from .reboot import Reboot
 from .service import Service
+from .ssh import Ssh
 from .swap import Swap
 from .swapon import SwapOn
 from .sysctl import Sysctl
@@ -85,6 +86,7 @@ __all__ = [
     "Sed",
     "Uname",
     "Service",
+    "Ssh",
     "Swap",
     "SwapOn",
     "Sysctl",
