@@ -188,6 +188,7 @@ class AzureArmParameter:
     admin_password: str = ""
     admin_key_data: str = ""
     subnet_count: int = 1
+    shared_resource_group_name: str = AZURE_SHARED_RG_NAME
     availability_set_tags: Dict[str, str] = field(default_factory=dict)
     availability_set_properties: Dict[str, Any] = field(default_factory=dict)
     nodes: List[AzureNodeSchema] = field(default_factory=list)
@@ -228,6 +229,7 @@ class AzurePlatformSchema:
         ),
     )
 
+    shared_resource_group_name: str = AZURE_SHARED_RG_NAME
     resource_group_name: str = field(default="")
     availability_set_tags: Optional[Dict[str, str]] = field(default=None)
     availability_set_properties: Optional[Dict[str, Any]] = field(default=None)
@@ -769,7 +771,7 @@ class AzurePlatform(Platform):
         check_or_create_resource_group(
             self.credential,
             self.subscription_id,
-            AZURE_SHARED_RG_NAME,
+            azure_runbook.shared_resource_group_name,
             RESOURCE_GROUP_LOCATION,
             self._log,
         )
@@ -1012,6 +1014,10 @@ class AzurePlatform(Platform):
         # the max nic count, and set to subnet count.
         arm_parameters.subnet_count = max(x.nic_count for x in arm_parameters.nodes)
 
+        arm_parameters.shared_resource_group_name = (
+            self._azure_runbook.shared_resource_group_name
+        )
+
         # the arm template may be updated by the hooks, so make a copy to avoid
         # the original template is modified.
         template = deepcopy(self._load_template())
@@ -1157,7 +1163,7 @@ class AzurePlatform(Platform):
             self.credential,
             self.subscription_id,
             storage_account_name,
-            AZURE_SHARED_RG_NAME,
+            self._azure_runbook.shared_resource_group_name,
             location,
             log,
         )
@@ -1678,7 +1684,7 @@ class AzurePlatform(Platform):
             self.credential,
             self.subscription_id,
             storage_name,
-            AZURE_SHARED_RG_NAME,
+            self._azure_runbook.shared_resource_group_name,
             location,
             log,
         )

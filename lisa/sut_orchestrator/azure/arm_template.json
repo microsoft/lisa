@@ -44,6 +44,12 @@
                 "description": "public key data"
             }
         },
+        "shared_resource_group_name": {
+            "type": "string",
+            "metadata": {
+                "description": "the name of shared resource group"
+            }
+        },
         "subnet_count": {
             "type": "int",
             "defaultValue": 1,
@@ -71,7 +77,6 @@
         }
     },
     "variables": {
-        "shared_rg_name": "lisa_shared_resource",
         "virtual_network_name": "lisa-virtualNetwork",
         "vnet_id": "[resourceId('Microsoft.Network/virtualNetworks/', variables('virtual_network_name'))]",
         "node_count": "[length(parameters('nodes'))]",
@@ -336,7 +341,7 @@
                 "diagnosticsProfile": {
                     "bootDiagnostics": {
                         "enabled": true,
-                        "storageUri": "[reference(resourceId(variables('shared_rg_name'), 'Microsoft.Storage/storageAccounts', parameters('storage_name')), '2015-06-15').primaryEndpoints['blob']]"
+                        "storageUri": "[reference(resourceId(parameters('shared_resource_group_name'), 'Microsoft.Storage/storageAccounts', parameters('storage_name')), '2015-06-15').primaryEndpoints['blob']]"
                     }
                 }
             }
