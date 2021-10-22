@@ -110,8 +110,14 @@ def extract_metadata(nodes: Set[Any]) -> List[Dict[str, str]]:
                             for r in req.value.elts:
                                 if isinstance(r, ast.Name):
                                     val = add_req(val, r.id)  # type: ignore
-                else:
+                elif isinstance(param.value, ast.Constant):
                     val = param.value.value
+                elif isinstance(param.value, ast.Name):
+                    val = param.value.id
+                else:
+                    raise Exception(
+                        f"param.value is unsupported type '{type(param.value)}'"
+                    )
 
                 metadata[field] = val  # type: ignore
         all_metadata.append(metadata)
