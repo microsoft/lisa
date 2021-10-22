@@ -344,11 +344,6 @@ class RemoteNode(Node):
         password: str = "",
         private_key_file: str = "",
     ) -> None:
-        if hasattr(self, "_connection_info"):
-            raise LisaException(
-                "node is set connection information already, cannot set again"
-            )
-
         if not address and not public_address:
             raise LisaException(
                 "at least one of address and public_address need to be set"
