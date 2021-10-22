@@ -27,6 +27,11 @@ class NetworkInterface(Feature):
     def is_enabled_sriov(self) -> bool:
         raise NotImplementedError
 
+    def attach_nics(
+        self, extra_nic_count: int, enable_accelerated_networking: bool = True
+    ) -> None:
+        raise NotImplementedError
+
 
 Sriov = partial(NetworkInterfaceOptionSettings, data_path=schema.NetworkDataPath.Sriov)
 Synthetic = partial(

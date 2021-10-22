@@ -17,7 +17,12 @@ from lisa.features import NvmeSettings
 from lisa.features.gpu import ComputeSDK
 from lisa.node import Node, RemoteNode
 from lisa.operating_system import CentOs, Redhat, Suse, Ubuntu
-from lisa.util import LisaException, NotMeetRequirementException, find_patterns_in_lines
+from lisa.util import (
+    LisaException,
+    NotMeetRequirementException,
+    constants,
+    find_patterns_in_lines,
+)
 
 if TYPE_CHECKING:
     from .platform_ import AzurePlatform
@@ -50,7 +55,12 @@ class StartStop(AzureFeatureMixin, features.StartStop):
         # the public ip address will change, so reload here
         self._node = cast(RemoteNode, self._node)
         platform: AzurePlatform = self._platform  # type: ignore
-        self._node.public_address = platform.load_public_ip(self._node, self._log)
+        public_ip = platform.load_public_ip(self._node, self._log)
+        node_info = self._node.connection_info
+        node_info[constants.ENVIRONMENTS_NODES_REMOTE_PUBLIC_ADDRESS] = public_ip
+        self._node.set_connection_info(**node_info)
+        self._node._is_initialized = False
+        self._node.initialize()
         return result
 
     def _restart(self, wait: bool = True) -> Any:
@@ -219,6 +229,90 @@ class NetworkInterface(AzureFeatureMixin, features.NetworkInterface):
         )
         sriov_enabled = primary_nic.enable_accelerated_networking
         return sriov_enabled
+
+    def attach_nics(
+        self, extra_nic_count: int, enable_accelerated_networking: bool = True
+    ) -> None:
+        azure_platform: AzurePlatform = self._platform  # type: ignore
+        network_client = get_network_client(azure_platform)
+        compute_client = get_compute_client(azure_platform)
+        vm = compute_client.virtual_machines.get(
+            self._resource_group_name, self._node.name
+        )
+        nic_count_after_add_extra = extra_nic_count + len(
+            vm.network_profile.network_interfaces
+        )
+        assert (
+            self._node.capability.network_interface
+            and self._node.capability.network_interface.max_nic_count
+        )
+        assert isinstance(
+            self._node.capability.network_interface.max_nic_count, int
+        ), f"actual: {type(self._node.capability.network_interface.max_nic_count)}"
+        node_capability_nic_count = (
+            self._node.capability.network_interface.max_nic_count
+        )
+        if nic_count_after_add_extra > node_capability_nic_count:
+            raise LisaException(
+                f"nic count after add extra nics is {nic_count_after_add_extra},"
+                f" it exceeds the vm size's capability {node_capability_nic_count}."
+            )
+        found_primary = False
+        for nic in vm.network_profile.network_interfaces:
+            if nic.primary:
+                found_primary = True
+                break
+        if not found_primary:
+            raise LisaException(f"fail to find primary nic for vm {self._node.name}")
+        nic_name = nic.id.split("/")[-1]
+        primary_nic = network_client.network_interfaces.get(
+            self._resource_group_name, nic_name
+        )
+
+        startstop = self._node.features[StartStop]
+        startstop.stop()
+
+        network_interfaces_section = []
+        index = 1
+        while index <= extra_nic_count:
+            extra_nic_name = f"{self._node.name}-extra-{index}"
+            self._log.debug(f"start to create the nic {extra_nic_name}.")
+            params = {
+                "location": vm.location,
+                "enable_accelerated_networking": enable_accelerated_networking,
+                "ip_configurations": [
+                    {
+                        "name": extra_nic_name,
+                        "subnet": {"id": primary_nic.ip_configurations[0].subnet.id},
+                        "primary": False,
+                    }
+                ],
+            }
+            network_client.network_interfaces.begin_create_or_update(
+                resource_group_name=self._resource_group_name,
+                network_interface_name=extra_nic_name,
+                parameters=params,
+            )
+            self._log.debug(f"create the nic {extra_nic_name} successfully.")
+            extra_nic = network_client.network_interfaces.get(
+                network_interface_name=extra_nic_name,
+                resource_group_name=self._resource_group_name,
+            )
+
+            network_interfaces_section.append({"id": extra_nic.id, "primary": False})
+            index += 1
+        network_interfaces_section.append({"id": primary_nic.id, "primary": True})
+
+        self._log.debug(f"start to attach the nics into VM {self._node.name}.")
+        compute_client.virtual_machines.begin_update(
+            resource_group_name=self._resource_group_name,
+            vm_name=self._node.name,
+            parameters={
+                "network_profile": {"network_interfaces": network_interfaces_section},
+            },
+        )
+        self._log.debug(f"attach the nics into VM {self._node.name} successfully.")
+        startstop.start()
 
 
 class Nvme(AzureFeatureMixin, features.Nvme):
