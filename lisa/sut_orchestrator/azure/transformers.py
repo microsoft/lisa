@@ -59,6 +59,8 @@ def _generate_vhd_path(container_client: Any, file_name_part: str = "") -> str:
 @dataclass_json
 @dataclass
 class VhdTransformerSchema(schema.Transformer):
+    # shared resource group name
+    shared_resource_group_name: str = AZURE_SHARED_RG_NAME
     # resource group and vm name to be exported
     resource_group_name: str = field(default="", metadata=field_metadata(required=True))
     vm_name: str = "node-0"
@@ -201,7 +203,7 @@ class VhdTransformer(Transformer):
             credential=platform.credential,
             subscription_id=platform.subscription_id,
             account_name=runbook.storage_account_name,
-            resource_group_name=AZURE_SHARED_RG_NAME,
+            resource_group_name=runbook.shared_resource_group_name,
             location=location,
             log=self._log,
         )
