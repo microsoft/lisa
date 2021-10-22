@@ -19,6 +19,6 @@ class Cat(Tool):
         sudo: bool = False,
     ) -> str:
         # Run `cat <file>`
-        result = self.run(file, force_run=force_run, sudo=sudo)
+        result = self.run(file, force_run=force_run, sudo=sudo, shell=True)
         result.assert_exit_code(message=f"Error : {result.stdout}")
         return result.stdout
