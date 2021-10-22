@@ -327,6 +327,8 @@ class RunbookBuilder:
 
         with open(path, "r") as file:
             data_from_current = yaml.safe_load(file)
+        if not data_from_current:
+            raise LisaException(f"file '{path}' cannot be empty.")
 
         variables = load_variables(
             data_from_current, higher_level_variables=higher_level_variables
