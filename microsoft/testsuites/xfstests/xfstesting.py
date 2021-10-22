@@ -1,5 +1,6 @@
 # Copyright (c) Microsoft Corporation.
 # Licensed under the MIT license.
+from pathlib import Path
 from typing import Dict
 
 from lisa import (
@@ -80,11 +81,14 @@ class Xfstesting(TestSuite):
         timeout=TIME_OUT,
         priority=3,
     )
-    def xfstesting_generic_standard_datadisk_validation(self, node: Node) -> None:
+    def xfstesting_generic_standard_datadisk_validation(
+        self, node: Node, log_path: Path
+    ) -> None:
         disk = node.features[Disk]
         data_disks = disk.get_raw_data_disks()
         self._execute_xfstests(
             node,
+            log_path,
             data_disks[0],
             f"{data_disks[0]}1",
             f"{data_disks[0]}2",
@@ -106,11 +110,14 @@ class Xfstesting(TestSuite):
         timeout=TIME_OUT,
         priority=3,
     )
-    def xfstesting_xfs_standard_datadisk_validation(self, node: Node) -> None:
+    def xfstesting_xfs_standard_datadisk_validation(
+        self, node: Node, log_path: Path
+    ) -> None:
         disk = node.features[Disk]
         data_disks = disk.get_raw_data_disks()
         self._execute_xfstests(
             node,
+            log_path,
             data_disks[0],
             f"{data_disks[0]}1",
             f"{data_disks[0]}2",
@@ -133,11 +140,14 @@ class Xfstesting(TestSuite):
         timeout=TIME_OUT,
         priority=3,
     )
-    def xfstesting_ext4_standard_datadisk_validation(self, node: Node) -> None:
+    def xfstesting_ext4_standard_datadisk_validation(
+        self, node: Node, log_path: Path
+    ) -> None:
         disk = node.features[Disk]
         data_disks = disk.get_raw_data_disks()
         self._execute_xfstests(
             node,
+            log_path,
             data_disks[0],
             f"{data_disks[0]}1",
             f"{data_disks[0]}2",
@@ -160,11 +170,14 @@ class Xfstesting(TestSuite):
         timeout=TIME_OUT,
         priority=3,
     )
-    def xfstesting_btrfs_standard_datadisk_validation(self, node: Node) -> None:
+    def xfstesting_btrfs_standard_datadisk_validation(
+        self, node: Node, log_path: Path
+    ) -> None:
         disk = node.features[Disk]
         data_disks = disk.get_raw_data_disks()
         self._execute_xfstests(
             node,
+            log_path,
             data_disks[0],
             f"{data_disks[0]}1",
             f"{data_disks[0]}2",
@@ -184,11 +197,14 @@ class Xfstesting(TestSuite):
             supported_features=[Nvme],
         ),
     )
-    def xfstesting_generic_nvme_datadisk_validation(self, node: Node) -> None:
+    def xfstesting_generic_nvme_datadisk_validation(
+        self, node: Node, log_path: Path
+    ) -> None:
         nvme_disk = node.features[Nvme]
         nvme_data_disks = nvme_disk.get_raw_data_disks()
         self._execute_xfstests(
             node,
+            log_path,
             nvme_data_disks[0],
             f"{nvme_data_disks[0]}p1",
             f"{nvme_data_disks[0]}p2",
@@ -206,11 +222,14 @@ class Xfstesting(TestSuite):
             supported_features=[Nvme],
         ),
     )
-    def xfstesting_xfs_nvme_datadisk_validation(self, node: Node) -> None:
+    def xfstesting_xfs_nvme_datadisk_validation(
+        self, node: Node, log_path: Path
+    ) -> None:
         nvme_disk = node.features[Nvme]
         nvme_data_disks = nvme_disk.get_raw_data_disks()
         self._execute_xfstests(
             node,
+            log_path,
             nvme_data_disks[0],
             f"{nvme_data_disks[0]}p1",
             f"{nvme_data_disks[0]}p2",
@@ -228,11 +247,14 @@ class Xfstesting(TestSuite):
             supported_features=[Nvme],
         ),
     )
-    def xfstesting_ext4_nvme_datadisk_validation(self, node: Node) -> None:
+    def xfstesting_ext4_nvme_datadisk_validation(
+        self, node: Node, log_path: Path
+    ) -> None:
         nvme_disk = node.features[Nvme]
         nvme_data_disks = nvme_disk.get_raw_data_disks()
         self._execute_xfstests(
             node,
+            log_path,
             nvme_data_disks[0],
             f"{nvme_data_disks[0]}p1",
             f"{nvme_data_disks[0]}p2",
@@ -251,11 +273,14 @@ class Xfstesting(TestSuite):
             supported_features=[Nvme],
         ),
     )
-    def xfstesting_btrfs_nvme_datadisk_validation(self, node: Node) -> None:
+    def xfstesting_btrfs_nvme_datadisk_validation(
+        self, node: Node, log_path: Path
+    ) -> None:
         nvme_disk = node.features[Nvme]
         nvme_data_disks = nvme_disk.get_raw_data_disks()
         self._execute_xfstests(
             node,
+            log_path,
             nvme_data_disks[0],
             f"{nvme_data_disks[0]}p1",
             f"{nvme_data_disks[0]}p2",
@@ -267,6 +292,7 @@ class Xfstesting(TestSuite):
     def _execute_xfstests(
         self,
         node: Node,
+        log_path: Path,
         data_disk: str,
         test_dev: str,
         scratch_dev: str,
@@ -316,4 +342,4 @@ class Xfstesting(TestSuite):
             cwd=xfstests.get_xfstests_path(),
             timeout=self.TIME_OUT,
         )
-        xfstests.check_test_results(cmd_results.stdout)
+        xfstests.check_test_results(cmd_results.stdout, log_path)
