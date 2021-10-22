@@ -1,7 +1,7 @@
 # Copyright (c) Microsoft Corporation.
 # Licensed under the MIT license.
 import re
-from pathlib import PurePath
+from pathlib import Path, PurePath
 from typing import List, Type, cast
 
 from lisa.executable import Tool
@@ -181,9 +181,9 @@ class Xfstests(Tool):
             echo = self.node.tools[Echo]
             echo.write_to_file(exclude_tests, exclude_file_path)
 
-    def check_test_results(self, raw_message: str) -> None:
+    def check_test_results(self, raw_message: str, log_path: Path) -> None:
         xfstests_path = self.get_xfstests_path()
-        results_path = xfstests_path.joinpath("results/check.log")
+        results_path = xfstests_path / "results/check.log"
         if not self.node.shell.exists(results_path):
             raise LisaException(
                 f"Result path {results_path} doesn't exist, please check testing runs"
@@ -210,7 +210,28 @@ class Xfstests(Tool):
             fail_info += find_patterns_in_lines(
                 raw_message, [re.compile(f".*{fail_case}.*$", re.MULTILINE)]
             )[0][0]
+        self.save_xfstests_log(fail_cases.split(), log_path)
         raise LisaException(
             f"Fail {fail_count} cases of total {total_count}, fail cases"
             f" {fail_cases}, details {fail_info}, please investigate."
         )
+
+    def save_xfstests_log(self, fail_cases: List[str], log_path: Path) -> None:
+        xfstests_path = self.get_xfstests_path()
+        self.node.shell.copy_back(
+            xfstests_path / "results/check.log",
+            log_path / "xfstests/check.log",
+        )
+        for fail_case in fail_cases:
+            file_name = f"xfstests/{fail_case}.out.bad"
+            result_path = xfstests_path / file_name
+            if self.node.shell.exists(result_path):
+                self.node.shell.copy_back(result_path, log_path / file_name)
+            else:
+                self._log.debug("{file_name} doesn't exist.")
+            file_name = f"xfstests/{fail_case}.full"
+            result_path = xfstests_path / file_name
+            if self.node.shell.exists(result_path):
+                self.node.shell.copy_back(result_path, log_path / file_name)
+            else:
+                self._log.debug("{file_name} doesn't exist.")

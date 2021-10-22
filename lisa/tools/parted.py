@@ -22,13 +22,19 @@ class Parted(Tool):
         self, disk_name: str, part_type: str, start: str, end: str
     ) -> None:
         cmd_result = self.run(
-            f"-s -- {disk_name} mkpart {part_type} {start} {end}", shell=True, sudo=True
+            f"-s -- {disk_name} mkpart {part_type} {start} {end}",
+            shell=True,
+            sudo=True,
+            force_run=True,
         )
         cmd_result.assert_exit_code()
 
     def make_label(self, disk_name: str, type: str = "gpt") -> None:
         cmd_result = self.run(
-            f"-s -- {disk_name} mklabel {type}", shell=True, sudo=True
+            f"-s -- {disk_name} mklabel {type}",
+            shell=True,
+            sudo=True,
+            force_run=True,
         )
         cmd_result.assert_exit_code()
 
