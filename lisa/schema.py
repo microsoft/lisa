@@ -499,9 +499,18 @@ class NetworkInterfaceOptionSettings(FeatureSettings):
             )
         ),
     )
+    # nic_count is used for specifying associated nic count during provisioning vm
     nic_count: search_space.CountSpace = field(
         default=search_space.IntRange(min=1),
         metadata=field_metadata(decoder=search_space.decode_count_space),
+    )
+    # max_nic_count is used for getting the size max nic capability, it can be used to
+    #  check how many nics the vm can be associated after provisioning
+    max_nic_count: search_space.CountSpace = field(
+        default=None,
+        metadata=field_metadata(
+            allow_none=True, decoder=search_space.decode_count_space
+        ),
     )
 
     def __eq__(self, o: object) -> bool:
@@ -510,10 +519,14 @@ class NetworkInterfaceOptionSettings(FeatureSettings):
             self.type == o.type
             and self.data_path == o.data_path
             and self.nic_count == o.nic_count
+            and self.max_nic_count == o.max_nic_count
         )
 
     def __repr__(self) -> str:
-        return f"data_path:{self.data_path}, nic_count:{self.nic_count}"
+        return (
+            f"data_path:{self.data_path}, nic_count:{self.nic_count},"
+            f" max_nic_count:{self.max_nic_count}"
+        )
 
     def __str__(self) -> str:
         return self.__repr__()
@@ -522,7 +535,10 @@ class NetworkInterfaceOptionSettings(FeatureSettings):
         return super().__hash__()
 
     def _get_key(self) -> str:
-        return f"{super()._get_key()}/{self.data_path}/{self.nic_count}"
+        return (
+            f"{super()._get_key()}/{self.data_path}/{self.nic_count}"
+            f"/{self.max_nic_count}"
+        )
 
     def check(self, capability: Any) -> search_space.ResultReason:
         assert isinstance(
@@ -540,6 +556,11 @@ class NetworkInterfaceOptionSettings(FeatureSettings):
             "data_path",
         )
 
+        result.merge(
+            search_space.check_setspace(self.max_nic_count, capability.max_nic_count),
+            "max_nic_count",
+        )
+
         return result
 
     def _generate_min_capability(self, capability: Any) -> Any:
@@ -547,7 +568,7 @@ class NetworkInterfaceOptionSettings(FeatureSettings):
             capability, NetworkInterfaceOptionSettings
         ), f"actual: {type(capability)}"
         min_value = NetworkInterfaceOptionSettings()
-
+        min_value.max_nic_count = capability.max_nic_count
         if self.nic_count or capability.nic_count:
             min_value.nic_count = search_space.generate_min_capability_countspace(
                 self.nic_count, capability.nic_count
