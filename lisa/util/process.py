@@ -211,13 +211,16 @@ class Process:
     def kill(self) -> None:
         if self._process:
             self._log.debug(f"Killing process : {self._id_}")
-            if self._shell.is_remote:
-                # Support remote Posix so far
-                self._process.send_signal(9)
-            else:
-                # local process should use the compiled value
-                # the value is different between windows and posix
-                self._process.send_signal(signal.SIGTERM)
+            try:
+                if self._shell.is_remote:
+                    # Support remote Posix so far
+                    self._process.send_signal(9)
+                else:
+                    # local process should use the compiled value
+                    # the value is different between windows and posix
+                    self._process.send_signal(signal.SIGTERM)
+            except Exception as identifier:
+                self._log.debug(f"failed on killing process: {identifier}")
 
     def is_running(self) -> bool:
         if self._running and self._process:
