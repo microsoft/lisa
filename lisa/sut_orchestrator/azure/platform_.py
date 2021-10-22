@@ -1419,6 +1419,7 @@ class AzurePlatform(Platform):
                 node_space.network_interface.nic_count = search_space.IntRange(
                     min=1, max=sku_nic_count
                 )
+                node_space.network_interface.max_nic_count = sku_nic_count
             elif name == "GPUs":
                 node_space.gpu_count = int(sku_capability.value)
                 # update features list if gpu feature is supported
