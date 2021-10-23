@@ -51,7 +51,6 @@ class DpdkTestpmd(Tool):
         "libelf-dev",
         "rdma-core",
         "ibverbs-providers",
-        "rdma-core",
     ]
 
     _redhat_packages = [
@@ -103,17 +102,22 @@ class DpdkTestpmd(Tool):
 
     def _install(self) -> bool:
         self._last_run_output = ""
+        self._dpdk_repo_path_name = "dpdk"
         result = self.node.execute("which dpdk-testpmd")
+        self.dpdk_path = self.node.working_path.joinpath(self._dpdk_repo_path_name)
         if result.exit_code == 0:  # tools are already installed
             return True
         if self._install_dependencies():
             node = self.node
             git_tool = node.tools[Git]
             echo_tool = node.tools[Echo]
-            self.dpdk_cwd = git_tool.clone(self._dpdk_github, cwd=node.working_path)
-            dpdk_path = self.node.working_path.joinpath("dpdk")
-            self.__execute_assert_zero("meson build", dpdk_path)
-            dpdk_build_path = dpdk_path.joinpath("build")
+            git_tool.clone(
+                self._dpdk_github,
+                cwd=node.working_path,
+                dir_name=self._dpdk_repo_path_name,
+            )
+            self.__execute_assert_zero("meson build", self.dpdk_path)
+            dpdk_build_path = self.dpdk_path.joinpath("build")
             self.__execute_assert_zero("which ninja", dpdk_build_path)
             self.__execute_assert_zero("ninja", dpdk_build_path, timeout=1200)
             self.__execute_assert_zero("ninja install", dpdk_build_path)
@@ -222,12 +226,12 @@ class DpdkTestpmd(Tool):
         vdev_id: int,
     ) -> str:
         # handle generating different flags for pmds/device combos for testpmd
-        assert_that(node_nic.has_lower).is_true().described_as(
+        assert_that(node_nic.lower).described_as(
             (
                 f"This interface {node_nic.upper} does not have a lower interface "
                 "and pci slot associated with it. Aborting."
             )
-        )
+        ).is_not_equal_to("")
         vdev_info = ""
         if node_nic.bound_driver == "hv_netvsc":
             vdev_info = f'--vdev="net_vdev_netvsc{vdev_id},iface={node_nic.upper}"'
