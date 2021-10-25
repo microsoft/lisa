@@ -7,6 +7,7 @@ from .chrony import Chrony
 from .date import Date
 from .dmesg import Dmesg
 from .docker import Docker
+from .docker_compose import DockerCompose
 from .echo import Echo
 from .ethtool import Ethtool
 from .fdisk import Fdisk
@@ -51,6 +52,7 @@ __all__ = [
     "Date",
     "Dmesg",
     "Docker",
+    "DockerCompose",
     "Echo",
     "Ethtool",
     "Fdisk",

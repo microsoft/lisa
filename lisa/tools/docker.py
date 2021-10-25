@@ -16,11 +16,9 @@ class Docker(Tool):
     def can_install(self) -> bool:
         return True
 
-    def build_image(
-        self, docker_image_name: str = "testing", dockerfile: str = "Dockerfile"
-    ) -> None:
+    def build_image(self, image_name: str, dockerfile: str) -> None:
         self.run(
-            f"build -t {docker_image_name} -f {dockerfile} .",
+            f"build -t {image_name} -f {dockerfile} .",
             shell=True,
             sudo=True,
             cwd=self.node.working_path,
@@ -28,6 +26,10 @@ class Docker(Tool):
             expected_exit_code=0,
             expected_exit_code_failure_message="Docker image build failed.",
         )
+
+    # Executes command inside of container
+    def exec_command(self, container_name: str, command: str) -> str:
+        return self.run(f"exec {container_name} {command}", sudo=True).stdout
 
     def remove_container(self, container_name: str) -> None:
         self._log.debug(f"Removing Docker Container {container_name}")
@@ -39,13 +41,12 @@ class Docker(Tool):
 
     def run_container(
         self,
-        docker_image_name: str,
-        docker_container_name: str,
+        image_name: str,
+        container_name: str,
         docker_run_output: str,
     ) -> None:
         self.run(
-            f"run --name {docker_container_name} "
-            f"{docker_image_name} 1> {docker_run_output} 2>&1",
+            f"run --name {container_name} " f"{image_name} 1> {docker_run_output} 2>&1",
             shell=True,
             sudo=True,
             cwd=self.node.working_path,
@@ -71,4 +72,4 @@ class Docker(Tool):
             raise LisaException(f"{self.node.os.information.vendor} not supported")
 
         self.start()
-        return True
+        return self._check_exists()
