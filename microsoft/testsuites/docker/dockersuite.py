@@ -8,7 +8,7 @@ from assertpy import assert_that
 
 from lisa import Node, TestCaseMetadata, TestSuite, TestSuiteMetadata
 from lisa.operating_system import Redhat
-from lisa.tools import Docker
+from lisa.tools import Docker, DockerCompose
 from lisa.util import SkippedException
 
 
@@ -23,22 +23,52 @@ from lisa.util import SkippedException
 class docker(TestSuite):  # noqa
     @TestCaseMetadata(
         description="""
+            This test case uses docker-compose to create and run a wordpress mysql app
+
+            Steps:
+            1. Install Docker and Docker-Compose on node
+            2. Copy docker-compose.yml into node
+            3. Start docker container with docker-compose
+            4. Run ps in the docker container and capture output
+            5. Check that "apache2" can be found in captured output
+        """,
+        priority=3,
+    )
+    def verify_docker_compose_wordpress_app(self, node: Node) -> None:
+        docker_tool = node.tools[Docker]
+        docker_compose = node.tools[DockerCompose]
+
+        self._copy_to_node(node, "docker-compose.yml")
+        docker_compose.up(node.working_path)
+        result = docker_tool.exec_command("wordpress_ex", "ps ax")
+        identifier = "apache2"
+
+        docker_tool.remove_image("wordpress mysql")
+        docker_tool.remove_container("wordpress_ex")
+
+        assert_that(result).described_as(
+            "Docker exec didn't output the expected result which means that"
+            " the wordpress app may not have been running as expected. "
+            "There may have been errors when the container was run. "
+            f"Docker exec output: {result}. "
+            f"Expected Docker output to contain {identifier}"
+        ).contains(identifier)
+
+    @TestCaseMetadata(
+        description="""
             This test case creates and runs a dotnet app using docker
 
             Steps:
-            1. Install Dotnet 3.1 sdk
-            2. Install Docker
-            3. Copy dotnet dockerfile into node
-            4. Create docker image and run docker container
-            5. Check results of docker run against dotnet string identifier
+            1. Install Docker
+            2. Copy dotnet dockerfile into node
+            3. Create docker image and run docker container
+            4. Check results of docker run against dotnet string identifier
         """,
-        priority=2,
+        priority=1,
     )
-    def docker_dotnet31_app(self, node: Node) -> None:
-        dockerfile = "dotnet31.Dockerfile"
-
+    def verify_docker_dotnet31_app(self, node: Node) -> None:
         self._execute_docker_test(
-            node, "dotnetimage", "dotnetapp", "Hello World!", "", dockerfile
+            node, "dotnetimage", "dotnetapp", "Hello World!", "", "dotnet31.Dockerfile"
         )
 
     @TestCaseMetadata(
@@ -46,19 +76,16 @@ class docker(TestSuite):  # noqa
             This test case creates and runs a dotnet app using docker
 
             Steps:
-            1. Install Dotnet 5.0 sdk
-            2. Install Docker
-            3. Copy dotnet dockerfile into node
-            4. Create docker image and run docker container
-            5. Check results of docker run against dotnet string identifier
+            1. Install Docker
+            2. Copy dotnet dockerfile into node
+            3. Create docker image and run docker container
+            4. Check results of docker run against dotnet string identifier
         """,
         priority=2,
     )
-    def docker_dotnet50_app(self, node: Node) -> None:
-        dockerfile = "dotnet50.Dockerfile"
-
+    def verify_docker_dotnet50_app(self, node: Node) -> None:
         self._execute_docker_test(
-            node, "dotnetimage", "dotnetapp", "Hello World!", "", dockerfile
+            node, "dotnetimage", "dotnetapp", "Hello World!", "", "dotnet50.Dockerfile"
         )
 
     @TestCaseMetadata(
@@ -71,9 +98,9 @@ class docker(TestSuite):  # noqa
             3. Create docker image and run docker container
             4. Check results of docker run against java string identifier
     """,
-        priority=1,
+        priority=2,
     )
-    def docker_java_app(self, node: Node) -> None:
+    def verify_docker_java_app(self, node: Node) -> None:
         self._execute_docker_test(
             node,
             "javaappimage",
@@ -95,7 +122,7 @@ class docker(TestSuite):  # noqa
         """,
         priority=3,
     )
-    def docker_python_app(self, node: Node) -> None:
+    def verify_docker_python_app(self, node: Node) -> None:
         self._execute_docker_test(
             node,
             "pythonappimage",
@@ -149,7 +176,6 @@ class docker(TestSuite):  # noqa
         docker_tool.run_container(
             docker_image_name, docker_container_name, docker_run_output_file
         )
-
         docker_tool.remove_image(docker_image_name)
         docker_tool.remove_container(docker_container_name)
 
