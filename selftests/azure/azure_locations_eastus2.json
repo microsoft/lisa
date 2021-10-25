@@ -49,7 +49,8 @@
                         "min": 1,
                         "max": 2,
                         "max_inclusive": true
-                    }
+                    },
+                    "max_nic_count": 2
                 },
                 "gpu_count": 0,
                 "features": {
@@ -218,7 +219,8 @@
                         "min": 1,
                         "max": 2,
                         "max_inclusive": true
-                    }
+                    },
+                    "max_nic_count": 2
                 },
                 "gpu_count": 0,
                 "features": {
@@ -394,7 +396,8 @@
                         "min": 1,
                         "max": 2,
                         "max_inclusive": true
-                    }
+                    },
+                    "max_nic_count": 2
                 },
                 "gpu_count": 0,
                 "features": {
@@ -575,7 +578,8 @@
                         "min": 1,
                         "max": 8,
                         "max_inclusive": true
-                    }
+                    },
+                    "max_nic_count": 2
                 },
                 "gpu_count": 0,
                 "features": {
@@ -769,7 +773,8 @@
                         "min": 1,
                         "max": 8,
                         "max_inclusive": true
-                    }
+                    },
+                    "max_nic_count": 2
                 },
                 "gpu_count": 0,
                 "features": {
@@ -933,7 +938,8 @@
                         "min": 1,
                         "max": 8,
                         "max_inclusive": true
-                    }
+                    },
+                    "max_nic_count": 8
                 },
                 "gpu_count": 4,
                 "features": {

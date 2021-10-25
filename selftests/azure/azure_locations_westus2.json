@@ -46,7 +46,8 @@
                             "Synthetic"
                         ]
                     },
-                    "nic_count": 1
+                    "nic_count": 1,
+                    "max_nic_count": 4
                 },
                 "gpu_count": 0,
                 "features": {
@@ -199,7 +200,8 @@
                         "min": 1,
                         "max": 2,
                         "max_inclusive": true
-                    }
+                    },
+                    "max_nic_count": 2
                 },
                 "gpu_count": 0,
                 "features": {
@@ -376,7 +378,8 @@
                         "min": 1,
                         "max": 2,
                         "max_inclusive": true
-                    }
+                    },
+                    "max_nic_count": 2
                 },
                 "gpu_count": 0,
                 "features": {
@@ -558,7 +561,8 @@
                         "min": 1,
                         "max": 2,
                         "max_inclusive": true
-                    }
+                    },
+                    "max_nic_count": 2
                 },
                 "gpu_count": 0,
                 "features": {
@@ -739,7 +743,8 @@
                         "min": 1,
                         "max": 2,
                         "max_inclusive": true
-                    }
+                    },
+                    "max_nic_count": 2
                 },
                 "gpu_count": 0,
                 "features": {
@@ -920,7 +925,8 @@
                         "min": 1,
                         "max": 2,
                         "max_inclusive": true
-                    }
+                    },
+                    "max_nic_count": 2
                 },
                 "gpu_count": 0,
                 "features": {

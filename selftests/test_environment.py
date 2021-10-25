@@ -150,6 +150,7 @@ def generate_runbook(
                         "items": ["Sriov", "Synthetic"],
                     },
                     "nic_count": {"min": 1, "max": 1, "max_inclusive": True},
+                    "max_nic_count": 4,
                 },
             }
         )
