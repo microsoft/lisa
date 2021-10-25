@@ -126,7 +126,7 @@ class Dpdk(TestSuite):
         echo = node.tools[Echo]
         rping_build_env_vars = [
             "export RTE_TARGET=build",
-            f"export RTE_SDK={testpmd.dpdk_cwd.as_posix()}",
+            f"export RTE_SDK={testpmd.dpdk_path.as_posix()}",
         ]
         echo.write_to_file(
             ";".join(rping_build_env_vars), node.get_pure_path("~/.bashrc"), append=True
@@ -372,8 +372,8 @@ def initialize_node_resources(node: Node, log: Logger, pmd: str) -> DpdkTestReso
     node_nic_info = Nics(node)
     node_nic_info.initialize()
     assert_that(len(node_nic_info)).described_as(
-        "Test needs at least 2 NICs on the test node."
-    ).is_greater_than_or_equal_to(2)
+        "Test needs at least 1 NIC on the test node."
+    ).is_greater_than_or_equal_to(1)
 
     # bind test nic to desired pmd
     _, nic_to_bind = node_nic_info.get_test_nic()

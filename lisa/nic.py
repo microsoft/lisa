@@ -27,7 +27,6 @@ class NicInfo:
         lower: str = "",
         pci_slot: str = "",
     ) -> None:
-        self.has_lower = lower != "" or pci_slot == ""
         self.upper = upper
         self.lower = lower
         self.pci_slot = pci_slot
@@ -114,16 +113,16 @@ class Nics(InitializableMixin):
         return len(self._nics) == 0
 
     def get_unpaired_devices(self) -> List[str]:
-        return [x.upper for x in self._nics.values() if not x.has_lower]
+        return [x.upper for x in self._nics.values() if not x.lower]
 
     def get_upper_nics(self) -> List[str]:
-        return [self._nics[x].upper for x in self._nics.keys()]
+        return [x.upper for x in self._nics.values() if x.lower]
 
     def get_lower_nics(self) -> List[str]:
-        return [self._nics[x].lower for x in self._nics.keys()]
+        return [x.lower for x in self._nics.values() if x.lower]
 
     def get_device_slots(self) -> List[str]:
-        return [self._nics[x].pci_slot for x in self._nics.keys()]
+        return [x.pci_slot for x in self._nics.values() if x.pci_slot]
 
     def get_nic(self, nic_name: str) -> NicInfo:
         return self._nics[nic_name]
