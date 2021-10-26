@@ -3,6 +3,7 @@
 
 from lisa.base_tools import Cat, Sed, Uname, Wget
 
+from .blkid import Blkid
 from .chrony import Chrony
 from .date import Date
 from .dmesg import Dmesg
@@ -47,6 +48,7 @@ from .who import Who
 from .xfstests import Xfstests
 
 __all__ = [
+    "Blkid",
     "Cat",
     "Chrony",
     "Date",
