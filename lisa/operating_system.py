@@ -908,7 +908,7 @@ class Oracle(Redhat):
 class Suse(Linux):
     @classmethod
     def name_pattern(cls) -> Pattern[str]:
-        return re.compile("^SLES|SUSE|sles|sle-hpc|sle_hpc|opensuse-leap$")
+        return re.compile("^SUSE|opensuse-leap$")
 
     def _initialize_package_installation(self) -> None:
         self.wait_running_process("zypper")
@@ -942,6 +942,12 @@ class Suse(Linux):
         if packages:
             command += " ".join(packages)
         self._node.execute(command, sudo=True, timeout=3600)
+
+
+class SLES(Suse):
+    @classmethod
+    def name_pattern(cls) -> Pattern[str]:
+        return re.compile("^SLES|sles|sle-hpc|sle_hpc$")
 
 
 class NixOS(Linux):
