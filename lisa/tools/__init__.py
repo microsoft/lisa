@@ -3,6 +3,7 @@
 
 from lisa.base_tools import Cat, Sed, Uname, Wget
 
+from .blkid import Blkid
 from .chrony import Chrony
 from .date import Date
 from .dmesg import Dmesg
@@ -43,6 +44,7 @@ from .uptime import Uptime
 from .who import Who
 
 __all__ = [
+    "Blkid",
     "Cat",
     "Chrony",
     "Date",

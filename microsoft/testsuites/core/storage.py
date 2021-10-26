@@ -19,8 +19,8 @@ from lisa.features import Disk
 from lisa.sut_orchestrator.azure.common import AZURE
 from lisa.sut_orchestrator.azure.features import AzureDiskOptionSettings
 from lisa.sut_orchestrator.azure.tools import Waagent
-from lisa.tools import Cat, Echo, Swap
-from lisa.util import get_matched_str
+from lisa.tools import Blkid, Cat, Dmesg, Echo, Swap
+from lisa.util import LisaException, get_matched_str
 
 
 @TestSuiteMetadata(
@@ -36,6 +36,8 @@ class Storage(TestSuite):
     _uncommented_default_targetpw_regex = re.compile(
         r"(\nDefaults\s+targetpw)|(^Defaults\s+targetpw.*)"
     )
+
+    os_disk_mount_point = "/"
 
     @TestCaseMetadata(
         description="""
@@ -54,9 +56,10 @@ class Storage(TestSuite):
         self,
         node: RemoteNode,
     ) -> None:
-        os_disk_mount_point = "/"
         os_disk = (
-            node.features[Disk].get_partition_with_mount_point(os_disk_mount_point).disk
+            node.features[Disk]
+            .get_partition_with_mount_point(self.os_disk_mount_point)
+            .disk
         )
         root_device_timeout_from_waagent = node.tools[Waagent].get_root_device_timeout()
         root_device_timeout_from_distro = int(
@@ -90,9 +93,10 @@ class Storage(TestSuite):
         resource_disk_mount_point = self._get_resource_disk_mount_point(log, node)
         # os disk(root disk) is the entry with mount point `/' in the output
         # of `mount` command
-        os_disk_mount_point = "/"
         os_disk = (
-            node.features[Disk].get_partition_with_mount_point(os_disk_mount_point).disk
+            node.features[Disk]
+            .get_partition_with_mount_point(self.os_disk_mount_point)
+            .disk
         )
         mtab = node.tools[Cat].run("/etc/mtab").stdout
         resource_disk_from_mtab = get_matched_str(
@@ -160,6 +164,81 @@ class Storage(TestSuite):
             read_text,
             "content read from file should be equal to content written to file",
         ).is_equal_to(original_text)
+
+    @TestCaseMetadata(
+        description="""
+        This test will verify that identifier of root partition matches
+        from different sources.
+
+        Steps:
+        1. Get the partition identifier from `blkid` command.
+        2. Verify that the partition identifier from `blkid` is present in dmesg.
+        3. Verify that the partition identifier from `blkid` is present in fstab output.
+        """,
+        priority=1,
+        requirement=simple_requirement(
+            supported_platform_type=[AZURE],
+        ),
+    )
+    def verify_os_partition_identifier(self, log: Logger, node: RemoteNode) -> None:
+        # get informtion of root disk from blkid
+        os_partition = (
+            node.features[Disk]
+            .get_partition_with_mount_point(self.os_disk_mount_point)
+            .name
+        )
+        os_partition_info = node.tools[Blkid].get_partition_info_by_name(os_partition)
+
+        # verify that root=<name> or root=uuid=<uuid> or root=partuuid=<part_uuid> is
+        # present in dmesg
+        dmesg = node.tools[Dmesg].run(sudo=True).stdout
+        if (
+            not get_matched_str(
+                dmesg,
+                re.compile(
+                    rf".*BOOT_IMAGE=.*root={os_partition_info.name}",
+                ),
+            )
+            and not get_matched_str(
+                dmesg, re.compile(rf".*BOOT_IMAGE=.*root=UUID={os_partition_info.uuid}")
+            )
+            and not get_matched_str(
+                dmesg,
+                re.compile(
+                    rf".*BOOT_IMAGE=.*root=PARTUUID={os_partition_info.part_uuid}"
+                ),
+            )
+        ):
+            raise LisaException(
+                f"One of root={os_partition_info.name} or "
+                f"root=UUID={os_partition_info.uuid} or "
+                f"root=PARTUUID={os_partition_info.part_uuid} "
+                "should be present in dmesg output"
+            )
+
+        # verify that "<uuid> /" or "<name> /"or "<part_uuid> /" present in /etc/fstab
+        fstab = node.tools[Cat].run("/etc/fstab", sudo=True).stdout
+        if (
+            not get_matched_str(
+                fstab,
+                re.compile(
+                    rf".*{os_partition_info.name}\s+/",
+                ),
+            )
+            and not get_matched_str(
+                fstab,
+                re.compile(rf".*UUID={os_partition_info.uuid}\s+/"),
+            )
+            and not get_matched_str(
+                fstab,
+                re.compile(rf".*PARTUUID={os_partition_info.part_uuid}\s+/"),
+            )
+        ):
+            raise LisaException(
+                f"One of '{os_partition_info.name} /' or "
+                "'UUID={os_partition_info.uuid} /' or "
+                "'PARTUUID={os_partition_info.part_uuid} /' should be present in fstab"
+            )
 
     @TestCaseMetadata(
         description="""
