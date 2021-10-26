@@ -51,6 +51,7 @@ class DpdkTestpmd(Tool):
         "libelf-dev",
         "rdma-core",
         "ibverbs-providers",
+        "pkg-config",
     ]
 
     _redhat_packages = [
