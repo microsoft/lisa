@@ -3,7 +3,7 @@
 
 import re
 from collections import deque
-from typing import Dict, List, Tuple
+from typing import Any, Dict, List, Tuple
 
 from assertpy import assert_that, fail
 
@@ -58,8 +58,10 @@ class Dpdk(TestSuite):
             network_interface=Sriov(),
         ),
     )
-    def verify_dpdk_build_netvsc(self, node: Node, log: Logger) -> None:
-        self._verify_dpdk_build(node, log, "netvsc")
+    def verify_dpdk_build_netvsc(
+        self, node: Node, log: Logger, variables: Dict[str, Any]
+    ) -> None:
+        self._verify_dpdk_build(node, log, variables, "netvsc")
 
     @TestCaseMetadata(
         description="""
@@ -76,12 +78,16 @@ class Dpdk(TestSuite):
             network_interface=Sriov(),
         ),
     )
-    def verify_dpdk_build_failsafe(self, node: Node, log: Logger) -> None:
-        self._verify_dpdk_build(node, log, "failsafe")
+    def verify_dpdk_build_failsafe(
+        self, node: Node, log: Logger, variables: Dict[str, Any]
+    ) -> None:
+        self._verify_dpdk_build(node, log, variables, "failsafe")
 
-    def _verify_dpdk_build(self, node: Node, log: Logger, pmd: str) -> None:
+    def _verify_dpdk_build(
+        self, node: Node, log: Logger, variables: Dict[str, Any], pmd: str
+    ) -> None:
         # setup and unwrap the resources for this test
-        test_kit = initialize_node_resources(node, log, pmd)
+        test_kit = initialize_node_resources(node, log, variables, pmd)
         node_nic_info, testpmd = test_kit.node_nic_info, test_kit.testpmd
 
         # grab a nic and run testpmd
@@ -115,9 +121,11 @@ class Dpdk(TestSuite):
             network_interface=Sriov(),
         ),
     )
-    def verify_dpdk_ring_ping(self, node: Node, log: Logger) -> None:
+    def verify_dpdk_ring_ping(
+        self, node: Node, log: Logger, variables: Dict[str, Any]
+    ) -> None:
         # setup and unwrap the resources for this test
-        test_kit = initialize_node_resources(node, log, "failsafe")
+        test_kit = initialize_node_resources(node, log, variables, "failsafe")
         testpmd = test_kit.testpmd
 
         # grab a nic and run testpmd
@@ -183,9 +191,9 @@ class Dpdk(TestSuite):
         ),
     )
     def verify_dpdk_send_receive_failsafe(
-        self, environment: Environment, log: Logger
+        self, environment: Environment, log: Logger, variables: Dict[str, Any]
     ) -> None:
-        self._verify_dpdk_send_receive(environment, log, "failsafe")
+        self._verify_dpdk_send_receive(environment, log, variables, "failsafe")
 
     @TestCaseMetadata(
         description="""
@@ -202,12 +210,12 @@ class Dpdk(TestSuite):
         ),
     )
     def verify_dpdk_send_receive_netvsc(
-        self, environment: Environment, log: Logger
+        self, environment: Environment, log: Logger, variables: Dict[str, Any]
     ) -> None:
-        self._verify_dpdk_send_receive(environment, log, "netvsc")
+        self._verify_dpdk_send_receive(environment, log, variables, "netvsc")
 
     def _verify_dpdk_send_receive(
-        self, environment: Environment, log: Logger, pmd: str
+        self, environment: Environment, log: Logger, variables: Dict[str, Any], pmd: str
     ) -> None:
 
         # helpful to have the public ips labeled for debugging
@@ -221,7 +229,7 @@ class Dpdk(TestSuite):
                 raise SkippedException()
         log.debug((f"\nsender:{external_ips[0]}\nreceiver:{external_ips[1]}\n"))
 
-        test_kits = _init_nodes_concurrent(environment, log, pmd)
+        test_kits = _init_nodes_concurrent(environment, log, variables, pmd)
         sender, receiver = test_kits
 
         (snd_id, snd_nic), (rcv_id, rcv_nic) = [
@@ -350,7 +358,11 @@ def enable_uio_hv_generic_for_nic(node: Node, nic: NicInfo) -> None:
     )
 
 
-def initialize_node_resources(node: Node, log: Logger, pmd: str) -> DpdkTestResources:
+def initialize_node_resources(
+    node: Node, log: Logger, variables: Dict[str, Any], pmd: str
+) -> DpdkTestResources:
+    dpdk_branch = variables.get("dpdk_branch", "")
+
     network_interface_feature = node.features[NetworkInterface]
     sriov_is_enabled = network_interface_feature.is_enabled_sriov()
     log.info(f"Node[{node.name}] Verify SRIOV is enabled: {sriov_is_enabled}")
@@ -366,6 +378,7 @@ def initialize_node_resources(node: Node, log: Logger, pmd: str) -> DpdkTestReso
 
     # initialize testpmd tool (installs dpdk)
     testpmd = DpdkTestpmd(node)
+    testpmd.set_dpdk_branch(dpdk_branch)
     testpmd.install()
 
     # initialize node nic info class (gathers info about nic devices)
@@ -412,7 +425,7 @@ def _run_testpmd_concurrent(
 
 
 def _init_nodes_concurrent(
-    environment: Environment, log: Logger, pmd: str
+    environment: Environment, log: Logger, variables: Dict[str, Any], pmd: str
 ) -> List[DpdkTestResources]:
     # Use threading module to parallelize the IO-bound node init.
     test_kits: List[DpdkTestResources] = []
@@ -424,7 +437,7 @@ def _init_nodes_concurrent(
     def run_node_init() -> DpdkTestResources:
         # pop a node from the deque and initialize it.
         node = nodes.pop()
-        return initialize_node_resources(node, log, pmd)
+        return initialize_node_resources(node, log, variables, pmd)
 
     task_manager = TaskManager[DpdkTestResources](
         len(environment.nodes), thread_callback

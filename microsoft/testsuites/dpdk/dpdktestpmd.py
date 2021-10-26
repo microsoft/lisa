@@ -80,6 +80,7 @@ class DpdkTestpmd(Tool):
         "https://github.com/ninja-build/ninja/releases/"
         "download/v1.10.2/ninja-linux.zip"
     )
+    _dpdk_branch = ""
 
     def __execute_assert_zero(
         self, cmd: str, path: PurePath, timeout: int = 600
@@ -101,6 +102,9 @@ class DpdkTestpmd(Tool):
     def dependencies(self) -> List[Type[Tool]]:
         return [Git, Wget]
 
+    def set_dpdk_branch(self, dpdk_branch: str) -> None:
+        self._dpdk_branch = dpdk_branch
+
     def _install(self) -> bool:
         self._last_run_output = ""
         self._dpdk_repo_path_name = "dpdk"
@@ -117,6 +121,9 @@ class DpdkTestpmd(Tool):
                 cwd=node.working_path,
                 dir_name=self._dpdk_repo_path_name,
             )
+            if self._dpdk_branch:
+                git_tool.checkout(self._dpdk_branch, cwd=self.dpdk_path)
+
             self.__execute_assert_zero("meson build", self.dpdk_path)
             dpdk_build_path = self.dpdk_path.joinpath("build")
             self.__execute_assert_zero("which ninja", dpdk_build_path)
