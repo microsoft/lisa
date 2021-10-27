@@ -3,10 +3,11 @@
 
 import pathlib
 import re
+from typing import List
 
 from lisa.executable import Tool
 from lisa.operating_system import Posix
-from lisa.util import LisaException, constants, get_matched_str
+from lisa.util import LisaException, constants, filter_ansi_escape, get_matched_str
 
 
 class CodeExistsException(LisaException):
@@ -124,3 +125,13 @@ class Git(Tool):
             no_error_log=True,
         )
         result.assert_exit_code(message=f"failed on applying patches. {result.stdout}")
+
+    def list_tags(self, cwd: pathlib.PurePath) -> List[str]:
+        result = self.run(
+            "--no-pager tag --color=never",
+            shell=True,
+            cwd=cwd,
+            expected_exit_code=0,
+            expected_exit_code_failure_message="Could not fetch tags from git repo.",
+        )
+        return filter_ansi_escape(result.stdout).splitlines()
