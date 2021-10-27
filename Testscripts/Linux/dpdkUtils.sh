@@ -265,6 +265,14 @@ function Install_Dpdk () {
 	ssh "${1}" ". utils.sh && install_package ${packages[@]}"
 	ssh "${1}" "if [[ -e '${DPDK_DIR}' ]]; then rm -rf '${DPDK_DIR}'; fi"
 
+	if [[ "${DISTRO_NAME}"  == "ubuntu" ]]; then
+		if [[ "${DISTRO_VERSION}" == "20.04" ]]; then
+			LogMsg "Additional configuration for ubuntu"
+			ssh "${1}" "add-apt-repository ppa:canonical-server/server-backports -y"
+			ssh "${1}" "apt-get upgrade -y"
+		fi
+	fi
+	
 	if [[ $dpdkSrcLink =~ .tar ]];
 	then
 		ssh ${1} "mkdir ${RTE_SDK}"
