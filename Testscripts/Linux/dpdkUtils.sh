@@ -378,9 +378,9 @@ function Install_Dpdk () {
 	if type Dpdk_Configure > /dev/null; then
 		echo "Calling testcase provided Dpdk_Configure(1) on ${1}"
 		if [[ ${DISTRO_NAME} == rhel ]] && ! [[ ${DISTRO_VERSION} == *"8."* ]]; then
-			ssh ${1} "cd ${LIS_HOME}/${DPDK_DIR} && PATH=$PATH:/opt/rh/rh-python36/root/usr/bin/ && meson build"
+			ssh ${1} "cd ${LIS_HOME}/${DPDK_DIR} && PATH=$PATH:/opt/rh/rh-python36/root/usr/bin:/usr/local/bin && meson build"
 		else
-			ssh ${1} "cd ${LIS_HOME}/${DPDK_DIR} && meson build"
+			ssh ${1} "cd ${LIS_HOME}/${DPDK_DIR} && PATH=$PATH:/usr/local/bin && meson build"
 		fi
 		# shellcheck disable=SC2034
 		ssh ${1} ". constants.sh; . utils.sh; . dpdkUtils.sh; cd ${LIS_HOME}/${DPDK_DIR}; $(typeset -f Dpdk_Configure); DPDK_DIR=${DPDK_DIR} LIS_HOME=${LIS_HOME} Dpdk_Configure ${1}"
@@ -388,9 +388,9 @@ function Install_Dpdk () {
 		check_exit_status "dpdk build on ${1}" "exit"
 	else
 		if [[ ${DISTRO_NAME} == rhel ]] && ! [[ ${DISTRO_VERSION} == *"8."* ]]; then
-			ssh ${1} "cd ${LIS_HOME}/${DPDK_DIR} && PATH=$PATH:/opt/rh/rh-python36/root/usr/bin/ && meson ${RTE_TARGET}"
+			ssh ${1} "cd ${LIS_HOME}/${DPDK_DIR} && PATH=$PATH:/opt/rh/rh-python36/root/usr/bin:/usr/local/bin && meson ${RTE_TARGET}"
 		else
-			ssh ${1} "cd ${LIS_HOME}/${DPDK_DIR} && meson ${RTE_TARGET}"
+			ssh ${1} "cd ${LIS_HOME}/${DPDK_DIR} && PATH=$PATH:/usr/local/bin && meson ${RTE_TARGET}"
 		fi
 		ssh "${1}" "cd $RTE_SDK/$RTE_TARGET && ninja 2>&1 && ninja install 2>&1 && ldconfig"
 		check_exit_status "dpdk build on ${1}" "exit"
@@ -725,7 +725,7 @@ function wget_retry() {
 
 	while [ $max_retries -gt 0 ]; do
 		LogMsg "${log_msg}"
-		ssh_output=$(ssh "${remote_ip}" "wget --tries 3 --retry-connrefused '${url}' -P ${dest}")
+		ssh_output=$(ssh "${remote_ip}" "wget --tries 3 --retry-connrefused --no-check-certificate '${url}' -P ${dest}")
 		if [ $? = 0 ]; then
 			LogMsg "Successully downloading"
 			break
