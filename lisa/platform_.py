@@ -177,10 +177,17 @@ class Platform(subclasses.BaseClassWithRunbookMixin, InitializableMixin):
                 f"skipped to delete environment {environment.name}, "
                 f"as runbook set to keep environment."
             )
+
+            # output addresses for troubleshooting easier
+            remote_addresses = [
+                x.connection_info[constants.ENVIRONMENTS_NODES_REMOTE_ADDRESS]
+                for x in environment.nodes.list()
+                if isinstance(x, RemoteNode)
+            ]
+            log.info(f"node ip addresses: {remote_addresses}")
         else:
             log.debug("deleting")
             self._delete_environment(environment, log)
-            log.debug("deleted")
         environment.status = EnvironmentStatus.Deleted
 
 
