@@ -318,12 +318,10 @@ class Posix(OperatingSystem, BaseClassMixin):
     def get_repositories(self) -> List[RepositoryInfo]:
         raise NotImplementedError("get_repositories is not implemented")
 
-    def _install_packages(
-        self, packages: Union[List[str]], signed: bool = True
-    ) -> None:
+    def _install_packages(self, packages: List[str], signed: bool = True) -> None:
         raise NotImplementedError()
 
-    def _update_packages(self, packages: Optional[Union[List[str]]] = None) -> None:
+    def _update_packages(self, packages: Optional[List[str]] = None) -> None:
         raise NotImplementedError()
 
     def _package_exists(self, package: str, signed: bool = True) -> bool:
@@ -536,9 +534,7 @@ class Debian(Linux):
         result = self._node.execute("apt-get update", sudo=True)
         result.assert_exit_code(message="\n".join(self.get_apt_error(result.stdout)))
 
-    def _install_packages(
-        self, packages: Union[List[str]], signed: bool = True
-    ) -> None:
+    def _install_packages(self, packages: List[str], signed: bool = True) -> None:
         command = (
             f"DEBIAN_FRONTEND=noninteractive "
             f"apt-get -y install {' '.join(packages)}"
@@ -622,7 +618,7 @@ class Debian(Linux):
 
         return information
 
-    def _update_packages(self, packages: Optional[Union[List[str]]] = None) -> None:
+    def _update_packages(self, packages: Optional[List[str]] = None) -> None:
         command = (
             "DEBIAN_FRONTEND=noninteractive apt-get upgrade -y "
             '-o Dpkg::Options::="--force-confdef" -o Dpkg::Options::="--force-confold" '
@@ -808,9 +804,7 @@ class Fedora(Linux):
                 )
         return repositories
 
-    def _install_packages(
-        self, packages: Union[List[str]], signed: bool = True
-    ) -> None:
+    def _install_packages(self, packages: List[str], signed: bool = True) -> None:
         command = f"dnf install -y {' '.join(packages)}"
         if not signed:
             command += " --nogpgcheck"
@@ -908,9 +902,7 @@ class Redhat(Fedora):
             )
             cmd_result.assert_exit_code()
 
-    def _install_packages(
-        self, packages: Union[List[str]], signed: bool = True
-    ) -> None:
+    def _install_packages(self, packages: List[str], signed: bool = True) -> None:
         command = f"yum install -y {' '.join(packages)}"
         if not signed:
             command += " --nogpgcheck"
@@ -956,7 +948,7 @@ class Redhat(Fedora):
 
         return information
 
-    def _update_packages(self, packages: Optional[Union[List[str]]] = None) -> None:
+    def _update_packages(self, packages: Optional[List[str]] = None) -> None:
         command = "yum -y --nogpgcheck update "
         if packages:
             command += " ".join(packages)
@@ -1076,9 +1068,7 @@ class Suse(Linux):
             "zypper --non-interactive --gpg-auto-import-keys refresh", sudo=True
         )
 
-    def _install_packages(
-        self, packages: Union[List[str]], signed: bool = True
-    ) -> None:
+    def _install_packages(self, packages: List[str], signed: bool = True) -> None:
         command = f"zypper --non-interactive in {' '.join(packages)}"
         if not signed:
             command += " --no-gpg-checks"
@@ -1097,7 +1087,7 @@ class Suse(Linux):
                 " A system reboot or package manager restart might be required."
             )
 
-    def _update_packages(self, packages: Optional[Union[List[str]]] = None) -> None:
+    def _update_packages(self, packages: Optional[List[str]] = None) -> None:
         command = "zypper --non-interactive --gpg-auto-import-keys update "
         if packages:
             command += " ".join(packages)
