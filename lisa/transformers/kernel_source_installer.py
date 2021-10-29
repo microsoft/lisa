@@ -214,6 +214,7 @@ class SourceInstaller(BaseInstaller):
         os = node.os
         self._log.info("installing build tools")
         if isinstance(os, Redhat):
+            self._log.info("installing Redhat build tools")
             os.install_packages(["elfutils-libelf-devel", "openssl-devel", "dwarves"])
             os.group_install_packages("Development Tools")
 
@@ -227,6 +228,7 @@ class SourceInstaller(BaseInstaller):
                 os.install_packages("git2u")
                 node.execute("rpm -e ius-release", sudo=True)
         elif isinstance(os, Ubuntu):
+            self._log.info("installing Ubuntu build tools")
             # ccache is used to speed up recompilation
             # node.execute("command -v ccache", shell=True)
             # node.execute("export PATH=/usr/lib/ccache:$PATH", shell=True)
