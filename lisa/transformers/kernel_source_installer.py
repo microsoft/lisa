@@ -308,7 +308,7 @@ class RepoLocation(BaseLocation):
         git.fetch(cwd=code_path)
 
         if runbook.ref:
-            self._log.info(f"checkout code from: '{runbook.ref}'")
+            self._log.info(f"checkout code from: {runbook.ref}")
             git.checkout(ref=runbook.ref, cwd=code_path)
         
         result = self._node.execute("git log --pretty=format:%h | head -1", cwd=code_path, shell=True)
