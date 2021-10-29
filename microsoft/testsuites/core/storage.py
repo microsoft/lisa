@@ -242,32 +242,6 @@ class Storage(TestSuite):
                 "'PARTUUID={os_partition_info.part_uuid} /' should be present in fstab"
             )
 
-    @TestCaseMetadata(
-        description="""
-        This test will verify that `Defaults targetpw` is not enabled in the
-        `/etc/sudoers` file.
-
-        If `targetpw` is set, `sudo` will prompt for the
-        password of the user specified by the -u option (defaults to root)
-        instead of the password of the invoking user when running a command
-        or editing a file. More information can be found here :
-        https://linux.die.net/man/5/sudoers
-
-        Steps:
-        1. Get the content of `/etc/sudoers` file.
-        2. Verify that `Defaults targetpw` should be disabled, if present.
-        """,
-        priority=1,
-    )
-    def verify_default_targetpw(self, log: Logger, node: RemoteNode) -> None:
-        sudoers_out = (
-            node.tools[Cat].run("/etc/sudoers", sudo=True, force_run=True).stdout
-        )
-        matched = self._uncommented_default_targetpw_regex.findall(sudoers_out)
-        assert_that(
-            matched, "Defaults targetpw should not be enabled in /etc/sudoers"
-        ).is_length(0)
-
     def _get_resource_disk_mount_point(
         self,
         log: Logger,
