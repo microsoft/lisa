@@ -118,7 +118,6 @@ class SourceInstaller(BaseInstaller):
 
         self._install_build(node=node, code_path=code_path)
 
-        #result = node.execute("make kernelrelease", cwd=code_path)
         result = node.execute("make kernelrelease 2>/dev/null", cwd=code_path, shell=True)
         kernel_version = result.stdout
         result.assert_exit_code(0, f"failed on get kernel version: {kernel_version}")
@@ -231,6 +230,7 @@ class SourceInstaller(BaseInstaller):
             # ccache is used to speed up recompilation
             # node.execute("command -v ccache", shell=True)
             # node.execute("export PATH=/usr/lib/ccache:$PATH", shell=True)
+            node.execute("apt-get update", sudo=True)
             os.install_packages(
                 [
                     "git",
