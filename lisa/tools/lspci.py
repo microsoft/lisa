@@ -6,7 +6,7 @@ from typing import Any, Dict, List
 from lisa.executable import Tool
 from lisa.operating_system import Posix
 from lisa.tools import Echo
-from lisa.util import LisaException, constants
+from lisa.util import LisaException, constants, get_matched_str
 
 # Example output of lspci command -
 # lspci -m
@@ -35,6 +35,8 @@ DEVICE_TYPE_DICT: Dict[str, str] = {
     constants.DEVICE_TYPE_NVME: "Non-Volatile memory controller",
     constants.DEVICE_TYPE_GPU: "3D controller",
 }
+
+PATTERN_MODULE_IN_USE = re.compile(r"Kernel driver in use: (.*)\r", re.M)
 
 
 class PciDevice:
@@ -95,14 +97,14 @@ class Lspci(Tool):
             self._pci_devices = []
             # Ensure pci device ids and name mappings are updated.
             self.node.execute("update-pciids", sudo=True)
-            result = self.run("-m", force_run=force_run, shell=True)
-            if result.exit_code != 0:
-                result = self.run("-m", force_run=force_run, shell=True, sudo=True)
-                if result.exit_code != 0:
-                    raise LisaException(
-                        f"get unexpected non-zero exit code {result.exit_code} "
-                        f"when run {self.command} -m."
-                    )
+            result = self.run(
+                "-m",
+                force_run=force_run,
+                shell=True,
+                expected_exit_code=0,
+                expected_exit_code_failure_message=f"get unexpected non-zero exit code"
+                f" when run {self.command} -m.",
+            )
             for pci_raw in result.stdout.splitlines():
                 pci_device = PciDevice(pci_raw)
                 self._pci_devices.append(pci_device)
@@ -129,3 +131,16 @@ class Lspci(Tool):
         self.node.tools[Echo].write_to_file(
             "1", self.node.get_pure_path("/sys/bus/pci/rescan"), sudo=True
         )
+
+    def get_used_module(self, slot: str) -> str:
+        result = self.run(
+            f"-nks {slot}",
+            force_run=True,
+            shell=True,
+            expected_exit_code=0,
+            expected_exit_code_failure_message="get unexpected non-zero exit code,"
+            f"when run {self.command} -nks {slot}.",
+        )
+        matched = get_matched_str(result.stdout, PATTERN_MODULE_IN_USE)
+        assert matched
+        return matched
