@@ -217,6 +217,7 @@ class SourceInstaller(BaseInstaller):
             self._log.info("installing Redhat build tools")
             os.install_packages(["elfutils-libelf-devel", "openssl-devel", "dwarves"])
             os.group_install_packages("Development Tools")
+            node.execute("yum install -y openssl-devel", sudo=True)
 
             if os.information.version < "8.0.0":
                 # git from default CentOS/RedHat 7.x does not support git tag format
@@ -233,6 +234,7 @@ class SourceInstaller(BaseInstaller):
             # node.execute("command -v ccache", shell=True)
             # node.execute("export PATH=/usr/lib/ccache:$PATH", shell=True)
             node.execute("apt-get update", sudo=True)
+            node.execute("apt install -y libssl-dev", sudo=True)
             os.install_packages(
                 [
                     "git",
