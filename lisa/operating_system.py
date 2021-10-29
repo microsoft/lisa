@@ -12,7 +12,13 @@ from semver import VersionInfo
 
 from lisa.base_tools import Cat, Sed, Wget
 from lisa.executable import Tool
-from lisa.util import BaseClassMixin, LisaException, get_matched_str, parse_version
+from lisa.util import (
+    BaseClassMixin,
+    LisaException,
+    filter_ansi_escape,
+    get_matched_str,
+    parse_version,
+)
 from lisa.util.logger import get_logger
 from lisa.util.perf_timer import create_timer
 from lisa.util.process import ExecutableResult
@@ -23,6 +29,13 @@ if TYPE_CHECKING:
 
 
 _get_init_logger = partial(get_logger, name="os")
+
+
+@dataclass
+# stores information about repository in Posix operating systems
+class RepositoryInfo(object):
+    # name of the repository, for example focal-updates
+    name: str
 
 
 @dataclass
@@ -302,6 +315,9 @@ class Posix(OperatingSystem, BaseClassMixin):
         except FileNotFoundError:
             self._log.debug("File /etc/os-release doesn't exist.")
 
+    def get_repositories(self) -> List[RepositoryInfo]:
+        raise NotImplementedError("get_repositories is not implemented")
+
     def _install_packages(
         self, packages: Union[List[str]], signed: bool = True
     ) -> None:
@@ -433,7 +449,32 @@ class CoreOs(Linux):
         return re.compile("^coreos|Flatcar|flatcar$")
 
 
+@dataclass
+# `apt-get update` repolist is of the form `<status>:<id> <uri> <name> <metadata>`
+# Example:
+# Get:5 http://azure.archive.ubuntu.com/ubuntu focal-updates/main amd64 Packages [1298 kB] # noqa: E501
+class DebianRepositoryInfo(RepositoryInfo):
+    # status for the repository. Examples: `Hit`, `Get`
+    status: str
+
+    # id for the repository. Examples : 1, 2
+    id: str
+
+    # uri for the repository. Example: `http://azure.archive.ubuntu.com/ubuntu`
+    uri: str
+
+    # metadata for the repository. Example: `amd64 Packages [1298 kB]`
+    metadata: str
+
+
 class Debian(Linux):
+
+    # Get:5 http://azure.archive.ubuntu.com/ubuntu focal-updates/main amd64 Packages [1298 kB] # noqa: E501
+    _debian_repository_info_pattern = re.compile(
+        r"(?P<status>\S+):(?P<id>\d+)\s+(?P<uri>\S+)\s+(?P<name>\S+)"
+        r"\s+(?P<metadata>.*)\s*"
+    )
+
     @classmethod
     def name_pattern(cls) -> Pattern[str]:
         return re.compile("^debian|Forcepoint|Kali$")
@@ -467,6 +508,26 @@ class Debian(Linux):
 
         if timeout < timer.elapsed():
             raise Exception("timeout to wait previous dpkg process stop.")
+
+    def get_repositories(self) -> List[RepositoryInfo]:
+        self._initialize_package_installation()
+        repo_list_str = self._node.execute("apt-get update", sudo=True).stdout
+
+        repositories: List[RepositoryInfo] = []
+        for line in repo_list_str.splitlines():
+            matched = self._debian_repository_info_pattern.search(line)
+            if matched:
+                repositories.append(
+                    DebianRepositoryInfo(
+                        name=matched.group("name"),
+                        status=matched.group("status"),
+                        id=matched.group("id"),
+                        uri=matched.group("uri"),
+                        metadata=matched.group("metadata"),
+                    )
+                )
+
+        return repositories
 
     def _initialize_package_installation(self) -> None:
         # wait running system package process.
@@ -704,13 +765,48 @@ class OpenBSD(BSD):
     ...
 
 
+@dataclass
+# yum repolist is of the form `<id> <name>`
+# Example:
+# microsoft-azure-rhel8-eus  Microsoft Azure RPMs for RHEL8 Extended Update Support
+class FedoraRepositoryInfo(RepositoryInfo):
+    # id for the repository, for example: microsoft-azure-rhel8-eus
+    id: str
+
+
 class Fedora(Linux):
     # Red Hat Enterprise Linux Server 7.8 (Maipo) => 7.8
     _fedora_release_pattern_version = re.compile(r"^.*release\s+([0-9\.]+).*$")
 
+    # microsoft-azure-rhel8-eus  Microsoft Azure RPMs for RHEL8 Extended Update Support
+    _fedora_repository_info_pattern = re.compile(r"(?P<id>\S+)\s+(?P<name>\S.*\S)\s*")
+
     @classmethod
     def name_pattern(cls) -> Pattern[str]:
         return re.compile("^Fedora|fedora$")
+
+    def get_repositories(self) -> List[RepositoryInfo]:
+        repo_list_str = self._node.execute(
+            "yum repolist", sudo=True
+        ).stdout.splitlines()
+
+        # skip to the first entry in the output
+        for index, repo_str in enumerate(repo_list_str):
+            if repo_str.startswith("repo id"):
+                header_index = index
+                break
+        repo_list_str = repo_list_str[header_index + 1 :]
+
+        repositories: List[RepositoryInfo] = []
+        for line in repo_list_str:
+            repo_info = self._fedora_repository_info_pattern.search(line)
+            if repo_info:
+                repositories.append(
+                    FedoraRepositoryInfo(
+                        name=repo_info.group("name"), id=repo_info.group("id")
+                    )
+                )
+        return repositories
 
     def _install_packages(
         self, packages: Union[List[str]], signed: bool = True
@@ -905,10 +1001,74 @@ class Oracle(Redhat):
         return re.compile("^Oracle")
 
 
+@dataclass
+# `zypper lr` repolist is of the form
+# `<id>|<alias>|<name>|<enabled>|<gpg_check>|<refresh>`
+# Example:
+# # 4 | repo-oss            | Main Repository             | Yes     | (r ) Yes  | Yes
+class SuseRepositoryInfo(RepositoryInfo):
+    # id for the repository. Example: 4
+    id: str
+
+    # alias for the repository. Example: repo-oss
+    alias: str
+
+    # is repository enabled. Example: True/False
+    enabled: bool
+
+    # is gpg_check enabled. Example: True/False
+    gpg_check: bool
+
+    # is repository refreshed. Example: True/False
+    refresh: bool
+
+
 class Suse(Linux):
+    # 55 | Web_and_Scripting_Module_x86_64:SLE-Module-Web-Scripting15-SP2-Updates                           | SLE-Module-Web-Scripting15-SP2-Updates                  | Yes     | ( p) Yes  | Yes # noqa: E501
+    # 4 | repo-oss            | Main Repository             | Yes     | (r ) Yes  | Yes # noqa: E501
+    _zypper_table_entry = re.compile(
+        r"\s*(?P<id>\d+)\s+[|]\s+(?P<alias>\S.+\S)\s+\|\s+(?P<name>\S.+\S)\s+\|"
+        r"\s+(?P<enabled>\S.*\S)\s+\|\s+(?P<gpg_check>\S.*\S)\s+\|"
+        r"\s+(?P<refresh>\S.*\S)\s*"
+    )
+
     @classmethod
     def name_pattern(cls) -> Pattern[str]:
         return re.compile("^SUSE|opensuse-leap$")
+
+    def get_repositories(self) -> List[RepositoryInfo]:
+        # Parse ouput of command "zypper lr"
+        # Example output:
+        # 1 | Basesystem_Module_x86_64:SLE-Module-Basesystem15-SP2-Debuginfo-Pool                              | SLE-Module-Basesystem15-SP2-Debuginfo-Pool              | No      | ----      | ---- # noqa: E501
+        # 2 | Basesystem_Module_x86_64:SLE-Module-Basesystem15-SP2-Debuginfo-Updates                           | SLE-Module-Basesystem15-SP2-Debuginfo-Updates           | No      | ----      | ---- # noqa: E501
+        self._initialize_package_installation()
+        output = filter_ansi_escape(self._node.execute("zypper lr", sudo=True).stdout)
+        repo_list: List[RepositoryInfo] = []
+
+        for line in output.splitlines():
+            matched = self._zypper_table_entry.search(line)
+            if matched:
+                is_repository_enabled = (
+                    True if "Yes" in matched.group("enabled") else False
+                )
+                is_gpg_check_enabled = (
+                    True if "Yes" in matched.group("gpg_check") else False
+                )
+                is_repository_refreshed = (
+                    True if "Yes" in matched.group("refresh") else False
+                )
+                if matched:
+                    repo_list.append(
+                        SuseRepositoryInfo(
+                            name=matched.group("name"),
+                            id=matched.group("id"),
+                            alias=matched.group("alias"),
+                            enabled=is_repository_enabled,
+                            gpg_check=is_gpg_check_enabled,
+                            refresh=is_repository_refreshed,
+                        )
+                    )
+        return repo_list
 
     def _initialize_package_installation(self) -> None:
         self.wait_running_process("zypper")
