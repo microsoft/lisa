@@ -312,7 +312,7 @@ class RepoLocation(BaseLocation):
             git.checkout(ref=runbook.ref, cwd=code_path)
         
         result = self._node.execute("git log --pretty=format:%h | head -1", cwd=code_path, shell=True)
-        self._log.info(f"HEAD is now at : '{result}'")
+        self._log.info(f"HEAD is now at : {result}")
 
         return code_path
 
