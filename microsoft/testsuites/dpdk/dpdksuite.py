@@ -27,6 +27,7 @@ from microsoft.testsuites.dpdk.dpdktestpmd import DpdkTestpmd
 
 VDEV_TYPE = "net_vdev_netvsc"
 MAX_RING_PING_LIMIT_NS = 200000
+DPDK_STABLE_GIT = "http://dpdk.org/git/dpdk-stable"
 
 
 @TestSuiteMetadata(
@@ -134,7 +135,7 @@ class Dpdk(TestSuite):
         echo = node.tools[Echo]
         rping_build_env_vars = [
             "export RTE_TARGET=build",
-            f"export RTE_SDK={testpmd.dpdk_path.as_posix()}",
+            f"export RTE_SDK={str(testpmd.dpdk_path)}",
         ]
         echo.write_to_file(
             ";".join(rping_build_env_vars), node.get_pure_path("~/.bashrc"), append=True
@@ -361,7 +362,12 @@ def enable_uio_hv_generic_for_nic(node: Node, nic: NicInfo) -> None:
 def initialize_node_resources(
     node: Node, log: Logger, variables: Dict[str, Any], pmd: str
 ) -> DpdkTestResources:
+    dpdk_source = variables.get("dpdk_source", DPDK_STABLE_GIT)
     dpdk_branch = variables.get("dpdk_branch", "")
+    log.info(
+        "Dpdk initialize_node_resources running"
+        f"found dpdk_source '{dpdk_source}' and dpdk_branch '{dpdk_branch}'"
+    )
 
     network_interface_feature = node.features[NetworkInterface]
     sriov_is_enabled = network_interface_feature.is_enabled_sriov()
@@ -378,6 +384,7 @@ def initialize_node_resources(
 
     # initialize testpmd tool (installs dpdk)
     testpmd = DpdkTestpmd(node)
+    testpmd.set_dpdk_source(dpdk_source)
     testpmd.set_dpdk_branch(dpdk_branch)
     testpmd.install()
 
