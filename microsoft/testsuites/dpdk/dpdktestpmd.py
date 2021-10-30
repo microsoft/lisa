@@ -75,7 +75,7 @@ class DpdkTestpmd(Tool):
         "kernel-headers",
     ]
     _rte_target = "x86_64-native-linuxapp-gcc"
-    _dpdk_github = "https://github.com/DPDK/dpdk.git"
+    _dpdk_github = "http://dpdk.org/git/dpdk-stable"
     _ninja_url = (
         "https://github.com/ninja-build/ninja/releases/"
         "download/v1.10.2/ninja-linux.zip"
