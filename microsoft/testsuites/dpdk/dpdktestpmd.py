@@ -128,6 +128,13 @@ class DpdkTestpmd(Tool):
             self.__execute_assert_zero("which ninja", dpdk_build_path)
             self.__execute_assert_zero("ninja", dpdk_build_path, timeout=1200)
             self.__execute_assert_zero("ninja install", dpdk_build_path)
+            # explicitly add lib install path before calling ldconfig
+            echo_tool.write_to_file(
+                "/usr/local/lib64",
+                node.get_pure_path("/etc/ld.so.conf"),
+                append=True,
+                sudo=True,
+            )
             self.__execute_assert_zero("ldconfig", dpdk_build_path)
             library_bashrc_lines = [
                 "export PKG_CONFIG_PATH=${PKG_CONFIG_PATH}:/usr/local/lib64/pkgconfig/",
