@@ -915,7 +915,7 @@ class Redhat(Fedora):
         if not signed:
             command += " --nogpgcheck"
 
-        install_result = self._node.execute(command, sudo=True)
+        install_result = self._node.execute(command, shell=True, sudo=True)
         self.__verify_package_result(install_result, packages)
 
     def _package_exists(self, package: str, signed: bool = True) -> bool:
