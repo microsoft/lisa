@@ -118,7 +118,8 @@ class SourceInstaller(BaseInstaller):
 
         self._install_build(node=node, code_path=code_path)
 
-        result = node.execute("make kernelrelease 2>/dev/null", cwd=code_path, shell=True)
+        result = node.execute("make kernelrelease 2>/dev/null",
+                              cwd=code_path, shell=True)
         kernel_version = result.stdout
         result.assert_exit_code(0, f"failed on get kernel version: {kernel_version}")
 
@@ -215,9 +216,11 @@ class SourceInstaller(BaseInstaller):
         self._log.info("installing build tools")
         if isinstance(os, Redhat):
             self._log.info("installing Redhat build tools")
-            os.install_packages(["elfutils-libelf-devel", "openssl-devel", "dwarves"])
+
+            for package in ["elfutils-libelf-devel", "openssl-devel", "dwarves"]:
+                os.install_packages(package)
+
             os.group_install_packages("Development Tools")
-            node.execute("yum install -y openssl-devel", sudo=True)
 
             if os.information.version < "8.0.0":
                 # git from default CentOS/RedHat 7.x does not support git tag format
@@ -234,21 +237,21 @@ class SourceInstaller(BaseInstaller):
             # node.execute("command -v ccache", shell=True)
             # node.execute("export PATH=/usr/lib/ccache:$PATH", shell=True)
             node.execute("apt-get update", sudo=True)
-            node.execute("apt install -y libssl-dev", sudo=True)
-            os.install_packages(
-                [
-                    "git",
-                    "build-essential",
-                    "bison",
-                    "flex",
-                    "libelf-dev",
-                    "libncurses5-dev",
-                    "xz-utils",
-                    "libssl-dev",
-                    "bc",
-                    "ccache",
-                ]
-            )
+
+            packages = [
+                "git",
+                "build-essential",
+                "bison",
+                "flex",
+                "libelf-dev",
+                "libncurses5-dev",
+                "xz-utils",
+                "libssl-dev",
+                "bc",
+                "ccache",
+            ]
+            for package in packages:
+                os.install_packages(package)
         else:
             raise LisaException(
                 f"os '{os.name}' doesn't support in {self.type_name()}. "
