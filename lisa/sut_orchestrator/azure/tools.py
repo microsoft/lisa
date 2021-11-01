@@ -149,19 +149,20 @@ class LisDriver(Tool):
         wget_tool = self.node.tools[Wget]
         lis_path = wget_tool.get("https://aka.ms/lis", str(self.node.working_path))
 
-        result = self.node.execute(f"tar -xvzf {lis_path}")
+        result = self.node.execute(f"tar -xvzf {lis_path}", cwd=self.node.working_path)
         if result.exit_code != 0:
             raise LisaException(
                 "Failed to extract tar file after downloading LIS package. "
                 f"exit_code: {result.exit_code} stderr: {result.stderr}"
             )
         lis_folder_path = self.node.working_path.joinpath("LISISO")
-        result = self.node.execute("./install.sh", cwd=lis_folder_path)
+        result = self.node.execute("./install.sh", cwd=lis_folder_path, sudo=True)
         if result.exit_code != 0:
             raise LisaException(
                 f"Unable to install the LIS RPMs! exit_code: {result.exit_code}"
                 f"stderr: {result.stderr}"
             )
+        self.node.reboot()
         return True
 
     def get_version(self, force: bool = False) -> str:
