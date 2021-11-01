@@ -331,6 +331,36 @@ class DeviceGroLroSettings:
         )
 
 
+class DeviceSgSettings:
+    # ethtool device feature info is in format -
+    # ~$ ethtool -k eth0
+    #       Features for eth0:
+    #       scatter-gather: on
+    #               tx-scatter-gather: on
+    #               tx-scatter-gather-fraglist: off [fixed]
+
+    _sg_settings_pattern = re.compile(
+        r"^scatter-gather:[\s+](?P<value>.*?)?$", re.MULTILINE
+    )
+
+    def __init__(self, interface: str, device_gro_lro_settings_raw: str) -> None:
+        self._parse_sg_settings_info(interface, device_gro_lro_settings_raw)
+
+    def _parse_sg_settings_info(self, interface: str, raw_str: str) -> None:
+        sg_setting_pattern = self._sg_settings_pattern.search(raw_str)
+        if not sg_setting_pattern:
+            raise LisaException(
+                f"Cannot get {interface} device sg settings information"
+            )
+
+        self.interface = interface
+
+        self.sg_setting = True if "on" in sg_setting_pattern.group("value") else False
+        self.sg_fixed = (
+            True if "[fixed]" in sg_setting_pattern.group("value") else False
+        )
+
+
 class DeviceRssHashKey:
     # ethtool device rss hash key info is in format:
     # ethtool -x eth0
@@ -421,6 +451,7 @@ class DeviceSettings:
         self.device_gro_lro_settings: Optional[DeviceGroLroSettings] = None
         self.device_rss_hash_key: Optional[DeviceRssHashKey] = None
         self.device_rx_hash_level: Optional[DeviceRxHashLevel] = None
+        self.device_sg_settings: Optional[DeviceSgSettings] = None
 
 
 class Ethtool(Tool):
@@ -453,6 +484,7 @@ class Ethtool(Tool):
         device_gro_lro_settings: Optional[DeviceGroLroSettings] = None,
         device_rss_hash_key: Optional[DeviceRssHashKey] = None,
         device_rx_hash_level: Optional[DeviceRxHashLevel] = None,
+        device_sg_settings: Optional[DeviceSgSettings] = None,
     ) -> None:
         device = self._device_settings_map.get(name, None)
         if device is None:
@@ -476,6 +508,8 @@ class Ethtool(Tool):
             device.device_rss_hash_key = device_rss_hash_key
         if device_rx_hash_level:
             device.device_rx_hash_level = device_rx_hash_level
+        if device_sg_settings:
+            device.device_sg_settings = device_sg_settings
 
     def get_device_driver(self, interface: str) -> str:
         _device_driver_pattern = re.compile(
@@ -837,11 +871,15 @@ class Ethtool(Tool):
 
         return devices_channel_list
 
-    def get_all_device_enabled_features(self) -> List[DeviceFeatures]:
+    def get_all_device_enabled_features(
+        self, force: bool = False
+    ) -> List[DeviceFeatures]:
         devices_features_list = []
-        devices = self.get_device_list()
+        devices = self.get_device_list(force)
         for device in devices:
-            devices_features_list.append(self.get_device_enabled_features(device))
+            devices_features_list.append(
+                self.get_device_enabled_features(device, force)
+            )
 
         return devices_features_list
 
@@ -895,3 +933,34 @@ class Ethtool(Tool):
             )
 
         return devices_rx_hash_level
+
+    def get_device_sg_settings(
+        self, interface: str, force: bool = False
+    ) -> DeviceSgSettings:
+        if not force:
+            device = self._device_settings_map.get(interface, None)
+            if device and device.device_sg_settings:
+                return device.device_sg_settings
+
+        result = self.run(f"-k {interface}", force_run=force)
+        result.assert_exit_code()
+
+        device_sg_settings = DeviceSgSettings(interface, result.stdout)
+        self._set_device(interface, device_sg_settings=device_sg_settings)
+
+        return device_sg_settings
+
+    def change_device_sg_settings(
+        self, interface: str, sg_setting: bool
+    ) -> DeviceSgSettings:
+        sg = "on" if sg_setting else "off"
+        change_result = self.run(
+            f"-K {interface} sg {sg}",
+            sudo=True,
+            force_run=True,
+        )
+        change_result.assert_exit_code(
+            message=f" Couldn't change device {interface} scatter-gather settings."
+        )
+
+        return self.get_device_sg_settings(interface, force=True)
