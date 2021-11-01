@@ -284,6 +284,40 @@ def get_matched_str(
     return result
 
 
+def find_patterns_groups_in_lines(
+    lines: str, patterns: List[Pattern[str]]
+) -> List[List[Dict[str, str]]]:
+    """
+    for each pattern find the matches and return with group names.
+    """
+    results: List[List[Dict[str, str]]] = [[]] * len(patterns)
+    for line in lines.splitlines(keepends=False):
+        for index, pattern in enumerate(patterns):
+            matched = pattern.match(line)
+            if matched:
+                results[index].append(matched.groupdict())
+    return results
+
+
+def find_groups_in_lines(lines: str, pattern: Pattern[str]) -> List[Dict[str, str]]:
+    return find_patterns_groups_in_lines(lines, [pattern])[0]
+
+
+def find_group_in_lines(lines: str, pattern: Pattern[str]) -> Dict[str, str]:
+    output = find_groups_in_lines(lines, pattern)
+    if len(output) == 1:
+        result = output[0]
+    elif len(output) == 0:
+        result = {}
+    else:
+        raise LisaException(
+            f"pattern returns more than one result, use find_groups_in_lines."
+            f"results: {output}"
+        )
+
+    return result
+
+
 def deep_update_dict(src: Dict[str, Any], dest: Dict[str, Any]) -> Dict[str, Any]:
     if isinstance(dest, int) or isinstance(dest, bool) or isinstance(dest, float):
         result = dest
