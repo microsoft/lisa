@@ -6,6 +6,7 @@ from lisa.base_tools import Cat, Sed, Uname, Wget
 from .blkid import Blkid
 from .chrony import Chrony
 from .date import Date
+from .dhclient import Dhclient
 from .dmesg import Dmesg
 from .docker import Docker
 from .docker_compose import DockerCompose
@@ -53,6 +54,7 @@ __all__ = [
     "Cat",
     "Chrony",
     "Date",
+    "Dhclient",
     "Dmesg",
     "Docker",
     "DockerCompose",
