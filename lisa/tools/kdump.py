@@ -95,7 +95,8 @@ class Kexec(Tool):
         wget = self.node.tools[Wget]
         kexec_tar = wget.get(self._kexec_repo, str(tool_path))
         tar = self.node.tools[Tar]
-        kexec_source = tar.extract(kexec_tar, str(tool_path))
+        tar.extract(kexec_tar, str(tool_path))
+        kexec_source = tar.get_root_folder(kexec_tar)
         code_path = tool_path.joinpath(kexec_source)
         self.node.tools[Gcc]
         make = self.node.tools[Make]
