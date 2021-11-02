@@ -54,9 +54,7 @@ class GridCombinatorTestCase(TestCase):
                 )
 
     def test_grid_combinator_empty(self) -> None:
-        expected_collection: List[Dict[str, str]] = [
-            {"name3": "3value1"},
-        ]
+        expected_collection: List[Dict[str, str]] = []
         runbook = GridCombinatorSchema(
             type=constants.COMBINATOR_GRID,
             items=[],

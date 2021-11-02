@@ -47,9 +47,7 @@ class BatchCombinatorTestCase(TestCase):
                 )
 
     def test_batch_combinator_empty(self) -> None:
-        expected_collection: List[Dict[str, str]] = [
-            {"name3": "3value1"},
-        ]
+        expected_collection: List[Dict[str, str]] = []
         runbook = BatchCombinatorSchema(
             type=constants.COMBINATOR_BATCH,
             items=[],
