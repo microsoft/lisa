@@ -1,0 +1,56 @@
+# Copyright (c) Microsoft Corporation.
+# Licensed under the MIT license.
+
+import re
+
+from lisa.base_tools import Cat
+from lisa.executable import Tool
+from lisa.operating_system import Debian, Fedora, Suse
+from lisa.util import LisaException, find_group_in_lines
+
+
+class Dhclient(Tool):
+
+    # timeout 300;
+    _debian_pattern = re.compile(r"^(?P<default>#?)timeout (?P<number>\d+);$")
+    # ipv4.dhcp-timeout:                      200
+    # ipv4.dhcp-timeout:                      0 (default)
+    _fedora_pattern = re.compile(
+        r"^ipv4\.dhcp-timeout: +(?P<number>\d+) ?(?P<default>\(default\))?$"
+    )
+
+    @property
+    def command(self) -> str:
+        return "dhclient"
+
+    @property
+    def can_install(self) -> bool:
+        return False
+
+    def get_timeout(self) -> int:
+        if isinstance(self.node.os, Debian) or isinstance(self.node.os, Suse):
+            if isinstance(self.node.os, Debian):
+                path = "/etc/dhcp/dhclient.conf"
+            else:
+                path = "/etc/dhclient.conf"
+            # the default value in debian is 300
+            value: int = 300
+            cat = self.node.tools[Cat]
+            output = cat.read_from_file(path)
+            group = find_group_in_lines(output, self._debian_pattern)
+            if group and not group["default"]:
+                value = int(group["number"])
+        elif isinstance(self.node.os, Fedora):
+            # the default value in fedora is 60
+            value = 60
+            # use cat to output all together
+            result = self.node.execute(
+                "nmcli connection show 'System eth0' | cat", shell=True
+            )
+            group = find_group_in_lines(result.stdout, self._fedora_pattern)
+            if group and "default" not in group:
+                value = int(group["number"])
+        else:
+            raise LisaException(f"unsupported os: '{self.node.os.name}'")
+
+        return value
