@@ -316,8 +316,9 @@ class RepoLocation(BaseLocation):
         
         result = self._node.execute("git log --pretty=format:%h | head -1", cwd=code_path, shell=True)
         self._log.info(f"HEAD is now at : {result}")
-        kernel_version = self._node.execute("make kernelrelease 2>/dev/null",
+        result = self._node.execute("make kernelrelease 2>/dev/null",
                               cwd=code_path, shell=True)
+        kernel_version = result.stdout                             
         self._log.info(f"Kernel source version : {kernel_version}")
         
         return code_path
