@@ -28,8 +28,6 @@ class Combinator(subclasses.BaseClassWithRunbookMixin, InitializableMixin):
     def __init__(self, runbook: schema.Combinator) -> None:
         super().__init__(runbook=runbook)
         self._log = get_logger("combinator", self.__class__.__name__)
-        # return at least once, if it's empty
-        self._is_first_time = True
 
     def fetch(
         self, current_variables: Dict[str, VariableEntry]
@@ -41,7 +39,7 @@ class Combinator(subclasses.BaseClassWithRunbookMixin, InitializableMixin):
 
         new_values = self._next()
 
-        if new_values or self._is_first_time:
+        if new_values:
             result = current_variables.copy()
             if new_values:
                 for name, new_value in new_values.items():
@@ -52,7 +50,6 @@ class Combinator(subclasses.BaseClassWithRunbookMixin, InitializableMixin):
                         result[name] = copied_variable
                     else:
                         result[name] = VariableEntry(name, new_value)
-        self._is_first_time = False
         return result
 
     def _initialize(self, *args: Any, **kwargs: Any) -> None:
