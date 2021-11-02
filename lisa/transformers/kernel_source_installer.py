@@ -319,7 +319,7 @@ class RepoLocation(BaseLocation):
         result = self._node.execute("make kernelrelease 2>/dev/null",
                               cwd=code_path, shell=True)
         kernel_version = result.stdout
-        self._log.info(f"Kernel source version is : {kernel_version}")
+        self._log.info(f"Kernel source version : {kernel_version}")
         
         return code_path
 
