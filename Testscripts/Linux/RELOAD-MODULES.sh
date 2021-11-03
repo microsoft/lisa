@@ -28,19 +28,17 @@ if [ "${LoopCount:-UNDEFINED}" = "UNDEFINED" ]; then
     LoopCount=100
 fi
 
-HYPERV_MODULES=(hv_vmbus hv_netvsc hv_storvsc hv_utils hv_balloon hid_hyperv hyperv_keyboard hyperv_fb)
+HYPERV_MODULES=(hv_vmbus hv_netvsc hv_storvsc hv_utils hyperv_keyboard)
 MODULES_TO_RELOAD=(hv_netvsc)
 MODULES_NOT_TO_RELOAD=()
-skip_modules=()
+skip_modules=(hyperv_keyboard)
 config_path=$(get_bootconfig_path)
-
 declare -A config_modulesDic
 config_modulesDic=(
 [CONFIG_HYPERV=y]="hv_vmbus"
 [CONFIG_HYPERV_NET=y]="hv_netvsc"
 [CONFIG_HYPERV_STORAGE=y]="hv_storvsc"
 [CONFIG_HYPERV_UTILS=y]="hv_utils"
-[CONFIG_HYPERV_BALLOON=y]="hv_balloon"
 [CONFIG_HID_HYPERV_MOUSE=y]="hid_hyperv"
 [CONFIG_HYPERV_KEYBOARD=y]="hyperv_keyboard"
 [CONFIG_FB_HYPERV=y]="hyperv_fb"
