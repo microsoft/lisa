@@ -7,14 +7,14 @@ from typing import Any, Dict, List, Set
 
 from lisa import schema
 from lisa.parameter_parser.runbook import RunbookBuilder
-from lisa.util import LisaException, constants, subclasses
+from lisa.util import InitializableMixin, LisaException, constants, subclasses
 from lisa.util.logger import get_logger
 from lisa.variable import VariableEntry, merge_variables, replace_variables
 
 _get_init_logger = functools.partial(get_logger, "init", "transformer")
 
 
-class Transformer(subclasses.BaseClassWithRunbookMixin):
+class Transformer(subclasses.BaseClassWithRunbookMixin, InitializableMixin):
     def __init__(
         self,
         runbook: schema.Transformer,
@@ -68,6 +68,9 @@ class Transformer(subclasses.BaseClassWithRunbookMixin):
         errors early.
         """
         raise NotImplementedError()
+
+    def _initialize(self, *args: Any, **kwargs: Any) -> None:
+        ...
 
     def _internal_run(self) -> Dict[str, Any]:
         """
@@ -171,6 +174,7 @@ def _run_transformers(
         transformer = factory.create_by_runbook(
             runbook=runbook, runbook_builder=derived_builder
         )
+        transformer.initialize()
         values = transformer.run(is_dry_run=is_dry_run)
         merge_variables(copied_variables, values)
 
