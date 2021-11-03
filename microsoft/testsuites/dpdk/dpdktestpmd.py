@@ -11,7 +11,7 @@ from assertpy import assert_that, fail
 from lisa.executable import Tool
 from lisa.nic import NicInfo
 from lisa.operating_system import CentOs, Redhat, Ubuntu
-from lisa.tools import Echo, Git, Lspci, Wget
+from lisa.tools import Echo, Git, Lspci, Tar, Wget
 from lisa.util import SkippedException
 
 
@@ -74,12 +74,10 @@ class DpdkTestpmd(Tool):
         "kernel-headers",
     ]
     _rte_target = "x86_64-native-linuxapp-gcc"
-    _dpdk_github = "http://dpdk.org/git/dpdk-stable"
     _ninja_url = (
         "https://github.com/ninja-build/ninja/releases/"
         "download/v1.10.2/ninja-linux.zip"
     )
-    _dpdk_branch = ""
 
     def __execute_assert_zero(
         self, cmd: str, path: PurePath, timeout: int = 600
@@ -101,6 +99,9 @@ class DpdkTestpmd(Tool):
     def dependencies(self) -> List[Type[Tool]]:
         return [Git, Wget]
 
+    def set_dpdk_source(self, dpdk_source: str) -> None:
+        self._dpdk_source = dpdk_source
+
     def set_dpdk_branch(self, dpdk_branch: str) -> None:
         self._dpdk_branch = dpdk_branch
 
@@ -111,45 +112,60 @@ class DpdkTestpmd(Tool):
         self.dpdk_path = self.node.working_path.joinpath(self._dpdk_repo_path_name)
         if result.exit_code == 0:  # tools are already installed
             return True
-        if self._install_dependencies():
-            node = self.node
-            git_tool = node.tools[Git]
-            echo_tool = node.tools[Echo]
+        self._install_dependencies()
+        node = self.node
+        git_tool = node.tools[Git]
+        echo_tool = node.tools[Echo]
+
+        if self._dpdk_source and self._dpdk_source.endswith(".tar.gz"):
+            wget_tool = node.tools[Wget]
+            tar_tool = node.tools[Tar]
+            if self._dpdk_branch:
+                node.log.warn(
+                    (
+                        "DPDK tarball source does not need dpdk_branch defined. "
+                        "User-defined variable dpdk_branch will be ignored."
+                    )
+                )
+            working_path = str(node.working_path)
+            wget_tool.get(
+                self._dpdk_source,
+                working_path,
+            )
+            dpdk_filename = self._dpdk_source.split("/")[-1]
+            # extract tar into dpdk/ folder and discard old root folder name
+            tar_tool.extract(
+                str(node.working_path.joinpath(dpdk_filename)),
+                str(self.dpdk_path),
+                strip_components=1,
+            )
+        else:
             git_tool.clone(
-                self._dpdk_github,
+                self._dpdk_source,
                 cwd=node.working_path,
                 dir_name=self._dpdk_repo_path_name,
             )
             if self._dpdk_branch:
                 git_tool.checkout(self._dpdk_branch, cwd=self.dpdk_path)
 
-            self.__execute_assert_zero("meson build", self.dpdk_path)
-            dpdk_build_path = self.dpdk_path.joinpath("build")
-            self.__execute_assert_zero("which ninja", dpdk_build_path)
-            self.__execute_assert_zero("ninja", dpdk_build_path, timeout=1200)
-            self.__execute_assert_zero("ninja install", dpdk_build_path)
-            # explicitly add lib install path before calling ldconfig
-            echo_tool.write_to_file(
-                "/usr/local/lib64",
-                node.get_pure_path("/etc/ld.so.conf"),
-                append=True,
-                sudo=True,
-            )
-            self.__execute_assert_zero("ldconfig", dpdk_build_path)
-            library_bashrc_lines = [
-                "export PKG_CONFIG_PATH=${PKG_CONFIG_PATH}:/usr/local/lib64/pkgconfig/",
-                "export LD_LIBRARY_PATH=${LD_LIBRARY_PATH}:/usr/local/lib64/",
-            ]
-            echo_tool.write_to_file(
-                ";".join(library_bashrc_lines),
-                node.get_pure_path("~/.bashrc"),
-                append=True,
-            )
-            return True
-        else:
-            return False
+        self.__execute_assert_zero("meson build", self.dpdk_path)
+        dpdk_build_path = self.dpdk_path.joinpath("build")
+        self.__execute_assert_zero("which ninja", dpdk_build_path)
+        self.__execute_assert_zero("ninja", dpdk_build_path, timeout=1200)
+        self.__execute_assert_zero("ninja install", dpdk_build_path)
+        self.__execute_assert_zero("ldconfig", dpdk_build_path)
+        library_bashrc_lines = [
+            "export PKG_CONFIG_PATH=${PKG_CONFIG_PATH}:/usr/local/lib64/pkgconfig/",
+            "export LD_LIBRARY_PATH=${LD_LIBRARY_PATH}:/usr/local/lib64/",
+        ]
+        echo_tool.write_to_file(
+            ";".join(library_bashrc_lines),
+            node.get_pure_path("~/.bashrc"),
+            append=True,
+        )
+        return True
 
-    def _install_dependencies(self) -> bool:
+    def _install_dependencies(self) -> None:
         node = self.node
         cwd = node.working_path
         lspci = node.tools[Lspci]
@@ -162,7 +178,6 @@ class DpdkTestpmd(Tool):
         else:
             mellanox_drivers = "mlx5_core mlx5_ib"
         if isinstance(node.os, Ubuntu):
-            # TODO: Workaround for type checker below
             if "18.04" in node.os.information.release:
                 node.os.install_packages(list(self._ubuntu_packages_1804))
                 self.__execute_assert_zero("pip3 install --upgrade meson", cwd)
@@ -232,7 +247,6 @@ class DpdkTestpmd(Tool):
             f"modprobe -a ib_uverbs rdma_ucm ib_umad ib_ipoib {mellanox_drivers}",
             cwd,
         )
-        return True
 
     def generate_testpmd_include(
         self,
