@@ -1215,6 +1215,7 @@ class LegacyTestCase(BaseTestCaseFilter):
 class Runbook:
     # run name prefix to help grouping results and put it in title.
     name: str = "not_named"
+    exit_with_failed_count: bool = True
     test_project: str = ""
     test_pass: str = ""
     tags: Optional[List[str]] = None
