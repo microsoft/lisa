@@ -911,12 +911,49 @@ class Redhat(Fedora):
     def _install_packages(
         self, packages: Union[List[str]], signed: bool = True
     ) -> None:
-        command = f"yum install -y {' '.join(packages)}"
+        package_inventory = " ".join(packages)
+        command = f"yum install -y {' '.join(package_inventory)}"
         if not signed:
             command += " --nogpgcheck"
 
         install_result = self._node.execute(command, shell=True, sudo=True)
-        self.__verify_package_result(install_result, packages)
+        if install_result.exit_code == 0:
+            self._log.debug(f"{packages} is/are installed successfully.")
+        elif install_result.exit_code == 1:
+            # a package was missing, identify the missing one, warn,
+            # and reinstall without the missing packages.
+            missing_packages: List[str] = []
+            for line in install_result.stdout.splitlines():
+                if line.startswith("No match for argument:"):
+                    package = line.split(":")[1].strip()
+                    missing_packages.append(package)
+            if len(missing_packages) == 0:
+                raise LisaException(
+                    f"Failed to install {packages}. exit_code: "
+                    f"{install_result.exit_code}"
+                )
+            for package in missing_packages:
+                self._node.log.warn(
+                    "A package was missing from dnf/yum inventory."
+                    " Test will attempt to run without installing "
+                    f"the missing package: {package}"
+                )
+                package_inventory = package_inventory.replace(package, "")
+
+            self._node.execute(
+                command,
+                shell=True,
+                sudo=True,
+                expected_exit_code=0,
+                expected_exit_code_failure_message=(
+                    f"install package retry failed for list:{package_inventory} "
+                    f"after removing packages {' '.join(missing_packages)}"
+                ),
+            )
+        else:
+            raise LisaException(
+                f"Failed to install {packages}. exit_code: {install_result.exit_code}"
+            )
 
     def _package_exists(self, package: str, signed: bool = True) -> bool:
         command = f"yum list installed {package}"
@@ -970,14 +1007,7 @@ class Redhat(Fedora):
     def __verify_package_result(self, result: ExecutableResult, packages: Any) -> None:
         # yum returns exit_code=1 if package is already installed.
         # We do not want to fail if exit_code=1.
-        if result.exit_code == 1:
-            self._log.debug(f"{packages} is/are already installed.")
-        elif result.exit_code == 0:
-            self._log.debug(f"{packages} is/are installed successfully.")
-        else:
-            raise LisaException(
-                f"Failed to install {packages}. exit_code: {result.exit_code}"
-            )
+        el
 
 
 class CentOs(Redhat):
