@@ -98,6 +98,18 @@ def _sort(transformers: List[schema.Transformer]) -> List[schema.Transformer]:
         if transformer.name not in visited:
             _sort_dfs(all, transformer, visited, sorted_transformers)
 
+    # sort by phase: init, expanded.
+    init_transformers: List[schema.Transformer] = []
+    expanded_transformers: List[schema.Transformer] = []
+    for transformer in sorted_transformers:
+        if transformer.phase == constants.TRANSFORMER_PHASE_INIT:
+            init_transformers.append(transformer)
+        elif transformer.phase == constants.TRANSFORMER_PHASE_EXPANDED:
+            expanded_transformers.append(transformer)
+        else:
+            raise LisaException(f"unknown transformer phase: {transformer.phase}")
+    sorted_transformers = init_transformers + expanded_transformers
+
     # check cycle reference
     referenced: Set[str] = set()
     for transformer in sorted_transformers:
@@ -135,6 +147,7 @@ def _sort_dfs(
 def _run_transformers(
     runbook_builder: RunbookBuilder,
     is_dry_run: bool = False,
+    phase: str = constants.TRANSFORMER_PHASE_INIT,
 ) -> Dict[str, VariableEntry]:
     root_runbook_data = runbook_builder.raw_data
     transformers_data: List[Any] = root_runbook_data[constants.TRANSFORMER]
@@ -149,7 +162,8 @@ def _run_transformers(
             schema.Transformer, runbook_data
         )
 
-        if runbook.enabled:
+        # if phase is empty, pick up all of them.
+        if runbook.enabled and (runbook.phase == phase or not phase):
             transformers_runbook.append(runbook)
 
     # resort the runbooks, and it's used in real run
@@ -181,7 +195,9 @@ def _run_transformers(
     return copied_variables
 
 
-def run(runbook_builder: RunbookBuilder) -> None:
+def run(
+    runbook_builder: RunbookBuilder, phase: str = constants.TRANSFORMER_PHASE_INIT
+) -> None:
     log = _get_init_logger()
 
     root_runbook_data = runbook_builder.raw_data
@@ -191,17 +207,20 @@ def run(runbook_builder: RunbookBuilder) -> None:
 
     # verify the variable is enough to next transformers and the whole runbook.
     # the validation without real run can save time, and fail fast on variable
-    # mismatched.
+    # mismatched. It needs to apply transformers in all phases to calculate
+    # variables.
     log.debug("dry run transformers...")
-    dry_run_variables = _run_transformers(runbook_builder, is_dry_run=True)
+    dry_run_variables = _run_transformers(runbook_builder, is_dry_run=True, phase="")
     dry_run_root_runbook = copy.deepcopy(root_runbook_data)
     replace_variables(dry_run_root_runbook, dry_run_variables)
 
     # real run
     log.debug("running transformers...")
-    output_variables = _run_transformers(runbook_builder)
+    output_variables = _run_transformers(runbook_builder, phase=phase)
     merge_variables(runbook_builder.variables, output_variables)
 
+    # check if all variable in dry run shows up in real run. It helps fail
+    # early.
     for dry_run_variable in dry_run_variables:
         if dry_run_variable not in output_variables:
             raise LisaException(

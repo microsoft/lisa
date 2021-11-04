@@ -73,6 +73,9 @@ VARIABLE = "variable"
 TRANSFORMER = "transformer"
 TRANSFORMER_TOLIST = "tolist"
 
+TRANSFORMER_PHASE_INIT = "init"
+TRANSFORMER_PHASE_EXPANDED = "expanded"
+
 COMBINATOR = "combinator"
 COMBINATOR_GRID = "grid"
 COMBINATOR_BATCH = "batch"
