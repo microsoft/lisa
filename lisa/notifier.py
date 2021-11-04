@@ -109,7 +109,8 @@ def register_notifier(notifier: Notifier) -> None:
     """
     register internal notifiers
     """
-    log = init_logger()
+    notifier.initialize()
+
     _notifiers.append(notifier)
     subscribed_message_types: List[
         Type[MessageBase]
@@ -120,12 +121,11 @@ def register_notifier(notifier: Notifier) -> None:
         registered_notifiers.append(notifier)
         _messages[message_type] = registered_notifiers
 
+    log = init_logger()
     log.debug(
         f"registered [{notifier.type_name()}] "
         f"on messages: {[x.type for x in subscribed_message_types]}"
     )
-
-    notifier.initialize()
 
 
 def notify(message: MessageBase) -> None:
