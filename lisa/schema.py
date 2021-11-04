@@ -1127,7 +1127,7 @@ class BaseTestCaseFilter(TypedSchema, ExtendableSchemaMixin, BaseClassMixin):
         default=constants.TESTCASE_TYPE_LISA,
     )
     # if it's false, current filter is ineffective.
-    enable: bool = field(default=True)
+    enabled: bool = field(default=True)
 
 
 @dataclass_json()
