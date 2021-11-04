@@ -245,7 +245,7 @@ class RootRunner(Action):
         for raw_filter in runbook.testcase_raw:
             # by default run all filtered cases unless 'enable' is specified as false
             filter = schema.load_by_type(schema.BaseTestCaseFilter, raw_filter)
-            if filter.enable:
+            if filter.enabled:
                 raw_filters: List[schema.BaseTestCaseFilter] = runner_filters.get(
                     filter.type, []
                 )
