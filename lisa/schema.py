@@ -174,6 +174,17 @@ class Transformer(TypedSchema, ExtendableSchemaMixin):
     rename: Dict[str, str] = field(default_factory=dict)
     # enable this transformer or not, only enabled transformers run actually.
     enabled: bool = True
+    # decide when the transformer run. The init means run at very begining
+    # phase, which is before the combinator. The expanded means run after
+    # combinator expaneded variables.
+    phase: str = field(
+        default=constants.TRANSFORMER_PHASE_INIT,
+        metadata=field_metadata(
+            validate=validate.OneOf(
+                [constants.TRANSFORMER_PHASE_INIT, constants.TRANSFORMER_PHASE_EXPANDED]
+            ),
+        ),
+    )
 
     def __post_init__(self, *args: Any, **kwargs: Any) -> None:
         if not self.name:

@@ -171,7 +171,9 @@ class RootRunner(Action):
         await super().start()
 
         try:
-            transformer.run(self._runbook_builder)
+            transformer.run(
+                self._runbook_builder, phase=constants.TRANSFORMER_PHASE_INIT
+            )
 
             # update runbook for notifiers
             raw_data = copy.deepcopy(self._runbook_builder.raw_data)
@@ -225,12 +227,22 @@ class RootRunner(Action):
                 variables = combinator.fetch(self._runbook_builder.variables)
                 if variables is None:
                     break
-                sub_runbook = self._runbook_builder.resolve(variables)
-                runners = self._generate_runners(sub_runbook, variables)
+                sub_runbook_builder = self._runbook_builder.derive(variables=variables)
+                transformer.run(
+                    sub_runbook_builder, phase=constants.TRANSFORMER_PHASE_EXPANDED
+                )
+
+                runners = self._generate_runners(
+                    sub_runbook_builder.resolve(), variables
+                )
                 for runner in runners:
                     yield runner
         else:
             # no combinator, use the root runbook
+            transformer.run(
+                self._runbook_builder, phase=constants.TRANSFORMER_PHASE_EXPANDED
+            )
+
             for runner in self._generate_runners(
                 root_runbook, self._runbook_builder.variables
             ):
