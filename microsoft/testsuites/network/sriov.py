@@ -555,11 +555,11 @@ class Sriov(TestSuite):
         for node in environment.nodes.list():
             node_nic_info = Nics(node)
             node_nic_info.initialize()
-            for _, node_nic in node_nic_info._nics.items():
+            for _, node_nic in node_nic_info.nics.items():
                 assert_that(node_nic.lower).described_as(
                     f"This interface {node_nic.upper} does not have a paired VF."
                 ).is_not_empty()
-            vm_nics[node.name] = node_nic_info._nics
+            vm_nics[node.name] = node_nic_info.nics
         return vm_nics
 
     def _remove_module(self, node: Node) -> str:
