@@ -2,6 +2,7 @@
 # Licensed under the MIT license.
 
 import re
+import time
 from collections import deque
 from typing import Any, Dict, List, Tuple
 
@@ -20,7 +21,7 @@ from lisa import (
 from lisa.features import NetworkInterface, Sriov
 from lisa.nic import NicInfo, Nics
 from lisa.testsuite import simple_requirement
-from lisa.tools import Echo, Git, Lspci, Make, Mount
+from lisa.tools import Dmesg, Echo, Git, Lspci, Make, Mount
 from lisa.util import constants
 from lisa.util.parallel import Task, TaskManager
 from microsoft.testsuites.dpdk.dpdktestpmd import DpdkTestpmd
@@ -83,6 +84,122 @@ class Dpdk(TestSuite):
         self, node: Node, log: Logger, variables: Dict[str, Any]
     ) -> None:
         self._verify_dpdk_build(node, log, variables, "failsafe")
+
+    @TestCaseMetadata(
+        description="""
+            test sriov failsafe during vf revoke (send only version)
+        """,
+        priority=2,
+        requirement=simple_requirement(
+            min_nic_count=2,
+            network_interface=Sriov(),
+        ),
+    )
+    def verify_sriov_failover_during_vf_revoke_send_only(
+        self, node: Node, log: Logger, variables: Dict[str, Any]
+    ) -> None:
+        network_interface_feature = node.features[NetworkInterface]
+        dmesg_tool = node.tools[Dmesg]
+        test_kit = initialize_node_resources(node, log, variables, "failsafe")
+        node_nic_info, testpmd = test_kit.node_nic_info, test_kit.testpmd
+        test_nic_id, test_nic = node_nic_info.get_test_nic()
+        testpmd_cmd = testpmd.generate_testpmd_command(
+            test_nic, test_nic_id, "txonly", "failsafe"
+        )
+        self._run_and_check_testpmd_revoke(
+            log, testpmd, test_nic, testpmd_cmd, sriov_enabled=True, check_tx=True
+        )
+        # disable accelerated networking
+        network_interface_feature._switch_sriov(enable=False)
+        self._wait_for_dmesg_output(node, dmesg_tool, "VF unregistering:")
+        # save the last output so we can filter the initial vf register msg
+        last_dmesg_output = dmesg_tool.get_output()
+        self._run_and_check_testpmd_revoke(
+            log, testpmd, test_nic, testpmd_cmd, sriov_enabled=False, check_tx=True
+        )
+        # re-enable accelerated networking
+        network_interface_feature._switch_sriov(enable=True)
+        self._wait_for_dmesg_output(
+            node,
+            dmesg_tool,
+            "VF registering:",
+            last_dmesg_output=last_dmesg_output,  # filter old register msg
+        )
+        self._run_and_check_testpmd_revoke(
+            log, testpmd, test_nic, testpmd_cmd, sriov_enabled=True, check_tx=True
+        )
+
+    def _wait_for_dmesg_output(
+        self,
+        node: Node,
+        dmesg_tool: Dmesg,
+        search_phrase: str,
+        wait_for: int = 180,
+        last_dmesg_output: str = "",
+    ) -> None:
+        waited = 0
+        # wait for vf revoke, remove last output since there could be
+        # an old vf revoke msg.
+        while waited < wait_for and search_phrase not in dmesg_tool.get_output(
+            force_run=True
+        ).replace(last_dmesg_output, ""):
+            time.sleep(1)
+            waited += 1
+        if wait_for == waited:
+            fail("wait for vf unregister/register in dmesg output timed out")
+
+    def _run_and_check_testpmd_revoke(
+        self,
+        log: Logger,
+        testpmd: DpdkTestpmd,
+        test_nic: NicInfo,
+        testpmd_cmd: str,
+        sriov_enabled: bool,
+        check_tx: bool = False,
+        check_rx: bool = False,
+    ) -> None:
+        testpmd.run_for_n_seconds(testpmd_cmd, 10)
+        if check_tx:
+            self._check_tx_or_rx_perf(log, testpmd, test_nic, sriov_enabled, "TX")
+        if check_rx:
+            self._check_tx_or_rx_perf(log, testpmd, test_nic, sriov_enabled, "RX")
+
+    def _check_tx_or_rx_perf(
+        self,
+        log: Logger,
+        testpmd: DpdkTestpmd,
+        test_nic: NicInfo,
+        sriov_enabled: bool,
+        tx_or_rx: str = "TX",
+    ) -> int:
+
+        pps = 0
+        if tx_or_rx == "TX":
+            pps = testpmd.get_tx_pps()
+        elif tx_or_rx == "RX":
+            pps = testpmd.get_rx_pps()
+        else:
+            fail(
+                "check_tx_or_rx_perf requires parameter tx_or_rx "
+                "set to either 'TX' or 'RX' to select which value to measure"
+            )
+
+        log.info(
+            f"{tx_or_rx}-PPS:{pps} from {test_nic.upper}/{test_nic.lower}:"
+            + f"{test_nic.pci_slot}"
+        )
+        if sriov_enabled:
+            assert_that(pps).described_as(
+                f"{tx_or_rx}-PPS ({pps}) should have been greater "
+                "than 2^20 (~1m) PPS before sriov disable."
+            ).is_greater_than(2 ** 20)
+        else:
+            assert_that(pps).described_as(
+                f"{tx_or_rx}-PPS ({pps}) should have been less "
+                "than 2^20 (~1m) PPS after sriov disable."
+            ).is_less_than(2 ** 20)
+
+        return pps
 
     def _verify_dpdk_build(
         self, node: Node, log: Logger, variables: Dict[str, Any], pmd: str
