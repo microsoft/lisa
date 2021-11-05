@@ -1,13 +1,12 @@
 # Copyright (c) Microsoft Corporation.
 # Licensed under the MIT license.
 
-import ipaddress
-import itertools
+
 import os
 import re
 from typing import Any, Dict, List, Tuple
 
-from assertpy import assert_that, fail
+from assertpy import assert_that
 
 from lisa import Node
 from lisa.tools import Echo
@@ -51,25 +50,21 @@ class Nics(InitializableMixin):
     # Class for all of the nics on a node. Contains multiple NodeNic classes.
     # Init identifies upper/lower paired devices and the pci slot info for the lower.
 
-    # for parsing ip addr show (ipv4)
+    # regexes for seperating and parsing ip_addr_show entries
     # ex:
     """
-    eth0: <BROADCAST,MULTICAST,UP,LOWER_UP> mtu 1500 qdisc mq state UP group
-        default qlen 1000
-    link/ether 60:45:bd:86:d4:88 brd ff:ff:ff:ff:ff:ff
-    inet 10.57.0.4/24 brd 10.57.0.255 scope global eth0
-       valid_lft forever preferred_lft forever
-    inet6 fe80::6245:bdff:fe86:d488/64 scope link
-       valid_lft forever preferred_lft forever
+    3: eth1: <BROADCAST,MULTICAST,UP,LOWER_UP> mtu 1500 qdisc mq state ...
+        UP group default qlen 1000
+        link/ether 00:22:48:79:69:b4 brd ff:ff:ff:ff:ff:ff
+        inet 10.0.1.4/24 brd 10.0.1.255 scope global eth1
+        valid_lft forever preferred_lft forever
+        inet6 fe80::222:48ff:fe79:69b4/64 scope link
+        valid_lft forever preferred_lft forever
+    4: enP13530s1: <BROADCAST,MULTICAST,SLAVE,UP,LOWER_UP> mtu 1500 ...
+        qdisc mq master eth0 state UP group default qlen 1000
+        link/ether 00:22:48:79:6c:c2 brd ff:ff:ff:ff:ff:ff
     """
-    __ip_regex = re.compile(
-        r"inet\s+"  # looking for ip address in output
-        r"([0-9a-fA-F]{1,3}\."  # capture ipv4 address
-        r"[0-9a-fA-F]{1,3}\."
-        r"[0-9a-fA-F]{1,3}\."
-        r"[0-9a-fA-F]{1,3})"
-    )
-    __mac_regex = re.compile(
+    __mac_regex = (
         r"ether\s+"  # looking for the ether address
         r"([0-9a-fA-F]{2}:"  # capture mac address
         r"[0-9a-fA-F]{2}:"
@@ -77,6 +72,25 @@ class Nics(InitializableMixin):
         r"[0-9a-fA-F]{2}:"
         r"[0-9a-fA-F]{2}:"
         r"[0-9a-fA-F]{2})"
+    )
+    __ip_regex = (
+        r"inet\s+"  # looking for ip address in output
+        r"([0-9a-fA-F]{1,3}\."  # capture ipv4 address
+        r"[0-9a-fA-F]{1,3}\."
+        r"[0-9a-fA-F]{1,3}\."
+        r"[0-9a-fA-F]{1,3})"
+    )
+    __ip_addr_show_regex = re.compile(
+        (
+            r"[0-9]+: ([a-zA-Z0-9_-]+):\s+(.*)\n"  # capture nic name and info
+            r"\s+link\/(("  # capture link type and info
+            + __mac_regex  # capture mac if it's present
+            + r")?.*)\n"  # and whatever else is on that line
+            r"(\s+"  # optional group to capture ip address
+            + __ip_regex  # capture the ipv4 address if it's present
+            + r".*\n.*\n)?"  # and the rest of the line and attributes
+            r"(\s+inet6.*\n.*\n)?"  # optional capture inet6 and attributes
+        )
     )
 
     # capturing from ip route show
@@ -90,6 +104,19 @@ class Nics(InitializableMixin):
         r"[0-9a-fA-F]{1,3}"
         r"\s+dev\s+"  # looking for the device for the default route
         r"([a-zA-Z0-9]+)"  # capture device
+    )
+
+    # ex:
+    # /sys/class/net/eth0/lower_enP13530s1 -> ../../../ (continued next line)
+    # ad379351-34da-4568-93a3-03878ae8eee8/pci34da:00/34da:00:02.0/net/enP13530s1
+    __nic_lower_regex = re.compile(
+        (
+            r"/sys/class/net/"
+            r"([a-zA-Z0-9_\-]+)"  # upper interface GROUP1
+            r"/lower_([a-zA-Z0-9_\-]+)"  # lower interface GROUP2
+            r"/device -> ../../../"  # link to devices guid
+            r"([a-zA-Z0-9]{4}:[a-zA-Z0-9]{2}:[a-zA-Z0-9]{2}.[a-zA-Z0-9])"  # bus info
+        )
     )
 
     def __init__(self, node: Node):
@@ -206,31 +233,29 @@ class Nics(InitializableMixin):
         # the tool isn't super consistent across distros in this regard
 
         # use sysfs to gather upper/lower nic pairings and pci slot info
-        for pairing in itertools.permutations(self._nic_names, 2):
-            upper_nic, lower_nic = pairing
-            # check a nic pairing to identify upper/lower relationship
-            upper_check = self._node.execute(
-                f"readlink /sys/class/net/{lower_nic}/upper_{upper_nic}"
-            )
-            if upper_check.exit_code == 0:
-                assert_that(upper_check.stdout).is_not_equal_to("")
-                pci_slot = self._get_nic_device(lower_nic)
-                assert_that(pci_slot).is_not_empty()
-                # check pcislot info looks correct
-                nic_info = NicInfo(upper_nic, lower_nic, pci_slot)
-                self.append(nic_info)
+        nic_info_fetch_cmd = "ls -la /sys/class/net/*/lower*/device"
+        self._node.log.info(f"Gathering NIC information on {self._node.name}.")
+        result = self._node.execute(
+            nic_info_fetch_cmd,
+            shell=True,
+            expected_exit_code=0,
+            expected_exit_code_failure_message="Could not grab NIC device info.",
+        )
+        for line in result.stdout.splitlines():
+            match = self.__nic_lower_regex.search(line)
+            if not match:
+                raise LisaException(
+                    "Could not locate default network interface"
+                    f" in output:\n{result.stdout}"
+                )
+            upper_nic, lower_nic, pci_slot = match.groups()
+            nic_info = NicInfo(upper_nic, lower_nic, pci_slot)
+            self.append(nic_info)
 
-        # identify nics which don't have a pairing (non-AN devices)
-        for nic in self._nic_names:
-            if not self.nic_info_is_present(nic):
-                self.append(NicInfo(nic))
-
-        assert_that(self).described_as(
-            (
-                "During Lisa nic info initialization, Nics class could not "
-                f"find any nics attached to {self._node.name}."
-            )
-        ).is_not_empty()
+        assert_that(len(self)).described_as(
+            "During Lisa nic info initialization, Nics class could not "
+            f"find any nics attached to {self._node.name}."
+        ).is_greater_than(0)
 
     def _get_default_nic(self) -> str:
         cmd = "/sbin/ip route"
@@ -254,31 +279,26 @@ class Nics(InitializableMixin):
         return default_interface_name
 
     def _get_host_if_info(self) -> None:
-        for nic in self.get_upper_nics():
-            # get ip and mac
-            result = self._node.execute(f"/sbin/ip addr show {nic}", shell=True)
-            result.assert_exit_code()
-            ip_match = self.__ip_regex.search(result.stdout)
-            mac_match = self.__mac_regex.search(result.stdout)
-
-            if ip_match and mac_match:
-                # check we found matches for both
-                for match in [ip_match, mac_match]:
-                    assert_that(match.groups()).described_as(
-                        (
-                            f"(IP) Trouble parsing `ip addr show {nic}` output."
-                            " Number of match groups was unexpected."
-                        )
-                    ).is_length(1)
-
-                ip_addr = ip_match.group(1)
-                mac_addr = mac_match.group(1)
-
-                # double check IP address looks right
-                ipaddress.ip_address(ip_addr)
-
-                # save them both off
-                self.get_nic(nic).ip_addr = ip_addr
-                self.get_nic(nic).mac_addr = mac_addr
-            else:
-                fail(f"Could not parse output of ip addr show {nic}")
+        result = self._node.execute(
+            "/sbin/ip addr show",
+            shell=True,
+            expected_exit_code=0,
+            expected_exit_code_failure_message=(
+                f"Could not run ip addr show on node {self._node.name}"
+            ),
+        )
+        split_ip_entries = self.__ip_addr_show_regex.findall(result.stdout)
+        found_nics = []
+        for nic_info in split_ip_entries:
+            self._node.log.info(nic_info)
+            nic, _, _, _, mac, _, ip_addr, _ = nic_info
+            if nic in self.get_upper_nics():
+                nic_entry = self._nics[nic]
+                nic_entry.ip_addr = ip_addr
+                nic_entry.mac_addr = mac
+                found_nics.append(nic)
+        assert_that(sorted(found_nics)).described_as(
+            f"Could not locate nic info for all nics. "
+            f"Nic set was {self._nics.keys()} and only found info for {found_nics}"
+        ).is_equal_to(sorted(self._nics.keys()))
+        self._node.log.info(str(self._nics))
