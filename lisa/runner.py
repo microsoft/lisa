@@ -291,7 +291,8 @@ class RootRunner(Action):
         self,
         runner: BaseRunner,
         task_manager: TaskManager[None],
-    ) -> None:
+    ) -> bool:
+        has_task: bool = False
         while not runner.is_done and task_manager.has_idle_worker():
             # fetch a task and submit
             task = runner.fetch_task()
@@ -300,11 +301,13 @@ class RootRunner(Action):
                     task_manager.submit_task(task)
                 else:
                     raise LisaException(f"Unknown task type: '{type(task)}'")
+                has_task = True
             else:
                 # current runner may not be done, but it doesn't
                 # have task temporarily. The root runner can start
                 # tasks from next runner.
                 break
+        return has_task
 
     def _start_loop(self) -> None:
         # in case all of runners are disabled
@@ -329,11 +332,16 @@ class RootRunner(Action):
             # submit tasks until idle workers are available
             while task_manager.has_idle_worker():
                 for runner in remaining_runners[:]:
-                    self._submit_runner_tasks(runner, task_manager)
+                    has_task = self._submit_runner_tasks(runner, task_manager)
                     if runner.is_done:
                         runner.close()
                         remaining_runners.remove(runner)
                         self._runners.remove(runner)
+                    if has_task:
+                        # This makes the loop is deep first. It intends to
+                        # complete the prior runners firstly, instead of start
+                        # later runners.
+                        continue
 
                 # remove completed runners
                 self._log.debug(
