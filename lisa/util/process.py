@@ -197,7 +197,7 @@ class Process:
                 f"execution time: {self._timer}, exit code: {self._result.exit_code}"
             )
 
-        if expected_exit_code:
+        if expected_exit_code is not None:
             self._result.assert_exit_code(
                 expected_exit_code=expected_exit_code,
                 message=expected_exit_code_failure_message,
