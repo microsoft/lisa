@@ -16,7 +16,8 @@ from lisa import (
     simple_requirement,
 )
 from lisa.features import Gpu, SerialConsole
-from lisa.tools import Reboot
+from lisa.tools import Lspci, Reboot
+from lisa.util import constants
 
 
 @TestSuiteMetadata(
@@ -115,3 +116,21 @@ class gpu(TestSuite):  # noqa
             "Expected device count didn't match Actual device count"
             "from vendor command",
         ).is_equal_to(expected_count)
+
+    @TestCaseMetadata(
+        description="""
+        This test case will
+        1. Validate disabling GPU devices.
+        2. Validate enable back the disabled GPU devices.
+        """,
+        priority=2,
+        requirement=simple_requirement(
+            supported_features=[Gpu],
+        ),
+    )
+    def gpu_rescind_validation(self, node: Node) -> None:
+        lspci = node.tools[Lspci]
+        # 1. Disable GPU devices.
+        lspci.disable_devices(device_type=constants.DEVICE_TYPE_GPU)
+        # 2. Enable GPU devices.
+        lspci.enable_devices()
