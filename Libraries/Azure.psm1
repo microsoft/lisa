@@ -1412,13 +1412,14 @@ Function Invoke-AllResourceGroupDeployments($SetupTypeData, $CurrentTestData, $R
 			#endregion
 
 			#region Security Profile
-			<#if ($CurrentTestData.SetupConfig.SecureBoot -or $CurrentTestData.SetupConfig.vTPM) {
+			if ($CurrentTestData.SetupConfig.SecureBoot -or $CurrentTestData.SetupConfig.vTPM) {
 				Add-Content -Value "$($indents[4])^securityProfile^: " -Path $jsonFile
 				Add-Content -Value "$($indents[4]){" -Path $jsonFile
 				Add-Content -Value "$($indents[5])^uefiSettings^: " -Path $jsonFile
 				Add-Content -Value "$($indents[5]){" -Path $jsonFile
 				if ($CurrentTestData.SetupConfig.SecureBoot -and !$CurrentTestData.SetupConfig.vTPM) {
-					Add-Content -Value "$($indents[6])^secureBootEnabled^: ^$($CurrentTestData.SetupConfig.SecureBoot)^" -Path $jsonFile
+					Add-Content -Value "$($indents[6])^secureBootEnabled^: ^$($CurrentTestData.SetupConfig.SecureBoot)^," -Path $jsonFile
+					Add-Content -Value "$($indents[6])^vTPMEnabled^: ^true^" -Path $jsonFile
 				}
 				elseif ($CurrentTestData.SetupConfig.vTPM -and !$CurrentTestData.SetupConfig.SecureBoot) {
 					Add-Content -Value "$($indents[6])^vTPMEnabled^: ^$($CurrentTestData.SetupConfig.vTPM)^" -Path $jsonFile
@@ -1427,10 +1428,10 @@ Function Invoke-AllResourceGroupDeployments($SetupTypeData, $CurrentTestData, $R
 					Add-Content -Value "$($indents[6])^secureBootEnabled^: ^$($CurrentTestData.SetupConfig.SecureBoot)^," -Path $jsonFile
 					Add-Content -Value "$($indents[6])^vTPMEnabled^: ^$($CurrentTestData.SetupConfig.vTPM)^" -Path $jsonFile
 				}
-				Add-Content -Value "$($indents[5])}," -Path $jsonFile
-				Add-Content -Value "$($indents[5])^securityType^: ^MemoryEncryption^" -Path $jsonFile
+				Add-Content -Value "$($indents[5])}" -Path $jsonFile
+				#Add-Content -Value "$($indents[5])^securityType^: ^MemoryEncryption^" -Path $jsonFile
 				Add-Content -Value "$($indents[4])}," -Path $jsonFile
-			}#>
+			}
 			#endregion
 
 			#region Storage Profile
