@@ -19,6 +19,7 @@ from .git import Git
 from .hwclock import Hwclock
 from .iperf3 import Iperf3
 from .kdump import KdumpBase
+from .kill import Kill
 from .lsblk import Lsblk
 from .lscpu import Lscpu
 from .lsinitrd import Lsinitrd
@@ -68,6 +69,7 @@ __all__ = [
     "Iperf3",
     "Hwclock",
     "KdumpBase",
+    "Kill",
     "Lsblk",
     "Lscpu",
     "Lsinitrd",

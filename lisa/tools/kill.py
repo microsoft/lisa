@@ -1,0 +1,32 @@
+# Copyright (c) Microsoft Corporation.
+# Licensed under the MIT license.
+
+from lisa.executable import Tool
+
+from .pgrep import Pgrep
+
+
+class Kill(Tool):
+    @property
+    def command(self) -> str:
+        return "kill"
+
+    @property
+    def can_install(self) -> bool:
+        return False
+
+    def by_name(self, process_name: str, signum: int = 9) -> None:
+        running_processes = self.node.tools[Pgrep].get_processes(process_name)
+        for process in running_processes:
+            self.with_signum(process.id, signum)
+
+    def with_signum(self, pid: str, signum: int = 9) -> None:
+        self.run(
+            f"-{signum} {pid}",
+            shell=True,
+            sudo=True,
+            force_run=True,
+            expected_exit_code=0,
+            expected_exit_code_failure_message="fail to run "
+            f"{self.command} -{signum} {pid}",
+        )
