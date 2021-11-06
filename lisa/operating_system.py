@@ -389,7 +389,8 @@ class Posix(OperatingSystem, BaseClassMixin):
 
     def _install_package_from_url(
         self,
-        package: str,
+        package_url: str,
+        package_name: str = "",
         signed: bool = True,
     ) -> None:
         """
@@ -397,7 +398,7 @@ class Posix(OperatingSystem, BaseClassMixin):
         """
         # when package is URL, download the package first at the working path.
         wget_tool = self._node.tools[Wget]
-        pkg = wget_tool.get(package, str(self._node.working_path))
+        pkg = wget_tool.get(package_url, str(self._node.working_path), package_name)
         self.install_packages(pkg, signed)
 
     def wait_running_process(self, process_name: str, timeout: int = 5) -> None:
@@ -535,14 +536,24 @@ class Debian(Linux):
         result.assert_exit_code(message="\n".join(self.get_apt_error(result.stdout)))
 
     def _install_packages(self, packages: List[str], signed: bool = True) -> None:
+        file_packages = []
+        for index, package in enumerate(packages):
+            if package.endswith(".deb"):
+                # If the package is a .deb file then it would first need to be unpacked.
+                # using dpkg command before installing it like other packages.
+                file_packages.append(package)
+                package = Path(package).stem
+                packages[index] = package
+
         command = (
-            f"DEBIAN_FRONTEND=noninteractive "
-            f"apt-get -y install {' '.join(packages)}"
+            f"DEBIAN_FRONTEND=noninteractive apt-get -y install {' '.join(packages)}"
         )
         if not signed:
             command += " --allow-unauthenticated"
-
         self.wait_running_package_process()
+        if file_packages:
+            self._node.execute(f"dpkg -i {' '.join(file_packages)}", sudo=True)
+
         install_result = self._node.execute(command, shell=True, sudo=True)
         # get error lines.
         if install_result.exit_code != 0:
