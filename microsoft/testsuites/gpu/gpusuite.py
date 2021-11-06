@@ -63,7 +63,7 @@ class gpu(TestSuite):  # noqa
         ),
         priority=1,
     )
-    def validate_load_driver(self, node: Node, log_path: Path, log: Logger) -> None:
+    def validate_load_gpu_driver(self, node: Node, log_path: Path, log: Logger) -> None:
         gpu_feature = node.features[Gpu]
         if not gpu_feature.is_supported():
             raise SkippedException(f"GPU is not supported with distro {node.os}")
