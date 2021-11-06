@@ -10,7 +10,7 @@ from lisa.feature import Feature
 from lisa.operating_system import Redhat, Ubuntu
 from lisa.sut_orchestrator.azure.tools import LisDriver
 from lisa.tools import Lsmod, Lspci, Lsvmbus
-from lisa.util import LisaException
+from lisa.util import LisaException, constants
 
 FEATURE_NAME_GPU = "Gpu"
 
@@ -51,7 +51,7 @@ class Gpu(Feature):
 
     # tuple of gpu device names and their device id pattern
     # e.g. Tesla GPU device has device id "47505500-0001-0000-3130-444531303244"
-    gpu_devices = (("Tesla", "47505500", 0), ("A100-SXM4", "44450000", 6))
+    gpu_devices = (("Tesla", "47505500", 0), ("A100", "44450000", 6))
 
     @classmethod
     def name(cls) -> str:
@@ -190,35 +190,27 @@ class Gpu(Feature):
 
     def get_gpu_count_with_lsvmbus(self) -> int:
         lsvmbus_device_count = 0
-        extra_device_count = 0
+        bridge_device_count = 0
 
         lsvmbus_tool = self._node.tools[Lsvmbus]
         device_list = lsvmbus_tool.get_device_channels_from_lsvmbus()
         for device in device_list:
-            for name, id, extra_count in self.gpu_devices:
+            for name, id, bridge_count in self.gpu_devices:
                 if id in device.device_id:
                     lsvmbus_device_count += 1
-                    extra_device_count = extra_count
+                    bridge_device_count = bridge_count
                     self._log.debug(f"GPU device {name} found!")
                     break
 
-        return lsvmbus_device_count - extra_device_count
+        return lsvmbus_device_count - bridge_device_count
 
     def get_gpu_count_with_lspci(self) -> int:
-        lspci_device_count = 0
-        extra_device_count = 0
-
         lspci_tool = self._node.tools[Lspci]
-        device_list = lspci_tool.get_device_list()
-        for device in device_list:
-            for name, id, extra_count in self.gpu_devices:
-                if name in device.device_info:
-                    lspci_device_count += 1
-                    extra_device_count = extra_count
-                    self._log.debug(f"GPU device with device Id pattern - {id} found!")
-                    break
+        device_list = lspci_tool.get_device_list_per_device_type(
+            constants.DEVICE_TYPE_GPU
+        )
 
-        return lspci_device_count - extra_device_count
+        return len(device_list)
 
     def get_gpu_count_with_vendor_cmd(self) -> int:
         device_count = 0
