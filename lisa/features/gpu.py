@@ -109,6 +109,10 @@ class Gpu(Feature):
                 "http://developer.download.nvidia.com/"
                 f"compute/cuda/repos/rhel{release}/x86_64/{cuda_repo_pkg}"
             )
+            # download and install the cuda driver package from the repo
+            self._node.os._install_package_from_url(
+                f"{cuda_repo}", package_name="cuda-drivers.rpm", signed=False
+            )
         elif isinstance(self._node.os, Ubuntu):
             release = re.sub("[^0-9]+", "", os_information.release)
             cuda_repo_pkg = f"cuda-repo-ubuntu{release}_{version}_amd64.deb"
@@ -116,13 +120,20 @@ class Gpu(Feature):
                 "http://developer.download.nvidia.com/compute/"
                 f"cuda/repos/ubuntu{release}/x86_64/{cuda_repo_pkg}"
             )
+            # Public CUDA GPG key is needed to be installed for Ubuntu
+            self._node.execute(
+                "apt-key adv --fetch-keys http://developer.download.nvidia.com/compute/"
+                f"cuda/repos/ubuntu{release}/x86_64/7fa2af80.pub",
+                sudo=True,
+            )
+            # download and install the cuda driver package from the repo
+            self._node.os._install_package_from_url(
+                f"{cuda_repo}", package_name="cuda-drivers.deb", signed=False
+            )
         else:
             raise LisaException(
                 f"Distro {self._node.os.name}" "not supported to install CUDA driver."
             )
-
-        # download and install the cuda driver package from the repo
-        self._node.os._install_package_from_url(f"{cuda_repo}", signed=False)
 
     def _install_gpu_dep(self) -> None:
         # install dependency libraries for distros
