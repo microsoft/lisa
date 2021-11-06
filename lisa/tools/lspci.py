@@ -78,9 +78,23 @@ class Lspci(Tool):
         devices_slots = [x.slot for x in devices_list if class_name == x.device_class]
         return devices_slots
 
+    def get_device_list_per_device_type(
+        self, device_type: str, force_run: bool = False
+    ) -> List[PciDevice]:
+        if device_type.upper() not in DEVICE_TYPE_DICT.keys():
+            raise LisaException(
+                f"pci_type {device_type} is not supported to be searched."
+            )
+        class_name = DEVICE_TYPE_DICT[device_type.upper()]
+        devices_list = self.get_device_list(force_run)
+        device_type_list = [x for x in devices_list if class_name == x.device_class]
+        return device_type_list
+
     def get_device_list(self, force_run: bool = False) -> List[PciDevice]:
         if (not self._pci_devices) or force_run:
             self._pci_devices = []
+            # Ensure pci device ids and name mappings are updated.
+            self.node.execute("update-pciids", sudo=True)
             result = self.run("-m", force_run=force_run, shell=True)
             if result.exit_code != 0:
                 result = self.run("-m", force_run=force_run, shell=True, sudo=True)
