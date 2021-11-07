@@ -5,7 +5,7 @@ import re
 from enum import Enum
 from typing import Any, List, Set
 
-from lisa.base_tools import Uname, Wget
+from lisa.base_tools import Wget
 from lisa.feature import Feature
 from lisa.operating_system import Redhat, Ubuntu
 from lisa.sut_orchestrator.azure.tools import LisDriver
@@ -19,6 +19,8 @@ FEATURE_NAME_GPU = "Gpu"
 # https://download.microsoft.com/download/9/5/c/95c667ff-ab95-4c56-89e0-e13e9a76782d/NVIDIA-Linux-x86_64-460.32.03-grid-azure.run
 DEFAULT_GRID_DRIVER_URL = "https://go.microsoft.com/fwlink/?linkid=874272"
 
+DEFAULT_CUDA_DRIVER_VERSION = "10.1.105-1"
+
 
 class ComputeSDK(Enum):
     # GRID Driver
@@ -28,6 +30,25 @@ class ComputeSDK(Enum):
 
 
 class Gpu(Feature):
+    _redhat_gpu_dependencies = [
+        "kernel-devel-$(uname -r)",
+        "kernel-headers-$(uname -r)",
+        "mesa-libGL",
+        "mesa-libEGL",
+        "libglvnd-devel",
+        "dkms",
+    ]
+
+    _ubuntu_gpu_dependencies = [
+        "build-essential",
+        "libelf-dev",
+        "linux-tools-$(uname -r)",
+        "linux-cloud-tools-$(uname -r)",
+        "python",
+        "libglvnd-dev",
+        "ubuntu-desktop",
+    ]
+
     # tuple of gpu device names and their device id pattern
     # e.g. Tesla GPU device has device id "47505500-0001-0000-3130-444531303244"
     gpu_devices = (("Tesla", "47505500", 0), ("A100-SXM4", "44450000", 6))
@@ -104,27 +125,13 @@ class Gpu(Feature):
         self._node.os._install_package_from_url(f"{cuda_repo}", signed=False)
 
     def _install_gpu_dep(self) -> None:
-        uname_tool = self._node.tools[Uname]
-        kernel_ver = uname_tool.get_linux_information().kernel_version
-
         # install dependency libraries for distros
         if isinstance(self._node.os, Redhat):
-            # install the kernel-devel and kernel-header packages
-            package_name = f"kernel-devel-{kernel_ver} kernel-headers-{kernel_ver}"
-            self._node.os.install_packages(package_name)
-            # mesa-libEGL install/update is require to avoid a conflict between
-            # libraries - bugzilla.redhat 1584740
-            package_name = "mesa-libGL mesa-libEGL libglvnd-devel"
-            self._node.os.install_packages(package_name)
-            # install dkms
-            package_name = "dkms"
-            self._node.os.install_packages(package_name, signed=False)
-        elif isinstance(self._node.os, Ubuntu):
-            package_name = (
-                f"build-essential libelf-dev linux-tools-{kernel_ver}"
-                f" linux-cloud-tools-{kernel_ver} python libglvnd-dev ubuntu-desktop"
+            self._node.os.install_packages(
+                list(self._redhat_gpu_dependencies), signed=False
             )
-            self._node.os.install_packages(package_name)
+        elif isinstance(self._node.os, Ubuntu):
+            self._node.os.install_packages(list(self._ubuntu_gpu_dependencies))
         else:
             raise LisaException(
                 f"Distro {self._node.os.name} is not supported for GPU."
@@ -157,7 +164,7 @@ class Gpu(Feature):
                     self.gpu_vendor.add("nvidia")
             elif driver == ComputeSDK.CUDA:
                 if not version:
-                    version = "10.1.105-1"
+                    version = DEFAULT_CUDA_DRIVER_VERSION
                     self._install_cuda_driver(version)
                     self.gpu_vendor.add("nvidia")
             else:
