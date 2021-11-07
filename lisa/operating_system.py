@@ -543,7 +543,7 @@ class Debian(Linux):
             command += " --allow-unauthenticated"
 
         self.wait_running_package_process()
-        install_result = self._node.execute(command, sudo=True)
+        install_result = self._node.execute(command, shell=True, sudo=True)
         # get error lines.
         if install_result.exit_code != 0:
             install_result.assert_exit_code(
@@ -809,7 +809,7 @@ class Fedora(Linux):
         if not signed:
             command += " --nogpgcheck"
 
-        install_result = self._node.execute(command, sudo=True)
+        install_result = self._node.execute(command, shell=True, sudo=True)
         install_result.assert_exit_code(0, f"Failed to install {packages}.")
 
         self._log.debug(f"{packages} is/are installed successfully.")
@@ -1073,7 +1073,7 @@ class Suse(Linux):
         if not signed:
             command += " --no-gpg-checks"
         self.wait_running_process("zypper")
-        install_result = self._node.execute(command, sudo=True)
+        install_result = self._node.execute(command, shell=True, sudo=True)
         if install_result.exit_code in (1, 100):
             raise LisaException(
                 f"Failed to install {packages}. exit_code: {install_result.exit_code}, "
