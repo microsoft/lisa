@@ -17,9 +17,10 @@ class Ssh(Tool):
         return False
 
     def generate_key_pairs(self) -> str:
-        key_path = self.node.get_pure_path("~/.ssh/id_rsa")
-        if self.node.shell.exists(key_path):
-            self.node.shell.remove(key_path)
+        for file in [".ssh/id_rsa.pub", ".ssh/id_rsa"]:
+            file_path = self.node.get_pure_path(file)
+            if self.node.shell.exists(file_path):
+                self.node.shell.remove(file_path)
         self.node.execute(
             "echo | ssh-keygen -N ''",
             shell=True,
