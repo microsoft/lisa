@@ -149,10 +149,14 @@ class Gpu(Feature):
     def install_compute_sdk(self, version: str = "") -> None:
         # install GPU dependencies before installing driver
         self._install_gpu_dep()
-
-        if isinstance(self._node.os, Redhat):
-            # install LIS driver if not already installed.
-            self._node.tools[LisDriver]
+        try:
+            # install LIS driver if required and not already installed.
+            if LisDriver.can_install:
+                self._node.tools[LisDriver]
+        except Exception as identifier:
+            self._log.debug(
+                "LisDriver is not installed. It might not be required. " f"{identifier}"
+            )
 
         # install the driver
         supported_driver = self._get_supported_driver()
