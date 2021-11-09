@@ -1,8 +1,9 @@
 # Copyright (c) Microsoft Corporation.
 # Licensed under the MIT license.
 
+from lisa.base_tools import Wget
 from lisa.executable import Tool
-from lisa.operating_system import Debian, Redhat
+from lisa.operating_system import CentOs, Debian, Redhat
 from lisa.tools.service import Service
 from lisa.util import LisaException
 
@@ -64,6 +65,19 @@ class Docker(Tool):
     def _install(self) -> bool:
         if isinstance(self.node.os, Debian):
             self.node.os.install_packages("docker.io")
+        elif (
+            isinstance(self.node.os, CentOs)
+            and self.node.os.information.release >= "8.0"
+        ):
+            wget_tool = self.node.tools[Wget]
+            wget_tool.get(
+                "https://get.docker.com",
+                filename="get-docker.sh",
+                file_path="./",
+                executable=True,
+            )
+            self.node.execute("./get-docker.sh", sudo=True)
+        # RHEL 8 and its derivatives don't support docker
         elif isinstance(self.node.os, Redhat):
             self.node.os.install_packages(
                 ["docker", "docker-ce", "docker.socket", "docker.service"]
