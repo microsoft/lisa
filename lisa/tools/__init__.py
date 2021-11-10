@@ -14,6 +14,7 @@ from .echo import Echo
 from .ethtool import Ethtool
 from .fdisk import Fdisk
 from .find import Find
+from .firewall import Firewall
 from .gcc import Gcc
 from .git import Git
 from .hwclock import Hwclock
@@ -64,6 +65,7 @@ __all__ = [
     "Ethtool",
     "Fdisk",
     "Find",
+    "Firewall",
     "Gcc",
     "Git",
     "Iperf3",

@@ -87,13 +87,17 @@ class Systemctl(Tool):
         return True
 
     def _check_service_exists(self, name: str) -> bool:
-        cmd_result = self.run(f"status {name}", shell=True, sudo=True, force_run=True)
+        cmd_result = self.run(
+            f"--full --no-pager status {name}", shell=True, sudo=True, force_run=True
+        )
         if "could not be found" in cmd_result.stdout:
             return False
         return True
 
     def _check_service_running(self, name: str) -> bool:
-        cmd_result = self.run(f"status {name}", shell=True, sudo=True, force_run=True)
+        cmd_result = self.run(
+            f"--full --no-pager status {name}", shell=True, sudo=True, force_run=True
+        )
         return (
             "could not be found" not in cmd_result.stdout and 0 == cmd_result.exit_code
         )
