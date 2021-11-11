@@ -290,7 +290,7 @@ class Nics(InitializableMixin):
         split_ip_entries = self.__ip_addr_show_regex.findall(result.stdout)
         found_nics = []
         for nic_info in split_ip_entries:
-            self._node.log.info(nic_info)
+            self._node.log.debug(f"Found nic info as : {nic_info}")
             nic, _, _, _, mac, _, ip_addr, _ = nic_info
             if nic in self.get_upper_nics():
                 nic_entry = self._nics[nic]
@@ -301,4 +301,3 @@ class Nics(InitializableMixin):
             f"Could not locate nic info for all nics. "
             f"Nic set was {self._nics.keys()} and only found info for {found_nics}"
         ).is_equal_to(sorted(self._nics.keys()))
-        self._node.log.info(str(self._nics))
