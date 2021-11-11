@@ -95,7 +95,7 @@ class Dpdk(TestSuite):
             network_interface=Sriov(),
         ),
     )
-    def verify_sriov_rescind_failover_send_only(
+    def verify_dpdk_sriov_rescind_failover_send_only(
         self, node: Node, log: Logger, variables: Dict[str, Any]
     ) -> None:
 
