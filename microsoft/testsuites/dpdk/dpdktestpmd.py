@@ -4,7 +4,7 @@
 import re
 import time
 from pathlib import PurePath
-from typing import List, Type
+from typing import List, Tuple, Type
 
 from assertpy import assert_that, fail
 
@@ -12,11 +12,23 @@ from lisa.executable import Tool
 from lisa.nic import NicInfo
 from lisa.operating_system import CentOs, Redhat, Ubuntu
 from lisa.tools import Echo, Git, Lspci, Tar, Wget
-from lisa.util import SkippedException
+from lisa.util import LisaException, SkippedException
 
 
 class DpdkTestpmd(Tool):
     # TestPMD tool to bundle the DPDK build and toolset together.
+
+    # regex to identify sriov re-enable event, example:
+    # EAL: Probe PCI driver: net_mlx4 (15b3:1004) device: e8ef:00:02.0 (socket 0)
+    _search_hotplug_regex = re.compile(
+        (
+            r"EAL: Probe PCI driver: ([a-z_A-Z0-9\-]+) "
+            r"\([0-9a-fA-F]{4}:[0-9a-fA-F]{4}\) device: "
+            r"[a-fA-F0-9]{4}:[a-fA-F0-9]{2}:"
+            r"[a-fA-F0-9]{2}\.[a-fA-F0-9]"
+            r" \(socket 0\)"
+        )
+    )
 
     @property
     def command(self) -> str:
@@ -106,6 +118,9 @@ class DpdkTestpmd(Tool):
         self._dpdk_branch = dpdk_branch
 
     def _install(self) -> bool:
+        self._testpmd_output_after_reenable = ""
+        self._testpmd_output_before_rescind = ""
+        self._testpmd_output_during_rescind = ""
         self._last_run_output = ""
         self._dpdk_repo_path_name = "dpdk"
         result = self.node.execute("which dpdk-testpmd")
@@ -326,12 +341,14 @@ class DpdkTestpmd(Tool):
         RX_PPS_KEY: r"Rx-pps:\s+([0-9]+)",
     }
 
-    def get_from_testpmd_output(self, search_key_constant: str) -> int:
-        assert_that(self._last_run_output).described_as(
+    def get_from_testpmd_output(
+        self, search_key_constant: str, testpmd_output: str
+    ) -> int:
+        assert_that(testpmd_output).described_as(
             "Could not find output from last testpmd run."
         ).is_not_equal_to("")
         matches = re.findall(
-            self.testpmd_output_regex[search_key_constant], self._last_run_output
+            self.testpmd_output_regex[search_key_constant], testpmd_output
         )
         remove_zeros = [x for x in map(int, matches) if x != 0]
         assert_that(len(remove_zeros)).described_as(
@@ -345,7 +362,63 @@ class DpdkTestpmd(Tool):
         return total // len(remove_zeros)
 
     def get_rx_pps(self) -> int:
-        return self.get_from_testpmd_output(self.RX_PPS_KEY)
+        return self.get_from_testpmd_output(self.RX_PPS_KEY, self._last_run_output)
 
     def get_tx_pps(self) -> int:
-        return self.get_from_testpmd_output(self.TX_PPS_KEY)
+        return self.get_from_testpmd_output(self.TX_PPS_KEY, self._last_run_output)
+
+    def _split_testpmd_output(self) -> None:
+        search_str = "Port 0: device removal event"
+
+        device_removal_index = self._last_run_output.find(search_str)
+        assert_that(device_removal_index).described_as(
+            "Could not locate SRIOV rescind event in testpmd output"
+        ).is_not_equal_to(-1)
+
+        self._testpmd_output_before_rescind = self._last_run_output[
+            :device_removal_index
+        ]
+        after_rescind = self._last_run_output[device_removal_index:]
+        # Identify the device add event
+        hotplug_match = self._search_hotplug_regex.search(after_rescind)
+        if not hotplug_match:
+            raise LisaException(
+                "Could not identify vf hotplug events in testpmd output."
+            )
+
+        self.node.log.info(f"Identified hotplug event: {hotplug_match.group(0)}")
+
+        before_reenable = after_rescind[: hotplug_match.start()]
+        after_reenable = after_rescind[hotplug_match.end() :]
+        self._testpmd_output_during_rescind = before_reenable
+        self._testpmd_output_after_reenable = after_reenable
+
+    def _get_pps_sriov_rescind(
+        self,
+        key_constant: str,
+    ) -> Tuple[int, int, int]:
+        if not all(
+            [
+                self._testpmd_output_during_rescind,
+                self._testpmd_output_after_reenable,
+                self._testpmd_output_before_rescind,
+            ]
+        ):
+            self._split_testpmd_output()
+
+        before_rescind = self.get_from_testpmd_output(
+            key_constant, self._testpmd_output_before_rescind
+        )
+        during_rescind = self.get_from_testpmd_output(
+            key_constant, self._testpmd_output_during_rescind
+        )
+        after_reenable = self.get_from_testpmd_output(
+            key_constant, self._testpmd_output_after_reenable
+        )
+        return before_rescind, during_rescind, after_reenable
+
+    def get_tx_pps_sriov_rescind(self) -> Tuple[int, int, int]:
+        return self._get_pps_sriov_rescind(self.TX_PPS_KEY)
+
+    def get_rx_pps_sriov_rescind(self) -> Tuple[int, int, int]:
+        return self._get_pps_sriov_rescind(self.RX_PPS_KEY)

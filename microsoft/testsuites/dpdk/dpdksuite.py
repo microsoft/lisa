@@ -2,6 +2,7 @@
 # Licensed under the MIT license.
 
 import re
+import time
 from collections import deque
 from typing import Any, Dict, List, Tuple
 
@@ -83,6 +84,57 @@ class Dpdk(TestSuite):
         self, node: Node, log: Logger, variables: Dict[str, Any]
     ) -> None:
         self._verify_dpdk_build(node, log, variables, "failsafe")
+
+    @TestCaseMetadata(
+        description="""
+            test sriov failsafe during vf revoke (send only version)
+        """,
+        priority=2,
+        requirement=simple_requirement(
+            min_nic_count=2,
+            network_interface=Sriov(),
+        ),
+    )
+    def verify_sriov_rescind_failover_send_only(
+        self, node: Node, log: Logger, variables: Dict[str, Any]
+    ) -> None:
+
+        test_kit = initialize_node_resources(node, log, variables, "failsafe")
+        node_nic_info, testpmd = test_kit.node_nic_info, test_kit.testpmd
+        test_nic_id, test_nic = node_nic_info.get_test_nic()
+        testpmd_cmd = testpmd.generate_testpmd_command(
+            test_nic, test_nic_id, "txonly", "failsafe"
+        )
+        kit_cmd_pairs = {
+            test_kit: testpmd_cmd,
+        }
+
+        _run_testpmd_concurrent(kit_cmd_pairs, 60 * 5, log, rescind_sriov=True)
+
+        rescind_tx_pps_set = testpmd.get_tx_pps_sriov_rescind()
+        self._check_rx_or_tx_pps_sriov_rescind("TX", rescind_tx_pps_set)
+
+    def _check_rx_or_tx_pps_sriov_rescind(
+        self, tx_or_rx: str, pps: Tuple[int, int, int]
+    ) -> None:
+        before_rescind, during_rescind, after_reenable = pps
+        self._check_rx_or_tx_pps(tx_or_rx, before_rescind, sriov_enabled=True)
+        self._check_rx_or_tx_pps(tx_or_rx, during_rescind, sriov_enabled=False)
+        self._check_rx_or_tx_pps(tx_or_rx, after_reenable, sriov_enabled=True)
+
+    def _check_rx_or_tx_pps(
+        self, tx_or_rx: str, pps: int, sriov_enabled: bool = True
+    ) -> None:
+        if sriov_enabled:
+            assert_that(pps).described_as(
+                f"{tx_or_rx}-PPS ({pps}) should have been greater "
+                "than 2^20 (~1m) PPS before sriov disable."
+            ).is_greater_than(2 ** 20)
+        else:
+            assert_that(pps).described_as(
+                f"{tx_or_rx}-PPS ({pps}) should have been less "
+                "than 2^20 (~1m) PPS after sriov disable."
+            ).is_less_than(2 ** 20)
 
     def _verify_dpdk_build(
         self, node: Node, log: Logger, variables: Dict[str, Any], pmd: str
@@ -310,6 +362,7 @@ class DpdkTestResources:
         self.node_nic_info = _node_nic_info
         self.testpmd = _testpmd
         self.node = _node
+        self.nic_controller = _node.features[NetworkInterface]
 
 
 def bind_nic_to_dpdk_pmd(nics: Nics, nic: NicInfo, pmd: str) -> None:
@@ -405,9 +458,15 @@ def _run_testpmd_concurrent(
     node_cmd_pairs: Dict[DpdkTestResources, str],
     seconds: int,
     log: Logger,
+    rescind_sriov: bool = False,
 ) -> Dict[DpdkTestResources, str]:
     output: Dict[DpdkTestResources, str] = dict()
     cmd_pairs_as_tuples = deque(node_cmd_pairs.items())
+    if rescind_sriov:
+        assert_that(seconds).described_as(
+            "SRIOV Rescind test requires a long runtime,"
+            " ensure test duration at least 5 minutes"
+        ).is_greater_than_or_equal_to(60 * 5)
 
     def thread_callback(result: Tuple[DpdkTestResources, str]) -> None:
         output[result[0]] = result[1]
@@ -425,6 +484,16 @@ def _run_testpmd_concurrent(
         task_manager.submit_task(
             Task[Tuple[DpdkTestResources, str]](i, _run_node_init, log)
         )
+    if rescind_sriov:
+        # re-enable can take a bit, so we'll divide time by 4
+        # and allow for additional time at the end for re-enable
+        time.sleep(seconds // 4)  # sleep before disabling sriov
+        for node_resources in node_cmd_pairs.keys():
+            node_resources.nic_controller._switch_sriov(enable=False)
+
+        time.sleep(seconds // 4)  # re-enable sriov after another 4th of the runtime
+        for node_resources in node_cmd_pairs.keys():
+            node_resources.nic_controller._switch_sriov(enable=True)
 
     task_manager.wait_for_all_workers()
 
