@@ -515,13 +515,14 @@ Function Run-LinuxCmd([string] $username, [string] $password, [string] $ip, [str
 					Write-LogInfo "Start process in background : $($isBackGroundProcessStarted.Matches.Value)"
 				}
 				$debugOutputString = $debugOutputBuilder.ToString().Trim()
+				$debugOutputString = $debugOutputString -replace "[sudo] password for $username`: ", "" -replace "Password: ", ""
 				if ($isBackGroundProcessTerminated) {
 					$shouldBreak = ($isBackGroundProcessTerminated.Matches.Value -imatch "AZURE-LINUX-EXIT-CODE-0")
 					if ($shouldBreak) {
 						$sw.Stop()
 					}
+					Write-LogDbg "$debugOutputString"
 					Write-LogDbg "Background Process '$MaskedCommand' terminated from Linux side with exit code :  $($isBackGroundProcessTerminated.Matches.Value.Split("-")[4])"
-					Write-LogDbg ($debugOutputString -replace "[sudo] password for $username`: ", "" -replace "Password: ", "")
 				}
 				if ($debugOutputString -imatch "Unable to authenticate") {
 					Write-LogErr "Unable to authenticate. Not retrying!"
@@ -529,6 +530,8 @@ Function Run-LinuxCmd([string] $username, [string] $password, [string] $ip, [str
 				}
 				if ($timeout) {
 					$retValue = ""
+					Write-LogErr "Timeout while executing command : $MaskedCommand"
+					Write-LogErr "$debugOutputString"
 					Throw "Calling function - $($MyInvocation.MyCommand). Timeout while executing command : $MaskedCommand"
 				}
 				else {
@@ -578,22 +581,27 @@ Function Run-LinuxCmd([string] $username, [string] $password, [string] $ip, [str
 					$returnCode = $LinuxExitCode.Split("-")[4]
 				}
 				$debugOutputString = $debugOutputBuilder.ToString().Trim()
+				$debugOutputString = $debugOutputString -replace "[sudo] password for $username`: ", "" -replace "Password: ", ""
 				if ($debugOutputString -imatch "Unable to authenticate") {
 					Write-LogWarn "Unable to authenticate. Not retrying!"
 					Throw "Calling function - $($MyInvocation.MyCommand). Unable to authenticate"
 				}
 				if (!$ignoreLinuxExitCode) {
 					if ($returnCode) {
+						Write-LogErr "Failed to execute : $MaskedCommand"
+						Write-LogErr "$debugOutputString"
 						Write-LogWarn "Linux machine returned exit code : $returnCode"
 					}
 					if ($timeOut) {
 						$retValue = ""
-						Write-LogErr ($debugOutputString)
+						if (-not $returnCode) {
+							Write-LogErr "Timeout while executing command : $MaskedCommand"
+							Write-LogErr "$debugOutputString"
+						}
 						Throw "Calling function - $($MyInvocation.MyCommand). Timeout while executing command : $MaskedCommand"
 					}
 					else {
 						if ($attemptswt -eq $maxRetryCount -and $attemptswot -eq $maxRetryCount) {
-							Write-LogErr ($debugOutputString)
 							Throw "Calling function - $($MyInvocation.MyCommand). Failed to execute : $MaskedCommand"
 						}
 						else {
@@ -603,6 +611,7 @@ Function Run-LinuxCmd([string] $username, [string] $password, [string] $ip, [str
 				}
 				else {
 					if ($returnCode) {
+						Write-LogDbg ($debugOutputString -replace "[sudo] password for $username`: ", "" -replace "Password: ", "")
 						Write-LogDbg "Command execution returned return code $returnCode Ignoring.."
 					}
 					$retValue = $RunLinuxCmdOutput.Trim()
