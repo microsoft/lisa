@@ -1,4 +1,3 @@
-import pathlib
 import re
 from typing import TYPE_CHECKING
 
@@ -42,21 +41,26 @@ class Wget(Tool):
         # combine download file path
         # TODO: support current lisa folder in pathlib.
         # So that here can use the corresponding path format.
-        download_path = pathlib.PurePosixPath(f"{file_path}/{filename}")
+        if file_path:
+            download_path = f"{file_path}/{filename}"
+        else:
+            download_path = f"{self.node.working_path}/{filename}"
+
         if overwrite:
             extra_param = " -nc "
         if filename:
             run_command = f" {url} {extra_param} -O {download_path}"
         else:
-            run_command = f" {url} {extra_param} -P {download_path}"
+            run_command = f"{url} {extra_param} -P {download_path}"
         command_result = self.run(run_command, no_error_log=True, shell=True)
         matched_result = self.__pattern_path.match(command_result.stdout)
         if matched_result:
             download_file_path = matched_result.group("path")
         else:
             raise LisaException(
-                f"cannot find file path in stdout of '{run_command}', it may cause by "
-                f"download failed or pattern mismatch. stdout: {command_result.stdout}"
+                f"cannot find file path in stdout of '{run_command}', it may be caused "
+                " due to failed download or pattern mismatch."
+                f" stdout: {command_result.stdout}"
             )
         actual_file_path = self.node.execute(f"ls {download_file_path}", shell=True)
         if actual_file_path.exit_code != 0:
@@ -65,3 +69,14 @@ class Wget(Tool):
             self.node.execute(f"chmod +x {actual_file_path}")
 
         return actual_file_path.stdout
+
+    def verify_internet_access(self) -> bool:
+        try:
+            result = self.get("https://www.azure.com")
+            if result:
+                return True
+        except Exception as e:
+            self._log.debug(
+                f"Internet is not accessible, exception occured with wget {e}"
+            )
+        return False
