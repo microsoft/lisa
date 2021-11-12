@@ -33,7 +33,6 @@ from lisa.util import (
     constants,
     find_patterns_in_lines,
 )
-from lisa.util.perf_timer import create_timer
 
 if TYPE_CHECKING:
     from .platform_ import AzurePlatform, AzureCapability
