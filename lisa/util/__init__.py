@@ -74,6 +74,18 @@ class UnsupportedOperationException(LisaException):
     ...
 
 
+class MissingPackagesException(LisaException):
+    """
+    Use to signal that packages were not found during installation.
+    """
+
+    def __init__(self, packages: List[str]) -> None:
+        self.packages = packages
+
+    def __str__(self) -> str:
+        return f"Package manager could not install packages: {' '.join(self.packages)}"
+
+
 class UnsupportedDistroException(LisaException):
     """
     This exception is used to indicate that a test case does not support the testing

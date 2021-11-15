@@ -15,6 +15,7 @@ from lisa.executable import Tool
 from lisa.util import (
     BaseClassMixin,
     LisaException,
+    MissingPackagesException,
     filter_ansi_escape,
     get_matched_str,
     parse_version,
@@ -919,6 +920,17 @@ class Redhat(Fedora):
             command += " --nogpgcheck"
 
         install_result = self._node.execute(command, shell=True, sudo=True)
+        # RedHat will fail package installation is a single missing package is
+        # detected, therefore we check the output to see if we were missing
+        # a package. If so, fail. Otherwise we will warn in verify package result.
+        if install_result.exit_code == 1:
+            missing_packages = []
+            for line in install_result.stdout.splitlines():
+                if line.startswith("No match for argument:"):
+                    package = line.split(":")[1].strip()
+                    missing_packages.append(package)
+            if missing_packages:
+                raise MissingPackagesException(missing_packages)
         self.__verify_package_result(install_result, packages)
 
     def _package_exists(self, package: str, signed: bool = True) -> bool:
@@ -971,10 +983,11 @@ class Redhat(Fedora):
         self._node.execute(command, sudo=True, timeout=3600)
 
     def __verify_package_result(self, result: ExecutableResult, packages: Any) -> None:
-        # yum returns exit_code=1 if package is already installed.
-        # We do not want to fail if exit_code=1.
+        # yum returns exit_code=1 if DNF handled an error with installation.
+        # We do not want to fail if exit_code=1, but warn since something may
+        # potentially have gone wrong.
         if result.exit_code == 1:
-            self._log.debug(f"{packages} is/are already installed.")
+            self._log.debug(f"DNF handled error with installation of {packages}")
         elif result.exit_code == 0:
             self._log.debug(f"{packages} is/are installed successfully.")
         else:
