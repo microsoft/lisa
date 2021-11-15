@@ -2,7 +2,6 @@
 # Licensed under the MIT license.
 
 import re
-import time
 from pathlib import PurePath
 from typing import List, Tuple, Type
 
@@ -318,7 +317,7 @@ class DpdkTestpmd(Tool):
     def run_for_n_seconds(self, cmd: str, timeout: int) -> str:
         self._last_run_timeout = timeout
         self.node.log.info(f"{self.node.name} running: {cmd}")
-        timer_proc = self.node.execute_async(
+        self.timer_proc = self.node.execute_async(
             f"sleep {timeout} && killall -s INT {cmd.split()[0]}",
             sudo=True,
             shell=True,
@@ -327,11 +326,19 @@ class DpdkTestpmd(Tool):
             cmd,
             sudo=True,
         )
-        time.sleep(timeout)
-        timer_proc.wait_result()
+        self.timer_proc.wait_result()
         proc_result = testpmd_proc.wait_result()
         self._last_run_output = proc_result.stdout
         return proc_result.stdout
+
+    def kill_previous_testpmd_command(self) -> None:
+        # kill testpmd early, then kill the timer proc that is still running
+        assert_that(self.timer_proc).described_as(
+            "Timer process was not initialized before "
+            "calling kill_previous_testpmd_command"
+        ).is_not_none()
+        self.node.execute(f"killall -s INT {self.command}", sudo=True, shell=True)
+        self.timer_proc.kill()
 
     TX_PPS_KEY = "transmit-packets-per-second"
     RX_PPS_KEY = "receive-packets-per-second"

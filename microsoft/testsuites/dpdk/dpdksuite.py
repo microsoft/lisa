@@ -10,6 +10,7 @@ from assertpy import assert_that, fail
 
 from lisa import (
     Environment,
+    LisaException,
     Logger,
     Node,
     RemoteNode,
@@ -21,14 +22,15 @@ from lisa import (
 from lisa.features import NetworkInterface, Sriov
 from lisa.nic import NicInfo, Nics
 from lisa.testsuite import simple_requirement
-from lisa.tools import Echo, Git, Lspci, Make, Mount
-from lisa.util import constants
+from lisa.tools import Dmesg, Echo, Git, Lspci, Make, Mount
+from lisa.util import constants, perf_timer
 from lisa.util.parallel import Task, TaskManager
 from microsoft.testsuites.dpdk.dpdktestpmd import DpdkTestpmd
 
 VDEV_TYPE = "net_vdev_netvsc"
 MAX_RING_PING_LIMIT_NS = 200000
 DPDK_STABLE_GIT = "http://dpdk.org/git/dpdk-stable"
+DPDK_VF_REMOVAL_MAX_TEST_TIME = 60 * 10
 
 
 @TestSuiteMetadata(
@@ -87,6 +89,33 @@ class Dpdk(TestSuite):
 
     @TestCaseMetadata(
         description="""
+            test sriov failsafe during vf revoke (receive side)
+        """,
+        priority=2,
+        requirement=simple_requirement(
+            min_nic_count=2,
+            network_interface=Sriov(),
+            min_count=2,
+        ),
+    )
+    def verify_dpdk_sriov_rescind_failover_receiver(
+        self, environment: Environment, log: Logger, variables: Dict[str, Any]
+    ) -> None:
+
+        test_kits = _init_nodes_concurrent(environment, log, variables, "failsafe")
+        sender, receiver = test_kits
+
+        kit_cmd_pairs = generate_send_receive_run_info("failsafe", sender, receiver)
+
+        _run_testpmd_concurrent(
+            kit_cmd_pairs, DPDK_VF_REMOVAL_MAX_TEST_TIME, log, rescind_sriov=True
+        )
+
+        rescind_tx_pps_set = receiver.testpmd.get_rx_pps_sriov_rescind()
+        self._check_rx_or_tx_pps_sriov_rescind("RX", rescind_tx_pps_set)
+
+    @TestCaseMetadata(
+        description="""
             test sriov failsafe during vf revoke (send only version)
         """,
         priority=2,
@@ -109,7 +138,9 @@ class Dpdk(TestSuite):
             test_kit: testpmd_cmd,
         }
 
-        _run_testpmd_concurrent(kit_cmd_pairs, 60 * 5, log, rescind_sriov=True)
+        _run_testpmd_concurrent(
+            kit_cmd_pairs, DPDK_VF_REMOVAL_MAX_TEST_TIME, log, rescind_sriov=True
+        )
 
         rescind_tx_pps_set = testpmd.get_tx_pps_sriov_rescind()
         self._check_rx_or_tx_pps_sriov_rescind("TX", rescind_tx_pps_set)
@@ -284,26 +315,7 @@ class Dpdk(TestSuite):
 
         test_kits = _init_nodes_concurrent(environment, log, variables, pmd)
         sender, receiver = test_kits
-
-        (snd_id, snd_nic), (rcv_id, rcv_nic) = [
-            x.node_nic_info.get_test_nic() for x in test_kits
-        ]
-
-        snd_cmd = sender.testpmd.generate_testpmd_command(
-            snd_nic,
-            snd_id,
-            "txonly",
-            pmd,
-            extra_args=f"--tx-ip={snd_nic.ip_addr},{rcv_nic.ip_addr}",
-        )
-        rcv_cmd = receiver.testpmd.generate_testpmd_command(
-            rcv_nic, rcv_id, "rxonly", pmd
-        )
-
-        kit_cmd_pairs = {
-            sender: snd_cmd,
-            receiver: rcv_cmd,
-        }
+        kit_cmd_pairs = generate_send_receive_run_info(pmd, sender, receiver)
 
         results = _run_testpmd_concurrent(kit_cmd_pairs, 15, log)
 
@@ -363,6 +375,65 @@ class DpdkTestResources:
         self.testpmd = _testpmd
         self.node = _node
         self.nic_controller = _node.features[NetworkInterface]
+        self.dmesg = _node.tools[Dmesg]
+        self._last_dmesg = ""
+        test_nic = self.node_nic_info.get_test_nic()[1]
+        # generate hotplug pattern for this specific nic
+        self.vf_hotplug_regex = re.compile(
+            f"{test_nic.upper}: Data path switched to VF: {test_nic.lower}"
+        )
+        self.vf_slot_removal_regex = re.compile(f"VF unregistering: {test_nic.lower}")
+
+    def wait_for_dmesg_output(self, wait_for: str, timeout: int) -> bool:
+        search_pattern = None
+        if wait_for == "AN_DISABLE":
+            search_pattern = self.vf_slot_removal_regex
+        elif wait_for == "AN_REENABLE":
+            search_pattern = self.vf_hotplug_regex
+        else:
+            raise LisaException(
+                "Unknown search pattern specified in "
+                "DpdkTestResources:wait_for_dmesg_output"
+            )
+
+        self.node.log.info(search_pattern.pattern)
+        timer = perf_timer.Timer()
+        while timer.elapsed(stop=False) < timeout:
+            output = self.dmesg.get_output(force_run=True)
+            if search_pattern.search(output.replace(self._last_dmesg, "")):
+                self._last_dmesg = output  # save old output to filter next time
+                self.node.log.info(
+                    f"Found VF hotplug info after {timer.elapsed()} seconds"
+                )
+                return True
+            else:
+                time.sleep(1)
+        return False
+
+
+def generate_send_receive_run_info(
+    pmd: str, sender: DpdkTestResources, receiver: DpdkTestResources
+) -> Dict[DpdkTestResources, str]:
+
+    (snd_id, snd_nic), (rcv_id, rcv_nic) = [
+        x.node_nic_info.get_test_nic() for x in [sender, receiver]
+    ]
+
+    snd_cmd = sender.testpmd.generate_testpmd_command(
+        snd_nic,
+        snd_id,
+        "txonly",
+        pmd,
+        extra_args=f"--tx-ip={snd_nic.ip_addr},{rcv_nic.ip_addr}",
+    )
+    rcv_cmd = receiver.testpmd.generate_testpmd_command(rcv_nic, rcv_id, "rxonly", pmd)
+
+    kit_cmd_pairs = {
+        sender: snd_cmd,
+        receiver: rcv_cmd,
+    }
+
+    return kit_cmd_pairs
 
 
 def bind_nic_to_dpdk_pmd(nics: Nics, nic: NicInfo, pmd: str) -> None:
@@ -462,11 +533,6 @@ def _run_testpmd_concurrent(
 ) -> Dict[DpdkTestResources, str]:
     output: Dict[DpdkTestResources, str] = dict()
     cmd_pairs_as_tuples = deque(node_cmd_pairs.items())
-    if rescind_sriov:
-        assert_that(seconds).described_as(
-            "SRIOV Rescind test requires a long runtime,"
-            " ensure test duration at least 5 minutes"
-        ).is_greater_than_or_equal_to(60 * 5)
 
     def thread_callback(result: Tuple[DpdkTestResources, str]) -> None:
         output[result[0]] = result[1]
@@ -485,15 +551,40 @@ def _run_testpmd_concurrent(
             Task[Tuple[DpdkTestResources, str]](i, _run_node_init, log)
         )
     if rescind_sriov:
-        # re-enable can take a bit, so we'll divide time by 4
-        # and allow for additional time at the end for re-enable
-        time.sleep(seconds // 4)  # sleep before disabling sriov
-        for node_resources in node_cmd_pairs.keys():
+        time.sleep(10)  # run testpmd for a bit before disabling sriov
+        test_kits = node_cmd_pairs.keys()
+
+        # disable sroiv
+        for node_resources in test_kits:
             node_resources.nic_controller._switch_sriov(enable=False)
 
-        time.sleep(seconds // 4)  # re-enable sriov after another 4th of the runtime
-        for node_resources in node_cmd_pairs.keys():
+        # wait for disable to hit the vm
+        for node_resources in test_kits:
+            if not node_resources.wait_for_dmesg_output("AN_DISABLE", seconds // 3):
+                fail(
+                    "Accelerated Network disable not found in dmesg"
+                    f" before timeout for node {node_resources.node.name}"
+                )
+
+        time.sleep(10)  # let testpmd run with sriov disabled
+
+        # re-enable sriov
+        for node_resources in test_kits:
             node_resources.nic_controller._switch_sriov(enable=True)
+
+        # wait for re-enable to hit vms
+        for node_resources in test_kits:
+            if not node_resources.wait_for_dmesg_output("AN_REENABLE", seconds // 2):
+                fail(
+                    "Accelerated Network re-enable not found "
+                    f" in dmesg before timeout for node  {node_resources.node.name}"
+                )
+
+        time.sleep(15)  # let testpmd run with sriov re-enabled
+
+        # kill the commands to collect the output early and terminate before timeout
+        for node_resources in test_kits:
+            node_resources.testpmd.kill_previous_testpmd_command()
 
     task_manager.wait_for_all_workers()
 
