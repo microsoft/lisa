@@ -34,7 +34,9 @@ class Pgrep(Tool):
 
     def get_processes(self, process_identifier: str) -> List[ProcessInfo]:
         running_process: List[ProcessInfo] = []
-        output = self.run(f'-l "{process_identifier}"', sudo=True).stdout
+        output = self.run(
+            f'-l "{process_identifier}"', sudo=True, force_run=True
+        ).stdout
         found_processes = find_patterns_in_lines(output, [self._process_map_regex])
         for item in found_processes[0]:
             running_process.append(ProcessInfo(name=item[1], id=item[0]))

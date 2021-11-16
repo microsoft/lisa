@@ -122,37 +122,37 @@ class Nics(InitializableMixin):
     def __init__(self, node: Node):
         super().__init__()
         self._node = node
-        self._nics: Dict[str, NicInfo] = dict()
+        self.nics: Dict[str, NicInfo] = dict()
 
     def __str__(self) -> str:
         _str = ""
-        for nic in self._nics:
-            _str += f"{self._nics[nic]}"
+        for nic in self.nics:
+            _str += f"{self.nics[nic]}"
         return _str
 
     def __len__(self) -> int:
-        return len(self._nics)
+        return len(self.nics)
 
     def append(self, next_node: NicInfo) -> None:
-        self._nics[next_node.upper] = next_node
+        self.nics[next_node.upper] = next_node
 
     def is_empty(self) -> bool:
-        return len(self._nics) == 0
+        return len(self.nics) == 0
 
     def get_unpaired_devices(self) -> List[str]:
-        return [x.upper for x in self._nics.values() if not x.lower]
+        return [x.upper for x in self.nics.values() if not x.lower]
 
     def get_upper_nics(self) -> List[str]:
-        return [x.upper for x in self._nics.values() if x.lower]
+        return [x.upper for x in self.nics.values() if x.lower]
 
     def get_lower_nics(self) -> List[str]:
-        return [x.lower for x in self._nics.values() if x.lower]
+        return [x.lower for x in self.nics.values() if x.lower]
 
     def get_device_slots(self) -> List[str]:
-        return [x.pci_slot for x in self._nics.values() if x.pci_slot]
+        return [x.pci_slot for x in self.nics.values() if x.pci_slot]
 
     def get_nic(self, nic_name: str) -> NicInfo:
-        return self._nics[nic_name]
+        return self.nics[nic_name]
 
     def get_test_nic(self) -> Tuple[int, NicInfo]:
         # convenience method
@@ -160,7 +160,7 @@ class Nics(InitializableMixin):
         number_of_nics = len(self.get_upper_nics())
         assert_that(number_of_nics).is_greater_than(0)
         # will be used for tests with a single active vf, so id = 0
-        return (0, self._nics[self.get_upper_nics()[number_of_nics - 1]])
+        return (0, self.nics[self.get_upper_nics()[number_of_nics - 1]])
 
     def nic_info_is_present(self, nic_name: str) -> bool:
         return nic_name in self.get_upper_nics() or nic_name in self.get_lower_nics()
@@ -225,7 +225,7 @@ class Nics(InitializableMixin):
 
     def _get_nic_uuids(self) -> None:
         for nic in self.get_upper_nics():
-            self._nics[nic].dev_uuid = self._get_nic_uuid(nic)
+            self.nics[nic].dev_uuid = self._get_nic_uuid(nic)
 
     def _get_node_nic_info(self) -> None:
         # Identify which nics are slaved to master devices.
@@ -293,11 +293,11 @@ class Nics(InitializableMixin):
             self._node.log.debug(f"Found nic info as : {nic_info}")
             nic, _, _, _, mac, _, ip_addr, _ = nic_info
             if nic in self.get_upper_nics():
-                nic_entry = self._nics[nic]
+                nic_entry = self.nics[nic]
                 nic_entry.ip_addr = ip_addr
                 nic_entry.mac_addr = mac
                 found_nics.append(nic)
         assert_that(sorted(found_nics)).described_as(
             f"Could not locate nic info for all nics. "
-            f"Nic set was {self._nics.keys()} and only found info for {found_nics}"
-        ).is_equal_to(sorted(self._nics.keys()))
+            f"Nic set was {self.nics.keys()} and only found info for {found_nics}"
+        ).is_equal_to(sorted(self.nics.keys()))
