@@ -4,21 +4,24 @@
 
 import os
 import re
-from typing import Any, Dict, List, Tuple
+from typing import Any, Dict, List, Optional, Tuple
 
 from assertpy import assert_that
 
 from lisa import Node
 from lisa.tools import Echo
-from lisa.util import InitializableMixin, LisaException, get_matched_str
+from lisa.util import InitializableMixin, LisaException
 
 
 class NicInfo:
 
     # Class for info about an single upper/lower nic pair.
-    # devices using SRIOV on azure typically have an upper synthetic device
+    # Devices using SRIOV on azure typically have an upper synthetic device
     # paired with a lower SRIOV Virtual Function (VF) device that
     # enables the passthrough to the physical NIC.
+
+    # If sriov(AN) is not enabled then there will not be a lower SRIOV VF.
+    # In this case, NicInfo will have lower = ""
 
     def __init__(
         self,
@@ -183,11 +186,54 @@ class Nics(InitializableMixin):
             sudo=True,
         )
 
+    def load_interface_info(self, nic_name: Optional[str] = None) -> None:
+        command = "/sbin/ip addr show"
+        if nic_name:
+            command += f" {nic_name}"
+        result = self._node.execute(
+            command,
+            shell=True,
+            expected_exit_code=0,
+            expected_exit_code_failure_message=(
+                f"Could not run {command} on node {self._node.name}"
+            ),
+        )
+        split_ip_entries = self.__ip_addr_show_regex.findall(result.stdout)
+        found_nics = []
+        for nic_info in split_ip_entries:
+            self._node.log.debug(f"Found nic info as : {nic_info}")
+            nic, _, _, _, mac, _, ip_addr, _ = nic_info
+            if nic in self.get_upper_nics():
+                nic_entry = self.nics[nic]
+                nic_entry.ip_addr = ip_addr
+                nic_entry.mac_addr = mac
+                found_nics.append(nic)
+
+        if not nic_name:
+            assert_that(sorted(found_nics)).described_as(
+                f"Could not locate nic info for all nics. "
+                f"Nic set was {self.nics.keys()} and only found info for {found_nics}"
+            ).is_equal_to(sorted(self.nics.keys()))
+
+    def reset_nic_state(self, nic_name: str) -> None:
+        result = self._node.execute(
+            f"/sbin/ip link set dev {nic_name} down &&"
+            f" /sbin/ip link set dev {nic_name} up",
+            shell=True,
+            sudo=True,
+            expected_exit_code=0,
+            expected_exit_code_failure_message=(
+                f"Could not reset {nic_name} state" f" on node {self._node.name}"
+            ),
+        )
+        if result.exit_code == 0:
+            self.load_interface_info(nic_name)
+
     def _initialize(self, *args: Any, **kwargs: Any) -> None:
-        self._nic_names = self._get_nic_names()
+        self.nic_names = self._get_nic_names()
         self._get_node_nic_info()
-        self.default_nic = self._get_default_nic()
-        self._get_host_if_info()
+        self._get_default_nic()
+        self.load_interface_info()
         self._get_nic_uuids()
 
     def _get_nic_names(self) -> List[str]:
@@ -237,20 +283,28 @@ class Nics(InitializableMixin):
         # use sysfs to gather upper/lower nic pairings and pci slot info
         nic_info_fetch_cmd = "ls -la /sys/class/net/*/lower*/device"
         self._node.log.debug(f"Gathering NIC information on {self._node.name}.")
-        result = self._node.execute(nic_info_fetch_cmd, shell=True)
-        if get_matched_str(result.stdout, self._file_not_exist):
-            for nic_name in self._nic_names:
-                nic_info = NicInfo(nic_name)
-                self.append(nic_info)
-        else:
-            for line in result.stdout.splitlines():
-                match = self.__nic_lower_regex.search(line)
-                if not match:
-                    raise LisaException(
-                        "Could not locate default network interface"
-                        f" in output:\n{result.stdout}"
-                    )
-                upper_nic, lower_nic, pci_slot = match.groups()
+        result = self._node.execute(
+            nic_info_fetch_cmd,
+            shell=True,
+        )
+        if result.exit_code != 0:
+            nic_info_fetch_cmd = "ls -la /sys/class/net/*/device"
+            result = self._node.execute(
+                nic_info_fetch_cmd,
+                shell=True,
+                expected_exit_code=0,
+                expected_exit_code_failure_message="Could not grab NIC device info.",
+            )
+
+        for line in result.stdout.splitlines():
+            sriov_match = self.__nic_lower_regex.search(line)
+            if not sriov_match:
+                self._node.log.debug(f"There is no VF on node {self._node.name}.")
+                for nic_name in self.nic_names:
+                    nic_info = NicInfo(nic_name)
+                    self.append(nic_info)
+            else:
+                upper_nic, lower_nic, pci_slot = sriov_match.groups()
                 nic_info = NicInfo(upper_nic, lower_nic, pci_slot)
                 self.append(nic_info)
 
@@ -259,7 +313,7 @@ class Nics(InitializableMixin):
             f"find any nics attached to {self._node.name}."
         ).is_greater_than(0)
 
-    def _get_default_nic(self) -> str:
+    def _get_default_nic(self) -> None:
         cmd = "/sbin/ip route"
         ip_route_result = self._node.execute(cmd, shell=True, sudo=True)
         ip_route_result.assert_exit_code()
@@ -272,34 +326,11 @@ class Nics(InitializableMixin):
             )
         assert_that(dev_match.groups()).is_length(1)
         default_interface_name = dev_match.group(1)
-        assert_that(default_interface_name in self._nic_names).described_as(
+        assert_that(default_interface_name in self.nic_names).described_as(
             (
                 f"ERROR: NIC name found as default {default_interface_name} "
-                f"was not in original list of nics {repr(self._nic_names)}."
+                f"was not in original list of nics {repr(self.nic_names)}."
             )
         ).is_true()
-        return default_interface_name
-
-    def _get_host_if_info(self) -> None:
-        result = self._node.execute(
-            "/sbin/ip addr show",
-            shell=True,
-            expected_exit_code=0,
-            expected_exit_code_failure_message=(
-                f"Could not run ip addr show on node {self._node.name}"
-            ),
-        )
-        split_ip_entries = self.__ip_addr_show_regex.findall(result.stdout)
-        found_nics = []
-        for nic_info in split_ip_entries:
-            self._node.log.debug(f"Found nic info as : {nic_info}")
-            nic, _, _, _, mac, _, ip_addr, _ = nic_info
-            if nic in self.get_upper_nics():
-                nic_entry = self.nics[nic]
-                nic_entry.ip_addr = ip_addr
-                nic_entry.mac_addr = mac
-                found_nics.append(nic)
-        assert_that(sorted(found_nics)).described_as(
-            f"Could not locate nic info for all nics. "
-            f"Nic set was {self.nics.keys()} and only found info for {found_nics}"
-        ).is_equal_to(sorted(self.nics.keys()))
+        self.default_nic = default_interface_name
+        self.default_nic_route = str(dev_match)
