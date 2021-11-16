@@ -233,10 +233,16 @@ class LisaRunner(BaseRunner):
                 )
                 prepared_environments.append(prepared_environment)
             except Exception as identifier:
-                matched_results = self._get_runnable_test_results(
-                    test_results=self.test_results,
-                    environment=candidate_environment,
-                )
+                if (
+                    candidate_environment.source_test_result
+                    and candidate_environment.source_test_result.is_queued
+                ):
+                    matched_results = [candidate_environment.source_test_result]
+                else:
+                    matched_results = self._get_runnable_test_results(
+                        test_results=self.test_results,
+                        environment=candidate_environment,
+                    )
                 if not matched_results:
                     self._log.info(
                         "No requirement of test case is suitable for the preparation "
@@ -622,4 +628,8 @@ class LisaRunner(BaseRunner):
                         )
                         environment_requirement.nodes[index] = node_requirement
 
-                existing_environments.from_requirement(environment_requirement)
+                env = existing_environments.from_requirement(environment_requirement)
+                if env:
+                    # if env prepare or deploy failed and the test result is not
+                    # run, the failure will attach to this test result.
+                    env.source_test_result = test_result
