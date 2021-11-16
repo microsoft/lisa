@@ -2,12 +2,6 @@
     "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
     "contentVersion": "1.0.0.0",
     "parameters": {
-        "resource_group_name": {
-            "type": "string",
-            "metadata": {
-                "description": "resource group name"
-            }
-        },
         "storage_name": {
             "type": "string",
             "metadata": {
@@ -68,6 +62,12 @@
             "type": "object",
             "metadata": {
                 "description": "tags of availability set"
+            }
+        },
+        "vm_tags": {
+            "type": "object",
+            "metadata": {
+                "description": "tags of virtual machine"
             }
         },
         "availability_set_properties": {
@@ -284,9 +284,7 @@
             },
             "name": "[parameters('nodes')[copyIndex('vmCopy')]['name']]",
             "location": "[parameters('nodes')[copyIndex('vmCopy')]['location']]",
-            "tags": {
-                "RG": "[parameters('resource_group_name')]"
-            },
+            "tags": "[parameters('vm_tags')]",
             "plan": "[parameters('nodes')[copyIndex('vmCopy')]['purchase_plan']]",
             "dependsOn": [
                 "[resourceId('Microsoft.Compute/availabilitySets', variables('availability_set_name'))]",
