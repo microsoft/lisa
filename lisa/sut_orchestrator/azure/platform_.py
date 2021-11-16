@@ -193,6 +193,7 @@ class AzureArmParameter:
     availability_set_properties: Dict[str, Any] = field(default_factory=dict)
     nodes: List[AzureNodeSchema] = field(default_factory=list)
     data_disks: List[DataDiskSchema] = field(default_factory=list)
+    use_availability_sets: bool = False
 
     def __post_init__(self, *args: Any, **kwargs: Any) -> None:
         add_secret(self.admin_username, PATTERN_HEADTAIL)
@@ -1009,6 +1010,11 @@ class AzurePlatform(Platform):
         arm_parameters.storage_name = get_storage_account_name(
             self.subscription_id, arm_parameters.location
         )
+        if (
+            self._azure_runbook.availability_set_properties
+            or self._azure_runbook.availability_set_tags
+        ):
+            arm_parameters.use_availability_sets = True
 
         # In Azure, each VM should have only one nic in one subnet. So calculate
         # the max nic count, and set to subnet count.

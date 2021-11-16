@@ -57,6 +57,13 @@
                 "description": "created subnet count"
             }
         },
+        "use_availability_sets": {
+            "type": "bool",
+            "defaultValue": false,
+            "metadata": {
+                "description": "flag to create availability set"
+            }
+        },
         "availability_set_tags": {
             "type": "object",
             "metadata": {
@@ -87,6 +94,7 @@
         {
             "apiVersion": "2019-07-01",
             "type": "Microsoft.Compute/availabilitySets",
+            "condition": "[parameters('use_availability_sets')]",
             "name": "[variables('availability_set_name')]",
             "location": "[parameters('location')]",
             "tags": "[parameters('availability_set_tags')]",
@@ -286,9 +294,7 @@
                 "[concat(parameters('nodes')[copyIndex('vmCopy')]['name'],'-networkInterfaces')]"
             ],
             "properties": {
-                "availabilitySet": {
-                    "id": "[resourceId('Microsoft.Compute/availabilitySets',variables('availability_set_name'))]"
-                },
+                "availabilitySet": "[if(parameters('use_availability_sets'), json(concat('{\"id\": \"',resourceId('Microsoft.Compute/availabilitySets',variables('availability_set_name')),'\"}')), json('null'))]",
                 "hardwareProfile": {
                     "vmSize": "[parameters('nodes')[copyIndex('vmCopy')]['vm_size']]"
                 },
