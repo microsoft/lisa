@@ -181,7 +181,6 @@ class AzureLocation:
 @dataclass_json()
 @dataclass
 class AzureArmParameter:
-    resource_group_name: str = ""
     storage_name: str = ""
     location: str = ""
     admin_username: str = ""
@@ -194,17 +193,12 @@ class AzureArmParameter:
     nodes: List[AzureNodeSchema] = field(default_factory=list)
     data_disks: List[DataDiskSchema] = field(default_factory=list)
     use_availability_sets: bool = False
+    vm_tags: Dict[str, Any] = field(default_factory=dict)
 
     def __post_init__(self, *args: Any, **kwargs: Any) -> None:
         add_secret(self.admin_username, PATTERN_HEADTAIL)
         add_secret(self.admin_password)
         add_secret(self.admin_key_data)
-
-        if not self.availability_set_properties:
-            self.availability_set_properties: Dict[str, Any] = {
-                "platformFaultDomainCount": 1,
-                "platformUpdateDomainCount": 1,
-            }
 
 
 @dataclass_json()
@@ -234,6 +228,7 @@ class AzurePlatformSchema:
     resource_group_name: str = field(default="")
     availability_set_tags: Optional[Dict[str, str]] = field(default=None)
     availability_set_properties: Optional[Dict[str, Any]] = field(default=None)
+    vm_tags: Optional[Dict[str, Any]] = field(default=None)
     locations: Optional[Union[str, List[str]]] = field(default=None)
 
     log_level: str = field(
@@ -704,7 +699,10 @@ class AzurePlatform(Platform):
             for key, value in azure_runbook.availability_set_tags.items():
                 if value:
                     result[key] = value
-
+        if azure_runbook.vm_tags:
+            for key, value in azure_runbook.vm_tags.items():
+                if value:
+                    result[key] = value
         return result
 
     def _get_environment_information(self, environment: Environment) -> Dict[str, str]:
@@ -946,6 +944,7 @@ class AzurePlatform(Platform):
         copied_fields = [
             "availability_set_tags",
             "availability_set_properties",
+            "vm_tags",
         ]
         set_filtered_fields(self._azure_runbook, arm_parameters, copied_fields)
 
@@ -958,7 +957,7 @@ class AzurePlatform(Platform):
             arm_parameters.admin_password = self.runbook.admin_password
 
         environment_context = get_environment_context(environment=environment)
-        arm_parameters.resource_group_name = environment_context.resource_group_name
+        arm_parameters.vm_tags["RG"] = environment_context.resource_group_name
         nodes_parameters: List[AzureNodeSchema] = []
         for node_space in environment.runbook.nodes_requirement:
             assert isinstance(
