@@ -32,6 +32,9 @@ class NetworkInterface(Feature):
     ) -> None:
         raise NotImplementedError
 
+    def reload_module(self) -> None:
+        raise NotImplementedError
+
 
 Sriov = partial(NetworkInterfaceOptionSettings, data_path=schema.NetworkDataPath.Sriov)
 Synthetic = partial(
