@@ -28,6 +28,9 @@ case $DISTRO in
 
         apt-key add microsoft.asc
         apt-key add msopentech.asc
+        if [[ $DISTRO == *debian* ]]; then
+            install_package gnupg
+        fi
     ;;
     suse*|opensuse*|sles*|sle_hpc*)
         zypper ar -t rpm-md -n "packages-microsoft-com-azurecore" --no-gpgcheck https://packages.microsoft.com/yumrepos/azurecore/ azurecore
