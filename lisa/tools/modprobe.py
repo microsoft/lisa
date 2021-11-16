@@ -1,6 +1,6 @@
 # Copyright (c) Microsoft Corporation.
 # Licensed under the MIT license.
-from typing import Any, List
+from typing import Any, List, Union
 
 from lisa.executable import Tool
 
@@ -60,14 +60,18 @@ class Modprobe(Tool):
 
     def load(
         self,
-        mod_name: str,
+        modules: Union[str, List[str]],
     ) -> None:
+        if isinstance(modules, list):
+            modules_str = "-a " + " ".join(modules)
+        else:
+            modules_str = modules
         self.run(
-            f"{mod_name}",
+            f"{modules_str}",
             force_run=True,
             sudo=True,
             expected_exit_code=0,
-            expected_exit_code_failure_message=f"Fail to load module {mod_name}",
+            expected_exit_code_failure_message=f"Fail to load module[s]: {modules_str}",
         )
 
     def reload(

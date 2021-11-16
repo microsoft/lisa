@@ -3,15 +3,16 @@
 
 import re
 from pathlib import PurePath
-from typing import List, Tuple, Type
+from typing import List, Pattern, Tuple, Type, Union
 
 from assertpy import assert_that, fail
+from semver import VersionInfo
 
 from lisa.executable import Tool
 from lisa.nic import NicInfo
 from lisa.operating_system import CentOs, Redhat, Ubuntu
-from lisa.tools import Echo, Git, Lspci, Tar, Wget
-from lisa.util import LisaException, SkippedException
+from lisa.tools import Echo, Git, Lspci, Modprobe, Tar, Wget
+from lisa.util import LisaException, UnsupportedDistroException
 
 
 class DpdkTestpmd(Tool):
@@ -27,6 +28,15 @@ class DpdkTestpmd(Tool):
             r"[a-fA-F0-9]{2}\.[a-fA-F0-9]"
             r" \(socket 0\)"
         )
+    )
+
+    # ex v19.11-rc3 or 19.11
+    _version_info_from_git_tag_regex = re.compile(
+        r"v?(?P<major>[0-9]+)\.(?P<minor>[0-9]+)"
+    )
+    # ex dpdk-21.08.zip or dpdk-21.08-rc4.zip
+    _version_info_from_tarball_regex = re.compile(
+        r"dpdk-(?P<major>[0-9]+)\.(?P<minor>[0-9]+)"
     )
 
     @property
@@ -66,12 +76,6 @@ class DpdkTestpmd(Tool):
     ]
 
     _redhat_packages = [
-        "gcc",
-        "make",
-        "git",
-        "tar",
-        "wget",
-        "dos2unix",
         "psmisc",
         "kernel-devel-$(uname -r)",
         "numactl-devel.x86_64",
@@ -94,9 +98,14 @@ class DpdkTestpmd(Tool):
         self, cmd: str, path: PurePath, timeout: int = 600
     ) -> str:
         result = self.node.execute(
-            cmd, sudo=True, shell=True, cwd=path, timeout=timeout
+            cmd,
+            sudo=True,
+            shell=True,
+            cwd=path,
+            timeout=timeout,
+            expected_exit_code=0,
+            expected_exit_code_failure_message="failed with nonzero error code",
         )
-        assert_that(result.exit_code).is_zero()
         return result.stdout
 
     @property
@@ -116,18 +125,50 @@ class DpdkTestpmd(Tool):
     def set_dpdk_branch(self, dpdk_branch: str) -> None:
         self._dpdk_branch = dpdk_branch
 
+    def _determine_network_hardware(self) -> None:
+        lspci = self.node.tools[Lspci]
+        device_list = lspci.get_device_list()
+        self.is_connect_x3 = any(
+            ["ConnectX-3" in dev.device_info for dev in device_list]
+        )
+
     def _install(self) -> bool:
         self._testpmd_output_after_reenable = ""
         self._testpmd_output_before_rescind = ""
         self._testpmd_output_during_rescind = ""
         self._last_run_output = ""
+        self._dpdk_version_info: Union[VersionInfo, None] = None
+        self._determine_network_hardware()
+        node = self.node
+
+        # installing from distro package manager
+        if self._dpdk_source and self._dpdk_source == "package_manager":
+            self.node.log.info(
+                "Installing dpdk and dev package from package manager..."
+            )
+            if isinstance(node.os, Ubuntu) or isinstance(node.os, Redhat):
+                node.os.install_packages(["dpdk", "dpdk-dev"])
+                self._dpdk_version_info = node.os.get_package_information("dpdk")
+            else:
+                raise NotImplementedError(
+                    f"Dpdk install isn't implemented for Os {node.os.name}"
+                )
+
+            if self._dpdk_version_info >= "19.11.0":
+                self._testpmd_install_path = "dpdk-testpmd"
+            else:
+                self._testpmd_install_path = "testpmd"
+            self._load_drivers_for_dpdk()
+            return True
+
+        # otherwise install from source tarball or git
+        self.node.log.info(f"Installing dpdk from source: {self._dpdk_source}")
         self._dpdk_repo_path_name = "dpdk"
         result = self.node.execute("which dpdk-testpmd")
         self.dpdk_path = self.node.working_path.joinpath(self._dpdk_repo_path_name)
         if result.exit_code == 0:  # tools are already installed
             return True
         self._install_dependencies()
-        node = self.node
         git_tool = node.tools[Git]
         echo_tool = node.tools[Echo]
 
@@ -153,6 +194,9 @@ class DpdkTestpmd(Tool):
                 str(self.dpdk_path),
                 strip_components=1,
             )
+            self.set_version_info_from_source_install(
+                self._dpdk_source, self._version_info_from_tarball_regex
+            )
         else:
             git_tool.clone(
                 self._dpdk_source,
@@ -161,7 +205,10 @@ class DpdkTestpmd(Tool):
             )
             if self._dpdk_branch:
                 git_tool.checkout(self._dpdk_branch, cwd=self.dpdk_path)
-
+                self.set_version_info_from_source_install(
+                    self._dpdk_branch, self._version_info_from_git_tag_regex
+                )
+        self._load_drivers_for_dpdk()
         self.__execute_assert_zero("meson build", self.dpdk_path)
         dpdk_build_path = self.dpdk_path.joinpath("build")
         self.__execute_assert_zero("which ninja", dpdk_build_path)
@@ -177,20 +224,55 @@ class DpdkTestpmd(Tool):
             node.get_pure_path("~/.bashrc"),
             append=True,
         )
+
         return True
+
+    def set_version_info_from_source_install(
+        self, branch_identifier: str, matcher: Pattern[str]
+    ) -> None:
+        match = matcher.search(branch_identifier)
+        if not match or not match.group("major") or not match.group("minor"):
+            fail(
+                f"Could not determine dpdk version info from '{self._dpdk_source}'"
+                f" with id: '{branch_identifier}' using regex: '{matcher.pattern}'"
+            )
+        else:
+            major, minor = map(int, [match.group("major"), match.group("minor")])
+            self._dpdk_version_info = VersionInfo(major, minor)
+
+    def _load_drivers_for_dpdk(self) -> None:
+        self.node.log.info("Loading drivers for infiniband, rdma, and mellanox hw...")
+        if self.is_connect_x3:
+            mellanox_drivers = ["mlx4_core", "mlx4_ib"]
+        else:
+            mellanox_drivers = ["mlx5_core", "mlx5_ib"]
+        modprobe = self.node.tools[Modprobe]
+        if isinstance(self.node.os, Ubuntu):
+            modprobe.load("rdma_cm")
+        elif isinstance(self.node.os, Redhat):
+            if not self.is_connect_x3:
+                self.node.execute(
+                    f"dracut --add-drivers '{' '.join(mellanox_drivers)} ib_uverbs' -f",
+                    cwd=self.node.working_path,
+                    expected_exit_code=0,
+                    expected_exit_code_failure_message=(
+                        "Issue loading mlx and ib_uverb drivers into ramdisk."
+                    ),
+                    sudo=True,
+                )
+            modprobe.load("mlx4_en")
+        else:
+            raise UnsupportedDistroException(
+                self.node.os.name,
+                self.node.os.information.version,
+            )
+        modprobe.load(["ib_core", "ib_uverbs", "rdma_ucm", "ib_umad", "ib_ipoib"])
+        modprobe.load(mellanox_drivers)
 
     def _install_dependencies(self) -> None:
         node = self.node
         cwd = node.working_path
-        lspci = node.tools[Lspci]
-        device_list = lspci.get_device_list()
-        self.is_connect_x3 = any(
-            ["ConnectX-3" in dev.device_info for dev in device_list]
-        )
-        if self.is_connect_x3:
-            mellanox_drivers = "mlx4_core mlx4_ib"
-        else:
-            mellanox_drivers = "mlx5_core mlx5_ib"
+
         if isinstance(node.os, Ubuntu):
             if "18.04" in node.os.information.release:
                 node.os.install_packages(list(self._ubuntu_packages_1804))
@@ -219,10 +301,6 @@ class DpdkTestpmd(Tool):
                     ),
                 )
                 node.os.install_packages(list(self._ubuntu_packages_2004))
-            self.__execute_assert_zero(
-                "modprobe -a rdma_cm rdma_ucm ib_core ib_uverbs",
-                cwd,
-            )
 
         elif isinstance(node.os, Redhat):
             self.__execute_assert_zero(
@@ -233,15 +311,6 @@ class DpdkTestpmd(Tool):
             # TODO: Workaround for type checker below
             node.os.install_packages(list(self._redhat_packages))
 
-            if not self.is_connect_x3:
-                self.__execute_assert_zero(
-                    f"dracut --add-drivers '{mellanox_drivers} ib_uverbs' -f", cwd
-                )
-            self.__execute_assert_zero(
-                "modprobe -a ib_core ib_uverbs mlx4_en mlx4_core mlx5_core mlx4_ib"
-                + " mlx5_ib",
-                cwd,
-            )  # add mellanox drivers
             self.__execute_assert_zero("systemctl enable rdma", cwd)
             self.__execute_assert_zero("pip3 install --upgrade meson", cwd)
             self.__execute_assert_zero("ln -s /usr/local/bin/meson /usr/bin/meson", cwd)
@@ -254,13 +323,7 @@ class DpdkTestpmd(Tool):
             )
             self.__execute_assert_zero("pip3 install --upgrade pyelftools", cwd)
         else:
-            raise SkippedException(
-                f"This os {node.os} is not implemented by the DPDK suite."
-            )
-        self.__execute_assert_zero(
-            f"modprobe -a ib_uverbs rdma_ucm ib_umad ib_ipoib {mellanox_drivers}",
-            cwd,
-        )
+            raise UnsupportedDistroException(node.os.name, node.os.information.version)
 
     def generate_testpmd_include(
         self,
@@ -275,8 +338,19 @@ class DpdkTestpmd(Tool):
             )
         ).is_not_equal_to("")
         vdev_info = ""
+
+        if self._dpdk_version_info and self._dpdk_version_info >= "19.11.0":
+            vdev_name = "net_vdev_netvsc"
+        else:
+            vdev_name = "net_failsafe"
+
+        if self._dpdk_version_info and self._dpdk_version_info >= "20.11.0":
+            allow_flag = "--allow"
+        else:
+            allow_flag = "-w"
+
         if node_nic.bound_driver == "hv_netvsc":
-            vdev_info = f'--vdev="net_vdev_netvsc{vdev_id},iface={node_nic.upper}"'
+            vdev_info = f'--vdev="{vdev_name}{vdev_id},iface={node_nic.upper}"'
         elif node_nic.bound_driver == "uio_hv_generic":
             pass
         else:
@@ -287,7 +361,7 @@ class DpdkTestpmd(Tool):
                     "Cannot generate testpmd include arguments."
                 )
             )
-        return vdev_info + f' --allow "{node_nic.pci_slot}"'
+        return vdev_info + f' {allow_flag} "{node_nic.pci_slot}"'
 
     def generate_testpmd_command(
         self,
