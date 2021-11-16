@@ -36,6 +36,7 @@ from lisa.util.logger import create_file_handler, get_logger, remove_handler
 
 if TYPE_CHECKING:
     from lisa.platform_ import Platform
+    from lisa.testsuite import TestResult
 
 
 _get_init_logger = partial(get_logger, "init", "env")
@@ -175,8 +176,10 @@ class Environment(ContextMixin, InitializableMixin):
         self.id = id_
         self.warn_as_error = warn_as_error
         self.platform: Optional[Platform] = None
-        self._default_node: Optional[Node] = None
         self.log = get_logger("env", self.name)
+        self.source_test_result: Optional[TestResult] = None
+
+        self._default_node: Optional[Node] = None
 
         # cost uses to plan order of environments.
         # cheaper env can fit cases earlier to run more cases on it.
