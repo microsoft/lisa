@@ -17,6 +17,7 @@ from lisa.features import NvmeSettings
 from lisa.features.gpu import ComputeSDK
 from lisa.node import Node, RemoteNode
 from lisa.operating_system import CentOs, Redhat, Suse, Ubuntu
+from lisa.tools import Modprobe
 from lisa.util import (
     LisaException,
     NotMeetRequirementException,
@@ -312,6 +313,10 @@ class NetworkInterface(AzureFeatureMixin, features.NetworkInterface):
         )
         self._log.debug(f"attach the nics into VM {self._node.name} successfully.")
         startstop.start()
+
+    def reload_module(self) -> None:
+        modprobe_tool = self._node.tools[Modprobe]
+        modprobe_tool.reload(["hv_netvsc"])
 
 
 class Nvme(AzureFeatureMixin, features.Nvme):
