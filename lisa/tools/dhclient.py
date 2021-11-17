@@ -6,7 +6,7 @@ import re
 from lisa.base_tools import Cat
 from lisa.executable import Tool
 from lisa.operating_system import Debian, Fedora, Suse
-from lisa.util import LisaException, find_group_in_lines
+from lisa.util import UnsupportedDistroException, find_group_in_lines
 
 
 class Dhclient(Tool):
@@ -28,6 +28,7 @@ class Dhclient(Tool):
         return False
 
     def get_timeout(self) -> int:
+        is_default_value: bool = True
         if isinstance(self.node.os, Debian) or isinstance(self.node.os, Suse):
             if isinstance(self.node.os, Debian):
                 path = "/etc/dhcp/dhclient.conf"
@@ -40,6 +41,7 @@ class Dhclient(Tool):
             group = find_group_in_lines(output, self._debian_pattern)
             if group and not group["default"]:
                 value = int(group["number"])
+                is_default_value = False
         elif isinstance(self.node.os, Fedora):
             # the default value in fedora is 60
             value = 60
@@ -50,7 +52,12 @@ class Dhclient(Tool):
             group = find_group_in_lines(result.stdout, self._fedora_pattern)
             if group and "default" not in group:
                 value = int(group["number"])
+                is_default_value = False
         else:
-            raise LisaException(f"unsupported os: '{self.node.os.name}'")
+            raise UnsupportedDistroException(
+                name=self.node.os.name, version=self.node.os.information.version
+            )
+
+        self._log.debug(f"timeout value: {value}, is default: {is_default_value}")
 
         return value
