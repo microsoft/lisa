@@ -676,7 +676,7 @@ class Ubuntu(Debian):
             r".*?\$menuentry_id_option .*?'(?P<menu_id>.*)'.*$",
             re.M,
         )
-        result = cat.run("/boot/grub/grub.cfg")
+        result = cat.run("/boot/grub/grub.cfg", sudo=True)
         submenu_id = get_matched_str(result.stdout, menu_id_pattern)
         assert submenu_id, (
             f"cannot find sub menu id from grub config by pattern: "

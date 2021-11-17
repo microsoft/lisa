@@ -186,7 +186,7 @@ class RepoInstaller(BaseInstaller):
             f"restricted main multiverse universe"
         )
         ubuntu.wait_running_package_process()
-        result = node.execute(f'add-apt-repository "{repo_entry}"', sudo=True)
+        result = node.execute(f'add-apt-repository -y "{repo_entry}"', sudo=True)
         if result.exit_code != 0:
             result.assert_exit_code(
                 message="failed on add repo\n"
