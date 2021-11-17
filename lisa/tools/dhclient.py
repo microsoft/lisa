@@ -2,11 +2,12 @@
 # Licensed under the MIT license.
 
 import re
+from typing import Optional
 
 from lisa.base_tools import Cat
 from lisa.executable import Tool
 from lisa.operating_system import Debian, Fedora, Suse
-from lisa.util import UnsupportedDistroException, find_group_in_lines
+from lisa.util import LisaException, UnsupportedDistroException, find_group_in_lines
 
 
 class Dhclient(Tool):
@@ -61,3 +62,17 @@ class Dhclient(Tool):
         self._log.debug(f"timeout value: {value}, is default: {is_default_value}")
 
         return value
+
+    def renew(self, interface: Optional[str] = None) -> None:
+        if interface:
+            result = self.run(
+                f"-r {interface} && dhclient {interface}",
+                shell=True,
+                sudo=True,
+            )
+        else:
+            result = self.run("-r && dhclient", shell=True, sudo=True)
+        if result.exit_code != 0:
+            raise LisaException(
+                f"dhclient renew return non-zero exit code: {result.stdout}"
+            )
