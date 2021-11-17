@@ -3,11 +3,15 @@
 
 import re
 from dataclasses import dataclass
+from typing import TYPE_CHECKING
 
 from semver import VersionInfo
 
 from lisa.executable import Tool
 from lisa.util import LisaException, parse_version
+
+if TYPE_CHECKING:
+    from lisa.node import Node
 
 
 @dataclass
@@ -35,6 +39,15 @@ class Uname(Tool):
         r"(?P<kernel_version>[^ ]*?) (?P<uname_version>[\w\W]*) (?P<platform>[\w\W]+?) "
         r"(?P<os>[\w\W]+?)$"
     )
+
+    @classmethod
+    def create(cls, node: "Node") -> Tool:
+        # This file is a base tool, which is used by os. To avoid circular
+        # import, the class name string is used here.
+        if "FreeBSD" in node.os.name:
+            return FreeBSDUname(node)
+        else:
+            return Uname(node)
 
     @property
     def command(self) -> str:
@@ -66,3 +79,10 @@ class Uname(Tool):
             )
 
         return result
+
+
+class FreeBSDUname(Uname):
+    _key_info_pattern = re.compile(
+        r"^(?P<os>[^ ]*?) (?P<kernel_version>[\w\W]*?) "
+        r"(?P<platform>[\w\W]+?) (?P<uname_version>[\w\W]+?)$"
+    )
