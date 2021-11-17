@@ -6,8 +6,20 @@ import time
 from dataclasses import dataclass
 from functools import partial
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, Iterable, List, Optional, Pattern, Type, Union
+from typing import (
+    TYPE_CHECKING,
+    Any,
+    Dict,
+    Iterable,
+    List,
+    Match,
+    Optional,
+    Pattern,
+    Type,
+    Union,
+)
 
+from assertpy import assert_that
 from semver import VersionInfo
 
 from lisa.base_tools import Cat, Sed, Wget
@@ -88,6 +100,7 @@ class OperatingSystem:
         self._is_posix = is_posix
         self._log = get_logger(name="os", parent=self._node.log)
         self._information: Optional[OsInformation] = None
+        self._packages: Dict[str, VersionInfo] = dict()
 
     @classmethod
     def create(cls, node: "Node") -> Any:
@@ -316,6 +329,14 @@ class Posix(OperatingSystem, BaseClassMixin):
         except FileNotFoundError:
             self._log.debug("File /etc/os-release doesn't exist.")
 
+    def get_package_information(
+        self, package_name: str, use_cached: bool = True
+    ) -> VersionInfo:
+        found = self._packages.get(package_name, None)
+        if found and use_cached:
+            return found
+        return self._get_package_information(package_name)
+
     def get_repositories(self) -> List[RepositoryInfo]:
         raise NotImplementedError("get_repositories is not implemented")
 
@@ -331,6 +352,46 @@ class Posix(OperatingSystem, BaseClassMixin):
     def _initialize_package_installation(self) -> None:
         # sub os can override it, but it's optional
         pass
+
+    def _get_package_information(self, package_name: str) -> VersionInfo:
+        raise NotImplementedError()
+
+    def _get_version_info_from_named_regex_match(
+        self, package_name: str, named_matches: Match[str]
+    ) -> VersionInfo:
+
+        essential_matches = ["major", "minor", "build"]
+
+        # verify all essential keys are in our match dict
+        assert_that(
+            all(map(lambda x: x in named_matches.groupdict().keys(), essential_matches))
+        ).described_as(
+            "VersionInfo fetch could not identify all required parameters."
+        ).is_true()
+
+        # fill in 'patch' version if it's missing
+        patch_match = named_matches.group("patch")
+        if not patch_match:
+            patch_match = "0"
+        major_match = named_matches.group("major")
+        minor_match = named_matches.group("minor")
+        build_match = named_matches.group("build")
+        major, minor, patch = map(
+            int,
+            [major_match, minor_match, patch_match],
+        )
+        build_match = named_matches.group("build")
+        self._node.log.debug(
+            f"Found {package_name} version "
+            f"{major_match}.{minor_match}.{patch_match}-{build_match}"
+        )
+        return VersionInfo(major, minor, patch, build=build_match)
+
+    def _cache_and_return_version_info(
+        self, package_name: str, info: VersionInfo
+    ) -> VersionInfo:
+        self._packages[package_name] = info
+        return info
 
     def _get_information(self) -> OsInformation:
         # try to set version info from /etc/os-release.
@@ -475,6 +536,27 @@ class Debian(Linux):
         r"\s+(?P<metadata>.*)\s*"
     )
 
+    """ Package: git
+        Version: 1:2.25.1-1ubuntu3.2
+        Priority: optional
+        Section: vcs
+        Origin: Ubuntu
+        Maintainer: Ubuntu Developers <ubuntu-devel-discuss@lists.ubuntu.com>
+        Original-Maintainer: Jonathan Nieder <jrnieder@gmail.com>
+    """
+
+    _debian_package_information_regex = re.compile(
+        r"Package: ([a-zA-Z0-9:_\-\.]+)\r?\n"  # package name group
+        r"Version: ([a-zA-Z0-9:_\-\.]+)\r?\n"  # version number group
+    )
+    _debian_version_spliter_regex = re.compile(
+        r"([0-9]+:)?"  # some examples have a mystery number followed by a ':' (git)
+        r"(?P<major>[0-9]+)\."  # major
+        r"(?P<minor>[0-9]+)\."  # minor
+        r"(?P<patch>[0-9]+)"  # patch
+        r"-(?P<build>[a-zA-Z0-9-_\.]+)"  # build
+    )
+
     @classmethod
     def name_pattern(cls) -> Pattern[str]:
         return re.compile("^debian|Forcepoint|Kali$")
@@ -485,6 +567,35 @@ class Debian(Linux):
             if line.startswith("E: "):
                 error_lines.append(line)
         return error_lines
+
+    def _get_package_information(self, package_name: str) -> VersionInfo:
+        # run update of package info
+        apt_info = self._node.execute(
+            f"apt show {package_name}",
+            expected_exit_code=0,
+            expected_exit_code_failure_message=(
+                f"Could not find package information for package {package_name}"
+            ),
+        )
+        match = self._debian_package_information_regex.search(apt_info.stdout)
+        if not match:
+            raise LisaException(
+                "Package information parsing could not find regex match "
+                f" for {package_name} using regex "
+                f"{self._debian_package_information_regex.pattern}"
+            )
+        version_str = match.group(2)
+        match = self._debian_version_spliter_regex.search(version_str)
+        if not match:
+            raise LisaException(
+                f"Could not parse version info: {version_str} "
+                "for package {package_name}"
+            )
+        self._node.log.debug(f"Attempting to parse version string: {version_str}")
+        version_info = self._get_version_info_from_named_regex_match(
+            package_name, match
+        )
+        return self._cache_and_return_version_info(package_name, version_info)
 
     def wait_running_package_process(self) -> None:
         is_first_time: bool = True
@@ -789,6 +900,15 @@ class Fedora(Linux):
     # microsoft-azure-rhel8-eus  Microsoft Azure RPMs for RHEL8 Extended Update Support
     _fedora_repository_info_pattern = re.compile(r"(?P<id>\S+)\s+(?P<name>\S.*\S)\s*")
 
+    # ex: dpdk-20.11-3.el8.x86_64
+    _fedora_version_splitter_regex = re.compile(
+        r"(?P<package_name>[a-zA-Z0-9\-_]+)-"
+        r"(?P<major>[0-9]+)\."
+        r"(?P<minor>[0-9]+)"
+        r"(?P<patch>\.[0-9]+)?"
+        r"(?P<build>-[a-zA-Z0-9-_\.]+)?"
+    )
+
     @classmethod
     def name_pattern(cls) -> Pattern[str]:
         return re.compile("^Fedora|fedora$")
@@ -815,6 +935,26 @@ class Fedora(Linux):
                     )
                 )
         return repositories
+
+    def _get_package_information(self, package_name: str) -> VersionInfo:
+        rpm_info = self._node.execute(
+            f"rpm -q {package_name}",
+            expected_exit_code=0,
+            expected_exit_code_failure_message=(
+                f"Could not find package information for package {package_name}"
+            ),
+        )
+        # rpm package should be of format (package_name)-(version)
+        matches = self._fedora_version_splitter_regex.search(rpm_info.stdout)
+        if not matches:
+            raise LisaException(
+                f"Could not parse package version {rpm_info} for {package_name}"
+            )
+        self._node.log.debug(f"Attempting to parse version string: {rpm_info.stdout}")
+        version_info = self._get_version_info_from_named_regex_match(
+            package_name, matches
+        )
+        return self._cache_and_return_version_info(package_name, version_info)
 
     def _install_packages(self, packages: List[str], signed: bool = True) -> None:
         command = f"dnf install -y {' '.join(packages)}"
