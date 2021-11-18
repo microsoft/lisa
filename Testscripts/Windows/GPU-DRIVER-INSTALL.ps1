@@ -272,7 +272,7 @@ function Main {
 
         # Start the test script
         Run-LinuxCmd -ip $allVMData.PublicIP -port $allVMData.SSHPort -username $superuser `
-            -password $password -command "/$superuser/${testScript}" -runMaxAllowedTime 1800 -ignoreLinuxExitCode | Out-Null
+            -password $password -command "/$superuser/${testScript}" -runMaxAllowedTime 3600 -ignoreLinuxExitCode | Out-Null
         Write-Debug "Ran test script $testscript in the Guest OS"
 
         $installState = Run-LinuxCmd -ip $allVMData.PublicIP -port $allVMData.SSHPort -username $superuser `
