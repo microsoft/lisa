@@ -239,9 +239,8 @@ class NetworkInterface(AzureFeatureMixin, features.NetworkInterface):
         vm = compute_client.virtual_machines.get(
             self._resource_group_name, self._node.name
         )
-        nic_count_after_add_extra = extra_nic_count + len(
-            vm.network_profile.network_interfaces
-        )
+        current_nic_count = len(vm.network_profile.network_interfaces)
+        nic_count_after_add_extra = extra_nic_count + current_nic_count
         assert (
             self._node.capability.network_interface
             and self._node.capability.network_interface.max_nic_count
@@ -273,8 +272,8 @@ class NetworkInterface(AzureFeatureMixin, features.NetworkInterface):
         startstop.stop()
 
         network_interfaces_section = []
-        index = 1
-        while index <= extra_nic_count:
+        index = 0
+        while index < current_nic_count + extra_nic_count - 1:
             extra_nic_name = f"{self._node.name}-extra-{index}"
             self._log.debug(f"start to create the nic {extra_nic_name}.")
             params = {
