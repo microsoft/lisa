@@ -305,7 +305,9 @@ function InstallKernel() {
             apt-key adv --keyserver keyserver.ubuntu.com --recv-keys $publicKey
             add-apt-repository -y "deb $kernelurl $release main"
             apt -y update >> $LOG_FILE 2>&1
+            apt -y update >> $LOG_FILE 2>&1
             LogMsg "Installing linux-azure from ppa repository."
+            apt install -y linux-azure >> $LOG_FILE 2>&1
             apt install -y linux-azure >> $LOG_FILE 2>&1
             kernelInstallStatus=$?
         fi
@@ -325,7 +327,9 @@ function InstallKernel() {
             apt-key adv --keyserver keyserver.ubuntu.com --recv-keys  $publicKey
             sudo add-apt-repository -y "deb $kernelurl $release main"
             apt -y update >> $LOG_FILE 2>&1
+            apt -y update >> $LOG_FILE 2>&1
             LogMsg "Installing linux-azure-fips from ppa repository."
+            apt install -y ${CustomKernel}/${release} >> $LOG_FILE 2>&1
             apt install -y ${CustomKernel}/${release} >> $LOG_FILE 2>&1
             kernelInstallStatus=$?
         fi
