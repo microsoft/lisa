@@ -263,6 +263,7 @@ function InstallKernel() {
             add-apt-repository -y ppa:canonical-kernel-team/azure-test
             apt-get -y update >> $LOG_FILE 2>&1
             apt install -y linux-image-azure-fde >> $LOG_FILE 2>&1
+            apt install -y linux-headers-azure-fde >> $LOG_FILE 2>&1
         else
             release=$(lsb_release -c -s)
             LogMsg "Enabling proposed repository for $release distro"
