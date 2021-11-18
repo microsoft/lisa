@@ -268,7 +268,7 @@ function Main() {
 			fi
 			# In case, kernel did not load the required modules
 			LogMsg "Adding kernel modules to /etc/modules"
-			for ex_module in rdma_cm rdma_ucm ib_ipoib ib_umad
+			for ex_module in rdma_cm rdma_ucm ib_ipoib ib_umad mlx5_ib
 			do
 				lsmod | grep -i $ex_module
 				if [ $? != 0 ]; then
@@ -283,6 +283,9 @@ function Main() {
 					LogMsg "Module $ex_module already loaded"
 				fi
 			done
+			# Enable mlx5_ib module on boot
+			LogMsg "Set mlx5_ib module in the kernel"
+			echo "mlx5_ib" >> /etc/modules-load.d/mlx5_ib.conf
 			;;
 		*)
 			LogErr "MPI type $mpi_type does not support on '$DISTRO' or not implement"
