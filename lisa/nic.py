@@ -10,7 +10,7 @@ from assertpy import assert_that
 
 from lisa import Node
 from lisa.tools import Echo
-from lisa.util import InitializableMixin, LisaException
+from lisa.util import InitializableMixin, LisaException, get_matched_str
 
 
 class NicInfo:
@@ -119,6 +119,8 @@ class Nics(InitializableMixin):
         )
     )
 
+    _file_not_exist = re.compile(r"No such file or directory", re.MULTILINE)
+
     def __init__(self, node: Node):
         super().__init__()
         self._node = node
@@ -143,7 +145,7 @@ class Nics(InitializableMixin):
         return [x.upper for x in self.nics.values() if not x.lower]
 
     def get_upper_nics(self) -> List[str]:
-        return [x.upper for x in self.nics.values() if x.lower]
+        return [x.upper for x in self.nics.values()]
 
     def get_lower_nics(self) -> List[str]:
         return [x.lower for x in self.nics.values() if x.lower]
@@ -234,23 +236,23 @@ class Nics(InitializableMixin):
 
         # use sysfs to gather upper/lower nic pairings and pci slot info
         nic_info_fetch_cmd = "ls -la /sys/class/net/*/lower*/device"
-        self._node.log.info(f"Gathering NIC information on {self._node.name}.")
-        result = self._node.execute(
-            nic_info_fetch_cmd,
-            shell=True,
-            expected_exit_code=0,
-            expected_exit_code_failure_message="Could not grab NIC device info.",
-        )
-        for line in result.stdout.splitlines():
-            match = self.__nic_lower_regex.search(line)
-            if not match:
-                raise LisaException(
-                    "Could not locate default network interface"
-                    f" in output:\n{result.stdout}"
-                )
-            upper_nic, lower_nic, pci_slot = match.groups()
-            nic_info = NicInfo(upper_nic, lower_nic, pci_slot)
-            self.append(nic_info)
+        self._node.log.debug(f"Gathering NIC information on {self._node.name}.")
+        result = self._node.execute(nic_info_fetch_cmd, shell=True)
+        if get_matched_str(result.stdout, self._file_not_exist):
+            for nic_name in self._nic_names:
+                nic_info = NicInfo(nic_name)
+                self.append(nic_info)
+        else:
+            for line in result.stdout.splitlines():
+                match = self.__nic_lower_regex.search(line)
+                if not match:
+                    raise LisaException(
+                        "Could not locate default network interface"
+                        f" in output:\n{result.stdout}"
+                    )
+                upper_nic, lower_nic, pci_slot = match.groups()
+                nic_info = NicInfo(upper_nic, lower_nic, pci_slot)
+                self.append(nic_info)
 
         assert_that(len(self)).described_as(
             "During Lisa nic info initialization, Nics class could not "
