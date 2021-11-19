@@ -32,7 +32,7 @@ function get_interrupts_per_pci() {
     pci_interrupt_values=()
     while read line
     do
-        msi_value=$(echo $line | grep -i MSI | awk '{ for(i=2; i<='"$(($(nproc)+1))"'; ++i) { sum+=$i }; print sum }')
+		msi_value=$(echo $line | grep -i MSI  | grep -v nvme | awk '{ for(i=2; i<='"$(($(nproc)+1))"'; ++i) { sum+=$i }; print sum }')
         if [ -n "${msi_value-}" ]; then
             if [ $msi_value -ne "0" ]; then
                 pci_interrupt_values+=("$msi_value")
