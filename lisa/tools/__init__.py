@@ -6,6 +6,7 @@ from lisa.base_tools import Cat, Sed, Uname, Wget
 from .blkid import Blkid
 from .chrony import Chrony
 from .date import Date
+from .df import Df
 from .dhclient import Dhclient
 from .dmesg import Dmesg
 from .docker import Docker
@@ -39,9 +40,11 @@ from .ntttcp import Ntttcp
 from .nvmecli import Nvmecli
 from .parted import Parted
 from .pgrep import Pgrep, ProcessInfo
+from .qemu import Qemu
 from .reboot import Reboot
 from .service import Service
 from .ssh import Ssh
+from .sshpass import Sshpass
 from .swap import Swap
 from .swapon import SwapOn
 from .sysctl import Sysctl
@@ -57,6 +60,7 @@ __all__ = [
     "Cat",
     "Chrony",
     "Date",
+    "Df",
     "Dhclient",
     "Dmesg",
     "Docker",
@@ -94,11 +98,13 @@ __all__ = [
     "Parted",
     "Pgrep",
     "ProcessInfo",
+    "Qemu",
     "Reboot",
     "Sed",
     "Uname",
     "Service",
     "Ssh",
+    "Sshpass",
     "Swap",
     "SwapOn",
     "Sysctl",

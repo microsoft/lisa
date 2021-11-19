@@ -31,11 +31,13 @@ class Make(Tool):
         posix_os.install_packages([self, Gcc])
         return self._check_exists()
 
-    def make_install(self, cwd: PurePath, timeout: int = 600) -> None:
+    def make_install(
+        self, cwd: PurePath, timeout: int = 600, sudo: bool = True
+    ) -> None:
         self.make(arguments="", cwd=cwd, timeout=timeout)
 
         # install with sudo
-        self.make(arguments="install", cwd=cwd, sudo=True, timeout=timeout)
+        self.make(arguments="install", cwd=cwd, timeout=timeout, sudo=sudo)
 
     def make(
         self,

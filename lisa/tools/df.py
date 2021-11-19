@@ -2,37 +2,11 @@
 # Licensed under the MIT license.
 
 import re
-from dataclasses import dataclass
 from typing import List, Optional
 
 from lisa.executable import Tool
-from lisa.util import find_patterns_in_lines
-
-
-@dataclass
-class PartitionInfo(Tool):
-    partition_name: str = ""
-    blocks: int = 0
-    used: int = 0
-    total_size: int = 0
-    percentage_used: int = 0
-    mountpoint: str = ""
-
-    def __init__(
-        self,
-        partition_name: str,
-        blocks: int,
-        used: int,
-        total_size: int,
-        percentage_used: int,
-        mountpoint: str,
-    ):
-        self.partition_name = partition_name
-        self.blocks = blocks
-        self.used = used
-        self.total_size = total_size
-        self.percentage_used = percentage_used
-        self.mountpoint = mountpoint
+from lisa.tools.lsblk import PartitionInfo
+from lisa.util import find_patterns_groups_in_lines
 
 
 class Df(Tool):
@@ -49,33 +23,31 @@ class Df(Tool):
     def can_install(self) -> bool:
         return True
 
-    def get_partition_information(self) -> List[PartitionInfo]:
+    def get_partitions(self, force_run: bool = False) -> List[PartitionInfo]:
         # run df and parse the output
         # The output is in the following format:
         # <Filesystem> <1K-blocks> <Used> <Available> <Use%> <Mounted on>
         # Note : <Used> and <Available> are in 1-k blocks, not in bytes
-        output = self.run(sudo=True).stdout
+        output = self.run(sudo=True, force_run=force_run).stdout
         partition_info = []
-        df_entries = find_patterns_in_lines(output, [self._DF_ENTRY_REGEX])[0]
+        df_entries = find_patterns_groups_in_lines(output, [self._DF_ENTRY_REGEX])[0]
         for df_entry in df_entries:
             partition_info.append(
                 PartitionInfo(
-                    partition_name=df_entry[0],
-                    blocks=int(df_entry[1]),
-                    used=int(df_entry[2]),
-                    total_size=int(df_entry[3]),
-                    percentage_used=int(df_entry[4]),
-                    mountpoint=df_entry[5],
+                    name=df_entry["name"],
+                    mountpoint=df_entry["mountpoint"],
+                    available_blocks=int(df_entry["blocks"]),
+                    used_blocks=int(df_entry["used"]),
+                    total_blocks=int(df_entry["total"]),
+                    percentage_blocks_used=int(df_entry["percentage_use"]),
                 )
             )
         return partition_info
 
-    def get_partition_with_mountpoint(
-        self, partition_mountpoint: str
-    ) -> Optional[PartitionInfo]:
+    def get_partition_by_mountpoint(self, mountpoint: str) -> Optional[PartitionInfo]:
         # get `df` entry for the partition with the given mountpoint
-        df_partition_info = self.get_partition_information()
+        df_partition_info = self.get_partitions()
         for partition in df_partition_info:
-            if partition.mountpoint == partition_mountpoint:
+            if partition.mountpoint == mountpoint:
                 return partition
         return None
