@@ -6,21 +6,39 @@ from dataclasses import dataclass
 from typing import List
 
 from lisa.executable import Tool
-from lisa.util import find_patterns_in_lines
+from lisa.util import find_patterns_groups_in_lines
 
 
 @dataclass
-class PartitionInfo(Tool):
+class PartitionInfo(object):
     name: str = ""
+    mountpoint: str = ""
     size: int = 0
     type: str = ""
-    mountpoint: str = ""
+    available_blocks: int = 0
+    used_blocks: int = 0
+    total_blocks: int = 0
+    percentage_blocks_used: int = 0
 
-    def __init__(self, name: str, size: int, type: str, mountpoint: str):
+    def __init__(
+        self,
+        name: str,
+        mountpoint: str,
+        size: int = 0,
+        type: str = "",
+        available_blocks: int = 0,
+        used_blocks: int = 0,
+        total_blocks: int = 0,
+        percentage_blocks_used: int = 0,
+    ):
         self.name = name
+        self.mountpoint = mountpoint
         self.size = size
         self.type = type
-        self.mountpoint = mountpoint
+        self.available_blocks = available_blocks
+        self.used_blocks = used_blocks
+        self.total_blocks = total_blocks
+        self.percentage_blocks_used = percentage_blocks_used
 
 
 class Lsblk(Tool):
@@ -34,18 +52,22 @@ class Lsblk(Tool):
     def command(self) -> str:
         return "lsblk"
 
-    def get_partition_information(self) -> List[PartitionInfo]:
+    def get_partitions(self, force_run: bool = False) -> List[PartitionInfo]:
         # parse output of lsblk
-        output = self.run("-b -P -o NAME,SIZE,TYPE,MOUNTPOINT", sudo=True).stdout
+        output = self.run(
+            "-b -P -o NAME,SIZE,TYPE,MOUNTPOINT", sudo=True, force_run=force_run
+        ).stdout
         partition_info = []
-        lsblk_entries = find_patterns_in_lines(output, [self._LSBLK_ENTRY_REGEX])[0]
+        lsblk_entries = find_patterns_groups_in_lines(
+            output, [self._LSBLK_ENTRY_REGEX]
+        )[0]
         for lsblk_entry in lsblk_entries:
             partition_info.append(
                 PartitionInfo(
-                    name=lsblk_entry[0],
-                    size=int(lsblk_entry[1]),
-                    type=lsblk_entry[2],
-                    mountpoint=lsblk_entry[3],
+                    name=lsblk_entry["name"],
+                    size=int(lsblk_entry["size"]),
+                    type=lsblk_entry["type"],
+                    mountpoint=lsblk_entry["mountpoint"],
                 )
             )
         return partition_info

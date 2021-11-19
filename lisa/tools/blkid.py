@@ -11,6 +11,7 @@ from lisa.util import LisaException, get_matched_str
 
 
 class PartitionInfo(object):
+    # TODO: Merge with lsblk.PartitionInfo
     def __init__(
         self,
         name: str,

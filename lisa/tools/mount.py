@@ -13,6 +13,7 @@ from lisa.util import LisaException
 
 @dataclass
 class PartitionInfo(object):
+    # TODO: Merge with lsblk.PartitionInfo
     name: str
     disk: str
     mount_point: str
