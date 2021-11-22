@@ -201,7 +201,6 @@ class Dpdk(TestSuite):
         """,
         priority=2,
         requirement=simple_requirement(
-            min_nic_count=1,
             network_interface=Sriov(),
         ),
     )
