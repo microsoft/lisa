@@ -64,12 +64,21 @@ class Iperf3(Tool):
         )
 
     def run_as_client_async(
-        self, server_ip: str, log_file: str = "", seconds: int = 10
+        self,
+        server_ip: str,
+        log_file: str = "",
+        seconds: int = 10,
+        parallel_number: int = 0,
+        client_ip: str = "",
     ) -> Process:
         # -c: run iperf3 as client mode, followed by iperf3 server ip address
         # -t: run iperf3 testing for given seconds
         # --logfile: save logs into specified file
         cmd = f"-t {seconds} -c {server_ip}"
+        if parallel_number:
+            cmd += f" -P {parallel_number}"
+        if client_ip:
+            cmd += f" -B {client_ip}"
         if log_file:
             if self.node.shell.exists(self.node.get_pure_path(log_file)):
                 self.node.shell.remove(self.node.get_pure_path(log_file))
@@ -78,11 +87,19 @@ class Iperf3(Tool):
         return process
 
     def run_as_client(
-        self, server_ip: str, log_file: str = "", seconds: int = 10
+        self,
+        server_ip: str,
+        log_file: str = "",
+        seconds: int = 10,
+        parallel_number: int = 0,
+        client_ip: str = "",
     ) -> None:
-        process = self.run_as_client_async(server_ip, log_file, seconds)
+        process = self.run_as_client_async(
+            server_ip, log_file, seconds, parallel_number, client_ip
+        )
+        timeout = seconds + 10
         process.wait_result(
-            seconds,
+            timeout,
             expected_exit_code=0,
             expected_exit_code_failure_message="fail to lanuch iperf3 client",
         )
