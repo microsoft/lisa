@@ -2,11 +2,8 @@
 # Licensed under the MIT license.
 from __future__ import annotations
 
-import re
 import time
-from dataclasses import dataclass
 from pathlib import PurePosixPath
-from typing import List
 
 from assertpy.assertpy import assert_that
 
@@ -18,7 +15,7 @@ from lisa import (
     SkippedException,
     testsuite,
 )
-from lisa.tools import Cat, Echo, Lscpu, Lsvmbus, TaskSet, Uname
+from lisa.tools import Cat, Echo, InterruptInspector, Lscpu, Lsvmbus, TaskSet, Uname
 
 
 class CPUState:
@@ -27,70 +24,6 @@ class CPUState:
 
 
 hyperv_interrupt_substr = ["hyperv", "Hypervisor", "Hyper-V"]
-
-
-@dataclass
-class Interrupt:
-    irq_number: str
-    interrupt_count: List[int]
-    metadata: str
-
-    # 0:         22          0  IR-IO-APIC   2-edge      timer
-    _interrupt_regex = re.compile(
-        r"^\s*(?P<irq_number>\S+):\s+(?P<interrupt_count>[\d+ ]+)\s*(?P<metadata>.*)$"
-    )
-
-    def __init__(
-        self, irq_number: str, interrupt_count: List[int], metadata: str = ""
-    ) -> None:
-        self.irq_number = irq_number
-        self.interrupt_count = interrupt_count
-        self.metadata = metadata
-
-    def __str__(self) -> str:
-        return (
-            f"irq_number : {self.irq_number}, "
-            f"count : {self.interrupt_count}, "
-            f"metadata : {self.metadata}"
-        )
-
-    def __repr__(self) -> str:
-        return self.__str__()
-
-    @staticmethod
-    def get_interrupt_data(node: Node) -> List[Interrupt]:
-        # Run cat /proc/interrupts. The output is of the form :
-        #          CPU0       CPU1
-        # 0:         22          0  IR-IO-APIC   2-edge      timer
-        # 1:          2          0  IR-IO-APIC   1-edge      i8042
-        # ERR:        0
-        # The first column refers to the IRQ number. The next column contains
-        # number of interrupts per IRQ for each CPU in the system. The remaining
-        # column report the metadata about interrupts, including type of interrupt,
-        # device etc. This is variable for each distro.
-        # Note : Some IRQ numbers have single entry because they're not actually
-        # CPU stats, but events count belonging to the IO-APIC controller. For
-        # example, `ERR` is incremented in the case of errors in the IO-APIC bus.
-        result = node.tools[Cat].run("/proc/interrupts", sudo=True).stdout
-        mappings_with_header = result.splitlines(keepends=False)
-        mappings = mappings_with_header[1:]
-        assert len(mappings) > 0
-
-        interrupts = []
-        for line in mappings:
-            matched = Interrupt._interrupt_regex.fullmatch(line)
-            assert matched
-            interrupt_count = [
-                int(count) for count in matched.group("interrupt_count").split()
-            ]
-            interrupts.append(
-                Interrupt(
-                    irq_number=matched.group("irq_number"),
-                    interrupt_count=interrupt_count,
-                    metadata=matched.group("metadata"),
-                )
-            )
-        return interrupts
 
 
 @testsuite.TestSuiteMetadata(
@@ -278,7 +211,8 @@ class CPU(testsuite.TestSuite):
         log.debug(f"{cpu_count} CPU cores detected...")
 
         self._create_stimer_interrupts(node, cpu_count)
-        interrupts = Interrupt.get_interrupt_data(node)
+        interrupt_inspector = node.tools[InterruptInspector]
+        interrupts = interrupt_inspector.get_interrupt_data()
         for interrupt in interrupts:
             is_hyperv_interrupt = any(
                 [(substr in interrupt.metadata) for substr in hyperv_interrupt_substr]
@@ -287,7 +221,7 @@ class CPU(testsuite.TestSuite):
                 continue
             log.debug(f"Processing Hyper-V interrupt : {interrupt}")
             assert_that(
-                len(interrupt.interrupt_count),
+                len(interrupt.cpu_counter),
                 "Hyper-v interrupts should have count for each cpu.",
             ).is_equal_to(cpu_count)
             if interrupt.irq_number == "HRE" or "reenlightenment" in interrupt.metadata:
@@ -295,7 +229,7 @@ class CPU(testsuite.TestSuite):
                     all(
                         [
                             interrupt_count == 0
-                            for interrupt_count in interrupt.interrupt_count
+                            for interrupt_count in interrupt.cpu_counter
                         ]
                     ),
                     "Hyper-V reenlightenment interrupts should be 0 on each vCPU "
@@ -306,7 +240,7 @@ class CPU(testsuite.TestSuite):
                     sum(
                         [
                             interrupt_count > 0
-                            for interrupt_count in interrupt.interrupt_count
+                            for interrupt_count in interrupt.cpu_counter
                         ]
                     ),
                     "Hypervisor callback interrupt should be processed by "
@@ -317,7 +251,7 @@ class CPU(testsuite.TestSuite):
                     all(
                         [
                             interrupt_count > 0
-                            for interrupt_count in interrupt.interrupt_count
+                            for interrupt_count in interrupt.cpu_counter
                         ]
                     ),
                     "Hypervisor synthetic timer interrupt should be processed by "
