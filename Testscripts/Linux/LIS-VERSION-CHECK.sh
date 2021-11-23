@@ -74,7 +74,12 @@ else
     for i in 5 6 7
     do
         rm -rf hv_compat.h
-        wget https://raw.githubusercontent.com/LIS/lis-next/"$version"/hv-rhel$i.x/hv/include/linux/hv_compat.h
+		wget_url=https://raw.githubusercontent.com/LIS/lis-next/"$version"/hv-rhel$i.x/hv/include/linux/hv_compat.h
+		
+		echo "Printing URL:"
+		echo "URL: $wget_url"
+		LogMsg "URL: $wget_url"
+        wget wget_url
         check_exit_status "Download file hv_compat.h" "exit"
         sourceversion=$(grep 'define HV_DRV_VERSION' hv_compat.h|cut -d '"' -f 2)
         sourceversion_hex=$(grep 'define _HV_DRV_VERSION' hv_compat.h|cut -d ' ' -f 3|tr -d '0x')
