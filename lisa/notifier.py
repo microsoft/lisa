@@ -40,7 +40,7 @@ class TestRunMessage(MessageBase):
     message: str = ""
 
 
-init_logger = partial(get_logger, "init", "notifier")
+_get_init_logger = partial(get_logger, "init", "notifier")
 
 
 class Notifier(subclasses.BaseClassWithRunbookMixin, InitializableMixin):
@@ -90,7 +90,7 @@ _notifying_lock = threading.Lock()
 def initialize(runbooks: List[schema.Notifier]) -> None:
 
     factory = subclasses.Factory[Notifier](Notifier)
-    log = init_logger()
+    log = _get_init_logger()
 
     if not any(x for x in runbooks if x.type == constants.NOTIFIER_CONSOLE):
         # add console notifier by default to provide troubleshooting information
@@ -121,7 +121,7 @@ def register_notifier(notifier: Notifier) -> None:
         registered_notifiers.append(notifier)
         _messages[message_type] = registered_notifiers
 
-    log = init_logger()
+    log = _get_init_logger()
     log.debug(
         f"registered [{notifier.type_name()}] "
         f"on messages: {[x.type for x in subscribed_message_types]}"
