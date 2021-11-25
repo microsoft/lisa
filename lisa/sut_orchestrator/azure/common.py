@@ -326,14 +326,38 @@ def wait_operation(operation: Any) -> Any:
     return operation.wait()
 
 
+def get_storage_credential(
+    credential: Any, subscription_id: str, account_name: str, resource_group_name: str
+) -> Any:
+    """
+    return a shared key credential. This credential doesn't need extra
+     permissions to access blobs.
+    """
+    storage_client = get_storage_client(credential, subscription_id)
+    key = storage_client.storage_accounts.list_keys(
+        account_name=account_name, resource_group_name=resource_group_name
+    ).keys[0]
+    return {"account_name": account_name, "account_key": key.value}
+
+
 def get_or_create_storage_container(
-    storage_account_name: str, container_name: str, credential: Any
+    credential: Any,
+    subscription_id: str,
+    account_name: str,
+    container_name: str,
+    resource_group_name: str,
 ) -> ContainerClient:
     """
     Create a Azure Storage container if it does not exist.
     """
+    shared_key_credential = get_storage_credential(
+        credential=credential,
+        subscription_id=subscription_id,
+        account_name=account_name,
+        resource_group_name=resource_group_name,
+    )
     blob_service_client = BlobServiceClient(
-        f"https://{storage_account_name}.blob.core.windows.net", credential
+        f"https://{account_name}.blob.core.windows.net", shared_key_credential
     )
     container_client = blob_service_client.get_container_client(container_name)
     if not container_client.exists():
