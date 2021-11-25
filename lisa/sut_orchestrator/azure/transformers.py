@@ -208,7 +208,11 @@ class VhdTransformer(Transformer):
             log=self._log,
         )
         container_client = get_or_create_storage_container(
-            runbook.storage_account_name, runbook.container_name, platform.credential
+            credential=platform.credential,
+            subscription_id=platform.subscription_id,
+            account_name=runbook.storage_account_name,
+            container_name=runbook.container_name,
+            resource_group_name=runbook.shared_resource_group_name,
         )
 
         path = _generate_vhd_path(container_client, runbook.file_name_part)
