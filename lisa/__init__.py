@@ -18,6 +18,7 @@ from lisa.util import (
     LisaException,
     PassedException,
     SkippedException,
+    TcpConnetionException,
     UnsupportedDistroException,
     UnsupportedOperationException,
 )
@@ -35,6 +36,7 @@ __all__ = [
     "PassedException",
     "RemoteNode",
     "SkippedException",
+    "TcpConnetionException",
     "TestSuiteMetadata",
     "TestCaseMetadata",
     "TestSuite",

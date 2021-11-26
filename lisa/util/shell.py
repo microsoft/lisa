@@ -17,7 +17,7 @@ from func_timeout import FunctionTimedOut, func_set_timeout  # type: ignore
 from paramiko.ssh_exception import SSHException
 from retry import retry
 
-from lisa.util import InitializableMixin, LisaException
+from lisa.util import InitializableMixin, LisaException, TcpConnetionException
 
 from .logger import Logger
 from .perf_timer import create_timer
@@ -198,10 +198,10 @@ class SshShell(InitializableMixin):
             self._connection_info.address, self._connection_info.port
         )
         if not is_ready:
-            raise LisaException(
-                f"cannot connect to TCP port: "
-                f"[{self._connection_info.address}:{self._connection_info.port}], "
-                f"error code: {tcp_error_code}"
+            raise TcpConnetionException(
+                self._connection_info.address,
+                self._connection_info.port,
+                tcp_error_code,
             )
         try:
             stdout = try_connect(self._connection_info)

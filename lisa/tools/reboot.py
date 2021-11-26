@@ -10,7 +10,7 @@ from func_timeout import FunctionTimedOut, func_set_timeout  # type: ignore
 
 from lisa.executable import Tool
 from lisa.features import SerialConsole
-from lisa.util import LisaException
+from lisa.util import LisaException, TcpConnetionException
 from lisa.util.perf_timer import create_timer
 
 from .date import Date
@@ -49,9 +49,7 @@ class Reboot(Tool):
                     stage="reboot",
                 )
             # if node cannot be connected after reboot, it should be failed.
-            if isinstance(identifier, LisaException) and str(identifier).startswith(
-                "cannot connect to TCP port"
-            ):
+            if isinstance(identifier, TcpConnetionException):
                 raise LisaException(f"after reboot, {identifier}")
             raise identifier
 

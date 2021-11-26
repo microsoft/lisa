@@ -144,6 +144,29 @@ class NotMeetRequirementException(LisaException):
     ...
 
 
+class TcpConnetionException(LisaException):
+    """
+    This exception is used to indicate that VM can't be connected issue.
+    """
+
+    def __init__(
+        self, address: str, port: int, tcp_error_code: int, message: str = ""
+    ) -> None:
+        self.address = address
+        self.port = port
+        self.tcp_error_code = tcp_error_code
+        self.message = message
+
+    def __str__(self) -> str:
+        format_str = (
+            f"cannot connect to TCP port: [{self.address}:{self.port}],"
+            f" error code: {self.tcp_error_code}"
+        )
+        if self.message:
+            format_str += f", {self.message}"
+        return format_str
+
+
 class ContextMixin:
     def get_context(self, context_type: Type[T]) -> T:
         if not hasattr(self, "_context"):
