@@ -355,10 +355,20 @@ class DpdkTestpmd(Tool):
         ).is_not_equal_to("")
         vdev_info = ""
 
-        if self._dpdk_version_info and self._dpdk_version_info >= VersionInfo(19, 11):
+        assert_that(self._dpdk_version_info).described_as(
+            "dpdktestpmd._dpdk_version_info was not set, "
+            "can not determine correct flags for run"
+        ).is_not_none()
+
+        if self._dpdk_version_info >= VersionInfo(19, 11):
             vdev_name = "net_vdev_netvsc"
         else:
             vdev_name = "net_failsafe"
+
+        if self._dpdk_version_info >= VersionInfo(20, 11):
+            allow_flag = "--allow"
+        else:
+            allow_flag = "-w"
 
         if node_nic.bound_driver == "hv_netvsc":
             vdev_info = f'--vdev="{vdev_name}{vdev_id},iface={node_nic.upper}"'
@@ -372,7 +382,7 @@ class DpdkTestpmd(Tool):
                     "Cannot generate testpmd include arguments."
                 )
             )
-        return vdev_info + f' -w "{node_nic.pci_slot}"'
+        return vdev_info + f' {allow_flag} "{node_nic.pci_slot}"'
 
     def generate_testpmd_command(
         self,
