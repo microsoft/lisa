@@ -180,7 +180,7 @@ class KdumpBase(Tool):
         elif isinstance(node.os, Suse):
             return KdumpSuse(node)
         else:
-            raise UnsupportedDistroException(node.os.name, node.os.information.version)
+            raise UnsupportedDistroException(os=node.os)
 
     @property
     def dependencies(self) -> List[Type[Tool]]:

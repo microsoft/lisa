@@ -5,6 +5,7 @@ import re
 from datetime import datetime
 from pathlib import Path
 from typing import (
+    TYPE_CHECKING,
     Any,
     Callable,
     Dict,
@@ -24,6 +25,9 @@ from semver import VersionInfo
 
 from lisa import secret
 from lisa.util import constants
+
+if TYPE_CHECKING:
+    from lisa.operating_system import OperatingSystem
 
 T = TypeVar("T")
 
@@ -92,9 +96,9 @@ class UnsupportedDistroException(LisaException):
     distro.
     """
 
-    def __init__(self, name: str, version: VersionInfo) -> None:
-        self.name = name
-        self.version = version
+    def __init__(self, os: "OperatingSystem") -> None:
+        self.name = os.name
+        self.version = os.information.version
 
     def __str__(self) -> str:
         return f"Unsupported distro {self.name} {self.version}"

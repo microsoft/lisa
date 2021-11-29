@@ -262,10 +262,7 @@ class DpdkTestpmd(Tool):
                 )
             modprobe.load("mlx4_en")
         else:
-            raise UnsupportedDistroException(
-                self.node.os.name,
-                self.node.os.information.version,
-            )
+            raise UnsupportedDistroException(self.node.os)
         modprobe.load(["ib_core", "ib_uverbs", "rdma_ucm", "ib_umad", "ib_ipoib"])
         modprobe.load(mellanox_drivers)
 
@@ -323,7 +320,7 @@ class DpdkTestpmd(Tool):
             )
             self.__execute_assert_zero("pip3 install --upgrade pyelftools", cwd)
         else:
-            raise UnsupportedDistroException(node.os.name, node.os.information.version)
+            raise UnsupportedDistroException(node.os)
 
     def generate_testpmd_include(
         self,
