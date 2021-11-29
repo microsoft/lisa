@@ -55,9 +55,7 @@ class Dhclient(Tool):
                 value = int(group["number"])
                 is_default_value = False
         else:
-            raise UnsupportedDistroException(
-                name=self.node.os.name, version=self.node.os.information.version
-            )
+            raise UnsupportedDistroException(os=self.node.os)
 
         self._log.debug(f"timeout value: {value}, is default: {is_default_value}")
 
