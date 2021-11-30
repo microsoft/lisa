@@ -98,33 +98,21 @@ class AzureImageStandard(TestSuite):
     def verify_grub(self, node: Node) -> None:
         # check grub configuration file
         if isinstance(node.os, Debian):
-            grub_output = node.tools[Cat].read_from_file(
-                "/boot/grub/grub.cfg", sudo=True
-            )
+            grub_output = node.tools[Cat].read("/boot/grub/grub.cfg", sudo=True)
         elif isinstance(node.os, Suse):
             if node.shell.exists(PurePosixPath("/boot/grub2/grub.cfg")):
-                grub_output = node.tools[Cat].read_from_file(
-                    "/boot/grub2/grub.cfg", sudo=True
-                )
+                grub_output = node.tools[Cat].read("/boot/grub2/grub.cfg", sudo=True)
             elif node.shell.exists(PurePosixPath("/boot/grub/grub.conf")):
-                grub_output = node.tools[Cat].read_from_file(
-                    "/boot/grub/grub.conf", sudo=True
-                )
+                grub_output = node.tools[Cat].read("/boot/grub/grub.conf", sudo=True)
             else:
                 raise LisaException("Unable to locate grub file")
         elif isinstance(node.os, Fedora):
             if isinstance(node.os, Redhat) and node.os.information.version >= "8.0.0":
-                grub_output = node.tools[Cat].read_from_file(
-                    "/boot/grub2/grubenv", sudo=True
-                )
+                grub_output = node.tools[Cat].read("/boot/grub2/grubenv", sudo=True)
             elif node.shell.exists(PurePosixPath("/boot/grub2/grub.cfg")):
-                grub_output = node.tools[Cat].read_from_file(
-                    "/boot/grub2/grub.cfg", sudo=True
-                )
+                grub_output = node.tools[Cat].read("/boot/grub2/grub.cfg", sudo=True)
             elif node.shell.exists(PurePosixPath("/boot/grub/menu.lst")):
-                grub_output = node.tools[Cat].read_from_file(
-                    "/boot/grub/menu.lst", sudo=True
-                )
+                grub_output = node.tools[Cat].read("/boot/grub/menu.lst", sudo=True)
             else:
                 raise LisaException("Unable to locate grub file")
         elif isinstance(node.os, CoreOs):
@@ -200,7 +188,7 @@ class AzureImageStandard(TestSuite):
                 f"The network file should be present at {network_file_path}",
             ).is_true()
 
-            network_file = node.tools[Cat].read_from_file(network_file_path)
+            network_file = node.tools[Cat].read(network_file_path)
             assert_that(
                 network_file.upper(),
                 f"networking=yes should be present in {network_file_path}",
@@ -220,7 +208,7 @@ class AzureImageStandard(TestSuite):
     )
     def verify_ifcfg_eth0(self, node: Node) -> None:
         if isinstance(node.os, Fedora):
-            ifcfg_eth0 = node.tools[Cat].read_from_file(
+            ifcfg_eth0 = node.tools[Cat].read(
                 "/etc/sysconfig/network-scripts/ifcfg-eth0"
             )
 
@@ -300,7 +288,7 @@ class AzureImageStandard(TestSuite):
 
             # DHCLIENT_SET_HOSTNAME="no" should be set
             # https://docs.microsoft.com/en-us/azure/virtual-machines/linux/suse-create-upload-vhd#prepare-suse-linux-enterprise-server-for-azure  # noqa: E501
-            dhcp_file = node.tools[Cat].read_from_file(dhcp_file_path)
+            dhcp_file = node.tools[Cat].read(dhcp_file_path)
             assert_that(
                 dhcp_file,
                 'DHCLIENT_SET_HOSTNAME="no" should be present in '
@@ -323,7 +311,7 @@ class AzureImageStandard(TestSuite):
     def verify_yum_conf(self, node: Node) -> None:
         if isinstance(node.os, Fedora):
             if node.os.information.version < "6.6.0":
-                ym_conf = node.tools[Cat].read_from_file("/etc/yum.conf")
+                ym_conf = node.tools[Cat].read("/etc/yum.conf")
                 assert_that(
                     ym_conf, "http_caching=packages should be present in /etc/yum.conf"
                 ).contains("http_caching=packages")

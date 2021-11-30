@@ -408,9 +408,7 @@ class Sriov(TestSuite):
 
         # wait for a while then check any error shown up in iperfResults.log
         dest_cat = client_node.tools[Cat]
-        iperf_log = dest_cat.read_from_file(
-            client_iperf3_log, sudo=True, force_run=True
-        )
+        iperf_log = dest_cat.read(client_iperf3_log, sudo=True, force_run=True)
         assert_that(iperf_log).does_not_contain("error")
 
         # disable and enable VF in pci level
@@ -520,9 +518,7 @@ class Sriov(TestSuite):
         # check there is no error happen in iperf3 log
         # after above operations
         dest_cat = client_node.tools[Cat]
-        iperf_log = dest_cat.read_from_file(
-            client_iperf3_log, sudo=True, force_run=True
-        )
+        iperf_log = dest_cat.read(client_iperf3_log, sudo=True, force_run=True)
         assert_that(iperf_log).does_not_contain("error")
 
     @TestCaseMetadata(

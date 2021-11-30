@@ -95,9 +95,7 @@ class Stress(TestSuite):
             client_ip=client_nic_info.ip_addr,
         )
         client_cat = client_node.tools[Cat]
-        iperf_log = client_cat.read_from_file(
-            client_iperf3_log, sudo=True, force_run=True
-        )
+        iperf_log = client_cat.read(client_iperf3_log, sudo=True, force_run=True)
         assert_that(iperf_log).described_as(
             f"iperf client run failed on client node, {iperf_log}"
         ).does_not_contain("error")

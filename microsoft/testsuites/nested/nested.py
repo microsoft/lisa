@@ -92,9 +92,7 @@ class Nested(TestSuite):
             nested_image_port,
         )
 
-        uploaded_message = l2_vm.tools[Cat].read_from_file(
-            self.NESTED_VM_TEST_FILE_NAME
-        )
+        uploaded_message = l2_vm.tools[Cat].read(self.NESTED_VM_TEST_FILE_NAME)
         assert_that(
             uploaded_message,
             "Content of the file uploaded to L2 vm from L1 should match",

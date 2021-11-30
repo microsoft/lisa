@@ -59,11 +59,7 @@ def load_module(node: Node, module_name: str) -> None:
 
 def get_packets(node: Node, nic_name: str, name: str = "tx_packets") -> int:
     cat = node.tools[Cat]
-    return int(
-        cat.read_from_file(
-            f"/sys/class/net/{nic_name}/statistics/{name}", force_run=True
-        )
-    )
+    return int(cat.read(f"/sys/class/net/{nic_name}/statistics/{name}", force_run=True))
 
 
 @retry(exceptions=AssertionError, tries=150, delay=2)  # type: ignore

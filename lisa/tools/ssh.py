@@ -28,7 +28,7 @@ class Ssh(Tool):
             expected_exit_code_failure_message="error on generate key files.",
         )
         cat = self.node.tools[Cat]
-        public_key = cat.read_from_file(
+        public_key = cat.read(
             str(self.node.get_pure_path("~/.ssh/id_rsa.pub")),
             force_run=True,
         )
