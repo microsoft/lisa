@@ -649,6 +649,30 @@ class Debian(Linux):
 
         return repositories
 
+    def add_repository(
+        self, url: str, codename: str, packages: str = "main", key_location: str = ""
+    ) -> None:
+        if key_location:
+            wget = self._node.tools[Wget]
+            key_file_path = wget.get(
+                url=key_location,
+                file_path=str(self._node.working_path),
+            )
+            self._node.execute(
+                cmd=f"apt-key add {key_file_path}",
+                sudo=True,
+                expected_exit_code=0,
+                expected_exit_code_failure_message="fail to add apt key",
+            )
+        # This command will trigger apt update too, so it doesn't need to update
+        # repos again.
+        self._node.execute(
+            cmd=f'apt-add-repository "deb {url} {codename} {packages}"',
+            sudo=True,
+            expected_exit_code=0,
+            expected_exit_code_failure_message="fail to add repository",
+        )
+
     def _initialize_package_installation(self) -> None:
         # wait running system package process.
         self.wait_running_package_process()
