@@ -12,7 +12,7 @@ class Cat(Tool):
     def _check_exists(self) -> bool:
         return True
 
-    def read_from_file(
+    def read(
         self,
         file: str,
         force_run: bool = False,

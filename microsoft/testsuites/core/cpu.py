@@ -272,7 +272,7 @@ class CPU(testsuite.TestSuite):
     def _set_cpu_state(self, cpu_id: str, state: str, node: Node) -> bool:
         file_path = self._get_cpu_config_file(cpu_id)
         node.tools[Echo].write_to_file(state, node.get_pure_path(file_path), sudo=True)
-        result = node.tools[Cat].read_from_file(file_path, force_run=True, sudo=True)
+        result = node.tools[Cat].read(file_path, force_run=True, sudo=True)
         return result == state
 
     def _create_stimer_interrupts(self, node: Node, cpu_count: int) -> None:
