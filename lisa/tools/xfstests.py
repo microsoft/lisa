@@ -128,9 +128,13 @@ class Xfstests(Tool):
 
         # if install the packages in one command, the remain available packages can't
         # be installed if one of packages is not available in that distro,
-        # so here install it one by one.
+        # so here install it one by one
         for package in list(package_list):
-            posix_os.install_packages(package)
+            # to make code simple, put all packages needed by one distro in one list.
+            # the package name may be different for the different sku of the
+            #  same distro. so, install it when the package exists in the repo.
+            if posix_os.is_package_in_repo(package):
+                posix_os.install_packages(package)
 
     def _add_test_users(self) -> None:
         # prerequisite for xfstesting
