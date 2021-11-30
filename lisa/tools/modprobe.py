@@ -25,6 +25,7 @@ class Modprobe(Tool):
     ) -> bool:
         result = self.run(
             f"-nv {mod_name}",
+            sudo=True,
             force_run=force_run,
             no_info_log=no_info_log,
             no_error_log=no_error_log,
