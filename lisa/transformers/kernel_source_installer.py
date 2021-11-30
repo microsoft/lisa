@@ -1,7 +1,6 @@
 # Copyright (c) Microsoft Corporation.
 # Licensed under the MIT license.
 
-
 from dataclasses import dataclass, field
 from pathlib import PurePath
 from typing import Any, List, Optional, Type, cast
@@ -11,7 +10,7 @@ from dataclasses_json import dataclass_json
 from lisa import schema
 from lisa.node import Node
 from lisa.operating_system import Redhat, Ubuntu
-from lisa.tools import Echo, Git, Make, Uname
+from lisa.tools import Echo, Git, Make, Sed, Uname
 from lisa.util import LisaException, field_metadata, subclasses
 from lisa.util.logger import Logger, get_logger
 
@@ -183,6 +182,15 @@ class SourceInstaller(BaseInstaller):
         )
         result.assert_exit_code()
 
+        config_path = code_path.joinpath(".config")
+        sed = self._node.tools[Sed]
+        sed.substitute(
+            regexp="CONFIG_DEBUG_INFO_BTF=.*",
+            replacement="CONFIG_DEBUG_INFO_BTF=no",
+            file=str(config_path),
+            sudo=True,
+        )
+
         # workaround failures.
         #
         # make[1]: *** No rule to make target 'debian/canonical-certs.pem',
@@ -217,7 +225,11 @@ class SourceInstaller(BaseInstaller):
         os = node.os
         self._log.info("installing build tools")
         if isinstance(os, Redhat):
-            os.install_packages(["elfutils-libelf-devel", "openssl-devel", "dwarves"])
+            for package in list(
+                ["elfutils-libelf-devel", "openssl-devel", "dwarves", "bc"]
+            ):
+                if os.is_package_in_repo(package):
+                    os.install_packages(package)
             os.group_install_packages("Development Tools")
 
             if os.information.version < "8.0.0":

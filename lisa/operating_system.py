@@ -295,15 +295,21 @@ class Posix(OperatingSystem, BaseClassMixin):
         package_names = self._get_package_list(packages)
         self._install_packages(package_names, signed)
 
-    def package_exists(
-        self, package: Union[str, Tool, Type[Tool]], signed: bool = True
-    ) -> bool:
+    def package_exists(self, package: Union[str, Tool, Type[Tool]]) -> bool:
         """
         Query if a package/tool is installed on the node.
         Return Value - bool
         """
         package_name = self.__resolve_package_name(package)
         return self._package_exists(package_name)
+
+    def is_package_in_repo(self, package: Union[str, Tool, Type[Tool]]) -> bool:
+        """
+        Query if a package/tool exists in the repo
+        Return Value - bool
+        """
+        package_name = self.__resolve_package_name(package)
+        return self._is_package_in_repo(package_name)
 
     def update_packages(
         self, packages: Union[str, Tool, Type[Tool], List[Union[str, Tool, Type[Tool]]]]
@@ -346,7 +352,10 @@ class Posix(OperatingSystem, BaseClassMixin):
     def _update_packages(self, packages: Optional[List[str]] = None) -> None:
         raise NotImplementedError()
 
-    def _package_exists(self, package: str, signed: bool = True) -> bool:
+    def _package_exists(self, package: str) -> bool:
+        raise NotImplementedError()
+
+    def _is_package_in_repo(self, package: str) -> bool:
         raise NotImplementedError()
 
     def _initialize_package_installation(self) -> None:
@@ -544,7 +553,6 @@ class Debian(Linux):
         Maintainer: Ubuntu Developers <ubuntu-devel-discuss@lists.ubuntu.com>
         Original-Maintainer: Jonathan Nieder <jrnieder@gmail.com>
     """
-
     _debian_package_information_regex = re.compile(
         r"Package: ([a-zA-Z0-9:_\-\.]+)\r?\n"  # package name group
         r"Version: ([a-zA-Z0-9:_\-\.]+)\r?\n"  # version number group
@@ -556,6 +564,7 @@ class Debian(Linux):
         r"(?P<patch>[0-9]+)"  # patch
         r"-(?P<build>[a-zA-Z0-9-_\.]+)"  # build
     )
+    _package_existed_in_repo_pattern = re.compile(r"Candidate: ((?!none)).*", re.M)
 
     @classmethod
     def name_pattern(cls) -> Pattern[str]:
@@ -677,7 +686,7 @@ class Debian(Linux):
                 + "\n",
             )
 
-    def _package_exists(self, package: str, signed: bool = True) -> bool:
+    def _package_exists(self, package: str) -> bool:
         command = "dpkg --get-selections"
         result = self._node.execute(command, sudo=True, shell=True)
         package_pattern = re.compile(f"{package}([ \t]+)install")
@@ -686,6 +695,34 @@ class Debian(Linux):
         # vim                                             deinstall
         # vim-common                                      install
         if len(list(filter(package_pattern.match, result.stdout.splitlines()))) == 1:
+            return True
+        return False
+
+    def _is_package_in_repo(self, package: str) -> bool:
+        command = f"apt-cache policy {package}"
+        result = self._node.execute(command, sudo=True, shell=True)
+        # apt-cache policy git
+        # git:
+        #   Installed: 1:2.17.1-1ubuntu0.9
+        #   Candidate: 1:2.17.1-1ubuntu0.9
+        #   Version table:
+        #  *** 1:2.17.1-1ubuntu0.9 500
+        #         500 http://azure.archive.ubuntu.com/ubuntu bionic-updates/main amd64 Packages # noqa: E501
+        #         500 http://security.ubuntu.com/ubuntu bionic-security/main amd64 Packages # noqa: E501
+        #         100 /var/lib/dpkg/status
+        #      1:2.17.0-1ubuntu1 500
+        #         500 http://azure.archive.ubuntu.com/ubuntu bionic/main amd64 Packages
+        # apt-cache policy mock
+        # mock:
+        #   Installed: (none)
+        #   Candidate: 1.3.2-2
+        #   Version table:
+        #      1.3.2-2 500
+        #         500 http://azure.archive.ubuntu.com/ubuntu bionic/universe amd64 Packages # noqa: E501
+        # apt-cache policy test
+        # N: Unable to locate package test
+        matched = get_matched_str(result.stdout, self._package_existed_in_repo_pattern)
+        if matched:
             return True
         return False
 
@@ -966,7 +1003,7 @@ class Fedora(Linux):
 
         self._log.debug(f"{packages} is/are installed successfully.")
 
-    def _package_exists(self, package: str, signed: bool = True) -> bool:
+    def _package_exists(self, package: str) -> bool:
         command = f"dnf list installed {package}"
         result = self._node.execute(command, sudo=True)
         if result.exit_code == 0:
@@ -1073,13 +1110,18 @@ class Redhat(Fedora):
                 raise MissingPackagesException(missing_packages)
         self.__verify_package_result(install_result, packages)
 
-    def _package_exists(self, package: str, signed: bool = True) -> bool:
+    def _package_exists(self, package: str) -> bool:
         command = f"yum list installed {package}"
         result = self._node.execute(command, sudo=True)
         if result.exit_code == 0:
             return True
 
         return False
+
+    def _is_package_in_repo(self, package: str) -> bool:
+        command = f"yum --showduplicates list {package}"
+        result = self._node.execute(command, sudo=True, shell=True)
+        return 0 == result.exit_code
 
     def _get_information(self) -> OsInformation:
         # The higher version above 7.0 support os-version.
@@ -1256,6 +1298,16 @@ class Suse(Linux):
         if packages:
             command += " ".join(packages)
         self._node.execute(command, sudo=True, timeout=3600)
+
+    def _package_exists(self, package: str) -> bool:
+        command = f"zypper search --installed-only --match-exact {package}"
+        result = self._node.execute(command, sudo=True, shell=True)
+        return 0 == result.exit_code
+
+    def _is_package_in_repo(self, package: str) -> bool:
+        command = f"zypper search -s --match-exact {package}"
+        result = self._node.execute(command, sudo=True, shell=True)
+        return 0 == result.exit_code
 
 
 class SLES(Suse):
