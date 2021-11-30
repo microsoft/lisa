@@ -27,7 +27,6 @@ def _who_last(who: Who) -> datetime:
 class Reboot(Tool):
     def _initialize(self, *args: Any, **kwargs: Any) -> None:
         # timeout to wait
-        self.time_out: int = 300
         self._command = "/sbin/reboot"
 
     @property
@@ -55,7 +54,7 @@ class Reboot(Tool):
                 raise LisaException(f"after reboot, {identifier}")
             raise identifier
 
-    def reboot(self) -> None:
+    def reboot(self, time_out: int = 300) -> None:
         who = self.node.tools[Who]
         timer = create_timer()
 
@@ -102,9 +101,7 @@ class Reboot(Tool):
             self._log.debug(f"ignorable exception on rebooting: {identifier}")
 
         connected: bool = False
-        while (
-            last_boot_time == current_boot_time and timer.elapsed(False) < self.time_out
-        ):
+        while last_boot_time == current_boot_time and timer.elapsed(False) < time_out:
             try:
                 self.node.close()
                 current_boot_time = _who_last(who)
@@ -117,7 +114,7 @@ class Reboot(Tool):
                 # error is ignorable, as ssh may be closed suddenly.
                 self._log.debug(f"ignorable ssh exception: {identifier}")
             self._log.debug(f"reconnected with uptime: {current_boot_time}")
-        if timer.elapsed() > self.time_out:
+        if timer.elapsed() > time_out:
             if connected:
                 raise LisaException(
                     "timeout to wait reboot, the node may not perform reboot."

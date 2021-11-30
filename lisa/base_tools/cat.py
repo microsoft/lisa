@@ -22,3 +22,17 @@ class Cat(Tool):
         result = self.run(file, force_run=force_run, sudo=sudo, shell=True)
         result.assert_exit_code(message=f"Error : {result.stdout}")
         return result.stdout
+
+    # Returns string composed of lines in file that contain grep_string
+    def read_with_filter(
+        self,
+        file: str,
+        grep_string: str,
+        force_run: bool = False,
+        sudo: bool = False,
+    ) -> str:
+        # Combining cat with grep
+        params = f'{file} | grep "{grep_string}"'
+        result = self.run(params, force_run=force_run, sudo=sudo, shell=True)
+        result.assert_exit_code(message=f"Error : {result.stdout}")
+        return result.stdout

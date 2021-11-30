@@ -162,7 +162,7 @@ class LisDriver(Tool):
                 f"Unable to install the LIS RPMs! exit_code: {result.exit_code}"
                 f"stderr: {result.stderr}"
             )
-        self.node.reboot()
+        self.node.reboot(360)
         return True
 
     def get_version(self, force: bool = False) -> str:
