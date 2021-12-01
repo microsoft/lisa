@@ -17,7 +17,7 @@ from lisa.features import NvmeSettings
 from lisa.features.gpu import ComputeSDK
 from lisa.node import Node, RemoteNode
 from lisa.operating_system import CentOs, Redhat, Suse, Ubuntu
-from lisa.tools import Modprobe
+from lisa.tools import Dmesg, Lspci, Modprobe
 from lisa.util import (
     LisaException,
     NotMeetRequirementException,
@@ -154,6 +154,23 @@ class Gpu(AzureFeatureMixin, features.Gpu):
                 f" {node_runbook.vm_size}."
             )
         return driver_list
+
+
+class Infiniband(AzureFeatureMixin, features.Infiniband):
+    def _initialize(self, *args: Any, **kwargs: Any) -> None:
+        super()._initialize(*args, **kwargs)
+        self._initialize_information(self._node)
+
+    def is_over_sriov(self) -> bool:
+        lspci = self._node.tools[Lspci]
+        device_list = lspci.get_device_list()
+        return any("Virtual Function" in device.device_info for device in device_list)
+
+    # nd stands for network direct
+    # example SKU: Standard_H16mr
+    def is_over_nd(self) -> bool:
+        dmesg = self._node.tools[Dmesg]
+        return "hvnd_try_bind_nic" in dmesg.get_output()
 
 
 class NetworkInterface(AzureFeatureMixin, features.NetworkInterface):
