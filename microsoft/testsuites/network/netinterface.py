@@ -130,4 +130,4 @@ class NetInterface(TestSuite):
             f"grep CONFIG_HYPERV_NET=y {config_path}", shell=True
         )
         if netvsc_builtin_result.exit_code == 0:
-            SkippedException("Skipping test since hv_netvsc module is built-in")
+            raise SkippedException("Skipping test since hv_netvsc module is built-in")
