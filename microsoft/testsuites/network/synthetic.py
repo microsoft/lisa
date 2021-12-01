@@ -35,6 +35,7 @@ class Synthetic(TestSuite):
         2. Check each nic has an ip address.
         """,
         priority=2,
+        use_new_environment=True,
         requirement=simple_requirement(
             min_nic_count=8,
             network_interface=schema.NetworkInterfaceOptionSettings(
@@ -58,6 +59,7 @@ class Synthetic(TestSuite):
         3. Check each nic has an ip address.
         """,
         priority=2,
+        use_new_environment=True,
         requirement=simple_requirement(
             network_interface=schema.NetworkInterfaceOptionSettings(
                 data_path=schema.NetworkDataPath.Synthetic,
@@ -86,6 +88,7 @@ class Synthetic(TestSuite):
         3. Check each nic has an ip address.
         """,
         priority=2,
+        use_new_environment=True,
         requirement=simple_requirement(
             network_interface=schema.NetworkInterfaceOptionSettings(
                 data_path=schema.NetworkDataPath.Synthetic,

@@ -1,7 +1,7 @@
 # Copyright (c) Microsoft Corporation.
 # Licensed under the MIT license.
 
-# import re
+import re
 from pathlib import PurePosixPath
 from typing import Dict, List, Union
 
@@ -20,6 +20,7 @@ from lisa import (
 from lisa.base_tools import Uname
 from lisa.operating_system import Debian, Redhat, Suse
 from lisa.tools import Ethtool, Modinfo, Nm
+from lisa.util import find_patterns_in_lines
 
 
 @TestSuiteMetadata(
@@ -495,13 +496,21 @@ class NetworkSettings(TestSuite):
 
     def _check_msg_level_change_supported(self, node: Node) -> None:
         msg_level_symbols: Union[str, List[str]]
+        # name:           hv_netvsc
+        # filename:       (builtin)
+        # description:    Microsoft Hyper-V network driver
+        # license:        GPL
+        # parm:           ring_size:Ring buffer size (# of pages) (uint)
+        # parm:           debug:Debug level (0=none,...,16=all) (int)
+        build_in_pattern = re.compile(r"builtin", re.M)
 
         uname_tool = node.tools[Uname]
         kernel_version = uname_tool.get_linux_information().kernel_version
 
         modinfo = node.tools[Modinfo]
         netvsc_module = modinfo.get_filename("hv_netvsc")
-        if netvsc_module:
+        matched = find_patterns_in_lines(netvsc_module, [build_in_pattern])
+        if not (matched[0]):
             # remove any escape character at the end of string
             netvsc_module = netvsc_module.strip()
             # if the module is archived as xz, extract it to check symbols
