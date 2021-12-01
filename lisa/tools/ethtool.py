@@ -1,4 +1,5 @@
 import re
+from dataclasses import dataclass
 from typing import Any, Dict, List, Optional, Set, cast
 
 from lisa.executable import Tool
@@ -437,21 +438,19 @@ class DeviceRxHashLevel:
         )
 
 
+@dataclass
 class DeviceSettings:
-    def __init__(
-        self,
-        interface: str,
-    ) -> None:
-        self.interface = interface
-        self.device_channel: Optional[DeviceChannel] = None
-        self.device_features: Optional[DeviceFeatures] = None
-        self.device_link_settings: Optional[DeviceLinkSettings] = None
-        self.device_msg_level: Optional[DeviceMessageLevel] = None
-        self.device_ringbuffer_settings: Optional[DeviceRingBufferSettings] = None
-        self.device_gro_lro_settings: Optional[DeviceGroLroSettings] = None
-        self.device_rss_hash_key: Optional[DeviceRssHashKey] = None
-        self.device_rx_hash_level: Optional[DeviceRxHashLevel] = None
-        self.device_sg_settings: Optional[DeviceSgSettings] = None
+    interface: str
+    device_channel: Optional[DeviceChannel] = None
+    device_features: Optional[DeviceFeatures] = None
+    device_link_settings: Optional[DeviceLinkSettings] = None
+    device_msg_level: Optional[DeviceMessageLevel] = None
+    device_ringbuffer_settings: Optional[DeviceRingBufferSettings] = None
+    device_gro_lro_settings: Optional[DeviceGroLroSettings] = None
+    device_rss_hash_key: Optional[DeviceRssHashKey] = None
+    device_rx_hash_level: Optional[DeviceRxHashLevel] = None
+    device_sg_settings: Optional[DeviceSgSettings] = None
+    statistics: Optional[Dict[str, int]] = None
 
 
 class Ethtool(Tool):
@@ -472,44 +471,6 @@ class Ethtool(Tool):
         posix_os: Posix = cast(Posix, self.node.os)
         posix_os.install_packages("ethtool")
         return self._check_exists()
-
-    def _set_device(
-        self,
-        name: str,
-        device_channels: Optional[DeviceChannel] = None,
-        device_features: Optional[DeviceFeatures] = None,
-        device_link_settings: Optional[DeviceLinkSettings] = None,
-        device_message_level: Optional[DeviceMessageLevel] = None,
-        device_ringbuffer_settings: Optional[DeviceRingBufferSettings] = None,
-        device_gro_lro_settings: Optional[DeviceGroLroSettings] = None,
-        device_rss_hash_key: Optional[DeviceRssHashKey] = None,
-        device_rx_hash_level: Optional[DeviceRxHashLevel] = None,
-        device_sg_settings: Optional[DeviceSgSettings] = None,
-    ) -> None:
-        device = self._device_settings_map.get(name, None)
-        if device is None:
-            device = DeviceSettings(name)
-
-        self._device_settings_map[name] = device
-
-        if device_channels:
-            device.device_channel = device_channels
-        if device_features:
-            device.device_features = device_features
-        if device_link_settings:
-            device.device_link_settings = device_link_settings
-        if device_message_level:
-            device.device_msg_level = device_message_level
-        if device_ringbuffer_settings:
-            device.device_ringbuffer_settings = device_ringbuffer_settings
-        if device_gro_lro_settings:
-            device.device_gro_lro_settings = device_gro_lro_settings
-        if device_rss_hash_key:
-            device.device_rss_hash_key = device_rss_hash_key
-        if device_rx_hash_level:
-            device.device_rx_hash_level = device_rx_hash_level
-        if device_sg_settings:
-            device.device_sg_settings = device_sg_settings
 
     def get_device_driver(self, interface: str) -> str:
         _device_driver_pattern = re.compile(
@@ -556,10 +517,9 @@ class Ethtool(Tool):
     def get_device_channels_info(
         self, interface: str, force_run: bool = False
     ) -> DeviceChannel:
-        if not force_run:
-            device = self._device_settings_map.get(interface, None)
-            if device and device.device_channel:
-                return device.device_channel
+        device = self._get_or_create_device_setting(interface)
+        if not force_run and device.device_channel:
+            return device.device_channel
 
         result = self.run(f"-l {interface}", force_run=force_run)
         if (result.exit_code != 0) and ("Operation not supported" in result.stdout):
@@ -578,8 +538,7 @@ class Ethtool(Tool):
         if vcpu_count < device_channel_info.max_channels:
             device_channel_info.max_channels = vcpu_count
 
-        self._set_device(interface, device_channels=device_channel_info)
-
+        device.device_channel = device_channel_info
         return device_channel_info
 
     def change_device_channels_info(
@@ -599,34 +558,28 @@ class Ethtool(Tool):
     def get_device_enabled_features(
         self, interface: str, force_run: bool = False
     ) -> DeviceFeatures:
-        if not force_run:
-            device = self._device_settings_map.get(interface, None)
-            if device and device.device_features:
-                return device.device_features
+        device = self._get_or_create_device_setting(interface)
+        if not force_run and device.device_features:
+            return device.device_features
 
         result = self.run(f"-k {interface}", force_run=force_run)
         result.assert_exit_code()
 
-        device_feature = DeviceFeatures(interface, result.stdout)
-        self._set_device(interface, device_features=device_feature)
-
-        return device_feature
+        device.device_features = DeviceFeatures(interface, result.stdout)
+        return device.device_features
 
     def get_device_gro_lro_settings(
         self, interface: str, force_run: bool = False
     ) -> DeviceGroLroSettings:
-        if not force_run:
-            device = self._device_settings_map.get(interface, None)
-            if device and device.device_gro_lro_settings:
-                return device.device_gro_lro_settings
+        device = self._get_or_create_device_setting(interface)
+        if not force_run and device.device_gro_lro_settings:
+            return device.device_gro_lro_settings
 
         result = self.run(f"-k {interface}", force_run=force_run)
         result.assert_exit_code()
 
-        device_gro_lro_settings = DeviceGroLroSettings(interface, result.stdout)
-        self._set_device(interface, device_gro_lro_settings=device_gro_lro_settings)
-
-        return device_gro_lro_settings
+        device.device_gro_lro_settings = DeviceGroLroSettings(interface, result.stdout)
+        return device.device_gro_lro_settings
 
     def change_device_gro_lro_settings(
         self, interface: str, gro_setting: bool, lro_setting: bool
@@ -645,15 +598,15 @@ class Ethtool(Tool):
         return self.get_device_gro_lro_settings(interface, force_run=True)
 
     def get_device_link_settings(self, interface: str) -> DeviceLinkSettings:
-        device = self._device_settings_map.get(interface, None)
-        if device and device.device_link_settings:
+        device = self._get_or_create_device_setting(interface)
+        if device.device_link_settings:
             return device.device_link_settings
 
         result = self.run(interface)
         result.assert_exit_code()
 
         link_settings = DeviceLinkSettings(interface, result.stdout)
-        self._set_device(interface, device_link_settings=link_settings)
+        device.device_link_settings = link_settings
 
         # Caching the message level settings if captured in DeviceLinkSettings.
         # Not returning this info from this method. Only caching.
@@ -663,17 +616,16 @@ class Ethtool(Tool):
                 msg_level_number=link_settings.msg_level_number,
                 msg_level_name=link_settings.msg_level_name,
             )
-            self._set_device(interface, device_message_level=msg_level_settings)
+            device.device_msg_level = msg_level_settings
 
         return link_settings
 
     def get_device_msg_level(
         self, interface: str, force_run: bool = False
     ) -> DeviceMessageLevel:
-        if not force_run:
-            device = self._device_settings_map.get(interface, None)
-            if device and device.device_msg_level:
-                return device.device_msg_level
+        device = self._get_or_create_device_setting(interface)
+        if not force_run and device.device_msg_level:
+            return device.device_msg_level
 
         result = self.run(interface, force_run=force_run)
         if (result.exit_code != 0) and ("Operation not supported" in result.stdout):
@@ -685,7 +637,7 @@ class Ethtool(Tool):
         )
 
         msg_level_settings = DeviceMessageLevel(interface, result.stdout)
-        self._set_device(interface, device_message_level=msg_level_settings)
+        device.device_msg_level = msg_level_settings
 
         # caching the link settings if captured in DeviceMessageLevel.
         # will not this info from this method. Only caching.
@@ -693,7 +645,7 @@ class Ethtool(Tool):
             link_settings = DeviceLinkSettings(
                 interface, link_settings=msg_level_settings.link_settings
             )
-            self._set_device(interface, device_link_settings=link_settings)
+            device.device_link_settings = link_settings
 
         return msg_level_settings
 
@@ -738,10 +690,9 @@ class Ethtool(Tool):
     def get_device_ring_buffer_settings(
         self, interface: str, force_run: bool = False
     ) -> DeviceRingBufferSettings:
-        if not force_run:
-            device = self._device_settings_map.get(interface, None)
-            if device and device.device_ringbuffer_settings:
-                return device.device_ringbuffer_settings
+        device = self._get_or_create_device_setting(interface)
+        if not force_run and device.device_ringbuffer_settings:
+            return device.device_ringbuffer_settings
 
         result = self.run(f"-g {interface}", force_run=force_run)
         if (result.exit_code != 0) and ("Operation not supported" in result.stdout):
@@ -752,12 +703,10 @@ class Ethtool(Tool):
             message=f"Couldn't get device {interface} ring buffer settings."
         )
 
-        device_ring_buffer_settings = DeviceRingBufferSettings(interface, result.stdout)
-        self._set_device(
-            interface, device_ringbuffer_settings=device_ring_buffer_settings
+        device.device_ringbuffer_settings = DeviceRingBufferSettings(
+            interface, result.stdout
         )
-
-        return device_ring_buffer_settings
+        return device.device_ringbuffer_settings
 
     def change_device_ring_buffer_settings(
         self, interface: str, rx: int, tx: int
@@ -774,10 +723,9 @@ class Ethtool(Tool):
     def get_device_rss_hash_key(
         self, interface: str, force_run: bool = False
     ) -> DeviceRssHashKey:
-        if not force_run:
-            device = self._device_settings_map.get(interface, None)
-            if device and device.device_rss_hash_key:
-                return device.device_rss_hash_key
+        device = self._get_or_create_device_setting(interface)
+        if not force_run and device.device_rss_hash_key:
+            return device.device_rss_hash_key
 
         result = self.run(f"-x {interface}", force_run=force_run)
         if (result.exit_code != 0) and ("Operation not supported" in result.stdout):
@@ -787,10 +735,9 @@ class Ethtool(Tool):
         result.assert_exit_code(
             message=f"Couldn't get device {interface} ring buffer settings."
         )
-        device_rss_hash_key = DeviceRssHashKey(interface, result.stdout)
-        self._set_device(interface, device_rss_hash_key=device_rss_hash_key)
+        device.device_rss_hash_key = DeviceRssHashKey(interface, result.stdout)
 
-        return device_rss_hash_key
+        return device.device_rss_hash_key
 
     def change_device_rss_hash_key(
         self, interface: str, hash_key: str
@@ -809,14 +756,13 @@ class Ethtool(Tool):
     def get_device_rx_hash_level(
         self, interface: str, protocol: str, force_run: bool = False
     ) -> DeviceRxHashLevel:
-        if not force_run:
-            device = self._device_settings_map.get(interface, None)
-            if (
-                device
-                and device.device_rx_hash_level
-                and (protocol in device.device_rx_hash_level.protocol_hash_map.keys())
-            ):
-                return device.device_rx_hash_level
+        device = self._get_or_create_device_setting(interface)
+        if (
+            not force_run
+            and device.device_rx_hash_level
+            and (protocol in device.device_rx_hash_level.protocol_hash_map.keys())
+        ):
+            return device.device_rx_hash_level
 
         result = self.run(
             f"-n {interface} rx-flow-hash {protocol}", force_run=force_run
@@ -830,15 +776,14 @@ class Ethtool(Tool):
             f" protocol {protocol}."
         )
 
-        device = self._device_settings_map.get(interface, None)
-        if device and device.device_rx_hash_level:
+        if device.device_rx_hash_level:
             device.device_rx_hash_level._parse_rx_hash_level(
                 interface, protocol, result.stdout
             )
             device_rx_hash_level = device.device_rx_hash_level
         else:
             device_rx_hash_level = DeviceRxHashLevel(interface, protocol, result.stdout)
-        self._set_device(interface, device_rx_hash_level=device_rx_hash_level)
+        device.device_rx_hash_level = device_rx_hash_level
 
         return device_rx_hash_level
 
@@ -939,18 +884,15 @@ class Ethtool(Tool):
     def get_device_sg_settings(
         self, interface: str, force_run: bool = False
     ) -> DeviceSgSettings:
-        if not force_run:
-            device = self._device_settings_map.get(interface, None)
-            if device and device.device_sg_settings:
-                return device.device_sg_settings
+        device = self._get_or_create_device_setting(interface)
+        if not force_run and device.device_sg_settings:
+            return device.device_sg_settings
 
         result = self.run(f"-k {interface}", force_run=force_run)
         result.assert_exit_code()
 
-        device_sg_settings = DeviceSgSettings(interface, result.stdout)
-        self._set_device(interface, device_sg_settings=device_sg_settings)
-
-        return device_sg_settings
+        device.device_sg_settings = DeviceSgSettings(interface, result.stdout)
+        return device.device_sg_settings
 
     def change_device_sg_settings(
         self, interface: str, sg_setting: bool
@@ -966,3 +908,10 @@ class Ethtool(Tool):
         )
 
         return self.get_device_sg_settings(interface, force_run=True)
+
+    def _get_or_create_device_setting(self, interface: str) -> DeviceSettings:
+        settings = self._device_settings_map.get(interface, None)
+        if settings is None:
+            settings = DeviceSettings(interface)
+            self._device_settings_map[interface] = settings
+        return settings
