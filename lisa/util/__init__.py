@@ -96,12 +96,16 @@ class UnsupportedDistroException(LisaException):
     distro.
     """
 
-    def __init__(self, os: "OperatingSystem") -> None:
+    def __init__(self, os: "OperatingSystem", message: str = "") -> None:
         self.name = os.name
         self.version = os.information.version
+        self._extended_message = message
 
     def __str__(self) -> str:
-        return f"Unsupported distro {self.name} {self.version}"
+        message = f"Unsupported distro {self.name} {self.version}"
+        if self._extended_message:
+            message = f"{message}. {self._extended_message}"
+        return message
 
 
 class SkippedException(LisaException):
