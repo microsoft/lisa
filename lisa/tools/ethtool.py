@@ -526,8 +526,8 @@ class Ethtool(Tool):
 
         return driver_info.group("value")
 
-    def get_device_list(self, force: bool = False) -> Set[str]:
-        if (not force) and self._device_set:
+    def get_device_list(self, force_run: bool = False) -> Set[str]:
+        if (not force_run) and self._device_set:
             return self._device_set
 
         find_tool = self.node.tools[Find]
@@ -554,14 +554,14 @@ class Ethtool(Tool):
         return self._device_set
 
     def get_device_channels_info(
-        self, interface: str, force: bool = False
+        self, interface: str, force_run: bool = False
     ) -> DeviceChannel:
-        if not force:
+        if not force_run:
             device = self._device_settings_map.get(interface, None)
             if device and device.device_channel:
                 return device.device_channel
 
-        result = self.run(f"-l {interface}", force_run=force)
+        result = self.run(f"-l {interface}", force_run=force_run)
         if (result.exit_code != 0) and ("Operation not supported" in result.stdout):
             raise UnsupportedOperationException(
                 "ethtool -l {interface} operation not supported."
@@ -594,17 +594,17 @@ class Ethtool(Tool):
             message=f" Couldn't change device {interface} channels count."
         )
 
-        return self.get_device_channels_info(interface, force=True)
+        return self.get_device_channels_info(interface, force_run=True)
 
     def get_device_enabled_features(
-        self, interface: str, force: bool = False
+        self, interface: str, force_run: bool = False
     ) -> DeviceFeatures:
-        if not force:
+        if not force_run:
             device = self._device_settings_map.get(interface, None)
             if device and device.device_features:
                 return device.device_features
 
-        result = self.run(f"-k {interface}", force_run=force)
+        result = self.run(f"-k {interface}", force_run=force_run)
         result.assert_exit_code()
 
         device_feature = DeviceFeatures(interface, result.stdout)
@@ -613,14 +613,14 @@ class Ethtool(Tool):
         return device_feature
 
     def get_device_gro_lro_settings(
-        self, interface: str, force: bool = False
+        self, interface: str, force_run: bool = False
     ) -> DeviceGroLroSettings:
-        if not force:
+        if not force_run:
             device = self._device_settings_map.get(interface, None)
             if device and device.device_gro_lro_settings:
                 return device.device_gro_lro_settings
 
-        result = self.run(f"-k {interface}", force_run=force)
+        result = self.run(f"-k {interface}", force_run=force_run)
         result.assert_exit_code()
 
         device_gro_lro_settings = DeviceGroLroSettings(interface, result.stdout)
@@ -642,7 +642,7 @@ class Ethtool(Tool):
             message=f" Couldn't change device {interface} GRO LRO settings."
         )
 
-        return self.get_device_gro_lro_settings(interface, force=True)
+        return self.get_device_gro_lro_settings(interface, force_run=True)
 
     def get_device_link_settings(self, interface: str) -> DeviceLinkSettings:
         device = self._device_settings_map.get(interface, None)
@@ -668,14 +668,14 @@ class Ethtool(Tool):
         return link_settings
 
     def get_device_msg_level(
-        self, interface: str, force: bool = False
+        self, interface: str, force_run: bool = False
     ) -> DeviceMessageLevel:
-        if not force:
+        if not force_run:
             device = self._device_settings_map.get(interface, None)
             if device and device.device_msg_level:
                 return device.device_msg_level
 
-        result = self.run(interface, force_run=force)
+        result = self.run(interface, force_run=force_run)
         if (result.exit_code != 0) and ("Operation not supported" in result.stdout):
             raise UnsupportedOperationException(
                 f"ethtool {interface} operation not supported."
@@ -719,7 +719,7 @@ class Ethtool(Tool):
                 message=f" Couldn't unset device {interface} message flag/s {msg_flag}."
             )
 
-        return self.get_device_msg_level(interface, force=True)
+        return self.get_device_msg_level(interface, force_run=True)
 
     def set_device_message_flag_by_num(
         self, interface: str, msg_flag: str
@@ -733,17 +733,17 @@ class Ethtool(Tool):
             message=f" Couldn't set device {interface} message flag {msg_flag}."
         )
 
-        return self.get_device_msg_level(interface, force=True)
+        return self.get_device_msg_level(interface, force_run=True)
 
     def get_device_ring_buffer_settings(
-        self, interface: str, force: bool = False
+        self, interface: str, force_run: bool = False
     ) -> DeviceRingBufferSettings:
-        if not force:
+        if not force_run:
             device = self._device_settings_map.get(interface, None)
             if device and device.device_ringbuffer_settings:
                 return device.device_ringbuffer_settings
 
-        result = self.run(f"-g {interface}", force_run=force)
+        result = self.run(f"-g {interface}", force_run=force_run)
         if (result.exit_code != 0) and ("Operation not supported" in result.stdout):
             raise UnsupportedOperationException(
                 f"ethtool -g {interface} operation not supported."
@@ -769,17 +769,17 @@ class Ethtool(Tool):
             message=f" Couldn't change device {interface} ring buffer settings."
         )
 
-        return self.get_device_ring_buffer_settings(interface, force=True)
+        return self.get_device_ring_buffer_settings(interface, force_run=True)
 
     def get_device_rss_hash_key(
-        self, interface: str, force: bool = False
+        self, interface: str, force_run: bool = False
     ) -> DeviceRssHashKey:
-        if not force:
+        if not force_run:
             device = self._device_settings_map.get(interface, None)
             if device and device.device_rss_hash_key:
                 return device.device_rss_hash_key
 
-        result = self.run(f"-x {interface}", force_run=force)
+        result = self.run(f"-x {interface}", force_run=force_run)
         if (result.exit_code != 0) and ("Operation not supported" in result.stdout):
             raise UnsupportedOperationException(
                 f"ethtool -x {interface} operation not supported."
@@ -804,12 +804,12 @@ class Ethtool(Tool):
             message=f" Couldn't change device {interface} hash key."
         )
 
-        return self.get_device_rss_hash_key(interface, force=True)
+        return self.get_device_rss_hash_key(interface, force_run=True)
 
     def get_device_rx_hash_level(
-        self, interface: str, protocol: str, force: bool = False
+        self, interface: str, protocol: str, force_run: bool = False
     ) -> DeviceRxHashLevel:
-        if not force:
+        if not force_run:
             device = self._device_settings_map.get(interface, None)
             if (
                 device
@@ -818,7 +818,9 @@ class Ethtool(Tool):
             ):
                 return device.device_rx_hash_level
 
-        result = self.run(f"-n {interface} rx-flow-hash {protocol}", force_run=force)
+        result = self.run(
+            f"-n {interface} rx-flow-hash {protocol}", force_run=force_run
+        )
         if (result.exit_code != 0) and ("Operation not supported" in result.stdout):
             raise UnsupportedOperationException(
                 f"ethtool -n {interface} operation not supported."
@@ -861,7 +863,7 @@ class Ethtool(Tool):
             message=f" Couldn't change device {interface} hash level for {protocol}."
         )
 
-        return self.get_device_rx_hash_level(interface, protocol, force=True)
+        return self.get_device_rx_hash_level(interface, protocol, force_run=True)
 
     def get_all_device_channels_info(self) -> List[DeviceChannel]:
         devices_channel_list = []
@@ -872,13 +874,13 @@ class Ethtool(Tool):
         return devices_channel_list
 
     def get_all_device_enabled_features(
-        self, force: bool = False
+        self, force_run: bool = False
     ) -> List[DeviceFeatures]:
         devices_features_list = []
-        devices = self.get_device_list(force)
+        devices = self.get_device_list(force_run)
         for device in devices:
             devices_features_list.append(
-                self.get_device_enabled_features(device, force)
+                self.get_device_enabled_features(device, force_run)
             )
 
         return devices_features_list
@@ -935,14 +937,14 @@ class Ethtool(Tool):
         return devices_rx_hash_level
 
     def get_device_sg_settings(
-        self, interface: str, force: bool = False
+        self, interface: str, force_run: bool = False
     ) -> DeviceSgSettings:
-        if not force:
+        if not force_run:
             device = self._device_settings_map.get(interface, None)
             if device and device.device_sg_settings:
                 return device.device_sg_settings
 
-        result = self.run(f"-k {interface}", force_run=force)
+        result = self.run(f"-k {interface}", force_run=force_run)
         result.assert_exit_code()
 
         device_sg_settings = DeviceSgSettings(interface, result.stdout)
@@ -963,4 +965,4 @@ class Ethtool(Tool):
             message=f" Couldn't change device {interface} scatter-gather settings."
         )
 
-        return self.get_device_sg_settings(interface, force=True)
+        return self.get_device_sg_settings(interface, force_run=True)
