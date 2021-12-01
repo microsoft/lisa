@@ -87,6 +87,16 @@ class Waagent(Tool):
                 f"Unknown value for ResourceDisk.EnableSwap : {is_swap_enabled}"
             )
 
+    def is_rdma_enabled(self) -> bool:
+        waagent_configuration = self.get_configuration()
+        is_rdma_enabled = waagent_configuration["OS.EnableRDMA"]
+        if is_rdma_enabled == "y":
+            return True
+        elif is_rdma_enabled == "n":
+            return False
+        else:
+            raise LisaException(f"Unknown value for OS.EnableRDMA : {is_rdma_enabled}")
+
 
 class VmGeneration(Tool):
     """
