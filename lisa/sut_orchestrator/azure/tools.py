@@ -125,8 +125,6 @@ class LisDriver(Tool):
     More info  - https://www.microsoft.com/en-us/download/details.aspx?id=55106
     """
 
-    __version_pattern = re.compile(r"^version:[ \t]*([^ \n]*)")
-
     @property
     def dependencies(self) -> List[Type[Tool]]:
         return [Wget, Modinfo]
@@ -175,15 +173,10 @@ class LisDriver(Tool):
         self.node.reboot(360)
         return True
 
-    def get_version(self, force: bool = False) -> str:
-        cmd_result = self.run(
-            force_run=force,
-            expected_exit_code=0,
-            expected_exit_code_failure_message="hv_vmbus module not found/loaded.",
-        )
-
-        found_version = get_matched_str(cmd_result.stdout, self.__version_pattern)
-        return found_version if found_version else ""
+    def get_version(self, force_run: bool = False) -> str:
+        # in some distro, the vmbus is builtin, the version cannot be gotten.
+        modinfo = self.node.tools[Modinfo]
+        return modinfo.get_version("hv_vmbus")
 
 
 class KvpClient(Tool):
