@@ -14,8 +14,8 @@ class Modinfo(Tool):
     #   filename:       /lib/modules/2.6.32-754.29.1.el6.x86_64/kernel/drivers/hv/
     #                   hv_vmbus.ko
     #   version:        3.1
-    __version_pattern = re.compile(r"version:[ \t]*([^ \n]*)")
-    __filename_pattern = re.compile(r"filename:[ \t]*([^ \n]*)")
+    _version_pattern = re.compile(r"version:[ \t]*([^ \n]*)")
+    _filename_pattern = re.compile(r"filename:[ \t]*([^ \n]*)")
 
     @property
     def command(self) -> str:
@@ -31,6 +31,7 @@ class Modinfo(Tool):
         self,
         mod_name: str,
         force_run: bool = False,
+        ignore_error: bool = False,
         no_info_log: bool = True,
         no_error_log: bool = True,
     ) -> str:
@@ -40,25 +41,22 @@ class Modinfo(Tool):
             force_run=force_run,
             no_info_log=no_info_log,
             no_error_log=no_error_log,
-            expected_exit_code=0,
-            expected_exit_code_failure_message=f"Modinfo failed for module {mod_name}",
         )
+        if not ignore_error:
+            result.assert_exit_code(0, f"Modinfo failed for module {mod_name}")
         return result.stdout
 
     def get_version(
-        self,
-        mod_name: str,
-        force_run: bool = False,
-        no_info_log: bool = True,
-        no_error_log: bool = True,
+        self, mod_name: str, force_run: bool = False, ignore_error: bool = True
     ) -> str:
         output = self.get_info(
             mod_name=mod_name,
             force_run=force_run,
-            no_info_log=no_info_log,
-            no_error_log=no_error_log,
+            ignore_error=ignore_error,
+            no_info_log=True,
+            no_error_log=True,
         )
-        return get_matched_str(output, self.__version_pattern)
+        return get_matched_str(output, self._version_pattern)
 
     def get_filename(
         self,
@@ -73,5 +71,5 @@ class Modinfo(Tool):
             no_info_log=no_info_log,
             no_error_log=no_error_log,
         )
-        found_filename = get_matched_str(output, self.__filename_pattern)
+        found_filename = get_matched_str(output, self._filename_pattern)
         return found_filename if found_filename else ""
