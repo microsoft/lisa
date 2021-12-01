@@ -301,6 +301,7 @@ class AzurePlatform(Platform):
             features.SerialConsole,
             features.NetworkInterface,
             features.StartStop,
+            features.Infiniband,
         ]
 
     def _prepare_environment(  # noqa: C901
@@ -1455,6 +1456,12 @@ class AzurePlatform(Platform):
             elif name == "EphemeralOSDiskSupported":
                 if eval(sku_capability.value) is True:
                     node_space.disk.disk_type.add(schema.DiskType.Ephemeral)
+            elif name == "RdmaEnabled":
+                if eval(sku_capability.value) is True:
+                    node_space.features.add(
+                        schema.FeatureSettings.create(features.Infiniband.name())
+                    )
+
         # for some new sizes, there is no MaxNetworkInterfaces capability
         # and we have to set a default value for max_nic_count
         if not node_space.network_interface.max_nic_count:
