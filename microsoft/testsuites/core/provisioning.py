@@ -9,6 +9,7 @@ from lisa import (
     PassedException,
     RemoteNode,
     SkippedException,
+    TcpConnetionException,
     TestCaseMetadata,
     TestSuite,
     TestSuiteMetadata,
@@ -224,11 +225,12 @@ class Provisioning(TestSuite):
         if not is_ready:
             serial_console = node.features[SerialConsole]
             serial_console.check_panic(saved_path=log_path, stage="bootup")
-            raise LisaException(
-                f"Cannot connect to [{node.public_address}:{node.public_port}], "
-                f"error code: {tcp_error_code}, no panic found in serial log"
+            raise TcpConnetionException(
+                node.public_address,
+                node.public_port,
+                tcp_error_code,
+                "no panic found in serial log during bootup",
             )
-
         try:
             timer = create_timer()
             log.info(f"SSH port 22 is opened, connecting and rebooting '{node.name}'")
@@ -251,9 +253,11 @@ class Provisioning(TestSuite):
                 if not is_ready:
                     serial_console = node.features[SerialConsole]
                     serial_console.check_panic(saved_path=log_path, stage="reboot")
-                    raise LisaException(
-                        f"Cannot connect to [{node.public_address}:{node.public_port}],"
-                        f" error code: {tcp_error_code}, no panic found in serial log"
+                    raise TcpConnetionException(
+                        node.public_address,
+                        node.public_port,
+                        tcp_error_code,
+                        "no panic found in serial log during reboot",
                     )
             else:
                 node.reboot()
@@ -264,8 +268,6 @@ class Provisioning(TestSuite):
             serial_console.check_panic(saved_path=log_path, stage="reboot")
 
             # if node cannot be connected after reboot, it should be failed.
-            if isinstance(identifier, LisaException) and str(identifier).startswith(
-                "cannot connect to TCP port"
-            ):
+            if isinstance(identifier, TcpConnetionException):
                 raise LisaException(f"after reboot, {identifier}")
             raise PassedException(identifier)

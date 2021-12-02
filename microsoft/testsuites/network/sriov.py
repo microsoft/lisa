@@ -10,6 +10,7 @@ from lisa import (
     Logger,
     Node,
     RemoteNode,
+    TcpConnetionException,
     TestCaseMetadata,
     TestSuite,
     TestSuiteMetadata,
@@ -21,7 +22,7 @@ from lisa.features import NetworkInterface, SerialConsole
 from lisa.nic import NicInfo, Nics
 from lisa.sut_orchestrator import AZURE, READY
 from lisa.tools import Cat, Ethtool, Firewall, Iperf3, Kill, Lsmod, Lspci, Modprobe, Ssh
-from lisa.util import LisaException, SkippedException, constants
+from lisa.util import SkippedException, constants
 from lisa.util.shell import wait_tcp_port_ready
 
 
@@ -307,9 +308,11 @@ class Sriov(TestSuite):
         else:
             serial_console = node.features[SerialConsole]
             serial_console.check_panic(saved_path=log_path, stage="after_attach_nics")
-            raise LisaException(
-                f"Cannot connect to [{node.public_address}:{node.public_port}], "
-                f"error code: {tcp_error_code}, no panic found in serial log"
+            raise TcpConnetionException(
+                node.public_address,
+                node.public_port,
+                tcp_error_code,
+                "no panic found in serial log after attach nics",
             )
 
     @TestCaseMetadata(
