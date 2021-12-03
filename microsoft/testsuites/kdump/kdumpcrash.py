@@ -2,6 +2,7 @@
 # Licensed under the MIT license.
 import time
 from pathlib import PurePosixPath
+from random import randint
 from typing import cast
 
 from assertpy import assert_that
@@ -94,11 +95,27 @@ class KdumpCrash(TestSuite):
         """,
         priority=2,
         requirement=node_requirement(
-            node=schema.NodeSpace(core_count=search_space.IntRange(min=2, max=8))
+            node=schema.NodeSpace(
+                core_count=search_space.IntRange(min=2, max=8),
+            )
         ),
     )
     def kdumpcrash_validate_smp(self, node: Node, log: Logger) -> None:
         self._trigger_kdump_on_specified_cpu(1, node, log)
+
+    @TestCaseMetadata(
+        description="""
+        This test case verfies if the kdump is effect when VM has any cores, and
+        trigger kdump on the random cpu.
+        The test steps are same as `kdumpcrash_validate_single_core`.
+        """,
+        priority=2,
+    )
+    def kdumpcrash_validate_on_random_cpu(self, node: Node, log: Logger) -> None:
+        lscpu = node.tools[Lscpu]
+        cpu_count = lscpu.get_core_count()
+        cpu_num = randint(0, cpu_count - 1)
+        self._trigger_kdump_on_specified_cpu(cpu_num, node, log)
 
     @TestCaseMetadata(
         description="""
