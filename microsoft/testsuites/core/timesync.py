@@ -115,7 +115,10 @@ class TimeSync(TestSuite):
         description="""
         This test is to check -
             1. Check clock source name is one of hyperv_clocksource_tsc_page,
-             lis_hv_clocksource_tsc_page, hyperv_clocksource.
+             lis_hv_clocksource_tsc_page, hyperv_clocksource, tsc.
+             (there’s a new feature in the AH2021 host that allows Linux guests so use
+              the plain "tsc" instead of the "hyperv_clocksource_tsc_page",
+              which produces a modest performance benefit when reading the clock.)
             2. Check CPU flag contains constant_tsc from /proc/cpuinfo.
             3. Check clocksource name shown up in dmesg.
             4. Unbind current clock source if there are 2+ clock sources, check current
@@ -130,6 +133,7 @@ class TimeSync(TestSuite):
             "hyperv_clocksource_tsc_page",
             "lis_hyperv_clocksource_tsc_page",
             "hyperv_clocksource",
+            "tsc",
         ]
         cat = node.tools[Cat]
         clock_source_result = cat.run(self.current_clocksource)
