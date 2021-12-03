@@ -1,11 +1,12 @@
 # Copyright (c) Microsoft Corporation.
 # Licensed under the MIT license.
-from typing import Dict
+from typing import Any, Dict
 
 from assertpy import assert_that
 
 from lisa import (
     Environment,
+    Logger,
     TestCaseMetadata,
     TestSuite,
     TestSuiteMetadata,
@@ -14,6 +15,8 @@ from lisa import (
 )
 from lisa.features import NetworkInterface
 from lisa.nic import NicInfo, Nics
+
+from .common import remove_extra_nics
 
 
 @TestSuiteMetadata(
@@ -35,7 +38,6 @@ class Synthetic(TestSuite):
         2. Check each nic has an ip address.
         """,
         priority=2,
-        use_new_environment=True,
         requirement=simple_requirement(
             min_nic_count=8,
             network_interface=schema.NetworkInterfaceOptionSettings(
@@ -59,7 +61,6 @@ class Synthetic(TestSuite):
         3. Check each nic has an ip address.
         """,
         priority=2,
-        use_new_environment=True,
         requirement=simple_requirement(
             network_interface=schema.NetworkInterfaceOptionSettings(
                 data_path=schema.NetworkDataPath.Synthetic,
@@ -88,7 +89,6 @@ class Synthetic(TestSuite):
         3. Check each nic has an ip address.
         """,
         priority=2,
-        use_new_environment=True,
         requirement=simple_requirement(
             network_interface=schema.NetworkInterfaceOptionSettings(
                 data_path=schema.NetworkDataPath.Synthetic,
@@ -106,6 +106,10 @@ class Synthetic(TestSuite):
                     extra_nic_count=1, enable_accelerated_networking=False
                 )
                 self._initialize_nic_info(environment)
+
+    def after_case(self, log: Logger, **kwargs: Any) -> None:
+        environment: Environment = kwargs.pop("environment")
+        remove_extra_nics(environment)
 
     def _initialize_nic_info(
         self, environment: Environment
