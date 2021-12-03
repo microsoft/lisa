@@ -291,9 +291,10 @@ class Posix(OperatingSystem, BaseClassMixin):
         self,
         packages: Union[str, Tool, Type[Tool], List[Union[str, Tool, Type[Tool]]]],
         signed: bool = True,
+        ignore_non_exists: bool = False,
     ) -> None:
         package_names = self._get_package_list(packages)
-        self._install_packages(package_names, signed)
+        self._install_packages(package_names, signed, ignore_non_exists)
 
     def package_exists(self, package: Union[str, Tool, Type[Tool]]) -> bool:
         """
@@ -346,7 +347,19 @@ class Posix(OperatingSystem, BaseClassMixin):
     def get_repositories(self) -> List[RepositoryInfo]:
         raise NotImplementedError("get_repositories is not implemented")
 
-    def _install_packages(self, packages: List[str], signed: bool = True) -> None:
+    def remove_not_existed_packages(self, packages: List[str]) -> List[str]:
+        for package in packages:
+            if not self.is_package_in_repo(package):
+                self._log.debug(
+                    f"{package} doesn't exist in repo,"
+                    " removed it from installation list."
+                )
+                packages.remove(package)
+        return packages
+
+    def _install_packages(
+        self, packages: List[str], signed: bool = True, ignore_non_exists: bool = False
+    ) -> None:
         raise NotImplementedError()
 
     def _update_packages(self, packages: Optional[List[str]] = None) -> None:
@@ -564,7 +577,9 @@ class Debian(Linux):
         r"(?P<patch>[0-9]+)"  # patch
         r"-(?P<build>[a-zA-Z0-9-_\.]+)"  # build
     )
-    _package_existed_in_repo_pattern = re.compile(r"Candidate: ((?!none)).*", re.M)
+    _package_existed_in_repo_pattern = re.compile(
+        r"([\w\W]*?)Candidate: ((?!none)).*", re.M
+    )
 
     @classmethod
     def name_pattern(cls) -> Pattern[str]:
@@ -656,7 +671,12 @@ class Debian(Linux):
         result = self._node.execute("apt-get update", sudo=True)
         result.assert_exit_code(message="\n".join(self.get_apt_error(result.stdout)))
 
-    def _install_packages(self, packages: List[str], signed: bool = True) -> None:
+    def _install_packages(
+        self, packages: List[str], signed: bool = True, ignore_non_exists: bool = False
+    ) -> None:
+        if ignore_non_exists:
+            self.remove_not_existed_packages(packages)
+
         file_packages = []
         for index, package in enumerate(packages):
             if package.endswith(".deb"):
@@ -993,7 +1013,12 @@ class Fedora(Linux):
         )
         return self._cache_and_return_version_info(package_name, version_info)
 
-    def _install_packages(self, packages: List[str], signed: bool = True) -> None:
+    def _install_packages(
+        self, packages: List[str], signed: bool = True, ignore_non_exists: bool = False
+    ) -> None:
+        if ignore_non_exists:
+            self.remove_not_existed_packages(packages)
+
         command = f"dnf install -y {' '.join(packages)}"
         if not signed:
             command += " --nogpgcheck"
@@ -1091,7 +1116,12 @@ class Redhat(Fedora):
             )
             cmd_result.assert_exit_code()
 
-    def _install_packages(self, packages: List[str], signed: bool = True) -> None:
+    def _install_packages(
+        self, packages: List[str], signed: bool = True, ignore_non_exists: bool = False
+    ) -> None:
+        if ignore_non_exists:
+            self.remove_not_existed_packages(packages)
+
         command = f"yum install -y {' '.join(packages)}"
         if not signed:
             command += " --nogpgcheck"
@@ -1274,7 +1304,12 @@ class Suse(Linux):
             "zypper --non-interactive --gpg-auto-import-keys refresh", sudo=True
         )
 
-    def _install_packages(self, packages: List[str], signed: bool = True) -> None:
+    def _install_packages(
+        self, packages: List[str], signed: bool = True, ignore_non_exists: bool = False
+    ) -> None:
+        if ignore_non_exists:
+            self.remove_not_existed_packages(packages)
+
         command = f"zypper --non-interactive in {' '.join(packages)}"
         if not signed:
             command += " --no-gpg-checks"

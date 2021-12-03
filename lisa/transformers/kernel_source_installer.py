@@ -225,11 +225,10 @@ class SourceInstaller(BaseInstaller):
         os = node.os
         self._log.info("installing build tools")
         if isinstance(os, Redhat):
-            for package in list(
-                ["elfutils-libelf-devel", "openssl-devel", "dwarves", "bc"]
-            ):
-                if os.is_package_in_repo(package):
-                    os.install_packages(package)
+            os.install_packages(
+                ["elfutils-libelf-devel", "openssl-devel", "dwarves", "bc"],
+                ignore_non_exists=True,
+            )
             os.group_install_packages("Development Tools")
 
             if os.information.version < "8.0.0":
