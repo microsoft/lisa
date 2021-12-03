@@ -6,6 +6,7 @@ from assertpy import assert_that
 from retry import retry
 
 from lisa import Environment, Node, RemoteNode
+from lisa.features import NetworkInterface
 from lisa.nic import NicInfo, Nics
 from lisa.tools import Cat, Firewall, Kill, Lsmod, Lspci, Modprobe, Ssh
 from lisa.util import constants
@@ -193,3 +194,10 @@ def cleanup_iperf3(environment: Environment) -> None:
     for node in environment.nodes.list():
         kill = node.tools[Kill]
         kill.by_name("iperf3")
+
+
+def remove_extra_nics(environment: Environment) -> None:
+    for node in environment.nodes.list():
+        node = cast(RemoteNode, environment.nodes[0])
+        network_interface_feature = node.features[NetworkInterface]
+        network_interface_feature.remove_extra_nics()

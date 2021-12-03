@@ -32,6 +32,9 @@ class NetworkInterface(Feature):
     ) -> None:
         raise NotImplementedError
 
+    def remove_extra_nics(self) -> None:
+        raise NotImplementedError
+
     def reload_module(self) -> None:
         raise NotImplementedError
 

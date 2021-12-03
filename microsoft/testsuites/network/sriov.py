@@ -30,6 +30,7 @@ from .common import (
     cleanup_iperf3,
     initialize_nic_info,
     load_module,
+    remove_extra_nics,
     remove_module,
     sriov_basic_test,
     sriov_vf_connection_test,
@@ -271,7 +272,6 @@ class Sriov(TestSuite):
         2. Do the basic sriov testing.
         """,
         priority=2,
-        use_new_environment=True,
         requirement=simple_requirement(
             network_interface=schema.NetworkInterfaceOptionSettings(
                 data_path=schema.NetworkDataPath.Sriov,
@@ -310,7 +310,6 @@ class Sriov(TestSuite):
         2. Do the basic sriov testing.
         """,
         priority=2,
-        use_new_environment=True,
         requirement=simple_requirement(
             min_nic_count=8,
             network_interface=features.Sriov(),
@@ -631,3 +630,4 @@ class Sriov(TestSuite):
     def after_case(self, log: Logger, **kwargs: Any) -> None:
         environment: Environment = kwargs.pop("environment")
         cleanup_iperf3(environment)
+        remove_extra_nics(environment)

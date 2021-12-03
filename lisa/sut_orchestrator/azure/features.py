@@ -9,6 +9,7 @@ from typing import TYPE_CHECKING, Any, Dict, List, Optional, Tuple, Type, cast
 
 import requests
 from assertpy import assert_that
+from azure.mgmt.compute.models import NetworkInterfaceReference  # type: ignore
 from dataclasses_json import dataclass_json
 from PIL import Image, UnidentifiedImageError
 
@@ -187,6 +188,18 @@ class NetworkInterface(AzureFeatureMixin, features.NetworkInterface):
         super()._initialize(*args, **kwargs)
         self._initialize_information(self._node)
 
+    def _get_primary(
+        self, nics: List[NetworkInterfaceReference]
+    ) -> NetworkInterfaceReference:
+        found_primary = False
+        for nic in nics:
+            if nic.primary:
+                found_primary = True
+                break
+        if not found_primary:
+            raise LisaException(f"fail to find primary nic for vm {self._node.name}")
+        return nic
+
     def _switch_sriov(self, enable: bool) -> None:
         azure_platform: AzurePlatform = self._platform  # type: ignore
         network_client = get_network_client(azure_platform)
@@ -234,13 +247,7 @@ class NetworkInterface(AzureFeatureMixin, features.NetworkInterface):
         vm = compute_client.virtual_machines.get(
             self._resource_group_name, self._node.name
         )
-        found_primary = False
-        for nic in vm.network_profile.network_interfaces:
-            if nic.primary:
-                found_primary = True
-                break
-        if not found_primary:
-            raise LisaException(f"fail to find primary nic for vm {self._node.name}")
+        nic = self._get_primary(vm.network_profile.network_interfaces)
         nic_name = nic.id.split("/")[-1]
         primary_nic = network_client.network_interfaces.get(
             self._resource_group_name, nic_name
@@ -274,13 +281,7 @@ class NetworkInterface(AzureFeatureMixin, features.NetworkInterface):
                 f"nic count after add extra nics is {nic_count_after_add_extra},"
                 f" it exceeds the vm size's capability {node_capability_nic_count}."
             )
-        found_primary = False
-        for nic in vm.network_profile.network_interfaces:
-            if nic.primary:
-                found_primary = True
-                break
-        if not found_primary:
-            raise LisaException(f"fail to find primary nic for vm {self._node.name}")
+        nic = self._get_primary(vm.network_profile.network_interfaces)
         nic_name = nic.id.split("/")[-1]
         primary_nic = network_client.network_interfaces.get(
             self._resource_group_name, nic_name
@@ -329,6 +330,37 @@ class NetworkInterface(AzureFeatureMixin, features.NetworkInterface):
             },
         )
         self._log.debug(f"attach the nics into VM {self._node.name} successfully.")
+        startstop.start()
+
+    def remove_extra_nics(self) -> None:
+        azure_platform: AzurePlatform = self._platform  # type: ignore
+        network_client = get_network_client(azure_platform)
+        compute_client = get_compute_client(azure_platform)
+        vm = compute_client.virtual_machines.get(
+            self._resource_group_name, self._node.name
+        )
+        if len(vm.network_profile.network_interfaces) == 1:
+            self._log.debug("No existed extra nics can be disassociated.")
+            return
+        nic = self._get_primary(vm.network_profile.network_interfaces)
+        nic_name = nic.id.split("/")[-1]
+        primary_nic = network_client.network_interfaces.get(
+            self._resource_group_name, nic_name
+        )
+        network_interfaces_section = []
+        network_interfaces_section.append({"id": primary_nic.id, "primary": True})
+        startstop = self._node.features[StartStop]
+        startstop.stop()
+        compute_client.virtual_machines.begin_update(
+            resource_group_name=self._resource_group_name,
+            vm_name=self._node.name,
+            parameters={
+                "network_profile": {"network_interfaces": network_interfaces_section},
+            },
+        )
+        self._log.debug(
+            f"Only associated nic {primary_nic.id} into VM {self._node.name}."
+        )
         startstop.start()
 
     def reload_module(self) -> None:
