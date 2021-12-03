@@ -37,7 +37,9 @@ class Nested(TestSuite):
         """,
         priority=1,
     )
-    def verify_nested_basic(self, node: RemoteNode, variables: Dict[str, Any]) -> None:
+    def verify_nested_kvm_basic(
+        self, node: RemoteNode, variables: Dict[str, Any]
+    ) -> None:
         # verify that virtualization is enabled in hardware
         is_virtualization_enabled = node.tools[Lscpu].is_virtualization_enabled()
         if not is_virtualization_enabled:
