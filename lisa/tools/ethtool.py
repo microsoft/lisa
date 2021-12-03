@@ -4,7 +4,7 @@ from typing import Any, Dict, List, Optional, Set, cast
 
 from lisa.executable import Tool
 from lisa.operating_system import Posix
-from lisa.util import LisaException, UnsupportedOperationException
+from lisa.util import LisaException, UnsupportedOperationException, find_groups_in_lines
 
 from .find import Find
 from .lscpu import Lscpu
@@ -454,6 +454,11 @@ class DeviceSettings:
 
 
 class Ethtool(Tool):
+    # NIC statistics:
+    #     tx_scattered: 0
+    #     tx_no_memory: 0
+    _statistics_pattern = re.compile(r"^\s+(?P<name>.*?)\: +?(?P<value>\d*?)\r?$")
+
     @property
     def command(self) -> str:
         return "ethtool"
@@ -809,6 +814,26 @@ class Ethtool(Tool):
         )
 
         return self.get_device_rx_hash_level(interface, protocol, force_run=True)
+
+    def get_device_statistics(
+        self, interface: str, force_run: bool = False
+    ) -> Dict[str, int]:
+        device = self._get_or_create_device_setting(interface)
+        if not force_run and device.statistics:
+            return device.statistics
+
+        statistics: Dict[str, int] = {}
+        result = self.run(
+            f"-S {interface}",
+            expected_exit_code=0,
+            expected_exit_code_failure_message="failed on get statistcs from ethtool.",
+        )
+
+        items = find_groups_in_lines(result.stdout, self._statistics_pattern)
+        statistics = {x["name"]: int(x["value"]) for x in items}
+
+        device.statistics = statistics
+        return statistics
 
     def get_all_device_channels_info(self) -> List[DeviceChannel]:
         devices_channel_list = []
