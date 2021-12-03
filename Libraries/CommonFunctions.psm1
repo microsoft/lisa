@@ -2098,7 +2098,7 @@ Function Publish-App([string]$appName, [string]$customIP, [string]$appGitURL, [s
         -command "cd $appName; git checkout tags/$appGitTag > /dev/null 2>&1"
     }
     if ($appName -eq "stress-ng") {
-        $appInstall = "cd $appName; echo '${password}' | sudo -S make install"
+        $appInstall = "cd $appName; echo '${password}' | sudo -S make"
         $retVal = Run-LinuxCmd -username $user -password $password -ip $customIP -port $VMSSHPort `
              -command $appInstall
     }

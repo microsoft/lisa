@@ -81,14 +81,18 @@ function install_dependencies() {
             deb_packages=(make git gcc flex bison clang llvm fuse gcc-multilib libfuse2 \
                         libc6-i386 libc6-dev-i386 libelf-dev libcap-ng-dev libfuse-dev \
                         libpopt-dev libnuma-dev libmount-dev libcap-dev build-essential \
-                        pkg-config bc rsync)
+                        pkg-config bc rsync libaio-dev libapparmor-dev libattr1-dev libbsd-dev \
+                        libgcrypt11-dev libipsec-mb-dev libjudy-dev libkeyutils-dev \
+                        libsctp-dev libatomic1 zlib1g-dev libkmod-dev)
             LogMsg "Dependency package names： ${deb_packages[@]}"
             install_package "${deb_packages[@]}" >> $BUILDING_LOG 2>&1
             ;;
         centos_7 | centos_8 | redhat_7 | redhat_8)
             rpm_packages=(make git gcc flex bison clang llvm fuse libcap-ng-devel popt-devel \
                         libcap-devel glibc-devel.*i686 fuse-devel elfutils-devel \
-                        numactl-devel glibc-devel)
+                        numactl-devel libaio-devel libattr-devel libbsd-devel \
+                        libgcrypt-devel Judy-devel keyutils-libs-devel \
+                        lksctp-tools-devel libatomic zlib-devel kmod-devel)
             if [[ $DISTRO != centos_8 ]]; then
                 rpm_packages+=(libmount-devel glibc-static)
             fi
@@ -99,7 +103,9 @@ function install_dependencies() {
         suse*)
             suse_packages=(make git gcc flex bison fuse libcap-ng-devel fuse-devel popt-devel \
                          numactl libnuma-devel libmount-devel libcap-devel libcap-progs \
-                         glibc-devel libelf-devel glibc-static)
+                         glibc-devel libelf-devel glibc-static keyutils-devel libaio-devel \
+                         libapparmor-devel libattr-devel libbsd-devel libseccomp-devel \
+                         lksctp-tools-devel libatomic1 zlib-devel libkmod-devel)
             LogMsg "Dependency package names： ${suse_packages[@]}"
             install_package "${suse_packages[@]}" >> $BUILDING_LOG 2>&1
             ;;
