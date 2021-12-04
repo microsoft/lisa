@@ -10,6 +10,7 @@ from typing import Any, Dict, Iterable, List, Optional, Type, TypeVar, Union, ca
 from lisa import schema
 from lisa.executable import Tools
 from lisa.feature import Features
+from lisa.nic import Nics
 from lisa.operating_system import OperatingSystem
 from lisa.tools import Echo, Reboot
 from lisa.util import (
@@ -53,6 +54,9 @@ class Node(subclasses.BaseClassWithRunbookMixin, ContextMixin, InitializableMixi
         # the path uses remotely
         node_id = str(self.index) if self.index >= 0 else ""
         self.log = get_logger(logger_name, node_id, parent=parent_logger)
+
+        # to be initialized when it's first used.
+        self._nics: Optional[Nics] = None
 
         # The working path will be created in remote node, when it's used.
         self._working_path: Optional[PurePath] = None
@@ -135,6 +139,14 @@ class Node(subclasses.BaseClassWithRunbookMixin, ContextMixin, InitializableMixi
             self.log.debug(f"working path is: '{self._working_path}'")
 
         return self._working_path
+
+    @property
+    def nics(self) -> Nics:
+        if self._nics is None:
+            self._nics = Nics(self)
+            self._nics.initialize()
+
+        return self._nics
 
     @classmethod
     def create(
@@ -219,6 +231,8 @@ class Node(subclasses.BaseClassWithRunbookMixin, ContextMixin, InitializableMixi
         self.log.debug("closing node connection...")
         if self._shell:
             self._shell.close()
+        if self._nics:
+            self._nics = None
 
     def get_pure_path(self, path: str) -> PurePath:
         # spurplus doesn't support PurePath, so it needs to resolve by the
