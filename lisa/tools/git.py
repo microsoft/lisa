@@ -135,3 +135,12 @@ class Git(Tool):
             expected_exit_code_failure_message="Could not fetch tags from git repo.",
         )
         return filter_ansi_escape(result.stdout).splitlines()
+
+    def init_submodules(self, cwd: pathlib.PurePath) -> None:
+        self.run(
+            "submodule update --init",
+            shell=True,
+            cwd=cwd,
+            expected_exit_code=0,
+            expected_exit_code_failure_message="error on init submodules.",
+        )
