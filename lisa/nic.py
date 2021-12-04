@@ -4,13 +4,15 @@
 
 import os
 import re
-from typing import Any, Dict, List, Optional, Tuple
+from typing import TYPE_CHECKING, Any, Dict, List, Optional, Tuple
 
 from assertpy import assert_that
 
-from lisa import Node
 from lisa.tools import Echo
 from lisa.util import InitializableMixin, LisaException
+
+if TYPE_CHECKING:
+    from lisa import Node
 
 
 class NicInfo:
@@ -124,7 +126,7 @@ class Nics(InitializableMixin):
 
     _file_not_exist = re.compile(r"No such file or directory", re.MULTILINE)
 
-    def __init__(self, node: Node):
+    def __init__(self, node: "Node"):
         super().__init__()
         self._node = node
         self.nics: Dict[str, NicInfo] = dict()
@@ -332,5 +334,5 @@ class Nics(InitializableMixin):
                 f"was not in original list of nics {repr(self.nic_names)}."
             )
         ).is_true()
-        self.default_nic = default_interface_name
+        self.default_nic: str = default_interface_name
         self.default_nic_route = str(dev_match)
