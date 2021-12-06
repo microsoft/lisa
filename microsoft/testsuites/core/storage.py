@@ -3,7 +3,7 @@
 
 import re
 from pathlib import PurePosixPath
-from typing import Pattern
+from typing import Any, Pattern
 
 from assertpy.assertpy import assert_that
 
@@ -16,11 +16,18 @@ from lisa import (
     simple_requirement,
 )
 from lisa.features import Disk
+from lisa.features.disks import (
+    DiskPremiumSSDLRS,
+    DiskStandardHDDLRS,
+    DiskStandardSSDLRS,
+)
+from lisa.node import Node
+from lisa.schema import DiskType
 from lisa.sut_orchestrator import AZURE
 from lisa.sut_orchestrator.azure.features import AzureDiskOptionSettings
 from lisa.sut_orchestrator.azure.tools import Waagent
-from lisa.tools import Blkid, Cat, Dmesg, Echo, Swap
-from lisa.util import LisaException, get_matched_str
+from lisa.tools import Blkid, Cat, Dmesg, Echo, Lsblk, Swap
+from lisa.util import BadEnvironmentStateException, LisaException, get_matched_str
 
 
 @TestSuiteMetadata(
@@ -31,6 +38,8 @@ from lisa.util import LisaException, get_matched_str
     """,
 )
 class Storage(TestSuite):
+
+    DEFAULT_DISK_SIZE_IN_GB = 20
 
     # Defaults targetpw
     _uncommented_default_targetpw_regex = re.compile(
@@ -241,6 +250,229 @@ class Storage(TestSuite):
                 "'UUID={os_partition_info.uuid} /' or "
                 "'PARTUUID={os_partition_info.part_uuid} /' should be present in fstab"
             )
+
+    @TestCaseMetadata(
+        description="""
+        This test case will verify that the standard hdd data disks disks can
+        be added one after other (serially) while the vm is running.
+        Steps:
+        1. Get maximum number of data disk for the current vm_size.
+        2. Get the number of data disks already added to the vm.
+        3. Serially add and remove the data disks and verify that the added
+        disks are present in the vm.
+        """,
+        requirement=simple_requirement(disk=DiskStandardHDDLRS()),
+    )
+    def hot_add_disk_serial(self, log: Logger, node: Node) -> None:
+        self._hot_add_disk_serial(
+            log, node, DiskType.StandardHDDLRS, self.DEFAULT_DISK_SIZE_IN_GB
+        )
+
+    @TestCaseMetadata(
+        description="""
+        This test case will verify that the standard ssd data disks disks can
+        be added serially while the vm is running. The test steps are same as
+        `hot_add_disk_serial`.
+        """,
+        requirement=simple_requirement(disk=DiskStandardSSDLRS()),
+    )
+    def hot_add_disk_serial_standard_ssd(self, log: Logger, node: Node) -> None:
+        self._hot_add_disk_serial(
+            log, node, DiskType.StandardSSDLRS, self.DEFAULT_DISK_SIZE_IN_GB
+        )
+
+    @TestCaseMetadata(
+        description="""
+        This test case will verify that the premium ssd data disks disks can
+        be added serially while the vm is running. The test steps are same as
+        `hot_add_disk_serial`.
+        """,
+        requirement=simple_requirement(disk=DiskPremiumSSDLRS()),
+    )
+    def hot_add_disk_serial_premium_ssd(self, log: Logger, node: Node) -> None:
+        self._hot_add_disk_serial(
+            log, node, DiskType.PremiumSSDLRS, self.DEFAULT_DISK_SIZE_IN_GB
+        )
+
+    @TestCaseMetadata(
+        description="""
+        This test case will verify that the standard HDD data disks can
+        be added in one go (parallel) while the vm is running.
+        Steps:
+        1. Get maximum number of data disk for the current vm_size.
+        2. Get the number of data disks already added to the vm.
+        3. Add maximum number of data disks to the VM in parallel.
+        4. Verify that the disks are added are available in the OS.
+        5. Remove the disks from the vm in parallel.
+        6. Verify that the disks are removed from the OS.
+        """,
+        requirement=simple_requirement(disk=DiskStandardHDDLRS()),
+    )
+    def hot_add_disk_parallel(self, log: Logger, node: Node) -> None:
+        self._hot_add_disk_parallel(
+            log, node, DiskType.StandardHDDLRS, self.DEFAULT_DISK_SIZE_IN_GB
+        )
+
+    @TestCaseMetadata(
+        description="""
+        This test case will verify that the standard ssd data disks disks can
+        be added serially while the vm is running. The test steps are same as
+        `hot_add_disk_parallel`.
+        """,
+        requirement=simple_requirement(disk=DiskStandardSSDLRS()),
+    )
+    def hot_add_disk_parallel_standard_ssd(self, log: Logger, node: Node) -> None:
+        self._hot_add_disk_parallel(
+            log, node, DiskType.StandardSSDLRS, self.DEFAULT_DISK_SIZE_IN_GB
+        )
+
+    @TestCaseMetadata(
+        description="""
+        This test case will verify that the premium ssd data disks disks can
+        be added serially while the vm is running. The test steps are same as
+        `hot_add_disk_parallel`.
+        """,
+        requirement=simple_requirement(disk=DiskPremiumSSDLRS()),
+    )
+    def hot_add_disk_parallel_premium_ssd(self, log: Logger, node: Node) -> None:
+        self._hot_add_disk_parallel(
+            log, node, DiskType.PremiumSSDLRS, self.DEFAULT_DISK_SIZE_IN_GB
+        )
+
+    def after_case(self, log: Logger, **kwargs: Any) -> None:
+        node: Node = kwargs["node"]
+        disk = node.features[Disk]
+
+        # cleanup any disks added as part of the test
+        # If the cleanup operation fails, mark node to be recycled
+        try:
+            disk.remove_data_disk()
+        except Exception:
+            raise BadEnvironmentStateException
+
+    def _hot_add_disk_serial(
+        self, log: Logger, node: Node, type: DiskType, size: int
+    ) -> None:
+        disk = node.features[Disk]
+
+        # get max data disk count for the node
+        assert node.capability.disk
+        assert isinstance(node.capability.disk.max_data_disk_count, int)
+        max_data_disk_count = node.capability.disk.max_data_disk_count
+        log.debug(f"max_data_disk_count: {max_data_disk_count}")
+
+        # get the number of data disks already added to the vm
+        assert isinstance(node.capability.disk.data_disk_count, int)
+        current_data_disk_count = node.capability.disk.data_disk_count
+        log.debug(f"current_data_disk_count: {current_data_disk_count}")
+
+        # disks to be added to the vm
+        disks_to_add = max_data_disk_count - current_data_disk_count
+
+        # get partition info before adding data disk
+        partitions_before_adding_disk = node.tools[Lsblk].get_partitions(force_run=True)
+
+        for _ in range(disks_to_add):
+            # add data disk
+            log.debug("Adding 1 managed disk")
+            disks_added = disk.add_data_disk(1, type, size)
+
+            # verify that partition count is increased by 1
+            # and the size of partition is correct
+            partitons_after_adding_disk = node.tools[Lsblk].get_partitions(
+                force_run=True
+            )
+            added_partitions = [
+                item
+                for item in partitons_after_adding_disk
+                if item not in partitions_before_adding_disk
+            ]
+            log.debug(f"added_partitions: {added_partitions}")
+            assert_that(added_partitions, "Data disk should be added").is_length(1)
+            assert_that(
+                added_partitions[0].size,
+                f"data disk { added_partitions[0].name} size should be equal to "
+                f"{size} GB",
+            ).is_equal_to(size * 1024 * 1024 * 1024)
+
+            # remove data disk
+            log.debug(f"Removing managed disk: {disks_added}")
+            disk.remove_data_disk(disks_added)
+
+            # verify that partition count is decreased by 1
+            partition_after_removing_disk = node.tools[Lsblk].get_partitions(
+                force_run=True
+            )
+            added_partitions = [
+                item
+                for item in partitions_before_adding_disk
+                if item not in partition_after_removing_disk
+            ]
+            assert_that(added_partitions, "data disks should not be present").is_length(
+                0
+            )
+
+    def _hot_add_disk_parallel(
+        self, log: Logger, node: Node, type: DiskType, size: int
+    ) -> None:
+        disk = node.features[Disk]
+
+        # get max data disk count for the node
+        assert node.capability.disk
+        assert isinstance(node.capability.disk.max_data_disk_count, int)
+        max_data_disk_count = node.capability.disk.max_data_disk_count
+        log.debug(f"max_data_disk_count: {max_data_disk_count}")
+
+        # get the number of data disks already added to the vm
+        assert isinstance(node.capability.disk.data_disk_count, int)
+        current_data_disk_count = node.capability.disk.data_disk_count
+        log.debug(f"current_data_disk_count: {current_data_disk_count}")
+
+        # disks to be added to the vm
+        disks_to_add = max_data_disk_count - current_data_disk_count
+
+        # get partition info before adding data disks
+        partitions_before_adding_disks = node.tools[Lsblk].get_partitions(
+            force_run=True
+        )
+
+        # add data disks
+        log.debug(f"Adding {disks_to_add} managed disks")
+        disks_added = disk.add_data_disk(disks_to_add, type, size)
+
+        # verify that partition count is increased by disks_to_add
+        # and the size of partition is correct
+        partitons_after_adding_disks = node.tools[Lsblk].get_partitions(force_run=True)
+        added_partitions = [
+            item
+            for item in partitons_after_adding_disks
+            if item not in partitions_before_adding_disks
+        ]
+        log.debug(f"added_partitions: {added_partitions}")
+        assert_that(
+            added_partitions, f"{disks_to_add} disks should be added"
+        ).is_length(disks_to_add)
+        for partition in added_partitions:
+            assert_that(
+                partition.size,
+                f"data disk {partition.name} size should be equal to {size} GB",
+            ).is_equal_to(size * 1024 * 1024 * 1024)
+
+        # remove data disks
+        log.debug(f"Removing managed disks: {disks_added}")
+        disk.remove_data_disk(disks_added)
+
+        # verify that partition count is decreased by disks_to_add
+        partition_after_removing_disk = node.tools[Lsblk].get_partitions(force_run=True)
+        added_partitions = [
+            item
+            for item in partitions_before_adding_disks
+            if item not in partition_after_removing_disk
+        ]
+        assert_that(added_partitions, "data disks should not be present").is_length(0)
+
+    def _get_managed_disk_id(self, identifier: str) -> str:
+        return f"disk_{identifier}"
 
     def _get_resource_disk_mount_point(
         self,
