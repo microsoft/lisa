@@ -25,8 +25,7 @@ from lisa.sut_orchestrator import AZURE, READY
 from lisa.tools import Cat, Ethtool, InterruptInspector, Iperf3, Lspci
 from lisa.util import SkippedException, constants
 from lisa.util.shell import wait_tcp_port_ready
-
-from .common import (
+from microsoft.testsuites.network.common import (
     cleanup_iperf3,
     initialize_nic_info,
     load_module,
