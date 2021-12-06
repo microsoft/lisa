@@ -13,7 +13,8 @@ from azure.mgmt.network import NetworkManagementClient  # type: ignore
 from azure.mgmt.resource import ResourceManagementClient  # type: ignore
 from azure.mgmt.storage import StorageManagementClient  # type: ignore
 from azure.mgmt.storage.models import Sku, StorageAccountCreateParameters  # type:ignore
-from azure.storage.blob import BlobServiceClient, ContainerClient  # type: ignore
+from azure.storage.blob import BlobServiceClient, ContainerClient  # type:ignore
+from azure.storage.fileshare import ShareServiceClient, ShareClient  # type:ignore
 from dataclasses_json import dataclass_json
 from marshmallow import validate
 
@@ -420,6 +421,21 @@ def check_or_create_resource_group(
                 )
 
 
+def get_location_from_resource_group(
+    credential: Any,
+    subscription_id: str,
+    resource_group_name: str,
+    log: Logger,
+) -> None:
+    with get_resource_management_client(credential, subscription_id) as rm_client:
+        global global_credential_access_lock
+        with global_credential_access_lock:
+            az_shared_rg_exists = rm_client.resource_groups.check_existence(
+                resource_group_name
+            )
+        return az_shared_rg_exists.location
+
+
 def wait_copy_blob(
     blob_client: Any,
     vhd_path: str,
@@ -440,6 +456,71 @@ def wait_copy_blob(
         raise LisaException(f"wait copying VHD timeout: {vhd_path}")
 
     log.debug("vhd copied")
+
+
+def connection_string(account: str, key: str):
+    return (
+        "DefaultEndpointsProtocol=https;AccountName="
+        + account
+        + ";AccountKey="
+        + str(key)
+        + ";EndpointSuffix=core.windows.net"
+    )
+
+
+def get_share_service_client(
+    credential: Any,
+    subscription_id: str,
+    account_name: str,
+    resource_group_name: str,
+) -> ShareServiceClient:
+    shared_key_credential = get_storage_credential(
+        credential=credential,
+        subscription_id=subscription_id,
+        account_name=account_name,
+        resource_group_name=resource_group_name,
+    )
+    return ShareServiceClient.from_connection_string(
+        connection_string(
+            shared_key_credential["account_name"],
+            shared_key_credential["account_key"],
+        )
+    )
+
+
+def get_or_create_file_share(
+    credential: Any,
+    subscription_id: str,
+    account_name: str,
+    file_share_name: str,
+    resource_group_name: str,
+) -> str:
+    """
+    Create a Azure Storage file share if it does not exist.
+    """
+    share_service_client = get_share_service_client(
+        credential, subscription_id, account_name, resource_group_name
+    )
+    all_shares = list(share_service_client.list_shares())
+    if file_share_name not in all_shares:
+        share_service_client.create_share(file_share_name)
+    return "//" + share_service_client.primary_hostname + "/" + file_share_name
+
+
+def delete_file_share(
+    credential: Any,
+    subscription_id: str,
+    account_name: str,
+    file_share_name: str,
+    resource_group_name: str,
+) -> None:
+    """
+    Delete Azure Storage file share
+    """
+    share_service_client = get_share_service_client(
+        credential, subscription_id, account_name, resource_group_name
+    )
+    share_service_client.delete_share(file_share_name)
 
 
 class DataDiskCreateOption:
