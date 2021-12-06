@@ -104,7 +104,10 @@ class DpdkTestpmd(Tool):
             cwd=path,
             timeout=timeout,
             expected_exit_code=0,
-            expected_exit_code_failure_message="failed with nonzero error code",
+            expected_exit_code_failure_message=(
+                "Command failed with nonzero error code during testpmd installation "
+                f"in dir '{path.as_posix()}'"
+            ),
         )
         return result.stdout
 
@@ -316,8 +319,12 @@ class DpdkTestpmd(Tool):
             self.__execute_assert_zero("ln -s /usr/local/bin/meson /usr/bin/meson", cwd)
 
             wget_tool = self.node.tools[Wget]
-            wget_tool.get(self._ninja_url)
-            node.execute(f"mv ninja-linux.zip {node.working_path}/")
+            wget_tool.get(
+                self._ninja_url,
+                file_path=cwd.as_posix(),
+                filename="ninja-linux.zip",
+            )
+            # node.execute(f"mv ninja-linux.zip {node.working_path}/")
             self.__execute_assert_zero(
                 "unzip ninja-linux.zip && mv ninja /usr/bin/ninja", cwd
             )
