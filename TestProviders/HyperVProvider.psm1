@@ -122,7 +122,7 @@ Class HyperVProvider : TestProvider
 			if ($null -eq $CurrentTestData.runSetupScriptOnlyOnce) {
 				foreach ($VM in $VmData) {
 					if (Get-VM -Name $VM.RoleName -ComputerName $VM.HyperVHost -EA SilentlyContinue) {
-						Stop-VM -Name $VM.RoleName -TurnOff -Force -ComputerName $VM.HyperVHost
+						Stop-VM -Name $VM.RoleName -TurnOff:$false -Force -ComputerName $VM.HyperVHost
 					}
 					foreach ($script in $($CurrentTestData.SetupConfig.SetupScript).Split(",")) {
 						$null = Run-SetupScript -Script $script -Parameters $TestParameters -VMData $VM -CurrentTestData $CurrentTestData
@@ -147,7 +147,7 @@ Class HyperVProvider : TestProvider
 				foreach ($VM in $AllVMData) {
 					if (Get-VM -Name $VM.RoleName -ComputerName `
 						$VM.HyperVHost -EA SilentlyContinue) {
-						Stop-VM -Name $VM.RoleName -TurnOff -Force -ComputerName `
+						Stop-VM -Name $VM.RoleName -TurnOff:$false -Force -ComputerName `
 							$VM.HyperVHost
 					}
 					foreach ($script in $($CurrentTestData.CleanupScript).Split(",")) {
@@ -174,7 +174,7 @@ Class HyperVProvider : TestProvider
 					-ShouldTurnOffVMBeforeCheckpoint $false -ShouldTurnOnVMAfterCheckpoint $false
 			}
 			if ($global:DependencyVmHost) {
-				Stop-VM -Name $global:DependencyVmName -TurnOff -Force -ComputerName $global:DependencyVmHost
+				Stop-VM -Name $global:DependencyVmName -TurnOff -Force:$false -ComputerName $global:DependencyVmHost
 			}
 		} catch {
 			$ErrorMessage =  $_.Exception.Message

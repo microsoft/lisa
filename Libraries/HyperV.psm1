@@ -662,11 +662,13 @@ function Create-HyperVCheckpoint {
     foreach ($VM in $VMData) {
         if ($ShouldTurnOffVMBeforeCheckpoint) {
             Stop-VM -Name $VM.RoleName -ComputerName $VM.HyperVHost -TurnOff:$TurnOff -Force
+            Write-LogInfo "Shutting down $($VM.RoleName)"
             if ($TurnOff) {
                 Wait-VMState -VMName $VM.RoleName -HvServer $VM.HyperVHost -VMState "Off"
             }
         } else {
             Start-VM -Name $VM.RoleName -ComputerName $VM.HyperVHost
+            Write-LogInfo "Starting $($VM.RoleName)"
         }
         Set-VM -Name $VM.RoleName -ComputerName $VM.HyperVHost -CheckpointType $CheckpointType
         Checkpoint-VM -Name $VM.RoleName -ComputerName $VM.HyperVHost -SnapshotName $CheckpointName
@@ -675,8 +677,10 @@ function Create-HyperVCheckpoint {
         Write-LogInfo $msg
         if ($ShouldTurnOnVMAfterCheckpoint) {
             Start-VM -Name $VM.RoleName -ComputerName $VM.HyperVHost
+            Write-LogInfo "Starting $($VM.RoleName) after checkpoint"
         } else {
-            Stop-VM -Name $VM.RoleName -ComputerName $VM.HyperVHost -TurnOff -Force
+            Stop-VM -Name $VM.RoleName -ComputerName $VM.HyperVHost -TurnOff:$TurnOff -Force
+            Write-LogInfo "Shutting down $($VM.RoleName) after checkpoint"
         }
     }
 }
