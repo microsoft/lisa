@@ -1417,8 +1417,9 @@ class AzurePlatform(Platform):
                     nvme.disk_count = int(node_space.core_count / 8)
                     node_space.features.add(nvme)
             elif name == "MaxDataDiskCount":
+                node_space.disk.max_data_disk_count = int(sku_capability.value)
                 node_space.disk.data_disk_count = search_space.IntRange(
-                    max=int(sku_capability.value)
+                    max=node_space.disk.max_data_disk_count
                 )
             elif name == "MemoryGB":
                 node_space.memory_mb = int(float(sku_capability.value) * 1024)
