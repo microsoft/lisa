@@ -9,7 +9,11 @@ from typing import TYPE_CHECKING, Any, Dict, List, Optional, Tuple, Type, cast
 
 import requests
 from assertpy import assert_that
-from azure.mgmt.compute.models import NetworkInterfaceReference  # type: ignore
+from azure.mgmt.compute.models import (  # type: ignore
+    DiskCreateOption,
+    DiskCreateOptionTypes,
+    NetworkInterfaceReference,
+)
 from dataclasses_json import dataclass_json
 from PIL import Image, UnidentifiedImageError
 
@@ -661,13 +665,104 @@ class Disk(AzureFeatureMixin, features.Disk):
             disk_array[int(disk.split("/")[-1].replace("lun", ""))] = cmd_result.stdout
         return disk_array
 
+    def add_data_disk(
+        self,
+        count: int,
+        type: schema.DiskType = schema.DiskType.StandardHDDLRS,
+        size_in_gb: int = 20,
+    ) -> List[str]:
+        disk_sku = _disk_type_mapping.get(type, None)
+        assert disk_sku
+        assert self._node.capability.disk
+        assert isinstance(self._node.capability.disk.data_disk_count, int)
+        current_disk_count = self._node.capability.disk.data_disk_count
+        platform: AzurePlatform = self._platform  # type: ignore
+        compute_client = get_compute_client(platform)
+        node_context = self._node.capability.get_extended_runbook(AzureNodeSchema)
 
-__disk_type_mapping: Dict[schema.DiskType, str] = {
-    schema.DiskType.PremiumSSDLRS: "Premium_LRS",
-    schema.DiskType.Ephemeral: "Ephemeral",
-    schema.DiskType.StandardHDDLRS: "Standard_LRS",
-    schema.DiskType.StandardSSDLRS: "StandardSSD_LRS",
-}
+        # create managed disk
+        managed_disks = []
+        for i in range(count):
+            name = f"lisa_data_disk_{i+current_disk_count}"
+            async_disk_update = compute_client.disks.begin_create_or_update(
+                self._resource_group_name,
+                name,
+                {
+                    "location": node_context.location,
+                    "disk_size_gb": size_in_gb,
+                    "sku": {"name": disk_sku},
+                    "creation_data": {"create_option": DiskCreateOption.empty},
+                },
+            )
+            managed_disks.append(async_disk_update.result())
+
+        # attach managed disk
+        vm = compute_client.virtual_machines.get(
+            self._resource_group_name, self._vm_name
+        )
+        for i, managed_disk in enumerate(managed_disks):
+            lun = str(i + current_disk_count)
+            vm.storage_profile.data_disks.append(
+                {
+                    "lun": lun,
+                    "name": managed_disk.name,
+                    "create_option": DiskCreateOptionTypes.attach,
+                    "managed_disk": {"id": managed_disk.id},
+                }
+            )
+
+        # update vm
+        async_vm_update = compute_client.virtual_machines.begin_create_or_update(
+            self._resource_group_name,
+            vm.name,
+            vm,
+        )
+        async_vm_update.wait()
+
+        # update data disk count
+        add_disk_names = [managed_disk.name for managed_disk in managed_disks]
+        self.disks += add_disk_names
+        self._node.capability.disk.data_disk_count += len(managed_disks)
+
+        return add_disk_names
+
+    def remove_data_disk(self, names: Optional[List[str]] = None) -> None:
+        assert self._node.capability.disk
+        platform: AzurePlatform = self._platform  # type: ignore
+        compute_client = get_compute_client(platform)
+
+        # if names is None, remove all data disks
+        if names is None:
+            names = self.disks
+
+        # detach managed disk
+        vm = compute_client.virtual_machines.get(
+            self._resource_group_name, self._vm_name
+        )
+
+        # remove managed disk
+        data_disks = vm.storage_profile.data_disks
+        data_disks[:] = [disk for disk in data_disks if disk.name not in names]
+
+        # update vm
+        async_vm_update = compute_client.virtual_machines.begin_create_or_update(
+            self._resource_group_name,
+            vm.name,
+            vm,
+        )
+        async_vm_update.wait()
+
+        # delete managed disk
+        for name in names:
+            async_disk_delete = compute_client.disks.begin_delete(
+                self._resource_group_name, name
+            )
+            async_disk_delete.wait()
+
+        # update data disk count
+        assert isinstance(self._node.capability.disk.data_disk_count, int)
+        self.disks = [name for name in self.disks if name not in names]
+        self._node.capability.disk.data_disk_count -= len(names)
 
 
 def get_azure_disk_type(disk_type: schema.DiskType) -> str:
@@ -676,7 +771,15 @@ def get_azure_disk_type(disk_type: schema.DiskType) -> str:
         f"But it's {disk_type}"
     )
 
-    result = __disk_type_mapping.get(disk_type, None)
+    result = _disk_type_mapping.get(disk_type, None)
     assert result, f"unkonwn disk type: {disk_type}"
 
     return result
+
+
+_disk_type_mapping: Dict[schema.DiskType, str] = {
+    schema.DiskType.PremiumSSDLRS: "Premium_LRS",
+    schema.DiskType.Ephemeral: "Ephemeral",
+    schema.DiskType.StandardHDDLRS: "Standard_LRS",
+    schema.DiskType.StandardSSDLRS: "StandardSSD_LRS",
+}
