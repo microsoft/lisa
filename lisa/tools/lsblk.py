@@ -45,7 +45,7 @@ class Lsblk(Tool):
     # NAME="loop2" SIZE="34017280" TYPE="loop" MOUNTPOINT="/snap/snapd/13640"
     _LSBLK_ENTRY_REGEX = re.compile(
         r'NAME="(?P<name>\S+)"\s+SIZE="(?P<size>\d+)"\s+'
-        r'TYPE="(?P<type>\S+)"\s+MOUNTPOINT="(?P<mountpoint>\S+)"'
+        r'TYPE="(?P<type>\S+)"\s+MOUNTPOINT="(?P<mountpoint>\S*)"'
     )
 
     @property
