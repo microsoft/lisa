@@ -17,8 +17,7 @@ from lisa import (
 )
 from lisa.nic import NicInfo
 from lisa.tools import Cat, Iperf3
-
-from .common import (
+from microsoft.testsuites.network.common import (
     cleanup_iperf3,
     initialize_nic_info,
     sriov_vf_connection_test,
