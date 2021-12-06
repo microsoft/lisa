@@ -11,6 +11,7 @@ function Main {
 		[object] $TestParams
 	)
 	try {
+		Run-LinuxCmd -username $user -password $password -ip $allVMData.PublicIP -port $allVMData.SSHPort -command "systemd-analyze" -ignoreLinuxExitCode -runAsSudo
 		$CurrentTestResult = Create-TestResultObject
 		$CurrentTestResult.TestSummary += New-ResultSummary -testResult "PASS" `
 			-metaData "FirstBoot" -checkValues "PASS,FAIL,ABORTED" -testName $currentTestData.testName
@@ -23,6 +24,7 @@ function Main {
 				-testName $currentTestData.testName
 			$RestartStatus = $TestProvider.RestartAllDeployments($allVMData)
 			if ($RestartStatus -eq "True") {
+				Run-LinuxCmd -username $user -password $password -ip $allVMData.PublicIP -port $allVMData.SSHPort -command "systemd-analyze" -ignoreLinuxExitCode -runAsSudo
 				$CurrentTestResult.TestSummary += New-ResultSummary -testResult "PASS" `
 					-metaData "Reboot" -checkValues "PASS,FAIL,ABORTED" -testName $currentTestData.testName
 				Write-LogInfo "Check 2: Checking call trace again after Reboot > 30 seconds sleep"
