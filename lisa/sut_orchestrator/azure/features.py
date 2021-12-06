@@ -467,6 +467,12 @@ class AzureDiskOptionSettings(schema.DiskOptionSettings):
             ),
             "has_resource_disk",
         )
+        result.merge(
+            search_space.check_countspace(
+                self.max_data_disk_count, capability.max_data_disk_count
+            ),
+            "max_data_disk_count",
+        )
 
         return result
 
@@ -503,6 +509,16 @@ class AzureDiskOptionSettings(schema.DiskOptionSettings):
         if self.data_disk_count is not None or capability.data_disk_count is not None:
             min_value.data_disk_count = search_space.generate_min_capability_countspace(
                 self.data_disk_count, capability.data_disk_count
+            )
+
+        if (
+            self.max_data_disk_count is not None
+            or capability.max_data_disk_count is not None
+        ):
+            min_value.max_data_disk_count = (
+                search_space.generate_min_capability_countspace(
+                    self.max_data_disk_count, capability.max_data_disk_count
+                )
             )
 
         disk_type_iops = _disk_size_iops_map.get(min_value.disk_type, None)

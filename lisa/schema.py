@@ -424,6 +424,12 @@ class DiskOptionSettings(FeatureSettings):
             allow_none=True, decoder=search_space.decode_count_space
         ),
     )
+    max_data_disk_count: search_space.CountSpace = field(
+        default=None,
+        metadata=field_metadata(
+            allow_none=True, decoder=search_space.decode_count_space
+        ),
+    )
 
     def __eq__(self, o: object) -> bool:
         assert isinstance(o, DiskOptionSettings), f"actual: {type(o)}"
@@ -434,6 +440,7 @@ class DiskOptionSettings(FeatureSettings):
             and self.data_disk_caching_type == o.data_disk_caching_type
             and self.data_disk_iops == o.data_disk_iops
             and self.data_disk_size == o.data_disk_size
+            and self.max_data_disk_count == o.max_data_disk_count
         )
 
     def __repr__(self) -> str:
@@ -442,7 +449,8 @@ class DiskOptionSettings(FeatureSettings):
             f"count: {self.data_disk_count},"
             f"caching: {self.data_disk_caching_type},"
             f"iops: {self.data_disk_iops},"
-            f"size: {self.data_disk_size}"
+            f"size: {self.data_disk_size},"
+            f"max_data_disk_count: {self.max_data_disk_count}"
         )
 
     def __str__(self) -> str:
@@ -459,6 +467,12 @@ class DiskOptionSettings(FeatureSettings):
                 self.data_disk_count, capability.data_disk_count
             ),
             "data_disk_count",
+        )
+        result.merge(
+            search_space.check_countspace(
+                self.max_data_disk_count, capability.max_data_disk_count
+            ),
+            "max_data_disk_count",
         )
         result.merge(
             search_space.check_countspace(
