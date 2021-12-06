@@ -14,8 +14,8 @@ class Modinfo(Tool):
     #   filename:       /lib/modules/2.6.32-754.29.1.el6.x86_64/kernel/drivers/hv/
     #                   hv_vmbus.ko
     #   version:        3.1
-    _version_pattern = re.compile(r"version:[ \t]*([^ \n]*)")
-    _filename_pattern = re.compile(r"filename:[ \t]*([^ \n]*)")
+    _version_pattern = re.compile(r"version:[ \t]*([^ \r\n]*)")
+    _filename_pattern = re.compile(r"filename:[ \t]*([^ \r\n]*)")
 
     @property
     def command(self) -> str:
