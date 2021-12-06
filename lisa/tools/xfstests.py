@@ -159,7 +159,13 @@ class Xfstests(Tool):
         return tool_path.joinpath("xfstests-dev")
 
     def set_local_config(
-        self, scratch_dev: str, scratch_mnt: str, test_dev: str, test_folder: str
+        self,
+        scratch_dev: str,
+        scratch_mnt: str,
+        test_dev: str,
+        test_folder: str,
+        test_type: str,
+        mount_opts: str = "",
     ) -> None:
         xfstests_path = self.get_xfstests_path()
         config_path = xfstests_path.joinpath("local.config")
@@ -168,6 +174,8 @@ class Xfstests(Tool):
         echo = self.node.tools[Echo]
         content = "\n".join(
             [
+                f"[{test_type}]",
+                f"FSTYP={test_type}",
                 f"SCRATCH_DEV={scratch_dev}",
                 f"SCRATCH_MNT={scratch_mnt}",
                 f"TEST_DEV={test_dev}",
@@ -175,6 +183,14 @@ class Xfstests(Tool):
             ]
         )
         echo.write_to_file(content, config_path)
+        if "cifs" == test_type:
+            content = "\n".join(
+                [
+                    f"TEST_FS_MOUNT_OPTS=''{mount_opts}''",
+                    f"MOUNT_OPTIONS=''{mount_opts}''",
+                ]
+            )
+            echo.write_to_file(content, config_path, append=True)
 
     def set_excluded_tests(self, exclude_tests: str) -> None:
         if exclude_tests:
