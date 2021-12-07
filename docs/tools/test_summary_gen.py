@@ -120,7 +120,7 @@ def _update_line(file: TextIO, metadata: Dict[str, str], index: int) -> None:
         + metadata["case_name"]
         + ">`\n"
     )  # Test Case Name
-    file.write("      - " + str(metadata["priority"]) + "\n")  # Priority
+    file.write("      - " + str(metadata.get("priority", 2)) + "\n")  # Priority
     file.write("      - " + "Azure, Ready" + "\n")  # Platform - defaults to both
     file.write("      - " + metadata["category"] + "\n")  # Category
     file.write("      - " + metadata["area"] + "\n")  # Area
