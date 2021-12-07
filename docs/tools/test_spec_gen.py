@@ -115,7 +115,7 @@ def _write_case(file: TextIO, metadata: Dict[str, str]) -> None:
     _write_description(file, metadata)  # Description
 
     file.write("        :priority: ")
-    file.write("``" + str(metadata["priority"]) + "``\n")  # Priority
+    file.write("``" + str(metadata.get("priority", 2)) + "``\n")  # Priority
 
     if "requirement" in metadata.keys():
         file.write("        :requirement: ")
