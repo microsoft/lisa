@@ -12,8 +12,12 @@ from azure.mgmt.marketplaceordering import MarketplaceOrderingAgreements  # type
 from azure.mgmt.network import NetworkManagementClient  # type: ignore
 from azure.mgmt.resource import ResourceManagementClient  # type: ignore
 from azure.mgmt.storage import StorageManagementClient  # type: ignore
-from azure.mgmt.storage.models import Sku, StorageAccountCreateParameters  # type:ignore
+from azure.mgmt.storage.models import (  # type: ignore
+    Sku,
+    StorageAccountCreateParameters,
+)
 from azure.storage.blob import BlobServiceClient, ContainerClient  # type: ignore
+from azure.storage.fileshare import ShareServiceClient  # type: ignore
 from dataclasses_json import dataclass_json
 from marshmallow import validate
 
@@ -398,6 +402,29 @@ def check_or_create_storage_account(
         wait_operation(operation)
 
 
+def delete_storage_account(
+    credential: Any,
+    subscription_id: str,
+    account_name: str,
+    resource_group_name: str,
+    log: Logger,
+) -> None:
+    storage_client = get_storage_client(credential, subscription_id)
+    try:
+        storage_client.storage_accounts.get_properties(
+            account_name=account_name,
+            resource_group_name=resource_group_name,
+        )
+        log.debug(f"found storage account: {account_name}")
+        storage_client.storage_accounts.delete(
+            account_name=account_name,
+            resource_group_name=resource_group_name,
+        )
+        log.debug(f"delete storage account: {account_name}")
+    except Exception:
+        log.debug(f"not find storage account: {account_name}")
+
+
 def check_or_create_resource_group(
     credential: Any,
     subscription_id: str,
@@ -440,6 +467,60 @@ def wait_copy_blob(
         raise LisaException(f"wait copying VHD timeout: {vhd_path}")
 
     log.debug("vhd copied")
+
+
+def get_share_service_client(
+    credential: Any,
+    subscription_id: str,
+    account_name: str,
+    resource_group_name: str,
+) -> ShareServiceClient:
+    shared_key_credential = get_storage_credential(
+        credential=credential,
+        subscription_id=subscription_id,
+        account_name=account_name,
+        resource_group_name=resource_group_name,
+    )
+    share_service_client = ShareServiceClient(
+        f"https://{account_name}.file.core.windows.net",
+        shared_key_credential,
+    )
+    return share_service_client
+
+
+def get_or_create_file_share(
+    credential: Any,
+    subscription_id: str,
+    account_name: str,
+    file_share_name: str,
+    resource_group_name: str,
+) -> str:
+    """
+    Create a Azure Storage file share if it does not exist.
+    """
+    share_service_client = get_share_service_client(
+        credential, subscription_id, account_name, resource_group_name
+    )
+    all_shares = list(share_service_client.list_shares())
+    if file_share_name not in all_shares:
+        share_service_client.create_share(file_share_name)
+    return str("//" + share_service_client.primary_hostname + "/" + file_share_name)
+
+
+def delete_file_share(
+    credential: Any,
+    subscription_id: str,
+    account_name: str,
+    file_share_name: str,
+    resource_group_name: str,
+) -> None:
+    """
+    Delete Azure Storage file share
+    """
+    share_service_client = get_share_service_client(
+        credential, subscription_id, account_name, resource_group_name
+    )
+    share_service_client.delete_share(file_share_name)
 
 
 class DataDiskCreateOption:
