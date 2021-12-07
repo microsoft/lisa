@@ -347,7 +347,7 @@ class LisaRunner(BaseRunner):
         # keep failed environment, not to delete
         if (
             test_result.is_completed
-            and test_result.status != TestStatus.PASSED
+            and test_result.status == TestStatus.FAILED
             and self.platform.runbook.keep_environment
             == constants.ENVIRONMENT_KEEP_FAILED
         ):
