@@ -159,13 +159,37 @@ class Xfstests(Tool):
         return tool_path.joinpath("xfstests-dev")
 
     def set_local_config(
-        self, scratch_dev: str, scratch_mnt: str, test_dev: str, test_folder: str
+        self,
+        scratch_dev: str,
+        scratch_mnt: str,
+        test_dev: str,
+        test_folder: str,
+        test_type: str,
+        mount_opts: str = "",
     ) -> None:
         xfstests_path = self.get_xfstests_path()
         config_path = xfstests_path.joinpath("local.config")
         if self.node.shell.exists(config_path):
             self.node.shell.remove(config_path)
         echo = self.node.tools[Echo]
+        if mount_opts:
+            content = "\n".join(
+                [
+                    "[cifs]",
+                    "FSTYP=cifs",
+                    f"TEST_FS_MOUNT_OPTS=''{mount_opts}''",
+                    f"MOUNT_OPTIONS=''{mount_opts}''",
+                ]
+            )
+        else:
+            content = "\n".join(
+                [
+                    f"[{test_type}]",
+                    f"FSTYP={test_type}",
+                ]
+            )
+        echo.write_to_file(content, config_path, append=True)
+
         content = "\n".join(
             [
                 f"SCRATCH_DEV={scratch_dev}",
@@ -174,7 +198,7 @@ class Xfstests(Tool):
                 f"TEST_DIR={test_folder}",
             ]
         )
-        echo.write_to_file(content, config_path)
+        echo.write_to_file(content, config_path, append=True)
 
     def set_excluded_tests(self, exclude_tests: str) -> None:
         if exclude_tests:
@@ -232,10 +256,10 @@ class Xfstests(Tool):
             if self.node.shell.exists(result_path):
                 self.node.shell.copy_back(result_path, log_path / file_name)
             else:
-                self._log.debug("{file_name} doesn't exist.")
+                self._log.debug(f"{file_name} doesn't exist.")
             file_name = f"xfstests/{fail_case}.full"
             result_path = xfstests_path / file_name
             if self.node.shell.exists(result_path):
                 self.node.shell.copy_back(result_path, log_path / file_name)
             else:
-                self._log.debug("{file_name} doesn't exist.")
+                self._log.debug(f"{file_name} doesn't exist.")
