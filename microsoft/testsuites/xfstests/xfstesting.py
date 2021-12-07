@@ -1,10 +1,14 @@
 # Copyright (c) Microsoft Corporation.
 # Licensed under the MIT license.
+import random
+import string
 from pathlib import Path
-from typing import Dict
+from typing import Dict, cast
 
 from lisa import (
+    Logger,
     Node,
+    RemoteNode,
     SkippedException,
     TestCaseMetadata,
     TestSuite,
@@ -13,15 +17,33 @@ from lisa import (
     search_space,
     simple_requirement,
 )
+from lisa.environment import Environment
 from lisa.features import Disk, Nvme
 from lisa.operating_system import Redhat
-from lisa.tools import Fdisk, FileSystem, Mkfs, Mount, Parted, Uname, Xfstests
+from lisa.sut_orchestrator import AZURE
+from lisa.sut_orchestrator.azure.common import (
+    check_or_create_storage_account,
+    delete_file_share,
+    delete_storage_account,
+    get_or_create_file_share,
+    get_storage_credential,
+)
+from lisa.sut_orchestrator.azure.platform_ import AzurePlatform
+from lisa.tools import Echo, Fdisk, FileSystem, Mkfs, Mount, Parted, Uname, Xfstests
 
 _scratch_folder = "/root/scratch"
 _test_folder = "/root/test"
+_fstab_info = (
+    "nofail,vers=3.1.1,credentials=/etc/smbcredentials/lisa.cred"
+    ",dir_mode=0777,file_mode=0777,serverino"
+)
+_mount_opts = (
+    "-o vers=3.1.1,credentials=/etc/smbcredentials/lisa.cred"
+    ",dir_mode=0777,file_mode=0777,serverino"
+)
 
 
-def _configure_disk(
+def _prepare_data_disk(
     node: Node,
     disk_name: str,
     disk_mount: Dict[str, str],
@@ -43,6 +65,32 @@ def _configure_disk(
     for disk, mount_point in disk_mount.items():
         mkfs.format_disk(disk, file_system)
         node.execute(f"mkdir {mount_point}", sudo=True)
+
+
+def _prepare_azure_file_share(
+    node: Node,
+    account_credential: Dict[str, str],
+    test_folders_share_dict: Dict[str, str],
+) -> None:
+    folder_path = node.get_pure_path("/etc/smbcredentials")
+    if node.shell.exists(folder_path):
+        node.execute(f"rm -rf {folder_path}", sudo=True)
+    node.shell.mkdir(folder_path)
+    file_path = node.get_pure_path("/etc/smbcredentials/lisa.cred")
+    echo = node.tools[Echo]
+    username = account_credential["account_name"]
+    password = account_credential["account_key"]
+    echo.write_to_file(f"username={username}", file_path, sudo=True, append=True)
+    echo.write_to_file(f"password={password}", file_path, sudo=True, append=True)
+    node.execute("cp -f /etc/fstab /etc/fstab_cifs", sudo=True)
+    for folder_name, share in test_folders_share_dict.items():
+        node.execute(f"mkdir {folder_name}", sudo=True)
+        echo.write_to_file(
+            f"{share} {folder_name} cifs {_fstab_info}",
+            node.get_pure_path("/etc/fstab"),
+            sudo=True,
+            append=True,
+        )
 
 
 @TestSuiteMetadata(
@@ -289,13 +337,100 @@ class Xfstesting(TestSuite):
             excluded_tests=self.EXCLUDED_TESTS,
         )
 
+    @TestCaseMetadata(
+        description="""
+        This test case will run cifs xfstests testing against
+         azure file share.
+        """,
+        requirement=simple_requirement(
+            min_core_count=16,
+            supported_platform_type=[AZURE],
+        ),
+        timeout=TIME_OUT,
+        priority=3,
+    )
+    def xfstesting_azure_file_share_validation(
+        self, log: Logger, environment: Environment, log_path: Path
+    ) -> None:
+        assert isinstance(environment.platform, AzurePlatform)
+        node = cast(RemoteNode, environment.nodes[0])
+        platform = environment.platform
+        information = environment.get_information()
+        resource_group_name = information["resource_group_name"]
+        location = information["location"]
+        random_str = "".join(
+            random.choices(string.ascii_lowercase + string.digits, k=10)
+        )
+        storage_account_name = f"lisasc{random_str}"
+        file_share_name = f"lisa{random_str}fs"
+        scratch_name = f"lisa{random_str}scratch"
+        fs_url_dict: Dict[str, str] = {file_share_name: "", scratch_name: ""}
+        try:
+            check_or_create_storage_account(
+                credential=platform.credential,
+                subscription_id=platform.subscription_id,
+                account_name=storage_account_name,
+                resource_group_name=resource_group_name,
+                location=location,
+                log=log,
+            )
+            for share_name, _ in fs_url_dict.items():
+                fs_url_dict[share_name] = get_or_create_file_share(
+                    credential=platform.credential,
+                    subscription_id=platform.subscription_id,
+                    account_name=storage_account_name,
+                    file_share_name=share_name,
+                    resource_group_name=resource_group_name,
+                )
+            account_credential = get_storage_credential(
+                credential=platform.credential,
+                subscription_id=platform.subscription_id,
+                account_name=storage_account_name,
+                resource_group_name=resource_group_name,
+            )
+            _prepare_azure_file_share(
+                node,
+                account_credential,
+                {
+                    _test_folder: fs_url_dict[file_share_name],
+                    _scratch_folder: fs_url_dict[scratch_name],
+                },
+            )
+
+            self._execute_xfstests(
+                node,
+                log_path,
+                test_dev=fs_url_dict[file_share_name],
+                scratch_dev=fs_url_dict[scratch_name],
+                excluded_tests=self.EXCLUDED_TESTS,
+            )
+        finally:
+            # clean up resources after testing.
+            for share_name in [file_share_name, scratch_name]:
+                delete_file_share(
+                    credential=platform.credential,
+                    subscription_id=platform.subscription_id,
+                    account_name=storage_account_name,
+                    file_share_name=share_name,
+                    resource_group_name=resource_group_name,
+                )
+            delete_storage_account(
+                credential=platform.credential,
+                subscription_id=platform.subscription_id,
+                account_name=storage_account_name,
+                resource_group_name=resource_group_name,
+                log=log,
+            )
+            # revert file into original status after testing.
+            node.execute("cp -f /etc/fstab_cifs /etc/fstab", sudo=True)
+
     def _execute_xfstests(
         self,
         node: Node,
         log_path: Path,
-        data_disk: str,
-        test_dev: str,
-        scratch_dev: str,
+        data_disk: str = "",
+        test_dev: str = "",
+        scratch_dev: str = "",
         file_system: FileSystem = FileSystem.xfs,
         test_type: str = "generic",
         excluded_tests: str = "",
@@ -326,14 +461,23 @@ class Xfstesting(TestSuite):
                     "Current distro doesn't support btrfs file system."
                 )
 
-        _configure_disk(
-            node,
-            data_disk,
-            {test_dev: _test_folder, scratch_dev: _scratch_folder},
-            file_system=file_system,
-        )
+        # prepare data disk when xfstesting target is data disk
+        if data_disk:
+            _prepare_data_disk(
+                node,
+                data_disk,
+                {test_dev: _test_folder, scratch_dev: _scratch_folder},
+                file_system=file_system,
+            )
         xfstests = node.tools[Xfstests]
-        xfstests.set_local_config(scratch_dev, _scratch_folder, test_dev, _test_folder)
+        xfstests.set_local_config(
+            scratch_dev,
+            _scratch_folder,
+            test_dev,
+            _test_folder,
+            test_type,
+            _mount_opts,
+        )
         xfstests.set_excluded_tests(excluded_tests)
         cmd_results = node.execute(
             f"bash check -g {test_type}/quick -E exclude.txt",
