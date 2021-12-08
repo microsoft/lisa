@@ -57,6 +57,11 @@ def update_summary() -> None:
             index += 1
             _update_line(table, node, index)
 
+        link = "https://github.com/microsoft/lisa/blob/master/Documents/LISAv2-TestCase-Statistics.md"  # noqa: E501
+        table.write(".. seealso::\n")
+        table.write("    `LISAv2 Tests <" + link + ">`__\n")
+        table.write("\n")
+
 
 def _write_title(file: TextIO) -> None:
     """
@@ -65,19 +70,9 @@ def _write_title(file: TextIO) -> None:
     Args:
         file (TextIO): test table
     """
-    link = "https://github.com/microsoft/lisa/blob/master/Documents/LISAv2-TestCase-Statistics.md"  # noqa: E501
     title = "Test Cases"
     file.write(title + "\n")
     file.write("=" * len(title) + "\n")
-    file.write("\n")
-
-    file.write(".. seealso::\n")
-    file.write("    `LISAv2 Tests <" + link + ">`__\n")
-    file.write("\n")
-
-    file.write(".. warning::\n")
-    file.write("\n")
-    file.write("    |:construction:| WIP |:construction:|\n")
     file.write("\n")
 
     file.write(".. list-table::\n")
