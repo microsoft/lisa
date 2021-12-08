@@ -13,7 +13,9 @@ from lisa import (
     Logger,
     Node,
     SkippedException,
-    testsuite,
+    TestCaseMetadata,
+    TestSuite,
+    TestSuiteMetadata,
 )
 from lisa.tools import Cat, Echo, InterruptInspector, Lscpu, Lsvmbus, TaskSet, Uname
 
@@ -26,15 +28,15 @@ class CPUState:
 hyperv_interrupt_substr = ["hyperv", "Hypervisor", "Hyper-V"]
 
 
-@testsuite.TestSuiteMetadata(
+@TestSuiteMetadata(
     area="cpu",
     category="functional",
     description="""
     This test suite is used to run CPU related tests.
     """,
 )
-class CPU(testsuite.TestSuite):
-    @testsuite.TestCaseMetadata(
+class CPU(TestSuite):
+    @TestCaseMetadata(
         description="""
             This test will check that CPU assigned to lsvmbus
             channels cannot be put offline.
@@ -98,7 +100,7 @@ class CPU(testsuite.TestSuite):
                     )
                 raise AssertionError(exception_message)
 
-    @testsuite.TestCaseMetadata(
+    @TestCaseMetadata(
         description="""
         This test case will check that L3 cache is correctly mapped
         to NUMA node.
@@ -145,7 +147,7 @@ class CPU(testsuite.TestSuite):
                 "associated with the core.",
             ).is_equal_to(cpu.numa_node)
 
-    @testsuite.TestCaseMetadata(
+    @TestCaseMetadata(
         description="""
             This test will check that vCPU count correctness.
             Steps :
@@ -174,7 +176,7 @@ class CPU(testsuite.TestSuite):
             " it is a known host bug, please check the host version."
         ).is_equal_to(caculated_cpu_count)
 
-    @testsuite.TestCaseMetadata(
+    @TestCaseMetadata(
         description="""
             This test will verify if the CPUs inside a Linux VM are processing VMBus
             interrupts by checking the /proc/interrupts file.
