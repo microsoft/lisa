@@ -30,7 +30,7 @@ class ClassVisitor(ast.NodeVisitor):
         decorators = node.decorator_list
         for deco in decorators:
             if isinstance(deco, ast.Call) and isinstance(deco.func, ast.Name):
-                if deco.func.id == "TestSuiteMetadata":
+                if deco.func.id.endswith("TestSuiteMetadata"):
                     self._suites.add(node)
         if isinstance(node, ast.ClassDef):
             self._class_names.add(node.name)
@@ -58,7 +58,7 @@ class FuncVisitor(ast.NodeVisitor):
         decorators = node.decorator_list
         for deco in decorators:
             if isinstance(deco, ast.Call) and isinstance(deco.func, ast.Name):
-                if deco.func.id == "TestCaseMetadata":
+                if deco.func.id.endswith("TestCaseMetadata"):
                     self._cases.add(node)
 
 
