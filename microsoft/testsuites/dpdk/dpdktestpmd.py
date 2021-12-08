@@ -11,7 +11,7 @@ from semver import VersionInfo
 from lisa.executable import Tool
 from lisa.nic import NicInfo
 from lisa.operating_system import CentOs, Redhat, Ubuntu
-from lisa.tools import Echo, Git, Lspci, Modprobe, Tar, Wget
+from lisa.tools import Echo, Git, Lscpu, Lspci, Modprobe, Tar, Wget
 from lisa.util import LisaException, UnsupportedDistroException
 
 
@@ -120,7 +120,7 @@ class DpdkTestpmd(Tool):
 
     @property
     def dependencies(self) -> List[Type[Tool]]:
-        return [Git, Wget]
+        return [Git, Wget, Lscpu]
 
     def set_dpdk_source(self, dpdk_source: str) -> None:
         self._dpdk_source = dpdk_source
@@ -143,7 +143,7 @@ class DpdkTestpmd(Tool):
         self._dpdk_version_info: Union[VersionInfo, None] = None
         self._determine_network_hardware()
         node = self.node
-
+        self._install_dependencies()
         # installing from distro package manager
         if self._dpdk_source and self._dpdk_source == "package_manager":
             self.node.log.info(
@@ -165,6 +165,10 @@ class DpdkTestpmd(Tool):
                 self._testpmd_install_path = "dpdk-testpmd"
             else:
                 self._testpmd_install_path = "testpmd"
+            self.node.log.info(
+                f"Installed DPDK version {str(self._dpdk_version_info)} "
+                "from package manager"
+            )
             self._load_drivers_for_dpdk()
             return True
 
@@ -175,7 +179,6 @@ class DpdkTestpmd(Tool):
         self.dpdk_path = self.node.working_path.joinpath(self._dpdk_repo_path_name)
         if result.exit_code == 0:  # tools are already installed
             return True
-        self._install_dependencies()
         git_tool = node.tools[Git]
         echo_tool = node.tools[Echo]
 
@@ -278,7 +281,6 @@ class DpdkTestpmd(Tool):
         cwd = node.working_path
 
         if isinstance(node.os, Ubuntu):
-            # DPDK requires backports channel for all releases
             node.os.add_repository("ppa:canonical-server/server-backports")
             if "18.04" in node.os.information.release:
                 node.os.install_packages(list(self._ubuntu_packages_1804))
@@ -363,6 +365,8 @@ class DpdkTestpmd(Tool):
         mode: str,
         pmd: str,
         extra_args: str = "",
+        txq: int = 0,
+        rxq: int = 0,
     ) -> str:
         #   testpmd \
         #   -l <core-list> \
@@ -375,8 +379,24 @@ class DpdkTestpmd(Tool):
         #   --eth-peer=<port id>,<receiver peer MAC address> \
         #   --stats-period <display interval in seconds>
         nic_include_info = self.generate_testpmd_include(nic_to_include, vdev_id)
+        if txq or rxq:
+            assert_that(txq).described_as(
+                "TX queue value must be greater than 0 if txq is used"
+            ).is_greater_than(0)
+            assert_that(rxq).described_as(
+                "RX queue value must be greater than 0 if rxq is used"
+            ).is_greater_than(0)
+            extra_args += f" --txq={txq} --rxq={rxq}  --port-topology=chained "
+            cores_to_use = self.node.tools[Lscpu].get_core_count()
+            assert_that(cores_to_use).described_as(
+                f"DPDK requires a minimum of 8 cores, found {cores_to_use}"
+            ).is_greater_than(8)
+            core_args = f"-l 0-{cores_to_use-1}"
+        else:
+            core_args = "-l 0-1"
+
         return (
-            f"{self._testpmd_install_path} -l 0-1 -n 4 --proc-type=primary "
+            f"{self._testpmd_install_path} {core_args} -n 4 --proc-type=primary "
             f"{nic_include_info} -- --forward-mode={mode} {extra_args} "
             "-a --stats-period 1"
         )

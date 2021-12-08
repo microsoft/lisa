@@ -168,7 +168,11 @@ class Dpdk(TestSuite):
             ).is_less_than(2 ** 20)
 
     def _verify_dpdk_build(
-        self, node: Node, log: Logger, variables: Dict[str, Any], pmd: str
+        self,
+        node: Node,
+        log: Logger,
+        variables: Dict[str, Any],
+        pmd: str,
     ) -> None:
         # setup and unwrap the resources for this test
         test_kit = initialize_node_resources(node, log, variables, pmd)
@@ -178,7 +182,10 @@ class Dpdk(TestSuite):
         test_nic_id, test_nic = node_nic_info.get_test_nic()
 
         testpmd_cmd = testpmd.generate_testpmd_command(
-            test_nic, test_nic_id, "txonly", pmd
+            test_nic,
+            test_nic_id,
+            "txonly",
+            pmd,
         )
         testpmd.run_for_n_seconds(testpmd_cmd, 10)
         tx_pps = testpmd.get_tx_pps()
@@ -259,6 +266,79 @@ class Dpdk(TestSuite):
                 )
             )
 
+    def _verify_dpdk_send_receive_multi_txrx_queue(
+        self, environment: Environment, log: Logger, variables: Dict[str, Any], pmd: str
+    ) -> None:
+
+        test_kits = _init_nodes_concurrent(environment, log, variables, pmd)
+        sender, receiver = test_kits
+
+        kit_cmd_pairs = generate_send_receive_run_info(
+            pmd, sender, receiver, txq=16, rxq=16
+        )
+
+        results = _run_testpmd_concurrent(kit_cmd_pairs, 15, log)
+
+        # helpful to have the outputs labeled
+        log.debug(f"\nSENDER:\n{results[sender]}")
+        log.debug(f"\nRECEIVER:\n{results[receiver]}")
+
+        rcv_rx_pps = receiver.testpmd.get_rx_pps()
+        snd_tx_pps = sender.testpmd.get_tx_pps()
+        log.info(f"receiver rx-pps: {rcv_rx_pps}")
+        log.info(f"sender tx-pps: {snd_tx_pps}")
+
+        # differences in NIC type throughput can lead to different snd/rcv counts
+        # check that throughput it greater than 1m pps as a baseline
+        assert_that(rcv_rx_pps).described_as(
+            "Throughput for RECEIVE was below the correct order-of-magnitude"
+        ).is_greater_than(2 ** 20)
+        assert_that(snd_tx_pps).described_as(
+            "Throughput for SEND was below the correct order of magnitude"
+        ).is_greater_than(2 ** 20)
+
+    @TestCaseMetadata(
+        description="""
+            Tests a basic sender/receiver setup for default failsafe driver setup.
+            Sender sends the packets, receiver receives them.
+            We check both to make sure the received traffic is within the expected
+            order-of-magnitude.
+        """,
+        priority=2,
+        requirement=simple_requirement(
+            min_nic_count=2,
+            network_interface=Sriov(),
+            min_count=2,
+        ),
+    )
+    def verify_dpdk_send_receive_multi_txrx_queue_failsafe(
+        self, environment: Environment, log: Logger, variables: Dict[str, Any]
+    ) -> None:
+        self._verify_dpdk_send_receive_multi_txrx_queue(
+            environment, log, variables, "failsafe"
+        )
+
+    @TestCaseMetadata(
+        description="""
+            Tests a basic sender/receiver setup for default failsafe driver setup.
+            Sender sends the packets, receiver receives them.
+            We check both to make sure the received traffic is within the expected
+            order-of-magnitude.
+        """,
+        priority=2,
+        requirement=simple_requirement(
+            min_nic_count=2,
+            network_interface=Sriov(),
+            min_count=2,
+        ),
+    )
+    def verify_dpdk_send_receive_multi_txrx_queue_netvsc(
+        self, environment: Environment, log: Logger, variables: Dict[str, Any]
+    ) -> None:
+        self._verify_dpdk_send_receive_multi_txrx_queue(
+            environment, log, variables, "netvsc"
+        )
+
     @TestCaseMetadata(
         description="""
             Tests a basic sender/receiver setup for default failsafe driver setup.
@@ -298,7 +378,11 @@ class Dpdk(TestSuite):
         self._verify_dpdk_send_receive(environment, log, variables, "netvsc")
 
     def _verify_dpdk_send_receive(
-        self, environment: Environment, log: Logger, variables: Dict[str, Any], pmd: str
+        self,
+        environment: Environment,
+        log: Logger,
+        variables: Dict[str, Any],
+        pmd: str,
     ) -> None:
 
         # helpful to have the public ips labeled for debugging
@@ -411,7 +495,11 @@ class DpdkTestResources:
 
 
 def generate_send_receive_run_info(
-    pmd: str, sender: DpdkTestResources, receiver: DpdkTestResources
+    pmd: str,
+    sender: DpdkTestResources,
+    receiver: DpdkTestResources,
+    txq: int = 1,
+    rxq: int = 1,
 ) -> Dict[DpdkTestResources, str]:
 
     (snd_id, snd_nic), (rcv_id, rcv_nic) = [
@@ -424,8 +512,17 @@ def generate_send_receive_run_info(
         "txonly",
         pmd,
         extra_args=f"--tx-ip={snd_nic.ip_addr},{rcv_nic.ip_addr}",
+        txq=txq,
+        rxq=rxq,
     )
-    rcv_cmd = receiver.testpmd.generate_testpmd_command(rcv_nic, rcv_id, "rxonly", pmd)
+    rcv_cmd = receiver.testpmd.generate_testpmd_command(
+        rcv_nic,
+        rcv_id,
+        "rxonly",
+        pmd,
+        txq=txq,
+        rxq=rxq,
+    )
 
     kit_cmd_pairs = {
         sender: snd_cmd,
