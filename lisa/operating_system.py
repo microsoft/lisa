@@ -545,24 +545,20 @@ class Debian(Linux):
         r"\s+(?P<metadata>.*)\s*"
     )
 
-    """ Package: git
+    """ Package: dpdk
+        Version: 20.11.3-0ubuntu1~backport20.04-202111041420~ubuntu20.04.1
         Version: 1:2.25.1-1ubuntu3.2
-        Priority: optional
-        Section: vcs
-        Origin: Ubuntu
-        Maintainer: Ubuntu Developers <ubuntu-devel-discuss@lists.ubuntu.com>
-        Original-Maintainer: Jonathan Nieder <jrnieder@gmail.com>
     """
     _debian_package_information_regex = re.compile(
         r"Package: ([a-zA-Z0-9:_\-\.]+)\r?\n"  # package name group
-        r"Version: ([a-zA-Z0-9:_\-\.]+)\r?\n"  # version number group
+        r"Version: ([a-zA-Z0-9:_\-\.~]+)\r?\n"  # version number group
     )
     _debian_version_spliter_regex = re.compile(
         r"([0-9]+:)?"  # some examples have a mystery number followed by a ':' (git)
         r"(?P<major>[0-9]+)\."  # major
         r"(?P<minor>[0-9]+)\."  # minor
         r"(?P<patch>[0-9]+)"  # patch
-        r"-(?P<build>[a-zA-Z0-9-_\.]+)"  # build
+        r"-(?P<build>[a-zA-Z0-9-_\.~]+)"  # build
     )
     _package_existed_in_repo_pattern = re.compile(r"Candidate: ((?!none)).*", re.M)
 
