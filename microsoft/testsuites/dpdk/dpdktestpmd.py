@@ -149,13 +149,17 @@ class DpdkTestpmd(Tool):
             self.node.log.info(
                 "Installing dpdk and dev package from package manager..."
             )
-            if isinstance(node.os, Ubuntu) or isinstance(node.os, Redhat):
+            if isinstance(node.os, Ubuntu):
                 node.os.install_packages(["dpdk", "dpdk-dev"])
-                self._dpdk_version_info = node.os.get_package_information("dpdk")
+            elif isinstance(node.os, Redhat):
+                node.os.install_packages(["dpdk", "dpdk-devel"])
             else:
                 raise NotImplementedError(
-                    f"Dpdk install isn't implemented for Os {node.os.name}"
+                    "Dpdk package names are missing in dpdktestpmd.install"
+                    f" for os {node.os.name}"
                 )
+
+            self._dpdk_version_info = node.os.get_package_information("dpdk")
 
             if self._dpdk_version_info >= "19.11.0":
                 self._testpmd_install_path = "dpdk-testpmd"
