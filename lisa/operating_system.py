@@ -560,7 +560,29 @@ class Debian(Linux):
         r"(?P<patch>[0-9]+)"  # patch
         r"-(?P<build>[a-zA-Z0-9-_\.~]+)"  # build
     )
-    _package_existed_in_repo_pattern = re.compile(r"Candidate: ((?!none)).*", re.M)
+    # apt-cache policy git
+    # git:
+    #   Installed: 1:2.17.1-1ubuntu0.9
+    #   Candidate: 1:2.17.1-1ubuntu0.9
+    #   Version table:
+    #  *** 1:2.17.1-1ubuntu0.9 500
+    #         500 http://azure.archive.ubuntu.com/ubuntu bionic-updates/main amd64 Packages # noqa: E501
+    #         500 http://security.ubuntu.com/ubuntu bionic-security/main amd64 Packages # noqa: E501
+    #         100 /var/lib/dpkg/status
+    #      1:2.17.0-1ubuntu1 500
+    #         500 http://azure.archive.ubuntu.com/ubuntu bionic/main amd64 Packages
+    # apt-cache policy mock
+    # mock:
+    #   Installed: (none)
+    #   Candidate: 1.3.2-2
+    #   Version table:
+    #      1.3.2-2 500
+    #         500 http://azure.archive.ubuntu.com/ubuntu bionic/universe amd64 Packages # noqa: E501
+    # apt-cache policy test
+    # N: Unable to locate package test
+    _package_existed_in_repo_pattern = re.compile(
+        r"([\w\W]*?)Candidate: ((?!none)).*", re.M
+    )
 
     @classmethod
     def name_pattern(cls) -> Pattern[str]:
@@ -720,26 +742,6 @@ class Debian(Linux):
     def _is_package_in_repo(self, package: str) -> bool:
         command = f"apt-cache policy {package}"
         result = self._node.execute(command, sudo=True, shell=True)
-        # apt-cache policy git
-        # git:
-        #   Installed: 1:2.17.1-1ubuntu0.9
-        #   Candidate: 1:2.17.1-1ubuntu0.9
-        #   Version table:
-        #  *** 1:2.17.1-1ubuntu0.9 500
-        #         500 http://azure.archive.ubuntu.com/ubuntu bionic-updates/main amd64 Packages # noqa: E501
-        #         500 http://security.ubuntu.com/ubuntu bionic-security/main amd64 Packages # noqa: E501
-        #         100 /var/lib/dpkg/status
-        #      1:2.17.0-1ubuntu1 500
-        #         500 http://azure.archive.ubuntu.com/ubuntu bionic/main amd64 Packages
-        # apt-cache policy mock
-        # mock:
-        #   Installed: (none)
-        #   Candidate: 1.3.2-2
-        #   Version table:
-        #      1.3.2-2 500
-        #         500 http://azure.archive.ubuntu.com/ubuntu bionic/universe amd64 Packages # noqa: E501
-        # apt-cache policy test
-        # N: Unable to locate package test
         matched = get_matched_str(result.stdout, self._package_existed_in_repo_pattern)
         if matched:
             return True
