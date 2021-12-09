@@ -31,6 +31,7 @@ from azure.mgmt.resource.resources.models import (  # type: ignore
     DeploymentMode,
     DeploymentProperties,
 )
+from azure.storage.blob import BlobClient  # type: ignore
 from dataclasses_json import dataclass_json
 from marshmallow import fields, validate
 from retry import retry
@@ -1699,9 +1700,16 @@ class AzurePlatform(Platform):
         matches = SAS_URL_PATTERN.match(vhd_path)
         if not matches:
             return vhd_path
-        log.debug("found the vhd is a sas url, it needs to be copied...")
+        log.debug("found the vhd is a sas url, it may need to be copied.")
 
+        # get original vhd's hash key for comparing.
+        original_key: Optional[bytearray] = None
         original_vhd_path = vhd_path
+        original_blob_client = BlobClient.from_blob_url(original_vhd_path)
+        properties = original_blob_client.get_blob_properties()
+        if properties.content_settings:
+            original_key = properties.content_settings.get("content_md5", None)
+
         storage_name = get_storage_account_name(
             subscription_id=self.subscription_id, location=location, type="t"
         )
@@ -1733,13 +1741,20 @@ class AzurePlatform(Platform):
 
         # lock here to prevent a vhd is copied in multi-thread
         global _global_sas_vhd_copy_lock
+        cached_key: Optional[bytearray] = None
         with _global_sas_vhd_copy_lock:
             blobs = container_client.list_blobs(name_starts_with=vhd_path)
             for blob in blobs:
                 if blob:
-                    # if it exists, return the link, not to copy again.
-                    log.debug("the sas url is copied already, use it directly.")
-                    return full_vhd_path
+                    # check if hash key matched with original key.
+                    if blob.content_settings:
+                        cached_key = blob.content_settings.get("content_md5", None)
+                    if original_key == cached_key:
+                        # if it exists, return the link, not to copy again.
+                        log.debug("the sas url is copied already, use it directly.")
+                        return full_vhd_path
+                    else:
+                        log.debug("found cached vhd, but the hash key mismatched.")
 
             blob_client = container_client.get_blob_client(vhd_path)
             blob_client.start_copy_from_url(
