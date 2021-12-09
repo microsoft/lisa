@@ -43,9 +43,11 @@ class XdpDump(Tool):
                 raise UnsupportedDistroException(self.node.os)
 
             self.node.os.add_repository(
-                url=f"http://apt.llvm.org/{self.node.os.information.codename}/",
-                codename=f"llvm-toolchain-{self.node.os.information.codename}-6.0",
-                packages="main",
+                repo=(
+                    f"deb http://apt.llvm.org/{self.node.os.information.codename}/ "
+                    f"llvm-toolchain-{self.node.os.information.codename}-6.0 "
+                    "main"
+                ),
                 key_location="https://apt.llvm.org/llvm-snapshot.gpg.key",
             )
 

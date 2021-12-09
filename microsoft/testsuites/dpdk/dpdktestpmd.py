@@ -278,6 +278,8 @@ class DpdkTestpmd(Tool):
         cwd = node.working_path
 
         if isinstance(node.os, Ubuntu):
+            # DPDK requires backports channel for all releases
+            node.os.add_repository("ppa:canonical-server/server-backports")
             if "18.04" in node.os.information.release:
                 node.os.install_packages(list(self._ubuntu_packages_1804))
                 self.__execute_assert_zero("pip3 install --upgrade meson", cwd)
@@ -287,23 +289,6 @@ class DpdkTestpmd(Tool):
                 )
                 self.__execute_assert_zero("pip3 install --upgrade ninja", cwd)
             elif "20.04" in node.os.information.release:
-                # 20-04 requires backports to be added for dpdk related fixes
-                node.execute(
-                    "sudo add-apt-repository ppa:canonical-server/server-backports -y",
-                    sudo=True,
-                    expected_exit_code=0,
-                    expected_exit_code_failure_message=(
-                        "Could not add backports repo."
-                    ),
-                )
-                node.execute(
-                    "sudo apt-get update -y",
-                    sudo=True,
-                    expected_exit_code=0,
-                    expected_exit_code_failure_message=(
-                        "Error with apt-get update (post-backports repo add)"
-                    ),
-                )
                 node.os.install_packages(list(self._ubuntu_packages_2004))
 
         elif isinstance(node.os, Redhat):
