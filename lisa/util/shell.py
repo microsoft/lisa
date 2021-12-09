@@ -295,6 +295,15 @@ class SshShell(InitializableMixin):
         parents: bool = True,
         exist_ok: bool = False,
     ) -> None:
+        """Create the directory(ies), if they do not already exist.
+        Inputs:
+            path: directory path. (Absolute. Use a PurePosixPath, if the
+                                   target node is a Posix one, because LISA
+                                   might be ran from Windows)
+            mode: directory creation mode (Posix targets only)
+            parents: make parent directories as needed
+            exist_ok: return with no error if target already present
+        """
         path_str = self._purepath_to_str(path)
         self.initialize()
         assert self._inner_shell
@@ -311,24 +320,55 @@ class SshShell(InitializableMixin):
                 self.spawn(command=["mkdir", "-p", path_str])
 
     def exists(self, path: PurePath) -> bool:
+        """Check if a target directory/file exist
+        Inputs:
+            path: target path. (Absolute. Use a PurePosixPath, if the
+                                target node is a Posix one, because LISA
+                                might be ran from Windows)
+        Outputs:
+            bool: True if present, False otherwise
+        """
         self.initialize()
         assert self._inner_shell
         path_str = self._purepath_to_str(path)
         return cast(bool, self._inner_shell.exists(path_str))
 
     def remove(self, path: PurePath, recursive: bool = False) -> None:
+        """Remove a target directory/file
+        Inputs:
+            path: target path. (Absolute. Use a PurePosixPath, if the
+                                target node is a Posix one, because LISA
+                                might be ran from Windows)
+            recursive: whether to remove recursively, if target is a directory
+                       (will fail if that's the case and this flag is off)
+        """
         self.initialize()
         assert self._inner_shell
         path_str = self._purepath_to_str(path)
         self._inner_shell.remove(path_str, recursive)
 
     def chmod(self, path: PurePath, mode: int) -> None:
+        """Change the file mode bits of each given file according to mode (Posix targets only)
+        Inputs:
+            path: target path. (Absolute. Use a PurePosixPath, if the
+                                target node is a Posix one, because LISA
+                                might be ran from Windows)
+            mode: numerical chmod mode entry
+        """
         self.initialize()
         assert self._inner_shell
         path_str = self._purepath_to_str(path)
         self._inner_shell.chmod(path_str, mode)
 
     def stat(self, path: PurePath) -> os.stat_result:
+        """Display file/directory status.
+        Inputs:
+            path: target path. (Absolute. Use a PurePosixPath, if the
+                                target node is a Posix one, because LISA
+                                might be ran from Windows)
+        Outputs:
+            os.stat_result: The status structure/class
+        """
         self.initialize()
         assert self._inner_shell
         path_str = self._purepath_to_str(path)
@@ -361,18 +401,43 @@ class SshShell(InitializableMixin):
         return result
 
     def is_dir(self, path: PurePath) -> bool:
+        """Check if given path is a directory
+        Inputs:
+            path: target path. (Absolute. Use a PurePosixPath, if the
+                                target node is a Posix one, because LISA
+                                might be ran from Windows)
+        Outputs:
+            bool: True if it is a directory, False otherwise
+        """
         self.initialize()
         assert self._inner_shell
         path_str = self._purepath_to_str(path)
         return cast(bool, self._inner_shell.is_dir(path_str))
 
     def is_symlink(self, path: PurePath) -> bool:
+        """Check if given path is a symlink
+        Inputs:
+            path: target path. (Absolute. Use a PurePosixPath, if the
+                                target node is a Posix one, because LISA
+                                might be ran from Windows)
+        Outputs:
+            bool: True if it is a symlink, False otherwise
+        """
         self.initialize()
         assert self._inner_shell
         path_str = self._purepath_to_str(path)
         return cast(bool, self._inner_shell.is_symlink(path_str))
 
     def symlink(self, source: PurePath, destination: PurePath) -> None:
+        """Create a symbolic link from source to destination, in the target node
+        Inputs:
+            source: source path. (Absolute. Use a PurePosixPath, if the
+                                 target node is a Posix one, because LISA
+                                 might be ran from Windows)
+            destination: destination path. (Absolute. Use a PurePosixPath, if the
+                                            target node is a Posix one, because LISA
+                                            might be ran from Windows)
+        """
         self.initialize()
         assert self._inner_shell
         source_str = self._purepath_to_str(source)
@@ -380,12 +445,29 @@ class SshShell(InitializableMixin):
         self._inner_shell.symlink(source_str, destination_str)
 
     def chown(self, path: PurePath, uid: int, gid: int) -> None:
+        """Change the user and/or group ownership of each given file (Posix targets only)
+        Inputs:
+            path: target path. (Absolute. Use a PurePosixPath, if the
+                               target node is a Posix one, because LISA
+                               might be ran from Windows)
+            uid: numeric user ID
+            gid: numeric group ID
+        """
         self.initialize()
         assert self._inner_shell
         path_str = self._purepath_to_str(path)
         self._inner_shell.chown(path_str, uid, gid)
 
     def copy(self, local_path: PurePath, node_path: PurePath) -> None:
+        """Upload local file to target node
+        Inputs:
+            local_path: local path. (Absolute. Use a PurePosixPath, if the
+                                     target node is a Posix one, because LISA
+                                     might be ran from Windows)
+            node_path: target path. (Absolute. Use a PurePosixPath, if the
+                                     target node is a Posix one, because LISA
+                                     might be ran from Windows)
+        """
         self.mkdir(node_path.parent, parents=True, exist_ok=True)
         self.initialize()
         assert self._inner_shell
@@ -399,6 +481,15 @@ class SshShell(InitializableMixin):
         )
 
     def copy_back(self, node_path: PurePath, local_path: PurePath) -> None:
+        """Download target node's file to local node
+        Inputs:
+            local_path: local path. (Absolute. Use a PurePosixPath, if the
+                                     target node is a Posix one, because LISA
+                                     might be ran from Windows)
+            node_path: target path. (Absolute. Use a PurePosixPath, if the
+                                     target node is a Posix one, because LISA
+                                     might be ran from Windows)
+        """
         self.initialize()
         assert self._inner_shell
         node_path_str = self._purepath_to_str(node_path)
@@ -471,47 +562,110 @@ class LocalShell(InitializableMixin):
         parents: bool = True,
         exist_ok: bool = False,
     ) -> None:
+        """Create the directory(ies), if they do not already exist.
+        Inputs:
+            path: directory path. (Absolute)
+            mode: directory creation mode (Posix targets only)
+            parents: make parent directories as needed
+            exist_ok: return with no error if target already present
+        """
         assert isinstance(path, Path), f"actual: {type(path)}"
         path.mkdir(mode=mode, parents=parents, exist_ok=exist_ok)
 
     def exists(self, path: PurePath) -> bool:
+        """Check if a target directory/file exist
+        Inputs:
+            path: target path. (Absolute)
+        Outputs:
+            bool: True if present, False otherwise
+        """
         assert isinstance(path, Path), f"actual: {type(path)}"
         return path.exists()
 
     def remove(self, path: PurePath, recursive: bool = False) -> None:
+        """Remove a target directory/file
+        Inputs:
+            path: target path. (Absolute)
+            recursive: whether to remove recursively, if target is a directory
+                       (will fail if that's the case and this flag is off)
+        """
         assert isinstance(path, Path), f"actual: {type(path)}"
         path.rmdir()
 
     def chmod(self, path: PurePath, mode: int) -> None:
+        """Change the file mode bits of each given file according to mode (Posix targets only)
+        Inputs:
+            path: target path. (Absolute)
+            mode: numerical chmod mode entry
+        """
         assert isinstance(path, Path), f"actual: {type(path)}"
         path.chmod(mode)
 
     def stat(self, path: PurePath) -> os.stat_result:
+        """Display file/directory status.
+        Inputs:
+            path: target path. (Absolute)
+        Outputs:
+            os.stat_result: The status structure/class
+        """
         assert isinstance(path, Path), f"actual: {type(path)}"
         return path.stat()
 
     def is_dir(self, path: PurePath) -> bool:
+        """Check if given path is a directory
+        Inputs:
+            path: target path. (Absolute)
+        Outputs:
+            bool: True if it is a directory, False otherwise
+        """
         assert isinstance(path, Path), f"actual: {type(path)}"
         return path.is_dir()
 
     def is_symlink(self, path: PurePath) -> bool:
+        """Check if given path is a symlink
+        Inputs:
+            path: target path. (Absolute)
+        Outputs:
+            bool: True if it is a symlink, False otherwise
+        """
         assert isinstance(path, Path), f"actual: {type(path)}"
         return path.is_symlink()
 
     def symlink(self, source: PurePath, destination: PurePath) -> None:
+        """Create a symbolic link from source to destination, in the target node
+        Inputs:
+            source: source path. (Absolute)
+            destination: destination path. (Absolute)
+        """
         assert isinstance(source, Path), f"actual: {type(source)}"
         assert isinstance(destination, Path), f"actual: {type(destination)}"
         source.symlink_to(destination)
 
     def chown(self, path: PurePath, uid: int, gid: int) -> None:
+        """Change the user and/or group ownership of each given file (Posix targets only)
+        Inputs:
+            path: target path. (Absolute)
+            uid: numeric user ID
+            gid: numeric group ID
+        """
         assert isinstance(path, Path), f"actual: {type(path)}"
         shutil.chown(path, cast(str, uid), cast(str, gid))
 
     def copy(self, local_path: PurePath, node_path: PurePath) -> None:
+        """Upload local file to target node
+        Inputs:
+            local_path: local path. (Absolute)
+            node_path: target path. (Absolute)
+        """
         self.mkdir(node_path.parent, parents=True, exist_ok=True)
         shutil.copy(local_path, node_path)
 
     def copy_back(self, node_path: PurePath, local_path: PurePath) -> None:
+        """Download target node's file to local node
+        Inputs:
+            local_path: local path. (Absolute)
+            node_path: target path. (Absolute)
+        """
         self.copy(local_path=node_path, node_path=local_path)
 
 
