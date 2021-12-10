@@ -52,7 +52,7 @@ RunFIO()
 		mdVolume="/dev/sdc"
 		for i in "${allDisks[@]:3}" 
 		do
-		mdVolume="$mdVolume:/dev/$i"
+			mdVolume="$mdVolume:/dev/$i"
 		done
 	fi
 
