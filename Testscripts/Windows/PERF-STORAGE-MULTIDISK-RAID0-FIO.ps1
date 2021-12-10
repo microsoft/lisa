@@ -129,6 +129,13 @@ function Consume-FioPerformanceResults {
     if ($CurrentTestData.TestParameters.param.Contains("NVME=yes")) {
         $testType ="NVME"
     }
+
+    if ($currentTestData.Area -like 'STORAGE' ){
+        $DiskSetup = $currentTestData.SetupConfig.SetupType
+    }elif ($currentTestData.Area -like 'NVME'){
+        $DiskSetup = 'NVME'
+    }
+
     $TestCaseName = $GlobalConfig.Global.$TestPlatform.ResultsDatabase.testTag
     if (!$TestCaseName) {
         $TestCaseName = $CurrentTestData.testName
@@ -186,7 +193,7 @@ function Consume-FioPerformanceResults {
                 $resultMap["HostBy"] = $CurrentTestData.SetupConfig.TestLocation
                 $resultMap["GuestOSType"] = "Linux"
                 $resultMap["GuestSize"] = $allVMData.InstanceSize
-                $resultMap["DiskSetup"] = 'RAID0:12xP30'
+                $resultMap["DiskSetup"] = $DiskSetup
                 $resultMap["BlockSize_KB"] = $BlockSize_KB
                 $resultMap["qDepth"] = $QDepth
                 $resultMap["seq_read_iops"] = $seq_read_iops
