@@ -45,6 +45,17 @@ UpdateTestState()
 RunFIO()
 {
 	UpdateTestState $ICA_TESTRUNNING
+
+	if [ ! -e $mdVolume ]; then
+		allDisks=($(lsblk| grep "^sd" | sed "s/ .*//"))
+
+		mdVolume="/dev/sdc"
+		for i in "${allDisks[@]:3}" 
+		do
+			mdVolume="$mdVolume:/dev/$i"
+		done
+	fi
+
 	if [ $type == "disk" ]; then
 		mdVolume="/dev/sdc"
 	fi
@@ -381,8 +392,8 @@ fi
 # Creating RAID before triggering test
 if [ -n "${NVME}" ]; then
 	ConfigNVME
-else
-	CreateRAID0
+#else
+#	CreateRAID0
 fi
 
 # Run test from here
