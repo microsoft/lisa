@@ -181,6 +181,7 @@ Function Upload-TestResultToDatabase ([String]$SQLQuery) {
 					$connection = New-Object System.Data.SqlClient.SqlConnection
 					$connection.ConnectionString = $connectionString
 					$connection.Open()
+					$SQLQuery = "SET ANSI_WARNINGS OFF;" + $SQLQuery + ";SET ANSI_WARNINGS ON"
 					$command = $connection.CreateCommand()
 					$command.CommandText = $SQLQuery
 					$null = $command.executenonquery()
