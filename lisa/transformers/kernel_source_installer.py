@@ -205,6 +205,17 @@ class SourceInstaller(BaseInstaller):
         )
         result.assert_exit_code()
 
+        # workaround failures.
+        #
+        # make[1]: *** No rule to make target 'debian/canonical-revoked-certs.pem',
+        # needed by 'certs/x509_revocation_list'.  Stop.
+        result = node.execute(
+            "scripts/config --disable SYSTEM_REVOCATION_KEYS",
+            cwd=code_path,
+            shell=True,
+        )
+        result.assert_exit_code()
+
         # the gcc version of Redhat 7.x is too old. Upgrade it.
         if isinstance(node.os, Redhat) and node.os.information.version < "8.0.0":
             node.os.install_packages(["devtoolset-8"])
