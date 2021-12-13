@@ -204,7 +204,7 @@ class NetworkInterface(AzureFeatureMixin, features.NetworkInterface):
             raise LisaException(f"fail to find primary nic for vm {self._node.name}")
         return nic
 
-    def _switch_sriov(self, enable: bool) -> None:
+    def switch_sriov(self, enable: bool) -> None:
         azure_platform: AzurePlatform = self._platform  # type: ignore
         network_client = get_network_client(azure_platform)
         compute_client = get_compute_client(azure_platform)
