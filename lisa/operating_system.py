@@ -684,7 +684,7 @@ class Debian(Linux):
         # repos again.
 
         self._node.execute(
-            cmd=f'apt-add-repository "{repo}"',
+            cmd=f'apt-add-repository -y "{repo}"',
             sudo=True,
             expected_exit_code=0,
             expected_exit_code_failure_message="fail to add repository",
