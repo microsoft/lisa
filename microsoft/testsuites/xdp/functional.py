@@ -26,7 +26,8 @@ from microsoft.testsuites.xdp.xdpdump import XdpDump
 class XdpFunctional(TestSuite):  # noqa
     @TestCaseMetadata(
         description="""
-        It validates the basic functionality of XDP. It includes,
+        It validates the basic functionality of XDP. It runs multiple times to
+        test the load/unload. It includes below steps,
 
         1. Check current image supports XDP or not.
         2. Install and validate xdpdump.
@@ -34,10 +35,11 @@ class XdpFunctional(TestSuite):  # noqa
         priority=1,
     )
     def verify_xdp_basic(self, node: Node) -> None:
-        xdpdump = self._get_xdpdump(node)
-        output = xdpdump.test()
+        for _ in range(3):
+            xdpdump = self._get_xdpdump(node)
+            output = xdpdump.test()
 
-        self._verify_xdpdump_result(output)
+            self._verify_xdpdump_result(output)
 
     @TestCaseMetadata(
         description="""
