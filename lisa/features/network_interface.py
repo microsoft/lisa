@@ -21,7 +21,7 @@ class NetworkInterface(Feature):
     def enabled(self) -> bool:
         return True
 
-    def _switch_sriov(self, enable: bool) -> None:
+    def switch_sriov(self, enable: bool) -> None:
         raise NotImplementedError
 
     def is_enabled_sriov(self) -> bool:
