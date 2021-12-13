@@ -47,12 +47,12 @@ class Disk(Feature):
     def add_data_disk(
         self,
         count: int,
-        disk_type: schema.DiskType = schema.DiskType.StandardHDDLRS,
+        type: schema.DiskType = schema.DiskType.StandardHDDLRS,
         size_in_gb: int = 20,
     ) -> List[str]:
         raise NotImplementedError
 
-    def remove_data_disk(self, name: Optional[List[str]] = None) -> None:
+    def remove_data_disk(self, names: Optional[List[str]] = None) -> None:
         raise NotImplementedError
 
     def _initialize(self, *args: Any, **kwargs: Any) -> None:
