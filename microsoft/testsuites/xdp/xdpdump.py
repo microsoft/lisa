@@ -68,7 +68,7 @@ class XdpDump(Tool):
 
         return self._check_exists()
 
-    def test(self, timeout: int = 10) -> str:
+    def test(self, nic_name: str = "", timeout: int = 10) -> str:
         ethtool = self.node.tools[Ethtool]
         gro_lro_settings = ethtool.get_device_gro_lro_settings(
             self.node.nics.default_nic, force_run=True
@@ -83,8 +83,17 @@ class XdpDump(Tool):
                 lro_setting=False,
             )
 
+            if not nic_name:
+                default_nic = self.node.nics.get_nic(self.node.nics.default_nic)
+
+                # use the underlying SRIOV nic by default
+                if default_nic.lower:
+                    nic_name = default_nic.lower
+                else:
+                    nic_name = default_nic.upper
+
             result = self.node.execute(
-                f"timeout {timeout} {self.command} -i {self.node.nics.default_nic}",
+                f"timeout {timeout} {self.command} -i {nic_name}",
                 shell=True,
                 sudo=True,
                 cwd=self._command.parent,

@@ -56,8 +56,11 @@ class XdpFunctional(TestSuite):  # noqa
     def verify_xdp_sriov_failsafe(self, node: Node) -> None:
         xdpdump = self._get_xdpdump(node)
 
+        # get default nic
+        nic = node.nics.get_nic(node.nics.default_nic)
+
         # test in SRIOV mode.
-        output = xdpdump.test()
+        output = xdpdump.test(nic_name=nic.lower)
         self._verify_xdpdump_result(output)
 
         try:
@@ -69,7 +72,7 @@ class XdpFunctional(TestSuite):  # noqa
             network.switch_sriov(False)
 
             # test in synthetic mode
-            output = xdpdump.test()
+            output = xdpdump.test(nic_name=nic.upper)
             self._verify_xdpdump_result(output)
         finally:
             # enable SRIOV back to recover environment
