@@ -1,18 +1,24 @@
 # Copyright (c) Microsoft Corporation.
 # Licensed under the MIT license.
 
+from functools import partial
+
 from assertpy import assert_that
 
 from lisa import (
+    Environment,
     Node,
+    RemoteNode,
     SkippedException,
     TestCaseMetadata,
     TestSuite,
     TestSuiteMetadata,
     UnsupportedDistroException,
+    constants,
     simple_requirement,
 )
 from lisa.features import NetworkInterface, Sriov
+from lisa.tools import Ping
 from microsoft.testsuites.xdp.xdpdump import XdpDump
 
 
@@ -51,28 +57,39 @@ class XdpFunctional(TestSuite):  # noqa
         3. Test in Synthetic mode.
         """,
         priority=2,
-        requirement=simple_requirement(network_interface=Sriov()),
+        requirement=simple_requirement(min_count=2, network_interface=Sriov()),
     )
-    def verify_xdp_sriov_failsafe(self, node: Node) -> None:
-        xdpdump = self._get_xdpdump(node)
+    def verify_xdp_sriov_failsafe(self, environment: Environment) -> None:
+        xdp_node = environment.nodes[0]
+        xdpdump = self._get_xdpdump(xdp_node)
 
-        # get default nic
-        nic = node.nics.get_nic(node.nics.default_nic)
+        # construct ping method
+        ping_tool = xdp_node.tools[Ping]
+        ping_node = environment.nodes[1]
+        assert isinstance(
+            ping_node, RemoteNode
+        ), "The pinged node must be remote node with conneciton information"
+        ping_method = partial(
+            ping_tool.ping,
+            target=ping_node.connection_info[
+                constants.ENVIRONMENTS_NODES_REMOTE_ADDRESS
+            ],
+        )
 
         # test in SRIOV mode.
-        output = xdpdump.test(nic_name=nic.lower)
+        output = xdpdump.test(xdp_node.nics.default_nic, action=ping_method)
         self._verify_xdpdump_result(output)
 
         try:
             # disable SRIOV
-            network = node.features[NetworkInterface]
+            network = xdp_node.features[NetworkInterface]
             assert_that(network.is_enabled_sriov()).described_as(
                 "SRIOV must be enabled when start the test."
             ).is_true()
             network.switch_sriov(False)
 
             # test in synthetic mode
-            output = xdpdump.test(nic_name=nic.upper)
+            output = xdpdump.test(xdp_node.nics.default_nic, action=ping_method)
             self._verify_xdpdump_result(output)
         finally:
             # enable SRIOV back to recover environment
