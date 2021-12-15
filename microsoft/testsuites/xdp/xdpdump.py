@@ -2,11 +2,12 @@
 # Licensed under the MIT license.
 
 from pathlib import PurePath
-from typing import Any
+from typing import Any, Dict
 
 from lisa.executable import Tool
 from lisa.operating_system import Fedora, Ubuntu
 from lisa.tools import Ethtool, Git, Make
+from lisa.tools.ethtool import DeviceGroLroSettings
 from lisa.util import UnsupportedDistroException
 
 
@@ -35,6 +36,7 @@ class XdpDump(Tool):
     def _initialize(self, *args: Any, **kwargs: Any) -> None:
         super()._initialize(*args, **kwargs)
         self._command: PurePath = PurePath("xdpdump")
+        self._gro_lro_settings: Dict[str, DeviceGroLroSettings] = {}
 
     def _install(self) -> bool:
         # install dependencies
@@ -69,41 +71,59 @@ class XdpDump(Tool):
         return self._check_exists()
 
     def test(self, nic_name: str = "", timeout: int = 10) -> str:
-        ethtool = self.node.tools[Ethtool]
-        gro_lro_settings = ethtool.get_device_gro_lro_settings(
-            self.node.nics.default_nic, force_run=True
-        )
+        if not nic_name:
+            nic_name = self.node.nics.default_nic
 
         try:
-            # disable LRO (RSC), because XDP program cannot run with it. Restore
-            # it after test completed.
-            ethtool.change_device_gro_lro_settings(
-                self.node.nics.default_nic,
-                gro_setting=gro_lro_settings.gro_setting,
-                lro_setting=False,
-            )
-
-            if not nic_name:
-                default_nic = self.node.nics.get_nic(self.node.nics.default_nic)
-
-                # use the underlying SRIOV nic by default
-                if default_nic.lower:
-                    nic_name = default_nic.lower
-                else:
-                    nic_name = default_nic.upper
-
+            self._disable_lro(nic_name)
             result = self.node.execute(
                 f"timeout {timeout} {self.command} -i {nic_name}",
                 shell=True,
                 sudo=True,
                 cwd=self._command.parent,
             )
-
         finally:
-            # recover settings
-            ethtool.change_device_gro_lro_settings(
-                self.node.nics.default_nic,
-                gro_setting=gro_lro_settings.gro_setting,
-                lro_setting=gro_lro_settings.lro_setting,
-            )
+            self._restore_lro(nic_name)
+
         return result.stdout
+
+    def _disable_lro(self, nic_name: str) -> None:
+        ethtool = self.node.tools[Ethtool]
+        gro_lro_settings = self._get_gro_lro_settings(nic_name)
+
+        if gro_lro_settings.lro_setting is False:
+            return
+
+        # disable LRO (RSC), because XDP program cannot run with it. Restore
+        # it after test completed.
+        ethtool.change_device_gro_lro_settings(
+            nic_name,
+            gro_setting=gro_lro_settings.gro_setting,
+            lro_setting=False,
+        )
+
+    def _restore_lro(self, nic_name: str) -> None:
+        # recover settings
+        ethtool = self.node.tools[Ethtool]
+        current_settings = ethtool.get_device_gro_lro_settings(nic_name, force_run=True)
+        original_settings = self._get_gro_lro_settings(nic_name)
+
+        if original_settings.lro_setting == current_settings.lro_setting:
+            return
+
+        ethtool.change_device_gro_lro_settings(
+            nic_name,
+            gro_setting=original_settings.gro_setting,
+            lro_setting=original_settings.lro_setting,
+        )
+
+    def _get_gro_lro_settings(self, nic_name: str) -> DeviceGroLroSettings:
+        gro_lro_settings = self._gro_lro_settings.get(nic_name, None)
+        ethtool = self.node.tools[Ethtool]
+
+        if gro_lro_settings is None:
+            gro_lro_settings = ethtool.get_device_gro_lro_settings(
+                nic_name, force_run=True
+            )
+            self._gro_lro_settings[nic_name] = gro_lro_settings
+        return gro_lro_settings
