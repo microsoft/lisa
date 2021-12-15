@@ -2,13 +2,13 @@
 # Licensed under the MIT license.
 
 from pathlib import PurePath
-from typing import Any, Dict
+from typing import Any, Callable, Dict, Optional
 
+from lisa import UnsupportedDistroException
 from lisa.executable import Tool
 from lisa.operating_system import Fedora, Ubuntu
 from lisa.tools import Ethtool, Git, Make
 from lisa.tools.ethtool import DeviceGroLroSettings
-from lisa.util import UnsupportedDistroException
 
 
 class XdpDump(Tool):
@@ -70,18 +70,36 @@ class XdpDump(Tool):
 
         return self._check_exists()
 
-    def test(self, nic_name: str = "", timeout: int = 10) -> str:
+    def test(
+        self,
+        nic_name: str = "",
+        timeout: int = 5,
+        action: Optional[Callable[..., None]] = None,
+    ) -> str:
         if not nic_name:
             nic_name = self.node.nics.default_nic
 
         try:
             self._disable_lro(nic_name)
-            result = self.node.execute(
-                f"timeout {timeout} {self.command} -i {nic_name}",
-                shell=True,
-                sudo=True,
-                cwd=self._command.parent,
-            )
+            command = f"timeout {timeout} {self.command} -i {nic_name}"
+
+            # if there is an action defined, test it in async mode.
+            if action:
+                xdpdump_process = self.node.execute_async(
+                    command,
+                    shell=True,
+                    sudo=True,
+                    cwd=self._command.parent,
+                )
+                action()
+                result = xdpdump_process.wait_result()
+            else:
+                result = self.node.execute(
+                    command,
+                    shell=True,
+                    sudo=True,
+                    cwd=self._command.parent,
+                )
         finally:
             self._restore_lro(nic_name)
 
