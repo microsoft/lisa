@@ -6,7 +6,7 @@ from unittest import TestCase
 
 from assertpy import assert_that
 
-from lisa import LisaException, PassedException, QueuedException, SkippedException, constants, schema
+from lisa import LisaException, PassedException, SkippedException, constants, schema
 from lisa.environment import EnvironmentStatus, load_environments
 from lisa.operating_system import Posix, Windows
 from lisa.parameter_parser.runbook import RunbookBuilder
@@ -61,7 +61,6 @@ class MockTestSuite(TestSuite):
         fail_on_after_case: bool = False,
         partial_pass: bool = False,
         skipped: bool = False,
-        queued: bool = False,
         fail_case_count: int = 0,
         check_variable: bool = False,
     ) -> None:
@@ -71,7 +70,6 @@ class MockTestSuite(TestSuite):
         self.fail_on_after_case = fail_on_after_case
         self.partial_pass = partial_pass
         self.skipped = skipped
-        self.queued = queued
         self.fail_case_count = fail_case_count
         self.check_variable = check_variable
 
@@ -96,8 +94,6 @@ class MockTestSuite(TestSuite):
             raise PassedException("mock_ut1 passed with warning")
         if self.skipped:
             raise SkippedException("mock_ut1 skipped this run")
-        if self.queued:
-            raise QueuedException("mock_ut1 kept not run")
         while self.fail_case_count > 0:
             self.fail_case_count -= 1
             raise LisaException("mock_ut1 failed")
@@ -347,21 +343,6 @@ class TestSuiteTestCase(TestCase):
         )
         self.assertEqual(TestStatus.SKIPPED, result.status)
         self.assertEqual("skipped: mock_ut1 skipped this run", result.message)
-        result = self.case_results[1]
-        self.assertEqual(TestStatus.PASSED, result.status)
-        self.assertEqual("", result.message)
-
-    def test_queued(self) -> None:
-        test_suite = self.generate_suite_instance()
-        test_suite.set_fail_phase(queued=True)
-        result = self.case_results[0]
-        test_suite.start(
-            environment=self.default_env,
-            case_results=self.case_results,
-            case_variables={},
-        )
-        self.assertEqual(TestStatus.QUEUED, result.status)
-        self.assertEqual("queued: mock_ut1 kept not run", result.message)
         result = self.case_results[1]
         self.assertEqual(TestStatus.PASSED, result.status)
         self.assertEqual("", result.message)

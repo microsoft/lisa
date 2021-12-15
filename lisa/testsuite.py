@@ -33,7 +33,6 @@ from lisa.util import (
     BadEnvironmentStateException,
     LisaException,
     PassedException,
-    QueuedException,
     SkippedException,
     constants,
     fields_to_dict,
@@ -142,11 +141,6 @@ class TestResult:
             log.debug("case skipped", exc_info=exception)
             # case is skipped dynamically
             self.set_status(TestStatus.SKIPPED, f"{phase}skipped: {exception}")
-        elif isinstance(exception, QueuedException):
-            log.info(f"case keep QUEUED: {exception}")
-            log.debug("case QUEUED", exc_info=exception)
-            # case is not run dynamically.
-            self.set_status(TestStatus.QUEUED, f"{phase}queued: {exception}")
         elif isinstance(exception, PassedException):
             log.info(f"case passed with warning: {exception}")
             log.debug("case passed with warning", exc_info=exception)

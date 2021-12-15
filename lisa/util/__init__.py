@@ -116,15 +116,6 @@ class SkippedException(LisaException):
     ...
 
 
-class QueuedException(LisaException):
-    """
-    If current environment doesn't meet requirement of a test case, it can be set to
-    not run and try next environment.
-    """
-
-    ...
-
-
 class PassedException(LisaException):
     """
     A test case may verify several things, but part of verification cannot be done. In
