@@ -13,11 +13,13 @@ from lisa.environment import (
     Environment,
     Environments,
     EnvironmentStatus,
+    LisaException,
+    constants,
     load_environments,
 )
 from lisa.feature import Feature
 from lisa.platform_ import Platform, WaitMoreResourceError, load_platform
-from lisa.util import LisaException, constants, plugin_manager
+from lisa.util import plugin_manager
 from lisa.util.logger import Logger
 from selftests.test_environment import generate_runbook as generate_env_runbook
 

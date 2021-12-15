@@ -6,8 +6,7 @@ from pathlib import Path
 from typing import Any, Dict, cast
 from unittest.case import TestCase
 
-from lisa import secret, variable
-from lisa.util import LisaException, constants
+from lisa import LisaException, constants, secret, variable
 from lisa.util.logger import get_logger
 
 

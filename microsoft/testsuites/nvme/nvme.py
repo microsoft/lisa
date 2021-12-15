@@ -11,13 +11,13 @@ from lisa import (
     TestCaseMetadata,
     TestSuite,
     TestSuiteMetadata,
+    constants,
     simple_requirement,
 )
 from lisa.features import Nvme, NvmeSettings, Sriov
 from lisa.sut_orchestrator.azure.platform_ import AzurePlatform
 from lisa.tools import Cat, Fdisk, Lscpu, Lspci, Mount, Nvmecli
 from lisa.tools.fdisk import FileSystem
-from lisa.util import constants
 
 
 def _format_mount_disk(
