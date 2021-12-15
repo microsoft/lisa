@@ -21,6 +21,7 @@ from lisa.util import (
     TcpConnetionException,
     UnsupportedDistroException,
     UnsupportedOperationException,
+    constants,
 )
 from lisa.util.logger import Logger, init_logger
 from lisa.util.perf_timer import create_timer
@@ -43,6 +44,7 @@ __all__ = [
     "UnsupportedDistroException",
     "UnsupportedOperationException",
     "create_timer",
+    "constants",
     "node_requirement",
     "simple_requirement",
 ]

@@ -6,7 +6,7 @@ from unittest import TestCase
 
 from assertpy import assert_that
 
-from lisa import schema
+from lisa import LisaException, PassedException, QueuedException, SkippedException, constants, schema
 from lisa.environment import EnvironmentStatus, load_environments
 from lisa.operating_system import Posix, Windows
 from lisa.parameter_parser.runbook import RunbookBuilder
@@ -23,13 +23,6 @@ from lisa.testsuite import (
     get_suites_metadata,
     node_requirement,
     simple_requirement,
-)
-from lisa.util import (
-    LisaException,
-    PassedException,
-    QueuedException,
-    SkippedException,
-    constants,
 )
 from lisa.util.logger import Logger
 from selftests.test_environment import generate_runbook

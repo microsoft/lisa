@@ -18,12 +18,13 @@ from lisa import (
     TestCaseMetadata,
     TestSuite,
     TestSuiteMetadata,
+    constants,
 )
 from lisa.features import NetworkInterface, Sriov
 from lisa.nic import NicInfo, Nics
 from lisa.testsuite import simple_requirement
 from lisa.tools import Dmesg, Echo, Git, Lspci, Make, Mount
-from lisa.util import constants, perf_timer
+from lisa.util import perf_timer
 from lisa.util.parallel import Task, TaskManager
 from microsoft.testsuites.dpdk.dpdktestpmd import DpdkTestpmd
 

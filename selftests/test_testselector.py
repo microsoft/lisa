@@ -3,7 +3,7 @@
 
 from unittest import TestCase
 
-from lisa.util import LisaException, constants
+from lisa import LisaException, constants
 from selftests.test_testsuite import cleanup_cases_metadata, select_and_check
 
 

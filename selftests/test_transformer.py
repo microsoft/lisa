@@ -8,10 +8,9 @@ from unittest import TestCase
 
 from dataclasses_json import dataclass_json
 
-from lisa import schema, transformer
+from lisa import LisaException, constants, schema, transformer
 from lisa.parameter_parser.runbook import RunbookBuilder
 from lisa.transformer import Transformer
-from lisa.util import LisaException, constants
 from lisa.variable import VariableEntry
 
 MOCK = "mock"

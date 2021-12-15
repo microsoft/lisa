@@ -4,9 +4,8 @@
 import sys
 from unittest.case import TestCase
 
-from lisa import LisaException, schema, search_space
+from lisa import LisaException, constants, schema, search_space
 from lisa.sut_orchestrator.azure import features
-from lisa.util import constants
 
 
 class AzureDiskFeatureTestCase(TestCase):

@@ -5,7 +5,7 @@ from dataclasses import dataclass
 from functools import partial
 from typing import Any, List, Optional, Type
 
-from lisa import schema
+from lisa import constants, schema
 from lisa.environment import EnvironmentSpace
 from lisa.operating_system import Linux, OperatingSystem
 from lisa.search_space import (
@@ -22,7 +22,6 @@ from lisa.testsuite import (
     node_requirement,
     simple_requirement,
 )
-from lisa.util import constants
 from selftests.test_search_space import SearchSpaceTestCase
 
 

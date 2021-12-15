@@ -4,8 +4,8 @@
 from typing import Dict, List
 from unittest.case import TestCase
 
+from lisa import constants
 from lisa.combinators.batch_combinator import BatchCombinator, BatchCombinatorSchema
-from lisa.util import constants
 from lisa.variable import VariableEntry
 
 

@@ -13,11 +13,11 @@ from lisa import (
     TestCaseMetadata,
     TestSuite,
     TestSuiteMetadata,
+    constants,
     simple_requirement,
 )
 from lisa.features import Gpu, SerialConsole
 from lisa.tools import Lspci, Reboot
-from lisa.util import constants
 
 
 @TestSuiteMetadata(

@@ -10,10 +10,10 @@ from dataclasses_json import dataclass_json
 from marshmallow import validate
 
 import lisa
-from lisa import node, schema, search_space
+from lisa import constants, node, schema, search_space
 from lisa.environment import load_environments
 from lisa.testsuite import simple_requirement
-from lisa.util import constants, field_metadata
+from lisa.util import field_metadata
 from lisa.util.logger import Logger
 
 CUSTOM_LOCAL = "custom_local"

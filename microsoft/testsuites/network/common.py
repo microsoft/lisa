@@ -5,11 +5,10 @@ from typing import Dict, List, cast
 from assertpy import assert_that
 from retry import retry
 
-from lisa import Environment, Node, RemoteNode
+from lisa import Environment, Node, RemoteNode, constants
 from lisa.features import NetworkInterface
 from lisa.nic import NicInfo, Nics
 from lisa.tools import Cat, Firewall, Kill, Lsmod, Lspci, Modprobe, Ssh
-from lisa.util import constants
 
 # ConnectX-3 uses mlx4_core
 # mlx4_en and mlx4_ib depends on mlx4_core

@@ -4,9 +4,8 @@
 from typing import Dict, List
 from unittest.case import TestCase
 
-from lisa import schema
+from lisa import constants, schema
 from lisa.combinators.grid_combinator import GridCombinator, GridCombinatorSchema
-from lisa.util import constants
 from lisa.variable import VariableEntry
 
 
