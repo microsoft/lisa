@@ -120,8 +120,10 @@ RESOURCE_ID_PUBLIC_IP_PATTERN = re.compile(r"([\w]+-[\d]+)-public-ip")
 # Hyper-V Version: 10.0.18362 [SP3]
 # bitnami dreamfactory 1.7 1.7.8
 # [    1.283478] hv_vmbus: Hyper-V Host Build:18362-10.0-3-0.3256; Vmbus version:3.0
+# Ubuntu arm64 version:
+# [    0.075800] Hyper-V: Host Build 10.0.22477.1022-1-0
 HOST_VERSION_PATTERN = re.compile(
-    r"Hyper-V (?:Host Build|Version):[ ]?([^\r\n;]*)", re.M
+    r"Hyper-V:? (?:Host Build|Version)[\s|:][ ]?([^\r\n;]*)", re.M
 )
 
 # normal
