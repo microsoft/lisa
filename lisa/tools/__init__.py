@@ -41,6 +41,7 @@ from .ntttcp import Ntttcp
 from .nvmecli import Nvmecli
 from .parted import Parted
 from .pgrep import Pgrep, ProcessInfo
+from .ping import Ping
 from .qemu import Qemu
 from .reboot import Reboot
 from .service import Service
@@ -99,6 +100,7 @@ __all__ = [
     "Nvmecli",
     "Parted",
     "Pgrep",
+    "Ping",
     "ProcessInfo",
     "Qemu",
     "Reboot",
