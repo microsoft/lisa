@@ -210,6 +210,7 @@ class Tool(InitializableMixin):
         no_error_log: bool = False,
         no_info_log: bool = True,
         cwd: Optional[pathlib.PurePath] = None,
+        update_envs: Optional[Dict[str, str]] = None,
     ) -> Process:
         """
         Run a command async and return the Process. The process is used for async, or
@@ -231,8 +232,9 @@ class Tool(InitializableMixin):
                 shell=shell,
                 sudo=sudo,
                 no_error_log=no_error_log,
-                cwd=cwd,
                 no_info_log=no_info_log,
+                cwd=cwd,
+                update_envs=update_envs,
             )
             self.__cached_results[command_key] = process
         else:
@@ -248,6 +250,7 @@ class Tool(InitializableMixin):
         no_error_log: bool = False,
         no_info_log: bool = True,
         cwd: Optional[pathlib.PurePath] = None,
+        update_envs: Optional[Dict[str, str]] = None,
         timeout: int = 600,
         expected_exit_code: Optional[int] = None,
         expected_exit_code_failure_message: str = "",
@@ -263,6 +266,7 @@ class Tool(InitializableMixin):
             no_error_log=no_error_log,
             no_info_log=no_info_log,
             cwd=cwd,
+            update_envs=update_envs,
         )
         return process.wait_result(
             timeout=timeout,
@@ -328,6 +332,7 @@ class CustomScript(Tool):
         no_error_log: bool = False,
         no_info_log: bool = True,
         cwd: Optional[pathlib.PurePath] = None,
+        update_envs: Optional[Dict[str, str]] = None,
     ) -> Process:
         if cwd is not None:
             raise LisaException("don't set cwd for script")
@@ -340,6 +345,7 @@ class CustomScript(Tool):
             no_error_log=no_error_log,
             no_info_log=no_info_log,
             cwd=self._cwd,
+            update_envs=update_envs,
         )
 
     def run(
@@ -351,6 +357,7 @@ class CustomScript(Tool):
         no_error_log: bool = False,
         no_info_log: bool = True,
         cwd: Optional[pathlib.PurePath] = None,
+        update_envs: Optional[Dict[str, str]] = None,
         timeout: int = 600,
         expected_exit_code: Optional[int] = None,
         expected_exit_code_failure_message: str = "",
@@ -363,6 +370,7 @@ class CustomScript(Tool):
             no_error_log=no_error_log,
             no_info_log=no_info_log,
             cwd=cwd,
+            update_envs=update_envs,
         )
         return process.wait_result(
             timeout=timeout,

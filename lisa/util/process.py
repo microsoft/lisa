@@ -67,7 +67,7 @@ class Process:
         shell: bool = False,
         sudo: bool = False,
         cwd: Optional[pathlib.PurePath] = None,
-        new_envs: Optional[Dict[str, str]] = None,
+        update_envs: Optional[Dict[str, str]] = None,
         no_error_log: bool = False,
         no_info_log: bool = False,
     ) -> None:
@@ -118,8 +118,8 @@ class Process:
             f"remote: {self._shell.is_remote}"
         )
 
-        if new_envs is None:
-            new_envs = {}
+        if update_envs is None:
+            update_envs = {}
 
         try:
             self._timer = create_timer()
@@ -128,7 +128,7 @@ class Process:
                 stdout=self._stdout_writer,
                 stderr=self._stderr_writer,
                 cwd=cwd_path,
-                update_env=new_envs,
+                update_env=update_envs,
                 allow_error=True,
                 store_pid=self._is_posix,
                 encoding="utf-8",
