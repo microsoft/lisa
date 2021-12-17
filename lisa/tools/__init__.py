@@ -52,6 +52,7 @@ from .swapon import SwapOn
 from .sysctl import Sysctl
 from .tar import Tar
 from .taskset import TaskSet
+from .tcpdump import TcpDump
 from .timedatectl import Timedatectl
 from .uptime import Uptime
 from .who import Who
@@ -114,6 +115,7 @@ __all__ = [
     "Sysctl",
     "Tar",
     "TaskSet",
+    "TcpDump",
     "Timedatectl",
     "Uptime",
     "Wget",
