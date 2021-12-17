@@ -259,20 +259,20 @@ function InstallKernel() {
     elif [[ "${CustomKernel}" =~ proposed-azure|proposed-edge|linux-image-azure-lts-18.04|linux-image-azure-lts-20.04|linux-image-azure-fde ]]; then
         export DEBIAN_FRONTEND=noninteractive
         kernel="${KERNEL_DICT[$CustomKernel]}"
+        release=$(lsb_release -c -s)
+        LogMsg "Enabling proposed repository for $release distro"
+        echo "deb http://archive.ubuntu.com/ubuntu/ ${release}-proposed restricted main multiverse universe" >> /etc/apt/sources.list
+        rm -rf /etc/apt/preferences.d/proposed-updates
+        LogMsg "Installing $kernel kernel from $release proposed repository."
+        apt-get clean all
+        apt-get -y update >> $LOG_FILE 2>&1
+        CheckInstallLockUbuntu
         if [[ "${CustomKernel}" = linux-image-azure-fde ]]; then
-            add-apt-repository -y ppa:canonical-kernel-team/azure-test
+            # add-apt-repository -y ppa:canonical-kernel-team/azure-test
             apt-get -y update >> $LOG_FILE 2>&1
             apt install -y linux-image-azure-fde >> $LOG_FILE 2>&1
             apt install -y linux-headers-azure-fde >> $LOG_FILE 2>&1
         else
-            release=$(lsb_release -c -s)
-            LogMsg "Enabling proposed repository for $release distro"
-            echo "deb http://archive.ubuntu.com/ubuntu/ ${release}-proposed restricted main multiverse universe" >> /etc/apt/sources.list
-            rm -rf /etc/apt/preferences.d/proposed-updates
-            LogMsg "Installing $kernel kernel from $release proposed repository."
-            apt-get clean all
-            apt-get -y update >> $LOG_FILE 2>&1
-            CheckInstallLockUbuntu
             apt-get install -yq "$kernel"/"$release-proposed" >> $LOG_FILE 2>&1
         fi
         kernelInstallStatus=$?
