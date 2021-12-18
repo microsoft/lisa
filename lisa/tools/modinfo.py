@@ -10,12 +10,15 @@ from lisa.util import get_matched_str
 
 class Modinfo(Tool):
     # (note - version_pattern is found only when LIS drivers are installed)
-    #  modinfo hv_vmbus
-    #   filename:       /lib/modules/2.6.32-754.29.1.el6.x86_64/kernel/drivers/hv/
-    #                   hv_vmbus.ko
-    #   version:        3.1
-    _version_pattern = re.compile(r"version:[ \t]*([^ \r\n]*)")
-    _filename_pattern = re.compile(r"filename:[ \t]*([^ \r\n]*)")
+    # modinfo hv_vmbus
+    # version:        3.1
+    # negative case (SHOULD NOT BE MATCHED)
+    # parm:           max_version:Maximal VMBus protocol version which can be
+    #                  negotiated (uint)
+    _version_pattern = re.compile(r"^version:[ \t]*([^ \r\n]*)")
+    # filename:       /lib/modules/2.6.32-754.29.1.el6.x86_64/kernel/drivers/hv/
+    #                 hv_vmbus.ko
+    _filename_pattern = re.compile(r"^filename:[ \t]*([^ \r\n]*)")
 
     @property
     def command(self) -> str:
