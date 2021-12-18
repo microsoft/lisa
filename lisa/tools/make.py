@@ -2,7 +2,7 @@
 # Licensed under the MIT license.
 
 from pathlib import PurePath
-from typing import TYPE_CHECKING, cast
+from typing import TYPE_CHECKING, Dict, Optional, cast
 
 from lisa.executable import Tool
 from lisa.operating_system import Posix
@@ -43,15 +43,27 @@ class Make(Tool):
         self,
         arguments: str,
         cwd: PurePath,
+        is_clean: bool = False,
         sudo: bool = False,
         timeout: int = 600,
         thread_count: int = 0,
+        update_envs: Optional[Dict[str, str]] = None,
     ) -> None:
         if thread_count == 0:
             if self._thread_count == 0:
                 lscpu = self.node.tools[Lscpu]
                 self._thread_count = lscpu.get_core_count()
             thread_count = self._thread_count
+
+        if is_clean:
+            self.run(
+                "clean",
+                cwd=cwd,
+                sudo=sudo,
+                timeout=timeout,
+                force_run=True,
+                update_envs=update_envs,
+            )
 
         # yes '' answers all questions with default value.
         result = self.node.execute(
@@ -60,5 +72,6 @@ class Make(Tool):
             timeout=timeout,
             sudo=sudo,
             shell=True,
+            update_envs=update_envs,
         )
-        result.assert_exit_code()
+        result.assert_exit_code(expected_exit_code=0, message="failed on make")
