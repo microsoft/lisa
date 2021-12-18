@@ -225,9 +225,9 @@ class KvpClient(Tool):
         result = self.run(
             str(pool_id),
             force_run=force_run,
-            expected_exit_code=0,
-            expected_exit_code_failure_message="failed to get pool",
         )
+        # some distro return 4, for example, Ubuntu Server 1804
+        assert_that(result.exit_code).described_as("failed to get pool").is_in(0, 4)
         matched_lines = find_patterns_in_lines(result.stdout, [self._key_value_pattern])
         records = {item[0]: item[1] for item in matched_lines[0]}
 
