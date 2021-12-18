@@ -31,7 +31,7 @@ from lisa.util import get_matched_str
 )
 class Kvp(TestSuite):
     # lrwx------ 1 root root 64 Oct 18 19:05 9 -> /dev/vmbus/hv_kvp
-    _hv_kvp_pattern = re.compile(r".* /dev/vmbus/(hv_kvp)$", re.M)
+    _hv_kvp_pattern = re.compile(r".* /dev/vmbus/(hv_kvp)\r?$", re.M)
 
     @TestCaseMetadata(
         description="""
