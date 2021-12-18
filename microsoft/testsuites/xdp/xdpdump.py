@@ -51,12 +51,15 @@ class XdpDump(Tool):
         if isinstance(self.node.os, Ubuntu):
             if self.node.os.information.version < "18.4.0":
                 raise UnsupportedDistroException(self.node.os)
+            elif self.node.os.information.version == "18.4.0":
+                toolchain = f"llvm-toolchain-{self.node.os.information.codename}-6.0"
+            else:
+                toolchain = f"llvm-toolchain-{self.node.os.information.codename}"
 
             self.node.os.add_repository(
                 repo=(
                     f"deb http://apt.llvm.org/{self.node.os.information.codename}/ "
-                    f"llvm-toolchain-{self.node.os.information.codename}-6.0 "
-                    "main"
+                    f"{toolchain} main"
                 ),
                 key_location="https://apt.llvm.org/llvm-snapshot.gpg.key",
             )
