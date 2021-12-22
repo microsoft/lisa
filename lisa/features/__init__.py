@@ -12,6 +12,7 @@ from .gpu import Gpu
 from .infiniband import Infiniband
 from .network_interface import NetworkInterface, Sriov, Synthetic
 from .nvme import Nvme, NvmeSettings
+from .resize import Resize
 from .serial_console import SerialConsole
 from .startstop import StartStop
 
@@ -27,6 +28,7 @@ __all__ = [
     "NvmeSettings",
     "SerialConsole",
     "NetworkInterface",
+    "Resize",
     "Sriov",
     "Synthetic",
     "StartStop",

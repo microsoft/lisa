@@ -326,8 +326,15 @@ def get_environment_context(environment: Environment) -> EnvironmentContext:
 
 
 def wait_operation(operation: Any) -> Any:
-    check_cancelled()
-    return operation.wait()
+    timeout = 60 * 5
+    timer = create_timer()
+    while timeout > timer.elapsed(False):
+        check_cancelled()
+        if operation.done():
+            break
+        operation.wait(1)
+    if timeout < timer.elapsed():
+        raise Exception("Timeout on operation")
 
 
 def get_storage_credential(
