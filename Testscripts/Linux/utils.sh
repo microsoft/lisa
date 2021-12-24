@@ -2473,7 +2473,7 @@ function install_fio () {
 			dpkg_configure
 			apt install -y pciutils gawk mdadm wget sysstat blktrace bc fio
 			if ! command -v fio; then
-				apt install -y wget zlib1g-dev libaio-dev make gcc
+				apt install -y wget zlib1g-dev libaio-dev make gcc sysstat mdadm
 				LogMsg "fio is not installed\n Build it from source code now..."
 				fio_version="3.13"
 				wget https://github.com/axboe/fio/archive/fio-${fio_version}.tar.gz
