@@ -39,6 +39,7 @@ if [ $? == 0 ]; then
     sed -i '/^AuthorizedKeysFile/d' $sshd_configFilePath
 
     sed -i 's/.*PermitRootLogin.*/PermitRootLogin yes/g' $sshd_configFilePath
+    sed -i '/^DenyUsers.*/d' $sshd_configFilePath
     if [ $? == 0 ]; then
         echo "$sshd_configFilePath verifed for root login."
         echo "ROOT_PASSWRD_SET"

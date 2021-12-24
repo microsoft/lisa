@@ -2471,11 +2471,20 @@ function install_fio () {
 		ubuntu|debian)
 			export DEBIAN_FRONTEND=noninteractive
 			dpkg_configure
-			install_package "pciutils gawk mdadm wget sysstat blktrace bc fio"
+			apt install -y pciutils gawk mdadm wget sysstat blktrace bc fio
+			if ! command -v fio; then
+				apt install -y wget zlib1g-dev libaio-dev make
+				LogMsg "fio is not installed\n Build it from source code now..."
+				fio_version="3.13"
+				wget https://github.com/axboe/fio/archive/fio-${fio_version}.tar.gz
+				tar xvf fio-${fio_version}.tar.gz
+				pushd fio-fio-${fio_version} && ./configure && make && make install
+				popd
+				yes | cp -f /usr/local/bin/fio /bin/
+			fi
 			check_exit_status "install_fio"
 			mount -t debugfs none /sys/kernel/debug
 			;;
-
 		sles|sle_hpc)
 			if [[ $DISTRO_VERSION =~ 12|15* ]]; then
 				CheckInstallLockSLES
