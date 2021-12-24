@@ -15,6 +15,7 @@ from .echo import Echo
 from .ethtool import Ethtool
 from .fdisk import Fdisk
 from .find import Find
+from .fio import FIOMODES, Fio, FIOResult
 from .firewall import Firewall
 from .gcc import Gcc
 from .git import Git
@@ -30,6 +31,7 @@ from .lsmod import Lsmod
 from .lspci import Lspci
 from .lsvmbus import Lsvmbus
 from .make import Make
+from .mdadm import Mdadm
 from .mkfs import FileSystem, Mkfs, Mkfsext, Mkfsxfs
 from .modinfo import Modinfo
 from .modprobe import Modprobe
@@ -70,6 +72,9 @@ __all__ = [
     "Ethtool",
     "Fdisk",
     "Find",
+    "FIOMODES",
+    "Fio",
+    "FIOResult",
     "Firewall",
     "Gcc",
     "Git",
@@ -85,6 +90,7 @@ __all__ = [
     "Lspci",
     "Lsvmbus",
     "Make",
+    "Mdadm",
     "FileSystem",
     "Mkfs",
     "Mkfsext",
