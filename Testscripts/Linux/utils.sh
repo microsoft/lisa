@@ -3728,7 +3728,7 @@ function install_nvme_cli() {
         echo "nvme is not installed\n Installing now..."
         check_package "nvme-cli"
         if [ $? -ne 0 ]; then
-            packages="gcc gcc-c++ kernel-devel make"
+            packages="gcc gcc-c++ kernel-devel make wget"
             for package in $packages; do
                 check_package "$package"
                 if [ $? -eq 0 ]; then
@@ -3739,6 +3739,20 @@ function install_nvme_cli() {
             tar xvf ${nvme_version}.tar.gz
             pushd nvme-cli-${nvme_version/v/} && make && make install
             popd
+            if [ 0 -eq $? ]; then
+                nvme_version="v1.16"
+                wget https://github.com/linux-nvme/nvme-cli/archive/${nvme_version}.tar.gz
+                tar xvf ${nvme_version}.tar.gz
+                packages="pkg-config uuid-runtime"
+                for package in $packages; do
+                    check_package "$package"
+                    if [ $? -eq 0 ]; then
+                        install_package "$package"
+                    fi
+                done
+                pushd nvme-cli-${nvme_version/v/} && make && make install
+                popd
+            fi
             yes | cp -f /usr/local/sbin/nvme /sbin
         else
             install_package "nvme-cli"
