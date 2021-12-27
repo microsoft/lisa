@@ -102,12 +102,36 @@ class StoragePerformance(TestSuite):  # noqa
             test_case_name="perf_premium_datadisks_1024k",
         )
 
+    @TestCaseMetadata(
+        description="""
+        This test case uses fio to test vm with 24 data disks.
+        """,
+        priority=3,
+        timeout=TIME_OUT,
+        requirement=simple_requirement(
+            min_core_count=72,
+            disk=schema.DiskOptionSettings(
+                disk_type=schema.DiskType.PremiumSSDLRS,
+                data_disk_iops=search_space.IntRange(min=5000),
+                data_disk_count=search_space.IntRange(min=24),
+            ),
+        ),
+    )
+    def perf_premium_datadisks_io(self, node: Node, environment: Environment) -> None:
+        self._perf_premium_datadisks(
+            node,
+            environment,
+            test_case_name="perf_premium_datadisks_io",
+            max_iodepth=64,
+        )
+
     def _perf_premium_datadisks(
         self,
         node: Node,
         environment: Environment,
         test_case_name: str,
         block_size: int = 4,
+        max_iodepth: int = 256,
     ) -> None:
         disk = node.features[Disk]
         data_disks = disk.get_raw_data_disks()
@@ -122,7 +146,6 @@ class StoragePerformance(TestSuite):  # noqa
         cpu = node.tools[Lscpu]
         core_count = cpu.get_core_count()
         start_iodepth = 1
-        max_iodepth = 256
         fio_messages: List[DiskPerformanceMessage] = run_perf_test(
             node,
             start_iodepth,
