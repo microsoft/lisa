@@ -9,7 +9,7 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional, TextIO, Union, cast
 
 from lisa.secret import mask
-from lisa.util import LisaException, filter_ansi_escape
+from lisa.util import LisaException, filter_ansi_escape, is_unittest
 
 # to prevent circular import, hard code it here.
 ENV_KEY_RUN_LOCAL_PATH = "LISA_RUN_LOCAL_PATH"
@@ -154,7 +154,7 @@ def add_handler(
     logger: Optional[logging.Logger] = None,
     formatter: Optional[logging.Formatter] = None,
 ) -> None:
-    if "unittest" in sys.modules:
+    if is_unittest():
         return None
 
     if logger is None:
@@ -170,7 +170,7 @@ def add_handler(
 def remove_handler(
     log_handler: logging.Handler, logger: Optional[logging.Logger] = None
 ) -> None:
-    if "unittest" in sys.modules:
+    if is_unittest():
         return None
 
     if logger is None:
@@ -184,7 +184,7 @@ def create_file_handler(
     formatter: Optional[logging.Formatter] = None,
 ) -> logging.FileHandler:
     # skip to create log file in UT
-    if "unittest" in sys.modules:
+    if is_unittest():
         return None  # type: ignore
 
     file_handler = logging.FileHandler(path, "w", "utf-8")
