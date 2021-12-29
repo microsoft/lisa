@@ -97,7 +97,10 @@ class Lscpu(Tool):
         return architecture
 
     def get_core_count(self, force_run: bool = False) -> int:
-        result = self.run(force_run=force_run)
+        if not self._core_count:
+            result = self.run(force_run=True)
+        else:
+            result = self.run(force_run=force_run)
         matched = self.__vcpu.findall(result.stdout)
         assert_that(
             len(matched),
