@@ -2,6 +2,7 @@
 # Licensed under the MIT license.
 
 import re
+import sys
 from datetime import datetime
 from pathlib import Path
 from typing import (
@@ -451,3 +452,7 @@ def field_metadata(
         decoder=decoder,
         mm_field=field_function(*args, **kwargs),
     )
+
+
+def is_unittest() -> bool:
+    return "unittest" in sys.argv[0]

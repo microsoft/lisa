@@ -4,7 +4,6 @@
 from __future__ import annotations
 
 import copy
-import sys
 from collections import UserDict
 from dataclasses import dataclass, field
 from enum import Enum
@@ -30,6 +29,7 @@ from lisa.util import (
     get_datetime_path,
     hookimpl,
     hookspec,
+    is_unittest,
     plugin_manager,
 )
 from lisa.util.logger import create_file_handler, get_logger, remove_handler
@@ -244,7 +244,7 @@ class Environment(ContextMixin, InitializableMixin):
     @property
     def log_path(self) -> Path:
         # avoid to create path for UT. There may be path conflict in UT.
-        if "unittest" in sys.modules:
+        if is_unittest():
             return Path()
 
         if not self._log_path:

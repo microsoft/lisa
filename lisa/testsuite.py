@@ -4,7 +4,6 @@
 from __future__ import annotations
 
 import copy
-import sys
 from dataclasses import dataclass, field
 from enum import Enum
 from functools import wraps
@@ -38,6 +37,7 @@ from lisa.util import (
     fields_to_dict,
     get_datetime_path,
     hookspec,
+    is_unittest,
     plugin_manager,
     set_filtered_fields,
 )
@@ -635,7 +635,7 @@ class TestSuite:
                 break
             sleep(0.1)
         # avoid to create folder for UT
-        if "unittest" not in sys.modules:
+        if not is_unittest():
             path.mkdir(parents=True)
         return path
 
