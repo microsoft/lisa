@@ -655,8 +655,9 @@ class Disk(AzureFeatureMixin, features.Disk):
         )
         matched = find_patterns_in_lines(cmd_result.stdout, [pattern])
         assert matched[0]
-        disk_array: List[str] = [""] * len(matched[0])
-        for disk in matched[0]:
+        matched_disk_array = set(matched[0])
+        disk_array: List[str] = [""] * len(matched_disk_array)
+        for disk in matched_disk_array:
             # readlink -f /dev/disk/azure/scsi1/lun0
             # /dev/sdc
             cmd_result = self._node.execute(

@@ -279,6 +279,14 @@ def fields_to_dict(
     return result
 
 
+def dict_to_fields(src: Dict[str, Any], dest: Any) -> Any:
+    assert src
+    for field_name, field_value in src.items():
+        if hasattr(dest, field_name):
+            setattr(dest, field_name, field_value)
+    return dest
+
+
 def set_filtered_fields(src: Any, dest: Any, fields: List[str]) -> None:
     """
     copy field values form src to dest, if it's not None

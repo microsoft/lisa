@@ -19,10 +19,16 @@ class Fdisk(Tool):
     def can_install(self) -> bool:
         return True
 
-    def make_partition(self, disk_name: str, file_system: FileSystem) -> None:
+    def make_partition(
+        self,
+        disk_name: str,
+        file_system: FileSystem = FileSystem.ext4,
+        format: bool = True,
+    ) -> str:
         """
         disk_name: make a partition against the disk.
-        file_system: making the file system type against the partition
+        file_system: making the file system type against the partition.
+        format: format the disk into specified file system type.
         Make a partition and a filesystem against the disk.
         """
         # n => new a partition
@@ -31,16 +37,21 @@ class Fdisk(Tool):
         # "" => Use default 2048 for 'First sector'
         # "" => Use default 2147483647 as 'Last sector'
         # w => write table to disk and exit
+        # in case that the disk/disk partition has been formatted previously
+        # fdisk -w always => always to wipe signatures
+        # fdisk -W always => always to wipe signatures from new partitions
         mkfs = self.node.tools[Mkfs]
         self.node.execute(
             f"(echo n; echo p; echo 1; echo ; echo; echo ; echo w) | "
-            f"{self.command} {disk_name}",
+            f"{self.command} -w always -W always {disk_name}",
             shell=True,
             sudo=True,
         )
         # get the partition, e.g. /dev/sdc1 or /dev/nvme0n1p1
         partition_disk = self._get_partitions(disk_name)
-        mkfs.format_disk(partition_disk[0], file_system)
+        if format:
+            mkfs.format_disk(partition_disk[0], file_system)
+        return partition_disk[0]
 
     def delete_partitions(self, disk_name: str) -> None:
         """
