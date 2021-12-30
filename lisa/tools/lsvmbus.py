@@ -196,6 +196,7 @@ class Lsvmbus(Tool):
         self, force_run: bool = False
     ) -> List[VmBusDevice]:
         if (not self._vmbus_devices) or force_run:
+            self._vmbus_devices = []
             result = self.run("-vv", force_run=force_run, shell=True)
             if result.exit_code != 0:
                 result = self.run("-vv", force_run=force_run, shell=True, sudo=True)
