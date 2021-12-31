@@ -192,9 +192,7 @@ class Lsvmbus(Tool):
 
         return self._check_exists()
 
-    def get_device_channels_from_lsvmbus(
-        self, force_run: bool = False
-    ) -> List[VmBusDevice]:
+    def get_device_channels(self, force_run: bool = False) -> List[VmBusDevice]:
         if (not self._vmbus_devices) or force_run:
             self._vmbus_devices = []
             result = self.run("-vv", force_run=force_run, shell=True)

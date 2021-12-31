@@ -193,7 +193,7 @@ class Gpu(Feature):
         bridge_device_count = 0
 
         lsvmbus_tool = self._node.tools[Lsvmbus]
-        device_list = lsvmbus_tool.get_device_channels_from_lsvmbus()
+        device_list = lsvmbus_tool.get_device_channels()
         for device in device_list:
             for name, id, bridge_count in self.gpu_devices:
                 if id in device.device_id:
