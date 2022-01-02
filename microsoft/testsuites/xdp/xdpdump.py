@@ -94,6 +94,7 @@ class XdpDump(Tool):
         action_type: Optional[ActionType] = None,
         remote_address: str = "",
         expected_ping_success: bool = True,
+        ping_package_size: Optional[int] = None,
     ) -> str:
         """
         Test with ICMP ping packets
@@ -133,7 +134,10 @@ class XdpDump(Tool):
                 )
 
                 is_success = ping.ping(
-                    remote_address, nic_name=nic_name, ignore_error=True
+                    remote_address,
+                    nic_name=nic_name,
+                    ignore_error=True,
+                    package_size=ping_package_size,
                 )
                 assert_that(is_success).described_as(
                     "ping result is not expected."

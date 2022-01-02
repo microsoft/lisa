@@ -1,7 +1,7 @@
 # Copyright (c) Microsoft Corporation.
 # Licensed under the MIT license.
 
-from typing import cast
+from typing import List, cast
 
 from assertpy import assert_that
 
@@ -18,7 +18,7 @@ from lisa import (
     simple_requirement,
 )
 from lisa.features import NetworkInterface, Sriov
-from lisa.tools import TcpDump
+from lisa.tools import Ip, TcpDump
 from microsoft.testsuites.xdp.xdpdump import ActionType, XdpDump
 
 
@@ -165,6 +165,47 @@ class XdpFunctional(TestSuite):  # noqa
             "ABORT mode must have and only have sent packets.",
             False,
         )
+
+    @TestCaseMetadata(
+        description="""
+        It validates XDP with different MTU
+
+        1. Check current image supports XDP or not.
+        2. change MTU to 1500, 2000, 3506 to test XDP.
+        """,
+        priority=3,
+        requirement=simple_requirement(min_count=2),
+    )
+    def verify_xdp_with_different_mtu(self, environment: Environment) -> None:
+        xdp_node = environment.nodes[0]
+        remote_node = environment.nodes[1]
+        xdpdump = self._get_xdpdump(xdp_node)
+        remote_address = self._get_ping_address(environment)
+        tested_mtu: List[int] = [1500, 2000, 3506]
+
+        xdp_node_nic_name = xdp_node.nics.default_nic
+        remote_nic_name = remote_node.nics.default_nic
+
+        xdp_node_ip = xdp_node.tools[Ip]
+        remote_ip = remote_node.tools[Ip]
+
+        original_xdp_node_mtu = xdp_node_ip.get_mtu(xdp_node_nic_name)
+        original_remote_mtu = remote_ip.get_mtu(remote_nic_name)
+
+        try:
+            for mtu in tested_mtu:
+                xdp_node_ip.set_mtu(xdp_node_nic_name, mtu)
+                remote_ip.set_mtu(remote_nic_name, mtu)
+
+                # tested mtu equals (ping mtu - IP headr (20) - ICMP header (8))
+                xdpdump.test(
+                    xdp_node_nic_name,
+                    remote_address=remote_address,
+                    ping_package_size=mtu - 28,
+                )
+        finally:
+            xdp_node_ip.set_mtu(xdp_node_nic_name, original_xdp_node_mtu)
+            remote_ip.set_mtu(remote_nic_name, original_remote_mtu)
 
     def _test_with_action(
         self,
