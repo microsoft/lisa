@@ -21,6 +21,7 @@ from .gcc import Gcc
 from .git import Git
 from .hwclock import Hwclock
 from .interrupt_inspector import InterruptInspector
+from .ip import Ip
 from .iperf3 import Iperf3
 from .kdump import KdumpBase
 from .kill import Kill
@@ -80,6 +81,7 @@ __all__ = [
     "Firewall",
     "Gcc",
     "Git",
+    "Ip",
     "Iperf3",
     "Hwclock",
     "InterruptInspector",
