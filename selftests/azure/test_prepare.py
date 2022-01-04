@@ -7,10 +7,11 @@ from unittest.case import TestCase
 
 from azure.mgmt.compute.models import ResourceSku  # type: ignore
 
-from lisa import LisaException, constants, schema, search_space
+from lisa import schema, search_space
 from lisa.environment import Environment
 from lisa.sut_orchestrator import AZURE
 from lisa.sut_orchestrator.azure import common, platform_
+from lisa.util import LisaException, constants
 from lisa.util.logger import get_logger
 
 
@@ -30,7 +31,7 @@ class AzurePrepareTestCase(TestCase):
         # trigger data to be cached
         locations = ["westus2", "eastus2", "notreal"]
         for location in locations:
-            self._platform._get_eligible_vm_sizes(location, self._log)
+            self._platform.get_eligible_vm_sizes(location, self._log)
 
     def test_load_capability(self) -> None:
         # capability can be loaded correct

@@ -5,6 +5,7 @@ import re
 from dataclasses import dataclass
 from os import unlink
 from pathlib import Path
+from random import randint
 from typing import TYPE_CHECKING, Any, Dict, List, Optional, Tuple, Type, cast
 
 import requests
@@ -12,7 +13,9 @@ from assertpy import assert_that
 from azure.mgmt.compute.models import (  # type: ignore
     DiskCreateOption,
     DiskCreateOptionTypes,
+    HardwareProfile,
     NetworkInterfaceReference,
+    VirtualMachineUpdate,
 )
 from dataclasses_json import dataclass_json
 from PIL import Image, UnidentifiedImageError
@@ -20,6 +23,7 @@ from PIL import Image, UnidentifiedImageError
 from lisa import features, schema, search_space
 from lisa.features import NvmeSettings
 from lisa.features.gpu import ComputeSDK
+from lisa.features.resize import ResizeAction
 from lisa.node import Node, RemoteNode
 from lisa.operating_system import CentOs, Redhat, Suse, Ubuntu
 from lisa.tools import Dmesg, Lspci, Modprobe
@@ -31,7 +35,7 @@ from lisa.util import (
 )
 
 if TYPE_CHECKING:
-    from .platform_ import AzurePlatform
+    from .platform_ import AzurePlatform, AzureCapability
 
 from .. import AZURE
 from .common import (
@@ -784,3 +788,122 @@ _disk_type_mapping: Dict[schema.DiskType, str] = {
     schema.DiskType.StandardHDDLRS: "Standard_LRS",
     schema.DiskType.StandardSSDLRS: "StandardSSD_LRS",
 }
+
+
+class Resize(AzureFeatureMixin, features.Resize):
+    def resize(
+        self, resize_action: ResizeAction = ResizeAction.IncreaseCoreCount
+    ) -> schema.NodeSpace:
+        platform: AzurePlatform = self._platform  # type: ignore
+        compute_client = get_compute_client(platform)
+        node_context = get_node_context(self._node)
+        new_vm_size_info = self._select_vm_size(resize_action)
+
+        # Creating parameter for VM Operations API call
+        hardware_profile = HardwareProfile(vm_size=new_vm_size_info.vm_size)
+        vm_update = VirtualMachineUpdate(hardware_profile=hardware_profile)
+
+        # Resizing with new Vm Size
+        lro_poller = compute_client.virtual_machines.begin_update(
+            resource_group_name=node_context.resource_group_name,
+            vm_name=node_context.vm_name,
+            parameters=vm_update,
+        )
+
+        # Waiting for the Long Running Operation to finish
+        wait_operation(lro_poller)
+
+        self._node.close()
+        self._node.capability = schema.load_by_type(
+            schema.Capability, new_vm_size_info.capability
+        )
+        return new_vm_size_info.capability
+
+    def _select_vm_size(
+        self, resize_action: ResizeAction = ResizeAction.IncreaseCoreCount
+    ) -> "AzureCapability":
+        platform: AzurePlatform = self._platform  # type: ignore
+        compute_client = get_compute_client(platform)
+        node_context = get_node_context(self._node)
+        node_runbook = self._node.capability.get_extended_runbook(AzureNodeSchema)
+
+        # Get list of vm sizes that the current sku can resize to
+        available_sizes = compute_client.virtual_machines.list_available_sizes(
+            node_context.resource_group_name, node_context.vm_name
+        )
+        # Get list of vm sizes available in the current location
+        eligible_sizes = platform.get_eligible_vm_sizes(
+            node_runbook.location, self._log
+        )
+
+        current_vm_size = next(
+            (x for x in eligible_sizes if x.vm_size == node_runbook.vm_size),
+            None,
+        )
+        assert current_vm_size, "cannot find current vm size in eligible list"
+
+        # Intersection of available_sizes and eligible_sizes
+        avail_eligible_intersect: List[AzureCapability] = []
+        # Populating avail_eligible_intersect with vm sizes that are available in the
+        # current location and that are available for the current vm size to resize to
+        for size in available_sizes:
+            vm_size_name = size.as_dict()["name"]
+            # Geting eligible vm sizes and their capability data
+            new_vm_size = next(
+                (x for x in eligible_sizes if x.vm_size == vm_size_name), None
+            )
+            if not new_vm_size:
+                continue
+
+            avail_eligible_intersect.append(new_vm_size)
+
+        current_network_interface = current_vm_size.capability.network_interface
+        assert_that(current_network_interface).described_as(
+            "current_network_interface is not of type "
+            "NetworkInterfaceOptionSettings."
+        ).is_instance_of(schema.NetworkInterfaceOptionSettings)
+        current_data_path = current_network_interface.data_path  # type: ignore
+        current_core_count = current_vm_size.capability.core_count
+        assert_that(current_core_count).described_as(
+            "Didn't return an integer to represent the current VM size core count."
+        ).is_instance_of(int)
+        # Loop removes candidate vm sizes if they can't be resized to or if the
+        # change in cores resulting from the resize is undesired
+        for candidate_size in avail_eligible_intersect[:]:
+            candidate_network_interface = candidate_size.capability.network_interface
+            assert_that(candidate_network_interface).described_as(
+                "candidate_network_interface is not of type "
+                "NetworkInterfaceOptionSettings."
+            ).is_instance_of(schema.NetworkInterfaceOptionSettings)
+            candidate_data_path = candidate_network_interface.data_path  # type: ignore
+            # Can't resize from an accelerated networking enabled size to a size where
+            # accelerated networking isn't enabled
+            if (
+                schema.NetworkDataPath.Sriov in current_data_path  # type: ignore
+                and schema.NetworkDataPath.Sriov not in candidate_data_path  # type: ignore # noqa: E501
+            ):
+                # Removing sizes without accelerated networking capabilities
+                # if original size has it enabled
+                avail_eligible_intersect.remove(candidate_size)
+                continue
+
+            candidate_core_count = candidate_size.capability.core_count
+            assert_that(candidate_core_count).described_as(
+                "Didn't return an integer to represent the "
+                "candidate VM size core count."
+            ).is_instance_of(int)
+            # Removing vm size from candidate list if the change in core count
+            # doesn't align with the ResizeAction passed into this function
+            if (
+                resize_action == ResizeAction.IncreaseCoreCount
+                and candidate_core_count <= current_core_count  # type: ignore
+                or resize_action == ResizeAction.DecreaseCoreCount
+                and candidate_core_count >= current_core_count  # type: ignore
+            ):
+                avail_eligible_intersect.remove(candidate_size)
+
+        # Choose random size from the list to resize to
+        index = randint(0, len(avail_eligible_intersect) - 1)
+        resize_vm_size = avail_eligible_intersect[index]
+        self._log.info(f"New vm size: {resize_vm_size.vm_size}")
+        return resize_vm_size

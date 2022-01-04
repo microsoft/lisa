@@ -303,6 +303,7 @@ class AzurePlatform(Platform):
             features.Nvme,
             features.SerialConsole,
             features.NetworkInterface,
+            features.Resize,
             features.StartStop,
             features.Infiniband,
         ]
@@ -439,7 +440,7 @@ class AzurePlatform(Platform):
                     continue
 
                 estimated_cost: int = 0
-                location_caps = self._get_eligible_vm_sizes(location_name, log)
+                location_caps = self.get_eligible_vm_sizes(location_name, log)
                 for req_index, req in enumerate(nodes_requirement):
                     for azure_cap in location_caps:
                         if found_capabilities[req_index]:
@@ -1496,7 +1497,7 @@ class AzurePlatform(Platform):
 
         return node_space
 
-    def _get_eligible_vm_sizes(
+    def get_eligible_vm_sizes(
         self, location: str, log: Logger
     ) -> List[AzureCapability]:
         # load eligible vm sizes
