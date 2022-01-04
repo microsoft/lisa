@@ -1034,6 +1034,21 @@ class Fedora(Linux):
 
         return False
 
+    def install_epel(self) -> None:
+        # Extra Packages for Enterprise Linux (EPEL) is a special interest group
+        # (SIG) from the Fedora Project that provides a set of additional packages
+        # for RHEL (and CentOS, and others) from the Fedora sources.
+
+        major = self._node.os.information.version.major
+        assert_that(major).described_as(
+            "Fedora/RedHat version must be greater than 7"
+        ).is_greater_than_or_equal_to(7)
+        epel_release_rpm_name = f"epel-release-latest-{major}.noarch.rpm"
+        self.install_packages(
+            f"https://dl.fedoraproject.org/pub/epel/{epel_release_rpm_name}"
+        )
+        self._update_packages()
+
     def _get_information(self) -> OsInformation:
         cmd_result = self._node.execute(
             # Typical output of 'cat /etc/fedora-release' is -
