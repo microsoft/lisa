@@ -534,18 +534,17 @@ def generate_send_receive_run_info(
 
 
 def bind_nic_to_dpdk_pmd(nics: Nics, nic: NicInfo, pmd: str) -> None:
+    current_driver = nics.get_nic_driver(nic.upper)
     if pmd == "netvsc":
-        current_driver = nic.bound_driver
         if current_driver == "uio_hv_generic":
             return
-        nics.unbind(nic, current_driver)
         # uio_hv_generic needs some special steps to enable
         enable_uio_hv_generic_for_nic(nics._node, nic)
         # bind_dev_to_new_driver
+        nics.unbind(nic, current_driver)
         nics.bind(nic, "uio_hv_generic")
         nic.bound_driver = "uio_hv_generic"
     elif pmd == "failsafe":
-        current_driver = nic.bound_driver
         if current_driver == "hv_netvsc":
             return
         nics.unbind(nic, current_driver)
