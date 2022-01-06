@@ -811,7 +811,7 @@ class Resize(AzureFeatureMixin, features.Resize):
         )
 
         # Waiting for the Long Running Operation to finish
-        wait_operation(lro_poller)
+        wait_operation(lro_poller, time_out=300)
 
         self._node.close()
         self._node.capability = schema.load_by_type(
