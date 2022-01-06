@@ -344,6 +344,11 @@ class LisaRunner(BaseRunner):
             case_variables=case_variables,
         )
 
+        # Some test cases may break the ssh connections. To reduce side effects
+        # on next test cases, close the connection after each test run. It will
+        # be connected on the next command automatically.
+        environment.nodes.close()
+
         # keep failed environment, not to delete
         if (
             test_result.is_completed

@@ -254,7 +254,7 @@ class XdpFunctional(TestSuite):  # noqa
         ping_node = environment.nodes[1]
         assert isinstance(
             ping_node, RemoteNode
-        ), "The pinged node must be remote node with conneciton information"
+        ), "The pinged node must be remote node with connection information"
 
         return ping_node.internal_address
 
