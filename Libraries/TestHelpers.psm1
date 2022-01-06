@@ -562,7 +562,7 @@ Function Run-LinuxCmd([string] $username, [string] $password, [string] $ip, [str
 			$jobOut = Receive-Job $runLinuxCmdJob 2> $LogDir\$randomFileName
 			if ($jobOut) {
 				$jobOut = $jobOut.Replace("[sudo] password for $username`: ", "").Replace("Password: ", "")
-				$RunLinuxCmdOutput = ($jobOut | Select-Object -SkipLast 1) -Join [Environment]::NewLine
+				$RunLinuxCmdOutput = $jobOut -Replace 'AZURE-LINUX-EXIT-CODE-[0-9]+$',''
 			}
 			$LinuxExitCode = (Select-String -Pattern "AZURE-LINUX-EXIT-CODE-[0-9]*" -InputObject $jobOut).Matches.Value
 
