@@ -2,6 +2,7 @@
 # Licensed under the MIT license.
 
 import re
+import sys
 from dataclasses import InitVar, dataclass, field
 from threading import Lock
 from time import sleep
@@ -325,16 +326,17 @@ def get_environment_context(environment: Environment) -> EnvironmentContext:
     return environment.get_context(EnvironmentContext)
 
 
-def wait_operation(operation: Any) -> Any:
-    timeout = 60 * 5
+def wait_operation(operation: Any, time_out: int = sys.maxsize) -> Any:
     timer = create_timer()
-    while timeout > timer.elapsed(False):
+    while time_out > timer.elapsed(False):
         check_cancelled()
         if operation.done():
             break
         operation.wait(1)
-    if timeout < timer.elapsed():
-        raise Exception("Timeout on operation")
+    if time_out < timer.elapsed():
+        raise Exception(
+            f"timeout on wait Azure operation completed after {time_out} seconds."
+        )
 
 
 def get_storage_credential(
