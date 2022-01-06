@@ -17,6 +17,34 @@ class Ip(Tool):
     def _check_exists(self) -> bool:
         return True
 
+    def _set_device_status(self, nic_name: str, status: str) -> None:
+        self.node.execute(
+            f"ip link set {nic_name} {status}",
+            shell=True,
+            sudo=True,
+            expected_exit_code=0,
+            expected_exit_code_failure_message=(
+                f"Could not set {nic_name} to '{status}'"
+            ),
+        )
+
+    def up(self, nic_name: str) -> None:
+        self._set_device_status(nic_name, "up")
+
+    def down(self, nic_name: str) -> None:
+        self._set_device_status(nic_name, "down")
+
+    def addr_flush(self, nic_name: str) -> None:
+        self.node.execute(
+            f"ip addr flush dev {nic_name}",
+            shell=True,
+            sudo=True,
+            expected_exit_code=0,
+            expected_exit_code_failure_message=(
+                f"Could not flush address for device {nic_name}"
+            ),
+        )
+
     def restart_device(self, nic_name: str) -> None:
         self.node.execute(
             f"ip link set dev {nic_name} down;ip link set dev {nic_name} up", shell=True
