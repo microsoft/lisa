@@ -812,7 +812,9 @@ class AzurePlatform(Platform):
                 ] = azure_runbook.service_principal_client_id
             if azure_runbook.service_principal_key:
                 os.environ["AZURE_CLIENT_SECRET"] = azure_runbook.service_principal_key
-            credential = DefaultAzureCredential()
+            credential = DefaultAzureCredential(
+                exclude_shared_token_cache_credential=True
+            )
 
             with SubscriptionClient(credential) as self._sub_client:
                 # suppress warning message by search for different credential types
