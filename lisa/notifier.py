@@ -16,7 +16,7 @@ from lisa.util.logger import get_logger
 
 @dataclass
 class MessageBase:
-    type: str = ""
+    type: str = "Base"
     elapsed: float = 0
 
 
@@ -44,7 +44,7 @@ class TestRunMessage(MessageBase):
 
 @dataclass
 class PerfMessage(MessageBase):
-    pass
+    type: str = "Performance"
 
 
 DiskSetupType = Enum(
@@ -198,10 +198,14 @@ def notify(message: MessageBase) -> None:
                 if len(_message_queue) > 0:
                     current_message = _message_queue.pop()
             if current_message:
-                notifiers = _messages.get(type(current_message))
-                if notifiers:
+                message_types = type(current_message).__mro__
+                for message_type in message_types:
+                    notifiers = _messages.get(message_type, [])
                     for notifier in notifiers:
                         notifier._received_message(message=current_message)
+                    if message_type == MessageBase:
+                        # skip the object type
+                        break
 
 
 def finalize() -> None:
