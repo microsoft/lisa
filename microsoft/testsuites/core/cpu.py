@@ -3,12 +3,10 @@
 from __future__ import annotations
 
 import time
-from pathlib import PurePosixPath
 
 from assertpy.assertpy import assert_that
 
 from lisa import (
-    BadEnvironmentStateException,
     LisaException,
     Logger,
     Node,
@@ -17,89 +15,19 @@ from lisa import (
     TestSuite,
     TestSuiteMetadata,
 )
-from lisa.tools import Cat, Echo, InterruptInspector, Lscpu, Lsvmbus, TaskSet, Uname
-
-
-class CPUState:
-    OFFLINE: str = "0"
-    ONLINE: str = "1"
-
+from lisa.tools import Cat, InterruptInspector, Lscpu, TaskSet, Uname
 
 hyperv_interrupt_substr = ["hyperv", "Hypervisor", "Hyper-V"]
 
 
 @TestSuiteMetadata(
-    area="cpu",
+    area="core",
     category="functional",
     description="""
     This test suite is used to run CPU related tests.
     """,
 )
 class CPU(TestSuite):
-    @TestCaseMetadata(
-        description="""
-            This test will check that CPU assigned to lsvmbus
-            channels cannot be put offline.
-            Steps :
-            1. Get the list of lsvmbus channel cpu mappings using
-            command `lsvmbus -vv`.
-            2. Create a set of cpu's assigned to lsvmbus channels.
-            3. Try to put cpu offline by running
-            `echo 0 > /sys/devices/system/cpu/cpu/<cpu_id>/online`.
-            Note : We skip cpu 0 as it handles system interrupts.
-            4. Ensure that cpu is still online by checking state '1' in
-            `/sys/devices/system/cpu/cpu/<target_cpu>/online`.
-            """,
-        priority=2,
-    )
-    def cpu_verify_vmbus_force_online(self, node: Node, log: Logger) -> None:
-        cpu_count = node.tools[Lscpu].get_core_count()
-        log.debug(f"{cpu_count} CPU cores detected...")
-
-        # Find CPUs(except CPU0) which are mapped to LSVMBUS channels and have
-        # `sys/devices/system/cpu/cpu/cpu<id>/online` file present.
-        channels = node.tools[Lsvmbus].get_device_channels_from_lsvmbus()
-        is_non_zero_cpu_id_mapped = False
-        mapped_cpu_set = set()
-        for channel in channels:
-            for channel_vp_map in channel.channel_vp_map:
-                target_cpu = channel_vp_map.target_cpu
-                if target_cpu == "0":
-                    continue
-                is_non_zero_cpu_id_mapped = True
-                file_path = self._get_cpu_config_file(target_cpu)
-                file_exists = node.shell.exists(PurePosixPath(file_path))
-                if file_exists:
-                    mapped_cpu_set.add(target_cpu)
-
-        # Fail test if `/sys/devices/system/cpu/cpu/cpu<id>/online` file does
-        # not exist for all CPUs(except CPU0) mapped to LSVMBUS channels. This
-        # is to catch distros which have this unexpected behaviour.
-        if is_non_zero_cpu_id_mapped and not mapped_cpu_set:
-            raise LisaException(
-                "/sys/devices/system/cpu/cpu/cpu<id>/online file"
-                "does not exists for all CPUs mapped to LSVMBUS channels."
-            )
-
-        for target_cpu in mapped_cpu_set:
-            log.debug(f"Checking CPU {target_cpu} on /sys/device/....")
-            result = self._set_cpu_state(target_cpu, CPUState.OFFLINE, node)
-            if result:
-                # Try to bring CPU back to it's original state
-                reset = self._set_cpu_state(target_cpu, CPUState.ONLINE, node)
-                exception_message = (
-                    f"Expected CPU {target_cpu} state : {CPUState.ONLINE}(online), "
-                    f"actual state : {CPUState.OFFLINE}(offline). CPU's mapped to "
-                    f"LSVMBUS channels shouldn't be in state "
-                    f"{CPUState.OFFLINE}(offline)."
-                )
-                if not reset:
-                    raise BadEnvironmentStateException(
-                        exception_message,
-                        f"The test failed leaving CPU {target_cpu} in a bad state.",
-                    )
-                raise AssertionError(exception_message)
-
     @TestCaseMetadata(
         description="""
         This test case will check that L3 cache is correctly mapped
@@ -267,15 +195,6 @@ class CPU(TestSuite):
         # Fail test execution if these hyper-v interrupts are not showing up
         if not found_hyperv_interrupt:
             raise LisaException("Hyper-V interrupts are not recorded.")
-
-    def _get_cpu_config_file(self, cpu_id: str) -> str:
-        return f"/sys/devices/system/cpu/cpu{cpu_id}/online"
-
-    def _set_cpu_state(self, cpu_id: str, state: str, node: Node) -> bool:
-        file_path = self._get_cpu_config_file(cpu_id)
-        node.tools[Echo].write_to_file(state, node.get_pure_path(file_path), sudo=True)
-        result = node.tools[Cat].read(file_path, force_run=True, sudo=True)
-        return result == state
 
     def _create_stimer_interrupts(self, node: Node, cpu_count: int) -> None:
         # Run CPU intensive workload to create hyper-v synthetic timer

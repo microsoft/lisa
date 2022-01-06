@@ -70,7 +70,7 @@ class LsVmBus(TestSuite):
             "1" == node.tools[VmGeneration].get_generation()
         )
         lsvmbus_tool = node.tools[Lsvmbus]
-        vmbus_devices_list = lsvmbus_tool.get_device_channels_from_lsvmbus()
+        vmbus_devices_list = lsvmbus_tool.get_device_channels()
         actual_vmbus_device_names = [x.name for x in vmbus_devices_list]
         assert_that(actual_vmbus_device_names).is_not_none()
         assert_that(vmbus_devices.names).is_subset_of(actual_vmbus_device_names)
