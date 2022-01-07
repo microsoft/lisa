@@ -63,8 +63,8 @@ class NvmePerformace(TestSuite):  # noqa
             )
         cpu = node.tools[Lscpu]
         core_count = cpu.get_core_count()
-        start_iodepth = core_count
-        max_iodepth = start_iodepth * 256
+        start_iodepth = 1
+        max_iodepth = 256
         fio_messages: List[DiskPerformanceMessage] = run_perf_test(
             node, start_iodepth, max_iodepth, filename, numjob=core_count
         )
