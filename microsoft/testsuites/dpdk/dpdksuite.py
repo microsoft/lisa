@@ -23,7 +23,7 @@ from lisa import (
 from lisa.features import NetworkInterface, Sriov
 from lisa.nic import NicInfo, Nics
 from lisa.testsuite import simple_requirement
-from lisa.tools import Dmesg, Echo, Git, Lspci, Make, Mount
+from lisa.tools import Dmesg, Echo, Git, Lsmod, Lspci, Make, Modprobe, Mount
 from lisa.util import perf_timer
 from lisa.util.parallel import Task, TaskManager
 from microsoft.testsuites.dpdk.dpdktestpmd import DpdkTestpmd
@@ -538,8 +538,6 @@ def bind_nic_to_dpdk_pmd(nics: Nics, nic: NicInfo, pmd: str) -> None:
     if pmd == "netvsc":
         if current_driver == "uio_hv_generic":
             return
-        # uio_hv_generic needs some special steps to enable
-        enable_uio_hv_generic_for_nic(nics._node, nic)
         # bind_dev_to_new_driver
         nics.unbind(nic, current_driver)
         nics.bind(nic, "uio_hv_generic")
@@ -565,18 +563,17 @@ def enable_uio_hv_generic_for_nic(node: Node, nic: NicInfo) -> None:
     # https://doc.dpdk.org/guides/nics/netvsc.html#installation
 
     echo = node.tools[Echo]
-    node.execute(
-        "modprobe uio_hv_generic",
-        sudo=True,
-        expected_exit_code=0,
-        expected_exit_code_failure_message="Could not load uio_hv_generic driver.",
-    )
-    # vmbus magic to enable uio_hv_generic
-    echo.write_to_file(
-        hv_uio_generic_uuid,
-        node.get_pure_path("/sys/bus/vmbus/drivers/uio_hv_generic/new_id"),
-        sudo=True,
-    )
+    lsmod = node.tools[Lsmod]
+    modprobe = node.tools[Modprobe]
+    # enable if it is not already enabled
+    if not lsmod.module_exists("uio_hv_generic", force_run=True):
+        modprobe.load("uio_hv_generic")
+        # vmbus magic to enable uio_hv_generic
+        echo.write_to_file(
+            hv_uio_generic_uuid,
+            node.get_pure_path("/sys/bus/vmbus/drivers/uio_hv_generic/new_id"),
+            sudo=True,
+        )
 
 
 def initialize_node_resources(
@@ -617,6 +614,11 @@ def initialize_node_resources(
 
     # bind test nic to desired pmd
     _, nic_to_bind = node_nic_info.get_test_nic()
+
+    # netvsc pmd requires uio_hv_generic to be loaded before use
+    if pmd == "netvsc":
+        enable_uio_hv_generic_for_nic(node, nic_to_bind)
+
     bind_nic_to_dpdk_pmd(node_nic_info, nic_to_bind, pmd)
     return DpdkTestResources(node, node_nic_info, testpmd)
 
