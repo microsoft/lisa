@@ -47,7 +47,6 @@ class Git(Tool):
         ref: str = "",
         dir_name: str = "",
         fail_on_exists: bool = True,
-        recurse_submodules: bool = False,
     ) -> pathlib.PurePath:
         self.node.shell.mkdir(cwd, exist_ok=True)
 
