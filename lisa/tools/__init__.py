@@ -25,6 +25,7 @@ from .ip import Ip
 from .iperf3 import Iperf3
 from .kdump import KdumpBase
 from .kill import Kill
+from .lagscope import Lagscope
 from .lsblk import Lsblk
 from .lscpu import Lscpu
 from .lsinitrd import Lsinitrd
@@ -87,6 +88,7 @@ __all__ = [
     "InterruptInspector",
     "KdumpBase",
     "Kill",
+    "Lagscope",
     "Lsblk",
     "Lscpu",
     "Lsinitrd",
