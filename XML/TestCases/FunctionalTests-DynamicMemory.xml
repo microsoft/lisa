@@ -60,6 +60,7 @@
       <param>staticMem=1024MB</param>
       <param>appGitURL=DYNAMIC_MEMORY_STRESSAPP</param>
     </TestParameters>
+    <timeout>1200</timeout>
     <Platform>HyperV</Platform>
     <Category>Functional</Category>
     <Area>DYNAMIC_MEMORY</Area>
@@ -85,6 +86,7 @@
       <param>memWeight=100</param>
       <param>staticMem=1024MB</param>
     </TestParameters>
+    <timeout>1200</timeout>
     <Platform>HyperV</Platform>
     <Category>Functional</Category>
     <Area>DYNAMIC_MEMORY</Area>
@@ -192,6 +194,7 @@
       <param>memWeight2=0</param>
       <param>staticMem2=1024MB</param>
     </TestParameters>
+    <timeout>1200</timeout>
     <Platform>HyperV</Platform>
     <Category>Functional</Category>
     <Area>DYNAMIC_MEMORY</Area>
@@ -227,6 +230,7 @@
       <param>memWeight3=100</param>
       <param>staticMem3=1024MB</param>
     </TestParameters>
+    <timeout>1200</timeout>
     <Platform>HyperV</Platform>
     <Category>Functional</Category>
     <Area>DYNAMIC_MEMORY</Area>
@@ -254,6 +258,7 @@
       <param>memWeight2=0</param>
       <param>staticMem1=1024MB</param>
     </TestParameters>
+    <timeout>1200</timeout>
     <Platform>HyperV</Platform>
     <Category>Functional</Category>
     <Area>DYNAMIC_MEMORY</Area>
@@ -325,6 +330,7 @@
       <param>appGitURL=DYNAMIC_MEMORY_STRESSNG</param>
       <param>appGitTag=APP_GIT_TAG</param>
     </TestParameters>
+    <timeout>1200</timeout>
     <Platform>HyperV</Platform>
     <Category>Functional</Category>
     <Area>DYNAMIC_MEMORY</Area>
