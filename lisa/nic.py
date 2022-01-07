@@ -4,6 +4,7 @@
 
 import os
 import re
+from pathlib import PurePosixPath
 from typing import TYPE_CHECKING, Any, Dict, List, Optional, Tuple
 
 from assertpy import assert_that
@@ -157,6 +158,25 @@ class Nics(InitializableMixin):
 
     def get_device_slots(self) -> List[str]:
         return [x.pci_slot for x in self.nics.values() if x.pci_slot]
+
+    def get_nic_driver(self, nic_name: str) -> str:
+        # get the current driver for the nic from the node
+        # sysfs provides a link to the driver entry at device/driver
+        nic = self.get_nic(nic_name)
+        cmd = f"readlink /sys/class/net/{nic.upper}/device/driver"
+        # ex return value:
+        # ../../../../module/hv_netvsc
+        found_link = self._node.execute(cmd, expected_exit_code=0).stdout
+        assert_that(found_link).described_as(
+            f"sysfs check for NIC device {nic_name} driver returned no output"
+        ).is_not_equal_to("")
+        as_path = PurePosixPath(found_link)
+        driver_name = as_path.name
+        assert_that(driver_name).described_as(
+            f"sysfs entry contained no filename for device driver: {found_link}"
+        ).is_not_equal_to("")
+        nic.bound_driver = driver_name
+        return driver_name
 
     def get_nic(self, nic_name: str) -> NicInfo:
         return self.nics[nic_name]
