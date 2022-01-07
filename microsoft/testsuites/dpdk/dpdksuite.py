@@ -23,10 +23,11 @@ from lisa import (
 from lisa.features import NetworkInterface, Sriov
 from lisa.nic import NicInfo, Nics
 from lisa.testsuite import simple_requirement
-from lisa.tools import Dmesg, Echo, Git, Lsmod, Lspci, Make, Modprobe, Mount
+from lisa.tools import Dmesg, Echo, Git, Ip, Lsmod, Lspci, Make, Modprobe, Mount
 from lisa.util import perf_timer
 from lisa.util.parallel import Task, TaskManager
 from microsoft.testsuites.dpdk.dpdktestpmd import DpdkTestpmd
+from microsoft.testsuites.dpdk.dpdkvpp import DpdkVpp
 
 VDEV_TYPE = "net_vdev_netvsc"
 MAX_RING_PING_LIMIT_NS = 200000
@@ -131,9 +132,9 @@ class Dpdk(TestSuite):
 
         test_kit = initialize_node_resources(node, log, variables, "failsafe")
         node_nic_info, testpmd = test_kit.node_nic_info, test_kit.testpmd
-        test_nic_id, test_nic = node_nic_info.get_test_nic()
+        test_nic = node_nic_info.get_nic_by_index()
         testpmd_cmd = testpmd.generate_testpmd_command(
-            test_nic, test_nic_id, "txonly", "failsafe"
+            test_nic, 0, "txonly", "failsafe"
         )
         kit_cmd_pairs = {
             test_kit: testpmd_cmd,
@@ -168,6 +169,40 @@ class Dpdk(TestSuite):
                 "than 2^20 (~1m) PPS after sriov disable."
             ).is_less_than(2 ** 20)
 
+    @TestCaseMetadata(
+        description="""
+            verify vpp is able to detect azure network interfaces
+            1. run fd.io vpp install scripts
+            2. install vpp from their repositories
+            3. start vpp service
+            4. check that azure interfaces are detected by vpp
+        """,
+        priority=2,
+        requirement=simple_requirement(
+            min_nic_count=2,
+            network_interface=Sriov(),
+        ),
+    )
+    def verify_dpdk_vpp(
+        self, node: Node, log: Logger, variables: Dict[str, Any]
+    ) -> None:
+
+        vpp = node.tools[DpdkVpp]
+        vpp.install()
+
+        net = node.nics
+        nic = net.get_nic_by_index()
+
+        # set devices to down and restart vpp service
+        ip = node.tools[Ip]
+        for dev in [nic.lower, nic.upper]:
+            ip.down(dev)
+        for dev in [nic.lower, nic.upper]:
+            ip.addr_flush(dev)
+
+        vpp.start()
+        vpp.run_test()
+
     def _verify_dpdk_build(
         self,
         node: Node,
@@ -180,11 +215,11 @@ class Dpdk(TestSuite):
         node_nic_info, testpmd = test_kit.node_nic_info, test_kit.testpmd
 
         # grab a nic and run testpmd
-        test_nic_id, test_nic = node_nic_info.get_test_nic()
+        test_nic = node_nic_info.get_nic_by_index()
 
         testpmd_cmd = testpmd.generate_testpmd_command(
             test_nic,
-            test_nic_id,
+            0,
             "txonly",
             pmd,
         )
@@ -461,7 +496,7 @@ class DpdkTestResources:
         self.nic_controller = _node.features[NetworkInterface]
         self.dmesg = _node.tools[Dmesg]
         self._last_dmesg = ""
-        test_nic = self.node_nic_info.get_test_nic()[1]
+        test_nic = self.node_nic_info.get_nic_by_index()
         # generate hotplug pattern for this specific nic
         self.vf_hotplug_regex = re.compile(
             f"{test_nic.upper}: Data path switched to VF: {test_nic.lower}"
@@ -503,13 +538,11 @@ def generate_send_receive_run_info(
     rxq: int = 1,
 ) -> Dict[DpdkTestResources, str]:
 
-    (snd_id, snd_nic), (rcv_id, rcv_nic) = [
-        x.node_nic_info.get_test_nic() for x in [sender, receiver]
-    ]
+    snd_nic, rcv_nic = [x.node_nic_info.get_nic_by_index() for x in [sender, receiver]]
 
     snd_cmd = sender.testpmd.generate_testpmd_command(
         snd_nic,
-        snd_id,
+        0,
         "txonly",
         pmd,
         extra_args=f"--tx-ip={snd_nic.ip_addr},{rcv_nic.ip_addr}",
@@ -518,7 +551,7 @@ def generate_send_receive_run_info(
     )
     rcv_cmd = receiver.testpmd.generate_testpmd_command(
         rcv_nic,
-        rcv_id,
+        0,
         "rxonly",
         pmd,
         txq=txq,
@@ -612,8 +645,7 @@ def initialize_node_resources(
         "Test needs at least 1 NIC on the test node."
     ).is_greater_than_or_equal_to(1)
 
-    # bind test nic to desired pmd
-    _, nic_to_bind = node_nic_info.get_test_nic()
+    nic_to_bind = node_nic_info.get_nic_by_index()
 
     # netvsc pmd requires uio_hv_generic to be loaded before use
     if pmd == "netvsc":
