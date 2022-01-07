@@ -50,7 +50,7 @@ class Git(Tool):
     ) -> pathlib.PurePath:
         self.node.shell.mkdir(cwd, exist_ok=True)
 
-        cmd = f"clone {url} {dir_name}"
+        cmd = f"clone {url} {dir_name} --recurse-submodules"
         # git print to stderr for normal info, so set no_error_log to True.
         result = self.run(cmd, cwd=cwd, no_error_log=True)
         if result.exit_code == 0:
