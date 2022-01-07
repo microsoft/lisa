@@ -5,7 +5,7 @@ from typing import Dict, List, Optional
 from lisa import Node, notifier
 from lisa.environment import Environment
 from lisa.notifier import DiskPerformanceMessage, DiskSetupType, DiskType
-from lisa.tools import FIOMODES, Fio, FIOResult
+from lisa.tools import FIOMODES, Fio, FIOResult, Kill
 from lisa.util import dict_to_fields
 
 
@@ -71,3 +71,9 @@ def handle_and_send_back_results(
         fio_message.disk_setup_type = disk_setup_type
         fio_message.disk_type = disk_type
         notifier.notify(fio_message)
+
+
+def cleanup_process(environment: Environment, process_name: str) -> None:
+    for node in environment.nodes.list():
+        kill = node.tools[Kill]
+        kill.by_name(process_name)
