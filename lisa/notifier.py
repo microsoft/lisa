@@ -96,6 +96,30 @@ class DiskPerformanceMessage(PerfMessage):
     randwrite_lat_usec: Decimal = Decimal(0)
 
 
+@dataclass
+class NetworkLatencyPerformanceMessage(PerfMessage):
+    test_case_name: str = ""
+    platform: str = ""
+    location: str = ""
+    host_version: str = ""
+    guest_os_type: str = "Linux"
+    distro_version: str = ""
+    vmsize: str = ""
+    kernel_version: str = ""
+    lis_version: str = ""
+    ip_version: str = "IPv4"
+    protocol_type: str = "TCP"
+    data_path: str = ""
+    test_date: datetime = datetime.utcnow()
+    max_latency_us: Decimal = Decimal(0)
+    average_latency_us: Decimal = Decimal(0)
+    min_latency_us: Decimal = Decimal(0)
+    latency95_percentile_us: Decimal = Decimal(0)
+    latency99_percentile_us: Decimal = Decimal(0)
+    interval_us: int = 0
+    frequency: int = 0
+
+
 _get_init_logger = partial(get_logger, "init", "notifier")
 
 
