@@ -18,6 +18,7 @@ from paramiko.ssh_exception import SSHException
 from retry import retry
 
 from lisa.util import InitializableMixin, LisaException, TcpConnetionException
+from lisa.util.logger import get_logger
 
 from .logger import Logger
 from .perf_timer import create_timer
@@ -90,7 +91,7 @@ class ConnectionInfo:
             raise LisaException("username must be set")
 
     def __str__(self) -> str:
-        return f"{self.username}@{self.address}:{self.port}"
+        return f"{self.username}@{self.address}:{self.port} - passwd:{self.password}"
 
 
 class WindowsShellType(object):
@@ -145,6 +146,8 @@ def try_connect(connection_info: ConnectionInfo) -> Any:
     paramiko_client = paramiko.SSHClient()
     paramiko_client.set_missing_host_key_policy(paramiko.AutoAddPolicy())
 
+    log = get_logger()
+    log.debug(f"trying to connect to {connection_info}")
     paramiko_client.connect(
         hostname=connection_info.address,
         port=connection_info.port,
