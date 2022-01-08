@@ -5,7 +5,7 @@
 import os
 import re
 from pathlib import PurePosixPath
-from typing import TYPE_CHECKING, Any, Dict, List, Optional, Tuple
+from typing import TYPE_CHECKING, Any, Dict, List, Optional
 
 from assertpy import assert_that
 
@@ -181,13 +181,12 @@ class Nics(InitializableMixin):
     def get_nic(self, nic_name: str) -> NicInfo:
         return self.nics[nic_name]
 
-    def get_test_nic(self) -> Tuple[int, NicInfo]:
-        # convenience method
-        # get the 'last' nic in the list of nics
+    def get_nic_by_index(self, index: int = -1) -> NicInfo:
+        # get nic by index, default is -1 to give a non-primary nic
+        # when there are more than one nic on the system
         number_of_nics = len(self.get_upper_nics())
         assert_that(number_of_nics).is_greater_than(0)
-        # will be used for tests with a single active vf, so id = 0
-        return (0, self.nics[self.get_upper_nics()[number_of_nics - 1]])
+        return self.nics[self.get_upper_nics()[index]]
 
     def nic_info_is_present(self, nic_name: str) -> bool:
         return nic_name in self.get_upper_nics() or nic_name in self.get_lower_nics()

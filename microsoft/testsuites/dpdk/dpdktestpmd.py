@@ -114,7 +114,7 @@ class DpdkTestpmd(Tool):
     @property
     def can_install(self) -> bool:
         for _os in [Ubuntu, CentOs, Redhat]:
-            if isinstance(self.node, _os):
+            if isinstance(self.node.os, _os):
                 return True
         return False
 
