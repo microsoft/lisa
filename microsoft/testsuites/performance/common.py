@@ -4,7 +4,7 @@ from typing import Dict, List, Optional
 
 from lisa import Node, notifier
 from lisa.environment import Environment
-from lisa.notifier import DiskPerformanceMessage, DiskSetupType, DiskType
+from lisa.messages import DiskPerformanceMessage, DiskSetupType, DiskType
 from lisa.tools import FIOMODES, Fio, FIOResult, Kill
 from lisa.util import dict_to_fields
 

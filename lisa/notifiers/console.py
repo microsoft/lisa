@@ -8,7 +8,7 @@ from typing import Any, List, Type, cast
 
 from dataclasses_json import dataclass_json
 
-from lisa import notifier, schema
+from lisa import messages, notifier, schema
 from lisa.testsuite import TestResultMessage
 from lisa.util import constants
 
@@ -33,7 +33,7 @@ class Console(notifier.Notifier):
     def type_schema(cls) -> Type[schema.TypedSchema]:
         return ConsoleSchema
 
-    def _received_message(self, message: notifier.MessageBase) -> None:
+    def _received_message(self, message: messages.MessageBase) -> None:
         if isinstance(message, TestResultMessage):
             # The description of test result is too long to display. Hide it for
             # log readability.
@@ -45,8 +45,8 @@ class Console(notifier.Notifier):
             f"received message [{message.type}]: {message}",
         )
 
-    def _subscribed_message_type(self) -> List[Type[notifier.MessageBase]]:
-        return [notifier.MessageBase]
+    def _subscribed_message_type(self) -> List[Type[messages.MessageBase]]:
+        return [messages.MessageBase]
 
     def _initialize(self, *args: Any, **kwargs: Any) -> None:
         runbook = cast(ConsoleSchema, self.runbook)

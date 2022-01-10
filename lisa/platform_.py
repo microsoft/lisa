@@ -11,8 +11,8 @@ from typing import Any, Dict, List, Type, cast
 from lisa import schema
 from lisa.environment import Environment, EnvironmentStatus
 from lisa.feature import Feature, Features
+from lisa.messages import MessageBase
 from lisa.node import RemoteNode
-from lisa.notifier import MessageBase
 from lisa.parameter_parser.runbook import RunbookBuilder
 from lisa.util import (
     InitializableMixin,

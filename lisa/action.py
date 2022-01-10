@@ -7,7 +7,7 @@ from abc import ABCMeta, abstractmethod
 from dataclasses import dataclass
 from enum import Enum
 
-from lisa import notifier
+from lisa import messages, notifier
 from lisa.util import LisaException
 from lisa.util.logger import get_logger
 from lisa.util.perf_timer import create_timer
@@ -30,7 +30,7 @@ ActionStatus = Enum(
 
 
 @dataclass
-class ActionMessage(notifier.MessageBase):
+class ActionMessage(messages.MessageBase):
     type: str = "Action"
     sub_type: str = ""
     status: ActionStatus = ActionStatus.UNKNOWN

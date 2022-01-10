@@ -6,7 +6,7 @@ import functools
 from argparse import Namespace
 from typing import Iterable, Optional, cast
 
-from lisa import notifier, schema
+from lisa import messages, notifier, schema
 from lisa.parameter_parser.runbook import RunbookBuilder
 from lisa.runner import RootRunner
 from lisa.testselector import select_testcases
@@ -26,7 +26,7 @@ def run(args: Namespace) -> int:
     if notifier_data:
         notifier_runbook = schema.load_by_type_many(schema.Notifier, notifier_data)
         notifier.initialize(runbooks=notifier_runbook)
-    run_message = notifier.TestRunMessage(
+    run_message = messages.TestRunMessage(
         test_project=builder.partial_resolve(constants.TEST_PROJECT),
         test_pass=builder.partial_resolve(constants.TEST_PASS),
         run_name=constants.RUN_NAME,
@@ -34,18 +34,18 @@ def run(args: Namespace) -> int:
     )
     notifier.notify(run_message)
 
-    run_status = notifier.TestRunStatus.FAILED
+    run_status = messages.TestRunStatus.FAILED
     run_timer = create_timer()
     run_error_message = ""
     try:
         runner = RootRunner(runbook_builder=builder)
         asyncio.run(runner.start())
-        run_status = notifier.TestRunStatus.SUCCESS
+        run_status = messages.TestRunStatus.SUCCESS
     except Exception as identifier:
         run_error_message = str(identifier)
         raise identifier
     finally:
-        run_message = notifier.TestRunMessage(
+        run_message = messages.TestRunMessage(
             status=run_status, elapsed=run_timer.elapsed(), message=run_error_message
         )
         notifier.notify(run_message)

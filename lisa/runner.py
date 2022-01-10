@@ -6,7 +6,7 @@ from logging import FileHandler
 from pathlib import Path
 from typing import Any, Callable, Dict, Iterator, List, Optional, Type
 
-from lisa import notifier, schema, transformer
+from lisa import messages, notifier, schema, transformer
 from lisa.action import Action
 from lisa.combinator import Combinator
 from lisa.notifier import register_notifier
@@ -76,11 +76,11 @@ class RunnerResult(notifier.Notifier):
     def type_schema(cls) -> Type[schema.TypedSchema]:
         return schema.Notifier
 
-    def _received_message(self, message: notifier.MessageBase) -> None:
+    def _received_message(self, message: messages.MessageBase) -> None:
         assert isinstance(message, TestResultMessage), f"actual: {type(message)}"
         self.results[message.id_] = message
 
-    def _subscribed_message_type(self) -> List[Type[notifier.MessageBase]]:
+    def _subscribed_message_type(self) -> List[Type[messages.MessageBase]]:
         return [TestResultMessage]
 
     def _initialize(self, *args: Any, **kwargs: Any) -> None:
@@ -314,8 +314,8 @@ class RootRunner(Action):
         runner_iterator = self._fetch_runners()
         remaining_runners: List[BaseRunner] = []
 
-        run_message = notifier.TestRunMessage(
-            status=notifier.TestRunStatus.RUNNING,
+        run_message = messages.TestRunMessage(
+            status=messages.TestRunStatus.RUNNING,
         )
         notifier.notify(run_message)
 
