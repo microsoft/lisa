@@ -38,6 +38,7 @@ from .mkfs import FileSystem, Mkfs, Mkfsext, Mkfsxfs
 from .modinfo import Modinfo
 from .modprobe import Modprobe
 from .mount import Mount
+from .netperf import Netperf
 from .nm import Nm
 from .ntp import Ntp
 from .ntpstat import Ntpstat
@@ -48,6 +49,7 @@ from .pgrep import Pgrep, ProcessInfo
 from .ping import Ping
 from .qemu import Qemu
 from .reboot import Reboot
+from .sar import Sar
 from .service import Service
 from .ssh import Ssh
 from .sshpass import Sshpass
@@ -104,6 +106,7 @@ __all__ = [
     "Modinfo",
     "Modprobe",
     "Mount",
+    "Netperf",
     "Nm",
     "Ntp",
     "Ntpstat",
@@ -115,6 +118,7 @@ __all__ = [
     "ProcessInfo",
     "Qemu",
     "Reboot",
+    "Sar",
     "Sed",
     "Uname",
     "Service",
