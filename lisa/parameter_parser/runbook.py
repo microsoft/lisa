@@ -61,10 +61,6 @@ class RunbookBuilder:
         """
         builder = RunbookBuilder(path=path, cmd_args=cmd_args)
 
-        # load lisa itself modules, it's for subclasses, and other dynamic loading.
-        base_module_path = Path(__file__).parent.parent
-        import_package(base_module_path, enable_log=False)
-
         # merge all parameters
         builder._log.info(f"loading runbook: {builder._path}")
         data = builder._load_data(
