@@ -32,12 +32,22 @@ class Make(Tool):
         return self._check_exists()
 
     def make_install(
-        self, cwd: PurePath, timeout: int = 600, sudo: bool = True
+        self,
+        cwd: PurePath,
+        timeout: int = 600,
+        sudo: bool = True,
+        update_envs: Optional[Dict[str, str]] = None,
     ) -> None:
-        self.make(arguments="", cwd=cwd, timeout=timeout)
+        self.make(arguments="", cwd=cwd, timeout=timeout, update_envs=update_envs)
 
         # install with sudo
-        self.make(arguments="install", cwd=cwd, timeout=timeout, sudo=sudo)
+        self.make(
+            arguments="install",
+            cwd=cwd,
+            timeout=timeout,
+            sudo=sudo,
+            update_envs=update_envs,
+        )
 
     def make(
         self,
