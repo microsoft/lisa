@@ -65,13 +65,8 @@ class Factory(InitializableMixin, Generic[T_BASECLASS], SubClassTypeDict):
         )
 
     def load_typed_runbook(self, raw_runbook: Any) -> T_BASECLASS:
-        self.initialize()
         type_name = raw_runbook[constants.TYPE]
-        sub_type = self.get(type_name)
-        if sub_type is None:
-            raise LisaException(
-                f"cannot find subclass '{type_name}' of {self._base_type.__name__}"
-            )
+        sub_type = self._get_sub_type(type_name)
         instance: Any = schema.load_by_type(sub_type, raw_runbook)
         if hasattr(instance, "extended_schemas"):
             if instance.extended_schemas:
@@ -81,23 +76,14 @@ class Factory(InitializableMixin, Generic[T_BASECLASS], SubClassTypeDict):
         return cast(T_BASECLASS, instance)
 
     def create_by_type_name(self, type_name: str, **kwargs: Any) -> T_BASECLASS:
-        self.initialize()
-        sub_type = self.get(type_name)
-        if sub_type is None:
-            raise LisaException(
-                f"cannot find subclass '{type_name}' of {self._base_type.__name__}"
-            )
+        sub_type = self._get_sub_type(type_name)
+
         return cast(T_BASECLASS, sub_type(**kwargs))
 
     def create_by_runbook(
         self, runbook: schema.TypedSchema, **kwargs: Any
     ) -> T_BASECLASS:
-        self.initialize()
-        sub_type = self.get(runbook.type)
-        if sub_type is None:
-            raise LisaException(
-                f"cannot find subclass '{runbook.type}' of runbook {runbook}"
-            )
+        sub_type = self._get_sub_type(runbook.type)
         sub_type_with_runbook = cast(Type[BaseClassWithRunbookMixin], sub_type)
         sub_object = sub_type_with_runbook.create_with_runbook(
             runbook=runbook, **kwargs
@@ -115,3 +101,14 @@ class Factory(InitializableMixin, Generic[T_BASECLASS], SubClassTypeDict):
         for subclass_type in type.__subclasses__():
             yield subclass_type
             yield from self._get_subclasses(subclass_type)
+
+    def _get_sub_type(self, type_name: str) -> type:
+        self.initialize()
+        sub_type = self.get(type_name)
+        if sub_type is None:
+            raise LisaException(
+                f"cannot find subclass '{type_name}' of {self._base_type.__name__}. "
+                f"Supported types include: {list(self.keys())}. "
+                f"Are you missing an import in 'mixin_modules.py' or an extension?"
+            )
+        return sub_type
