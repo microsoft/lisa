@@ -67,7 +67,7 @@ class Make(Tool):
 
         # yes '' answers all questions with default value.
         result = self.node.execute(
-            f"yes '' | make -j{self._thread_count} {arguments}",
+            f"yes '' | make -j{thread_count} {arguments}",
             cwd=cwd,
             timeout=timeout,
             sudo=sudo,
