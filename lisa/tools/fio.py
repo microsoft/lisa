@@ -6,7 +6,7 @@ from enum import Enum
 from typing import Any, Dict, List, cast
 
 from lisa.executable import Tool
-from lisa.notifier import DiskPerformanceMessage
+from lisa.messages import DiskPerformanceMessage
 from lisa.operating_system import Debian, Posix, Redhat, Suse
 from lisa.util import LisaException, dict_to_fields
 

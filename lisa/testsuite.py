@@ -24,7 +24,7 @@ from typing import (
 from func_timeout import FunctionTimedOut, func_timeout  # type: ignore
 from retry.api import retry_call
 
-from lisa import notifier, schema, search_space
+from lisa import messages, notifier, schema, search_space
 from lisa.environment import EnvironmentSpace, EnvironmentStatus
 from lisa.feature import Feature
 from lisa.operating_system import OperatingSystem, Windows
@@ -79,7 +79,7 @@ _all_cases: Dict[str, TestCaseMetadata] = {}
 
 
 @dataclass
-class TestResultMessage(notifier.MessageBase):
+class TestResultMessage(messages.MessageBase):
     # id is used to identify the unique test result
     id_: str = ""
     type: str = "TestResult"

@@ -6,7 +6,7 @@ from decimal import Decimal
 from typing import List, Type, cast
 
 from lisa.executable import Tool
-from lisa.notifier import NetworkLatencyPerformanceMessage
+from lisa.messages import NetworkLatencyPerformanceMessage
 from lisa.operating_system import Debian, Posix, Redhat, Suse
 from lisa.util import LisaException, find_patterns_groups_in_lines, get_datetime_path
 from lisa.util.process import ExecutableResult, Process
