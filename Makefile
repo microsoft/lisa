@@ -35,3 +35,12 @@ mypy:
 # Print current Python virtualenv
 venv:
 	@poetry env list --no-ansi --full-path
+
+# Auto fix style issues.
+fix: fix-isort fix-black
+
+fix-isort:
+	@poetry run isort ./lisa ./microsoft
+
+fix-black:
+	@poetry run black ./lisa ./microsoft
