@@ -5,7 +5,7 @@ import importlib
 import importlib.util
 import sys
 from pathlib import Path
-from typing import Optional
+from typing import Iterable, Optional
 
 from lisa.util.logger import Logger, get_logger
 
@@ -73,9 +73,7 @@ def _import_root_package(package_name: str, path: Path) -> None:
         spec.loader.exec_module(module)  # type: ignore
 
 
-def import_package(
-    path: Path, package_name: Optional[str] = None, enable_log: bool = True
-) -> None:
+def import_package(path: Path, package_name: str, enable_log: bool = True) -> None:
 
     if not path.exists():
         raise FileNotFoundError(f"import module path: {path}")
@@ -87,16 +85,21 @@ def import_package(
     else:
         log = None
 
-    # import the package
-    if package_name:
-        package_dir = path
-        _import_root_package(package_name=package_name, path=package_dir)
-    else:
-        # import for lisa itself
+    package_files: Iterable[Path]
+    if path.is_file():
+        # Import a single module within a package.
         package_dir = path.parent
+        package_files = [path]
+    else:
+        # Import the entire package.
+        package_dir = path
+        package_files = path.glob("**/*.py")
 
-    # import missed files
-    for file in path.glob("**/*.py"):
+    # import the package
+    _import_root_package(package_name=package_name, path=package_dir)
+
+    # import all the modules in the package
+    for file in package_files:
         file_name = file.stem
         # skip test files and __init__.py
         if ("tests" == file.parent.stem and file_name.startswith("test_")) or (
