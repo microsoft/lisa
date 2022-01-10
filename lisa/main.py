@@ -11,6 +11,7 @@ from typing import Optional, Tuple
 
 from retry import retry
 
+import lisa.mixin_modules  # noqa: F401
 from lisa.parameter_parser.argparser import parse_args
 from lisa.util import constants, get_datetime_path
 from lisa.util.logger import (
