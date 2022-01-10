@@ -4,7 +4,7 @@
 from pathlib import Path
 from typing import Any, List, Type
 
-from lisa import notifier, schema
+from lisa import messages, notifier, schema
 from lisa.runner import print_results
 from lisa.testsuite import TestResultMessage
 from lisa.util import LisaException, constants
@@ -25,14 +25,14 @@ class TextResult(notifier.Notifier):
     def type_schema(cls) -> Type[schema.TypedSchema]:
         return schema.Notifier
 
-    def _received_message(self, message: notifier.MessageBase) -> None:
+    def _received_message(self, message: messages.MessageBase) -> None:
         if isinstance(message, TestResultMessage):
             if message.is_completed:
                 self.received_messages.append(message)
         else:
             raise LisaException("Received unsubscribed message type")
 
-    def _subscribed_message_type(self) -> List[Type[notifier.MessageBase]]:
+    def _subscribed_message_type(self) -> List[Type[messages.MessageBase]]:
         return [TestResultMessage]
 
     def _initialize(self, *args: Any, **kwargs: Any) -> None:

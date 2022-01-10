@@ -16,7 +16,7 @@ from lisa import (
 )
 from lisa.environment import Environment
 from lisa.features import Disk
-from lisa.notifier import DiskPerformanceMessage, DiskSetupType, DiskType
+from lisa.messages import DiskPerformanceMessage, DiskSetupType, DiskType
 from lisa.tools import Fdisk, Lscpu, Mdadm
 from microsoft.testsuites.performance.common import (
     handle_and_send_back_results,

@@ -5,7 +5,7 @@ from dataclasses import dataclass, field
 from datetime import datetime
 from typing import Any, Dict, List, Optional, TextIO, Type
 
-from lisa import notifier, schema
+from lisa import messages, notifier, schema
 from lisa.environment import EnvironmentMessage, EnvironmentStatus
 from lisa.testsuite import TestResultMessage
 from lisa.util import LisaException, constants
@@ -56,7 +56,7 @@ class EnvironmentStats(notifier.Notifier):
     def finalize(self) -> None:
         self._update_information(True)
 
-    def _received_message(self, message: notifier.MessageBase) -> None:
+    def _received_message(self, message: messages.MessageBase) -> None:
         if isinstance(message, TestResultMessage):
             self._process_test_result_message(message)
         elif isinstance(message, EnvironmentMessage):
@@ -64,7 +64,7 @@ class EnvironmentStats(notifier.Notifier):
         else:
             raise LisaException(f"unsupported message received, {type(message)}")
 
-    def _subscribed_message_type(self) -> List[Type[notifier.MessageBase]]:
+    def _subscribed_message_type(self) -> List[Type[messages.MessageBase]]:
         return [TestResultMessage, EnvironmentMessage]
 
     def _initialize(self, *args: Any, **kwargs: Any) -> None:
