@@ -160,7 +160,7 @@ class RunbookBuilder:
             for index, extension in enumerate(extensions):
                 if not extension.name:
                     extension.name = f"lisa_ext_{index}"
-                import_package(Path(extension.path), package_name=extension.name)
+                import_package(Path(extension.path), extension.name)
 
             del self._raw_data[constants.EXTENSION]
 
