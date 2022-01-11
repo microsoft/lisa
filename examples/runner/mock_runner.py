@@ -3,7 +3,7 @@
 
 import time
 from dataclasses import dataclass, field
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, Optional
 
 from dataclasses_json import dataclass_json
 from marshmallow import validate
@@ -11,16 +11,14 @@ from marshmallow import validate
 from lisa import schema
 from lisa.runner import BaseRunner
 from lisa.schema import BaseTestCaseFilter
-from lisa.testsuite import TestResult
 from lisa.util import field_metadata
 from lisa.util.parallel import Task
 
 TYPE_MOCK = "mock"
 
 
-def _mock_task() -> List[TestResult]:
+def _mock_task() -> None:
     time.sleep(5)
-    return []
 
 
 @dataclass_json()
@@ -52,7 +50,7 @@ class MockRunner(BaseRunner):
     def type_name(cls) -> str:
         return TYPE_MOCK
 
-    def fetch_task(self) -> Optional[Task[List[TestResult]]]:
+    def fetch_task(self) -> Optional[Task[None]]:
         self._is_done = True
         return Task(self.generate_task_id(), _mock_task, self._log)
 
