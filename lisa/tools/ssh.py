@@ -1,10 +1,13 @@
 # Copyright (c) Microsoft Corporation.
 # Licensed under the MIT license.
 
-from lisa.base_tools import Cat
+from lisa.base_tools import Cat, Sed
 from lisa.executable import Tool
+from lisa.util import LisaException
 
 from .echo import Echo
+from .find import Find
+from .service import Service
 
 
 class Ssh(Tool):
@@ -40,3 +43,22 @@ class Ssh(Tool):
             self.node.get_pure_path("~/.ssh/authorized_keys"),
             append=True,
         )
+
+    def get_sshd_config_path(self) -> str:
+        file_name = "sshd_config"
+        default_path = f"/etc/ssh/{file_name}"
+        if self.node.shell.exists(self.node.get_pure_path(default_path)):
+            return default_path
+        find = self.node.tools[Find]
+        result = find.find_files(self.node.get_pure_path("/"), file_name, sudo=True)
+        if result and result[0]:
+            return result[0]
+        else:
+            raise LisaException("not find sshd_config")
+
+    def set_max_session(self, count: int = 200) -> None:
+        config_path = self.get_sshd_config_path()
+        sed = self.node.tools[Sed]
+        sed.append(f"MaxSessions {count}", config_path, sudo=True)
+        service = self.node.tools[Service]
+        service.restart_service("sshd")
