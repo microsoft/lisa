@@ -5,7 +5,7 @@ from typing import Optional
 from lisa.executable import Tool
 from lisa.util.process import Process
 
-_default_internet_address = "bing.com"
+INTERNET_PING_ADDRESS = "8.8.8.8"
 
 
 class Ping(Tool):
@@ -15,12 +15,14 @@ class Ping(Tool):
 
     def ping_async(
         self,
-        target: str = _default_internet_address,
+        target: str = "",
         nic_name: str = "",
         count: int = 5,
         interval: float = 0.2,
         package_size: Optional[int] = None,
     ) -> Process:
+        if not target:
+            target = INTERNET_PING_ADDRESS
         args: str = f"{target} -c {count} -i {interval}"
         if nic_name:
             args += f" -I {nic_name}"
@@ -31,13 +33,15 @@ class Ping(Tool):
 
     def ping(
         self,
-        target: str = _default_internet_address,
+        target: str = "",
         nic_name: str = "",
         count: int = 5,
         interval: float = 0.2,
         package_size: Optional[int] = None,
         ignore_error: bool = False,
     ) -> bool:
+        if not target:
+            target = INTERNET_PING_ADDRESS
         result = self.ping_async(
             target=target,
             nic_name=nic_name,
