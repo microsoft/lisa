@@ -29,9 +29,9 @@ def run_perf_test(
     for mode in FIOMODES:
         iodepth = start_iodepth
         numjobindex = 0
-        if num_jobs:
-            numjob = num_jobs[numjobindex]
         while iodepth <= max_iodepth:
+            if num_jobs:
+                numjob = num_jobs[numjobindex]
             fio_result = fio.launch(
                 name=f"iteration{numjobiterator}",
                 filename=filename,
