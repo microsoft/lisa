@@ -1,5 +1,6 @@
 # Copyright (c) Microsoft Corporation.
 # Licensed under the MIT license.
+import pathlib
 from typing import Dict, List, Optional
 
 from lisa import Node, notifier
@@ -20,6 +21,7 @@ def run_perf_test(
     size_gb: int = 0,
     numjob: int = 0,
     overwrite: bool = False,
+    cwd: Optional[pathlib.PurePath] = None,
 ) -> List[DiskPerformanceMessage]:
     fio_result_list: List[FIOResult] = []
     fio = node.tools[Fio]
@@ -40,6 +42,7 @@ def run_perf_test(
                 iodepth=iodepth,
                 overwrite=overwrite,
                 numjob=numjob,
+                cwd=cwd,
             )
             fio_result_list.append(fio_result)
             iodepth = iodepth * 2
