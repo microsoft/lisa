@@ -1,9 +1,10 @@
 # Copyright (c) Microsoft Corporation.
 # Licensed under the MIT license.
+import pathlib
 import re
 from decimal import Decimal
 from enum import Enum
-from typing import Any, Dict, List, cast
+from typing import Any, Dict, List, Optional, cast
 
 from lisa.executable import Tool
 from lisa.messages import DiskPerformanceMessage
@@ -76,6 +77,7 @@ class Fio(Tool):
         ioengine: str = "libaio",
         group_reporting: bool = True,
         overwrite: bool = False,
+        cwd: Optional[pathlib.PurePath] = None,
     ) -> FIOResult:
         cmd = (
             f"--ioengine={ioengine} --bs={block_size} --filename={filename} "
@@ -98,6 +100,7 @@ class Fio(Tool):
             sudo=True,
             expected_exit_code=0,
             expected_exit_code_failure_message=f"fail to run {cmd}",
+            cwd=cwd,
         )
         matched_results = self._result_pattern.match(result.stdout)
         assert matched_results, "not found matched iops and latency from fio results."
