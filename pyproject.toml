@@ -29,7 +29,7 @@ spurplus = "^2.3.4"
 semver = "^2.13.0"
 pep8-naming = "^0.12.0"
 types-toml = "^0.1.5"
-Pillow = "^8.3.1"
+Pillow = "^9.0.0"
 azure-storage-file-share = "12.4.0"
 
 [tool.poetry.dev-dependencies]
