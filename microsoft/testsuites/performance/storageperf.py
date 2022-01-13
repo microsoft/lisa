@@ -55,7 +55,7 @@ def _make_raid(node: Node, disk_list: List[str]) -> None:
     """,
 )
 class StoragePerformance(TestSuite):  # noqa
-    TIME_OUT = 6000
+    TIME_OUT = 12000
 
     @TestCaseMetadata(
         description="""
