@@ -89,7 +89,16 @@ class Git(Tool):
             no_info_log=True,
             no_error_log=True,
         )
+        # to output the stdout to log, so it's not integrated with above line.
         result.assert_exit_code(message=f"failed to checkout branch. {result.stdout}")
+
+        # in case there is submodule.
+        self.run(
+            "submodule update",
+            force_run=True,
+            cwd=cwd,
+            no_info_log=True,
+        )
 
     def pull(self, cwd: pathlib.PurePath) -> None:
         result = self.run(
