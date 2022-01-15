@@ -34,6 +34,14 @@ if [[ $(cat /proc/cmdline | grep numa=off) ]]; then
     fi
 fi
 
+# Check if have L3 cache
+lscpu | grep "L3 cache"
+if [ $? != 0 ]; then
+    LogMsg "No L3 cache in this system"
+    SetTestStateFailed
+    exit 0
+fi
+
 lscpu --extended=cpu,node,socket,cache > lscpu.log
 # change cache column separator
 sed -i 's/:/ /g' lscpu.log
