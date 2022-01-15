@@ -34,6 +34,7 @@ def verify_default_targetpw(distro):
 def verify_grub(distro):
     import os.path
     RunLog.info("Checking console=ttyS0..")
+    kernel = Run("uname -a")
     if distro == "UBUNTU":
         grub_out = Run("cat /boot/grub/grub.cfg")
     if distro == "SUSE":
@@ -65,7 +66,9 @@ def verify_grub(distro):
     if distro == "COREOS":
         #in core os we don't have access to boot partition
         grub_out = Run("dmesg")
-    if "console=ttyS0" in grub_out and "libata.atapi_enabled=0" not in grub_out and "reserve=0x1f0,0x8" not in grub_out:
+    if (("x86_64" in kernel and "console=ttyS0" in grub_out or
+         "aarch64" in kernel and "console=ttyAMA0" in grub_out) and
+        "libata.atapi_enabled=0" not in grub_out and "reserve=0x1f0,0x8" not in grub_out):
         if distro == "CENTOS" or distro == "ORACLELINUX" or distro == "REDHAT" or distro == "ALMALINUX" or distro == "ROCKYLINUX":
             # check numa=off in grub for CentOS 6.x and Oracle Linux 6.x
             version_release = Run("cat /etc/system-release | grep -Eo '[0-9].?[0-9]?' | head -1 | tr -d '\n'")
@@ -82,8 +85,10 @@ def verify_grub(distro):
             return True
     else:
         print(distro+"_TEST_GRUB_VERIFICATION_FAIL")
-        if "console=ttyS0" not in grub_out:
+        if "x86_64" in kernel and "console=ttyS0" not in grub_out:
             RunLog.error("console=ttyS0 not present")
+        if "aarch64" in kernel and "console=ttyAMA0" not in grub_out:
+            RunLog.error("console=ttyAMA0 not present")
         if "libata.atapi_enabled=0" in grub_out:
             RunLog.error("libata.atapi_enabled=0 is present")
         if "reserve=0x1f0,0x8" in grub_out:
