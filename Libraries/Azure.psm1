@@ -1461,11 +1461,11 @@ Function Invoke-AllResourceGroupDeployments($SetupTypeData, $CurrentTestData, $R
 				Add-Content -Value "$($indents[5]){" -Path $jsonFile
 
 				$sharedImageInfo = $SharedImageName.Split('/')
-				if ($sharedImageInfo.Count -eq 4) {
-					$imageResource = "$($sharedImageInfo[1])/providers/Microsoft.Compute/galleries/$($sharedImageInfo[1])/images/$($sharedImageInfo[2])/versions/$($sharedImageInfo[3])"
+				if ($sharedImageInfo.Count -eq 5) {
+					$imageResource = "$($sharedImageInfo[1])/providers/Microsoft.Compute/galleries/$($sharedImageInfo[2])/images/$($sharedImageInfo[3])/versions/$($sharedImageInfo[4])"
 					Add-Content -Value "$($indents[6])^Id^: ^/subscriptions/$($sharedImageInfo[0])/resourceGroups/$imageResource^," -Path $jsonFile
 				} else {
-					$imageResource = "$($sharedImageInfo[0])/providers/Microsoft.Compute/galleries/$($sharedImageInfo[0])/images/$($sharedImageInfo[1])/versions/$($sharedImageInfo[2])"
+					$imageResource = "$($sharedImageInfo[0])/providers/Microsoft.Compute/galleries/$($sharedImageInfo[1])/images/$($sharedImageInfo[2])/versions/$($sharedImageInfo[3])"
 					Add-Content -Value "$($indents[6])^Id^: ^[concat('/subscriptions/',subscription().subscriptionId,'/resourceGroups/$imageResource')]^," -Path $jsonFile
 				}
 				Add-Content -Value "$($indents[5])}," -Path $jsonFile
