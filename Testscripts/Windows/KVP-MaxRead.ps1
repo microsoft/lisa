@@ -34,8 +34,14 @@ function Add-KVPEntries {
             echo "32 bit architecture was detected"
             kvp_client="kvp_client32"
         else
-            echo "Error: Unable to detect OS architecture" >> /home/$user/KVP.log 2>&1
-            exit 60
+            uname -a | grep aarch64
+            if [ `$? -eq 0 ]; then
+                LogMsg "arm 64 bit architecture was detected"
+                kvp_client="kvp_client_arm64"
+            else
+                echo "Error: Unable to detect OS architecture" >> /home/$user/KVP.log 2>&1
+                exit 60
+            fi
         fi
     fi
 

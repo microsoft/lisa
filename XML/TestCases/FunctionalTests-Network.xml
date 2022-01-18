@@ -500,7 +500,7 @@
   <test>
     <testName>NET-BOOT-NONIC-HOT-ADD-NIC</testName>
     <testScript>NET-Boot-NoNIC-HotAdd-NIC.ps1</testScript>
-    <files>.\Testscripts\Linux\NET-Verify-Boot-NoNIC.sh,.\Testscripts\Linux\utils.sh,.\Tools\kvp_client64</files>
+    <files>.\Testscripts\Linux\NET-Verify-Boot-NoNIC.sh,.\Testscripts\Linux\utils.sh,.\Tools\kvp_client64,.\Tools\kvp_client32,.\Tools\kvp_client_arm64</files>
     <Platform>HyperV</Platform>
     <Category>Functional</Category>
     <Area>NETWORK</Area>

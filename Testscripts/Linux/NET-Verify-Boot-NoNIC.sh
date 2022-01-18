@@ -3,12 +3,42 @@
 # Copyright (c) Microsoft Corporation. All rights reserved.
 # Licensed under the Apache License.
 
-if [ ! -e ./kvp_client64 ]; then
-    echo "the file kvp_client64 does not exist"
+. utils.sh || {
+    echo "Error: unable to source utils.sh!"
+    exit 0
+}
+# Source constants file and initialize most common variables
+UtilsInit
+
+# detect the architecture
+uname -a | grep x86_64
+if [ $? -eq 0 ]; then
+    LogMsg "64 bit architecture was detected"
+    kvp_client="kvp_client64"
+else
+    uname -a | grep i686
+    if [ $? -eq 0 ]; then
+        LogMsg "32 bit architecture was detected"
+        kvp_client="kvp_client32"
+    else
+        uname -a | grep aarch64
+        if [ $? -eq 0 ]; then
+            LogMsg "arm 64 bit architecture was detected"
+            kvp_client="kvp_client_arm64"
+        else
+            LogErr "Unable to detect OS architecture"
+            SetTestStateAborted
+            exit 0
+        fi
+    fi
+fi
+
+if [ ! -e ${kvp_client} ]; then
+    echo "the file kvp_client does not exist"
     exit 0
 fi
 
-chmod 755 ./kvp_client64
+chmod 755 ./kvp_client*
 
 # Verify there are no eth devices
 echo "Check count of eth devices"
@@ -21,7 +51,7 @@ fi
 
 # Create a nonintrinsic HotAddTest KVP item with a value of 'NoNICs'
 echo "Creating HotAddTest key with value of 'NoNICS'"
-./kvp_client64 append 1 'HotAddTest' 'NoNICs'
+./$kvp_client append 1 'HotAddTest' 'NoNICs'
 
 # Loop waiting for an eth device to appear
 echo "Waiting for an eth device to appear"
@@ -59,7 +89,7 @@ echo "eth0 is up"
 
 # Modify the KVP HotAddTest value to 'NICUp'
 echo "Updating HotAddTest KVP item to 'NICUp'"
-./kvp_client64 append 1 'HotAddTest' 'NICUp'
+./$kvp_client append 1 'HotAddTest' 'NICUp'
 
 # Loop waiting for the eth device to be removed
 echo "Waiting for the eth device to be deleted"
@@ -83,6 +113,6 @@ done
 
 # Modify the KVP HotAddTest value to 'NoNICs'
 echo "Setting HotAddTest value to 'NoNICs'"
-./kvp_client64 append 1 'HotAddTest' 'NoNICs'
+./$kvp_client append 1 'HotAddTest' 'NoNICs'
 echo "Test complete - exiting"
 exit 0
