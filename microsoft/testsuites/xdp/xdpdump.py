@@ -11,6 +11,7 @@ from lisa.executable import Tool
 from lisa.operating_system import Fedora, Ubuntu
 from lisa.tools import Ethtool, Git, Make, Ping
 from lisa.tools.ethtool import DeviceGroLroSettings
+from microsoft.testsuites.xdp.xdptools import can_install
 
 
 class ActionType(str, Enum):
@@ -28,18 +29,7 @@ class XdpDump(Tool):
 
     @property
     def can_install(self) -> bool:
-        ethtool = self.node.tools[Ethtool]
-        statistics = ethtool.get_device_statistics(self.node.nics.default_nic)
-
-        # check if xdp supported on nic
-        if not any("xdp_drop" in x for x in statistics):
-            raise UnsupportedDistroException(
-                self.node.os,
-                "Cannot find xdp_drop in ethotool statistics. "
-                "It means it doesn't support XDP.",
-            )
-
-        return True
+        return can_install(self.node)
 
     def _initialize(self, *args: Any, **kwargs: Any) -> None:
         super()._initialize(*args, **kwargs)
