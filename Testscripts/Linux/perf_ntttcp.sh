@@ -274,6 +274,7 @@ Run_Ntttcp()
 		core_mem_set_cmd="sysctl -w kernel.pid_max=122880; sysctl -w vm.max_map_count=655300; sysctl -w net.ipv4.ip_local_port_range='1024 65535'"
 		Run_SSHCommand "${client}" "${core_mem_set_cmd}"
 		Run_SSHCommand "${client}" "./map_irq_to_numa.sh"
+		Run_SSHCommand "${server}" "./map_irq_to_numa.sh"
 		echo "test_connections,throughput_in_Gbps,cycles/byte_sender,cycles/byte_receiver,avglatency_in_us,txpackets_sender,rxpackets_sender,pktsInterrupt_sender,concreatedtime_us,retrans_segs" > "${result_file}"
 	fi
 
