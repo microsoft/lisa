@@ -26,6 +26,7 @@ from lisa.testsuite import simple_requirement
 from lisa.tools import Dmesg, Echo, Git, Ip, Lsmod, Lspci, Make, Modprobe, Mount
 from lisa.util import perf_timer
 from lisa.util.parallel import Task, TaskManager
+from microsoft.testsuites.dpdk.dpdknffgo import DpdkNffGo
 from microsoft.testsuites.dpdk.dpdktestpmd import DpdkTestpmd
 from microsoft.testsuites.dpdk.dpdkvpp import DpdkVpp
 
@@ -88,6 +89,25 @@ class Dpdk(TestSuite):
         self, node: Node, log: Logger, variables: Dict[str, Any]
     ) -> None:
         self._verify_dpdk_build(node, log, variables, "failsafe")
+
+    @TestCaseMetadata(
+        description="""
+           Install and run ci test for NFF-Go on ubuntu
+        """,
+        priority=3,
+        requirement=simple_requirement(
+            min_nic_count=2,
+            network_interface=Sriov(),
+        ),
+    )
+    def verify_dpdk_nff_go(
+        self, node: Node, log: Logger, variables: Dict[str, Any]
+    ) -> None:
+        nff_go = node.tools[DpdkNffGo]
+        # hugepages needed for dpdk tests
+        _init_hugepages(node)
+        # run the nff-go tests
+        nff_go.run_test()
 
     @TestCaseMetadata(
         description="""
