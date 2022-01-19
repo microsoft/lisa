@@ -20,6 +20,7 @@ from lisa import (
 from lisa.features import NetworkInterface, Sriov
 from lisa.tools import Ip, TcpDump
 from microsoft.testsuites.xdp.xdpdump import ActionType, XdpDump
+from microsoft.testsuites.xdp.xdptools import XdpTool
 
 
 @TestSuiteMetadata(
@@ -206,6 +207,22 @@ class XdpFunctional(TestSuite):  # noqa
         finally:
             xdp_node_ip.set_mtu(xdp_node_nic_name, original_xdp_node_mtu)
             remote_ip.set_mtu(remote_nic_name, original_remote_mtu)
+
+    @TestCaseMetadata(
+        description="""
+        It runs all tests of xdp-tools. Check the official site for more
+        details.
+
+        https://github.com/xdp-project/xdp-tools
+        """,
+        priority=3,
+    )
+    def verify_xdp_community_test(self, node: Node) -> None:
+        try:
+            xdptool = node.tools[XdpTool]
+        except UnsupportedDistroException as identifier:
+            raise SkippedException(identifier)
+        xdptool.run_full_test()
 
     def _test_with_action(
         self,
