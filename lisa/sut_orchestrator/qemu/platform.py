@@ -137,7 +137,7 @@ class QemuPlatform(Platform):
     ) -> None:
         for node in environment.nodes.list():
             node_context = get_node_context(node)
-            print(f"Delete {node_context.vm_name}")
+            log.debug(f"Delete VM: {node_context.vm_name}")
 
             # Shutdown and delete the VM.
             self._stop_and_delete_vm(environment, log, qemu_conn, node)
