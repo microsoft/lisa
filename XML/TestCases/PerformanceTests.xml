@@ -32,7 +32,7 @@
     <testName>PERF-NETWORK-TCP-THROUGHPUT-MULTICONNECTION-NTTTCP-SRIOV</testName>
     <testScript>PERF-NETWORK-THROUGHPUT-MULTICONNECTION-NTTTCP.ps1</testScript>
     <runSetupScriptOnlyOnce>yes</runSetupScriptOnlyOnce>
-    <files>.\Testscripts\Linux\utils.sh,.\Testscripts\Linux\perf_ntttcp.sh</files>
+    <files>.\Testscripts\Linux\utils.sh,.\Testscripts\Linux\perf_ntttcp.sh,.\Testscripts\Linux\map_irq_to_numa.sh</files>
     <TestParameters>
       <param>PERF_NIC=HYPERV_PERF_NIC_NAME</param>
       <param>STATIC_IP_1=10.10.10.11</param>

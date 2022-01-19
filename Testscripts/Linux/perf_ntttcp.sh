@@ -104,7 +104,7 @@ if [[ $(detect_linux_distribution) == coreos ]]; then
 	Run_SSHCommand "${server}" ". $UTIL_FILE && Delete_Containers"
 	Run_SSHCommand "${client}" ". $UTIL_FILE && Delete_Containers"
 else
-	ntttcp_cmd="ntttcp"
+	ntttcp_cmd="taskset -c 0-3 ntttcp"
 	lagscope_cmd="lagscope"
 	mpstat_cmd="mpstat"
 	dstat_cmd="dstat"
@@ -273,6 +273,7 @@ Run_Ntttcp()
 		# Set sysctl config for creating more than 40960 connections
 		core_mem_set_cmd="sysctl -w kernel.pid_max=122880; sysctl -w vm.max_map_count=655300; sysctl -w net.ipv4.ip_local_port_range='1024 65535'"
 		Run_SSHCommand "${client}" "${core_mem_set_cmd}"
+		Run_SSHCommand "${client}" "./map_irq_to_numa.sh"
 		echo "test_connections,throughput_in_Gbps,cycles/byte_sender,cycles/byte_receiver,avglatency_in_us,txpackets_sender,rxpackets_sender,pktsInterrupt_sender,concreatedtime_us,retrans_segs" > "${result_file}"
 	fi
 
