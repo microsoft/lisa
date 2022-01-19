@@ -1,0 +1,21 @@
+name: qemu default
+include:
+  - path: ../tiers/tier.yml
+variable:
+  - name: keep_environment
+    value: "no"
+  - name: qcow2
+    value: ""
+  - name: extra_user_data
+    value: ""
+notifier:
+  - type: html
+platform:
+  - type: qemu
+    admin_private_key_file: $(admin_private_key_file)
+    keep_environment: $(keep_environment)
+    requirement:
+      qemu:
+        qcow2: $(qcow2)
+        cloud_init:
+          extra_user_data: $(extra_user_data)
