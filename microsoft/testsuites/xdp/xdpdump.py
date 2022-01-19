@@ -21,6 +21,12 @@ class ActionType(str, Enum):
 
 
 class XdpDump(Tool):
+    """
+    This repo is a copy of bpf samples from
+    https://github.com/Netronome/bpf-samples, it's to keep a stable version.
+    This sample lib is easy to cover more test scenarios than official samples.
+    """
+
     _bpf_samples_repo = "https://github.com/LIS/bpf-samples.git"
 
     @property

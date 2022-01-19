@@ -17,7 +17,7 @@ from lisa import (
     UnsupportedDistroException,
     simple_requirement,
 )
-from lisa.features import NetworkInterface, Sriov
+from lisa.features import NetworkInterface, Sriov, Synthetic
 from lisa.tools import Ip, TcpDump
 from microsoft.testsuites.xdp.xdpdump import ActionType, XdpDump
 from microsoft.testsuites.xdp.xdptools import XdpTool
@@ -86,6 +86,39 @@ class XdpFunctional(TestSuite):  # noqa
         finally:
             # enable SRIOV back to recover environment
             network.switch_sriov(True)
+
+    @TestCaseMetadata(
+        description="""
+        It validates the XDP works with Synthetic network.
+
+        The test step is the same as verify_xdp_basic, but it run once only.
+        """,
+        priority=2,
+        requirement=simple_requirement(network_interface=Synthetic()),
+    )
+    def verify_xdp_synthetic(self, node: Node) -> None:
+        xdpdump = self._get_xdpdump(node)
+        output = xdpdump.test()
+
+        self._verify_xdpdump_result(output)
+
+    @TestCaseMetadata(
+        description="""
+        It validates XDP with multiple nics.
+
+        1. Check current image supports XDP or not.
+        2. Install and validate xdpdump.
+        """,
+        priority=3,
+        requirement=simple_requirement(min_nic_count=3),
+    )
+    def verify_xdp_multiple_nics(self, node: Node) -> None:
+        xdpdump = self._get_xdpdump(node)
+        for i in range(3):
+            nic_info = node.nics.get_nic_by_index(i)
+            output = xdpdump.test(nic_name=nic_info.upper)
+
+            self._verify_xdpdump_result(output)
 
     @TestCaseMetadata(
         description="""
