@@ -38,7 +38,8 @@ jobs:
       - name: Install Python dependencies (Linux-only)
         if: runner.os == 'Linux'
         run: |
-          sudo apt install libgirepository1.0-dev libcairo2-dev
+          sudo apt update
+          sudo apt install libgirepository1.0-dev libcairo2-dev qemu-utils libvirt-dev
 
       - name: Install Python dependencies
         run: make setup

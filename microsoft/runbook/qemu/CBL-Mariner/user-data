@@ -1,0 +1,34 @@
+write_files:
+- content: |
+    [Unit]
+    Description=Startup script
+    After=local-fs.target network-online.target network.target
+    Wants=local-fs.target network-online.target network.target
+
+    [Service]
+    ExecStart=/usr/local/bin/startup.sh
+    Type=oneshot
+
+    [Install]
+    WantedBy=multi-user.target
+  owner: root:root
+  path: /lib/systemd/system/startup.service
+  permissions: '0644'
+- content: |
+    #!/bin/bash
+    iptables -P INPUT ACCEPT
+    iptables -P OUTPUT ACCEPT
+  owner: root:root
+  path: /usr/local/bin/startup.sh
+  permissions: '0755'
+- content: |
+    IPv4: \4
+    IPv6: \6
+  path: /etc/issue
+  append: true
+runcmd:
+- systemctl enable startup.service
+- systemctl start startup.service
+- dnf install openssh-server -y
+- systemctl enable sshd.service
+- systemctl start sshd.service
