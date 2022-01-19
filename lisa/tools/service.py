@@ -38,6 +38,9 @@ class Service(Tool):
     def check_service_status(self, name: str) -> bool:
         return self._internal_tool._check_service_running(name)  # type: ignore
 
+    def check_service_exists(self, name: str) -> bool:
+        return self._internal_tool._check_service_exists(name)  # type: ignore
+
 
 class ServiceInternal(Tool):
     @property
