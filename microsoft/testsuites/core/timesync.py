@@ -10,9 +10,10 @@ from lisa import (
     TestCaseMetadata,
     TestSuite,
     TestSuiteMetadata,
+    UnsupportedCpuArchitectureException,
     create_timer,
 )
-from lisa.operating_system import Redhat
+from lisa.operating_system import CpuArchitecture, Redhat
 from lisa.tools import Cat, Chrony, Dmesg, Hwclock, Lscpu, Ntp, Ntpstat, Service
 from lisa.tools.lscpu import CpuType
 
@@ -115,7 +116,8 @@ class TimeSync(TestSuite):
         description="""
         This test is to check -
             1. Check clock source name is one of hyperv_clocksource_tsc_page,
-             lis_hv_clocksource_tsc_page, hyperv_clocksource, tsc.
+             lis_hv_clocksource_tsc_page, hyperv_clocksource, tsc,
+             arch_sys_counter(arm64).
              (there’s a new feature in the AH2021 host that allows Linux guests so use
               the plain "tsc" instead of the "hyperv_clocksource_tsc_page",
               which produces a modest performance benefit when reading the clock.)
@@ -129,12 +131,22 @@ class TimeSync(TestSuite):
     def timesync_check_unbind_clocksource(self, node: Node) -> None:
         # 1. Check clock source name is one of hyperv_clocksource_tsc_page,
         #  lis_hv_clocksource_tsc_page, hyperv_clocksource.
-        clocksource = [
-            "hyperv_clocksource_tsc_page",
-            "lis_hyperv_clocksource_tsc_page",
-            "hyperv_clocksource",
-            "tsc",
-        ]
+        clocksource_map = {
+            CpuArchitecture.X64: [
+                "hyperv_clocksource_tsc_page",
+                "lis_hyperv_clocksource_tsc_page",
+                "hyperv_clocksource",
+                "tsc",
+            ],
+            CpuArchitecture.ARM64: [
+                "arch_sys_counter",
+            ],
+        }
+        lscpu = node.tools[Lscpu]
+        arch = lscpu.get_architecture()
+        clocksource = clocksource_map.get(CpuArchitecture(arch), None)
+        if not clocksource:
+            raise UnsupportedCpuArchitectureException(arch)
         cat = node.tools[Cat]
         clock_source_result = cat.run(self.current_clocksource)
         assert_that([clock_source_result.stdout]).described_as(
@@ -143,8 +155,7 @@ class TimeSync(TestSuite):
         ).is_subset_of(clocksource)
 
         # 2. Check CPU flag contains constant_tsc from /proc/cpuinfo.
-        lscpu = node.tools[Lscpu]
-        if "x86_64" == lscpu.get_architecture():
+        if CpuArchitecture.X64 == arch:
             cpu_info_result = cat.run("/proc/cpuinfo")
             if CpuType.Intel == lscpu.get_cpu_type():
                 expected_tsc_str = " constant_tsc "
@@ -188,9 +199,10 @@ class TimeSync(TestSuite):
     @TestCaseMetadata(
         description="""
         This test is to check -
-            1. Current clock event name is 'Hyper-V clockevent'.
-            2. 'Hyper-V clockevent' and 'hrtimer_interrupt' show up times in
-             /proc/timer_list should equal to cpu count.
+            1. Current clock event name is 'Hyper-V clockevent' for x86,
+            'arch_sys_timer' for arm64.
+            2. 'Hyper-V clockevent' or 'arch_sys_timer' and 'hrtimer_interrupt'
+             show up times in /proc/timer_list should equal to cpu count.
             3. when cpu count is 1 and cpu type is Intel type, unbind current time
              clock event, check current time clock event switch to 'lapic'.
         """,
@@ -199,7 +211,15 @@ class TimeSync(TestSuite):
     def timesync_check_unbind_clockevent(self, node: Node) -> None:
         if node.shell.exists(PurePosixPath(self.current_clockevent)):
             # 1. Current clock event name is 'Hyper-V clockevent'.
-            clock_event_name = "Hyper-V clockevent"
+            clockevent_map = {
+                CpuArchitecture.X64: "Hyper-V clockevent",
+                CpuArchitecture.ARM64: "arch_sys_timer",
+            }
+            lscpu = node.tools[Lscpu]
+            arch = lscpu.get_architecture()
+            clock_event_name = clockevent_map.get(CpuArchitecture(arch), None)
+            if not clock_event_name:
+                raise UnsupportedCpuArchitectureException(arch)
             cat = node.tools[Cat]
             clock_event_result = cat.run(self.current_clockevent)
             assert_that(clock_event_result.stdout).described_as(
