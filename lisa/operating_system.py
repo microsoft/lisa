@@ -1,9 +1,9 @@
 # Copyright (c) Microsoft Corporation.
 # Licensed under the MIT license.
-
 import re
 import time
 from dataclasses import dataclass
+from enum import Enum
 from functools import partial
 from pathlib import Path
 from typing import (
@@ -42,6 +42,11 @@ if TYPE_CHECKING:
 
 
 _get_init_logger = partial(get_logger, name="os")
+
+
+class CpuArchitecture(str, Enum):
+    X64 = "x86_64"
+    ARM64 = "aarch64"
 
 
 @dataclass

@@ -57,7 +57,7 @@ class Lscpu(Tool):
     __sockets = re.compile(r"^Socket\(s\):[ ]+([\d]+)\r?$", re.M)
     # Architecture:        x86_64
     __architecture_pattern = re.compile(r"^Architecture:\s+(.*)?\r$", re.M)
-    __valid_architecture_list = ["x86_64"]
+    __valid_architecture_list = ["x86_64", "aarch64"]
     # 0 0 0 0:0:0:0
     # 96 0 10 1:1:1:0
     _core_numa_mappings = re.compile(
