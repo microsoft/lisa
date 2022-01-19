@@ -1,0 +1,6 @@
+name: qemu default
+include:
+  - path: ./qemu.yml
+variable:
+  - name: extra_user_data
+    value: "./CBL-Mariner/user-data"
