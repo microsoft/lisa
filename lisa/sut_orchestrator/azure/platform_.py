@@ -142,9 +142,16 @@ KEY_KERNEL_VERSION = "kernel_version"
 KEY_WALA_VERSION = "wala_version"
 ATTRIBUTE_FEATURES = "features"
 
+# https://abcdefg.blob.core.windows.net/abcdefg?sv=2020-08-04&
+# st=2022-01-19T06%3A25%3A16Z&se=2022-01-19T06%3A25%3A00Z&sr=b&
+# sp=r&sig=DdBu3FTHQr1%2BzIY%2FdS054IlsDQ1RdfjfL3FgRgexgeo%3D
+# https://abcdefg.blob.storage.azure.net/1b33rftmpdhs/abcdefg?
+# sv=2018-03-28&sr=b&si=11111111-feff-4312-bba2-3ca6eabf9b24&
+# sig=xdZaRwJBwu3P2pYbQ3uEmymlovFwHrtQNVWDHyK48sg%3D
 SAS_URL_PATTERN = re.compile(
-    r"^https?://.*?.blob.core.windows.net/.*?\?.*?"
-    r"st=.*?&se=(?P<year>[\d]{4})-(?P<month>[\d]{2})-(?P<day>[\d]{2}).*?&sig=.*$"
+    r"^https://.*?(?:\.blob\.core\.windows\.net|"
+    r"blob\.storage\.azure\.net)/.*?\?sv=[^&]+?(?:&st=[^&]+)?"
+    r"(?:&se=(?P<year>[\d]{4})-(?P<month>[\d]{2})-(?P<day>[\d]{2}).*?)|.*?&sig=.*?$"
 )
 SAS_COPIED_CONTAINER_NAME = "lisa-sas-copied"
 
@@ -1734,12 +1741,12 @@ class AzurePlatform(Platform):
         )
 
         normalized_vhd_name = constants.NORMALIZE_PATTERN.sub("_", vhd_path)
+        year = matches["year"] if matches["year"] else "9999"
+        month = matches["month"] if matches["month"] else "01"
+        day = matches["day"] if matches["day"] else "01"
         # use the expire date to generate the path. It's easy to identify when
         # the cache can be removed.
-        vhd_path = (
-            f"{matches['year']}{matches['month']}{matches['day']}/"
-            f"{normalized_vhd_name}.vhd"
-        )
+        vhd_path = f"{year}{month}{day}/{normalized_vhd_name}.vhd"
         full_vhd_path = f"{container_client.url}/{vhd_path}"
 
         # lock here to prevent a vhd is copied in multi-thread
