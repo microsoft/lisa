@@ -70,6 +70,7 @@ class Fio(Tool):
         iodepth: int,
         numjob: int,
         time: int = 120,
+        ssh_timeout: int = 600,
         block_size: str = "4K",
         size_gb: int = 0,
         direct: bool = True,
@@ -101,6 +102,7 @@ class Fio(Tool):
             expected_exit_code=0,
             expected_exit_code_failure_message=f"fail to run {cmd}",
             cwd=cwd,
+            timeout=ssh_timeout,
         )
         matched_results = self._result_pattern.match(result.stdout)
         assert matched_results, "not found matched iops and latency from fio results."
