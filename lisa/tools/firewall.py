@@ -16,19 +16,19 @@ class Firewall(Tool):
         return False
 
     def stop(self) -> None:
-        cmd_result = self.node.execute("command -v ufw")
+        cmd_result = self.node.execute("command -v ufw", shell=True)
         if 0 == cmd_result.exit_code:
             ufw = self.node.tools[Ufw]
             ufw.stop()
-        cmd_result = self.node.execute("command -v iptables")
+        cmd_result = self.node.execute("command -v iptables", shell=True)
         if 0 == cmd_result.exit_code:
             iptables = self.node.tools[Iptables]
             iptables.stop()
-        cmd_result = self.node.execute("command -v SuSEfirewall2")
+        cmd_result = self.node.execute("command -v SuSEfirewall2", shell=True)
         if 0 == cmd_result.exit_code:
             susefirewall2 = self.node.tools[SuSEfirewall2]
             susefirewall2.stop()
-        cmd_result = self.node.execute("command -v firewall-cmd")
+        cmd_result = self.node.execute("command -v firewall-cmd", shell=True)
         if 0 == cmd_result.exit_code:
             firewalld = self.node.tools[Firewalld]
             firewalld.stop()
