@@ -39,6 +39,8 @@ from .modinfo import Modinfo
 from .modprobe import Modprobe
 from .mount import Mount
 from .netperf import Netperf
+from .nfs_client import NFSClient
+from .nfs_server import NFSServer
 from .nm import Nm
 from .ntp import Ntp
 from .ntpstat import Ntpstat
@@ -107,6 +109,8 @@ __all__ = [
     "Modprobe",
     "Mount",
     "Netperf",
+    "NFSClient",
+    "NFSServer",
     "Nm",
     "Ntp",
     "Ntpstat",
