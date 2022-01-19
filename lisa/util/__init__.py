@@ -109,6 +109,19 @@ class UnsupportedDistroException(LisaException):
         return message
 
 
+class UnsupportedCpuArchitectureException(LisaException):
+    """
+    This exception is used to indicate that a test case does not support the
+    Architecture.
+    """
+
+    def __init__(self, arch: str = "") -> None:
+        self.arch = arch
+
+    def __str__(self) -> str:
+        return f"Unsupported CPU architecture {self.arch}"
+
+
 class SkippedException(LisaException):
     """
     A test case can be skipped based on runtime information.
