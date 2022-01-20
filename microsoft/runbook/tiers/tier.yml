@@ -5,21 +5,3 @@ extension:
 variable:
   - name: tier
     value: 0
-  - name: v2_repo_url
-    value: https://github.com/microsoft/lisa
-  - name: v2_branch
-    value: master
-  - name: v2_rg_cleanup
-    value: Delete
-  - name: enable_lis
-    value: true
-  - name: enable_perf
-    value: true
-  - name: custom_test_parameters
-    value: ""
-  - name: override_vmsize
-    value: ""
-  - name: custom_kernel
-    value: ""
-  - name: custom_lis
-    value: ""

@@ -1,18 +1,3 @@
-variable:
-  - name: v2_rg
-    value: v2-t1
 testcase:
-  # v3 p0, p1 test cases
   - criteria:
       priority: [0, 1]
-  # LisaV2 P0 functional, excluding XDP, DPDK, LIS_DEPLOY
-  - type: legacy
-    repo: $(v2_repo_url)
-    branch: $(v2_branch)
-    command: .\Run-LisaV2.ps1 -TestLocation '$(location)' -RGIdentifier '$(v2_rg)' -TestPlatform 'Azure' -EnableTelemetry -ARMImageName '$(marketplace_image)' -XMLSecretFile '$(v2_secret_file)' -TestPriority 0 -ResourceCleanup '$(v2_rg_cleanup)' -CustomLIS '$(custom_lis)' -CustomTestParameters '$(custom_test_parameters)' -OverrideVMSize '$(override_vmsize)' -CustomKernel '$(custom_kernel)' -ExcludeTests '*DPDK*,*XDP*,^LIS-DEPLOY*,^LIS-DRIVER*' -ForceCustom -RunInParallel -TotalCountInParallel 3
-  # LisaV2 P0 LIS_DEPLOY, disable by default, can be enabled by set true to enable_lis
-  - type: legacy
-    enable: $(enable_lis)
-    repo: $(v2_repo_url)
-    branch: $(v2_branch)
-    command: .\Run-LisaV2.ps1 -TestLocation '$(location)' -RGIdentifier '$(v2_rg)' -TestPlatform 'Azure' -EnableTelemetry -ARMImageName '$(marketplace_image)' -XMLSecretFile '$(v2_secret_file)' -TestPriority 0 -TestArea LIS_DEPLOY -ResourceCleanup '$(v2_rg_cleanup)' -CustomLIS '$(custom_lis)' -CustomTestParameters '$(custom_test_parameters)' -OverrideVMSize '$(override_vmsize)' -CustomKernel '$(custom_kernel)' -ForceCustom
