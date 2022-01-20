@@ -9,6 +9,8 @@ Run tests on different platforms
 
 -  `Run on Ready computers <#run-on-ready-computers>`__
 
+-  `Run on Linux and QEMU <#run-on-linux-and-qemu>`__
+
 Run on Azure
 ------------
 
@@ -128,3 +130,32 @@ Learn more from :doc:`runbook reference <runbook>`.
 For a comprehensive introduction to LISA supported test parameters and runbook
 schema, please read :doc:`command-line reference <command_line>` and
 :doc:`runbook reference <runbook>`.
+
+Run on Linux and QEMU
+---------------------
+
+You can run the tests on Linux machine that has QEMU and KVM installed.
+
+Currently, only the `CBL-Mariner <https://github.com/microsoft/CBL-Mariner>`_ distro
+is supported. But it should be fairly straightforward to extend support to other
+distros. Also, only the the tier 0 tests are currently supported.
+
+For CBL-Mariner:
+
+1. Acquire a VHDX image of CBL-Mariner.
+
+   For example, you can build your own by following the
+   `VHDX and VHD images <https://github.com/microsoft/CBL-Mariner/blob/main/toolkit/docs/quick_start/quickstart.md#vhdx-and-vhd-images>`_
+   build instructions.
+
+2. Convert image from VHDX to qcow2:
+
+   .. code:: bash
+
+      qemu-img convert -f vhdx -O qcow2 "<vhdx file>" "<qcow2 file>"
+
+3. Run LISA with the parameters below:
+
+   .. code:: bash
+
+      ./lisa.sh  -r ./microsoft/runbook/qemu/CBL-Mariner.yml -v "admin_private_key_file:<private key file>" -v "qcow2:<qcow2 file>"
