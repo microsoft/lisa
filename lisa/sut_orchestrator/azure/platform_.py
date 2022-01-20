@@ -1033,6 +1033,14 @@ class AzurePlatform(Platform):
         ):
             arm_parameters.use_availability_sets = True
 
+        if any(
+            x.capability.has_feature(features.Infiniband.name())
+            for x in environment.nodes.list()
+        ):
+            arm_parameters.availability_set_properties["platformFaultDomainCount"] = 1
+            arm_parameters.availability_set_properties["platformUpdateDomainCount"] = 1
+            arm_parameters.use_availability_sets = True
+
         # In Azure, each VM should have only one nic in one subnet. So calculate
         # the max nic count, and set to subnet count.
         arm_parameters.subnet_count = max(x.nic_count for x in arm_parameters.nodes)
