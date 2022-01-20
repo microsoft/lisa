@@ -20,7 +20,6 @@ pep8-naming>=0.12.0
 types-toml>=0.1.5
 Pillow>=9.0.0
 azure-storage-file-share>=12.4.0
-libvirt-python>={'version': '^7.10.0', 'platform': 'linux'}
 pycdlib>=1.12.0
 Sphinx>=4.1.0
 sphinx-argparse>=0.2.5
