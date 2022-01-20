@@ -18,6 +18,9 @@ variable:
     value: true
   - name: wait_delete
     value: false
+  - name: concurrency
+    value: 5
+concurrency: $(concurrency)
 notifier:
   - type: html
 platform:
