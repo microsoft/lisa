@@ -1,7 +1,7 @@
 include:
   - path: ./t$(tier).yml
 extension:
-  - ../../testsuites/core
+  - ../../testsuites
 variable:
   - name: tier
     value: 0
