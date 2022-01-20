@@ -33,9 +33,12 @@ sphinx_dependencies = data["tool"]["poetry"]["dev-dependencies"]
 
 with open(requirement, "w") as req:
     for module, version in dependencies.items():
+        if isinstance(version, dict):
+            # Remove platform specific dependencies.
+            continue
         version = str(version)
         assert isinstance(module, str)
-        if module in ["python", "pypiwin32", "PyGObject"]:
+        if module in ["python"]:
             continue
         if version.startswith("^"):
             version = version[1:]
