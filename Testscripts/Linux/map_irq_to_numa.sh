@@ -50,6 +50,7 @@ function get_core_indices
 
 function set_num_qp
 {
+ethtool -l $DEVICE
 ethtool -L $DEVICE combined $NUM_QP
 ethtool -l $DEVICE
 }
@@ -78,6 +79,7 @@ echo "-------------------------------------------------------------"
 echo "executing map_irq_to_numa.sh" 
 echo "-------------------------------------------------------------" 
 DEVICE=$(get_device)
+DEVICE=eth2
 get_irq_indices
 calc_core_id_e
 get_core_indices
