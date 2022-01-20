@@ -4,7 +4,7 @@
 from typing import List, Type
 
 from lisa.executable import Tool
-from lisa.operating_system import Debian
+from lisa.operating_system import Ubuntu
 from lisa.tools import Echo, Git, Make, Tar, Wget
 from lisa.util import UnsupportedDistroException
 
@@ -44,8 +44,14 @@ class DpdkNffGo(Tool):
 
     @property
     def can_install(self) -> bool:
-        # nff-go only implemented for debain in lisav2
-        return isinstance(self.node.os, Debian)
+        # nff-go is abandonded and only builds on 18.04
+        if (
+            isinstance(self.node.os, Ubuntu)
+            and self.node.os.information.version.major == 18
+        ):
+            return True
+        else:
+            return False
 
     def _install(self) -> bool:
         node = self.node
@@ -90,7 +96,7 @@ class DpdkNffGo(Tool):
             ),
         )
         # install needed libraries
-        if isinstance(node.os, Debian):
+        if isinstance(node.os, Ubuntu):
             node.os.install_packages(
                 [
                     "lua5.3-dev",
@@ -103,7 +109,7 @@ class DpdkNffGo(Tool):
             )
         else:
             raise UnsupportedDistroException(
-                node.os, "nff-go test not implemented on this OS"
+                node.os, "nff-go not implemented on this OS"
             )
         # make main project
         make.make(
