@@ -143,7 +143,11 @@ def try_connect(connection_info: ConnectionInfo) -> Any:
     # spur always run a posix command and will fail on Windows.
     # So try with paramiko firstly.
     paramiko_client = paramiko.SSHClient()
-    paramiko_client.set_missing_host_key_policy(paramiko.AutoAddPolicy())
+    # Use base policy, do nothing on host key. The host key shouldn't be saved
+    # locally, or make any warning message. The IP addresses in cloud may be
+    # reused by different servers. If they are saved, there will be conflict
+    # error in paramiko.
+    paramiko_client.set_missing_host_key_policy(paramiko.MissingHostKeyPolicy())
 
     paramiko_client.connect(
         hostname=connection_info.address,
@@ -231,6 +235,10 @@ class SshShell(InitializableMixin):
             "password": self._connection_info.password,
             "private_key_file": self._connection_info.private_key_file,
             "missing_host_key": spur.ssh.MissingHostKey.accept,
+            # There are too many servers in cloud, and they may reuse the same
+            # IP in different time. If so, there is host key conflict. So do not
+            # load host keys to avoid this kind of error.
+            "load_system_host_keys": False,
         }
 
         spur_ssh_shell = spur.SshShell(shell_type=shell_type, **spur_kwargs)
