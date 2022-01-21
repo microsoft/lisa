@@ -6,7 +6,7 @@ from typing import Any, Dict, Optional
 
 from assertpy import assert_that
 
-from lisa import UnsupportedDistroException
+from lisa import Node, UnsupportedDistroException
 from lisa.executable import Tool
 from lisa.operating_system import Fedora, Ubuntu
 from lisa.tools import Ethtool, Git, Make, Ping
@@ -91,26 +91,18 @@ class XdpDump(Tool):
         remote_address: str = "",
         expected_ping_success: bool = True,
         ping_package_size: Optional[int] = None,
+        # the ping command can be triggered from different node
+        ping_source_node: Optional[Node] = None,
     ) -> str:
         """
         Test with ICMP ping packets
         """
         if not nic_name:
             nic_name = self.node.nics.default_nic
+        if not ping_source_node:
+            ping_source_node = self.node
 
-        env_variables: Dict[str, str] = {}
-        if action_type:
-            env_variables[
-                "CFLAGS"
-            ] = f"-D __ACTION_{action_type.name}__ -I../libbpf/src/root/usr/include"
-
-        make = self.node.tools[Make]
-        make.make(
-            arguments="",
-            cwd=self._code_path,
-            is_clean=True,
-            update_envs=env_variables,
-        )
+        self._make_by_action_type(action_type=action_type)
 
         try:
             self._disable_lro(nic_name)
@@ -120,7 +112,7 @@ class XdpDump(Tool):
             # check the ping result.
 
             if remote_address:
-                ping = self.node.tools[Ping]
+                ping = ping_source_node.tools[Ping]
 
                 xdpdump_process = self.node.execute_async(
                     command,
@@ -151,6 +143,23 @@ class XdpDump(Tool):
             self._restore_lro(nic_name)
 
         return result.stdout
+
+    def _make_by_action_type(self, action_type: Optional[ActionType] = None) -> None:
+        env_variables: Dict[str, str] = {}
+
+        # if no action type specified, rebuild it with default behavior.
+        if action_type:
+            env_variables[
+                "CFLAGS"
+            ] = f"-D __ACTION_{action_type.name}__ -I../libbpf/src/root/usr/include"
+
+        make = self.node.tools[Make]
+        make.make(
+            arguments="",
+            cwd=self._code_path,
+            is_clean=True,
+            update_envs=env_variables,
+        )
 
     def _disable_lro(self, nic_name: str) -> None:
         ethtool = self.node.tools[Ethtool]
