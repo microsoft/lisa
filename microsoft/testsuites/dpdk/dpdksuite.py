@@ -475,6 +475,59 @@ class Dpdk(TestSuite):
             "Throughput for SEND was below the correct order of magnitude"
         ).is_greater_than(2 ** 20)
 
+    @TestCaseMetadata(
+        description="""
+            UIO basic functionality test.
+            - Bind interface to uio_hv_generic
+            - check that sysfs entry is created
+            - unbind
+            - check that the driver is unloaded.
+        """,
+        priority=2,
+        requirement=simple_requirement(
+            min_nic_count=2,
+            network_interface=Sriov(),
+        ),
+    )
+    def verify_uio_binding(
+        self, node: Node, log: Logger, variables: Dict[str, Any]
+    ) -> None:
+        lsmod = node.tools[Lsmod]
+        modprobe = node.tools[Modprobe]
+        nic = node.nics.get_nic_by_index()
+        if nic.bound_driver == "hv_netvsc":
+            enable_uio_hv_generic_for_nic(node, nic)
+        bind_nic_to_dpdk_pmd(node.nics, nic, "netvsc")
+        node.execute(
+            "test -e /dev/uio0",
+            shell=True,
+            expected_exit_code=0,
+            expected_exit_code_failure_message=(
+                "/dev/uio0 did not exist after driver bind"
+            ),
+        )
+        assert_that(lsmod.module_exists("uio_hv_generic", force_run=True)).described_as(
+            "uio_hv_generic was not found after bind"
+        ).is_true()
+        node.nics.unbind(nic, "uio_hv_generic")
+        node.nics.bind(nic, "hv_netvsc")
+        nic.bound_driver = node.nics.get_nic_driver(nic.upper)
+        assert_that(nic.bound_driver).described_as(
+            (
+                "Driver after unbind/rebind was unexpected. "
+                f"Expected hv_netvsc, found {nic.bound_driver}"
+            )
+        ).is_equal_to("hv_netvsc")
+        modprobe.remove(["uio_hv_generic"])
+        node.execute(
+            "test -e /dev/uio0",
+            shell=True,
+            expected_exit_code=1,
+            expected_exit_code_failure_message=(
+                "/dev/uio0 still exists after driver unload"
+            ),
+        )
+
 
 def _init_hugepages(node: Node) -> None:
     mount = node.tools[Mount]
