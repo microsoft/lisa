@@ -135,13 +135,26 @@ class XdpFunctional(TestSuite):  # noqa
     def verify_xdp_action_drop(
         self, environment: Environment, case_name: str, log: Logger
     ) -> None:
+        # expect no response from the ping source side.
         self._test_with_action(
-            environment,
-            case_name,
-            ActionType.DROP,
-            5,
-            "DROP mode must have and only have sent packets.",
-            False,
+            environment=environment,
+            captured_node=environment.nodes[0],
+            case_name=case_name,
+            action=ActionType.DROP,
+            expected_tcp_packet_count=5,
+            failure_message="DROP mode must have and only have sent packets "
+            "at the send side.",
+            expected_ping_success=False,
+        )
+        # expect no packet from the ping target side
+        self._test_with_action(
+            environment=environment,
+            captured_node=environment.nodes[1],
+            case_name=case_name,
+            action=ActionType.DROP,
+            expected_tcp_packet_count=0,
+            failure_message="DROP mode must have no packet at target side.",
+            expected_ping_success=False,
         )
 
     @TestCaseMetadata(
@@ -160,21 +173,27 @@ class XdpFunctional(TestSuite):  # noqa
     def verify_xdp_action_tx(
         self, environment: Environment, case_name: str, log: Logger
     ) -> None:
-        try:
-            self._test_with_action(
-                environment,
-                case_name,
-                ActionType.TX,
-                5,
-                "TX mode must get only sent packets",
-                True,
-            )
-        except AssertionError as identifer:
-            raise SkippedException(
-                "It needs more investigation on why tcpdump capture all packets. "
-                "The expected captured packets should be 5, but it's 10."
-                f"{identifer}"
-            )
+        # tx has response packet from ping source side
+        self._test_with_action(
+            environment=environment,
+            captured_node=environment.nodes[0],
+            case_name=case_name,
+            action=ActionType.TX,
+            expected_tcp_packet_count=10,
+            failure_message="TX mode should receive response from ping source side.",
+            expected_ping_success=True,
+        )
+        # tx has no packet from target side
+        self._test_with_action(
+            environment=environment,
+            captured_node=environment.nodes[1],
+            case_name=case_name,
+            action=ActionType.TX,
+            expected_tcp_packet_count=0,
+            failure_message="TX mode shouldn't capture any packets "
+            "from the ping target node in tcp dump.",
+            expected_ping_success=True,
+        )
 
     @TestCaseMetadata(
         description="""
@@ -191,13 +210,26 @@ class XdpFunctional(TestSuite):  # noqa
     def verify_xdp_action_aborted(
         self, environment: Environment, case_name: str, log: Logger
     ) -> None:
+        # expect no response from the ping source side.
         self._test_with_action(
-            environment,
-            case_name,
-            ActionType.ABORTED,
-            5,
-            "ABORT mode must have and only have sent packets.",
-            False,
+            environment=environment,
+            captured_node=environment.nodes[0],
+            case_name=case_name,
+            action=ActionType.ABORTED,
+            expected_tcp_packet_count=5,
+            failure_message="DROP mode must have and only have sent packets "
+            "at the send side.",
+            expected_ping_success=False,
+        )
+        # expect no packet from the ping target side
+        self._test_with_action(
+            environment=environment,
+            captured_node=environment.nodes[1],
+            case_name=case_name,
+            action=ActionType.ABORTED,
+            expected_tcp_packet_count=0,
+            failure_message="ABORT mode must have no packet at target side.",
+            expected_ping_success=False,
         )
 
     @TestCaseMetadata(
@@ -260,26 +292,31 @@ class XdpFunctional(TestSuite):  # noqa
     def _test_with_action(
         self,
         environment: Environment,
+        captured_node: Node,
         case_name: str,
         action: ActionType,
         expected_tcp_packet_count: int,
         failure_message: str,
         expected_ping_success: bool,
     ) -> None:
-        node = environment.nodes[0]
-        xdpdump = self._get_xdpdump(node)
-        tcpdump = node.tools[TcpDump]
-        remote_address = self._get_ping_address(environment)
+        ping_source_node = environment.nodes[0]
+
+        xdpdump = self._get_xdpdump(captured_node)
+        tcpdump = captured_node.tools[TcpDump]
+        ping_address = self._get_ping_address(environment)
 
         pcap_filename = f"{case_name}.pcap"
         dump_process = tcpdump.dump_async(
-            node.nics.default_nic, filter="icmp", packet_filename=pcap_filename
+            ping_source_node.nics.default_nic,
+            filter=f'"icmp and host {ping_address}"',
+            packet_filename=pcap_filename,
         )
         xdpdump.test(
-            node.nics.default_nic,
-            remote_address=remote_address,
+            ping_source_node.nics.default_nic,
+            remote_address=ping_address,
             action_type=action,
             expected_ping_success=expected_ping_success,
+            ping_source_node=ping_source_node,
         )
 
         # the tcpdump exits with 124 as normal.
@@ -289,7 +326,7 @@ class XdpFunctional(TestSuite):  # noqa
         )
 
         packets = tcpdump.parse(pcap_filename)
-        ping_node = cast(RemoteNode, environment.nodes[1])
+        ping_node = cast(RemoteNode, ping_source_node)
         packets = [
             x
             for x in packets
