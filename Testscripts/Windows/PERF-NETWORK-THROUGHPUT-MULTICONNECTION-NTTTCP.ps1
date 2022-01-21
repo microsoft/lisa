@@ -76,6 +76,12 @@ function Main {
         Run-LinuxCmd -ip $clientVMData.PublicIP -port $clientVMData.SSHPort -username $user `
                     -password $password -command $setSystemdConfig -runAsSudo | Out-Null
 
+        Write-LogInfo "Update kernel to latest..."
+        Run-LinuxCmd -ip $clientVMData.PublicIP -port 1112 -username $user `
+                    -password $password -command "sudo yum update kernel -y" -runAsSudo | Out-Null
+        Run-LinuxCmd -ip $clientVMData.PublicIP -port 1111 -username $user `
+                    -password $password -command "sudo yum update kernel -y" -runAsSudo | Out-Null
+
         # Restart VM to apply systemd setting
         if (-not $TestProvider.RestartAllDeployments($allVMData)) {
             Write-LogErr "Unable to connect to VM after restart!"
