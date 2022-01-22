@@ -52,7 +52,7 @@ def _make_mount_raid(node: Node, disk_list: List[str]) -> None:
     This test suite is to validate storage function in Linux VM.
     """,
 )
-class StorageTest(TestSuite):  # noqa
+class StorageTest(TestSuite):
     @TestCaseMetadata(
         description="""
         This test case is to

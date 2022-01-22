@@ -23,11 +23,12 @@ from lisa.tools import Lspci, Reboot
 @TestSuiteMetadata(
     area="gpu",
     category="functional",
+    name="Gpu",
     description="""
     This test suite runs the gpu test cases.
     """,
 )
-class gpu(TestSuite):  # noqa
+class GpuTestSuite(TestSuite):
     def _ensure_driver_installed(
         self, node: Node, gpu_feature: Gpu, log_path: Path, log: Logger
     ) -> None:

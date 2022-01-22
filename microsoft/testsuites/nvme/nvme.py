@@ -36,11 +36,12 @@ def _format_mount_disk(
 @TestSuiteMetadata(
     area="nvme",
     category="functional",
+    name="Nvme",
     description="""
     This test suite is to validate NVMe disk on Linux VM.
     """,
 )
-class nvme(TestSuite):  # noqa
+class NvmeTestSuite(TestSuite):
     TIME_OUT = 300
 
     @TestCaseMetadata(

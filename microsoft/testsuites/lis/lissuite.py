@@ -26,7 +26,7 @@ from lisa.util import SkippedException, get_matched_str
         ]
     ),
 )
-class Lis(TestSuite):  # noqa
+class Lis(TestSuite):
     # '#define HV_DRV_VERSION	"4.3.4"' -> 4.3.4
     version_pattern = re.compile(r'"(.+)"')
     # '#define _HV_DRV_VERSION 0x1B2' -> 0x1B2

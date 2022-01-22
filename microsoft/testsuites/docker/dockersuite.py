@@ -15,12 +15,13 @@ from lisa.util import SkippedException
 @TestSuiteMetadata(
     area="docker",
     category="functional",
+    name="Docker",
     description="""
     This test suite runs the docker test cases for java, python, dotnet 3.1
     , dotnet5.0, and wordpress.
     """,
 )
-class docker(TestSuite):  # noqa
+class DockerTestSuite(TestSuite):
     @TestCaseMetadata(
         description="""
             This test case uses docker-compose to create and run a wordpress mysql app

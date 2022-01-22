@@ -30,7 +30,7 @@ from microsoft.testsuites.xdp.xdptools import XdpTool
     This test suite is to validate XDP fuctionality.
     """,
 )
-class XdpFunctional(TestSuite):  # noqa
+class XdpFunctional(TestSuite):
     @TestCaseMetadata(
         description="""
         It validates the basic functionality of XDP. It runs multiple times to
