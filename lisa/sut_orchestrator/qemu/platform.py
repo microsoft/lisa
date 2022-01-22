@@ -23,11 +23,18 @@ from lisa.util import LisaException, constants, get_public_key_data
 from lisa.util.logger import Logger
 
 from .. import QEMU
+from . import libvirt_events_thread
+from .console_logger import QemuConsoleLogger
 from .context import get_environment_context, get_node_context
 from .schema import QemuNodeSchema
+from .serial_console import SerialConsole
 
 
 class QemuPlatform(Platform):
+    _supported_features: List[Type[Feature]] = [
+        SerialConsole,
+    ]
+
     def __init__(self, runbook: schema.Platform) -> None:
         super().__init__(runbook=runbook)
 
@@ -37,7 +44,7 @@ class QemuPlatform(Platform):
 
     @classmethod
     def supported_features(cls) -> List[Type[Feature]]:
-        return []
+        return QemuPlatform._supported_features
 
     def _prepare_environment(self, environment: Environment, log: Logger) -> bool:
         return True
@@ -50,6 +57,8 @@ class QemuPlatform(Platform):
             self._delete_nodes(environment, log, qemu_conn)
 
     def _deploy_nodes(self, environment: Environment, log: Logger) -> None:
+        libvirt_events_thread.init()
+
         self._configure_nodes(environment, log)
 
         with libvirt.open("qemu:///system") as qemu_conn:
@@ -98,6 +107,10 @@ class QemuPlatform(Platform):
             node_context.os_disk_file_path = os.path.join(
                 vm_disks_dir, f"{node_context.vm_name}-os.qcow2"
             )
+            node_context.console_log_file_path = os.path.join(
+                vm_disks_dir, f"{node_context.vm_name}-console.log"
+            )
+            node_context.console_logger = QemuConsoleLogger()
 
             if not node.name:
                 node.name = node_context.vm_name
@@ -120,6 +133,8 @@ class QemuPlatform(Platform):
         self, environment: Environment, log: Logger, qemu_conn: libvirt.virConnect
     ) -> None:
         for node in environment.nodes.list():
+            node_context = get_node_context(node)
+
             # Create cloud-init ISO file.
             self._create_node_cloud_init_iso(environment, log, node)
 
@@ -129,7 +144,20 @@ class QemuPlatform(Platform):
             # Create libvirt domain (i.e. VM).
             xml = self._create_node_domain_xml(environment, log, node)
             domain = qemu_conn.defineXML(xml)
-            domain.create()
+
+            # Start the VM in the paused state.
+            # This gives the console logger a chance to connect before the VM starts
+            # for real.
+            domain.createWithFlags(libvirt.VIR_DOMAIN_START_PAUSED)
+
+            # Attach the console logger
+            assert node_context.console_logger
+            node_context.console_logger.attach(
+                qemu_conn, domain, node_context.console_log_file_path
+            )
+
+            # Start the VM.
+            domain.resume()
 
     # Delete all the VMs.
     def _delete_nodes(
@@ -141,6 +169,15 @@ class QemuPlatform(Platform):
 
             # Shutdown and delete the VM.
             self._stop_and_delete_vm(environment, log, qemu_conn, node)
+
+            assert node_context.console_logger
+            node_context.console_logger.close()
+
+            # Delete console log file
+            try:
+                os.remove(node_context.console_log_file_path)
+            except Exception as ex:
+                log.warning(f"console log delete failed. {ex}")
 
             # Delete the files created for the VM.
             try:
