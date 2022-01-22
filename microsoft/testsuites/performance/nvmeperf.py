@@ -28,7 +28,7 @@ from microsoft.testsuites.performance.common import (
     This test suite is to validate NVMe disk performance of Linux VM using fio tool.
     """,
 )
-class NvmePerformace(TestSuite):  # noqa
+class NvmePerformace(TestSuite):
     TIME_OUT = 5000
 
     @TestCaseMetadata(

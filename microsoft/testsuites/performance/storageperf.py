@@ -72,7 +72,7 @@ def _make_raid(node: Node, disk_list: List[str]) -> None:
      fio tool.
     """,
 )
-class StoragePerformance(TestSuite):  # noqa
+class StoragePerformance(TestSuite):
     TIME_OUT = 12000
 
     @TestCaseMetadata(
