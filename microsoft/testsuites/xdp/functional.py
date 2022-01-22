@@ -1,6 +1,7 @@
 # Copyright (c) Microsoft Corporation.
 # Licensed under the MIT license.
 
+import re
 from typing import List, cast
 
 from assertpy import assert_that
@@ -18,7 +19,7 @@ from lisa import (
     simple_requirement,
 )
 from lisa.features import NetworkInterface, Sriov, Synthetic
-from lisa.tools import Ip, TcpDump
+from lisa.tools import Ethtool, Ip, TcpDump
 from microsoft.testsuites.xdp.xdpdump import ActionType, XdpDump
 from microsoft.testsuites.xdp.xdptools import XdpTool
 
@@ -31,6 +32,12 @@ from microsoft.testsuites.xdp.xdptools import XdpTool
     """,
 )
 class XdpFunctional(TestSuite):
+    # rx_queue_0_xdp_drop
+    _rx_drop_pattern_synthetic = re.compile(r"^rx_queue_\d+_xdp_drop$")
+    # rx_xdp_drop
+    # rx0_xdp_drop
+    _rx_drop_pattern_vf = re.compile(r"^rx\d*?_xdp_drop$")
+
     @TestCaseMetadata(
         description="""
         It validates the basic functionality of XDP. It runs multiple times to
@@ -136,9 +143,11 @@ class XdpFunctional(TestSuite):
         self, environment: Environment, case_name: str, log: Logger
     ) -> None:
         # expect no response from the ping source side.
+        captured_node = environment.nodes[0]
+        self._reset_nic_stats(captured_node)
         self._test_with_action(
             environment=environment,
-            captured_node=environment.nodes[0],
+            captured_node=captured_node,
             case_name=case_name,
             action=ActionType.DROP,
             expected_tcp_packet_count=5,
@@ -146,16 +155,31 @@ class XdpFunctional(TestSuite):
             "at the send side.",
             expected_ping_success=False,
         )
+        drop_count = self._get_drop_stats(
+            nic_name=captured_node.nics.default_nic, node=captured_node, log=log
+        )
+        assert_that(drop_count).described_as(
+            "the source side should have 5 dropped packets."
+        ).is_equal_to(5)
+
         # expect no packet from the ping target side
+        captured_node = environment.nodes[1]
+        self._reset_nic_stats(captured_node)
         self._test_with_action(
             environment=environment,
-            captured_node=environment.nodes[1],
+            captured_node=captured_node,
             case_name=case_name,
             action=ActionType.DROP,
             expected_tcp_packet_count=0,
             failure_message="DROP mode must have no packet at target side.",
             expected_ping_success=False,
         )
+        drop_count = self._get_drop_stats(
+            nic_name=captured_node.nics.default_nic, node=captured_node, log=log
+        )
+        assert_that(drop_count).described_as(
+            "the target side should have 5 dropped packets."
+        ).is_equal_to(5)
 
     @TestCaseMetadata(
         description="""
@@ -170,9 +194,7 @@ class XdpFunctional(TestSuite):
         priority=2,
         requirement=simple_requirement(min_count=2),
     )
-    def verify_xdp_action_tx(
-        self, environment: Environment, case_name: str, log: Logger
-    ) -> None:
+    def verify_xdp_action_tx(self, environment: Environment, case_name: str) -> None:
         # tx has response packet from ping source side
         self._test_with_action(
             environment=environment,
@@ -208,7 +230,7 @@ class XdpFunctional(TestSuite):
         requirement=simple_requirement(min_count=2),
     )
     def verify_xdp_action_aborted(
-        self, environment: Environment, case_name: str, log: Logger
+        self, environment: Environment, case_name: str
     ) -> None:
         # expect no response from the ping source side.
         self._test_with_action(
@@ -360,3 +382,25 @@ class XdpFunctional(TestSuite):
         assert_that(last_line).described_as(
             "failed on matching xdpdump result."
         ).is_equal_to("unloading xdp program...")
+
+    def _reset_nic_stats(self, node: Node) -> None:
+        network_interface_feature = node.features[NetworkInterface]
+        # Ensure netvsc module is loaded
+        network_interface_feature.reload_module()
+
+    def _get_drop_stats(self, nic_name: str, node: Node, log: Logger) -> int:
+        is_primary_nic = any(x for x in node.nics.get_upper_nics() if x == nic_name)
+        ethtool = node.tools[Ethtool]
+        stats = ethtool.get_device_statistics(nic_name, force_run=True)
+
+        # aggrerate xdp drop count by different nic type
+        if is_primary_nic:
+            pattern = self._rx_drop_pattern_synthetic
+        else:
+            pattern = self._rx_drop_pattern_vf
+        matched_items = {
+            key: value for key, value in stats.items() if pattern.match(key)
+        }
+        log.debug(f"found drop stats: {matched_items}")
+
+        return sum(value for value in matched_items.values())
