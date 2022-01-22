@@ -443,6 +443,7 @@ class TestCaseMetadata:
     def __call__(self, func: Callable[..., None]) -> Callable[..., None]:
         self.name = func.__name__
         self.full_name = func.__qualname__
+        self.qualname = func.__qualname__
 
         self._func = func
         _add_case_metadata(self)
@@ -766,10 +767,7 @@ def get_cases_metadata() -> Dict[str, TestCaseMetadata]:
 
 
 def _add_suite_metadata(metadata: TestSuiteMetadata) -> None:
-    if metadata.name:
-        key = metadata.name
-    else:
-        key = metadata.test_class.__name__
+    key = metadata.test_class.__name__
     exist_metadata = _all_suites.get(key)
     if exist_metadata is None:
         _all_suites[key] = metadata
@@ -792,17 +790,17 @@ def _add_suite_metadata(metadata: TestSuiteMetadata) -> None:
 
 def _add_case_metadata(metadata: TestCaseMetadata) -> None:
 
-    full_name = metadata.full_name
-    if _all_cases.get(full_name) is None:
-        _all_cases[full_name] = metadata
+    qualname = metadata.qualname
+    if _all_cases.get(qualname) is None:
+        _all_cases[qualname] = metadata
     else:
-        raise LisaException(f"duplicate test class name: {full_name}")
+        raise LisaException(f"duplicate test class name: {qualname}")
 
     # this should be None in current observation.
     # the methods are loaded prior to test class
     # in case logic is changed, so keep this logic
     #   to make two collection consistent.
-    class_name = full_name.split(".")[0]
+    class_name = qualname.split(".")[0]
     test_suite = _all_suites.get(class_name)
     if test_suite:
         log = get_logger("init", "test")
@@ -814,6 +812,7 @@ def _add_case_to_suite(
     test_suite: TestSuiteMetadata, test_case: TestCaseMetadata
 ) -> None:
     test_case.suite = test_suite
+    test_case.full_name = f"{test_suite.name}.{test_case.name}"
     test_suite.cases.append(test_case)
 
 
