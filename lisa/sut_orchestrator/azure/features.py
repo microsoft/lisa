@@ -1,6 +1,7 @@
 # Copyright (c) Microsoft Corporation.
 # Licensed under the MIT license.
 
+import copy
 import re
 from dataclasses import dataclass
 from os import unlink
@@ -814,10 +815,9 @@ class Resize(AzureFeatureMixin, features.Resize):
         wait_operation(lro_poller, time_out=300)
 
         self._node.close()
-        self._node.capability = schema.load_by_type(
-            schema.Capability, new_vm_size_info.capability
-        )
-        return new_vm_size_info.capability
+        new_capability = copy.deepcopy(new_vm_size_info.capability)
+        self._node.capability = cast(schema.Capability, new_capability)
+        return new_capability
 
     def _select_vm_size(
         self, resize_action: ResizeAction = ResizeAction.IncreaseCoreCount
