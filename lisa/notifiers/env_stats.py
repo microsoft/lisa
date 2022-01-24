@@ -17,7 +17,7 @@ class TestResultInformation:
     id: str
     name: str
     status: str = ""
-    environment: Optional["EnvironmentInformation"] = None
+    environment: str = ""
     started_time: Optional[datetime] = None
 
 
@@ -92,7 +92,7 @@ class EnvironmentStats(notifier.Notifier):
             assert (
                 environment_info
             ), f"cannot find environment for test result: {test_result}"
-            result_info.environment = environment_info
+            result_info.environment = env_name
             if result_info not in environment_info.results:
                 environment_info.results.append(result_info)
 
