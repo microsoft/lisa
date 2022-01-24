@@ -81,7 +81,7 @@ function Create-TestResultObject() {
 function Upload-RemoteFile($uploadTo, $port, $file, $username, $password, $usePrivateKey, $maxRetry) {
 	$retry = 1
 	if (!$maxRetry) {
-		$maxRetry = 10
+		$maxRetry = 20
 	}
 	while ($retry -le $maxRetry) {
 		$pscpStuckTimeoutInSeconds = New-Timespan -Seconds 540
