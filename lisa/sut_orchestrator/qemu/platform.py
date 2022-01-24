@@ -8,7 +8,7 @@ import string
 import subprocess
 import time
 import xml.etree.ElementTree as ET  # noqa: N817
-from typing import List, Optional, Tuple, Type
+from typing import Any, List, Optional, Tuple, Type
 
 import libvirt  # type: ignore
 import pycdlib  # type: ignore
@@ -46,6 +46,9 @@ class QemuPlatform(Platform):
     def supported_features(cls) -> List[Type[Feature]]:
         return QemuPlatform._supported_features
 
+    def _initialize(self, *args: Any, **kwargs: Any) -> None:
+        libvirt_events_thread.init()
+
     def _prepare_environment(self, environment: Environment, log: Logger) -> bool:
         return True
 
@@ -57,8 +60,6 @@ class QemuPlatform(Platform):
             self._delete_nodes(environment, log, qemu_conn)
 
     def _deploy_nodes(self, environment: Environment, log: Logger) -> None:
-        libvirt_events_thread.init()
-
         self._configure_nodes(environment, log)
 
         with libvirt.open("qemu:///system") as qemu_conn:
