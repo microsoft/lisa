@@ -62,12 +62,18 @@ function Main {
         Write-LogInfo "Verifying if data disks are added to the VM - running fdisk on remote VM"
         $retry = 1
         $retryMaxTimes = 2
+        if ($allVMData.InstanceSize -imatch "Standard_[DE]\d+pl?s_.") {
+            # These VM sizes don't have local disk. So the attached disk starts from dev/sdb
+            $diskPattern = "Disk /dev/sd[a-z][a-z]|sd[b-z]:"
+        } else {
+            $diskPattern = "Disk /dev/sd[a-z][a-z]|sd[c-z]:"
+        }
         # retry here - it takes time to show all disks on the VM
         while ($retry -lt $retryMaxTimes) {
             $verifiedDiskCount = 0
             $fdiskOutput = Run-LinuxCmd -username $user -password $password -ip $AllVMData.PublicIP -port $AllVMData.SSHPort -command "/sbin/fdisk -l | grep /dev/sd" -runAsSudo
             foreach ($line in ($fdiskOutput.Split([Environment]::NewLine))) {
-                if ($line -imatch "Disk /dev/sd[a-z][a-z]|sd[c-z]:" -and [int64]($line.Split()[4]) -eq (([int64]($diskSizeinGB) * [int64]1073741824))){
+                if ($line -imatch $diskPattern -and [int64]($line.Split()[4]) -eq (([int64]($diskSizeinGB) * [int64]1073741824))){
                     $verifiedDiskCount += 1
                     Write-LogInfo "$verifiedDiskCount data disk is successfully attached the VM: $line"
                 }
@@ -78,6 +84,7 @@ function Main {
                 break
             } else {
                 Write-LogInfo "Retry times - $retry"
+                $retry++
                 Start-Sleep 30
             }
         }
@@ -96,7 +103,7 @@ function Main {
         Write-LogInfo "Verifying if data disks are removed from the VM: Running fdisk on remote VM"
         $fdiskFinalOutput = Run-LinuxCmd -username $user -password $password -ip  $AllVMData.PublicIP -port $AllVMData.SSHPort -command "/sbin/fdisk -l | grep /dev/sd" -runAsSudo
         foreach ($line in ($fdiskFinalOutput.Split([Environment]::NewLine))) {
-            if($line -imatch "Disk /dev/sd[a-z][a-z]|sd[c-z]:" -and [int64]($line.Split()[4]) -eq (([int64]($diskSizeinGB) * [int64]1073741824))) {
+            if($line -imatch $diskPattern -and [int64]($line.Split()[4]) -eq (([int64]($diskSizeinGB) * [int64]1073741824))) {
                 $testResult=$resultFail
                 throw "Data disk is NOT removed from the VM at $line"
             }
