@@ -23,7 +23,7 @@ class Ping(Tool):
     ) -> Process:
         if not target:
             target = INTERNET_PING_ADDRESS
-        args: str = f"{target} -c {count} -i {interval}"
+        args: str = f"{target} -c {count} -i {interval} -O"
         if nic_name:
             args += f" -I {nic_name}"
         if package_size:
