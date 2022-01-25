@@ -78,10 +78,11 @@ function Main {
 
         Write-LogInfo "Update kernel to latest..."
         Run-LinuxCmd -ip $clientVMData.PublicIP -port 1112 -username $user `
-                    -password $password -command "sudo rpm -ivh https://elrepo.org/linux/kernel/el7/x86_64/RPMS/kernel-ml-5.16.2-1.el7.elrepo.x86_64.rpm -y" -runAsSudo | Out-Null
+                    -password $password -command "sudo rpm -ivh https://elrepo.org/linux/kernel/el7/x86_64/RPMS/kernel-ml-5.16.2-1.el7.elrepo.x86_64.rpm && sed -i 's/GRUB_DEFAULT=.*/GRUB_DEFAULT=1/' /etc/default/grub && sudo grub2-mkconfig -o /boot/efi/EFI/centos/grub.cfg" -runAsSudo | Out-Null
         Run-LinuxCmd -ip $clientVMData.PublicIP -port 1111 -username $user `
-                    -password $password -command "sudo rpm -ivh https://elrepo.org/linux/kernel/el7/x86_64/RPMS/kernel-ml-5.16.2-1.el7.elrepo.x86_64.rpm -y" -runAsSudo | Out-Null
+                    -password $password -command "sudo rpm -ivh https://elrepo.org/linux/kernel/el7/x86_64/RPMS/kernel-ml-5.16.2-1.el7.elrepo.x86_64.rpm && sed -i 's/GRUB_DEFAULT=.*/GRUB_DEFAULT=1/' /etc/default/grub && sudo grub2-mkconfig -o /boot/efi/EFI/centos/grub.cfg" -runAsSudo | Out-Null
 
+                    
         # Restart VM to apply systemd setting
         if (-not $TestProvider.RestartAllDeployments($allVMData)) {
             Write-LogErr "Unable to connect to VM after restart!"
