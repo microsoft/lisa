@@ -201,11 +201,17 @@ class TestResult:
                 node_os_capability = search_space.SetSpace[Type[OperatingSystem]](
                     is_allow_set=True, items=type(node.os).__mro__
                 )
-                check_result.merge(
-                    requirement.os_type.check(node_os_capability), "os_type"
-                )
-                if not check_result.result:
-                    break
+                os_result = requirement.os_type.check(node_os_capability)
+                # If one of OS mismatches, mark the test case is skipped. It
+                # assumes no more env can meet the requirements, instead of
+                # checking the rest envs one by one. The reason is this checking
+                # is a dynamic checking, and it needs to be checked in each
+                # deployed environment. It may cause to deploy a lot of
+                # environment for checking. In another hand, the OS should be
+                # the same for all environments in the same lisa runner. So it's
+                # safe to skip a test case on first os mismatched.
+                if not os_result.result:
+                    raise SkippedException(f"OS type mismatch: {os_result.reasons}")
         if save_reason:
             if self.check_results:
                 self.check_results.merge(check_result)
