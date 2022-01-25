@@ -302,6 +302,11 @@ def decode_set_space_by_type(
         for item in types:
             new_data.add(base_type(item))  # type: ignore
         decoded_data: Optional[Union[SetSpace[T], T]] = new_data
+    elif isinstance(data, list):
+        new_data = SetSpace[T](is_allow_set=True)
+        for item in data:
+            new_data.add(base_type(item))  # type: ignore
+        decoded_data = new_data
     elif isinstance(data, str):
         decoded_data = base_type(data)  # type: ignore
     else:
