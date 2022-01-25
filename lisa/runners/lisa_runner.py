@@ -5,7 +5,7 @@ import copy
 from functools import partial
 from typing import Any, Callable, Dict, List, Optional, cast
 
-from lisa import notifier, schema, search_space
+from lisa import SkippedException, notifier, schema, search_space
 from lisa.action import ActionStatus
 from lisa.environment import (
     Environment,
@@ -491,12 +491,22 @@ class LisaRunner(BaseRunner):
             )
         ]
         if environment:
-            results = [
-                x
-                for x in results
-                if x.check_environment(environment=environment, save_reason=True)
-                and (not x.runtime_data.use_new_environment or environment.is_new)
-            ]
+            runnable_results: List[TestResult] = []
+            for result in results:
+                try:
+                    if result.check_environment(
+                        environment=environment, save_reason=True
+                    ) and (
+                        not result.runtime_data.use_new_environment
+                        or environment.is_new
+                    ):
+                        runnable_results.append(result)
+                except SkippedException as identifier:
+                    # when check the environment, the test result may be marked
+                    # as skipped, due to the test result is assumed not to match
+                    # any environment.
+                    result.handle_exception(identifier, log=self._log, phase="check")
+            results = runnable_results
 
         # only select one test case, which needs the new environment. Others
         # will be dropped to next environment.

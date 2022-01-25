@@ -407,22 +407,6 @@ class TestSuiteTestCase(TestCase):
             check_result = result.check_environment(self.default_env)
             self.assertTrue(check_result)
 
-    def test_result_check_env_os_type_unsupported(self) -> None:
-        _ = self.generate_suite_instance()
-        assert self.default_env
-        self.default_env.status = EnvironmentStatus.Connected
-        self.default_env._is_initialized = True
-        case_metadata = self.case_results[0].runtime_data.metadata
-        case_metadata.requirement = simple_requirement(
-            min_count=2, unsupported_os=[Posix]
-        )
-        for node in self.default_env.nodes.list():
-            node.os = Posix(node)
-        check_result = self.case_results[0].check_environment(self.default_env)
-        self.assertFalse(check_result)
-        check_result = self.case_results[1].check_environment(self.default_env)
-        self.assertTrue(check_result)
-
     def test_result_check_env_os_type_supported(self) -> None:
         _ = self.generate_suite_instance()
         assert self.default_env
@@ -453,8 +437,9 @@ class TestSuiteTestCase(TestCase):
         )
         for node in self.default_env.nodes.list():
             node.os = Windows(node)
-        check_result = self.case_results[0].check_environment(self.default_env)
-        self.assertFalse(check_result)
+        with self.assertRaises(SkippedException) as cm:
+            self.case_results[0].check_environment(self.default_env)
+        self.assertEqual("OS type mismatch:", str(cm.exception)[:17])
         check_result = self.case_results[1].check_environment(self.default_env)
         self.assertTrue(check_result)
 
