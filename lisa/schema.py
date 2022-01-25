@@ -774,9 +774,9 @@ class NodeSpace(search_space.RequirementMixin, TypedSchema, ExtendableSchemaMixi
             search_space.check_countspace(self.memory_mb, capability.memory_mb),
             "memory_mb",
         )
-        if self.disk and capability.disk:
+        if self.disk:
             result.merge(self.disk.check(capability.disk))
-        if self.network_interface and capability.network_interface:
+        if self.network_interface:
             result.merge(self.network_interface.check(capability.network_interface))
         result.merge(
             search_space.check_countspace(self.gpu_count, capability.gpu_count),

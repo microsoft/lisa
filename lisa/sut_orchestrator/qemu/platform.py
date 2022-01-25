@@ -14,7 +14,7 @@ import libvirt  # type: ignore
 import pycdlib  # type: ignore
 import yaml
 
-from lisa import schema
+from lisa import schema, search_space
 from lisa.environment import Environment
 from lisa.feature import Feature
 from lisa.node import Node, RemoteNode
@@ -50,6 +50,15 @@ class QemuPlatform(Platform):
         libvirt_events_thread.init()
 
     def _prepare_environment(self, environment: Environment, log: Logger) -> bool:
+        if not environment.runbook.nodes_requirement:
+            return True
+
+        nodes_requirement = []
+        for node_space in environment.runbook.nodes_requirement:
+            node_capabilities = self._create_node_capabilities(log, node_space)
+            nodes_requirement.append(node_capabilities)
+
+        environment.runbook.nodes_requirement = nodes_requirement
         return True
 
     def _deploy_environment(self, environment: Environment, log: Logger) -> None:
@@ -58,6 +67,31 @@ class QemuPlatform(Platform):
     def _delete_environment(self, environment: Environment, log: Logger) -> None:
         with libvirt.open("qemu:///system") as qemu_conn:
             self._delete_nodes(environment, log, qemu_conn)
+
+    # Check what capabilities can be provided for the node.
+    def _create_node_capabilities(
+        self, log: Logger, node_space: schema.NodeSpace
+    ) -> schema.NodeSpace:
+        node_capabilities = schema.NodeSpace()
+        node_capabilities.name = "QEMU"
+        node_capabilities.node_count = 1
+        node_capabilities.core_count = 2
+        node_capabilities.memory_mb = 4096
+        node_capabilities.disk = schema.DiskOptionSettings()
+        node_capabilities.network_interface = schema.NetworkInterfaceOptionSettings()
+        node_capabilities.network_interface.max_nic_count = 1
+        node_capabilities.gpu_count = 0
+        node_capabilities.features = search_space.SetSpace[schema.FeatureSettings](
+            is_allow_set=True,
+            items=[
+                schema.FeatureSettings.create(SerialConsole.name()),
+            ],
+        )
+
+        node_capabilities.set_extended_runbook(
+            node_space.get_extended_runbook(QemuNodeSchema, type_name=QEMU)
+        )
+        return node_capabilities
 
     def _deploy_nodes(self, environment: Environment, log: Logger) -> None:
         self._configure_nodes(environment, log)
