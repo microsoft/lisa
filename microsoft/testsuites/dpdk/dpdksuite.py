@@ -29,6 +29,7 @@ from lisa.util.parallel import Task, TaskManager
 from microsoft.testsuites.dpdk.dpdknffgo import DpdkNffGo
 from microsoft.testsuites.dpdk.dpdktestpmd import DpdkTestpmd
 from microsoft.testsuites.dpdk.dpdkvpp import DpdkVpp
+from microsoft.testsuites.dpdk.dpdkovs import DpdkOvs
 
 VDEV_TYPE = "net_vdev_netvsc"
 MAX_RING_PING_LIMIT_NS = 200000
@@ -108,6 +109,23 @@ class Dpdk(TestSuite):
         _init_hugepages(node)
         # run the nff-go tests
         nff_go.run_test()
+
+    @TestCaseMetadata(
+        description="""
+           Install and run functionality check for OpenVirtualSwitch
+        """,
+        priority=3,
+        requirement=simple_requirement(
+            min_nic_count=2,
+            network_interface=Sriov(),
+        ),
+    )
+    def verify_dpdk_ovs(
+        self, node: Node, log: Logger, variables: Dict[str, Any]
+    ) -> None:
+        ovs = node.tools[DpdkOvs]
+        # hugepages needed for dpdk tests
+        _init_hugepages(node)
 
     @TestCaseMetadata(
         description="""
