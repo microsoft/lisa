@@ -8,13 +8,13 @@ import string
 import subprocess
 import time
 import xml.etree.ElementTree as ET  # noqa: N817
-from typing import List, Optional, Tuple, Type
+from typing import Any, List, Optional, Tuple, Type
 
 import libvirt  # type: ignore
 import pycdlib  # type: ignore
 import yaml
 
-from lisa import schema
+from lisa import schema, search_space
 from lisa.environment import Environment
 from lisa.feature import Feature
 from lisa.node import Node, RemoteNode
@@ -23,11 +23,18 @@ from lisa.util import LisaException, constants, get_public_key_data
 from lisa.util.logger import Logger
 
 from .. import QEMU
+from . import libvirt_events_thread
+from .console_logger import QemuConsoleLogger
 from .context import get_environment_context, get_node_context
 from .schema import QemuNodeSchema
+from .serial_console import SerialConsole
 
 
 class QemuPlatform(Platform):
+    _supported_features: List[Type[Feature]] = [
+        SerialConsole,
+    ]
+
     def __init__(self, runbook: schema.Platform) -> None:
         super().__init__(runbook=runbook)
 
@@ -37,9 +44,21 @@ class QemuPlatform(Platform):
 
     @classmethod
     def supported_features(cls) -> List[Type[Feature]]:
-        return []
+        return QemuPlatform._supported_features
+
+    def _initialize(self, *args: Any, **kwargs: Any) -> None:
+        libvirt_events_thread.init()
 
     def _prepare_environment(self, environment: Environment, log: Logger) -> bool:
+        if not environment.runbook.nodes_requirement:
+            return True
+
+        nodes_requirement = []
+        for node_space in environment.runbook.nodes_requirement:
+            node_capabilities = self._create_node_capabilities(log, node_space)
+            nodes_requirement.append(node_capabilities)
+
+        environment.runbook.nodes_requirement = nodes_requirement
         return True
 
     def _deploy_environment(self, environment: Environment, log: Logger) -> None:
@@ -48,6 +67,31 @@ class QemuPlatform(Platform):
     def _delete_environment(self, environment: Environment, log: Logger) -> None:
         with libvirt.open("qemu:///system") as qemu_conn:
             self._delete_nodes(environment, log, qemu_conn)
+
+    # Check what capabilities can be provided for the node.
+    def _create_node_capabilities(
+        self, log: Logger, node_space: schema.NodeSpace
+    ) -> schema.NodeSpace:
+        node_capabilities = schema.NodeSpace()
+        node_capabilities.name = "QEMU"
+        node_capabilities.node_count = 1
+        node_capabilities.core_count = 2
+        node_capabilities.memory_mb = 4096
+        node_capabilities.disk = schema.DiskOptionSettings()
+        node_capabilities.network_interface = schema.NetworkInterfaceOptionSettings()
+        node_capabilities.network_interface.max_nic_count = 1
+        node_capabilities.gpu_count = 0
+        node_capabilities.features = search_space.SetSpace[schema.FeatureSettings](
+            is_allow_set=True,
+            items=[
+                schema.FeatureSettings.create(SerialConsole.name()),
+            ],
+        )
+
+        node_capabilities.set_extended_runbook(
+            node_space.get_extended_runbook(QemuNodeSchema, type_name=QEMU)
+        )
+        return node_capabilities
 
     def _deploy_nodes(self, environment: Environment, log: Logger) -> None:
         self._configure_nodes(environment, log)
@@ -98,6 +142,10 @@ class QemuPlatform(Platform):
             node_context.os_disk_file_path = os.path.join(
                 vm_disks_dir, f"{node_context.vm_name}-os.qcow2"
             )
+            node_context.console_log_file_path = os.path.join(
+                vm_disks_dir, f"{node_context.vm_name}-console.log"
+            )
+            node_context.console_logger = QemuConsoleLogger()
 
             if not node.name:
                 node.name = node_context.vm_name
@@ -120,6 +168,8 @@ class QemuPlatform(Platform):
         self, environment: Environment, log: Logger, qemu_conn: libvirt.virConnect
     ) -> None:
         for node in environment.nodes.list():
+            node_context = get_node_context(node)
+
             # Create cloud-init ISO file.
             self._create_node_cloud_init_iso(environment, log, node)
 
@@ -129,7 +179,20 @@ class QemuPlatform(Platform):
             # Create libvirt domain (i.e. VM).
             xml = self._create_node_domain_xml(environment, log, node)
             domain = qemu_conn.defineXML(xml)
-            domain.create()
+
+            # Start the VM in the paused state.
+            # This gives the console logger a chance to connect before the VM starts
+            # for real.
+            domain.createWithFlags(libvirt.VIR_DOMAIN_START_PAUSED)
+
+            # Attach the console logger
+            assert node_context.console_logger
+            node_context.console_logger.attach(
+                qemu_conn, domain, node_context.console_log_file_path
+            )
+
+            # Start the VM.
+            domain.resume()
 
     # Delete all the VMs.
     def _delete_nodes(
@@ -141,6 +204,15 @@ class QemuPlatform(Platform):
 
             # Shutdown and delete the VM.
             self._stop_and_delete_vm(environment, log, qemu_conn, node)
+
+            assert node_context.console_logger
+            node_context.console_logger.close()
+
+            # Delete console log file
+            try:
+                os.remove(node_context.console_log_file_path)
+            except Exception as ex:
+                log.warning(f"console log delete failed. {ex}")
 
             # Delete the files created for the VM.
             try:
