@@ -112,7 +112,7 @@ class QemuPlatform(Platform):
         environment_context = get_environment_context(environment)
 
         # Generate a random name for the VMs.
-        test_suffix = "".join(random.choice(string.ascii_uppercase) for i in range(5))
+        test_suffix = "".join(random.choice(string.ascii_uppercase) for _ in range(5))
         vm_name_prefix = f"lisa-{test_suffix}"
 
         environment_context.ssh_public_key = get_public_key_data(
@@ -386,9 +386,9 @@ class QemuPlatform(Platform):
 
         features = ET.SubElement(domain, "features")
 
-        acpi = ET.SubElement(features, "acpi")  # noqa: F841
+        ET.SubElement(features, "acpi")
 
-        apic = ET.SubElement(features, "apic")  # noqa: F841
+        ET.SubElement(features, "apic")
 
         cpu = ET.SubElement(domain, "cpu")
         cpu.attrib["mode"] = "host-passthrough"
