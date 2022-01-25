@@ -20,6 +20,7 @@ from lisa import (
 )
 from lisa.features import NetworkInterface, Sriov, Synthetic
 from lisa.tools import Ethtool, Ip, TcpDump
+from lisa.tools.ping import INTERNET_PING_ADDRESS
 from microsoft.testsuites.xdp.xdpdump import ActionType, XdpDump
 from microsoft.testsuites.xdp.xdptools import XdpTool
 
@@ -294,6 +295,77 @@ class XdpFunctional(TestSuite):
         finally:
             xdp_node_ip.set_mtu(xdp_node_nic_name, original_xdp_node_mtu)
             remote_ip.set_mtu(remote_nic_name, original_remote_mtu)
+
+    @TestCaseMetadata(
+        description="""
+        It validates the XDP works with VF hot add/remove from API.
+
+        1. Run xdp dump to drop and count packets.
+        2. Remove VF from API.
+        3. Run xdp dump to drop and count packets.
+        5. Add VF back from API.
+        6. Run xdp dump to drop and count packets.
+        """,
+        priority=3,
+        requirement=simple_requirement(network_interface=Sriov()),
+    )
+    def verify_xdp_remove_add_vf(self, node: Node, log: Logger) -> None:
+        xdpdump = self._get_xdpdump(node)
+
+        nic_name = node.nics.default_nic
+        nic_feature = node.features[NetworkInterface]
+
+        try:
+            # validate xdp works with VF
+            self._reset_nic_stats(node)
+            output = xdpdump.test(
+                nic_name=nic_name,
+                action_type=ActionType.DROP,
+                expected_ping_success=False,
+                remote_address=INTERNET_PING_ADDRESS,
+            )
+            self._verify_xdpdump_result(output)
+            drop_count = self._get_drop_stats(nic_name=nic_name, node=node, log=log)
+            assert_that(drop_count).described_as(
+                "the source side should have 5 dropped packets when VF is enabled."
+            ).is_equal_to(5)
+
+            # disable VF
+            nic_feature.switch_sriov(False)
+
+            # validate xdp works with synthetic
+            self._reset_nic_stats(node)
+            output = xdpdump.test(
+                nic_name=nic_name,
+                action_type=ActionType.DROP,
+                expected_ping_success=False,
+                remote_address=INTERNET_PING_ADDRESS,
+            )
+            self._verify_xdpdump_result(output)
+            drop_count = self._get_drop_stats(nic_name=nic_name, node=node, log=log)
+            assert_that(drop_count).described_as(
+                "There should be 5 dropped packets when VF is disabled."
+            ).is_equal_to(5)
+
+            # enable VF and validate xdp works with VF again
+            nic_feature.switch_sriov(True)
+
+            self._reset_nic_stats(node)
+            output = xdpdump.test(
+                nic_name=nic_name,
+                action_type=ActionType.DROP,
+                expected_ping_success=False,
+                remote_address=INTERNET_PING_ADDRESS,
+            )
+            self._verify_xdpdump_result(output)
+            drop_count = self._get_drop_stats(nic_name=nic_name, node=node, log=log)
+            assert_that(drop_count).described_as(
+                "the source side should have 5 dropped packets when VF back again."
+            ).is_equal_to(5)
+        finally:
+            # recover sriov to on, it prevents the test fails when the sriov is
+            # off.
+            nic_feature.switch_sriov(True)
 
     @TestCaseMetadata(
         description="""
