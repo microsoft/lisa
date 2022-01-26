@@ -141,6 +141,7 @@ class StoragePerformance(TestSuite):
             environment,
             test_case_name="perf_premium_datadisks_io",
             max_iodepth=64,
+            filename="/dev/sdc",
         )
 
     @TestCaseMetadata(
@@ -340,6 +341,7 @@ class StoragePerformance(TestSuite):
         test_case_name: str,
         block_size: int = 4,
         max_iodepth: int = 256,
+        filename: str = "/dev/md0",
     ) -> None:
         disk = node.features[Disk]
         data_disks = disk.get_raw_data_disks()
@@ -350,7 +352,6 @@ class StoragePerformance(TestSuite):
         partition_disks = _format_disk(node, data_disks)
         _stop_raid(node)
         _make_raid(node, partition_disks)
-        filename = "/dev/md0"
         cpu = node.tools[Lscpu]
         core_count = cpu.get_core_count()
         start_iodepth = 1
