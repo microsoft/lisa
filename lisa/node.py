@@ -133,7 +133,7 @@ class Node(subclasses.BaseClassWithRunbookMixin, ContextMixin, InitializableMixi
         The working path may be a remote path on remote node. It uses to put executable.
         """
         if not self._working_path:
-            self._working_path = self._create_working_path()
+            self._working_path = self.get_working_path()
 
             self.shell.mkdir(self._working_path, parents=True, exist_ok=True)
             self.log.debug(f"working path is: '{self._working_path}'")
@@ -290,7 +290,12 @@ class Node(subclasses.BaseClassWithRunbookMixin, ContextMixin, InitializableMixi
         )
         return process
 
-    def _create_working_path(self) -> PurePath:
+    def get_working_path(self) -> PurePath:
+        """
+        It returns the path with expanded environment variables, but not create
+        the folder. So, it can be used to locate a relative path from it, and
+        not create extra folders.
+        """
         raise NotImplementedError()
 
 
@@ -401,7 +406,7 @@ class RemoteNode(Node):
         assert self._connection_info, "call setConnectionInfo before use remote node"
         super()._initialize(*args, **kwargs)
 
-    def _create_working_path(self) -> PurePath:
+    def get_working_path(self) -> PurePath:
         if self.is_posix:
             remote_root_path = Path("$HOME")
         else:
@@ -449,7 +454,7 @@ class LocalNode(Node):
     def type_schema(cls) -> Type[schema.TypedSchema]:
         return schema.LocalNode
 
-    def _create_working_path(self) -> PurePath:
+    def get_working_path(self) -> PurePath:
         return constants.RUN_LOCAL_PATH
 
     def __repr__(self) -> str:

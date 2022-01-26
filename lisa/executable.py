@@ -274,12 +274,19 @@ class Tool(InitializableMixin):
             expected_exit_code_failure_message=expected_exit_code_failure_message,
         )
 
-    def get_tool_path(self) -> pathlib.PurePath:
+    def get_tool_path(self, use_global: bool = False) -> pathlib.PurePath:
         """
         compose a path, if the tool need to be installed
         """
-        assert self.node.working_path, "working path is not initialized"
-        path = self.node.working_path.joinpath(constants.PATH_TOOL, self.name)
+        if use_global:
+            # change from lisa_working/20220126/20220126-194017-621 to
+            # lisa_working. The self.node.generate_working_path will determinate
+            # if it's Windows or Linux.
+            working_path = self.node.get_working_path().parent.parent
+        else:
+            assert self.node.working_path, "working path is not initialized"
+            working_path = self.node.working_path
+        path = working_path.joinpath(constants.PATH_TOOL, self.name)
         self.node.shell.mkdir(path, exist_ok=True)
         return path
 
