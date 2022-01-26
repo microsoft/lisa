@@ -1,7 +1,6 @@
 # Copyright (c) Microsoft Corporation.
 # Licensed under the MIT license.
 from enum import Enum
-from pathlib import PurePath
 from typing import Any, Dict, Optional
 
 from assertpy import assert_that
@@ -31,7 +30,7 @@ class XdpDump(Tool):
 
     @property
     def command(self) -> str:
-        return str(self._command)
+        return str(self._code_path / "xdpdump")
 
     @property
     def can_install(self) -> bool:
@@ -39,8 +38,10 @@ class XdpDump(Tool):
 
     def _initialize(self, *args: Any, **kwargs: Any) -> None:
         super()._initialize(*args, **kwargs)
-        self._command: PurePath = PurePath("xdpdump")
         self._gro_lro_settings: Dict[str, DeviceGroLroSettings] = {}
+        self._code_path = (
+            self.get_tool_path(use_global=True) / "bpf-samples" / "xdpdump"
+        )
 
     def _install(self) -> bool:
         # install dependencies
@@ -69,10 +70,13 @@ class XdpDump(Tool):
             raise UnsupportedDistroException(self.node.os)
 
         git = self.node.tools[Git]
-        self._code_path = git.clone(self._bpf_samples_repo, cwd=self.get_tool_path())
-        self._code_path = self._code_path / "xdpdump"
+        code_path = git.clone(
+            self._bpf_samples_repo, cwd=self.get_tool_path(use_global=True)
+        )
+        assert_that(code_path).described_as(
+            "xdpdump cloned path is inconstent with preconfigured"
+        ).is_equal_to(self._code_path.parent)
         git.init_submodules(cwd=self._code_path)
-        self._command = self._code_path / "xdpdump"
 
         # create a default version for exists checking.
         make = self.node.tools[Make]
@@ -118,7 +122,7 @@ class XdpDump(Tool):
                     command,
                     shell=True,
                     sudo=True,
-                    cwd=self._command.parent,
+                    cwd=self._code_path,
                 )
 
                 is_success = ping.ping(
@@ -137,7 +141,7 @@ class XdpDump(Tool):
                     command,
                     shell=True,
                     sudo=True,
-                    cwd=self._command.parent,
+                    cwd=self._code_path,
                 )
         finally:
             self._restore_lro(nic_name)
