@@ -305,15 +305,19 @@ class Nics(InitializableMixin):
 
         for line in result.stdout.splitlines():
             sriov_match = self.__nic_lower_regex.search(line)
-            if not sriov_match:
-                self._node.log.debug(f"There is no VF on node {self._node.name}.")
-                for nic_name in self.nic_names:
-                    nic_info = NicInfo(nic_name)
-                    self.append(nic_info)
-            else:
+            if sriov_match:
                 upper_nic, lower_nic, pci_slot = sriov_match.groups()
                 nic_info = NicInfo(upper_nic, lower_nic, pci_slot)
                 self.append(nic_info)
+
+        # Collects NIC info for any unpaired NICS
+        for nic_name in [
+            x
+            for x in self.nic_names
+            if x not in self.get_upper_nics() and x not in self.get_lower_nics()
+        ]:
+            nic_info = NicInfo(nic_name)
+            self.append(nic_info)
 
         assert_that(len(self)).described_as(
             "During Lisa nic info initialization, Nics class could not "
