@@ -1,7 +1,7 @@
 # Copyright (c) Microsoft Corporation.
 # Licensed under the MIT license.
 
-from typing import Any
+from typing import Any, List, Optional
 
 from assertpy.assertpy import assert_that
 
@@ -25,6 +25,7 @@ class Qemu(Tool):
         self,
         port: int,
         guest_image_path: str,
+        disks: Optional[List[str]] = None,
     ) -> None:
         # start vm on the current node
         # port : port of the host vm mapped to the guest's ssh port
@@ -39,11 +40,24 @@ class Qemu(Tool):
         # -enable-kvm: enable kvm
         # -display: enable or disable display
         # -demonize: run in background
-        self.run(
+        cmd = (
             f"-smp 2 -m 2048 -hda {guest_image_path} "
             "-device e1000,netdev=user.0 "
             f"-netdev user,id=user.0,hostfwd=tcp::{port}-:22 "
-            "-enable-kvm -display none -daemonize",
+            "-enable-kvm -display none -daemonize "
+        )
+
+        # add disks
+        if disks:
+            for disk in disks:
+                cmd += (
+                    f"-drive id=datadisk-{disk},"
+                    f"file=/dev/{disk},cache=none,if=none,format=raw,aio=threads "
+                    f"-device virtio-scsi-pci -device scsi-hd,drive=datadisk-{disk} "
+                )
+
+        self.run(
+            cmd,
             sudo=True,
             shell=True,
             expected_exit_code=0,
