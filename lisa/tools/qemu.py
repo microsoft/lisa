@@ -7,7 +7,7 @@ from assertpy.assertpy import assert_that
 
 from lisa.executable import Tool
 from lisa.operating_system import Fedora, Posix
-from lisa.tools import Lsmod
+from lisa.tools import Kill, Lsmod
 
 
 class Qemu(Tool):
@@ -56,6 +56,9 @@ class Qemu(Tool):
                     f"-device virtio-scsi-pci -device scsi-hd,drive=datadisk-{disk} "
                 )
 
+        # kill any existing qemu process
+        self.stop_vm()
+
         self.run(
             cmd,
             sudo=True,
@@ -71,6 +74,11 @@ class Qemu(Tool):
                 f"firewall-cmd --permanent --add-port={port}/tcp", sudo=True
             )
             self.node.execute("firewall-cmd --reload", sudo=True)
+
+    def stop_vm(self) -> None:
+        # stop vm
+        kill = self.node.tools[Kill]
+        kill.by_name("qemu")
 
     def _initialize(self, *args: Any, **kwargs: Any) -> None:
         self._qemu_command = "qemu-system-x86_64"
