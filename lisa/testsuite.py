@@ -800,7 +800,11 @@ def _add_case_metadata(metadata: TestCaseMetadata) -> None:
     if _all_cases.get(qualname) is None:
         _all_cases[qualname] = metadata
     else:
-        raise LisaException(f"duplicate test class name: {qualname}")
+        raise LisaException(
+            f"found duplicate test class name: {qualname}. "
+            "Check there is no duplicate test class name, "
+            "and not import by extension twice."
+        )
 
     # this should be None in current observation.
     # the methods are loaded prior to test class
