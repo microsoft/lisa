@@ -6,10 +6,11 @@ from typing import Any, Dict, Optional
 from assertpy import assert_that
 
 from lisa import Node, UnsupportedDistroException
-from lisa.executable import Tool
+from lisa.executable import ExecutableResult, Tool
 from lisa.operating_system import Fedora, Ubuntu
 from lisa.tools import Ethtool, Git, Make, Ping
 from lisa.tools.ethtool import DeviceGroLroSettings
+from lisa.util.process import Process
 from microsoft.testsuites.xdp.xdptools import can_install
 
 
@@ -87,6 +88,33 @@ class XdpDump(Tool):
 
         return self._check_exists()
 
+    def start_async(self, nic_name: str = "", timeout: int = 5) -> Process:
+        try:
+            self._disable_lro(nic_name)
+            command = f"timeout {timeout} {self.command} -i {nic_name}"
+            xdpdump_process = self.node.execute_async(
+                command,
+                shell=True,
+                sudo=True,
+                cwd=self._code_path,
+            )
+        except Exception as identifier:
+            self._restore_lro(nic_name)
+            raise identifier
+
+        return xdpdump_process
+
+    def start(self, nic_name: str = "", timeout: int = 5) -> ExecutableResult:
+        process = self.start_async(nic_name=nic_name, timeout=timeout)
+        return self.wait_result(nic_name=nic_name, process=process)
+
+    def wait_result(self, nic_name: str, process: Process) -> ExecutableResult:
+        try:
+            result = process.wait_result()
+        finally:
+            self._restore_lro(nic_name)
+        return result
+
     def test_by_ping(
         self,
         nic_name: str = "",
@@ -108,43 +136,26 @@ class XdpDump(Tool):
 
         self._make_by_build_type(build_type=build_type)
 
-        try:
-            self._disable_lro(nic_name)
-            command = f"timeout {timeout} {self.command} -i {nic_name}"
+        # if there is an remote address defined, test it in async mode, and
+        # check the ping result.
 
-            # if there is an remote address defined, test it in async mode, and
-            # check the ping result.
+        if remote_address:
+            ping = ping_source_node.tools[Ping]
 
-            if remote_address:
-                ping = ping_source_node.tools[Ping]
+        xdpdump_process = self.start_async(nic_name=nic_name, timeout=timeout)
 
-                xdpdump_process = self.node.execute_async(
-                    command,
-                    shell=True,
-                    sudo=True,
-                    cwd=self._code_path,
-                )
+        if remote_address:
+            is_success = ping.ping(
+                remote_address,
+                nic_name=nic_name,
+                ignore_error=True,
+                package_size=ping_package_size,
+            )
+            assert_that(is_success).described_as(
+                "ping result is not expected."
+            ).is_equal_to(expected_ping_success)
 
-                is_success = ping.ping(
-                    remote_address,
-                    nic_name=nic_name,
-                    ignore_error=True,
-                    package_size=ping_package_size,
-                )
-                assert_that(is_success).described_as(
-                    "ping result is not expected."
-                ).is_equal_to(expected_ping_success)
-
-                result = xdpdump_process.wait_result()
-            else:
-                result = self.node.execute(
-                    command,
-                    shell=True,
-                    sudo=True,
-                    cwd=self._code_path,
-                )
-        finally:
-            self._restore_lro(nic_name)
+        result = self.wait_result(nic_name=nic_name, process=xdpdump_process)
 
         return result.stdout
 
