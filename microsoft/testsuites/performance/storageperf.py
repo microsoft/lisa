@@ -259,12 +259,18 @@ class StoragePerformance(TestSuite):
         ):
             raise SkippedException(f"{server_node.os} not supported")
 
-        # calculate the number of jobs to run. The max number of jobs is equal
-        # to the core count of the node.
+        # Each fio process start jobs equal to the iodepth to read/write from
+        # the disks. The max number of jobs can be equal to the core count of
+        # the node.
+        # Examples:
+        # iodepth = 4, core count = 8 => max_jobs = 4
+        # iodepth = 16, core count = 8 => max_jobs = 8
         num_jobs = []
+        iodepth_iter = start_iodepth
         core_count = client_node.tools[Lscpu].get_core_count()
-        for i in range(start_iodepth, max_iodepth + 1):
-            num_jobs.append(min(2 ** (i - 1), core_count))
+        while iodepth_iter <= max_iodepth:
+            num_jobs.append(min(iodepth_iter, core_count))
+            iodepth_iter = iodepth_iter * 2
 
         # setup raid on server
         server_data_disks = server_node.features[Disk].get_raw_data_disks()
