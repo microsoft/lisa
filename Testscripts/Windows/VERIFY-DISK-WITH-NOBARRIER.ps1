@@ -18,6 +18,12 @@ function Main {
         Write-LogInfo "--------------------------------------------------------"
         Write-LogInfo "Serial Addition of Data Disks"
         Write-LogInfo "--------------------------------------------------------"
+        if ($allVMData.InstanceSize -imatch "Standard_[DE]\d+pl?s_.") {
+            # These VM sizes don't have local disk. So the attached disk starts from dev/sdb
+            $diskPattern = "Disk /dev/sd[a-z][a-z]|sd[b-z]:"
+        } else {
+            $diskPattern = "Disk /dev/sd[a-z][a-z]|sd[c-z]:"
+        }
         While ($count -lt $diskCount) {
             $count += 1
             $verifiedDiskCount = 0
@@ -46,7 +52,7 @@ function Main {
             Write-LogInfo "Verifying if data disk is added to the VM: Running fdisk on remote VM"
             $fdiskOutput = Run-LinuxCmd -username $user -password $password -ip $VM.PublicIP -port $VM.SSHPort -command "/sbin/fdisk -l | grep /dev/sd" -runAsSudo
             foreach ($line in ($fdiskOutput.Split([Environment]::NewLine))) {
-                if ($line -imatch "Disk /dev/sd[a-z][a-z]|sd[c-z]:" -and ([int]($line.Split()[2]) -ge [int]$diskSizeinGB)) {
+                if ($line -imatch $diskPattern -and ([int]($line.Split()[2]) -ge [int]$diskSizeinGB)) {
                     Write-LogInfo "Data disk is successfully attached to the VM: $line"
                     $verifiedDiskCount += 1
                 }
