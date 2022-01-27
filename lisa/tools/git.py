@@ -100,6 +100,12 @@ class Git(Tool):
             no_info_log=True,
         )
 
+    def discard_local_changes(self, cwd: pathlib.PurePath) -> None:
+        result = self.run("checkout .", force_run=True, cwd=cwd, no_error_log=True)
+        result.assert_exit_code(
+            message=f"failed to discard local changes. {result.stdout}"
+        )
+
     def pull(self, cwd: pathlib.PurePath) -> None:
         result = self.run(
             "pull",
