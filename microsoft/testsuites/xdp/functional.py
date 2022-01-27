@@ -21,7 +21,7 @@ from lisa import (
 from lisa.features import NetworkInterface, Sriov, Synthetic
 from lisa.tools import Ethtool, Ip, TcpDump
 from lisa.tools.ping import INTERNET_PING_ADDRESS
-from microsoft.testsuites.xdp.xdpdump import ActionType, XdpDump
+from microsoft.testsuites.xdp.xdpdump import BuildType, XdpDump
 from microsoft.testsuites.xdp.xdptools import XdpTool
 
 
@@ -148,11 +148,11 @@ class XdpFunctional(TestSuite):
         # expect no response from the ping source side.
         captured_node = environment.nodes[0]
         self._reset_nic_stats(captured_node)
-        self._test_with_action(
+        self._test_with_build_type(
             environment=environment,
             captured_node=captured_node,
             case_name=case_name,
-            action=ActionType.DROP,
+            build_type=BuildType.ACTION_DROP,
             expected_tcp_packet_count=5,
             failure_message="DROP mode must have and only have sent packets "
             "at the send side.",
@@ -168,11 +168,11 @@ class XdpFunctional(TestSuite):
         # expect no packet from the ping target side
         captured_node = environment.nodes[1]
         self._reset_nic_stats(captured_node)
-        self._test_with_action(
+        self._test_with_build_type(
             environment=environment,
             captured_node=captured_node,
             case_name=case_name,
-            action=ActionType.DROP,
+            build_type=BuildType.ACTION_DROP,
             expected_tcp_packet_count=0,
             failure_message="DROP mode must have no packet at target side.",
             expected_ping_success=False,
@@ -199,21 +199,21 @@ class XdpFunctional(TestSuite):
     )
     def verify_xdp_action_tx(self, environment: Environment, case_name: str) -> None:
         # tx has response packet from ping source side
-        self._test_with_action(
+        self._test_with_build_type(
             environment=environment,
             captured_node=environment.nodes[0],
             case_name=case_name,
-            action=ActionType.TX,
+            build_type=BuildType.ACTION_TX,
             expected_tcp_packet_count=10,
             failure_message="TX mode should receive response from ping source side.",
             expected_ping_success=True,
         )
         # tx has no packet from target side
-        self._test_with_action(
+        self._test_with_build_type(
             environment=environment,
             captured_node=environment.nodes[1],
             case_name=case_name,
-            action=ActionType.TX,
+            build_type=BuildType.ACTION_TX,
             expected_tcp_packet_count=0,
             failure_message="TX mode shouldn't capture any packets "
             "from the ping target node in tcp dump.",
@@ -236,22 +236,22 @@ class XdpFunctional(TestSuite):
         self, environment: Environment, case_name: str
     ) -> None:
         # expect no response from the ping source side.
-        self._test_with_action(
+        self._test_with_build_type(
             environment=environment,
             captured_node=environment.nodes[0],
             case_name=case_name,
-            action=ActionType.ABORTED,
+            build_type=BuildType.ACTION_ABORTED,
             expected_tcp_packet_count=5,
             failure_message="DROP mode must have and only have sent packets "
             "at the send side.",
             expected_ping_success=False,
         )
         # expect no packet from the ping target side
-        self._test_with_action(
+        self._test_with_build_type(
             environment=environment,
             captured_node=environment.nodes[1],
             case_name=case_name,
-            action=ActionType.ABORTED,
+            build_type=BuildType.ACTION_ABORTED,
             expected_tcp_packet_count=0,
             failure_message="ABORT mode must have no packet at target side.",
             expected_ping_success=False,
@@ -322,7 +322,7 @@ class XdpFunctional(TestSuite):
             self._reset_nic_stats(node)
             output = xdpdump.test_by_ping(
                 nic_name=nic_name,
-                action_type=ActionType.DROP,
+                build_type=BuildType.ACTION_DROP,
                 expected_ping_success=False,
                 remote_address=INTERNET_PING_ADDRESS,
             )
@@ -339,7 +339,7 @@ class XdpFunctional(TestSuite):
             self._reset_nic_stats(node)
             output = xdpdump.test_by_ping(
                 nic_name=nic_name,
-                action_type=ActionType.DROP,
+                build_type=BuildType.ACTION_DROP,
                 expected_ping_success=False,
                 remote_address=INTERNET_PING_ADDRESS,
             )
@@ -355,7 +355,7 @@ class XdpFunctional(TestSuite):
             self._reset_nic_stats(node)
             output = xdpdump.test_by_ping(
                 nic_name=nic_name,
-                action_type=ActionType.DROP,
+                build_type=BuildType.ACTION_DROP,
                 expected_ping_success=False,
                 remote_address=INTERNET_PING_ADDRESS,
             )
@@ -385,12 +385,12 @@ class XdpFunctional(TestSuite):
             raise SkippedException(identifier)
         xdptool.run_full_test()
 
-    def _test_with_action(
+    def _test_with_build_type(
         self,
         environment: Environment,
         captured_node: Node,
         case_name: str,
-        action: ActionType,
+        build_type: BuildType,
         expected_tcp_packet_count: int,
         failure_message: str,
         expected_ping_success: bool,
@@ -410,7 +410,7 @@ class XdpFunctional(TestSuite):
         xdpdump.test_by_ping(
             ping_source_node.nics.default_nic,
             remote_address=ping_address,
-            action_type=action,
+            build_type=build_type,
             expected_ping_success=expected_ping_success,
             ping_source_node=ping_source_node,
         )
