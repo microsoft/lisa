@@ -52,7 +52,7 @@ class XdpFunctional(TestSuite):
     def verify_xdp_basic(self, node: Node) -> None:
         for _ in range(3):
             xdpdump = self._get_xdpdump(node)
-            output = xdpdump.test()
+            output = xdpdump.test_by_ping()
 
             self._verify_xdpdump_result(output)
 
@@ -75,7 +75,9 @@ class XdpFunctional(TestSuite):
         remote_address = self._get_ping_address(environment)
 
         # test in SRIOV mode.
-        output = xdpdump.test(xdp_node.nics.default_nic, remote_address=remote_address)
+        output = xdpdump.test_by_ping(
+            xdp_node.nics.default_nic, remote_address=remote_address
+        )
         self._verify_xdpdump_result(output)
 
         try:
@@ -87,7 +89,7 @@ class XdpFunctional(TestSuite):
             network.switch_sriov(False)
 
             # test in synthetic mode
-            output = xdpdump.test(
+            output = xdpdump.test_by_ping(
                 xdp_node.nics.default_nic, remote_address=remote_address
             )
             self._verify_xdpdump_result(output)
@@ -106,7 +108,7 @@ class XdpFunctional(TestSuite):
     )
     def verify_xdp_synthetic(self, node: Node) -> None:
         xdpdump = self._get_xdpdump(node)
-        output = xdpdump.test()
+        output = xdpdump.test_by_ping()
 
         self._verify_xdpdump_result(output)
 
@@ -124,7 +126,7 @@ class XdpFunctional(TestSuite):
         xdpdump = self._get_xdpdump(node)
         for i in range(3):
             nic_info = node.nics.get_nic_by_index(i)
-            output = xdpdump.test(nic_name=nic_info.upper)
+            output = xdpdump.test_by_ping(nic_name=nic_info.upper)
 
             self._verify_xdpdump_result(output)
 
@@ -287,7 +289,7 @@ class XdpFunctional(TestSuite):
                 remote_ip.set_mtu(remote_nic_name, mtu)
 
                 # tested mtu equals (ping mtu - IP headr (20) - ICMP header (8))
-                xdpdump.test(
+                xdpdump.test_by_ping(
                     xdp_node_nic_name,
                     remote_address=remote_address,
                     ping_package_size=mtu - 28,
@@ -318,7 +320,7 @@ class XdpFunctional(TestSuite):
         try:
             # validate xdp works with VF
             self._reset_nic_stats(node)
-            output = xdpdump.test(
+            output = xdpdump.test_by_ping(
                 nic_name=nic_name,
                 action_type=ActionType.DROP,
                 expected_ping_success=False,
@@ -335,7 +337,7 @@ class XdpFunctional(TestSuite):
 
             # validate xdp works with synthetic
             self._reset_nic_stats(node)
-            output = xdpdump.test(
+            output = xdpdump.test_by_ping(
                 nic_name=nic_name,
                 action_type=ActionType.DROP,
                 expected_ping_success=False,
@@ -351,7 +353,7 @@ class XdpFunctional(TestSuite):
             nic_feature.switch_sriov(True)
 
             self._reset_nic_stats(node)
-            output = xdpdump.test(
+            output = xdpdump.test_by_ping(
                 nic_name=nic_name,
                 action_type=ActionType.DROP,
                 expected_ping_success=False,
@@ -405,7 +407,7 @@ class XdpFunctional(TestSuite):
             filter=f'"icmp and host {ping_address}"',
             packet_filename=pcap_filename,
         )
-        xdpdump.test(
+        xdpdump.test_by_ping(
             ping_source_node.nics.default_nic,
             remote_address=ping_address,
             action_type=action,
