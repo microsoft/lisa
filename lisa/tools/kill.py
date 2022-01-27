@@ -18,9 +18,9 @@ class Kill(Tool):
     def by_name(self, process_name: str, signum: int = 9) -> None:
         running_processes = self.node.tools[Pgrep].get_processes(process_name)
         for process in running_processes:
-            self.with_signum(process.id, signum)
+            self.by_pid(process.id, signum)
 
-    def with_signum(self, pid: str, signum: int = 9) -> None:
+    def by_pid(self, pid: str, signum: int = 9) -> None:
         self.run(
             f"-{signum} {pid}",
             shell=True,
