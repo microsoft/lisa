@@ -13,10 +13,10 @@ from lisa.tools.ethtool import DeviceGroLroSettings
 from microsoft.testsuites.xdp.xdptools import can_install
 
 
-class ActionType(str, Enum):
-    TX = "TX"
-    DROP = "DROP"
-    ABORTED = "ABORTED"
+class BuildType(str, Enum):
+    ACTION_TX = "ACTION_TX"
+    ACTION_DROP = "ACTION_DROP"
+    ACTION_ABORTED = "ACTION_ABORTED"
 
 
 class XdpDump(Tool):
@@ -91,7 +91,7 @@ class XdpDump(Tool):
         self,
         nic_name: str = "",
         timeout: int = 5,
-        action_type: Optional[ActionType] = None,
+        build_type: Optional[BuildType] = None,
         remote_address: str = "",
         expected_ping_success: bool = True,
         ping_package_size: Optional[int] = None,
@@ -106,7 +106,7 @@ class XdpDump(Tool):
         if not ping_source_node:
             ping_source_node = self.node
 
-        self._make_by_action_type(action_type=action_type)
+        self._make_by_build_type(build_type=build_type)
 
         try:
             self._disable_lro(nic_name)
@@ -148,14 +148,14 @@ class XdpDump(Tool):
 
         return result.stdout
 
-    def _make_by_action_type(self, action_type: Optional[ActionType] = None) -> None:
+    def _make_by_build_type(self, build_type: Optional[BuildType] = None) -> None:
         env_variables: Dict[str, str] = {}
 
-        # if no action type specified, rebuild it with default behavior.
-        if action_type:
+        # if no build type specified, rebuild it with default behavior.
+        if build_type:
             env_variables[
                 "CFLAGS"
-            ] = f"-D __ACTION_{action_type.name}__ -I../libbpf/src/root/usr/include"
+            ] = f"-D __{build_type.name}__ -I../libbpf/src/root/usr/include"
 
         make = self.node.tools[Make]
         make.make(
