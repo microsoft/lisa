@@ -25,6 +25,7 @@ from lisa.util import (
     constants,
 )
 from lisa.util.logger import Logger, init_logger
+from lisa.util.parallel import run_in_parallel
 from lisa.util.perf_timer import create_timer
 
 __all__ = [
@@ -48,6 +49,7 @@ __all__ = [
     "create_timer",
     "constants",
     "node_requirement",
+    "run_in_parallel",
     "simple_requirement",
 ]
 
