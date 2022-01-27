@@ -23,6 +23,7 @@ from lisa.util import (
     subclasses,
 )
 from lisa.util.logger import Logger, get_logger
+from lisa.util.parallel import run_in_parallel
 from lisa.util.process import ExecutableResult, Process
 from lisa.util.shell import ConnectionInfo, LocalShell, Shell, SshShell
 
@@ -301,7 +302,10 @@ class Node(subclasses.BaseClassWithRunbookMixin, ContextMixin, InitializableMixi
 
 class RemoteNode(Node):
     def __repr__(self) -> str:
-        return str(self._connection_info)
+        # it's used to handle UT failure.
+        if hasattr(self, "_connection_info"):
+            return str(self._connection_info)
+        return ""
 
     @property
     def is_remote(self) -> bool:
@@ -512,8 +516,7 @@ class Nodes:
             yield node
 
     def initialize(self) -> None:
-        for node in self._list:
-            node.initialize()
+        run_in_parallel([x.initialize for x in self._list])
 
     def close(self) -> None:
         for node in self._list:
