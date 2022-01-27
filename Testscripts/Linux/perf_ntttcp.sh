@@ -223,10 +223,10 @@ Get_VFName()
 	if [ $currentVersion ] && ( [ $currentVersion \> "1.4.0" ] || [ $currentVersion == "1.4.0" ] || [ $currentVersion == "master" ] ); then
 		if [[ -d /sys/firmware/efi ]]; then
 		# This is the case of VM gen 2
-			vf_interface=$(find /sys/devices/* -name "*${nicName}" | grep pci | sed 's/\// /g' | awk '{print $11}')
+			vf_interface=$(ssh "$ip" find /sys/devices/* -name "*${nicName}" | grep pci | sed 's/\// /g' | awk '{print $11}')
 		else
 		# VM gen 1 case
-			vf_interface=$(find /sys/devices/* -name "*${nicName}" | grep pci | sed 's/\// /g' | awk '{print $12}')
+			vf_interface=$(ssh "$ip" find /sys/devices/* -name "*${nicName}" | grep pci | sed 's/\// /g' | awk '{print $12}')
 		fi
 		if [[ $vf_interface ]]; then
 			if [[ $currentVersion == "master" ]]; then
