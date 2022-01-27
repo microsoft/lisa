@@ -87,7 +87,7 @@ class XdpDump(Tool):
 
         return self._check_exists()
 
-    def test(
+    def test_by_ping(
         self,
         nic_name: str = "",
         timeout: int = 5,
