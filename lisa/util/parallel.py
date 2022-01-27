@@ -19,6 +19,29 @@ from . import LisaException
 T_RESULT = TypeVar("T_RESULT")
 
 
+def run_in_parallel(
+    tasks: List[Callable[[], T_RESULT]], log: Optional[Logger] = None
+) -> List[T_RESULT]:
+    """
+    The simple version of concurrency task. It wait all task complete
+    """
+    results: List[T_RESULT] = []
+
+    def collect_result(result: T_RESULT) -> None:
+        """
+        Because the task is wait for all completed, and then call back the result, so
+        the results are ordered.
+        """
+        results.append(result)
+
+    task_manager = TaskManager(max_workers=len(tasks), callback=collect_result)
+    for index, task in enumerate(tasks):
+        task_manager.submit_task(Task(task_id=index, task=task, parent_logger=log))
+    task_manager.wait_for_all_workers()
+
+    return results
+
+
 class Task(Generic[T_RESULT]):
     def __init__(
         self,
