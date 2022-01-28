@@ -3,8 +3,14 @@
 
 from assertpy import assert_that
 
-from lisa import Node, TestCaseMetadata, TestSuite, TestSuiteMetadata
-from lisa.features.resize import Resize
+from lisa import (
+    Node,
+    TestCaseMetadata,
+    TestSuite,
+    TestSuiteMetadata,
+    simple_requirement,
+)
+from lisa.features import Resize
 from lisa.schema import NodeSpace
 from lisa.tools import Lscpu
 
@@ -27,6 +33,9 @@ class VmHotResize(TestSuite):
         2. Check the node's core count and memory size against their expected values
         """,
         priority=1,
+        requirement=simple_requirement(
+            supported_features=[Resize],
+        ),
     )
     def verify_vm_hot_resize(self, node: Node) -> None:
         resize = node.features[Resize]

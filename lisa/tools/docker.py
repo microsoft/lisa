@@ -3,7 +3,7 @@
 
 from lisa.base_tools import Wget
 from lisa.executable import Tool
-from lisa.operating_system import CentOs, Debian, Redhat
+from lisa.operating_system import CBLMariner, CentOs, Debian, Redhat
 from lisa.tools.service import Service
 from lisa.util import LisaException
 
@@ -82,6 +82,8 @@ class Docker(Tool):
             self.node.os.install_packages(
                 ["docker", "docker-ce", "docker.socket", "docker.service"]
             )
+        elif isinstance(self.node.os, CBLMariner):
+            self.node.os.install_packages(["moby-engine", "moby-cli"])
         else:
             raise LisaException(f"{self.node.os.information.vendor} not supported")
 

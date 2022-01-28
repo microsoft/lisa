@@ -182,6 +182,7 @@ class DockerTestSuite(TestSuite):
 
         docker_run_output = node.execute(
             f"cat {docker_run_output_file}",
+            sudo=True,
             expected_exit_code=0,
             expected_exit_code_failure_message="Docker run output file not found",
             cwd=node.working_path,

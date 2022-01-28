@@ -80,6 +80,7 @@ class QemuPlatform(Platform):
         node_capabilities.disk = schema.DiskOptionSettings()
         node_capabilities.network_interface = schema.NetworkInterfaceOptionSettings()
         node_capabilities.network_interface.max_nic_count = 1
+        node_capabilities.network_interface.nic_count = 1
         node_capabilities.gpu_count = 0
         node_capabilities.features = search_space.SetSpace[schema.FeatureSettings](
             is_allow_set=True,
