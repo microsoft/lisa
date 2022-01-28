@@ -597,6 +597,9 @@ class NetworkSettings(TestSuite):
             # No queue should receive/transmit 30% more packets than other queues
             # If it does, failure should be reported
             min_tx_queue_packets = min(per_tx_queue_packets)
+            # Avoid divide by 0 scenario while checking traffic spread among queues
+            if min_tx_queue_packets == 0:
+                min_tx_queue_packets = 1
             max_tx_queue_packets = max(per_tx_queue_packets)
             assert_that(
                 ((max_tx_queue_packets - min_tx_queue_packets) / min_tx_queue_packets),
@@ -610,6 +613,9 @@ class NetworkSettings(TestSuite):
             ]
 
             min_rx_queue_packets = min(per_rx_queue_packets)
+            # Avoid divide by 0 scenario while checking traffic spread among queues
+            if min_rx_queue_packets == 0:
+                min_rx_queue_packets = 1
             max_rx_queue_packets = max(per_rx_queue_packets)
             assert_that(
                 ((max_rx_queue_packets - min_rx_queue_packets) / min_rx_queue_packets),
