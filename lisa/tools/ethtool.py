@@ -450,6 +450,7 @@ class DeviceSettings:
     device_rss_hash_key: Optional[DeviceRssHashKey] = None
     device_rx_hash_level: Optional[DeviceRxHashLevel] = None
     device_sg_settings: Optional[DeviceSgSettings] = None
+    device_firmware_version: Optional[str] = None
     statistics: Optional[Dict[str, int]] = None
 
 
@@ -458,6 +459,14 @@ class Ethtool(Tool):
     #     tx_scattered: 0
     #     tx_no_memory: 0
     _statistics_pattern = re.compile(r"^\s+(?P<name>.*?)\: +?(?P<value>\d*?)\r?$")
+
+    # ethtool -i eth0
+    #   driver: hv_netvsc
+    #   version:
+    #   firmware-version: N/A
+    _firmware_version_pattern = re.compile(
+        r"^firmware-version:[\s+](?P<value>.*?)?$", re.MULTILINE
+    )
 
     @property
     def command(self) -> str:
@@ -867,6 +876,32 @@ class Ethtool(Tool):
         device.statistics = statistics
         return statistics
 
+    def get_device_firmware_version(
+        self, interface: str, force_run: bool = False
+    ) -> str:
+        device = self._get_or_create_device_setting(interface)
+        if not force_run and device.device_firmware_version:
+            return device.device_firmware_version
+
+        result = self.run(f"-i {interface}", force_run=force_run)
+        if (result.exit_code != 0) and ("Operation not supported" in result.stdout):
+            raise UnsupportedOperationException(
+                f"ethtool -i {interface} operation not supported."
+            )
+        result.assert_exit_code(
+            message=f"Couldn't get device {interface} firmware version info."
+        )
+
+        firmware_version_pattern = self._firmware_version_pattern.search(result.stdout)
+        if not firmware_version_pattern:
+            raise LisaException(
+                f"Cannot get {interface} device firmware version information"
+            )
+        firmware_version = firmware_version_pattern.group("value")
+
+        device.device_firmware_version = firmware_version
+        return firmware_version
+
     def get_all_device_channels_info(self) -> List[DeviceChannel]:
         devices_channel_list = []
         devices = self.get_device_list()
@@ -947,6 +982,16 @@ class Ethtool(Tool):
             )
 
         return devices_statistics
+
+    def get_all_device_firmware_version(self) -> Dict[str, str]:
+        devices_firmware_versions: Dict[str, str] = {}
+        devices = self.get_device_list()
+        for device in devices:
+            devices_firmware_versions[device] = self.get_device_firmware_version(
+                device, force_run=True
+            )
+
+        return devices_firmware_versions
 
     def _get_or_create_device_setting(self, interface: str) -> DeviceSettings:
         settings = self._device_settings_map.get(interface, None)
