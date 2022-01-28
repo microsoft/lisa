@@ -1033,7 +1033,7 @@ class RPMDistro(Linux):
 
         return False
 
-    def _dnf_tool(self):
+    def _dnf_tool(self) -> str:
         return "dnf"
 
 
@@ -1224,7 +1224,7 @@ class Redhat(Fedora):
                 f"Failed to install {packages}. exit_code: {result.exit_code}"
             )
 
-    def _dnf_tool(self):
+    def _dnf_tool(self) -> str:
         return "yum"
 
 
