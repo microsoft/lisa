@@ -45,9 +45,9 @@ def run(args: Namespace) -> int:
         run_error_message = str(identifier)
         raise identifier
     finally:
-        run_message = messages.TestRunMessage(
-            status=run_status, elapsed=run_timer.elapsed(), message=run_error_message
-        )
+        run_message.status = run_status
+        run_message.elapsed = run_timer.elapsed()
+        run_message.message = run_error_message
         notifier.notify(run_message)
         notifier.finalize()
         run_finalize()
