@@ -14,10 +14,10 @@ from lisa.operating_system import (
     Debian,
     DebianRepositoryInfo,
     Fedora,
-    FedoraRepositoryInfo,
     Oracle,
     Posix,
     Redhat,
+    RPMRepositoryInfo,
     Suse,
     SuseRepositoryInfo,
     Ubuntu,
@@ -350,9 +350,9 @@ class AzureImageStandard(TestSuite):
     )
     def verify_repository_installed(self, node: Node) -> None:
         assert isinstance(node.os, Posix)
-        repositories = node.os.get_repositories()
 
         if isinstance(node.os, Debian):
+            repositories = node.os.get_repositories()
             debian_repositories = [
                 cast(DebianRepositoryInfo, repo) for repo in repositories
             ]
@@ -416,6 +416,7 @@ class AzureImageStandard(TestSuite):
                     "be in the `apt-get update` output",
                 ).is_true()
         elif isinstance(node.os, Suse):
+            repositories = node.os.get_repositories()
             suse_repositories = [
                 cast(SuseRepositoryInfo, repo) for repo in repositories
             ]
@@ -473,8 +474,9 @@ class AzureImageStandard(TestSuite):
                     "enabled/refreshed",
                 ).is_greater_than(2)
         elif isinstance(node.os, Oracle):
+            repositories = node.os.get_repositories()
             oracle_repositories = [
-                cast(FedoraRepositoryInfo, repo) for repo in repositories
+                cast(RPMRepositoryInfo, repo) for repo in repositories
             ]
 
             # verify that `base` repository is present
@@ -485,8 +487,9 @@ class AzureImageStandard(TestSuite):
                 is_latest_repository_present, "Latest repository should be present"
             ).is_true()
         elif isinstance(node.os, Fedora):
+            repositories = node.os.get_repositories()
             fedora_repositories = [
-                cast(FedoraRepositoryInfo, repo) for repo in repositories
+                cast(RPMRepositoryInfo, repo) for repo in repositories
             ]
 
             # verify that `base` repository is present

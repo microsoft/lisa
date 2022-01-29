@@ -948,23 +948,21 @@ class OpenBSD(BSD):
 
 
 @dataclass
-# yum repolist is of the form `<id> <name>`
+# dnf repolist is of the form `<id> <name>`
 # Example:
 # microsoft-azure-rhel8-eus  Microsoft Azure RPMs for RHEL8 Extended Update Support
-class FedoraRepositoryInfo(RepositoryInfo):
+class RPMRepositoryInfo(RepositoryInfo):
     # id for the repository, for example: microsoft-azure-rhel8-eus
     id: str
 
 
-class Fedora(Linux):
-    # Red Hat Enterprise Linux Server 7.8 (Maipo) => 7.8
-    _fedora_release_pattern_version = re.compile(r"^.*release\s+([0-9\.]+).*$")
-
+# Linux distros that use RPM.
+class RPMDistro(Linux):
     # microsoft-azure-rhel8-eus  Microsoft Azure RPMs for RHEL8 Extended Update Support
-    _fedora_repository_info_pattern = re.compile(r"(?P<id>\S+)\s+(?P<name>\S.*\S)\s*")
+    _rpm_repository_info_pattern = re.compile(r"(?P<id>\S+)\s+(?P<name>\S.*\S)\s*")
 
     # ex: dpdk-20.11-3.el8.x86_64
-    _fedora_version_splitter_regex = re.compile(
+    _rpm_version_splitter_regex = re.compile(
         r"(?P<package_name>[a-zA-Z0-9\-_]+)-"
         r"(?P<major>[0-9]+)\."
         r"(?P<minor>[0-9]+)"
@@ -972,13 +970,9 @@ class Fedora(Linux):
         r"(?P<build>-[a-zA-Z0-9-_\.]+)?"
     )
 
-    @classmethod
-    def name_pattern(cls) -> Pattern[str]:
-        return re.compile("^Fedora|fedora$")
-
     def get_repositories(self) -> List[RepositoryInfo]:
         repo_list_str = self._node.execute(
-            "yum repolist", sudo=True
+            f"{self._dnf_tool()} repolist", sudo=True
         ).stdout.splitlines()
 
         # skip to the first entry in the output
@@ -990,10 +984,10 @@ class Fedora(Linux):
 
         repositories: List[RepositoryInfo] = []
         for line in repo_list_str:
-            repo_info = self._fedora_repository_info_pattern.search(line)
+            repo_info = self._rpm_repository_info_pattern.search(line)
             if repo_info:
                 repositories.append(
-                    FedoraRepositoryInfo(
+                    RPMRepositoryInfo(
                         name=repo_info.group("name"), id=repo_info.group("id")
                     )
                 )
@@ -1008,7 +1002,7 @@ class Fedora(Linux):
             ),
         )
         # rpm package should be of format (package_name)-(version)
-        matches = self._fedora_version_splitter_regex.search(rpm_info.stdout)
+        matches = self._rpm_version_splitter_regex.search(rpm_info.stdout)
         if not matches:
             raise LisaException(
                 f"Could not parse package version {rpm_info} for {package_name}"
@@ -1020,7 +1014,7 @@ class Fedora(Linux):
         return self._cache_and_return_version_info(package_name, version_info)
 
     def _install_packages(self, packages: List[str], signed: bool = True) -> None:
-        command = f"dnf install -y {' '.join(packages)}"
+        command = f"{self._dnf_tool()} install -y {' '.join(packages)}"
         if not signed:
             command += " --nogpgcheck"
 
@@ -1030,7 +1024,7 @@ class Fedora(Linux):
         self._log.debug(f"{packages} is/are installed successfully.")
 
     def _package_exists(self, package: str) -> bool:
-        command = f"dnf list installed {package}"
+        command = f"{self._dnf_tool()} list installed {package}"
         result = self._node.execute(command, sudo=True)
         if result.exit_code == 0:
             for row in result.stdout.splitlines():
@@ -1038,6 +1032,18 @@ class Fedora(Linux):
                     return True
 
         return False
+
+    def _dnf_tool(self) -> str:
+        return "dnf"
+
+
+class Fedora(RPMDistro):
+    # Red Hat Enterprise Linux Server 7.8 (Maipo) => 7.8
+    _fedora_release_pattern_version = re.compile(r"^.*release\s+([0-9\.]+).*$")
+
+    @classmethod
+    def name_pattern(cls) -> Pattern[str]:
+        return re.compile("^Fedora|fedora$")
 
     def install_epel(self) -> None:
         # Extra Packages for Enterprise Linux (EPEL) is a special interest group
@@ -1218,6 +1224,9 @@ class Redhat(Fedora):
                 f"Failed to install {packages}. exit_code: {result.exit_code}"
             )
 
+    def _dnf_tool(self) -> str:
+        return "yum"
+
 
 class CentOs(Redhat):
     @classmethod
@@ -1238,6 +1247,12 @@ class Oracle(Redhat):
         # The name is "Oracle Linux Server", which doesn't support the default
         # full match.
         return re.compile("^Oracle")
+
+
+class CBLMariner(RPMDistro):
+    @classmethod
+    def name_pattern(cls) -> Pattern[str]:
+        return re.compile("^Common Base Linux Mariner|mariner$")
 
 
 @dataclass

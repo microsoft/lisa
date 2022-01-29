@@ -2,7 +2,14 @@ import math
 
 from assertpy import assert_that
 
-from lisa import Node, TestCaseMetadata, TestSuite, TestSuiteMetadata
+from lisa import (
+    Node,
+    TestCaseMetadata,
+    TestSuite,
+    TestSuiteMetadata,
+    simple_requirement,
+)
+from lisa.sut_orchestrator import AZURE
 from lisa.sut_orchestrator.azure.tools import VmGeneration
 from lisa.tools import Lscpu, Lsvmbus
 
@@ -63,6 +70,9 @@ class LsVmBus(TestSuite):
                 https://git.kernel.org/pub/scm/linux/kernel/git/next/linux-next.git/tree/drivers/scsi/storvsc_drv.c#n952 # noqa: E501
         """,
         priority=1,
+        requirement=simple_requirement(
+            supported_platform_type=[AZURE],
+        ),
     )
     def lsvmbus_count_devices_channels(self, node: Node) -> None:
         # 1. Check expected vmbus device names presented in the lsvmbus output.
