@@ -109,9 +109,13 @@ class AzureImageStandard(TestSuite):
         elif isinstance(node.os, Fedora):
             if isinstance(node.os, Redhat) and node.os.information.version >= "8.0.0":
                 grub_output = node.tools[Cat].read("/boot/grub2/grubenv", sudo=True)
-            elif node.shell.exists(PurePosixPath("/boot/grub2/grub.cfg")):
+            elif (
+                node.execute("ls -lt /boot/grub2/grub.cfg", sudo=True, shell=True)
+            ).exit_code == 0:
                 grub_output = node.tools[Cat].read("/boot/grub2/grub.cfg", sudo=True)
-            elif node.shell.exists(PurePosixPath("/boot/grub/menu.lst")):
+            elif (
+                node.execute("ls -lt /boot/grub/menu.lst", sudo=True, shell=True)
+            ).exit_code == 0:
                 grub_output = node.tools[Cat].read("/boot/grub/menu.lst", sudo=True)
             else:
                 raise LisaException("Unable to locate grub file")
