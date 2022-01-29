@@ -876,6 +876,23 @@ class Ethtool(Tool):
         device.statistics = statistics
         return statistics
 
+    def get_device_statistics_delta(
+        self, interface: str, previous_statistics: Dict[str, int]
+    ) -> Dict[str, int]:
+        """
+        use this method to get the delta of an operation.
+        """
+        new_statistics = self.get_device_statistics(interface=interface, force_run=True)
+
+        for key, value in previous_statistics.items():
+            new_statistics[key] = new_statistics.get(key, 0) - value
+        self._log.debug(f"none-zero delta statistics on {interface}:")
+        self._log.debug(
+            {key: value for key, value in new_statistics.items() if value != 0}
+        )
+
+        return new_statistics
+
     def get_device_firmware_version(
         self, interface: str, force_run: bool = False
     ) -> str:
