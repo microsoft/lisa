@@ -47,19 +47,22 @@ class Wget(Tool):
         else:
             download_path = f"{self.node.working_path}/{filename}"
 
-        if overwrite:
-            extra_param = " -nc "
+        # remove existing file and dir to download again.
+        download_pure_path = self.node.get_pure_path(download_path)
+        if overwrite and self.node.shell.exists(download_pure_path):
+            self.node.shell.remove(download_pure_path, recursive=True)
+        command = f"'{url}' --no-check-certificate"
         if filename:
-            run_command = f" '{url}' {extra_param} -O {download_path}"
+            command = f"{command} -O {download_path}"
         else:
-            run_command = f" '{url}' {extra_param} -P {download_path}"
-        command_result = self.run(run_command, no_error_log=True, shell=True, sudo=sudo)
+            command = f"{command} -P {download_path}"
+        command_result = self.run(command, no_error_log=True, shell=True, sudo=sudo)
         matched_result = self.__pattern_path.match(command_result.stdout)
         if matched_result:
             download_file_path = matched_result.group("path")
         else:
             raise LisaException(
-                f"cannot find file path in stdout of '{run_command}', it may be caused "
+                f"cannot find file path in stdout of '{command}', it may be caused "
                 " due to failed download or pattern mismatch."
                 f" stdout: {command_result.stdout}"
             )
