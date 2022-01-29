@@ -89,7 +89,7 @@ class Mount(Tool):
             not self.__UMOUNT_ERROR_PATTERN.match(cmd_result.stdout)
             and 0 != cmd_result.exit_code
         ):
-            raise LisaException(f"Fail to run umount {point}.")
+            raise LisaException(f"Fail to umount {point}: {cmd_result.stdout}")
 
     def get_partition_info(self) -> List[PartitionInfo]:
         # partition entries in the output are of the form
