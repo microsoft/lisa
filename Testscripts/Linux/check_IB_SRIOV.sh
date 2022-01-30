@@ -63,9 +63,14 @@ function Main() {
 			LogMsg "The waagent detects IB over SR-IOV because of no Nd driver version. Verify it loads inbox or MLX out-of-tree driver loading for IB interface"
 			output=$(dmesg | grep 'Mellanox Connect-IB Infiniband driver')
 			if [ -z "$output" ]; then
-				LogErr "Failed to find SR-IOV driver for IB interface"
-				SetTestStateFailed
-				exit 0
+				output=$(ibdev2netdev| grep mlx)
+				if [ -z "$output" ]; then
+					LogErr "Failed to find SR-IOV driver for IB interface"
+					SetTestStateFailed
+					exit 0
+				else
+					LogMsg "Successfully found the SR-IOV driver for IB interface - $output"
+				fi
 			else
 				LogMsg "Successfully found the SR-IOV driver for IB interface - $output"
 			fi

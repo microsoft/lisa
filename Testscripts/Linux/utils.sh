@@ -3823,6 +3823,8 @@ function is_hpc_vm() {
 	if [ -d /sys/class/infiniband/ ] && [[ $DISTRO != "ubuntu"* ]]; then
 		if [ -n "$(lspci | grep "Virtual Function")" ] && [ -n "$(dmesg | grep "IB Infiniband driver")" ]; then
 			return 1
+		elif [ -n "$(ibdev2netdev| grep mlx)" ]; then
+			return 1
 		elif [ -n "$(dmesg | grep hvnd_try_bind_nic)" ]; then
 			return 0
 		else
