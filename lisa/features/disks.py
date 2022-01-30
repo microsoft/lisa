@@ -44,6 +44,9 @@ class Disk(Feature):
     def get_raw_data_disks(self) -> List[str]:
         raise NotImplementedError
 
+    def get_all_disks(self) -> List[str]:
+        raise NotImplementedError
+
     def add_data_disk(
         self,
         count: int,

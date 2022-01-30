@@ -671,6 +671,22 @@ class Disk(AzureFeatureMixin, features.Disk):
             disk_array[int(disk.split("/")[-1].replace("lun", ""))] = cmd_result.stdout
         return disk_array
 
+    def get_all_disks(self) -> List[str]:
+        # /sys/block/sda  /sys/block/sdb
+        raw_pattern = re.compile(r"(/sys/block/sd*[\w\W]*?)(?=/sys/block/sd*|\Z)", re.M)
+        # sda
+        # sdb
+        disk_pattern = re.compile(r"/sys/block/(?P<label>sd.*)", re.M)
+        cmd_result = self._node.execute("ls -d /sys/block/sd*", shell=True, sudo=True)
+        raw_list = re.finditer(raw_pattern, cmd_result.stdout)
+        disk_array: List[str] = []
+        for disk_raw in raw_list:
+            match = disk_pattern.match(disk_raw.group())
+            assert match, "fail to get disk label"
+            disk_label = match.group("label")
+            disk_array.append(disk_label)
+        return disk_array
+
     def add_data_disk(
         self,
         count: int,
