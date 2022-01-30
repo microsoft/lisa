@@ -50,34 +50,30 @@ class Storage(TestSuite):
 
     @TestCaseMetadata(
         description="""
-        This test will check that VM root disk(os disk) is provisioned
+        This test will check that VM disks are provisioned
         with the correct timeout.
         Steps:
-        1. Find the root disk (os disk) for the VM. The root disk
-        is the entry with mount point `/' in the output of `mount` command.
-        2. Verify the timeout value for root disk in
-        `/sys/block/<partition>/device/timeout` file is set to 300.
+        1. Find the disks for the VM by listing /sys/block/sd*.
+        2. Verify the timeout value for disk in
+        `/sys/block/<disk>/device/timeout` file is set to 300.
         """,
         priority=1,
         requirement=simple_requirement(supported_platform_type=[AZURE]),
     )
-    def verify_root_device_timeout_setting(
+    def verify_disks_device_timeout_setting(
         self,
         node: RemoteNode,
     ) -> None:
-        os_disk = (
-            node.features[Disk]
-            .get_partition_with_mount_point(self.os_disk_mount_point)
-            .disk
-        )
+        disks = node.features[Disk].get_all_disks()
         root_device_timeout_from_waagent = node.tools[Waagent].get_root_device_timeout()
-        root_device_timeout_from_distro = int(
-            node.tools[Cat].run(f"/sys/block/{os_disk}/device/timeout").stdout
-        )
-        assert_that(
-            root_device_timeout_from_waagent,
-            "root device timeout from waagent.conf and distro should match",
-        ).is_equal_to(root_device_timeout_from_distro)
+        for disk in disks:
+            device_timeout_from_distro = int(
+                node.tools[Cat].run(f"/sys/block/{disk}/device/timeout").stdout
+            )
+            assert_that(
+                root_device_timeout_from_waagent,
+                f"device {disk} timeout from waagent.conf and distro should match",
+            ).is_equal_to(device_timeout_from_distro)
 
     @TestCaseMetadata(
         description="""
