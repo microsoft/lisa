@@ -125,27 +125,39 @@ function InstallCUDADrivers() {
 
 	ubuntu*)
 		GetOSVersion
-		# Temporary fix till driver for ubuntu19 and ubuntu20 series list under http://developer.download.nvidia.com/compute/cuda/repos/
-		if [[ $os_RELEASE =~ 19.* ]] || [[ $os_RELEASE =~ 20.* ]] || [[ $os_RELEASE =~ 21.* ]]; then
-			LogMsg "There is no cuda driver for $os_RELEASE, used the one for 18.10"
-			os_RELEASE="18.10"
+		# 20.04 version install differs from older versions. Special case the new version. Abort if version doesn't exist yet.
+		if [[ $os_RELEASE =~ 21.* ]]; || [[ $os_RELEASE =~ 22.* ]] then
+			LogErr "CUDA Driver may not exist for Ubuntu > 21.XX , check https://developer.download.nvidia.com/compute/cuda/repos/ for new versions."
+			SetTestStateAborted;
 		fi
-		CUDA_REPO_PKG="cuda-repo-ubuntu${os_RELEASE//./}_${CUDADriverVersion}_amd64.deb"
-		LogMsg "Using ${CUDA_REPO_PKG}"
-
-		wget http://developer.download.nvidia.com/compute/cuda/repos/ubuntu"${os_RELEASE//./}"/x86_64/"${CUDA_REPO_PKG}" -O /tmp/"${CUDA_REPO_PKG}"
-		if [ $? -ne 0 ]; then
-			LogErr "Failed to download ${CUDA_REPO_PKG}"
-			SetTestStateAborted
-			return 1
+		if [ $os_RELEASE = 20.04 ]; then
+			wget -O /etc/apt/preferences.d/cuda-repository-pin-600 https://developer.download.nvidia.com/compute/cuda/repos/ubuntu2004/x86_64/cuda-ubuntu2004.pin
+			apt-key adv --fetch-keys https://developer.download.nvidia.com/compute/cuda/repos/ubuntu2004/x86_64/7fa2af80.pub
+			add-apt-repository "deb http://developer.download.nvidia.com/compute/cuda/repos/ubuntu2004/x86_64/ /"
 		else
-			LogMsg "Successfully downloaded ${CUDA_REPO_PKG}"
+			if [[ $os_RELEASE =~ 19.* ]]; then
+				LogMsg "There is no cuda driver for $os_RELEASE, used the one for 18.10"
+				os_RELEASE="18.10"
+			fi
+			CUDA_REPO_PKG="cuda-repo-ubuntu${os_RELEASE//./}_${CUDADriverVersion}_amd64.deb"
+			LogMsg "Using ${CUDA_REPO_PKG}"
+
+			wget http://developer.download.nvidia.com/compute/cuda/repos/ubuntu"${os_RELEASE//./}"/x86_64/"${CUDA_REPO_PKG}" -O /tmp/"${CUDA_REPO_PKG}"
+			if [ $? -ne 0 ]; then
+				LogErr "Failed to download ${CUDA_REPO_PKG}"
+				SetTestStateAborted
+				return 1
+			else
+				LogMsg "Successfully downloaded ${CUDA_REPO_PKG}"
+			fi
 		fi
 
 		apt-key adv --fetch-keys http://developer.download.nvidia.com/compute/cuda/repos/ubuntu"${os_RELEASE//./}"/x86_64/7fa2af80.pub
-		dpkg -i /tmp/"${CUDA_REPO_PKG}"
-		LogMsg "Installed ${CUDA_REPO_PKG}"
-		dpkg_configure
+		if [ $os_RELEASE != 20.04 ]; then
+			dpkg -i /tmp/"${CUDA_REPO_PKG}"
+			LogMsg "Installed ${CUDA_REPO_PKG}"
+			dpkg_configure
+		fi
 		apt update
 
 		apt -y --allow-unauthenticated install cuda-drivers > $HOME/install_drivers.log 2>&1
