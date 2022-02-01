@@ -18,13 +18,13 @@ class Sed(Tool):
         sudo: bool = False,
     ) -> None:
         # always force run, make sure it happens every time.
-        match_lines = match_lines.replace('"', '\\"')
-        regexp = regexp.replace('"', '\\"')
-        replacement = replacement.replace('"', '\\"')
         if match_lines != "":
-            cmd = f'-i.bak "/{match_lines}/s/{regexp}/{replacement}/g" {file}'
+            expression = f"/{match_lines}/s/{regexp}/{replacement}/g"
         else:
-            cmd = f'-i.bak "s/{regexp}/{replacement}/g" {file}'
+            expression = f"s/{regexp}/{replacement}/g"
+        expression = expression.replace('"', r"\"").replace("$", r"\$")
+
+        cmd = f'-i.bak "{expression}" {file}'
 
         result = self.run(
             cmd,
