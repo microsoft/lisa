@@ -94,22 +94,13 @@ class DpdkTestpmd(Tool):
         "download/v1.10.2/ninja-linux.zip"
     )
 
-    def __execute_assert_zero(
-        self, cmd: str, path: PurePath, timeout: int = 600
-    ) -> str:
-        result = self.node.execute(
-            cmd,
-            sudo=True,
-            shell=True,
-            cwd=path,
-            timeout=timeout,
-            expected_exit_code=0,
-            expected_exit_code_failure_message=(
-                "Command failed with nonzero error code during testpmd installation "
-                f"in dir '{path.as_posix()}'"
-            ),
-        )
-        return result.stdout
+    _tx_pps_key = "transmit-packets-per-second"
+    _rx_pps_key = "receive-packets-per-second"
+
+    _testpmd_output_regex = {
+        _tx_pps_key: r"Tx-pps:\s+([0-9]+)",
+        _rx_pps_key: r"Rx-pps:\s+([0-9]+)",
+    }
 
     @property
     def can_install(self) -> bool:
@@ -128,115 +119,6 @@ class DpdkTestpmd(Tool):
     def set_dpdk_branch(self, dpdk_branch: str) -> None:
         self._dpdk_branch = dpdk_branch
 
-    def _determine_network_hardware(self) -> None:
-        lspci = self.node.tools[Lspci]
-        device_list = lspci.get_device_list()
-        self.is_connect_x3 = any(
-            ["ConnectX-3" in dev.device_info for dev in device_list]
-        )
-
-    def _install(self) -> bool:
-        self._testpmd_output_after_reenable = ""
-        self._testpmd_output_before_rescind = ""
-        self._testpmd_output_during_rescind = ""
-        self._last_run_output = ""
-        self._dpdk_version_info: Union[VersionInfo, None] = None
-        self._determine_network_hardware()
-        node = self.node
-        self._install_dependencies()
-        # installing from distro package manager
-        if self._dpdk_source and self._dpdk_source == "package_manager":
-            self.node.log.info(
-                "Installing dpdk and dev package from package manager..."
-            )
-            if isinstance(node.os, Ubuntu):
-                node.os.install_packages(["dpdk", "dpdk-dev"])
-            elif isinstance(node.os, Redhat):
-                node.os.install_packages(["dpdk", "dpdk-devel"])
-            else:
-                raise NotImplementedError(
-                    "Dpdk package names are missing in dpdktestpmd.install"
-                    f" for os {node.os.name}"
-                )
-
-            self._dpdk_version_info = node.os.get_package_information("dpdk")
-
-            if self._dpdk_version_info >= "19.11.0":
-                self._testpmd_install_path = "dpdk-testpmd"
-            else:
-                self._testpmd_install_path = "testpmd"
-            self.node.log.info(
-                f"Installed DPDK version {str(self._dpdk_version_info)} "
-                "from package manager"
-            )
-            self._load_drivers_for_dpdk()
-            return True
-
-        # otherwise install from source tarball or git
-        self.node.log.info(f"Installing dpdk from source: {self._dpdk_source}")
-        self._dpdk_repo_path_name = "dpdk"
-        result = self.node.execute("which dpdk-testpmd")
-        self.dpdk_path = self.node.working_path.joinpath(self._dpdk_repo_path_name)
-        if result.exit_code == 0:  # tools are already installed
-            return True
-        git_tool = node.tools[Git]
-        echo_tool = node.tools[Echo]
-
-        if self._dpdk_source and self._dpdk_source.endswith(".tar.gz"):
-            wget_tool = node.tools[Wget]
-            tar_tool = node.tools[Tar]
-            if self._dpdk_branch:
-                node.log.warn(
-                    (
-                        "DPDK tarball source does not need dpdk_branch defined. "
-                        "User-defined variable dpdk_branch will be ignored."
-                    )
-                )
-            working_path = str(node.working_path)
-            wget_tool.get(
-                self._dpdk_source,
-                working_path,
-            )
-            dpdk_filename = self._dpdk_source.split("/")[-1]
-            # extract tar into dpdk/ folder and discard old root folder name
-            tar_tool.extract(
-                str(node.working_path.joinpath(dpdk_filename)),
-                str(self.dpdk_path),
-                strip_components=1,
-            )
-            self.set_version_info_from_source_install(
-                self._dpdk_source, self._version_info_from_tarball_regex
-            )
-        else:
-            git_tool.clone(
-                self._dpdk_source,
-                cwd=node.working_path,
-                dir_name=self._dpdk_repo_path_name,
-            )
-            if self._dpdk_branch:
-                git_tool.checkout(self._dpdk_branch, cwd=self.dpdk_path)
-                self.set_version_info_from_source_install(
-                    self._dpdk_branch, self._version_info_from_git_tag_regex
-                )
-        self._load_drivers_for_dpdk()
-        self.__execute_assert_zero("meson build", self.dpdk_path)
-        dpdk_build_path = self.dpdk_path.joinpath("build")
-        self.__execute_assert_zero("which ninja", dpdk_build_path)
-        self.__execute_assert_zero("ninja", dpdk_build_path, timeout=1200)
-        self.__execute_assert_zero("ninja install", dpdk_build_path)
-        self.__execute_assert_zero("ldconfig", dpdk_build_path)
-        library_bashrc_lines = [
-            "export PKG_CONFIG_PATH=${PKG_CONFIG_PATH}:/usr/local/lib64/pkgconfig/",
-            "export LD_LIBRARY_PATH=${LD_LIBRARY_PATH}:/usr/local/lib64/",
-        ]
-        echo_tool.write_to_file(
-            ";".join(library_bashrc_lines),
-            node.get_pure_path("~/.bashrc"),
-            append=True,
-        )
-
-        return True
-
     def set_version_info_from_source_install(
         self, branch_identifier: str, matcher: Pattern[str]
     ) -> None:
@@ -248,77 +130,9 @@ class DpdkTestpmd(Tool):
             )
         else:
             major, minor = map(int, [match.group("major"), match.group("minor")])
-            self._dpdk_version_info = VersionInfo(major, minor)
-
-    def _load_drivers_for_dpdk(self) -> None:
-        self.node.log.info("Loading drivers for infiniband, rdma, and mellanox hw...")
-        if self.is_connect_x3:
-            mellanox_drivers = ["mlx4_core", "mlx4_ib"]
-        else:
-            mellanox_drivers = ["mlx5_core", "mlx5_ib"]
-        modprobe = self.node.tools[Modprobe]
-        if isinstance(self.node.os, Ubuntu):
-            modprobe.load("rdma_cm")
-        elif isinstance(self.node.os, Redhat):
-            if not self.is_connect_x3:
-                self.node.execute(
-                    f"dracut --add-drivers '{' '.join(mellanox_drivers)} ib_uverbs' -f",
-                    cwd=self.node.working_path,
-                    expected_exit_code=0,
-                    expected_exit_code_failure_message=(
-                        "Issue loading mlx and ib_uverb drivers into ramdisk."
-                    ),
-                    sudo=True,
-                )
-            modprobe.load("mlx4_en")
-        else:
-            raise UnsupportedDistroException(self.node.os)
-        modprobe.load(["ib_core", "ib_uverbs", "rdma_ucm", "ib_umad", "ib_ipoib"])
-        modprobe.load(mellanox_drivers)
-
-    def _install_dependencies(self) -> None:
-        node = self.node
-        cwd = node.working_path
-
-        if isinstance(node.os, Ubuntu):
-            node.os.add_repository("ppa:canonical-server/server-backports")
-            if "18.04" in node.os.information.release:
-                node.os.install_packages(list(self._ubuntu_packages_1804))
-                self.__execute_assert_zero("pip3 install --upgrade meson", cwd)
-                self.__execute_assert_zero("mv /usr/bin/meson /usr/bin/meson.bak", cwd)
-                self.__execute_assert_zero(
-                    "ln -s /usr/local/bin/meson /usr/bin/meson", cwd
-                )
-                self.__execute_assert_zero("pip3 install --upgrade ninja", cwd)
-            elif "20.04" in node.os.information.release:
-                node.os.install_packages(list(self._ubuntu_packages_2004))
-
-        elif isinstance(node.os, Redhat):
-            self.__execute_assert_zero(
-                "yum update -y --disablerepo='*' --enablerepo='*microsoft*'", cwd
+            self._dpdk_version_info: Union[VersionInfo, None] = VersionInfo(
+                major, minor
             )
-            node.os.group_install_packages("Development Tools")
-            node.os.group_install_packages("Infiniband Support")
-            # TODO: Workaround for type checker below
-            node.os.install_packages(list(self._redhat_packages))
-
-            self.__execute_assert_zero("systemctl enable rdma", cwd)
-            self.__execute_assert_zero("pip3 install --upgrade meson", cwd)
-            self.__execute_assert_zero("ln -s /usr/local/bin/meson /usr/bin/meson", cwd)
-
-            wget_tool = self.node.tools[Wget]
-            wget_tool.get(
-                self._ninja_url,
-                file_path=cwd.as_posix(),
-                filename="ninja-linux.zip",
-            )
-            # node.execute(f"mv ninja-linux.zip {node.working_path}/")
-            self.__execute_assert_zero(
-                "unzip ninja-linux.zip && mv ninja /usr/bin/ninja", cwd
-            )
-            self.__execute_assert_zero("pip3 install --upgrade pyelftools", cwd)
-        else:
-            raise UnsupportedDistroException(node.os)
 
     def generate_testpmd_include(
         self,
@@ -427,14 +241,6 @@ class DpdkTestpmd(Tool):
         self.node.execute(f"killall -s INT {self.command}", sudo=True, shell=True)
         self.timer_proc.kill()
 
-    TX_PPS_KEY = "transmit-packets-per-second"
-    RX_PPS_KEY = "receive-packets-per-second"
-
-    testpmd_output_regex = {
-        TX_PPS_KEY: r"Tx-pps:\s+([0-9]+)",
-        RX_PPS_KEY: r"Rx-pps:\s+([0-9]+)",
-    }
-
     def get_from_testpmd_output(
         self, search_key_constant: str, testpmd_output: str
     ) -> int:
@@ -442,13 +248,13 @@ class DpdkTestpmd(Tool):
             "Could not find output from last testpmd run."
         ).is_not_equal_to("")
         matches = re.findall(
-            self.testpmd_output_regex[search_key_constant], testpmd_output
+            self._testpmd_output_regex[search_key_constant], testpmd_output
         )
         remove_zeros = [x for x in map(int, matches) if x != 0]
         assert_that(len(remove_zeros)).described_as(
             (
                 "Could not locate any performance data spew from "
-                f"this testpmd run. ({self.testpmd_output_regex[search_key_constant]}"
+                f"this testpmd run. ({self._testpmd_output_regex[search_key_constant]}"
                 " was not found in output)."
             )
         ).is_greater_than(0)
@@ -456,10 +262,195 @@ class DpdkTestpmd(Tool):
         return total // len(remove_zeros)
 
     def get_rx_pps(self) -> int:
-        return self.get_from_testpmd_output(self.RX_PPS_KEY, self._last_run_output)
+        return self.get_from_testpmd_output(self._rx_pps_key, self._last_run_output)
 
     def get_tx_pps(self) -> int:
-        return self.get_from_testpmd_output(self.TX_PPS_KEY, self._last_run_output)
+        return self.get_from_testpmd_output(self._tx_pps_key, self._last_run_output)
+
+    def get_tx_pps_sriov_rescind(self) -> Tuple[int, int, int]:
+        return self._get_pps_sriov_rescind(self._tx_pps_key)
+
+    def get_rx_pps_sriov_rescind(self) -> Tuple[int, int, int]:
+        return self._get_pps_sriov_rescind(self._rx_pps_key)
+
+    def _determine_network_hardware(self) -> None:
+        lspci = self.node.tools[Lspci]
+        device_list = lspci.get_device_list()
+        self.is_connect_x3 = any(
+            ["ConnectX-3" in dev.device_info for dev in device_list]
+        )
+
+    def _install(self) -> bool:
+        self._testpmd_output_after_reenable = ""
+        self._testpmd_output_before_rescind = ""
+        self._testpmd_output_during_rescind = ""
+        self._last_run_output = ""
+        self._dpdk_version_info = None
+        self._determine_network_hardware()
+        node = self.node
+        self._install_dependencies()
+        # installing from distro package manager
+        if self._dpdk_source and self._dpdk_source == "package_manager":
+            self.node.log.info(
+                "Installing dpdk and dev package from package manager..."
+            )
+            if isinstance(node.os, Ubuntu):
+                node.os.install_packages(["dpdk", "dpdk-dev"])
+            elif isinstance(node.os, Redhat):
+                node.os.install_packages(["dpdk", "dpdk-devel"])
+            else:
+                raise NotImplementedError(
+                    "Dpdk package names are missing in dpdktestpmd.install"
+                    f" for os {node.os.name}"
+                )
+
+            self._dpdk_version_info = node.os.get_package_information("dpdk")
+
+            if self._dpdk_version_info >= "19.11.0":
+                self._testpmd_install_path = "dpdk-testpmd"
+            else:
+                self._testpmd_install_path = "testpmd"
+            self.node.log.info(
+                f"Installed DPDK version {str(self._dpdk_version_info)} "
+                "from package manager"
+            )
+            self._load_drivers_for_dpdk()
+            return True
+
+        # otherwise install from source tarball or git
+        self.node.log.info(f"Installing dpdk from source: {self._dpdk_source}")
+        self._dpdk_repo_path_name = "dpdk"
+        result = self.node.execute("which dpdk-testpmd")
+        self.dpdk_path = self.node.working_path.joinpath(self._dpdk_repo_path_name)
+        if result.exit_code == 0:  # tools are already installed
+            return True
+        git_tool = node.tools[Git]
+        echo_tool = node.tools[Echo]
+
+        if self._dpdk_source and self._dpdk_source.endswith(".tar.gz"):
+            wget_tool = node.tools[Wget]
+            tar_tool = node.tools[Tar]
+            if self._dpdk_branch:
+                node.log.warn(
+                    (
+                        "DPDK tarball source does not need dpdk_branch defined. "
+                        "User-defined variable dpdk_branch will be ignored."
+                    )
+                )
+            working_path = str(node.working_path)
+            wget_tool.get(
+                self._dpdk_source,
+                working_path,
+            )
+            dpdk_filename = self._dpdk_source.split("/")[-1]
+            # extract tar into dpdk/ folder and discard old root folder name
+            tar_tool.extract(
+                str(node.working_path.joinpath(dpdk_filename)),
+                str(self.dpdk_path),
+                strip_components=1,
+            )
+            self.set_version_info_from_source_install(
+                self._dpdk_source, self._version_info_from_tarball_regex
+            )
+        else:
+            git_tool.clone(
+                self._dpdk_source,
+                cwd=node.working_path,
+                dir_name=self._dpdk_repo_path_name,
+            )
+            if self._dpdk_branch:
+                git_tool.checkout(self._dpdk_branch, cwd=self.dpdk_path)
+                self.set_version_info_from_source_install(
+                    self._dpdk_branch, self._version_info_from_git_tag_regex
+                )
+        self._load_drivers_for_dpdk()
+        self.__execute_assert_zero("meson build", self.dpdk_path)
+        dpdk_build_path = self.dpdk_path.joinpath("build")
+        self.__execute_assert_zero("which ninja", dpdk_build_path)
+        self.__execute_assert_zero("ninja", dpdk_build_path, timeout=1200)
+        self.__execute_assert_zero("ninja install", dpdk_build_path)
+        self.__execute_assert_zero("ldconfig", dpdk_build_path)
+        library_bashrc_lines = [
+            "export PKG_CONFIG_PATH=${PKG_CONFIG_PATH}:/usr/local/lib64/pkgconfig/",
+            "export LD_LIBRARY_PATH=${LD_LIBRARY_PATH}:/usr/local/lib64/",
+        ]
+        echo_tool.write_to_file(
+            ";".join(library_bashrc_lines),
+            node.get_pure_path("~/.bashrc"),
+            append=True,
+        )
+
+        return True
+
+    def _load_drivers_for_dpdk(self) -> None:
+        self.node.log.info("Loading drivers for infiniband, rdma, and mellanox hw...")
+        if self.is_connect_x3:
+            mellanox_drivers = ["mlx4_core", "mlx4_ib"]
+        else:
+            mellanox_drivers = ["mlx5_core", "mlx5_ib"]
+        modprobe = self.node.tools[Modprobe]
+        if isinstance(self.node.os, Ubuntu):
+            modprobe.load("rdma_cm")
+        elif isinstance(self.node.os, Redhat):
+            if not self.is_connect_x3:
+                self.node.execute(
+                    f"dracut --add-drivers '{' '.join(mellanox_drivers)} ib_uverbs' -f",
+                    cwd=self.node.working_path,
+                    expected_exit_code=0,
+                    expected_exit_code_failure_message=(
+                        "Issue loading mlx and ib_uverb drivers into ramdisk."
+                    ),
+                    sudo=True,
+                )
+            modprobe.load("mlx4_en")
+        else:
+            raise UnsupportedDistroException(self.node.os)
+        modprobe.load(["ib_core", "ib_uverbs", "rdma_ucm", "ib_umad", "ib_ipoib"])
+        modprobe.load(mellanox_drivers)
+
+    def _install_dependencies(self) -> None:
+        node = self.node
+        cwd = node.working_path
+
+        if isinstance(node.os, Ubuntu):
+            node.os.add_repository("ppa:canonical-server/server-backports")
+            if "18.04" in node.os.information.release:
+                node.os.install_packages(list(self._ubuntu_packages_1804))
+                self.__execute_assert_zero("pip3 install --upgrade meson", cwd)
+                self.__execute_assert_zero("mv /usr/bin/meson /usr/bin/meson.bak", cwd)
+                self.__execute_assert_zero(
+                    "ln -s /usr/local/bin/meson /usr/bin/meson", cwd
+                )
+                self.__execute_assert_zero("pip3 install --upgrade ninja", cwd)
+            elif "20.04" in node.os.information.release:
+                node.os.install_packages(list(self._ubuntu_packages_2004))
+
+        elif isinstance(node.os, Redhat):
+            self.__execute_assert_zero(
+                "yum update -y --disablerepo='*' --enablerepo='*microsoft*'", cwd
+            )
+            node.os.group_install_packages("Development Tools")
+            node.os.group_install_packages("Infiniband Support")
+            # TODO: Workaround for type checker below
+            node.os.install_packages(list(self._redhat_packages))
+
+            self.__execute_assert_zero("systemctl enable rdma", cwd)
+            self.__execute_assert_zero("pip3 install --upgrade meson", cwd)
+            self.__execute_assert_zero("ln -s /usr/local/bin/meson /usr/bin/meson", cwd)
+
+            wget_tool = self.node.tools[Wget]
+            wget_tool.get(
+                self._ninja_url,
+                file_path=cwd.as_posix(),
+                filename="ninja-linux.zip",
+            )
+            # node.execute(f"mv ninja-linux.zip {node.working_path}/")
+            self.__execute_assert_zero(
+                "unzip ninja-linux.zip && mv ninja /usr/bin/ninja", cwd
+            )
+            self.__execute_assert_zero("pip3 install --upgrade pyelftools", cwd)
+        else:
+            raise UnsupportedDistroException(node.os)
 
     def _split_testpmd_output(self) -> None:
         search_str = "Port 0: device removal event"
@@ -511,8 +502,19 @@ class DpdkTestpmd(Tool):
         )
         return before_rescind, during_rescind, after_reenable
 
-    def get_tx_pps_sriov_rescind(self) -> Tuple[int, int, int]:
-        return self._get_pps_sriov_rescind(self.TX_PPS_KEY)
-
-    def get_rx_pps_sriov_rescind(self) -> Tuple[int, int, int]:
-        return self._get_pps_sriov_rescind(self.RX_PPS_KEY)
+    def __execute_assert_zero(
+        self, cmd: str, path: PurePath, timeout: int = 600
+    ) -> str:
+        result = self.node.execute(
+            cmd,
+            sudo=True,
+            shell=True,
+            cwd=path,
+            timeout=timeout,
+            expected_exit_code=0,
+            expected_exit_code_failure_message=(
+                "Command failed with nonzero error code during testpmd installation "
+                f"in dir '{path.as_posix()}'"
+            ),
+        )
+        return result.stdout
