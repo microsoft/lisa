@@ -1,7 +1,6 @@
 # Copyright (c) Microsoft Corporation.
 # Licensed under the MIT license.
 
-import re
 from typing import List, cast
 
 from assertpy import assert_that
@@ -19,9 +18,10 @@ from lisa import (
     simple_requirement,
 )
 from lisa.features import NetworkInterface, Sriov, Synthetic
-from lisa.tools import Ethtool, Ip, TcpDump
+from lisa.tools import Ip, TcpDump
 from lisa.tools.ping import INTERNET_PING_ADDRESS
-from microsoft.testsuites.xdp.xdpdump import BuildType, XdpDump
+from microsoft.testsuites.xdp.common import get_dropped_count, get_xdpdump
+from microsoft.testsuites.xdp.xdpdump import BuildType
 from microsoft.testsuites.xdp.xdptools import XdpTool
 
 
@@ -33,12 +33,6 @@ from microsoft.testsuites.xdp.xdptools import XdpTool
     """,
 )
 class XdpFunctional(TestSuite):
-    # rx_queue_0_xdp_drop
-    _rx_drop_pattern_synthetic = re.compile(r"^rx_queue_\d+_xdp_drop$")
-    # rx_xdp_drop
-    # rx0_xdp_drop
-    _rx_drop_pattern_vf = re.compile(r"^rx\d*?_xdp_drop$")
-
     @TestCaseMetadata(
         description="""
         It validates the basic functionality of XDP. It runs multiple times to
@@ -51,7 +45,7 @@ class XdpFunctional(TestSuite):
     )
     def verify_xdp_basic(self, node: Node) -> None:
         for _ in range(3):
-            xdpdump = self._get_xdpdump(node)
+            xdpdump = get_xdpdump(node)
             output = xdpdump.test_by_ping()
 
             self._verify_xdpdump_result(output)
@@ -70,7 +64,7 @@ class XdpFunctional(TestSuite):
     )
     def verify_xdp_sriov_failsafe(self, environment: Environment) -> None:
         xdp_node = environment.nodes[0]
-        xdpdump = self._get_xdpdump(xdp_node)
+        xdpdump = get_xdpdump(xdp_node)
 
         remote_address = self._get_ping_address(environment)
 
@@ -107,7 +101,7 @@ class XdpFunctional(TestSuite):
         requirement=simple_requirement(network_interface=Synthetic()),
     )
     def verify_xdp_synthetic(self, node: Node) -> None:
-        xdpdump = self._get_xdpdump(node)
+        xdpdump = get_xdpdump(node)
         output = xdpdump.test_by_ping()
 
         self._verify_xdpdump_result(output)
@@ -123,7 +117,7 @@ class XdpFunctional(TestSuite):
         requirement=simple_requirement(min_nic_count=3),
     )
     def verify_xdp_multiple_nics(self, node: Node) -> None:
-        xdpdump = self._get_xdpdump(node)
+        xdpdump = get_xdpdump(node)
         for i in range(3):
             nic_info = node.nics.get_nic_by_index(i)
             output = xdpdump.test_by_ping(nic_name=nic_info.upper)
@@ -147,7 +141,13 @@ class XdpFunctional(TestSuite):
     ) -> None:
         # expect no response from the ping source side.
         captured_node = environment.nodes[0]
-        self._reset_nic_stats(captured_node)
+        default_nic = captured_node.nics.get_nic_by_index(0)
+        original_count = get_dropped_count(
+            node=captured_node,
+            nic=default_nic,
+            previous_count=0,
+            log=log,
+        )
         self._test_with_build_type(
             environment=environment,
             captured_node=captured_node,
@@ -158,8 +158,11 @@ class XdpFunctional(TestSuite):
             "at the send side.",
             expected_ping_success=False,
         )
-        drop_count = self._get_drop_stats(
-            nic_name=captured_node.nics.default_nic, node=captured_node, log=log
+        drop_count = get_dropped_count(
+            node=captured_node,
+            nic=default_nic,
+            previous_count=original_count,
+            log=log,
         )
         assert_that(drop_count).described_as(
             "the source side should have 5 dropped packets."
@@ -167,7 +170,13 @@ class XdpFunctional(TestSuite):
 
         # expect no packet from the ping target side
         captured_node = environment.nodes[1]
-        self._reset_nic_stats(captured_node)
+        default_nic = captured_node.nics.get_nic_by_index(0)
+        original_count = get_dropped_count(
+            node=captured_node,
+            nic=default_nic,
+            previous_count=0,
+            log=log,
+        )
         self._test_with_build_type(
             environment=environment,
             captured_node=captured_node,
@@ -177,8 +186,11 @@ class XdpFunctional(TestSuite):
             failure_message="DROP mode must have no packet at target side.",
             expected_ping_success=False,
         )
-        drop_count = self._get_drop_stats(
-            nic_name=captured_node.nics.default_nic, node=captured_node, log=log
+        drop_count = get_dropped_count(
+            node=captured_node,
+            nic=default_nic,
+            previous_count=original_count,
+            log=log,
         )
         assert_that(drop_count).described_as(
             "the target side should have 5 dropped packets."
@@ -270,7 +282,7 @@ class XdpFunctional(TestSuite):
     def verify_xdp_with_different_mtu(self, environment: Environment) -> None:
         xdp_node = environment.nodes[0]
         remote_node = environment.nodes[1]
-        xdpdump = self._get_xdpdump(xdp_node)
+        xdpdump = get_xdpdump(xdp_node)
         remote_address = self._get_ping_address(environment)
         tested_mtu: List[int] = [1500, 2000, 3506]
 
@@ -312,14 +324,20 @@ class XdpFunctional(TestSuite):
         requirement=simple_requirement(network_interface=Sriov()),
     )
     def verify_xdp_remove_add_vf(self, node: Node, log: Logger) -> None:
-        xdpdump = self._get_xdpdump(node)
+        xdpdump = get_xdpdump(node)
 
         nic_name = node.nics.default_nic
         nic_feature = node.features[NetworkInterface]
+        default_nic = node.nics.get_nic_by_index(0)
 
         try:
             # validate xdp works with VF
-            self._reset_nic_stats(node)
+            original_count = get_dropped_count(
+                node=node,
+                nic=default_nic,
+                previous_count=0,
+                log=log,
+            )
             output = xdpdump.test_by_ping(
                 nic_name=nic_name,
                 build_type=BuildType.ACTION_DROP,
@@ -327,7 +345,12 @@ class XdpFunctional(TestSuite):
                 remote_address=INTERNET_PING_ADDRESS,
             )
             self._verify_xdpdump_result(output)
-            drop_count = self._get_drop_stats(nic_name=nic_name, node=node, log=log)
+            drop_count = get_dropped_count(
+                node=node,
+                nic=default_nic,
+                previous_count=original_count,
+                log=log,
+            )
             assert_that(drop_count).described_as(
                 "the source side should have 5 dropped packets when VF is enabled."
             ).is_equal_to(5)
@@ -336,7 +359,12 @@ class XdpFunctional(TestSuite):
             nic_feature.switch_sriov(False)
 
             # validate xdp works with synthetic
-            self._reset_nic_stats(node)
+            original_count = get_dropped_count(
+                node=node,
+                nic=default_nic,
+                previous_count=0,
+                log=log,
+            )
             output = xdpdump.test_by_ping(
                 nic_name=nic_name,
                 build_type=BuildType.ACTION_DROP,
@@ -344,7 +372,12 @@ class XdpFunctional(TestSuite):
                 remote_address=INTERNET_PING_ADDRESS,
             )
             self._verify_xdpdump_result(output)
-            drop_count = self._get_drop_stats(nic_name=nic_name, node=node, log=log)
+            drop_count = get_dropped_count(
+                node=node,
+                nic=default_nic,
+                previous_count=original_count,
+                log=log,
+            )
             assert_that(drop_count).described_as(
                 "There should be 5 dropped packets when VF is disabled."
             ).is_equal_to(5)
@@ -352,7 +385,12 @@ class XdpFunctional(TestSuite):
             # enable VF and validate xdp works with VF again
             nic_feature.switch_sriov(True)
 
-            self._reset_nic_stats(node)
+            original_count = get_dropped_count(
+                node=node,
+                nic=default_nic,
+                previous_count=0,
+                log=log,
+            )
             output = xdpdump.test_by_ping(
                 nic_name=nic_name,
                 build_type=BuildType.ACTION_DROP,
@@ -360,7 +398,12 @@ class XdpFunctional(TestSuite):
                 remote_address=INTERNET_PING_ADDRESS,
             )
             self._verify_xdpdump_result(output)
-            drop_count = self._get_drop_stats(nic_name=nic_name, node=node, log=log)
+            drop_count = get_dropped_count(
+                node=node,
+                nic=default_nic,
+                previous_count=original_count,
+                log=log,
+            )
             assert_that(drop_count).described_as(
                 "the source side should have 5 dropped packets when VF back again."
             ).is_equal_to(5)
@@ -397,7 +440,7 @@ class XdpFunctional(TestSuite):
     ) -> None:
         ping_source_node = environment.nodes[0]
 
-        xdpdump = self._get_xdpdump(captured_node)
+        xdpdump = get_xdpdump(captured_node)
         tcpdump = captured_node.tools[TcpDump]
         ping_address = self._get_ping_address(environment)
 
@@ -441,14 +484,6 @@ class XdpFunctional(TestSuite):
 
         return ping_node.internal_address
 
-    def _get_xdpdump(self, node: Node) -> XdpDump:
-        try:
-            xdpdump = node.tools[XdpDump]
-        except UnsupportedDistroException as identifier:
-            raise SkippedException(identifier)
-
-        return xdpdump
-
     def _verify_xdpdump_result(self, output: str) -> None:
         # xdpdump checks last line to see if it runs successfully.
         last_line = output.splitlines(keepends=False)[-1]
@@ -456,25 +491,3 @@ class XdpFunctional(TestSuite):
         assert_that(last_line).described_as(
             "failed on matching xdpdump result."
         ).is_equal_to("unloading xdp program...")
-
-    def _reset_nic_stats(self, node: Node) -> None:
-        network_interface_feature = node.features[NetworkInterface]
-        # Ensure netvsc module is loaded
-        network_interface_feature.reload_module()
-
-    def _get_drop_stats(self, nic_name: str, node: Node, log: Logger) -> int:
-        is_primary_nic = any(x for x in node.nics.get_upper_nics() if x == nic_name)
-        ethtool = node.tools[Ethtool]
-        stats = ethtool.get_device_statistics(nic_name, force_run=True)
-
-        # aggrerate xdp drop count by different nic type
-        if is_primary_nic:
-            pattern = self._rx_drop_pattern_synthetic
-        else:
-            pattern = self._rx_drop_pattern_vf
-        matched_items = {
-            key: value for key, value in stats.items() if pattern.match(key)
-        }
-        log.debug(f"found drop stats: {matched_items}")
-
-        return sum(value for value in matched_items.values())
