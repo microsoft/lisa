@@ -7,8 +7,9 @@ from assertpy import assert_that
 
 from lisa import Node, UnsupportedDistroException
 from lisa.executable import ExecutableResult, Tool
+from lisa.nic import NicInfo
 from lisa.operating_system import Fedora, Ubuntu
-from lisa.tools import Ethtool, Git, Make, Ping
+from lisa.tools import Ethtool, Git, Make, Ping, Sed
 from lisa.tools.ethtool import DeviceGroLroSettings
 from lisa.util.process import Process
 from microsoft.testsuites.xdp.xdptools import can_install
@@ -18,6 +19,8 @@ class BuildType(str, Enum):
     ACTION_TX = "ACTION_TX"
     ACTION_DROP = "ACTION_DROP"
     ACTION_ABORTED = "ACTION_ABORTED"
+    TX_FWD = "TX_FWD"
+    PERF_DROP = "PERF_DROP"
 
 
 class XdpDump(Tool):
@@ -43,6 +46,9 @@ class XdpDump(Tool):
         self._code_path = (
             self.get_tool_path(use_global=True) / "bpf-samples" / "xdpdump"
         )
+
+    def _check_exists(self) -> bool:
+        return self.node.shell.exists(self._code_path)
 
     def _install(self) -> bool:
         # install dependencies
@@ -91,7 +97,10 @@ class XdpDump(Tool):
     def start_async(self, nic_name: str = "", timeout: int = 5) -> Process:
         try:
             self._disable_lro(nic_name)
-            command = f"timeout {timeout} {self.command} -i {nic_name}"
+            command = ""
+            if timeout > 0:
+                command = f"timeout {timeout}"
+            command = f"{command} {self.command} -i {nic_name}"
             xdpdump_process = self.node.execute_async(
                 command,
                 shell=True,
@@ -134,7 +143,7 @@ class XdpDump(Tool):
         if not ping_source_node:
             ping_source_node = self.node
 
-        self._make_by_build_type(build_type=build_type)
+        self.make_by_build_type(build_type=build_type)
 
         # if there is an remote address defined, test it in async mode, and
         # check the ping result.
@@ -159,14 +168,17 @@ class XdpDump(Tool):
 
         return result.stdout
 
-    def _make_by_build_type(self, build_type: Optional[BuildType] = None) -> None:
+    def make_by_build_type(self, build_type: Optional[BuildType] = None) -> None:
         env_variables: Dict[str, str] = {}
 
         # if no build type specified, rebuild it with default behavior.
         if build_type:
-            env_variables[
-                "CFLAGS"
-            ] = f"-D __{build_type.name}__ -I../libbpf/src/root/usr/include"
+            cflags = f"-D __{build_type.name}__ -I../libbpf/src/root/usr/include"
+
+            # no output log to improve perf with high volume data.
+            if build_type in [BuildType.PERF_DROP, BuildType.TX_FWD]:
+                cflags = f"{cflags} -D __PERF__"
+            env_variables["CFLAGS"] = cflags
 
         make = self.node.tools[Make]
         make.make(
@@ -175,6 +187,62 @@ class XdpDump(Tool):
             is_clean=True,
             update_envs=env_variables,
         )
+
+        # discard local changes after built, it's used to cleanup changes from
+        # the forwarder role.
+        git = self.node.tools[Git]
+        git.discard_local_changes(cwd=self._code_path)
+
+    def make_on_forwarder_role(
+        self,
+        forwarder_nic: NicInfo,
+        receiver_nic: NicInfo,
+    ) -> None:
+        sed = self.node.tools[Sed]
+        # replace hard code mac and ip addresses in code, the changes will be
+        # reset after built.
+        forwarder_mac = self._convert_mac_to_c_style(forwarder_nic.mac_addr)
+        forwarder_ip = self._convert_ip_to_c_style(forwarder_nic.ip_addr)
+        receiver_mac = self._convert_mac_to_c_style(receiver_nic.mac_addr)
+        receiver_ip = self._convert_ip_to_c_style(receiver_nic.ip_addr)
+
+        sed.substitute(
+            regexp=r"unsigned char newethsrc \[\] = "
+            "{ 0x00, 0x22, 0x48, 0x4c, 0xc4, 0x4d };",
+            replacement=r"unsigned char newethsrc \[\] = {" + forwarder_mac + "};",
+            file=f"{self._code_path}/xdpdump_kern.c",
+        )
+        sed.substitute(
+            regexp=r"unsigned char newethdest \[\] = "
+            "{ 0x00, 0x22, 0x48, 0x4c, 0xc0, 0xfd };",
+            replacement=r"unsigned char newethdest \[\] = {" + receiver_mac + "};",
+            file=f"{self._code_path}/xdpdump_kern.c",
+        )
+        sed.substitute(
+            regexp=r"__u8 newsrc \[\] = { 10, 0, 1, 5 };",
+            replacement=r"__u8 newsrc \[\] = {" + forwarder_ip + "};",
+            file=f"{self._code_path}/xdpdump_kern.c",
+        )
+        sed.substitute(
+            regexp=r"__u8 newdest \[\] = { 10, 0, 1, 4 };",
+            replacement=r"__u8 newdest \[\] = {" + receiver_ip + "};",
+            file=f"{self._code_path}/xdpdump_kern.c",
+        )
+
+        self.make_by_build_type(build_type=BuildType.TX_FWD)
+
+    def _convert_mac_to_c_style(self, mac: str) -> str:
+        """
+        convert 00:22:48:7a:ed:28 to 0x00, 0x22, 0x48, 0x7a, 0xed, 0x28
+        """
+        bytes_list = [f"0x{x}" for x in mac.split(":")]
+        return ", ".join(bytes_list)
+
+    def _convert_ip_to_c_style(self, ip: str) -> str:
+        """
+        convert 10.0.0.1 to 10, 0, 0, 1
+        """
+        return ", ".join(ip.split("."))
 
     def _disable_lro(self, nic_name: str) -> None:
         ethtool = self.node.tools[Ethtool]
