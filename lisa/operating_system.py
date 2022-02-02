@@ -1058,7 +1058,11 @@ class Fedora(RPMDistro):
         self.install_packages(
             f"https://dl.fedoraproject.org/pub/epel/{epel_release_rpm_name}"
         )
-        self._update_packages()
+
+        # replace $releasever to 8 for 8.x
+        if major == 8:
+            sed = self._node.tools[Sed]
+            sed.substitute("$releasever", "8", "/etc/yum.repos.d/epel*.repo", sudo=True)
 
     def _get_information(self) -> OsInformation:
         cmd_result = self._node.execute(
