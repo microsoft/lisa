@@ -126,11 +126,12 @@ function InstallCUDADrivers() {
 	ubuntu*)
 		GetOSVersion
 		# 20.04 version install differs from older versions. Special case the new version. Abort if version doesn't exist yet.
-		if [[ $os_RELEASE =~ 21.* ]]; || [[ $os_RELEASE =~ 22.* ]] then
+		if [[ $os_RELEASE =~ 21.* ]] || [[ $os_RELEASE =~ 22.* ]]; then
 			LogErr "CUDA Driver may not exist for Ubuntu > 21.XX , check https://developer.download.nvidia.com/compute/cuda/repos/ for new versions."
 			SetTestStateAborted;
 		fi
 		if [ $os_RELEASE = 20.04 ]; then
+			LogMsg "Proceeding with installation for 20.04"
 			wget -O /etc/apt/preferences.d/cuda-repository-pin-600 https://developer.download.nvidia.com/compute/cuda/repos/ubuntu2004/x86_64/cuda-ubuntu2004.pin
 			apt-key adv --fetch-keys https://developer.download.nvidia.com/compute/cuda/repos/ubuntu2004/x86_64/7fa2af80.pub
 			add-apt-repository "deb http://developer.download.nvidia.com/compute/cuda/repos/ubuntu2004/x86_64/ /"
