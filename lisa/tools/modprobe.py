@@ -91,3 +91,12 @@ class Modprobe(Tool):
                     expected_exit_code_failure_message="Failed to remove and load"
                     f" module {mod_name}",
                 )
+
+    def load_by_file(self, file_name: str) -> None:
+        # the insmod support to load from file.
+        self.node.execute(
+            f"insmod {file_name}",
+            sudo=True,
+            expected_exit_code=0,
+            expected_exit_code_failure_message=f"failed to load module {file_name}",
+        )
