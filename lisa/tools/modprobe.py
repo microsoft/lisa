@@ -44,20 +44,21 @@ class Modprobe(Tool):
 
         return not (could_be_loaded or does_not_exist)
 
-    def remove(
-        self,
-        mod_names: List[str],
-    ) -> None:
+    def remove(self, mod_names: List[str], ignore_error: bool = False) -> None:
         for mod_name in mod_names:
-            if self.is_module_loaded(mod_name, force_run=True):
-                self.run(
-                    f"-r {mod_name}",
-                    force_run=True,
-                    sudo=True,
-                    expected_exit_code=0,
-                    expected_exit_code_failure_message="Fail to remove module"
-                    f" {mod_name}",
-                )
+            if ignore_error:
+                # rmmod support the module file, so use it here.
+                self.node.execute(f"rmmod {mod_name}", sudo=True)
+            else:
+                if self.is_module_loaded(mod_name, force_run=True):
+                    self.run(
+                        f"-r {mod_name}",
+                        force_run=True,
+                        sudo=True,
+                        expected_exit_code=0,
+                        expected_exit_code_failure_message="Fail to remove module "
+                        f"{mod_name}",
+                    )
 
     def load(
         self,
