@@ -27,6 +27,7 @@ from lisa.tools import Dmesg, Echo, Git, Ip, Lsmod, Lspci, Make, Modprobe, Mount
 from lisa.util import perf_timer
 from lisa.util.parallel import Task, TaskManager
 from microsoft.testsuites.dpdk.dpdknffgo import DpdkNffGo
+from microsoft.testsuites.dpdk.dpdkovs import DpdkOvs
 from microsoft.testsuites.dpdk.dpdktestpmd import DpdkTestpmd
 from microsoft.testsuites.dpdk.dpdkvpp import DpdkVpp
 
@@ -89,6 +90,47 @@ class Dpdk(TestSuite):
         self, node: Node, log: Logger, variables: Dict[str, Any]
     ) -> None:
         self._verify_dpdk_build(node, log, variables, "failsafe")
+
+    @TestCaseMetadata(
+        description="""
+           Install and run OVS+DPDK functional tests
+        """,
+        priority=3,
+        requirement=simple_requirement(
+            min_nic_count=2,
+            network_interface=Sriov(),
+        ),
+    )
+    def verify_dpdk_ovs(
+        self, node: Node, log: Logger, variables: Dict[str, Any]
+    ) -> None:
+        # initialize DPDK first, OVS requires it built before configuring.
+        test_kit = initialize_node_resources(node, log, variables, "failsafe")
+
+        # checkout OpenVirtualSwitch
+        ovs = node.tools[DpdkOvs]
+
+        # provide ovs build with DPDK tool info and build
+        ovs.build_with_dpdk(test_kit.testpmd)
+
+        # enable hugepages needed for dpdk EAL
+        _init_hugepages(node)
+
+        try:
+            # run OVS tests, providing OVS with the NIC info needed for DPDK init
+            ovs.setup_ovs(node.nics.get_nic_by_index().pci_slot)
+
+            # validate if OVS was able to initialize DPDK
+            node.execute(
+                "ovs-vsctl get Open_vSwitch . dpdk_initialized",
+                sudo=True,
+                expected_exit_code=0,
+                expected_exit_code_failure_message=(
+                    "OVS repoted that DPDK EAL failed to initialize."
+                ),
+            )
+        finally:
+            ovs.stop_ovs()
 
     @TestCaseMetadata(
         description="""
