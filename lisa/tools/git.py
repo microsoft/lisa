@@ -5,6 +5,8 @@ import pathlib
 import re
 from typing import List
 
+from assertpy import assert_that
+
 from lisa.executable import Tool
 from lisa.operating_system import Posix
 from lisa.util import LisaException, constants, filter_ansi_escape, get_matched_str
@@ -159,3 +161,39 @@ class Git(Tool):
             expected_exit_code=0,
             expected_exit_code_failure_message="error on init submodules.",
         )
+
+    def get_tag(
+        self,
+        cwd: pathlib.PurePath,
+        sort_by: str = "v:refname",
+        contains: str = "",
+        return_last: bool = True,
+    ) -> str:
+        sort_arg = ""
+        contains_arg = ""
+        if sort_by:
+            # git tag exposes various sort options, apply them if present
+            # default is sort by version, ascending
+            sort_arg = f"--sort={sort_by}"
+        if contains:
+            # git tag allows you to filter by a commit id, apply it is present.
+            contains_arg = f"--contains {contains}"
+
+        git_cmd = f"--no-pager tag {sort_arg} {contains_arg}"
+        tags = self.run(
+            git_cmd,
+            cwd=cwd,
+            expected_exit_code=0,
+            expected_exit_code_failure_message=(
+                "git tag failed to fetch tags, "
+                "check sort and commit arguments are correct"
+            ),
+        ).stdout.splitlines()
+        assert_that(len(tags)).described_as(
+            "Error: could not find any tags with this sort or filter setting"
+        ).is_greater_than(0)
+
+        if return_last:
+            return tags[-1]
+        else:
+            return tags[0]
