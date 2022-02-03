@@ -14,6 +14,14 @@ class Swap(Tool):
     def _check_exists(self) -> bool:
         return True
 
+    def set_up_swap_space(self, partition: str) -> None:
+        cmd_res = self.node.execute(
+            f"mkswap {partition}",
+            shell=True,
+            sudo=True
+        )
+        cmd_res.assert_exit_code()
+
     def is_swap_enabled(self) -> bool:
         # swapon lists the swap files and partitions
         # example output:
