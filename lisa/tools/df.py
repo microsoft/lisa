@@ -20,6 +20,7 @@ class Df(Tool):
     def command(self) -> str:
         return "df"
 
+    @property
     def can_install(self) -> bool:
         return True
 
