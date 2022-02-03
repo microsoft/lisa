@@ -1,7 +1,9 @@
 # Copyright (c) Microsoft Corporation.
 # Licensed under the MIT license.
 
+import re
 from lisa.executable import Tool
+from lisa.util import find_patterns_in_lines
 
 
 class Sed(Tool):
@@ -53,3 +55,20 @@ class Sed(Tool):
             shell=True,
         )
         result.assert_exit_code(message=result.stdout)
+
+    def substitute_or_append(
+        self,
+        is_substitute: bool = False,
+        file_output: str = "",
+        regexp: str = "",
+        replacement: str = "",
+        text: str = "",
+        file: str = "",
+        match_lines: str = "",
+        sudo: bool = False,
+    ) -> None:
+        search_pattern = re.compile(rf"{regexp}", re.M)
+        if is_substitute or find_patterns_in_lines(file_output, [search_pattern])[0]:
+            self.substitute(regexp, replacement, file, match_lines, sudo)
+        else:
+            self.append(text, file, sudo)

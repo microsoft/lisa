@@ -1,6 +1,7 @@
 # Copyright (c) Microsoft Corporation.
 # Licensed under the MIT license.
 
+from math import e
 from lisa.executable import Tool
 from lisa.tools.lsblk import Lsblk
 from lisa.tools.swapon import SwapOn
@@ -13,6 +14,14 @@ class Swap(Tool):
 
     def _check_exists(self) -> bool:
         return True
+
+    def create_swap(self, partition_name: str) -> None:
+        cmd_res = self.node.execute(
+            f"mkswap {partition_name}",
+            sudo=True,
+            expected_exit_code=0,
+            expected_exit_code_failure_message="Failed to create swap space."
+        )
 
     def is_swap_enabled(self) -> bool:
         # swapon lists the swap files and partitions

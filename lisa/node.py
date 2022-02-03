@@ -448,6 +448,23 @@ class RemoteNode(Node):
 
         return self.get_pure_path(result.stdout)
 
+    def find_partition_with_freespace(self, size_in_gb: int) -> str:
+        if self.os.is_windows:
+            raise NotImplementedError()
+
+        df = self.tools[Df]
+        home_partition = df.get_partition_by_mountpoint("/home")
+        if home_partition and df.check_partition_size(home_partition, size_in_gb):
+            return home_partition.mountpoint
+
+        mnt_partition = df.get_partition_by_mountpoint("/mnt")
+        if mnt_partition and df.check_partition_size(mnt_partition, size_in_gb):
+            return mnt_partition.mountpoint
+
+        raise LisaException(
+            f"No partition with Required disk space of {size_in_gb}GB found"
+        )
+
 
 class LocalNode(Node):
     def __init__(
