@@ -321,7 +321,13 @@ def find_patterns_in_lines(lines: str, patterns: List[Pattern[str]]) -> List[Lis
     For each pattern: if a pattern needs one return, it returns [str]. if it
     needs multiple return, it retuns like [(str, str)].
     """
-    results: List[List[str]] = [[]] * len(patterns)
+    results: List[List[str]] = []
+    # create a list for each pattern. If use like [[]] * len(patterns), the
+    # items is the same [] object actually. It doesn't matter in this method,
+    # because the list is assigned each time. But it may mislead others, and
+    # make potential bug in other places.
+    for _ in range(len(patterns)):
+        results.append([])
     for index, pattern in enumerate(patterns):
         if not results[index]:
             results[index] = pattern.findall(lines)
@@ -346,7 +352,10 @@ def find_patterns_groups_in_lines(
     """
     for each pattern find the matches and return with group names.
     """
-    results: List[List[Dict[str, str]]] = [[]] * len(patterns)
+    results: List[List[Dict[str, str]]] = []
+    # create a list for each pattern.
+    for _ in range(len(patterns)):
+        results.append([])
     for line in lines.splitlines(keepends=False):
         for index, pattern in enumerate(patterns):
             matched = pattern.match(line)
