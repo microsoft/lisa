@@ -26,7 +26,7 @@ from microsoft.testsuites.xdp.common import (
     remove_hugepage,
     set_hugepage,
 )
-from microsoft.testsuites.xdp.pktgen import Pktgen
+from microsoft.testsuites.xdp.pktgen import Pktgen, PktgenResult
 from microsoft.testsuites.xdp.xdpdump import BuildType
 
 # the received packets must be at least 90%
@@ -188,7 +188,7 @@ class XdpPerformance(TestSuite):
             forwarder_xdpdump.start_async(nic_name=forwarder_nic.upper, timeout=0)
             receiver_xdpdump.start_async(nic_name=receiver_nic.upper, timeout=0)
 
-            sent_count = self._send_packets(
+            pktgen_result = self._send_packets(
                 is_multi_threads, sender, pktgen, sender_nic, forwarder_nic
             )
 
@@ -224,11 +224,11 @@ class XdpPerformance(TestSuite):
             validate_count = dropped_count
 
         log.debug(
-            f"packet count on sender: {sent_count}, "
+            f"sender pktgen result: {pktgen_result}, "
             f"on forwarder: {forwarded_count}, "
             f"on receiver: {dropped_count}"
         )
-        assert_that(validate_count / sent_count).described_as(
+        assert_that(validate_count / pktgen_result.sent_count).described_as(
             f"forwarded packets should be above {threshold*100}% of sent"
         ).is_greater_than_or_equal_to(threshold)
 
@@ -262,7 +262,7 @@ class XdpPerformance(TestSuite):
         pktgen: Pktgen,
         sender_nic: NicInfo,
         forwarder_nic: NicInfo,
-    ) -> int:
+    ) -> PktgenResult:
         # send packets use the second nic to make sure the performance is not
         # impact by LISA.
         forwarder_ip = forwarder_nic.ip_addr
@@ -277,7 +277,7 @@ class XdpPerformance(TestSuite):
 
         try:
             set_hugepage(sender)
-            sent_count = pktgen.send_packets(
+            result = pktgen.send_packets(
                 destination_ip=forwarder_ip,
                 destination_mac=forwarder_mac,
                 nic_name=sender_nic.upper,
@@ -285,4 +285,4 @@ class XdpPerformance(TestSuite):
             )
         finally:
             remove_hugepage(sender)
-        return sent_count
+        return result
