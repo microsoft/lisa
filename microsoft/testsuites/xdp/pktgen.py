@@ -8,7 +8,7 @@ from lisa.operating_system import Fedora
 from lisa.tools import Modprobe
 
 
-class PktGen(Tool):
+class Pktgen(Tool):
     """
     The pktgen script from Linux kernel code
     """
