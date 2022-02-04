@@ -3,7 +3,7 @@
 
 import re
 from dataclasses import dataclass
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 from semver import VersionInfo
 
@@ -41,7 +41,7 @@ class Uname(Tool):
     )
 
     @classmethod
-    def create(cls, node: "Node") -> Tool:
+    def create(cls, node: "Node", *args: Any, **kwargs: Any) -> Tool:
         # This file is a base tool, which is used by os. To avoid circular
         # import, the class name string is used here.
         if "FreeBSD" in node.os.name:

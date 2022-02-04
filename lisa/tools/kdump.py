@@ -3,7 +3,7 @@
 
 import re
 from pathlib import PurePath, PurePosixPath
-from typing import TYPE_CHECKING, List, Type
+from typing import TYPE_CHECKING, Any, List, Type
 
 from retry import retry
 from semver import VersionInfo
@@ -172,7 +172,7 @@ class KdumpBase(Tool):
     dump_path = "/var/crash"
 
     @classmethod
-    def create(cls, node: "Node") -> Tool:
+    def create(cls, node: "Node", *args: Any, **kwargs: Any) -> Tool:
         if isinstance(node.os, Redhat):
             return KdumpRedhat(node)
         elif isinstance(node.os, Debian):
