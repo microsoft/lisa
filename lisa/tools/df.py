@@ -44,9 +44,11 @@ class Df(Tool):
             )
         return partition_info
 
-    def get_partition_by_mountpoint(self, mountpoint: str) -> Optional[PartitionInfo]:
+    def get_partition_by_mountpoint(
+        self, mountpoint: str, force_run: bool = False
+    ) -> Optional[PartitionInfo]:
         # get `df` entry for the partition with the given mountpoint
-        df_partition_info = self.get_partitions()
+        df_partition_info = self.get_partitions(force_run)
         for partition in df_partition_info:
             if partition.mountpoint == mountpoint:
                 return partition
