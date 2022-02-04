@@ -21,6 +21,7 @@ types-toml>=0.1.5
 Pillow>=9.0.0
 azure-storage-file-share>=12.4.0
 pycdlib>=1.12.0
+toml>=0.10.2
 Sphinx>=4.1.0
 sphinx-argparse>=0.2.5
 sphinx-rtd-theme>=0.5.2
