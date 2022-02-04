@@ -26,7 +26,7 @@ from microsoft.testsuites.xdp.common import (
     remove_hugepage,
     set_hugepage,
 )
-from microsoft.testsuites.xdp.pktgen import PktGen
+from microsoft.testsuites.xdp.pktgen import Pktgen
 from microsoft.testsuites.xdp.xdpdump import BuildType
 
 # the received packets must be at least 90%
@@ -143,7 +143,7 @@ class XdpPerformance(TestSuite):
         receiver = environment.nodes[2]
 
         # install pktgen on sender
-        pktgen = sender.tools[PktGen]
+        pktgen = sender.tools[Pktgen]
         # install xdp dump on forwarder and receiver
         forwarder_xdpdump, receiver_xdpdump = run_in_parallel(
             [
@@ -259,7 +259,7 @@ class XdpPerformance(TestSuite):
         self,
         is_multi_threads: bool,
         sender: Node,
-        pktgen: PktGen,
+        pktgen: Pktgen,
         sender_nic: NicInfo,
         forwarder_nic: NicInfo,
     ) -> int:
