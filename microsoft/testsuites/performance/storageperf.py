@@ -25,11 +25,9 @@ from lisa.node import RemoteNode
 from lisa.operating_system import SLES, Debian, Redhat
 from lisa.tools import (
     FIOMODES,
-    Fdisk,
     FileSystem,
     Fio,
     Lscpu,
-    Mdadm,
     Mkfs,
     Mount,
     NFSClient,
@@ -38,30 +36,11 @@ from lisa.tools import (
 from lisa.util import SkippedException
 from microsoft.testsuites.performance.common import (
     handle_and_send_back_results,
+    reset_partitions,
+    reset_raid,
     run_perf_test,
+    stop_raid,
 )
-
-
-def _format_disk(
-    node: Node,
-    disk_list: List[str],
-) -> List[str]:
-    fdisk = node.tools[Fdisk]
-    partition_disks: List[str] = []
-    for data_disk in disk_list:
-        fdisk.delete_partitions(data_disk)
-        partition_disks.append(fdisk.make_partition(data_disk, format=False))
-    return partition_disks
-
-
-def _stop_raid(node: Node) -> None:
-    mdadm = node.tools[Mdadm]
-    mdadm.stop_raid()
-
-
-def _make_raid(node: Node, disk_list: List[str]) -> None:
-    mdadm = node.tools[Mdadm]
-    mdadm.create_raid(disk_list)
 
 
 @TestSuiteMetadata(
@@ -275,9 +254,8 @@ class StoragePerformance(TestSuite):
         # setup raid on server
         server_data_disks = server_node.features[Disk].get_raw_data_disks()
         server_data_disk_count = len(server_data_disks)
-        server_partition_disks = _format_disk(server_node, server_data_disks)
-        _stop_raid(server_node)
-        _make_raid(server_node, server_partition_disks)
+        server_partition_disks = reset_partitions(server_node, server_data_disks)
+        reset_raid(server_node, server_partition_disks)
 
         # mount raid disk on server
         server_node.shell.mkdir(
@@ -355,9 +333,8 @@ class StoragePerformance(TestSuite):
         assert_that(disk_count).described_as(
             "At least 1 data disk for fio testing."
         ).is_greater_than(0)
-        partition_disks = _format_disk(node, data_disks)
-        _stop_raid(node)
-        _make_raid(node, partition_disks)
+        partition_disks = reset_partitions(node, data_disks)
+        reset_raid(node, partition_disks)
         cpu = node.tools[Lscpu]
         core_count = cpu.get_core_count()
         start_iodepth = 1
@@ -384,4 +361,4 @@ class StoragePerformance(TestSuite):
 
     def after_case(self, log: Logger, **kwargs: Any) -> None:
         node: Node = kwargs.pop("node")
-        _stop_raid(node)
+        stop_raid(node)

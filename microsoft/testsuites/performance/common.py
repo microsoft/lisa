@@ -6,7 +6,7 @@ from typing import Dict, List, Optional
 from lisa import Node, notifier
 from lisa.environment import Environment
 from lisa.messages import DiskPerformanceMessage, DiskSetupType, DiskType
-from lisa.tools import FIOMODES, Fio, FIOResult, Kill
+from lisa.tools import FIOMODES, Fdisk, Fio, FIOResult, Kill, Mdadm
 from lisa.util import dict_to_fields
 
 
@@ -80,3 +80,26 @@ def cleanup_process(environment: Environment, process_name: str) -> None:
     for node in environment.nodes.list():
         kill = node.tools[Kill]
         kill.by_name(process_name)
+
+
+def reset_partitions(
+    node: Node,
+    disk_names: List[str],
+) -> List[str]:
+    fdisk = node.tools[Fdisk]
+    partition_disks: List[str] = []
+    for data_disk in disk_names:
+        fdisk.delete_partitions(data_disk)
+        partition_disks.append(fdisk.make_partition(data_disk, format=False))
+    return partition_disks
+
+
+def stop_raid(node: Node) -> None:
+    mdadm = node.tools[Mdadm]
+    mdadm.stop_raid()
+
+
+def reset_raid(node: Node, disk_list: List[str]) -> None:
+    stop_raid(node)
+    mdadm = node.tools[Mdadm]
+    mdadm.create_raid(disk_list)
