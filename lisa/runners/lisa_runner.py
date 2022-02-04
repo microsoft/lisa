@@ -135,7 +135,7 @@ class LisaRunner(BaseRunner):
             return self._generate_task(
                 task_method=self._deploy_environment_task,
                 environment=environment,
-                test_results=can_run_results,
+                test_results=can_run_results[:1],
             )
 
         # run on deployed environment
