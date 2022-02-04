@@ -1,11 +1,42 @@
 # Copyright (c) Microsoft Corporation.
 # Licensed under the MIT license.
+import re
+from dataclasses import dataclass
 from typing import Any, List, Type
 
 from lisa.base_tools import Wget
 from lisa.executable import Tool
 from lisa.operating_system import Fedora
 from lisa.tools import Modprobe
+from lisa.util import find_patterns_groups_in_lines
+
+
+@dataclass
+class PktgenResult:
+    #   13620pps 6Mb/sec (6537600bps) errors: 0
+    #   81907pps 39Mb/sec (39315360bps) errors: 0
+    _pps_pattern = re.compile(r"^\s+(?P<count>\d+)pps\s.*?$")
+    # Result: OK: 1308215(c1307269+d946) usec, 1000000 (60byte,0frags)
+    _sent_count_pattern = re.compile(
+        r"^Result: OK: \d+\([\w\+]*\) usec, (?P<count>\d+) .*?$"
+    )
+
+    @classmethod
+    def create(cls, output: str) -> "PktgenResult":
+        pps_matches, sent_count_matches = find_patterns_groups_in_lines(
+            output, [cls._pps_pattern, cls._sent_count_pattern]
+        )
+        pps = 0
+        sent_count = 0
+        for pps_match in pps_matches:
+            pps += int(pps_match["count"])
+        for sent_count_match in sent_count_matches:
+            sent_count += int(sent_count_match["count"])
+
+        return PktgenResult(pps=pps, sent_count=sent_count)
+
+    pps: int = 0
+    sent_count: int = 0
 
 
 class Pktgen(Tool):
@@ -94,7 +125,7 @@ class Pktgen(Tool):
         packet_count_per_thread: int = 1000000,
         nic_name: str = "",
         thread_count: int = 1,
-    ) -> int:
+    ) -> PktgenResult:
         """
         returns the packets count supposes to be sent.
         """
@@ -115,11 +146,11 @@ class Pktgen(Tool):
             f"-d {destination_ip} -v -n{packet_count_per_thread}"
         )
 
-        self.node.execute(
+        result = self.node.execute(
             command,
             cwd=self._tool_path,
             expected_exit_code=0,
             expected_exit_code_failure_message="fail on run pktgen",
         )
 
-        return packet_count_per_thread * thread_count
+        return PktgenResult.create(result.stdout)
