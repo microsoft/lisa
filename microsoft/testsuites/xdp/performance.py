@@ -212,7 +212,7 @@ class XdpPerformance(TestSuite):
             xdpdump.start_async(nic_name=receiver_nic.upper, timeout=0)
 
             pktgen_result = self._send_packets(
-                True, sender, pktgen, sender_nic, receiver_nic
+                is_multi_thread, sender, pktgen, sender_nic, receiver_nic
             )
 
             self._wait_packets_proceeded(
