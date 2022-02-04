@@ -1,9 +1,10 @@
 # Copyright (c) Microsoft Corporation.
 # Licensed under the MIT license.
 
+import inspect
 from functools import partial
 from time import sleep
-from typing import Any, List
+from typing import Any, List, Type
 
 from assertpy import assert_that
 
@@ -16,10 +17,15 @@ from lisa import (
     TestSuiteMetadata,
     simple_requirement,
 )
+from lisa.executable import Tool
 from lisa.features import Sriov, Synthetic
 from lisa.nic import NicInfo
-from lisa.tools import Kill, Lscpu
+from lisa.tools import Kill, Lagscope, Lscpu, Ntttcp
 from lisa.util.parallel import run_in_parallel
+from microsoft.testsuites.performance.common import (
+    calculate_middle_average,
+    perf_ntttcp,
+)
 from microsoft.testsuites.xdp.common import (
     get_dropped_count,
     get_forwarded_count,
@@ -32,6 +38,8 @@ from microsoft.testsuites.xdp.xdpdump import BuildType, XdpDump
 
 # the received packets must be at least 90%
 _default_received_threshold = 0.9
+# the xdp latency shouldn't take more than 40% time.
+_default_latency_threshold = 1.4
 
 
 @TestSuiteMetadata(
@@ -178,6 +186,160 @@ class XdpPerformance(TestSuite):
             log,
         )
 
+    @TestCaseMetadata(
+        description="""
+        This case compare and record latency impact of XDP compnent.
+
+        The test use lagscope to send tcp packets. And then compare the latency
+        with/without XDP component. If the gap is more than 40%, the test case
+        fails.
+        """,
+        priority=3,
+        requirement=simple_requirement(
+            min_nic_count=2, min_count=2, min_core_count=8, network_interface=Sriov()
+        ),
+    )
+    def perf_xdp_lagscope_latency(self, environment: Environment, log: Logger) -> None:
+        self._execute_latency_test(
+            environment,
+            Lagscope,
+            log,
+        )
+
+    @TestCaseMetadata(
+        description="""
+        This case compare and record latency impact of XDP compnent.
+
+        The test use ntttcp to send tcp packets. And then compare the latency
+        with/without XDP component. If the gap is more than 40%, the test case
+        fails.
+        """,
+        priority=3,
+        requirement=simple_requirement(
+            min_nic_count=2, min_count=2, min_core_count=8, network_interface=Sriov()
+        ),
+    )
+    def perf_xdp_ntttcp_latency(self, environment: Environment, log: Logger) -> None:
+        self._execute_latency_test(
+            environment,
+            Ntttcp,
+            log,
+        )
+
+    def _execute_latency_test(
+        self,
+        environment: Environment,
+        tool_type: Type[Tool],
+        log: Logger,
+    ) -> None:
+        server = environment.nodes[0]
+        client = environment.nodes[1]
+
+        server_xdpdump = get_xdpdump(server)
+        server_xdpdump.make_by_build_type(BuildType.PERF)
+        server_nic = server.nics.get_nic_by_index(1)
+
+        # the latency is not stable in cloud environment, test multiple times
+        # and aggregate the result.
+        tested_runs = 5
+        latency_without_xdp: List[float] = []
+        latency_with_xdp: List[float] = []
+
+        for _ in range(tested_runs):
+            latency_without_xdp.append(
+                self._send_packets_for_latency(server, client, environment, tool_type)
+            )
+
+            try:
+                server_xdpdump.start_async(nic_name=server_nic.upper, timeout=0)
+                latency_with_xdp.append(
+                    self._send_packets_for_latency(
+                        server, client, environment, tool_type
+                    )
+                )
+            finally:
+                server_kill = server.tools[Kill]
+                server_kill.by_name("xdpdump")
+        final_without_xdp = calculate_middle_average(latency_without_xdp)
+        final_with_xdp = calculate_middle_average(latency_with_xdp)
+
+        log.info(
+            f"Latency with XDP: {final_with_xdp}us, "
+            f"without XDP: {final_without_xdp}us. "
+            f"Raw with XDP: {latency_with_xdp}, "
+            f"without XDP: {latency_without_xdp}. "
+        )
+        assert_that(final_with_xdp / final_without_xdp).described_as(
+            f"The XDP latency: {final_with_xdp}us shouldn't slower 40% than "
+            f"the normal latency: {final_without_xdp}us."
+        ).is_less_than_or_equal_to(_default_latency_threshold)
+
+    def _send_packets_for_latency(
+        self,
+        server: Node,
+        client: Node,
+        environment: Environment,
+        tool_type: Type[Tool],
+    ) -> float:
+        assert_that(tool_type).described_as("the tool is not supported").is_in(
+            Lagscope, Ntttcp
+        )
+
+        # mypy doesn't work with generic type method "get". So use a
+        # intermidiate variable tools to store it.
+        tools: List[Any] = run_in_parallel(
+            [
+                partial(server.tools.get, tool_type),
+                partial(client.tools.get, tool_type),
+            ]
+        )
+
+        server_nic = server.nics.get_nic_by_index(1)
+
+        if tool_type is Lagscope:
+            server_lagscope: Lagscope = tools[0]
+            client_lagscope: Lagscope = tools[1]
+            try:
+                run_in_parallel(
+                    [server_lagscope.set_busy_poll, client_lagscope.set_busy_poll]
+                )
+                server_lagscope.run_as_server(ip=server_nic.ip_addr)
+
+                result = client_lagscope.run_as_client(server_ip=server_nic.ip_addr)
+                lagscope_messages = client_lagscope.create_latency_peformance_messages(
+                    result=result,
+                    environment=environment,
+                    test_case_name=inspect.stack()[2].function,
+                )
+
+                assert lagscope_messages
+                assert_that(len(lagscope_messages)).described_as(
+                    "at least one message is necessary"
+                ).is_greater_than(0)
+                return float(
+                    sum(x.average_latency_us for x in lagscope_messages)
+                    / len(lagscope_messages)
+                )
+            finally:
+                for lagscope in [server_lagscope, client_lagscope]:
+                    lagscope.kill()
+                    lagscope.restore_busy_poll()
+        else:
+            ntttcp_messages = perf_ntttcp(
+                environment,
+                udp_mode=False,
+                connections=[1],
+                test_case_name=inspect.stack()[2].function,
+            )
+
+            return float(
+                # The type is always TCP message, because the above line set udp
+                # to False. Ignore type error here, because UDP message has no
+                # latency metrics.
+                sum(x.latency_us for x in ntttcp_messages)  # type: ignore
+                / len(ntttcp_messages)
+            )
+
     def _execute_rx_drop_test(
         self,
         environment: Environment,
@@ -189,13 +351,13 @@ class XdpPerformance(TestSuite):
         receiver = environment.nodes[1]
 
         # install pktgen on sender, and xdpdump on receiver.
-        returns: List[Any] = run_in_parallel(
+        tools: List[Any] = run_in_parallel(
             [partial(sender.tools.get, Pktgen), partial(get_xdpdump, receiver)]
         )
 
         # type annotations
-        pktgen: Pktgen = returns[0]
-        xdpdump: XdpDump = returns[1]
+        pktgen: Pktgen = tools[0]
+        xdpdump: XdpDump = tools[1]
 
         sender_nic = sender.nics.get_nic_by_index(1)
         receiver_nic = receiver.nics.get_nic_by_index(1)
