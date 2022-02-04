@@ -3,6 +3,7 @@
 
 from functools import partial
 from time import sleep
+from typing import Any, List
 
 from assertpy import assert_that
 
@@ -27,7 +28,7 @@ from microsoft.testsuites.xdp.common import (
     set_hugepage,
 )
 from microsoft.testsuites.xdp.pktgen import Pktgen, PktgenResult
-from microsoft.testsuites.xdp.xdpdump import BuildType
+from microsoft.testsuites.xdp.xdpdump import BuildType, XdpDump
 
 # the received packets must be at least 90%
 _default_received_threshold = 0.9
@@ -131,6 +132,117 @@ class XdpPerformance(TestSuite):
             environment, log, is_multi_threads=True, threshold=0.85
         )
 
+    @TestCaseMetadata(
+        description="""
+        This case tests the XDP drop performance by measuring Packets Per Second
+        (PPS) and received rate with multiple send threads.
+
+        * If the received packets rate is lower than 90% the test case fails.
+        * If the PPS is lower than 1M, the test case fails.
+        """,
+        priority=3,
+        requirement=simple_requirement(
+            min_nic_count=2,
+            min_count=2,
+            min_core_count=8,
+            network_interface=Sriov(),
+        ),
+    )
+    def perf_xdp_rx_drop_multithread_sriov(
+        self, environment: Environment, log: Logger
+    ) -> None:
+        self._execute_rx_drop_test(
+            environment,
+            True,
+            log,
+        )
+
+    @TestCaseMetadata(
+        description="""
+        This case tests the XDP drop performance by measuring Packets Per Second
+        (PPS) and received rate with single send thread.
+
+        see details from perf_xdp_rx_drop_multithread_sriov.
+        """,
+        priority=3,
+        requirement=simple_requirement(
+            min_nic_count=2, min_count=2, min_core_count=8, network_interface=Sriov()
+        ),
+    )
+    def perf_xdp_rx_drop_singlethread_sriov(
+        self, environment: Environment, log: Logger
+    ) -> None:
+        self._execute_rx_drop_test(
+            environment,
+            False,
+            log,
+        )
+
+    def _execute_rx_drop_test(
+        self,
+        environment: Environment,
+        is_multi_thread: bool,
+        log: Logger,
+        threshold: float = _default_received_threshold,
+    ) -> None:
+        sender = environment.nodes[0]
+        receiver = environment.nodes[1]
+
+        # install pktgen on sender, and xdpdump on receiver.
+        returns: List[Any] = run_in_parallel(
+            [partial(sender.tools.get, Pktgen), partial(get_xdpdump, receiver)]
+        )
+
+        # type annotations
+        pktgen: Pktgen = returns[0]
+        xdpdump: XdpDump = returns[1]
+
+        sender_nic = sender.nics.get_nic_by_index(1)
+        receiver_nic = receiver.nics.get_nic_by_index(1)
+
+        xdpdump.make_by_build_type(build_type=BuildType.PERF_DROP)
+
+        original_dropped_count = get_dropped_count(
+            node=receiver,
+            nic=receiver_nic,
+            previous_count=0,
+            log=log,
+        )
+        try:
+            xdpdump.start_async(nic_name=receiver_nic.upper, timeout=0)
+
+            pktgen_result = self._send_packets(
+                True, sender, pktgen, sender_nic, receiver_nic
+            )
+
+            self._wait_packets_proceeded(
+                log, receiver, receiver_nic, original_dropped_count
+            )
+        finally:
+            receiver_kill = receiver.tools[Kill]
+            receiver_kill.by_name("xdpdump")
+
+        # capture stats to calculate delta
+        dropped_count = get_dropped_count(
+            node=receiver,
+            nic=receiver_nic,
+            previous_count=original_dropped_count,
+            log=log,
+        )
+
+        log.debug(
+            f"sender pktgen result: {pktgen_result}, "
+            f"dropped on receiver: {dropped_count}"
+        )
+
+        self._check_threshold(
+            pktgen_result.sent_count, dropped_count, threshold, "droppped packets"
+        )
+
+        assert_that(pktgen_result.pps).described_as(
+            "pps must be greater than 1M."
+        ).is_greater_than_or_equal_to(1000000)
+
     def _execute_tx_forward_test(
         self,
         environment: Environment,
@@ -228,8 +340,17 @@ class XdpPerformance(TestSuite):
             f"on forwarder: {forwarded_count}, "
             f"on receiver: {dropped_count}"
         )
-        assert_that(validate_count / pktgen_result.sent_count).described_as(
-            f"forwarded packets should be above {threshold*100}% of sent"
+
+        self._check_threshold(
+            pktgen_result.sent_count, validate_count, threshold, "forwarded packets"
+        )
+
+    def _check_threshold(
+        self, expected_count: int, actual_count: int, threshold: float, packet_name: str
+    ) -> None:
+        assert_that(actual_count / expected_count).described_as(
+            f"{packet_name} rate should be above the threshold. "
+            f"expected count: {expected_count}, actual count: {actual_count}"
         ).is_greater_than_or_equal_to(threshold)
 
     def _wait_packets_proceeded(
