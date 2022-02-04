@@ -51,7 +51,7 @@ class Tool(InitializableMixin):
     See details on method descriptions.
     """
 
-    def __init__(self, node: Node) -> None:
+    def __init__(self, node: Node, *args: Any, **kwargs: Any) -> None:
         """
         It's not recommended to replace this __init__ method. Anything need to be
         initialized, should be in initialize() method.
@@ -101,7 +101,7 @@ class Tool(InitializableMixin):
         return self.command
 
     @classmethod
-    def create(cls, node: Node) -> Tool:
+    def create(cls, node: Node, *args: Any, **kwargs: Any) -> Tool:
         """
         if there is a windows version tool, return the windows instance.
         override this method if richer creation factory is needed.
@@ -111,7 +111,7 @@ class Tool(InitializableMixin):
             windows_tool = cls._windows_tool()
             if windows_tool:
                 tool_cls = windows_tool
-        return tool_cls(node)
+        return tool_cls(node, *args, **kwargs)
 
     def _install(self) -> bool:
         """
@@ -500,6 +500,30 @@ class Tools:
         return self.__getitem__(key)
 
     def __getitem__(self, tool_type: Union[Type[T], CustomScriptBuilder, str]) -> T:
+        return self.get(tool_type=tool_type)
+
+    def create(
+        self,
+        tool_type: Union[Type[T], CustomScriptBuilder, str],
+        *args: Any,
+        **kwargs: Any,
+    ) -> T:
+        """
+        Create a new tool with given arguments. Call it only when a new tool is
+        needed. Otherwise, call the get method.
+        """
+        tool_key = self._get_tool_key(tool_type)
+        tool = self._cache.get(tool_key, None)
+        if tool:
+            del self._cache[tool_key]
+        return self.get(tool_type, *args, **kwargs)
+
+    def get(
+        self,
+        tool_type: Union[Type[T], CustomScriptBuilder, str],
+        *args: Any,
+        **kwargs: Any,
+    ) -> T:
         """
         return a typed subclass of tool or script builder.
 
@@ -511,12 +535,7 @@ class Tools:
             raise LisaException(
                 "CustomScriptBuilder should call build to create a script instance"
             )
-        if isinstance(tool_type, CustomScriptBuilder):
-            tool_key = tool_type.name
-        elif isinstance(tool_type, str):
-            tool_key = tool_type.lower()
-        else:
-            tool_key = tool_type.__name__.lower()
+        tool_key = self._get_tool_key(tool_type)
         tool = self._cache.get(tool_key)
         if tool is None:
             # the Tool is not installed on current node, try to install it.
@@ -532,7 +551,7 @@ class Tools:
                 )
             else:
                 cast_tool_type = cast(Type[Tool], tool_type)
-                tool = cast_tool_type.create(self._node)
+                tool = cast_tool_type.create(self._node, *args, **kwargs)
 
             tool.initialize()
 
@@ -559,3 +578,13 @@ class Tools:
                 tool_log.debug("installed already")
             self._cache[tool_key] = tool
         return cast(T, tool)
+
+    def _get_tool_key(self, tool_type: Union[type, CustomScriptBuilder, str]) -> str:
+        if isinstance(tool_type, CustomScriptBuilder):
+            tool_key = tool_type.name
+        elif isinstance(tool_type, str):
+            tool_key = tool_type.lower()
+        else:
+            tool_key = tool_type.__name__.lower()
+
+        return tool_key
