@@ -20,18 +20,22 @@ class Firewall(Tool):
         if 0 == cmd_result.exit_code:
             ufw = self.node.tools[Ufw]
             ufw.stop()
-        cmd_result = self.node.execute("command -v iptables", shell=True)
-        if 0 == cmd_result.exit_code:
-            iptables = self.node.tools[Iptables]
-            iptables.stop()
+            return
         cmd_result = self.node.execute("command -v SuSEfirewall2", shell=True)
         if 0 == cmd_result.exit_code:
             susefirewall2 = self.node.tools[SuSEfirewall2]
             susefirewall2.stop()
+            return
         cmd_result = self.node.execute("command -v firewall-cmd", shell=True)
         if 0 == cmd_result.exit_code:
             firewalld = self.node.tools[Firewalld]
             firewalld.stop()
+            return
+        cmd_result = self.node.execute("command -v iptables", shell=True)
+        if 0 == cmd_result.exit_code:
+            iptables = self.node.tools[Iptables]
+            iptables.stop()
+            return
 
 
 class Ufw(Tool):
