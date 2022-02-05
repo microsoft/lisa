@@ -21,6 +21,7 @@ class BuildType(str, Enum):
     ACTION_ABORTED = "ACTION_ABORTED"
     TX_FWD = "TX_FWD"
     PERF_DROP = "PERF_DROP"
+    PERF = "PERF"
 
 
 class XdpDump(Tool):
@@ -176,7 +177,7 @@ class XdpDump(Tool):
             cflags = f"-D __{build_type.name}__ -I../libbpf/src/root/usr/include"
 
             # no output log to improve perf with high volume data.
-            if build_type in [BuildType.PERF_DROP, BuildType.TX_FWD]:
+            if build_type in [BuildType.PERF_DROP, BuildType.TX_FWD, BuildType.PERF]:
                 cflags = f"{cflags} -D __PERF__"
             env_variables["CFLAGS"] = cflags
 
