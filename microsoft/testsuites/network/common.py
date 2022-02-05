@@ -8,7 +8,7 @@ from retry import retry
 from lisa import Environment, Node, RemoteNode, constants
 from lisa.features import NetworkInterface
 from lisa.nic import NicInfo, Nics
-from lisa.tools import Cat, Firewall, Kill, Lsmod, Lspci, Modprobe, Ssh
+from lisa.tools import Cat, Kill, Lsmod, Lspci, Modprobe, Ssh
 
 # ConnectX-3 uses mlx4_core
 # mlx4_en and mlx4_ib depends on mlx4_core
@@ -177,12 +177,6 @@ def sriov_vf_connection_test(
         if turn_off_vf:
             source_node.execute(f"ip link set dev {source_vf_nic} up", sudo=True)
             dest_node.execute(f"ip link set dev {dest_vf_nic} up", sudo=True)
-
-
-def stop_firewall(environment: Environment) -> None:
-    for node in environment.nodes.list():
-        firewall = node.tools[Firewall]
-        firewall.stop()
 
 
 def cleanup_iperf3(environment: Environment) -> None:

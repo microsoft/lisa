@@ -1,13 +1,14 @@
 # Copyright (c) Microsoft Corporation.
 # Licensed under the MIT license.
 
-from typing import cast
+from typing import Any, cast
 
 from lisa.executable import Tool
 from lisa.operating_system import Debian, Posix, Redhat, Suse
 from lisa.util import LisaException
 from lisa.util.process import Process
 
+from .firewall import Firewall
 from .git import Git
 from .make import Make
 
@@ -60,6 +61,10 @@ class Netperf(Tool):
         )
         process = self.node.execute_async(f"{self.command} {cmd}")
         return process
+
+    def _initialize(self, *args: Any, **kwargs: Any) -> None:
+        firewall = self.node.tools[Firewall]
+        firewall.stop()
 
     def _install(self) -> bool:
         if not self._check_exists():

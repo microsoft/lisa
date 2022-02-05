@@ -16,6 +16,7 @@ from lisa.operating_system import Posix
 from lisa.util import constants
 from lisa.util.process import ExecutableResult, Process
 
+from .firewall import Firewall
 from .git import Git
 from .make import Make
 
@@ -373,3 +374,7 @@ class Iperf3(Tool):
             test_case_name,
             other_fields,
         )
+
+    def _initialize(self, *args: Any, **kwargs: Any) -> None:
+        firewall = self.node.tools[Firewall]
+        firewall.stop()
