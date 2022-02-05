@@ -21,7 +21,6 @@ from microsoft.testsuites.network.common import (
     cleanup_iperf3,
     initialize_nic_info,
     sriov_vf_connection_test,
-    stop_firewall,
 )
 
 
@@ -56,8 +55,7 @@ class Stress(TestSuite):
         server_node = cast(RemoteNode, environment.nodes[0])
         client_node = cast(RemoteNode, environment.nodes[1])
         vm_nics = initialize_nic_info(environment)
-        # preparation work before launch iperf3
-        stop_firewall(environment)
+
         client_iperf3_log = "iperfResults.log"
         server_iperf3 = server_node.tools[Iperf3]
         # 1. Start iperf3 on server node.

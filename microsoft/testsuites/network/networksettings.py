@@ -25,7 +25,7 @@ from lisa.base_tools import Uname
 from lisa.operating_system import Debian, Redhat, Suse
 from lisa.tools import Cat, Ethtool, Iperf3, Modinfo, Nm
 from lisa.util import find_patterns_in_lines
-from microsoft.testsuites.network.common import cleanup_iperf3, stop_firewall
+from microsoft.testsuites.network.common import cleanup_iperf3
 
 
 @TestSuiteMetadata(
@@ -563,9 +563,6 @@ class NetworkSettings(TestSuite):
                 "Statistics per VMBUS channel are empty. It might be because the driver"
                 " is not supported or because of very old kernel.",
             ).is_not_empty()
-
-        # preparation work before launch iperf3
-        stop_firewall(environment)
 
         # run iperf3 on server side and client side
         # iperfResults.log stored client side log
