@@ -34,7 +34,6 @@ from microsoft.testsuites.network.common import (
     remove_module,
     sriov_basic_test,
     sriov_vf_connection_test,
-    stop_firewall,
 )
 
 
@@ -394,9 +393,6 @@ class Sriov(TestSuite):
             True
         )
 
-        # preparation work before launch iperf3
-        stop_firewall(environment)
-
         # run iperf3 on server side and client side
         # iperfResults.log stored client side log
         source_iperf3 = server_node.tools[Iperf3]
@@ -552,8 +548,6 @@ class Sriov(TestSuite):
         server_node = cast(RemoteNode, environment.nodes[0])
         client_node = cast(RemoteNode, environment.nodes[1])
         vm_nics = initialize_nic_info(environment)
-        # preparation work before launch iperf3
-        stop_firewall(environment)
 
         server_iperf3 = server_node.tools[Iperf3]
         client_iperf3 = client_node.tools[Iperf3]

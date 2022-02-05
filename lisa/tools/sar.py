@@ -10,6 +10,8 @@ from lisa.operating_system import Posix
 from lisa.util import constants
 from lisa.util.process import ExecutableResult, Process
 
+from .firewall import Firewall
+
 if TYPE_CHECKING:
     from lisa.environment import Environment
 
@@ -131,3 +133,7 @@ class Sar(Tool):
             result_fields,
         )
         return message
+
+    def _initialize(self, *args: Any, **kwargs: Any) -> None:
+        firewall = self.node.tools[Firewall]
+        firewall.stop()

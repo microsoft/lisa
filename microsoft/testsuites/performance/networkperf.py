@@ -24,7 +24,6 @@ from lisa.tools.iperf3 import (
 )
 from lisa.tools.ntttcp import NTTTCP_TCP_CONCURRENCY, NTTTCP_UDP_CONCURRENCY
 from lisa.util.process import ExecutableResult, Process
-from microsoft.testsuites.network.common import stop_firewall
 from microsoft.testsuites.performance.common import cleanup_process, get_nic_datapath
 
 
@@ -297,7 +296,7 @@ class NetworkPerformace(TestSuite):
         server = cast(RemoteNode, environment.nodes[1])
         client_netperf = client.tools[Netperf]
         server_netperf = server.tools[Netperf]
-        stop_firewall(environment)
+
         cpu = client.tools[Lscpu]
         core_count = cpu.get_core_count()
         if "maxpps" == test_type:
