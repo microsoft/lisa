@@ -3,7 +3,7 @@
 
 import inspect
 import time
-from typing import Any, Dict, List
+from typing import Any, Dict
 
 from lisa import (
     TestCaseMetadata,
@@ -15,7 +15,7 @@ from lisa import (
 )
 from lisa.environment import Environment
 from lisa.features import Disk
-from lisa.messages import DiskPerformanceMessage, DiskSetupType, DiskType
+from lisa.messages import DiskSetupType, DiskType
 from lisa.node import RemoteNode
 from lisa.tools import Lscpu
 from microsoft.testsuites.nested.common import (
@@ -23,7 +23,6 @@ from microsoft.testsuites.nested.common import (
     parse_nested_image_variables,
 )
 from microsoft.testsuites.performance.common import (
-    handle_and_send_back_results,
     reset_partitions,
     reset_raid,
     run_perf_test,
@@ -91,9 +90,6 @@ class KVMPerformance(TestSuite):  # noqa
         max_iodepth: int = 1024,
         setup_raid: bool = True,
     ) -> None:
-        # get testname from stack
-        test_case_name = inspect.stack()[1][3]
-
         (
             nested_image_username,
             nested_image_password,
@@ -141,21 +137,18 @@ class KVMPerformance(TestSuite):  # noqa
             iodepth_iter = iodepth_iter * 2
 
         # run fio test
-        fio_messages: List[DiskPerformanceMessage] = run_perf_test(
+        run_perf_test(
             l2_vm,
             start_iodepth,
             max_iodepth,
             filename,
+            test_name=inspect.stack()[1][3],
+            core_count=core_count,
+            disk_count=l1_data_disk_count,
+            disk_setup_type=DiskSetupType.raid0,
+            disk_type=DiskType.premiumssd,
+            environment=environment,
             num_jobs=num_jobs,
             size_gb=8,
             overwrite=True,
-        )
-        handle_and_send_back_results(
-            core_count,
-            l1_data_disk_count,
-            environment,
-            DiskSetupType.raid0,
-            DiskType.premiumssd,
-            test_case_name,
-            fio_messages,
         )
