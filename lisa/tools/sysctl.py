@@ -14,7 +14,7 @@ class Sysctl(Tool):
         return False
 
     def write(self, variable: str, value: str) -> None:
-        self.run(f"-w {variable}={value}", force_run=True, sudo=True)
+        self.run(f"-w {variable}='{value}'", force_run=True, sudo=True)
 
     def get(self, variable: str, force_run: bool = True) -> str:
         result = self.run(
