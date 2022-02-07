@@ -11,6 +11,9 @@ from .mkfs import FileSystem, Mkfs
 
 
 class Fdisk(Tool):
+    # fdisk: invalid option -- 'w'
+    not_support_option_pattern = re.compile(r"fdisk: invalid option -- 'w'.*", re.M)
+
     @property
     def command(self) -> str:
         return "fdisk"
@@ -41,12 +44,23 @@ class Fdisk(Tool):
         # fdisk -w always => always to wipe signatures
         # fdisk -W always => always to wipe signatures from new partitions
         mkfs = self.node.tools[Mkfs]
-        self.node.execute(
+        cmd_result = self.node.execute(
             f"(echo n; echo p; echo 1; echo ; echo; echo ; echo w) | "
             f"{self.command} -w always -W always {disk_name}",
             shell=True,
             sudo=True,
         )
+        # remove '-w' and '-W' options
+        # when lower fdisk version doesn't support
+        if self.not_support_option_pattern.match(cmd_result.stdout):
+            self.node.execute(
+                f"(echo n; echo p; echo 1; echo ; echo; echo ; echo w) | "
+                f"{self.command} {disk_name}",
+                shell=True,
+                sudo=True,
+                expected_exit_code=0,
+                expected_exit_code_failure_message=f"fail to format disk {disk_name}.",
+            )
         # get the partition, e.g. /dev/sdc1 or /dev/nvme0n1p1
         partition_disk = self._get_partitions(disk_name)
         if format:
