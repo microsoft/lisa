@@ -12,9 +12,11 @@ from lisa.messages import (
     TransportProtocol,
     create_message,
 )
-from lisa.tools import Gcc, Git, Make
+from lisa.tools import Firewall, Gcc, Git, Make, Sed
 from lisa.util import constants
 from lisa.util.process import ExecutableResult, Process
+
+from .sysctl import Sysctl
 
 if TYPE_CHECKING:
     from lisa.environment import Environment
@@ -111,6 +113,17 @@ class Ntttcp(Tool):
         r"([\w\W]*?)cycles/byte.*:(?P<cycles_per_byte>.+)",
         re.MULTILINE,
     )
+    sys_list_tcp = [
+        {"kernel.pid_max": "122880"},
+        {"vm.max_map_count": "655300"},
+        {"net.ipv4.ip_local_port_range": "1024 65535"},
+    ]
+    sys_list_udp = [
+        {"net.core.rmem_max": "67108864"},
+        {"net.core.rmem_default": "67108864"},
+        {"net.core.wmem_default": "67108864"},
+        {"net.core.wmem_max": "67108864"},
+    ]
 
     @property
     def dependencies(self) -> List[Type[Tool]]:
@@ -124,17 +137,48 @@ class Ntttcp(Tool):
     def can_install(self) -> bool:
         return True
 
-    def _install(self) -> bool:
-        tool_path = self.get_tool_path()
-        git = self.node.tools[Git]
-        git.clone(self.repo, tool_path)
-        make = self.node.tools[Make]
-        code_path = tool_path.joinpath("ntttcp-for-linux/src")
-        make.make_install(cwd=code_path)
-        self.node.execute(
-            "ln -s /usr/local/bin/ntttcp /usr/bin/ntttcp", sudo=True, cwd=code_path
-        ).assert_exit_code()
-        return self._check_exists()
+    def set_sys_variables(self, udp_mode: bool = False) -> None:
+        sysctl = self.node.tools[Sysctl]
+        sys_list = self.sys_list_tcp
+        if udp_mode:
+            sys_list = self.sys_list_udp
+        for sys in sys_list:
+            for variable, value in sys.items():
+                sysctl.write(variable, value)
+
+    def restore_sys_variables(self, udp_mode: bool = False) -> None:
+        original_settings = self._original_settings_tcp
+        if udp_mode:
+            original_settings = self._original_settings_udp
+        sysctl = self.node.tools[Sysctl]
+        for variable_list in original_settings:
+            # restore back to the original value after testing
+            for variable, value in variable_list.items():
+                sysctl.write(variable, value)
+
+    def set_tasks_max(self) -> None:
+        if self.node.shell.exists(
+            self.node.get_pure_path(
+                "/usr/lib/systemd/system/user-.slice.d/10-defaults.conf"
+            )
+        ):
+            self.node.tools[Sed].substitute(
+                regexp="TasksMax.*",
+                replacement="TasksMax=122880",
+                file="/usr/lib/systemd/system/user-.slice.d/10-defaults.conf",
+                sudo=True,
+            )
+        elif self.node.shell.exists(
+            self.node.get_pure_path("/etc/systemd/logind.conf")
+        ):
+            self.node.tools[Sed].append(
+                "UserTasksMax=122880", "/etc/systemd/logind.conf", sudo=True
+            )
+        else:
+            self._log.debug(
+                "no config file exist for systemd, either there is no systemd"
+                " service or the config file location is incorrect."
+            )
 
     def help(self) -> ExecutableResult:
         return self.run("-h")
@@ -377,3 +421,30 @@ class Ntttcp(Tool):
             test_case_name,
             other_fields,
         )
+
+    def _initialize(self, *args: Any, **kwargs: Any) -> None:
+        firewall = self.node.tools[Firewall]
+        firewall.stop()
+
+        # save the original value for recovering
+        self._original_settings_tcp: List[Dict[str, str]] = []
+        self._original_settings_udp: List[Dict[str, str]] = []
+        sysctl = self.node.tools[Sysctl]
+        for tcp_sys in self.sys_list_tcp:
+            for variable, _ in tcp_sys.items():
+                self._original_settings_tcp.append({variable: sysctl.get(variable)})
+        for udp_sys in self.sys_list_udp:
+            for variable, _ in udp_sys.items():
+                self._original_settings_udp.append({variable: sysctl.get(variable)})
+
+    def _install(self) -> bool:
+        tool_path = self.get_tool_path()
+        git = self.node.tools[Git]
+        git.clone(self.repo, tool_path)
+        make = self.node.tools[Make]
+        code_path = tool_path.joinpath("ntttcp-for-linux/src")
+        make.make_install(cwd=code_path)
+        self.node.execute(
+            "ln -s /usr/local/bin/ntttcp /usr/bin/ntttcp", sudo=True, cwd=code_path
+        ).assert_exit_code()
+        return self._check_exists()

@@ -16,7 +16,9 @@ from lisa.util import (
 )
 from lisa.util.process import ExecutableResult, Process
 
+from .firewall import Firewall
 from .git import Git
+from .sysctl import Sysctl
 
 if TYPE_CHECKING:
     from lisa.environment import Environment
@@ -91,6 +93,7 @@ class Lagscope(Tool):
     _average_pattern = re.compile(
         r"([\w\W]*?)Average = (?P<average_latency_us>.+?)us", re.M
     )
+    _busy_pool_keys = ["net.core.busy_poll", "net.core.busy_read"]
 
     @property
     def dependencies(self) -> List[Type[Tool]]:
@@ -104,35 +107,21 @@ class Lagscope(Tool):
     def can_install(self) -> bool:
         return True
 
-    def _install(self) -> bool:
-        self._install_dep_packages()
-        tool_path = self.get_tool_path()
-        git = self.node.tools[Git]
-        git.clone(self.repo, tool_path, ref=self.branch)
-        code_path = tool_path.joinpath("lagscope")
-        self.node.execute(
-            "./do-cmake.sh build",
-            cwd=code_path,
-            shell=True,
-            expected_exit_code=0,
-            expected_exit_code_failure_message="fail to run do-cmake.sh build",
-        )
-        self.node.execute(
-            "./do-cmake.sh install",
-            cwd=code_path,
-            sudo=True,
-            shell=True,
-            expected_exit_code=0,
-            expected_exit_code_failure_message="fail to run do-cmake.sh install",
-        )
-        self.node.execute(
-            "ln -sf /usr/local/bin/lagscope /usr/bin/lagscope",
-            sudo=True,
-            shell=True,
-            expected_exit_code=0,
-            expected_exit_code_failure_message="fail to create symlink to lagscope",
-        )
-        return self._check_exists()
+    def set_busy_poll(self) -> None:
+        # Busy polling helps reduce latency in the network receive path by
+        #  allowing socket layer code to poll the receive queue of a network
+        #  device, and disabling network interrupts. This removes delays caused
+        #  by the interrupt and the resultant context switch. However, it also
+        #  increases CPU utilization. Busy polling also prevents the CPU from
+        #  sleeping, which can incur additional power consumption.
+        sysctl = self.node.tools[Sysctl]
+        for key in self._busy_pool_keys:
+            sysctl.write(key, "50")
+
+    def restore_busy_poll(self) -> None:
+        sysctl = self.node.tools[Sysctl]
+        for key in self._busy_pool_keys:
+            sysctl.write(key, self._original_settings[key])
 
     def run_as_server(self, ip: str = "", daemon: bool = True) -> None:
         # -r: run as a receiver
@@ -280,6 +269,46 @@ class Lagscope(Tool):
             )
             perf_message_list.append(message)
         return perf_message_list
+
+    def _initialize(self, *args: Any, **kwargs: Any) -> None:
+        firewall = self.node.tools[Firewall]
+        firewall.stop()
+
+        # save the original value for recovering
+        self._original_settings: Dict[str, str] = {}
+        sysctl = self.node.tools[Sysctl]
+        for key in self._busy_pool_keys:
+            self._original_settings[key] = sysctl.get(key)
+
+    def _install(self) -> bool:
+        self._install_dep_packages()
+        tool_path = self.get_tool_path()
+        git = self.node.tools[Git]
+        git.clone(self.repo, tool_path, ref=self.branch)
+        code_path = tool_path.joinpath("lagscope")
+        self.node.execute(
+            "./do-cmake.sh build",
+            cwd=code_path,
+            shell=True,
+            expected_exit_code=0,
+            expected_exit_code_failure_message="fail to run do-cmake.sh build",
+        )
+        self.node.execute(
+            "./do-cmake.sh install",
+            cwd=code_path,
+            sudo=True,
+            shell=True,
+            expected_exit_code=0,
+            expected_exit_code_failure_message="fail to run do-cmake.sh install",
+        )
+        self.node.execute(
+            "ln -sf /usr/local/bin/lagscope /usr/bin/lagscope",
+            sudo=True,
+            shell=True,
+            expected_exit_code=0,
+            expected_exit_code_failure_message="fail to create symlink to lagscope",
+        )
+        return self._check_exists()
 
     def _install_dep_packages(self) -> None:
         posix_os: Posix = cast(Posix, self.node.os)

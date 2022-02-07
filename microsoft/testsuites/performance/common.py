@@ -1,14 +1,14 @@
 # Copyright (c) Microsoft Corporation.
 # Licensed under the MIT license.
-import pathlib
 import inspect
+import pathlib
 from typing import Any, Dict, List, Optional
 
-from lisa import Logger, Node, notifier
+from lisa import Node, notifier
 from lisa.environment import Environment
 from lisa.messages import DiskPerformanceMessage, DiskSetupType, DiskType
 from lisa.schema import NetworkDataPath
-from lisa.tools import FIOMODES, Fdisk, Fio, FIOResult, Kill, Mdadm, Sed, Sysctl
+from lisa.tools import FIOMODES, Fdisk, Fio, FIOResult, Kill, Mdadm
 
 
 def run_perf_test(
@@ -72,39 +72,6 @@ def run_perf_test(
     )
     for fio_message in fio_messages:
         notifier.notify(fio_message)
-
-
-def restore_sysctl_setting(
-    nodes: List[Node], perf_tuning: Dict[str, List[Dict[str, str]]]
-) -> None:
-    for node in nodes:
-        sysctl = node.tools[Sysctl]
-        for variable_list in perf_tuning[node.name]:
-            # restore back to the original value after testing
-            for variable, value in variable_list.items():
-                sysctl.write(variable, value)
-
-
-def set_systemd_tasks_max(nodes: List[Node], log: Logger) -> None:
-    for node in nodes:
-        if node.shell.exists(
-            node.get_pure_path("/usr/lib/systemd/system/user-.slice.d/10-defaults.conf")
-        ):
-            node.tools[Sed].substitute(
-                regexp="TasksMax.*",
-                replacement="TasksMax=122880",
-                file="/usr/lib/systemd/system/user-.slice.d/10-defaults.conf",
-                sudo=True,
-            )
-        elif node.shell.exists(node.get_pure_path("/etc/systemd/logind.conf")):
-            node.tools[Sed].append(
-                "UserTasksMax=122880", "/etc/systemd/logind.conf", sudo=True
-            )
-        else:
-            log.debug(
-                "no config file exist for systemd, either there is no systemd"
-                " service or the config file location is incorrect."
-            )
 
 
 def get_nic_datapath(node: Node) -> str:
