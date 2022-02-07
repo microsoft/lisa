@@ -2,12 +2,16 @@
 # Licensed under the MIT license.
 import re
 from decimal import Decimal
-from typing import List, cast
+from typing import TYPE_CHECKING, Any, Dict, List, cast
 
 from lisa.executable import Tool
-from lisa.messages import NetworkPPSPerformanceMessage
+from lisa.messages import NetworkPPSPerformanceMessage, create_message
 from lisa.operating_system import Posix
+from lisa.util import constants
 from lisa.util.process import ExecutableResult, Process
+
+if TYPE_CHECKING:
+    from lisa.environment import Environment
 
 
 class Sar(Tool):
@@ -68,15 +72,17 @@ class Sar(Tool):
         self, key_word: str = "DEV", interval: int = 1, count: int = 120
     ) -> ExecutableResult:
         process = self.get_statistics_async(key_word, interval, count)
-        timeout = count + 10
         return process.wait_result(
-            timeout,
             expected_exit_code=0,
             expected_exit_code_failure_message="fail to run sar command",
         )
 
     def create_pps_peformance_messages(
-        self, result: ExecutableResult
+        self,
+        result: ExecutableResult,
+        test_case_name: str,
+        environment: "Environment",
+        test_type: str,
     ) -> NetworkPPSPerformanceMessage:
         # IFACE: Name of the network interface for which statistics are reported.
         # rxpck/s: packet receiving rate (unit: packets/second)
@@ -105,14 +111,23 @@ class Sar(Tool):
             tx_rx_pps.append(
                 Decimal(temp.group("rxpck")) + Decimal(temp.group("txpck"))
             )
-        message = NetworkPPSPerformanceMessage()
-        message.rx_pps_maximum = max(rx_pps)
-        message.rx_pps_average = Decimal(sum(rx_pps) / len(rx_pps))
-        message.rx_pps_minimum = min(rx_pps)
-        message.tx_pps_maximum = max(tx_pps)
-        message.tx_pps_average = Decimal(sum(tx_pps) / len(tx_pps))
-        message.tx_pps_minimum = min(tx_pps)
-        message.rx_tx_pps_maximum = max(tx_rx_pps)
-        message.rx_tx_pps_average = Decimal(sum(tx_rx_pps) / len(tx_rx_pps))
-        message.rx_tx_pps_minimum = min(tx_rx_pps)
+        result_fields: Dict[str, Any] = {}
+        result_fields["tool"] = constants.NETWORK_PERFORMANCE_TOOL_SAR
+        result_fields["test_type"] = test_type
+        result_fields["rx_pps_maximum"] = max(rx_pps)
+        result_fields["rx_pps_average"] = Decimal(sum(rx_pps) / len(rx_pps))
+        result_fields["rx_pps_minimum"] = min(rx_pps)
+        result_fields["tx_pps_maximum"] = max(tx_pps)
+        result_fields["tx_pps_average"] = Decimal(sum(tx_pps) / len(tx_pps))
+        result_fields["tx_pps_minimum"] = min(tx_pps)
+        result_fields["rx_tx_pps_maximum"] = max(tx_rx_pps)
+        result_fields["rx_tx_pps_average"] = Decimal(sum(tx_rx_pps) / len(tx_rx_pps))
+        result_fields["rx_tx_pps_minimum"] = min(tx_rx_pps)
+        message = create_message(
+            NetworkPPSPerformanceMessage,
+            self.node,
+            environment,
+            test_case_name,
+            result_fields,
+        )
         return message
