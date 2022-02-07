@@ -18,13 +18,14 @@ from lisa.util.process import ExecutableResult, Process
 
 from .firewall import Firewall
 from .git import Git
+from .mixins import KillableMixin
 from .sysctl import Sysctl
 
 if TYPE_CHECKING:
     from lisa.environment import Environment
 
 
-class Lagscope(Tool):
+class Lagscope(Tool, KillableMixin):
     repo = "https://github.com/Microsoft/lagscope"
     # the latest tag doesn't contain changes for 95th,99th percentile.
     branch = "master"

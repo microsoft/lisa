@@ -1,6 +1,7 @@
 # Copyright (c) Microsoft Corporation.
 # Licensed under the MIT license.
 
+
 from lisa.base_tools import Cat, Sed, Uname, Wget
 
 from .blkid import Blkid
