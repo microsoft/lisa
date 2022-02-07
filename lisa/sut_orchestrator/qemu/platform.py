@@ -104,7 +104,10 @@ class QemuPlatform(Platform):
 
             except Exception as ex:
                 assert environment.platform
-                if environment.platform.runbook.keep_environment == constants.ENVIRONMENT_KEEP_NO:
+                if (
+                    environment.platform.runbook.keep_environment
+                    == constants.ENVIRONMENT_KEEP_NO
+                ):
                     self._delete_nodes(environment, log, qemu_conn)
 
                 raise ex
