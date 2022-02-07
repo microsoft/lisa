@@ -571,9 +571,11 @@ class NetworkSettings(TestSuite):
         # iperfResults.log stored client side log
         source_iperf3 = server_node.tools[Iperf3]
         dest_iperf3 = client_node.tools[Iperf3]
-        source_iperf3.run_as_server()
+        source_iperf3.run_as_server_async()
         dest_iperf3.run_as_client(
-            server_node.internal_address, client_iperf3_log, parallel_number=64
+            server_ip=server_node.internal_address,
+            log_file=client_iperf3_log,
+            parallel_number=64,
         )
 
         # wait for a while then check any error shown up in iperfResults.log

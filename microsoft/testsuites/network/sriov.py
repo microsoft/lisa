@@ -401,9 +401,11 @@ class Sriov(TestSuite):
         # iperfResults.log stored client side log
         source_iperf3 = server_node.tools[Iperf3]
         dest_iperf3 = client_node.tools[Iperf3]
-        source_iperf3.run_as_server()
+        source_iperf3.run_as_server_async()
         dest_iperf3.run_as_client_async(
-            server_node.internal_address, client_iperf3_log, 1800
+            server_ip=server_node.internal_address,
+            log_file=client_iperf3_log,
+            run_time_seconds=self.TIME_OUT,
         )
 
         # wait for a while then check any error shown up in iperfResults.log
@@ -556,7 +558,7 @@ class Sriov(TestSuite):
         server_iperf3 = server_node.tools[Iperf3]
         client_iperf3 = client_node.tools[Iperf3]
         # 1. Start iperf3 on server node.
-        server_iperf3.run_as_server()
+        server_iperf3.run_as_server_async()
         client_interrupt_inspector = client_node.tools[InterruptInspector]
         for _, client_nic_info in vm_nics[client_node.name].items():
             # 2. Get initial interrupts sum per irq and cpu number on client node.
@@ -586,7 +588,7 @@ class Sriov(TestSuite):
             # 3. Start iperf3 for 30 seconds with 128 threads on client node.
             client_iperf3.run_as_client(
                 server_ip=matched_server_nic_info.ip_addr,
-                seconds=30,
+                run_time_seconds=30,
                 parallel_number=128,
                 client_ip=client_nic_info.ip_addr,
             )
