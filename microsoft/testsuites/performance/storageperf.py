@@ -3,7 +3,7 @@
 
 import inspect
 from pathlib import PurePosixPath
-from typing import Any, List, cast
+from typing import Any, cast
 
 from assertpy import assert_that
 
@@ -20,7 +20,7 @@ from lisa import (
 from lisa.environment import Environment
 from lisa.features import Disk
 from lisa.features.network_interface import Sriov, Synthetic
-from lisa.messages import DiskPerformanceMessage, DiskSetupType, DiskType
+from lisa.messages import DiskSetupType, DiskType
 from lisa.node import RemoteNode
 from lisa.operating_system import SLES, Debian, Redhat
 from lisa.tools import (
@@ -35,7 +35,6 @@ from lisa.tools import (
 )
 from lisa.util import SkippedException
 from microsoft.testsuites.performance.common import (
-    handle_and_send_back_results,
     reset_partitions,
     reset_raid,
     run_perf_test,
@@ -70,9 +69,7 @@ class StoragePerformance(TestSuite):
         ),
     )
     def perf_premium_datadisks_4k(self, node: Node, environment: Environment) -> None:
-        self._perf_premium_datadisks(
-            node, environment, test_case_name="perf_premium_datadisks_4k"
-        )
+        self._perf_premium_datadisks(node, environment)
 
     @TestCaseMetadata(
         description="""
@@ -92,12 +89,7 @@ class StoragePerformance(TestSuite):
     def perf_premium_datadisks_1024k(
         self, node: Node, environment: Environment
     ) -> None:
-        self._perf_premium_datadisks(
-            node,
-            environment,
-            block_size=1024,
-            test_case_name="perf_premium_datadisks_1024k",
-        )
+        self._perf_premium_datadisks(node, environment, block_size=1024)
 
     @TestCaseMetadata(
         description="""
@@ -118,7 +110,6 @@ class StoragePerformance(TestSuite):
         self._perf_premium_datadisks(
             node,
             environment,
-            test_case_name="perf_premium_datadisks_io",
             max_iodepth=64,
             filename="/dev/sdc",
         )
@@ -227,9 +218,6 @@ class StoragePerformance(TestSuite):
         server_node = cast(RemoteNode, environment.nodes[0])
         client_node = cast(RemoteNode, environment.nodes[1])
 
-        # get testname from stack
-        test_case_name = inspect.stack()[1][3]
-
         # Run test only on Debian, SLES and Redhat distributions
         if (
             not isinstance(server_node.os, Redhat)
@@ -296,33 +284,28 @@ class StoragePerformance(TestSuite):
         )
 
         # run fio test
-        fio_messages: List[DiskPerformanceMessage] = run_perf_test(
+        run_perf_test(
             client_node,
             start_iodepth,
             max_iodepth,
             filename,
+            test_name=inspect.stack()[1][3],
+            core_count=core_count,
+            disk_count=server_data_disk_count,
+            disk_setup_type=DiskSetupType.raid0,
+            disk_type=DiskType.premiumssd,
             num_jobs=num_jobs,
             block_size=block_size,
             size_gb=1024,
             overwrite=True,
             cwd=PurePosixPath(client_nfs_mount_dir),
-        )
-        handle_and_send_back_results(
-            core_count,
-            server_data_disk_count,
-            environment,
-            DiskSetupType.raid0,
-            DiskType.premiumssd,
-            test_case_name,
-            fio_messages,
-            block_size,
+            environment=environment,
         )
 
     def _perf_premium_datadisks(
         self,
         node: Node,
         environment: Environment,
-        test_case_name: str,
         block_size: int = 4,
         max_iodepth: int = 256,
         filename: str = "/dev/md0",
@@ -338,25 +321,21 @@ class StoragePerformance(TestSuite):
         cpu = node.tools[Lscpu]
         core_count = cpu.get_core_count()
         start_iodepth = 1
-        fio_messages: List[DiskPerformanceMessage] = run_perf_test(
+        run_perf_test(
             node,
             start_iodepth,
             max_iodepth,
             filename,
+            test_name=inspect.stack()[1][3],
+            core_count=core_count,
+            disk_count=disk_count,
+            disk_setup_type=DiskSetupType.raid0,
+            disk_type=DiskType.premiumssd,
             numjob=core_count,
             block_size=block_size,
             size_gb=1024,
             overwrite=True,
-        )
-        handle_and_send_back_results(
-            core_count,
-            disk_count,
-            environment,
-            DiskSetupType.raid0,
-            DiskType.premiumssd,
-            test_case_name,
-            fio_messages,
-            block_size,
+            environment=environment,
         )
 
     def after_case(self, log: Logger, **kwargs: Any) -> None:

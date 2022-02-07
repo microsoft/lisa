@@ -1,7 +1,5 @@
 # Copyright (c) Microsoft Corporation.
 # Licensed under the MIT license.
-from typing import List
-
 from assertpy import assert_that
 
 from lisa import (
@@ -13,12 +11,9 @@ from lisa import (
 )
 from lisa.environment import Environment
 from lisa.features import Nvme, NvmeSettings
-from lisa.messages import DiskPerformanceMessage, DiskSetupType, DiskType
+from lisa.messages import DiskSetupType, DiskType
 from lisa.tools import Echo, Lscpu
-from microsoft.testsuites.performance.common import (
-    handle_and_send_back_results,
-    run_perf_test,
-)
+from microsoft.testsuites.performance.common import run_perf_test
 
 
 @TestSuiteMetadata(
@@ -65,15 +60,15 @@ class NvmePerformace(TestSuite):
         core_count = cpu.get_core_count()
         start_iodepth = 1
         max_iodepth = 256
-        fio_messages: List[DiskPerformanceMessage] = run_perf_test(
-            node, start_iodepth, max_iodepth, filename, numjob=core_count
-        )
-        handle_and_send_back_results(
-            core_count,
-            disk_count,
-            environment,
-            DiskSetupType.raw,
-            DiskType.nvme,
-            "perf_nvme",
-            fio_messages,
+        run_perf_test(
+            node,
+            start_iodepth,
+            max_iodepth,
+            filename,
+            core_count=core_count,
+            disk_count=disk_count,
+            numjob=core_count,
+            disk_setup_type=DiskSetupType.raw,
+            disk_type=DiskType.nvme,
+            environment=environment,
         )
