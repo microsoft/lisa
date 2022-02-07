@@ -11,6 +11,7 @@ from lisa.operating_system import Debian, Posix, Redhat, Suse
 from lisa.util import (
     LisaException,
     constants,
+    find_groups_in_lines,
     find_patterns_groups_in_lines,
     get_datetime_path,
 )
@@ -95,6 +96,9 @@ class Lagscope(Tool, KillableMixin):
         r"([\w\W]*?)Average = (?P<average_latency_us>.+?)us", re.M
     )
     _busy_pool_keys = ["net.core.busy_poll", "net.core.busy_read"]
+    # 08:19:33 ERR : failed to connect to receiver: 10.0.1.4:6001
+    #  on socket: 3. errno = 113
+    _client_failure_pattern = re.compile(r"^(?P<error>.*? ERR : .*?)\r?$", re.M)
 
     @property
     def dependencies(self) -> List[Type[Tool]]:
@@ -221,7 +225,15 @@ class Lagscope(Tool, KillableMixin):
             dump_csv,
             daemon,
         )
-        return process.wait_result()
+
+        result = process.wait_result()
+        errors = find_groups_in_lines(result.stdout, self._client_failure_pattern)
+        if errors:
+            raise LisaException(
+                f"lagscope client error: {[x['error'] for x in errors]}"
+            )
+
+        return result
 
     def get_average(self, result: ExecutableResult) -> Decimal:
         matched_results = self._average_pattern.match(result.stdout)
