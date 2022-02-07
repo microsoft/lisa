@@ -1,7 +1,7 @@
 # Copyright (c) Microsoft Corporation.
 # Licensed under the MIT license.
 import inspect
-from typing import Any, Dict, List, Optional, cast
+from typing import Any, List, Optional, cast
 
 from lisa import (
     Logger,
@@ -15,7 +15,7 @@ from lisa import (
 from lisa.environment import Environment
 from lisa.features import Sriov, Synthetic
 from lisa.schema import NetworkDataPath
-from lisa.tools import Iperf3, Lagscope, Lscpu, Netperf, Ntttcp, Sar, Ssh, Sysctl
+from lisa.tools import Iperf3, Lagscope, Lscpu, Netperf, Ntttcp, Sar, Ssh
 from lisa.tools.iperf3 import (
     IPERF_TCP_BUFFER_LENGTHS,
     IPERF_TCP_CONCURRENCY,
@@ -25,12 +25,7 @@ from lisa.tools.iperf3 import (
 from lisa.tools.ntttcp import NTTTCP_TCP_CONCURRENCY, NTTTCP_UDP_CONCURRENCY
 from lisa.util.process import ExecutableResult, Process
 from microsoft.testsuites.network.common import stop_firewall
-from microsoft.testsuites.performance.common import (
-    cleanup_process,
-    get_nic_datapath,
-    restore_sysctl_setting,
-    set_systemd_tasks_max,
-)
+from microsoft.testsuites.performance.common import cleanup_process, get_nic_datapath
 
 
 @TestSuiteMetadata(
@@ -138,9 +133,9 @@ class NetworkPerformace(TestSuite):
         ),
     )
     def perf_tcp_ntttcp_128_connections_synthetic(
-        self, log: Logger, environment: Environment
+        self, environment: Environment
     ) -> None:
-        self.perf_ntttcp(log, environment, connections=[128])
+        self.perf_ntttcp(environment, connections=[128])
 
     @TestCaseMetadata(
         description="""
@@ -153,8 +148,8 @@ class NetworkPerformace(TestSuite):
             network_interface=Synthetic(),
         ),
     )
-    def perf_tcp_ntttcp_synthetic(self, log: Logger, environment: Environment) -> None:
-        self.perf_ntttcp(log, environment)
+    def perf_tcp_ntttcp_synthetic(self, environment: Environment) -> None:
+        self.perf_ntttcp(environment)
 
     @TestCaseMetadata(
         description="""
@@ -167,8 +162,8 @@ class NetworkPerformace(TestSuite):
             network_interface=Sriov(),
         ),
     )
-    def perf_tcp_ntttcp_sriov(self, log: Logger, environment: Environment) -> None:
-        self.perf_ntttcp(log, environment)
+    def perf_tcp_ntttcp_sriov(self, environment: Environment) -> None:
+        self.perf_ntttcp(environment)
 
     @TestCaseMetadata(
         description="""
@@ -181,10 +176,8 @@ class NetworkPerformace(TestSuite):
             network_interface=Synthetic(),
         ),
     )
-    def perf_udp_1k_ntttcp_synthetic(
-        self, log: Logger, environment: Environment
-    ) -> None:
-        self.perf_ntttcp(log, environment, True)
+    def perf_udp_1k_ntttcp_synthetic(self, environment: Environment) -> None:
+        self.perf_ntttcp(environment, True)
 
     @TestCaseMetadata(
         description="""
@@ -197,8 +190,8 @@ class NetworkPerformace(TestSuite):
             network_interface=Sriov(),
         ),
     )
-    def perf_udp_1k_ntttcp_sriov(self, log: Logger, environment: Environment) -> None:
-        self.perf_ntttcp(log, environment, True)
+    def perf_udp_1k_ntttcp_sriov(self, environment: Environment) -> None:
+        self.perf_ntttcp(environment, True)
 
     @TestCaseMetadata(
         description="""
@@ -282,28 +275,11 @@ class NetworkPerformace(TestSuite):
     def perf_tcp_latency(self, environment: Environment) -> None:
         client = cast(RemoteNode, environment.nodes[0])
         server = cast(RemoteNode, environment.nodes[1])
-        perf_tuning: Dict[str, List[Dict[str, str]]] = {
-            client.name: [],
-            server.name: [],
-        }
-        # Busy polling helps reduce latency in the network receive path by allowing
-        #  socket layer code to poll the receive queue of a network device, and
-        #  disabling network interrupts. This removes delays caused by the interrupt
-        #  and the resultant context switch.
-        #  However, it also increases CPU utilization.
-        #  Busy polling also prevents the CPU from sleeping, which can incur
-        #  additional power consumption.
-        sys_list = ["net.core.busy_poll", "net.core.busy_read"]
+        client_lagscope = client.tools[Lagscope]
+        server_lagscope = server.tools[Lagscope]
         try:
-            client_lagscope = client.tools[Lagscope]
-            server_lagscope = server.tools[Lagscope]
-            for node in [client, server]:
-                sysctl = node.tools[Sysctl]
-                # store the original value before updating
-                for variable in sys_list:
-                    perf_tuning[node.name].append({variable: sysctl.get(variable)})
-                    sysctl.write(variable, "50")
-            stop_firewall(environment)
+            for lagscope in [client_lagscope, server_lagscope]:
+                lagscope.set_busy_poll()
             server_lagscope.run_as_server(ip=server.internal_address)
             latency_perf_messages = client_lagscope.create_latency_peformance_messages(
                 client_lagscope.run_as_client(server_ip=server.internal_address),
@@ -313,7 +289,8 @@ class NetworkPerformace(TestSuite):
             for latency_perf_message in latency_perf_messages:
                 notifier.notify(latency_perf_message)
         finally:
-            restore_sysctl_setting([client, server], perf_tuning)
+            for lagscope in [client_lagscope, server_lagscope]:
+                lagscope.restore_busy_poll()
 
     def perf_tcp_pps(self, environment: Environment, test_type: str) -> None:
         client = cast(RemoteNode, environment.nodes[0])
@@ -347,7 +324,6 @@ class NetworkPerformace(TestSuite):
 
     def perf_ntttcp(
         self,
-        log: Logger,
         environment: Environment,
         udp_mode: bool = False,
         connections: Optional[List[int]] = None,
@@ -355,38 +331,18 @@ class NetworkPerformace(TestSuite):
         client = cast(RemoteNode, environment.nodes[0])
         server = cast(RemoteNode, environment.nodes[1])
         test_case_name = inspect.stack()[1][3]
-        perf_tuning: Dict[str, List[Dict[str, str]]] = {
-            client.name: [],
-            server.name: [],
-        }
-        sys_list = [
-            {"kernel.pid_max": "122880"},
-            {"vm.max_map_count": "655300"},
-            {"net.ipv4.ip_local_port_range": "1024 65535"},
-        ]
         if connections is None:
             connections = NTTTCP_TCP_CONCURRENCY
             if udp_mode:
-                sys_list = [
-                    {"net.core.rmem_max": "67108864"},
-                    {"net.core.rmem_default": "67108864"},
-                    {"net.core.wmem_default": "67108864"},
-                    {"net.core.wmem_max": "67108864"},
-                ]
                 connections = NTTTCP_UDP_CONCURRENCY
+        client_ntttcp = client.tools[Ntttcp]
+        server_ntttcp = server.tools[Ntttcp]
         try:
-            client_ntttcp = client.tools[Ntttcp]
-            server_ntttcp = server.tools[Ntttcp]
             client_lagscope = client.tools[Lagscope]
             server_lagscope = server.tools[Lagscope]
-            stop_firewall(environment)
-            set_systemd_tasks_max([client, server], log)
-            for node in [client, server]:
-                sysctl = node.tools[Sysctl]
-                for tcp_sys in sys_list:
-                    for variable, value in tcp_sys.items():
-                        perf_tuning[node.name].append({variable: sysctl.get(variable)})
-                        sysctl.write(variable, value)
+            for ntttcp in [client_ntttcp, server_ntttcp]:
+                ntttcp.set_sys_variables(udp_mode)
+                ntttcp.set_tasks_max()
             data_path = get_nic_datapath(client)
             server_nic_name = server.nics.default_nic
             client_nic_name = client.nics.default_nic
@@ -473,7 +429,8 @@ class NetworkPerformace(TestSuite):
             for ntttcp_message in perf_ntttcp_message_list:
                 notifier.notify(ntttcp_message)
         finally:
-            restore_sysctl_setting([client, server], perf_tuning)
+            for ntttcp in [client_ntttcp, server_ntttcp]:
+                ntttcp.restore_sys_variables(udp_mode)
 
     def perf_iperf(
         self,
