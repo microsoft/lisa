@@ -340,8 +340,7 @@ class NetworkPerformace(TestSuite):
             client_lagscope = client.tools[Lagscope]
             server_lagscope = server.tools[Lagscope]
             for ntttcp in [client_ntttcp, server_ntttcp]:
-                ntttcp.set_sys_variables(udp_mode)
-                ntttcp.set_tasks_max()
+                ntttcp.setup_system(udp_mode)
             data_path = get_nic_datapath(client)
             server_nic_name = server.nics.default_nic
             client_nic_name = client.nics.default_nic
@@ -429,7 +428,7 @@ class NetworkPerformace(TestSuite):
                 notifier.notify(ntttcp_message)
         finally:
             for ntttcp in [client_ntttcp, server_ntttcp]:
-                ntttcp.restore_sys_variables(udp_mode)
+                ntttcp.restore_system(udp_mode)
 
     def perf_iperf(
         self,

@@ -137,7 +137,7 @@ class Ntttcp(Tool):
     def can_install(self) -> bool:
         return True
 
-    def set_sys_variables(self, udp_mode: bool = False) -> None:
+    def setup_system(self, udp_mode: bool = False) -> None:
         sysctl = self.node.tools[Sysctl]
         sys_list = self.sys_list_tcp
         if udp_mode:
@@ -145,8 +145,9 @@ class Ntttcp(Tool):
         for sys in sys_list:
             for variable, value in sys.items():
                 sysctl.write(variable, value)
+        self._set_tasks_max()
 
-    def restore_sys_variables(self, udp_mode: bool = False) -> None:
+    def restore_system(self, udp_mode: bool = False) -> None:
         original_settings = self._original_settings_tcp
         if udp_mode:
             original_settings = self._original_settings_udp
@@ -155,30 +156,6 @@ class Ntttcp(Tool):
             # restore back to the original value after testing
             for variable, value in variable_list.items():
                 sysctl.write(variable, value)
-
-    def set_tasks_max(self) -> None:
-        if self.node.shell.exists(
-            self.node.get_pure_path(
-                "/usr/lib/systemd/system/user-.slice.d/10-defaults.conf"
-            )
-        ):
-            self.node.tools[Sed].substitute(
-                regexp="TasksMax.*",
-                replacement="TasksMax=122880",
-                file="/usr/lib/systemd/system/user-.slice.d/10-defaults.conf",
-                sudo=True,
-            )
-        elif self.node.shell.exists(
-            self.node.get_pure_path("/etc/systemd/logind.conf")
-        ):
-            self.node.tools[Sed].append(
-                "UserTasksMax=122880", "/etc/systemd/logind.conf", sudo=True
-            )
-        else:
-            self._log.debug(
-                "no config file exist for systemd, either there is no systemd"
-                " service or the config file location is incorrect."
-            )
 
     def help(self) -> ExecutableResult:
         return self.run("-h")
@@ -448,3 +425,27 @@ class Ntttcp(Tool):
             "ln -s /usr/local/bin/ntttcp /usr/bin/ntttcp", sudo=True, cwd=code_path
         ).assert_exit_code()
         return self._check_exists()
+
+    def _set_tasks_max(self) -> None:
+        if self.node.shell.exists(
+            self.node.get_pure_path(
+                "/usr/lib/systemd/system/user-.slice.d/10-defaults.conf"
+            )
+        ):
+            self.node.tools[Sed].substitute(
+                regexp="TasksMax.*",
+                replacement="TasksMax=122880",
+                file="/usr/lib/systemd/system/user-.slice.d/10-defaults.conf",
+                sudo=True,
+            )
+        elif self.node.shell.exists(
+            self.node.get_pure_path("/etc/systemd/logind.conf")
+        ):
+            self.node.tools[Sed].append(
+                "UserTasksMax=122880", "/etc/systemd/logind.conf", sudo=True
+            )
+        else:
+            self._log.debug(
+                "no config file exist for systemd, either there is no systemd"
+                " service or the config file location is incorrect."
+            )
