@@ -34,15 +34,16 @@ class Wget(Tool):
         overwrite: bool = True,
         executable: bool = False,
         sudo: bool = False,
+        force_run: bool = False,
     ) -> str:
         is_valid_url(url)
 
-        # create folder when it doesn't exist
-        self.node.execute(f"mkdir -p {file_path}", shell=True, sudo=sudo)
         # combine download file path
         # TODO: support current lisa folder in pathlib.
         # So that here can use the corresponding path format.
         if file_path:
+            # create folder when it doesn't exist
+            self.node.execute(f"mkdir -p {file_path}", shell=True, sudo=sudo)
             download_path = f"{file_path}/{filename}"
         else:
             download_path = f"{self.node.working_path}/{filename}"
@@ -56,7 +57,9 @@ class Wget(Tool):
             command = f"{command} -O {download_path}"
         else:
             command = f"{command} -P {download_path}"
-        command_result = self.run(command, no_error_log=True, shell=True, sudo=sudo)
+        command_result = self.run(
+            command, no_error_log=True, shell=True, sudo=sudo, force_run=force_run
+        )
         matched_result = self.__pattern_path.match(command_result.stdout)
         if matched_result:
             download_file_path = matched_result.group("path")
@@ -78,7 +81,7 @@ class Wget(Tool):
 
     def verify_internet_access(self) -> bool:
         try:
-            result = self.get("https://www.azure.com")
+            result = self.get("https://www.azure.com", force_run=True)
             if result:
                 return True
         except Exception as e:
