@@ -8,13 +8,7 @@ from typing import TYPE_CHECKING, Any, Dict, List, Type, cast
 from lisa.executable import Tool
 from lisa.messages import NetworkLatencyPerformanceMessage, create_message
 from lisa.operating_system import Debian, Posix, Redhat, Suse
-from lisa.util import (
-    LisaException,
-    constants,
-    find_groups_in_lines,
-    find_patterns_groups_in_lines,
-    get_datetime_path,
-)
+from lisa.util import LisaException, constants, find_groups_in_lines, get_datetime_path
 from lisa.util.process import ExecutableResult, Process
 
 from .firewall import Firewall
@@ -249,9 +243,9 @@ class Lagscope(Tool, KillableMixin):
         assert (
             matched_results
         ), "not found matched latency statistics from lagscope results."
-        all_matched_results = find_patterns_groups_in_lines(
-            result.stdout, [self._interval_frequency_pattern]
-        )[0]
+        all_matched_results = find_groups_in_lines(
+            result.stdout, self._interval_frequency_pattern
+        )
         perf_message_list: List[NetworkLatencyPerformanceMessage] = []
         for matched_result in all_matched_results:
             other_fields: Dict[str, Any] = {}
