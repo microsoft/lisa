@@ -103,7 +103,13 @@ class QemuPlatform(Platform):
                 self._fill_nodes_metadata(environment, log, qemu_conn)
 
             except Exception as ex:
-                self._delete_nodes(environment, log, qemu_conn)
+                assert environment.platform
+                if (
+                    environment.platform.runbook.keep_environment
+                    == constants.ENVIRONMENT_KEEP_NO
+                ):
+                    self._delete_nodes(environment, log, qemu_conn)
+
                 raise ex
 
     # Pre-determine all the nodes' properties, including the name of all the resouces
