@@ -216,7 +216,7 @@ class Ntttcp(Tool):
         dev_differentiator: str = "Hypervisor callback interrupts",
         run_as_daemon: bool = False,
         udp_mode: bool = False,
-    ) -> None:
+    ) -> ExecutableResult:
         # -rserver_ip: run as a receiver with specified server ip address
         # -P: Number of ports listening on receiver side [default: 16] [max: 512]
         # -t: Time of test duration in seconds [default: 60]
@@ -245,7 +245,11 @@ class Ntttcp(Tool):
             run_as_daemon,
             udp_mode,
         )
-        process.wait_result(
+
+        return self.wait_server_result(process)
+
+    def wait_server_result(self, process: Process) -> ExecutableResult:
+        return process.wait_result(
             expected_exit_code=0,
             expected_exit_code_failure_message="fail to lanuch ntttcp server",
         )
