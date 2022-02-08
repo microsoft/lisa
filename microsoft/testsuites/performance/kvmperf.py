@@ -23,9 +23,9 @@ from microsoft.testsuites.nested.common import (
     parse_nested_image_variables,
 )
 from microsoft.testsuites.performance.common import (
+    perf_disk,
     reset_partitions,
     reset_raid,
-    run_perf_test,
     stop_raid,
 )
 
@@ -137,7 +137,7 @@ class KVMPerformance(TestSuite):  # noqa
             iodepth_iter = iodepth_iter * 2
 
         # run fio test
-        run_perf_test(
+        perf_disk(
             l2_vm,
             start_iodepth,
             max_iodepth,

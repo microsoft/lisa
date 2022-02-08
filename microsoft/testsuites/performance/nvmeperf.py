@@ -13,7 +13,7 @@ from lisa.environment import Environment
 from lisa.features import Nvme, NvmeSettings
 from lisa.messages import DiskSetupType, DiskType
 from lisa.tools import Echo, Lscpu
-from microsoft.testsuites.performance.common import run_perf_test
+from microsoft.testsuites.performance.common import perf_disk
 
 
 @TestSuiteMetadata(
@@ -60,7 +60,7 @@ class NvmePerformace(TestSuite):
         core_count = cpu.get_core_count()
         start_iodepth = 1
         max_iodepth = 256
-        run_perf_test(
+        perf_disk(
             node,
             start_iodepth,
             max_iodepth,

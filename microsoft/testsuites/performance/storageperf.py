@@ -35,9 +35,9 @@ from lisa.tools import (
 )
 from lisa.util import SkippedException
 from microsoft.testsuites.performance.common import (
+    perf_disk,
     reset_partitions,
     reset_raid,
-    run_perf_test,
     stop_raid,
 )
 
@@ -284,7 +284,7 @@ class StoragePerformance(TestSuite):
         )
 
         # run fio test
-        run_perf_test(
+        perf_disk(
             client_node,
             start_iodepth,
             max_iodepth,
@@ -321,7 +321,7 @@ class StoragePerformance(TestSuite):
         cpu = node.tools[Lscpu]
         core_count = cpu.get_core_count()
         start_iodepth = 1
-        run_perf_test(
+        perf_disk(
             node,
             start_iodepth,
             max_iodepth,
