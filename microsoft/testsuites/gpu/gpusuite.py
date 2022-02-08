@@ -90,7 +90,9 @@ class GpuTestSuite(TestSuite):
         ),
         priority=2,
     )
-    def validate_gpu_adapter_count(self, node: Node) -> None:
+    def validate_gpu_adapter_count(
+        self, node: Node, log_path: Path, log: Logger
+    ) -> None:
         gpu_feature = node.features[Gpu]
         if not gpu_feature.is_supported():
             raise SkippedException(f"GPU is not supported with distro {node.os}")
@@ -98,7 +100,6 @@ class GpuTestSuite(TestSuite):
         assert isinstance(node.capability.gpu_count, int)
         expected_count = node.capability.gpu_count
 
-        gpu_feature = node.features[Gpu]
         lsvmbus_device_count = gpu_feature.get_gpu_count_with_lsvmbus()
         assert_that(
             lsvmbus_device_count,
@@ -111,11 +112,12 @@ class GpuTestSuite(TestSuite):
             "Expected device count didn't match Actual device count from lspci",
         ).is_equal_to(expected_count)
 
+        self._ensure_driver_installed(node, gpu_feature, log_path, log)
         vendor_cmd_device_count = gpu_feature.get_gpu_count_with_vendor_cmd()
         assert_that(
             vendor_cmd_device_count,
             "Expected device count didn't match Actual device count"
-            "from vendor command",
+            " from vendor command",
         ).is_equal_to(expected_count)
 
     @TestCaseMetadata(

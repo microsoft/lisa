@@ -115,21 +115,51 @@ class Gpu(Feature):
             )
         elif isinstance(self._node.os, Ubuntu):
             release = re.sub("[^0-9]+", "", os_information.release)
-            cuda_repo_pkg = f"cuda-repo-ubuntu{release}_{version}_amd64.deb"
-            cuda_repo = (
-                "http://developer.download.nvidia.com/compute/"
-                f"cuda/repos/ubuntu{release}/x86_64/{cuda_repo_pkg}"
-            )
             # Public CUDA GPG key is needed to be installed for Ubuntu
             self._node.execute(
                 "apt-key adv --fetch-keys http://developer.download.nvidia.com/compute/"
                 f"cuda/repos/ubuntu{release}/x86_64/7fa2af80.pub",
                 sudo=True,
             )
-            # download and install the cuda driver package from the repo
-            self._node.os._install_package_from_url(
-                f"{cuda_repo}", package_name="cuda-drivers.deb", signed=False
-            )
+            if "1804" == release:
+                cuda_repo_pkg = f"cuda-repo-ubuntu{release}_{version}_amd64.deb"
+                cuda_repo = (
+                    "http://developer.download.nvidia.com/compute/"
+                    f"cuda/repos/ubuntu{release}/x86_64/{cuda_repo_pkg}"
+                )
+                # download and install the cuda driver package from the repo
+                self._node.os._install_package_from_url(
+                    f"{cuda_repo}", package_name="cuda-drivers.deb", signed=False
+                )
+            else:
+                self._node.tools[Wget].get(
+                    f"https://developer.download.nvidia.com/compute/cuda/repos/"
+                    f"ubuntu{release}/x86_64/cuda-ubuntu{release}.pin",
+                    "/etc/apt/preferences.d",
+                    "cuda-repository-pin-600",
+                    sudo=True,
+                    overwrite=False,
+                )
+                repo_entry = (
+                    f"deb http://developer.download.nvidia.com/compute/cuda/repos/"
+                    f"ubuntu{release}/x86_64/ /"
+                )
+                self._node.execute(
+                    f'add-apt-repository -y "{repo_entry}"',
+                    sudo=True,
+                    expected_exit_code=0,
+                    expected_exit_code_failure_message=(
+                        f"failed to add repo {repo_entry}"
+                    ),
+                )
+                # the latest version cuda-drivers-510 has issues
+                # nvidia-smi
+                # No devices were found
+                # dmesg
+                # NVRM: GPU 0001:00:00.0: RmInitAdapter failed! (0x63:0x55:2344)
+                # NVRM: GPU 0001:00:00.0: rm_init_adapter failed, device minor number 0
+                #  switch to use 495
+                self._node.os.install_packages("cuda-drivers-495")
         else:
             raise LisaException(
                 f"Distro {self._node.os.name}" "not supported to install CUDA driver."
@@ -216,13 +246,18 @@ class Gpu(Feature):
         device_count = 0
 
         if "nvidia" in self.gpu_vendor:
-            result = self._node.execute("nvidia-smi")
+            # sample output
+            # GPU 0: Tesla P100-PCIE-16GB (UUID: GPU-0609318e-4920-44d8-a9fd-7bae639f7c5d)# noqa: E501
+            # GPU 1: Tesla P100-PCIE-16GB (UUID: GPU-ede45443-35ad-8d4e-f40d-988423bc6c0b)# noqa: E501
+            # GPU 2: Tesla P100-PCIE-16GB (UUID: GPU-ccd6174e-b288-b73c-682e-054c83ef3a3e)# noqa: E501
+            # GPU 3: Tesla P100-PCIE-16GB (UUID: GPU-225b4607-ceba-5806-d41a-49ccbcf9794d)# noqa: E501
+            result = self._node.execute("nvidia-smi -L", shell=True)
             if result.exit_code != 0 or (result.exit_code == 0 and result.stdout == ""):
                 raise LisaException(
                     f"nvidia-smi command exited with exit_code {result.exit_code}"
                 )
-            for device_info in result.stdout.splitlines():
-                if any(device_info in device_name for device_name in self.gpu_devices):
-                    device_count += 1
+            gpu_types = [x[0] for x in self.gpu_devices]
+            for gpu_type in gpu_types:
+                device_count += result.stdout.count(gpu_type)
 
         return device_count
