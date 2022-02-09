@@ -58,7 +58,7 @@ class KVMPerformance(TestSuite):  # noqa
     def perf_nested_kvm_storage_singledisk(
         self, node: RemoteNode, environment: Environment, variables: Dict[str, Any]
     ) -> None:
-        self._perf_qemu(node, environment, variables, setup_raid=False)
+        self._storage_perf_qemu(node, environment, variables, setup_raid=False)
 
     @TestCaseMetadata(
         description="""
@@ -78,9 +78,9 @@ class KVMPerformance(TestSuite):  # noqa
     def perf_nested_kvm_storage_multidisk(
         self, node: RemoteNode, environment: Environment, variables: Dict[str, Any]
     ) -> None:
-        self._perf_qemu(node, environment, variables)
+        self._storage_perf_qemu(node, environment, variables)
 
-    def _perf_qemu(
+    def _storage_perf_qemu(
         self,
         node: RemoteNode,
         environment: Environment,
