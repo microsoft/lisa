@@ -25,6 +25,7 @@ def connect_nested_vm(
     image_name: str = NESTED_VM_IMAGE_NAME,
     image_size: int = NESTED_VM_REQUIRED_DISK_SIZE_IN_GB,
     disks: Optional[List[str]] = None,
+    stop_existing_vm: bool = True,
 ) -> RemoteNode:
 
     # verify that virtualization is enabled in hardware
@@ -53,7 +54,12 @@ def connect_nested_vm(
     )
 
     # start nested vm
-    host.tools[Qemu].create_vm(guest_port, f"{image_folder_path}/{image_name}", disks)
+    host.tools[Qemu].create_vm(
+        guest_port,
+        f"{image_folder_path}/{image_name}",
+        disks,
+        stop_existing_vm=stop_existing_vm,
+    )
 
     # setup connection to nested vm
     nested_vm = RemoteNode(Node(name="L2-vm"), 0, "L2-vm")
