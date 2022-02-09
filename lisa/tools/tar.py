@@ -19,13 +19,17 @@ class Tar(Tool):
         file: str,
         dest_dir: str,
         strip_components: int = 0,
+        gzip: bool = False,
     ) -> None:
         # create folder when it doesn't exist
         assert_that(strip_components).described_as(
             "--strip-components arg for tar must be int >= 0"
         ).is_greater_than_or_equal_to(0)
         self.node.execute(f"mkdir -p {dest_dir}", shell=True)
-        tar_cmd = f"-xvf {file} -C {dest_dir}"
+        if gzip:
+            tar_cmd = f"-zxvf {file} -C {dest_dir}"
+        else:
+            tar_cmd = f"-xvf {file} -C {dest_dir}"
         if strip_components:
             # optionally strip N top level components from a tar file
             tar_cmd += f" --strip-components={strip_components}"
