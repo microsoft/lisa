@@ -11,6 +11,7 @@ import lisa.combinators.csv_combinator  # noqa: F401
 import lisa.combinators.grid_combinator  # noqa: F401
 import lisa.notifiers.console  # noqa: F401
 import lisa.notifiers.env_stats  # noqa: F401
+import lisa.notifiers.file  # noqa: F401
 import lisa.notifiers.html  # noqa: F401
 import lisa.notifiers.text_result  # noqa: F401
 import lisa.runners.legacy_runner  # noqa: F401
