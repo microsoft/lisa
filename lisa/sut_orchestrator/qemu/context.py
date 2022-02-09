@@ -21,6 +21,7 @@ class NodeContext:
     console_log_file_path: str = ""
     extra_cloud_init_user_data: Optional[Dict[str, Any]] = None
     console_logger: Optional[QemuConsoleLogger] = None
+    use_bios_firmware: bool = False
 
 
 def get_environment_context(environment: Environment) -> EnvironmentContext:
