@@ -2,11 +2,17 @@
 # Licensed under the MIT license.
 
 import re
-from typing import Dict, List, Tuple
+from typing import Any, Dict, List, Tuple
 
 from assertpy import assert_that
 
+from lisa.base_tools import Sed, Uname, Wget
 from lisa.feature import Feature
+from lisa.operating_system import CentOs, Redhat, Ubuntu
+from lisa.tools import Firewall
+from lisa.tools.service import Service
+from lisa.tools.tar import Tar
+from lisa.util import LisaException
 
 FEATURE_NAME_INFINIBAND = "Infiniband"
 
@@ -33,6 +39,10 @@ class Infiniband(Feature):
     #                     port_lmc:               0x00
     #                     link_layer:             InfiniBand
     _ib_info_pattern = re.compile(r"(\s*(?P<id>\S*):\s*(?P<value>.*)\n?)")
+
+    def _initialize(self, *args: Any, **kwargs: Any) -> None:
+        super()._initialize(*args, **kwargs)
+        self.setup_rdma()
 
     def enabled(self) -> bool:
         return True
@@ -118,3 +128,171 @@ class Infiniband(Feature):
             "No infiniband devices found in /sys/class/infiniband"
         ).is_not_empty()
         return result.stdout.split()
+
+    def setup_rdma(self) -> None:
+        node = self._node
+        # Dependencies
+        kernel = node.tools[Uname].get_linux_information().kernel_version_raw
+        ubuntu_required_packages = [
+            "build-essential",
+            "numactl",
+            "rpm",
+            "libnuma-dev",
+            "libmpc-dev",
+            "libmpfr-dev",
+            "libxml2-dev",
+            "m4",
+            "byacc",
+            "python-dev",
+            "python-setuptools",
+            "tcl",
+            "environment-modules",
+            "tk",
+            "texinfo",
+            "libudev-dev",
+            "binutils",
+            "binutils-dev",
+            "selinux-policy-dev",
+            "flex",
+            "libnl-3-dev",
+            "libnl-route-3-dev",
+            "libnl-3-200",
+            "bison",
+            "libnl-route-3-200",
+            "gfortran",
+            "cmake",
+            "libnl-3-dev",
+            "libnl-route-3-dev",
+            "libsecret-1-0",
+            "dkms",
+            "python-setuptools",
+        ]
+        redhat_required_packages = [
+            "git",
+            "zip",
+            "python3",
+            "kernel-rpm-macros",
+            "gdb-headless",
+            "python36-devel",
+            "elfutils-libelf-devel",
+            "rpm-build",
+            "make",
+            "gcc",
+            "tcl",
+            "tk",
+            "gcc-gfortran",
+            "tcsh",
+            "kernel-devel",
+            "kernel-modules-extra",
+            "createrepo",
+            "libtool",
+            "fuse-libs",
+        ]
+        if isinstance(node.os, CentOs):
+            node.execute(
+                "yum install -y https://partnerpipelineshare.blob.core.windows.net"
+                f"/kernel-devel-rpms/kernel-devel-{kernel}.rpm",
+                sudo=True,
+            )
+
+        if isinstance(node.os, Redhat):
+            if node.os.information.version.major == 7:
+                redhat_required_packages.append("python-devel")
+            else:
+                redhat_required_packages.append("python3-devel")
+                redhat_required_packages.append("python2-devel")
+            node.os.install_packages(list(redhat_required_packages))
+        elif isinstance(node.os, Ubuntu):
+            node.os.install_packages(list(ubuntu_required_packages))
+        else:
+            raise LisaException(f"Unsupported distro: {node.os.name} is not supported.")
+
+        # Turn off firewall
+        firewall = node.tools[Firewall]
+        firewall.stop()
+
+        # Disable SELinux
+        sed = node.tools[Sed]
+        sed.substitute(
+            regexp="SELINUX=enforcing",
+            replacement="SELINUX=disabled",
+            file="/etc/selinux/config",
+            sudo=True,
+        )
+
+        # Install OFED
+        mofed_version = "5.4-3.0.3.0"
+        if isinstance(node.os, Redhat):
+            os_class = "rhel"
+        else:
+            os_class = node.os.name.lower()
+
+        os_version = node.os.information.release.split(".")
+        mofed_folder = (
+            f"MLNX_OFED_LINUX-{mofed_version}-{os_class}"
+            f"{os_version[0]}."
+            f"{os_version[1]}-x86_64"
+        )
+        tarball_name = f"{mofed_folder}.tgz"
+        mlnx_ofed_download_url = (
+            f"https://partnerpipelineshare.blob.core.windows.net/ofed/{tarball_name}"
+        )
+
+        wget = node.tools[Wget]
+        wget.get(url=mlnx_ofed_download_url, file_path=".", filename=tarball_name)
+        tar = node.tools[Tar]
+        tar.extract(file=tarball_name, dest_dir=".", gzip=True)
+
+        extra_params = ""
+        if isinstance(node.os, Redhat):
+            extra_params = (
+                f"--kernel {kernel} --kernel-sources /usr/src/kernels/{kernel}  "
+                f"--skip-repo --skip-unsupported-devices-check --without-fw-update"
+            )
+        node.execute(
+            f"./{mofed_folder}/mlnxofedinstall --add-kernel-support {extra_params}",
+            expected_exit_code=0,
+            expected_exit_code_failure_message="SetupRDMA: failed to install "
+            "MOFED Drivers",
+            sudo=True,
+        )
+        node.execute(
+            "/etc/init.d/openibd force-restart",
+            expected_exit_code=0,
+            expected_exit_code_failure_message="SetupRDMA: failed to restart driver",
+            sudo=True,
+        )
+
+        # Update waagent.conf
+        sed.substitute(
+            regexp="# OS.EnableRDMA=y",
+            replacement="OS.EnableRDMA=y",
+            file="/etc/waagent.conf",
+            sudo=True,
+        )
+        sed.substitute(
+            regexp="# AutoUpdate.Enabled=y",
+            replacement="AutoUpdate.Enabled=y",
+            file="/etc/waagent.conf",
+            sudo=True,
+        )
+
+        service = node.tools[Service]
+        if isinstance(node.os, Ubuntu):
+            service.restart_service("walinuxagent")
+        else:
+            service.restart_service("waagent")
+
+        # Intall Intel MPI
+        wget = node.tools[Wget]
+        script_path = wget.get(
+            "https://partnerpipelineshare.blob.core.windows.net/mpi/"
+            "l_mpi_oneapi_p_2021.1.1.76_offline.sh",
+            executable=True,
+        )
+        node.execute(
+            f"{script_path} -s -a -s --eula accept",
+            sudo=True,
+            expected_exit_code=0,
+            expected_exit_code_failure_message="SetupRDMA: failed to install IntelMPI",
+        )
