@@ -16,6 +16,7 @@ from lisa.features import Infiniband, Sriov
 from lisa.sut_orchestrator.azure.tools import Waagent
 from lisa.tools import Modprobe
 from lisa.util import SkippedException
+from lisa.util.parallel import run_in_parallel
 
 
 @TestSuiteMetadata(
@@ -120,6 +121,13 @@ class InfinibandSuit(TestSuite):
         server_node = environment.nodes[0]
         client_node = environment.nodes[1]
 
+        # Ensure RDMA is setup
+        run_in_parallel(
+            [
+                lambda: client_node.features[Infiniband],
+                lambda: server_node.features[Infiniband],
+            ]
+        )
         infiniband = server_node.features[Infiniband]
         ib_interfaces = infiniband.get_ib_interfaces()
 
