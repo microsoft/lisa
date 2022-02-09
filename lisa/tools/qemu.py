@@ -26,6 +26,7 @@ class Qemu(Tool):
         port: int,
         guest_image_path: str,
         disks: Optional[List[str]] = None,
+        stop_existing_vm: bool = True,
     ) -> None:
         # start vm on the current node
         # port : port of the host vm mapped to the guest's ssh port
@@ -56,8 +57,9 @@ class Qemu(Tool):
                     f"-device virtio-scsi-pci -device scsi-hd,drive=datadisk-{disk} "
                 )
 
-        # kill any existing qemu process
-        self.stop_vm()
+        # kill any existing qemu process if stop_existing_vm is True
+        if stop_existing_vm:
+            self.stop_vm()
 
         self.run(
             cmd,
