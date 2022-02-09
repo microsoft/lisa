@@ -319,7 +319,7 @@ class RootRunner(Action):
         )
         notifier.notify(run_message)
 
-        task_manager = TaskManager[None](self._max_concurrency)
+        task_manager = TaskManager[None](self._max_concurrency, is_verbose=True)
 
         # set the global task manager for cancellation check
         set_global_task_manager(task_manager)

@@ -48,13 +48,16 @@ class Task(Generic[T_RESULT]):
         task_id: int,
         task: Callable[[], T_RESULT],
         parent_logger: Optional[Logger],
+        is_verbose: bool = False,
     ) -> None:
         self.id = task_id
         self._task = task
         self._lifecycle_timer = create_timer()
         self._wait_timer = create_timer()
         self._log = get_logger("Task", str(self.id), parent_logger)
-        self._log.debug(f"Generate task: {self}")
+        self._is_verbose = is_verbose
+        if self._is_verbose:
+            self._log.debug(f"Generate task: {self}")
 
     def close(self) -> None:
         self._lifecycle_timer.elapsed()
@@ -63,13 +66,14 @@ class Task(Generic[T_RESULT]):
             - self._wait_timer.elapsed()
             - self._call_timer.elapsed()
         )
-        self._log.debug(
-            f"Task finished. "
-            f"Lifecycle time: {self._lifecycle_timer.elapsed_text()} "
-            f"Wait time before call: {self._wait_timer.elapsed_text()} "
-            f"Call time: {self._call_timer.elapsed_text()} "
-            f"Wait time after call: {wait_after_call:.3f} sec"
-        )
+        if self._is_verbose:
+            self._log.debug(
+                f"Task finished. "
+                f"Lifecycle time: {self._lifecycle_timer.elapsed_text()} "
+                f"Wait time before call: {self._wait_timer.elapsed_text()} "
+                f"Call time: {self._call_timer.elapsed_text()} "
+                f"Wait time after call: {wait_after_call:.3f} sec"
+            )
 
     def __call__(self) -> T_RESULT:
         self._wait_timer.elapsed()
@@ -91,7 +95,10 @@ class Task(Generic[T_RESULT]):
 
 class TaskManager(Generic[T_RESULT]):
     def __init__(
-        self, max_workers: int, callback: Optional[Callable[[T_RESULT], None]] = None
+        self,
+        max_workers: int,
+        callback: Optional[Callable[[T_RESULT], None]] = None,
+        is_verbose: bool = False,
     ) -> None:
         self._log = get_logger("TaskManager")
         self._pool = ThreadPoolExecutor(max_workers=max_workers)
@@ -100,6 +107,7 @@ class TaskManager(Generic[T_RESULT]):
         self._callback = callback
         self._cancelled = False
         self._future_task_map: Dict[Future[T_RESULT], Task[T_RESULT]] = {}
+        self._is_verbose = is_verbose
 
     def __enter__(self) -> Any:
         return self._pool.__enter__()
