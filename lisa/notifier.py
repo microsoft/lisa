@@ -1,6 +1,7 @@
 # Copyright (c) Microsoft Corporation.
 # Licensed under the MIT license.
 
+import copy
 import threading
 from functools import partial
 from typing import Any, Dict, List, Optional, Type
@@ -9,6 +10,7 @@ from lisa import schema
 from lisa.messages import MessageBase
 from lisa.util import InitializableMixin, constants, subclasses
 from lisa.util.logger import get_logger
+from lisa.util.parallel import run_in_parallel
 
 _get_init_logger = partial(get_logger, "init", "notifier")
 
@@ -53,18 +55,19 @@ _messages: Dict[type, List[Notifier]] = {}
 _message_queue: List[MessageBase] = []
 _message_queue_lock = threading.Lock()
 _notifying_lock = threading.Lock()
+_system_notifiers = [constants.NOTIFIER_CONSOLE, constants.NOTIFIER_FILE]
 
 
-# below methods uses to operate a global notifiers,
-# so that any object can send messages.
 def initialize(runbooks: List[schema.Notifier]) -> None:
 
     factory = subclasses.Factory[Notifier](Notifier)
     log = _get_init_logger()
 
-    if not any(x for x in runbooks if x.type == constants.NOTIFIER_CONSOLE):
-        # add console notifier by default to provide troubleshooting information
-        runbooks.append(schema.Notifier(type=constants.NOTIFIER_CONSOLE))
+    # add system notifiers to provide troubleshooting information
+    names = (x.type.lower() for x in runbooks)
+    for system_notifier in _system_notifiers:
+        if system_notifier not in names:
+            runbooks.append(schema.Notifier(type=system_notifier))
 
     for runbook in runbooks:
         if not runbook.enabled:
@@ -99,8 +102,6 @@ def register_notifier(notifier: Notifier) -> None:
 
 
 def notify(message: MessageBase) -> None:
-    # TODO make it async for performance consideration
-
     # to make sure message get order as possible, use a queue to hold messages.
     with _message_queue_lock:
         _message_queue.append(message)
@@ -115,8 +116,16 @@ def notify(message: MessageBase) -> None:
                 message_types = type(current_message).__mro__
                 for message_type in message_types:
                     notifiers = _messages.get(message_type, [])
-                    for notifier in notifiers:
-                        notifier._received_message(message=current_message)
+                    if notifiers:
+                        run_in_parallel(
+                            [
+                                partial(
+                                    x._received_message,
+                                    message=copy.deepcopy(current_message),
+                                )
+                                for x in notifiers
+                            ]
+                        )
                     if message_type == MessageBase:
                         # skip the object type
                         break
