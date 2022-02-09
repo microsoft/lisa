@@ -50,6 +50,7 @@ LIST_CASE = "case"
 # notifier
 NOTIFIER = "notifier"
 NOTIFIER_CONSOLE = "console"
+NOTIFIER_FILE = "file"
 
 # common
 NODES = "nodes"
