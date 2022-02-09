@@ -1,7 +1,6 @@
 # Copyright (c) Microsoft Corporation.
 # Licensed under the MIT license.
 
-import copy
 import logging
 from dataclasses import dataclass
 from typing import Any, List, Type, cast
@@ -9,8 +8,9 @@ from typing import Any, List, Type, cast
 from dataclasses_json import dataclass_json
 
 from lisa import messages, notifier, schema
-from lisa.testsuite import TestResultMessage
 from lisa.util import constants
+
+from .common import simplify_message
 
 
 @dataclass_json()
@@ -34,12 +34,7 @@ class Console(notifier.Notifier):
         return ConsoleSchema
 
     def _received_message(self, message: messages.MessageBase) -> None:
-        if isinstance(message, TestResultMessage):
-            # The description of test result is too long to display. Hide it for
-            # log readability.
-            message = copy.deepcopy(message)
-            description = message.information.get("description", "")
-            message.information["description"] = f"<{len(description)} bytes>"
+        simplify_message(message)
         self._log.log(
             getattr(logging, self._log_level),
             f"received message [{message.type}]: {message}",
