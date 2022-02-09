@@ -26,7 +26,7 @@ from .. import QEMU
 from . import libvirt_events_thread
 from .console_logger import QemuConsoleLogger
 from .context import get_environment_context, get_node_context
-from .schema import QemuNodeSchema
+from .schema import FIRMWARE_TYPE_BIOS, FIRMWARE_TYPE_UEFI, QemuNodeSchema
 from .serial_console import SerialConsole
 
 
@@ -140,6 +140,19 @@ class QemuPlatform(Platform):
 
             node = environment.create_node_from_requirement(node_space)
             node_context = get_node_context(node)
+
+            if (
+                not qemu_node_runbook.firmware_type
+                or qemu_node_runbook.firmware_type == FIRMWARE_TYPE_UEFI
+            ):
+                node_context.use_bios_firmware = False
+            elif qemu_node_runbook.firmware_type == FIRMWARE_TYPE_BIOS:
+                node_context.use_bios_firmware = True
+            else:
+                raise LisaException(
+                    f"Unknown node firmware type: {qemu_node_runbook.firmware_type}."
+                    f"Expecting either {FIRMWARE_TYPE_UEFI} or {FIRMWARE_TYPE_BIOS}."
+                )
 
             node_context.vm_name = f"{vm_name_prefix}-{i}"
             node_context.cloud_init_file_path = os.path.join(
@@ -386,7 +399,9 @@ class QemuPlatform(Platform):
         vcpu.text = "2"
 
         os = ET.SubElement(domain, "os")
-        os.attrib["firmware"] = "efi"
+
+        if not node_context.use_bios_firmware:
+            os.attrib["firmware"] = "efi"
 
         os_type = ET.SubElement(os, "type")
         os_type.text = "hvm"
