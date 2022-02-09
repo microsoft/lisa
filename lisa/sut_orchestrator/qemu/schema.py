@@ -3,6 +3,9 @@ from typing import Optional
 
 from dataclasses_json import dataclass_json
 
+FIRMWARE_TYPE_BIOS = "bios"
+FIRMWARE_TYPE_UEFI = "uefi"
+
 
 # Configuration options for cloud-init ISO generation for the VM.
 @dataclass_json()
@@ -29,3 +32,6 @@ class QemuNodeSchema:
     qcow2: str = ""
     # Configuration options for cloud-init.
     cloud_init: Optional[CloudInitSchema] = None
+    # Whether to use UEFI or BIOS firmware.
+    # Defaults to UEFI.
+    firmware_type: str = ""
