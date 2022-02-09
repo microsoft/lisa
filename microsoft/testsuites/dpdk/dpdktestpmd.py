@@ -3,7 +3,7 @@
 
 import re
 from pathlib import PurePath
-from typing import List, Pattern, Tuple, Type, Union
+from typing import List, Pattern, Tuple, Type
 
 from assertpy import assert_that, fail
 from semver import VersionInfo
@@ -119,6 +119,9 @@ class DpdkTestpmd(Tool):
     def set_dpdk_branch(self, dpdk_branch: str) -> None:
         self._dpdk_branch = dpdk_branch
 
+    def get_dpdk_branch(self) -> VersionInfo:
+        return self._dpdk_version_info
+
     def set_version_info_from_source_install(
         self, branch_identifier: str, matcher: Pattern[str]
     ) -> None:
@@ -130,9 +133,7 @@ class DpdkTestpmd(Tool):
             )
         else:
             major, minor = map(int, [match.group("major"), match.group("minor")])
-            self._dpdk_version_info: Union[VersionInfo, None] = VersionInfo(
-                major, minor
-            )
+            self._dpdk_version_info = VersionInfo(major, minor)
 
     def generate_testpmd_include(
         self,
@@ -285,7 +286,6 @@ class DpdkTestpmd(Tool):
         self._testpmd_output_before_rescind = ""
         self._testpmd_output_during_rescind = ""
         self._last_run_output = ""
-        self._dpdk_version_info = None
         self._determine_network_hardware()
         node = self.node
         self._install_dependencies()
