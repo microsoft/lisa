@@ -767,6 +767,7 @@ Class TestController {
 				Set-Variable -Name FinalKernelVersion -Value "" -Scope Global -Force
 				$executionCount += 1
 				$deployErrors = ""
+				$isAborted = $false
 				Write-LogInfo "($executionCount/$($this.TotalCaseNum)) testing started: $($currentTestCase.testName)"
 				Write-LogInfo "SetupConfig: { $(ConvertFrom-SetupConfig -SetupConfig $currentTestCase.SetupConfig) }"
 				try {
@@ -836,10 +837,12 @@ Class TestController {
 					Write-LogErr "EXCEPTION: $ErrorMessage"
 					Write-LogErr "Calling function - $($MyInvocation.MyCommand)."
 					Write-LogErr "Source: Line $line in script $script_name."
-				} finally {
 					$this.JunitReport.StartLogTestCase("LISAv2Test-$($this.TestPlatform)", "$($currentTestCase.testName)", "$($this.TestPlatform)-$($currentTestCase.Category)-$($currentTestCase.Area)")
 					$this.JunitReport.CompleteLogTestCase("LISAv2Test-$($this.TestPlatform)", "$($currentTestCase.testName)", $global:ResultAborted, $deployErrors)
 					$this.TestSummary.UpdateTestSummaryForCase($currentTestCase, $executionCount, $global:ResultAborted, "0", $deployErrors, $null)
+					$isAborted = $true
+				}
+				if ($isAborted) {
 					continue
 				}
 				# Run current test case
