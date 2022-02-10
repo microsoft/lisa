@@ -766,27 +766,42 @@ Class TestController {
 				# Reset FinalKernelVersion for each TestCase run
 				Set-Variable -Name FinalKernelVersion -Value "" -Scope Global -Force
 				$executionCount += 1
+				$deployErrors = ""
+				$isAborted = $false
 				Write-LogInfo "($executionCount/$($this.TotalCaseNum)) testing started: $($currentTestCase.testName)"
 				Write-LogInfo "SetupConfig: { $(ConvertFrom-SetupConfig -SetupConfig $currentTestCase.SetupConfig) }"
-				if (!$vmData -or $this.DeployVMPerEachTest) {
-					# Deploy the VM for the setup
-					Write-LogInfo "Deploy target machine for test if required ..."
-					$deployVMResults = $this.TestProvider.DeployVMs($this.GlobalConfig, $this.SetupTypeTable[$setupType], $currentTestCase, `
-							$currentTestCase.SetupConfig.TestLocation, $this.RGIdentifier, $this.UseExistingRG, $this.ResourceCleanup)
-					$vmData = $null
-					$deployErrors = ""
-					$systemBasicLogsCollected = $false
-					if ($deployVMResults) {
-						# By default set $vmData with $deployVMResults, because providers may return array of vmData directly if no errors.
-						$vmData = $deployVMResults
-						$deployErrors = Trim-ErrorLogMessage $deployVMResults.Error
-						# override the $vmData if $deployResults give VmData specifically with property 'VmData'
-						if ($deployVMResults.Keys -and ($deployVMResults.Keys -contains "VmData")) {
-							$vmData = $deployVMResults.VmData
+				try {
+					if (!$vmData -or $this.DeployVMPerEachTest) {
+						# Deploy the VM for the setup
+						Write-LogInfo "Deploy target machine for test if required ..."
+						$deployVMResults = $this.TestProvider.DeployVMs($this.GlobalConfig, $this.SetupTypeTable[$setupType], $currentTestCase, `
+								$currentTestCase.SetupConfig.TestLocation, $this.RGIdentifier, $this.UseExistingRG, $this.ResourceCleanup)
+						$vmData = $null
+						$systemBasicLogsCollected = $false
+						if ($deployVMResults) {
+							# By default set $vmData with $deployVMResults, because providers may return array of vmData directly if no errors.
+							$vmData = $deployVMResults
+							$deployErrors = Trim-ErrorLogMessage $deployVMResults.Error
+							# override the $vmData if $deployResults give VmData specifically with property 'VmData'
+							if ($deployVMResults.Keys -and ($deployVMResults.Keys -contains "VmData")) {
+								$vmData = $deployVMResults.VmData
+							}
+							# if there are deployment errors, skip RunTestCase and TryCleanupOnFailure, and we don't care about '-ReuseVmOnFailure', because this is unrecoverable
+							if ($vmData -and $deployVMResults.Error) {
+								# Before TryCleanupOnFailure, Set the case to abort, and Submit Telemetry Result
+								if (!$systemBasicLogsCollected) {
+									$currentTestResult = Create-TestResultObject
+									$currentTestResult.TestResult = $global:ResultAborted
+									$currentTestResult.TestSummary += $deployErrors
+									$this.GetSystemBasicLogs($vmData, $global:user, $global:password, $currentTestCase, $currentTestResult, $this.EnableTelemetry) | Out-Null
+									$systemBasicLogsCollected = $true
+								}
+								&$TryCleanupOnFailure -VmDataOnFailure ([ref]$vmData) -SetupTypeData $this.SetupTypeTable[$setupType]
+							}
 						}
-						# if there are deployment errors, skip RunTestCase and TryCleanupOnFailure, and we don't care about '-ReuseVmOnFailure', because this is unrecoverable
-						if ($vmData -and $deployVMResults.Error) {
-							# Before TryCleanupOnFailure, Set the case to abort, and Submit Telemetry Result
+						if (!$vmData) {
+							# Failed to deploy the VMs, Set the case to abort
+							$currentTestResult = Create-TestResultObject
 							if (!$systemBasicLogsCollected) {
 								$currentTestResult = Create-TestResultObject
 								$currentTestResult.TestResult = $global:ResultAborted
@@ -794,43 +809,41 @@ Class TestController {
 								$this.GetSystemBasicLogs($vmData, $global:user, $global:password, $currentTestCase, $currentTestResult, $this.EnableTelemetry) | Out-Null
 								$systemBasicLogsCollected = $true
 							}
-							&$TryCleanupOnFailure -VmDataOnFailure ([ref]$vmData) -SetupTypeData $this.SetupTypeTable[$setupType]
+							throw "VMData is empty (null). Aborting the testing."
+						}
+						else {
+							if ($currentTestCase.SetupConfig.OSType -notcontains "Windows" -and !$global:detectedDistro) {
+								$detectedDistro = Detect-LinuxDistro -VIP $vmData[0].PublicIP -SSHport $vmData[0].SSHPort `
+									-testVMUser $global:user -testVMPassword $global:password
+							}
 						}
 					}
-					if (!$vmData) {
-						# Failed to deploy the VMs, Set the case to abort
-						$currentTestResult = Create-TestResultObject
-						if (!$systemBasicLogsCollected) {
-							$currentTestResult = Create-TestResultObject
-							$currentTestResult.TestResult = $global:ResultAborted
-							$currentTestResult.TestSummary += $deployErrors
-							$this.GetSystemBasicLogs($vmData, $global:user, $global:password, $currentTestCase, $currentTestResult, $this.EnableTelemetry) | Out-Null
-							$systemBasicLogsCollected = $true
+					elseif ($vmData) {
+						# Get updated Initial Kernel for current Test Case, because last test case may have updated kernel version
+						$firstVMData = $vmData | Select-Object -First 1
+						if (!$vmData.IsWindows) {
+							$global:InitialKernelVersion = Run-LinuxCmd -ip $firstVMData.PublicIP -port $firstVMData.SSHPort -username $global:user -password $global:password -command "uname -r"
+							Write-LogInfo "Initial Kernel Version: $global:InitialKernelVersion"
 						}
-						Write-LogWarn("VMData is empty (null). Aborting the testing.")
-						$this.JunitReport.StartLogTestCase("LISAv2Test-$($this.TestPlatform)", "$($currentTestCase.testName)", "$($this.TestPlatform)-$($currentTestCase.Category)-$($currentTestCase.Area)")
-						$this.JunitReport.CompleteLogTestCase("LISAv2Test-$($this.TestPlatform)", "$($currentTestCase.testName)", $global:ResultAborted, $deployErrors)
-						$this.TestSummary.UpdateTestSummaryForCase($currentTestCase, $executionCount, $global:ResultAborted, "0", $deployErrors, $null)
-						continue
-					}
-					else {
-						if ($currentTestCase.SetupConfig.OSType -notcontains "Windows" -and !$global:detectedDistro) {
-							$detectedDistro = Detect-LinuxDistro -VIP $vmData[0].PublicIP -SSHport $vmData[0].SSHPort `
-								-testVMUser $global:user -testVMPassword $global:password
-						}
-					}
-				}
-				elseif ($vmData) {
-					# Get updated Initial Kernel for current Test Case, because last test case may have updated kernel version
-					$firstVMData = $vmData | Select-Object -First 1
-					if (!$vmData.IsWindows) {
-						$global:InitialKernelVersion = Run-LinuxCmd -ip $firstVMData.PublicIP -port $firstVMData.SSHPort -username $global:user -password $global:password -command "uname -r"
-						Write-LogInfo "Initial Kernel Version: $global:InitialKernelVersion"
-					}
 
-					if ($this.TestPlatform -imatch "Azure") {
-						Add-ResourceGroupTag -ResourceGroup $firstVMData.ResourceGroupName -TagName TestName -TagValue $currentTestCase.TestName
+						if ($this.TestPlatform -imatch "Azure") {
+							Add-ResourceGroupTag -ResourceGroup $firstVMData.ResourceGroupName -TagName TestName -TagValue $currentTestCase.TestName
+						}
 					}
+				} catch {
+					$line = $_.InvocationInfo.ScriptLineNumber
+					$script_name = ($_.InvocationInfo.ScriptName).Replace($PWD, ".")
+					$ErrorMessage = $_.Exception.Message
+					Write-LogErr "EXCEPTION: $ErrorMessage"
+					Write-LogErr "Calling function - $($MyInvocation.MyCommand)."
+					Write-LogErr "Source: Line $line in script $script_name."
+					$this.JunitReport.StartLogTestCase("LISAv2Test-$($this.TestPlatform)", "$($currentTestCase.testName)", "$($this.TestPlatform)-$($currentTestCase.Category)-$($currentTestCase.Area)")
+					$this.JunitReport.CompleteLogTestCase("LISAv2Test-$($this.TestPlatform)", "$($currentTestCase.testName)", $global:ResultAborted, $deployErrors)
+					$this.TestSummary.UpdateTestSummaryForCase($currentTestCase, $executionCount, $global:ResultAborted, "0", $deployErrors, $null)
+					$isAborted = $true
+				}
+				if ($isAborted) {
+					continue
 				}
 				# Run current test case
 				Write-LogInfo "Run test case against the target machine ..."
