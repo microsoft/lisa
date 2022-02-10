@@ -2695,6 +2695,7 @@ function install_lagscope () {
 			install_epel
 			yum -y --nogpgcheck install libaio sysstat git bc make gcc wget cmake libarchive
 			build_lagscope "${1}"
+			export PATH=$PATH:/usr/local/bin
 			iptables -F
 			systemctl stop firewalld.service || service firewalld stop
 			;;
@@ -2775,6 +2776,7 @@ function install_ntttcp () {
 			yum -y --nogpgcheck install wget libaio sysstat git bc make gcc dstat psmisc lshw cmake
 			build_ntttcp "${1}"
 			build_lagscope "${2}"
+			export PATH=$PATH:/usr/local/bin
 			iptables -F
 			;;
 
@@ -3016,6 +3018,9 @@ function install_net_tools () {
 	fi
 	if [[ "${DISTRO_NAME}" == "ubuntu" ]]; then
 		apt_get_install "net-tools" > /dev/null 2>&1
+	fi
+	if [[ "${DISTRO_NAME}" == "almalinux" ]]; then
+		yum_install "net-tools" > /dev/null 2>&1
 	fi
 }
 
