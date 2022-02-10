@@ -2,11 +2,17 @@
 # Licensed under the MIT license.
 import inspect
 import pathlib
-from typing import Any, Dict, List, Optional, cast
+from typing import Any, Dict, List, Optional, Union, cast
 
-from lisa import Node, RemoteNode, notifier
+from lisa import Node, RemoteNode, notifier, run_in_parallel
 from lisa.environment import Environment
-from lisa.messages import DiskPerformanceMessage, DiskSetupType, DiskType
+from lisa.messages import (
+    DiskPerformanceMessage,
+    DiskSetupType,
+    DiskType,
+    NetworkTCPPerformanceMessage,
+    NetworkUDPPerformanceMessage,
+)
 from lisa.schema import NetworkDataPath
 from lisa.tools import (
     FIOMODES,
@@ -184,21 +190,27 @@ def perf_ntttcp(
     environment: Environment,
     udp_mode: bool = False,
     connections: Optional[List[int]] = None,
-) -> None:
+) -> List[Union[NetworkTCPPerformanceMessage, NetworkUDPPerformanceMessage]]:
     client = cast(RemoteNode, environment.nodes[0])
     server = cast(RemoteNode, environment.nodes[1])
     test_case_name = inspect.stack()[1][3]
     if connections is None:
-        connections = NTTTCP_TCP_CONCURRENCY
         if udp_mode:
             connections = NTTTCP_UDP_CONCURRENCY
-    client_ntttcp = client.tools[Ntttcp]
-    server_ntttcp = server.tools[Ntttcp]
+        else:
+            connections = NTTTCP_TCP_CONCURRENCY
+
+    client_ntttcp, server_ntttcp = run_in_parallel(
+        [lambda: client.tools[Ntttcp], lambda: server.tools[Ntttcp]]
+    )
     try:
-        client_lagscope = client.tools[Lagscope]
-        server_lagscope = server.tools[Lagscope]
+        client_lagscope, server_lagscope = run_in_parallel(
+            [lambda: client.tools[Lagscope], lambda: server.tools[Lagscope]]
+        )
         for ntttcp in [client_ntttcp, server_ntttcp]:
             ntttcp.setup_system(udp_mode)
+        for lagscope in [client_lagscope, server_lagscope]:
+            lagscope.set_busy_poll()
         data_path = get_nic_datapath(client)
         server_nic_name = server.nics.default_nic
         client_nic_name = client.nics.default_nic
@@ -209,7 +221,9 @@ def perf_ntttcp(
             dev_differentiator = "mlx"
         server_lagscope.run_as_server(ip=server.internal_address)
         max_server_threads = 64
-        perf_ntttcp_message_list: List[Any] = []
+        perf_ntttcp_message_list: List[
+            Union[NetworkTCPPerformanceMessage, NetworkUDPPerformanceMessage]
+        ] = []
         for test_thread in connections:
             if test_thread < max_server_threads:
                 num_threads_p = test_thread
@@ -260,33 +274,35 @@ def perf_ntttcp(
             client_sar_result = client_lagscope_process.wait_result()
             client_average_latency = client_lagscope.get_average(client_sar_result)
             if udp_mode:
-                perf_ntttcp_message_list.append(
-                    client_ntttcp.create_ntttcp_udp_performance_message(
-                        server_result_temp,
-                        client_result_temp,
-                        str(test_thread),
-                        buffer_size,
-                        environment,
-                        test_case_name,
-                    )
+                ntttcp_message: Union[
+                    NetworkTCPPerformanceMessage, NetworkUDPPerformanceMessage
+                ] = client_ntttcp.create_ntttcp_udp_performance_message(
+                    server_result_temp,
+                    client_result_temp,
+                    str(test_thread),
+                    buffer_size,
+                    environment,
+                    test_case_name,
                 )
             else:
-                perf_ntttcp_message_list.append(
-                    client_ntttcp.create_ntttcp_tcp_performance_message(
-                        server_result_temp,
-                        client_result_temp,
-                        client_average_latency,
-                        str(test_thread),
-                        buffer_size,
-                        environment,
-                        test_case_name,
-                    )
+                ntttcp_message = client_ntttcp.create_ntttcp_tcp_performance_message(
+                    server_result_temp,
+                    client_result_temp,
+                    client_average_latency,
+                    str(test_thread),
+                    buffer_size,
+                    environment,
+                    test_case_name,
                 )
-        for ntttcp_message in perf_ntttcp_message_list:
             notifier.notify(ntttcp_message)
+
+            perf_ntttcp_message_list.append(ntttcp_message)
     finally:
         for ntttcp in [client_ntttcp, server_ntttcp]:
             ntttcp.restore_system(udp_mode)
+        for lagscope in [client_lagscope, server_lagscope]:
+            lagscope.restore_busy_poll()
+    return perf_ntttcp_message_list
 
 
 def perf_iperf(
