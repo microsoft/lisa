@@ -42,7 +42,7 @@ $ResourceGroups = Invoke-RestMethod -Method Get -Uri $ResourceGroupApiUri -Heade
 $currentTimeStamp = get-date
 
 foreach($value in $ResourceGroups.value) { 
-    if(($value.name.Contains("lisa_") -or $value.name.Contains("LISAv2")) -and !$value.name.Contains("LISAv2-storage") -and !$value.name.Contains("LISAv2DependenciesRG") -and !$value.name.Contains("lisa_shared_resource") -and !$value.name.Contains("LISAv2-Deploy1VM")) {
+    if(($value.name.StartsWith("lisa_") -or $value.name.Contains("LISAv2")) -and !$value.name.Contains("LISAv2-storage") -and !$value.name.Contains("LISAv2DependenciesRG") -and !$value.name.Contains("lisa_shared_resource") -and !$value.name.Contains("LISAv2-Deploy1VM")) {
           $rgTimeStamp = [DateTime]($value.changedTime)
           if(($currentTimeStamp - $rgTimeStamp).Days -ge $CleanupAgeInDays) {
                 $rg = $value.name
