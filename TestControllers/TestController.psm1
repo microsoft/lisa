@@ -766,6 +766,7 @@ Class TestController {
 				# Reset FinalKernelVersion for each TestCase run
 				Set-Variable -Name FinalKernelVersion -Value "" -Scope Global -Force
 				$executionCount += 1
+				$deployErrors = ""
 				Write-LogInfo "($executionCount/$($this.TotalCaseNum)) testing started: $($currentTestCase.testName)"
 				Write-LogInfo "SetupConfig: { $(ConvertFrom-SetupConfig -SetupConfig $currentTestCase.SetupConfig) }"
 				try {
@@ -775,7 +776,6 @@ Class TestController {
 						$deployVMResults = $this.TestProvider.DeployVMs($this.GlobalConfig, $this.SetupTypeTable[$setupType], $currentTestCase, `
 								$currentTestCase.SetupConfig.TestLocation, $this.RGIdentifier, $this.UseExistingRG, $this.ResourceCleanup)
 						$vmData = $null
-						$deployErrors = ""
 						$systemBasicLogsCollected = $false
 						if ($deployVMResults) {
 							# By default set $vmData with $deployVMResults, because providers may return array of vmData directly if no errors.
