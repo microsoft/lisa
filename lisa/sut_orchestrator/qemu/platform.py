@@ -5,7 +5,6 @@ import io
 import os
 import random
 import string
-import subprocess
 import time
 import xml.etree.ElementTree as ET  # noqa: N817
 from typing import Any, List, Optional, Tuple, Type
@@ -386,20 +385,10 @@ class QemuPlatform(Platform):
         node_context = get_node_context(node)
 
         # Create a new differencing image with the user provided image as the base.
-        subprocess.run(
-            [
-                "qemu-img",
-                "create",
-                "-F",
-                "qcow2",
-                "-f",
-                "qcow2",
-                "-b",
-                node_context.os_disk_base_file_path,
-                node_context.os_disk_file_path,
-            ],
-            check=True,
-            capture_output=True,
+        environment.local_node().execute(
+            f"qemu-img create -F qcow2 -f qcow2 -b"
+            f"{node_context.os_disk_base_file_path} {node_context.os_disk_file_path}",
+            expected_exit_code=0,
         )
 
     # Create the XML definition for the VM.

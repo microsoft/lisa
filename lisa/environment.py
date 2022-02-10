@@ -169,6 +169,7 @@ class Environment(ContextMixin, InitializableMixin):
         super().__init__()
 
         self.nodes: Nodes = Nodes()
+        self._local_node: Optional[Node] = None
         self.runbook = runbook
         self.name = runbook.name
         self.is_predefined: bool = is_predefined
@@ -322,6 +323,21 @@ class Environment(ContextMixin, InitializableMixin):
         self.nodes.append(node)
 
         return node
+
+    def local_node(self) -> Node:
+        if self._local_node:
+            return self._local_node
+
+        node_runbook = schema.LocalNode(capability=schema.Capability())
+        self._local_node = Node.create(
+            index=-1,
+            runbook=node_runbook,
+            logger_name="local",
+            base_log_path=self.log_path,
+            parent_logger=self.log,
+        )
+        self._local_node.name = "local"
+        return self._local_node
 
     def get_information(self) -> Dict[str, str]:
         final_information: Dict[str, str] = {}
