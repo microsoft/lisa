@@ -598,7 +598,8 @@ Class TestController {
 		}
 		finally {
 			if (!$SystemLogsTelemetryDataCollected) {
-				$this.GetSystemBasicLogs($VmData, $global:user, $global:password, $CurrentTestData, $currentTestResult, $this.EnableTelemetry) | Out-Null
+				# Probably VM cannot be SSH connected, so only update telemetry, without connecting to the VM
+				$this.GetSystemBasicLogs($null, $global:user, $global:password, $CurrentTestData, $currentTestResult, $this.EnableTelemetry) | Out-Null
 			}
 			# Set back the LogDir to the parent folder, in order to record Test Summary
 			Set-Variable -Name "LogDir" -Value $oldLogDir -Scope Global
@@ -768,6 +769,7 @@ Class TestController {
 				$executionCount += 1
 				$deployErrors = ""
 				$isAborted = $false
+				$systemBasicLogsCollected = $false
 				Write-LogInfo "($executionCount/$($this.TotalCaseNum)) testing started: $($currentTestCase.testName)"
 				Write-LogInfo "SetupConfig: { $(ConvertFrom-SetupConfig -SetupConfig $currentTestCase.SetupConfig) }"
 				try {
@@ -777,7 +779,6 @@ Class TestController {
 						$deployVMResults = $this.TestProvider.DeployVMs($this.GlobalConfig, $this.SetupTypeTable[$setupType], $currentTestCase, `
 								$currentTestCase.SetupConfig.TestLocation, $this.RGIdentifier, $this.UseExistingRG, $this.ResourceCleanup)
 						$vmData = $null
-						$systemBasicLogsCollected = $false
 						if ($deployVMResults) {
 							# By default set $vmData with $deployVMResults, because providers may return array of vmData directly if no errors.
 							$vmData = $deployVMResults
@@ -796,19 +797,11 @@ Class TestController {
 									$this.GetSystemBasicLogs($vmData, $global:user, $global:password, $currentTestCase, $currentTestResult, $this.EnableTelemetry) | Out-Null
 									$systemBasicLogsCollected = $true
 								}
+								# It will set the $vmData to $null
 								&$TryCleanupOnFailure -VmDataOnFailure ([ref]$vmData) -SetupTypeData $this.SetupTypeTable[$setupType]
 							}
 						}
 						if (!$vmData) {
-							# Failed to deploy the VMs, Set the case to abort
-							$currentTestResult = Create-TestResultObject
-							if (!$systemBasicLogsCollected) {
-								$currentTestResult = Create-TestResultObject
-								$currentTestResult.TestResult = $global:ResultAborted
-								$currentTestResult.TestSummary += $deployErrors
-								$this.GetSystemBasicLogs($vmData, $global:user, $global:password, $currentTestCase, $currentTestResult, $this.EnableTelemetry) | Out-Null
-								$systemBasicLogsCollected = $true
-							}
 							throw "VMData is empty (null). Aborting the testing."
 						}
 						else {
@@ -843,6 +836,18 @@ Class TestController {
 					$isAborted = $true
 				}
 				if ($isAborted) {
+					# Exception happened when preparing the VMs, set the result to Aborted, and update telemetry
+					$currentTestResult = Create-TestResultObject
+					if (!$systemBasicLogsCollected) {
+						$currentTestResult = Create-TestResultObject
+						$currentTestResult.TestResult = $global:ResultAborted
+						$currentTestResult.TestSummary += $deployErrors
+						$this.GetSystemBasicLogs($null, $global:user, $global:password, $currentTestCase, $currentTestResult, $this.EnableTelemetry) | Out-Null
+					}
+					if ($vmData) {
+						# Delete the VMs as exception happened when trying to connect to the VMs
+						&$TryCleanupOnFailure -VmDataOnFailure ([ref]$vmData) -SetupTypeData $this.SetupTypeTable[$setupType]
+					}
 					continue
 				}
 				# Run current test case
