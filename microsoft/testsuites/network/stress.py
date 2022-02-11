@@ -80,10 +80,10 @@ class Stress(TestSuite):
             ):
                 matched_server_nic_info = server_nic_info
                 break
-        assert (
-            matched_server_nic_info
-        ), "not found the server nic has the same subnet of"
-        f" {client_nic_info.ip_addr}"
+        assert matched_server_nic_info, (
+            "not found the server nic has the same subnet of"
+            f" {client_nic_info.ip_addr}"
+        )
         client_iperf3 = client_node.tools[Iperf3]
         client_iperf3.run_as_client(
             server_ip=matched_server_nic_info.ip_addr,
