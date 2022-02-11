@@ -224,7 +224,7 @@ class StoragePerformance(TestSuite):
             and not isinstance(server_node.os, Debian)
             and not isinstance(server_node.os, SLES)
         ):
-            raise SkippedException(f"{server_node.os} not supported")
+            raise SkippedException(f"{server_node.os.name} not supported")
 
         # Each fio process start jobs equal to the iodepth to read/write from
         # the disks. The max number of jobs can be equal to the core count of
