@@ -26,7 +26,12 @@ from .. import QEMU
 from . import libvirt_events_thread
 from .console_logger import QemuConsoleLogger
 from .context import get_environment_context, get_node_context
-from .schema import FIRMWARE_TYPE_BIOS, FIRMWARE_TYPE_UEFI, QemuNodeSchema
+from .schema import (
+    FIRMWARE_TYPE_BIOS,
+    FIRMWARE_TYPE_UEFI,
+    QemuNodeSchema,
+    QemuPlatformSchema,
+)
 from .serial_console import SerialConsole
 
 
@@ -50,15 +55,8 @@ class QemuPlatform(Platform):
         libvirt_events_thread.init()
 
     def _prepare_environment(self, environment: Environment, log: Logger) -> bool:
-        if not environment.runbook.nodes_requirement:
-            return True
-
-        nodes_requirement = []
-        for node_space in environment.runbook.nodes_requirement:
-            node_capabilities = self._create_node_capabilities(log, node_space)
-            nodes_requirement.append(node_capabilities)
-
-        environment.runbook.nodes_requirement = nodes_requirement
+        self._configure_environment(environment, log)
+        self._configure_node_capabilities(environment, log)
         return True
 
     def _deploy_environment(self, environment: Environment, log: Logger) -> None:
@@ -67,6 +65,35 @@ class QemuPlatform(Platform):
     def _delete_environment(self, environment: Environment, log: Logger) -> None:
         with libvirt.open("qemu:///system") as qemu_conn:
             self._delete_nodes(environment, log, qemu_conn)
+
+    def _configure_environment(self, environment: Environment, log: Logger) -> None:
+        environment_context = get_environment_context(environment)
+        qemu_platform_runbook: QemuPlatformSchema = self.runbook.get_extended_runbook(
+            QemuPlatformSchema, type_name=QEMU
+        )
+
+        if qemu_platform_runbook.network_boot_timeout:
+            environment_context.network_boot_timeout = (
+                qemu_platform_runbook.network_boot_timeout
+            )
+
+        environment_context.ssh_public_key = get_public_key_data(
+            self.runbook.admin_private_key_file
+        )
+
+    def _configure_node_capabilities(
+        self, environment: Environment, log: Logger
+    ) -> None:
+        if not environment.runbook.nodes_requirement:
+            return
+
+        nodes_requirement = []
+        for node_space in environment.runbook.nodes_requirement:
+            node_capabilities = self._create_node_capabilities(log, node_space)
+            nodes_requirement.append(node_capabilities)
+
+        environment.runbook.nodes_requirement = nodes_requirement
+        return
 
     # Check what capabilities can be provided for the node.
     def _create_node_capabilities(
@@ -116,15 +143,9 @@ class QemuPlatform(Platform):
     # to be created. This makes it easier to cleanup everything after the test is
     # finished (or fails).
     def _configure_nodes(self, environment: Environment, log: Logger) -> None:
-        environment_context = get_environment_context(environment)
-
         # Generate a random name for the VMs.
         test_suffix = "".join(random.choice(string.ascii_uppercase) for _ in range(5))
         vm_name_prefix = f"lisa-{test_suffix}"
-
-        environment_context.ssh_public_key = get_public_key_data(
-            self.runbook.admin_private_key_file
-        )
 
         assert environment.runbook.nodes_requirement
         for i, node_space in enumerate(environment.runbook.nodes_requirement):
@@ -284,8 +305,10 @@ class QemuPlatform(Platform):
     def _fill_nodes_metadata(
         self, environment: Environment, log: Logger, qemu_conn: libvirt.virConnect
     ) -> None:
+        environment_context = get_environment_context(environment)
+
         # Give all the VMs some time to boot and then acquire an IP address.
-        timeout = time.time() + 30  # seconds
+        timeout = time.time() + environment_context.network_boot_timeout
 
         for node in environment.nodes.list():
             assert isinstance(node, RemoteNode)

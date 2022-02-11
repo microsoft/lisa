@@ -19,7 +19,10 @@ class CloudInitSchema:
 @dataclass_json()
 @dataclass
 class QemuPlatformSchema:
-    pass
+    # The timeout length for how long to wait for the OS to boot and request an IP
+    # address from the libvirt DHCP server.
+    # Specified in seconds. Default: 30s.
+    network_boot_timeout: Optional[float] = None
 
 
 # QEMU orchestrator's per-node configuration options.
