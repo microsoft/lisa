@@ -236,20 +236,6 @@ class Nics(InitializableMixin):
                 f"Nic set was {self.nics.keys()} and only found info for {found_nics}"
             ).is_equal_to(sorted(self.nics.keys()))
 
-    def reset_nic_state(self, nic_name: str) -> None:
-        result = self._node.execute(
-            f"/sbin/ip link set dev {nic_name} down &&"
-            f" /sbin/ip link set dev {nic_name} up",
-            shell=True,
-            sudo=True,
-            expected_exit_code=0,
-            expected_exit_code_failure_message=(
-                f"Could not reset {nic_name} state" f" on node {self._node.name}"
-            ),
-        )
-        if result.exit_code == 0:
-            self.load_interface_info(nic_name)
-
     def _initialize(self, *args: Any, **kwargs: Any) -> None:
         self.nic_names = self._get_nic_names()
         self._get_node_nic_info()
