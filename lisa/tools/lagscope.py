@@ -5,6 +5,7 @@ import re
 from decimal import Decimal
 from typing import TYPE_CHECKING, Any, Dict, List, Type, cast
 
+from lisa import notifier
 from lisa.executable import Tool
 from lisa.messages import NetworkLatencyPerformanceMessage, create_message
 from lisa.operating_system import Debian, Posix, Redhat, Suse
@@ -275,6 +276,7 @@ class Lagscope(Tool, KillableMixin):
                 other_fields,
             )
             perf_message_list.append(message)
+            notifier.notify(message)
         return perf_message_list
 
     def _initialize(self, *args: Any, **kwargs: Any) -> None:
