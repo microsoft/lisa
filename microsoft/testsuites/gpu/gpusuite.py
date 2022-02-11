@@ -29,6 +29,8 @@ from lisa.tools import Lspci, Reboot
     """,
 )
 class GpuTestSuite(TestSuite):
+    TIMEOUT = 2000
+
     def _ensure_driver_installed(
         self, node: Node, gpu_feature: Gpu, log_path: Path, log: Logger
     ) -> None:
@@ -60,6 +62,7 @@ class GpuTestSuite(TestSuite):
                 drivers can be loaded successfully.
 
         """,
+        timeout=TIMEOUT,
         requirement=simple_requirement(
             supported_features=[Gpu, SerialConsole],
         ),
@@ -68,7 +71,7 @@ class GpuTestSuite(TestSuite):
     def validate_load_gpu_driver(self, node: Node, log_path: Path, log: Logger) -> None:
         gpu_feature = node.features[Gpu]
         if not gpu_feature.is_supported():
-            raise SkippedException(f"GPU is not supported with distro {node.os}")
+            raise SkippedException(f"GPU is not supported with distro {node.os.name}")
 
         self._ensure_driver_installed(node, gpu_feature, log_path, log)
 
@@ -85,6 +88,7 @@ class GpuTestSuite(TestSuite):
             6. Validate expected and actual gpu count using gpu vendor commands
                  example - nvidia-smi
         """,
+        timeout=TIMEOUT,
         requirement=simple_requirement(
             supported_features=[Gpu],
         ),
@@ -95,7 +99,7 @@ class GpuTestSuite(TestSuite):
     ) -> None:
         gpu_feature = node.features[Gpu]
         if not gpu_feature.is_supported():
-            raise SkippedException(f"GPU is not supported with distro {node.os}")
+            raise SkippedException(f"GPU is not supported with distro {node.os.name}")
 
         assert isinstance(node.capability.gpu_count, int)
         expected_count = node.capability.gpu_count
