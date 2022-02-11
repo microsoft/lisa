@@ -10,6 +10,7 @@ from lisa.messages import (
     DiskPerformanceMessage,
     DiskSetupType,
     DiskType,
+    NetworkLatencyPerformanceMessage,
     NetworkTCPPerformanceMessage,
     NetworkUDPPerformanceMessage,
 )
@@ -136,7 +137,9 @@ def reset_raid(node: Node, disk_list: List[str]) -> None:
     mdadm.create_raid(disk_list)
 
 
-def perf_tcp_latency(environment: Environment) -> None:
+def perf_tcp_latency(
+    environment: Environment,
+) -> List[NetworkLatencyPerformanceMessage]:
     client = cast(RemoteNode, environment.nodes[0])
     server = cast(RemoteNode, environment.nodes[1])
     client_lagscope = client.tools[Lagscope]
@@ -150,11 +153,11 @@ def perf_tcp_latency(environment: Environment) -> None:
             environment,
             inspect.stack()[1][3],
         )
-        for latency_perf_message in latency_perf_messages:
-            notifier.notify(latency_perf_message)
     finally:
         for lagscope in [client_lagscope, server_lagscope]:
             lagscope.restore_busy_poll()
+
+    return latency_perf_messages
 
 
 def perf_tcp_pps(environment: Environment, test_type: str) -> None:
