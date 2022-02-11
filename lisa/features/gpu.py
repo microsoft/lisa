@@ -115,6 +115,10 @@ class Gpu(Feature):
             )
         elif isinstance(self._node.os, Ubuntu):
             release = re.sub("[^0-9]+", "", os_information.release)
+            # there is no ubuntu2110 and ubuntu2104 folder under nvidia site
+            if release in ["2110", "2104"]:
+                release = "2004"
+
             # Public CUDA GPG key is needed to be installed for Ubuntu
             self._node.execute(
                 "apt-key adv --fetch-keys http://developer.download.nvidia.com/compute/"
@@ -172,7 +176,9 @@ class Gpu(Feature):
                 list(self._redhat_gpu_dependencies), signed=False
             )
         elif isinstance(self._node.os, Ubuntu):
-            self._node.os.install_packages(list(self._ubuntu_gpu_dependencies))
+            self._node.os.install_packages(
+                list(self._ubuntu_gpu_dependencies), timeout=2000
+            )
         else:
             raise LisaException(
                 f"Distro {self._node.os.name} is not supported for GPU."
