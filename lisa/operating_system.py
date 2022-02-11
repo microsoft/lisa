@@ -296,9 +296,10 @@ class Posix(OperatingSystem, BaseClassMixin):
         self,
         packages: Union[str, Tool, Type[Tool], List[Union[str, Tool, Type[Tool]]]],
         signed: bool = True,
+        timeout: int = 600,
     ) -> None:
         package_names = self._get_package_list(packages)
-        self._install_packages(package_names, signed)
+        self._install_packages(package_names, signed, timeout)
 
     def package_exists(self, package: Union[str, Tool, Type[Tool]]) -> bool:
         """
@@ -351,7 +352,9 @@ class Posix(OperatingSystem, BaseClassMixin):
     def get_repositories(self) -> List[RepositoryInfo]:
         raise NotImplementedError("get_repositories is not implemented")
 
-    def _install_packages(self, packages: List[str], signed: bool = True) -> None:
+    def _install_packages(
+        self, packages: List[str], signed: bool = True, timeout: int = 600
+    ) -> None:
         raise NotImplementedError()
 
     def _update_packages(self, packages: Optional[List[str]] = None) -> None:
@@ -468,6 +471,7 @@ class Posix(OperatingSystem, BaseClassMixin):
         package_url: str,
         package_name: str = "",
         signed: bool = True,
+        timeout: int = 600,
     ) -> None:
         """
         Used if the package to be installed needs to be downloaded from a url first.
@@ -475,7 +479,7 @@ class Posix(OperatingSystem, BaseClassMixin):
         # when package is URL, download the package first at the working path.
         wget_tool = self._node.tools[Wget]
         pkg = wget_tool.get(package_url, str(self._node.working_path), package_name)
-        self.install_packages(pkg, signed)
+        self.install_packages(pkg, signed, timeout)
 
     def wait_running_process(self, process_name: str, timeout: int = 5) -> None:
         # by default, wait for 5 minutes
@@ -702,7 +706,9 @@ class Debian(Linux):
         result = self._node.execute("apt-get update", sudo=True)
         result.assert_exit_code(message="\n".join(self.get_apt_error(result.stdout)))
 
-    def _install_packages(self, packages: List[str], signed: bool = True) -> None:
+    def _install_packages(
+        self, packages: List[str], signed: bool = True, timeout: int = 600
+    ) -> None:
         file_packages = []
         for index, package in enumerate(packages):
             if package.endswith(".deb"):
@@ -719,9 +725,15 @@ class Debian(Linux):
             command += " --allow-unauthenticated"
         self.wait_running_package_process()
         if file_packages:
-            self._node.execute(f"dpkg -i {' '.join(file_packages)}", sudo=True)
+            self._node.execute(
+                f"dpkg -i {' '.join(file_packages)}", sudo=True, timeout=timeout
+            )
+            # after install package, need update the repo
+            self._initialize_package_installation()
 
-        install_result = self._node.execute(command, shell=True, sudo=True)
+        install_result = self._node.execute(
+            command, shell=True, sudo=True, timeout=timeout
+        )
         # get error lines.
         if install_result.exit_code != 0:
             install_result.assert_exit_code(
@@ -1013,12 +1025,16 @@ class RPMDistro(Linux):
         )
         return self._cache_and_return_version_info(package_name, version_info)
 
-    def _install_packages(self, packages: List[str], signed: bool = True) -> None:
+    def _install_packages(
+        self, packages: List[str], signed: bool = True, timeout: int = 600
+    ) -> None:
         command = f"{self._dnf_tool()} install -y {' '.join(packages)}"
         if not signed:
             command += " --nogpgcheck"
 
-        install_result = self._node.execute(command, shell=True, sudo=True)
+        install_result = self._node.execute(
+            command, shell=True, sudo=True, timeout=timeout
+        )
         install_result.assert_exit_code(0, f"Failed to install {packages}.")
 
         self._log.debug(f"{packages} is/are installed successfully.")
@@ -1142,12 +1158,16 @@ class Redhat(Fedora):
             )
             cmd_result.assert_exit_code()
 
-    def _install_packages(self, packages: List[str], signed: bool = True) -> None:
+    def _install_packages(
+        self, packages: List[str], signed: bool = True, timeout: int = 600
+    ) -> None:
         command = f"yum install -y {' '.join(packages)}"
         if not signed:
             command += " --nogpgcheck"
 
-        install_result = self._node.execute(command, shell=True, sudo=True)
+        install_result = self._node.execute(
+            command, shell=True, sudo=True, timeout=timeout
+        )
         # RedHat will fail package installation is a single missing package is
         # detected, therefore we check the output to see if we were missing
         # a package. If so, fail. Otherwise we will warn in verify package result.
@@ -1334,12 +1354,16 @@ class Suse(Linux):
             "zypper --non-interactive --gpg-auto-import-keys refresh", sudo=True
         )
 
-    def _install_packages(self, packages: List[str], signed: bool = True) -> None:
+    def _install_packages(
+        self, packages: List[str], signed: bool = True, timeout: int = 600
+    ) -> None:
         command = f"zypper --non-interactive in {' '.join(packages)}"
         if not signed:
             command += " --no-gpg-checks"
         self.wait_running_process("zypper")
-        install_result = self._node.execute(command, shell=True, sudo=True)
+        install_result = self._node.execute(
+            command, shell=True, sudo=True, timeout=timeout
+        )
         if install_result.exit_code in (1, 100):
             raise LisaException(
                 f"Failed to install {packages}. exit_code: {install_result.exit_code}, "
