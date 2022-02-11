@@ -123,7 +123,7 @@ class AzureImageStandard(TestSuite):
             # in core os we don't have access to boot partition
             grub_output = node.tools[Dmesg].run().stdout
         else:
-            raise LisaException(f"Test cannot run on distro {node.os}")
+            raise LisaException(f"Test cannot run on distro {node.os.name}")
 
         assert_that(
             grub_output, f"console=ttyS0 should be present in {grub_output}."
