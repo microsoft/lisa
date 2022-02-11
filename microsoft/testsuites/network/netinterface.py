@@ -3,6 +3,7 @@
 import time
 
 from assertpy import assert_that
+from randmac import RandMac  # type: ignore
 
 from lisa import (
     LisaException,
@@ -18,7 +19,7 @@ from lisa import (
 from lisa.features import NetworkInterface, Synthetic
 from lisa.nic import Nics
 from lisa.operating_system import CoreOs
-from lisa.tools import Dhclient, Uname, Wget
+from lisa.tools import Dhclient, Ip, Uname, Wget
 from lisa.util import perf_timer
 
 
@@ -95,9 +96,10 @@ class NetInterface(TestSuite):
         assert_that(default_route).is_not_none()
 
         test_count = 0
+        ip = node.tools[Ip]
         while test_count < self.NET_INTERFACE_RELOAD_TEST_COUNT:
             test_count += 1
-            node_nic_info.reset_nic_state(default_nic)
+            ip.restart_device(default_nic)
             if not node_nic_info.default_nic:
                 # Add default route if missing after running ip link down/up
                 node.execute(f"ip route add {default_route}", shell=True, sudo=True)
@@ -118,6 +120,52 @@ class NetInterface(TestSuite):
                 raise LisaException(
                     "Cannot access internet from inside VM after test run."
                 )
+
+    @TestCaseMetadata(
+        description="""
+            This test case verifies if the second network interface can be brought up
+             after setting static MAC address.
+
+            Steps:
+            1. Validate the second nic has IP address.
+            2. Bring down the second nic.
+            3. Set a random MAC address to the second nic.
+            4. Bring up the second nic.
+
+        """,
+        priority=3,
+        requirement=simple_requirement(
+            network_interface=schema.NetworkInterfaceOptionSettings(
+                nic_count=2,
+            ),
+        ),
+    )
+    def validate_set_static_mac(self, node: Node, log: Logger) -> None:
+        ip = node.tools[Ip]
+        node_nic_info = Nics(node)
+        node_nic_info.initialize()
+        test_nic = node_nic_info.get_nic_by_index()
+        test_nic_name = test_nic.upper
+        assert_that(test_nic).is_not_none()
+        assert_that(test_nic.ip_addr).is_not_none()
+        assert_that(test_nic.mac_addr).is_not_none()
+        origin_mac_address = test_nic.mac_addr
+        try:
+            random_mac_address = str(RandMac())
+            ip.set_mac_address(test_nic_name, random_mac_address)
+            node_nic_info.load_interface_info(test_nic_name)
+            assert_that(test_nic.mac_addr).described_as(
+                f"fail to set network interface {test_nic_name}'s mac "
+                f"address into {random_mac_address}"
+            ).is_equal_to(random_mac_address)
+        finally:
+            # restore the test nic state back to origin state
+            ip.set_mac_address(test_nic_name, origin_mac_address)
+            node_nic_info.load_interface_info(test_nic_name)
+            assert_that(test_nic.mac_addr).described_as(
+                f"fail to set network interface {test_nic}'s mac "
+                f"address back into {origin_mac_address}"
+            ).is_equal_to(origin_mac_address)
 
     def _validate_netvsc_built_in(self, node: Node) -> None:
         uname_tool = node.tools[Uname]
