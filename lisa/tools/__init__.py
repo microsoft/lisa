@@ -65,6 +65,7 @@ from .tcpdump import TcpDump
 from .timedatectl import Timedatectl
 from .uptime import Uptime
 from .who import Who
+from .whoami import Whoami
 from .xfstests import Xfstests
 
 __all__ = [
@@ -139,5 +140,6 @@ __all__ = [
     "Uptime",
     "Wget",
     "Who",
+    "Whoami",
     "Xfstests",
 ]
