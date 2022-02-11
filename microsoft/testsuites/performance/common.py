@@ -193,10 +193,13 @@ def perf_ntttcp(
     environment: Environment,
     udp_mode: bool = False,
     connections: Optional[List[int]] = None,
+    test_case_name: str = "",
 ) -> List[Union[NetworkTCPPerformanceMessage, NetworkUDPPerformanceMessage]]:
     client = cast(RemoteNode, environment.nodes[0])
     server = cast(RemoteNode, environment.nodes[1])
-    test_case_name = inspect.stack()[1][3]
+    if not test_case_name:
+        # if it's not filled, assume it's called by case directly.
+        test_case_name = inspect.stack()[1][3]
     if connections is None:
         if udp_mode:
             connections = NTTTCP_UDP_CONCURRENCY
