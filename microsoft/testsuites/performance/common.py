@@ -398,3 +398,13 @@ def perf_iperf(
                 )
     for iperf3_message in iperf3_messages_list:
         notifier.notify(iperf3_message)
+
+
+def calculate_middle_average(values: List[Union[float, int]]) -> float:
+    """
+    This method is used to calculate an average indicator. It discard the max
+    and min value, and then take the average.
+    """
+    total = sum(x for x in values) - min(values) - max(values)
+    # calculate average
+    return total / (len(values) - 2)
