@@ -12,6 +12,11 @@ from lisa.util import LisaException
 
 
 class Ip(Tool):
+    # 00:0d:3a:c5:13:6f
+    __mac_address_pattern = re.compile(
+        "[0-9a-f]{2}([-:]?)[0-9a-f]{2}(\\1[0-9a-f]{2}){4}$", re.M
+    )
+
     @property
     def command(self) -> str:
         return "ip"
@@ -68,10 +73,7 @@ class Ip(Tool):
         assert_that(new_mtu).described_as("set mtu failed").is_equal_to(mtu)
 
     def set_mac_address(self, nic_name: str, mac_address: str) -> None:
-        mac_address_pattern = re.compile(
-            "[0-9a-f]{2}([-:]?)[0-9a-f]{2}(\\1[0-9a-f]{2}){4}$", re.M
-        )
-        if not mac_address_pattern.match(mac_address):
+        if not self.__mac_address_pattern.match(mac_address):
             raise LisaException(f"MAC address {mac_address} is invaild")
         self.down(nic_name)
         try:
