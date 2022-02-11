@@ -11,6 +11,9 @@ from .console_logger import QemuConsoleLogger
 class EnvironmentContext:
     ssh_public_key: str = ""
 
+    # Timeout for the OS to boot and acquire an IP address, in seconds.
+    network_boot_timeout: float = 30.0
+
 
 @dataclass
 class NodeContext:
