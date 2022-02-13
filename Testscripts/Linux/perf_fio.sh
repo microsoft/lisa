@@ -45,22 +45,22 @@ UpdateTestState()
 RunFIO()
 {
 	UpdateTestState $ICA_TESTRUNNING
-	mdVolume=""
+	diskVolume=""
 	if [ x"$type" == x"disk" ]; then
-		mdVolume="/dev/sdc"
+		diskVolume="/dev/sdc"
 	fi
 	count=0
 	disks=$(get_DataDisksDevNodes)
 	for disk in ${disks}; do
 		if (($count == 0));then
-			mdVolume="$disk"
+			diskVolume="$disk"
 		else
-			mdVolume="$mdVolume:$disk"
+			diskVolume="$diskVolume:$disk"
 		fi
 		count=$((count+1))
 	done
 
-	FILEIO="--size=${fileSize} --direct=1 --ioengine=libaio --filename=${mdVolume} --overwrite=1 "
+	FILEIO="--size=${fileSize} --direct=1 --ioengine=libaio --filename=${diskVolume} --overwrite=1 "
 	if [ -n "${NVME}" ]; then
 		FILEIO="--direct=1 --ioengine=libaio --filename=${nvme_namespaces} --gtod_reduce=1"
 	fi
@@ -144,9 +144,6 @@ RunFIO()
 				qDepth=$((qDepth*2))
 				iteration=$((iteration+1))
 				numJobIterator=$((numJobIterator+1))
-				if [[ $(detect_linux_distribution) == coreos ]]; then
-					Kill_Process 127.0.0.1 fio
-				fi
 			done
 		io=$((io * io_increment))
 		done
@@ -164,8 +161,22 @@ RunFIO()
 
 RunStressFIO()
 {
+	diskVolume=""
+	count=0
 	UpdateTestState $ICA_TESTRUNNING
-	FILEIO="--size=${fileSize} --direct=1 --ioengine=libaio --filename=${mdVolume} --overwrite=1 "
+	[[ x"$type" == x"disk" ]] && diskVolume="/dev/sdc"
+
+	disks=$(get_DataDisksDevNodes)
+	for disk in ${disks}; do
+		if (($count == 0));then
+			diskVolume="$disk"
+		else
+			diskVolume="$diskVolume:$disk"
+		fi
+		count=$((count+1))
+	done
+
+	FILEIO="--size=${fileSize} --direct=1 --ioengine=libaio --filename=${diskVolume} --overwrite=1 "
 	if [ -n "${NVME}" ]; then
 		FILEIO="--direct=1 --ioengine=libaio --filename=${nvme_namespaces} --gtod_reduce=1"
 	fi
@@ -246,9 +257,6 @@ RunStressFIO()
 
 				iostatPID=$(ps -ef | awk '/iostat/ && !/awk/ { print $2 }')
 				kill -9 $iostatPID
-				if [[ $(detect_linux_distribution) == coreos ]]; then
-					Kill_Process 127.0.0.1 fio
-				fi
 			done
 			qDepth=$((qDepth*2))
 			iteration=$((iteration+1))
@@ -265,43 +273,6 @@ RunStressFIO()
 
 	LogMsg "Test logs are located at ${LOGDIR}"
 	UpdateTestState $ICA_TESTCOMPLETED
-}
-
-CreateRAID0()
-{
-	disks=$(get_AvailableDisks)
-	diskLetters=$(echo "$disks" | sed 's/sd//g' | tr -d '\n')
-
-	LogMsg "INFO: Check and remove RAID first"
-	mdvol=$(cat /proc/mdstat | grep active | awk {'print $1'})
-	if [ -n "$mdvol" ]; then
-		LogMsg "/dev/${mdvol} already exist...removing first"
-		umount /dev/${mdvol}
-		mdadm --stop /dev/${mdvol}
-		mdadm --remove /dev/${mdvol}
-		mdadm --zero-superblock /dev/sd[a-z][1-5]
-	fi
-
-	LogMsg "INFO: Creating Partitions"
-	count=0
-	for disk in ${disks}
-	do
-		LogMsg "formatting disk /dev/${disk}"
-		(echo d; echo n; echo p; echo 1; echo; echo; echo t; echo fd; echo w;) | fdisk /dev/${disk}
-		count=$(($count + 1))
-		sleep 1
-	done
-	LogMsg "INFO: Creating RAID of ${count} devices."
-	sleep 1
-	if [ -n "$chunkSize" ]; then
-		mdadm --create ${mdVolume} --level 0 --chunk $chunkSize --raid-devices ${count} /dev/sd["$diskLetters"][1-5]
-	else
-		mdadm --create ${mdVolume} --level 0 --raid-devices ${count} /dev/sd["$diskLetters"][1-5]
-	fi
-
-	if [ -n "$fileSystem" ]; then
-		mkfs -t $fileSystem ${mdVolume}
-	fi
 }
 
 ConfigNVME()
@@ -365,11 +336,6 @@ mv $HOMEDIR/FIOLog/ $HOMEDIR/FIOLog-$(date +"%m%d%Y-%H%M%S")/
 mkdir $HOMEDIR/FIOLog
 LOGDIR="${HOMEDIR}/FIOLog"
 
-if [ $DISTRO_NAME == "sles" ] && [[ $DISTRO_VERSION =~ 12 ]]; then
-	mdVolume="/dev/md/mdauto0"
-else
-	mdVolume="/dev/md0"
-fi
 vggroup="vg1"
 cd ${HOMEDIR}
 
@@ -381,20 +347,12 @@ if [ $? -ne 0 ]; then
 	exit 1
 fi
 
-if [[ $(detect_linux_distribution) == coreos ]]; then
-	Delete_Containers
-	fio_cmd="docker run -v $HOMEDIR/FIOLog/jsonLog:$HOMEDIR/FIOLog/jsonLog --device ${mdVolume} lisms/fio"
-	iostat_cmd="docker run --network host lisms/toolbox iostat"
-else
-	fio_cmd="fio"
-	iostat_cmd="iostat"
-fi
+fio_cmd="fio"
+iostat_cmd="iostat"
 
 # Creating RAID before triggering test
 if [ -n "${NVME}" ]; then
 	ConfigNVME
-#else
-#	CreateRAID0
 fi
 
 # Run test from here
