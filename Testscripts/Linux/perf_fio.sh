@@ -45,9 +45,21 @@ UpdateTestState()
 RunFIO()
 {
 	UpdateTestState $ICA_TESTRUNNING
-	if [ $type == "disk" ]; then
+	mdVolume=""
+	if [ x"$type" == x"disk" ]; then
 		mdVolume="/dev/sdc"
 	fi
+	count=0
+	disks=$(get_DataDisksDevNodes)
+	for disk in ${disks}; do
+		if (($count == 0));then
+			mdVolume="$disk"
+		else
+			mdVolume="$mdVolume:$disk"
+		fi
+		count=$((count+1))
+	done
+
 	FILEIO="--size=${fileSize} --direct=1 --ioengine=libaio --filename=${mdVolume} --overwrite=1 "
 	if [ -n "${NVME}" ]; then
 		FILEIO="--direct=1 --ioengine=libaio --filename=${nvme_namespaces} --gtod_reduce=1"
@@ -381,8 +393,8 @@ fi
 # Creating RAID before triggering test
 if [ -n "${NVME}" ]; then
 	ConfigNVME
-else
-	CreateRAID0
+#else
+#	CreateRAID0
 fi
 
 # Run test from here

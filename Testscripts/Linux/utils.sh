@@ -3680,10 +3680,30 @@ function Run_SSHCommand()
 	done
 }
 
+function is_asap_vmsku() {
+	# For ASAP VM SKU, the root partition is nvme device
+	rootdev=$(lsblk -oPKNAME,MOUNTPOINT | grep /$ | awk '{print $1}')
+	[[ $rootdev =~ "nvme"* ]] && echo 1 || echo 0
+}
+
 function get_AvailableDisks() {
-	for disk in $(lsblk | grep "sd[a-z].*disk" | cut -d ' ' -f1); do
+	pattern="sd[a-z].*disk"
+	is_asap_vm=$(is_asap_vmsku)
+	[[ $is_asap_vm == 1 ]] && pattern="nvme.*disk"
+	for disk in $(lsblk | grep $pattern | cut -d ' ' -f1); do
 		if [ $(df | grep -c $disk) -eq 0 ]; then
 			echo $disk
+		fi
+	done
+}
+
+function get_DataDisksDevNodes() {
+	pattern="sd[a-z].*disk"
+	is_asap_vm=$(is_asap_vmsku)
+	[[ $is_asap_vm == 1 ]] && pattern="nvme.*disk"
+	for disk in $(lsblk | grep $pattern | cut -d ' ' -f1); do
+		if [ $(df | grep -c $disk) -eq 0 ]; then
+			echo "/dev/$disk"
 		fi
 	done
 }
