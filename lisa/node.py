@@ -12,7 +12,7 @@ from lisa.executable import Tools
 from lisa.feature import Features
 from lisa.nic import Nics
 from lisa.operating_system import OperatingSystem
-from lisa.tools import Echo, Reboot
+from lisa.tools import Df, Echo, Reboot
 from lisa.util import (
     ContextMixin,
     InitializableMixin,
@@ -425,6 +425,20 @@ class RemoteNode(Node):
         result = echo.run(working_path, shell=True)
 
         return self.get_pure_path(result.stdout)
+
+    def find_partition_with_freespace(self, size_in_gb: int) -> str:
+        df = self.tools[Df]
+        home_partition = df.get_partition_by_mountpoint("/home")
+        if home_partition and df.check_partition_size(home_partition, size_in_gb):
+            return home_partition.mountpoint
+
+        mnt_partition = df.get_partition_by_mountpoint("/mnt")
+        if mnt_partition and df.check_partition_size(mnt_partition, size_in_gb):
+            return mnt_partition.mountpoint
+
+        raise LisaException(
+            f"No partition with Required disk space of {size_in_gb}GB found"
+        )
 
 
 class LocalNode(Node):

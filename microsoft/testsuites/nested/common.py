@@ -7,8 +7,7 @@ from lisa import RemoteNode
 from lisa.operating_system import Debian, Fedora, Suse
 from lisa.schema import Node
 from lisa.tools import Lscpu, Qemu, Wget
-from lisa.tools.df import Df, PartitionInfo
-from lisa.util import LisaException, SkippedException
+from lisa.util import SkippedException
 
 NESTED_VM_IMAGE_NAME = "image.qcow2"
 NESTED_VM_TEST_FILE_NAME = "message.txt"
@@ -44,7 +43,7 @@ def connect_nested_vm(
             "run on Debian, Fedora and Suse distros."
         )
 
-    image_folder_path = find_partition_with_freespace(host, image_size)
+    image_folder_path = host.find_partition_with_freespace(image_size)
 
     host.tools[Wget].get(
         url=guest_image_url,
@@ -67,21 +66,6 @@ def connect_nested_vm(
     )
 
     return nested_vm
-
-
-def find_partition_with_freespace(node: RemoteNode, size_in_gb: int) -> str:
-    df = node.tools[Df]
-    home_partition = df.get_partition_by_mountpoint("/home")
-    if home_partition and _is_partition_capable(home_partition, size_in_gb):
-        return home_partition.mountpoint
-
-    mnt_partition = df.get_partition_by_mountpoint("/mnt")
-    if mnt_partition and _is_partition_capable(mnt_partition, size_in_gb):
-        return mnt_partition.mountpoint
-
-    raise LisaException(
-        f"No partition with Required disk space of {size_in_gb}GB found"
-    )
 
 
 def parse_nested_image_variables(
@@ -107,17 +91,3 @@ def parse_nested_image_variables(
         nested_image_port,
         nested_image_url,
     )
-
-
-def _is_partition_capable(
-    partition: PartitionInfo,
-    size: int,
-) -> bool:
-    # check if the partition has enough space to download nested image file
-    unused_partition_size_in_gb = (partition.total_blocks - partition.used_blocks) / (
-        1024 * 1024
-    )
-    if unused_partition_size_in_gb > size:
-        return True
-
-    return False
