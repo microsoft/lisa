@@ -2,7 +2,6 @@
 # Licensed under the MIT license.
 
 import re
-from pathlib import PurePath
 from typing import List, Pattern, Tuple, Type
 
 from assertpy import assert_that, fail
@@ -11,7 +10,7 @@ from semver import VersionInfo
 from lisa.executable import Tool
 from lisa.nic import NicInfo
 from lisa.operating_system import CentOs, Redhat, Ubuntu
-from lisa.tools import Echo, Git, Lscpu, Lspci, Modprobe, Tar, Wget
+from lisa.tools import Echo, Git, Lscpu, Lspci, Modprobe, Service, Tar, Wget
 from lisa.util import LisaException, UnsupportedDistroException
 
 
@@ -81,10 +80,8 @@ class DpdkTestpmd(Tool):
         "numactl-devel.x86_64",
         "librdmacm-devel",
         "pkgconfig",
-        "libmnl-devel",
         "elfutils-libelf-devel",
         "python3-pip",
-        "libbpf-devel",
         "kernel-modules-extra",
         "kernel-headers",
     ]
@@ -364,12 +361,45 @@ class DpdkTestpmd(Tool):
                     self._dpdk_branch, self._version_info_from_git_tag_regex
                 )
         self._load_drivers_for_dpdk()
-        self.__execute_assert_zero("meson build", self.dpdk_path)
+        node.execute(
+            "meson build",
+            shell=True,
+            cwd=self.dpdk_path,
+            expected_exit_code=0,
+            expected_exit_code_failure_message=(
+                "meson build for dpdk failed, check that"
+                "dpdk build has not changed to eliminate the use of meson or "
+                "meson version is compatible with this dpdk version and OS."
+            ),
+        )
         dpdk_build_path = self.dpdk_path.joinpath("build")
-        self.__execute_assert_zero("which ninja", dpdk_build_path)
-        self.__execute_assert_zero("ninja", dpdk_build_path, timeout=1200)
-        self.__execute_assert_zero("ninja install", dpdk_build_path)
-        self.__execute_assert_zero("ldconfig", dpdk_build_path)
+        node.execute(
+            "ninja",
+            cwd=dpdk_build_path,
+            timeout=1200,
+            expected_exit_code=0,
+            expected_exit_code_failure_message=(
+                "ninja build for dpdk failed. check build spew for missing headers "
+                "or dependencies. Also check that this ninja version requirement "
+                "has not changed for dpdk."
+            ),
+        )
+        node.execute(
+            "ninja install",
+            cwd=dpdk_build_path,
+            sudo=True,
+            expected_exit_code=0,
+            expected_exit_code_failure_message=(
+                "ninja install failed for dpdk binaries."
+            ),
+        )
+        node.execute(
+            "ldconfig",
+            cwd=dpdk_build_path,
+            sudo=True,
+            expected_exit_code=0,
+            expected_exit_code_failure_message="ldconfig failed, check for error spew.",
+        )
         library_bashrc_lines = [
             "export PKG_CONFIG_PATH=${PKG_CONFIG_PATH}:/usr/local/lib64/pkgconfig/",
             "export LD_LIBRARY_PATH=${LD_LIBRARY_PATH}:/usr/local/lib64/",
@@ -416,39 +446,125 @@ class DpdkTestpmd(Tool):
             node.os.add_repository("ppa:canonical-server/server-backports")
             if "18.04" in node.os.information.release:
                 node.os.install_packages(list(self._ubuntu_packages_1804))
-                self.__execute_assert_zero("pip3 install --upgrade meson", cwd)
-                self.__execute_assert_zero("mv /usr/bin/meson /usr/bin/meson.bak", cwd)
-                self.__execute_assert_zero(
-                    "ln -s /usr/local/bin/meson /usr/bin/meson", cwd
+                # ubuntu 18 has some issue with the packaged versions of meson
+                # and ninja. To guarantee latest, install and update with pip3
+                node.execute(
+                    "pip3 install --upgrade meson",
+                    cwd=cwd,
+                    sudo=True,
+                    shell=True,
+                    expected_exit_code=0,
+                    expected_exit_code_failure_message=(
+                        "pip3 install failed to upgrade meson to newest version."
+                    ),
                 )
-                self.__execute_assert_zero("pip3 install --upgrade ninja", cwd)
+                node.execute(
+                    "mv /usr/bin/meson /usr/bin/meson.bak",
+                    cwd=cwd,
+                    sudo=True,
+                    expected_exit_code=0,
+                    expected_exit_code_failure_message=(
+                        "renaming previous meson binary or link in /usr/bin/meson"
+                        " failed."
+                    ),
+                )
+                node.execute(
+                    "ln -s /usr/local/bin/meson /usr/bin/meson",
+                    cwd=cwd,
+                    sudo=True,
+                    expected_exit_code=0,
+                    expected_exit_code_failure_message=(
+                        "could not link new meson binary to /usr/bin/meson"
+                    ),
+                )
+                node.execute(
+                    "pip3 install --upgrade ninja",
+                    cwd=cwd,
+                    sudo=True,
+                    expected_exit_code=0,
+                    expected_exit_code_failure_message=(
+                        "pip3 upgrade for ninja failed"
+                    ),
+                )
             elif "20.04" in node.os.information.release:
                 node.os.install_packages(list(self._ubuntu_packages_2004))
 
         elif isinstance(node.os, Redhat):
-            self.__execute_assert_zero(
-                "yum update -y --disablerepo='*' --enablerepo='*microsoft*'", cwd
-            )
+            if node.os.information.version.major < 7:
+                raise UnsupportedDistroException(
+                    node.os, "DPDK for Redhat < 7 is not supported by this test"
+                )
+            elif node.os.information.version.major == 7:
+                # Add packages for rhel7
+                node.os.install_packages(list(["libmnl-devel", "libbpf-devel"]))
+
+            # RHEL 8 doesn't require special cases for installed packages.
+            # TODO: RHEL9 may require updates upon release
+
             node.os.group_install_packages("Development Tools")
             node.os.group_install_packages("Infiniband Support")
-            # TODO: Workaround for type checker below
             node.os.install_packages(list(self._redhat_packages))
 
-            self.__execute_assert_zero("systemctl enable rdma", cwd)
-            self.__execute_assert_zero("pip3 install --upgrade meson", cwd)
-            self.__execute_assert_zero("ln -s /usr/local/bin/meson /usr/bin/meson", cwd)
+            # ensure RDMA service is started if present.
+            service_name = "rdma"
+            service = node.tools[Service]
+            if service.check_service_exists(service_name):
+                service.restart_service(service_name)
 
+            node.execute(
+                "pip3 install --upgrade meson",
+                cwd=cwd,
+                sudo=True,
+                expected_exit_code=0,
+                expected_exit_code_failure_message=(
+                    "Failed to update Meson to latest version with pip3"
+                ),
+            )
+            node.execute(
+                "ln -s /usr/local/bin/meson /usr/bin/meson",
+                cwd=cwd,
+                sudo=True,
+                expected_exit_code=0,
+                expected_exit_code_failure_message=(
+                    "Failed to link new meson version as the "
+                    "default version in /usr/bin"
+                ),
+            )
+            # NOTE: finding latest ninja on RH is a pain,
+            # so just fetch latest from github here
             wget_tool = self.node.tools[Wget]
             wget_tool.get(
                 self._ninja_url,
                 file_path=cwd.as_posix(),
                 filename="ninja-linux.zip",
             )
-            # node.execute(f"mv ninja-linux.zip {node.working_path}/")
-            self.__execute_assert_zero(
-                "unzip ninja-linux.zip && mv ninja /usr/bin/ninja", cwd
+            node.execute(
+                "unzip ninja-linux.zip",
+                cwd=cwd,
+                sudo=True,
+                expected_exit_code=0,
+                expected_exit_code_failure_message=(
+                    "Failed to unzip latest ninja-linux.zip from github."
+                ),
             )
-            self.__execute_assert_zero("pip3 install --upgrade pyelftools", cwd)
+            node.execute(
+                "mv ninja /usr/bin/ninja",
+                cwd=cwd,
+                sudo=True,
+                expected_exit_code=0,
+                expected_exit_code_failure_message=(
+                    "Could not move latest ninja script after unzip into /usr/bin."
+                ),
+            )
+            node.execute(
+                "pip3 install --upgrade pyelftools",
+                sudo=True,
+                cwd=cwd,
+                expected_exit_code=0,
+                expected_exit_code_failure_message=(
+                    "Could not upgrade pyelftools with pip3."
+                ),
+            )
         else:
             raise UnsupportedDistroException(node.os)
 
@@ -501,20 +617,3 @@ class DpdkTestpmd(Tool):
             key_constant, self._testpmd_output_after_reenable
         )
         return before_rescind, during_rescind, after_reenable
-
-    def __execute_assert_zero(
-        self, cmd: str, path: PurePath, timeout: int = 600
-    ) -> str:
-        result = self.node.execute(
-            cmd,
-            sudo=True,
-            shell=True,
-            cwd=path,
-            timeout=timeout,
-            expected_exit_code=0,
-            expected_exit_code_failure_message=(
-                "Command failed with nonzero error code during testpmd installation "
-                f"in dir '{path.as_posix()}'"
-            ),
-        )
-        return result.stdout
