@@ -262,7 +262,12 @@ class Node(subclasses.BaseClassWithRunbookMixin, ContextMixin, InitializableMixi
 
     def find_partition_with_freespace(self, size_in_gb: int) -> str:
         if self.os.is_windows:
-            raise NotImplementedError()
+            raise NotImplementedError(
+                (
+                    "find_partition_with_freespace was called on a Windows node, "
+                    "this function is not implemented for Windows"
+                )
+            )
 
         df = self.tools[Df]
         home_partition = df.get_partition_by_mountpoint("/home")
