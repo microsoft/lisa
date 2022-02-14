@@ -7,8 +7,8 @@ from assertpy import fail
 from semver import VersionInfo
 
 from lisa.executable import Tool
-from lisa.operating_system import Debian
-from lisa.tools import Gcc, Git, Ip, Make, Modprobe, Uname
+from lisa.operating_system import Debian, Fedora
+from lisa.tools import Chown, Gcc, Git, Ip, Make, Modprobe, Uname, Whoami
 from lisa.util import UnsupportedDistroException
 from microsoft.testsuites.dpdk.dpdktestpmd import DpdkTestpmd
 
@@ -46,12 +46,18 @@ class DpdkOvs(Tool):
     @property
     def can_install(self) -> bool:
         kernel_version = self.node.tools[Uname].get_linux_information().kernel_version
-        return kernel_version > "4.4.0" and isinstance(self.node.os, Debian)
+        return kernel_version > "4.4.0" and (
+            isinstance(self.node.os, Debian) or isinstance(self.node.os, Fedora)
+        )
 
     def _install_os_packages(self) -> None:
         os = self.node.os
         if isinstance(os, Debian):
             os.install_packages(list(self.ubuntu_packages))
+        elif isinstance(self.node.os, Fedora):
+            # NOTE: RHEL 8 works without additional packages,
+            # an edit may be needed later after further testing.
+            pass
         else:
             raise UnsupportedDistroException(
                 os,
@@ -62,14 +68,23 @@ class DpdkOvs(Tool):
         # NOTE: defer building until we can provide the DPDK source dir as a parameter.
         # _install just checks out our resources and sets up the version info
         # TODO: Add option to select which OVS version to use other than latest
-
+        node = self.node
         self._install_os_packages()
+
+        # NOTE: dpdk build is big, use this function to find a safe spot to build.
+        build_path = node.find_partition_with_freespace(size_in_gb=30)
+        self.ovs_build_path = node.get_pure_path(build_path).joinpath("ovs_build")
+
+        # create the dir and chown it since partition ownership is not guaranteed
+        node.shell.mkdir(self.ovs_build_path)
+        username = node.tools[Whoami].get_username()
+        node.tools[Chown].change_owner(self.ovs_build_path, username, recurse=True)
 
         # checkout git and get latest version tag
         git = self.node.tools[Git]
         self.repo_dir = git.clone(
             "https://github.com/openvswitch/ovs.git",
-            cwd=self.node.working_path,
+            cwd=self.ovs_build_path,
         )
         latest_version_tag = git.get_tag(cwd=self.repo_dir)
         git.checkout(latest_version_tag, cwd=self.repo_dir)
