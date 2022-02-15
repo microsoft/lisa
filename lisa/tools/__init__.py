@@ -5,6 +5,7 @@
 from lisa.base_tools import Cat, Sed, Uname, Wget
 
 from .blkid import Blkid
+from .chown import Chown
 from .chrony import Chrony
 from .date import Date
 from .df import Df
@@ -71,6 +72,7 @@ from .xfstests import Xfstests
 __all__ = [
     "Blkid",
     "Cat",
+    "Chown",
     "Chrony",
     "Date",
     "Df",
