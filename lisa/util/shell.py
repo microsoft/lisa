@@ -452,7 +452,7 @@ class SshShell(InitializableMixin):
         destination_str = self._purepath_to_str(destination)
         self._inner_shell.symlink(source_str, destination_str)
 
-    def chown(self, path: PurePath, uid: int, gid: int) -> None:
+    def chown(self, path: PurePath, uid: Union[int, str], gid: Union[int, str]) -> None:
         """Change the user and/or group ownership of each given file (Posix targets only)
         Inputs:
             path: target path. (Absolute. Use a PurePosixPath, if the
@@ -649,7 +649,7 @@ class LocalShell(InitializableMixin):
         assert isinstance(destination, Path), f"actual: {type(destination)}"
         source.symlink_to(destination)
 
-    def chown(self, path: PurePath, uid: int, gid: int) -> None:
+    def chown(self, path: PurePath, uid: Union[int, str], gid: Union[int, str]) -> None:
         """Change the user and/or group ownership of each given file (Posix targets only)
         Inputs:
             path: target path. (Absolute)
