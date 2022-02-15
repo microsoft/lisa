@@ -70,14 +70,19 @@ class Process:
         update_envs: Optional[Dict[str, str]] = None,
         no_error_log: bool = False,
         no_info_log: bool = False,
+        no_debug_log: bool = False,
     ) -> None:
         """
         command include all parameters also.
         """
         stdout_level = logging.INFO
         stderr_level = logging.ERROR
-        if no_info_log:
+
+        if no_debug_log:
+            stdout_level = logging.NOTSET
+        elif no_info_log:
             stdout_level = logging.DEBUG
+
         if no_error_log:
             stderr_level = stdout_level
 
