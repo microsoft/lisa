@@ -216,8 +216,6 @@ function Main {
 
     try {
         Provision-VMsForLisa -allVMData $allVMData -installPackagesOnRoleNames "none"
-        $TestProvider.RestartAllDeployments($AllVMData)
-        Start-Sleep 120
         New-ConstantsFile -LogDir $LogDir -CurrentTestData $CurrentTestData
 
         Write-LogInfo "Starting test..."

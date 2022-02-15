@@ -3875,7 +3875,7 @@ function Run_SSHCommand()
 }
 
 function get_AvailableDisks() {
-	for disk in $(lsblk | grep "sd[a-z].*disk" | cut -d ' ' -f1); do
+	for disk in $(lsblk | grep "sd[a-z].*disk" | grep 1023 | cut -d ' ' -f1); do
 		if [ $(df | grep -c $disk) -eq 0 ]; then
 			echo $disk
 		fi
