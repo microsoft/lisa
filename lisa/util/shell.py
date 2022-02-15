@@ -452,20 +452,6 @@ class SshShell(InitializableMixin):
         destination_str = self._purepath_to_str(destination)
         self._inner_shell.symlink(source_str, destination_str)
 
-    def chown(self, path: PurePath, uid: int, gid: int) -> None:
-        """Change the user and/or group ownership of each given file (Posix targets only)
-        Inputs:
-            path: target path. (Absolute. Use a PurePosixPath, if the
-                               target node is a Posix one, because LISA
-                               might be ran from Windows)
-            uid: numeric user ID
-            gid: numeric group ID
-        """
-        self.initialize()
-        assert self._inner_shell
-        path_str = self._purepath_to_str(path)
-        self._inner_shell.chown(path_str, uid, gid)
-
     def copy(self, local_path: PurePath, node_path: PurePath) -> None:
         """Upload local file to target node
         Inputs:
@@ -648,16 +634,6 @@ class LocalShell(InitializableMixin):
         assert isinstance(source, Path), f"actual: {type(source)}"
         assert isinstance(destination, Path), f"actual: {type(destination)}"
         source.symlink_to(destination)
-
-    def chown(self, path: PurePath, uid: int, gid: int) -> None:
-        """Change the user and/or group ownership of each given file (Posix targets only)
-        Inputs:
-            path: target path. (Absolute)
-            uid: numeric user ID
-            gid: numeric group ID
-        """
-        assert isinstance(path, Path), f"actual: {type(path)}"
-        shutil.chown(path, cast(str, uid), cast(str, gid))
 
     def copy(self, local_path: PurePath, node_path: PurePath) -> None:
         """Upload local file to target node
