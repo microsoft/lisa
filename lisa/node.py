@@ -118,13 +118,7 @@ class Node(subclasses.BaseClassWithRunbookMixin, ContextMixin, InitializableMixi
                     index = randint(0, 10000)
                 path_name = f"node-{index}"
             self._local_log_path = base_path / path_name
-            if self._local_log_path.exists():
-                raise LisaException(
-                    "Conflicting node log path detected, "
-                    "make sure LISA invocations have individual runtime paths."
-                    f"'{self._local_log_path}'"
-                )
-            self._local_log_path.mkdir(parents=True)
+            self._local_log_path.mkdir(parents=True, exist_ok=True)
 
         return self._local_log_path
 
@@ -530,6 +524,24 @@ class Nodes:
 
     def append(self, node: Node) -> None:
         self._list.append(node)
+
+
+def local_node_connect(
+    index: int = -1,
+    name: str = "local",
+    base_log_path: Optional[Path] = None,
+    parent_logger: Optional[Logger] = None,
+) -> Node:
+    node_runbook = schema.LocalNode(name=name, capability=schema.Capability())
+    node = Node.create(
+        index=index,
+        runbook=node_runbook,
+        logger_name=name,
+        base_log_path=base_log_path,
+        parent_logger=parent_logger,
+    )
+    node.initialize()
+    return node
 
 
 def quick_connect(

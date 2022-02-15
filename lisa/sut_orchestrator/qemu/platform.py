@@ -16,7 +16,7 @@ import yaml
 from lisa import schema, search_space
 from lisa.environment import Environment
 from lisa.feature import Feature
-from lisa.node import Node, RemoteNode
+from lisa.node import Node, RemoteNode, local_node_connect
 from lisa.platform_ import Platform
 from lisa.util import LisaException, constants, get_public_key_data
 from lisa.util.logger import Logger
@@ -59,7 +59,8 @@ class QemuPlatform(Platform):
         return True
 
     def _deploy_environment(self, environment: Environment, log: Logger) -> None:
-        self._deploy_nodes(environment, log)
+        local_node = local_node_connect(parent_logger=log)
+        self._deploy_nodes(environment, log, local_node)
 
     def _delete_environment(self, environment: Environment, log: Logger) -> None:
         with libvirt.open("qemu:///system") as qemu_conn:
@@ -120,12 +121,14 @@ class QemuPlatform(Platform):
         )
         return node_capabilities
 
-    def _deploy_nodes(self, environment: Environment, log: Logger) -> None:
+    def _deploy_nodes(
+        self, environment: Environment, log: Logger, local_node: Node
+    ) -> None:
         self._configure_nodes(environment, log)
 
         with libvirt.open("qemu:///system") as qemu_conn:
             try:
-                self._create_nodes(environment, log, qemu_conn)
+                self._create_nodes(environment, log, qemu_conn, local_node)
                 self._fill_nodes_metadata(environment, log, qemu_conn)
 
             except Exception as ex:
@@ -205,7 +208,11 @@ class QemuPlatform(Platform):
 
     # Create all the VMs.
     def _create_nodes(
-        self, environment: Environment, log: Logger, qemu_conn: libvirt.virConnect
+        self,
+        environment: Environment,
+        log: Logger,
+        qemu_conn: libvirt.virConnect,
+        local_node: Node,
     ) -> None:
         for node in environment.nodes.list():
             node_context = get_node_context(node)
@@ -214,7 +221,7 @@ class QemuPlatform(Platform):
             self._create_node_cloud_init_iso(environment, log, node)
 
             # Create OS disk from the provided image.
-            self._create_node_os_disk(environment, log, node)
+            self._create_node_os_disk(environment, log, node, local_node)
 
             # Create libvirt domain (i.e. VM).
             xml = self._create_node_domain_xml(environment, log, node)
@@ -380,12 +387,12 @@ class QemuPlatform(Platform):
 
     # Create the OS disk.
     def _create_node_os_disk(
-        self, environment: Environment, log: Logger, node: Node
+        self, environment: Environment, log: Logger, node: Node, local_node: Node
     ) -> None:
         node_context = get_node_context(node)
 
         # Create a new differencing image with the user provided image as the base.
-        environment.local_node().execute(
+        local_node.execute(
             f"qemu-img create -F qcow2 -f qcow2 -b"
             f"{node_context.os_disk_base_file_path} {node_context.os_disk_file_path}",
             expected_exit_code=0,
