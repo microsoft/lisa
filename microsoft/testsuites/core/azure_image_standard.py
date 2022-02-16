@@ -11,6 +11,7 @@ from lisa import Node, TestCaseMetadata, TestSuite, TestSuiteMetadata
 from lisa.operating_system import (
     SLES,
     CoreOs,
+    CpuArchitecture,
     Debian,
     DebianRepositoryInfo,
     Fedora,
@@ -22,7 +23,7 @@ from lisa.operating_system import (
     SuseRepositoryInfo,
     Ubuntu,
 )
-from lisa.tools import Cat, Dmesg, Pgrep
+from lisa.tools import Cat, Dmesg, Lscpu, Pgrep
 from lisa.util import (
     LisaException,
     PassedException,
@@ -536,3 +537,55 @@ class AzureImageStandard(TestSuite):
                 ).is_greater_than(5)
         else:
             raise LisaException(f"Unsupported distro type : {type(node.os)}")
+
+    @TestCaseMetadata(
+        description="""
+        This test will check the serial console is enabled from kernel command line
+         in dmesg.
+
+        Steps:
+        1. Get the kernel command line from dmesg output.
+        2. Check expected setting from kernel command line.
+            2.1. Expected to see 'console=ttyAMA0' for aarch64.
+            2.2. Expected to see 'console=ttyS0' for x86_64.
+        """,
+        priority=1,
+    )
+    def verify_serial_console_is_enabled(self, node: Node) -> None:
+        console_settings = {
+            CpuArchitecture.X64: "console=ttyS0",
+            CpuArchitecture.ARM64: "console=ttyAMA0",
+        }
+        dmesg = node.tools[Dmesg]
+        dmesg_output = dmesg.get_output()
+        kernel_command_line_pattern = re.compile(r"Kernel command line.*", re.M)
+        command_line = get_matched_str(dmesg_output, kernel_command_line_pattern)
+        assert command_line, "Fail to find kernel command line from dmesg output"
+        lscpu = node.tools[Lscpu]
+        arch = lscpu.get_architecture()
+        current_console_settings = console_settings[CpuArchitecture(arch)]
+        assert_that(
+            command_line,
+            f"expected to see {current_console_settings} in current arch {arch}",
+        ).contains(current_console_settings)
+
+    @TestCaseMetadata(
+        description="""
+        This test will check the /root/.bash_history not existing or is empty.
+
+        Steps:
+        1. Check .bash_history exist or not, if not, the image is prepared well.
+        2. If the .bash_history existed, check the content is empty or not, if not, the
+        image is not prepared well.
+        """,
+        priority=1,
+        use_new_environment=True,
+    )
+    def verify_bash_history_is_empty(self, node: Node) -> None:
+        cat = node.tools[Cat]
+        path_bash_history = node.get_pure_path("/root/.bash_history")
+        if path_bash_history:
+            bash_history = cat.read(str(path_bash_history), sudo=True)
+            assert_that(bash_history).described_as(
+                "/root/.bash_history is not empty, this image is not prepared well."
+            ).is_empty()
