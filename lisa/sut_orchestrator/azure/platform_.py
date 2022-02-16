@@ -1487,6 +1487,18 @@ class AzurePlatform(Platform):
         if not node_space.network_interface.max_nic_count:
             node_space.network_interface.max_nic_count = 8
 
+        # For Dp/Ep_v5 VM size, the `Accelerated Networking` is required. But the API
+        # return `False`. Fix this issue temporarily and revert it till bug fixed
+        if resource_sku.family in [
+            "standardDPDSv5Family",
+            "standardDPLDSv5Family",
+            "standardDPLSv5Family",
+            "standardDPSv5Family",
+            "standardEPDSv5Family",
+            "standardEPSv5Family",
+        ]:
+            node_space.network_interface.data_path.add(schema.NetworkDataPath.Sriov)
+
         # some vm size do not have resource disk present
         # https://docs.microsoft.com/en-us/azure/virtual-machines/azure-vms-no-temp-disk
         if resource_sku.family in [
