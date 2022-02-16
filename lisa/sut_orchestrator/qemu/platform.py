@@ -159,6 +159,9 @@ class QemuPlatform(Platform):
                 QemuNodeSchema, type_name=QEMU
             )
 
+            if not os.path.exists(qemu_node_runbook.qcow2):
+                raise LisaException(f"file does not exist: {qemu_node_runbook.qcow2}")
+
             vm_disks_dir = os.path.dirname(qemu_node_runbook.qcow2)
 
             node = environment.create_node_from_requirement(node_space)
@@ -393,8 +396,9 @@ class QemuPlatform(Platform):
 
         # Create a new differencing image with the user provided image as the base.
         local_node.execute(
-            f"qemu-img create -F qcow2 -f qcow2 -b"
-            f"{node_context.os_disk_base_file_path} {node_context.os_disk_file_path}",
+            f"qemu-img create -F qcow2 -f qcow2 -b "
+            f'"{node_context.os_disk_base_file_path}" '
+            f'"{node_context.os_disk_file_path}"',
             expected_exit_code=0,
         )
 
