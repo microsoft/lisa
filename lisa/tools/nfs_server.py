@@ -16,6 +16,7 @@ class NFSServer(Tool):
     def command(self) -> str:
         return ""
 
+    @property
     def can_install(self) -> bool:
         return True
 

@@ -18,6 +18,7 @@ class Qemu(Tool):
     def command(self) -> str:
         return self._qemu_command
 
+    @property
     def can_install(self) -> bool:
         return True
 

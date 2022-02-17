@@ -12,6 +12,7 @@ class NFSClient(Tool):
     def command(self) -> str:
         return "/sbin/mount.nfs"
 
+    @property
     def can_install(self) -> bool:
         return True
 
