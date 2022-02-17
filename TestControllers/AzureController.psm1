@@ -369,6 +369,9 @@ Class AzureController : TestController {
 			if ($this.CustomParams["vTPM"] -imatch "^(true|false)$") {
 				Add-SetupConfig -AllTests $AllTests -ConfigName "vTPM" -ConfigValue $this.CustomParams["vTPM"].ToLower() -Force $this.ForceCustom
 			}
+			if ($this.CustomParams["SecurityType"]) {
+				Add-SetupConfig -AllTests $AllTests -ConfigName "SecurityType" -ConfigValue $this.CustomParams["SecurityType"] -Force $this.ForceCustom
+			}
 		}
 
 		foreach ($test in $AllTests) {
