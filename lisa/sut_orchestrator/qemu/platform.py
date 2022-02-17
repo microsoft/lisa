@@ -5,8 +5,10 @@ import io
 import os
 import random
 import string
+import tempfile
 import time
 import xml.etree.ElementTree as ET  # noqa: N817
+from pathlib import PurePath
 from typing import Any, List, Optional, Tuple, Type
 
 import libvirt  # type: ignore
@@ -18,6 +20,7 @@ from lisa.environment import Environment
 from lisa.feature import Feature
 from lisa.node import Node, RemoteNode, local_node_connect
 from lisa.platform_ import Platform
+from lisa.tools import QemuImg, Iptables
 from lisa.util import LisaException, constants, get_public_key_data
 from lisa.util.logger import Logger
 
@@ -45,6 +48,10 @@ class QemuPlatform(Platform):
         SerialConsole,
     ]
 
+    qemu_platform_runbook: QemuPlatformSchema
+    host_node: RemoteNode
+    libvirt_conn_str: str
+
     def __init__(self, runbook: schema.Platform) -> None:
         super().__init__(runbook=runbook)
 
@@ -59,10 +66,25 @@ class QemuPlatform(Platform):
     def _initialize(self, *args: Any, **kwargs: Any) -> None:
         libvirt_events_thread.init()
 
+        self.qemu_platform_runbook = self.runbook.get_extended_runbook(
+            QemuPlatformSchema, type_name=QEMU
+        )
+        self.libvirt_conn_str = "qemu:///system"
+
+        if self.qemu_platform_runbook.is_host_remote():
+            self.host_node = RemoteNode(schema.Node(name="qemu-host"), 0, "qemu-host")
+            self.host_node.set_connection_info(
+                address=self.qemu_platform_runbook.host.address,
+                username=self.qemu_platform_runbook.host.username,
+                private_key_file=self.qemu_platform_runbook.host.private_key_file
+            )
+
+            self.libvirt_conn_str = self._get_libvirt_conn_string()
+
     def _prepare_environment(self, environment: Environment, log: Logger) -> bool:
         self._configure_environment(environment, log)
 
-        with libvirt.open("qemu:///system") as qemu_conn:
+        with libvirt.open(self.libvirt_conn_str) as qemu_conn:
             return self._configure_node_capabilities(environment, log, qemu_conn)
 
     def _deploy_environment(self, environment: Environment, log: Logger) -> None:
@@ -70,18 +92,15 @@ class QemuPlatform(Platform):
         self._deploy_nodes(environment, log, local_node)
 
     def _delete_environment(self, environment: Environment, log: Logger) -> None:
-        with libvirt.open("qemu:///system") as qemu_conn:
+        with libvirt.open(self.libvirt_conn_str) as qemu_conn:
             self._delete_nodes(environment, log, qemu_conn)
 
     def _configure_environment(self, environment: Environment, log: Logger) -> None:
         environment_context = get_environment_context(environment)
-        qemu_platform_runbook: QemuPlatformSchema = self.runbook.get_extended_runbook(
-            QemuPlatformSchema, type_name=QEMU
-        )
 
-        if qemu_platform_runbook.network_boot_timeout:
+        if self.qemu_platform_runbook.network_boot_timeout:
             environment_context.network_boot_timeout = (
-                qemu_platform_runbook.network_boot_timeout
+                self.qemu_platform_runbook.network_boot_timeout
             )
 
         environment_context.ssh_public_key = get_public_key_data(
@@ -220,9 +239,9 @@ class QemuPlatform(Platform):
     def _deploy_nodes(
         self, environment: Environment, log: Logger, local_node: Node
     ) -> None:
-        self._configure_nodes(environment, log)
+        self._configure_nodes(environment, log, local_node)
 
-        with libvirt.open("qemu:///system") as qemu_conn:
+        with libvirt.open(self.libvirt_conn_str) as qemu_conn:
             try:
                 self._create_nodes(environment, log, qemu_conn, local_node)
                 self._fill_nodes_metadata(environment, log, qemu_conn)
@@ -240,7 +259,9 @@ class QemuPlatform(Platform):
     # Pre-determine all the nodes' properties, including the name of all the resouces
     # to be created. This makes it easier to cleanup everything after the test is
     # finished (or fails).
-    def _configure_nodes(self, environment: Environment, log: Logger) -> None:
+    def _configure_nodes(
+            self, environment: Environment, log: Logger, local_node: Node
+    ) -> None:
         # Generate a random name for the VMs.
         test_suffix = "".join(random.choice(string.ascii_uppercase) for _ in range(5))
         vm_name_prefix = f"lisa-{test_suffix}"
@@ -259,6 +280,11 @@ class QemuPlatform(Platform):
                 raise LisaException(f"file does not exist: {qemu_node_runbook.qcow2}")
 
             vm_disks_dir = os.path.dirname(qemu_node_runbook.qcow2)
+            if self.qemu_platform_runbook.is_host_remote():
+                vm_disks_dir = os.path.join(
+                    "/home", self.qemu_platform_runbook.host.username, vm_name_prefix
+                )
+                self.host_node.shell.mkdir(vm_disks_dir)
 
             node = environment.create_node_from_requirement(node_space)
             node_context = get_node_context(node)
@@ -281,11 +307,29 @@ class QemuPlatform(Platform):
                 vm_disks_dir, f"{node_context.vm_name}-cloud-init.iso"
             )
             node_context.os_disk_base_file_path = qemu_node_runbook.qcow2
+            if self.qemu_platform_runbook.is_host_remote():
+                host = self.qemu_platform_runbook.host
+                new_os_disk_base_file_path = os.path.join(
+                    "/home",
+                    host.username,
+                    vm_name_prefix,
+                    os.path.basename(qemu_node_runbook.qcow2)
+                )
+
+                local_node.execute(
+                    f"scp -i {host.private_key_file} "
+                    f"{node_context.os_disk_base_file_path} "
+                    f"scp://{host.address}/{new_os_disk_base_file_path}"
+                )
+
+                node_context.os_disk_base_file_path = new_os_disk_base_file_path
+
             node_context.os_disk_file_path = os.path.join(
                 vm_disks_dir, f"{node_context.vm_name}-os.qcow2"
             )
             node_context.console_log_file_path = os.path.join(
-                vm_disks_dir, f"{node_context.vm_name}-console.log"
+                os.path.dirname(qemu_node_runbook.qcow2),
+                f"{node_context.vm_name}-console.log"
             )
             node_context.console_logger = QemuConsoleLogger()
 
@@ -317,7 +361,7 @@ class QemuPlatform(Platform):
             node_context = get_node_context(node)
 
             # Create cloud-init ISO file.
-            self._create_node_cloud_init_iso(environment, log, node)
+            self._create_node_cloud_init_iso(environment, log, node, local_node)
 
             # Create OS disk from the provided image.
             self._create_node_os_disk(environment, log, node, local_node)
@@ -360,16 +404,20 @@ class QemuPlatform(Platform):
             except Exception as ex:
                 log.warning(f"console log delete failed. {ex}")
 
-            # Delete the files created for the VM.
-            try:
-                os.remove(node_context.os_disk_file_path)
-            except Exception as ex:
-                log.warning(f"OS disk delete failed. {ex}")
+            if self.qemu_platform_runbook.is_host_remote():
+                vm_dir = os.path.dirname(node_context.os_disk_file_path)
+                self.host_node.shell.remove(PurePath(vm_dir), True)
+            else:
+                # Delete the files created for the VM.
+                try:
+                    os.remove(node_context.os_disk_file_path)
+                except Exception as ex:
+                    log.warning(f"OS disk delete failed. {ex}")
 
-            try:
-                os.remove(node_context.cloud_init_file_path)
-            except Exception as ex:
-                log.warning(f"cloud-init ISO file delete failed. {ex}")
+                try:
+                    os.remove(node_context.cloud_init_file_path)
+                except Exception as ex:
+                    log.warning(f"cloud-init ISO file delete failed. {ex}")
 
     # Delete a VM.
     def _stop_and_delete_vm(
@@ -423,16 +471,26 @@ class QemuPlatform(Platform):
                 environment, log, qemu_conn, node, timeout
             )
 
+            node_addr = address
+            node_port = 22
+            if self.qemu_platform_runbook.is_host_remote():
+                self.host_node.tools[Iptables].start_forwarding(10022, address, 22)
+
+                node_addr = self.qemu_platform_runbook.host.address
+                node_port = 10022
+
             # Set SSH connection info for the node.
             node.set_connection_info(
-                address=address,
+                address=node_addr,
+                port=node_port,
+                public_port=node_port,
                 username=self.runbook.admin_username,
                 private_key_file=self.runbook.admin_private_key_file,
             )
 
     # Create a cloud-init ISO for a VM.
     def _create_node_cloud_init_iso(
-        self, environment: Environment, log: Logger, node: Node
+        self, environment: Environment, log: Logger, node: Node, local_node: Node
     ) -> None:
         environment_context = get_environment_context(environment)
         node_context = get_node_context(node)
@@ -462,10 +520,25 @@ class QemuPlatform(Platform):
         user_data_string = "#cloud-config\n" + yaml.safe_dump(user_data)
         meta_data_string = yaml.safe_dump(meta_data)
 
+        iso_path = node_context.cloud_init_file_path
+        tmp_dir = None
+        if self.qemu_platform_runbook.is_host_remote():
+            tmp_dir = tempfile.TemporaryDirectory()
+            iso_path = os.path.join(tmp_dir.name, "cloud-init.iso")
+
         self._create_iso(
-            node_context.cloud_init_file_path,
+            iso_path,
             [("/user-data", user_data_string), ("/meta-data", meta_data_string)],
         )
+
+        if self.qemu_platform_runbook.is_host_remote():
+            host = self.qemu_platform_runbook.host
+            local_node.execute(
+                f"scp -i {host.private_key_file} "
+                f"{iso_path} "
+                f"scp://{host.address}/{node_context.cloud_init_file_path}"
+            )
+            tmp_dir.cleanup()
 
     # Create an ISO file.
     def _create_iso(self, file_path: str, files: List[Tuple[str, str]]) -> None:
@@ -489,6 +562,14 @@ class QemuPlatform(Platform):
         self, environment: Environment, log: Logger, node: Node, local_node: Node
     ) -> None:
         node_context = get_node_context(node)
+
+        if self.qemu_platform_runbook.is_host_remote():
+            self.host_node.tools[QemuImg].createDiffQcow2(
+                node_context.os_disk_file_path,
+                node_context.os_disk_base_file_path
+            )
+
+            return
 
         # Create a new differencing image with the user provided image as the base.
         local_node.execute(
@@ -660,3 +741,12 @@ class QemuPlatform(Platform):
         addr = addrs[0]["addr"]
         assert isinstance(addr, str)
         return addr
+
+    def _get_libvirt_conn_string(self) -> str:
+        hypervisor = "qemu"
+        host = self.qemu_platform_runbook.host
+
+        host_addr = host.address if host is not None else ""
+        transport = "+tcp" if host is not None else ""
+
+        return f"{hypervisor}{transport}://{host_addr}/system"

@@ -18,7 +18,7 @@ from .ethtool import Ethtool
 from .fdisk import Fdisk
 from .find import Find
 from .fio import FIOMODES, Fio, FIOResult
-from .firewall import Firewall
+from .firewall import Firewall, Iptables
 from .gcc import Gcc
 from .git import Git
 from .hwclock import Hwclock
@@ -52,6 +52,7 @@ from .parted import Parted
 from .pgrep import Pgrep, ProcessInfo
 from .ping import Ping
 from .qemu import Qemu
+from .qemu_img import QemuImg
 from .reboot import Reboot
 from .sar import Sar
 from .service import Service
@@ -94,6 +95,7 @@ __all__ = [
     "Iperf3",
     "Hwclock",
     "InterruptInspector",
+    "Iptables",
     "KdumpBase",
     "Kill",
     "Lagscope",
@@ -125,6 +127,7 @@ __all__ = [
     "Ping",
     "ProcessInfo",
     "Qemu",
+    "QemuImg",
     "Reboot",
     "Sar",
     "Sed",

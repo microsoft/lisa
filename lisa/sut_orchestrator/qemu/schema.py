@@ -14,15 +14,29 @@ class CloudInitSchema:
     # Additional values to apply to the cloud-init user-data file.
     extra_user_data: Optional[str] = None
 
+@dataclass_json()
+@dataclass
+class LibvirtHost:
+    address: str = ""
+    username: str = ""
+    private_key_file: str = ""
 
 # QEMU orchestrator's global configuration options.
 @dataclass_json()
 @dataclass
 class QemuPlatformSchema:
+    # An optional remote host for the VMs. All test VMs will be spawned on the
+    # specified host by connecting remotely to the libvirt instance running on it.
+    # If None, the local machine is used as host.
+    host: Optional[LibvirtHost] = None
+
     # The timeout length for how long to wait for the OS to boot and request an IP
     # address from the libvirt DHCP server.
     # Specified in seconds. Default: 30s.
     network_boot_timeout: Optional[float] = None
+
+    def is_host_remote(self) -> bool:
+        return self.host is not None
 
 
 # QEMU orchestrator's per-node configuration options.
