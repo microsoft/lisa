@@ -52,9 +52,16 @@ class CPUInfo:
 class Lscpu(Tool):
     # CPU(s):              16
     __vcpu = re.compile(r"^CPU\(s\):[ ]+([\d]+)\r?$", re.M)
+    # Thread(s) per core:  1
     __thread_per_core = re.compile(r"^Thread\(s\) per core:[ ]+([\d]+)\r?$", re.M)
+    # Core(s) per socket:  8
     __core_per_socket = re.compile(r"^Core\(s\) per socket:[ ]+([\d]+)\r?$", re.M)
+    # Core(s) per cluster: 16
+    __core_per_cluster = re.compile(r"^Core\(s\) per cluster:[ ]+([\d]+)\r?$", re.M)
+    # Socket(s):           2
     __sockets = re.compile(r"^Socket\(s\):[ ]+([\d]+)\r?$", re.M)
+    # Cluster(s):          1
+    __clusters = re.compile(r"^Cluster\(s\):[ ]+([\d]+)\r?$", re.M)
     # Architecture:        x86_64
     __architecture_pattern = re.compile(r"^Architecture:\s+(.*)?\r$", re.M)
     __valid_architecture_list = ["x86_64", "aarch64"]
@@ -103,7 +110,7 @@ class Lscpu(Tool):
             len(matched),
             f"cpu count should have exact one line, but got {matched}",
         ).is_equal_to(1)
-        self._core_count = int(matched[0]) * 1
+        self._core_count = int(matched[0])
 
         return self._core_count
 
@@ -115,7 +122,7 @@ class Lscpu(Tool):
             f"thread per core count should have exact one line, but got {matched}",
         ).is_equal_to(1)
 
-        return int(matched[0]) * 1
+        return int(matched[0])
 
     def get_core_per_socket_count(self, force_run: bool = False) -> int:
         result = self.run(force_run=force_run)
@@ -125,7 +132,17 @@ class Lscpu(Tool):
             f"core per socket count should have exact one line, but got {matched}",
         ).is_equal_to(1)
 
-        return int(matched[0]) * 1
+        return int(matched[0])
+
+    def get_core_per_cluster_count(self, force_run: bool = False) -> int:
+        result = self.run(force_run=force_run)
+        matched = self.__core_per_cluster.findall(result.stdout)
+        assert_that(
+            len(matched),
+            f"core per cluster count should have exact one line, but got {matched}",
+        ).is_equal_to(1)
+
+        return int(matched[0])
 
     def get_socket_count(self, force_run: bool = False) -> int:
         result = self.run(force_run=force_run)
@@ -135,7 +152,39 @@ class Lscpu(Tool):
             f"socket count should have exact one line, but got {matched}",
         ).is_equal_to(1)
 
-        return int(matched[0]) * 1
+        return int(matched[0])
+
+    def get_cluster_count(self, force_run: bool = False) -> int:
+        result = self.run(force_run=force_run)
+        matched = self.__clusters.findall(result.stdout)
+        assert_that(
+            len(matched),
+            f"cluster count should have exact one line, but got {matched}",
+        ).is_equal_to(1)
+
+        return int(matched[0])
+
+    def calculate_vcpu_count(self, force_run: bool = False) -> int:
+        # The concept of a "cluster" of CPUs was recently added in the Linux
+        # 5.16 kernel in commit c5e22feffdd7. There is "Core(s) per cluster"
+        # and "Cluster(s)" in the output of lscpu. If there is cluster topology,
+        # calculate vCPU count by core_per_cluster_count * cluster_count *
+        # thread_per_core_count, else by core_per_socket_count * socket_count *
+        # thread_per_core_count.
+        result = self.run(force_run=force_run)
+        if "Core(s) per cluster" in result.stdout:
+            calculated_cpu_count = (
+                self.get_core_per_cluster_count()
+                * self.get_cluster_count()
+                * self.get_thread_per_core_count()
+            )
+        else:
+            calculated_cpu_count = (
+                self.get_core_per_socket_count()
+                * self.get_socket_count()
+                * self.get_thread_per_core_count()
+            )
+        return calculated_cpu_count
 
     def get_cpu_type(self, force_run: bool = False) -> CpuType:
         result = self.run(force_run=force_run)

@@ -91,18 +91,13 @@ class CPU(TestSuite):
         # 1. Get vCPU count.
         cpu_count = lscpu.get_core_count()
         log.debug(f"{cpu_count} CPU cores detected...")
-        # 2. Caculate vCPU count by core_per_socket_count * socket_count *
-        #  thread_per_core_count.
-        caculated_cpu_count = (
-            lscpu.get_core_per_socket_count()
-            * lscpu.get_socket_count()
-            * lscpu.get_thread_per_core_count()
-        )
+        # 2. Calculate vCPU count
+        calculated_cpu_count = lscpu.calculate_vcpu_count()
         # 3. Judge whether the actual vCPU count equals to expected value.
         assert_that(cpu_count).described_as(
             "The VM may end up being incorrectly configured on some Azure hosts,"
             " it is a known host bug, please check the host version."
-        ).is_equal_to(caculated_cpu_count)
+        ).is_equal_to(calculated_cpu_count)
 
     @TestCaseMetadata(
         description="""
