@@ -215,20 +215,7 @@ class QemuPlatform(Platform):
     # Note: Unlike other orchestrators, we don't want to fill up the capacity of
     # the host in case the test is running on a dev box.
     def _get_count_space_min(self, count_space: search_space.CountSpace) -> int:
-        if isinstance(count_space, int):
-            return count_space
-
-        elif isinstance(count_space, search_space.IntRange):
-            return count_space.min
-
-        # List[IntRange]
-        elif isinstance(count_space, list):
-            return min(item.min for item in count_space)
-
-        else:
-            raise TypeError(
-                f"count_space has an unexpected type: {type(count_space).__name__}"
-            )
+        return search_space.generate_min_capability_countspace(count_space, count_space)
 
     def _deploy_nodes(
         self, environment: Environment, log: Logger, local_node: Node
