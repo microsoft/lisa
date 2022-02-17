@@ -34,6 +34,12 @@ from .schema import (
 from .serial_console import SerialConsole
 
 
+class _HostCapabilities:
+    def __init__(self) -> None:
+        self.core_count = 0
+        self.free_memory_kib = 0
+
+
 class QemuPlatform(Platform):
     _supported_features: List[Type[Feature]] = [
         SerialConsole,
@@ -55,8 +61,9 @@ class QemuPlatform(Platform):
 
     def _prepare_environment(self, environment: Environment, log: Logger) -> bool:
         self._configure_environment(environment, log)
-        self._configure_node_capabilities(environment, log)
-        return True
+
+        with libvirt.open("qemu:///system") as qemu_conn:
+            return self._configure_node_capabilities(environment, log, qemu_conn)
 
     def _deploy_environment(self, environment: Environment, log: Logger) -> None:
         local_node = local_node_connect(parent_logger=log)
@@ -82,28 +89,74 @@ class QemuPlatform(Platform):
         )
 
     def _configure_node_capabilities(
-        self, environment: Environment, log: Logger
-    ) -> None:
+        self, environment: Environment, log: Logger, qemu_conn: libvirt.virConnect
+    ) -> bool:
         if not environment.runbook.nodes_requirement:
-            return
+            return True
+
+        host_capabilities = self._get_host_capabilities(qemu_conn, log)
 
         nodes_requirement = []
         for node_space in environment.runbook.nodes_requirement:
             node_capabilities = self._create_node_capabilities(log, node_space)
             nodes_requirement.append(node_capabilities)
 
+        if not self._check_host_capabilities(nodes_requirement, host_capabilities, log):
+            return False
+
         environment.runbook.nodes_requirement = nodes_requirement
-        return
+        return True
+
+    def _get_host_capabilities(
+        self, qemu_conn: libvirt.virConnect, log: Logger
+    ) -> _HostCapabilities:
+        host_capabilities = _HostCapabilities()
+
+        capabilities_xml_str = qemu_conn.getCapabilities()
+        capabilities_xml = ET.fromstring(capabilities_xml_str)
+
+        host_xml = capabilities_xml.find("host")
+        assert host_xml
+
+        topology_xml = host_xml.find("topology")
+        assert topology_xml
+
+        cells_xml = topology_xml.find("cells")
+        assert cells_xml
+
+        for cell in cells_xml.findall("cell"):
+            cpus_xml = cell.find("cpus")
+            assert cpus_xml
+
+            host_capabilities.core_count += int(cpus_xml.attrib["num"])
+
+        # Get free memory.
+        # Include the disk cache size, as it will be freed if memory becomes limited.
+        memory_stats = qemu_conn.getMemoryStats(libvirt.VIR_NODE_MEMORY_STATS_ALL_CELLS)
+        host_capabilities.free_memory_kib = (
+            memory_stats[libvirt.VIR_NODE_MEMORY_STATS_FREE]
+            + memory_stats[libvirt.VIR_NODE_MEMORY_STATS_CACHED]
+        )
+
+        log.debug(
+            f"QEMU host: "
+            f"CPU Cores = {host_capabilities.core_count}, "
+            f"Free Memory = {host_capabilities.free_memory_kib} KiB"
+        )
+
+        return host_capabilities
 
     # Check what capabilities can be provided for the node.
     def _create_node_capabilities(
-        self, log: Logger, node_space: schema.NodeSpace
+        self,
+        log: Logger,
+        node_space: schema.NodeSpace,
     ) -> schema.NodeSpace:
         node_capabilities = schema.NodeSpace()
         node_capabilities.name = "QEMU"
         node_capabilities.node_count = 1
-        node_capabilities.core_count = 2
-        node_capabilities.memory_mb = 4096
+        node_capabilities.core_count = self._get_count_space_min(node_space.core_count)
+        node_capabilities.memory_mb = self._get_count_space_min(node_space.memory_mb)
         node_capabilities.disk = schema.DiskOptionSettings()
         node_capabilities.network_interface = schema.NetworkInterfaceOptionSettings()
         node_capabilities.network_interface.max_nic_count = 1
@@ -119,7 +172,63 @@ class QemuPlatform(Platform):
         node_capabilities.set_extended_runbook(
             node_space.get_extended_runbook(QemuNodeSchema, type_name=QEMU)
         )
+
         return node_capabilities
+
+    # Check that the VM requirements can be fulfilled by the host.
+    def _check_host_capabilities(
+        self,
+        nodes_requirements: List[schema.NodeSpace],
+        host_capabilities: _HostCapabilities,
+        log: Logger,
+    ) -> bool:
+        total_required_memory_mib = 0
+
+        for node_requirements in nodes_requirements:
+            # Ensure host has enough CPU cores for the VM.
+            # Note: The CPU scheduler can easily handle overprovisioning of CPU
+            # cores.
+            assert isinstance(node_requirements.core_count, int)
+            if node_requirements.core_count > host_capabilities.core_count:
+                log.error(
+                    f"Node requires {node_requirements.core_count} CPU cores. "
+                    f"Host only has {host_capabilities.core_count}."
+                )
+                return False
+
+            # Calculate the total amount of memory required for all the VMs.
+            assert isinstance(node_requirements.memory_mb, int)
+            total_required_memory_mib += node_requirements.memory_mb
+
+        # Ensure host has enough memory for all the VMs.
+        total_required_memory_kib = total_required_memory_mib * 1024
+        if total_required_memory_kib > host_capabilities.free_memory_kib:
+            log.error(
+                f"Nodes require a total of {total_required_memory_kib} KiB memory. "
+                f"Host only has {host_capabilities.free_memory_kib} KiB free."
+            )
+            return False
+
+        return True
+
+    # Get the minimum value for a node requirement with an interger type.
+    # Note: Unlike other orchestrators, we don't want to fill up the capacity of
+    # the host in case the test is running on a dev box.
+    def _get_count_space_min(self, count_space: search_space.CountSpace) -> int:
+        if isinstance(count_space, int):
+            return count_space
+
+        elif isinstance(count_space, search_space.IntRange):
+            return count_space.min
+
+        # List[IntRange]
+        elif isinstance(count_space, list):
+            return min(item.min for item in count_space)
+
+        else:
+            raise TypeError(
+                f"count_space has an unexpected type: {type(count_space).__name__}"
+            )
 
     def _deploy_nodes(
         self, environment: Environment, log: Logger, local_node: Node
@@ -415,11 +524,13 @@ class QemuPlatform(Platform):
         name.text = node_context.vm_name
 
         memory = ET.SubElement(domain, "memory")
-        memory.attrib["unit"] = "GiB"
-        memory.text = "4"
+        memory.attrib["unit"] = "MiB"
+        assert isinstance(node.capability.memory_mb, int)
+        memory.text = str(node.capability.memory_mb)
 
         vcpu = ET.SubElement(domain, "vcpu")
-        vcpu.text = "2"
+        assert isinstance(node.capability.core_count, int)
+        vcpu.text = str(node.capability.core_count)
 
         os = ET.SubElement(domain, "os")
 
