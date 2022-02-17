@@ -93,15 +93,15 @@ Class AzureController : TestController {
 			# $this.GlobalConfig has been set by base ([TestController]$this).ParseAndValidateParameters() at the beginning of this overwritten function
 			if (!$this.GlobalConfig.Global.Azure.DefaultARMImageName) {
 				$parameterErrors += "-OsVHD <'VHD_Name.vhd'>, or -ARMImageName '<Publisher> <Offer> <Sku> <Version>,<Publisher> <Offer> <Sku> <Version>,...', " + `
-							"or -SharedImageGallery '<subscription_id>/<resource_group>/<image_gallery>/<image_definition>/<image_version>', <DefaultARMImageName> from .\XML\GlobalConfigurations.xml if required."
+							"or -SharedImageGallery '<subscription_id>/<image_gallery>/<image_definition>/<image_version>', <DefaultARMImageName> from .\XML\GlobalConfigurations.xml if required."
 			}
 		}
 		elseif ($this.SharedImageGallery) {
 			$parameterCount = $this.SharedImageGallery.Split("/").Trim().Count
 			if ($parameterCount -lt 3 -or $parameterCount -gt 4) {
 				$parameterErrors += "Invalid value for the provided SharedImageGallery parameter: <'$($this.SharedImageGallery)'>." + `
-						"The SharedImageGallery should be in the format: '<subscription_id>/<resource_group>/<image_gallery>/<image_definition>/<image_version>' " + `
-						"Or '<resource_group>/<image_gallery>/<image_definition>/<image_version>' if the shared image gallery is in the same subscription that is used to run LISA."
+						"The SharedImageGallery should be in the format: '<subscription_id>/<image_gallery>/<image_definition>/<image_version>' " + `
+						"Or '<image_gallery>/<image_definition>/<image_version>' if the shared image gallery is in the same subscription that is used to run LISA."
 			}
 		}
 		elseif ($this.ARMImageName) {
