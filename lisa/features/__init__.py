@@ -8,7 +8,7 @@ from .disks import (
     DiskStandardHDDLRS,
     DiskStandardSSDLRS,
 )
-from .gpu import Gpu
+from .gpu import Gpu, GpuSettings
 from .infiniband import Infiniband
 from .network_interface import NetworkInterface, Sriov, Synthetic
 from .nvme import Nvme, NvmeSettings
@@ -23,6 +23,7 @@ __all__ = [
     "DiskStandardHDDLRS",
     "DiskStandardSSDLRS",
     "Gpu",
+    "GpuSettings",
     "Infiniband",
     "Nvme",
     "NvmeSettings",

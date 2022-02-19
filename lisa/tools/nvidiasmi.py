@@ -9,7 +9,7 @@ from lisa.util import LisaException
 class NvidiaSmi(Tool):
     # tuple of gpu device names and their device id pattern
     # e.g. Tesla GPU device has device id "47505500-0001-0000-3130-444531303244"
-    _gpu_devices = (("Tesla", "47505500", 0), ("A100", "44450000", 6))
+    gpu_devices = (("Tesla", "47505500", 0), ("A100", "44450000", 6))
 
     @property
     def command(self) -> str:
@@ -25,7 +25,7 @@ class NvidiaSmi(Tool):
             raise LisaException(
                 f"nvidia-smi command exited with exit_code {result.exit_code}"
             )
-        gpu_types = [x[0] for x in self._gpu_devices]
+        gpu_types = [x[0] for x in self.gpu_devices]
         device_count = 0
         for gpu_type in gpu_types:
             device_count += result.stdout.count(gpu_type)

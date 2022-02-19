@@ -17,7 +17,7 @@ from lisa import (
     simple_requirement,
 )
 from lisa.features import Gpu, SerialConsole
-from lisa.tools import Lspci, Reboot
+from lisa.tools import Lspci, NvidiaSmi, Reboot
 
 
 @TestSuiteMetadata(
@@ -30,25 +30,6 @@ from lisa.tools import Lspci, Reboot
 )
 class GpuTestSuite(TestSuite):
     TIMEOUT = 2000
-
-    def _ensure_driver_installed(
-        self, node: Node, gpu_feature: Gpu, log_path: Path, log: Logger
-    ) -> None:
-        if gpu_feature.is_module_loaded():
-            return
-
-        gpu_feature.install_compute_sdk()
-        log.debug(
-            f"{gpu_feature.gpu_vendor} sdk installed. Will reboot to load driver."
-        )
-
-        reboot_tool = node.tools[Reboot]
-        reboot_tool.reboot_and_check_panic(log_path)
-
-        if not gpu_feature.is_module_loaded():
-            raise LisaException(
-                f"{gpu_feature.gpu_vendor} GPU driver is not loaded after VM restart!"
-            )
 
     @TestCaseMetadata(
         description="""
@@ -73,7 +54,7 @@ class GpuTestSuite(TestSuite):
         if not gpu_feature.is_supported():
             raise SkippedException(f"GPU is not supported with distro {node.os.name}")
 
-        self._ensure_driver_installed(node, gpu_feature, log_path, log)
+        _check_driver_installed(node)
 
     @TestCaseMetadata(
         description="""
@@ -116,7 +97,8 @@ class GpuTestSuite(TestSuite):
             "Expected device count didn't match Actual device count from lspci",
         ).is_equal_to(expected_count)
 
-        self._ensure_driver_installed(node, gpu_feature, log_path, log)
+        _check_driver_installed(node)
+
         vendor_cmd_device_count = gpu_feature.get_gpu_count_with_vendor_cmd()
         assert_that(
             vendor_cmd_device_count,
@@ -141,3 +123,31 @@ class GpuTestSuite(TestSuite):
         lspci.disable_devices(device_type=constants.DEVICE_TYPE_GPU)
         # 2. Enable GPU devices.
         lspci.enable_devices()
+
+
+def _check_driver_installed(node: Node) -> None:
+
+    try:
+        _ = node.tools[NvidiaSmi]
+    except Exception as identifier:
+        raise LisaException(
+            f"Cannot find nvidia-smi, make sure the driver installed correctly. "
+            f"Inner exception: {identifier}"
+        )
+
+
+# We use platform to install the driver by default. If in future, it needs to
+# install independently, this logic can be reused.
+def _ensure_driver_installed(
+    node: Node, gpu_feature: Gpu, log_path: Path, log: Logger
+) -> None:
+    if gpu_feature.is_module_loaded():
+        return
+
+    gpu_feature.install_compute_sdk()
+    log.debug(f"{gpu_feature.gpu_vendor} sdk installed. Will reboot to load driver.")
+
+    reboot_tool = node.tools[Reboot]
+    reboot_tool.reboot_and_check_panic(log_path)
+
+    _check_driver_installed(node)
