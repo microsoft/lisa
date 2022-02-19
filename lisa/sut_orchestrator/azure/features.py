@@ -2,6 +2,7 @@
 # Licensed under the MIT license.
 
 import copy
+import json
 import re
 from dataclasses import dataclass
 from os import unlink
@@ -21,7 +22,7 @@ from azure.mgmt.compute.models import (  # type: ignore
 from dataclasses_json import dataclass_json
 from PIL import Image, UnidentifiedImageError
 
-from lisa import features, schema, search_space
+from lisa import Logger, features, schema, search_space
 from lisa.features import NvmeSettings
 from lisa.features.gpu import ComputeSDK
 from lisa.features.resize import ResizeAction
@@ -134,8 +135,33 @@ class SerialConsole(AzureFeatureMixin, features.SerialConsole):
 
 
 class Gpu(AzureFeatureMixin, features.Gpu):
-    grid_supported_skus = ["Standard_NV"]
-    cuda_supported_skus = ["Standard_NC", "Standard_ND"]
+    _grid_supported_skus = ["Standard_NV"]
+    _cuda_supported_skus = ["Standard_NC", "Standard_ND"]
+    _gpu_extension_template = json.loads(
+        """
+        {
+        "name": "[concat(parameters('nodes')[copyIndex('vmCopy')]['name'], '/gpu-extension')]",
+        "type": "Microsoft.Compute/virtualMachines/extensions",
+        "apiVersion": "2015-06-15",
+        "location": "[parameters('nodes')[copyIndex('vmCopy')]['location']]",
+        "copy": {
+            "name": "vmCopy",
+            "count": "[variables('node_count')]"
+        },
+        "dependsOn": [
+            "[concat('Microsoft.Compute/virtualMachines/', parameters('nodes')[copyIndex('vmCopy')]['name'])]"
+        ],
+        "properties": {
+            "publisher": "Microsoft.HpcCompute",
+            "type": "NvidiaGpuDriverLinux",
+            "typeHandlerVersion": "1.6",
+            "autoUpgradeMinorVersion": true,
+            "settings": {
+            }
+        }
+    }
+    """  # noqa: E501
+    )
 
     def is_supported(self) -> bool:
         # TODO: more supportability can be defined here
@@ -149,14 +175,23 @@ class Gpu(AzureFeatureMixin, features.Gpu):
         super()._initialize(*args, **kwargs)
         self._initialize_information(self._node)
 
+    @classmethod
+    def _install_by_platform(cls, *args: Any, **kwargs: Any) -> None:
+
+        template: Any = kwargs.get("template")
+        log = cast(Logger, kwargs.get("log"))
+        log.debug("updating arm template to support GPU extension.")
+        resources = template["resources"]
+        resources.append(cls._gpu_extension_template)
+
     def _get_supported_driver(self) -> List[ComputeSDK]:
         driver_list = []
         node_runbook = self._node.capability.get_extended_runbook(
             AzureNodeSchema, AZURE
         )
-        if any(map((node_runbook.vm_size).__contains__, self.grid_supported_skus)):
+        if any(map((node_runbook.vm_size).__contains__, self._grid_supported_skus)):
             driver_list.append(ComputeSDK.GRID)
-        if any(map((node_runbook.vm_size).__contains__, self.cuda_supported_skus)):
+        if any(map((node_runbook.vm_size).__contains__, self._cuda_supported_skus)):
             driver_list.append(ComputeSDK.CUDA)
 
         if not driver_list:

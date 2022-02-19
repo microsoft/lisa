@@ -3,16 +3,23 @@
 
 import re
 from enum import Enum
-from typing import Any, List, Set
+from typing import Any, List, Set, cast
 
+from lisa import schema
 from lisa.base_tools import Wget
 from lisa.feature import Feature
 from lisa.operating_system import Redhat, Ubuntu
 from lisa.sut_orchestrator.azure.tools import LisDriver
-from lisa.tools import Lsmod, Lspci, Lsvmbus
+from lisa.tools import Lsmod, Lspci, Lsvmbus, NvidiaSmi
 from lisa.util import LisaException, constants
 
 FEATURE_NAME_GPU = "Gpu"
+
+
+class GpuSettings(schema.FeatureSettings):
+    type: str = FEATURE_NAME_GPU
+    install_by_platform: bool = True
+
 
 # Link to the latest GRID driver
 # The DIR link is
@@ -49,10 +56,6 @@ class Gpu(Feature):
         "ubuntu-desktop",
     ]
 
-    # tuple of gpu device names and their device id pattern
-    # e.g. Tesla GPU device has device id "47505500-0001-0000-3130-444531303244"
-    gpu_devices = (("Tesla", "47505500", 0), ("A100", "44450000", 6))
-
     @classmethod
     def name(cls) -> str:
         return FEATURE_NAME_GPU
@@ -65,14 +68,101 @@ class Gpu(Feature):
     def can_disable(cls) -> bool:
         return True
 
+    @classmethod
+    def on_before_deployment(cls, *args: Any, **kwargs: Any) -> None:
+        """
+        The driver may be installed by platform, like Azure extensions. The
+        platform needs to implement _install_by_platform. And call this method
+        in platform.
+        """
+        settings = cast(schema.FeatureSettings, kwargs.get("settings"))
+
+        # default to install by platform, unless it's specified to skip.
+        if (isinstance(settings, GpuSettings) and settings.install_by_platform) or (
+            not isinstance(settings, GpuSettings)
+        ):
+            cls._install_by_platform(*args, **kwargs)
+
     def is_supported(self) -> bool:
         raise NotImplementedError
+
+    def is_module_loaded(self) -> bool:
+        lsmod_tool = self._node.tools[Lsmod]
+        if (len(self.gpu_vendor) > 0) and all(
+            lsmod_tool.module_exists(vendor) for vendor in self.gpu_vendor
+        ):
+            return True
+
+        return False
+
+    def install_compute_sdk(self, version: str = "") -> None:
+        # install GPU dependencies before installing driver
+        self._install_gpu_dep()
+        try:
+            # install LIS driver if required and not already installed.
+            if LisDriver.can_install:
+                self._node.tools[LisDriver]
+        except Exception as identifier:
+            self._log.debug(
+                "LisDriver is not installed. It might not be required. " f"{identifier}"
+            )
+
+        # install the driver
+        supported_driver = self._get_supported_driver()
+        for driver in supported_driver:
+            if driver == ComputeSDK.GRID:
+                if not version:
+                    version = DEFAULT_GRID_DRIVER_URL
+                    self._install_grid_driver(version)
+                    self.gpu_vendor.add("nvidia")
+            elif driver == ComputeSDK.CUDA:
+                if not version:
+                    version = DEFAULT_CUDA_DRIVER_VERSION
+                    self._install_cuda_driver(version)
+                    self.gpu_vendor.add("nvidia")
+            else:
+                raise LisaException(f"{driver} is not a valid value of ComputeSDK")
+
+        if not self.gpu_vendor:
+            raise LisaException("No supported gpu driver/vendor found for this node.")
+
+    def get_gpu_count_with_lsvmbus(self) -> int:
+        lsvmbus_device_count = 0
+        bridge_device_count = 0
+
+        lsvmbus_tool = self._node.tools[Lsvmbus]
+        device_list = lsvmbus_tool.get_device_channels()
+        for device in device_list:
+            for name, id, bridge_count in NvidiaSmi.gpu_devices:
+                if id in device.device_id:
+                    lsvmbus_device_count += 1
+                    bridge_device_count = bridge_count
+                    self._log.debug(f"GPU device {name} found!")
+                    break
+
+        return lsvmbus_device_count - bridge_device_count
+
+    def get_gpu_count_with_lspci(self) -> int:
+        lspci_tool = self._node.tools[Lspci]
+        device_list = lspci_tool.get_device_list_per_device_type(
+            constants.DEVICE_TYPE_GPU
+        )
+
+        return len(device_list)
+
+    def get_gpu_count_with_vendor_cmd(self) -> int:
+        nvidiasmi = self._node.tools[NvidiaSmi]
+        return nvidiasmi.get_gpu_count()
 
     def _initialize(self, *args: Any, **kwargs: Any) -> None:
         self.gpu_vendor: Set[str] = set()
 
+    @classmethod
+    def _install_by_platform(cls, *args: Any, **kwargs: Any) -> None:
+        raise NotImplementedError()
+
     def _get_supported_driver(self) -> List[ComputeSDK]:
-        raise NotImplementedError
+        raise NotImplementedError()
 
     # download and install NVIDIA grid driver
     def _install_grid_driver(self, driver_url: str) -> None:
@@ -183,87 +273,3 @@ class Gpu(Feature):
             raise LisaException(
                 f"Distro {self._node.os.name} is not supported for GPU."
             )
-
-    def is_module_loaded(self) -> bool:
-        lsmod_tool = self._node.tools[Lsmod]
-        if (len(self.gpu_vendor) > 0) and all(
-            lsmod_tool.module_exists(vendor) for vendor in self.gpu_vendor
-        ):
-            return True
-
-        return False
-
-    def install_compute_sdk(self, version: str = "") -> None:
-        # install GPU dependencies before installing driver
-        self._install_gpu_dep()
-        try:
-            # install LIS driver if required and not already installed.
-            if LisDriver.can_install:
-                self._node.tools[LisDriver]
-        except Exception as identifier:
-            self._log.debug(
-                "LisDriver is not installed. It might not be required. " f"{identifier}"
-            )
-
-        # install the driver
-        supported_driver = self._get_supported_driver()
-        for driver in supported_driver:
-            if driver == ComputeSDK.GRID:
-                if not version:
-                    version = DEFAULT_GRID_DRIVER_URL
-                    self._install_grid_driver(version)
-                    self.gpu_vendor.add("nvidia")
-            elif driver == ComputeSDK.CUDA:
-                if not version:
-                    version = DEFAULT_CUDA_DRIVER_VERSION
-                    self._install_cuda_driver(version)
-                    self.gpu_vendor.add("nvidia")
-            else:
-                raise LisaException(f"{driver} is not a valid value of ComputeSDK")
-
-        if not self.gpu_vendor:
-            raise LisaException("No supported gpu driver/vendor found for this node.")
-
-    def get_gpu_count_with_lsvmbus(self) -> int:
-        lsvmbus_device_count = 0
-        bridge_device_count = 0
-
-        lsvmbus_tool = self._node.tools[Lsvmbus]
-        device_list = lsvmbus_tool.get_device_channels()
-        for device in device_list:
-            for name, id, bridge_count in self.gpu_devices:
-                if id in device.device_id:
-                    lsvmbus_device_count += 1
-                    bridge_device_count = bridge_count
-                    self._log.debug(f"GPU device {name} found!")
-                    break
-
-        return lsvmbus_device_count - bridge_device_count
-
-    def get_gpu_count_with_lspci(self) -> int:
-        lspci_tool = self._node.tools[Lspci]
-        device_list = lspci_tool.get_device_list_per_device_type(
-            constants.DEVICE_TYPE_GPU
-        )
-
-        return len(device_list)
-
-    def get_gpu_count_with_vendor_cmd(self) -> int:
-        device_count = 0
-
-        if "nvidia" in self.gpu_vendor:
-            # sample output
-            # GPU 0: Tesla P100-PCIE-16GB (UUID: GPU-0609318e-4920-44d8-a9fd-7bae639f7c5d)# noqa: E501
-            # GPU 1: Tesla P100-PCIE-16GB (UUID: GPU-ede45443-35ad-8d4e-f40d-988423bc6c0b)# noqa: E501
-            # GPU 2: Tesla P100-PCIE-16GB (UUID: GPU-ccd6174e-b288-b73c-682e-054c83ef3a3e)# noqa: E501
-            # GPU 3: Tesla P100-PCIE-16GB (UUID: GPU-225b4607-ceba-5806-d41a-49ccbcf9794d)# noqa: E501
-            result = self._node.execute("nvidia-smi -L", shell=True)
-            if result.exit_code != 0 or (result.exit_code == 0 and result.stdout == ""):
-                raise LisaException(
-                    f"nvidia-smi command exited with exit_code {result.exit_code}"
-                )
-            gpu_types = [x[0] for x in self.gpu_devices]
-            for gpu_type in gpu_types:
-                device_count += result.stdout.count(gpu_type)
-
-        return device_count
