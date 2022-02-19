@@ -48,6 +48,7 @@ from .nm import Nm
 from .ntp import Ntp
 from .ntpstat import Ntpstat
 from .ntttcp import Ntttcp
+from .nvidiasmi import NvidiaSmi
 from .nvmecli import Nvmecli
 from .parted import Parted
 from .pgrep import Pgrep, ProcessInfo
@@ -121,6 +122,7 @@ __all__ = [
     "Ntp",
     "Ntpstat",
     "Ntttcp",
+    "NvidiaSmi",
     "Nvmecli",
     "Parted",
     "Pgrep",
