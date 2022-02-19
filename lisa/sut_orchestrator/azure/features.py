@@ -40,6 +40,7 @@ if TYPE_CHECKING:
 
 from .. import AZURE
 from .common import (
+    AzureArmParameter,
     AzureNodeSchema,
     get_compute_client,
     get_network_client,
@@ -167,9 +168,13 @@ class Gpu(AzureFeatureMixin, features.Gpu):
 
 
 class Infiniband(AzureFeatureMixin, features.Infiniband):
-    def _initialize(self, *args: Any, **kwargs: Any) -> None:
-        super()._initialize(*args, **kwargs)
-        self._initialize_information(self._node)
+    @classmethod
+    def on_before_deployment(cls, *args: Any, **kwargs: Any) -> None:
+        arm_parameters: AzureArmParameter = kwargs.pop("arm_parameters")
+
+        arm_parameters.availability_set_properties["platformFaultDomainCount"] = 1
+        arm_parameters.availability_set_properties["platformUpdateDomainCount"] = 1
+        arm_parameters.use_availability_sets = True
 
     def is_over_sriov(self) -> bool:
         lspci = self._node.tools[Lspci]
@@ -181,6 +186,10 @@ class Infiniband(AzureFeatureMixin, features.Infiniband):
     def is_over_nd(self) -> bool:
         dmesg = self._node.tools[Dmesg]
         return "hvnd_try_bind_nic" in dmesg.get_output()
+
+    def _initialize(self, *args: Any, **kwargs: Any) -> None:
+        super()._initialize(*args, **kwargs)
+        self._initialize_information(self._node)
 
 
 class NetworkInterface(AzureFeatureMixin, features.NetworkInterface):

@@ -25,6 +25,7 @@ from marshmallow import validate
 from lisa import schema
 from lisa.environment import Environment
 from lisa.node import Node
+from lisa.secret import PATTERN_HEADTAIL, add_secret
 from lisa.util import LisaException, constants, field_metadata
 from lisa.util.logger import Logger
 from lisa.util.parallel import check_cancelled
@@ -265,6 +266,80 @@ class AzureNodeSchema:
             ), f"actual type: {type(self.marketplace_raw)}"
             result = " ".join([x for x in self.marketplace_raw.values()])
         return result
+
+
+class DataDiskCreateOption:
+    DATADISK_CREATE_OPTION_TYPE_EMPTY: str = "Empty"
+    DATADISK_CREATE_OPTION_TYPE_FROM_IMAGE: str = "FromImage"
+    DATADISK_CREATE_OPTION_TYPE_ATTACH: str = "Attach"
+
+    @staticmethod
+    def get_create_option() -> List[str]:
+        return [
+            DataDiskCreateOption.DATADISK_CREATE_OPTION_TYPE_EMPTY,
+            DataDiskCreateOption.DATADISK_CREATE_OPTION_TYPE_FROM_IMAGE,
+            DataDiskCreateOption.DATADISK_CREATE_OPTION_TYPE_ATTACH,
+        ]
+
+
+@dataclass_json()
+@dataclass
+class DataDiskSchema:
+    caching_type: str = field(
+        default=constants.DATADISK_CACHING_TYPE_NONE,
+        metadata=field_metadata(
+            validate=validate.OneOf(
+                [
+                    constants.DATADISK_CACHING_TYPE_NONE,
+                    constants.DATADISK_CACHING_TYPE_READONLY,
+                    constants.DATADISK_CACHING_TYPE_READYWRITE,
+                ]
+            )
+        ),
+    )
+    size: int = 32
+    type: str = field(
+        default=schema.DiskType.StandardHDDLRS,
+        metadata=field_metadata(
+            validate=validate.OneOf(
+                [
+                    schema.DiskType.StandardHDDLRS,
+                    schema.DiskType.StandardSSDLRS,
+                    schema.DiskType.PremiumSSDLRS,
+                    schema.DiskType.Ephemeral,
+                ]
+            )
+        ),
+    )
+    create_option: str = field(
+        default=DataDiskCreateOption.DATADISK_CREATE_OPTION_TYPE_EMPTY,
+        metadata=field_metadata(
+            validate=validate.OneOf(DataDiskCreateOption.get_create_option())
+        ),
+    )
+
+
+@dataclass_json()
+@dataclass
+class AzureArmParameter:
+    storage_name: str = ""
+    location: str = ""
+    admin_username: str = ""
+    admin_password: str = ""
+    admin_key_data: str = ""
+    subnet_count: int = 1
+    shared_resource_group_name: str = AZURE_SHARED_RG_NAME
+    availability_set_tags: Dict[str, str] = field(default_factory=dict)
+    availability_set_properties: Dict[str, Any] = field(default_factory=dict)
+    nodes: List[AzureNodeSchema] = field(default_factory=list)
+    data_disks: List[DataDiskSchema] = field(default_factory=list)
+    use_availability_sets: bool = False
+    vm_tags: Dict[str, Any] = field(default_factory=dict)
+
+    def __post_init__(self, *args: Any, **kwargs: Any) -> None:
+        add_secret(self.admin_username, PATTERN_HEADTAIL)
+        add_secret(self.admin_password)
+        add_secret(self.admin_key_data)
 
 
 def get_compute_client(
@@ -530,57 +605,6 @@ def delete_file_share(
         credential, subscription_id, account_name, resource_group_name
     )
     share_service_client.delete_share(file_share_name)
-
-
-class DataDiskCreateOption:
-    DATADISK_CREATE_OPTION_TYPE_EMPTY: str = "Empty"
-    DATADISK_CREATE_OPTION_TYPE_FROM_IMAGE: str = "FromImage"
-    DATADISK_CREATE_OPTION_TYPE_ATTACH: str = "Attach"
-
-    @staticmethod
-    def get_create_option() -> List[str]:
-        return [
-            DataDiskCreateOption.DATADISK_CREATE_OPTION_TYPE_EMPTY,
-            DataDiskCreateOption.DATADISK_CREATE_OPTION_TYPE_FROM_IMAGE,
-            DataDiskCreateOption.DATADISK_CREATE_OPTION_TYPE_ATTACH,
-        ]
-
-
-@dataclass_json()
-@dataclass
-class DataDiskSchema:
-    caching_type: str = field(
-        default=constants.DATADISK_CACHING_TYPE_NONE,
-        metadata=field_metadata(
-            validate=validate.OneOf(
-                [
-                    constants.DATADISK_CACHING_TYPE_NONE,
-                    constants.DATADISK_CACHING_TYPE_READONLY,
-                    constants.DATADISK_CACHING_TYPE_READYWRITE,
-                ]
-            )
-        ),
-    )
-    size: int = 32
-    type: str = field(
-        default=schema.DiskType.StandardHDDLRS,
-        metadata=field_metadata(
-            validate=validate.OneOf(
-                [
-                    schema.DiskType.StandardHDDLRS,
-                    schema.DiskType.StandardSSDLRS,
-                    schema.DiskType.PremiumSSDLRS,
-                    schema.DiskType.Ephemeral,
-                ]
-            )
-        ),
-    )
-    create_option: str = field(
-        default=DataDiskCreateOption.DATADISK_CREATE_OPTION_TYPE_EMPTY,
-        metadata=field_metadata(
-            validate=validate.OneOf(DataDiskCreateOption.get_create_option())
-        ),
-    )
 
 
 class DataDisk:
