@@ -41,7 +41,7 @@ from lisa.environment import Environment
 from lisa.features import NvmeSettings
 from lisa.node import Node, RemoteNode
 from lisa.platform_ import Platform
-from lisa.secret import PATTERN_GUID, PATTERN_HEADTAIL, add_secret
+from lisa.secret import PATTERN_GUID, add_secret
 from lisa.tools import Dmesg, Modinfo
 from lisa.util import (
     LisaException,
@@ -59,6 +59,7 @@ from .. import AZURE
 from . import features
 from .common import (
     AZURE_SHARED_RG_NAME,
+    AzureArmParameter,
     AzureNodeSchema,
     AzureVmMarketplaceSchema,
     AzureVmPurchasePlanSchema,
@@ -186,29 +187,6 @@ class AzureLocation:
     )
     location: str = ""
     capabilities: List[AzureCapability] = field(default_factory=list)
-
-
-@dataclass_json()
-@dataclass
-class AzureArmParameter:
-    storage_name: str = ""
-    location: str = ""
-    admin_username: str = ""
-    admin_password: str = ""
-    admin_key_data: str = ""
-    subnet_count: int = 1
-    shared_resource_group_name: str = AZURE_SHARED_RG_NAME
-    availability_set_tags: Dict[str, str] = field(default_factory=dict)
-    availability_set_properties: Dict[str, Any] = field(default_factory=dict)
-    nodes: List[AzureNodeSchema] = field(default_factory=list)
-    data_disks: List[DataDiskSchema] = field(default_factory=list)
-    use_availability_sets: bool = False
-    vm_tags: Dict[str, Any] = field(default_factory=dict)
-
-    def __post_init__(self, *args: Any, **kwargs: Any) -> None:
-        add_secret(self.admin_username, PATTERN_HEADTAIL)
-        add_secret(self.admin_password)
-        add_secret(self.admin_key_data)
 
 
 @dataclass_json()
@@ -977,6 +955,8 @@ class AzurePlatform(Platform):
         environment_context = get_environment_context(environment=environment)
         arm_parameters.vm_tags["RG"] = environment_context.resource_group_name
         nodes_parameters: List[AzureNodeSchema] = []
+        features_settings: Dict[str, schema.FeatureSettings] = {}
+
         for node_space in environment.runbook.nodes_requirement:
             assert isinstance(
                 node_space, schema.NodeSpace
@@ -1021,6 +1001,13 @@ class AzurePlatform(Platform):
             node_context.password = arm_parameters.admin_password
             node_context.private_key_file = self.runbook.admin_private_key_file
 
+            # collect all features to handle special deployment logic. If one
+            # node has this, it needs to run.
+            if node.capability.features:
+                for f in node.capability.features:
+                    if f.type not in features_settings:
+                        features_settings[f.type] = f
+
             log.info(f"vm setting: {azure_node_runbook}")
 
         arm_parameters.nodes = nodes_parameters
@@ -1031,14 +1018,6 @@ class AzurePlatform(Platform):
             self._azure_runbook.availability_set_properties
             or self._azure_runbook.availability_set_tags
         ):
-            arm_parameters.use_availability_sets = True
-
-        if any(
-            x.capability.has_feature(features.Infiniband.name())
-            for x in environment.nodes.list()
-        ):
-            arm_parameters.availability_set_properties["platformFaultDomainCount"] = 1
-            arm_parameters.availability_set_properties["platformUpdateDomainCount"] = 1
             arm_parameters.use_availability_sets = True
 
         # In Azure, each VM should have only one nic in one subnet. So calculate
@@ -1055,6 +1034,19 @@ class AzurePlatform(Platform):
         plugin_manager.hook.azure_update_arm_template(
             template=template, environment=environment
         )
+
+        # change deployment for each feature.
+        for f in features_settings.values():
+            feature_type = next(
+                x for x in self.supported_features() if x.name() == f.type
+            )
+            feature_type.on_before_deployment(
+                arm_parameters=arm_parameters,
+                template=template,
+                settings=f,
+                environment=environment,
+                log=log,
+            )
 
         # composite deployment properties
         parameters = arm_parameters.to_dict()  # type:ignore

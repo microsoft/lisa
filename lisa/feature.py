@@ -62,6 +62,15 @@ class Feature(InitializableMixin):
         else:
             raise LisaException(f"unsupported feature setting type: {type(feature)}")
 
+    @classmethod
+    def on_before_deployment(cls, *args: Any, **kwargs: Any) -> None:
+        """
+        If a feature need to change something before deployment, it needs to
+        implement this method. When this method is called, determinated by the
+        platform.
+        """
+        ...
+
     def _initialize(self, *args: Any, **kwargs: Any) -> None:
         """
         override for initializing
@@ -86,6 +95,9 @@ class Features:
                 self._feature_settings[feature_settings.type] = feature_settings
         if node.capability.disk:
             self._feature_settings[constants.FEATURE_DISK] = node.capability.disk
+
+    def is_supported(self, feature_type: Type[T_FEATURE]) -> bool:
+        return feature_type.name() in self._feature_types
 
     def __getitem__(self, feature_type: Type[T_FEATURE]) -> T_FEATURE:
         feature_name = feature_type.name()
@@ -112,9 +124,6 @@ class Features:
 
         assert feature
         return cast(T_FEATURE, feature)
-
-    def is_supported(self, feature_type: Type[T_FEATURE]) -> bool:
-        return feature_type.name() in self._feature_types
 
 
 def get_feature_settings_type_by_name(
