@@ -72,7 +72,8 @@ Visual Studio Code
             "reportImportCycles": "none",
             "reportUnnecessaryIsInstance": "none",
             "reportPrivateImportUsage": "none",
-            "reportUnusedImport": "none"
+            "reportUnusedImport": "none",
+            "reportUnusedFunction": "none",
          },
          "python.languageServer": "Pylance"
       }
