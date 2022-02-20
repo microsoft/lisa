@@ -49,7 +49,7 @@ class GpuTestSuite(TestSuite):
         ),
         priority=1,
     )
-    def validate_load_gpu_driver(self, node: Node, log_path: Path, log: Logger) -> None:
+    def verify_load_gpu_driver(self, node: Node, log_path: Path, log: Logger) -> None:
         gpu_feature = node.features[Gpu]
         if not gpu_feature.is_supported():
             raise SkippedException(f"GPU is not supported with distro {node.os.name}")
@@ -75,9 +75,7 @@ class GpuTestSuite(TestSuite):
         ),
         priority=2,
     )
-    def validate_gpu_adapter_count(
-        self, node: Node, log_path: Path, log: Logger
-    ) -> None:
+    def verify_gpu_adapter_count(self, node: Node, log_path: Path, log: Logger) -> None:
         gpu_feature = node.features[Gpu]
         if not gpu_feature.is_supported():
             raise SkippedException(f"GPU is not supported with distro {node.os.name}")
@@ -117,7 +115,7 @@ class GpuTestSuite(TestSuite):
             supported_features=[Gpu],
         ),
     )
-    def gpu_rescind_validation(self, node: Node) -> None:
+    def verify_gpu_rescind_validation(self, node: Node) -> None:
         lspci = node.tools[Lspci]
         # 1. Disable GPU devices.
         lspci.disable_devices(device_type=constants.DEVICE_TYPE_GPU)
