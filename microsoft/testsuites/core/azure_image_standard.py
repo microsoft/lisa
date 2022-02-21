@@ -582,10 +582,11 @@ class AzureImageStandard(TestSuite):
         use_new_environment=True,
     )
     def verify_bash_history_is_empty(self, node: Node) -> None:
-        cat = node.tools[Cat]
-        path_bash_history = node.get_pure_path("/root/.bash_history")
-        if path_bash_history:
-            bash_history = cat.read(str(path_bash_history), sudo=True)
+        path_bash_history = "/root/.bash_history"
+        cmd_result = node.execute(f"ls -lt {path_bash_history}", sudo=True, shell=True)
+        if 0 == cmd_result.exit_code:
+            cat = node.tools[Cat]
+            bash_history = cat.read(path_bash_history, sudo=True)
             assert_that(bash_history).described_as(
                 "/root/.bash_history is not empty, this image is not prepared well."
             ).is_empty()
