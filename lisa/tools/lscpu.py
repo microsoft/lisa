@@ -8,10 +8,11 @@ from typing import Any, List, Optional, Type
 from assertpy import assert_that
 
 from lisa.executable import Tool
+from lisa.util import LisaException
 
 CpuType = Enum(
     "CpuType",
-    ["AMD", "Intel"],
+    ["AMD", "Intel", "ARM"],
 )
 
 
@@ -192,7 +193,12 @@ class Lscpu(Tool):
             return CpuType.AMD
         elif "GenuineIntel" in result.stdout:
             return CpuType.Intel
-        return CpuType.Intel
+        elif "ARM" in result.stdout:
+            return CpuType.ARM
+        else:
+            raise LisaException(
+                f"Unknow cpu type. The output of lscpu is {result.stdout}"
+            )
 
     def get_cpu_info(self) -> List[CPUInfo]:
         # `lscpu --extended=cpu,node,socket,cache` command return the
