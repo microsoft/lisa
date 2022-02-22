@@ -3,7 +3,7 @@
 
 import re
 from pathlib import PurePosixPath
-from typing import cast
+from typing import List, Pattern, cast
 
 from assertpy.assertpy import assert_that
 
@@ -58,6 +58,148 @@ class AzureImageStandard(TestSuite):
     _redhat_repo_regex = re.compile(
         r"rhui-(?P<name>\S+)\s+(?P<source>\S+)\s+(enabled|disabled)"
     )
+
+    # pattern to get failure, error, warnings from dmesg, syslog/messages
+    _error_fail_warnings_pattern: List[Pattern[str]] = [
+        re.compile(r"^(.*fail.*)$", re.MULTILINE),
+        re.compile(r"^(.*error.*)$", re.MULTILINE),
+        re.compile(r"^(.*warning.*)$", re.MULTILINE),
+    ]
+
+    # ignorable failure, error, warnings pattern which got confirmed
+    _error_fail_warnings_ignorable_str_list: List[Pattern[str]] = [
+        re.compile(r"^(.*Perf event create on CPU 0 failed with -2.*)$", re.M),
+        re.compile(r"^(.*Fast TSC calibration.*)$", re.M),
+        re.compile(r"^(.*acpi PNP0A03:00.*)$", re.M),
+        re.compile(r"^(.*systemd-journald-audit.socket.*)$", re.M),
+        re.compile(
+            r"^(.*Failed to set file attributes: Inappropriate ioctl for device.*)$",
+            re.M,
+        ),
+        re.compile(
+            r"^(.*Failed to create new system journal: No such file or directory.*)$",
+            re.M,
+        ),
+        re.compile(r"^(.*failed to get extended button data.*)$", re.M),
+        re.compile(r"^(.*ipmi_si.*)$", re.M),
+        re.compile(r"^(.*pci_root PNP0A03:00.*)$", re.M),
+        re.compile(r"^(.*disabling PCIe ASPM.*)$", re.M),
+        re.compile(r"^(.*systemd-journald.*)$", re.M),
+        re.compile(r"^(.*Cannot add dependency job.*)$", re.M),
+        re.compile(r"^(.*failsafe.*)$", re.M),
+        re.compile(r"^(.*startpar-bridge.*)$", re.M),
+        re.compile(r"^(.*Failed to spawn.*)$", re.M),
+        re.compile(r"^(.*display-manager.service.*)$", re.M),
+        re.compile(r"^(.*ACPI PCC probe failed.*)$", re.M),
+        re.compile(r"^(.*Failed to access perfctr msr.*)$", re.M),
+        re.compile(r"^(.*Failed to init entropy source hwrng.*)$", re.M),
+        re.compile(r"^(.*augenrules.*: failure 1.*)$", re.M),
+        re.compile(
+            r"^(.*microcode_ctl: kernel version .* failed early load check for .*, skipping.*)$",  # noqa: E501
+            re.M,
+        ),
+        re.compile(
+            r"^(.*rngd: Failed to init entropy source 0: Hardware RNG Device.*)$", re.M
+        ),
+        re.compile(
+            r"^(.*open /dev/vmbus/hv_fcopy failed; error: 2 No such file or directory.*)$",  # noqa: E501
+            re.M,
+        ),
+        re.compile(
+            r"^(.*open /dev/vmbus/hv_vss failed; error: 2 No such file or directory.*)$",  # noqa: E501
+            re.M,
+        ),
+        re.compile(
+            r"^(.*hv-vss-daemon.service: Main process exited, code=exited, status=1/FAILURE.*)$",  # noqa: E501
+            re.M,
+        ),
+        re.compile(
+            r"^(.*hv-vss-daemon.service: Failed with result 'exit-code'.*)$", re.M
+        ),
+        re.compile(
+            r"^(.*hv-fcopy-daemon.service: Main process exited, code=exited, status=1/FAILURE.*)$",  # noqa: E501
+            re.M,
+        ),
+        re.compile(
+            r"^(.*hv-fcopy-daemon.service: Failed with result 'exit-code'.*)$", re.M
+        ),
+        re.compile(r"^(.*dnf.*: Failed determining last makecache time.*)$", re.M),
+        re.compile(
+            r"^(.*dbus-daemon.*: .system. Activation via systemd failed for unit 'dbus-org.freedesktop.resolve1.service': Unit dbus-org.freedesktop.resolve1.service not found.*)$",  # noqa: E501
+            re.M,
+        ),
+        re.compile(r"^(.*TLS record write failed.*)$", re.M),
+        re.compile(r"^(.*state ensure error.*)$", re.M),
+        re.compile(r"^(.*got unexpected HTTP status code.*)$", re.M),
+        re.compile(
+            r'^(.*Error getting hardware address for "eth0": No such device.*)$', re.M
+        ),
+        re.compile(r"^(.*codec can't encode character.*)$", re.M),
+        re.compile(
+            r"^(.*Failed to set certificate key file \\[gnutls error -64: Error while reading file.\\].*)$",  # noqa: E501
+            re.M,
+        ),
+        re.compile(
+            r"^(.*audispd: Error - /etc/audisp/plugins.d/wdgsmart-syslog.conf isn't owned by root.*)$",  # noqa: E501
+            re.M,
+        ),
+        re.compile(
+            r"^(.*Condition check resulted in Process error reports when automatic reporting is enabled.*)$",  # noqa: E501
+            re.M,
+        ),
+        re.compile(
+            r"^(.*error trying to compare the snap system key: system-key missing on disk.*)$",  # noqa: E501
+            re.M,
+        ),
+        re.compile(
+            r"^(.*open /dev/vmbus/hv_fcopy failed; error: 2 No such file or directory.*)$",  # noqa: E501
+            re.M,
+        ),
+        re.compile(
+            r"^(.*open /dev/vmbus/hv_vss failed; error: 2 No such file or directory.*)$",  # noqa: E501
+            re.M,
+        ),
+        re.compile(r"^(.*mitigating potential DNS violation DVE-2018-0001.*)$", re.M),
+        re.compile(r"^(.*end_request: I/O error, dev fd0, sector 0.*)$", re.M),
+        re.compile(r"^(.*blk_update_request: I/O error, dev fd0, sector 0.*)$", re.M),
+        re.compile(r"^(.*floppy: error -5 while reading block 0.*)$", re.M),
+        re.compile(r"^(.*Broken pipe.*)$", re.M),
+        re.compile(r"^(.*errors=remount-ro.*)$", re.M),
+        re.compile(
+            r"^(.*smartd.*: Device: /dev/.*, Bad IEC \\(SMART\\) mode page, err=5, skip device.*)$",  # noqa: E501
+            re.M,
+        ),
+        re.compile(r"^(.*GPT: Use GNU Parted to correct GPT errors.*)$", re.M),
+        re.compile(r"^(.*RAS: Correctable Errors collector initialized.*)$", re.M),
+        re.compile(r"^(.*BERT: Boot Error Record Table support is disabled.*)$", re.M),
+        re.compile(r"^( Enable it by using bert_enable as kernel parameter.*)$", re.M),
+        re.compile(
+            r"^(.*WARNING Daemon VM is provisioned, but the VM unique identifie has changed -- clearing cached state.*)$",  # noqa: E501
+            re.M,
+        ),
+        re.compile(r"^(.*WARNING! Cached DHCP leases will be deleted.*)$", re.M),
+        re.compile(
+            r"^(.*Unconfined exec qualifier \\(ux\\) allows some dangerous environment variables.*)$",  # noqa: E501
+            re.M,
+        ),
+        re.compile(r"^(.*Stopped Write warning to Azure ephemeral disk.*)$", re.M),
+        re.compile(r"^(.*reloading interface list.*)$", re.M),
+        re.compile(r"^(.*Server preferred version:.*)$", re.M),
+        re.compile(r"^(.*WARNING Hostname record does not exist,.*)$", re.M),
+        re.compile(r"^(.*Dhcp client is not running.*)$", re.M),
+        re.compile(r"^(.*Starting Write warning to Azure ephemeral disk.*)$", re.M),
+        re.compile(r"^(.*Added ephemeral disk warning to.*)$", re.M),
+        re.compile(r"^(.*Proceeding WITHOUT firewalling in effect!.*)$", re.M),
+        re.compile(r"^(.*urandom warning\\(s\\) missed due to ratelimiting.*)$", re.M),
+        re.compile(
+            r"^(.*kdumpctl.*: Warning: There might not be enough space to save a vmcore.*)$",  # noqa: E501
+            re.M,
+        ),
+        re.compile(
+            r"^(.*WARNING ExtHandler ExtHandler cgroups v2 mounted at.*)$", re.M
+        ),
+        re.compile(r"^(.*dataloss warning file.*)$", re.M),
+    ]
 
     @TestCaseMetadata(
         description="""
@@ -590,3 +732,52 @@ class AzureImageStandard(TestSuite):
             assert_that(bash_history).described_as(
                 "/root/.bash_history is not empty, this image is not prepared well."
             ).is_empty()
+
+    @TestCaseMetadata(
+        description="""
+        This test will check error, failure, warning messages from demsg,
+         /var/log/syslog or /var/log/messages file.
+
+        Steps:
+        1. Get failure, error, warning messages from dmesg, /var/log/syslog or
+         /var/log/messages file.
+        2. If any unexpected failure, error, warning messages excluding ignorable ones
+         existing, fail the case.
+        """,
+        priority=1,
+    )
+    def verify_boot_error_fail_warnings(self, node: Node) -> None:
+        dmesg = node.tools[Dmesg]
+        cat = node.tools[Cat]
+        log_output = dmesg.get_output(force_run=True)
+        if node.shell.exists(node.get_pure_path("/var/log/syslog")):
+            log_output += cat.read("/var/log/syslog", force_run=True, sudo=True)
+        if node.shell.exists(node.get_pure_path("/var/log/messages")):
+            log_output += cat.read("/var/log/messages", force_run=True, sudo=True)
+
+        ignored_candidates = list(
+            (
+                set(
+                    [
+                        x
+                        for sublist in find_patterns_in_lines(
+                            log_output, self._error_fail_warnings_ignorable_str_list
+                        )
+                        for x in sublist
+                        if x
+                    ]
+                )
+            )
+        )
+        found_results = [
+            x
+            for sublist in find_patterns_in_lines(
+                log_output, self._error_fail_warnings_pattern
+            )
+            for x in sublist
+            if x and x not in ignored_candidates
+        ]
+        assert_that(found_results).described_as(
+            "unexpected error/failure/warnings shown up in bootup log of distro"
+            f" {node.os.name} {node.os.information.version}"
+        ).is_empty()
