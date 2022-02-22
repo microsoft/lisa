@@ -1,6 +1,7 @@
 # Copyright (c) Microsoft Corporation.
 # Licensed under the MIT license.
 
+import re
 from pathlib import Path
 
 from assertpy import assert_that
@@ -17,7 +18,16 @@ from lisa import (
     simple_requirement,
 )
 from lisa.features import Gpu, SerialConsole
-from lisa.tools import Lspci, NvidiaSmi, Reboot
+from lisa.features.gpu import ComputeSDK
+from lisa.operating_system import Debian
+from lisa.tools import Lspci, NvidiaSmi, Pip, Python, Reboot, Tar, Wget
+from lisa.util import get_matched_str
+
+_cudnn_location = (
+    "https://partnerpipelineshare.blob.core.windows.net/"
+    "packages/cudnn-10.0-linux-x64-v7.5.0.56.tgz"
+)
+_cudnn_file_name = "cudnn.tgz"
 
 
 @TestSuiteMetadata(
@@ -30,6 +40,8 @@ from lisa.tools import Lspci, NvidiaSmi, Reboot
 )
 class GpuTestSuite(TestSuite):
     TIMEOUT = 2000
+
+    _pytorch_pattern = re.compile(r"^gpu count: (?P<count>\d+)", re.M)
 
     @TestCaseMetadata(
         description="""
@@ -50,10 +62,6 @@ class GpuTestSuite(TestSuite):
         priority=1,
     )
     def verify_load_gpu_driver(self, node: Node, log_path: Path, log: Logger) -> None:
-        gpu_feature = node.features[Gpu]
-        if not gpu_feature.is_supported():
-            raise SkippedException(f"GPU is not supported with distro {node.os.name}")
-
         _check_driver_installed(node)
 
     @TestCaseMetadata(
@@ -76,10 +84,9 @@ class GpuTestSuite(TestSuite):
         priority=2,
     )
     def verify_gpu_adapter_count(self, node: Node, log_path: Path, log: Logger) -> None:
-        gpu_feature = node.features[Gpu]
-        if not gpu_feature.is_supported():
-            raise SkippedException(f"GPU is not supported with distro {node.os.name}")
+        _check_driver_installed(node)
 
+        gpu_feature = node.features[Gpu]
         assert isinstance(node.capability.gpu_count, int)
         expected_count = node.capability.gpu_count
 
@@ -116,15 +123,79 @@ class GpuTestSuite(TestSuite):
         ),
     )
     def verify_gpu_rescind_validation(self, node: Node) -> None:
+        _check_driver_installed(node)
+
         lspci = node.tools[Lspci]
+        gpu = node.features[Gpu]
+
         # 1. Disable GPU devices.
-        lspci.disable_devices(device_type=constants.DEVICE_TYPE_GPU)
+        gpu_devices = lspci.get_devices_by_type(device_type=constants.DEVICE_TYPE_GPU)
+        gpu_devices = gpu.remove_virtual_gpus(gpu_devices)
+
+        for device in gpu_devices:
+            lspci.disable_device(device)
+
         # 2. Enable GPU devices.
         lspci.enable_devices()
 
+    @TestCaseMetadata(
+        description="""
+        This test case will run PyTorch to check CUDA driver installed correctly.
+
+        1. Install PyTorch.
+        2. Check GPU count by torch.cuda.device_count()
+        3. Compare with PCI result
+        """,
+        priority=3,
+        requirement=simple_requirement(
+            supported_features=[Gpu],
+        ),
+    )
+    def verify_gpu_cuda_with_pytorch(self, node: Node) -> None:
+        _check_driver_installed(node)
+
+        _install_cudnn(node)
+
+        gpu = node.features[Gpu]
+
+        pip = node.tools[Pip]
+        if not pip.exists_package("torch"):
+            pip.install_packages("torch")
+
+        gpu_script = "import torch;print(f'gpu count: {torch.cuda.device_count()}')"
+        python = node.tools[Python]
+        expected_count = gpu.get_gpu_count_with_lspci()
+
+        script_result = python.run(
+            f'-c "{gpu_script}"',
+            force_run=True,
+        )
+        gpu_count_str = get_matched_str(script_result.stdout, self._pytorch_pattern)
+        script_result.assert_exit_code(
+            message=f"failed on run gpu script: {gpu_script}, "
+            f"output: {script_result.stdout}"
+        )
+
+        assert_that(gpu_count_str).described_as(
+            f"gpu count is not in result: {script_result.stdout}"
+        ).is_not_empty()
+
+        gpu_count = int(gpu_count_str)
+        assert_that(gpu_count).described_as(
+            "GPU must be greater than zero."
+        ).is_greater_than(0)
+        assert_that(gpu_count).described_as(
+            "cannot detect GPU from PyTorch"
+        ).is_equal_to(expected_count)
+
 
 def _check_driver_installed(node: Node) -> None:
+    gpu = node.features[Gpu]
 
+    if not gpu.is_supported():
+        raise SkippedException(f"GPU is not supported with distro {node.os.name}")
+    if ComputeSDK.AMD in gpu.get_supported_driver():
+        raise SkippedException("AMD vm sizes is not supported")
     try:
         _ = node.tools[NvidiaSmi]
     except Exception as identifier:
@@ -132,6 +203,31 @@ def _check_driver_installed(node: Node) -> None:
             f"Cannot find nvidia-smi, make sure the driver installed correctly. "
             f"Inner exception: {identifier}"
         )
+
+
+def _install_cudnn(node: Node) -> None:
+    wget = node.tools[Wget]
+    tar = node.tools[Tar]
+
+    path = wget.get_tool_path(use_global=True)
+    extracted_path = tar.get_tool_path(use_global=True)
+    if node.shell.exists(path / _cudnn_file_name):
+        return
+
+    download_path = wget.get(
+        url=_cudnn_location, filename=str(_cudnn_file_name), file_path=str(path)
+    )
+    tar.extract(download_path, dest_dir=str(extracted_path))
+    if isinstance(node.os, Debian):
+        target_path = "/usr/lib/x86_64-linux-gnu/"
+    else:
+        target_path = "/usr/lib64/"
+    node.execute(
+        f"cp -p {extracted_path}/cuda/lib64/libcudnn* {target_path}",
+        shell=True,
+        sudo=True,
+    )
+    return
 
 
 # We use platform to install the driver by default. If in future, it needs to

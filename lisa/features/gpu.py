@@ -30,11 +30,10 @@ DEFAULT_GRID_DRIVER_URL = "https://go.microsoft.com/fwlink/?linkid=874272"
 DEFAULT_CUDA_DRIVER_VERSION = "10.1.105-1"
 
 
-class ComputeSDK(Enum):
-    # GRID Driver
-    GRID = 1
-    # CUDA Driver
-    CUDA = 2
+class ComputeSDK(str, Enum):
+    GRID = "GRID"
+    CUDA = "CUDA"
+    AMD = "AMD"
 
 
 class Gpu(Feature):
@@ -84,6 +83,10 @@ class Gpu(Feature):
         ):
             cls._install_by_platform(*args, **kwargs)
 
+    @classmethod
+    def remove_virtual_gpus(cls, devices: List[PciDevice]) -> List[PciDevice]:
+        return [x for x in devices if x.vendor != "Microsoft Corporation"]
+
     def is_supported(self) -> bool:
         raise NotImplementedError
 
@@ -109,7 +112,7 @@ class Gpu(Feature):
             )
 
         # install the driver
-        supported_driver = self._get_supported_driver()
+        supported_driver = self.get_supported_driver()
         for driver in supported_driver:
             if driver == ComputeSDK.GRID:
                 if not version:
@@ -146,6 +149,8 @@ class Gpu(Feature):
     def get_gpu_count_with_lspci(self) -> int:
         lspci_tool = self._node.tools[Lspci]
         device_list = lspci_tool.get_devices_by_type(constants.DEVICE_TYPE_GPU)
+        # Remove Microsoft Virtual one. It presents with GRID driver.
+        device_list = self.remove_virtual_gpus(device_list)
 
         return len(device_list)
 
@@ -153,14 +158,14 @@ class Gpu(Feature):
         nvidiasmi = self._node.tools[NvidiaSmi]
         return nvidiasmi.get_gpu_count()
 
+    def get_supported_driver(self) -> List[ComputeSDK]:
+        raise NotImplementedError()
+
     def _initialize(self, *args: Any, **kwargs: Any) -> None:
         self.gpu_vendor: Set[str] = set()
 
     @classmethod
     def _install_by_platform(cls, *args: Any, **kwargs: Any) -> None:
-        raise NotImplementedError()
-
-    def _get_supported_driver(self) -> List[ComputeSDK]:
         raise NotImplementedError()
 
     # download and install NVIDIA grid driver

@@ -22,7 +22,7 @@ from azure.mgmt.compute.models import (  # type: ignore
 from dataclasses_json import dataclass_json
 from PIL import Image, UnidentifiedImageError
 
-from lisa import Logger, features, schema, search_space
+from lisa import Environment, Logger, features, schema, search_space
 from lisa.features import NvmeSettings
 from lisa.features.gpu import ComputeSDK
 from lisa.features.resize import ResizeAction
@@ -135,10 +135,9 @@ class SerialConsole(AzureFeatureMixin, features.SerialConsole):
 
 
 class Gpu(AzureFeatureMixin, features.Gpu):
-    _grid_supported_skus = ["Standard_NV"]
-    _cuda_supported_skus = ["Standard_NC", "Standard_ND"]
-    _gpu_extension_template = json.loads(
-        """
+    _grid_supported_skus = re.compile(r"^Standard_[^_]+(_v3)?$", re.I)
+    _amd_supported_skus = re.compile(r"^Standard_[^_]+_v4$", re.I)
+    _gpu_extension_template = """
         {
         "name": "[concat(parameters('nodes')[copyIndex('vmCopy')]['name'], '/gpu-extension')]",
         "type": "Microsoft.Compute/virtualMachines/extensions",
@@ -150,8 +149,12 @@ class Gpu(AzureFeatureMixin, features.Gpu):
         },
         "dependsOn": [
             "[concat('Microsoft.Compute/virtualMachines/', parameters('nodes')[copyIndex('vmCopy')]['name'])]"
-        ],
-        "properties": {
+        ]
+    }
+    """  # noqa: E501
+    _gpu_extension_nvidia_properties = json.loads(
+        """
+        {
             "publisher": "Microsoft.HpcCompute",
             "type": "NvidiaGpuDriverLinux",
             "typeHandlerVersion": "1.6",
@@ -159,8 +162,7 @@ class Gpu(AzureFeatureMixin, features.Gpu):
             "settings": {
             }
         }
-    }
-    """  # noqa: E501
+    """
     )
 
     def is_supported(self) -> bool:
@@ -171,27 +173,17 @@ class Gpu(AzureFeatureMixin, features.Gpu):
 
         return False
 
-    def _initialize(self, *args: Any, **kwargs: Any) -> None:
-        super()._initialize(*args, **kwargs)
-        self._initialize_information(self._node)
-
-    @classmethod
-    def _install_by_platform(cls, *args: Any, **kwargs: Any) -> None:
-
-        template: Any = kwargs.get("template")
-        log = cast(Logger, kwargs.get("log"))
-        log.debug("updating arm template to support GPU extension.")
-        resources = template["resources"]
-        resources.append(cls._gpu_extension_template)
-
-    def _get_supported_driver(self) -> List[ComputeSDK]:
+    def get_supported_driver(self) -> List[ComputeSDK]:
         driver_list = []
         node_runbook = self._node.capability.get_extended_runbook(
             AzureNodeSchema, AZURE
         )
-        if any(map((node_runbook.vm_size).__contains__, self._grid_supported_skus)):
+        if re.match(self._grid_supported_skus, node_runbook.vm_size):
             driver_list.append(ComputeSDK.GRID)
-        if any(map((node_runbook.vm_size).__contains__, self._cuda_supported_skus)):
+        elif re.match(self._amd_supported_skus, node_runbook.vm_size):
+            driver_list.append(ComputeSDK.AMD)
+            self._is_nvidia: bool = False
+        else:
             driver_list.append(ComputeSDK.CUDA)
 
         if not driver_list:
@@ -200,6 +192,32 @@ class Gpu(AzureFeatureMixin, features.Gpu):
                 f" {node_runbook.vm_size}."
             )
         return driver_list
+
+    def _initialize(self, *args: Any, **kwargs: Any) -> None:
+        super()._initialize(*args, **kwargs)
+        self._initialize_information(self._node)
+        self._is_nvidia = True
+
+    @classmethod
+    def _install_by_platform(cls, *args: Any, **kwargs: Any) -> None:
+
+        template: Any = kwargs.get("template")
+        environment = cast(Environment, kwargs.get("environment"))
+        log = cast(Logger, kwargs.get("log"))
+        log.debug("updating arm template to support GPU extension.")
+        resources = template["resources"]
+
+        # load a copy to avoid side effect.
+        gpu_template = json.loads(cls._gpu_extension_template)
+
+        node: Node = environment.nodes[0]
+        runbook = node.capability.get_extended_runbook(AzureNodeSchema)
+        if re.match(cls._amd_supported_skus, runbook.vm_size):
+            # skip AMD, because no AMD GPU Linux extension.
+            ...
+        else:
+            gpu_template["properties"] = cls._gpu_extension_nvidia_properties
+            resources.append(gpu_template)
 
 
 class Infiniband(AzureFeatureMixin, features.Infiniband):
@@ -213,7 +231,7 @@ class Infiniband(AzureFeatureMixin, features.Infiniband):
 
     def is_over_sriov(self) -> bool:
         lspci = self._node.tools[Lspci]
-        device_list = lspci.get_device_list()
+        device_list = lspci.get_devices()
         return any("Virtual Function" in device.device_info for device in device_list)
 
     # nd stands for network direct
