@@ -57,7 +57,7 @@ def connect_nested_vm(
     host.tools[Qemu].create_vm(
         guest_port,
         f"{image_folder_path}/{image_name}",
-        disks,
+        disks=disks,
         stop_existing_vm=stop_existing_vm,
     )
 
