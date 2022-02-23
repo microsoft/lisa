@@ -8,6 +8,7 @@ from assertpy import assert_that
 
 from lisa.executable import Tool
 from lisa.tools import Cat
+from lisa.tools.whoami import Whoami
 from lisa.util import LisaException
 
 
@@ -52,6 +53,16 @@ class Ip(Tool):
             ),
         )
 
+    def add_ipv4_address(self, nic_name: str, ip: str) -> None:
+        self.run(
+            f"addr add {ip}/24 dev {nic_name}",
+            sudo=True,
+            expected_exit_code=0,
+            expected_exit_code_failure_message=(
+                f"Could not add address to device {nic_name}"
+            ),
+        )
+
     def restart_device(self, nic_name: str) -> None:
         self.node.execute(
             f"ip link set dev {nic_name} down;ip link set dev {nic_name} up",
@@ -88,3 +99,67 @@ class Ip(Tool):
             )
         finally:
             self.up(nic_name)
+
+    def nic_exists(self, nic_name: str) -> bool:
+        result = self.run(f"link show {nic_name}", force_run=True, sudo=True)
+        return not (
+            (result.stderr and "not exist" in result.stderr)
+            or (result.stdout and "not exist" in result.stdout)
+        )
+
+    def setup_bridge(self, name: str, ip: str) -> None:
+        if self.nic_exists(name):
+            self._log.debug(f"Bridge {name} already exists")
+            return
+
+        # create bridge
+        self.run(
+            f"link add {name} type bridge",
+            force_run=True,
+            sudo=True,
+            expected_exit_code=0,
+            expected_exit_code_failure_message=f"Could not create bridge {name}",
+        )
+        self.add_ipv4_address(name, ip)
+        self.up(name)
+
+    def delete_interface(self, name: str) -> None:
+        # check if the interface exists
+        if not self.nic_exists(name):
+            self._log.debug(f"Interface {name} does not exist")
+            return
+
+        # delete interface
+        self.down(name)
+        self.run(
+            f"link delete {name}",
+            force_run=True,
+            sudo=True,
+            expected_exit_code=0,
+            expected_exit_code_failure_message=f"Could not delete interface {name}",
+        )
+
+    def setup_tap(self, name: str, bridge: str) -> None:
+        if self.nic_exists(name):
+            self._log.debug(f"Tap {name} already exists")
+            return
+
+        # create tap
+        user = self.node.tools[Whoami].run().stdout.strip()
+        self.run(
+            f"tuntap add {name} mode tap user {user} multi_queue",
+            force_run=True,
+            sudo=True,
+            expected_exit_code=0,
+            expected_exit_code_failure_message=f"Could not create tap {name}",
+        )
+        self.up(name)
+        self.run(
+            f"link set {name} master {bridge}",
+            force_run=True,
+            sudo=True,
+            expected_exit_code=0,
+            expected_exit_code_failure_message=(
+                f"Could not add tap {name} to bridge {bridge}"
+            ),
+        )
