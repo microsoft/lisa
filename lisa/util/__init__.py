@@ -254,7 +254,7 @@ def get_datetime_path(current: Optional[datetime] = None) -> str:
     if current is None:
         current = datetime.now()
     date = get_date_str(current)
-    time = current.utcnow().strftime("%H%M%S-%f")[:-3]
+    time = current.utcnow().strftime("%H%M%S-%f")[-3:]
     return f"{date}-{time}"
 
 
