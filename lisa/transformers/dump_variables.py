@@ -11,7 +11,6 @@ from dataclasses_json import dataclass_json
 from lisa import schema
 from lisa.transformer import Transformer
 
-
 DUMP_VARIABLES = "dump_variables"
 
 
@@ -50,8 +49,8 @@ class DumpVariablesTransformer(Transformer):
             try:
                 var_data = variables_data[var]
                 required_data[var] = {
-                    'value': var_data.data,
-                    'is_case_visible': var_data.is_case_visible
+                    "value": var_data.data,
+                    "is_case_visible": var_data.is_case_visible,
                 }
             except KeyError:
                 self._log.info(f"Variable '{var}' is not found")
