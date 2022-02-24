@@ -8,7 +8,7 @@ import string
 import tempfile
 import time
 import xml.etree.ElementTree as ET  # noqa: N817
-from pathlib import PurePath
+from pathlib import Path
 from typing import Any, List, Optional, Tuple, Type
 
 import libvirt  # type: ignore
@@ -48,10 +48,6 @@ class QemuPlatform(Platform):
         SerialConsole,
     ]
 
-    qemu_platform_runbook: QemuPlatformSchema
-    host_node: RemoteNode
-    libvirt_conn_str: str
-
     def __init__(self, runbook: schema.Platform) -> None:
         super().__init__(runbook=runbook)
 
@@ -80,6 +76,8 @@ class QemuPlatform(Platform):
             )
 
             self.libvirt_conn_str = self._get_libvirt_conn_string()
+        else:
+            self.host_node = None
 
     def _prepare_environment(self, environment: Environment, log: Logger) -> bool:
         self._configure_environment(environment, log)
@@ -89,6 +87,8 @@ class QemuPlatform(Platform):
 
     def _deploy_environment(self, environment: Environment, log: Logger) -> None:
         local_node = local_node_connect(parent_logger=log)
+        if self.host_node is None:
+            self.host_node = local_node
         self._deploy_nodes(environment, log, local_node)
 
     def _delete_environment(self, environment: Environment, log: Logger) -> None:
@@ -279,12 +279,10 @@ class QemuPlatform(Platform):
             if not os.path.exists(qemu_node_runbook.qcow2):
                 raise LisaException(f"file does not exist: {qemu_node_runbook.qcow2}")
 
-            vm_disks_dir = os.path.dirname(qemu_node_runbook.qcow2)
-            if self.qemu_platform_runbook.is_host_remote():
-                vm_disks_dir = os.path.join(
-                    "/home", self.qemu_platform_runbook.host.username, vm_name_prefix
-                )
-                self.host_node.shell.mkdir(vm_disks_dir)
+            vm_disks_dir = os.path.join(
+                self.qemu_platform_runbook.host.lisa_working_dir, vm_name_prefix
+            )
+            self.host_node.shell.mkdir(Path(vm_disks_dir))
 
             node = environment.create_node_from_requirement(node_space)
             node_context = get_node_context(node)
@@ -306,23 +304,14 @@ class QemuPlatform(Platform):
             node_context.cloud_init_file_path = os.path.join(
                 vm_disks_dir, f"{node_context.vm_name}-cloud-init.iso"
             )
-            node_context.os_disk_base_file_path = qemu_node_runbook.qcow2
-            if self.qemu_platform_runbook.is_host_remote():
-                host = self.qemu_platform_runbook.host
-                new_os_disk_base_file_path = os.path.join(
-                    "/home",
-                    host.username,
-                    vm_name_prefix,
-                    os.path.basename(qemu_node_runbook.qcow2)
-                )
 
-                local_node.execute(
-                    f"scp -i {host.private_key_file} "
-                    f"{node_context.os_disk_base_file_path} "
-                    f"scp://{host.address}/{new_os_disk_base_file_path}"
-                )
-
-                node_context.os_disk_base_file_path = new_os_disk_base_file_path
+            node_context.os_disk_base_file_path = os.path.join(
+                vm_disks_dir, os.path.basename(qemu_node_runbook.qcow2)
+            )
+            self.host_node.shell.copy(
+                    Path(qemu_node_runbook.qcow2),
+                    Path(node_context.os_disk_base_file_path)
+            )
 
             node_context.os_disk_file_path = os.path.join(
                 vm_disks_dir, f"{node_context.vm_name}-os.qcow2"
@@ -404,20 +393,11 @@ class QemuPlatform(Platform):
             except Exception as ex:
                 log.warning(f"console log delete failed. {ex}")
 
-            if self.qemu_platform_runbook.is_host_remote():
+            try:
                 vm_dir = os.path.dirname(node_context.os_disk_file_path)
-                self.host_node.shell.remove(PurePath(vm_dir), True)
-            else:
-                # Delete the files created for the VM.
-                try:
-                    os.remove(node_context.os_disk_file_path)
-                except Exception as ex:
-                    log.warning(f"OS disk delete failed. {ex}")
-
-                try:
-                    os.remove(node_context.cloud_init_file_path)
-                except Exception as ex:
-                    log.warning(f"cloud-init ISO file delete failed. {ex}")
+                self.host_node.shell.remove(Path(vm_dir), True)
+            except Exception as ex:
+                log.warning("Working directory delete failed. {ex}")
 
     # Delete a VM.
     def _stop_and_delete_vm(
@@ -521,24 +501,19 @@ class QemuPlatform(Platform):
         meta_data_string = yaml.safe_dump(meta_data)
 
         iso_path = node_context.cloud_init_file_path
-        tmp_dir = None
-        if self.qemu_platform_runbook.is_host_remote():
-            tmp_dir = tempfile.TemporaryDirectory()
-            iso_path = os.path.join(tmp_dir.name, "cloud-init.iso")
+        tmp_dir = tempfile.TemporaryDirectory()
+        iso_path = os.path.join(tmp_dir.name, "cloud-init.iso")
 
         self._create_iso(
             iso_path,
             [("/user-data", user_data_string), ("/meta-data", meta_data_string)],
         )
 
-        if self.qemu_platform_runbook.is_host_remote():
-            host = self.qemu_platform_runbook.host
-            local_node.execute(
-                f"scp -i {host.private_key_file} "
-                f"{iso_path} "
-                f"scp://{host.address}/{node_context.cloud_init_file_path}"
-            )
-            tmp_dir.cleanup()
+        self.host_node.shell.copy(
+            Path(iso_path), Path(node_context.cloud_init_file_path)
+        )
+
+        tmp_dir.cleanup()
 
     # Create an ISO file.
     def _create_iso(self, file_path: str, files: List[Tuple[str, str]]) -> None:
@@ -562,21 +537,9 @@ class QemuPlatform(Platform):
         self, environment: Environment, log: Logger, node: Node, local_node: Node
     ) -> None:
         node_context = get_node_context(node)
-
-        if self.qemu_platform_runbook.is_host_remote():
-            self.host_node.tools[QemuImg].createDiffQcow2(
-                node_context.os_disk_file_path,
-                node_context.os_disk_base_file_path
-            )
-
-            return
-
-        # Create a new differencing image with the user provided image as the base.
-        local_node.execute(
-            f"qemu-img create -F qcow2 -f qcow2 -b "
-            f'"{node_context.os_disk_base_file_path}" '
-            f'"{node_context.os_disk_file_path}"',
-            expected_exit_code=0,
+        self.host_node.tools[QemuImg].createDiffQcow2(
+            node_context.os_disk_file_path,
+            node_context.os_disk_base_file_path
         )
 
     # Create the XML definition for the VM.

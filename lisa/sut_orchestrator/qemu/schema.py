@@ -17,9 +17,14 @@ class CloudInitSchema:
 @dataclass_json()
 @dataclass
 class LibvirtHost:
-    address: str = ""
-    username: str = ""
-    private_key_file: str = ""
+    address: Optional[str] = None
+    username: Optional[str] = None
+    private_key_file: Optional[str] = None
+
+    # The directory where lisa will store VM related files (such as disk images).
+    # This directory must already exist and the test user should have write permission
+    # to it.
+    lisa_working_dir: Optional[str] = "/var/tmp"
 
 # QEMU orchestrator's global configuration options.
 @dataclass_json()
@@ -28,7 +33,7 @@ class QemuPlatformSchema:
     # An optional remote host for the VMs. All test VMs will be spawned on the
     # specified host by connecting remotely to the libvirt instance running on it.
     # If None, the local machine is used as host.
-    host: Optional[LibvirtHost] = None
+    host: Optional[LibvirtHost] = LibvirtHost()
 
     # The timeout length for how long to wait for the OS to boot and request an IP
     # address from the libvirt DHCP server.
@@ -36,7 +41,7 @@ class QemuPlatformSchema:
     network_boot_timeout: Optional[float] = None
 
     def is_host_remote(self) -> bool:
-        return self.host is not None
+        return self.host.address is not None
 
 
 # QEMU orchestrator's per-node configuration options.
