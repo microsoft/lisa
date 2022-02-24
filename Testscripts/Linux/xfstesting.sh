@@ -238,13 +238,22 @@ Main() {
             ConfigureCIFS "/root/test" "/root/scratch"
         else
             # Check which disk is attached to the VM as custom storage.
+            if [ $(is_asap_vmsku) == 1 ]; then
+            # Disk pattern nvme0n[1-9]p[1-9]
+                testDisk=$(get_AvailableDisks)
+                ConfigureDisks "${testDisk}" "${testDisk}p1" "${testDisk}p2" "$FSTYP" "test" "scratch"
+                # Configure disk in env and xfstests config file
+                TEST_DEV="/dev/${testDisk}p1"
+            else
+            # Disk pattern sd[a-z][1-9]
             # Azure provides links in /dev/disk/azure/ to /dev/sd[a-z] devices
             # this is needed as some 5+ kernels do not assign drive letters in any particular order
             # (previously the test disk was /dev/sdc)
-            testDisk=$(readlink -f /dev/disk/azure/scsi1/* | sed "s@/dev/@@g" | head -1)
-            ConfigureDisks "${testDisk}" "${testDisk}1" "${testDisk}2" "$FSTYP" "test" "scratch"
-            # Configure disk in env and xfstests config file
-            TEST_DEV="/dev/${testDisk}1"
+                testDisk=$(readlink -f /dev/disk/azure/scsi1/* | sed "s@/dev/@@g" | head -1)
+                ConfigureDisks "${testDisk}" "${testDisk}1" "${testDisk}2" "$FSTYP" "test" "scratch"
+                # Configure disk in env and xfstests config file
+                TEST_DEV="/dev/${testDisk}1"
+            fi
             echo "TEST_DEV=${TEST_DEV}" >> ${XFSTestConfigFile}
         fi
     fi
