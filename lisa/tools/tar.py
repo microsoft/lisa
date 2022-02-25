@@ -20,6 +20,7 @@ class Tar(Tool):
         dest_dir: str,
         strip_components: int = 0,
         gzip: bool = False,
+        sudo: bool = False,
     ) -> None:
         # create folder when it doesn't exist
         assert_that(strip_components).described_as(
@@ -33,7 +34,7 @@ class Tar(Tool):
         if strip_components:
             # optionally strip N top level components from a tar file
             tar_cmd += f" --strip-components={strip_components}"
-        result = self.run(tar_cmd, shell=True, force_run=True, sudo=True)
+        result = self.run(tar_cmd, shell=True, force_run=True, sudo=sudo)
         if result.exit_code != 0:
             raise LisaException(
                 f"Failed to extract file to {dest_dir}, {result.stderr}"
