@@ -28,6 +28,7 @@ from .iperf3 import Iperf3
 from .kdump import KdumpBase
 from .kill import Kill
 from .lagscope import Lagscope
+from .ls import Ls
 from .lsblk import Lsblk
 from .lscpu import Lscpu
 from .lsinitrd import Lsinitrd
@@ -97,6 +98,7 @@ __all__ = [
     "KdumpBase",
     "Kill",
     "Lagscope",
+    "Ls",
     "Lsblk",
     "Lscpu",
     "Lsinitrd",
