@@ -77,7 +77,7 @@ class DpdkNffGo(Tool):
             filename=self.GO_TAR,
         )
         # unpack and add to path
-        tar.extract(go_tar_path, "/usr/local")
+        tar.extract(go_tar_path, "/usr/local", sudo=True)
 
         # download go modules
         node.execute(
