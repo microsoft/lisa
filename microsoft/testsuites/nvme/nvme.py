@@ -361,7 +361,7 @@ class NvmeTestSuite(TestSuite):
     def nvme_rescind_validation(self, node: Node) -> None:
         lspci = node.tools[Lspci]
         # 1. Disable NVME devices.
-        lspci.disable_devices(device_type=constants.DEVICE_TYPE_NVME)
+        lspci.disable_devices_by_type(device_type=constants.DEVICE_TYPE_NVME)
         # 2. Enable NVME device.
         lspci.enable_devices()
 
@@ -385,11 +385,11 @@ class NvmeTestSuite(TestSuite):
         device_types = [constants.DEVICE_TYPE_NVME, constants.DEVICE_TYPE_SRIOV]
         for device_type in device_types:
             # 1. Disable PCI devices.
-            before_pci_count = lspci.disable_devices(device_type)
+            before_pci_count = lspci.disable_devices_by_type(device_type)
             # 2. Enable PCI devices.
             lspci.enable_devices()
             # 3. Get PCI devices slots.
-            after_devices_slots = lspci.get_devices_slots(device_type, True)
+            after_devices_slots = lspci.get_device_names_by_type(device_type, True)
             # 4. Check PCI devices are back after rescan.
             assert_that(
                 after_devices_slots,

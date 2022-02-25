@@ -72,7 +72,7 @@ class Nvme(Feature):
     def get_devices_from_lspci(self) -> List[PciDevice]:
         devices_from_lspci = []
         lspci_tool = self._node.tools[Lspci]
-        device_list = lspci_tool.get_device_list()
+        device_list = lspci_tool.get_devices()
         devices_from_lspci = [
             x for x in device_list if self._pci_device_name == x.device_class
         ]

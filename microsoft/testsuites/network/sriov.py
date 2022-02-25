@@ -232,7 +232,7 @@ class Sriov(TestSuite):
     def verify_sriov_disable_enable_pci(self, environment: Environment) -> None:
         for node in environment.nodes.list():
             lspci = node.tools[Lspci]
-            lspci.disable_devices(constants.DEVICE_TYPE_SRIOV)
+            lspci.disable_devices_by_type(constants.DEVICE_TYPE_SRIOV)
             lspci.enable_devices()
         vm_nics = initialize_nic_info(environment)
         sriov_basic_test(environment, vm_nics)
@@ -412,7 +412,7 @@ class Sriov(TestSuite):
         # disable and enable VF in pci level
         for node in environment.nodes.list():
             lspci = node.tools[Lspci]
-            lspci.disable_devices(constants.DEVICE_TYPE_SRIOV)
+            lspci.disable_devices_by_type(constants.DEVICE_TYPE_SRIOV)
             lspci.enable_devices()
         # check VF still paired with synthetic nic
         vm_nics = initialize_nic_info(environment)
@@ -457,7 +457,7 @@ class Sriov(TestSuite):
         #  disable and enable VF in pci level
         for node in environment.nodes.list():
             lspci = node.tools[Lspci]
-            lspci.disable_devices(constants.DEVICE_TYPE_SRIOV)
+            lspci.disable_devices_by_type(constants.DEVICE_TYPE_SRIOV)
             lspci.enable_devices()
 
         # check VF still paired with synthetic nic

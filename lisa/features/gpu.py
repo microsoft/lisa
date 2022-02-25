@@ -11,6 +11,7 @@ from lisa.feature import Feature
 from lisa.operating_system import Redhat, Ubuntu
 from lisa.sut_orchestrator.azure.tools import LisDriver
 from lisa.tools import Lsmod, Lspci, Lsvmbus, NvidiaSmi
+from lisa.tools.lspci import PciDevice
 from lisa.util import LisaException, constants
 
 FEATURE_NAME_GPU = "Gpu"
@@ -144,9 +145,7 @@ class Gpu(Feature):
 
     def get_gpu_count_with_lspci(self) -> int:
         lspci_tool = self._node.tools[Lspci]
-        device_list = lspci_tool.get_device_list_per_device_type(
-            constants.DEVICE_TYPE_GPU
-        )
+        device_list = lspci_tool.get_devices_by_type(constants.DEVICE_TYPE_GPU)
 
         return len(device_list)
 

@@ -273,7 +273,7 @@ class DpdkTestpmd(Tool):
 
     def _determine_network_hardware(self) -> None:
         lspci = self.node.tools[Lspci]
-        device_list = lspci.get_device_list()
+        device_list = lspci.get_devices()
         self.is_connect_x3 = any(
             ["ConnectX-3" in dev.device_info for dev in device_list]
         )

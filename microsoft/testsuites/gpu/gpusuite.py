@@ -143,7 +143,10 @@ def _ensure_driver_installed(
         return
 
     gpu_feature.install_compute_sdk()
-    log.debug(f"{gpu_feature.gpu_vendor} sdk installed. Will reboot to load driver.")
+    log.debug(
+        f"{gpu_feature.get_supported_driver()} sdk installed. "
+        "Will reboot to load driver."
+    )
 
     reboot_tool = node.tools[Reboot]
     reboot_tool.reboot_and_check_panic(log_path)
