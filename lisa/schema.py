@@ -266,16 +266,6 @@ class Extension:
 
 @dataclass_json()
 @dataclass
-class VariableEntry:
-    value: Union[str, bool, int] = ""
-    is_secret: bool = False
-    # True means this variable can be used in test cases.
-    is_case_visible: bool = False
-    mask: str = ""
-
-
-@dataclass_json()
-@dataclass
 class Variable:
     """
     it uses to support variables in other fields.
@@ -298,27 +288,19 @@ class Variable:
     )
 
     name: str = field(default="")
-    value_raw: Union[str, bool, int, Dict[Any, Any], List[Any]] = field(
-        default="", metadata=field_metadata(data_key="value")
-    )
+    value: Union[str, bool, int, Dict[Any, Any], List[Any]] = field(default="")
     # True means this variable can be used in test cases.
     is_case_visible: bool = False
+    mask: str = ""
 
     def __post_init__(self, *args: Any, **kwargs: Any) -> None:
-        if self.file and (self.name or self.value_raw):
+        if self.file and (self.name or self.value):
             raise LisaException(
                 f"file cannot be specified with name or value"
                 f"file: '{self.file}'"
                 f"name: '{self.name}'"
-                f"value: '{self.value_raw}'"
+                f"value: '{self.value}'"
             )
-
-        if isinstance(self.value_raw, dict):
-            self.value: Union[
-                str, bool, int, VariableEntry, List[Union[str, bool, int]]
-            ] = load_by_type(VariableEntry, self.value_raw)
-        else:
-            self.value = self.value_raw
 
 
 @dataclass_json()

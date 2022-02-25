@@ -143,30 +143,24 @@ class VariableTestCase(TestCase):
         runbook_data: Dict[str, Any] = {
             "variable": [
                 {"name": "normal_value", "value": "normal_value"},
-                {"name": "normal_entry", "value": {"value": "entry_value"}},
+                {"name": "normal_entry", "value": "entry_value"},
                 {
                     "name": "secret_guid",
-                    "value": {
-                        "value": "12345678-abcd-efab-cdef-1234567890ab",
-                        "is_secret": True,
-                        "mask": "guid",
-                    },
+                    "value": "12345678-abcd-efab-cdef-1234567890ab",
+                    "is_secret": True,
+                    "mask": "guid",
                 },
                 {
                     "name": "secret_int",
-                    "value": {
-                        "value": 1234567890,
-                        "is_secret": True,
-                        "mask": "headtail",
-                    },
+                    "value": 1234567890,
+                    "is_secret": True,
+                    "mask": "headtail",
                 },
                 {
                     "name": "secret_head_tail",
-                    "value": {
-                        "value": "abcdefgh",
-                        "is_secret": True,
-                        "mask": "headtail",
-                    },
+                    "value": "abcdefgh",
+                    "is_secret": True,
+                    "mask": "headtail",
                 },
             ]
         }
@@ -190,30 +184,24 @@ class VariableTestCase(TestCase):
             "variable": [
                 {"file": "variable_normal.yml"},
                 {"name": "normal_value", "value": "normal_value1"},
-                {"name": "normal_entry", "value": {"value": "entry_value1"}},
+                {"name": "normal_entry", "value": "entry_value1"},
                 {
                     "name": "secret_guid",
-                    "value": {
-                        "value": "12345678-abcd-efab-cdef-1234567890ac",
-                        "is_secret": True,
-                        "mask": "guid",
-                    },
+                    "value": "12345678-abcd-efab-cdef-1234567890ac",
+                    "is_secret": True,
+                    "mask": "guid",
                 },
                 {
                     "name": "secret_int",
-                    "value": {
-                        "value": 1234567891,
-                        "is_secret": True,
-                        "mask": "headtail",
-                    },
+                    "value": 1234567891,
+                    "is_secret": True,
+                    "mask": "headtail",
                 },
                 {
                     "name": "secret_head_tail",
-                    "value": {
-                        "value": "abcdefgi",
-                        "is_secret": True,
-                        "mask": "headtail",
-                    },
+                    "value": "abcdefgi",
+                    "is_secret": True,
+                    "mask": "headtail",
                 },
             ]
         }
