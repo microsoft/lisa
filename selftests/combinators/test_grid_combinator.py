@@ -22,10 +22,8 @@ class GridCombinatorTestCase(TestCase):
         runbook = GridCombinatorSchema(
             type=constants.COMBINATOR_GRID,
             items=[
-                schema.Variable(name="name1", value_raw=["1value1", "1value2"]),
-                schema.Variable(
-                    name="name2", value_raw=["2value1", "2value2", "2value3"]
-                ),
+                schema.Variable(name="name1", value=["1value1", "1value2"]),
+                schema.Variable(name="name2", value=["2value1", "2value2", "2value3"]),
             ],
         )
 
@@ -90,9 +88,7 @@ class GridCombinatorTestCase(TestCase):
         runbook = GridCombinatorSchema(
             type=constants.COMBINATOR_GRID,
             items=[
-                schema.Variable(
-                    name="name2", value_raw=["2value1", "2value2", "2value3"]
-                ),
+                schema.Variable(name="name2", value=["2value1", "2value2", "2value3"]),
             ],
         )
 

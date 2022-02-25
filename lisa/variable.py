@@ -178,8 +178,9 @@ def _load_from_runbook(
                     loaded_variables = load_from_variable_entry(
                         entry.name,
                         value,
-                        is_secret=entry.is_secret,
                         is_case_visible=entry.is_case_visible,
+                        is_secret=entry.is_secret,
+                        mask=entry.mask,
                     )
                 merge_variables(current_variables, loaded_variables)
                 merge_variables(current_variables, higher_level_variables)
@@ -213,7 +214,25 @@ def _load_from_file(
         raise LisaException("variable file must be dict")
 
     for key, raw_value in raw_variables.items():
-        results.update(load_from_variable_entry(key, raw_value, is_secret=is_secret))
+        try:
+            entry = convert_to_variable_entry(raw_value, is_secret=is_secret)
+            raw_value = entry.value
+            is_secret = is_secret or entry.is_secret
+            is_case_visible = entry.is_case_visible
+            mask = entry.mask
+        except AssertionError:
+            # if parsing is failed, regard the raw_value as a value.
+            is_case_visible = False
+            mask = ""
+        results.update(
+            load_from_variable_entry(
+                key,
+                raw_value=raw_value,
+                is_secret=is_secret,
+                is_case_visible=is_case_visible,
+                mask=mask,
+            )
+        )
     return results
 
 
@@ -255,32 +274,44 @@ def add_secrets_from_pairs(
     return results
 
 
+def convert_to_variable_entry(
+    raw_value: Any, is_secret: bool = False
+) -> schema.Variable:
+    assert isinstance(raw_value, dict), f"actual {type(raw_value)}"
+    entry = schema.load_by_type(schema.Variable, raw_value)
+    entry.is_secret = is_secret or entry.is_secret
+
+    return entry
+
+
 def load_from_variable_entry(
     name: str,
     raw_value: Any,
     is_secret: bool = False,
     is_case_visible: bool = False,
+    mask: str = "",
 ) -> Dict[str, VariableEntry]:
 
     assert isinstance(name, str), f"actual: {type(name)}"
     results: Dict[str, VariableEntry] = {}
-    mask_pattern_name = ""
-    if type(raw_value) in [str, int, bool, float, list]:
+    if type(raw_value) in [str, int, bool, float, list, dict]:
         value = raw_value
-    else:
-        if isinstance(raw_value, dict):
-            raw_value = schema.load_by_type(schema.VariableEntry, raw_value)
-        is_secret = is_secret or raw_value.is_secret
-        mask_pattern_name = raw_value.mask
+    elif isinstance(raw_value, schema.Variable):
         value = raw_value.value
+        is_secret = raw_value.is_secret
         is_case_visible = raw_value.is_case_visible
+        mask = raw_value.mask
+    else:
+        raise LisaException(
+            f"unsupported variable type: {type(raw_value)}, value: {raw_value}"
+        )
     _add_variable(
         name,
         value,
         results,
         is_secret=is_secret,
         is_case_visible=is_case_visible,
-        mask_pattern_name=mask_pattern_name,
+        mask_pattern_name=mask,
     )
     return results
 
