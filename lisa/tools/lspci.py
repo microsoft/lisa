@@ -17,6 +17,10 @@ from lisa.util import LisaException, constants, get_matched_str
 #    Controller #4" -r02 "Dell" "PowerEdge R610 USB UHCI Controller"
 # 0b:00.1 "Ethernet controller" "Broadcom Corporation" "NetXtreme II BCM5709 Gigabit
 #    Ethernet" -r20 "Dell" "PowerEdge R610 BCM5709 Gigabit Ethernet"
+# 00:08.0 "VGA compatible controller" "Microsoft Corporation"
+#    "Hyper-V virtual VGA" "" ""
+# 0001:00:00.0 "VGA compatible controller" "NVIDIA Corporation"
+#    "GM204GL [Tesla M60]" -ra1 "NVIDIA Corporation" "GM204GL [Tesla M60]"
 #
 # Segregting the output in 4 categories -
 # Slot - 0b:00.1
@@ -30,10 +34,10 @@ PATTERN_PCI_DEVICE = re.compile(
     re.MULTILINE,
 )
 
-DEVICE_TYPE_DICT: Dict[str, str] = {
-    constants.DEVICE_TYPE_SRIOV: "Ethernet controller",
-    constants.DEVICE_TYPE_NVME: "Non-Volatile memory controller",
-    constants.DEVICE_TYPE_GPU: "3D controller",
+DEVICE_TYPE_DICT: Dict[str, List[str]] = {
+    constants.DEVICE_TYPE_SRIOV: ["Ethernet controller"],
+    constants.DEVICE_TYPE_NVME: ["Non-Volatile memory controller"],
+    constants.DEVICE_TYPE_GPU: ["3D controller", "VGA compatible controller"],
 }
 
 PATTERN_MODULE_IN_USE = re.compile(r"Kernel driver in use: (.*)\r", re.M)
@@ -72,27 +76,29 @@ class Lspci(Tool):
             self.node.os.install_packages("pciutils")
         return self._check_exists()
 
-    def get_devices_slots(self, device_type: str, force_run: bool = False) -> List[str]:
+    def get_device_names_by_type(
+        self, device_type: str, force_run: bool = False
+    ) -> List[str]:
         if device_type.upper() not in DEVICE_TYPE_DICT.keys():
-            raise LisaException(f"pci_type {device_type} is not supported to disable.")
-        class_name = DEVICE_TYPE_DICT[device_type.upper()]
-        devices_list = self.get_device_list(force_run)
-        devices_slots = [x.slot for x in devices_list if class_name == x.device_class]
+            raise LisaException(f"pci_type '{device_type}' is not recognized.")
+        class_names = DEVICE_TYPE_DICT[device_type.upper()]
+        devices_list = self.get_devices(force_run)
+        devices_slots = [x.slot for x in devices_list if x.device_class in class_names]
         return devices_slots
 
-    def get_device_list_per_device_type(
+    def get_devices_by_type(
         self, device_type: str, force_run: bool = False
     ) -> List[PciDevice]:
         if device_type.upper() not in DEVICE_TYPE_DICT.keys():
             raise LisaException(
-                f"pci_type {device_type} is not supported to be searched."
+                f"pci_type '{device_type}' is not supported to be searched."
             )
-        class_name = DEVICE_TYPE_DICT[device_type.upper()]
-        devices_list = self.get_device_list(force_run)
-        device_type_list = [x for x in devices_list if class_name == x.device_class]
+        class_names = DEVICE_TYPE_DICT[device_type.upper()]
+        devices_list = self.get_devices(force_run)
+        device_type_list = [x for x in devices_list if x.device_class in class_names]
         return device_type_list
 
-    def get_device_list(self, force_run: bool = False) -> List[PciDevice]:
+    def get_devices(self, force_run: bool = False) -> List[PciDevice]:
         if (not self._pci_devices) or force_run:
             self._pci_devices = []
             # Ensure pci device ids and name mappings are updated.
@@ -111,21 +117,26 @@ class Lspci(Tool):
 
         return self._pci_devices
 
-    def disable_devices(self, device_type: str) -> int:
-        devices_slot = self.get_devices_slots(device_type)
-        echo = self.node.tools[Echo]
-        if 0 == len(devices_slot):
+    def disable_devices_by_type(self, device_type: str) -> int:
+        devices = self.get_devices_by_type(device_type)
+        if 0 == len(devices):
             self._log.debug("No matched devices found.")
-            return len(devices_slot)
-        for device_slot in devices_slot:
-            echo.write_to_file(
-                "1",
-                self.node.get_pure_path(f"/sys/bus/pci/devices/{device_slot}/remove"),
-                sudo=True,
-            )
-        if len(self.get_devices_slots(device_type, True)) > 0:
-            raise LisaException(f"Fail to disable {device_type} devices.")
-        return len(devices_slot)
+            return len(devices)
+        for device in devices:
+            self.disable_device(device=device)
+        return len(devices)
+
+    def disable_device(self, device: PciDevice) -> None:
+        echo = self.node.tools[Echo]
+        echo.write_to_file(
+            "1",
+            self.node.get_pure_path(f"/sys/bus/pci/devices/{device.slot}/remove"),
+            sudo=True,
+        )
+
+        devices = self.get_devices(True)
+        if any(x for x in devices if x.slot == device.slot):
+            raise LisaException(f"Fail to disable {device} devices.")
 
     def enable_devices(self) -> None:
         self.node.tools[Echo].write_to_file(

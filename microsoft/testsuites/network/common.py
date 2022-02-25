@@ -39,7 +39,9 @@ def initialize_nic_info(environment: Environment) -> Dict[str, Dict[str, NicInfo
 def remove_module(node: Node) -> str:
     lspci = node.tools[Lspci]
     modprobe = node.tools[Modprobe]
-    devices_slots = lspci.get_devices_slots(constants.DEVICE_TYPE_SRIOV, force_run=True)
+    devices_slots = lspci.get_device_names_by_type(
+        constants.DEVICE_TYPE_SRIOV, force_run=True
+    )
     # there will not be multiple Mellanox types in one VM
     # get the used module using any one of sriov device
     module_in_used = lspci.get_used_module(devices_slots[0])
@@ -78,7 +80,7 @@ def sriov_basic_test(
 
         # 2. Check VF counts listed from lspci is expected.
         lspci = node.tools[Lspci]
-        devices_slots = lspci.get_devices_slots(
+        devices_slots = lspci.get_device_names_by_type(
             constants.DEVICE_TYPE_SRIOV, force_run=True
         )
         assert_that(devices_slots).described_as(
