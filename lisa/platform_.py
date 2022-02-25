@@ -181,13 +181,16 @@ class Platform(subclasses.BaseClassWithRunbookMixin, InitializableMixin):
                 f"as runbook set to keep environment."
             )
 
-            # output addresses for troubleshooting easier
+            # output addresses for troubleshooting easier.
             remote_addresses = [
                 x.connection_info[constants.ENVIRONMENTS_NODES_REMOTE_ADDRESS]
                 for x in environment.nodes.list()
-                if isinstance(x, RemoteNode)
+                if isinstance(x, RemoteNode) and hasattr(x, "_connection_info")
             ]
-            log.info(f"node ip addresses: {remote_addresses}")
+            # if the connection info is not found, there is no ip address to
+            # output.
+            if remote_addresses:
+                log.info(f"node ip addresses: {remote_addresses}")
         else:
             log.debug("deleting")
             self._delete_environment(environment, log)
