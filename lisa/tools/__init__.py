@@ -53,6 +53,7 @@ from .nvmecli import Nvmecli
 from .parted import Parted
 from .pgrep import Pgrep, ProcessInfo
 from .ping import Ping
+from .python import Pip, Python
 from .qemu import Qemu
 from .reboot import Reboot
 from .sar import Sar
@@ -127,7 +128,9 @@ __all__ = [
     "Parted",
     "Pgrep",
     "Ping",
+    "Pip",
     "ProcessInfo",
+    "Python",
     "Qemu",
     "Reboot",
     "Sar",
