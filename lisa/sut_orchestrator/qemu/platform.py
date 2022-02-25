@@ -9,7 +9,7 @@ import tempfile
 import time
 import xml.etree.ElementTree as ET  # noqa: N817
 from pathlib import Path
-from typing import Any, List, Optional, Tuple, Type
+from typing import Any, List, Optional, Tuple, Type, cast
 
 import libvirt  # type: ignore
 import pycdlib  # type: ignore
@@ -20,7 +20,7 @@ from lisa.environment import Environment
 from lisa.feature import Feature
 from lisa.node import Node, RemoteNode, local_node_connect
 from lisa.platform_ import Platform
-from lisa.tools import QemuImg, Iptables
+from lisa.tools import Iptables, QemuImg
 from lisa.util import LisaException, constants, get_public_key_data
 from lisa.util.logger import Logger
 
@@ -50,6 +50,9 @@ class QemuPlatform(Platform):
 
     def __init__(self, runbook: schema.Platform) -> None:
         super().__init__(runbook=runbook)
+        self.libvirt_conn_str: str
+        self.qemu_platform_runbook: QemuPlatformSchema
+        self.host_node: Node
 
     @classmethod
     def type_name(cls) -> str:
@@ -65,21 +68,29 @@ class QemuPlatform(Platform):
         self.qemu_platform_runbook = self.runbook.get_extended_runbook(
             QemuPlatformSchema, type_name=QEMU
         )
-        self.libvirt_conn_str = "qemu:///system"
-
-        if self.qemu_platform_runbook.is_host_remote():
-            self.host_node = RemoteNode(schema.Node(name="qemu-host"), 0, "qemu-host")
-            self.host_node.set_connection_info(
-                address=self.qemu_platform_runbook.host.address,
-                username=self.qemu_platform_runbook.host.username,
-                private_key_file=self.qemu_platform_runbook.host.private_key_file
-            )
-
-            self.libvirt_conn_str = self._get_libvirt_conn_string()
-        else:
-            self.host_node = None
 
     def _prepare_environment(self, environment: Environment, log: Logger) -> bool:
+        host = self.qemu_platform_runbook.host
+        if host.is_remote():
+            assert host.address
+            assert host.username
+            assert host.private_key_file
+
+            self.host_node = RemoteNode(
+                runbook=schema.Node(name="qemu-host"),
+                index=0,
+                logger_name="qemu-host",
+                parent_logger=log,
+            )
+            self.host_node.set_connection_info(
+                address=host.address,
+                username=host.username,
+                private_key_file=host.private_key_file,
+            )
+        else:
+            self.host_node = local_node_connect(parent_logger=log)
+
+        self._init_libvirt_conn_string()
         self._configure_environment(environment, log)
 
         with libvirt.open(self.libvirt_conn_str) as qemu_conn:
@@ -260,7 +271,7 @@ class QemuPlatform(Platform):
     # to be created. This makes it easier to cleanup everything after the test is
     # finished (or fails).
     def _configure_nodes(
-            self, environment: Environment, log: Logger, local_node: Node
+        self, environment: Environment, log: Logger, local_node: Node
     ) -> None:
         # Generate a random name for the VMs.
         test_suffix = "".join(random.choice(string.ascii_uppercase) for _ in range(5))
@@ -309,8 +320,8 @@ class QemuPlatform(Platform):
                 vm_disks_dir, os.path.basename(qemu_node_runbook.qcow2)
             )
             self.host_node.shell.copy(
-                    Path(qemu_node_runbook.qcow2),
-                    Path(node_context.os_disk_base_file_path)
+                Path(qemu_node_runbook.qcow2),
+                Path(node_context.os_disk_base_file_path),
             )
 
             node_context.os_disk_file_path = os.path.join(
@@ -318,7 +329,7 @@ class QemuPlatform(Platform):
             )
             node_context.console_log_file_path = os.path.join(
                 os.path.dirname(qemu_node_runbook.qcow2),
-                f"{node_context.vm_name}-console.log"
+                f"{node_context.vm_name}-console.log",
             )
             node_context.console_logger = QemuConsoleLogger()
 
@@ -397,7 +408,7 @@ class QemuPlatform(Platform):
                 vm_dir = os.path.dirname(node_context.os_disk_file_path)
                 self.host_node.shell.remove(Path(vm_dir), True)
             except Exception as ex:
-                log.warning("Working directory delete failed. {ex}")
+                log.warning(f"Working directory delete failed. {ex}")
 
     # Delete a VM.
     def _stop_and_delete_vm(
@@ -451,17 +462,19 @@ class QemuPlatform(Platform):
                 environment, log, qemu_conn, node, timeout
             )
 
-            node_addr = address
             node_port = 22
-            if self.qemu_platform_runbook.is_host_remote():
+            if self.host_node.is_remote:
                 self.host_node.tools[Iptables].start_forwarding(10022, address, 22)
 
-                node_addr = self.qemu_platform_runbook.host.address
+                remote_node = cast(RemoteNode, self.host_node)
+                conn_info = remote_node.connection_info
+
+                address = conn_info[constants.ENVIRONMENTS_NODES_REMOTE_ADDRESS]
                 node_port = 10022
 
             # Set SSH connection info for the node.
             node.set_connection_info(
-                address=node_addr,
+                address=address,
                 port=node_port,
                 public_port=node_port,
                 username=self.runbook.admin_username,
@@ -537,9 +550,8 @@ class QemuPlatform(Platform):
         self, environment: Environment, log: Logger, node: Node, local_node: Node
     ) -> None:
         node_context = get_node_context(node)
-        self.host_node.tools[QemuImg].createDiffQcow2(
-            node_context.os_disk_file_path,
-            node_context.os_disk_base_file_path
+        self.host_node.tools[QemuImg].create_diff_qcow2(
+            node_context.os_disk_file_path, node_context.os_disk_base_file_path
         )
 
     # Create the XML definition for the VM.
@@ -705,11 +717,11 @@ class QemuPlatform(Platform):
         assert isinstance(addr, str)
         return addr
 
-    def _get_libvirt_conn_string(self) -> str:
+    def _init_libvirt_conn_string(self) -> None:
         hypervisor = "qemu"
         host = self.qemu_platform_runbook.host
 
-        host_addr = host.address if host is not None else ""
-        transport = "+tcp" if host is not None else ""
+        host_addr = host.address if host.address else ""
+        transport = "+tcp" if host.address else ""
 
-        return f"{hypervisor}{transport}://{host_addr}/system"
+        self.libvirt_conn_str = f"{hypervisor}{transport}://{host_addr}/system"

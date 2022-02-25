@@ -584,7 +584,10 @@ class LocalShell(InitializableMixin):
                        (will fail if that's the case and this flag is off)
         """
         assert isinstance(path, Path), f"actual: {type(path)}"
-        path.rmdir()
+        if path.is_dir():
+            shutil.rmtree(path)
+        else:
+            path.unlink()
 
     def chmod(self, path: PurePath, mode: int) -> None:
         """Change the file mode bits of each given file according to mode (Posix targets only)
