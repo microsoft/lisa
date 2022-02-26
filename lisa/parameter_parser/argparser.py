@@ -45,12 +45,36 @@ def support_variable(parser: ArgumentParser) -> None:
     )
 
 
+def support_log_path(parser: ArgumentParser) -> None:
+    parser.add_argument(
+        "--log_path",
+        "-l",
+        type=Path,
+        dest="log_path",
+        help="Uses to replace the default log root path.",
+    )
+
+
+def support_id(parser: ArgumentParser) -> None:
+    parser.add_argument(
+        "--id",
+        "-i",
+        type=Path,
+        dest="run_id",
+        help="The ID is used to avoid conflicts on names or folders. If the log or "
+        "name has a chance to conflict in a global storage, use an unique ID to avoid "
+        "it.",
+    )
+
+
 def parse_args() -> Namespace:
     """This wraps Python's 'ArgumentParser' to setup our CLI."""
     parser = ArgumentParser(prog="lisa")
     support_debug(parser)
     support_runbook(parser, required=False)
     support_variable(parser)
+    support_log_path(parser)
+    support_id(parser)
 
     # Default to ‘run’ when no subcommand is given.
     parser.set_defaults(func=commands.run)
