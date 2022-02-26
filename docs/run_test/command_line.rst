@@ -3,10 +3,12 @@ Command line reference
 
 -  `Common arguments <#common-arguments>`__
 
-   -  `-r, –runbook <#-r-runbook>`__
-   -  `-d, –debug <#-d-debug>`__
-   -  `-h, –help <#-h-help>`__
-   -  `-v, –variable <#-v-variable>`__
+   -  `-r, --runbook <#r-runbook>`__
+   -  `-d, --debug <#d-debug>`__
+   -  `-l, --log_path <#l-log_path>`__
+   -  `-i, --id <#i-id>`__
+   -  `-h, --help <#h-help>`__
+   -  `-v, --variable <#v-variable>`__
 
 -  `run <#run>`__
 -  `check <#check>`__
@@ -15,8 +17,8 @@ Command line reference
 Common arguments
 ----------------
 
--r, –runbook
-~~~~~~~~~~~~
+-r, --runbook
+~~~~~~~~~~~~~
 
 Specify the path of :doc:`runbook <runbook>`. It can be an absolute
 path or a relative path. This parameter is required in every run other
@@ -26,8 +28,8 @@ than run with -h.
 
    lisa -r ./microsoft/runbook/azure.yml
 
--d, –debug
-~~~~~~~~~~
+-d, --debug
+~~~~~~~~~~~
 
 By default, the console will display INFO or higher level logs, but will
 not display DEBUG level logs. This option enables the console to output
@@ -38,8 +40,34 @@ and will always contain the DEBUG level messages.
 
    lisa -d
 
--h, –help
-~~~~~~~~~
+-l, --log_path
+~~~~~~~~~~~~~~
+
+By default, the runtime/runs will be used to storage logs. In case it needs to
+save log to customized path, specify a relative or absolute path to change the
+default path.
+
+.. code:: sh
+
+   lisa -l new_path
+
+-i, --id
+~~~~~~~~
+
+By default, the LISA generate a string like "20220226/20220226-075916-054". It
+uses as log path of this run. The last part of the name "20220226-075916-054" is
+used as ID of this run. In Azure, it will be used in resource_group_name. In
+some cases, the name may be conflict in a global place. This argument can
+overwrite the default behavior, so it has a chance to create an unique name. If
+it contains multiple parts of path, the last part will be used as run id. The
+whole path will be taken into log path.
+
+.. code:: sh
+
+   lisa -i new_id
+
+-h, --help
+~~~~~~~~~~
 
 Show help messages.
 
@@ -47,8 +75,8 @@ Show help messages.
 
    lisa -h
 
--v, –variable
-~~~~~~~~~~~~~
+-v, --variable
+~~~~~~~~~~~~~~
 
 Define one or more variables in the format of ``name:value``, which will
 overwrite the value in the YAML file. It can support secret values in

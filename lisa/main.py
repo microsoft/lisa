@@ -26,12 +26,16 @@ from lisa.variable import add_secrets_from_pairs
 
 
 @retry(FileExistsError, tries=10, delay=0.2)  # type: ignore
-def generate_run_path(root_path: Path) -> Tuple[PurePath, Path]:
-    # Get current time and generate a Run ID.
-    current_time = datetime.utcnow()
-    date_of_today = current_time.strftime("%Y%m%d")
-    time_of_today = get_datetime_path(current_time)
-    logic_path = PurePath(f"{date_of_today}/{time_of_today}")
+def generate_run_path(root_path: Path, run_id: str = "") -> Tuple[PurePath, Path]:
+    if run_id:
+        # use predefined run_id
+        logic_path = PurePath(run_id)
+    else:
+        # Get current time and generate a Run ID.
+        current_time = datetime.utcnow()
+        date_of_today = current_time.strftime("%Y%m%d")
+        time_of_today = get_datetime_path(current_time)
+        logic_path = PurePath(f"{date_of_today}/{time_of_today}")
     local_path = root_path.joinpath(logic_path)
     if local_path.exists():
         raise FileExistsError(
@@ -42,7 +46,9 @@ def generate_run_path(root_path: Path) -> Tuple[PurePath, Path]:
     return logic_path, local_path
 
 
-def initialize_runtime_folder() -> None:
+def initialize_runtime_folder(
+    log_path: Optional[Path] = None, run_id: str = ""
+) -> None:
     runtime_root = Path("runtime").absolute()
 
     cache_path = runtime_root.joinpath("cache")
@@ -50,8 +56,13 @@ def initialize_runtime_folder() -> None:
     constants.CACHE_PATH = cache_path
 
     # Layout the run time folder structure.
-    runs_path = runtime_root.joinpath("runs")
-    logic_path, local_path = generate_run_path(runs_path)
+    if log_path:
+        # if log path is relative path, join with root.
+        if not log_path.is_absolute():
+            log_path = runtime_root / log_path
+    else:
+        log_path = runtime_root / "runs"
+    logic_path, local_path = generate_run_path(log_path, run_id=run_id)
 
     constants.RUN_ID = logic_path.name
     constants.RUN_LOGIC_PATH = logic_path
@@ -65,9 +76,9 @@ def main() -> int:
     file_handler: Optional[FileHandler] = None
 
     try:
-        initialize_runtime_folder()
-
         args = parse_args()
+
+        initialize_runtime_folder(args.log_path, args.run_id)
 
         log_level = DEBUG if (args.debug) else INFO
         set_level(log_level)
