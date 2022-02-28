@@ -100,10 +100,7 @@ class QemuPlatform(Platform):
             return self._configure_node_capabilities(environment, log, qemu_conn)
 
     def _deploy_environment(self, environment: Environment, log: Logger) -> None:
-        local_node = local_node_connect(parent_logger=log)
-        if self.host_node is None:
-            self.host_node = local_node
-        self._deploy_nodes(environment, log, local_node)
+        self._deploy_nodes(environment, log)
 
     def _delete_environment(self, environment: Environment, log: Logger) -> None:
         with libvirt.open(self.libvirt_conn_str) as qemu_conn:
@@ -251,13 +248,13 @@ class QemuPlatform(Platform):
         return search_space.generate_min_capability_countspace(count_space, count_space)
 
     def _deploy_nodes(
-        self, environment: Environment, log: Logger, local_node: Node
+        self, environment: Environment, log: Logger
     ) -> None:
-        self._configure_nodes(environment, log, local_node)
+        self._configure_nodes(environment, log)
 
         with libvirt.open(self.libvirt_conn_str) as qemu_conn:
             try:
-                self._create_nodes(environment, log, qemu_conn, local_node)
+                self._create_nodes(environment, log, qemu_conn)
                 self._fill_nodes_metadata(environment, log, qemu_conn)
 
             except Exception as ex:
@@ -274,7 +271,7 @@ class QemuPlatform(Platform):
     # to be created. This makes it easier to cleanup everything after the test is
     # finished (or fails).
     def _configure_nodes(
-        self, environment: Environment, log: Logger, local_node: Node
+        self, environment: Environment, log: Logger
     ) -> None:
         # Generate a random name for the VMs.
         test_suffix = "".join(random.choice(string.ascii_uppercase) for _ in range(5))
@@ -358,16 +355,15 @@ class QemuPlatform(Platform):
         environment: Environment,
         log: Logger,
         qemu_conn: libvirt.virConnect,
-        local_node: Node,
     ) -> None:
         for node in environment.nodes.list():
             node_context = get_node_context(node)
 
             # Create cloud-init ISO file.
-            self._create_node_cloud_init_iso(environment, log, node, local_node)
+            self._create_node_cloud_init_iso(environment, log, node)
 
             # Create OS disk from the provided image.
-            self._create_node_os_disk(environment, log, node, local_node)
+            self._create_node_os_disk(environment, log, node)
 
             # Create libvirt domain (i.e. VM).
             xml = self._create_node_domain_xml(environment, log, node)
@@ -486,7 +482,7 @@ class QemuPlatform(Platform):
 
     # Create a cloud-init ISO for a VM.
     def _create_node_cloud_init_iso(
-        self, environment: Environment, log: Logger, node: Node, local_node: Node
+        self, environment: Environment, log: Logger, node: Node
     ) -> None:
         environment_context = get_environment_context(environment)
         node_context = get_node_context(node)
@@ -550,7 +546,7 @@ class QemuPlatform(Platform):
 
     # Create the OS disk.
     def _create_node_os_disk(
-        self, environment: Environment, log: Logger, node: Node, local_node: Node
+        self, environment: Environment, log: Logger, node: Node
     ) -> None:
         node_context = get_node_context(node)
         self.host_node.tools[QemuImg].create_diff_qcow2(
