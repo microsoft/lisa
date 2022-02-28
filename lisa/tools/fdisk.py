@@ -82,32 +82,10 @@ class Fdisk(Tool):
                 shell=True,
                 sudo=True,
             )
-    
-    def change_partition_type(self, disk_name: str, type_code: str) -> None:
-        # t -> change a partition type
-        cmd_res = self.node.execute(
-            f"(echo n; echo p; echo 1; echo ; echo ; echo t; echo {type_code}; echo p; echo w) | "
-            f"{self.command} -w always -W always {disk_name}",
-            shell=True,
-            sudo=True,
-        )
-        cmd_res.assert_exit_code()
-
-    # def change_partition_type(self, disk_name: str, type_code: str) -> None:
-    #     # t -> change a partition type
-    #     cmd_res = self.node.execute(
-    #         f"(echo n; echo p; echo 1; echo ; echo ; echo t;"
-    #         " echo {type_code}; echo p; echo w) | "
-    #         f"{self.command} -w always -W always {disk_name}",
-    #         shell=True,
-    #         sudo=True,
-    #         expected_exit_code=0,
-    #         expected_exit_code_failure_message="Faied to change the partition type."
-    #     )
 
     def change_partition_type(self, disk_name: str, type_code: str) -> None:
         # t -> change a partition type
-        cmd_res = self.node.execute(
+        self.node.execute(
             f"(echo n; echo p; echo 1; echo ; echo ; echo t;"
             " echo {type_code}; echo p; echo w) | "
             f"{self.command} -w always -W always {disk_name}",

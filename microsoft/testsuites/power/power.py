@@ -1,9 +1,9 @@
 # Copyright (c) Microsoft Corporation.
 # Licensed under the MIT license.
+
 import re
 import time
 from datetime import date
-from typing import List
 
 from assertpy import assert_that
 
@@ -17,14 +17,26 @@ from lisa import (
     search_space,
 )
 from lisa.base_tools import Cat, Uname
-from lisa.features import Disk, StartStop
-from lisa.operating_system import Redhat, Suse, Ubuntu
+from lisa.features import StartStop
+from lisa.operating_system import Redhat, Suse
 from lisa.sut_orchestrator.azure.tools import VmGeneration
 from lisa.testsuite import simple_requirement
 from lisa.tools import Blkid, Dmesg, Echo, Fdisk, Sed, Swap, SwapOn
-from lisa.util import LisaException, SkippedException, find_patterns_in_lines, get_matched_str
+from lisa.util import (
+    LisaException,
+    SkippedException,
+    find_patterns_in_lines,
+    get_matched_str,
+)
 from lisa.util.logger import Logger
 from lisa.util.shell import wait_tcp_port_ready
+
+# matching 4-digit year between whitespace
+# or at the beginning of a line
+# example: 2022 from '2022-02-04 11:38:06.949136+0000'
+# or 2018 from 'Fri 07 Sep 2018 11:26:52 AM CEST .838868 seconds'
+# will be matched
+_YEAR_PATTERN = re.compile("(\s\d{4}\s)|(^\d{4})")
 
 
 def _check_vm_feature_support_status(min_support_version: str, node: Node) -> bool:
@@ -46,10 +58,9 @@ def _get_year(node: Node) -> str:
         shell=True,
         sudo=True
     ).stdout
-    pattern = re.compile("^\d{4}")
     # Ubuntu 16.4.0 format: Fri 07 Sep 2018 11:26:52 AM CEST .838868 seconds
     # other hwclock format: '2022-02-04 11:38:06.949136+0000'
-    year = get_matched_str(hard_ware_clock, pattern)
+    year = get_matched_str(hard_ware_clock, _YEAR_PATTERN)
     return year
 
 
@@ -104,12 +115,13 @@ def _recover_files(node: Node, log: Logger, files_and_contents: dict) -> None:
     description="""
     """
 )
-class power(TestSuite):
+class Power(TestSuite):
     REBOOT_TIME_OUT = 300
 
     @TestCaseMetadata(
         description="""
-        This test can be performed in Azure and Hyper-V both. But this script only covers Azure.
+        This test can be performed in Azure and Hyper-V both.
+        But this script only covers Azure.
         1. Prepare swap space for hibernation
         2. Update the grub.cfg with resume=UUID=xxxx where is from blkid swap disk
         3. Set RTC to future time or past time
@@ -126,12 +138,17 @@ class power(TestSuite):
             ),
         )
     )
-    def power_clock_sync_hibernate(self, environment: Environment, node: Node, log: Logger) -> None:
+    def power_clock_sync_hibernate(
+        self,
+        environment: Environment,
+        node: Node,
+        log: Logger
+    ) -> None:
         modified_files = {}
 
         dmesg = node.tools[Dmesg]
         dmesg_output = dmesg.get_output(force_run=True)
-        search_pattern = re.compile(r'root=.*resume', flags = re.M | re.IGNORECASE)
+        search_pattern = re.compile(r'root=.*resume', flags=re.M | re.IGNORECASE)
         env_setup_result = re.findall(search_pattern, dmesg_output)
         log.debug("Env Setup Result: " + ''.join(env_setup_result))
         if env_setup_result:
@@ -153,10 +170,11 @@ class power(TestSuite):
                     "uname -r", shell=True, sudo=True
                 )
                 if not check_vm_support_res:
-                    raise SkippedException(f"Hibernation is supported since kernel-4.18.0-202. Current version: {current_kernel_version}.")
+                    raise SkippedException(
+                        "Hibernation is supported since kernel-4.18.0-202. "
+                        f"Current version: {current_kernel_version}.")
 
             # prepare swap space
-            # Get the latest device name which should be the new attached data disk
             # TODO: USE FDISK TOOL
             data_dev = node.execute(
                 "ls /dev/sd*[a-z] | sort -r | head -1", shell=True, sudo=True
@@ -167,7 +185,8 @@ class power(TestSuite):
                 sudo=True
             ).stdout
             assert_that(data_dev).described_as(
-                "Did not find data disk. Something wrong during environment deployment... "
+                "Did not find data disk. "
+                "Something wrong during environment deployment... "
             ).is_true()
             fdisk = node.tools[Fdisk]
             # 82  Linux swap / So
@@ -221,7 +240,9 @@ class power(TestSuite):
                     file_output=file_output_default_grub,
                     regexp='rootdelay=300',
                     replacement=f'rootdelay=300 resume={sw_uuid}',
-                    text=f'GRUB_CMDLINE_LINUX_DEFAULT="console=tty1 console=ttyS0 earlyprintk=ttyS0 rootdelay=300 resume={sw_uuid}"',
+                    text='GRUB_CMDLINE_LINUX_DEFAULT="'
+                    'console=tty1 console=ttyS0 earlyprintk=ttyS0 rootdelay=300'
+                    f' resume={sw_uuid}"',
                     file=default_grub_file,
                     sudo=True
                 )
@@ -262,16 +283,22 @@ class power(TestSuite):
                 )
                 vmlinux_file = f"/boot/vmlinuz-{cmd_res.stdout}"
                 assert_that(node.shell.exists(vmlinux_file)).described_as(
-                    f"Can not set new vmlinuz file in grubby command. Expected new vmlinuz file, but found {vmlinux_file}"
+                    "Can not set new vmlinuz file in grubby command. "
+                    f"Expected new vmlinuz file, but found {vmlinux_file}"
                     "Aborting."
                 ).is_true()
 
                 original_args = node.execute(
-                    "grubby --info=0 | grep -i args | cut -d '\"' -f 2", shell=True, sudo=True
+                    "grubby --info=0 | grep -i args | cut -d '\"' -f 2",
+                    shell=True,
+                    sudo=True
                 ).stdout
                 log.debug(f"Original boot parameters {original_args}")
                 node.execute(
-                    f"grubby --args=\"{original_args} resume={sw_uuid}\" --update-kernel={vmlinux_file}", shell=True, sudo=True
+                    f"grubby --args=\"{original_args} resume={sw_uuid}\" "
+                    f"--update-kernel={vmlinux_file}",
+                    shell=True,
+                    sudo=True
                 )
                 cmd_res = node.execute(
                     f"grubby --set-default={vmlinux_file}", shell=True, sudo=True
@@ -279,7 +306,7 @@ class power(TestSuite):
                 log.debug(f"Set f{vmlinux_file} to the default kernel")
 
                 new_args = node.execute(
-                    f"grubby --info=ALL", shell=True, sudo=True
+                    "grubby --info=ALL", shell=True, sudo=True
                 ).stdout
                 log.debug(f"Updated grubby output {new_args}")
 
@@ -288,7 +315,8 @@ class power(TestSuite):
                 ).stdout
                 log.debug(f"grubby default-kernel output {grubby_output}")
 
-                # Must run dracut -f, or it cannot recover image in boot after hibernation
+                # Must run dracut -f
+                # or it cannot recover image in boot after hibernation
                 cmd_res = node.execute(
                     "dracut -f", shell=True, sudo=True
                 )
@@ -305,7 +333,9 @@ class power(TestSuite):
                     file_output=file_output_default_grub,
                     regexp='rootdelay=300',
                     replacement=f'rootdelay=300 log_buf_len=200M resume={sw_uuid}',
-                    text=f'GRUB_CMDLINE_LINUX_DEFAULT="console=tty1 console=ttyS0 earlyprintk=ttyS0 rootdelay=300 log_buf_len=200M resume={sw_uuid}"',
+                    text='GRUB_CMDLINE_LINUX_DEFAULT="'
+                    'console=tty1 console=ttyS0 earlyprintk=ttyS0 '
+                    f'rootdelay=300 log_buf_len=200M resume={sw_uuid}"',
                     file=default_grub_file,
                     sudo=True
                 )
@@ -319,7 +349,8 @@ class power(TestSuite):
                     file=default_grub_file,
                     sudo=True
                 )
-                log.debug("Added/Updated GRUB_HIDDEN_TIMEOUT=30 in /etc/default/grub file")
+                log.debug(
+                    "Added/Updated GRUB_HIDDEN_TIMEOUT=30 in /etc/default/grub file")
 
                 node.tools[Sed].substitute_or_append(
                     file_output=default_grub_file,
@@ -372,14 +403,18 @@ class power(TestSuite):
             else:
                 # Canonical Ubuntu
                 # Change boot kernel parameters in 50-cloudimg-settings.cfg
-                # resume= defines the disk partition address where the hibernation image goes in and out.
-                # For stress test purpose, we need to increase the log file size bigger like 200MB.
-                _50_cloudimg_settings_file = "/etc/default/grub.d/50-cloudimg-settings.cfg"
+                # resume= defines the disk partition address
+                # where the hibernation image goes in and out.
+                # For stress test purpose,
+                # we need to increase the log file size bigger like 200MB.
+                _50_cloudimg_settings_file = \
+                    "/etc/default/grub.d/50-cloudimg-settings.cfg"
                 file_output_50_cloudimg_settings = node.tools[Cat].read(
                     _50_cloudimg_settings_file,
                     sudo=True
                 )
-                modified_files[_50_cloudimg_settings_file] = file_output_50_cloudimg_settings
+                modified_files[_50_cloudimg_settings_file] = \
+                    file_output_50_cloudimg_settings
 
                 if 'rootdelay=' in file_output_50_cloudimg_settings:
                     node.tools[Sed].substitute(
@@ -393,11 +428,15 @@ class power(TestSuite):
                 else:
                     search_pattern = re.compile(r"^GRUB_CMDLINE_LINUX_DEFAULT", re.M)
                     node.tools[Sed].substitute_or_append(
-                        is_substitute=find_patterns_in_lines(file_output_50_cloudimg_settings, [
-                                               search_pattern])[0],
+                        is_substitute=find_patterns_in_lines(
+                            file_output_50_cloudimg_settings,
+                            [search_pattern])[0],
                         regexp='"$',
-                        replacement=f' rootdelay=300 log_buf_len=200M resume={sw_uuid}"',
-                        text=f'GRUB_CMDLINE_LINUX_DEFAULT="console=tty1 console=ttyS0 earlyprintk=ttyS0 rootdelay=300 log_buf_len=200M resume={sw_uuid}"',
+                        replacement=' rootdelay=300 log_buf_len=200M '
+                        f'resume={sw_uuid}"',
+                        text='GRUB_CMDLINE_LINUX_DEFAULT="console=tty1 console=ttyS0 '
+                        'earlyprintk=ttyS0 rootdelay=300 '
+                        f'log_buf_len=200M resume={sw_uuid}"',
                         file=_50_cloudimg_settings_file,
                         match_lines='^GRUB_CMDLINE_LINUX_DEFAULT=',
                         sudo=True
@@ -415,7 +454,8 @@ class power(TestSuite):
                     sudo=True,
                 )
                 log.debug(
-                    "Updated/Added GRUB_HIDDEN_TIMEOUT value with 30 in 50-cloudimg-settings.cfg file.")
+                    "Updated/Added GRUB_HIDDEN_TIMEOUT value with 30 "
+                    "in 50-cloudimg-settings.cfg file.")
 
                 # This is the case about GRUB_TIMEOUT
                 node.tools[Sed].substitute_or_append(
@@ -426,19 +466,21 @@ class power(TestSuite):
                     file=_50_cloudimg_settings_file,
                     sudo=True
                 )
-                log.debug("Updated/Added GRUB_TIMEOUT=30 in 50-cloudimg-settings.cfg file.")
+                log.debug(
+                    "Updated/Added GRUB_TIMEOUT=30 in 50-cloudimg-settings.cfg file.")
 
                 # This is the case about GRUB_FORCE_PARTUUID
                 _40_force_partuuid_file = "/etc/default/grub.d/40-force-partuuid.cfg"
                 if node.shell.exists(_40_force_partuuid_file):
-                    file_output_40_force_partuuid = node.tools[Cat].read(
+                    output_40_force_partuuid = node.tools[Cat].read(
                         _40_force_partuuid_file,
                         sudo=True
                     )
-                    modified_files[_40_force_partuuid_file] = file_output_40_force_partuuid
+                    modified_files[_40_force_partuuid_file] = output_40_force_partuuid
 
                     search_pattern = re.compile(r'^GRUB_FORCE_PARTUUID=', re.M)
-                    if find_patterns_in_lines(file_output_40_force_partuuid, search_pattern)[0]:
+                    if find_patterns_in_lines(
+                            output_40_force_partuuid, search_pattern)[0]:
                         node.tools[Sed].substitute(
                             'GRUB_FORCE_PARTUUID=.*',
                             '#GRUB_FORCE_PARTUUID=',
@@ -446,7 +488,8 @@ class power(TestSuite):
                             sudo=True
                         )
                         log.debug(
-                            f"Commented out GRUB_FORCE_PARTUUID line in {_40_force_partuuid_file}.")
+                            "Commented out GRUB_FORCE_PARTUUID line in "
+                            f"{_40_force_partuuid_file}.")
                     else:
                         log.debug("No force part uuid to be replaced, continue test...")
 
@@ -460,7 +503,8 @@ class power(TestSuite):
                     sudo=True
                 )
                 assert_that(_entry1).described_as(
-                    f"{_entry1} - Missing config update in 50-cloudimg-settings.cfg file"
+                    f"{_entry1} - Missing config update"
+                    " in 50-cloudimg-settings.cfg file"
                 ).is_true()
 
                 _entry2 = node.tools[Cat].read_with_filter(
@@ -469,7 +513,8 @@ class power(TestSuite):
                     sudo=True
                 )
                 assert_that(_entry2).described_as(
-                    f"{_entry2} - Missing config update in 50-cloudimg-settings.cfg file"
+                    f"{_entry2} - Missing config update "
+                    "in 50-cloudimg-settings.cfg file"
                 ).is_true()
 
                 _entry3 = node.tools[Cat].read_with_filter(
@@ -478,11 +523,14 @@ class power(TestSuite):
                     sudo=True
                 )
                 assert_that(_entry3).described_as(
-                    f"{_entry3} - Missing config update in 50-cloudimg-settings.cfg file"
+                    f"{_entry3} - Missing config update "
+                    "in 50-cloudimg-settings.cfg file"
                 ).is_true()
 
-                log.info("Successfully updated 50-cloudimg-settings.cfg file with all three entries.\n"
-                         "Setup Hibernate Kernel Completed.")
+                log.info(
+                    "Successfully updated 50-cloudimg-settings.cfg file"
+                    " with all three entries.\n"
+                    "Setup Hibernate Kernel Completed.")
 
         #################################
         #      SETUP HIBERNATE DONE     #
@@ -510,10 +558,13 @@ class power(TestSuite):
             sudo=True
         )
 
-        log.info("Sent hibernate command to the VM and continue checking its status in every 15 seconds until 10 minutes timeout.")
+        log.info(
+            "Sent hibernate command to the VM and continue checking its status"
+            " in every 15 seconds until 10 minutes timeout.")
 
         # Verify the VM status
-	    # Can not find if VM hibernation completion or not as soon as it disconnects the network. Assume it is in timeout.
+        # Can not find if VM hibernation completion
+        # or not as soon as it disconnects the network. Assume it is in timeout.
         timeout = 600
         start_time = time.time()
         vm_stopped = False
@@ -527,16 +578,17 @@ class power(TestSuite):
 
         if vm_stopped:
             log.info(
-                "Verified successfully VM status is stopped after hibernation command sent")
+                "Verified VM status is stopped after hibernation command sent")
         else:
             raise LisaException(
-                "Failed to change VM status to be stopped after hibernation command sent")
+                "Failed to change VM status to be stopped"
+                " after hibernation command sent")
 
         # Resume the VM
         start_stop.start()
         log.info(
-            f"Waked up the VM in Resource Group {resource_group} "
-            "and continue checking its status in every 15 seconds until 15 minutes timeout")
+            "Waked up the VM and continue checking its status"
+            " in every 15 seconds until 15 minutes timeout")
 
         # Wait for VM resume for 15 min-timeout
         timeout = 900
@@ -561,7 +613,8 @@ class power(TestSuite):
                                 dmesg.get_output(force_run=True), re.IGNORECASE)
                 if not res or "hibernation exit" not in res.group(1):
                     log.error(
-                        "VM resumed successfully but could not determine hibernation completion")
+                        "VM resumed successfully "
+                        "but could not determine hibernation completion")
                 else:
                     log.info("VM resumed successfully")
                     vm_resumed = True
@@ -574,8 +627,10 @@ class power(TestSuite):
         else:
             raise LisaException("VM resume did not finish.")
 
-        # Note that if you use NTP, the hardware clock is automatically synchronized to the system clock every 11 minutes,
-        # and this command is useful only at boot time to get a reasonable initial system time.
+        # Note that if you use NTP, the hardware clock is
+        # automatically synchronized to the system clock every 11 minutes,
+        # and this command is useful only at boot time
+        # to get a reasonable initial system time.
         log.info("Waiting for RTC re-sync in 12 minutes...")
         time.sleep(720)
 
@@ -588,7 +643,9 @@ class power(TestSuite):
                          dmesg.get_output(force_run=True), re.IGNORECASE)
         if res:
             log.error("Found Call Trace or Fatal error in dmesg")
-            # This is linux-next, so there is high chance to get call trace from other issue. For now, only print the error.
+            # This is linux-next,
+            # so there is high chance to get call trace from other issue.
+            # For now, only print the error.
         else:
             log.info("Not found Call Trace and Fatal error in dmesg")
         log.info("Waiting 60-second for logging sync")
@@ -596,25 +653,28 @@ class power(TestSuite):
 
         # Check the system log if it shows Power Management log
         log.debug("Searching the keyword: 'hibernation entry' and 'hibernation exit'")
-        if _found_sys_log(node, 'hibernation entry') and _found_sys_log(node, 'hibernation exit'):
+        if _found_sys_log(node, 'hibernation entry') and \
+                _found_sys_log(node, 'hibernation exit'):
             log.debug("Successfully found Power Management log in dmesg")
         else:
             raise LisaException("Could not find Power Management log in dmesg")
 
         if before_time_stamp != after_time_stamp:
             log.info(
-                "Successfully verified the before_time_stamp was different from after_time_stamp")
+                "Successfully verified "
+                "the before_time_stamp was different from after_time_stamp")
         else:
             raise LisaException(
                 f"Did not find time synced. {before_time_stamp} to {after_time_stamp}")
 
         controller_time_stamp = date.today().year
         if after_time_stamp == str(controller_time_stamp):
-            log.info("Successfully verified the system date changed back to correct date")
+            log.info(
+                "Successfully verified the system date changed back to correct date")
         else:
             raise LisaException(
-                f"Expected VM time changed back to the correct one after sync-up,"
-                " but found {after_time_stamp}")
-        
+                "Expected VM time changed back to the correct one after sync-up,"
+                f" but found {after_time_stamp}")
+
         # Recover modified files
         _recover_files(node, log, modified_files)
