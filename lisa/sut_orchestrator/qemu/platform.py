@@ -318,13 +318,13 @@ class QemuPlatform(Platform):
                 vm_disks_dir, f"{node_context.vm_name}-cloud-init.iso"
             )
 
-            node_context.os_disk_base_file_path = os.path.join(
-                vm_disks_dir, os.path.basename(qemu_node_runbook.qcow2)
-            )
-            self.host_node.shell.copy(
-                Path(qemu_node_runbook.qcow2),
-                Path(node_context.os_disk_base_file_path),
-            )
+            if self.host_node.is_remote:
+                node_context.os_disk_source_file_path = qemu_node_runbook.qcow2
+                node_context.os_disk_base_file_path = os.path.join(
+                    vm_disks_dir, os.path.basename(qemu_node_runbook.qcow2)
+                )
+            else:
+                node_context.os_disk_base_file_path = qemu_node_runbook.qcow2
 
             node_context.os_disk_file_path = os.path.join(
                 vm_disks_dir, f"{node_context.vm_name}-os.qcow2"
@@ -360,6 +360,12 @@ class QemuPlatform(Platform):
     ) -> None:
         for node in environment.nodes.list():
             node_context = get_node_context(node)
+
+            if node_context.os_disk_source_file_path:
+                self.host_node.shell.copy(
+                    Path(node_context.os_disk_source_file_path),
+                    Path(node_context.os_disk_base_file_path),
+                )
 
             # Create cloud-init ISO file.
             self._create_node_cloud_init_iso(environment, log, node)
@@ -516,18 +522,19 @@ class QemuPlatform(Platform):
 
         iso_path = node_context.cloud_init_file_path
         tmp_dir = tempfile.TemporaryDirectory()
-        iso_path = os.path.join(tmp_dir.name, "cloud-init.iso")
+        try:
+            iso_path = os.path.join(tmp_dir.name, "cloud-init.iso")
 
-        self._create_iso(
-            iso_path,
-            [("/user-data", user_data_string), ("/meta-data", meta_data_string)],
-        )
+            self._create_iso(
+                iso_path,
+                [("/user-data", user_data_string), ("/meta-data", meta_data_string)],
+            )
 
-        self.host_node.shell.copy(
-            Path(iso_path), Path(node_context.cloud_init_file_path)
-        )
-
-        tmp_dir.cleanup()
+            self.host_node.shell.copy(
+                Path(iso_path), Path(node_context.cloud_init_file_path)
+            )
+        finally:
+            tmp_dir.cleanup()
 
     # Create an ISO file.
     def _create_iso(self, file_path: str, files: List[Tuple[str, str]]) -> None:
