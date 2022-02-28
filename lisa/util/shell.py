@@ -6,6 +6,7 @@ import os
 import shutil
 import socket
 import sys
+import time
 from pathlib import Path, PurePath
 from time import sleep
 from typing import Any, Dict, List, Mapping, Optional, Sequence, Tuple, Union, cast
@@ -14,8 +15,7 @@ import paramiko
 import spur  # type: ignore
 import spurplus  # type: ignore
 from func_timeout import FunctionTimedOut, func_set_timeout  # type: ignore
-from paramiko.ssh_exception import SSHException
-from retry import retry
+from paramiko.ssh_exception import NoValidConnectionsError, SSHException
 
 from lisa.util import InitializableMixin, LisaException, TcpConnetionException
 
@@ -138,25 +138,48 @@ class WindowsShellType(object):
 
 
 # retry strategy is the same as spurplus.connect_with_retries.
-@retry(Exception, tries=3, delay=1, logger=None)  # type: ignore
-def try_connect(connection_info: ConnectionInfo) -> Any:
+def try_connect(connection_info: ConnectionInfo, ssh_timeout: int = 300) -> Any:
     # spur always run a posix command and will fail on Windows.
     # So try with paramiko firstly.
     paramiko_client = paramiko.SSHClient()
+
     # Use base policy, do nothing on host key. The host key shouldn't be saved
     # locally, or make any warning message. The IP addresses in cloud may be
     # reused by different servers. If they are saved, there will be conflict
     # error in paramiko.
     paramiko_client.set_missing_host_key_policy(paramiko.MissingHostKeyPolicy())
 
-    paramiko_client.connect(
-        hostname=connection_info.address,
-        port=connection_info.port,
-        username=connection_info.username,
-        password=connection_info.password,
-        key_filename=connection_info.private_key_file,
-        banner_timeout=10,
-    )
+    # wait for ssh port to be ready
+    timeout_start = time.time()
+    is_ready = False
+    while time.time() < timeout_start + ssh_timeout:
+        try:
+            paramiko_client.connect(
+                hostname=connection_info.address,
+                port=connection_info.port,
+                username=connection_info.username,
+                password=connection_info.password,
+                key_filename=connection_info.private_key_file,
+                banner_timeout=10,
+            )
+        except SSHException as e:
+            # socket is open, but SSH service not responded
+            if str(e) == "Error reading SSH protocol banner":
+                sleep(1)
+                continue
+        except NoValidConnectionsError:
+            # ssh service is not ready
+            sleep(1)
+            continue
+
+        # ssh connection is ready
+        is_ready = True
+        break
+
+    # raise exception if ssh service is not ready
+    if not is_ready:
+        raise LisaException(f"ssh connection cannot be established: {connection_info}")
+
     stdin, stdout, _ = paramiko_client.exec_command("cmd\n")
     # Flush commands and prevent more writes
     stdin.flush()
