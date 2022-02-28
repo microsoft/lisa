@@ -70,7 +70,13 @@ class QemuPlatform(Platform):
         )
 
     def _prepare_environment(self, environment: Environment, log: Logger) -> bool:
-        host = self.qemu_platform_runbook.host
+        if len(self.qemu_platform_runbook.hosts) > 1:
+            log.warning(
+                "Multiple hosts are currently not supported. "
+                "Only the first host will be used."
+            )
+
+        host = self.qemu_platform_runbook.hosts[0]
         if host.is_remote():
             assert host.address
             if not host.username:
@@ -247,9 +253,7 @@ class QemuPlatform(Platform):
     def _get_count_space_min(self, count_space: search_space.CountSpace) -> int:
         return search_space.generate_min_capability_countspace(count_space, count_space)
 
-    def _deploy_nodes(
-        self, environment: Environment, log: Logger
-    ) -> None:
+    def _deploy_nodes(self, environment: Environment, log: Logger) -> None:
         self._configure_nodes(environment, log)
 
         with libvirt.open(self.libvirt_conn_str) as qemu_conn:
@@ -270,9 +274,7 @@ class QemuPlatform(Platform):
     # Pre-determine all the nodes' properties, including the name of all the resouces
     # to be created. This makes it easier to cleanup everything after the test is
     # finished (or fails).
-    def _configure_nodes(
-        self, environment: Environment, log: Logger
-    ) -> None:
+    def _configure_nodes(self, environment: Environment, log: Logger) -> None:
         # Generate a random name for the VMs.
         test_suffix = "".join(random.choice(string.ascii_uppercase) for _ in range(5))
         vm_name_prefix = f"lisa-{test_suffix}"
@@ -291,7 +293,7 @@ class QemuPlatform(Platform):
                 raise LisaException(f"file does not exist: {qemu_node_runbook.qcow2}")
 
             vm_disks_dir = os.path.join(
-                self.qemu_platform_runbook.host.lisa_working_dir, vm_name_prefix
+                self.qemu_platform_runbook.hosts[0].lisa_working_dir, vm_name_prefix
             )
             self.host_node.shell.mkdir(Path(vm_disks_dir))
 
@@ -718,7 +720,7 @@ class QemuPlatform(Platform):
 
     def _init_libvirt_conn_string(self) -> None:
         hypervisor = "qemu"
-        host = self.qemu_platform_runbook.host
+        host = self.qemu_platform_runbook.hosts[0]
 
         host_addr = host.address if host.address else ""
         transport = "+tcp" if host.address else ""
