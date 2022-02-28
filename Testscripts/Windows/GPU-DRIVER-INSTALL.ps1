@@ -35,8 +35,7 @@ function Start-Validation {
         $gpuName = "A100-SXM"
         $expectedGPUBridgeCount = 6
         $deviceIDPattern = "Device_ID.*44450000"
-    }
-    if ($allVMData.InstanceSize -imatch "ads_A100_v4") {
+    } else if ($allVMData.InstanceSize -imatch "ads_A100_v4") {
         $gpuName = "A100"
         $deviceIDPattern = "Device_ID.*-444532304235"
     }
