@@ -191,15 +191,24 @@ def perf_tcp_pps(environment: Environment, test_type: str) -> None:
 
 def perf_ntttcp(
     environment: Environment,
+    server: Optional[RemoteNode] = None,
+    client: Optional[RemoteNode] = None,
     udp_mode: bool = False,
     connections: Optional[List[int]] = None,
     test_case_name: str = "",
 ) -> List[Union[NetworkTCPPerformanceMessage, NetworkUDPPerformanceMessage]]:
-    client = cast(RemoteNode, environment.nodes[0])
-    server = cast(RemoteNode, environment.nodes[1])
+    if server is None:
+        # set server from environment, if not set explicitly
+        server = cast(RemoteNode, environment.nodes[1])
+
+    if client is None:
+        # set client from environment, if not set explicitly
+        client = cast(RemoteNode, environment.nodes[0])
+
     if not test_case_name:
         # if it's not filled, assume it's called by case directly.
         test_case_name = inspect.stack()[1][3]
+
     if connections is None:
         if udp_mode:
             connections = NTTTCP_UDP_CONCURRENCY
@@ -207,11 +216,14 @@ def perf_ntttcp(
             connections = NTTTCP_TCP_CONCURRENCY
 
     client_ntttcp, server_ntttcp = run_in_parallel(
-        [lambda: client.tools[Ntttcp], lambda: server.tools[Ntttcp]]
+        [lambda: client.tools[Ntttcp], lambda: server.tools[Ntttcp]]  # type: ignore
     )
     try:
         client_lagscope, server_lagscope = run_in_parallel(
-            [lambda: client.tools[Lagscope], lambda: server.tools[Lagscope]]
+            [
+                lambda: client.tools[Lagscope],  # type: ignore
+                lambda: server.tools[Lagscope],  # type: ignore
+            ]
         )
         for ntttcp in [client_ntttcp, server_ntttcp]:
             ntttcp.setup_system(udp_mode)

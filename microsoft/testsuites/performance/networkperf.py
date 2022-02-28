@@ -175,7 +175,7 @@ class NetworkPerformace(TestSuite):
         ),
     )
     def perf_udp_1k_ntttcp_synthetic(self, environment: Environment) -> None:
-        perf_ntttcp(environment, True)
+        perf_ntttcp(environment, udp_mode=True)
 
     @TestCaseMetadata(
         description="""
@@ -189,7 +189,7 @@ class NetworkPerformace(TestSuite):
         ),
     )
     def perf_udp_1k_ntttcp_sriov(self, environment: Environment) -> None:
-        perf_ntttcp(environment, True)
+        perf_ntttcp(environment, udp_mode=True)
 
     @TestCaseMetadata(
         description="""
