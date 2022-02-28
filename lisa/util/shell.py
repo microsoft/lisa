@@ -585,7 +585,10 @@ class LocalShell(InitializableMixin):
         """
         assert isinstance(path, Path), f"actual: {type(path)}"
         if path.is_dir():
-            shutil.rmtree(path)
+            if recursive:
+                shutil.rmtree(path)
+            else:
+                path.rmdir()
         else:
             path.unlink()
 

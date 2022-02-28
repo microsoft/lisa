@@ -73,8 +73,10 @@ class QemuPlatform(Platform):
         host = self.qemu_platform_runbook.host
         if host.is_remote():
             assert host.address
-            assert host.username
-            assert host.private_key_file
+            if not host.username:
+                raise LisaException("Username must be provided for remote host")
+            if not host.private_key_file:
+                raise LisaException("Private key file must be provided for remote host")
 
             self.host_node = RemoteNode(
                 runbook=schema.Node(name="qemu-host"),
@@ -82,6 +84,7 @@ class QemuPlatform(Platform):
                 logger_name="qemu-host",
                 parent_logger=log,
             )
+
             self.host_node.set_connection_info(
                 address=host.address,
                 username=host.username,
@@ -408,7 +411,7 @@ class QemuPlatform(Platform):
                 vm_dir = os.path.dirname(node_context.os_disk_file_path)
                 self.host_node.shell.remove(Path(vm_dir), True)
             except Exception as ex:
-                log.warning(f"Working directory delete failed. {ex}")
+                log.warning(f"Failed to delete VM files directory: {ex}")
 
     # Delete a VM.
     def _stop_and_delete_vm(
