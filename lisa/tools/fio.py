@@ -81,6 +81,7 @@ class Fio(Tool):
         ioengine: str = "libaio",
         group_reporting: bool = True,
         overwrite: bool = False,
+        time_based: bool = False,
         cwd: Optional[pathlib.PurePath] = None,
     ) -> FIOResult:
         cmd = (
@@ -98,6 +99,9 @@ class Fio(Tool):
             cmd += " --group_reporting"
         if overwrite:
             cmd += " --overwrite=1"
+        if time_based:
+            cmd += " --time_based"
+
         result = self.run(
             cmd,
             force_run=True,
