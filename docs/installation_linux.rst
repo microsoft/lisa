@@ -29,7 +29,7 @@ install the dependencies:
 
 .. code:: bash
 
-   sudo apt install git gcc libgirepository1.0-dev libcairo2-dev virtualenv python3-pip -y
+   sudo apt install git gcc libgirepository1.0-dev libcairo2-dev virtualenv python3-pip libvirt-dev -y
    pip3 install virtualenv
 
 Clone code
