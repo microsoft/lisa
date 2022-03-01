@@ -10,6 +10,7 @@ from lisa.executable import Tool
 from lisa.messages import DiskPerformanceMessage, create_message
 from lisa.operating_system import Debian, Posix, Redhat, Suse
 from lisa.util import LisaException, constants
+from lisa.util.process import Process
 
 from .git import Git
 
@@ -84,24 +85,22 @@ class Fio(Tool):
         time_based: bool = False,
         cwd: Optional[pathlib.PurePath] = None,
     ) -> FIOResult:
-        cmd = (
-            f"--ioengine={ioengine} --bs={block_size} --filename={filename} "
-            f"--readwrite={mode} --runtime={time} --iodepth={iodepth} "
-            f"--numjob={numjob} --name={name}"
+        cmd = self._get_command(
+            name,
+            filename,
+            mode,
+            iodepth,
+            numjob,
+            time,
+            block_size,
+            size_gb,
+            direct,
+            gtod_reduce,
+            ioengine,
+            group_reporting,
+            overwrite,
+            time_based,
         )
-        if direct:
-            cmd += " --direct=1"
-        if gtod_reduce:
-            cmd += " --gtod_reduce=1"
-        if size_gb:
-            cmd += f" --size={size_gb}G"
-        if group_reporting:
-            cmd += " --group_reporting"
-        if overwrite:
-            cmd += " --overwrite=1"
-        if time_based:
-            cmd += " --time_based"
-
         result = self.run(
             cmd,
             force_run=True,
@@ -111,7 +110,58 @@ class Fio(Tool):
             cwd=cwd,
             timeout=ssh_timeout,
         )
-        matched_results = self._result_pattern.match(result.stdout)
+        fio_result = self.get_result_from_raw_output(
+            mode, result.stdout, iodepth, numjob
+        )
+        return fio_result
+
+    def launch_async(
+        self,
+        name: str,
+        filename: str,
+        mode: str,
+        iodepth: int,
+        numjob: int,
+        time: int = 120,
+        block_size: str = "4K",
+        size_gb: int = 0,
+        direct: bool = True,
+        gtod_reduce: bool = False,
+        ioengine: str = "libaio",
+        group_reporting: bool = True,
+        overwrite: bool = False,
+        time_based: bool = False,
+        cwd: Optional[pathlib.PurePath] = None,
+    ) -> Process:
+        cmd = self._get_command(
+            name,
+            filename,
+            mode,
+            iodepth,
+            numjob,
+            time,
+            block_size,
+            size_gb,
+            direct,
+            gtod_reduce,
+            ioengine,
+            group_reporting,
+            overwrite,
+            time_based,
+        )
+        process = self.run_async(
+            cmd,
+            force_run=True,
+            sudo=True,
+            cwd=cwd,
+        )
+        return process
+
+    def get_result_from_raw_output(
+        self, mode: str, output: str, iodepth: int, numjob: int
+    ) -> FIOResult:
+        # match raw output to get iops and latency
+        matched_results = self._result_pattern.match(output)
         assert matched_results, "not found matched iops and latency from fio results."
         iops = matched_results.group("iops")
         if iops.endswith("k"):
@@ -119,12 +169,15 @@ class Fio(Tool):
         else:
             iops_value = Decimal(iops)
         latency = matched_results.group("latency")
+
+        # create fio result object
         fio_result = FIOResult()
         fio_result.iops = iops_value
         fio_result.latency = Decimal(latency)
         fio_result.iodepth = iodepth
         fio_result.qdepth = iodepth * numjob
         fio_result.mode = mode
+
         return fio_result
 
     def create_performance_messages(
@@ -161,6 +214,43 @@ class Fio(Tool):
             )
             fio_message.append(fio_result_message)
         return fio_message
+
+    def _get_command(
+        self,
+        name: str,
+        filename: str,
+        mode: str,
+        iodepth: int,
+        numjob: int,
+        time: int = 120,
+        block_size: str = "4K",
+        size_gb: int = 0,
+        direct: bool = True,
+        gtod_reduce: bool = False,
+        ioengine: str = "libaio",
+        group_reporting: bool = True,
+        overwrite: bool = False,
+        time_based: bool = False,
+    ) -> str:
+        cmd = (
+            f"--ioengine={ioengine} --bs={block_size} --filename={filename} "
+            f"--readwrite={mode} --runtime={time} --iodepth={iodepth} "
+            f"--numjob={numjob} --name={name}"
+        )
+        if direct:
+            cmd += " --direct=1"
+        if gtod_reduce:
+            cmd += " --gtod_reduce=1"
+        if size_gb:
+            cmd += f" --size={size_gb}G"
+        if group_reporting:
+            cmd += " --group_reporting"
+        if overwrite:
+            cmd += " --overwrite=1"
+        if time_based:
+            cmd += " --time_based"
+
+        return cmd
 
     def _install_dep_packages(self) -> None:
         posix_os: Posix = cast(Posix, self.node.os)
