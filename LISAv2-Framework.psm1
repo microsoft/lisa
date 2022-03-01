@@ -27,9 +27,9 @@ function Start-LISAv2 {
 		[string] $ARMImageName = "",
 		# Required for Azure if -ARMImageName and -OsVHD is not provided
 		# If the shared image gallery is in the same subscription that is used to run LISA, this parameter can be:
-		#     <resource_group>/<image_gallery>/<image_definition>/<image_version>
+		#     <image_gallery>/<image_definition>/<image_version>
 		# otherwise, this parameter should be:
-		#     <subscription_id>/<resource_group>/<image_gallery>/<image_definition>/<image_version>
+		#     <subscription_id>/<image_gallery>/<image_definition>/<image_version>
 		[string] $SharedImageGallery = "",
 		[string] $StorageAccount="",
 

@@ -17,6 +17,26 @@
     </SetupConfig>
   </test>
   <test>
+    <testName>VALIDATE-INTEL-SGX-DRIVER-FOR-DC-VM-TRUSTEDLAUNCH</testName>
+    <testScript>VALIDATE-INTEL-SGX-DRIVER.ps1</testScript>
+    <files>.\Testscripts\Linux\validate-intel-sgx-driver.sh,.\Testscripts\Linux\utils.sh</files>
+    <Platform>Azure</Platform>
+    <Category>Functional</Category>
+    <Area>SGX</Area>
+    <Tags>sgx</Tags>
+    <Priority>1</Priority>
+    <SetupConfig>
+      <TestLocation>uksouth</TestLocation>
+      <SetupType>OneVM</SetupType>
+      <SecureBoot>true</SecureBoot>
+      <vTPM>true</vTPM>
+      <SecurityType>TrustedLaunch</SecurityType>
+      <OverrideVMSize>Standard_DC2s_v2,=~Standard_DC[0-9]+s_v2</OverrideVMSize>
+      <VMGeneration>2</VMGeneration>
+      <ARMImageName>=~UbuntuServer.*gen2</ARMImageName>
+    </SetupConfig>
+  </test>
+  <test>
     <testName>VALIDATE-INTEL-SGX-DRIVER-FOR-DCsv3-VM</testName>
     <testScript>VALIDATE-INTEL-SGX-DRIVER.ps1</testScript>
     <files>.\Testscripts\Linux\validate-intel-sgx-driver.sh,.\Testscripts\Linux\utils.sh</files>
@@ -28,6 +48,26 @@
     <SetupConfig>
       <TestLocation>eastus2</TestLocation>
       <SetupType>OneVM</SetupType>
+      <OverrideVMSize>Standard_DC2s_v3</OverrideVMSize>
+      <VMGeneration>2</VMGeneration>
+      <ARMImageName>=~UbuntuServer.*gen2</ARMImageName>
+    </SetupConfig>
+  </test>
+  <test>
+    <testName>VALIDATE-INTEL-SGX-DRIVER-FOR-DCsv3-VM-TRUSTEDLAUNCH</testName>
+    <testScript>VALIDATE-INTEL-SGX-DRIVER.ps1</testScript>
+    <files>.\Testscripts\Linux\validate-intel-sgx-driver.sh,.\Testscripts\Linux\utils.sh</files>
+    <Platform>Azure</Platform>
+    <Category>Functional</Category>
+    <Area>SGX</Area>
+    <Tags>sgx</Tags>
+    <Priority>1</Priority>
+    <SetupConfig>
+      <TestLocation>eastus2</TestLocation>
+      <SetupType>OneVM</SetupType>
+      <SecureBoot>true</SecureBoot>
+      <vTPM>true</vTPM>
+      <SecurityType>TrustedLaunch</SecurityType>
       <OverrideVMSize>Standard_DC2s_v3</OverrideVMSize>
       <VMGeneration>2</VMGeneration>
       <ARMImageName>=~UbuntuServer.*gen2</ARMImageName>
