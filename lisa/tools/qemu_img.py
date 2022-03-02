@@ -11,4 +11,8 @@ class QemuImg(Tool):
 
     def create_diff_qcow2(self, output_img_path: str, backing_img_path: str) -> None:
         params = f"create -F qcow2 -f qcow2 -b {backing_img_path} {output_img_path}"
-        self.run(params, True)
+        self.run(
+            params,
+            expected_exit_code=0,
+            expected_exit_code_failure_message="Failed to create differential disk.",
+        )

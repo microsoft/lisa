@@ -86,7 +86,7 @@ class QemuPlatform(Platform):
 
             self.host_node = RemoteNode(
                 runbook=schema.Node(name="qemu-host"),
-                index=0,
+                index=-1,
                 logger_name="qemu-host",
                 parent_logger=log,
             )
@@ -292,13 +292,13 @@ class QemuPlatform(Platform):
             if not os.path.exists(qemu_node_runbook.qcow2):
                 raise LisaException(f"file does not exist: {qemu_node_runbook.qcow2}")
 
+            node = environment.create_node_from_requirement(node_space)
+            node_context = get_node_context(node)
+
             vm_disks_dir = os.path.join(
                 self.qemu_platform_runbook.hosts[0].lisa_working_dir, vm_name_prefix
             )
-            self.host_node.shell.mkdir(Path(vm_disks_dir))
-
-            node = environment.create_node_from_requirement(node_space)
-            node_context = get_node_context(node)
+            node_context.vm_disks_dir = vm_disks_dir
 
             if (
                 not qemu_node_runbook.firmware_type
@@ -361,6 +361,9 @@ class QemuPlatform(Platform):
         for node in environment.nodes.list():
             node_context = get_node_context(node)
 
+            # Create required directories and copy the required files to the host
+            # node.
+            self.host_node.shell.mkdir(Path(node_context.vm_disks_dir))
             if node_context.os_disk_source_file_path:
                 self.host_node.shell.copy(
                     Path(node_context.os_disk_source_file_path),

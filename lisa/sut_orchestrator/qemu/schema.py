@@ -37,7 +37,8 @@ class LibvirtHost:
 class QemuPlatformSchema:
     # An optional remote host for the VMs. All test VMs will be spawned on the
     # specified host by connecting remotely to the libvirt instance running on it.
-    # If None, the local machine is used as host.
+    #
+    # CAUTION: Even though this field is a List, only one host is supported currently.
     hosts: List[LibvirtHost] = field(default_factory=lambda: [LibvirtHost()])
 
     # The timeout length for how long to wait for the OS to boot and request an IP

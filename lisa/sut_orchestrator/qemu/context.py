@@ -18,6 +18,7 @@ class EnvironmentContext:
 @dataclass
 class NodeContext:
     vm_name: str = ""
+    vm_disks_dir: str = ""
     cloud_init_file_path: str = ""
     os_disk_source_file_path: Optional[str] = None
     os_disk_base_file_path: str = ""
