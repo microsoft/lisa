@@ -32,6 +32,7 @@ class Logger(logging.Logger):
             content = temp_content
         for line in content:
             line = filter_ansi_escape(line)
+            line = line.strip("\r\n")
             # No good in logging empty lines (and they can happen via
             # SSH stdout)
             if not line or line.isspace():
