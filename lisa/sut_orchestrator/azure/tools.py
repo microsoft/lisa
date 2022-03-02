@@ -2,7 +2,7 @@
 # Licensed under the MIT license.
 
 import re
-from typing import Any, Dict, List, Type
+from typing import Any, Dict, List, Optional, Type
 
 from assertpy import assert_that
 
@@ -25,11 +25,13 @@ class Waagent(Tool):
     def command(self) -> str:
         return self._command
 
-    def _check_exists(self) -> bool:
-        return True
+    @property
+    def can_install(self) -> bool:
+        return False
 
     def _initialize(self, *args: Any, **kwargs: Any) -> None:
         self._command = "waagent"
+        self._distro_version: Optional[str] = None
 
     def get_version(self) -> str:
         result = self.run("-version")
@@ -96,6 +98,43 @@ class Waagent(Tool):
             return False
         else:
             raise LisaException(f"Unknown value for OS.EnableRDMA : {is_rdma_enabled}")
+
+    def get_distro_version(self) -> str:
+        """
+        This method is to get the same distro version string like WaAgent. It
+        tries best to handle Pyhont2, Python3 < 3.8 and Python3 >= 3.8.
+        """
+        if self._distro_version is not None:
+            return self._distro_version
+
+        python3_exists = self.command_exists(command="python3")
+        if python3_exists:
+            python_cmd = "python3"
+        else:
+            python_cmd = "python2"
+
+        # Try to use waagent code to detect
+        result = self.node.execute(
+            f'{python_cmd} -c "from azurelinuxagent.common.version import get_distro;'
+            "print('-'.join(get_distro()[0:3]))\""
+        )
+        if result.exit_code == 0:
+            distro_version = result.stdout
+        else:
+            # try to compat with old waagent versions
+            result = self.node.execute(
+                f'{python_cmd} -c "import platform;'
+                "print('-'.join(platform.linux_distribution(0)))\""
+            )
+            if result.exit_code == 0:
+                distro_version = result.stdout.strip('"').strip(" ").lower()
+            else:
+                # nothing right
+                distro_version = "Unknown"
+
+        self._distro_version = distro_version
+
+        return self._distro_version
 
 
 class VmGeneration(Tool):

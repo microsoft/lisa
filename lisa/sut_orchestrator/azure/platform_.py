@@ -141,6 +141,7 @@ KEY_HOST_VERSION = "host_version"
 KEY_VM_GENERATION = "vm_generation"
 KEY_KERNEL_VERSION = "kernel_version"
 KEY_WALA_VERSION = "wala_version"
+KEY_WALA_DISTRO_VERSION = "wala_distro"
 ATTRIBUTE_FEATURES = "features"
 
 # https://abcdefg.blob.core.windows.net/abcdefg?sv=2020-08-04&
@@ -275,6 +276,15 @@ class AzurePlatform(Platform):
 
         # for type detection
         self.credential: DefaultAzureCredential
+
+        # It has to be defined after the class definition is loaded. So it
+        # cannot be a class level varlable.
+        self._environment_information_hooks = {
+            KEY_HOST_VERSION: self._get_host_version,
+            KEY_KERNEL_VERSION: self._get_kernel_version,
+            KEY_WALA_VERSION: self._get_wala_version,
+            KEY_WALA_DISTRO_VERSION: self._get_wala_distro_version,
+        }
 
     @classmethod
     def type_name(cls) -> str:
@@ -668,6 +678,20 @@ class AzurePlatform(Platform):
 
         return result
 
+    def _get_wala_distro_version(self, node: Node) -> str:
+        result = ""
+
+        try:
+            if node.is_connected and node.is_posix:
+                waagent = node.tools[Waagent]
+                result = waagent.get_distro_version()
+        except Exception as identifier:
+            # it happens on some error vms. Those error should be caught earlier in
+            # test cases not here. So ignore any error here to collect information only.
+            node.log.debug(f"error on get waagent distro version: {identifier}")
+
+        return result
+
     def _get_platform_information(self, environment: Environment) -> Dict[str, str]:
         result: Dict[str, str] = {}
         azure_runbook: AzurePlatformSchema = self.runbook.get_extended_runbook(
@@ -711,28 +735,14 @@ class AzurePlatform(Platform):
         if node:
             node_runbook = node.capability.get_extended_runbook(AzureNodeSchema, AZURE)
 
-            # some information get from two places, so create separated methods to
-            # query them.
-            try:
-                host_version = self._get_host_version(node)
-                if host_version:
-                    information[KEY_HOST_VERSION] = host_version
-            except Exception as identifier:
-                node.log.exception("error on get host version", exc_info=identifier)
-
-            try:
-                kernel_version = self._get_kernel_version(node)
-                if kernel_version:
-                    information[KEY_KERNEL_VERSION] = kernel_version
-            except Exception as identifier:
-                node.log.exception("error on get kernel version", exc_info=identifier)
-
-            try:
-                wala_version = self._get_wala_version(node)
-                if wala_version:
-                    information[KEY_WALA_VERSION] = wala_version
-            except Exception as identifier:
-                node.log.exception("error on get waagent version", exc_info=identifier)
+            for key, method in self._environment_information_hooks.items():
+                node.log.debug(f"detecting {key} ...")
+                try:
+                    value = method(node)
+                    if value:
+                        information[key] = value
+                except Exception as identifier:
+                    node.log.exception(f"error on get {key}.", exc_info=identifier)
 
             information.update(self._get_platform_information(environment))
 
