@@ -1,7 +1,6 @@
 # Copyright (c) Microsoft Corporation.
 # Licensed under the MIT license.
 
-from math import e
 from lisa.executable import Tool
 from lisa.tools.lsblk import Lsblk
 from lisa.tools.swapon import SwapOn
@@ -16,7 +15,7 @@ class Swap(Tool):
         return True
 
     def create_swap(self, partition_name: str) -> None:
-        cmd_res = self.node.execute(
+        self.node.execute(
             f"mkswap {partition_name}",
             sudo=True,
             expected_exit_code=0,

@@ -2,6 +2,7 @@
 # Licensed under the MIT license.
 
 import re
+
 from lisa.executable import Tool
 from lisa.util import find_patterns_in_lines
 

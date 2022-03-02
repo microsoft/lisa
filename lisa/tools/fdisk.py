@@ -86,8 +86,8 @@ class Fdisk(Tool):
     def change_partition_type(self, disk_name: str, type_code: str) -> None:
         # t -> change a partition type
         self.node.execute(
-            f"(echo n; echo p; echo 1; echo ; echo ; echo t;"
-            " echo {type_code}; echo p; echo w) | "
+            "(echo n; echo p; echo 1; echo ; echo ; echo t;"
+            f" echo {type_code}; echo p; echo w) | "
             f"{self.command} -w always -W always {disk_name}",
             shell=True,
             sudo=True,
