@@ -5,7 +5,18 @@ from __future__ import annotations
 
 import pathlib
 from hashlib import sha256
-from typing import TYPE_CHECKING, Any, Dict, List, Optional, Type, TypeVar, Union, cast
+from typing import (
+    TYPE_CHECKING,
+    Any,
+    Dict,
+    List,
+    Optional,
+    Tuple,
+    Type,
+    TypeVar,
+    Union,
+    cast,
+)
 
 from lisa.util import InitializableMixin, LisaException, constants
 from lisa.util.logger import get_logger
@@ -68,6 +79,22 @@ class Tool(InitializableMixin):
         # rerun same commands.
         self.__cached_results: Dict[str, Process] = {}
 
+    def __call__(
+        self,
+        parameters: str = "",
+        shell: bool = False,
+        no_error_log: bool = False,
+        no_info_log: bool = True,
+        cwd: Optional[pathlib.PurePath] = None,
+    ) -> ExecutableResult:
+        return self.run(
+            parameters=parameters,
+            shell=shell,
+            no_error_log=no_error_log,
+            no_info_log=no_info_log,
+            cwd=cwd,
+        )
+
     @property
     def command(self) -> str:
         """
@@ -85,13 +112,6 @@ class Tool(InitializableMixin):
         """
         raise NotImplementedError("'can_install' is not implemented")
 
-    @classmethod
-    def _windows_tool(cls) -> Optional[Type[Tool]]:
-        """
-        return a windows version tool class, if it's needed
-        """
-        return None
-
     @property
     def package_name(self) -> str:
         """
@@ -99,34 +119,6 @@ class Tool(InitializableMixin):
         it may be different with command or different platform.
         """
         return self.command
-
-    @classmethod
-    def create(cls, node: Node, *args: Any, **kwargs: Any) -> Tool:
-        """
-        if there is a windows version tool, return the windows instance.
-        override this method if richer creation factory is needed.
-        """
-        tool_cls = cls
-        if not node.is_posix:
-            windows_tool = cls._windows_tool()
-            if windows_tool:
-                tool_cls = windows_tool
-        return tool_cls(node, *args, **kwargs)
-
-    def _install(self) -> bool:
-        """
-        Execute installation process like build, install from packages. If other tools
-        are depended, specify them in dependencies. Other tools can be used here,
-        refer to ntttcp implementation.
-        """
-        raise NotImplementedError("'install' is not implemented")
-
-    def _initialize(self, *args: Any, **kwargs: Any) -> None:
-        """
-        Declare and initialize variables here, or some time costing initialization.
-        This method is called before other methods, when initialing on a node.
-        """
-        pass
 
     @property
     def dependencies(self) -> List[Type[Tool]]:
@@ -144,38 +136,6 @@ class Tool(InitializableMixin):
         """
         return self.__class__.__name__.lower()
 
-    def _check_exists(self) -> bool:
-        """
-        Default implementation to check if a tool exists. This method is called by
-        isInstalled, and cached result. Builtin tools can override it can return True
-        directly to save time.
-        """
-        self._exists = False
-        if self.node.is_posix:
-            where_command = "command -v"
-        else:
-            where_command = "where"
-        where_command = f"{where_command} {self.command}"
-        result = self.node.execute(where_command, shell=True, no_info_log=True)
-        if result.exit_code == 0:
-            self._exists = True
-            self._use_sudo = False
-        else:
-            result = self.node.execute(
-                where_command,
-                shell=True,
-                no_info_log=True,
-                sudo=True,
-            )
-            if result.exit_code == 0:
-                self._log.debug(
-                    "executable exists in root paths, "
-                    "sudo always brings in following commands."
-                )
-                self._exists = True
-                self._use_sudo = True
-        return self._exists
-
     @property
     def exists(self) -> bool:
         """
@@ -188,6 +148,54 @@ class Tool(InitializableMixin):
         if self._exists is None:
             self._exists = self._check_exists()
         return self._exists
+
+    @classmethod
+    def create(cls, node: Node, *args: Any, **kwargs: Any) -> Tool:
+        """
+        if there is a windows version tool, return the windows instance.
+        override this method if richer creation factory is needed.
+        """
+        tool_cls = cls
+        if not node.is_posix:
+            windows_tool = cls._windows_tool()
+            if windows_tool:
+                tool_cls = windows_tool
+        return tool_cls(node, *args, **kwargs)
+
+    @classmethod
+    def _windows_tool(cls) -> Optional[Type[Tool]]:
+        """
+        return a windows version tool class, if it's needed
+        """
+        return None
+
+    def command_exists(self, command: str) -> Tuple[bool, bool]:
+        exists = False
+        use_sudo = False
+        if self.node.is_posix:
+            where_command = "command -v"
+        else:
+            where_command = "where"
+        where_command = f"{where_command} {command}"
+        result = self.node.execute(where_command, shell=True, no_info_log=True)
+        if result.exit_code == 0:
+            exists = True
+            use_sudo = False
+        else:
+            result = self.node.execute(
+                where_command,
+                shell=True,
+                no_info_log=True,
+                sudo=True,
+            )
+            if result.exit_code == 0:
+                self._log.debug(
+                    "executable exists in root paths, "
+                    "sudo always brings in following commands."
+                )
+                exists = True
+                use_sudo = True
+        return exists, use_sudo
 
     def install(self) -> bool:
         """
@@ -294,21 +302,29 @@ class Tool(InitializableMixin):
         self.node.shell.mkdir(path, exist_ok=True)
         return path
 
-    def __call__(
-        self,
-        parameters: str = "",
-        shell: bool = False,
-        no_error_log: bool = False,
-        no_info_log: bool = True,
-        cwd: Optional[pathlib.PurePath] = None,
-    ) -> ExecutableResult:
-        return self.run(
-            parameters=parameters,
-            shell=shell,
-            no_error_log=no_error_log,
-            no_info_log=no_info_log,
-            cwd=cwd,
-        )
+    def _install(self) -> bool:
+        """
+        Execute installation process like build, install from packages. If other tools
+        are depended, specify them in dependencies. Other tools can be used here,
+        refer to ntttcp implementation.
+        """
+        raise NotImplementedError("'install' is not implemented")
+
+    def _initialize(self, *args: Any, **kwargs: Any) -> None:
+        """
+        Declare and initialize variables here, or some time costing initialization.
+        This method is called before other methods, when initialing on a node.
+        """
+        ...
+
+    def _check_exists(self) -> bool:
+        """
+        Default implementation to check if a tool exists. This method is called by
+        isInstalled, and cached result. Builtin tools can override it can return True
+        directly to save time.
+        """
+        exists, self._use_sudo = self.command_exists(self.command)
+        return exists
 
 
 class CustomScript(Tool):
@@ -407,8 +423,9 @@ class CustomScript(Tool):
         return True
 
     def _check_exists(self) -> bool:
-        # the underlying '_check_exists' doesn't work for script
-        # but once it's cached in node, it won't be copied again.
+        # the underlying '_check_exists' doesn't work for script but once it's
+        # cached in node, it won't be copied again. So it doesn't need to check
+        # exists.
         return False
 
     @property
