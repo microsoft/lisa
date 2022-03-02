@@ -254,8 +254,6 @@ class SourceInstaller(BaseInstaller):
                 node.execute("rpm -e ius-release", sudo=True)
         elif isinstance(os, Ubuntu):
             # ccache is used to speed up recompilation
-            # node.execute("command -v ccache", shell=True)
-            # node.execute("export PATH=/usr/lib/ccache:$PATH", shell=True)
             os.install_packages(
                 [
                     "git",
