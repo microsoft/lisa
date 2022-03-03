@@ -371,7 +371,7 @@ class QemuPlatform(Platform):
 
             # Create required directories and copy the required files to the host
             # node.
-            self.host_node.shell.mkdir(Path(node_context.vm_disks_dir))
+            self.host_node.shell.mkdir(Path(node_context.vm_disks_dir), exist_ok=True)
             if node_context.os_disk_source_file_path:
                 self.host_node.shell.copy(
                     Path(node_context.os_disk_source_file_path),
