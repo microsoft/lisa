@@ -128,19 +128,24 @@ class InfinibandSuit(TestSuite):
                 lambda: server_node.features[Infiniband],
             ]
         )
-        infiniband = server_node.features[Infiniband]
-        ib_interfaces = infiniband.get_ib_interfaces()
+        server_infiniband = server_node.features[Infiniband]
+        server_ib_interfaces = server_infiniband.get_ib_interfaces()
 
-        for interface in ib_interfaces:
-            ib_device_name = interface[0]
-            ip_addr = interface[2]
+        client_infiniband = client_node.features[Infiniband]
+        client_ib_interfaces = client_infiniband.get_ib_interfaces()
+
+        client_ib_device_name = client_ib_interfaces[0].ib_device_name
+
+        for interface in server_ib_interfaces:
+            ib_device_name = interface.ib_device_name
+            ip_addr = interface.ip_addr
 
             for test in ping_pong_tests:
                 server_process = server_node.execute_async(
                     f"{test} -g 0 -d {ib_device_name}"
                 )
                 client_process = client_node.execute_async(
-                    f"{test} -g 0 -d {ib_device_name} {ip_addr}"
+                    f"{test} -g 0 -d {client_ib_device_name} {ip_addr}"
                 )
 
                 client_result = client_process.wait_result()

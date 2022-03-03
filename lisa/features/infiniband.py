@@ -2,7 +2,8 @@
 # Licensed under the MIT license.
 
 import re
-from typing import Any, Dict, List, Tuple
+from dataclasses import dataclass
+from typing import Any, Dict, List
 
 from assertpy import assert_that
 
@@ -15,6 +16,13 @@ from lisa.tools.tar import Tar
 from lisa.util import LisaException
 
 FEATURE_NAME_INFINIBAND = "Infiniband"
+
+
+@dataclass
+class IBDevice:
+    ib_device_name: str
+    nic_name: str
+    ip_addr: str
 
 
 class Infiniband(Feature):
@@ -63,12 +71,12 @@ class Infiniband(Feature):
     def is_over_nd(self) -> bool:
         raise NotImplementedError
 
-    def get_ib_interfaces(self) -> List[Tuple[str, str, str]]:
+    def get_ib_interfaces(self) -> List[IBDevice]:
         """Gets the list of Infiniband devices
         excluding any ethernet devices
         and get their cooresponding network interface
-        Returns list of tuples in the form (ib_device_name, nic_name, ip_addr)
-        Example ("mlx5_ib0", "ib0", "172.16.1.23")"""
+        Returns list of IBDevice(ib_device_name, nic_name, ip_addr)
+        Example IBDevice("mlx5_ib0", "ib0", "172.16.1.23")"""
         ib_devices = []
         device_info = self._get_ib_device_info()
         for device in device_info:
@@ -86,7 +94,9 @@ class Infiniband(Feature):
                         assert_that(nic_info.ip_addr).described_as(
                             f"NIC {nic_name} does not have an ip address."
                         ).is_not_empty()
-                        ib_devices.append((device_name, nic_name, nic_info.ip_addr))
+                        ib_devices.append(
+                            IBDevice(device_name, nic_name, nic_info.ip_addr)
+                        )
 
         assert_that(ib_devices).described_as(
             "Failed to get any InfiniBand device / interface pairs"
@@ -283,6 +293,8 @@ class Infiniband(Feature):
         else:
             service.restart_service("waagent")
 
+    def install_intel_mpi(self) -> None:
+        node = self._node
         # Intall Intel MPI
         wget = node.tools[Wget]
         script_path = wget.get(
