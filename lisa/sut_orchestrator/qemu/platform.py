@@ -339,17 +339,25 @@ class QemuPlatform(Platform):
                 node.name = node_context.vm_name
 
             # Read extra cloud-init data.
-            if (
+            extra_user_data = (
                 qemu_node_runbook.cloud_init
                 and qemu_node_runbook.cloud_init.extra_user_data
-            ):
-                extra_user_data_file_path = str(
-                    constants.RUNBOOK_PATH.joinpath(
-                        qemu_node_runbook.cloud_init.extra_user_data
-                    )
-                )
-                with open(extra_user_data_file_path, "r") as file:
-                    node_context.extra_cloud_init_user_data = yaml.safe_load(file)
+            )
+            if extra_user_data:
+                node_context.extra_cloud_init_user_data = []
+
+                if isinstance(extra_user_data, str):
+                    extra_user_data = [extra_user_data]
+
+                for relative_file_path in extra_user_data:
+                    if not relative_file_path:
+                        continue
+
+                    file_path = constants.RUNBOOK_PATH.joinpath(relative_file_path)
+                    with open(file_path, "r") as file:
+                        node_context.extra_cloud_init_user_data.append(
+                            yaml.safe_load(file)
+                        )
 
     # Create all the VMs.
     def _create_nodes(
@@ -363,7 +371,7 @@ class QemuPlatform(Platform):
 
             # Create required directories and copy the required files to the host
             # node.
-            self.host_node.shell.mkdir(Path(node_context.vm_disks_dir))
+            self.host_node.shell.mkdir(Path(node_context.vm_disks_dir), exist_ok=True)
             if node_context.os_disk_source_file_path:
                 self.host_node.shell.copy(
                     Path(node_context.os_disk_source_file_path),
@@ -490,6 +498,14 @@ class QemuPlatform(Platform):
                 private_key_file=self.runbook.admin_private_key_file,
             )
 
+            # Ensure cloud-init completes its setup.
+            node.execute(
+                "cloud-init status --wait",
+                sudo=True,
+                expected_exit_code=0,
+                expected_exit_code_failure_message="waiting on cloud-init",
+            )
+
     # Create a cloud-init ISO for a VM.
     def _create_node_cloud_init_iso(
         self, environment: Environment, log: Logger, node: Node
@@ -510,8 +526,29 @@ class QemuPlatform(Platform):
             ],
         }
 
-        if node_context.extra_cloud_init_user_data:
-            user_data.update(node_context.extra_cloud_init_user_data)
+        # Iterate through all the top-level properties.
+        for extra_user_data in node_context.extra_cloud_init_user_data:
+            for key, value in extra_user_data.items():
+                existing_value = user_data.get(key)
+                if not existing_value:
+                    # Property doesn't exist yet. So, add it.
+                    user_data[key] = value
+
+                elif isinstance(existing_value, dict) and isinstance(value, dict):
+                    # Merge two dictionaries by adding properties from new value and
+                    # replacing any existing properties.
+                    # Examples: disk_setup, etc.
+                    existing_value.update(value)
+
+                elif isinstance(existing_value, list) and isinstance(value, list):
+                    # Merge two lists by appending to the end of the existing list.
+                    # Examples: write_files, runcmd, etc.
+                    existing_value.extend(value)
+
+                else:
+                    # String, unknown type or mismatched type.
+                    # Just replace the existing property.
+                    user_data[key] = value
 
         meta_data = {
             "local-hostname": node_context.vm_name,

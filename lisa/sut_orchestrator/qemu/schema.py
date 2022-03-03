@@ -1,5 +1,5 @@
 from dataclasses import dataclass, field
-from typing import List, Optional
+from typing import List, Optional, Union
 
 from dataclasses_json import dataclass_json
 
@@ -12,7 +12,7 @@ FIRMWARE_TYPE_UEFI = "uefi"
 @dataclass
 class CloudInitSchema:
     # Additional values to apply to the cloud-init user-data file.
-    extra_user_data: Optional[str] = None
+    extra_user_data: Optional[Union[str, List[str]]] = None
 
 
 @dataclass_json()

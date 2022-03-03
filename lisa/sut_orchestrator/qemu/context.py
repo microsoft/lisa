@@ -1,5 +1,5 @@
-from dataclasses import dataclass
-from typing import Any, Dict, Optional
+from dataclasses import dataclass, field
+from typing import Any, Dict, List, Optional
 
 from lisa.environment import Environment
 from lisa.node import Node
@@ -24,7 +24,7 @@ class NodeContext:
     os_disk_base_file_path: str = ""
     os_disk_file_path: str = ""
     console_log_file_path: str = ""
-    extra_cloud_init_user_data: Optional[Dict[str, Any]] = None
+    extra_cloud_init_user_data: List[Dict[str, Any]] = field(default_factory=list)
     console_logger: Optional[QemuConsoleLogger] = None
     use_bios_firmware: bool = False
 
