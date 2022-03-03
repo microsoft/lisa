@@ -167,6 +167,7 @@ class Iperf3(Tool):
         client_ip: str = "",
         ip_version: str = "",
         udp_mode: bool = False,
+        run_infinite: bool = True,
     ) -> Process:
         # -c: run iperf3 as client mode, followed by iperf3 server ip address
         # -t: run iperf3 testing for given seconds
@@ -183,7 +184,15 @@ class Iperf3(Tool):
         # -P: number of parallel client streams to run
         # -4: only use IPv4
         # -6: only use IPv6
-        cmd = f"-t {run_time_seconds} -c {server_ip}"
+
+        # set runtime to infinite if run_infinite is True
+        if run_infinite:
+            run_time = "inf"
+        else:
+            run_time = str(run_time_seconds)
+
+        # setup iperf command parameters
+        cmd = f"-t {run_time} -c {server_ip}"
         if udp_mode:
             cmd += " -u "
         if bitrate:
@@ -210,9 +219,16 @@ class Iperf3(Tool):
             if self.node.shell.exists(self.node.get_pure_path(log_file)):
                 self.node.shell.remove(self.node.get_pure_path(log_file))
             cmd += f" --logfile {log_file}"
+
         process = self.node.execute_async(
             f"{self.command} {cmd}", shell=True, sudo=True
         )
+
+        # IPerf output emits lines of the following form when it is running
+        # 132.00-133.00 sec   167 MBytes  1.40 Gbits/sec    5    626 KBytes
+        # check if stdout buffers contain "bits/sec" to determine if running
+        process.wait_output("bits/sec")
+
         return process
 
     def run_as_client(
