@@ -731,7 +731,12 @@ class QemuPlatform(Platform):
         hypervisor = "qemu"
         host = self.qemu_platform_runbook.hosts[0]
 
-        host_addr = host.address if host.address else ""
-        transport = "+tcp" if host.address else ""
+        host_addr = ""
+        transport = ""
+        params = ""
+        if host.is_remote():
+            host_addr = host.address
+            transport = "+ssh"
+            params = f"?keyfile={host.private_key_file}"
 
-        self.libvirt_conn_str = f"{hypervisor}{transport}://{host_addr}/system"
+        self.libvirt_conn_str = f"{hypervisor}{transport}://{host_addr}/system{params}"
