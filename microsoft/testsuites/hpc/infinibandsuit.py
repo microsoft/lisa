@@ -14,7 +14,7 @@ from lisa import (
 )
 from lisa.features import Infiniband, Sriov
 from lisa.sut_orchestrator.azure.tools import Waagent
-from lisa.tools import Modprobe
+from lisa.tools import Modprobe, Ssh
 from lisa.util import SkippedException
 from lisa.util.parallel import run_in_parallel
 
@@ -161,3 +161,91 @@ class InfinibandSuit(TestSuite):
                     f"Server ping-pong test {test} failed with exit code "
                     f"{server_result.exit_code} and output {server_result.stdout}",
                 )
+
+    @TestCaseMetadata(
+        description="""
+            This test case will
+            1. Ensure RDMA is setup
+            2. Install Intel MPI
+            3. Set up ssh keys of server/client connection
+            4. Run MPI pingpong tests
+            5. Run other MPI tests
+            """,
+        priority=4,
+        requirement=simple_requirement(
+            supported_features=[Infiniband],
+            min_count=2,
+        ),
+    )
+    def verify_intel_mpi(self, environment: Environment, log: Logger) -> None:
+        server_node = environment.nodes[0]
+        client_node = environment.nodes[1]
+
+        # Ensure RDMA is setup
+        run_in_parallel(
+            [
+                lambda: client_node.features[Infiniband],
+                lambda: server_node.features[Infiniband],
+            ]
+        )
+
+        server_ib = server_node.features[Infiniband]
+        client_ib = client_node.features[Infiniband]
+        run_in_parallel([server_ib.install_intel_mpi, client_ib.install_intel_mpi])
+
+        # Restart the ssh sessions for changes to /etc/security/limits.conf
+        # to take effect
+        server_node.close()
+        client_node.close()
+
+        # Get the ip adresses and device name of ib device
+        server_ib_interfaces = server_ib.get_ib_interfaces()
+        client_ib_interfaces = client_ib.get_ib_interfaces()
+        server_nic_name = server_ib_interfaces[0].nic_name
+        server_ip = server_ib_interfaces[0].ip_addr
+        client_ip = client_ib_interfaces[0].ip_addr
+
+        # Test relies on machines being able to ssh into each other
+        server_ssh = server_node.tools[Ssh]
+        client_ssh = client_node.tools[Ssh]
+        server_ssh.enable_public_key(client_ssh.generate_key_pairs())
+        client_ssh.enable_public_key(server_ssh.generate_key_pairs())
+        server_ssh.add_known_host(client_ip)
+        client_ssh.add_known_host(server_ip)
+
+        # Note: Using bash because script is not supported by Dash
+        # sh points to dash on Ubuntu
+        server_node.execute(
+            "bash /opt/intel/oneapi/mpi/2021.1.1/bin/mpirun "
+            f"-hosts {server_ip},{server_ip} -iface {server_nic_name} -ppn 1 -n 2 "
+            "-env I_MPI_FABRICS=shm:ofi -env SECS_PER_SAMPLE=600 "
+            "-env FI_PROVIDER=mlx -env I_MPI_DEBUG=5 -env I_MPI_PIN_DOMAIN=numa "
+            "/opt/intel/oneapi/mpi/2021.1.1/bin/IMB-MPI1 pingpong",
+            expected_exit_code=0,
+            expected_exit_code_failure_message="Failed intra-node pingpong test "
+            "with intel mpi",
+        )
+
+        server_node.execute(
+            "bash /opt/intel/oneapi/mpi/2021.1.1/bin/mpirun "
+            f"-hosts {server_ip},{client_ip} -iface {server_nic_name} -ppn 1 -n 2 "
+            "-env I_MPI_FABRICS=shm:ofi -env SECS_PER_SAMPLE=600 "
+            "-env FI_PROVIDER=mlx -env I_MPI_DEBUG=5 -env I_MPI_PIN_DOMAIN=numa "
+            "/opt/intel/oneapi/mpi/2021.1.1/bin/IMB-MPI1 pingpong",
+            expected_exit_code=0,
+            expected_exit_code_failure_message="Failed inter-node pingpong test "
+            "with intel mpi",
+        )
+
+        tests = ["IMB-MPI1 allreduce", "IMB-RMA", "IMB-NBC"]
+        for test in tests:
+            server_node.execute(
+                "bash /opt/intel/oneapi/mpi/2021.1.1/bin/mpirun "
+                f"-hosts {server_ip},{client_ip} -iface {server_nic_name} -ppn 22 "
+                "-n 44 -env I_MPI_FABRICS=shm:ofi -env SECS_PER_SAMPLE=600 "
+                "-env FI_PROVIDER=mlx -env I_MPI_DEBUG=5 -env I_MPI_PIN_DOMAIN=numa "
+                f"/opt/intel/oneapi/mpi/2021.1.1/bin/{test}",
+                expected_exit_code=0,
+                expected_exit_code_failure_message=f"Failed {test} test with intel mpi",
+                timeout=1200,
+            )
