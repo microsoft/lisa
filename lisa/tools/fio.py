@@ -155,6 +155,14 @@ class Fio(Tool):
             sudo=True,
             cwd=cwd,
         )
+
+        # FIO output emits lines of the following form when it is running
+        # (f=10): [M(10)][24.9%][r=70.0MiB/s,w=75.0MiB/s]
+        # [r=70,w=75 IOPS][eta 03m:46s]
+        # check if stdout buffers contain the string "eta" to
+        # determine if it is running
+        process.wait_output("eta")
+
         return process
 
     def get_result_from_raw_output(
