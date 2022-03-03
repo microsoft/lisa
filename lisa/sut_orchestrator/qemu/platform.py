@@ -499,7 +499,12 @@ class QemuPlatform(Platform):
             )
 
             # Ensure cloud-init completes its setup.
-            node.execute("cloud-init status --wait", sudo=True, expected_exit_code=0)
+            node.execute(
+                "cloud-init status --wait",
+                sudo=True,
+                expected_exit_code=0,
+                expected_exit_code_failure_message="waiting on cloud-init",
+            )
 
     # Create a cloud-init ISO for a VM.
     def _create_node_cloud_init_iso(
