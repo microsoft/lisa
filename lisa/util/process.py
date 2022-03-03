@@ -1,6 +1,7 @@
 # Copyright (c) Microsoft Corporation.
 # Licensed under the MIT license.
 
+import io
 import logging
 import pathlib
 import shlex
@@ -15,7 +16,8 @@ import spur  # type: ignore
 from assertpy.assertpy import AssertionBuilder, assert_that
 from spur.errors import NoSuchCommandError  # type: ignore
 
-from lisa.util.logger import Logger, LogWriter, get_logger
+from lisa.util import LisaException
+from lisa.util.logger import Logger, LogWriter, add_handler, get_logger
 from lisa.util.perf_timer import create_timer
 from lisa.util.shell import Shell
 
@@ -60,6 +62,11 @@ class Process:
         self._process: Optional[spur.local.LocalProcess] = None
         self._result: Optional[ExecutableResult] = None
         self._sudo: bool = False
+
+        # add a string stream handler to the logger
+        self._log_buffer = io.StringIO()
+        self._log_handler = logging.StreamHandler(self._log_buffer)
+        add_handler(self._log_handler, self._log)
 
     def start(
         self,
@@ -231,6 +238,23 @@ class Process:
         if self._running and self._process:
             self._running = self._process.is_running()
         return self._running
+
+    def wait_output(self, keyword: str, timeout: int = 300) -> None:
+        # check if stdout buffers contain the string "keyword" to determine if
+        # it is running
+        start_time = time.time()
+        while time.time() - start_time < timeout:
+            # LogWriter only flushes if "\n" is written, so we need to flush
+            # manually.
+            self._stdout_writer.flush()
+
+            # check if buffer contains the keyword
+            if keyword in self._log_buffer.getvalue():
+                return
+
+            time.sleep(1)
+
+        raise LisaException(f"{keyword} not found in stdout after {timeout} seconds")
 
     def _filter_sudo_result(self, raw_input: str) -> str:
         # this warning message may break commands, so remove it from the first line
