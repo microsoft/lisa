@@ -415,8 +415,7 @@ class QemuPlatform(Platform):
                 log.warning(f"console log delete failed. {ex}")
 
             try:
-                vm_dir = os.path.dirname(node_context.os_disk_file_path)
-                self.host_node.shell.remove(Path(vm_dir), True)
+                self.host_node.shell.remove(Path(node_context.vm_disks_dir), True)
             except Exception as ex:
                 log.warning(f"Failed to delete VM files directory: {ex}")
 
