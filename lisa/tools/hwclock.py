@@ -44,5 +44,5 @@ class Hwclock(Tool):
         cmd_result.assert_exit_code()
         # Ubuntu 16.4.0 format: Fri 07 Sep 2018 11:26:52 AM CEST .838868 seconds
         # other hwclock format: '2022-02-04 11:38:06.949136+0000'
-        year = get_matched_str(cmd_result, self._YEAR_PATTERN)
+        year = get_matched_str(cmd_result.stdout, self._YEAR_PATTERN)
         return year
