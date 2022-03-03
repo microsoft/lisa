@@ -44,6 +44,9 @@ class Ssh(Tool):
             append=True,
         )
 
+    def add_known_host(self, ip: str) -> None:
+        self.node.execute(f"ssh-keyscan -H {ip} >> ~/.ssh/known_hosts", shell=True)
+
     def get_sshd_config_path(self) -> str:
         file_name = "sshd_config"
         default_path = f"/etc/ssh/{file_name}"
