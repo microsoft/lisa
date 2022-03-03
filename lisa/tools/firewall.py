@@ -60,6 +60,32 @@ class Iptables(Tool):
     def can_install(self) -> bool:
         return False
 
+    def start_forwarding(self, port: int, dst_ip: str, dst_port: int) -> None:
+        self.run(
+            f"-I FORWARD -o virbr0 -p tcp -d {dst_ip} --dport {dst_port} -j ACCEPT",
+            sudo=True,
+            expected_exit_code=0,
+        )
+
+        self.run(
+            f"-t nat -I PREROUTING -p tcp --dport {port} -j DNAT --to {dst_ip}:{dst_port}",  # noqa: E501
+            sudo=True,
+            expected_exit_code=0,
+        )
+
+    def stop_forwarding(self, port: int, dst_ip: str, dst_port: int) -> None:
+        self.run(
+            f"-D FORWARD -o virbr0 -p tcp -d {dst_ip} --dport {dst_port} -j ACCEPT",
+            sudo=True,
+            expected_exit_code=0,
+        )
+
+        self.run(
+            f"-t nat -D PREROUTING -p tcp --dport {port} -j DNAT --to {dst_ip}:{dst_port}",  # noqa: E501
+            sudo=True,
+            expected_exit_code=0,
+        )
+
     def stop(self) -> None:
         self.run("-P INPUT ACCEPT", shell=True, sudo=True)
         self.run("-P OUTPUT ACCEPT", shell=True, sudo=True)
