@@ -478,6 +478,10 @@ class DiskOptionSettings(FeatureSettings):
             min_value.data_disk_count = search_space.generate_min_capability_countspace(
                 self.data_disk_count, capability.data_disk_count
             )
+        if self.data_disk_size or capability.data_disk_size:
+            min_value.data_disk_size = search_space.generate_min_capability_countspace(
+                self.data_disk_size, capability.data_disk_size
+            )
         return min_value
 
 
