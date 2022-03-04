@@ -624,15 +624,10 @@ class QemuPlatform(Platform):
 
     def _create_node_data_disks(self, node: Node) -> None:
         node_context = get_node_context(node)
+        qemu_img = self.host_node.tools[QemuImg]
 
         for disk in node_context.data_disks:
-            self._create_node_data_disk(disk)
-
-    def _create_node_data_disk(self, disk: DataDiskContext) -> None:
-        self.host_node.execute(
-            f'qemu-img create -f qcow2 "{disk.file_path}" {disk.size_gib}G',
-            expected_exit_code=0,
-        )
+            qemu_img.create_new_qcow2(disk.file_path, disk.size_gib * 1024)
 
     # Create the XML definition for the VM.
     def _create_node_domain_xml(
