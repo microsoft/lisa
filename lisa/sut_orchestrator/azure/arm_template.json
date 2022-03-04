@@ -276,7 +276,7 @@
             }
         },
         {
-            "apiVersion": "2019-07-01",
+            "apiVersion": "2020-12-01",
             "type": "Microsoft.Compute/virtualMachines",
             "copy": {
                 "name": "vmCopy",
@@ -306,7 +306,7 @@
                     "imageReference": "[if(not(empty(parameters('nodes')[copyIndex('vmCopy')]['vhd'])), lisa.getOsDiskVhd(parameters('nodes')[copyIndex('vmCopy')]['name']), if(not(empty(parameters('nodes')[copyIndex('vmCopy')]['shared_gallery'])), lisa.getOsDiskSharedGallery(parameters('nodes')[copyIndex('vmCopy')]['shared_gallery']), lisa.getOsDiskMarketplace(parameters('nodes')[copyIndex('vmCopy')])))]",
                     "osDisk": {
                         "name": "[concat(parameters('nodes')[copyIndex('vmCopy')]['name'], '-osDisk')]",
-                        "diffDiskSettings": "[if(equals(parameters('nodes')[copyIndex('vmCopy')]['disk_type'], 'Ephemeral'), json('{\"option\": \"Local\"}'), json('null'))]",
+                        "diffDiskSettings": "[if(equals(parameters('nodes')[copyIndex('vmCopy')]['disk_type'], 'Ephemeral'), json('{\"option\": \"local\", \"placement\": \"ResourceDisk\"}'), json('null'))]",
                         "managedDisk": "[if(not(equals(parameters('nodes')[copyIndex('vmCopy')]['disk_type'], 'Ephemeral')), json(concat('{\"storageAccountType\": \"',parameters('nodes')[copyIndex('vmCopy')]['disk_type'],'\"}')), json('null'))]",
                         "caching": "[if(equals(parameters('nodes')[copyIndex('vmCopy')]['disk_type'], 'Ephemeral'), 'ReadOnly', 'ReadWrite')]",
                         "createOption": "FromImage"
