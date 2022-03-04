@@ -107,7 +107,8 @@ class Waagent(Tool):
         if self._distro_version is not None:
             return self._distro_version
 
-        python3_exists = self.command_exists(command="python3")
+        python3_exists, use_sudo = self.command_exists(command="python3")
+        self._log.debug(f"python3 exists: {python3_exists}, use sudo: {use_sudo}")
         if python3_exists:
             python_cmd = "python3"
         else:
@@ -116,7 +117,8 @@ class Waagent(Tool):
         # Try to use waagent code to detect
         result = self.node.execute(
             f'{python_cmd} -c "from azurelinuxagent.common.version import get_distro;'
-            "print('-'.join(get_distro()[0:3]))\""
+            "print('-'.join(get_distro()[0:3]))\"",
+            sudo=use_sudo,
         )
         if result.exit_code == 0:
             distro_version = result.stdout
@@ -124,7 +126,8 @@ class Waagent(Tool):
             # try to compat with old waagent versions
             result = self.node.execute(
                 f'{python_cmd} -c "import platform;'
-                "print('-'.join(platform.linux_distribution(0)))\""
+                "print('-'.join(platform.linux_distribution(0)))\"",
+                sudo=use_sudo,
             )
             if result.exit_code == 0:
                 distro_version = result.stdout.strip('"').strip(" ").lower()
