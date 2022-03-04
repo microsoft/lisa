@@ -68,6 +68,7 @@ from .tar import Tar
 from .taskset import TaskSet
 from .tcpdump import TcpDump
 from .timedatectl import Timedatectl
+from .unzip import Unzip
 from .uptime import Uptime
 from .who import Who
 from .whoami import Whoami
@@ -149,6 +150,7 @@ __all__ = [
     "TaskSet",
     "TcpDump",
     "Timedatectl",
+    "Unzip",
     "Uptime",
     "Wget",
     "Who",
