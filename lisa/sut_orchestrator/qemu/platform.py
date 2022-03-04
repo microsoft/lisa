@@ -773,7 +773,8 @@ class QemuPlatform(Platform):
         params = ""
         if host.is_remote():
             assert host.address
-            host_addr = host.address
+            assert host.username
+            host_addr = f"{host.username}@{host.address}"
             transport = "+ssh"
             params = f"?keyfile={host.private_key_file}"
 
