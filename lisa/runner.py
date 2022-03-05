@@ -136,18 +136,20 @@ class BaseRunner(BaseClassMixin, InitializableMixin):
 
     def _initialize(self, *args: Any, **kwargs: Any) -> None:
         # do not put this logic to __init__, since the mkdir takes time.
-        if self.type_name() == constants.TESTCASE_TYPE_LISA:
-            # default lisa runner doesn't need separated handler.
-            self._working_folder = constants.RUN_LOCAL_LOG_PATH
-        else:
-            # create separated folder and log for each runner.
+        # default lisa runner doesn't need separated handler.
+        self._log_folder = constants.RUN_LOCAL_LOG_PATH
+        self._working_folder = constants.RUN_LOCAL_WORKING_PATH
+        if self.type_name() != constants.TESTCASE_TYPE_LISA:
+            # create separated folder and log for each non-default runner.
             runner_path_name = f"{self.type_name()}_runner"
-            self._working_folder = constants.RUN_LOCAL_LOG_PATH / runner_path_name
-            self._log_file_name = str(self._working_folder / f"{runner_path_name}.log")
-            self._working_folder.mkdir(parents=True, exist_ok=True)
+            self._log_folder = self._log_folder / runner_path_name
+            self._log_file_name = str(self._log_folder / f"{runner_path_name}.log")
+            self._log_folder.mkdir(parents=True, exist_ok=True)
             self._log_handler = create_file_handler(
                 Path(self._log_file_name), self._log
             )
+
+            self._working_folder = self._working_folder / runner_path_name
 
 
 class RootRunner(Action):

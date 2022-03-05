@@ -55,6 +55,16 @@ def support_log_path(parser: ArgumentParser) -> None:
     )
 
 
+def support_working_path(parser: ArgumentParser) -> None:
+    parser.add_argument(
+        "--working_path",
+        "-w",
+        type=Path,
+        dest="working_path",
+        help="Uses to replace the default log working path.",
+    )
+
+
 def support_id(parser: ArgumentParser) -> None:
     parser.add_argument(
         "--id",
@@ -74,6 +84,7 @@ def parse_args() -> Namespace:
     support_runbook(parser, required=False)
     support_variable(parser)
     support_log_path(parser)
+    support_working_path(parser)
     support_id(parser)
 
     # Default to ‘run’ when no subcommand is given.
