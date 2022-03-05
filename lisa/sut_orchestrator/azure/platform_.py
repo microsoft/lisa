@@ -663,7 +663,7 @@ class AzurePlatform(Platform):
 
         try:
             if node.is_connected and node.is_posix:
-                node.log.debug("detecting wala version...")
+                node.log.debug("detecting wala version from waagent...")
                 waagent = node.tools[Waagent]
                 result = waagent.get_version()
         except Exception as identifier:
@@ -679,8 +679,7 @@ class AzurePlatform(Platform):
         return result
 
     def _get_wala_distro_version(self, node: Node) -> str:
-        result = ""
-
+        result = "Unknown"
         try:
             if node.is_connected and node.is_posix:
                 waagent = node.tools[Waagent]
