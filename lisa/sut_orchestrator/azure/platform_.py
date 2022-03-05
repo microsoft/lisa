@@ -278,7 +278,7 @@ class AzurePlatform(Platform):
         self.credential: DefaultAzureCredential
 
         # It has to be defined after the class definition is loaded. So it
-        # cannot be a class level varlable.
+        # cannot be a class level variable.
         self._environment_information_hooks = {
             KEY_HOST_VERSION: self._get_host_version,
             KEY_KERNEL_VERSION: self._get_kernel_version,
@@ -545,9 +545,9 @@ class AzurePlatform(Platform):
             )
             try:
                 self._delete_boot_diagnostic_container(resource_group_name, log)
-            except Exception as identifer:
+            except Exception as identifier:
                 log.debug(
-                    f"exception on deleting boot diagnostic container: {identifer}"
+                    f"exception on deleting boot diagnostic container: {identifier}"
                 )
             delete_operation: Any = None
             try:
@@ -604,10 +604,10 @@ class AzurePlatform(Platform):
                 )
                 try:
                     container_client.delete_container()
-                except Exception as identifer:
+                except Exception as identifier:
                     log.debug(
                         f"exception on deleting boot diagnostic container:"
-                        f" {identifer}"
+                        f" {identifier}"
                     )
 
     def _get_node_information(self, node: Node) -> Dict[str, str]:
