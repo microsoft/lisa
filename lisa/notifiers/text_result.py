@@ -37,7 +37,7 @@ class TextResult(notifier.Notifier):
 
     def _initialize(self, *args: Any, **kwargs: Any) -> None:
         self.result_path = Path(
-            f"{constants.RUN_LOCAL_PATH}/lisa-{constants.RUN_ID}-result.txt"
+            f"{constants.RUN_LOCAL_LOG_PATH}/lisa-{constants.RUN_ID}-result.txt"
         )
         if self.result_path.exists():
             raise LisaException("File already exists")

@@ -47,4 +47,4 @@ class Console(notifier.Notifier):
 
     def _initialize(self, *args: Any, **kwargs: Any) -> None:
         runbook = cast(ConsoleSchema, self.runbook)
-        self._file_path = constants.RUN_LOCAL_PATH / runbook.file_name
+        self._file_path = constants.RUN_LOCAL_LOG_PATH / runbook.file_name

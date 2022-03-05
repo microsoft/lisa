@@ -68,7 +68,7 @@ class EnvironmentStats(notifier.Notifier):
         return [TestResultMessage, EnvironmentMessage]
 
     def _initialize(self, *args: Any, **kwargs: Any) -> None:
-        env_path = constants.RUN_LOCAL_PATH / "environments"
+        env_path = constants.RUN_LOCAL_LOG_PATH / "environments"
         env_path.mkdir(exist_ok=True, parents=True)
         self._file_path = env_path / "environment_stats.log"
 

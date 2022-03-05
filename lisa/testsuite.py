@@ -584,7 +584,7 @@ class TestSuite:
             is_continue: bool = is_suite_continue
             total_timer = create_timer()
             case_result.log_file = case_log_file.relative_to(
-                constants.RUN_LOCAL_PATH
+                constants.RUN_LOCAL_LOG_PATH
             ).as_posix()
             case_result.set_status(TestStatus.RUNNING, "")
             case_timeout = case_result.runtime_data.metadata.timeout
@@ -634,7 +634,7 @@ class TestSuite:
     def __create_case_log_path(self, case_name: str) -> Path:
         while True:
             path = (
-                constants.RUN_LOCAL_PATH
+                constants.RUN_LOCAL_LOG_PATH
                 / "tests"
                 / f"{get_datetime_path()}-{case_name}"
             )
