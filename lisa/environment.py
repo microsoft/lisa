@@ -24,6 +24,7 @@ from lisa.util import (
     InitializableMixin,
     LisaException,
     constants,
+    create_folder,
     field_metadata,
     fields_to_dict,
     get_datetime_path,
@@ -193,6 +194,11 @@ class Environment(ContextMixin, InitializableMixin):
         # Not to set the log path until its first used. Because the path
         # contains environment name, which is not set in __init__.
         self._log_path: Optional[Path] = None
+        self._working_path: Optional[Path] = None
+        # it's used to compose a consistent path for both log and working path.
+        self.environment_part_path = Path(
+            f"environments/{get_datetime_path()}-{self.name}"
+        )
 
         if not runbook.nodes_requirement and not runbook.nodes:
             raise LisaException("not found any node or requirement in environment")
@@ -248,19 +254,24 @@ class Environment(ContextMixin, InitializableMixin):
             return Path()
 
         if not self._log_path:
-            self._log_path = (
-                constants.RUN_LOCAL_LOG_PATH
-                / "environments"
-                / f"{get_datetime_path()}-{self.name}"
+            self._log_path = create_folder(
+                constants.RUN_LOCAL_LOG_PATH / self.environment_part_path,
+                "environment log",
             )
-            if self._log_path.exists():
-                raise LisaException(
-                    "Conflicting environment log path detected, "
-                    "make sure LISA invocations have individual runtime paths."
-                    f"'{self._log_path}'"
-                )
-            self._log_path.mkdir(parents=True)
         return self._log_path
+
+    @property
+    def working_path(self) -> Path:
+        if is_unittest():
+            return Path()
+
+        if not self._working_path:
+            self._working_path = create_folder(
+                constants.RUN_LOCAL_WORKING_PATH / self.environment_part_path,
+                "environment working",
+            )
+
+        return self._working_path
 
     @property
     def capability(self) -> EnvironmentSpace:
@@ -287,7 +298,7 @@ class Environment(ContextMixin, InitializableMixin):
         node = Node.create(
             index=len(self.nodes),
             runbook=node_runbook,
-            base_log_path=self.log_path,
+            base_part_path=self.environment_part_path,
             parent_logger=self.log,
         )
         self.nodes.append(node)
@@ -316,7 +327,7 @@ class Environment(ContextMixin, InitializableMixin):
         node = Node.create(
             index=len(self.nodes),
             runbook=mock_runbook,
-            base_log_path=self.log_path,
+            base_part_path=self.environment_part_path,
             parent_logger=self.log,
         )
         self.nodes.append(node)

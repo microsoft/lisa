@@ -491,3 +491,15 @@ def field_metadata(
 
 def is_unittest() -> bool:
     return "unittest" in sys.argv[0]
+
+
+def create_folder(path: Path, name: str) -> Path:
+    if path.exists():
+        raise LisaException(
+            f"The {name} path exists already, " f"it may have conflict. {path}"
+        )
+
+    path.mkdir(parents=True)
+
+    # return the path for convenient
+    return path

@@ -40,14 +40,14 @@ class CustomLocalNode(node.LocalNode):
         index: int,
         runbook: CustomLocalNodeSchema,
         logger_name: str,
-        base_log_path: Optional[Path] = None,
+        base_part_path: Optional[Path] = None,
         parent_logger: Optional[Logger] = None,
     ) -> None:
         super().__init__(
             index=index,
             runbook=runbook,
             logger_name=logger_name,
-            base_log_path=base_log_path,
+            base_part_path=base_part_path,
             parent_logger=parent_logger,
         )
         self.custom_local_field = runbook.custom_local_field
@@ -84,14 +84,14 @@ class CustomRemoteNode(node.RemoteNode):
         index: int,
         runbook: CustomRemoteNodeSchema,
         logger_name: str,
-        base_log_path: Optional[Path] = None,
+        base_part_path: Optional[Path] = None,
         parent_logger: Optional[Logger] = None,
     ) -> None:
         super().__init__(
             index=index,
             runbook=runbook,
             logger_name=logger_name,
-            base_log_path=base_log_path,
+            base_part_path=base_part_path,
             parent_logger=parent_logger,
         )
         self.custom_remote_field = runbook.custom_remote_field

@@ -7,7 +7,7 @@ import traceback
 from datetime import datetime
 from logging import DEBUG, INFO, FileHandler
 from pathlib import Path, PurePath
-from typing import Optional, Tuple
+from typing import Optional
 
 from retry import retry
 
@@ -24,9 +24,27 @@ from lisa.util.logger import (
 from lisa.util.perf_timer import create_timer
 from lisa.variable import add_secrets_from_pairs
 
+_runtime_root = Path("runtime").absolute()
+
+
+def _normalize_path(path_type: str, path: Optional[Path] = None) -> Path:
+    global _runtime_root
+
+    # Layout the run time folder structure.
+    if path:
+        # if log path is relative path, join with root.
+        if not path.is_absolute():
+            path = _runtime_root / path
+    else:
+        path = _runtime_root / path_type
+
+    return path
+
 
 @retry(FileExistsError, tries=10, delay=0.2)  # type: ignore
-def generate_run_path(root_path: Path, run_id: str = "") -> Tuple[PurePath, Path]:
+def test_path(
+    log_root_path: Path, working_root_path: Path, run_id: str = ""
+) -> PurePath:
     if run_id:
         # use predefined run_id
         logic_path = PurePath(run_id)
@@ -36,37 +54,45 @@ def generate_run_path(root_path: Path, run_id: str = "") -> Tuple[PurePath, Path
         date_of_today = current_time.strftime("%Y%m%d")
         time_of_today = get_datetime_path(current_time)
         logic_path = PurePath(f"{date_of_today}/{time_of_today}")
-    local_path = root_path.joinpath(logic_path)
-    if local_path.exists():
+
+    log_path = log_root_path / logic_path
+    if log_path.exists():
         raise FileExistsError(
-            f"The run path '{local_path}' already exists, "
+            f"The log path '{log_path}' already exists, "
             f"and not found an unique path."
         )
-    local_path.mkdir(parents=True)
-    return logic_path, local_path
+    working_path = working_root_path / logic_path
+    if working_path.exists():
+        raise FileExistsError(
+            f"The working path '{working_path}' already exists, "
+            f"and not found an unique path."
+        )
+
+    log_path.mkdir(parents=True)
+    return logic_path
 
 
 def initialize_runtime_folder(
-    log_path: Optional[Path] = None, run_id: str = ""
+    log_path: Optional[Path] = None,
+    working_path: Optional[Path] = None,
+    run_id: str = "",
 ) -> None:
-    runtime_root = Path("runtime").absolute()
+    global _runtime_root
 
-    cache_path = runtime_root.joinpath("cache")
+    cache_path = _runtime_root.joinpath("cache")
     cache_path.mkdir(parents=True, exist_ok=True)
     constants.CACHE_PATH = cache_path
 
     # Layout the run time folder structure.
-    if log_path:
-        # if log path is relative path, join with root.
-        if not log_path.is_absolute():
-            log_path = runtime_root / log_path
-    else:
-        log_path = runtime_root / "runs"
-    logic_path, local_path = generate_run_path(log_path, run_id=run_id)
+    log_path = _normalize_path("log", log_path)
+    working_path = _normalize_path("working", working_path)
+
+    logic_path = test_path(log_path, working_path, run_id=run_id)
 
     constants.RUN_ID = logic_path.name
     constants.RUN_LOGIC_PATH = logic_path
-    constants.RUN_LOCAL_LOG_PATH = local_path
+    constants.RUN_LOCAL_LOG_PATH = log_path / logic_path
+    constants.RUN_LOCAL_WORKING_PATH = working_path / logic_path
 
 
 def main() -> int:
@@ -78,7 +104,7 @@ def main() -> int:
     try:
         args = parse_args()
 
-        initialize_runtime_folder(args.log_path, args.run_id)
+        initialize_runtime_folder(args.log_path, args.working_path, args.run_id)
 
         log_level = DEBUG if (args.debug) else INFO
         set_level(log_level)
@@ -95,7 +121,10 @@ def main() -> int:
         add_secrets_from_pairs(args.variables)
 
         log.debug(f"command line args: {sys.argv}")
-        log.info(f"run local path: {constants.RUN_LOCAL_LOG_PATH}")
+        log.info(
+            f"run log path: {constants.RUN_LOCAL_LOG_PATH}, "
+            f"working path: {constants.RUN_LOCAL_WORKING_PATH}"
+        )
 
         exit_code = args.func(args)
         assert isinstance(exit_code, int), f"actual: {type(exit_code)}"

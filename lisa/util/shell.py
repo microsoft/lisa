@@ -187,7 +187,7 @@ def try_connect(connection_info: ConnectionInfo, ssh_timeout: int = 300) -> Any:
     # Give it some time to process the command, otherwise reads on
     # stdout on calling contexts have been seen having empty strings
     # from stdout, on Windows. There is a certain 3s penalty on Linux
-    # systems, as it's never ready for that (inexisting) command, but
+    # systems, as it's never ready for that (nonexisting) command, but
     # that should only happen once per node (not per command)
     tries = 3
     while not stdout.channel.recv_ready() and tries:
