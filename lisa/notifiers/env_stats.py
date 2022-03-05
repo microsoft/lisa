@@ -74,7 +74,7 @@ class EnvironmentStats(notifier.Notifier):
 
         self._last_updated_time = create_timer()
         # result update at most 1 time per second
-        self._update_frequence = 1
+        self._update_frequency = 1
         self._test_results: Dict[str, TestResultInformation] = {}
         self._environments: Dict[str, EnvironmentInformation] = {}
 
@@ -119,7 +119,7 @@ class EnvironmentStats(notifier.Notifier):
         self._update_information(force=True)
 
     def _update_information(self, force: bool = False) -> None:
-        if self._last_updated_time.elapsed(False) > self._update_frequence or force:
+        if self._last_updated_time.elapsed(False) > self._update_frequency or force:
             with open(self._file_path, "w") as f:
                 self._dump_environments(f)
             self._last_updated_time = create_timer()

@@ -190,9 +190,9 @@ class RootRunner(Action):
             register_notifier(self._results_collector)
 
             self._start_loop()
-        except Exception as identifer:
+        except Exception as identifier:
             cancel()
-            raise identifer
+            raise identifier
         finally:
             for runner in self._runners:
                 runner.close()
@@ -351,7 +351,7 @@ class RootRunner(Action):
 
                 if task_manager.has_idle_worker():
                     if has_more_runner:
-                        # add new runner upto max concurrency if idle workers
+                        # add new runner up to max concurrency if idle workers
                         # are available
                         try:
                             while len(remaining_runners) < self._max_concurrency:
