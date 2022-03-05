@@ -21,6 +21,13 @@ class Waagent(Tool):
     # ResourceDisk.EnableSwap=y
     _key_value_regex = re.compile(r"^\s*(?P<key>\S+)=(?P<value>\S+)\s*$")
 
+    _python_candidates = [
+        "python3",
+        "python2",
+        # for RedHat 8.0
+        "/usr/libexec/platform-python",
+    ]
+
     @property
     def command(self) -> str:
         return self._command
@@ -102,17 +109,18 @@ class Waagent(Tool):
     def get_distro_version(self) -> str:
         """
         This method is to get the same distro version string like WaAgent. It
-        tries best to handle Pyhont2, Python3 < 3.8 and Python3 >= 3.8.
+        tries best to handle different python version and locations.
         """
         if self._distro_version is not None:
             return self._distro_version
 
-        python3_exists, use_sudo = self.command_exists(command="python3")
-        self._log.debug(f"python3 exists: {python3_exists}, use sudo: {use_sudo}")
-        if python3_exists:
-            python_cmd = "python3"
-        else:
-            python_cmd = "python2"
+        for python_cmd in self._python_candidates:
+            python_exists, use_sudo = self.command_exists(command=python_cmd)
+            self._log.debug(
+                f"{python_cmd} exists: {python_exists}, use sudo: {use_sudo}"
+            )
+            if python_exists:
+                break
 
         # Try to use waagent code to detect
         result = self.node.execute(
