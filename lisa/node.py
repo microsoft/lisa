@@ -109,7 +109,7 @@ class Node(subclasses.BaseClassWithRunbookMixin, ContextMixin, InitializableMixi
         if not self._local_log_path:
             base_path = self._base_local_log_path
             if not base_path:
-                base_path = constants.RUN_LOCAL_PATH
+                base_path = constants.RUN_LOCAL_LOG_PATH
             path_name = self.name
             if not path_name:
                 if self.index:
@@ -481,7 +481,7 @@ class LocalNode(Node):
         return schema.LocalNode
 
     def get_working_path(self) -> PurePath:
-        return constants.RUN_LOCAL_PATH
+        return constants.RUN_LOCAL_LOG_PATH
 
     def __repr__(self) -> str:
         return "local"

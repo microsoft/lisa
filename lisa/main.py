@@ -66,7 +66,7 @@ def initialize_runtime_folder(
 
     constants.RUN_ID = logic_path.name
     constants.RUN_LOGIC_PATH = logic_path
-    constants.RUN_LOCAL_PATH = local_path
+    constants.RUN_LOCAL_LOG_PATH = local_path
 
 
 def main() -> int:
@@ -84,7 +84,7 @@ def main() -> int:
         set_level(log_level)
 
         file_handler = create_file_handler(
-            Path(f"{constants.RUN_LOCAL_PATH}/lisa-{constants.RUN_ID}.log")
+            Path(f"{constants.RUN_LOCAL_LOG_PATH}/lisa-{constants.RUN_ID}.log")
         )
 
         log.info(f"Python version: {sys.version}")
@@ -95,7 +95,7 @@ def main() -> int:
         add_secrets_from_pairs(args.variables)
 
         log.debug(f"command line args: {sys.argv}")
-        log.info(f"run local path: {constants.RUN_LOCAL_PATH}")
+        log.info(f"run local path: {constants.RUN_LOCAL_LOG_PATH}")
 
         exit_code = args.func(args)
         assert isinstance(exit_code, int), f"actual: {type(exit_code)}"

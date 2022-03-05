@@ -249,7 +249,7 @@ class Environment(ContextMixin, InitializableMixin):
 
         if not self._log_path:
             self._log_path = (
-                constants.RUN_LOCAL_PATH
+                constants.RUN_LOCAL_LOG_PATH
                 / "environments"
                 / f"{get_datetime_path()}-{self.name}"
             )

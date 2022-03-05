@@ -23,7 +23,7 @@ RUNBOOK: str = ""
 CACHE_PATH: Path
 # The physical path of current run.
 # All logs of current run should be in this folder.
-RUN_LOCAL_PATH: Path = Path()
+RUN_LOCAL_LOG_PATH: Path = Path()
 # It's a pure path, which is used to create working folder in remote node.
 # The datetime part of this path is the # same as local path, so it's easy to find
 # remote files, which belongs to same run.

@@ -131,7 +131,7 @@ class Html(Notifier):
         # Windows 11
         global_config = Config.fromdictargs({"capture": "no"}, {})
         self._session = pytest.Session.from_config(global_config)
-        self._report_path = constants.RUN_LOCAL_PATH / runbook.path
+        self._report_path = constants.RUN_LOCAL_LOG_PATH / runbook.path
 
         # enable capture in html config, so the detail log can output
         self._config = Config.fromdictargs({"self_contained_html": True}, {})
