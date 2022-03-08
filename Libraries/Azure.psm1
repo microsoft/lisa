@@ -1471,6 +1471,7 @@ Function Invoke-AllResourceGroupDeployments($SetupTypeData, $CurrentTestData, $R
 					Add-Content -Value "$($indents[7])^storageAccountType^: ^$StorageAccountType^" -Path $jsonFile
 
 					Add-Content -Value "$($indents[6])}," -Path $jsonFile
+					Add-Content -Value "$($indents[6])^diskSizeGB^: 1024," -Path $jsonFile
 					if ($UseEphemeralOSDisk) {
 						Add-Content -Value "$($indents[6])^caching^: ^ReadOnly^," -Path $jsonFile
 						Add-Content -Value "$($indents[6])^diffDiskSettings^: " -Path $jsonFile
