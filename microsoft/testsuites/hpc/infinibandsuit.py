@@ -14,7 +14,7 @@ from lisa import (
 )
 from lisa.features import Infiniband, Sriov
 from lisa.sut_orchestrator.azure.tools import Waagent
-from lisa.tools import Modprobe, Ssh
+from lisa.tools import Find, Modprobe, Ssh
 from lisa.util import SkippedException
 from lisa.util.parallel import run_in_parallel
 
@@ -249,3 +249,98 @@ class InfinibandSuit(TestSuite):
                 expected_exit_code_failure_message=f"Failed {test} test with intel mpi",
                 timeout=1200,
             )
+
+    @TestCaseMetadata(
+        description="""
+            This test case will
+            1. Ensure RDMA is setup
+            2. Install Open MPI
+            3. Set up ssh keys of server/client connection
+            4. Run MPI pingpong tests
+            5. Run other MPI tests
+            """,
+        priority=4,
+        requirement=simple_requirement(
+            supported_features=[Infiniband],
+            min_count=2,
+        ),
+    )
+    def verify_open_mpi(self, environment: Environment, log: Logger) -> None:
+        server_node = environment.nodes[0]
+        client_node = environment.nodes[1]
+
+        # Ensure RDMA is setup
+        run_in_parallel(
+            [
+                lambda: client_node.features[Infiniband],
+                lambda: server_node.features[Infiniband],
+            ]
+        )
+
+        server_ib = server_node.features[Infiniband]
+        client_ib = client_node.features[Infiniband]
+        run_in_parallel([server_ib.install_open_mpi, client_ib.install_open_mpi])
+
+        server_node.execute("ldconfig", sudo=True)
+        client_node.execute("ldconfig", sudo=True)
+
+        # Restart the ssh sessions for changes to /etc/security/limits.conf
+        # to take effect
+        server_node.close()
+        client_node.close()
+
+        # Get the ip adresses and device name of ib device
+        server_ib_interfaces = server_ib.get_ib_interfaces()
+        client_ib_interfaces = client_ib.get_ib_interfaces()
+        server_ip = server_ib_interfaces[0].ip_addr
+        client_ip = client_ib_interfaces[0].ip_addr
+
+        # Test relies on machines being able to ssh into each other
+        server_ssh = server_node.tools[Ssh]
+        client_ssh = client_node.tools[Ssh]
+        server_ssh.enable_public_key(client_ssh.generate_key_pairs())
+        client_ssh.enable_public_key(server_ssh.generate_key_pairs())
+        server_ssh.add_known_host(client_ip)
+        client_ssh.add_known_host(server_ip)
+
+        # Ping Pong test
+        find = server_node.tools[Find]
+        find_results = find.find_files(
+            server_node.get_pure_path("/usr"), "IMB-MPI1", sudo=True
+        )
+        assert_that(len(find_results)).described_as(
+            "Could not find location of IMB-MPI1 for Open MPI"
+        ).is_greater_than(0)
+        test_path = find_results[0]
+        assert_that(test_path).described_as(
+            "Could not find location of IMB-MPI1 for Open MPI"
+        ).is_not_empty()
+        server_node.execute(
+            f"/usr/local/bin/mpirun --host {server_ip},{server_ip} "
+            "-n 2 --mca btl self,vader,openib --mca btl_openib_cq_size 4096 "
+            "--mca btl_openib_allow_ib 1 --mca "
+            f"btl_openib_warn_no_device_params_found 0 {test_path} pingpong",
+            expected_exit_code=0,
+            expected_exit_code_failure_message="Failed intra-node ping pong test "
+            "with Open MPI",
+        )
+
+        # IMB-MPI Tests
+        find_results = find.find_files(
+            server_node.get_pure_path("/usr"), "IMB-MPI1", sudo=True
+        )
+        assert_that(len(find_results)).described_as(
+            "Could not find location of Open MPI test: IMB-MPI1"
+        ).is_greater_than(0)
+        test_path = find_results[0]
+        assert_that(test_path).described_as(
+            "Could not find location of Open MPI test: IMB-MPI1"
+        ).is_not_empty()
+        server_node.execute(
+            f"/usr/local/bin/mpirun --host {server_ip},{client_ip} "
+            "-n 2 --mca btl self,vader,openib --mca btl_openib_cq_size 4096 "
+            "--mca btl_openib_allow_ib 1 --mca "
+            f"btl_openib_warn_no_device_params_found 0 {test_path}",
+            expected_exit_code=0,
+            expected_exit_code_failure_message="Failed " "IMB-MPI1 test with Open MPI",
+        )
