@@ -11,6 +11,7 @@ function Main {
         $ResourceGroupUnderTest = $VM.ResourceGroupName
         $VirtualMachine = Get-AzVM -ResourceGroupName $VM.ResourceGroupName -Name $VM.RoleName
         $diskCount = (Get-AzVMSize -Location $allVMData.Location | Where-Object {$_.Name -eq $allVMData.InstanceSize}).MaxDataDiskCount
+        $diskCount = 64
         $storageProfile = (Get-AzVM -ResourceGroupName $AllVMData.ResourceGroupName -Name $AllVMData.RoleName).StorageProfile
         $allDiskNames = @()
         $allUnmanagedDataDisks = @()

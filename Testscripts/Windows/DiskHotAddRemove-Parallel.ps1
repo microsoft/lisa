@@ -16,10 +16,17 @@ function Main {
         $allUnmanagedDataDisks = @()
         $virtualMachine = Get-AzVM -ResourceGroupName $AllVMData.ResourceGroupName -Name $AllVMData.RoleName
         $azVmSize = Get-AzVMSize -Location $AllVMData.Location | Where-Object {$_.Name -eq $AllVMData.InstanceSize}
+
         if (!$azVmSize) {
-            throw "Could not find VM Size information for $($AllVMData.InstanceSize)."
+            Write-LogInfo "Could not find VM Size information for $($AllVMData.InstanceSize)."
         }
+
         $diskCount = $azVmSize.MaxDataDiskCount
+        
+        if( 'Standard_M420ixs_v2' -eq $AllVMData.InstanceSize){
+            $diskCount = 64
+        }
+
         if (!$diskCount -or $diskCount -eq 0) {
             throw "MaxDataDiskCount of current VM Size $($AllVMData.InstanceSize) is not acceptable."
         }
