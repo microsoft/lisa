@@ -2,7 +2,7 @@
 # Licensed under the MIT license.
 
 import re
-from typing import List, Pattern, Tuple, Type
+from typing import List, Pattern, Tuple, Type, Union
 
 from assertpy import assert_that, fail
 from semver import VersionInfo
@@ -271,6 +271,12 @@ class DpdkTestpmd(Tool):
     def get_rx_pps_sriov_rescind(self) -> Tuple[int, int, int]:
         return self._get_pps_sriov_rescind(self._rx_pps_key)
 
+    def add_sample_apps_to_build_list(self, apps: Union[List[str], None]) -> None:
+        if apps:
+            self._sample_apps_to_build = apps
+        else:
+            self._sample_apps_to_build = []
+
     def _determine_network_hardware(self) -> None:
         lspci = self.node.tools[Lspci]
         device_list = lspci.get_devices()
@@ -361,8 +367,15 @@ class DpdkTestpmd(Tool):
                     self._dpdk_branch, self._version_info_from_git_tag_regex
                 )
         self._load_drivers_for_dpdk()
+
+        # add sample apps to compilation if they are present
+        if self._sample_apps_to_build:
+            sample_apps = f"-Dexamples={','.join(self._sample_apps_to_build)}"
+        else:
+            sample_apps = ""
+
         node.execute(
-            "meson build",
+            f"meson {sample_apps} build",
             shell=True,
             cwd=self.dpdk_path,
             expected_exit_code=0,
@@ -372,10 +385,10 @@ class DpdkTestpmd(Tool):
                 "meson version is compatible with this dpdk version and OS."
             ),
         )
-        dpdk_build_path = self.dpdk_path.joinpath("build")
+        self.dpdk_build_path = self.dpdk_path.joinpath("build")
         node.execute(
             "ninja",
-            cwd=dpdk_build_path,
+            cwd=self.dpdk_build_path,
             timeout=1200,
             expected_exit_code=0,
             expected_exit_code_failure_message=(
@@ -386,7 +399,7 @@ class DpdkTestpmd(Tool):
         )
         node.execute(
             "ninja install",
-            cwd=dpdk_build_path,
+            cwd=self.dpdk_build_path,
             sudo=True,
             expected_exit_code=0,
             expected_exit_code_failure_message=(
@@ -395,7 +408,7 @@ class DpdkTestpmd(Tool):
         )
         node.execute(
             "ldconfig",
-            cwd=dpdk_build_path,
+            cwd=self.dpdk_build_path,
             sudo=True,
             expected_exit_code=0,
             expected_exit_code_failure_message="ldconfig failed, check for error spew.",

@@ -4,7 +4,7 @@
 import re
 import time
 from collections import deque
-from typing import Any, Dict, List, Tuple
+from typing import Any, Dict, List, Tuple, Union
 
 from assertpy import assert_that, fail
 
@@ -131,6 +131,46 @@ class Dpdk(TestSuite):
             )
         finally:
             ovs.stop_ovs()
+
+    @TestCaseMetadata(
+        description="""
+           Build and run DPDK multiprocess client/server sample application
+        """,
+        priority=3,
+        requirement=simple_requirement(
+            min_nic_count=2,
+            network_interface=Sriov(),
+        ),
+    )
+    def verify_dpdk_multiprocess(
+        self, node: Node, log: Logger, variables: Dict[str, Any]
+    ) -> None:
+        pmd = "failsafe"
+        # initialize DPDK with sample applications selected for build
+        test_kit = initialize_node_resources(
+            node,
+            log,
+            variables,
+            pmd,
+            sample_apps=[
+                "multi_process/client_server_mp/mp_server",
+                "multi_process/client_server_mp/mp_client",
+            ],
+        )
+
+        # enable hugepages needed for dpdk EAL
+        _init_hugepages(node)
+
+        # setup and run mp_server application
+        examples_path = test_kit.testpmd.dpdk_build_path.joinpath("examples")
+        server_app_path = examples_path.joinpath("dpdk-mp_server")
+        kit_cmd_pair = {test_kit: f"{server_app_path} --help"}
+        output: Dict[DpdkTestResources, str] = dict()
+        task_manager = _start_testpmd_concurrent(kit_cmd_pair, 5, log, output)
+
+        # TODO: Just enough to test the changes, rest of test incoming.
+
+        task_manager.wait_for_all_workers()
 
     @TestCaseMetadata(
         description="""
@@ -725,7 +765,11 @@ def enable_uio_hv_generic_for_nic(node: Node, nic: NicInfo) -> None:
 
 
 def initialize_node_resources(
-    node: Node, log: Logger, variables: Dict[str, Any], pmd: str
+    node: Node,
+    log: Logger,
+    variables: Dict[str, Any],
+    pmd: str,
+    sample_apps: Union[List[str], None] = None,
 ) -> DpdkTestResources:
     dpdk_source = variables.get("dpdk_source", DPDK_STABLE_GIT)
     dpdk_branch = variables.get("dpdk_branch", "")
@@ -751,6 +795,7 @@ def initialize_node_resources(
     testpmd = DpdkTestpmd(node)
     testpmd.set_dpdk_source(dpdk_source)
     testpmd.set_dpdk_branch(dpdk_branch)
+    testpmd.add_sample_apps_to_build_list(sample_apps)
     testpmd.install()
 
     # initialize node nic info class (gathers info about nic devices)
@@ -777,24 +822,7 @@ def _run_testpmd_concurrent(
     rescind_sriov: bool = False,
 ) -> Dict[DpdkTestResources, str]:
     output: Dict[DpdkTestResources, str] = dict()
-    cmd_pairs_as_tuples = deque(node_cmd_pairs.items())
-
-    def thread_callback(result: Tuple[DpdkTestResources, str]) -> None:
-        output[result[0]] = result[1]
-
-    def _run_node_init() -> Tuple[DpdkTestResources, str]:
-        # TaskManager doesn't let you pass parameters to your threads
-        testkit, cmd = cmd_pairs_as_tuples.pop()
-        return (testkit, testkit.testpmd.run_for_n_seconds(cmd, seconds))
-
-    task_manager = TaskManager[Tuple[DpdkTestResources, str]](
-        len(cmd_pairs_as_tuples), thread_callback
-    )
-
-    for i in range(len(node_cmd_pairs)):
-        task_manager.submit_task(
-            Task[Tuple[DpdkTestResources, str]](i, _run_node_init, log)
-        )
+    task_manager = _start_testpmd_concurrent(node_cmd_pairs, seconds, log, output)
     if rescind_sriov:
         time.sleep(10)  # run testpmd for a bit before disabling sriov
         test_kits = node_cmd_pairs.keys()
@@ -834,6 +862,34 @@ def _run_testpmd_concurrent(
     task_manager.wait_for_all_workers()
 
     return output
+
+
+def _start_testpmd_concurrent(
+    node_cmd_pairs: Dict[DpdkTestResources, str],
+    seconds: int,
+    log: Logger,
+    output: Dict[DpdkTestResources, str],
+) -> TaskManager[Tuple[DpdkTestResources, str]]:
+    cmd_pairs_as_tuples = deque(node_cmd_pairs.items())
+
+    def thread_callback(result: Tuple[DpdkTestResources, str]) -> None:
+        output[result[0]] = result[1]
+
+    def _run_node_init() -> Tuple[DpdkTestResources, str]:
+        # TaskManager doesn't let you pass parameters to your threads
+        testkit, cmd = cmd_pairs_as_tuples.pop()
+        return (testkit, testkit.testpmd.run_for_n_seconds(cmd, seconds))
+
+    task_manager = TaskManager[Tuple[DpdkTestResources, str]](
+        len(cmd_pairs_as_tuples), thread_callback
+    )
+
+    for i in range(len(node_cmd_pairs)):
+        task_manager.submit_task(
+            Task[Tuple[DpdkTestResources, str]](i, _run_node_init, log)
+        )
+
+    return task_manager
 
 
 def _init_nodes_concurrent(
