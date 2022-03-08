@@ -10,7 +10,7 @@ from assertpy import assert_that
 from lisa.base_tools import Sed, Uname, Wget
 from lisa.feature import Feature
 from lisa.operating_system import CentOs, Redhat, Ubuntu
-from lisa.tools import Firewall
+from lisa.tools import Firewall, Make
 from lisa.tools.service import Service
 from lisa.tools.tar import Tar
 from lisa.util import LisaException
@@ -176,6 +176,7 @@ class Infiniband(Feature):
             "libsecret-1-0",
             "dkms",
             "python-setuptools",
+            "g++",
         ]
         redhat_required_packages = [
             "git",
@@ -197,6 +198,7 @@ class Infiniband(Feature):
             "createrepo",
             "libtool",
             "fuse-libs",
+            "gcc-c++",
         ]
         if isinstance(node.os, CentOs):
             node.execute(
@@ -306,5 +308,29 @@ class Infiniband(Feature):
             f"{script_path} -s -a -s --eula accept",
             sudo=True,
             expected_exit_code=0,
-            expected_exit_code_failure_message="SetupRDMA: failed to install IntelMPI",
+            expected_exit_code_failure_message="Failed to install IntelMPI",
         )
+
+    def install_open_mpi(self) -> None:
+        node = self._node
+        # Intall Open MPI
+        wget = node.tools[Wget]
+        script_path = wget.get(
+            "https://download.open-mpi.org/release/open-mpi/v4.0/openmpi-4.0.5.tar.gz",
+            executable=True,
+        )
+        tar = node.tools[Tar]
+        tar.extract(script_path, ".", gzip=True)
+        openmpi_folder = node.get_pure_path("./openmpi-4.0.5")
+
+        node.execute(
+            "./configure --enable-mpirun-prefix-by-default",
+            shell=True,
+            cwd=openmpi_folder,
+            expected_exit_code=0,
+            expected_exit_code_failure_message="Failed to configure Open MPI",
+        )
+
+        make = node.tools[Make]
+        make.make("", cwd=openmpi_folder)
+        make.make_install(cwd=openmpi_folder)
