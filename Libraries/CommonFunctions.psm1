@@ -2456,7 +2456,11 @@ Function Wait-AzVMBackRunningWithTimeOut($AllVMData, [scriptblock]$AzVMScript) {
         }
         $VMCoresArray += ($AzureVMSizeInfo | Where-Object { $_.Name -eq $vmData.InstanceSize }).NumberOfCores
     }
-    $MaximumCores = ($VMCoresArray | Measure-Object -Maximum).Maximum
+    if ($vmData.InstanceSize -eq 'Standard_M420ixs_v2' ){
+        $MaximumCores = 420
+    }else{
+        $MaximumCores = ($VMCoresArray | Measure-Object -Maximum).Maximum
+    }
 
     Write-LogDbg "MaximumCores is $MaximumCores."
     # Calculate timeout depending on VM size.
