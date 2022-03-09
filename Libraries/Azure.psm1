@@ -1469,7 +1469,8 @@ Function Invoke-AllResourceGroupDeployments($SetupTypeData, $CurrentTestData, $R
 					Add-Content -Value "$($indents[6])^diskSizeGB^: 1024," -Path $jsonFile
 					Add-Content -Value "$($indents[6])^managedDisk^: " -Path $jsonFile
 					Add-Content -Value "$($indents[6]){" -Path $jsonFile
-					Add-Content -Value "$($indents[7])^storageAccountType^: ^$StorageAccountType^" -Path $jsonFile
+					Add-Content -Value "$($indents[7])^storageAccountType^: ^Premium_LRS^" -Path $jsonFile
+					#Add-Content -Value "$($indents[7])^storageAccountType^: ^$StorageAccountType^" -Path $jsonFile
 					Add-Content -Value "$($indents[6])}," -Path $jsonFile
 					if ($UseEphemeralOSDisk) {
 						Add-Content -Value "$($indents[6])^caching^: ^ReadOnly^," -Path $jsonFile
@@ -1530,7 +1531,8 @@ Function Invoke-AllResourceGroupDeployments($SetupTypeData, $CurrentTestData, $R
 					Add-Content -Value "$($indents[6])^diskSizeGB^: 1024," -Path $jsonFile
 					Add-Content -Value "$($indents[6])^managedDisk^: " -Path $jsonFile
 					Add-Content -Value "$($indents[6]){" -Path $jsonFile
-					Add-Content -Value "$($indents[7])^storageAccountType^: ^$StorageAccountType^" -Path $jsonFile
+					#Add-Content -Value "$($indents[7])^storageAccountType^: ^$StorageAccountType^" -Path $jsonFile
+					Add-Content -Value "$($indents[7])^storageAccountType^: ^Premium_LRS^" -Path $jsonFile
 					Add-Content -Value "$($indents[6])}," -Path $jsonFile
 					if ($UseEphemeralOSDisk) {
 						Add-Content -Value "$($indents[6])^caching^: ^ReadOnly^," -Path $jsonFile
