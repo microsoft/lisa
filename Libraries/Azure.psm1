@@ -1466,12 +1466,11 @@ Function Invoke-AllResourceGroupDeployments($SetupTypeData, $CurrentTestData, $R
 					Write-LogInfo ">>> Using VHD : $VHDName (Converted to Managed Image)"
 					Add-Content -Value "$($indents[6])^osType^: ^$OSType^," -Path $jsonFile
 					Add-Content -Value "$($indents[6])^name^: ^$vmName-OSDisk^," -Path $jsonFile
+					Add-Content -Value "$($indents[6])^diskSizeGB^: 1024," -Path $jsonFile
 					Add-Content -Value "$($indents[6])^managedDisk^: " -Path $jsonFile
 					Add-Content -Value "$($indents[6]){" -Path $jsonFile
 					Add-Content -Value "$($indents[7])^storageAccountType^: ^$StorageAccountType^" -Path $jsonFile
-
 					Add-Content -Value "$($indents[6])}," -Path $jsonFile
-					Add-Content -Value "$($indents[6])^diskSizeGB^: 1024," -Path $jsonFile
 					if ($UseEphemeralOSDisk) {
 						Add-Content -Value "$($indents[6])^caching^: ^ReadOnly^," -Path $jsonFile
 						Add-Content -Value "$($indents[6])^diffDiskSettings^: " -Path $jsonFile
@@ -1527,7 +1526,8 @@ Function Invoke-AllResourceGroupDeployments($SetupTypeData, $CurrentTestData, $R
 			}
 			else {
 				if ($UseManagedDisks) {
-					Add-Content -Value "$($indents[6])^name^: ^$vmName-OSDisk^," -Path $jsonFile
+					Add-Content -Value "$($indents[6])^name^: ^$vmName-OSDisk^," -Path $jsonFile					
+					Add-Content -Value "$($indents[6])^diskSizeGB^: 1024," -Path $jsonFile
 					Add-Content -Value "$($indents[6])^managedDisk^: " -Path $jsonFile
 					Add-Content -Value "$($indents[6]){" -Path $jsonFile
 					Add-Content -Value "$($indents[7])^storageAccountType^: ^$StorageAccountType^" -Path $jsonFile
