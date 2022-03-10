@@ -4,7 +4,8 @@
 import re
 import time
 from collections import deque
-from typing import Any, Dict, List, Tuple
+from functools import partial
+from typing import Any, Dict, List, Tuple, Union
 
 from assertpy import assert_that, fail
 
@@ -25,7 +26,7 @@ from lisa.nic import NicInfo, Nics
 from lisa.testsuite import simple_requirement
 from lisa.tools import Dmesg, Echo, Git, Ip, Lsmod, Lspci, Make, Modprobe, Mount
 from lisa.util import perf_timer
-from lisa.util.parallel import Task, TaskManager
+from lisa.util.parallel import TaskManager, run_in_parallel, run_in_parallel_async
 from microsoft.testsuites.dpdk.dpdknffgo import DpdkNffGo
 from microsoft.testsuites.dpdk.dpdkovs import DpdkOvs
 from microsoft.testsuites.dpdk.dpdktestpmd import DpdkTestpmd
@@ -193,8 +194,8 @@ class Dpdk(TestSuite):
     ) -> None:
 
         test_kit = initialize_node_resources(node, log, variables, "failsafe")
-        node_nic_info, testpmd = test_kit.node_nic_info, test_kit.testpmd
-        test_nic = node_nic_info.get_nic_by_index()
+        testpmd = test_kit.testpmd
+        test_nic = node.nics.get_nic_by_index()
         testpmd_cmd = testpmd.generate_testpmd_command(
             test_nic, 0, "txonly", "failsafe"
         )
@@ -274,10 +275,10 @@ class Dpdk(TestSuite):
     ) -> None:
         # setup and unwrap the resources for this test
         test_kit = initialize_node_resources(node, log, variables, pmd)
-        node_nic_info, testpmd = test_kit.node_nic_info, test_kit.testpmd
+        testpmd = test_kit.testpmd
 
         # grab a nic and run testpmd
-        test_nic = node_nic_info.get_nic_by_index()
+        test_nic = node.nics.get_nic_by_index()
 
         testpmd_cmd = testpmd.generate_testpmd_command(
             test_nic,
@@ -602,16 +603,13 @@ def _enable_hugepages(node: Node) -> None:
 
 
 class DpdkTestResources:
-    def __init__(
-        self, _node: Node, _node_nic_info: Nics, _testpmd: DpdkTestpmd
-    ) -> None:
-        self.node_nic_info = _node_nic_info
+    def __init__(self, _node: Node, _testpmd: DpdkTestpmd) -> None:
         self.testpmd = _testpmd
         self.node = _node
         self.nic_controller = _node.features[NetworkInterface]
         self.dmesg = _node.tools[Dmesg]
         self._last_dmesg = ""
-        test_nic = self.node_nic_info.get_nic_by_index()
+        test_nic = self.node.nics.get_nic_by_index()
         # generate hotplug pattern for this specific nic
         self.vf_hotplug_regex = re.compile(
             f"{test_nic.upper}: Data path switched to VF: {test_nic.lower}"
@@ -653,7 +651,7 @@ def generate_send_receive_run_info(
     rxq: int = 1,
 ) -> Dict[DpdkTestResources, str]:
 
-    snd_nic, rcv_nic = [x.node_nic_info.get_nic_by_index() for x in [sender, receiver]]
+    snd_nic, rcv_nic = [x.node.nics.get_nic_by_index() for x in [sender, receiver]]
 
     snd_cmd = sender.testpmd.generate_testpmd_command(
         snd_nic,
@@ -725,7 +723,11 @@ def enable_uio_hv_generic_for_nic(node: Node, nic: NicInfo) -> None:
 
 
 def initialize_node_resources(
-    node: Node, log: Logger, variables: Dict[str, Any], pmd: str
+    node: Node,
+    log: Logger,
+    variables: Dict[str, Any],
+    pmd: str,
+    sample_apps: Union[List[str], None] = None,
 ) -> DpdkTestResources:
     dpdk_source = variables.get("dpdk_source", DPDK_STABLE_GIT)
     dpdk_branch = variables.get("dpdk_branch", "")
@@ -751,23 +753,21 @@ def initialize_node_resources(
     testpmd = DpdkTestpmd(node)
     testpmd.set_dpdk_source(dpdk_source)
     testpmd.set_dpdk_branch(dpdk_branch)
+    testpmd.add_sample_apps_to_build_list(sample_apps)
     testpmd.install()
 
-    # initialize node nic info class (gathers info about nic devices)
-    node_nic_info = Nics(node)
-    node_nic_info.initialize()
-    assert_that(len(node_nic_info)).described_as(
+    assert_that(len(node.nics)).described_as(
         "Test needs at least 1 NIC on the test node."
     ).is_greater_than_or_equal_to(1)
 
-    nic_to_bind = node_nic_info.get_nic_by_index()
+    nic_to_bind = node.nics.get_nic_by_index()
 
     # netvsc pmd requires uio_hv_generic to be loaded before use
     if pmd == "netvsc":
         enable_uio_hv_generic_for_nic(node, nic_to_bind)
 
-    bind_nic_to_dpdk_pmd(node_nic_info, nic_to_bind, pmd)
-    return DpdkTestResources(node, node_nic_info, testpmd)
+    bind_nic_to_dpdk_pmd(node.nics, nic_to_bind, pmd)
+    return DpdkTestResources(node, testpmd)
 
 
 def _run_testpmd_concurrent(
@@ -777,24 +777,7 @@ def _run_testpmd_concurrent(
     rescind_sriov: bool = False,
 ) -> Dict[DpdkTestResources, str]:
     output: Dict[DpdkTestResources, str] = dict()
-    cmd_pairs_as_tuples = deque(node_cmd_pairs.items())
-
-    def thread_callback(result: Tuple[DpdkTestResources, str]) -> None:
-        output[result[0]] = result[1]
-
-    def _run_node_init() -> Tuple[DpdkTestResources, str]:
-        # TaskManager doesn't let you pass parameters to your threads
-        testkit, cmd = cmd_pairs_as_tuples.pop()
-        return (testkit, testkit.testpmd.run_for_n_seconds(cmd, seconds))
-
-    task_manager = TaskManager[Tuple[DpdkTestResources, str]](
-        len(cmd_pairs_as_tuples), thread_callback
-    )
-
-    for i in range(len(node_cmd_pairs)):
-        task_manager.submit_task(
-            Task[Tuple[DpdkTestResources, str]](i, _run_node_init, log)
-        )
+    task_manager = _start_testpmd_concurrent(node_cmd_pairs, seconds, log, output)
     if rescind_sriov:
         time.sleep(10)  # run testpmd for a bit before disabling sriov
         test_kits = node_cmd_pairs.keys()
@@ -836,28 +819,40 @@ def _run_testpmd_concurrent(
     return output
 
 
+def _start_testpmd_concurrent(
+    node_cmd_pairs: Dict[DpdkTestResources, str],
+    seconds: int,
+    log: Logger,
+    output: Dict[DpdkTestResources, str],
+) -> TaskManager[Tuple[DpdkTestResources, str]]:
+    cmd_pairs_as_tuples = deque(node_cmd_pairs.items())
+
+    def _collect_dict_result(result: Tuple[DpdkTestResources, str]) -> None:
+        output[result[0]] = result[1]
+
+    def _run_command_with_testkit(
+        run_kit: Tuple[DpdkTestResources, str]
+    ) -> Tuple[DpdkTestResources, str]:
+        testkit, cmd = run_kit
+        return (testkit, testkit.testpmd.run_for_n_seconds(cmd, seconds))
+
+    task_manager = run_in_parallel_async(
+        [partial(_run_command_with_testkit, x) for x in cmd_pairs_as_tuples],
+        _collect_dict_result,
+    )
+
+    return task_manager
+
+
 def _init_nodes_concurrent(
     environment: Environment, log: Logger, variables: Dict[str, Any], pmd: str
 ) -> List[DpdkTestResources]:
     # Use threading module to parallelize the IO-bound node init.
-    test_kits: List[DpdkTestResources] = []
-    nodes = deque(environment.nodes.list())
-
-    def thread_callback(output: DpdkTestResources) -> None:
-        test_kits.append(output)
-
-    def run_node_init() -> DpdkTestResources:
-        # pop a node from the deque and initialize it.
-        node = nodes.pop()
-        return initialize_node_resources(node, log, variables, pmd)
-
-    task_manager = TaskManager[DpdkTestResources](
-        len(environment.nodes), thread_callback
+    test_kits = run_in_parallel(
+        [
+            partial(initialize_node_resources, node, log, variables, pmd)
+            for node in environment.nodes.list()
+        ],
+        log,
     )
-
-    for i in range(len(environment.nodes)):
-        task_manager.submit_task(Task[DpdkTestResources](i, run_node_init, log))
-
-    task_manager.wait_for_all_workers()
-
     return test_kits
