@@ -7,6 +7,11 @@ from .pgrep import Pgrep
 
 
 class Kill(Tool):
+
+    SIGINT = 2
+    SIGTERM = 15
+    SIGKILL = 9
+
     @property
     def command(self) -> str:
         return "kill"
@@ -15,12 +20,12 @@ class Kill(Tool):
     def can_install(self) -> bool:
         return False
 
-    def by_name(self, process_name: str, signum: int = 9) -> None:
+    def by_name(self, process_name: str, signum: int = SIGKILL) -> None:
         running_processes = self.node.tools[Pgrep].get_processes(process_name)
         for process in running_processes:
             self.by_pid(process.id, signum)
 
-    def by_pid(self, pid: str, signum: int = 9) -> None:
+    def by_pid(self, pid: str, signum: int = SIGKILL) -> None:
         self.run(
             f"-{signum} {pid}",
             shell=True,
