@@ -121,6 +121,10 @@ class AzureNodeSchema:
 
     # for marketplace image, which need to accept terms
     purchase_plan: Optional[AzureVmPurchasePlanSchema] = None
+    # the linux and Windows has different settings. If it's not specified, it's
+    # True by default for SIG and vhd, and is parsed from marketplace
+    # image.
+    is_linux: Optional[bool] = None
 
     _marketplace: InitVar[Optional[AzureVmMarketplaceSchema]] = None
 
@@ -646,7 +650,7 @@ class DataDisk:
             iops = [key for key in iops_dict.keys() if key >= data_disk_iops]
             if not iops:
                 raise LisaException(
-                    f"IOPS {data_disk_iops} is invaild for disk type {disk_type}."
+                    f"IOPS {data_disk_iops} is invalid for disk type {disk_type}."
                 )
             min_iops = min(iops)
             return iops_dict[min_iops]

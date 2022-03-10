@@ -953,6 +953,7 @@ class AzurePlatform(Platform):
         ]
         set_filtered_fields(self._azure_runbook, arm_parameters, copied_fields)
 
+        is_windows: bool = False
         arm_parameters.admin_username = self.runbook.admin_username
         if self.runbook.admin_private_key_file:
             arm_parameters.admin_key_data = get_public_key_data(
@@ -1005,9 +1006,15 @@ class AzurePlatform(Platform):
             node_context.resource_group_name = environment_context.resource_group_name
             # vm's name, use to find it from azure
             node_context.vm_name = azure_node_runbook.name
-            # ssh related information will be filled back once vm is created
+            # ssh related information will be filled back once vm is created. If
+            # it's Windows, fill in the password always. If it's Linux, the
+            # private key has higher priority.
             node_context.username = arm_parameters.admin_username
-            node_context.password = arm_parameters.admin_password
+            if azure_node_runbook.is_linux:
+                node_context.password = arm_parameters.admin_password
+            else:
+                is_windows = True
+                node_context.password = self.runbook.admin_password
             node_context.private_key_file = self.runbook.admin_private_key_file
 
             # collect all features to handle special deployment logic. If one
@@ -1019,6 +1026,9 @@ class AzurePlatform(Platform):
 
             log.info(f"vm setting: {azure_node_runbook}")
 
+        if is_windows:
+            # set password for windows any time.
+            arm_parameters.admin_password = self.runbook.admin_password
         arm_parameters.nodes = nodes_parameters
         arm_parameters.storage_name = get_storage_account_name(
             self.subscription_id, arm_parameters.location
@@ -1124,10 +1134,21 @@ class AzurePlatform(Platform):
             azure_node_runbook.marketplace = self._parse_marketplace_image(
                 azure_node_runbook.location, azure_node_runbook.marketplace
             )
-        if azure_node_runbook.marketplace and not azure_node_runbook.purchase_plan:
-            azure_node_runbook.purchase_plan = self._process_marketplace_image_plan(
+        if azure_node_runbook.marketplace:
+            image_info = self._get_image_info(
                 azure_node_runbook.location, azure_node_runbook.marketplace
             )
+            # retrieve the os type for arm template.
+            if azure_node_runbook.is_linux is None:
+                if image_info.os_disk_image.operating_system == "Windows":
+                    azure_node_runbook.is_linux = False
+                else:
+                    azure_node_runbook.is_linux = True
+            if not azure_node_runbook.purchase_plan:
+                # accept the default purchase plan automatically.
+                azure_node_runbook.purchase_plan = self._process_marketplace_image_plan(
+                    marketplace=azure_node_runbook.marketplace, image_info=image_info
+                )
 
         # Set disk type
         assert node_space.disk, "node space must have disk defined."
@@ -1560,11 +1581,11 @@ class AzurePlatform(Platform):
     def _parse_marketplace_image(
         self, location: str, marketplace: AzureVmMarketplaceSchema
     ) -> AzureVmMarketplaceSchema:
-        compute_client = get_compute_client(self)
         new_marketplace = copy.copy(marketplace)
+        # latest doesn't work, it needs a specified version.
         if marketplace.version.lower() == "latest":
+            compute_client = get_compute_client(self)
             with global_credential_access_lock:
-                # latest doesn't work, it needs a specified version.
                 versioned_images = compute_client.virtual_machine_images.list(
                     location=location,
                     publisher_name=marketplace.publisher,
@@ -1576,7 +1597,7 @@ class AzurePlatform(Platform):
         return new_marketplace
 
     def _process_marketplace_image_plan(
-        self, location: str, marketplace: AzureVmMarketplaceSchema
+        self, marketplace: AzureVmMarketplaceSchema, image_info: Any
     ) -> Optional[PurchasePlan]:
         """
         this method to fill plan, if a VM needs it. If don't fill it, the deployment
@@ -1585,7 +1606,6 @@ class AzurePlatform(Platform):
         1. Get image_info to check if there is a plan.
         2. If there is a plan, it may need to check and accept terms.
         """
-        image_info = self._get_image_info(location, marketplace)
         plan: Optional[AzureVmPurchasePlanSchema] = None
         if image_info.plan:
             # if there is a plan, it may need to accept term.

@@ -20,6 +20,12 @@ variable:
     value: false
   - name: concurrency
     value: 5
+  - name: admin_private_key_file
+    value: ""
+    is_secret: true
+  - name: admin_password
+    value: ""
+    is_secret: true
 concurrency: $(concurrency)
 notifier:
   - type: html
@@ -27,6 +33,7 @@ notifier:
 platform:
   - type: azure
     admin_private_key_file: $(admin_private_key_file)
+    admin_password: $(admin_password)
     keep_environment: $(keep_environment)
     azure:
       resource_group_name: $(resource_group_name)

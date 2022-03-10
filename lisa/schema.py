@@ -1064,11 +1064,7 @@ class Platform(TypedSchema, ExtendableSchemaMixin):
         add_secret(self.admin_password)
 
         if self.type != constants.PLATFORM_READY:
-            if self.admin_password and self.admin_private_key_file:
-                raise LisaException(
-                    "only one of admin_password and admin_private_key_file can be set"
-                )
-            elif not self.admin_password and not self.admin_private_key_file:
+            if not self.admin_password and not self.admin_private_key_file:
                 raise LisaException(
                     "one of admin_password and admin_private_key_file must be set"
                 )
