@@ -6,6 +6,7 @@ Command line reference
    -  `-r, --runbook <#r-runbook>`__
    -  `-d, --debug <#d-debug>`__
    -  `-l, --log_path <#l-log_path>`__
+   -  `-w, --working_path <#w-working_path>`__
    -  `-i, --id <#i-id>`__
    -  `-h, --help <#h-help>`__
    -  `-v, --variable <#v-variable>`__
@@ -43,13 +44,24 @@ and will always contain the DEBUG level messages.
 -l, --log_path
 ~~~~~~~~~~~~~~
 
-By default, the runtime/runs will be used to storage logs. In case it needs to
+By default, the runtime/log will be used to storage logs. In case it needs to
 save log to customized path, specify a relative or absolute path to change the
 default path.
 
 .. code:: sh
 
    lisa -l new_path
+
+-w, --working_path
+~~~~~~~~~~~~~~~~~~
+
+By default, the runtime/working will be used to storage working files. In case
+it needs to use a customized working path, specify a relative or absolute path
+to change the default path.
+
+.. code:: sh
+
+   lisa -w new_path
 
 -i, --id
 ~~~~~~~~
