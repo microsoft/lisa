@@ -1,18 +1,24 @@
 Install LISA on Linux
 =====================
 
-We will guide you through the installation of LISA on Linux.
+Minimum System Requirement
+-----------------------
+1. Your favourite Linux distro supporting Python 3.8+
+2. Dual core processor
+3. 4 GB system memory
+
+We will guide you through the installation of LISA on Linux. The following commands assume Ubuntu 18.04 as the underlying Linux distro.
 
 Install Python on Linux
 -----------------------
 
-LISA has been tested on `Python 3.8 64
-bits <https://www.python.org/>`__. The latest version of Python 3 is
-recommended. If you found LISA is not compatible with higher version
+LISA has been tested to work with `Python 3.8 64-bit
+<https://www.python.org/>`__. The latest version of Python 3 is
+recommended. If you find that LISA is not compatible with higher version
 Python, `please file an
 issue <https://github.com/microsoft/lisa/issues/new>`__.
 
-Run following commands to install Python 3.8 in Ubuntu 20.04.
+Run following commands to install Python 3.8:
 
 .. code:: bash
 
@@ -24,13 +30,11 @@ Run following commands to install Python 3.8 in Ubuntu 20.04.
 Install dependencies on Linux
 -----------------------------
 
-In Linux, for example, on Ubuntu 20.04, please use the command below to
-install the dependencies:
+Run the command below to install the dependencies:
 
 .. code:: bash
 
-   sudo apt install git gcc libgirepository1.0-dev libcairo2-dev virtualenv python3-pip -y
-   pip3 install virtualenv
+   sudo apt install git gcc libgirepository1.0-dev libcairo2-dev qemu-utils libvirt-dev python3-pip python3-venv -y
 
 Clone code
 ----------
@@ -57,12 +61,12 @@ Poetry is used to manage Python dependencies of LISA.
 
 After running this, you should see
 ``Add export PATH="/home/YOURUSERNAME/.local/bin:$PATH" to your shell configuration file``
-on the console. Then do
+message on the console. Follow the message and add the necessary exports to ``$HOME/.profile`` file. Then do
 
 .. code:: bash
 
    source $HOME/.profile
-   poetry install
+   make setup
 
 Verify installation
 -------------------
