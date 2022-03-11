@@ -24,7 +24,7 @@ from lisa import (
 from lisa.features import NetworkInterface, Sriov
 from lisa.nic import NicInfo, Nics
 from lisa.testsuite import simple_requirement
-from lisa.tools import Dmesg, Echo, Git, Ip, Lsmod, Lspci, Make, Modprobe, Mount
+from lisa.tools import Dmesg, Echo, Git, Ip, Kill, Lsmod, Lspci, Make, Modprobe, Mount
 from lisa.util import perf_timer
 from lisa.util.parallel import TaskManager, run_in_parallel, run_in_parallel_async
 from microsoft.testsuites.dpdk.dpdknffgo import DpdkNffGo
@@ -151,6 +151,94 @@ class Dpdk(TestSuite):
         _init_hugepages(node)
         # run the nff-go tests
         nff_go.run_test()
+
+    @TestCaseMetadata(
+        description="""
+           Build and run DPDK multiprocess client/server sample application.
+           Requires 3 nics since client/server needs two ports + 1 nic for LISA
+        """,
+        priority=3,
+        requirement=simple_requirement(
+            min_nic_count=3,
+            network_interface=Sriov(),
+        ),
+    )
+    def verify_dpdk_multiprocess(
+        self, node: Node, log: Logger, variables: Dict[str, Any]
+    ) -> None:
+
+        kill = node.tools[Kill]
+        pmd = "failsafe"
+        server_app_name = "dpdk-mp_server"
+        client_app_name = "dpdk-mp_client"
+        # initialize DPDK with sample applications selected for build
+        test_kit = initialize_node_resources(
+            node,
+            log,
+            variables,
+            pmd,
+            sample_apps=[
+                "multi_process/client_server_mp/mp_server",
+                "multi_process/client_server_mp/mp_client",
+            ],
+        )
+
+        # enable hugepages needed for dpdk EAL
+        _init_hugepages(node)
+
+        # setup and run mp_server application
+        examples_path = test_kit.testpmd.dpdk_build_path.joinpath("examples")
+        server_app_path = examples_path.joinpath(server_app_name)
+        client_app_path = examples_path.joinpath(client_app_name)
+
+        # EAL -l: start server on cores 1-2,
+        # EAL -n: use 4 memory channels
+        # APP: -p : set port bitmask to port 0 and 1
+        # APP: -n : allow one client to connect
+        server_proc = node.execute_async(
+            (
+                f"{server_app_path} -l 1-2 -n 4 "
+                f"-b {node.nics.get_nic_by_index(0).pci_slot} -- -p 3 -n 1"
+            ),
+            sudo=True,
+            shell=True,
+        )
+
+        # Wait for server to finish init
+        server_proc.wait_output("APP: Finished Process Init.", timeout=5)
+
+        # EAL -l: start client on core 3,
+        # EAL --proc-type: client runs as secondary process.
+        # APP: -n : client index is 0
+        client_result = node.execute(
+            (
+                f"timeout -s INT 2 {client_app_path} --proc-type=secondary -l 3 -n 4"
+                f" -b {node.nics.get_nic_by_index(0).pci_slot} -- -n 0"
+            ),
+            sudo=True,
+            shell=True,
+        )
+
+        # client blocks and returns, kill server once client is finished.
+        kill.by_name(str(server_app_name), signum=Kill.SIGINT)
+        server_result = server_proc.wait_result()
+
+        # perform the checks from v2
+        assert_that(client_result.stdout).described_as(
+            "Secondary process did not finish initialization"
+        ).contains("APP: Finished Process Init")
+
+        assert_that(client_result.stdout).described_as(
+            "Secondary process did not start accepting packets from server"
+        ).contains("Client process 0 handling packets")
+
+        # mp_client returns a nonstandard positive number when killed w signal.
+        # one would expect either 0 or 130 (killed by signal w sigint).
+        # check that the nonsense number is at least the expected one.
+        assert_that(client_result.exit_code).described_as(
+            "dpdk-mp client exit code was unexpected"
+        ).is_equal_to(124)
+        assert_that(server_result.exit_code).is_equal_to(0)
 
     @TestCaseMetadata(
         description="""
