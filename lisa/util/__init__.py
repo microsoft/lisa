@@ -384,7 +384,12 @@ def find_group_in_lines(lines: str, pattern: Pattern[str]) -> Dict[str, str]:
 
 
 def deep_update_dict(src: Dict[str, Any], dest: Dict[str, Any]) -> Dict[str, Any]:
-    if isinstance(dest, int) or isinstance(dest, bool) or isinstance(dest, float):
+    if (
+        dest is None
+        or isinstance(dest, int)
+        or isinstance(dest, bool)
+        or isinstance(dest, float)
+    ):
         result = dest
     else:
         result = dest.copy()
