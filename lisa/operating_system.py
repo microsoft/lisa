@@ -1293,6 +1293,7 @@ class CBLMariner(RPMDistro):
     def _dnf_tool(self) -> str:
         return self._dnf_tool_name
 
+
 @dataclass
 # `zypper lr` repolist is of the form
 # `<id>|<alias>|<name>|<enabled>|<gpg_check>|<refresh>`
