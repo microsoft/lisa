@@ -176,7 +176,7 @@ class Transformer(TypedSchema, ExtendableSchemaMixin):
     enabled: bool = True
     # decide when the transformer run. The init means run at very begining
     # phase, which is before the combinator. The expanded means run after
-    # combinator expaneded variables.
+    # combinator expanded variables.
     phase: str = field(
         default=constants.TRANSFORMER_PHASE_INIT,
         metadata=field_metadata(

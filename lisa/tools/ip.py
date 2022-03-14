@@ -85,7 +85,7 @@ class Ip(Tool):
 
     def set_mac_address(self, nic_name: str, mac_address: str) -> None:
         if not self.__mac_address_pattern.match(mac_address):
-            raise LisaException(f"MAC address {mac_address} is invaild")
+            raise LisaException(f"MAC address {mac_address} is invalid")
         self.down(nic_name)
         try:
             self.node.execute(
