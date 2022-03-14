@@ -272,6 +272,7 @@ def get_public_key_data(private_key_file_path: str) -> str:
             public_key_data = fp.read()
     except FileNotFoundError:
         raise LisaException(f"public key file not exist {public_key_path}")
+    public_key_data = public_key_data.strip()
     return public_key_data
 
 
