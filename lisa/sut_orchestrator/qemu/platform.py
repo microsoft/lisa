@@ -75,6 +75,9 @@ class QemuPlatform(Platform):
         )
 
     def _prepare_environment(self, environment: Environment, log: Logger) -> bool:
+        # Ensure environment log directory is created before connecting to any nodes.
+        _ = environment.log_path
+
         if len(self.qemu_platform_runbook.hosts) > 1:
             log.warning(
                 "Multiple hosts are currently not supported. "
@@ -93,6 +96,7 @@ class QemuPlatform(Platform):
                 runbook=schema.Node(name="qemu-host"),
                 index=-1,
                 logger_name="qemu-host",
+                base_part_path=environment.environment_part_path,
                 parent_logger=log,
             )
 
@@ -102,7 +106,11 @@ class QemuPlatform(Platform):
                 private_key_file=host.private_key_file,
             )
         else:
-            self.host_node = local_node_connect(parent_logger=log)
+            self.host_node = local_node_connect(
+                name="qemu-host",
+                base_part_path=environment.environment_part_path,
+                parent_logger=log,
+            )
 
         self._init_libvirt_conn_string()
         self._configure_environment(environment, log)
