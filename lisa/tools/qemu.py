@@ -68,7 +68,7 @@ class Qemu(Tool):
                 random_mac_address = str(RandMac())
                 cmd += (
                     f"-device {nic_model},netdev=nettap{i},"
-                    f"mac={random_mac_address},mq=on,vectors=10 "
+                    f"mac={random_mac_address} "
                 )
                 cmd += (
                     f"-netdev tap,id=nettap{i},"
