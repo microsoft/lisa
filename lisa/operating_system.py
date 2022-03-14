@@ -1278,6 +1278,20 @@ class CBLMariner(RPMDistro):
     def name_pattern(cls) -> Pattern[str]:
         return re.compile("^Common Base Linux Mariner|mariner$")
 
+    def __init__(self, node: Any) -> None:
+        super().__init__(node)
+        self._dnf_tool_name: str
+
+    def _initialize_package_installation(self) -> None:
+        result = self._node.execute("command -v dnf", no_info_log=True)
+        if result.exit_code == 0:
+            self._dnf_tool_name = "dnf"
+            return
+
+        self._dnf_tool_name = "tdnf"
+
+    def _dnf_tool(self) -> str:
+        return self._dnf_tool_name
 
 @dataclass
 # `zypper lr` repolist is of the form
