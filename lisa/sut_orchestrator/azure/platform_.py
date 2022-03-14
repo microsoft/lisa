@@ -10,10 +10,11 @@ from copy import deepcopy
 from dataclasses import dataclass, field
 from datetime import datetime
 from difflib import SequenceMatcher
+from functools import partial
 from pathlib import Path
 from threading import Lock
 from types import SimpleNamespace
-from typing import Any, Dict, List, Optional, Tuple, Type, Union
+from typing import Any, Dict, List, Optional, Tuple, Type, Union, cast
 
 from azure.core.exceptions import HttpResponseError
 from azure.identity import DefaultAzureCredential
@@ -39,7 +40,7 @@ from retry import retry
 from lisa import feature, schema, search_space
 from lisa.environment import Environment
 from lisa.features import NvmeSettings
-from lisa.node import Node, RemoteNode
+from lisa.node import Node, RemoteNode, local_node_connect
 from lisa.platform_ import Platform
 from lisa.secret import PATTERN_GUID, add_secret
 from lisa.tools import Dmesg, Modinfo
@@ -54,6 +55,8 @@ from lisa.util import (
     set_filtered_fields,
 )
 from lisa.util.logger import Logger
+from lisa.util.parallel import run_in_parallel
+from lisa.util.shell import wait_tcp_port_ready
 
 from .. import AZURE
 from . import features
@@ -79,7 +82,7 @@ from .common import (
     wait_copy_blob,
     wait_operation,
 )
-from .tools import VmGeneration, Waagent
+from .tools import AzCmdlet, VmGeneration, Waagent
 
 # used by azure
 AZURE_DEPLOYMENT_NAME = "lisa_default_deployment_script"
@@ -1423,6 +1426,15 @@ class AzurePlatform(Platform):
                 private_key_file=node_context.private_key_file,
             )
 
+        # enable ssh for windows, if it's not Windows, or SSH reachable, it will
+        # skip.
+        run_in_parallel(
+            [
+                partial(self._enable_ssh_on_windows, node=x)
+                for x in environment.nodes.list()
+            ]
+        )
+
     def _resource_sku_to_capability(  # noqa: C901
         self, location: str, resource_sku: ResourceSku
     ) -> schema.NodeSpace:
@@ -1886,6 +1898,40 @@ class AzurePlatform(Platform):
 
     def _get_location_key(self, location: str) -> str:
         return f"{self.subscription_id}_{location}"
+
+    def _enable_ssh_on_windows(self, node: Node) -> None:
+        runbook = node.capability.get_extended_runbook(AzureNodeSchema)
+        if runbook.is_linux:
+            return
+
+        context = get_node_context(node)
+
+        remote_node = cast(RemoteNode, node)
+
+        log = node.log
+        log.debug(
+            f"checking if SSH port {remote_node.public_port} is reachable "
+            f"on {remote_node.name}..."
+        )
+        connected, _ = wait_tcp_port_ready(
+            address=remote_node.public_address,
+            port=remote_node.public_port,
+            log=log,
+            timeout=3,
+        )
+        if connected:
+            log.debug("SSH port is reachable.")
+        else:
+            log.debug("SSH port is not open, enabling ssh on Windows ...")
+            # The SSH port is not opened, try to enable it.
+            public_key_data = get_public_key_data(self.runbook.admin_private_key_file)
+            local_node = local_node_connect()
+            az = local_node.tools[AzCmdlet]
+            az.enable_ssh_on_windows(
+                resource_group_name=context.resource_group_name,
+                vm_name=context.vm_name,
+                public_key_data=public_key_data,
+            )
 
 
 def _convert_to_azure_node_space(node_space: schema.NodeSpace) -> None:
