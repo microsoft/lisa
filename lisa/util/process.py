@@ -16,7 +16,7 @@ import spur  # type: ignore
 from assertpy.assertpy import AssertionBuilder, assert_that
 from spur.errors import NoSuchCommandError  # type: ignore
 
-from lisa.util import LisaException
+from lisa.util import LisaException, filter_ansi_escape
 from lisa.util.logger import Logger, LogWriter, add_handler, get_logger
 from lisa.util.perf_timer import create_timer
 from lisa.util.shell import Shell
@@ -178,6 +178,25 @@ class Process:
         if self._result is None:
             assert self._process
             process_result = self._process.wait_for_result()
+            if not self._is_posix and self._shell.is_remote:
+                # special handle remote windows. There are extra control chars
+                # and on extra line at the end.
+
+                # remove extra controls in remote Windows
+                process_result.output = filter_ansi_escape(process_result.output)
+                process_result.stderr_output = filter_ansi_escape(
+                    process_result.stderr_output
+                )
+
+                # Remove the extra line like below, Not sure where it's from,
+                # may need investigate more.
+                #
+                # 0;C:\Windows\system32\conhost.exe
+                if process_result.output:
+                    process_result.output = "".join(
+                        process_result.output.splitlines()[:-1]
+                    )
+
             self._stdout_writer.close()
             self._stderr_writer.close()
             # cache for future queries, in case it's queried twice.
