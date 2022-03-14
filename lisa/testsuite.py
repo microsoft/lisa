@@ -568,7 +568,8 @@ class TestSuite:
             case_log = get_logger("case", case_name, parent=self.__log)
 
             case_log_path = self.__create_case_log_path(case_name)
-            case_working_path = self.__get_case_working_path(case_log_path)
+            case_part_path = self.__get_test_part_path(case_log_path)
+            case_working_path = self.__get_case_working_path(case_part_path)
             case_unique_name = case_log_path.name
             case_log_file = case_log_path / f"{case_log_path.name}.log"
             case_log_handler = create_file_handler(case_log_file, case_log)
@@ -579,6 +580,7 @@ class TestSuite:
             case_kwargs.update({"log": case_log})
             case_kwargs.update({"log_path": case_log_path})
             case_kwargs.update({"working_path": case_working_path})
+            case_kwargs.update({"part_path": case_part_path})
 
             case_log.info(
                 f"test case '{case_result.runtime_data.full_name}' is running"
@@ -648,7 +650,13 @@ class TestSuite:
             path.mkdir(parents=True)
         return path
 
-    def __get_case_working_path(self, log_path: Path) -> Path:
+    def __get_test_part_path(self, log_path: Path) -> Path:
+        if is_unittest():
+            return Path()
+
+        return Path(log_path.parts[-2]) / log_path.parts[-1]
+
+    def __get_case_working_path(self, test_part_path: Path) -> Path:
         if is_unittest():
             return Path()
 
@@ -656,9 +664,7 @@ class TestSuite:
         # associated. Unlike the log path, the working path won't be created, because
         # it's not used in most cases. So it doesn't need to be created too. The
         # test case should create it, when it's used.
-        working_path = (
-            constants.RUN_LOCAL_WORKING_PATH / log_path.parts[-2] / log_path.parts[-1]
-        )
+        working_path = constants.RUN_LOCAL_WORKING_PATH / test_part_path
         return working_path
 
     def __suite_method(
