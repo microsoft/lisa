@@ -429,15 +429,17 @@ class QemuPlatform(Platform):
     ) -> None:
         for node in environment.nodes.list():
             node_context = get_node_context(node)
-            log.debug(f"Delete VM: {node_context.vm_name}")
 
             # Shutdown and delete the VM.
+            log.debug(f"Delete VM: {node_context.vm_name}")
             self._stop_and_delete_vm(environment, log, qemu_conn, node)
 
+            log.debug(f"Close VM console log: {node_context.vm_name}")
             assert node_context.console_logger
             node_context.console_logger.close()
 
             # Delete console log file
+            log.debug(f"Delete VM files: {node_context.vm_name}")
             try:
                 os.remove(node_context.console_log_file_path)
             except Exception as ex:
