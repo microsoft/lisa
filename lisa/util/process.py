@@ -112,7 +112,10 @@ class Process:
         else:
             if sudo and self._is_posix:
                 command = f"sudo {command}"
-            split_command = shlex.split(command, posix=self._is_posix)
+            try:
+                split_command = shlex.split(command, posix=self._is_posix)
+            except Exception as identifier:
+                raise LisaException(f"failed on split command: {command}: {identifier}")
 
         cwd_path: Optional[str] = None
         if cwd:
