@@ -4,6 +4,7 @@
 import os
 import re
 from dataclasses import dataclass
+from distutils.util import strtobool
 from typing import Any, Dict, List, Optional, Union
 
 import yaml
@@ -35,9 +36,38 @@ class VariableEntry:
 
     def update(self, new_variable: "VariableEntry") -> None:
         if new_variable:
-            self.data = new_variable.data
+            self.data = _try_convert_type(self.data, new_variable.data)
             self.is_used = self.is_used or new_variable.is_used
             self.is_case_visible = self.is_case_visible or new_variable.is_case_visible
+
+
+def _try_convert_type(original_value: Any, new_value: Any) -> Any:
+    """
+    Take the non-string type. The string is default type, and it can be
+    overridden in the variable section.
+    """
+    if original_value is None or new_value is None:
+        return new_value
+
+    original_type = type(original_value)
+    new_type = type(new_value)
+    if original_type == new_type:
+        return new_value
+
+    if new_type is not str:
+        target_type = new_type
+    else:
+        target_type = original_type
+
+    try:
+        if target_type is bool:
+            new_value = bool(strtobool(new_value))
+        else:
+            new_value = target_type(new_value)
+    except Exception:
+        # ignore error on converting, use its new type.
+        ...
+    return new_value
 
 
 def replace_variables(data: Any, variables: Dict[str, VariableEntry]) -> Any:
@@ -91,7 +121,7 @@ def merge_variables(
     variables: Dict[str, VariableEntry], new_variables: Dict[str, VariableEntry]
 ) -> None:
     """
-    inplace update variables. If variables don't exist, will create them
+    in place update variables. If variables don't exist, will create them
     """
     for name, new_variable in new_variables.items():
         variable = variables.get(name, None)
