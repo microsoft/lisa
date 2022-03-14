@@ -60,6 +60,28 @@ class Iptables(Tool):
     def can_install(self) -> bool:
         return False
 
+    def accept(
+        self,
+        nic_name: str,
+        dst_port: int,
+        protocol: str = "tcp",
+        policy: str = "ACCEPT",
+    ) -> None:
+        # accept all incoming traffic to `nic_name` with protocol `protocol`
+        # and destination port `dst_port`
+        self.run(
+            (
+                f"-A INPUT -i {nic_name} -p {protocol} "
+                f"-m {protocol} --dport {dst_port} -j {policy}"
+            ),
+            force_run=True,
+            sudo=True,
+            expected_exit_code=0,
+            expected_exit_code_failure_message=(
+                f"failed to set {policy} on {nic_name}:{dst_port}"
+            ),
+        )
+
     def start_forwarding(self, port: int, dst_ip: str, dst_port: int) -> None:
         self.run(
             f"-I FORWARD -o virbr0 -p tcp -d {dst_ip} --dport {dst_port} -j ACCEPT",
@@ -84,6 +106,15 @@ class Iptables(Tool):
             f"-t nat -D PREROUTING -p tcp --dport {port} -j DNAT --to {dst_ip}:{dst_port}",  # noqa: E501
             sudo=True,
             expected_exit_code=0,
+        )
+
+    def reset_table(self, name: str = "filter") -> None:
+        self.run(
+            f"-t {name} -F",
+            sudo=True,
+            force_run=True,
+            expected_exit_code=0,
+            expected_exit_code_failure_message=f"fail to reset table {name}",
         )
 
     def stop(self) -> None:
