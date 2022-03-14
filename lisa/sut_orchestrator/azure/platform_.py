@@ -1578,6 +1578,16 @@ class AzurePlatform(Platform):
             self._eligible_capabilities[key] = location_capabilities
         return self._eligible_capabilities[key]
 
+    def load_public_ip(self, node: Node, log: Logger) -> str:
+        node_context = get_node_context(node)
+        vm_name = node_context.vm_name
+        resource_group_name = node_context.resource_group_name
+        public_ips_map: Dict[str, PublicIPAddress] = self._load_public_ips(
+            resource_group_name=resource_group_name, log=self._log
+        )
+        assert public_ips_map[vm_name] and public_ips_map[vm_name].ip_address
+        return public_ips_map[vm_name].ip_address  # type: ignore
+
     def _parse_marketplace_image(
         self, location: str, marketplace: AzureVmMarketplaceSchema
     ) -> AzureVmMarketplaceSchema:
@@ -1876,16 +1886,6 @@ class AzurePlatform(Platform):
 
     def _get_location_key(self, location: str) -> str:
         return f"{self.subscription_id}_{location}"
-
-    def load_public_ip(self, node: Node, log: Logger) -> str:
-        node_context = get_node_context(node)
-        vm_name = node_context.vm_name
-        resource_group_name = node_context.resource_group_name
-        public_ips_map: Dict[str, PublicIPAddress] = self._load_public_ips(
-            resource_group_name=resource_group_name, log=self._log
-        )
-        assert public_ips_map[vm_name] and public_ips_map[vm_name].ip_address
-        return public_ips_map[vm_name].ip_address  # type: ignore
 
 
 def _convert_to_azure_node_space(node_space: schema.NodeSpace) -> None:
