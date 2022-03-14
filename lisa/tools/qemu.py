@@ -1,6 +1,7 @@
 # Copyright (c) Microsoft Corporation.
 # Licensed under the MIT license.
 
+import time
 from typing import Any, List, Optional
 
 from assertpy.assertpy import assert_that
@@ -8,7 +9,8 @@ from randmac import RandMac  # type: ignore
 
 from lisa.executable import Tool
 from lisa.operating_system import Fedora, Posix
-from lisa.tools import Kill, Lsmod
+from lisa.tools import Kill, Lsmod, Pgrep
+from lisa.util import LisaException
 
 
 class Qemu(Tool):
@@ -107,10 +109,20 @@ class Qemu(Tool):
             )
             self.node.execute("firewall-cmd --reload", sudo=True)
 
-    def stop_vm(self) -> None:
+    def stop_vm(self, timeout: int = 300) -> None:
         # stop vm
         kill = self.node.tools[Kill]
         kill.by_name("qemu")
+
+        # `Qemu` is not stopped immediately after `kill` is called.
+        # Wait until we find no running qemu processes.
+        start_time = time.time()
+        while time.time() - start_time < timeout:
+            is_qemu_running = len(self.node.tools[Pgrep].get_processes("qemu")) > 0
+            if not is_qemu_running:
+                return
+
+        raise LisaException("Unable to stop qemu after {} seconds".format(timeout))
 
     def _initialize(self, *args: Any, **kwargs: Any) -> None:
         self._qemu_command = "qemu-system-x86_64"
