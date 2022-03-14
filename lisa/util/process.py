@@ -207,26 +207,8 @@ class Process:
                 self._cmd,
                 self._timer.elapsed(),
             )
-            # TODO: The spur library is not very good and leaves open
-            # resources (probably due to it starting the process with
-            # `bufsize=0`). We need to replace it, but for now, we
-            # manually close the leaks.
-            if isinstance(self._process, spur.local.LocalProcess):
-                popen: subprocess.Popen[str] = self._process._subprocess
-                if popen.stdin:
-                    popen.stdin.close()
-                if popen.stdout:
-                    popen.stdout.close()
-                if popen.stderr:
-                    popen.stderr.close()
-            elif isinstance(self._process, spur.ssh.SshProcess):
-                if self._process._stdin:
-                    self._process._stdin.close()
-                if self._process._stdout:
-                    self._process._stdout.close()
-                if self._process._stderr:
-                    self._process._stderr.close()
-            self._process = None
+
+            self._recycle_resource()
             self._log.debug(
                 f"execution time: {self._timer}, exit code: {self._result.exit_code}"
             )
@@ -277,6 +259,28 @@ class Process:
             time.sleep(1)
 
         raise LisaException(f"{keyword} not found in stdout after {timeout} seconds")
+
+    def _recycle_resource(self) -> None:
+        # TODO: The spur library is not very good and leaves open
+        # resources (probably due to it starting the process with
+        # `bufsize=0`). We need to replace it, but for now, we
+        # manually close the leaks.
+        if isinstance(self._process, spur.local.LocalProcess):
+            popen: subprocess.Popen[str] = self._process._subprocess
+            if popen.stdin:
+                popen.stdin.close()
+            if popen.stdout:
+                popen.stdout.close()
+            if popen.stderr:
+                popen.stderr.close()
+        elif isinstance(self._process, spur.ssh.SshProcess):
+            if self._process._stdin:
+                self._process._stdin.close()
+            if self._process._stdout:
+                self._process._stdout.close()
+            if self._process._stderr:
+                self._process._stderr.close()
+        self._process = None
 
     def _filter_sudo_result(self, raw_input: str) -> str:
         # this warning message may break commands, so remove it from the first line
