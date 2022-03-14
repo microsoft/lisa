@@ -9,7 +9,7 @@ from assertpy import assert_that
 from lisa.base_tools import Cat, Wget
 from lisa.executable import Tool
 from lisa.operating_system import CoreOs, Redhat
-from lisa.tools import Gcc, Modinfo, Uname
+from lisa.tools import Gcc, Modinfo, PowerShell, Uname
 from lisa.util import LisaException, find_patterns_in_lines, get_matched_str
 
 
@@ -322,3 +322,45 @@ class KvpClient(Tool):
 
         gcc = self.node.tools[Gcc]
         gcc.compile(filename=source_file, output_name=self.command)
+
+
+class AzCmdlet(Tool):
+    @property
+    def command(self) -> str:
+        return "powershell"
+
+    @property
+    def dependencies(self) -> List[Type[Tool]]:
+        return [PowerShell]
+
+    @property
+    def can_install(self) -> bool:
+        return True
+
+    def _check_exists(self) -> bool:
+        powershell = self.node.tools[PowerShell]
+
+        try:
+            powershell.run_cmdlet("Get-Command Connect-AzAccount")
+            exists = True
+        except Exception:
+            exists = False
+        return exists
+
+    def _install(self) -> bool:
+        powershell = self.node.tools[PowerShell]
+        powershell.install_module("Az")
+
+        return self._check_exists()
+
+    def enable_ssh_on_windows(
+        self, resource_group_name: str, vm_name: str, public_key_data: str
+    ) -> None:
+        powershell = self.node.tools[PowerShell]
+        powershell.run_cmdlet(
+            f"Invoke-AzVMRunCommand -ResourceGroupName '{resource_group_name}' "
+            f"-VMName '{vm_name}' -ScriptPath "
+            f"'./lisa/sut_orchestrator/azure/Enable-SSH.ps1' "
+            f"-CommandId 'RunPowerShellScript' "
+            f"-Parameter @{{'PublicKey'='{public_key_data}'}}"
+        )
