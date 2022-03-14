@@ -55,7 +55,7 @@ class Ip(Tool):
 
     def add_ipv4_address(self, nic_name: str, ip: str) -> None:
         self.run(
-            f"addr add {ip}/24 dev {nic_name}",
+            f"addr add {ip} dev {nic_name}",
             sudo=True,
             expected_exit_code=0,
             expected_exit_code_failure_message=(
@@ -123,6 +123,18 @@ class Ip(Tool):
         self.add_ipv4_address(name, ip)
         self.up(name)
 
+    def set_bridge_configuration(self, name: str, key: str, value: str) -> None:
+        self.run(
+            f"link set dev {name} type bridge {key} {value}",
+            force_run=True,
+            sudo=True,
+            expected_exit_code=0,
+            expected_exit_code_failure_message=(
+                f"Could not set bridge {name} configuation: {key} {value}"
+            ),
+        )
+        self.restart_device(name)
+
     def delete_interface(self, name: str) -> None:
         # check if the interface exists
         if not self.nic_exists(name):
@@ -153,7 +165,8 @@ class Ip(Tool):
             expected_exit_code=0,
             expected_exit_code_failure_message=f"Could not create tap {name}",
         )
-        self.up(name)
+
+        # add tap to bridge
         self.run(
             f"link set {name} master {bridge}",
             force_run=True,
@@ -163,3 +176,6 @@ class Ip(Tool):
                 f"Could not add tap {name} to bridge {bridge}"
             ),
         )
+
+        # start interface
+        self.up(name)
