@@ -562,7 +562,7 @@ class Debian(Linux):
         r"Package: ([a-zA-Z0-9:_\-\.]+)\r?\n"  # package name group
         r"Version: ([a-zA-Z0-9:_\-\.~]+)\r?\n"  # version number group
     )
-    _debian_version_spliter_regex = re.compile(
+    _debian_version_splitter_regex = re.compile(
         r"([0-9]+:)?"  # some examples have a mystery number followed by a ':' (git)
         r"(?P<major>[0-9]+)\."  # major
         r"(?P<minor>[0-9]+)\."  # minor
@@ -621,7 +621,7 @@ class Debian(Linux):
                 f"{self._debian_package_information_regex.pattern}"
             )
         version_str = match.group(2)
-        match = self._debian_version_spliter_regex.search(version_str)
+        match = self._debian_version_splitter_regex.search(version_str)
         if not match:
             raise LisaException(
                 f"Could not parse version info: {version_str} "
@@ -1330,7 +1330,7 @@ class Suse(Linux):
         return re.compile("^SUSE|opensuse-leap$")
 
     def get_repositories(self) -> List[RepositoryInfo]:
-        # Parse ouput of command "zypper lr"
+        # Parse output of command "zypper lr"
         # Example output:
         # 1 | Basesystem_Module_x86_64:SLE-Module-Basesystem15-SP2-Debuginfo-Pool                              | SLE-Module-Basesystem15-SP2-Debuginfo-Pool              | No      | ----      | ---- # noqa: E501
         # 2 | Basesystem_Module_x86_64:SLE-Module-Basesystem15-SP2-Debuginfo-Updates                           | SLE-Module-Basesystem15-SP2-Debuginfo-Updates           | No      | ----      | ---- # noqa: E501

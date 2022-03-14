@@ -86,6 +86,6 @@ class Wget(Tool):
                 return True
         except Exception as e:
             self._log.debug(
-                f"Internet is not accessible, exception occured with wget {e}"
+                f"Internet is not accessible, exception occurred with wget {e}"
             )
         return False

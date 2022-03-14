@@ -849,7 +849,7 @@ def get_azure_disk_type(disk_type: schema.DiskType) -> str:
     )
 
     result = _disk_type_mapping.get(disk_type, None)
-    assert result, f"unkonwn disk type: {disk_type}"
+    assert result, f"unknown disk type: {disk_type}"
 
     return result
 

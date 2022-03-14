@@ -423,7 +423,7 @@ class LisaRunner(BaseRunner):
         assert not environment.is_in_use
         environment.is_in_use = True
         for test_result in test_results:
-            # return assigned but not run casese
+            # return assigned but not run cases
             if test_result.status == TestStatus.QUEUED:
                 test_result.set_status(TestStatus.ASSIGNED, "")
 
@@ -447,7 +447,7 @@ class LisaRunner(BaseRunner):
         task_method(environment=environment, test_results=test_results, **kwargs)
 
         for test_result in test_results:
-            # return assigned but not run casese
+            # return assigned but not run cases
             if test_result.status == TestStatus.ASSIGNED:
                 test_result.set_status(TestStatus.QUEUED, "")
         environment.is_in_use = False
