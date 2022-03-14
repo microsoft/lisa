@@ -83,7 +83,13 @@ class QemuConsoleLogger:
         if events & libvirt.VIR_STREAM_EVENT_READABLE:
             # Data is available to be read.
             while True:
-                data = stream.recv(libvirt.virStorageVol.streamBufSize)
+                try:
+                    data = stream.recv(libvirt.virStorageVol.streamBufSize)
+                except libvirt.libvirtError:
+                    # An error occured. So, close the stream.
+                    self._close_stream(True)
+                    break
+
                 if data == -2:
                     # No more data available at the moment.
                     break
