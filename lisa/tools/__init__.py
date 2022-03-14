@@ -53,6 +53,7 @@ from .nvmecli import Nvmecli
 from .parted import Parted
 from .pgrep import Pgrep, ProcessInfo
 from .ping import Ping
+from .powershell import PowerShell
 from .python import Pip, Python
 from .qemu import Qemu
 from .qemu_img import QemuImg
@@ -132,6 +133,7 @@ __all__ = [
     "Pgrep",
     "Ping",
     "Pip",
+    "PowerShell",
     "ProcessInfo",
     "Python",
     "Qemu",
