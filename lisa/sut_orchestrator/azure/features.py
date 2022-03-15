@@ -59,11 +59,11 @@ class AzureFeatureMixin:
 
 
 class StartStop(AzureFeatureMixin, features.StartStop):
-    def _stop(self, wait: bool = True) -> Any:
-        return self._execute(wait, "begin_deallocate")
+    def _stop(self, wait: bool = True) -> None:
+        self._execute(wait, "begin_deallocate")
 
-    def _start(self, wait: bool = True) -> Any:
-        result = self._execute(wait, "begin_start")
+    def _start(self, wait: bool = True) -> None:
+        self._execute(wait, "begin_start")
         # on the Azure platform, after stop, start vm
         # the public ip address will change, so reload here
         self._node = cast(RemoteNode, self._node)
@@ -74,26 +74,24 @@ class StartStop(AzureFeatureMixin, features.StartStop):
         self._node.set_connection_info(**node_info)
         self._node._is_initialized = False
         self._node.initialize()
-        return result
 
-    def _restart(self, wait: bool = True) -> Any:
-        return self._execute(wait, "begin_restart")
+    def _restart(self, wait: bool = True) -> None:
+        self._execute(wait, "begin_restart")
 
     def _initialize(self, *args: Any, **kwargs: Any) -> None:
         super()._initialize(*args, **kwargs)
         self._initialize_information(self._node)
 
-    def _execute(self, wait: bool, operator: str) -> Any:
+    def _execute(self, wait: bool, operator: str) -> None:
         platform: AzurePlatform = self._platform  # type: ignore
         # The latest version may not be deployed to server side, use specified version.
         compute_client = get_compute_client(platform, api_version="2020-06-01")
         operator_method = getattr(compute_client.virtual_machines, operator)
-        result = operator_method(
+        operation = operator_method(
             resource_group_name=self._resource_group_name, vm_name=self._vm_name
         )
         if wait:
-            result = wait_operation(result)
-        return result
+            wait_operation(operation, failure_identity="Start/Stop")
 
 
 class SerialConsole(AzureFeatureMixin, features.SerialConsole):
