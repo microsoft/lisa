@@ -24,7 +24,6 @@ from lisa.util import (
     InitializableMixin,
     LisaException,
     constants,
-    create_folder,
     field_metadata,
     fields_to_dict,
     get_datetime_path,
@@ -254,10 +253,9 @@ class Environment(ContextMixin, InitializableMixin):
             return Path()
 
         if not self._log_path:
-            self._log_path = create_folder(
-                constants.RUN_LOCAL_LOG_PATH / self.environment_part_path,
-                "environment log",
-            )
+            self._log_path = constants.RUN_LOCAL_LOG_PATH / self.environment_part_path
+            self._log_path.mkdir(parents=True)
+
         return self._log_path
 
     @property
@@ -266,10 +264,10 @@ class Environment(ContextMixin, InitializableMixin):
             return Path()
 
         if not self._working_path:
-            self._working_path = create_folder(
-                constants.RUN_LOCAL_WORKING_PATH / self.environment_part_path,
-                "environment working",
+            self._working_path = (
+                constants.RUN_LOCAL_WORKING_PATH / self.environment_part_path
             )
+            self._working_path.mkdir(parents=True)
 
         return self._working_path
 
