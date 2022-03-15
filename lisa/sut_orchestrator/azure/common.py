@@ -73,6 +73,9 @@ class AzureVmMarketplaceSchema:
     sku: str = "18.04-LTS"
     version: str = "Latest"
 
+    def __hash__(self) -> int:
+        return hash(f"{self.publisher}/{self.offer}/{self.sku}/{self.version}")
+
 
 @dataclass_json()
 @dataclass
