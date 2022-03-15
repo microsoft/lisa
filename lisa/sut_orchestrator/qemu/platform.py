@@ -58,6 +58,7 @@ class QemuPlatform(Platform):
         self.libvirt_conn_str: str
         self.qemu_platform_runbook: QemuPlatformSchema
         self.host_node: Node
+        self.vm_disks_dir: str
 
     @classmethod
     def type_name(cls) -> str:
@@ -287,6 +288,10 @@ class QemuPlatform(Platform):
         test_suffix = "".join(random.choice(string.ascii_uppercase) for _ in range(5))
         vm_name_prefix = f"lisa-{test_suffix}"
 
+        self.vm_disks_dir = os.path.join(
+            self.qemu_platform_runbook.hosts[0].lisa_working_dir, vm_name_prefix
+        )
+
         assert environment.runbook.nodes_requirement
         for i, node_space in enumerate(environment.runbook.nodes_requirement):
             assert isinstance(
@@ -303,11 +308,6 @@ class QemuPlatform(Platform):
             node = environment.create_node_from_requirement(node_space)
             node_context = get_node_context(node)
 
-            vm_disks_dir = os.path.join(
-                self.qemu_platform_runbook.hosts[0].lisa_working_dir, vm_name_prefix
-            )
-            node_context.vm_disks_dir = vm_disks_dir
-
             if (
                 not qemu_node_runbook.firmware_type
                 or qemu_node_runbook.firmware_type == FIRMWARE_TYPE_UEFI
@@ -322,29 +322,29 @@ class QemuPlatform(Platform):
                 )
 
             node_context.vm_name = f"{vm_name_prefix}-{i}"
+            if not node.name:
+                node.name = node_context.vm_name
+
             node_context.cloud_init_file_path = os.path.join(
-                vm_disks_dir, f"{node_context.vm_name}-cloud-init.iso"
+                self.vm_disks_dir, f"{node_context.vm_name}-cloud-init.iso"
             )
 
             if self.host_node.is_remote:
                 node_context.os_disk_source_file_path = qemu_node_runbook.qcow2
                 node_context.os_disk_base_file_path = os.path.join(
-                    vm_disks_dir, os.path.basename(qemu_node_runbook.qcow2)
+                    self.vm_disks_dir, os.path.basename(qemu_node_runbook.qcow2)
                 )
             else:
                 node_context.os_disk_base_file_path = qemu_node_runbook.qcow2
 
             node_context.os_disk_file_path = os.path.join(
-                vm_disks_dir, f"{node_context.vm_name}-os.qcow2"
+                self.vm_disks_dir, f"{node_context.vm_name}-os.qcow2"
             )
-            node_context.console_log_file_path = os.path.join(
-                os.path.dirname(qemu_node_runbook.qcow2),
-                f"{node_context.vm_name}-console.log",
+
+            node_context.console_log_file_path = str(
+                node.local_log_path / "qemu-console.log"
             )
             node_context.console_logger = QemuConsoleLogger()
-
-            if not node.name:
-                node.name = node_context.vm_name
 
             # Read extra cloud-init data.
             extra_user_data = (
@@ -379,7 +379,7 @@ class QemuPlatform(Platform):
                 for i in range(node_space.disk.data_disk_count):
                     data_disk = DataDiskContext()
                     data_disk.file_path = os.path.join(
-                        vm_disks_dir, f"{node_context.vm_name}-data-{i}.qcow2"
+                        self.vm_disks_dir, f"{node_context.vm_name}-data-{i}.qcow2"
                     )
                     data_disk.size_gib = node_space.disk.data_disk_size
 
@@ -392,12 +392,13 @@ class QemuPlatform(Platform):
         log: Logger,
         qemu_conn: libvirt.virConnect,
     ) -> None:
+        self.host_node.shell.mkdir(Path(self.vm_disks_dir), exist_ok=True)
+
         for node in environment.nodes.list():
             node_context = get_node_context(node)
 
             # Create required directories and copy the required files to the host
             # node.
-            self.host_node.shell.mkdir(Path(node_context.vm_disks_dir), exist_ok=True)
             if node_context.os_disk_source_file_path:
                 self.host_node.shell.copy(
                     Path(node_context.os_disk_source_file_path),
@@ -435,6 +436,7 @@ class QemuPlatform(Platform):
     def _delete_nodes(
         self, environment: Environment, log: Logger, qemu_conn: libvirt.virConnect
     ) -> None:
+        # Delete nodes.
         for node in environment.nodes.list():
             node_context = get_node_context(node)
 
@@ -447,16 +449,16 @@ class QemuPlatform(Platform):
             node_context.console_logger.close()
 
             # Delete console log file
-            log.debug(f"Delete VM files: {node_context.vm_name}")
             try:
                 os.remove(node_context.console_log_file_path)
             except Exception as ex:
                 log.warning(f"console log delete failed. {ex}")
 
-            try:
-                self.host_node.shell.remove(Path(node_context.vm_disks_dir), True)
-            except Exception as ex:
-                log.warning(f"Failed to delete VM files directory: {ex}")
+        # Delete VM disks directory.
+        try:
+            self.host_node.shell.remove(Path(self.vm_disks_dir), True)
+        except Exception as ex:
+            log.warning(f"Failed to delete VM files directory: {ex}")
 
     # Delete a VM.
     def _stop_and_delete_vm(
