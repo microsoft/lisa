@@ -245,17 +245,27 @@ class Nics(InitializableMixin):
 
     def _get_nic_names(self) -> List[str]:
         # identify all of the nics on the device, excluding tunnels and loopbacks etc.
-        result = self._node.execute(
-            " ls /sys/class/net/ | grep -Ev $(ls /sys/devices/virtual/net)",
+        all_nics = self._node.execute(
+            "ls /sys/class/net/",
             shell=True,
             sudo=True,
-        )
-        nic_names = result.stdout.splitlines()
-        for item in nic_names:
+        ).stdout.split()
+        virtual_nics = self._node.execute(
+            "ls /sys/devices/virtual/net",
+            shell=True,
+            sudo=True,
+        ).stdout.split()
+
+        # remove virtual nics from the list
+        non_virtual_nics = [x for x in all_nics if x not in virtual_nics]
+
+        # verify if the nics names are not empty
+        for item in non_virtual_nics:
             assert_that(item).described_as(
                 "nic name could not be found"
             ).is_not_equal_to("")
-        return nic_names
+
+        return non_virtual_nics
 
     def _get_nic_device(self, nic_name: str) -> str:
         slot_info_result = self._node.execute(
