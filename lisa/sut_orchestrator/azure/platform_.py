@@ -1139,7 +1139,7 @@ class AzurePlatform(Platform):
             azure_node_runbook.marketplace = self._parse_marketplace_image(
                 azure_node_runbook.location, azure_node_runbook.marketplace
             )
-        if azure_node_runbook.marketplace:
+
             image_info = self._get_image_info(
                 azure_node_runbook.location, azure_node_runbook.marketplace
             )
@@ -1740,7 +1740,7 @@ class AzurePlatform(Platform):
         min_cap: schema.NodeSpace = requirement.generate_min_capability(
             azure_capability.capability
         )
-        # Ppply azure specified values. They will pass into arm template
+        # Apply azure specified values. They will pass into arm template
         azure_node_runbook = min_cap.get_extended_runbook(AzureNodeSchema, AZURE)
         if azure_node_runbook.location:
             assert azure_node_runbook.location == location, (
