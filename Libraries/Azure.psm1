@@ -1491,7 +1491,8 @@ Function Invoke-AllResourceGroupDeployments($SetupTypeData, $CurrentTestData, $R
 						Add-Content -Value "$($indents[6])^caching^: ^ReadOnly^," -Path $jsonFile
 						Add-Content -Value "$($indents[6])^diffDiskSettings^: " -Path $jsonFile
 						Add-Content -Value "$($indents[6]){" -Path $jsonFile
-						Add-Content -Value "$($indents[7])^option^: ^local^" -Path $jsonFile
+						Add-Content -Value "$($indents[7])^option^: ^local^," -Path $jsonFile
+						Add-Content -Value "$($indents[7])^placement^: ^ResourceDisk^" -Path $jsonFile
 						Add-Content -Value "$($indents[6])}," -Path $jsonFile
 					}
 					else {
@@ -1551,7 +1552,8 @@ Function Invoke-AllResourceGroupDeployments($SetupTypeData, $CurrentTestData, $R
 						Add-Content -Value "$($indents[6])^caching^: ^ReadOnly^," -Path $jsonFile
 						Add-Content -Value "$($indents[6])^diffDiskSettings^: " -Path $jsonFile
 						Add-Content -Value "$($indents[6]){" -Path $jsonFile
-						Add-Content -Value "$($indents[7])^option^: ^local^" -Path $jsonFile
+						Add-Content -Value "$($indents[7])^option^: ^local^," -Path $jsonFile
+						Add-Content -Value "$($indents[7])^placement^: ^ResourceDisk^" -Path $jsonFile
 						Add-Content -Value "$($indents[6])}," -Path $jsonFile
 					}
 					else {
