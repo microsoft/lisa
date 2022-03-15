@@ -1155,6 +1155,10 @@ class AzurePlatform(Platform):
                     marketplace=azure_node_runbook.marketplace, image_info=image_info
                 )
 
+        if azure_node_runbook.is_linux is None:
+            # fill it default value
+            azure_node_runbook.is_linux = True
+
         # Set disk type
         assert node_space.disk, "node space must have disk defined."
         assert isinstance(node_space.disk.disk_type, schema.DiskType)
