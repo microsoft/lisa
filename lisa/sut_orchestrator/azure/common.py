@@ -347,11 +347,15 @@ class AzureArmParameter:
 
 
 def get_compute_client(
-    platform: "AzurePlatform", api_version: Optional[str] = None
+    platform: "AzurePlatform",
+    api_version: Optional[str] = None,
+    subscription_id: str = "",
 ) -> ComputeManagementClient:
+    if not subscription_id:
+        subscription_id = platform.subscription_id
     return ComputeManagementClient(
         credential=platform.credential,
-        subscription_id=platform.subscription_id,
+        subscription_id=subscription_id,
         api_version=api_version,
     )
 
