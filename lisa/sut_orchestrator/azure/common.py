@@ -81,6 +81,7 @@ class AzureVmMarketplaceSchema:
 @dataclass
 class SharedImageGallerySchema:
     subscription_id: str = ""
+    resource_group_name: Optional[str] = None
     image_gallery: str = ""
     image_definition: str = ""
     image_version: str = ""
@@ -228,13 +229,13 @@ class AzureNodeSchema:
             shared_gallery_strings = re.split(
                 r"[/]+", self.shared_gallery_raw.strip().lower()
             )
-            if len(shared_gallery_strings) == 4:
+            if len(shared_gallery_strings) == 5:
                 shared_gallery = SharedImageGallerySchema(*shared_gallery_strings)
                 # shared_gallery_raw is used
                 self.shared_gallery_raw = shared_gallery.to_dict()  # type: ignore
             elif len(shared_gallery_strings) == 3:
                 shared_gallery = SharedImageGallerySchema(
-                    self.subscription_id, *shared_gallery_strings
+                    self.subscription_id, None, *shared_gallery_strings
                 )
                 # shared_gallery_raw is used
                 self.shared_gallery_raw = shared_gallery.to_dict()  # type: ignore
@@ -243,9 +244,9 @@ class AzureNodeSchema:
                     f"Invalid value for the provided shared gallery "
                     f"parameter: '{self.shared_gallery_raw}'."
                     f"The shared gallery parameter should be in the format: "
-                    f"'<subscription_id>/<image_gallery>/<image_definition>"
-                    f"/<image_version>' or '<image_gallery>/<image_definition>"
-                    f"/<image_version>'"
+                    f"'<subscription_id>/<resource_group_name>/<image_gallery>/"
+                    f"<image_definition>/<image_version>' or '<image_gallery>/"
+                    f"<image_definition>/<image_version>'"
                 )
         self._shared_gallery = shared_gallery
         return shared_gallery
@@ -266,7 +267,14 @@ class AzureNodeSchema:
             assert isinstance(
                 self.shared_gallery_raw, dict
             ), f"actual type: {type(self.shared_gallery_raw)}"
-            result = " ".join([x for x in self.shared_gallery_raw.values()])
+            if self.shared_gallery.resource_group_name:
+                result = "/".join([x for x in self.shared_gallery_raw.values()])
+            else:
+                result = (
+                    f"{self.shared_gallery.image_gallery}/"
+                    f"{self.shared_gallery.image_definition}/"
+                    f"{self.shared_gallery.image_version}"
+                )
         elif self.marketplace:
             assert isinstance(
                 self.marketplace_raw, dict
