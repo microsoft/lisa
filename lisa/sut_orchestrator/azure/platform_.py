@@ -21,6 +21,8 @@ from azure.identity import DefaultAzureCredential
 from azure.mgmt.compute.models import (  # type: ignore
     PurchasePlan,
     ResourceSku,
+    RunCommandInput,
+    RunCommandInputParameter,
     VirtualMachine,
     VirtualMachineImage,
 )
@@ -40,7 +42,7 @@ from retry import retry
 from lisa import feature, schema, search_space
 from lisa.environment import Environment
 from lisa.features import NvmeSettings
-from lisa.node import Node, RemoteNode, local_node_connect
+from lisa.node import Node, RemoteNode
 from lisa.platform_ import Platform
 from lisa.secret import PATTERN_GUID, add_secret
 from lisa.tools import Dmesg, Modinfo
@@ -82,7 +84,7 @@ from .common import (
     wait_copy_blob,
     wait_operation,
 )
-from .tools import AzCmdlet, VmGeneration, Waagent
+from .tools import VmGeneration, Waagent
 
 # used by azure
 AZURE_DEPLOYMENT_NAME = "lisa_default_deployment_script"
@@ -1907,6 +1909,7 @@ class AzurePlatform(Platform):
             f"checking if SSH port {remote_node.public_port} is reachable "
             f"on {remote_node.name}..."
         )
+
         connected, _ = wait_tcp_port_ready(
             address=remote_node.public_address,
             port=remote_node.public_port,
@@ -1915,17 +1918,30 @@ class AzurePlatform(Platform):
         )
         if connected:
             log.debug("SSH port is reachable.")
-        else:
-            log.debug("SSH port is not open, enabling ssh on Windows ...")
-            # The SSH port is not opened, try to enable it.
-            public_key_data = get_public_key_data(self.runbook.admin_private_key_file)
-            local_node = local_node_connect()
-            az = local_node.tools[AzCmdlet]
-            az.enable_ssh_on_windows(
-                resource_group_name=context.resource_group_name,
-                vm_name=context.vm_name,
-                public_key_data=public_key_data,
-            )
+            return
+
+        log.debug("SSH port is not open, enabling ssh on Windows ...")
+        # The SSH port is not opened, try to enable it.
+        public_key_data = get_public_key_data(self.runbook.admin_private_key_file)
+        with open(Path(__file__).parent / "Enable-SSH.ps1", "r") as f:
+            script = f.read()
+
+        parameters = RunCommandInputParameter(name="PublicKey", value=public_key_data)
+        command = RunCommandInput(
+            command_id="RunPowerShellScript",
+            script=[script],
+            parameters=[parameters],
+        )
+
+        compute_client = get_compute_client(self)
+        operation = compute_client.virtual_machines.begin_run_command(
+            resource_group_name=context.resource_group_name,
+            vm_name=context.vm_name,
+            parameters=command,
+        )
+        result = wait_operation(operation=operation, failure_identity="enable ssh")
+        log.debug("SSH script result:")
+        log.dump_json(logging.DEBUG, result)
 
 
 def _convert_to_azure_node_space(node_space: schema.NodeSpace) -> None:
