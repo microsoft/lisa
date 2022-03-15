@@ -10,7 +10,7 @@ from copy import deepcopy
 from dataclasses import dataclass, field
 from datetime import datetime
 from difflib import SequenceMatcher
-from functools import partial
+from functools import lru_cache, partial
 from pathlib import Path
 from threading import Lock
 from types import SimpleNamespace
@@ -1149,10 +1149,17 @@ class AzurePlatform(Platform):
                     azure_node_runbook.is_linux = False
                 else:
                     azure_node_runbook.is_linux = True
-            if not azure_node_runbook.purchase_plan:
+            if not azure_node_runbook.purchase_plan and image_info.plan:
+                # expand values for lru cache
+                plan_name = image_info.plan.name
+                plan_product = image_info.plan.product
+                plan_publisher = image_info.plan.publisher
                 # accept the default purchase plan automatically.
                 azure_node_runbook.purchase_plan = self._process_marketplace_image_plan(
-                    marketplace=azure_node_runbook.marketplace, image_info=image_info
+                    marketplace=azure_node_runbook.marketplace,
+                    plan_name=plan_name,
+                    plan_product=plan_product,
+                    plan_publisher=plan_publisher,
                 )
 
         if azure_node_runbook.is_linux is None:
@@ -1600,6 +1607,7 @@ class AzurePlatform(Platform):
         assert public_ips_map[vm_name] and public_ips_map[vm_name].ip_address
         return public_ips_map[vm_name].ip_address  # type: ignore
 
+    @lru_cache(maxsize=10)
     def _parse_marketplace_image(
         self, location: str, marketplace: AzureVmMarketplaceSchema
     ) -> AzureVmMarketplaceSchema:
@@ -1618,8 +1626,13 @@ class AzurePlatform(Platform):
             new_marketplace.version = versioned_images[-1].name
         return new_marketplace
 
+    @lru_cache(maxsize=10)
     def _process_marketplace_image_plan(
-        self, marketplace: AzureVmMarketplaceSchema, image_info: Any
+        self,
+        marketplace: AzureVmMarketplaceSchema,
+        plan_name: str,
+        plan_product: str,
+        plan_publisher: str,
     ) -> Optional[PurchasePlan]:
         """
         this method to fill plan, if a VM needs it. If don't fill it, the deployment
@@ -1629,38 +1642,37 @@ class AzurePlatform(Platform):
         2. If there is a plan, it may need to check and accept terms.
         """
         plan: Optional[AzureVmPurchasePlanSchema] = None
-        if image_info.plan:
-            # if there is a plan, it may need to accept term.
-            marketplace_client = get_marketplace_ordering_client(self)
-            term: Optional[AgreementTerms] = None
-            try:
-                with global_credential_access_lock:
-                    term = marketplace_client.marketplace_agreements.get(
-                        offer_type="virtualmachine",
-                        publisher_id=marketplace.publisher,
-                        offer_id=marketplace.offer,
-                        plan_id=image_info.plan.name,
-                    )
-            except Exception as identifier:
-                raise LisaException(
-                    f"error on getting marketplace agreement: {identifier}"
-                )
 
-            assert term
-            if term.accepted is False:
-                term.accepted = True
-                marketplace_client.marketplace_agreements.create(
+        # if there is a plan, it may need to accept term.
+        marketplace_client = get_marketplace_ordering_client(self)
+        term: Optional[AgreementTerms] = None
+        try:
+            with global_credential_access_lock:
+                term = marketplace_client.marketplace_agreements.get(
                     offer_type="virtualmachine",
                     publisher_id=marketplace.publisher,
                     offer_id=marketplace.offer,
-                    plan_id=image_info.plan.name,
-                    parameters=term,
+                    plan_id=plan_name,
                 )
-            plan = AzureVmPurchasePlanSchema(
-                name=image_info.plan.name,
-                product=image_info.plan.product,
-                publisher=image_info.plan.publisher,
+        except Exception as identifier:
+            raise LisaException(f"error on getting marketplace agreement: {identifier}")
+
+        assert term
+        if term.accepted is False:
+            term.accepted = True
+            marketplace_client.marketplace_agreements.create(
+                offer_type="virtualmachine",
+                publisher_id=marketplace.publisher,
+                offer_id=marketplace.offer,
+                plan_id=plan_name,
+                parameters=term,
             )
+        plan = AzureVmPurchasePlanSchema(
+            name=plan_name,
+            product=plan_product,
+            publisher=plan_publisher,
+        )
+
         return plan
 
     def _generate_mockup_capability(
@@ -1762,6 +1774,7 @@ class AzurePlatform(Platform):
 
         return min_cap
 
+    @lru_cache(maxsize=10)
     def _get_deployable_vhd_path(
         self, vhd_path: str, location: str, log: Logger
     ) -> str:
@@ -1881,6 +1894,7 @@ class AzurePlatform(Platform):
             )
         return data_disks
 
+    @lru_cache(maxsize=10)
     def _get_image_info(
         self, location: str, marketplace: Optional[AzureVmMarketplaceSchema]
     ) -> VirtualMachineImage:
