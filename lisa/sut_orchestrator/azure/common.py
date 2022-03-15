@@ -405,17 +405,29 @@ def get_environment_context(environment: Environment) -> EnvironmentContext:
     return environment.get_context(EnvironmentContext)
 
 
-def wait_operation(operation: Any, time_out: int = sys.maxsize) -> Any:
+def wait_operation(
+    operation: Any, time_out: int = sys.maxsize, failure_identity: str = ""
+) -> Any:
     timer = create_timer()
+    wait_result: Any = None
+    if failure_identity:
+        failure_identity = f"{failure_identity} failed:"
+    else:
+        failure_identity = "Azure operation failed:"
     while time_out > timer.elapsed(False):
         check_cancelled()
         if operation.done():
             break
-        operation.wait(1)
+        wait_result = operation.wait(1)
+        if wait_result:
+            raise LisaException(f"{failure_identity} {wait_result}")
     if time_out < timer.elapsed():
-        raise Exception(
-            f"timeout on wait Azure operation completed after {time_out} seconds."
-        )
+        raise Exception(f"{failure_identity} timeout after {time_out} seconds.")
+    result = operation.result()
+    if result:
+        result = result.as_dict()
+
+    return result
 
 
 def get_storage_credential(

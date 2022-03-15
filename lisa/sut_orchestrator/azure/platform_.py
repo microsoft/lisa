@@ -560,9 +560,9 @@ class AzurePlatform(Platform):
             except Exception as identifier:
                 log.debug(f"exception on delete resource group: {identifier}")
             if delete_operation and self._azure_runbook.wait_delete:
-                result = wait_operation(delete_operation)
-                if result:
-                    raise LisaException(f"error on deleting resource group: {result}")
+                wait_operation(
+                    delete_operation, failure_identity="delete resource group"
+                )
             else:
                 log.debug("not wait deleting")
 
@@ -1195,9 +1195,7 @@ class AzurePlatform(Platform):
                 validate_operation = self._rm_client.deployments.begin_validate(
                     **deployment_parameters
                 )
-            result = wait_operation(validate_operation)
-            if result:
-                raise LisaException(f"validation failed: {result}")
+            wait_operation(validate_operation, failure_identity="validation")
         except Exception as identifier:
             error_messages: List[str] = [str(identifier)]
 
@@ -1207,8 +1205,6 @@ class AzurePlatform(Platform):
                 error_messages = self._parse_detail_errors(identifier.error)
 
             raise LisaException("\n".join(error_messages))
-
-        assert result is None, f"validate error: {result}"
 
     def _deploy(
         self, location: str, deployment_parameters: Dict[str, Any], log: Logger
@@ -1231,9 +1227,7 @@ class AzurePlatform(Platform):
             deployment_operation = deployments.begin_create_or_update(
                 **deployment_parameters
             )
-            result = wait_operation(deployment_operation)
-            if result:
-                raise LisaException(f"deploy failed: {result}")
+            wait_operation(deployment_operation, failure_identity="deploy")
         except HttpResponseError as identifier:
             # Some errors happens underlying, so there is no detail errors from API.
             # For example,
