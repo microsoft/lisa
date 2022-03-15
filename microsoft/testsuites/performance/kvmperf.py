@@ -3,7 +3,8 @@
 
 import inspect
 import time
-from typing import Any, Dict
+from pathlib import Path, PurePosixPath
+from typing import Any, Dict, cast
 
 from lisa import (
     TestCaseMetadata,
@@ -18,8 +19,9 @@ from lisa.features import Disk
 from lisa.features.network_interface import Synthetic
 from lisa.messages import DiskSetupType, DiskType
 from lisa.node import RemoteNode
-from lisa.tools import Ip, Lscpu, Qemu
+from lisa.tools import Dnsmasq, Echo, Ip, Iptables, Lscpu, Qemu, Sysctl
 from lisa.util.logger import Logger
+from lisa.util.shell import ConnectionInfo, try_connect
 from microsoft.testsuites.nested.common import (
     connect_nested_vm,
     parse_nested_image_variables,
@@ -47,9 +49,12 @@ class KVMPerformance(TestSuite):  # noqa
     _SERVER_HOST_FWD_PORT = 60022
     _CLIENT_HOST_FWD_PORT = 60023
     _BR_NAME = "br0"
-    _BR_ADDR = "192.168.1.10"
-    _SERVER_IP_ADDR = "192.168.1.14"
-    _CLIENT_IP_ADDR = "192.168.1.15"
+    _BR_NETWORK = "192.168.53.0"
+    _BR_CIDR = "24"
+    _BR_ADDR = "192.168.53.1"
+    _BR_DHCP_RANGE = "192.168.53.2,192.168.53.254"
+    _SERVER_IP_ADDR = "192.168.53.14"
+    _CLIENT_IP_ADDR = "192.168.53.15"
     _SERVER_TAP = "tap0"
     _CLIENT_TAP = "tap1"
     _NIC_NAME = "ens4"
@@ -135,7 +140,9 @@ class KVMPerformance(TestSuite):  # noqa
                 name="server",
                 log=log,
             )
-            server.tools[Ip].add_ipv4_address(self._NIC_NAME, self._SERVER_IP_ADDR)
+            server.tools[Ip].add_ipv4_address(
+                self._NIC_NAME, f"{self._SERVER_IP_ADDR}/24"
+            )
             server.tools[Ip].up(self._NIC_NAME)
             server.internal_address = self._SERVER_IP_ADDR
             server.nics.default_nic = self._NIC_NAME
@@ -154,7 +161,9 @@ class KVMPerformance(TestSuite):  # noqa
                 stop_existing_vm=False,
                 log=log,
             )
-            client.tools[Ip].add_ipv4_address(self._NIC_NAME, self._CLIENT_IP_ADDR)
+            client.tools[Ip].add_ipv4_address(
+                self._NIC_NAME, f"{self._CLIENT_IP_ADDR}/24"
+            )
             client.tools[Ip].up(self._NIC_NAME)
             client.nics.default_nic = self._NIC_NAME
             client.capability.network_interface = Synthetic()
@@ -171,6 +180,258 @@ class KVMPerformance(TestSuite):  # noqa
 
             # stop running QEMU instances
             node.tools[Qemu].stop_vm()
+
+    @TestCaseMetadata(
+        description="""
+        This script runs ntttcp test on two nested VMs on different L1 guests
+        connected with NAT
+        """,
+        priority=3,
+        timeout=_TIME_OUT,
+        requirement=simple_requirement(
+            min_count=2,
+            network_interface=schema.NetworkInterfaceOptionSettings(
+                nic_count=search_space.IntRange(min=2),
+            ),
+        ),
+    )
+    def perf_nested_kvm_ntttcp_different_l1_nat(
+        self, environment: Environment, variables: Dict[str, Any], log_path: Path
+    ) -> None:
+        server_l1 = cast(RemoteNode, environment.nodes[0])
+        client_l1 = cast(RemoteNode, environment.nodes[1])
+
+        # parse nested image variables
+        (
+            nested_image_username,
+            nested_image_password,
+            _,
+            nested_image_url,
+        ) = parse_nested_image_variables(variables)
+
+        try:
+
+            # setup nat on client and server
+            self._setup_nat(
+                server_l1,
+                self._BR_NAME,
+                self._BR_NETWORK,
+                self._BR_CIDR,
+                self._BR_ADDR,
+                f"{self._SERVER_IP_ADDR},{self._SERVER_IP_ADDR}",
+                self._SERVER_TAP,
+            )
+            self._setup_nat(
+                client_l1,
+                self._BR_NAME,
+                self._BR_NETWORK,
+                self._BR_CIDR,
+                self._BR_ADDR,
+                f"{self._CLIENT_IP_ADDR},{self._CLIENT_IP_ADDR}",
+                self._CLIENT_TAP,
+            )
+
+            # setup l2 vm on server and client
+            server_l2 = connect_nested_vm(
+                server_l1,
+                nested_image_username,
+                nested_image_password,
+                self._SERVER_HOST_FWD_PORT,
+                nested_image_url,
+                image_name=self._SERVER_IMAGE,
+                taps=[self._SERVER_TAP],
+                stop_existing_vm=True,
+                name="server",
+            )
+            server_l2.internal_address = server_l1.nics.get_nic("eth1").ip_addr
+            server_l2.nics.default_nic = self._NIC_NAME
+            server_l2.capability.network_interface = Synthetic()
+            self._configure_ssh(
+                server_l1,
+                server_l2,
+                self._SERVER_HOST_FWD_PORT,
+                self._SERVER_IP_ADDR,
+                nested_image_username,
+                nested_image_password,
+            )
+
+            # setup l2 vm on client
+            client_l2 = connect_nested_vm(
+                client_l1,
+                nested_image_username,
+                nested_image_password,
+                self._CLIENT_HOST_FWD_PORT,
+                nested_image_url,
+                image_name=self._CLIENT_IMAGE,
+                taps=[self._CLIENT_TAP],
+                stop_existing_vm=True,
+                name="client",
+            )
+            client_l2.internal_address = client_l1.nics.get_nic("eth1").ip_addr
+            client_l2.nics.default_nic = self._NIC_NAME
+            client_l2.capability.network_interface = Synthetic()
+            self._configure_ssh(
+                client_l1,
+                client_l2,
+                self._CLIENT_HOST_FWD_PORT,
+                self._CLIENT_IP_ADDR,
+                nested_image_username,
+                nested_image_password,
+            )
+        finally:
+            # stop running QEMU instances
+            server_l1.tools[Qemu].stop_vm()
+            client_l1.tools[Qemu].stop_vm()
+
+            # clear bridge and taps
+            server_l1.tools[Ip].delete_interface(self._BR_NAME)
+            client_l1.tools[Ip].delete_interface(self._BR_NAME)
+
+            # flush ip tables
+            server_l1.tools[Iptables].reset_table()
+            server_l1.tools[Iptables].reset_table("nat")
+            client_l1.tools[Iptables].reset_table()
+            client_l1.tools[Iptables].reset_table("nat")
+
+        # # run ntttcp test
+        perf_ntttcp(
+            environment, server_l2, client_l2, test_case_name=inspect.stack()[1][3]
+        )
+
+    def _setup_nat(
+        self,
+        node: RemoteNode,
+        bridge_name: str,
+        bridge_network: str,
+        bridge_cidr: str,
+        bridge_addr: str,
+        bridge_dhcp_range: str,
+        tap_name: str,
+    ) -> None:
+        # enable ip forwarding
+        node.tools[Sysctl].write("net.ipv4.ip_forward", "1")
+
+        # setup bridge
+        node.tools[Ip].setup_bridge(bridge_name, f"{bridge_addr}/{bridge_cidr}")
+        node.tools[Ip].set_bridge_configuration(bridge_name, "stp_state", "0")
+        node.tools[Ip].set_bridge_configuration(bridge_name, "forward_delay", "0")
+
+        # setup tap
+        node.tools[Ip].setup_tap(tap_name, bridge_name)
+
+        # setup filter table
+        node.tools[Iptables].reset_table()
+        node.tools[Iptables].accept(bridge_name, 67)
+        node.tools[Iptables].accept(bridge_name, 67, "udp")
+        node.tools[Iptables].accept(bridge_name, 53)
+        node.tools[Iptables].accept(bridge_name, 53, "udp")
+        node.tools[Iptables].run(
+            f"-A FORWARD -i {bridge_name} -o {bridge_name} -j ACCEPT",
+            sudo=True,
+            force_run=True,
+        )
+        node.tools[Iptables].run(
+            f"-A FORWARD -s {bridge_network}/{bridge_cidr} -i {bridge_name} -j ACCEPT",
+            sudo=True,
+            force_run=True,
+        )
+        node.tools[Iptables].run(
+            (
+                f"-A FORWARD -d {bridge_network}/{bridge_cidr} -o {bridge_name} "
+                "-m state --state NEW,RELATED,ESTABLISHED -j ACCEPT"
+            ),
+            sudo=True,
+            force_run=True,
+        )
+        node.tools[Iptables].run(
+            (
+                f"-A FORWARD -o {bridge_name} -j REJECT "
+                "--reject-with icmp-port-unreachable"
+            ),
+            sudo=True,
+            force_run=True,
+        )
+        node.tools[Iptables].run(
+            (
+                f"-A FORWARD -i {bridge_name} -j REJECT "
+                "--reject-with icmp-port-unreachable"
+            ),
+            sudo=True,
+            force_run=True,
+        )
+
+        # setup nat forwarding
+        node.tools[Iptables].reset_table("nat")
+        node.tools[Iptables].run(
+            f"-t nat -A POSTROUTING -s {bridge_network}/{bridge_cidr} -j MASQUERADE",
+            sudo=True,
+            force_run=True,
+        )
+
+        # reset lease file
+        node.execute(
+            f"cp /dev/null /var/run/qemu-dnsmasq-{bridge_name}.leases", sudo=True
+        )
+
+        # start dnsmasq
+        node.tools[Dnsmasq].start(bridge_name, bridge_addr, bridge_dhcp_range)
+
+    def _configure_ssh(
+        self,
+        node_l1: RemoteNode,
+        node_l2: RemoteNode,
+        host_fwd_port: int,
+        l2_ip_addr: str,
+        nested_image_username: str,
+        nested_image_password: str,
+    ) -> None:
+        # configure rc.local to run dhclient on reboot
+        node_l2.tools[Echo].write_to_file(
+            "#!/bin/sh -e", PurePosixPath("/etc/rc.local"), append=True, sudo=True
+        )
+        node_l2.tools[Echo].write_to_file(
+            "ip link set dev ens4 up",
+            PurePosixPath("/etc/rc.local"),
+            append=True,
+            sudo=True,
+        )
+        node_l2.tools[Echo].write_to_file(
+            "dhclient ens4", PurePosixPath("/etc/rc.local"), append=True, sudo=True
+        )
+        node_l2.execute("chmod +x /etc/rc.local", sudo=True)
+
+        # reboot l2 vm
+        node_l2.execute_async("reboot", sudo=True)
+
+        # route traffic on `eth0` port`host_fwd_port` on l1 vm to l2 vm
+        node_l1.tools[Iptables].run(
+            (
+                f"-t nat -A PREROUTING -i eth0 -p tcp --dport {host_fwd_port} "
+                f"-j DNAT --to {l2_ip_addr}:22"
+            ),
+            sudo=True,
+            force_run=True,
+        )
+
+        # route all tcp traffic on `eth1` port on l1 vm to l2 vm
+        node_l1.tools[Iptables].run(
+            (
+                f"-t nat -A PREROUTING -i eth1 -d {node_l2.internal_address} "
+                f"-p tcp -j DNAT --to {l2_ip_addr}"
+            ),
+            sudo=True,
+            force_run=True,
+        )
+
+        # wait till l2 vm is up
+        try_connect(
+            ConnectionInfo(
+                address=node_l1.public_address,
+                port=host_fwd_port,
+                username=nested_image_username,
+                password=nested_image_password,
+            )
+        )
 
     def _storage_perf_qemu(
         self,
