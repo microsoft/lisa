@@ -11,6 +11,7 @@ from .date import Date
 from .df import Df
 from .dhclient import Dhclient
 from .dmesg import Dmesg
+from .dnsmasq import Dnsmasq
 from .docker import Docker
 from .docker_compose import DockerCompose
 from .echo import Echo
@@ -84,6 +85,7 @@ __all__ = [
     "Df",
     "Dhclient",
     "Dmesg",
+    "Dnsmasq",
     "Docker",
     "DockerCompose",
     "Echo",
