@@ -1,6 +1,7 @@
 # Copyright (c) Microsoft Corporation.
 # Licensed under the MIT license.
 
+import json
 import logging
 import sys
 import time
@@ -41,6 +42,11 @@ class Logger(logging.Logger):
                 self.log(level, f"{prefix}{line}")
             else:
                 self.log(level, line)
+
+    def dump_json(self, level: int, content: Any, prefix: str = "") -> None:
+        if content:
+            content = json.dumps(content, indent=2)
+            self.lines(level=level, content=content, prefix=prefix)
 
     def _log(
         self,
@@ -206,6 +212,6 @@ def get_logger(
         name = f"{name}[{id_}]"
     if not parent:
         parent = cast(Logger, _get_root_logger())
-    logger = cast(Logger, parent.getChild(name))
+    logger: Logger = parent.getChild(name)  # type: ignore
 
     return logger
