@@ -218,7 +218,9 @@ class AzurePlatformSchema:
     availability_set_tags: Optional[Dict[str, str]] = field(default=None)
     availability_set_properties: Optional[Dict[str, Any]] = field(default=None)
     vm_tags: Optional[Dict[str, Any]] = field(default=None)
+    security_profile: Optional[Dict[str, Any]] = field(default=None)
     locations: Optional[Union[str, List[str]]] = field(default=None)
+    enable_hibernation: Optional[bool] = field(default=False)
 
     log_level: str = field(
         default=logging.getLevelName(logging.WARN),
@@ -722,6 +724,10 @@ class AzurePlatform(Platform):
             for key, value in azure_runbook.vm_tags.items():
                 if value:
                     result[key] = value
+        if azure_runbook.security_profile:
+            for key, value in azure_runbook.security_profile.items():
+                if value:
+                    result[key] = value
         return result
 
     def _get_environment_information(self, environment: Environment) -> Dict[str, str]:
@@ -950,6 +956,7 @@ class AzurePlatform(Platform):
             "availability_set_tags",
             "availability_set_properties",
             "vm_tags",
+            "security_profile",
         ]
         set_filtered_fields(self._azure_runbook, arm_parameters, copied_fields)
 
@@ -1029,6 +1036,8 @@ class AzurePlatform(Platform):
         ):
             arm_parameters.use_availability_sets = True
 
+        if self._azure_runbook.enable_hibernation:
+            arm_parameters.enable_hibernation = self._azure_runbook.enable_hibernation
         # In Azure, each VM should have only one nic in one subnet. So calculate
         # the max nic count, and set to subnet count.
         arm_parameters.subnet_count = max(x.nic_count for x in arm_parameters.nodes)
