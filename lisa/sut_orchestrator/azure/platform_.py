@@ -480,9 +480,9 @@ class AzurePlatform(Platform):
             resource_group_name = self._azure_runbook.resource_group_name
         else:
             normalized_run_name = constants.NORMALIZE_PATTERN.sub(
-                "_", constants.RUN_NAME
+                "-", constants.RUN_NAME
             )
-            resource_group_name = f"{normalized_run_name}_e{environment.id}"
+            resource_group_name = f"{normalized_run_name}-e{environment.id}"
             environment_context.resource_group_is_created = True
 
         environment_context.resource_group_name = resource_group_name
@@ -1816,7 +1816,7 @@ class AzurePlatform(Platform):
             resource_group_name=self._azure_runbook.shared_resource_group_name,
         )
 
-        normalized_vhd_name = constants.NORMALIZE_PATTERN.sub("_", vhd_path)
+        normalized_vhd_name = constants.NORMALIZE_PATTERN.sub("-", vhd_path)
         year = matches["year"] if matches["year"] else "9999"
         month = matches["month"] if matches["month"] else "01"
         day = matches["day"] if matches["day"] else "01"
