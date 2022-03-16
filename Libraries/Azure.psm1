@@ -2483,7 +2483,7 @@ Function Set-SRIOVinAzureVMs {
 					}
 				}
 				else {
-					if (-not $AllNics.EnableAcceleratedNetworking.Contains($false)) {
+					if (-not ($AllNics.EnableAcceleratedNetworking.Contains($false) -or $AllNics.EnableAcceleratedNetworking.Contains($null))) {
 						$StatusChangeNotRequired = $true
 					}
 				}
@@ -2549,7 +2549,7 @@ Function Set-SRIOVinAzureVMs {
 					$VMPropertiesChanged = $false
 				}
 				else {
-					$TargettedNics = $AllNics | Where-Object { $_.EnableAcceleratedNetworking -eq $false }
+					$TargettedNics = $AllNics | Where-Object { $_.EnableAcceleratedNetworking -eq $false -or $_.EnableAcceleratedNetworking -eq $null }
 					Write-LogInfo "Current Accelerated networking disabled NICs : $($TargettedNics.Name)"
 					Write-LogInfo "Shutting down $VMName..."
 					$null = Stop-AzVM -ResourceGroup $ResourceGroup -Name $VMName -Force
