@@ -174,7 +174,7 @@ class Platform(subclasses.BaseClassWithRunbookMixin, InitializableMixin):
         # mark environment is deleted firstly, if there is any error on
         # deleting, it should be ignored.
         environment.status = EnvironmentStatus.Deleted
-        environment.close()
+        environment.cleanup()
         if self.runbook.keep_environment == constants.ENVIRONMENT_KEEP_ALWAYS:
             log.info(
                 f"skipped to delete environment {environment.name}, "

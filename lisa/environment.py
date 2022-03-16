@@ -283,10 +283,13 @@ class Environment(ContextMixin, InitializableMixin):
             result.nodes.extend(self.runbook.nodes_requirement)
         return result
 
-    def close(self) -> None:
+    def cleanup(self) -> None:
+        self.nodes.cleanup()
         if hasattr(self, "_log_handler") and self._log_handler:
             remove_handler(self._log_handler, self.log)
             self._log_handler.close()
+
+    def close(self) -> None:
         self.nodes.close()
 
     def create_node_from_exists(
@@ -348,10 +351,10 @@ class Environment(ContextMixin, InitializableMixin):
     def _initialize(self, *args: Any, **kwargs: Any) -> None:
         if self.status != EnvironmentStatus.Deployed:
             raise LisaException("environment is not deployed, cannot be initialized")
-
-        self._log_handler = create_file_handler(
-            self.log_path / "environment.log", self.log
-        )
+        if not hasattr(self, "_log_handler"):
+            self._log_handler = create_file_handler(
+                self.log_path / "environment.log", self.log
+            )
         self.nodes.initialize()
         self.status = EnvironmentStatus.Connected
 

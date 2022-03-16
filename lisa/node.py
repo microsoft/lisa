@@ -22,7 +22,7 @@ from lisa.util import (
     get_datetime_path,
     subclasses,
 )
-from lisa.util.logger import Logger, get_logger
+from lisa.util.logger import Logger, create_file_handler, get_logger, remove_handler
 from lisa.util.parallel import run_in_parallel
 from lisa.util.process import ExecutableResult, Process
 from lisa.util.shell import ConnectionInfo, LocalShell, Shell, SshShell
@@ -235,6 +235,12 @@ class Node(subclasses.BaseClassWithRunbookMixin, ContextMixin, InitializableMixi
             update_envs=update_envs,
         )
 
+    def cleanup(self) -> None:
+        self.log.debug("cleaning up...")
+        if hasattr(self, "_log_handler") and self._log_handler:
+            remove_handler(self._log_handler, self.log)
+            self._log_handler.close()
+
     def close(self) -> None:
         self.log.debug("closing node connection...")
         if self._shell:
@@ -296,6 +302,11 @@ class Node(subclasses.BaseClassWithRunbookMixin, ContextMixin, InitializableMixi
         raise NotImplementedError()
 
     def _initialize(self, *args: Any, **kwargs: Any) -> None:
+        if not hasattr(self, "_log_handler"):
+            self._log_handler = create_file_handler(
+                self.local_log_path / "node.log", self.log
+            )
+
         self.log.info(f"initializing node '{self.name}' {self}")
         self.shell.initialize()
         self.os: OperatingSystem = OperatingSystem.create(self)
@@ -558,6 +569,10 @@ class Nodes:
     def close(self) -> None:
         for node in self._list:
             node.close()
+
+    def cleanup(self) -> None:
+        for node in self._list:
+            node.cleanup()
 
     def append(self, node: Node) -> None:
         self._list.append(node)
