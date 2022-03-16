@@ -180,6 +180,7 @@ class Environment(ContextMixin, InitializableMixin):
         self.source_test_result: Optional[TestResult] = None
 
         self._default_node: Optional[Node] = None
+        self._is_dirty: bool = False
 
         # cost uses to plan order of environments.
         # cheaper env can fit cases earlier to run more cases on it.
@@ -283,6 +284,10 @@ class Environment(ContextMixin, InitializableMixin):
             result.nodes.extend(self.runbook.nodes_requirement)
         return result
 
+    @property
+    def is_dirty(self) -> bool:
+        return self._is_dirty or any(x.is_dirty for x in self.nodes.list())
+
     def cleanup(self) -> None:
         self.nodes.cleanup()
         if hasattr(self, "_log_handler") and self._log_handler:
@@ -347,6 +352,10 @@ class Environment(ContextMixin, InitializableMixin):
             final_information.update(current_information)
 
         return final_information
+
+    def mark_dirty(self) -> None:
+        self.log.debug("mark environment to dirty")
+        self._is_dirty = True
 
     def _initialize(self, *args: Any, **kwargs: Any) -> None:
         if self.status != EnvironmentStatus.Deployed:

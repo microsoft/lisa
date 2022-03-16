@@ -68,6 +68,7 @@ class Node(subclasses.BaseClassWithRunbookMixin, ContextMixin, InitializableMixi
         self._local_log_path: Optional[Path] = None
         self._local_working_path: Optional[Path] = None
         self._support_sudo: Optional[bool] = None
+        self._is_dirty: bool = False
 
     @property
     def shell(self) -> Shell:
@@ -147,6 +148,10 @@ class Node(subclasses.BaseClassWithRunbookMixin, ContextMixin, InitializableMixi
             self._nics.initialize()
 
         return self._nics
+
+    @property
+    def is_dirty(self) -> bool:
+        return self._is_dirty
 
     @classmethod
     def create(
@@ -300,6 +305,10 @@ class Node(subclasses.BaseClassWithRunbookMixin, ContextMixin, InitializableMixi
         not create extra folders.
         """
         raise NotImplementedError()
+
+    def mark_dirty(self) -> None:
+        self.log.debug("mark node to dirty")
+        self._is_dirty = True
 
     def _initialize(self, *args: Any, **kwargs: Any) -> None:
         if not hasattr(self, "_log_handler"):
