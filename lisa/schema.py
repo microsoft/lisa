@@ -150,11 +150,17 @@ class ExtendableSchemaMixin:
             result = f"ext:{self.extended_schemas}"
         return result
 
+    def __hash__(self) -> int:
+        return super().__hash__()
+
 
 @dataclass_json()
 @dataclass
 class TypedSchema:
     type: str = field(default="", metadata=field_metadata(required=True))
+
+    def __hash__(self) -> int:
+        return super().__hash__()
 
 
 @dataclass_json()
