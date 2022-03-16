@@ -79,7 +79,7 @@ class Sar(Tool):
             expected_exit_code_failure_message="fail to run sar command",
         )
 
-    def create_pps_peformance_messages(
+    def create_pps_performance_messages(
         self,
         result: ExecutableResult,
         test_case_name: str,

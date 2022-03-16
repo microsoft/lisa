@@ -183,7 +183,7 @@ def perf_tcp_pps(environment: Environment, test_type: str) -> None:
     server_sar = server.tools[Sar]
     server_sar.get_statistics_async()
     result = client_sar.get_statistics()
-    pps_message = client_sar.create_pps_peformance_messages(
+    pps_message = client_sar.create_pps_performance_messages(
         result, inspect.stack()[1][3], environment, test_type
     )
     notifier.notify(pps_message)
