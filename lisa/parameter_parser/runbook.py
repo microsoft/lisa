@@ -344,9 +344,9 @@ class RunbookBuilder:
                 try:
                     include: schema.Include
                     include = schema.load_by_type(schema.Include, include_raw)
-                except Exception as identifer:
+                except Exception as identifier:
                     raise LisaException(
-                        f"error on loading include node [{include_raw}]: {identifer}"
+                        f"error on loading include node [{include_raw}]: {identifier}"
                     )
                 if include.strategy:
                     raise NotImplementedError(

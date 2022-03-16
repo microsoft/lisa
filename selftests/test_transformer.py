@@ -70,7 +70,7 @@ class TestTransformerCase(TestCase):
         with self.assertRaises(LisaException) as cm:
             transformers = transformer._sort(transformers)
         self.assertEqual(
-            "found cycle dependented transformers: 't1' and 't0'", str(cm.exception)
+            "found cycle dependent transformers: 't1' and 't0'", str(cm.exception)
         )
 
     def test_transformer_keep_all_values(self) -> None:

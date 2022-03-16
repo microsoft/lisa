@@ -149,7 +149,7 @@ class Iperf3(Tool):
         )
         process.wait_result(
             expected_exit_code=0,
-            expected_exit_code_failure_message="fail to lanuch iperf3 server",
+            expected_exit_code_failure_message="fail to launch iperf3 server",
         )
 
     def run_as_client_async(
@@ -264,7 +264,7 @@ class Iperf3(Tool):
         )
         return process.wait_result(
             expected_exit_code=0,
-            expected_exit_code_failure_message="fail to lanuch iperf3 client",
+            expected_exit_code_failure_message="fail to launch iperf3 client",
         )
 
     def create_iperf_tcp_performance_message(

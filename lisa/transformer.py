@@ -116,7 +116,7 @@ def _sort(transformers: List[schema.Transformer]) -> List[schema.Transformer]:
         for item in transformer.depends_on:
             if item not in referenced:
                 raise LisaException(
-                    f"found cycle dependented transformers: "
+                    f"found cycle dependent transformers: "
                     f"'{transformer.name}' and '{item}'"
                 )
         referenced.add(transformer.name)
