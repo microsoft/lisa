@@ -117,8 +117,8 @@ RESOURCE_GROUP_LOCATION = "westus2"
 
 # names in arm template, they should be changed with template together.
 RESOURCE_ID_PORT_POSTFIX = "-ssh"
-RESOURCE_ID_NIC_PATTERN = re.compile(r"([\w]+-[\d]+)-nic-0")
-RESOURCE_ID_PUBLIC_IP_PATTERN = re.compile(r"([\w]+-[\d]+)-public-ip")
+RESOURCE_ID_NIC_PATTERN = re.compile(r"(.+)-nic-0")
+RESOURCE_ID_PUBLIC_IP_PATTERN = re.compile(r"(.+)-public-ip")
 
 # Ubuntu 18.04:
 # [    0.000000] Hyper-V Host Build:18362-10.0-3-0.3198
@@ -479,10 +479,12 @@ class AzurePlatform(Platform):
         if self._azure_runbook.resource_group_name:
             resource_group_name = self._azure_runbook.resource_group_name
         else:
-            normalized_run_name = constants.NORMALIZE_PATTERN.sub(
-                "-", constants.RUN_NAME
-            )
-            resource_group_name = f"{normalized_run_name}-e{environment.id}"
+            normalized_name = constants.NORMALIZE_PATTERN.sub("-", constants.RUN_NAME)
+            # Take last chars to make sure the length is to exceed max 64 chars
+            # allowed in vm names. The last chars include the datetime pattern,
+            # it's more unique than leading project/test pass names.
+            normalized_name = normalized_name[-46:]
+            resource_group_name = f"{normalized_name}-e{environment.id}"
             environment_context.resource_group_is_created = True
 
         environment_context.resource_group_name = resource_group_name
@@ -988,9 +990,7 @@ class AzurePlatform(Platform):
                 node_space,
             )
             azure_node_runbook = self._create_node_runbook(
-                len(nodes_parameters),
-                node_space,
-                log,
+                len(nodes_parameters), node_space, log, resource_group_name
             )
             # save parsed runbook back, for example, the version of marketplace may be
             # parsed from latest to a specified version.
@@ -1102,13 +1102,14 @@ class AzurePlatform(Platform):
         index: int,
         node_space: schema.NodeSpace,
         log: Logger,
+        name_prefix: str,
     ) -> AzureNodeSchema:
         azure_node_runbook = node_space.get_extended_runbook(
             AzureNodeSchema, type_name=AZURE
         )
 
         if not azure_node_runbook.name:
-            azure_node_runbook.name = f"node-{index}"
+            azure_node_runbook.name = f"{name_prefix}-n{index}"
         if not azure_node_runbook.vm_size:
             raise LisaException("vm_size is not detected before deploy")
         if not azure_node_runbook.location:
@@ -1338,13 +1339,14 @@ class AzurePlatform(Platform):
             environment_context.resource_group_name
         )
         for nic in network_interfaces:
-            # nic name is like node-0-nic-2, get vm name part for later pick
-            # only find primary nic, which is ended by -nic-0
+            # nic name is like lisa-test-20220316-182126-985-e0-n0-nic-2, get vm
+            # name part for later pick only find primary nic, which is ended by
+            # -nic-0
             node_name_from_nic = RESOURCE_ID_NIC_PATTERN.findall(nic.name)
             if node_name_from_nic:
                 name = node_name_from_nic[0]
                 nics_map[name] = nic
-                log.debug(f"  found nic '{name}', and saved for next step.")
+                log.debug(f"  found nic '{nic.name}', and saved for next step.")
             else:
                 log.debug(
                     f"  found nic '{nic.name}', but dropped, "
