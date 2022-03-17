@@ -13,7 +13,7 @@ class Dnsmasq(Tool):
     def start(
         self,
         nic_name: str,
-        nic_address: str,
+        gateway: str,
         dhcp_range: str,
     ) -> None:
         # kill dnsmasq if it is running
@@ -24,8 +24,8 @@ class Dnsmasq(Tool):
         # assign dhcp address in `dhcp_range`
         cmd = (
             "--strict-order --except-interface=lo "
-            f"--interface={nic_name} --listen-address={nic_address} --bind-interfaces "
-            f"--dhcp-range={dhcp_range} --conf-file='' "
+            f"--interface={nic_name} --listen-address={gateway} --bind-interfaces "
+            f"--dhcp-range={dhcp_range} --conf-file= "
             f"--pid-file=/var/run/qemu-dnsmasq-{nic_name}.pid "
             f"--dhcp-leasefile=/var/run/qemu-dnsmasq-{nic_name}.leases "
             "--dhcp-no-override "
