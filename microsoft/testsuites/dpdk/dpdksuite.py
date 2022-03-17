@@ -817,6 +817,8 @@ def initialize_node_resources(
     pmd: str,
     sample_apps: Union[List[str], None] = None,
 ) -> DpdkTestResources:
+
+    validate_node_requirements(node)
     dpdk_source = variables.get("dpdk_source", DPDK_STABLE_GIT)
     dpdk_branch = variables.get("dpdk_branch", "")
     log.info(
@@ -944,3 +946,10 @@ def _init_nodes_concurrent(
         log,
     )
     return test_kits
+
+
+def validate_node_requirements(node: Node, nic_requirement: int = 2) -> None:
+    # validate node requirements and skip if this node doesn't meet them
+    # Needs >= 8 cores
+    if node.capability.core_count < 8:
+        raise SkippedException("DPDK requires at least 8 cores")
