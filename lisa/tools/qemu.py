@@ -9,7 +9,7 @@ from randmac import RandMac  # type: ignore
 
 from lisa.executable import Tool
 from lisa.operating_system import Fedora, Posix
-from lisa.tools import Kill, Lsmod, Pgrep
+from lisa.tools import Ip, Kill, Lsmod, Pgrep
 from lisa.util import LisaException
 
 
@@ -31,51 +31,61 @@ class Qemu(Tool):
         guest_image_path: str,
         cores: int = 2,
         memory: int = 2048,
-        nics: int = 1,
         nic_model: str = "e1000",
-        taps: Optional[List[str]] = None,
+        taps: int = 0,
+        bridge: Optional[str] = None,
         disks: Optional[List[str]] = None,
         stop_existing_vm: bool = True,
     ) -> None:
-        # start vm on the current node
-        # port: port of the host vm mapped to the guest's ssh port
-        # guest_image_path: path of the guest image
-        # cores: number of cores of the vm. Defaults to 2
-        # memory: memory of the vm in MB. Defaults to 2048MB
-        # nics: number of qemu managed nics of the vm. Defaults to 1
-        # nic_model: model of the nics. Can be `e1000` or `virtio-net-pci`.
-        #             Defaults to `e1000` as it works with most x86 machines
-        # taps: list of taps-based nic interfaces to attach to the vm. Defaults to None
-        # disks: list of data disks to attach to the vm. Defaults to None
-        # stop_existing_vm: stop existing vm if it is running. Defaults to True
+        """
+        start vm on the current node
+
+        arguments:
+        port: port of the host vm mapped to the guest's ssh port
+        guest_image_path: path of the guest image
+        cores: number of cores of the vm. Defaults to 2
+        memory: memory of the vm in MB. Defaults to 2048MB
+        nics: number of qemu managed nics of the vm. Defaults to 1
+        nic_model: model of the nics. Can be `e1000` or `virtio-net-pci`.
+                    Defaults to `e1000` as it works with most x86 machines
+        taps: number of taps interface to create. Defaults to 0
+        bridge: bridge to use for attaching created taps. Defaults to None
+        disks: list of data disks to attach to the vm. Defaults to None
+        stop_existing_vm: stop existing vm if it is running. Defaults to True
+        """
+
+        # store name of tap interfaces added to the vm
+        added_taps: List[str] = []
 
         # Run qemu with following parameters:
         # -m: memory size
         # -smp: SMP system with `n` CPUs
         # -hda : guest image path
-        cmd = f"-smp {cores} -m {memory} -hda {guest_image_path} "
+        cmd = f"-cpu host -smp {cores} -m {memory} -hda {guest_image_path} "
 
-        # add qemu managed nic devices
+        # Add qemu managed nic device
+        # This will be used to communicate with ssh to the guest
         # https://wiki.qemu.org/Documentation/Networking
-        for i in range(nics):
-            random_mac_address = str(RandMac())
-            cmd += f"-device {nic_model},netdev=net{i},mac={random_mac_address} "
-            cmd += f"-netdev user,id=net{i},hostfwd=tcp::{port}-:22 "
+        random_mac_address = str(RandMac())
+        cmd += f"-device {nic_model},netdev=net0," f"mac={random_mac_address} "
+        cmd += f"-netdev user,id=net0,hostfwd=tcp::{port}-:22 "
 
-        # add taps-based nic interfaces
+        # Add taps-based nic interfaces
+        # Qemu automatically creates a tap interface `tap_<index>`
         if taps:
-            for tap in taps:
+            for _ in range(taps):
                 random_mac_address = str(RandMac())
                 cmd += (
-                    f"-device {nic_model},netdev=nettap{i},"
+                    f"-device {nic_model},netdev=nettap{self.interface_count},"
                     f"mac={random_mac_address} "
                 )
                 cmd += (
-                    f"-netdev tap,id=nettap{i},"
-                    f"ifname={tap},script=no,vhost=on,queues=4 "
+                    f"-netdev tap,id=nettap{self.interface_count},vhost=on,script=no "
                 )
+                added_taps.append(f"tap{self.interface_count}")
+                self.interface_count += 1
 
-        # add data disks
+        # Add data disks
         if disks:
             for disk in disks:
                 cmd += (
@@ -93,6 +103,7 @@ class Qemu(Tool):
         if stop_existing_vm:
             self.stop_vm()
 
+        # start qemu
         self.run(
             cmd,
             sudo=True,
@@ -100,6 +111,12 @@ class Qemu(Tool):
             expected_exit_code=0,
             expected_exit_code_failure_message=f"Unable to start VM {guest_image_path}",
         )
+
+        # if bridge is specified, attach the created taps to the bridge
+        if bridge:
+            for tap in added_taps:
+                self.node.tools[Ip].up(tap)
+                self.node.tools[Ip].set_master(tap, bridge)
 
         # update firewall rules
         # https://access.redhat.com/documentation/en-us/red_hat_enterprise_linux/8/html/configuring_and_managing_networking/using-and-configuring-firewalld_configuring-and-managing-networking # noqa E501
@@ -126,6 +143,7 @@ class Qemu(Tool):
 
     def _initialize(self, *args: Any, **kwargs: Any) -> None:
         self._qemu_command = "qemu-system-x86_64"
+        self.interface_count = 0
 
     def _install(self) -> bool:
         assert isinstance(self.node.os, Posix)
