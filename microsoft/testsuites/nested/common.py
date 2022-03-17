@@ -27,9 +27,9 @@ def connect_nested_vm(
     name: str = "L2-VM",
     image_name: str = NESTED_VM_IMAGE_NAME,
     image_size: int = NESTED_VM_REQUIRED_DISK_SIZE_IN_GB,
-    nics: int = 1,
     nic_model: str = "e1000",
-    taps: Optional[List[str]] = None,
+    taps: int = 0,
+    bridge: Optional[str] = None,
     disks: Optional[List[str]] = None,
     stop_existing_vm: bool = True,
     log: Optional[Logger] = None,
@@ -64,9 +64,9 @@ def connect_nested_vm(
     host.tools[Qemu].create_vm(
         guest_port,
         f"{image_folder_path}/{image_name}",
-        nics=nics,
         nic_model=nic_model,
         taps=taps,
+        bridge=bridge,
         disks=disks,
         stop_existing_vm=stop_existing_vm,
     )
