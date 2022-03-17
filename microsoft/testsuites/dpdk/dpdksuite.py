@@ -24,7 +24,19 @@ from lisa import (
 from lisa.features import NetworkInterface, Sriov
 from lisa.nic import NicInfo, Nics
 from lisa.testsuite import simple_requirement
-from lisa.tools import Dmesg, Echo, Git, Ip, Kill, Lsmod, Lspci, Make, Modprobe, Mount
+from lisa.tools import (
+    Dmesg,
+    Echo,
+    Git,
+    Ip,
+    Kill,
+    Lscpu,
+    Lsmod,
+    Lspci,
+    Make,
+    Modprobe,
+    Mount,
+)
 from lisa.util import perf_timer
 from lisa.util.parallel import TaskManager, run_in_parallel, run_in_parallel_async
 from microsoft.testsuites.dpdk.dpdknffgo import DpdkNffGo
@@ -817,6 +829,8 @@ def initialize_node_resources(
     pmd: str,
     sample_apps: Union[List[str], None] = None,
 ) -> DpdkTestResources:
+
+    validate_node_requirements(node)
     dpdk_source = variables.get("dpdk_source", DPDK_STABLE_GIT)
     dpdk_branch = variables.get("dpdk_branch", "")
     log.info(
@@ -944,3 +958,11 @@ def _init_nodes_concurrent(
         log,
     )
     return test_kits
+
+
+def validate_node_requirements(node: Node, nic_requirement: int = 2) -> None:
+    # validate node requirements and skip if this node doesn't meet them
+    # Needs >= 8 cores
+    lscpu = node.tools[Lscpu]
+    if lscpu.get_core_count() < 8:
+        raise SkippedException("DPDK requires at least 8 cores")
