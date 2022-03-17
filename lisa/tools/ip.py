@@ -151,6 +151,18 @@ class Ip(Tool):
             expected_exit_code_failure_message=f"Could not delete interface {name}",
         )
 
+    def set_master(self, child_interface: str, master_interface: str) -> None:
+        self.run(
+            f"link set dev {child_interface} master {master_interface}",
+            force_run=True,
+            sudo=True,
+            expected_exit_code=0,
+            expected_exit_code_failure_message=(
+                f"Could not set bridge {master_interface} as master for"
+                f" {child_interface}"
+            ),
+        )
+
     def setup_tap(self, name: str, bridge: str) -> None:
         if self.nic_exists(name):
             self._log.debug(f"Tap {name} already exists")
@@ -167,15 +179,7 @@ class Ip(Tool):
         )
 
         # add tap to bridge
-        self.run(
-            f"link set {name} master {bridge}",
-            force_run=True,
-            sudo=True,
-            expected_exit_code=0,
-            expected_exit_code_failure_message=(
-                f"Could not add tap {name} to bridge {bridge}"
-            ),
-        )
+        self.set_master(name, bridge)
 
         # start interface
         self.up(name)
