@@ -100,18 +100,24 @@ class Process:
 
         self._sudo = sudo
 
+        if update_envs is None:
+            update_envs = {}
+
         # command may be Path object, convert it to str
         command = str(command)
         if shell:
             if not self._is_posix:
                 split_command = ["cmd", "/c", command]
             elif sudo:
-                split_command = ["sudo", "sh", "-c", command]
+                split_command = []
+                envs = _create_exports(update_envs=update_envs)
+                split_command += ["sudo", "sh", "-c", f"{envs} {command}"]
             else:
                 split_command = ["sh", "-c", command]
         else:
             if sudo and self._is_posix:
-                command = f"sudo {command}"
+                envs = _create_exports(update_envs=update_envs)
+                command += f" sudo {envs} {command}"
             try:
                 split_command = shlex.split(command, posix=self._is_posix)
             except Exception as identifier:
@@ -132,9 +138,6 @@ class Process:
             f"posix: {self._is_posix}, "
             f"remote: {self._shell.is_remote}"
         )
-
-        if update_envs is None:
-            update_envs = {}
 
         try:
             self._timer = create_timer()
@@ -290,3 +293,12 @@ class Process:
             raw_input = "".join(lines[1:])
             self._log.debug(f'found error message in sudo: "{lines[0]}"')
         return raw_input
+
+
+def _create_exports(update_envs: Dict[str, str]) -> str:
+    result: str = ""
+
+    for key, value in update_envs.items():
+        result += f"export {key}={value};"
+
+    return result
