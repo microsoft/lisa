@@ -16,8 +16,17 @@ from lisa import (
 )
 from lisa.environment import Environment
 from lisa.node import RemoteNode
-from lisa.tools import Fio, Iperf3, Kill
-from microsoft.testsuites.cpu.common import verify_cpu_hot_plug
+from lisa.tools import Ethtool, Fio, Iperf3, Kill, Lscpu, Lsvmbus
+from lisa.util import SkippedException
+from microsoft.testsuites.cpu.common import (
+    CPUState,
+    check_runnable,
+    get_idle_cpus,
+    restore_interrupts_assignment,
+    set_cpu_state_serial,
+    set_interrupts_assigned_cpu,
+    verify_cpu_hot_plug,
+)
 
 
 @TestSuiteMetadata(
@@ -130,3 +139,63 @@ class CPUSuite(TestSuite):
             # kill fio process
             server.tools[Kill].by_name("iperf3")
             client.tools[Kill].by_name("iperf3")
+
+    @TestCaseMetadata(
+        description="""
+            This test will check that the added channels to synthetic network
+            adapter do not handle interrupts on offlined cpu.
+            Steps:
+            1. Get list of offlined CPUs.
+            2. Add channels to synthetic network adapter.
+            3. Verify that the channels were added to synthetic network adapter.
+            4. Verify that the added channels do not handle interrupts on offlined cpu.
+            """,
+        priority=3,
+    )
+    def verify_cpu_offlined_channel_add(self, log: Logger, node: Node) -> None:
+        # skip test if kernel doesn't support cpu hotplug
+        check_runnable(node)
+
+        # set vmbus channels target cpu into 0 if kernel supports this feature.
+        file_path_list = set_interrupts_assigned_cpu(log, node)
+
+        # when kernel doesn't support above feature, we have to rely on current vm's
+        # cpu usage. then collect the cpu not in used exclude cpu0.
+        idle_cpus = get_idle_cpus(node)
+        log.debug(f"idle cpus: {idle_cpus}")
+        if len(idle_cpus) == 0:
+            raise SkippedException(
+                "all of the cpu are associated vmbus channels, "
+                "no idle cpu can be used to test hotplug."
+            )
+
+        # set cpu state offline and add channels to synthetic network adapter
+        try:
+            # Take idle cpu to offline
+            set_cpu_state_serial(log, node, idle_cpus, CPUState.OFFLINE)
+
+            # add vmbus channels to synthetic network adapter. The synthetic network
+            # drivers have class id "f8615163-df3e-46c5-913f-f2d2f965ed0e"
+            node.tools[Lsvmbus].get_device_channels(force_run=True)
+            cpu_count = node.tools[Lscpu].get_core_count()
+            availble_cpus = cpu_count - len(idle_cpus) - 1
+            node.tools[Ethtool].change_device_channels_info("eth0", availble_cpus)
+
+            # verify that the added channels do not handle interrupts on offlined cpu.
+            lsvmbus_channels = node.tools[Lsvmbus].get_device_channels(force_run=True)
+            for channel in lsvmbus_channels:
+                # verify that channels were added to synthetic network adapter
+                if channel.class_id == "f8615163-df3e-46c5-913f-f2d2f965ed0e":
+                    log.debug(f"Network synethic channel: {channel}")
+                    assert_that(channel.channel_vp_map).is_length(availble_cpus)
+
+                # verify that devices do not handle interrupts on offlined cpu
+                for channel_vp in channel.channel_vp_map:
+                    assert_that(channel_vp.target_cpu).is_not_in(idle_cpus)
+        finally:
+            # reset idle cpu to online
+            set_cpu_state_serial(log, node, idle_cpus, CPUState.ONLINE)
+
+            # when kernel doesn't support set vmbus channels target cpu feature, the
+            # dict which stores original status is empty, nothing need to be restored.
+            restore_interrupts_assignment(file_path_list, node)
