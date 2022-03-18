@@ -148,7 +148,7 @@
                 "name": "nicCopy",
                 "count": "[variables('node_count')]"
             },
-            "name": "[concat(parameters('nodes')[copyIndex('nicCopy')]['name'],'-networkInterfaces')]",
+            "name": "[concat(parameters('nodes')[copyIndex('nicCopy')]['name'],'-nics')]",
             "dependsOn": [
                 "[resourceId('Microsoft.Network/publicIPAddresses/', concat(parameters('nodes')[copyIndex('nicCopy')]['name'],'-public-ip'))]",
                 "[variables('vnet_id')]"
@@ -289,7 +289,7 @@
             "dependsOn": [
                 "[resourceId('Microsoft.Compute/availabilitySets', variables('availability_set_name'))]",
                 "[resourceId('Microsoft.Compute/images', concat(parameters('nodes')[copyIndex('vmCopy')]['name'], '-image'))]",
-                "[concat(parameters('nodes')[copyIndex('vmCopy')]['name'],'-networkInterfaces')]"
+                "[concat(parameters('nodes')[copyIndex('vmCopy')]['name'],'-nics')]"
             ],
             "properties": {
                 "availabilitySet": "[if(parameters('use_availability_sets'), json(concat('{\"id\": \"',resourceId('Microsoft.Compute/availabilitySets',variables('availability_set_name')),'\"}')), json('null'))]",
