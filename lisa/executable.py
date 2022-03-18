@@ -504,8 +504,8 @@ class CustomScriptBuilder:
         # generate an unique name based on file names
         command_identifier = constants.NORMALIZE_PATTERN.sub("-", command_identifier)
         hash_source = "".join(files).encode("utf-8")
-        hash_result = sha256(hash_source)
-        self.name = f"custom-{command_identifier}-{hash_result.hexdigest()}".lower()
+        hash_result = sha256(hash_source).hexdigest()[:8]
+        self.name = f"custom-{command_identifier}-{hash_result}".lower()
 
     def build(self, node: Node) -> CustomScript:
         return CustomScript(
