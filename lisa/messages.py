@@ -54,6 +54,7 @@ class TransportProtocol(str, Enum):
 class PerfMessage(MessageBase):
     type: str = "Performance"
     tool: str = ""
+    role: str = ""
     test_case_name: str = ""
     platform: str = ""
     location: str = ""
@@ -132,6 +133,9 @@ class NetworkPPSPerformanceMessage(PerfMessage):
     rx_tx_pps_minimum: Decimal = Decimal(0)
     rx_tx_pps_average: Decimal = Decimal(0)
     rx_tx_pps_maximum: Decimal = Decimal(0)
+    fwd_pps_maximum: Decimal = Decimal(0)
+    fwd_pps_average: Decimal = Decimal(0)
+    fwd_pps_minimum: Decimal = Decimal(0)
 
 
 @dataclass

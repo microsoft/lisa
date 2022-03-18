@@ -2,7 +2,7 @@
 # Licensed under the MIT license.
 
 import re
-from typing import List, Pattern, Tuple, Type, Union
+from typing import Callable, List, Pattern, Tuple, Type, Union
 
 from assertpy import assert_that, fail
 from semver import VersionInfo
@@ -240,30 +240,72 @@ class DpdkTestpmd(Tool):
         self.timer_proc.kill()
 
     def get_from_testpmd_output(
-        self, search_key_constant: str, testpmd_output: str
+        self,
+        search_key_constant: str,
+        testpmd_output: str,
+        data_operations: List[Callable[[List[int]], List[int]]],
+        data_filter: Callable[[List[int]], int],
     ) -> int:
+        # Find all data in the output that matches
+        # Apply a list of filters to the data
+        # return a single output from a final filter function
         assert_that(testpmd_output).described_as(
             "Could not find output from last testpmd run."
         ).is_not_equal_to("")
         matches = re.findall(
             self._testpmd_output_regex[search_key_constant], testpmd_output
         )
-        remove_zeros = [x for x in map(int, matches) if x != 0]
-        assert_that(len(remove_zeros)).described_as(
+        assert_that(matches).described_as(
+            (
+                "Could not locate any matches for search key "
+                f"{self._testpmd_output_regex[search_key_constant]} "
+                "in the test output."
+            )
+        )
+        data = list(map(int, matches))
+
+        # check data is not all zero, keep raw data as is for processing.
+        not_all_zeroes = len([x for x in data if x != 0]) > 0
+        assert_that(not_all_zeroes).described_as(
             (
                 "Could not locate any performance data spew from "
-                f"this testpmd run. ({self._testpmd_output_regex[search_key_constant]}"
-                " was not found in output)."
+                "this testpmd run. Data was all zeroes."
             )
-        ).is_greater_than(0)
-        total = sum(remove_zeros)
-        return total // len(remove_zeros)
+        )
 
-    def get_rx_pps(self) -> int:
-        return self.get_from_testpmd_output(self._rx_pps_key, self._last_run_output)
+        for operation in data_operations:
+            data = operation(data)
+        return data_filter(data)
 
-    def get_tx_pps(self) -> int:
-        return self.get_from_testpmd_output(self._tx_pps_key, self._last_run_output)
+    def get_average_rx_pps(self) -> int:
+        return self.get_from_testpmd_output(
+            self._rx_pps_key, self._last_run_output, [_discard_first_zeroes], _average
+        )
+
+    def get_average_tx_pps(self) -> int:
+        return self.get_from_testpmd_output(
+            self._tx_pps_key, self._last_run_output, [_discard_first_zeroes], _average
+        )
+
+    def get_max_rx_pps(self) -> int:
+        return self.get_from_testpmd_output(
+            self._rx_pps_key, self._last_run_output, [_discard_first_zeroes], max
+        )
+
+    def get_max_tx_pps(self) -> int:
+        return self.get_from_testpmd_output(
+            self._tx_pps_key, self._last_run_output, [_discard_first_zeroes], max
+        )
+
+    def get_min_rx_pps(self) -> int:
+        return self.get_from_testpmd_output(
+            self._rx_pps_key, self._last_run_output, [_discard_first_zeroes], min
+        )
+
+    def get_min_tx_pps(self) -> int:
+        return self.get_from_testpmd_output(
+            self._tx_pps_key, self._last_run_output, [_discard_first_zeroes], min
+        )
 
     def get_tx_pps_sriov_rescind(self) -> Tuple[int, int, int]:
         return self._get_pps_sriov_rescind(self._tx_pps_key)
@@ -522,6 +564,8 @@ class DpdkTestpmd(Tool):
             service_name = "rdma"
             service = node.tools[Service]
             if service.check_service_exists(service_name):
+                if not service.check_service_status(service_name):
+                    service.enable_service(service_name)
                 service.restart_service(service_name)
 
             node.execute(
@@ -621,12 +665,37 @@ class DpdkTestpmd(Tool):
             self._split_testpmd_output()
 
         before_rescind = self.get_from_testpmd_output(
-            key_constant, self._testpmd_output_before_rescind
+            key_constant,
+            self._testpmd_output_before_rescind,
+            [_discard_first_zeroes],
+            _average,
         )
         during_rescind = self.get_from_testpmd_output(
-            key_constant, self._testpmd_output_during_rescind
+            key_constant,
+            self._testpmd_output_during_rescind,
+            [_discard_first_zeroes],
+            _average,
         )
         after_reenable = self.get_from_testpmd_output(
-            key_constant, self._testpmd_output_after_reenable
+            key_constant,
+            self._testpmd_output_after_reenable,
+            [_discard_first_zeroes],
+            _average,
         )
         return before_rescind, during_rescind, after_reenable
+
+
+# filter functions for processing testpmd data
+def _discard_first_zeroes(data: List[int]) -> List[int]:
+    for i in range(len(data)):
+        if data[i] != 0:
+            return data[i:]
+
+    raise LisaException(
+        "Could not locate any performance data spew from "
+        "this testpmd run. Data was all zeroes."
+    )
+
+
+def _average(data: List[int]) -> int:
+    return sum(data) // len(data)
