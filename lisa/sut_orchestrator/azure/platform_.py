@@ -483,7 +483,7 @@ class AzurePlatform(Platform):
             # Take last chars to make sure the length is to exceed max 64 chars
             # allowed in vm names. The last chars include the datetime pattern,
             # it's more unique than leading project/test pass names.
-            normalized_name = normalized_name[-46:]
+            normalized_name = normalized_name[-40:]
             resource_group_name = f"{normalized_name}-e{environment.id}"
             environment_context.resource_group_is_created = True
 
