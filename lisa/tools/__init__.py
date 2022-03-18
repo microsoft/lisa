@@ -2,7 +2,7 @@
 # Licensed under the MIT license.
 
 
-from lisa.base_tools import Cat, Sed, Uname, Wget
+from lisa.base_tools import Cat, Rpm, Sed, Uname, Wget
 
 from .blkid import Blkid
 from .chown import Chown
@@ -16,6 +16,7 @@ from .docker import Docker
 from .docker_compose import DockerCompose
 from .echo import Echo
 from .ethtool import Ethtool
+from .fallocate import Fallocate
 from .fdisk import Fdisk
 from .find import Find
 from .fio import FIOMODES, Fio, FIOResult
@@ -63,6 +64,7 @@ from .sar import Sar
 from .service import Service
 from .ssh import Ssh
 from .sshpass import Sshpass
+from .stat import Stat
 from .swap import Swap
 from .swapon import SwapOn
 from .sysctl import Sysctl
@@ -90,6 +92,7 @@ __all__ = [
     "DockerCompose",
     "Echo",
     "Ethtool",
+    "Fallocate",
     "Fdisk",
     "Find",
     "FIOMODES",
@@ -141,12 +144,14 @@ __all__ = [
     "Qemu",
     "QemuImg",
     "Reboot",
+    "Rpm",
     "Sar",
     "Sed",
     "Uname",
     "Service",
     "Ssh",
     "Sshpass",
+    "Stat",
     "Swap",
     "SwapOn",
     "Sysctl",
