@@ -2,6 +2,7 @@
 # Licensed under the MIT license.
 
 import re
+from pathlib import PurePath
 from typing import Any, Dict, List, Optional, Type
 
 from assertpy import assert_that
@@ -11,6 +12,7 @@ from lisa.executable import Tool
 from lisa.operating_system import CoreOs, Redhat
 from lisa.tools import Gcc, Modinfo, PowerShell, Uname
 from lisa.util import LisaException, find_patterns_in_lines, get_matched_str
+from lisa.util.process import ExecutableResult
 
 
 class Waagent(Tool):
@@ -193,6 +195,29 @@ class LisDriver(Tool):
 
         return False
 
+    def download(self) -> PurePath:
+        if not self.node.shell.exists(self.node.working_path.joinpath("LISISO")):
+            wget_tool = self.node.tools[Wget]
+            lis_path = wget_tool.get("https://aka.ms/lis", str(self.node.working_path))
+            from lisa.tools import Tar
+
+            tar = self.node.tools[Tar]
+            tar.extract(file=lis_path, dest_dir=str(self.node.working_path))
+        return self.node.working_path.joinpath("LISISO")
+
+    def get_version(self, force_run: bool = False) -> str:
+        # in some distro, the vmbus is builtin, the version cannot be gotten.
+        modinfo = self.node.tools[Modinfo]
+        return modinfo.get_version("hv_vmbus")
+
+    def install_from_iso(self) -> ExecutableResult:
+        lis_folder_path = self.download()
+        return self.node.execute("./install.sh", cwd=lis_folder_path, sudo=True)
+
+    def uninstall_from_iso(self) -> ExecutableResult:
+        lis_folder_path = self.download()
+        return self.node.execute("./uninstall.sh", cwd=lis_folder_path, sudo=True)
+
     def _check_exists(self) -> bool:
         if isinstance(self.node.os, Redhat):
             # currently LIS is only supported with Redhat
@@ -204,17 +229,7 @@ class LisDriver(Tool):
         return False
 
     def _install(self) -> bool:
-        wget_tool = self.node.tools[Wget]
-        lis_path = wget_tool.get("https://aka.ms/lis", str(self.node.working_path))
-
-        result = self.node.execute(f"tar -xvzf {lis_path}", cwd=self.node.working_path)
-        if result.exit_code != 0:
-            raise LisaException(
-                "Failed to extract tar file after downloading LIS package. "
-                f"exit_code: {result.exit_code} stderr: {result.stderr}"
-            )
-        lis_folder_path = self.node.working_path.joinpath("LISISO")
-        result = self.node.execute("./install.sh", cwd=lis_folder_path, sudo=True)
+        result = self.install_from_iso()
         if result.exit_code != 0:
             raise LisaException(
                 f"Unable to install the LIS RPMs! exit_code: {result.exit_code}"
@@ -222,11 +237,6 @@ class LisDriver(Tool):
             )
         self.node.reboot(360)
         return True
-
-    def get_version(self, force_run: bool = False) -> str:
-        # in some distro, the vmbus is builtin, the version cannot be gotten.
-        modinfo = self.node.tools[Modinfo]
-        return modinfo.get_version("hv_vmbus")
 
 
 class KvpClient(Tool):
