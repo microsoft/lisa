@@ -7,7 +7,7 @@ from typing import Any, Dict, List
 
 from assertpy import assert_that
 
-from lisa.base_tools import Sed, Uname, Wget
+from lisa.base_tools import Cat, Sed, Uname, Wget
 from lisa.feature import Feature
 from lisa.operating_system import CentOs, Redhat, Ubuntu
 from lisa.tools import Firewall, Make
@@ -139,6 +139,11 @@ class Infiniband(Feature):
         ).is_not_empty()
         return result.stdout.split()
 
+    def get_pkey(self) -> str:
+        ib_device_name = self.get_ib_interfaces()[0].ib_device_name
+        cat = self._node.tools[Cat]
+        return cat.read(f"/sys/class/infiniband/{ib_device_name}/ports/1/pkeys/0")
+
     def setup_rdma(self) -> None:
         node = self._node
         # Dependencies
@@ -177,6 +182,8 @@ class Infiniband(Feature):
             "dkms",
             "python-setuptools",
             "g++",
+            "libc6-i386",
+            "lib32gcc-8-dev",
         ]
         redhat_required_packages = [
             "git",
@@ -199,6 +206,8 @@ class Infiniband(Feature):
             "libtool",
             "fuse-libs",
             "gcc-c++",
+            "glibc.i686",
+            "libgcc.i686",
         ]
         if isinstance(node.os, CentOs):
             node.execute(
@@ -334,3 +343,26 @@ class Infiniband(Feature):
         make = node.tools[Make]
         make.make("", cwd=openmpi_folder)
         make.make_install(cwd=openmpi_folder)
+
+    def install_ibm_mpi(self) -> None:
+        node = self._node
+        # Intall Open MPI
+        wget = node.tools[Wget]
+        script_path = wget.get(
+            "https://partnerpipelineshare.blob.core.windows.net/mpi/"
+            "platform_mpi-09.01.04.03r-ce.bin",
+            executable=True,
+        )
+        node.execute(
+            f"{script_path} -i silent",
+            sudo=True,
+            expected_exit_code=0,
+            expected_exit_code_failure_message="Failed to install IBM MPI.",
+        )
+        make = node.tools[Make]
+        make.make(
+            "",
+            cwd=node.get_pure_path("/opt/ibm/platform_mpi/help"),
+            update_envs={"MPI_IB_PKEY": self.get_pkey()},
+            sudo=True,
+        )
