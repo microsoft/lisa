@@ -149,8 +149,10 @@ def _run_transformers(
     is_dry_run: bool = False,
     phase: str = constants.TRANSFORMER_PHASE_INIT,
 ) -> Dict[str, VariableEntry]:
-    root_runbook_data = runbook_builder.raw_data
-    transformers_data: List[Any] = root_runbook_data[constants.TRANSFORMER]
+    # resolve variables
+    transformers_data: List[Any] = runbook_builder.partial_resolve(
+        constants.TRANSFORMER
+    )
     assert isinstance(
         transformers_data, list
     ), f"transfomer in runbook must be a list, but it's {type(transformers_data)}"
@@ -161,10 +163,7 @@ def _run_transformers(
         runbook: schema.Transformer = schema.load_by_type(
             schema.Transformer, runbook_data
         )
-
-        # if phase is empty, pick up all of them.
-        if runbook.enabled and (runbook.phase == phase or not phase):
-            transformers_runbook.append(runbook)
+        transformers_runbook.append(runbook)
 
     # resort the runbooks, and it's used in real run
     transformers_runbook = _sort(transformers_runbook)
@@ -180,6 +179,10 @@ def _run_transformers(
 
         # replace to validate all variables exist
         replace_variables(runbook_data, copied_variables)
+
+        # if phase is empty, pick up all of them.
+        if not runbook.enabled or (phase and runbook.phase != phase):
+            continue
 
         # revert to runbook
         runbook = schema.load_by_type(schema.Transformer, runbook_data)
