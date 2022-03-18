@@ -84,6 +84,24 @@ def get_idle_cpus(node: Node) -> List[str]:
     return idle_cpu
 
 
+def set_cpu_state_serial(
+    log: Logger, node: Node, idle_cpu: List[str], state: str
+) -> None:
+    for target_cpu in idle_cpu:
+        log.debug(f"setting cpu{target_cpu} to {state}.")
+        if state == CPUState.ONLINE:
+            set_state = set_cpu_state(node, target_cpu, True)
+        else:
+            set_state = set_cpu_state(node, target_cpu, False)
+        if not set_state:
+            raise BadEnvironmentStateException(
+                (
+                    f"Expected cpu{target_cpu} state: {state}."
+                    f"The test failed leaving cpu{target_cpu} in a bad state."
+                ),
+            )
+
+
 def set_idle_cpu_offline_online(log: Logger, node: Node, idle_cpu: List[str]) -> None:
     for target_cpu in idle_cpu:
         set_offline = set_cpu_state(node, target_cpu, False)
