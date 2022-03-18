@@ -70,18 +70,20 @@ class Make(Tool):
                 "clean",
                 cwd=cwd,
                 sudo=sudo,
+                shell=True,
                 timeout=timeout,
                 force_run=True,
                 update_envs=update_envs,
             )
 
         # yes '' answers all questions with default value.
-        result = self.node.execute(
+        self.node.execute(
             f"yes '' | make -j{thread_count} {arguments}",
             cwd=cwd,
             timeout=timeout,
             sudo=sudo,
             shell=True,
             update_envs=update_envs,
+            expected_exit_code=0,
+            expected_exit_code_failure_message="Failed to make",
         )
-        result.assert_exit_code(expected_exit_code=0, message="failed on make")
