@@ -82,7 +82,7 @@ class KVMPerformance(TestSuite):  # noqa
     @TestCaseMetadata(
         description="""
         This test case is to validate performance of nested VM using fio tool with raid0
-        configuratrion of 6 l1 data disk attached to the l2 VM.
+        configuration of 6 l1 data disk attached to the l2 VM.
         """,
         priority=3,
         timeout=_TIME_OUT,
