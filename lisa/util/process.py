@@ -117,7 +117,7 @@ class Process:
         else:
             if sudo and self._is_posix:
                 envs = _create_exports(update_envs=update_envs)
-                command += f" sudo {envs} {command}"
+                command = f" sudo {envs} {command}"
             try:
                 split_command = shlex.split(command, posix=self._is_posix)
             except Exception as identifier:
