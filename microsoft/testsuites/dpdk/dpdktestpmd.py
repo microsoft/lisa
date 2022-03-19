@@ -228,6 +228,7 @@ class DpdkTestpmd(Tool):
         self.timer_proc.wait_result()
         proc_result = testpmd_proc.wait_result()
         self._last_run_output = proc_result.stdout
+        self.populate_performance_data()
         return proc_result.stdout
 
     def kill_previous_testpmd_command(self) -> None:
@@ -243,9 +244,7 @@ class DpdkTestpmd(Tool):
         self,
         search_key_constant: str,
         testpmd_output: str,
-        data_operations: List[Callable[[List[int]], List[int]]],
-        data_filter: Callable[[List[int]], int],
-    ) -> int:
+    ) -> List[int]:
         # Find all data in the output that matches
         # Apply a list of filters to the data
         # return a single output from a final filter function
@@ -262,50 +261,34 @@ class DpdkTestpmd(Tool):
                 "in the test output."
             )
         )
-        data = list(map(int, matches))
+        cast_to_ints = list(map(int, matches))
+        return _discard_first_zeroes(cast_to_ints)
 
-        # check data is not all zero, keep raw data as is for processing.
-        not_all_zeroes = len([x for x in data if x != 0]) > 0
-        assert_that(not_all_zeroes).described_as(
-            (
-                "Could not locate any performance data spew from "
-                "this testpmd run. Data was all zeroes."
-            )
+    def populate_performance_data(self) -> None:
+        self.rx_pps_data = self.get_from_testpmd_output(
+            self._rx_pps_key, self._last_run_output
         )
-
-        for operation in data_operations:
-            data = operation(data)
-        return data_filter(data)
+        self.tx_pps_data = self.get_from_testpmd_output(
+            self._tx_pps_key, self._last_run_output
+        )
 
     def get_average_rx_pps(self) -> int:
-        return self.get_from_testpmd_output(
-            self._rx_pps_key, self._last_run_output, [_discard_first_zeroes], _average
-        )
+        return _average(self.rx_pps_data)
 
     def get_average_tx_pps(self) -> int:
-        return self.get_from_testpmd_output(
-            self._tx_pps_key, self._last_run_output, [_discard_first_zeroes], _average
-        )
+        return _average(self.tx_pps_data)
 
     def get_max_rx_pps(self) -> int:
-        return self.get_from_testpmd_output(
-            self._rx_pps_key, self._last_run_output, [_discard_first_zeroes], max
-        )
+        return max(self.rx_pps_data)
 
     def get_max_tx_pps(self) -> int:
-        return self.get_from_testpmd_output(
-            self._tx_pps_key, self._last_run_output, [_discard_first_zeroes], max
-        )
+        return max(self.tx_pps_data)
 
     def get_min_rx_pps(self) -> int:
-        return self.get_from_testpmd_output(
-            self._rx_pps_key, self._last_run_output, [_discard_first_zeroes], min
-        )
+        return min(self.rx_pps_data)
 
     def get_min_tx_pps(self) -> int:
-        return self.get_from_testpmd_output(
-            self._tx_pps_key, self._last_run_output, [_discard_first_zeroes], min
-        )
+        return min(self.tx_pps_data)
 
     def get_tx_pps_sriov_rescind(self) -> Tuple[int, int, int]:
         return self._get_pps_sriov_rescind(self._tx_pps_key)
@@ -667,22 +650,19 @@ class DpdkTestpmd(Tool):
         before_rescind = self.get_from_testpmd_output(
             key_constant,
             self._testpmd_output_before_rescind,
-            [_discard_first_zeroes],
-            _average,
         )
         during_rescind = self.get_from_testpmd_output(
             key_constant,
             self._testpmd_output_during_rescind,
-            [_discard_first_zeroes],
-            _average,
         )
         after_reenable = self.get_from_testpmd_output(
             key_constant,
             self._testpmd_output_after_reenable,
-            [_discard_first_zeroes],
-            _average,
         )
-        return before_rescind, during_rescind, after_reenable
+        before, during, after = map(
+            _average, [before_rescind, during_rescind, after_reenable]
+        )
+        return before, during, after
 
 
 # filter functions for processing testpmd data
