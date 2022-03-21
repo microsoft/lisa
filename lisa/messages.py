@@ -67,6 +67,7 @@ class PerfMessage(MessageBase):
     protocol_type: str = TransportProtocol.Tcp
     data_path: str = ""
     test_date: datetime = datetime.utcnow()
+    role: str = ""
 
 
 T = TypeVar("T", bound=PerfMessage)
@@ -132,6 +133,9 @@ class NetworkPPSPerformanceMessage(PerfMessage):
     rx_tx_pps_minimum: Decimal = Decimal(0)
     rx_tx_pps_average: Decimal = Decimal(0)
     rx_tx_pps_maximum: Decimal = Decimal(0)
+    fwd_pps_maximum: Decimal = Decimal(0)
+    fwd_pps_average: Decimal = Decimal(0)
+    fwd_pps_minimum: Decimal = Decimal(0)
 
 
 @dataclass
