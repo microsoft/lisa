@@ -29,6 +29,7 @@ from microsoft.testsuites.nested.common import (
 from microsoft.testsuites.performance.common import (
     perf_disk,
     perf_ntttcp,
+    perf_tcp_pps,
     reset_partitions,
     reset_raid,
     stop_raid,
@@ -211,42 +212,107 @@ class KVMPerformance(TestSuite):  # noqa
         try:
             # setup nested vm on server in NAT configuration
             server_l2 = self._setup_nat(
-                server_l1,
-                "server_l2",
-                nested_image_username,
-                nested_image_password,
-                self._SERVER_HOST_FWD_PORT,
-                nested_image_url,
-                self._SERVER_IP_ADDR,
-                self._BR_NAME,
-                self._BR_NETWORK,
-                self._BR_CIDR,
-                self._BR_GATEWAY,
+                node=server_l1,
+                nested_vm_name="server_l2",
+                guest_username=nested_image_username,
+                guest_password=nested_image_password,
+                guest_port=self._SERVER_HOST_FWD_PORT,
+                guest_image_url=nested_image_url,
+                guest_internal_ip=self._SERVER_IP_ADDR,
+                guest_default_nic=self._NIC_NAME,
+                bridge_name=self._BR_NAME,
+                bridge_network=self._BR_NETWORK,
+                bridge_cidr=self._BR_CIDR,
+                bridge_gateway=self._BR_GATEWAY,
             )
-            server_l2.nics.default_nic = self._NIC_NAME
-            server_l2.capability.network_interface = Synthetic()
 
             # setup nested vm on client in NAT configuration
             client_l2 = self._setup_nat(
-                client_l1,
-                "client_l2",
-                nested_image_username,
-                nested_image_password,
-                self._CLIENT_HOST_FWD_PORT,
-                nested_image_url,
-                self._CLIENT_IP_ADDR,
-                self._BR_NAME,
-                self._BR_NETWORK,
-                self._BR_CIDR,
-                self._BR_GATEWAY,
+                node=client_l1,
+                nested_vm_name="client_l2",
+                guest_username=nested_image_username,
+                guest_password=nested_image_password,
+                guest_port=self._CLIENT_HOST_FWD_PORT,
+                guest_image_url=nested_image_url,
+                guest_internal_ip=self._CLIENT_IP_ADDR,
+                guest_default_nic=self._NIC_NAME,
+                bridge_name=self._BR_NAME,
+                bridge_network=self._BR_NETWORK,
+                bridge_cidr=self._BR_CIDR,
+                bridge_gateway=self._BR_GATEWAY,
             )
-            client_l2.nics.default_nic = self._NIC_NAME
-            client_l2.capability.network_interface = Synthetic()
 
             # run ntttcp test
             perf_ntttcp(
                 environment, server_l2, client_l2, test_case_name=inspect.stack()[1][3]
             )
+        finally:
+            self._cleanup_nat(server_l1, self._BR_NAME)
+            self._cleanup_nat(client_l1, self._BR_NAME)
+
+    @TestCaseMetadata(
+        description="""
+        This script runs netperf test on two nested VMs on different L1 guests
+        connected with NAT
+        """,
+        priority=3,
+        timeout=_TIME_OUT,
+        requirement=simple_requirement(
+            min_count=2,
+            network_interface=schema.NetworkInterfaceOptionSettings(
+                nic_count=search_space.IntRange(min=2),
+            ),
+        ),
+    )
+    def perf_nested_kvm_netperf_pps_nat(
+        self, environment: Environment, variables: Dict[str, Any]
+    ) -> None:
+        server_l1 = cast(RemoteNode, environment.nodes[0])
+        client_l1 = cast(RemoteNode, environment.nodes[1])
+
+        # parse nested image variables
+        (
+            nested_image_username,
+            nested_image_password,
+            _,
+            nested_image_url,
+        ) = parse_nested_image_variables(variables)
+
+        try:
+            # setup nested vm on server in NAT configuration
+            server_l2 = self._setup_nat(
+                node=server_l1,
+                nested_vm_name="server_l2",
+                guest_username=nested_image_username,
+                guest_password=nested_image_password,
+                guest_port=self._SERVER_HOST_FWD_PORT,
+                guest_image_url=nested_image_url,
+                guest_internal_ip=self._SERVER_IP_ADDR,
+                guest_default_nic=self._NIC_NAME,
+                bridge_name=self._BR_NAME,
+                bridge_network=self._BR_NETWORK,
+                bridge_cidr=self._BR_CIDR,
+                bridge_gateway=self._BR_GATEWAY,
+            )
+
+            # setup nested vm on client in NAT configuration
+            client_l2 = self._setup_nat(
+                node=client_l1,
+                nested_vm_name="client_l2",
+                guest_username=nested_image_username,
+                guest_password=nested_image_password,
+                guest_port=self._CLIENT_HOST_FWD_PORT,
+                guest_image_url=nested_image_url,
+                guest_internal_ip=self._CLIENT_IP_ADDR,
+                guest_default_nic=self._NIC_NAME,
+                bridge_name=self._BR_NAME,
+                bridge_network=self._BR_NETWORK,
+                bridge_cidr=self._BR_CIDR,
+                bridge_gateway=self._BR_GATEWAY,
+            )
+
+            # run netperf test
+            perf_tcp_pps(environment, "singlepps", server_l2, client_l2)
         finally:
             self._cleanup_nat(server_l1, self._BR_NAME)
             self._cleanup_nat(client_l1, self._BR_NAME)
@@ -260,6 +326,7 @@ class KVMPerformance(TestSuite):  # noqa
         guest_port: int,
         guest_image_url: str,
         guest_internal_ip: str,
+        guest_default_nic: str,
         bridge_name: str,
         bridge_network: str,
         bridge_cidr: str,
@@ -354,7 +421,6 @@ class KVMPerformance(TestSuite):  # noqa
             sudo=True,
             force_run=True,
         )
-        nested_vm.internal_address = node_eth1_ip
 
         # wait till nested vm is up
         try_connect(
@@ -365,6 +431,11 @@ class KVMPerformance(TestSuite):  # noqa
                 password=guest_password,
             )
         )
+
+        # set default nic interfaces on l2 vm
+        nested_vm.internal_address = node_eth1_ip
+        nested_vm.nics.default_nic = guest_default_nic
+        nested_vm.capability.network_interface = Synthetic()
 
         return nested_vm
 
