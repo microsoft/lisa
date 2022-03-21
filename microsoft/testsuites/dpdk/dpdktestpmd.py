@@ -273,27 +273,27 @@ class DpdkTestpmd(Tool):
         )
 
     def get_mean_rx_pps(self) -> int:
-        self._check_pps_data_exists("rx")
+        self._check_pps_data("RX")
         return _mean(self.rx_pps_data)
 
     def get_mean_tx_pps(self) -> int:
-        self._check_pps_data_exists("tx")
+        self._check_pps_data("TX")
         return _mean(self.tx_pps_data)
 
     def get_max_rx_pps(self) -> int:
-        self._check_pps_data_exists("rx")
+        self._check_pps_data("RX")
         return max(self.rx_pps_data)
 
     def get_max_tx_pps(self) -> int:
-        self._check_pps_data_exists("tx")
+        self._check_pps_data("TX")
         return max(self.tx_pps_data)
 
     def get_min_rx_pps(self) -> int:
-        self._check_pps_data_exists("rx")
+        self._check_pps_data("RX")
         return min(self.rx_pps_data)
 
     def get_min_tx_pps(self) -> int:
-        self._check_pps_data_exists("tx")
+        self._check_pps_data("TX")
         return min(self.tx_pps_data)
 
     def get_mean_tx_pps_sriov_rescind(self) -> Tuple[int, int, int]:
@@ -316,13 +316,31 @@ class DpdkTestpmd(Tool):
         )
 
     def _check_pps_data_exists(self, rx_or_tx: str) -> None:
-        assert_that(hasattr(self, f"{rx_or_tx}_pps_data")).described_as(
+        data_attr_name = f"{rx_or_tx.lower()}_pps_data"
+        assert_that(hasattr(self, data_attr_name)).described_as(
             (
-                "Receive data did not exist for testpmd object. "
+                f"PPS data ({rx_or_tx}) did not exist for testpmd object. "
                 "This indicates either testpmd did not run or the suite is "
-                "missing an assert. Contact the test maintainer and "
-                "forward them the logs from this run."
+                "missing an assert. Contact the test maintainer."
             )
+        ).is_true()
+
+    def _check_pps_data(self, rx_or_tx: str) -> None:
+        self._check_pps_data_exists(rx_or_tx)
+        data_set: List[int] = []
+        if rx_or_tx == "RX":
+            data_set = self.rx_pps_data
+        elif rx_or_tx == "TX":
+            data_set = self.tx_pps_data
+        else:
+            fail(
+                "Identifier passed to _check_pps_data was not recognized, "
+                f"must be RX or TX. Found {rx_or_tx}"
+            )
+
+        assert_that(any(data_set)).described_as(
+            f"any({str(data_set)}) resolved to false. Test data was "
+            f"empty or all zeroes for dpdktestpmd.{rx_or_tx.lower()}_pps_data."
         ).is_true()
 
     def _install(self) -> bool:
@@ -681,14 +699,17 @@ class DpdkTestpmd(Tool):
 
 # filter functions for processing testpmd data
 def _discard_first_zeroes(data: List[int]) -> List[int]:
+    # NOTE: we occasionally get a 0 for the first pps result sample,
+    # it's annoying to factor it into the average when
+    # there are only like 10 samples so discard any
+    # leading 0's if they're present.
+
     for i in range(len(data)):
         if data[i] != 0:
             return data[i:]
 
-    raise LisaException(
-        "Could not locate any performance data spew from "
-        "this testpmd run. Data was all zeroes."
-    )
+    # leave list as-is if data is all zeroes
+    return data
 
 
 def _mean(data: List[int]) -> int:
