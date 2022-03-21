@@ -127,7 +127,7 @@
       <param>Remote_Script=SRIOV-VerifyVF-Connection.sh</param>
       <param>Set_SSH=yes</param>
       <param>VCPU=max</param>
-      <param>NIC_COUNT=7</param>
+      <param>NIC_COUNT=4</param>
       <param>MAX_NICS=yes</param>
       <param>NETMASK=255.255.255.0</param>
       <param>Switch_Name=HYPERV_PERF_NIC_NAME</param>
@@ -148,7 +148,7 @@
   <test>
     <testName>SRIOV-ADD-MAX-NICS-DURING-PROVISION</testName>
     <TestParameters>
-      <param>network_interface_count=8</param>
+      <param>network_interface_count=4</param>
     </TestParameters>
     <testScript>NET-Max-NICs.sh</testScript>
     <files>.\Testscripts\Linux\NET-Max-NICs.sh,.\TestScripts\Linux\utils.sh</files>
@@ -168,7 +168,7 @@
     <files>
     </files>
     <TestParameters>
-      <param>EXTRA_NICS=7</param>
+      <param>EXTRA_NICS=4</param>
     </TestParameters>
     <Platform>Azure</Platform>
     <Category>Functional</Category>

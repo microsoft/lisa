@@ -760,7 +760,7 @@
     <TestParameters>
       <param>network_interface_count=8</param>
       <param>TEST_TYPE=synthetic</param>
-      <param>HV_SYNTHETIC_NICS=7</param>
+      <param>HV_SYNTHETIC_NICS=4</param>
       <param>NETWORK_TYPE=external</param>
       <param>SECRET_PARAMS=(Ipv4)</param>
     </TestParameters>
@@ -783,7 +783,7 @@
     <files>
     </files>
     <TestParameters>
-      <param>EXTRA_NICS=7</param>
+      <param>EXTRA_NICS=4</param>
     </TestParameters>
     <Platform>Azure</Platform>
     <Category>Functional</Category>
