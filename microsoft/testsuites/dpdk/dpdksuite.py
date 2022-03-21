@@ -264,7 +264,7 @@ class Dpdk(TestSuite):
             kit_cmd_pairs, DPDK_VF_REMOVAL_MAX_TEST_TIME, log, rescind_sriov=True
         )
 
-        rescind_tx_pps_set = receiver.testpmd.get_rx_pps_sriov_rescind()
+        rescind_tx_pps_set = receiver.testpmd.get_mean_rx_pps_sriov_rescind()
         self._check_rx_or_tx_pps_sriov_rescind("RX", rescind_tx_pps_set)
 
     @TestCaseMetadata(
@@ -295,7 +295,7 @@ class Dpdk(TestSuite):
             kit_cmd_pairs, DPDK_VF_REMOVAL_MAX_TEST_TIME, log, rescind_sriov=True
         )
 
-        rescind_tx_pps_set = testpmd.get_tx_pps_sriov_rescind()
+        rescind_tx_pps_set = testpmd.get_mean_tx_pps_sriov_rescind()
         self._check_rx_or_tx_pps_sriov_rescind("TX", rescind_tx_pps_set)
 
     def _check_rx_or_tx_pps_sriov_rescind(
@@ -375,7 +375,7 @@ class Dpdk(TestSuite):
             pmd,
         )
         testpmd.run_for_n_seconds(testpmd_cmd, 10)
-        tx_pps = testpmd.get_tx_pps()
+        tx_pps = testpmd.get_mean_tx_pps()
         log.info(
             f"TX-PPS:{tx_pps} from {test_nic.upper}/{test_nic.lower}:"
             + f"{test_nic.pci_slot}"
@@ -470,8 +470,8 @@ class Dpdk(TestSuite):
         log.debug(f"\nSENDER:\n{results[sender]}")
         log.debug(f"\nRECEIVER:\n{results[receiver]}")
 
-        rcv_rx_pps = receiver.testpmd.get_rx_pps()
-        snd_tx_pps = sender.testpmd.get_tx_pps()
+        rcv_rx_pps = receiver.testpmd.get_mean_rx_pps()
+        snd_tx_pps = sender.testpmd.get_mean_tx_pps()
         log.info(f"receiver rx-pps: {rcv_rx_pps}")
         log.info(f"sender tx-pps: {snd_tx_pps}")
 
@@ -593,8 +593,8 @@ class Dpdk(TestSuite):
         log.debug(f"\nSENDER:\n{results[sender]}")
         log.debug(f"\nRECEIVER:\n{results[receiver]}")
 
-        rcv_rx_pps = receiver.testpmd.get_rx_pps()
-        snd_tx_pps = sender.testpmd.get_tx_pps()
+        rcv_rx_pps = receiver.testpmd.get_mean_rx_pps()
+        snd_tx_pps = sender.testpmd.get_mean_tx_pps()
         log.info(f"receiver rx-pps: {rcv_rx_pps}")
         log.info(f"sender tx-pps: {snd_tx_pps}")
 
