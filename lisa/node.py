@@ -28,6 +28,7 @@ from lisa.util.process import ExecutableResult, Process
 from lisa.util.shell import ConnectionInfo, LocalShell, Shell, SshShell
 
 T = TypeVar("T")
+__local_node: Optional[Node] = None
 
 
 class Node(subclasses.BaseClassWithRunbookMixin, ContextMixin, InitializableMixin):
@@ -603,6 +604,16 @@ def local_node_connect(
     )
     node.initialize()
     return node
+
+
+def local() -> Node:
+    """
+    Return a default local node. There is no special configuration.
+    """
+    global __local_node
+    if __local_node is None:
+        __local_node = local_node_connect()
+    return __local_node
 
 
 def quick_connect(
