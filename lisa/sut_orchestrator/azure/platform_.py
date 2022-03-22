@@ -42,10 +42,10 @@ from retry import retry
 from lisa import feature, schema, search_space
 from lisa.environment import Environment
 from lisa.features import NvmeSettings
-from lisa.node import Node, RemoteNode
+from lisa.node import Node, RemoteNode, local
 from lisa.platform_ import Platform
 from lisa.secret import PATTERN_GUID, add_secret
-from lisa.tools import Dmesg, Modinfo
+from lisa.tools import Dmesg, Hostname, Modinfo, Whoami
 from lisa.util import (
     LisaException,
     constants,
@@ -971,6 +971,11 @@ class AzurePlatform(Platform):
 
         environment_context = get_environment_context(environment=environment)
         arm_parameters.vm_tags["RG"] = environment_context.resource_group_name
+
+        # get local lisa environment
+        arm_parameters.vm_tags["lisa_username"] = local().tools[Whoami].get_username()
+        arm_parameters.vm_tags["lisa_hostname"] = local().tools[Hostname].get_hostname()
+
         nodes_parameters: List[AzureNodeSchema] = []
         features_settings: Dict[str, schema.FeatureSettings] = {}
 
