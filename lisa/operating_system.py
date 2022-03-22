@@ -1288,7 +1288,7 @@ class CBLMariner(RPMDistro):
             self._dnf_tool_name = "dnf"
             return
 
-        self._dnf_tool_name = "tdnf"
+        self._dnf_tool_name = "tdnf -q"
 
     def _dnf_tool(self) -> str:
         return self._dnf_tool_name
