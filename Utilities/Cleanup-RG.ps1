@@ -29,7 +29,8 @@ if ($?) {
     Write-Host "******************************************************************************************************************************"
     Write-Host "Get a token successfully for subscription $SubscriptionId." -ForegroundColor Green
     Write-Host "Start to cleanup Resource Groups for subscription $SubscriptionId."
-} else {
+}
+else {
     Write-Host "Fail to get a token." -ForegroundColor Red
     return
 }
@@ -37,25 +38,26 @@ if ($?) {
 # Get Azure Resource Groups
 $ResourceGroupApiUri = "https://management.azure.com/subscriptions/$SubscriptionId/resourcegroups?api-version=${APIVersion}&%24expand=createdTime,changedTime"
 $Headers = @{}
-$Headers.Add("Authorization","$($Token.token_type) "+ " " + "$($Token.access_token)")
+$Headers.Add("Authorization", "$($Token.token_type) " + " " + "$($Token.access_token)")
 $ResourceGroups = Invoke-RestMethod -Method Get -Uri $ResourceGroupApiUri -Headers $Headers
 $currentTimeStamp = get-date
 
-foreach($value in $ResourceGroups.value) { 
-    if(($value.name.StartsWith("lisa_") -or $value.name.Contains("LISAv2")) -and !$value.name.Contains("LISAv2-storage") -and !$value.name.Contains("LISAv2DependenciesRG") -and !$value.name.Contains("lisa_shared_resource") -and !$value.name.Contains("LISAv2-Deploy1VM")) {
-          $rgTimeStamp = [DateTime]($value.changedTime)
-          if(($currentTimeStamp - $rgTimeStamp).Days -ge $CleanupAgeInDays) {
-                $rg = $value.name
-                Write-Host "=============================================================================================================================="
-                Write-Host "$rg will be deleted, latest updated time is $($value.changedTime)"
-                $DeleteApiUri = "https://management.azure.com/subscriptions/$SubscriptionId/resourcegroups/${rg}?api-version=${APIVersion}"
-                Invoke-RestMethod -Method Delete -Uri $DeleteApiUri -Headers $Headers
-                if ($?) {
-                    Write-Host "Delete $rg successfully." -ForegroundColor Green
-                } else {
-                    Write-Host "Fail to delete $rg. Please delete it manually." -ForegroundColor Red
-                }
-          }
+foreach ($value in $ResourceGroups.value) { 
+    if (($value.name.StartsWith("lisa-") -or $value.name.StartsWith("lisa_") -or $value.name.Contains("LISAv2")) -and !$value.name.Contains("LISAv2-storage") -and !$value.name.Contains("LISAv2DependenciesRG") -and !$value.name.Contains("lisa_shared_resource") -and !$value.name.Contains("LISAv2-Deploy1VM")) {
+        $rgTimeStamp = [DateTime]($value.changedTime)
+        if (($currentTimeStamp - $rgTimeStamp).Days -ge $CleanupAgeInDays) {
+            $rg = $value.name
+            Write-Host "=============================================================================================================================="
+            Write-Host "$rg will be deleted, latest updated time is $($value.changedTime)"
+            $DeleteApiUri = "https://management.azure.com/subscriptions/$SubscriptionId/resourcegroups/${rg}?api-version=${APIVersion}"
+            Invoke-RestMethod -Method Delete -Uri $DeleteApiUri -Headers $Headers
+            if ($?) {
+                Write-Host "Delete $rg successfully." -ForegroundColor Green
+            }
+            else {
+                Write-Host "Fail to delete $rg. Please delete it manually." -ForegroundColor Red
+            }
+        }
     }
 }
 Write-Host "End to cleanup Resource Groups for subscription $SubscriptionId."
