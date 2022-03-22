@@ -148,7 +148,7 @@ def perf_tcp_latency(
         for lagscope in [client_lagscope, server_lagscope]:
             lagscope.set_busy_poll()
         server_lagscope.run_as_server(ip=server.internal_address)
-        latency_perf_messages = client_lagscope.create_latency_peformance_messages(
+        latency_perf_messages = client_lagscope.create_latency_performance_messages(
             client_lagscope.run_as_client(server_ip=server.internal_address),
             environment,
             inspect.stack()[1][3],

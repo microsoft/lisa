@@ -237,7 +237,7 @@ class Lagscope(Tool, KillableMixin):
         ), "not found matched average latency statistics from lagscope results."
         return Decimal(matched_results.group("average_latency_us"))
 
-    def create_latency_peformance_messages(
+    def create_latency_performance_messages(
         self, result: ExecutableResult, environment: "Environment", test_case_name: str
     ) -> List[NetworkLatencyPerformanceMessage]:
         matched_results = self._result_pattern.match(result.stdout)

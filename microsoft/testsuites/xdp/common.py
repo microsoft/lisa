@@ -54,7 +54,7 @@ def get_dropped_count(
         nic=nic,
         previous_count=previous_count,
         log=log,
-        counter_name="xdp droppped",
+        counter_name="xdp dropped",
         patterns=_rx_drop_patterns,
     )
 
@@ -115,7 +115,7 @@ def _aggregate_count(
     ethtool = node.tools[Ethtool]
     nic_names = [nic.upper, nic.lower]
 
-    # aggrerate xdp drop count by different nic type
+    # aggregate xdp drop count by different nic type
     new_count = -previous_count
     for nic_name in nic_names:
         # there may not have vf nic

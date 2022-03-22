@@ -129,7 +129,7 @@ class Storage(TestSuite):
         is_swap_enabled_distro = node.tools[Swap].is_swap_enabled()
         assert_that(
             is_swap_enabled_distro,
-            "swap cofiguration from waagent.conf and distro should match",
+            "swap configuration from waagent.conf and distro should match",
         ).is_equal_to(is_swap_enabled_wa_agent)
 
     @TestCaseMetadata(
@@ -188,7 +188,7 @@ class Storage(TestSuite):
         ),
     )
     def verify_os_partition_identifier(self, log: Logger, node: RemoteNode) -> None:
-        # get informtion of root disk from blkid
+        # get information of root disk from blkid
         os_partition = (
             node.features[Disk]
             .get_partition_with_mount_point(self.os_disk_mount_point)
