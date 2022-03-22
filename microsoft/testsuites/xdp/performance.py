@@ -59,7 +59,7 @@ class XdpPerformance(TestSuite):
         The minimum cpu count is 8, it makes sure the performance is won't too
         low.
 
-        Three roles in this test environment, 1) sender is to send pckets, 2)
+        Three roles in this test environment, 1) sender is to send packets, 2)
         the forwarder is to forward packets to receiver, 3) and the receiver is
         used to receive packets and drop.
 
@@ -188,7 +188,7 @@ class XdpPerformance(TestSuite):
 
     @TestCaseMetadata(
         description="""
-        This case compare and record latency impact of XDP compnent.
+        This case compare and record latency impact of XDP component.
 
         The test use lagscope to send tcp packets. And then compare the latency
         with/without XDP component. If the gap is more than 40%, the test case
@@ -208,7 +208,7 @@ class XdpPerformance(TestSuite):
 
     @TestCaseMetadata(
         description="""
-        This case compare and record latency impact of XDP compnent.
+        This case compare and record latency impact of XDP component.
 
         The test use ntttcp to send tcp packets. And then compare the latency
         with/without XDP component. If the gap is more than 40%, the test case
@@ -306,7 +306,7 @@ class XdpPerformance(TestSuite):
                 server_lagscope.run_as_server(ip=server_nic.ip_addr)
 
                 result = client_lagscope.run_as_client(server_ip=server_nic.ip_addr)
-                lagscope_messages = client_lagscope.create_latency_peformance_messages(
+                lagscope_messages = client_lagscope.create_latency_performance_messages(
                     result=result,
                     environment=environment,
                     test_case_name=inspect.stack()[2].function,
@@ -398,7 +398,7 @@ class XdpPerformance(TestSuite):
         )
 
         self._check_threshold(
-            pktgen_result.sent_count, dropped_count, threshold, "droppped packets"
+            pktgen_result.sent_count, dropped_count, threshold, "dropped packets"
         )
 
         assert_that(pktgen_result.pps).described_as(

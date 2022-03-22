@@ -251,7 +251,7 @@ class Ntttcp(Tool):
     def wait_server_result(self, process: Process) -> ExecutableResult:
         return process.wait_result(
             expected_exit_code=0,
-            expected_exit_code_failure_message="fail to lanuch ntttcp server",
+            expected_exit_code_failure_message="fail to launch ntttcp server",
         )
 
     def run_as_client(
