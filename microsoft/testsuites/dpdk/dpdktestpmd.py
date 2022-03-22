@@ -179,6 +179,7 @@ class DpdkTestpmd(Tool):
         extra_args: str = "",
         txq: int = 0,
         rxq: int = 0,
+        use_core_count: int = 0,
     ) -> str:
         #   testpmd \
         #   -l <core-list> \
@@ -191,7 +192,18 @@ class DpdkTestpmd(Tool):
         #   --eth-peer=<port id>,<receiver peer MAC address> \
         #   --stats-period <display interval in seconds>
         nic_include_info = self.generate_testpmd_include(nic_to_include, vdev_id)
+
+        # dpdk can use multiple cores to service the
+        # number of queues and ports present. Get the amount to work with.
+        cores_available = self.node.tools[Lscpu].get_core_count()
+
+        # default is to use cores 0 and 1
+        core_count_arg = 2
+
+        # queue test forces multicore, use_core_count can override it if needed.
         if txq or rxq:
+
+            # set number of queues to use for tx and rx
             assert_that(txq).described_as(
                 "TX queue value must be greater than 0 if txq is used"
             ).is_greater_than(0)
@@ -199,13 +211,24 @@ class DpdkTestpmd(Tool):
                 "RX queue value must be greater than 0 if rxq is used"
             ).is_greater_than(0)
             extra_args += f" --txq={txq} --rxq={rxq}  --port-topology=chained "
-            cores_to_use = self.node.tools[Lscpu].get_core_count()
-            assert_that(cores_to_use).described_as(
-                f"DPDK requires a minimum of 8 cores, found {cores_to_use}"
-            ).is_greater_than(8)
-            core_args = f"-l 0-{cores_to_use-1}"
-        else:
-            core_args = "-l 0-1"
+
+            # use either as many cores as we can or one for each queue and port
+            core_count_arg = min(cores_available, core_count_arg + txq + rxq)
+
+        # force set number of cores if the override argument is present.
+        if use_core_count:
+            core_count_arg = use_core_count
+
+        # check cores_to_use argument is sane, 2 < arg <= number_available
+        assert_that(core_count_arg).described_as(
+            "Attempted to use more cores than are available on the system for DPDK."
+        ).is_less_than_or_equal_to(cores_available)
+        assert_that(core_count_arg).described_as(
+            "DPDK requires a minimum of two cores."
+        ).is_greater_than(1)
+
+        # use the selected amount of cores, adjusting for 0 index.
+        core_args = f"-l 0-{core_count_arg-1}"
 
         return (
             f"{self._testpmd_install_path} {core_args} -n 4 --proc-type=primary "

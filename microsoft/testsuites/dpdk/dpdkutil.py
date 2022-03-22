@@ -100,8 +100,9 @@ def generate_send_receive_run_info(
     pmd: str,
     sender: DpdkTestResources,
     receiver: DpdkTestResources,
-    txq: int = 1,
-    rxq: int = 1,
+    txq: int = 0,
+    rxq: int = 0,
+    core_count: int = 0,
 ) -> Dict[DpdkTestResources, str]:
 
     snd_nic, rcv_nic = [x.node.nics.get_nic_by_index() for x in [sender, receiver]]
@@ -114,6 +115,7 @@ def generate_send_receive_run_info(
         extra_args=f"--tx-ip={snd_nic.ip_addr},{rcv_nic.ip_addr}",
         txq=txq,
         rxq=rxq,
+        use_core_count=core_count,
     )
     rcv_cmd = receiver.testpmd.generate_testpmd_command(
         rcv_nic,
@@ -122,6 +124,7 @@ def generate_send_receive_run_info(
         pmd,
         txq=txq,
         rxq=rxq,
+        use_core_count=core_count,
     )
 
     kit_cmd_pairs = {
@@ -346,6 +349,7 @@ def verify_dpdk_send_receive(
     log: Logger,
     variables: Dict[str, Any],
     pmd: str,
+    core_count: int = 0,
 ) -> Tuple[DpdkTestResources, DpdkTestResources]:
 
     # helpful to have the public ips labeled for debugging
@@ -361,7 +365,9 @@ def verify_dpdk_send_receive(
 
     test_kits = init_nodes_concurrent(environment, log, variables, pmd)
     sender, receiver = test_kits
-    kit_cmd_pairs = generate_send_receive_run_info(pmd, sender, receiver)
+    kit_cmd_pairs = generate_send_receive_run_info(
+        pmd, sender, receiver, core_count=core_count
+    )
 
     results = run_testpmd_concurrent(kit_cmd_pairs, 15, log)
 
