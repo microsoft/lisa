@@ -23,6 +23,7 @@ from .fio import FIOMODES, Fio, FIOResult
 from .firewall import Firewall, Iptables
 from .gcc import Gcc
 from .git import Git
+from .hostname import Hostname
 from .hwclock import Hwclock
 from .interrupt_inspector import InterruptInspector
 from .ip import Ip
@@ -94,6 +95,7 @@ __all__ = [
     "Ethtool",
     "Fallocate",
     "Fdisk",
+    "FileSystem",
     "Find",
     "FIOMODES",
     "Fio",
@@ -101,10 +103,11 @@ __all__ = [
     "Firewall",
     "Gcc",
     "Git",
-    "Ip",
-    "Iperf3",
+    "Hostname",
     "Hwclock",
     "InterruptInspector",
+    "Ip",
+    "Iperf3",
     "Iptables",
     "KdumpBase",
     "Kill",
@@ -118,7 +121,6 @@ __all__ = [
     "Lsvmbus",
     "Make",
     "Mdadm",
-    "FileSystem",
     "Mkfs",
     "Mkfsext",
     "Mkfsxfs",
@@ -147,7 +149,6 @@ __all__ = [
     "Rpm",
     "Sar",
     "Sed",
-    "Uname",
     "Service",
     "Ssh",
     "Sshpass",
@@ -159,6 +160,7 @@ __all__ = [
     "TaskSet",
     "TcpDump",
     "Timedatectl",
+    "Uname",
     "Unzip",
     "Uptime",
     "Wget",
