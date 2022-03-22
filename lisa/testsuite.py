@@ -9,23 +9,13 @@ from enum import Enum
 from functools import wraps
 from pathlib import Path
 from time import sleep
-from typing import (
-    TYPE_CHECKING,
-    Any,
-    Callable,
-    Dict,
-    List,
-    Optional,
-    Tuple,
-    Type,
-    Union,
-)
+from typing import Any, Callable, Dict, List, Optional, Tuple, Type, Union
 
 from func_timeout import FunctionTimedOut, func_timeout  # type: ignore
 from retry.api import retry_call
 
 from lisa import messages, notifier, schema, search_space
-from lisa.environment import EnvironmentSpace, EnvironmentStatus
+from lisa.environment import Environment, EnvironmentSpace, EnvironmentStatus
 from lisa.feature import Feature
 from lisa.operating_system import OperatingSystem, Windows
 from lisa.util import (
@@ -49,10 +39,6 @@ from lisa.util.logger import (
     remove_handler,
 )
 from lisa.util.perf_timer import Timer, create_timer
-
-if TYPE_CHECKING:
-    from lisa.environment import Environment
-
 
 TestStatus = Enum(
     "TestStatus",
