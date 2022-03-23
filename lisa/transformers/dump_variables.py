@@ -10,6 +10,7 @@ from dataclasses_json import dataclass_json
 
 from lisa import schema
 from lisa.transformer import Transformer
+from lisa.util import constants
 
 DUMP_VARIABLES = "dump_variables"
 
@@ -54,7 +55,10 @@ class DumpVariablesTransformer(Transformer):
                 }
             except KeyError:
                 self._log.info(f"Variable '{var}' is not found")
+        # it will be used as log files
         file_path = Path(runbook.file_path)
+        if not file_path.is_absolute():
+            file_path = constants.RUN_LOCAL_LOG_PATH / file_path
         with open(file_path, "w") as dump_file:
             yaml.safe_dump(required_data, dump_file)
         return {}
