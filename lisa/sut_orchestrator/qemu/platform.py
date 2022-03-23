@@ -56,7 +56,7 @@ class BaseLibvirtPlatform(Platform):
     def __init__(self, runbook: schema.Platform) -> None:
         super().__init__(runbook=runbook)
         self.libvirt_conn_str: str
-        self.qemu_platform_runbook: BaseLibvirtPlatformSchema
+        self.platform_runbook: BaseLibvirtPlatformSchema
         self.host_node: Node
         self.vm_disks_dir: str
 
@@ -79,7 +79,7 @@ class BaseLibvirtPlatform(Platform):
     def _initialize(self, *args: Any, **kwargs: Any) -> None:
         libvirt_events_thread.init()
 
-        self.qemu_platform_runbook = self.runbook.get_extended_runbook(
+        self.platform_runbook = self.runbook.get_extended_runbook(
             self.__platform_runbook_type(), type_name=type(self).type_name()
         )
 
@@ -87,13 +87,13 @@ class BaseLibvirtPlatform(Platform):
         # Ensure environment log directory is created before connecting to any nodes.
         _ = environment.log_path
 
-        if len(self.qemu_platform_runbook.hosts) > 1:
+        if len(self.platform_runbook.hosts) > 1:
             log.warning(
                 "Multiple hosts are currently not supported. "
                 "Only the first host will be used."
             )
 
-        host = self.qemu_platform_runbook.hosts[0]
+        host = self.platform_runbook.hosts[0]
         if host.is_remote():
             assert host.address
             if not host.username:
@@ -102,9 +102,9 @@ class BaseLibvirtPlatform(Platform):
                 raise LisaException("Private key file must be provided for remote host")
 
             self.host_node = RemoteNode(
-                runbook=schema.Node(name="qemu-host"),
+                runbook=schema.Node(name="libvirt-host"),
                 index=-1,
-                logger_name="qemu-host",
+                logger_name="libvirt-host",
                 base_part_path=environment.environment_part_path,
                 parent_logger=log,
             )
@@ -116,7 +116,7 @@ class BaseLibvirtPlatform(Platform):
             )
         else:
             self.host_node = local_node_connect(
-                name="qemu-host",
+                name="libvirt-host",
                 base_part_path=environment.environment_part_path,
                 parent_logger=log,
             )
@@ -124,22 +124,22 @@ class BaseLibvirtPlatform(Platform):
         self.__init_libvirt_conn_string()
         self._configure_environment(environment, log)
 
-        with libvirt.open(self.libvirt_conn_str) as qemu_conn:
-            return self._configure_node_capabilities(environment, log, qemu_conn)
+        with libvirt.open(self.libvirt_conn_str) as lv_conn:
+            return self._configure_node_capabilities(environment, log, lv_conn)
 
     def _deploy_environment(self, environment: Environment, log: Logger) -> None:
         self._deploy_nodes(environment, log)
 
     def _delete_environment(self, environment: Environment, log: Logger) -> None:
-        with libvirt.open(self.libvirt_conn_str) as qemu_conn:
-            self._delete_nodes(environment, log, qemu_conn)
+        with libvirt.open(self.libvirt_conn_str) as lv_conn:
+            self._delete_nodes(environment, log, lv_conn)
 
     def _configure_environment(self, environment: Environment, log: Logger) -> None:
         environment_context = get_environment_context(environment)
 
-        if self.qemu_platform_runbook.network_boot_timeout:
+        if self.platform_runbook.network_boot_timeout:
             environment_context.network_boot_timeout = (
-                self.qemu_platform_runbook.network_boot_timeout
+                self.platform_runbook.network_boot_timeout
             )
 
         environment_context.ssh_public_key = get_public_key_data(
@@ -147,12 +147,12 @@ class BaseLibvirtPlatform(Platform):
         )
 
     def _configure_node_capabilities(
-        self, environment: Environment, log: Logger, qemu_conn: libvirt.virConnect
+        self, environment: Environment, log: Logger, lv_conn: libvirt.virConnect
     ) -> bool:
         if not environment.runbook.nodes_requirement:
             return True
 
-        host_capabilities = self._get_host_capabilities(qemu_conn, log)
+        host_capabilities = self._get_host_capabilities(lv_conn, log)
         nodes_capabilities = self._create_node_capabilities(host_capabilities)
 
         nodes_requirement = []
@@ -174,11 +174,11 @@ class BaseLibvirtPlatform(Platform):
         return True
 
     def _get_host_capabilities(
-        self, qemu_conn: libvirt.virConnect, log: Logger
+        self, lv_conn: libvirt.virConnect, log: Logger
     ) -> _HostCapabilities:
         host_capabilities = _HostCapabilities()
 
-        capabilities_xml_str = qemu_conn.getCapabilities()
+        capabilities_xml_str = lv_conn.getCapabilities()
         capabilities_xml = ET.fromstring(capabilities_xml_str)
 
         host_xml = capabilities_xml.find("host")
@@ -198,7 +198,7 @@ class BaseLibvirtPlatform(Platform):
 
         # Get free memory.
         # Include the disk cache size, as it will be freed if memory becomes limited.
-        memory_stats = qemu_conn.getMemoryStats(libvirt.VIR_NODE_MEMORY_STATS_ALL_CELLS)
+        memory_stats = lv_conn.getMemoryStats(libvirt.VIR_NODE_MEMORY_STATS_ALL_CELLS)
         host_capabilities.free_memory_kib = (
             memory_stats[libvirt.VIR_NODE_MEMORY_STATS_FREE]
             + memory_stats[libvirt.VIR_NODE_MEMORY_STATS_CACHED]
@@ -273,10 +273,10 @@ class BaseLibvirtPlatform(Platform):
     def _deploy_nodes(self, environment: Environment, log: Logger) -> None:
         self._configure_nodes(environment, log)
 
-        with libvirt.open(self.libvirt_conn_str) as qemu_conn:
+        with libvirt.open(self.libvirt_conn_str) as lv_conn:
             try:
-                self._create_nodes(environment, log, qemu_conn)
-                self._fill_nodes_metadata(environment, log, qemu_conn)
+                self._create_nodes(environment, log, lv_conn)
+                self._fill_nodes_metadata(environment, log, lv_conn)
 
             except Exception as ex:
                 assert environment.platform
@@ -284,7 +284,7 @@ class BaseLibvirtPlatform(Platform):
                     environment.platform.runbook.keep_environment
                     == constants.ENVIRONMENT_KEEP_NO
                 ):
-                    self._delete_nodes(environment, log, qemu_conn)
+                    self._delete_nodes(environment, log, lv_conn)
 
                 raise ex
 
@@ -297,7 +297,7 @@ class BaseLibvirtPlatform(Platform):
         vm_name_prefix = f"lisa-{test_suffix}"
 
         self.vm_disks_dir = os.path.join(
-            self.qemu_platform_runbook.hosts[0].lisa_working_dir, vm_name_prefix
+            self.platform_runbook.hosts[0].lisa_working_dir, vm_name_prefix
         )
 
         assert environment.runbook.nodes_requirement
@@ -306,28 +306,26 @@ class BaseLibvirtPlatform(Platform):
                 node_space, schema.NodeSpace
             ), f"actual: {type(node_space)}"
 
-            qemu_node_runbook: BaseLibvirtNodeSchema = node_space.get_extended_runbook(
+            node_runbook: BaseLibvirtNodeSchema = node_space.get_extended_runbook(
                 self.__node_runbook_type(), type_name=type(self).type_name()
             )
 
-            if not os.path.exists(qemu_node_runbook.disk_img):
-                raise LisaException(
-                    f"file does not exist: {qemu_node_runbook.disk_img}"
-                )
+            if not os.path.exists(node_runbook.disk_img):
+                raise LisaException(f"file does not exist: {node_runbook.disk_img}")
 
             node = environment.create_node_from_requirement(node_space)
             node_context = get_node_context(node)
 
             if (
-                not qemu_node_runbook.firmware_type
-                or qemu_node_runbook.firmware_type == FIRMWARE_TYPE_UEFI
+                not node_runbook.firmware_type
+                or node_runbook.firmware_type == FIRMWARE_TYPE_UEFI
             ):
                 node_context.use_bios_firmware = False
-            elif qemu_node_runbook.firmware_type == FIRMWARE_TYPE_BIOS:
+            elif node_runbook.firmware_type == FIRMWARE_TYPE_BIOS:
                 node_context.use_bios_firmware = True
             else:
                 raise LisaException(
-                    f"Unknown node firmware type: {qemu_node_runbook.firmware_type}."
+                    f"Unknown node firmware type: {node_runbook.firmware_type}."
                     f"Expecting either {FIRMWARE_TYPE_UEFI} or {FIRMWARE_TYPE_BIOS}."
                 )
 
@@ -340,15 +338,15 @@ class BaseLibvirtPlatform(Platform):
             )
 
             if self.host_node.is_remote:
-                node_context.os_disk_source_file_path = qemu_node_runbook.disk_img
+                node_context.os_disk_source_file_path = node_runbook.disk_img
                 node_context.os_disk_base_file_path = os.path.join(
-                    self.vm_disks_dir, os.path.basename(qemu_node_runbook.disk_img)
+                    self.vm_disks_dir, os.path.basename(node_runbook.disk_img)
                 )
             else:
-                node_context.os_disk_base_file_path = qemu_node_runbook.disk_img
+                node_context.os_disk_base_file_path = node_runbook.disk_img
 
             node_context.os_disk_base_file_fmt = DiskImageFormat(
-                qemu_node_runbook.disk_img_format
+                node_runbook.disk_img_format
             )
 
             node_context.os_disk_file_path = os.path.join(
@@ -362,8 +360,7 @@ class BaseLibvirtPlatform(Platform):
 
             # Read extra cloud-init data.
             extra_user_data = (
-                qemu_node_runbook.cloud_init
-                and qemu_node_runbook.cloud_init.extra_user_data
+                node_runbook.cloud_init and node_runbook.cloud_init.extra_user_data
             )
             if extra_user_data:
                 node_context.extra_cloud_init_user_data = []
@@ -424,7 +421,7 @@ class BaseLibvirtPlatform(Platform):
         self,
         environment: Environment,
         log: Logger,
-        qemu_conn: libvirt.virConnect,
+        lv_conn: libvirt.virConnect,
     ) -> None:
         self.host_node.shell.mkdir(Path(self.vm_disks_dir), exist_ok=True)
 
@@ -450,17 +447,17 @@ class BaseLibvirtPlatform(Platform):
 
             # Create libvirt domain (i.e. VM).
             xml = self._create_node_domain_xml(environment, log, node)
-            domain = qemu_conn.defineXML(xml)
+            domain = lv_conn.defineXML(xml)
 
             self._create_domain_and_attach_logger(
-                qemu_conn,
+                lv_conn,
                 domain,
                 node_context,
             )
 
     # Delete all the VMs.
     def _delete_nodes(
-        self, environment: Environment, log: Logger, qemu_conn: libvirt.virConnect
+        self, environment: Environment, log: Logger, lv_conn: libvirt.virConnect
     ) -> None:
         # Delete nodes.
         for node in environment.nodes.list():
@@ -468,7 +465,7 @@ class BaseLibvirtPlatform(Platform):
 
             # Shutdown and delete the VM.
             log.debug(f"Delete VM: {node_context.vm_name}")
-            self._stop_and_delete_vm(environment, log, qemu_conn, node)
+            self._stop_and_delete_vm(environment, log, lv_conn, node)
 
             log.debug(f"Close VM console log: {node_context.vm_name}")
             assert node_context.console_logger
@@ -485,7 +482,7 @@ class BaseLibvirtPlatform(Platform):
         self,
         environment: Environment,
         log: Logger,
-        qemu_conn: libvirt.virConnect,
+        lv_conn: libvirt.virConnect,
         node: Node,
         lv_undefine_flags: int,
     ) -> None:
@@ -493,7 +490,7 @@ class BaseLibvirtPlatform(Platform):
 
         # Find the VM.
         try:
-            domain = qemu_conn.lookupByName(node_context.vm_name)
+            domain = lv_conn.lookupByName(node_context.vm_name)
         except libvirt.libvirtError as ex:
             log.warning(f"VM delete failed. Can't find domain. {ex}")
             return
@@ -515,13 +512,13 @@ class BaseLibvirtPlatform(Platform):
         self,
         environment: Environment,
         log: Logger,
-        qemu_conn: libvirt.virConnect,
+        lv_conn: libvirt.virConnect,
         node: Node,
     ) -> None:
         self._stop_and_delete_vm_flags(
             environment,
             log,
-            qemu_conn,
+            lv_conn,
             node,
             libvirt.VIR_DOMAIN_UNDEFINE_MANAGED_SAVE
             | libvirt.VIR_DOMAIN_UNDEFINE_SNAPSHOTS_METADATA
@@ -531,7 +528,7 @@ class BaseLibvirtPlatform(Platform):
 
     # Retrieve the VMs' dynamic properties (e.g. IP address).
     def _fill_nodes_metadata(
-        self, environment: Environment, log: Logger, qemu_conn: libvirt.virConnect
+        self, environment: Environment, log: Logger, lv_conn: libvirt.virConnect
     ) -> None:
         environment_context = get_environment_context(environment)
 
@@ -543,7 +540,7 @@ class BaseLibvirtPlatform(Platform):
 
             # Get the VM's IP address.
             address = self._get_node_ip_address(
-                environment, log, qemu_conn, node, timeout
+                environment, log, lv_conn, node, timeout
             )
 
             node_port = 22
@@ -830,14 +827,14 @@ class BaseLibvirtPlatform(Platform):
         self,
         environment: Environment,
         log: Logger,
-        qemu_conn: libvirt.virConnect,
+        lv_conn: libvirt.virConnect,
         node: Node,
         timeout: float,
     ) -> str:
         node_context = get_node_context(node)
 
         while True:
-            addr = self._try_get_node_ip_address(environment, log, qemu_conn, node)
+            addr = self._try_get_node_ip_address(environment, log, lv_conn, node)
             if addr:
                 return addr
 
@@ -849,12 +846,12 @@ class BaseLibvirtPlatform(Platform):
         self,
         environment: Environment,
         log: Logger,
-        qemu_conn: libvirt.virConnect,
+        lv_conn: libvirt.virConnect,
         node: Node,
     ) -> Optional[str]:
         node_context = get_node_context(node)
 
-        domain = qemu_conn.lookupByName(node_context.vm_name)
+        domain = lv_conn.lookupByName(node_context.vm_name)
 
         # Acquire IP address from libvirt's DHCP server.
         interfaces = domain.interfaceAddresses(
@@ -877,7 +874,7 @@ class BaseLibvirtPlatform(Platform):
 
     def __init_libvirt_conn_string(self) -> None:
         hypervisor = self._libvirt_uri_schema()
-        host = self.qemu_platform_runbook.hosts[0]
+        host = self.platform_runbook.hosts[0]
 
         host_addr = ""
         transport = ""
