@@ -122,6 +122,8 @@ class Process:
                 # expand variables in posix mode
                 update_envs = {}
         else:
+            if sudo and self._is_posix:
+                command = f"sudo {command}"
             try:
                 split_command = shlex.split(command, posix=self._is_posix)
             except Exception as identifier:
