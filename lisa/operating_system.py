@@ -518,6 +518,12 @@ class BSD(Posix):
     ...
 
 
+class MacOS(Posix):
+    @classmethod
+    def name_pattern(cls) -> Pattern[str]:
+        return re.compile("^Darwin$")
+
+
 class Linux(Posix):
     ...
 
