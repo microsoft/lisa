@@ -31,18 +31,13 @@ class Transformer(subclasses.BaseClassWithRunbookMixin, InitializableMixin):
         self._runbook_builder = runbook_builder
         self._log = get_logger("transformer", self.name)
 
-    def run(self, is_dry_run: bool = False) -> Dict[str, VariableEntry]:
+    def run(self) -> Dict[str, VariableEntry]:
         """
         Call by the transformer flow, don't override it in subclasses.
         """
-        if is_dry_run:
-            # create mock up variables and validate
-            output_names = self._output_names
-            # add prefix
-            variables = {x: "mock value" for x in output_names}
-        else:
-            self._log.info("transformer is running.")
-            variables = self._internal_run()
+
+        self._log.info("transformer is running.")
+        variables = self._internal_run()
 
         results: Dict[str, VariableEntry] = dict()
         unmatched_rename = copy.copy(self.rename)
@@ -52,10 +47,7 @@ class Transformer(subclasses.BaseClassWithRunbookMixin, InitializableMixin):
                 del unmatched_rename[name]
                 name = self.rename[name]
             results[name] = VariableEntry(name, value)
-        dry_run_string = ""
-        if is_dry_run:
-            dry_run_string = "(dry run)"
-        self._log.debug(f"{dry_run_string}returned variables: {[x for x in results]}")
+        self._log.debug(f"returned variables: {[x for x in results]}")
         if unmatched_rename:
             raise LisaException(f"unmatched rename variable: {unmatched_rename}")
         return results
@@ -151,7 +143,6 @@ def _sort_dfs(
 
 def _run_transformers(
     runbook_builder: RunbookBuilder,
-    is_dry_run: bool = False,
     phase: str = constants.TRANSFORMER_PHASE_INIT,
 ) -> Dict[str, VariableEntry]:
     # resolve variables
@@ -197,7 +188,7 @@ def _run_transformers(
             runbook=runbook, runbook_builder=derived_builder
         )
         transformer.initialize()
-        values = transformer.run(is_dry_run=is_dry_run)
+        values = transformer.run()
         merge_variables(copied_variables, values)
 
     return copied_variables
@@ -213,31 +204,7 @@ def run(
         log.debug("no transformer found, skipped")
         return
 
-    # verify the variable is enough to next transformers and the whole runbook.
-    # the validation without real run can save time, and fail fast on variable
-    # mismatched. It needs to apply transformers in all phases to calculate
-    # variables.
-
-    # the cleanup phase doesn't need dry run. It doesn't save time.
-    if phase != constants.TRANSFORMER_PHASE_CLEANUP:
-        log.debug(f"detecting or dry run transformers of phase '{phase}'...")
-        dry_run_variables = _run_transformers(
-            runbook_builder, is_dry_run=True, phase=""
-        )
-        dry_run_root_runbook = copy.deepcopy(root_runbook_data)
-        replace_variables(dry_run_root_runbook, dry_run_variables)
-
     # real run
     log.debug(f"detecting or running transformers of phase '{phase}'...")
     output_variables = _run_transformers(runbook_builder, phase=phase)
     merge_variables(runbook_builder.variables, output_variables)
-
-    # check if all variable in dry run shows up in real run. It helps fail
-    # early.
-    for dry_run_variable in dry_run_variables:
-        if dry_run_variable not in output_variables:
-            raise LisaException(
-                f"dry run variable [{dry_run_variable}] is not found "
-                f"in real result {[x for x in output_variables]}. "
-                f"Make sure that real run results presents all dry run results. "
-            )
