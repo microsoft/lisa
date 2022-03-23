@@ -103,31 +103,12 @@ class Process:
         if update_envs is None:
             update_envs = {}
 
-        # command may be Path object, convert it to str
-        command = str(command)
         if update_envs and self._is_posix:
             # envs are supported in bash only. If there are envs, force the bash
             # mode.
             shell = True
 
-        if shell:
-            if not self._is_posix:
-                split_command = ["cmd", "/c", command]
-            else:
-                split_command = []
-                if sudo:
-                    split_command += ["sudo"]
-                envs = _create_exports(update_envs=update_envs)
-                split_command += ["sh", "-c", f"{envs} {command}"]
-                # expand variables in posix mode
-                update_envs = {}
-        else:
-            if sudo and self._is_posix:
-                command = f"sudo {command}"
-            try:
-                split_command = shlex.split(command, posix=self._is_posix)
-            except Exception as identifier:
-                raise LisaException(f"failed on split command: {command}: {identifier}")
+        split_command = self._process_command(command, sudo, shell, update_envs)
 
         cwd_path: Optional[str] = None
         if cwd:
@@ -167,6 +148,33 @@ class Process:
                 "", identifier.strerror, 1, split_command, self._timer.elapsed()
             )
             self._log.log(stderr_level, f"not found command: {identifier}")
+
+    def _process_command(
+        self, command: str, sudo: bool, shell: bool, update_envs: Dict[str, str]
+    ) -> List[str]:
+        # command may be Path object, convert it to str
+        command = str(command)
+
+        if shell:
+            if not self._is_posix:
+                split_command = ["cmd", "/c", command]
+            else:
+                split_command = []
+                if sudo:
+                    split_command += ["sudo"]
+                envs = _create_exports(update_envs=update_envs)
+                split_command += ["sh", "-c", f"{envs} {command}"]
+                # expand variables in posix mode
+                update_envs.clear()
+        else:
+            if sudo and self._is_posix:
+                command = f"sudo {command}"
+            try:
+                split_command = shlex.split(command, posix=self._is_posix)
+            except Exception as identifier:
+                raise LisaException(f"failed on split command: {command}: {identifier}")
+
+        return split_command
 
     def wait_result(
         self,
