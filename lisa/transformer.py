@@ -3,13 +3,13 @@
 
 import copy
 import functools
-from typing import Any, Dict, List, Set
+from typing import Any, Dict, List, Optional, Set
 
 from lisa import schema
 from lisa.parameter_parser.runbook import RunbookBuilder
 from lisa.util import InitializableMixin, LisaException, constants, subclasses
 from lisa.util.logger import get_logger
-from lisa.variable import VariableEntry, merge_variables, replace_variables
+from lisa.variable import VariableEntry, merge_variables
 
 _get_init_logger = functools.partial(get_logger, "init", "transformer")
 
@@ -141,26 +141,26 @@ def _sort_dfs(
     sorted_transformers.append(transformer)
 
 
+def _load_transformers(
+    runbook_builder: RunbookBuilder,
+    variables: Optional[Dict[str, VariableEntry]] = None,
+) -> Dict[str, schema.Transformer]:
+    transformers_data = runbook_builder.partial_resolve(
+        partial_name=constants.TRANSFORMER, variables=variables
+    )
+    transformers = schema.load_by_type_many(schema.Transformer, transformers_data)
+
+    return {x.name: x for x in transformers}
+
+
 def _run_transformers(
     runbook_builder: RunbookBuilder,
     phase: str = constants.TRANSFORMER_PHASE_INIT,
 ) -> Dict[str, VariableEntry]:
     # resolve variables
-    transformers_data: List[Any] = runbook_builder.partial_resolve(
-        constants.TRANSFORMER
-    )
-    assert isinstance(
-        transformers_data, list
-    ), f"transformer in runbook must be a list, but it's {type(transformers_data)}"
+    transformers_dict = _load_transformers(runbook_builder=runbook_builder)
 
-    transformers_runbook: List[schema.Transformer] = []
-    for runbook_data in transformers_data:
-        # get base transformer runbook for replacing variables.
-        runbook: schema.Transformer = schema.load_by_type(
-            schema.Transformer, runbook_data
-        )
-        transformers_runbook.append(runbook)
-
+    transformers_runbook = [x for x in transformers_dict.values()]
     # resort the runbooks, and it's used in real run
     transformers_runbook = _sort(transformers_runbook)
 
@@ -170,18 +170,15 @@ def _run_transformers(
 
     factory = subclasses.Factory[Transformer](Transformer)
     for runbook in transformers_runbook:
-        # serialize to data for replacing variables
-        runbook_data = runbook.to_dict()  # type: ignore
-
-        # replace to validate all variables exist
-        replace_variables(runbook_data, copied_variables)
+        # load the original runbook to solve variables again.
+        raw_transformers = _load_transformers(
+            runbook_builder=runbook_builder, variables=copied_variables
+        )
+        runbook = raw_transformers[runbook.name]
 
         # if phase is empty, pick up all of them.
         if not runbook.enabled or (phase and runbook.phase != phase):
             continue
-
-        # revert to runbook
-        runbook = schema.load_by_type(schema.Transformer, runbook_data)
 
         derived_builder = runbook_builder.derive(copied_variables)
         transformer = factory.create_by_runbook(
