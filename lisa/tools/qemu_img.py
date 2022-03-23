@@ -25,3 +25,13 @@ class QemuImg(Tool):
             expected_exit_code=0,
             expected_exit_code_failure_message="Failed to create differential disk.",
         )
+
+    def convert(
+        self, src_format: str, src_path: str, dest_format: str, dest_path: str
+    ) -> None:
+        self.run(
+            f"convert -f {src_format} -O {dest_format} {src_path} {dest_path}",
+            force_run=True,
+            expected_exit_code=0,
+            expected_exit_code_failure_message="Failed to convert disk image",
+        )

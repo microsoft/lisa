@@ -24,7 +24,6 @@ from lisa.tools import Iptables, QemuImg
 from lisa.util import LisaException, constants, get_public_key_data
 from lisa.util.logger import Logger
 
-from .. import QEMU
 from . import libvirt_events_thread
 from .console_logger import QemuConsoleLogger
 from .context import (
@@ -36,8 +35,9 @@ from .context import (
 from .schema import (
     FIRMWARE_TYPE_BIOS,
     FIRMWARE_TYPE_UEFI,
-    QemuNodeSchema,
-    QemuPlatformSchema,
+    BaseLibvirtNodeSchema,
+    BaseLibvirtPlatformSchema,
+    DiskImageFormat,
 )
 from .serial_console import SerialConsole
 
@@ -48,7 +48,7 @@ class _HostCapabilities:
         self.free_memory_kib = 0
 
 
-class QemuPlatform(Platform):
+class BaseLibvirtPlatform(Platform):
     _supported_features: List[Type[Feature]] = [
         SerialConsole,
     ]
@@ -56,23 +56,31 @@ class QemuPlatform(Platform):
     def __init__(self, runbook: schema.Platform) -> None:
         super().__init__(runbook=runbook)
         self.libvirt_conn_str: str
-        self.qemu_platform_runbook: QemuPlatformSchema
+        self.qemu_platform_runbook: BaseLibvirtPlatformSchema
         self.host_node: Node
         self.vm_disks_dir: str
 
     @classmethod
     def type_name(cls) -> str:
-        return QEMU
+        return ""
 
     @classmethod
     def supported_features(cls) -> List[Type[Feature]]:
-        return QemuPlatform._supported_features
+        return BaseLibvirtPlatform._supported_features
+
+    @classmethod
+    def platform_runbook_type(cls) -> type:
+        return BaseLibvirtPlatformSchema
+
+    @classmethod
+    def node_runbook_type(cls) -> type:
+        return BaseLibvirtNodeSchema
 
     def _initialize(self, *args: Any, **kwargs: Any) -> None:
         libvirt_events_thread.init()
 
         self.qemu_platform_runbook = self.runbook.get_extended_runbook(
-            QemuPlatformSchema, type_name=QEMU
+            self.__platform_runbook_type(), type_name=type(self).type_name()
         )
 
     def _prepare_environment(self, environment: Environment, log: Logger) -> bool:
@@ -113,7 +121,7 @@ class QemuPlatform(Platform):
                 parent_logger=log,
             )
 
-        self._init_libvirt_conn_string()
+        self.__init_libvirt_conn_string()
         self._configure_environment(environment, log)
 
         with libvirt.open(self.libvirt_conn_str) as qemu_conn:
@@ -298,12 +306,14 @@ class QemuPlatform(Platform):
                 node_space, schema.NodeSpace
             ), f"actual: {type(node_space)}"
 
-            qemu_node_runbook: QemuNodeSchema = node_space.get_extended_runbook(
-                QemuNodeSchema, type_name=QEMU
+            qemu_node_runbook: BaseLibvirtNodeSchema = node_space.get_extended_runbook(
+                self.__node_runbook_type(), type_name=type(self).type_name()
             )
 
-            if not os.path.exists(qemu_node_runbook.qcow2):
-                raise LisaException(f"file does not exist: {qemu_node_runbook.qcow2}")
+            if not os.path.exists(qemu_node_runbook.disk_img):
+                raise LisaException(
+                    f"file does not exist: {qemu_node_runbook.disk_img}"
+                )
 
             node = environment.create_node_from_requirement(node_space)
             node_context = get_node_context(node)
@@ -330,12 +340,16 @@ class QemuPlatform(Platform):
             )
 
             if self.host_node.is_remote:
-                node_context.os_disk_source_file_path = qemu_node_runbook.qcow2
+                node_context.os_disk_source_file_path = qemu_node_runbook.disk_img
                 node_context.os_disk_base_file_path = os.path.join(
-                    self.vm_disks_dir, os.path.basename(qemu_node_runbook.qcow2)
+                    self.vm_disks_dir, os.path.basename(qemu_node_runbook.disk_img)
                 )
             else:
-                node_context.os_disk_base_file_path = qemu_node_runbook.qcow2
+                node_context.os_disk_base_file_path = qemu_node_runbook.disk_img
+
+            node_context.os_disk_base_file_fmt = DiskImageFormat(
+                qemu_node_runbook.disk_img_format
+            )
 
             node_context.os_disk_file_path = os.path.join(
                 self.vm_disks_dir, f"{node_context.vm_name}-os.qcow2"
@@ -385,6 +399,26 @@ class QemuPlatform(Platform):
 
                     node_context.data_disks.append(data_disk)
 
+    def _create_domain_and_attach_logger(
+        self,
+        libvirt_conn: libvirt.virConnect,
+        domain: libvirt.virDomain,
+        node_context: NodeContext,
+    ) -> None:
+        # Start the VM in the paused state.
+        # This gives the console logger a chance to connect before the VM starts
+        # for real.
+        domain.createWithFlags(libvirt.VIR_DOMAIN_START_PAUSED)
+
+        # Attach the console logger
+        assert node_context.console_logger
+        node_context.console_logger.attach(
+            libvirt_conn, domain, node_context.console_log_file_path
+        )
+
+        # Start the VM.
+        domain.resume()
+
     # Create all the VMs.
     def _create_nodes(
         self,
@@ -418,19 +452,11 @@ class QemuPlatform(Platform):
             xml = self._create_node_domain_xml(environment, log, node)
             domain = qemu_conn.defineXML(xml)
 
-            # Start the VM in the paused state.
-            # This gives the console logger a chance to connect before the VM starts
-            # for real.
-            domain.createWithFlags(libvirt.VIR_DOMAIN_START_PAUSED)
-
-            # Attach the console logger
-            assert node_context.console_logger
-            node_context.console_logger.attach(
-                qemu_conn, domain, node_context.console_log_file_path
+            self._create_domain_and_attach_logger(
+                qemu_conn,
+                domain,
+                node_context,
             )
-
-            # Start the VM.
-            domain.resume()
 
     # Delete all the VMs.
     def _delete_nodes(
@@ -455,12 +481,13 @@ class QemuPlatform(Platform):
             log.warning(f"Failed to delete VM files directory: {ex}")
 
     # Delete a VM.
-    def _stop_and_delete_vm(
+    def _stop_and_delete_vm_flags(
         self,
         environment: Environment,
         log: Logger,
         qemu_conn: libvirt.virConnect,
         node: Node,
+        lv_undefine_flags: int,
     ) -> None:
         node_context = get_node_context(node)
 
@@ -480,14 +507,27 @@ class QemuPlatform(Platform):
 
         # Undefine the VM.
         try:
-            domain.undefineFlags(
-                libvirt.VIR_DOMAIN_UNDEFINE_MANAGED_SAVE
-                | libvirt.VIR_DOMAIN_UNDEFINE_SNAPSHOTS_METADATA
-                | libvirt.VIR_DOMAIN_UNDEFINE_NVRAM
-                | libvirt.VIR_DOMAIN_UNDEFINE_CHECKPOINTS_METADATA
-            )
+            domain.undefineFlags(lv_undefine_flags)
         except libvirt.libvirtError as ex:
             log.warning(f"VM delete failed. {ex}")
+
+    def _stop_and_delete_vm(
+        self,
+        environment: Environment,
+        log: Logger,
+        qemu_conn: libvirt.virConnect,
+        node: Node,
+    ) -> None:
+        self._stop_and_delete_vm_flags(
+            environment,
+            log,
+            qemu_conn,
+            node,
+            libvirt.VIR_DOMAIN_UNDEFINE_MANAGED_SAVE
+            | libvirt.VIR_DOMAIN_UNDEFINE_SNAPSHOTS_METADATA
+            | libvirt.VIR_DOMAIN_UNDEFINE_NVRAM
+            | libvirt.VIR_DOMAIN_UNDEFINE_CHECKPOINTS_METADATA,
+        )
 
     # Retrieve the VMs' dynamic properties (e.g. IP address).
     def _fill_nodes_metadata(
@@ -623,10 +663,7 @@ class QemuPlatform(Platform):
     def _create_node_os_disk(
         self, environment: Environment, log: Logger, node: Node
     ) -> None:
-        node_context = get_node_context(node)
-        self.host_node.tools[QemuImg].create_diff_qcow2(
-            node_context.os_disk_file_path, node_context.os_disk_base_file_path
-        )
+        raise NotImplementedError()
 
     def _create_node_data_disks(self, node: Node) -> None:
         node_context = get_node_context(node)
@@ -835,8 +872,11 @@ class QemuPlatform(Platform):
         assert isinstance(addr, str)
         return addr
 
-    def _init_libvirt_conn_string(self) -> None:
-        hypervisor = "qemu"
+    def _libvirt_uri_schema(self) -> str:
+        raise NotImplementedError()
+
+    def __init_libvirt_conn_string(self) -> None:
+        hypervisor = self._libvirt_uri_schema()
         host = self.qemu_platform_runbook.hosts[0]
 
         host_addr = ""
@@ -850,3 +890,13 @@ class QemuPlatform(Platform):
             params = f"?keyfile={host.private_key_file}"
 
         self.libvirt_conn_str = f"{hypervisor}{transport}://{host_addr}/system{params}"
+
+    def __platform_runbook_type(self) -> type:
+        platform_runbook_type: type = type(self).platform_runbook_type()
+        assert issubclass(platform_runbook_type, BaseLibvirtPlatformSchema)
+        return platform_runbook_type
+
+    def __node_runbook_type(self) -> type:
+        node_runbook_type: type = type(self).node_runbook_type()
+        assert issubclass(node_runbook_type, BaseLibvirtNodeSchema)
+        return node_runbook_type
