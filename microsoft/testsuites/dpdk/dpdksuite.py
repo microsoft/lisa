@@ -120,7 +120,7 @@ class Dpdk(TestSuite):
 
         try:
             # run OVS tests, providing OVS with the NIC info needed for DPDK init
-            ovs.setup_ovs(node.nics.get_nic_by_index().pci_slot)
+            ovs.setup_ovs(node.nics.get_secondary_sriov_nic().pci_slot)
 
             # validate if OVS was able to initialize DPDK
             node.execute(
@@ -199,7 +199,7 @@ class Dpdk(TestSuite):
         server_proc = node.execute_async(
             (
                 f"{server_app_path} -l 1-2 -n 4 "
-                f"-b {node.nics.get_nic_by_index(0).pci_slot} -- -p 3 -n 1"
+                f"-b {node.nics.get_primary_sriov_nic().pci_slot} -- -p 3 -n 1"
             ),
             sudo=True,
             shell=True,
@@ -214,7 +214,7 @@ class Dpdk(TestSuite):
         client_result = node.execute(
             (
                 f"timeout -s INT 2 {client_app_path} --proc-type=secondary -l 3 -n 4"
-                f" -b {node.nics.get_nic_by_index(0).pci_slot} -- -n 0"
+                f" -b {node.nics.get_primary_sriov_nic().pci_slot} -- -n 0"
             ),
             sudo=True,
             shell=True,
@@ -284,7 +284,7 @@ class Dpdk(TestSuite):
 
         test_kit = initialize_node_resources(node, log, variables, "failsafe")
         testpmd = test_kit.testpmd
-        test_nic = node.nics.get_nic_by_index()
+        test_nic = node.nics.get_secondary_sriov_nic()
         testpmd_cmd = testpmd.generate_testpmd_command(
             test_nic, 0, "txonly", "failsafe"
         )
@@ -343,7 +343,7 @@ class Dpdk(TestSuite):
         vpp.install()
 
         net = node.nics
-        nic = net.get_nic_by_index()
+        nic = net.get_secondary_sriov_nic()
 
         # set devices to down and restart vpp service
         ip = node.tools[Ip]
@@ -521,7 +521,7 @@ class Dpdk(TestSuite):
     ) -> None:
         lsmod = node.tools[Lsmod]
         modprobe = node.tools[Modprobe]
-        nic = node.nics.get_nic_by_index()
+        nic = node.nics.get_secondary_sriov_nic()
         if nic.bound_driver == "hv_netvsc":
             enable_uio_hv_generic_for_nic(node, nic)
         bind_nic_to_dpdk_pmd(node.nics, nic, "netvsc")

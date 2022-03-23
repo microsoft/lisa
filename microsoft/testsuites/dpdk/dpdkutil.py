@@ -32,7 +32,7 @@ class DpdkTestResources:
         self.nic_controller = _node.features[NetworkInterface]
         self.dmesg = _node.tools[Dmesg]
         self._last_dmesg = ""
-        test_nic = self.node.nics.get_nic_by_index()
+        test_nic = self.node.nics.get_secondary_sriov_nic()
         # generate hotplug pattern for this specific nic
         self.vf_hotplug_regex = re.compile(
             f"{test_nic.upper}: Data path switched to VF: {test_nic.lower}"
@@ -104,7 +104,9 @@ def generate_send_receive_run_info(
     rxq: int = 1,
 ) -> Dict[DpdkTestResources, str]:
 
-    snd_nic, rcv_nic = [x.node.nics.get_nic_by_index() for x in [sender, receiver]]
+    snd_nic, rcv_nic = [
+        x.node.nics.get_secondary_sriov_nic() for x in [sender, receiver]
+    ]
 
     snd_cmd = sender.testpmd.generate_testpmd_command(
         snd_nic,
@@ -213,7 +215,7 @@ def initialize_node_resources(
         "Test needs at least 1 NIC on the test node."
     ).is_greater_than_or_equal_to(1)
 
-    nic_to_bind = node.nics.get_nic_by_index()
+    nic_to_bind = node.nics.get_secondary_sriov_nic()
 
     # netvsc pmd requires uio_hv_generic to be loaded before use
     if pmd == "netvsc":
@@ -322,7 +324,7 @@ def verify_dpdk_build(
     testpmd = test_kit.testpmd
 
     # grab a nic and run testpmd
-    test_nic = node.nics.get_nic_by_index()
+    test_nic = node.nics.get_secondary_sriov_nic()
 
     testpmd_cmd = testpmd.generate_testpmd_command(
         test_nic,

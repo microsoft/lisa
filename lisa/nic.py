@@ -4,6 +4,7 @@
 
 import os
 import re
+from collections import OrderedDict
 from pathlib import PurePosixPath
 from typing import TYPE_CHECKING, Any, Dict, List, Optional
 
@@ -130,7 +131,7 @@ class Nics(InitializableMixin):
     def __init__(self, node: "Node"):
         super().__init__()
         self._node = node
-        self.nics: Dict[str, NicInfo] = dict()
+        self.nics: Dict[str, NicInfo] = OrderedDict()
 
     def __str__(self) -> str:
         _str = ""
@@ -151,13 +152,41 @@ class Nics(InitializableMixin):
         return [x.upper for x in self.nics.values() if not x.lower]
 
     def get_upper_nics(self) -> List[str]:
-        return [x.upper for x in self.nics.values()]
+        return list(self.nics.keys())
+
+    def get_paired_devices(self) -> List[str]:
+        return [x.upper for x in self.nics.values() if x.lower]
 
     def get_lower_nics(self) -> List[str]:
         return [x.lower for x in self.nics.values() if x.lower]
 
     def get_device_slots(self) -> List[str]:
         return [x.pci_slot for x in self.nics.values() if x.pci_slot]
+
+    def get_secondary_sriov_nic(self) -> NicInfo:
+        # helper for DPDK tests where we want to pick
+        # one of the nics which isn't handling the SSH connection
+
+        default_nic_name = self.default_nic
+        upper_names = self.get_paired_devices()
+        upper_names.remove(default_nic_name)
+        assert_that(len(upper_names)).described_as(
+            "get_non_default_upper_nic was called but there "
+            "is no non-default-upper nic. "
+            f"Nic list was: [ {self.get_paired_devices()} ] "
+            f"with default: [ {default_nic_name} ]"
+        ).is_greater_than(1)
+        return self.nics[upper_names[0]]
+
+    def get_primary_sriov_nic(self) -> NicInfo:
+        default_nic_name = self.default_nic
+        primary_nic = self.nics[default_nic_name]
+        assert_that(primary_nic.lower).described_as(
+            "primary (default route) nic does not have a lower device paired."
+            " This may be a synthetic nic. This error may also indicate a "
+            "logic issue with lisa.tools.nic"
+        ).is_true()
+        return self.nics[default_nic_name]
 
     def get_nic_driver(self, nic_name: str) -> str:
         # get the current driver for the nic from the node
