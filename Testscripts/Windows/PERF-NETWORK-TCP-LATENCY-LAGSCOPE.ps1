@@ -146,7 +146,7 @@ collect_VM_properties
                 }
                 $interval = ($line.Trim() -replace '\s+',' ').Split(" ")[0]
                 $frequency = ($line.Trim() -replace '\s+',' ').Split(" ")[1]
-                if (($interval -match "^\d+$") -and ($frequency -match "^\d+$") -and ($interval -ne "0")) {
+                if (($interval -match "^\d+$") -and ($frequency -match "^\d+$")) {
                     $resultMap = @{}
                     if ($properties) {
                         $resultMap["GuestDistro"] = $properties.GuestDistro
