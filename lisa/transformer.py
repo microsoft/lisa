@@ -101,14 +101,19 @@ def _sort(transformers: List[schema.Transformer]) -> List[schema.Transformer]:
     # sort by phase: init, expanded.
     init_transformers: List[schema.Transformer] = []
     expanded_transformers: List[schema.Transformer] = []
+    cleanup_transformers: List[schema.Transformer] = []
     for transformer in sorted_transformers:
         if transformer.phase == constants.TRANSFORMER_PHASE_INIT:
             init_transformers.append(transformer)
         elif transformer.phase == constants.TRANSFORMER_PHASE_EXPANDED:
             expanded_transformers.append(transformer)
+        elif transformer.phase == constants.TRANSFORMER_PHASE_CLEANUP:
+            cleanup_transformers.append(transformer)
         else:
             raise LisaException(f"unknown transformer phase: {transformer.phase}")
-    sorted_transformers = init_transformers + expanded_transformers
+    sorted_transformers = (
+        init_transformers + expanded_transformers + cleanup_transformers
+    )
 
     # check cycle reference
     referenced: Set[str] = set()
@@ -212,13 +217,18 @@ def run(
     # the validation without real run can save time, and fail fast on variable
     # mismatched. It needs to apply transformers in all phases to calculate
     # variables.
-    log.debug("dry run transformers...")
-    dry_run_variables = _run_transformers(runbook_builder, is_dry_run=True, phase="")
-    dry_run_root_runbook = copy.deepcopy(root_runbook_data)
-    replace_variables(dry_run_root_runbook, dry_run_variables)
+
+    # the cleanup phase doesn't need dry run. It doesn't save time.
+    if phase != constants.TRANSFORMER_PHASE_CLEANUP:
+        log.debug(f"detecting or dry run transformers of phase '{phase}'...")
+        dry_run_variables = _run_transformers(
+            runbook_builder, is_dry_run=True, phase=""
+        )
+        dry_run_root_runbook = copy.deepcopy(root_runbook_data)
+        replace_variables(dry_run_root_runbook, dry_run_variables)
 
     # real run
-    log.debug("running transformers...")
+    log.debug(f"detecting or running transformers of phase '{phase}'...")
     output_variables = _run_transformers(runbook_builder, phase=phase)
     merge_variables(runbook_builder.variables, output_variables)
 

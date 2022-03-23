@@ -187,7 +187,11 @@ class Transformer(TypedSchema, ExtendableSchemaMixin):
         default=constants.TRANSFORMER_PHASE_INIT,
         metadata=field_metadata(
             validate=validate.OneOf(
-                [constants.TRANSFORMER_PHASE_INIT, constants.TRANSFORMER_PHASE_EXPANDED]
+                [
+                    constants.TRANSFORMER_PHASE_INIT,
+                    constants.TRANSFORMER_PHASE_EXPANDED,
+                    constants.TRANSFORMER_PHASE_CLEANUP,
+                ]
             ),
         ),
     )
