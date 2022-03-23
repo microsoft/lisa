@@ -6,8 +6,8 @@ from typing import List, Type
 from lisa.environment import Environment
 from lisa.feature import Feature
 from lisa.node import Node
-from lisa.sut_orchestrator.qemu.context import get_node_context
-from lisa.sut_orchestrator.qemu.platform import BaseLibvirtPlatform
+from lisa.sut_orchestrator.libvirt.context import get_node_context
+from lisa.sut_orchestrator.libvirt.platform import BaseLibvirtPlatform
 from lisa.tools import QemuImg
 from lisa.util.logger import Logger
 
