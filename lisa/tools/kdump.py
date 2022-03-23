@@ -255,7 +255,7 @@ class KdumpBase(Tool):
             result = cat.run(cfg_file, force_run=True)
             if f"crashkernel={crashkernel}" not in result.stdout:
                 raise LisaException(
-                    f'No find "crasherkel={crashkernel}" in {cfg_file} after'
+                    f'No find "crashkernel={crashkernel}" in {cfg_file} after'
                     "insert. Please double check the grub config file and insert"
                     "process"
                 )
@@ -298,7 +298,7 @@ class KdumpBase(Tool):
     @retry(exceptions=LisaException, tries=60, delay=1)  # type: ignore
     def _check_kexec_crash_loaded(self) -> None:
         """
-        Sometimes it costs a while to load the value, so define this methed as @retry
+        Sometimes it costs a while to load the value, so define this method as @retry
         """
         cat = self.node.tools[Cat]
         result = cat.run(self.kexec_crash, force_run=True)
@@ -385,7 +385,7 @@ class KdumpRedhat(KdumpBase):
         check_memory_cmd = "free -h | grep Mem | awk '{print $2}'"
         result = self.node.execute(check_memory_cmd, shell=True, sudo=True)
         if "Ti" not in result.stdout:
-            # System memeory size is smaller than 1T, no need to change dump path
+            # System memory size is smaller than 1T, no need to change dump path
             return
         size = float(result.stdout.strip("Ti"))
         if size > 1:

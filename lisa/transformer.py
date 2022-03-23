@@ -155,7 +155,7 @@ def _run_transformers(
     )
     assert isinstance(
         transformers_data, list
-    ), f"transfomer in runbook must be a list, but it's {type(transformers_data)}"
+    ), f"transformer in runbook must be a list, but it's {type(transformers_data)}"
 
     transformers_runbook: List[schema.Transformer] = []
     for runbook_data in transformers_data:
@@ -205,7 +205,7 @@ def run(
 
     root_runbook_data = runbook_builder.raw_data
     if constants.TRANSFORMER not in root_runbook_data:
-        log.debug("no transfomer found, skipped")
+        log.debug("no transformer found, skipped")
         return
 
     # verify the variable is enough to next transformers and the whole runbook.
