@@ -105,19 +105,23 @@ class Process:
 
         # command may be Path object, convert it to str
         command = str(command)
+        if update_envs and self._is_posix:
+            # envs are supported in bash only. If there are envs, force the bash
+            # mode.
+            shell = True
+
         if shell:
             if not self._is_posix:
                 split_command = ["cmd", "/c", command]
-            elif sudo:
-                split_command = []
-                envs = _create_exports(update_envs=update_envs)
-                split_command += ["sudo", "sh", "-c", f"{envs} {command}"]
             else:
-                split_command = ["sh", "-c", command]
-        else:
-            if sudo and self._is_posix:
+                split_command = []
+                if sudo:
+                    split_command += ["sudo"]
                 envs = _create_exports(update_envs=update_envs)
-                command = f" sudo {envs} {command}"
+                split_command += ["sh", "-c", f"{envs} {command}"]
+                # expand variables in posix mode
+                update_envs = {}
+        else:
             try:
                 split_command = shlex.split(command, posix=self._is_posix)
             except Exception as identifier:
