@@ -2,8 +2,9 @@
 # Licensed under the MIT license.
 
 import json
+import re
 from decimal import Decimal
-from typing import TYPE_CHECKING, Any, Dict, List, Type, cast
+from typing import TYPE_CHECKING, Any, Dict, List, Pattern, Type, cast
 
 from lisa.executable import Tool
 from lisa.messages import (
@@ -59,8 +60,18 @@ IPERF_UDP_CONCURRENCY = [
 
 
 class Iperf3(Tool):
-    repo = "https://github.com/esnet/iperf"
-    branch = "3.10.1"
+    _repo = "https://github.com/esnet/iperf"
+    _branch = "3.10.1"
+    _sender_pattern = re.compile(
+        r"(([\w\W]*?)[SUM].* (?P<bandwidth>[0-9]+.[0-9]+)"
+        r" Gbits/sec.*sender([\w\W]*?))",
+        re.MULTILINE,
+    )
+    _receiver_pattern = re.compile(
+        r"(([\w\W]*?)SUM.* (?P<bandwidth>[0-9]+.[0-9]+)"
+        r" Gbits/sec.*receiver([\w\W]*?))",
+        re.MULTILINE,
+    )
 
     @property
     def command(self) -> str:
@@ -73,19 +84,6 @@ class Iperf3(Tool):
     @property
     def dependencies(self) -> List[Type[Tool]]:
         return [Git, Make]
-
-    def _install_from_src(self) -> None:
-        tool_path = self.get_tool_path()
-        git = self.node.tools[Git]
-        git.clone(self.repo, tool_path)
-        code_path = tool_path.joinpath("iperf")
-        make = self.node.tools[Make]
-        self.node.execute("./configure", cwd=code_path).assert_exit_code()
-        make.make_install(code_path)
-        self.node.execute("ldconfig", sudo=True, cwd=code_path).assert_exit_code()
-        self.node.execute(
-            "ln -s /usr/local/bin/iperf3 /usr/bin/iperf3", sudo=True, cwd=code_path
-        ).assert_exit_code()
 
     def install(self) -> bool:
         posix_os: Posix = cast(Posix, self.node.os)
@@ -391,6 +389,30 @@ class Iperf3(Tool):
             other_fields,
         )
 
+    def get_sender_bandwidth(self, result: str) -> Decimal:
+        return self._get_bandwidth(result, self._sender_pattern)
+
+    def get_receiver_bandwidth(self, result: str) -> Decimal:
+        return self._get_bandwidth(result, self._receiver_pattern)
+
     def _initialize(self, *args: Any, **kwargs: Any) -> None:
         firewall = self.node.tools[Firewall]
         firewall.stop()
+
+    def _install_from_src(self) -> None:
+        tool_path = self.get_tool_path()
+        git = self.node.tools[Git]
+        git.clone(self._repo, tool_path)
+        code_path = tool_path.joinpath("iperf")
+        make = self.node.tools[Make]
+        self.node.execute("./configure", cwd=code_path).assert_exit_code()
+        make.make_install(code_path)
+        self.node.execute("ldconfig", sudo=True, cwd=code_path).assert_exit_code()
+        self.node.execute(
+            "ln -s /usr/local/bin/iperf3 /usr/bin/iperf3", sudo=True, cwd=code_path
+        ).assert_exit_code()
+
+    def _get_bandwidth(self, result: str, pattern: Pattern[str]) -> Decimal:
+        matched = pattern.match(result)
+        assert matched, "fail to get bandwidth"
+        return Decimal(matched.group("bandwidth"))
