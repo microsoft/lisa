@@ -196,8 +196,7 @@ class RootRunner(Action):
             cancel()
             raise identifier
         finally:
-            for runner in self._runners:
-                runner.close()
+            self._cleanup()
 
         results = [x for x in self._results_collector.results.values()]
         print_results(results, self._log.info)
@@ -367,3 +366,15 @@ class RootRunner(Action):
                         # workers are present but no task to run.
                         self._log.debug("Idle worker available but no new runner...")
                         break
+
+    def _cleanup(self) -> None:
+        try:
+            for runner in self._runners:
+                runner.close()
+        except Exception as identifier:
+            self._log.warn(f"error on close runner: {identifier}")
+
+        try:
+            transformer.run(self._runbook_builder, constants.TRANSFORMER_PHASE_CLEANUP)
+        except Exception as identifier:
+            self._log.warn(f"error on run cleanup transformers: {identifier}")
