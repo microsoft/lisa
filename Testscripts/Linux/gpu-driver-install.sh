@@ -24,7 +24,15 @@
 #
 ########################################################################
 
-grid_driver="https://go.microsoft.com/fwlink/?linkid=874272"
+vmSize=`curl -s -H Metadata:true --noproxy "*" "http://169.254.169.254/metadata/instance?api-version=2021-02-01" | jq '.compute.vmSize'  2>/dev/null`
+
+if [[ $vmSize =~ 'A10' ]] 
+then
+	grid_driver="https://download.microsoft.com/download/4/3/9/439aea00-a02d-4875-8712-d1ab46cf6a73/NVIDIA-Linux-x86_64-510.47.03-grid-azure.run"
+else
+	grid_driver="https://go.microsoft.com/fwlink/?linkid=874272"
+fi
+echo "grid_driver: $grid_driver"
 
 #######################################################################
 function skip_test() {
