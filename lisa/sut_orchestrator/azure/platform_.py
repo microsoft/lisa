@@ -224,6 +224,7 @@ class AzurePlatformSchema:
     availability_set_properties: Optional[Dict[str, Any]] = field(default=None)
     vm_tags: Optional[Dict[str, Any]] = field(default=None)
     locations: Optional[Union[str, List[str]]] = field(default=None)
+    enable_hibernation: Optional[bool] = field(default=False)
 
     log_level: str = field(
         default=logging.getLevelName(logging.WARN),
@@ -306,6 +307,7 @@ class AzurePlatform(Platform):
             features.Resize,
             features.StartStop,
             features.Infiniband,
+            features.Hibernation,
         ]
 
     def _prepare_environment(  # noqa: C901
@@ -1564,6 +1566,7 @@ class AzurePlatform(Platform):
             [
                 schema.FeatureSettings.create(features.StartStop.name()),
                 schema.FeatureSettings.create(features.SerialConsole.name()),
+                schema.FeatureSettings.create(features.Hibernation.name()),
             ]
         )
         node_space.disk.disk_type.add(schema.DiskType.StandardHDDLRS)

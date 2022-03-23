@@ -81,6 +81,13 @@
             "metadata": {
                 "description": "data disk array."
             }
+        },
+        "enable_hibernation": {
+            "type": "bool",
+            "defaultValue": false,
+            "metadata": {
+                "description": "flag to set hibernation"
+            }
         }
     },
     "variables": {
@@ -276,7 +283,7 @@
             }
         },
         {
-            "apiVersion": "2020-12-01",
+            "apiVersion": "2021-03-01",
             "type": "Microsoft.Compute/virtualMachines",
             "copy": {
                 "name": "vmCopy",
@@ -347,6 +354,9 @@
                         "enabled": true,
                         "storageUri": "[reference(resourceId(parameters('shared_resource_group_name'), 'Microsoft.Storage/storageAccounts', parameters('storage_name')), '2015-06-15').primaryEndpoints['blob']]"
                     }
+                },
+                "additionalCapabilities": {
+                    "hibernationEnabled": "[parameters('enable_hibernation')]"
                 }
             }
         }
