@@ -24,6 +24,8 @@ if platform.system() == "Linux":
     import lisa.sut_orchestrator.qemu.context  # noqa: F401
     import lisa.sut_orchestrator.qemu.platform  # noqa: F401
     import lisa.sut_orchestrator.qemu.schema  # noqa: F401
+    import lisa.sut_orchestrator.qemu.qemu_platform  # noqa: F401
+    import lisa.sut_orchestrator.qemu.ch_platform  # noqa: F401
 
 import lisa.transformers.dump_variables  # noqa: F401
 import lisa.transformers.kernel_source_installer  # noqa: F401
