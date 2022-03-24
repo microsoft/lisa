@@ -23,7 +23,7 @@ from lisa.operating_system import (
     SuseRepositoryInfo,
     Ubuntu,
 )
-from lisa.tools import Cat, Dmesg, Lscpu, Pgrep
+from lisa.tools import Cat, Dmesg, Lscpu, Pgrep, Ssh, Whoami
 from lisa.util import (
     LisaException,
     PassedException,
@@ -781,3 +781,44 @@ class AzureImageStandard(TestSuite):
             "unexpected error/failure/warnings shown up in bootup log of distro"
             f" {node.os.name} {node.os.information.version}"
         ).is_empty()
+
+    @TestCaseMetadata(
+        description="""
+        This test will check ClientAliveInterval value in sshd config.
+
+        Steps:
+        1. Find ClientAliveInterval from sshd config.
+        2. Pass with warning if not find it.
+        3. Pass with warning if the value is not between 0 and 180.
+        """,
+        priority=1,
+    )
+    def verify_client_active_interval(self, node: Node) -> None:
+        ssh = node.tools[Ssh]
+        setting = "ClientAliveInterval"
+        value = ssh.get(setting)
+        if not value:
+            raise LisaException(f"not find {setting} in sshd_config")
+        if not (int(value) > 0 and int(value) < 181):
+            raise LisaException(f"{setting} should be set between 0 and 180")
+
+    @TestCaseMetadata(
+        description="""
+        This test will check no pre added users existing in vm.
+
+        Steps:
+        1. Exclude current user from all users' list.
+        2. Fail the case if the password of any above user existing.
+        """,
+        priority=1,
+    )
+    def verify_no_pre_exist_users(self, node: Node) -> None:
+        current_user = node.tools[Whoami].get_username()
+        cat = node.tools[Cat]
+        passwd_outputs = cat.read_with_filter(
+            "/etc/shadow", current_user, True, True, True
+        )
+        for passwd_raw_output in passwd_outputs.splitlines():
+            user_name, user_passwd = passwd_raw_output.split(":")
+            if not ("*" in user_passwd or "!" in user_passwd):
+                raise LisaException(f"password of user {user_name} should be deleted.")
