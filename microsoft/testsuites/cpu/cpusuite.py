@@ -178,8 +178,8 @@ class CPUSuite(TestSuite):
             # drivers have class id "f8615163-df3e-46c5-913f-f2d2f965ed0e"
             node.tools[Lsvmbus].get_device_channels(force_run=True)
             cpu_count = node.tools[Lscpu].get_core_count()
-            availble_cpus = cpu_count - len(idle_cpus) - 1
-            node.tools[Ethtool].change_device_channels_info("eth0", availble_cpus)
+            available_cpus = cpu_count - len(idle_cpus) - 1
+            node.tools[Ethtool].change_device_channels_info("eth0", available_cpus)
 
             # verify that the added channels do not handle interrupts on offlined cpu.
             lsvmbus_channels = node.tools[Lsvmbus].get_device_channels(force_run=True)
@@ -187,7 +187,7 @@ class CPUSuite(TestSuite):
                 # verify that channels were added to synthetic network adapter
                 if channel.class_id == "f8615163-df3e-46c5-913f-f2d2f965ed0e":
                     log.debug(f"Network synethic channel: {channel}")
-                    assert_that(channel.channel_vp_map).is_length(availble_cpus)
+                    assert_that(channel.channel_vp_map).is_length(available_cpus)
 
                 # verify that devices do not handle interrupts on offlined cpu
                 for channel_vp in channel.channel_vp_map:
