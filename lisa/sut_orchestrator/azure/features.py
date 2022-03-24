@@ -981,8 +981,9 @@ class Resize(AzureFeatureMixin, features.Resize):
 class Hibernation(AzureFeatureMixin, features.Hibernation):
     @classmethod
     def on_before_deployment(cls, *args: Any, **kwargs: Any) -> None:
-        arm_parameters: AzureArmParameter = kwargs.pop("arm_parameters")
-        arm_parameters.enable_hibernation = True
+        # arm_parameters: AzureArmParameter = kwargs.pop("arm_parameters")
+        # arm_parameters.enable_hibernation = True
+        ...
 
     def _initialize(self, *args: Any, **kwargs: Any) -> None:
         super()._initialize(*args, **kwargs)
