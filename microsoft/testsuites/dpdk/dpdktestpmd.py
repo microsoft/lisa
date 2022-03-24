@@ -443,11 +443,16 @@ class DpdkTestpmd(Tool):
                 cwd=node.working_path,
                 dir_name=self._dpdk_repo_path_name,
             )
-            if self._dpdk_branch:
-                git_tool.checkout(self._dpdk_branch, cwd=self.dpdk_path)
-                self.set_version_info_from_source_install(
-                    self._dpdk_branch, self._version_info_from_git_tag_regex
-                )
+            if not self._dpdk_branch:
+                # dpdk stopped using a default branch
+                # if a branch is not specified, get latest version tag.
+                self._dpdk_branch = git_tool.get_tag(self.dpdk_path)
+
+            git_tool.checkout(self._dpdk_branch, cwd=self.dpdk_path)
+            self.set_version_info_from_source_install(
+                self._dpdk_branch, self._version_info_from_git_tag_regex
+            )
+
         self._load_drivers_for_dpdk()
 
         # add sample apps to compilation if they are present
