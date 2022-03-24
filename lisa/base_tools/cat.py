@@ -30,9 +30,13 @@ class Cat(Tool):
         grep_string: str,
         force_run: bool = False,
         sudo: bool = False,
+        invert_match: bool = False,
     ) -> str:
         # Combining cat with grep
-        params = f'{file} | grep "{grep_string}"'
+        if invert_match:
+            params = f'{file} | grep -v "{grep_string}"'
+        else:
+            params = f'{file} | grep "{grep_string}"'
         result = self.run(params, force_run=force_run, sudo=sudo, shell=True)
         result.assert_exit_code(message=f"Error : {result.stdout}")
         return result.stdout
