@@ -4,6 +4,7 @@
 
 import os
 import re
+from collections import OrderedDict
 from pathlib import PurePosixPath
 from typing import TYPE_CHECKING, Any, Dict, List, Optional
 
@@ -130,7 +131,7 @@ class Nics(InitializableMixin):
     def __init__(self, node: "Node"):
         super().__init__()
         self._node = node
-        self.nics: Dict[str, NicInfo] = dict()
+        self.nics: Dict[str, NicInfo] = OrderedDict()
 
     def __str__(self) -> str:
         _str = ""
@@ -151,7 +152,7 @@ class Nics(InitializableMixin):
         return [x.upper for x in self.nics.values() if not x.lower]
 
     def get_upper_nics(self) -> List[str]:
-        return [x.upper for x in self.nics.values()]
+        return list(self.nics.keys())
 
     def get_lower_nics(self) -> List[str]:
         return [x.lower for x in self.nics.values() if x.lower]
