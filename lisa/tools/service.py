@@ -86,6 +86,22 @@ class Systemctl(Tool):
     def can_install(self) -> bool:
         return False
 
+    def stop_service(self, name: str) -> None:
+        if self._check_service_running(name):
+            cmd_result = self.run(f"stop {name}", shell=True, sudo=True, force_run=True)
+            cmd_result.assert_exit_code()
+
+    def restart_service(self, name: str) -> None:
+        cmd_result = self.run(f"restart {name}", shell=True, sudo=True, force_run=True)
+        cmd_result.assert_exit_code()
+
+    def enable_service(self, name: str) -> None:
+        cmd_result = self.run(f"enable {name}", shell=True, sudo=True, force_run=True)
+        cmd_result.assert_exit_code()
+
+    def hibernate(self) -> None:
+        self.run_async("hibernate", sudo=True, force_run=True)
+
     def _check_exists(self) -> bool:
         return True
 
@@ -104,16 +120,3 @@ class Systemctl(Tool):
         return (
             "could not be found" not in cmd_result.stdout and 0 == cmd_result.exit_code
         )
-
-    def stop_service(self, name: str) -> None:
-        if self._check_service_running(name):
-            cmd_result = self.run(f"stop {name}", shell=True, sudo=True, force_run=True)
-            cmd_result.assert_exit_code()
-
-    def restart_service(self, name: str) -> None:
-        cmd_result = self.run(f"restart {name}", shell=True, sudo=True, force_run=True)
-        cmd_result.assert_exit_code()
-
-    def enable_service(self, name: str) -> None:
-        cmd_result = self.run(f"enable {name}", shell=True, sudo=True, force_run=True)
-        cmd_result.assert_exit_code()
