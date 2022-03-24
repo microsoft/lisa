@@ -354,9 +354,6 @@
                         "enabled": true,
                         "storageUri": "[reference(resourceId(parameters('shared_resource_group_name'), 'Microsoft.Storage/storageAccounts', parameters('storage_name')), '2015-06-15').primaryEndpoints['blob']]"
                     }
-                },
-                "additionalCapabilities": {
-                    "hibernationEnabled": "[parameters('enable_hibernation')]"
                 }
             }
         }
