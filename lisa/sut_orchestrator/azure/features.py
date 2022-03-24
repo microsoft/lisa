@@ -976,3 +976,14 @@ class Resize(AzureFeatureMixin, features.Resize):
         resize_vm_size = avail_eligible_intersect[index]
         self._log.info(f"New vm size: {resize_vm_size.vm_size}")
         return resize_vm_size
+
+
+class Hibernation(AzureFeatureMixin, features.Hibernation):
+    @classmethod
+    def on_before_deployment(cls, *args: Any, **kwargs: Any) -> None:
+        arm_parameters: AzureArmParameter = kwargs.pop("arm_parameters")
+        arm_parameters.enable_hibernation = True
+
+    def _initialize(self, *args: Any, **kwargs: Any) -> None:
+        super()._initialize(*args, **kwargs)
+        self._initialize_information(self._node)

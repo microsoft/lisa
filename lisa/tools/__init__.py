@@ -23,6 +23,7 @@ from .fio import FIOMODES, Fio, FIOResult
 from .firewall import Firewall, Iptables
 from .gcc import Gcc
 from .git import Git
+from .hibernation_setup import HibernationSetup
 from .hostname import Hostname
 from .hwclock import Hwclock
 from .interrupt_inspector import InterruptInspector
@@ -66,6 +67,7 @@ from .service import Service
 from .ssh import Ssh
 from .sshpass import Sshpass
 from .stat import Stat
+from .stress_ng import StressNg
 from .swap import Swap
 from .swapon import SwapOn
 from .sysctl import Sysctl
@@ -103,6 +105,9 @@ __all__ = [
     "Firewall",
     "Gcc",
     "Git",
+    "Ip",
+    "Iperf3",
+    "HibernationSetup",
     "Hostname",
     "Hwclock",
     "InterruptInspector",
@@ -153,6 +158,7 @@ __all__ = [
     "Ssh",
     "Sshpass",
     "Stat",
+    "StressNg",
     "Swap",
     "SwapOn",
     "Sysctl",

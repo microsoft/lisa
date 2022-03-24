@@ -88,6 +88,6 @@ class Dmesg(Tool):
         result = self.run(force_run=force_run, no_error_log=True)
         if result.exit_code != 0:
             # may need sudo
-            result = self.run(sudo=True)
+            result = self.run(sudo=True, force_run=force_run)
         self._cached_result = result
         return result
