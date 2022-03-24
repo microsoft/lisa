@@ -314,87 +314,102 @@ class BaseLibvirtPlatform(Platform):
                 raise LisaException(f"file does not exist: {node_runbook.disk_img}")
 
             node = environment.create_node_from_requirement(node_space)
-            node_context = get_node_context(node)
 
-            if (
-                not node_runbook.firmware_type
-                or node_runbook.firmware_type == FIRMWARE_TYPE_UEFI
-            ):
-                node_context.use_bios_firmware = False
-            elif node_runbook.firmware_type == FIRMWARE_TYPE_BIOS:
-                node_context.use_bios_firmware = True
-            else:
-                raise LisaException(
-                    f"Unknown node firmware type: {node_runbook.firmware_type}."
-                    f"Expecting either {FIRMWARE_TYPE_UEFI} or {FIRMWARE_TYPE_BIOS}."
+            self._configure_node(
+                node,
+                i,
+                node_space,
+                node_runbook,
+                vm_name_prefix,
+            )
+
+    def _configure_node(
+        self,
+        node: Node,
+        node_idx: int,
+        node_space: schema.NodeSpace,
+        node_runbook: BaseLibvirtNodeSchema,
+        vm_name_prefix: str,
+    ) -> None:
+        node_context = get_node_context(node)
+
+        if (
+            not node_runbook.firmware_type
+            or node_runbook.firmware_type == FIRMWARE_TYPE_UEFI
+        ):
+            node_context.use_bios_firmware = False
+        elif node_runbook.firmware_type == FIRMWARE_TYPE_BIOS:
+            node_context.use_bios_firmware = True
+        else:
+            raise LisaException(
+                f"Unknown node firmware type: {node_runbook.firmware_type}."
+                f"Expecting either {FIRMWARE_TYPE_UEFI} or {FIRMWARE_TYPE_BIOS}."
+            )
+
+        node_context.vm_name = f"{vm_name_prefix}-{node_idx}"
+        if not node.name:
+            node.name = node_context.vm_name
+
+        node_context.cloud_init_file_path = os.path.join(
+            self.vm_disks_dir, f"{node_context.vm_name}-cloud-init.iso"
+        )
+
+        if self.host_node.is_remote:
+            node_context.os_disk_source_file_path = node_runbook.disk_img
+            node_context.os_disk_base_file_path = os.path.join(
+                self.vm_disks_dir, os.path.basename(node_runbook.disk_img)
+            )
+        else:
+            node_context.os_disk_base_file_path = node_runbook.disk_img
+
+        node_context.os_disk_base_file_fmt = DiskImageFormat(
+            node_runbook.disk_img_format
+        )
+
+        node_context.os_disk_file_path = os.path.join(
+            self.vm_disks_dir, f"{node_context.vm_name}-os.qcow2"
+        )
+
+        node_context.console_log_file_path = str(
+            node.local_log_path / "qemu-console.log"
+        )
+        node_context.console_logger = QemuConsoleLogger()
+
+        # Read extra cloud-init data.
+        extra_user_data = (
+            node_runbook.cloud_init and node_runbook.cloud_init.extra_user_data
+        )
+        if extra_user_data:
+            node_context.extra_cloud_init_user_data = []
+
+            if isinstance(extra_user_data, str):
+                extra_user_data = [extra_user_data]
+
+            for relative_file_path in extra_user_data:
+                if not relative_file_path:
+                    continue
+
+                file_path = constants.RUNBOOK_PATH.joinpath(relative_file_path)
+                with open(file_path, "r") as file:
+                    node_context.extra_cloud_init_user_data.append(yaml.safe_load(file))
+
+        # Configure data disks.
+        if node_space.disk:
+            assert isinstance(
+                node_space.disk.data_disk_count, int
+            ), f"actual: {type(node_space.disk.data_disk_count)}"
+            assert isinstance(
+                node_space.disk.data_disk_size, int
+            ), f"actual: {type(node_space.disk.data_disk_size)}"
+
+            for i in range(node_space.disk.data_disk_count):
+                data_disk = DataDiskContext()
+                data_disk.file_path = os.path.join(
+                    self.vm_disks_dir, f"{node_context.vm_name}-data-{i}.qcow2"
                 )
+                data_disk.size_gib = node_space.disk.data_disk_size
 
-            node_context.vm_name = f"{vm_name_prefix}-{i}"
-            if not node.name:
-                node.name = node_context.vm_name
-
-            node_context.cloud_init_file_path = os.path.join(
-                self.vm_disks_dir, f"{node_context.vm_name}-cloud-init.iso"
-            )
-
-            if self.host_node.is_remote:
-                node_context.os_disk_source_file_path = node_runbook.disk_img
-                node_context.os_disk_base_file_path = os.path.join(
-                    self.vm_disks_dir, os.path.basename(node_runbook.disk_img)
-                )
-            else:
-                node_context.os_disk_base_file_path = node_runbook.disk_img
-
-            node_context.os_disk_base_file_fmt = DiskImageFormat(
-                node_runbook.disk_img_format
-            )
-
-            node_context.os_disk_file_path = os.path.join(
-                self.vm_disks_dir, f"{node_context.vm_name}-os.qcow2"
-            )
-
-            node_context.console_log_file_path = str(
-                node.local_log_path / "qemu-console.log"
-            )
-            node_context.console_logger = QemuConsoleLogger()
-
-            # Read extra cloud-init data.
-            extra_user_data = (
-                node_runbook.cloud_init and node_runbook.cloud_init.extra_user_data
-            )
-            if extra_user_data:
-                node_context.extra_cloud_init_user_data = []
-
-                if isinstance(extra_user_data, str):
-                    extra_user_data = [extra_user_data]
-
-                for relative_file_path in extra_user_data:
-                    if not relative_file_path:
-                        continue
-
-                    file_path = constants.RUNBOOK_PATH.joinpath(relative_file_path)
-                    with open(file_path, "r") as file:
-                        node_context.extra_cloud_init_user_data.append(
-                            yaml.safe_load(file)
-                        )
-
-            # Configure data disks.
-            if node_space.disk:
-                assert isinstance(
-                    node_space.disk.data_disk_count, int
-                ), f"actual: {type(node_space.disk.data_disk_count)}"
-                assert isinstance(
-                    node_space.disk.data_disk_size, int
-                ), f"actual: {type(node_space.disk.data_disk_size)}"
-
-                for i in range(node_space.disk.data_disk_count):
-                    data_disk = DataDiskContext()
-                    data_disk.file_path = os.path.join(
-                        self.vm_disks_dir, f"{node_context.vm_name}-data-{i}.qcow2"
-                    )
-                    data_disk.size_gib = node_space.disk.data_disk_size
-
-                    node_context.data_disks.append(data_disk)
+                node_context.data_disks.append(data_disk)
 
     def _create_domain_and_attach_logger(
         self,
@@ -804,14 +819,43 @@ class BaseLibvirtPlatform(Platform):
         disk_source = ET.SubElement(disk, "source")
         disk_source.attrib["file"] = file_path
 
-    def _new_disk_device_name(self, node_context: NodeContext) -> str:
+    def _add_virtio_disk_xml(
+        self,
+        node_context: NodeContext,
+        devices: ET.Element,
+        file_path: str,
+        queues: int,
+    ) -> None:
+        device_name = self._new_disk_device_name(node_context, True)
+
+        disk = ET.SubElement(devices, "disk")
+        disk.attrib["type"] = "file"
+
+        disk_driver = ET.SubElement(disk, "driver")
+        disk_driver.attrib["if"] = "virtio"
+        disk_driver.attrib["type"] = "raw"
+        disk_driver.attrib["queues"] = str(queues)
+
+        disk_target = ET.SubElement(disk, "target")
+        disk_target.attrib["dev"] = device_name
+
+        disk_source = ET.SubElement(disk, "source")
+        disk_source.attrib["file"] = file_path
+
+    def _new_disk_device_name(
+        self,
+        node_context: NodeContext,
+        is_paravirtualized: bool = False,
+    ) -> str:
         disk_index = node_context.next_disk_index
         node_context.next_disk_index += 1
 
-        device_name = self._get_disk_device_name(disk_index)
+        device_name = self._get_disk_device_name(disk_index, is_paravirtualized)
         return device_name
 
-    def _get_disk_device_name(self, disk_index: int) -> str:
+    def _get_disk_device_name(
+        self, disk_index: int, is_paravirtualized: bool = False
+    ) -> str:
         # The disk device name is required to follow the standard Linux device naming
         # scheme. That is: [ sda, sdb, ..., sdz, sdaa, sdab, ... ]. However, it is
         # unlikely that someone will ever need more than 26 disks. So, keep is simple
@@ -819,8 +863,9 @@ class BaseLibvirtPlatform(Platform):
         if disk_index < 0 or disk_index > 25:
             raise LisaException(f"Unsupported disk index: {disk_index}.")
 
+        prefix = "v" if is_paravirtualized else "s"
         suffix = chr(ord("a") + disk_index)
-        return f"sd{suffix}"
+        return f"{prefix}d{suffix}"
 
     # Wait for the VM to boot and then get the IP address.
     def _get_node_ip_address(

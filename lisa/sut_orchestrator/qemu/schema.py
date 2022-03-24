@@ -84,3 +84,12 @@ class QemuNodeSchema(BaseLibvirtNodeSchema):
         if not self.disk_img:
             self.disk_img = self.qcow2
             self.disk_img_format = DiskImageFormat.QCOW2.value
+
+
+@dataclass_json()
+@dataclass
+class CloudHypervisorNodeSchema(BaseLibvirtNodeSchema):
+    # Local path to the cloud-hypervisor firmware.
+    # Can be obatained from:
+    # https://github.com/cloud-hypervisor/rust-hypervisor-firmware
+    firmware: str = ""

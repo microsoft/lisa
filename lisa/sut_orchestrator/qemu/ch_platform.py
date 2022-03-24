@@ -1,10 +1,12 @@
 # Copyright (c) Microsoft Corporation.
 # Licensed under the MIT license.
 
+import xml.etree.ElementTree as ET  # noqa: N817
 from typing import List, Type
 
 import libvirt  # type: ignore
 
+from lisa import schema
 from lisa.environment import Environment
 from lisa.feature import Feature
 from lisa.node import Node
@@ -14,7 +16,7 @@ from lisa.tools import QemuImg
 from lisa.util.logger import Logger
 
 from .. import CLOUD_HYPERVISOR
-from .schema import DiskImageFormat
+from .schema import BaseLibvirtNodeSchema, CloudHypervisorNodeSchema, DiskImageFormat
 
 
 class CloudHypervisorPlatform(BaseLibvirtPlatform):
@@ -26,23 +28,100 @@ class CloudHypervisorPlatform(BaseLibvirtPlatform):
     def supported_features(cls) -> List[Type[Feature]]:
         return BaseLibvirtPlatform._supported_features
 
+    @classmethod
+    def node_runbook_type(cls) -> type:
+        return CloudHypervisorNodeSchema
+
     def _libvirt_uri_schema(self) -> str:
         return "ch"
+
+    def _configure_node(
+        self,
+        node: Node,
+        node_idx: int,
+        node_space: schema.NodeSpace,
+        node_runbook: BaseLibvirtNodeSchema,
+        vm_name_prefix: str,
+    ) -> None:
+        super()._configure_node(
+            node,
+            node_idx,
+            node_space,
+            node_runbook,
+            vm_name_prefix,
+        )
+
+        assert isinstance(node_runbook, CloudHypervisorNodeSchema)
+        node_context = get_node_context(node)
+        node_context.firmware_path = node_runbook.firmware
 
     def _create_node_domain_xml(
         self, environment: Environment, log: Logger, node: Node
     ) -> str:
         node_context = get_node_context(node)
 
-        # TODO (anrayabh): generate domain xml
-        with open("/home/anirudh/dom_ch_template.xml", "r") as f:
-            dom_ch = f.read()
-        dom_ch = dom_ch.replace("{domain_name}", node_context.vm_name)
-        dom_ch = dom_ch.replace(
-            "{cloud_init_iso_path}", node_context.cloud_init_file_path
+        domain = ET.Element("domain")
+        domain.attrib["type"] = "ch"
+
+        name = ET.SubElement(domain, "name")
+        name.text = node_context.vm_name
+
+        memory = ET.SubElement(domain, "memory")
+        memory.attrib["unit"] = "MiB"
+        assert isinstance(node.capability.memory_mb, int)
+        memory.text = str(node.capability.memory_mb)
+
+        vcpu = ET.SubElement(domain, "vcpu")
+        assert isinstance(node.capability.core_count, int)
+        vcpu_count = node.capability.core_count
+        vcpu.text = str(vcpu_count)
+
+        os = ET.SubElement(domain, "os")
+
+        os_type = ET.SubElement(os, "type")
+        os_type.text = "hvm"
+
+        os_kernel = ET.SubElement(os, "kernel")
+        os_kernel.text = node_context.firmware_path
+
+        devices = ET.SubElement(domain, "devices")
+
+        console = ET.SubElement(devices, "console")
+        console.attrib["type"] = "pty"
+
+        console_target = ET.SubElement(console, "target")
+        console_target.attrib["type"] = "serial"
+        console_target.attrib["port"] = "0"
+
+        network_interface = ET.SubElement(devices, "interface")
+        network_interface.attrib["type"] = "network"
+
+        network_interface_source = ET.SubElement(network_interface, "source")
+        network_interface_source.attrib["network"] = "default"
+
+        network_model = ET.SubElement(network_interface, "model")
+        network_model.attrib["type"] = "virtio"
+
+        network_driver = ET.SubElement(network_interface, "driver")
+        network_driver.attrib["queues"] = str(vcpu_count)
+        network_driver.attrib["iommu"] = "on"
+
+        self._add_virtio_disk_xml(
+            node_context,
+            devices,
+            node_context.os_disk_file_path,
+            vcpu_count,
         )
-        dom_ch = dom_ch.replace("{os_disk_file_path}", node_context.os_disk_file_path)
-        return dom_ch
+
+        self._add_virtio_disk_xml(
+            node_context,
+            devices,
+            node_context.cloud_init_file_path,
+            vcpu_count,
+        )
+
+        xml = ET.tostring(domain, "unicode")
+        return xml
 
     def _stop_and_delete_vm(
         self,
