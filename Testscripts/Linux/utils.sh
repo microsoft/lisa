@@ -2607,7 +2607,8 @@ function build_ntttcp () {
 		git clone https://github.com/Microsoft/ntttcp-for-linux.git
 		pushd ntttcp-for-linux/src/ && make && make install
 	else
-		wget https://github.com/Microsoft/ntttcp-for-linux/archive/${ntttcp_version}.tar.gz
+		wget https://codeload.github.com/microsoft/ntttcp-for-linux/tar.gz/refs/tags/$ntttcp_version -O $ntttcp_version.tar.gz
+		#wget https://github.com/Microsoft/ntttcp-for-linux/archive/${ntttcp_version}.tar.gz
 		tar -zxvf ${ntttcp_version}.tar.gz
 		pushd ntttcp-for-linux-${ntttcp_version/v/}/src/ && make && make install
 	fi
