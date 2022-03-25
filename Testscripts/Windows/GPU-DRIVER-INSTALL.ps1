@@ -34,6 +34,23 @@ function Start-Validation {
         $gpuName = "A100-SXM"
         $expectedGPUBridgeCount = 6
         $deviceIDPattern = "Device_ID.*44450000"
+    }elseif ($allVMData.InstanceSize -imatch "A10") {
+        $deviceIDPattern = "Class_ID.*44c4f61d"
+        $expectedGPUCount=1
+        if ($allVMData.InstanceSize -eq "Standard_NV72ads_A10_v5") {
+            $expectedGPUCount=2
+            $gpuName = 'A10-24Q'
+        }elseif ($allVMData.InstanceSize -eq "Standard_NV36ads_A10_v5") {
+            $gpuName = 'A10-24Q'
+        }elseif ($allVMData.InstanceSize -eq "Standard_NV36adms_A10_v5") {
+            $gpuName = 'A10-24Q'
+        }elseif ($allVMData.InstanceSize -eq "Standard_NV18ads_A10_v5") {
+            $gpuName = 'A10-12Q'
+        }elseif ($allVMData.InstanceSize -eq "Standard_NV12ads_A10_v5") {
+            $gpuName = 'A10-8Q'          
+        }elseif ($allVMData.InstanceSize -eq "Standard_NV6ads_A10_v5") {
+            $gpuName = 'A10-4Q'
+        }
     }
 
     # region PCI Express pass-through in lsvmbus
