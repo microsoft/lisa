@@ -20,6 +20,7 @@ from typing import (
 )
 
 import pluggy
+from assertpy import assert_that
 from dataclasses_json import config
 from marshmallow import fields
 from semver import VersionInfo
@@ -492,3 +493,25 @@ def field_metadata(
 
 def is_unittest() -> bool:
     return "unittest" in sys.argv[0]
+
+
+def truncate_keep_prefix(content: str, kept_len: int, prefix: str = "lisa-") -> str:
+    """
+    This method is used to truncate names, when some resource has length
+    limitation. It keeps meaningful part and the defined prefix.
+
+    The last chars include the datetime pattern, it's more unique than leading
+    project/test pass names. The name is used to identify lisa deployed
+    environment too, so it needs to keep the leading "lisa-" after truncated.
+
+    This makes the name from lisa-long-name... to lisa-name...
+    """
+    if not content.startswith(prefix):
+        assert_that(content).described_as(
+            "truncate_keep_prefix should be start with prefix"
+        ).starts_with(prefix)
+    if kept_len < len(prefix):
+        assert_that(len(prefix)).described_as(
+            f"kept length must be greater than prefix '{prefix}'"
+        ).is_less_than_or_equal_to(kept_len)
+    return f"{prefix}{content[len(prefix) : ][-kept_len+len(prefix):]}"

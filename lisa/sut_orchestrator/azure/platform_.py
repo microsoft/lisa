@@ -55,6 +55,7 @@ from lisa.util import (
     get_public_key_data,
     plugin_manager,
     set_filtered_fields,
+    truncate_keep_prefix,
 )
 from lisa.util.logger import Logger
 from lisa.util.parallel import run_in_parallel
@@ -482,11 +483,11 @@ class AzurePlatform(Platform):
             resource_group_name = self._azure_runbook.resource_group_name
         else:
             normalized_name = constants.NORMALIZE_PATTERN.sub("-", constants.RUN_NAME)
-            # Take last chars to make sure the length is to exceed max 64 chars
-            # allowed in vm names. The last chars include the datetime pattern,
-            # it's more unique than leading project/test pass names.
-            normalized_name = normalized_name[-40:]
-            resource_group_name = f"{normalized_name}-e{environment.id}"
+            # Take last chars to make sure the length is to exceed max 90 chars
+            # allowed in resource group name.
+            resource_group_name = truncate_keep_prefix(
+                f"{normalized_name}-e{environment.id}", 80
+            )
             environment_context.resource_group_is_created = True
 
         environment_context.resource_group_name = resource_group_name
@@ -1116,7 +1117,12 @@ class AzurePlatform(Platform):
         )
 
         if not azure_node_runbook.name:
-            azure_node_runbook.name = f"{name_prefix}-n{index}"
+            # the max length of vm name is 64 chars. Below logic takes last 40
+            # chars in resource group name and keep the leading "lisa-". So it's
+            # easy to identify it's a lisa created node.
+            azure_node_runbook.name = truncate_keep_prefix(
+                f"{name_prefix}-n{index}", 50
+            )
         if not azure_node_runbook.vm_size:
             raise LisaException("vm_size is not detected before deploy")
         if not azure_node_runbook.location:
