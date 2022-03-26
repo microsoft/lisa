@@ -13,6 +13,8 @@
         <keywords>.*Error: .CGroupsException. The daemon.s PID .* was already added to the legacy cgroup; this invalidates resource usage data.*</keywords>
         <keywords>.*Daemon Error getting cloud-init enabled status from systemctl: Command '\['systemctl', 'is-enabled', 'cloud-init-local.service'\]' returned non-zero exit status 1</keywords>
         <keywords>.*Daemon Error getting cloud-init enabled status from service: Command '\['service', 'cloud-init', 'status'\]' returned non-zero exit status 4</keywords>
-        <keywords>.*Daemon sfdisk with --part-type failed \[1\], retrying with -c</keywords>
+        <keywords>.*Daemon sfdisk with --part-type failed \[1\], retrying with
+        -c</keywords>
+        <keywords>LISDrivers: Failed</keywords>
     </errors>
 </messages>
