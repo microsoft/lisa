@@ -1,9 +1,11 @@
 # Copyright (c) Microsoft Corporation.
 # Licensed under the MIT license.
+import re
 
 from lisa.base_tools import Cat, Sed
 from lisa.executable import Tool
-from lisa.util import LisaException
+from lisa.operating_system import Ubuntu
+from lisa.util import LisaException, find_patterns_groups_in_lines
 
 from .echo import Echo
 from .find import Find
@@ -47,7 +49,7 @@ class Ssh(Tool):
     def add_known_host(self, ip: str) -> None:
         self.node.execute(f"ssh-keyscan -H {ip} >> ~/.ssh/known_hosts", shell=True)
 
-    def get_sshd_config_path(self) -> str:
+    def get_default_sshd_config_path(self) -> str:
         file_name = "sshd_config"
         default_path = f"/etc/ssh/{file_name}"
         if self.node.shell.exists(self.node.get_pure_path(default_path)):
@@ -60,8 +62,22 @@ class Ssh(Tool):
             raise LisaException("not find sshd_config")
 
     def set_max_session(self, count: int = 200) -> None:
-        config_path = self.get_sshd_config_path()
+        config_path = self.get_default_sshd_config_path()
         sed = self.node.tools[Sed]
         sed.append(f"MaxSessions {count}", config_path, sudo=True)
         service = self.node.tools[Service]
         service.restart_service("sshd")
+
+    def get(self, setting: str) -> str:
+        config_path = self.get_default_sshd_config_path()
+        settings = self.node.tools[Cat].read(config_path, True, True)
+        if isinstance(self.node.os, Ubuntu):
+            extra_sshd_config = "/etc/ssh/sshd_config.d/50-cloudimg-settings.conf"
+            path_exist = self.node.execute(f"ls -lt {extra_sshd_config}", sudo=True)
+            if path_exist.exit_code == 0:
+                settings += self.node.tools[Cat].read(extra_sshd_config, True, True)
+        pattern = re.compile(rf"^{setting}\s+(?P<value>.*)", re.M)
+        matches = find_patterns_groups_in_lines(settings, [pattern])
+        if not matches[0]:
+            return ""
+        return (matches[0][-1])["value"]
