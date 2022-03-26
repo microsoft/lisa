@@ -269,9 +269,6 @@ class AzureImageStandard(TestSuite):
             raise LisaException(f"Test cannot run on distro {node.os.name}")
 
         assert_that(
-            grub_output, f"console=ttyS0 should be present in {grub_output}."
-        ).contains("console=ttyS0")
-        assert_that(
             grub_output,
             f"libata.atapi_enabled=0 should not be present in {grub_output}.",
         ).does_not_contain("libata.atapi_enabled=0")
