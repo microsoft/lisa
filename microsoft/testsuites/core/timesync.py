@@ -1,11 +1,14 @@
 from pathlib import PurePosixPath
 from time import sleep
-from typing import List, Optional, Union
+from typing import List, Optional, Union, cast
 
 from assertpy import assert_that
 
 from lisa import (
+    LisaException,
+    Logger,
     Node,
+    RemoteNode,
     SkippedException,
     TestCaseMetadata,
     TestSuite,
@@ -16,6 +19,7 @@ from lisa import (
 from lisa.operating_system import CpuArchitecture, Redhat
 from lisa.tools import Cat, Chrony, Dmesg, Hwclock, Lscpu, Ntp, Ntpstat, Service
 from lisa.tools.lscpu import CpuType
+from lisa.util.shell import wait_tcp_port_ready
 
 
 def _wait_file_changed(
@@ -128,73 +132,89 @@ class TimeSync(TestSuite):
         """,
         priority=2,
     )
-    def timesync_check_unbind_clocksource(self, node: Node) -> None:
-        # 1. Check clock source name is one of hyperv_clocksource_tsc_page,
-        #  lis_hv_clocksource_tsc_page, hyperv_clocksource.
-        clocksource_map = {
-            CpuArchitecture.X64: [
-                "hyperv_clocksource_tsc_page",
-                "lis_hyperv_clocksource_tsc_page",
-                "hyperv_clocksource",
-                "tsc",
-            ],
-            CpuArchitecture.ARM64: [
-                "arch_sys_counter",
-            ],
-        }
-        lscpu = node.tools[Lscpu]
-        arch = lscpu.get_architecture()
-        clocksource = clocksource_map.get(CpuArchitecture(arch), None)
-        if not clocksource:
-            raise UnsupportedCpuArchitectureException(arch)
-        cat = node.tools[Cat]
-        clock_source_result = cat.run(self.current_clocksource)
-        assert_that([clock_source_result.stdout]).described_as(
-            f"Expected clocksource name is one of {clocksource},"
-            f" but actual it is {clock_source_result.stdout}."
-        ).is_subset_of(clocksource)
+    def timesync_check_unbind_clocksource(self, node: Node, log: Logger) -> None:
+        unbind = node.shell.exists(PurePosixPath(self.unbind_clocksource))
+        try:
+            # 1. Check clock source name is one of hyperv_clocksource_tsc_page,
+            #  lis_hv_clocksource_tsc_page, hyperv_clocksource.
+            clocksource_map = {
+                CpuArchitecture.X64: [
+                    "hyperv_clocksource_tsc_page",
+                    "lis_hyperv_clocksource_tsc_page",
+                    "hyperv_clocksource",
+                    "tsc",
+                ],
+                CpuArchitecture.ARM64: [
+                    "arch_sys_counter",
+                ],
+            }
+            lscpu = node.tools[Lscpu]
+            arch = lscpu.get_architecture()
+            clocksource = clocksource_map.get(CpuArchitecture(arch), None)
+            if not clocksource:
+                raise UnsupportedCpuArchitectureException(arch)
+            cat = node.tools[Cat]
+            clock_source_result = cat.run(self.current_clocksource)
+            assert_that([clock_source_result.stdout]).described_as(
+                f"Expected clocksource name is one of {clocksource},"
+                f" but actual it is {clock_source_result.stdout}."
+            ).is_subset_of(clocksource)
 
-        # 2. Check CPU flag contains constant_tsc from /proc/cpuinfo.
-        if CpuArchitecture.X64 == arch:
-            cpu_info_result = cat.run("/proc/cpuinfo")
-            if CpuType.Intel == lscpu.get_cpu_type():
-                expected_tsc_str = " constant_tsc "
-            elif CpuType.AMD == lscpu.get_cpu_type():
-                expected_tsc_str = " tsc "
-            shown_up_times = cpu_info_result.stdout.count(expected_tsc_str)
-            assert_that(shown_up_times).described_as(
-                f"Expected {expected_tsc_str} shown up times in cpu flags is"
-                " equal to cpu count."
-            ).is_equal_to(lscpu.get_core_count())
+            # 2. Check CPU flag contains constant_tsc from /proc/cpuinfo.
+            if CpuArchitecture.X64 == arch:
+                cpu_info_result = cat.run("/proc/cpuinfo")
+                if CpuType.Intel == lscpu.get_cpu_type():
+                    expected_tsc_str = " constant_tsc "
+                elif CpuType.AMD == lscpu.get_cpu_type():
+                    expected_tsc_str = " tsc "
+                shown_up_times = cpu_info_result.stdout.count(expected_tsc_str)
+                assert_that(shown_up_times).described_as(
+                    f"Expected {expected_tsc_str} shown up times in cpu flags is"
+                    " equal to cpu count."
+                ).is_equal_to(lscpu.get_core_count())
 
-        # 3. Check clocksource name shown up in dmesg.
-        dmesg = node.tools[Dmesg]
-        assert_that(dmesg.get_output()).described_as(
-            f"Expected clocksource {clock_source_result.stdout} shown up in dmesg."
-        ).contains(f"clocksource {clock_source_result.stdout}")
+            # 3. Check clocksource name shown up in dmesg.
+            dmesg = node.tools[Dmesg]
+            assert_that(dmesg.get_output()).described_as(
+                f"Expected clocksource {clock_source_result.stdout} shown up in dmesg."
+            ).contains(f"clocksource {clock_source_result.stdout}")
 
-        # 4. Unbind current clock source if there are 2+ clock sources,
-        # check current clock source can be switched to a different one.
-        if node.shell.exists(PurePosixPath(self.unbind_clocksource)):
-            available_clocksources = cat.run(self.available_clocksource)
-            available_clocksources_array = available_clocksources.stdout.split(" ")
-            # We can not unbind clock source if there is only one existed.
-            if len(available_clocksources_array) > 1:
-                available_clocksources_array.remove(clock_source_result.stdout)
-                cmd_result = node.execute(
-                    f"echo {clock_source_result.stdout} > {self.unbind_clocksource}",
-                    sudo=True,
-                    shell=True,
+            # 4. Unbind current clock source if there are 2+ clock sources,
+            # check current clock source can be switched to a different one.
+            if unbind:
+                available_clocksources = cat.run(self.available_clocksource)
+                available_clocksources_array = available_clocksources.stdout.split(" ")
+                # We can not unbind clock source if there is only one existed.
+                if len(available_clocksources_array) > 1:
+                    available_clocksources_array.remove(clock_source_result.stdout)
+                    cmd_result = node.execute(
+                        f"echo {clock_source_result.stdout} >"
+                        f" {self.unbind_clocksource}",
+                        sudo=True,
+                        shell=True,
+                    )
+                    cmd_result.assert_exit_code()
+
+                    clock_source_result_expected = _wait_file_changed(
+                        node, self.current_clocksource, available_clocksources_array
+                    )
+                    assert_that(clock_source_result_expected).described_as(
+                        f"After unbind {clock_source_result.stdout}, current clock"
+                        f" source doesn't switch properly."
+                    ).is_true()
+        finally:
+            # after unbind, need reboot vm to bring the previous time clock source back
+            if unbind:
+                node.reboot()
+                remote_node = cast(RemoteNode, node)
+                is_ready, _ = wait_tcp_port_ready(
+                    remote_node.public_address,
+                    remote_node.public_port,
+                    log=log,
+                    timeout=300,
                 )
-                cmd_result.assert_exit_code()
-
-                clock_source_result_expected = _wait_file_changed(
-                    node, self.current_clocksource, available_clocksources_array
-                )
-                assert_that(clock_source_result_expected).described_as(
-                    f"After unbind {clock_source_result.stdout}, current clock source "
-                    f"doesn't switch properly."
-                ).is_true()
+                if not is_ready:
+                    raise LisaException("vm is inaccessible after reboot.")
 
     @TestCaseMetadata(
         description="""
