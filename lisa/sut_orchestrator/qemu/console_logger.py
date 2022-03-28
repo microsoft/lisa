@@ -92,6 +92,7 @@ class QemuConsoleLogger:
 
                 if data == -2:
                     # No more data available at the moment.
+                    assert self._log_file
                     self._log_file.flush()
                     break
 
