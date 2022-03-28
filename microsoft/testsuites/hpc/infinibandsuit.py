@@ -352,7 +352,6 @@ class InfinibandSuit(TestSuite):
             2. Install IBM MPI
             3. Set up ssh keys of server/client connection
             4. Run MPI pingpong tests
-            5. Run other MPI tests
             """,
         priority=4,
         requirement=simple_requirement(
@@ -413,3 +412,75 @@ class InfinibandSuit(TestSuite):
             expected_exit_code_failure_message="Infiniband inter-node ping pong "
             "test failed with IBM MPI",
         )
+
+    @TestCaseMetadata(
+        description="""
+            This test case will
+            1. Ensure RDMA is setup
+            2. Install MVAPICH MPI
+            3. Set up ssh keys of server/client connection
+            4. Run MPI pingpong tests
+            5. Run other MPI tests
+            """,
+        priority=4,
+        requirement=simple_requirement(
+            supported_features=[Infiniband],
+            min_count=2,
+        ),
+    )
+    def verify_mvapich_mpi(self, environment: Environment, log: Logger) -> None:
+        server_node = environment.nodes[0]
+        client_node = environment.nodes[1]
+
+        # Ensure RDMA is setup
+        run_in_parallel(
+            [
+                lambda: client_node.features[Infiniband],
+                lambda: server_node.features[Infiniband],
+            ]
+        )
+
+        server_ib = server_node.features[Infiniband]
+        client_ib = client_node.features[Infiniband]
+        run_in_parallel([server_ib.install_mvapich_mpi, client_ib.install_mvapich_mpi])
+
+        # Restart the ssh sessions for changes to /etc/security/limits.conf
+        # to take effect
+        server_node.close()
+        client_node.close()
+
+        # Get the ip adresses and device name of ib device
+        server_ib_interfaces = server_ib.get_ib_interfaces()
+        client_ib_interfaces = client_ib.get_ib_interfaces()
+        server_ip = server_ib_interfaces[0].ip_addr
+        client_ip = client_ib_interfaces[0].ip_addr
+
+        # Test relies on machines being able to ssh into each other
+        server_ssh = server_node.tools[Ssh]
+        client_ssh = client_node.tools[Ssh]
+        server_ssh.enable_public_key(client_ssh.generate_key_pairs())
+        client_ssh.enable_public_key(server_ssh.generate_key_pairs())
+        server_ssh.add_known_host(client_ip)
+        client_ssh.add_known_host(server_ip)
+
+        # Run MPI tests
+        find = server_node.tools[Find]
+        test_names = ["IMB-MPI1", "IMB-RMA", "IMB-NBC"]
+        for test in test_names:
+            find_results = find.find_files(
+                server_node.get_pure_path("/usr"), test, sudo=True
+            )
+            assert_that(len(find_results)).described_as(
+                f"Could not find location of MVAPICH MPI test: {test}"
+            ).is_greater_than(0)
+            test_path = find_results[0]
+            assert_that(test_path).described_as(
+                f"Could not find location of MVAPICH MPI test: {test}"
+            ).is_not_empty()
+            server_node.execute(
+                f"/usr/local/bin/mpirun --hosts {server_ip},{client_ip} "
+                f"-n 2 -ppn 1 {test_path}",
+                expected_exit_code=0,
+                expected_exit_code_failure_message=f"Failed {test} test "
+                "with MVAPICH MPI",
+            )

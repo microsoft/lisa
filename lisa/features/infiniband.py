@@ -208,6 +208,8 @@ class Infiniband(Feature):
             "gcc-c++",
             "glibc.i686",
             "libgcc.i686",
+            "byacc",
+            "libevent",
         ]
         if isinstance(node.os, CentOs):
             node.execute(
@@ -324,12 +326,12 @@ class Infiniband(Feature):
         node = self._node
         # Intall Open MPI
         wget = node.tools[Wget]
-        script_path = wget.get(
+        tar_file_path = wget.get(
             "https://download.open-mpi.org/release/open-mpi/v4.0/openmpi-4.0.5.tar.gz",
             executable=True,
         )
         tar = node.tools[Tar]
-        tar.extract(script_path, ".", gzip=True)
+        tar.extract(tar_file_path, ".", gzip=True)
         openmpi_folder = node.get_pure_path("./openmpi-4.0.5")
 
         node.execute(
@@ -366,3 +368,30 @@ class Infiniband(Feature):
             update_envs={"MPI_IB_PKEY": self.get_pkey()},
             sudo=True,
         )
+
+    def install_mvapich_mpi(self) -> None:
+        node = self._node
+        # Intall Open MPI
+        wget = node.tools[Wget]
+        tar_file_path = wget.get(
+            "https://partnerpipelineshare.blob.core.windows.net/"
+            "mpi/mvapich2-2.3.2.tar.gz"
+        )
+        tar = node.tools[Tar]
+        tar.extract(tar_file_path, ".", gzip=True)
+        mvapichmpi_folder = node.get_pure_path("./mvapich2-2.3.2")
+
+        if isinstance(node.os, Ubuntu):
+            params = "--disable-fortran --disable-mcast"
+        else:
+            params = ""
+        node.execute(
+            f"./configure {params}",
+            shell=True,
+            cwd=mvapichmpi_folder,
+            expected_exit_code=0,
+            expected_exit_code_failure_message="Failed to configure MVAPICH MPI",
+        )
+        make = node.tools[Make]
+        make.make("", cwd=mvapichmpi_folder)
+        make.make_install(cwd=mvapichmpi_folder)
