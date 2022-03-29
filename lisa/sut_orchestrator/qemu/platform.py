@@ -448,12 +448,6 @@ class QemuPlatform(Platform):
             assert node_context.console_logger
             node_context.console_logger.close()
 
-            # Delete console log file
-            try:
-                os.remove(node_context.console_log_file_path)
-            except Exception as ex:
-                log.warning(f"console log delete failed. {ex}")
-
         # Delete VM disks directory.
         try:
             self.host_node.shell.remove(Path(self.vm_disks_dir), True)
