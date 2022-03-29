@@ -7,7 +7,13 @@ from typing import List, Pattern, cast
 
 from assertpy.assertpy import assert_that
 
-from lisa import Node, TestCaseMetadata, TestSuite, TestSuiteMetadata
+from lisa import (
+    Node,
+    TestCaseMetadata,
+    TestSuite,
+    TestSuiteMetadata,
+    simple_requirement,
+)
 from lisa.operating_system import (
     SLES,
     CoreOs,
@@ -23,6 +29,7 @@ from lisa.operating_system import (
     SuseRepositoryInfo,
     Ubuntu,
 )
+from lisa.sut_orchestrator import AZURE, READY
 from lisa.tools import Cat, Dmesg, Lscpu, Pgrep, Ssh, Whoami
 from lisa.util import (
     LisaException,
@@ -217,6 +224,7 @@ class AzureImageStandard(TestSuite):
         2. Verify that `Defaults targetpw` should be disabled, if present.
         """,
         priority=1,
+        requirement=simple_requirement(supported_platform_type=[AZURE, READY]),
     )
     def verify_default_targetpw(self, node: Node) -> None:
         sudoers_out = (
@@ -237,6 +245,7 @@ class AzureImageStandard(TestSuite):
         2. For Redhat based distros, verify that numa is disabled for versions < 6.6.0
         """,
         priority=1,
+        requirement=simple_requirement(supported_platform_type=[AZURE, READY]),
     )
     def verify_grub(self, node: Node) -> None:
         # check grub configuration file
@@ -294,6 +303,7 @@ class AzureImageStandard(TestSuite):
         network manager is not installed.
         """,
         priority=1,
+        requirement=simple_requirement(supported_platform_type=[AZURE, READY]),
     )
     def verify_network_manager_not_installed(self, node: Node) -> None:
         if isinstance(node.os, Fedora):
@@ -321,6 +331,7 @@ class AzureImageStandard(TestSuite):
         2. Verify that networking is enabled in the file.
         """,
         priority=1,
+        requirement=simple_requirement(supported_platform_type=[AZURE, READY]),
     )
     def verify_network_file_configuration(self, node: Node) -> None:
         if isinstance(node.os, Fedora):
@@ -349,6 +360,7 @@ class AzureImageStandard(TestSuite):
         "ONBOOT=yes" is present in network file.
         """,
         priority=1,
+        requirement=simple_requirement(supported_platform_type=[AZURE, READY]),
     )
     def verify_ifcfg_eth0(self, node: Node) -> None:
         if isinstance(node.os, Fedora):
@@ -384,6 +396,7 @@ class AzureImageStandard(TestSuite):
         files are not present.
         """,
         priority=1,
+        requirement=simple_requirement(supported_platform_type=[AZURE, READY]),
     )
     def verify_udev_rules_moved(self, node: Node) -> None:
         if isinstance(node.os, CoreOs):
@@ -419,6 +432,7 @@ class AzureImageStandard(TestSuite):
         2. Verify that DHCLIENT_SET_HOSTNAME="no" is present in the file.
         """,
         priority=1,
+        requirement=simple_requirement(supported_platform_type=[AZURE, READY]),
     )
     def verify_dhcp_file_configuration(self, node: Node) -> None:
         if isinstance(node.os, Suse):
@@ -451,6 +465,7 @@ class AzureImageStandard(TestSuite):
         present in the file.
         """,
         priority=1,
+        requirement=simple_requirement(supported_platform_type=[AZURE, READY]),
     )
     def verify_yum_conf(self, node: Node) -> None:
         if isinstance(node.os, Fedora):
@@ -474,6 +489,7 @@ class AzureImageStandard(TestSuite):
         has length greater than zero.
         """,
         priority=1,
+        requirement=simple_requirement(supported_platform_type=[AZURE, READY]),
     )
     def verify_hv_kvp_daemon_installed(self, node: Node) -> None:
         if isinstance(node.os, Debian):
@@ -491,6 +507,7 @@ class AzureImageStandard(TestSuite):
         1. Verify the repository configuration depending on the distro type.
         """,
         priority=1,
+        requirement=simple_requirement(supported_platform_type=[AZURE, READY]),
     )
     def verify_repository_installed(self, node: Node) -> None:
         assert isinstance(node.os, Posix)
@@ -689,6 +706,7 @@ class AzureImageStandard(TestSuite):
             2.2. Expected to see 'console=ttyS0' for x86_64.
         """,
         priority=1,
+        requirement=simple_requirement(supported_platform_type=[AZURE, READY]),
     )
     def verify_serial_console_is_enabled(self, node: Node) -> None:
         console_settings = {
@@ -719,6 +737,7 @@ class AzureImageStandard(TestSuite):
         """,
         priority=1,
         use_new_environment=True,
+        requirement=simple_requirement(supported_platform_type=[AZURE, READY]),
     )
     def verify_bash_history_is_empty(self, node: Node) -> None:
         path_bash_history = "/root/.bash_history"
@@ -742,6 +761,7 @@ class AzureImageStandard(TestSuite):
          existing, fail the case.
         """,
         priority=1,
+        requirement=simple_requirement(supported_platform_type=[AZURE, READY]),
     )
     def verify_boot_error_fail_warnings(self, node: Node) -> None:
         dmesg = node.tools[Dmesg]
@@ -789,6 +809,7 @@ class AzureImageStandard(TestSuite):
         3. Pass with warning if the value is not between 0 and 180.
         """,
         priority=1,
+        requirement=simple_requirement(supported_platform_type=[AZURE, READY]),
     )
     def verify_client_active_interval(self, node: Node) -> None:
         ssh = node.tools[Ssh]
@@ -808,6 +829,7 @@ class AzureImageStandard(TestSuite):
         2. Fail the case if the password of any above user existing.
         """,
         priority=1,
+        requirement=simple_requirement(supported_platform_type=[AZURE, READY]),
     )
     def verify_no_pre_exist_users(self, node: Node) -> None:
         current_user = node.tools[Whoami].get_username()
