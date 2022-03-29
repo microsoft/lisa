@@ -66,7 +66,7 @@ class Feature(InitializableMixin):
     def on_before_deployment(cls, *args: Any, **kwargs: Any) -> None:
         """
         If a feature need to change something before deployment, it needs to
-        implement this method. When this method is called, determinated by the
+        implement this method. When this method is called, determined by the
         platform.
         """
         ...
