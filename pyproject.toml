@@ -18,7 +18,7 @@ azure-mgmt-resource = "^16.0.0"
 azure-mgmt-storage = "^17.0.0"
 dataclasses-json = "^0.5.2"
 func-timeout = "^4.3.5"
-paramiko = "^2.7.2"
+paramiko = "^2.10.1"
 pluggy = "^0.13.1"
 pypiwin32 = {version = "^223", platform = "win32"}
 pytest-html = "^3.1.1"
