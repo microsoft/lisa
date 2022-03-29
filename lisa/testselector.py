@@ -245,6 +245,30 @@ def _apply_filter(  # noqa: C901
             if is_skip:
                 continue
             del current_selected[name]
+
+    elif case_runbook.select_action == constants.TESTCASE_SELECT_ACTION_EXCLUDE_INVERSE:
+        filtered_cases = _match_cases(current_selected, patterns)
+
+        # Remove test cases that are not present in the new set.
+        for name in list(current_selected.keys()):
+            if name in filtered_cases:
+                continue
+
+            is_skip = _force_check(
+                name,
+                is_force,
+                force_included,
+                force_excluded,
+                temp_force_set,
+                case_runbook,
+            )
+            if is_skip:
+                # Don't change test cases that are force included or excluded.
+                continue
+
+            # Remove test from selection.
+            del current_selected[name]
+
     else:
         raise LisaException(f"unknown selectAction: '{case_runbook.select_action}'")
 

@@ -1172,6 +1172,7 @@ class TestCase(BaseTestCaseFilter):
                         constants.TESTCASE_SELECT_ACTION_INCLUDE,
                         constants.TESTCASE_SELECT_ACTION_FORCE_INCLUDE,
                         constants.TESTCASE_SELECT_ACTION_EXCLUDE,
+                        constants.TESTCASE_SELECT_ACTION_EXCLUDE_INVERSE,
                         constants.TESTCASE_SELECT_ACTION_FORCE_EXCLUDE,
                     ]
                 )
