@@ -500,12 +500,20 @@ def truncate_keep_prefix(content: str, kept_len: int, prefix: str = "lisa-") -> 
     This method is used to truncate names, when some resource has length
     limitation. It keeps meaningful part and the defined prefix.
 
+    To support custom names. if the string size doesn't exceed the limitation,
+    there is no any validation and truncate.
+
     The last chars include the datetime pattern, it's more unique than leading
     project/test pass names. The name is used to identify lisa deployed
     environment too, so it needs to keep the leading "lisa-" after truncated.
 
     This makes the name from lisa-long-name... to lisa-name...
     """
+
+    # do nothing, if the string is shorter than required.
+    if len(content) <= kept_len:
+        return content
+
     if not content.startswith(prefix):
         assert_that(content).described_as(
             "truncate_keep_prefix should be start with prefix"
