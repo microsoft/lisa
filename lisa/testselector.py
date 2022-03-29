@@ -203,7 +203,7 @@ def _apply_filter(  # noqa: C901
         constants.TESTCASE_SELECT_ACTION_FORCE_INCLUDE,
     ]
     temp_force_set: Set[str] = set()
-    if case_runbook.select_action is constants.TESTCASE_SELECT_ACTION_NONE:
+    if case_runbook.select_action == constants.TESTCASE_SELECT_ACTION_NONE:
         # Just apply settings on test cases
         changed_cases = _match_cases(current_selected, patterns)
     elif case_runbook.select_action in [
