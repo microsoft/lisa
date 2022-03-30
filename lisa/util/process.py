@@ -13,7 +13,7 @@ from pathlib import Path
 from typing import Dict, List, Optional, Union
 
 import spur  # type: ignore
-from assertpy.assertpy import AssertionBuilder, assert_that
+from assertpy.assertpy import AssertionBuilder, assert_that, fail
 from spur.errors import NoSuchCommandError  # type: ignore
 
 from lisa.util import LisaException, filter_ansi_escape
@@ -34,10 +34,23 @@ class ExecutableResult:
         return self.stdout
 
     def assert_exit_code(
-        self, expected_exit_code: int = 0, message: str = ""
+        self, expected_exit_code: Union[int, List[int]] = 0, message: str = ""
     ) -> AssertionBuilder:
         message = "\n".join([message, f"get unexpected exit code on cmd {self.cmd}"])
-        return assert_that(self.exit_code, message).is_equal_to(expected_exit_code)
+        # make the type checker happy by not using the union
+        expected_exit_codes: List[int] = []
+        if isinstance(expected_exit_code, int):
+            expected_exit_codes = [expected_exit_code]
+        elif isinstance(expected_exit_code, list):
+            expected_exit_codes = expected_exit_code
+        else:
+            fail(
+                f"Unexpected type {str(type(expected_exit_code))} was "
+                "passed as parameter expected_exit_code. Must be int or "
+                "List[int]"
+            )
+
+        return assert_that(expected_exit_codes, message).contains(self.exit_code)
 
     def save_stdout_to_file(self, saved_path: Path) -> "ExecutableResult":
         with open(saved_path, "w") as f:

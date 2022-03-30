@@ -606,10 +606,20 @@ class DpdkTestpmd(Tool):
             node.os.install_packages(list(self._redhat_packages))
 
             # ensure RDMA service is started if present.
+
             service_name = "rdma"
             service = node.tools[Service]
             if service.check_service_exists(service_name):
-                service.restart_service(service_name)
+                if not service.check_service_status(service_name):
+                    service.enable_service(service_name)
+
+                # some versions of RHEL and CentOS have service.rdma
+                # that will refuse manual start/stop and will return
+                # NOPERMISSION. This is not fatal and can be continued.
+                # If the service is present it should start when needed.
+                service.restart_service(
+                    service_name, ignore_exit_code=service.SYSTEMD_EXIT_NOPERMISSION
+                )
 
             node.execute(
                 "pip3 install --upgrade meson",
