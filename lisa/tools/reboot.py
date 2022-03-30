@@ -90,7 +90,7 @@ class Reboot(Tool):
             self._command = command_result.stdout
         self._log.debug(f"rebooting with boot time: {last_boot_time}")
         try:
-            # Reboot is not reliable, and sometime stucks,
+            # Reboot is not reliable, and sometime stuck,
             # like SUSE sles-15-sp1-sapcal gen1 2020.10.23.
             # In this case, use timeout to prevent hanging.
             self.run(force_run=True, sudo=True, timeout=10)
@@ -99,7 +99,11 @@ class Reboot(Tool):
             self._log.debug(f"ignorable exception on rebooting: {identifier}")
 
         connected: bool = False
-        while last_boot_time == current_boot_time and timer.elapsed(False) < time_out:
+        # The previous steps may take longer time than time out. After that, it
+        # needs to connect at least once.
+        tried_times: int = 0
+        while (timer.elapsed(False) < time_out) or tried_times < 1:
+            tried_times += 1
             try:
                 self.node.close()
                 current_boot_time = _who_last(who)
@@ -112,7 +116,9 @@ class Reboot(Tool):
                 # error is ignorable, as ssh may be closed suddenly.
                 self._log.debug(f"ignorable ssh exception: {identifier}")
             self._log.debug(f"reconnected with uptime: {current_boot_time}")
-        if timer.elapsed() > time_out:
+            if last_boot_time < current_boot_time:
+                break
+        if last_boot_time == current_boot_time:
             if connected:
                 raise LisaException(
                     "timeout to wait reboot, the node may not perform reboot."
