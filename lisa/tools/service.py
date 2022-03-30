@@ -2,10 +2,15 @@
 # Licensed under the MIT license.
 from typing import Type
 
-from lisa.executable import Tool
+from lisa.executable import ExecutableResult, Tool
 
 
 class Service(Tool):
+    # exit codes for systemd are documented:
+    # https://manpages.debian.org/buster/systemd/systemd.exec.5.en.html
+
+    SYSTEMD_EXIT_NOPERMISSION = 4
+
     @property
     def command(self) -> str:
         return "systemctl"
@@ -26,8 +31,8 @@ class Service(Tool):
         self._internal_tool = self.node.tools[service_type]
         return True
 
-    def restart_service(self, name: str) -> None:
-        self._internal_tool.restart_service(name)  # type: ignore
+    def restart_service(self, name: str, ignore_exit_code: int = 0) -> None:
+        self._internal_tool.restart_service(name, ignore_exit_code)  # type: ignore
 
     def stop_service(self, name: str) -> None:
         self._internal_tool.stop_service(name)  # type: ignore
@@ -72,9 +77,11 @@ class ServiceInternal(Tool):
             cmd_result = self.run(f"{name} stop", shell=True, sudo=True, force_run=True)
             cmd_result.assert_exit_code()
 
-    def restart_service(self, name: str) -> None:
+    def restart_service(self, name: str, ignore_exit_code: int = 0) -> None:
         cmd_result = self.run(f"{name} restart", shell=True, sudo=True, force_run=True)
-        cmd_result.assert_exit_code()
+        # optionally ignore exit code if it matches our expected non-zero value
+
+        _check_error_codes(cmd_result, ignore_exit_code)
 
 
 class Systemctl(Tool):
@@ -91,9 +98,9 @@ class Systemctl(Tool):
             cmd_result = self.run(f"stop {name}", shell=True, sudo=True, force_run=True)
             cmd_result.assert_exit_code()
 
-    def restart_service(self, name: str) -> None:
+    def restart_service(self, name: str, ignore_exit_code: int = 0) -> None:
         cmd_result = self.run(f"restart {name}", shell=True, sudo=True, force_run=True)
-        cmd_result.assert_exit_code()
+        _check_error_codes(cmd_result, ignore_exit_code)
 
     def enable_service(self, name: str) -> None:
         cmd_result = self.run(f"enable {name}", shell=True, sudo=True, force_run=True)
@@ -120,3 +127,7 @@ class Systemctl(Tool):
         return (
             "could not be found" not in cmd_result.stdout and 0 == cmd_result.exit_code
         )
+
+
+def _check_error_codes(cmd_result: ExecutableResult, error_code: int = 0) -> None:
+    cmd_result.assert_exit_code(expected_exit_code=[0, error_code])
