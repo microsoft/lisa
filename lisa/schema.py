@@ -298,7 +298,7 @@ class Variable:
     )
 
     name: str = field(default="")
-    value: Union[str, bool, int, Dict[Any, Any], List[Any]] = field(default="")
+    value: Union[str, bool, int, Dict[Any, Any], List[Any], None] = field(default="")
     # True means this variable can be used in test cases.
     is_case_visible: bool = False
     mask: str = ""
@@ -1120,16 +1120,17 @@ class Criteria:
     name: Optional[str] = None
     area: Optional[str] = None
     category: Optional[str] = None
-    # the runbook is complex to convert, so manual overwrite it in __post_init__.
     priority: Optional[Union[int, List[int]]] = field(
         default=None,
         metadata=field_metadata(
-            validate=ListableValidator(int, validate.Range(min=0, max=4))
+            validate=ListableValidator(int, validate.Range(min=0, max=4)),
+            allow_none=True,
         ),
     )
     # tags is a simple way to include test cases within same topic.
     tags: Optional[Union[str, List[str]]] = field(
-        default=None, metadata=field_metadata(validate=ListableValidator(str))
+        default=None,
+        metadata=field_metadata(validate=ListableValidator(str), allow_none=True),
     )
 
 

@@ -324,7 +324,7 @@ def load_from_variable_entry(
 
     assert isinstance(name, str), f"actual: {type(name)}"
     results: Dict[str, VariableEntry] = {}
-    if type(raw_value) in [str, int, bool, float, list, dict]:
+    if type(raw_value) in [str, int, bool, float, list, dict, type(None)]:
         value = raw_value
     elif isinstance(raw_value, schema.Variable):
         value = raw_value.value
@@ -333,7 +333,8 @@ def load_from_variable_entry(
         mask = raw_value.mask
     else:
         raise LisaException(
-            f"unsupported variable type: {type(raw_value)}, value: {raw_value}"
+            f"unsupported variable type on '{name}': "
+            f"{type(raw_value)}, value: {raw_value}"
         )
     _add_variable(
         name,
