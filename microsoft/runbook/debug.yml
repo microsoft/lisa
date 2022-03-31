@@ -1,0 +1,21 @@
+# this runbook overwrites test criteria and uses to debug test cases by name pattern.
+include:
+  - path: $(origin)
+variable:
+  - name: retry
+    value: 0
+  - name: times
+    value: 1
+  - name: origin
+    value: ../../examples/runbook/hello_world.yml
+  - name: use_new_environment
+    value: false
+  - name: ignore_failure
+    value: false
+testcase:
+  - criteria:
+      name: $(case)
+    times: $(times)
+    retry: $(retry)
+    use_new_environment: $(use_new_environment)
+    ignore_failure: $(ignore_failure)
