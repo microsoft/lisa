@@ -63,7 +63,7 @@ class VhdTransformerSchema(schema.Transformer):
     shared_resource_group_name: str = AZURE_SHARED_RG_NAME
     # resource group and vm name to be exported
     resource_group_name: str = field(default="", metadata=field_metadata(required=True))
-    vm_name: str = "node-0"
+    vm_name: str = ""
 
     # values for SSH connection. public_address is optional, because it can be
     # retrieved from vm_name. Others can be retrieved from platform.
@@ -120,6 +120,17 @@ class VhdTransformer(Transformer):
         platform = _load_platform(self._runbook_builder, self.type_name())
 
         compute_client = get_compute_client(platform)
+        vm_name = runbook.vm_name
+        if not vm_name:
+            # if no vm_name specified, use the first vm
+            vms = compute_client.virtual_machines.list(
+                runbook.resource_group_name, runbook.vm_name
+            )
+            vm_name = next(vm.name for vm in vms)
+            assert (
+                vm_name
+            ), f"cannot find vm in resource group {runbook.resource_group_name}"
+
         virtual_machine = compute_client.virtual_machines.get(
             runbook.resource_group_name, runbook.vm_name
         )
