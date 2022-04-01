@@ -445,33 +445,48 @@ class BaseLibvirtPlatform(Platform):
 
         for node in environment.nodes.list():
             node_context = get_node_context(node)
-
-            # Create required directories and copy the required files to the host
-            # node.
-            if node_context.os_disk_source_file_path:
-                self.host_node.shell.copy(
-                    Path(node_context.os_disk_source_file_path),
-                    Path(node_context.os_disk_base_file_path),
-                )
-
-            # Create cloud-init ISO file.
-            self._create_node_cloud_init_iso(environment, log, node)
-
-            # Create OS disk from the provided image.
-            self._create_node_os_disk(environment, log, node)
-
-            # Create data disks
-            self._create_node_data_disks(node)
-
-            # Create libvirt domain (i.e. VM).
-            xml = self._create_node_domain_xml(environment, log, node)
-            domain = lv_conn.defineXML(xml)
-
-            self._create_domain_and_attach_logger(
-                lv_conn,
-                domain,
+            self._create_node(
+                node,
                 node_context,
+                environment,
+                log,
+                lv_conn,
             )
+
+    def _create_node(
+        self,
+        node: Node,
+        node_context: NodeContext,
+        environment: Environment,
+        log: Logger,
+        lv_conn: libvirt.virConnect,
+    ) -> None:
+        # Create required directories and copy the required files to the host
+        # node.
+        if node_context.os_disk_source_file_path:
+            self.host_node.shell.copy(
+                Path(node_context.os_disk_source_file_path),
+                Path(node_context.os_disk_base_file_path),
+            )
+
+        # Create cloud-init ISO file.
+        self._create_node_cloud_init_iso(environment, log, node)
+
+        # Create OS disk from the provided image.
+        self._create_node_os_disk(environment, log, node)
+
+        # Create data disks
+        self._create_node_data_disks(node)
+
+        # Create libvirt domain (i.e. VM).
+        xml = self._create_node_domain_xml(environment, log, node)
+        domain = lv_conn.defineXML(xml)
+
+        self._create_domain_and_attach_logger(
+            lv_conn,
+            domain,
+            node_context,
+        )
 
     # Delete all the VMs.
     def _delete_nodes(

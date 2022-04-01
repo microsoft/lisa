@@ -1,7 +1,9 @@
 # Copyright (c) Microsoft Corporation.
 # Licensed under the MIT license.
 
+import os
 import xml.etree.ElementTree as ET  # noqa: N817
+from pathlib import Path
 from typing import List, Type
 
 import libvirt  # type: ignore
@@ -53,7 +55,35 @@ class CloudHypervisorPlatform(BaseLibvirtPlatform):
 
         assert isinstance(node_runbook, CloudHypervisorNodeSchema)
         node_context = get_node_context(node)
-        node_context.firmware_path = node_runbook.firmware
+        if self.host_node.is_remote:
+            node_context.firmware_source_path = node_runbook.firmware
+            node_context.firmware_path = os.path.join(
+                self.vm_disks_dir, os.path.basename(node_runbook.firmware)
+            )
+        else:
+            node_context.firmware_path = node_runbook.firmware
+
+    def _create_node(
+        self,
+        node: Node,
+        node_context: NodeContext,
+        environment: Environment,
+        log: Logger,
+        lv_conn: libvirt.virConnect,
+    ) -> None:
+        if node_context.firmware_source_path:
+            self.host_node.shell.copy(
+                Path(node_context.firmware_source_path),
+                Path(node_context.firmware_path),
+            )
+
+        super()._create_node(
+            node,
+            node_context,
+            environment,
+            log,
+            lv_conn,
+        )
 
     def _create_node_domain_xml(
         self, environment: Environment, log: Logger, node: Node
