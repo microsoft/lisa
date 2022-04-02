@@ -1550,6 +1550,11 @@ class AzurePlatform(Platform):
                     node_space.features.add(
                         schema.FeatureSettings.create(features.Infiniband.name())
                     )
+            elif name == "HibernationSupported":
+                if eval(sku_capability.value) is True:
+                    node_space.features.add(
+                        schema.FeatureSettings.create(features.Hibernation.name())
+                    )
 
         # for some new sizes, there is no MaxNetworkInterfaces capability
         # and we have to set a default value for max_nic_count
@@ -1585,7 +1590,6 @@ class AzurePlatform(Platform):
             [
                 schema.FeatureSettings.create(features.StartStop.name()),
                 schema.FeatureSettings.create(features.SerialConsole.name()),
-                schema.FeatureSettings.create(features.Hibernation.name()),
             ]
         )
         node_space.disk.disk_type.add(schema.DiskType.StandardHDDLRS)
