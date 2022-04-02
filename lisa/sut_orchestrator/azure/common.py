@@ -702,6 +702,11 @@ def get_vm(platform: "AzurePlatform", node: Node) -> Any:
     return vm
 
 
+# find resource based on type name from resources section in arm template
+def find_by_name(resources: Any, type_name: str) -> Any:
+    return next(x for x in resources if x["type"] == type_name)
+
+
 class DataDisk:
     # refer https://docs.microsoft.com/en-us/azure/virtual-machines/disks-types
     IOPS_SIZE_DICT: Dict[schema.DiskType, Dict[int, int]] = {

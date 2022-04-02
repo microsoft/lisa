@@ -43,6 +43,7 @@ from .. import AZURE
 from .common import (
     AzureArmParameter,
     AzureNodeSchema,
+    find_by_name,
     get_compute_client,
     get_network_client,
     get_node_context,
@@ -969,12 +970,23 @@ class Resize(AzureFeatureMixin, features.Resize):
 
 
 class Hibernation(AzureFeatureMixin, features.Hibernation):
-    @classmethod
-    def on_before_deployment(cls, *args: Any, **kwargs: Any) -> None:
-        # arm_parameters: AzureArmParameter = kwargs.pop("arm_parameters")
-        # arm_parameters.enable_hibernation = True
-        ...
+    _hibernation_properties = """
+        {
+            "additionalCapabilities": {
+                "hibernationEnabled": "true"
+            }
+        }
+        """
 
     def _initialize(self, *args: Any, **kwargs: Any) -> None:
         super()._initialize(*args, **kwargs)
         self._initialize_information(self._node)
+
+    @classmethod
+    def _enable_hibernation(cls, *args: Any, **kwargs: Any) -> None:
+        template: Any = kwargs.get("template")
+        log = cast(Logger, kwargs.get("log"))
+        log.debug("updating arm template to support vm hibernation.")
+        resources = template["resources"]
+        virtual_machines = find_by_name(resources, "Microsoft.Compute/virtualMachines")
+        virtual_machines["properties"].update(json.loads(cls._hibernation_properties))

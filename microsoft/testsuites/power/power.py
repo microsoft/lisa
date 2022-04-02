@@ -14,7 +14,7 @@ from lisa import (
     TestSuite,
     TestSuiteMetadata,
 )
-from lisa.features import Hibernation, Sriov, Synthetic
+from lisa.features import HibernationEnabled, Sriov, Synthetic
 from lisa.testsuite import simple_requirement
 from lisa.tools import Date, Hwclock, StressNg
 from lisa.util.perf_timer import create_timer
@@ -43,7 +43,7 @@ class Power(TestSuite):
              hibernation.
             2. Get nics info before hibernation.
             3. Hibernate vm.
-            4. Check vm is inaccessiable.
+            4. Check vm is inaccessible.
             5. Resume vm by starting vm.
             6. Check vm hibernation successfully by checking keywords in dmesg.
             6. Get nics info after hibernation.
@@ -52,7 +52,7 @@ class Power(TestSuite):
         priority=3,
         requirement=simple_requirement(
             network_interface=Synthetic(),
-            supported_features=[Hibernation],
+            supported_features=[HibernationEnabled()],
         ),
     )
     def verify_hibernation_synthetic_network(
@@ -69,7 +69,7 @@ class Power(TestSuite):
         priority=3,
         requirement=simple_requirement(
             network_interface=Sriov(),
-            supported_features=[Hibernation],
+            supported_features=[HibernationEnabled()],
         ),
     )
     def verify_hibernation_sriov_network(
@@ -89,7 +89,7 @@ class Power(TestSuite):
         """,
         priority=3,
         requirement=simple_requirement(
-            supported_features=[Hibernation],
+            supported_features=[HibernationEnabled()],
         ),
     )
     def verify_hibernation_time_sync(
@@ -133,7 +133,7 @@ class Power(TestSuite):
         priority=3,
         requirement=simple_requirement(
             min_count=2,
-            supported_features=[Hibernation],
+            supported_features=[HibernationEnabled()],
         ),
     )
     def verify_hibernation_with_network_workload(
@@ -155,7 +155,7 @@ class Power(TestSuite):
         """,
         priority=3,
         requirement=simple_requirement(
-            supported_features=[Hibernation],
+            supported_features=[HibernationEnabled()],
         ),
     )
     def verify_hibernation_with_storage_workload(
@@ -177,7 +177,7 @@ class Power(TestSuite):
         """,
         priority=3,
         requirement=simple_requirement(
-            supported_features=[Hibernation],
+            supported_features=[HibernationEnabled()],
         ),
     )
     def verify_hibernation_with_memory_workload(
