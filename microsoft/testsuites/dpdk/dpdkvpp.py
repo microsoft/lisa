@@ -51,25 +51,18 @@ class DpdkVpp(Tool):
                 ),
             )
 
-        if isinstance(node.os, Debian) or isinstance(node.os, Fedora):
-            # It is possible the service has already been started, so
-            # rather than assume anything we'll call restart
-            # this will force the reload if it's already started
-            # or start it if it hasn't started yet.
-            modprobe.load("uio_hv_generic")
-            node.execute(
-                "service vpp restart",
-                sudo=True,
-                expected_exit_code=0,
-                expected_exit_code_failure_message=(
-                    "Could not start/restart vpp service"
-                ),
-            )
-        else:
-            raise UnsupportedDistroException(
-                os=node.os,
-                message=("VPP start is not implemented for this platform"),
-            )
+        # It is possible the service has already been started, so
+        # rather than assume anything we'll call restart
+        # this will force the reload if it's already started
+        # or start it if it hasn't started yet.
+        modprobe.load("uio_hv_generic")
+        node.execute(
+            "service vpp restart",
+            sudo=True,
+            expected_exit_code=0,
+            expected_exit_code_failure_message=("Could not start/restart vpp service"),
+        )
+
         time.sleep(3)  # give it a moment to start up
 
     def run_test(self) -> None:
@@ -92,10 +85,11 @@ class DpdkVpp(Tool):
 
     def _install(self) -> bool:
         node = self.node
+        if isinstance(node.os, Fedora):
+            node.os.install_epel()
         if isinstance(node.os, Debian):
             pkg_type = "deb"
-        elif isinstance(node.os, Fedora):
-            node.os.install_epel()
+        elif isinstance(node.os, Fedora) or isinstance(node.os, Suse):
             pkg_type = "rpm"
         else:
             raise UnsupportedDistroException(self.node.os)
@@ -121,7 +115,7 @@ class DpdkVpp(Tool):
 
         if isinstance(node.os, Debian):
             vpp_packages += ["vpp-plugin-dpdk", "vpp-plugin-core"]
-        elif isinstance(node.os, Fedora):
+        elif isinstance(node.os, Fedora) or isinstance(node.os, Suse):
             vpp_packages.append("vpp-plugins")
         else:
             raise UnsupportedDistroException(self.node.os)
