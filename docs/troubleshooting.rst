@@ -50,6 +50,19 @@ Poetry provides different packages according to the folder, and depends
 on the ``pyproject.toml`` file in the current folder. Make sure to run
 ``poetry`` in the root folder of LISA.
 
+Error: (For Windows installation) Cannot open Scripts folder
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+The Shell interface tries to locate the Scripts folder inside python.exe.
+
+Error line: Cannot open <Your local AppData dir>\\Microsoft\\WindowsApps\
+\PythonSoftwareFoundation.Python.3.10_qbz5n2kfra8p0\\python.exe\\Scripts'
+
+Reason: This could happen when you install the Python version via Microsoft
+store.
+Fix: uninstall the Microsoft Store version and install the standalone
+version from https://www.python.org/downloads/windows/
+
 Error: Poetry "The virtual environment seems to be broken"
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
