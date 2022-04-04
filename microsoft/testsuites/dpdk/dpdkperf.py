@@ -38,7 +38,7 @@ class DpdkPerformance(TestSuite):
         """,
         priority=3,
         requirement=simple_requirement(
-            min_count=2, network_interface=Sriov(), min_nic_count=2
+            min_count=2, network_interface=Sriov(), min_nic_count=2, min_core_count=4
         ),
     )
     def perf_dpdk_failsafe_pmd_dual_core(
@@ -55,10 +55,45 @@ class DpdkPerformance(TestSuite):
         """,
         priority=3,
         requirement=simple_requirement(
-            min_count=2, network_interface=Sriov(), min_nic_count=2
+            min_count=2,
+            network_interface=Sriov(),
+            min_nic_count=2,
+            min_core_count=8,
         ),
     )
     def perf_dpdk_failsafe_pmd_multi_core(
+        self,
+        environment: Environment,
+        log: Logger,
+        variables: Dict[str, Any],
+    ) -> None:
+
+        core_counts = [
+            n.tools[Lscpu].get_core_count() for n in environment.nodes.list()
+        ]
+
+        assert_that(core_counts).described_as(
+            "Nodes contain different core counts, DPDK Suite expects sender "
+            "and receiver to have same core count."
+        ).contains_only(core_counts[0])
+
+        self._run_dpdk_perf_test(
+            "failsafe", environment, log, variables, use_cores=core_counts[0]
+        )
+
+    @TestCaseMetadata(
+        description="""
+        DPDK Performance: failsafe mode, maximal core count, default queue settings
+        """,
+        priority=3,
+        requirement=simple_requirement(
+            min_count=2,
+            network_interface=Sriov(),
+            min_nic_count=2,
+            min_core_count=48,
+        ),
+    )
+    def perf_dpdk_failsafe_pmd_multi_core_huge_vm(
         self,
         environment: Environment,
         log: Logger,
@@ -85,10 +120,31 @@ class DpdkPerformance(TestSuite):
         """,
         priority=3,
         requirement=simple_requirement(
-            min_count=2, network_interface=Sriov(), min_nic_count=2
+            min_count=2, network_interface=Sriov(), min_nic_count=2, min_core_count=8
         ),
     )
     def perf_dpdk_failsafe_pmd_multi_queue(
+        self,
+        environment: Environment,
+        log: Logger,
+        variables: Dict[str, Any],
+    ) -> None:
+
+        self._run_dpdk_perf_test(
+            "failsafe", environment, log, variables, use_queues=True
+        )
+
+    @TestCaseMetadata(
+        description="""
+        DPDK Performance: failsafe mode, maximum core count, maximum tx/rx queues
+        Run on a huge machine
+        """,
+        priority=3,
+        requirement=simple_requirement(
+            min_count=2, network_interface=Sriov(), min_nic_count=2, min_core_count=48
+        ),
+    )
+    def perf_dpdk_failsafe_pmd_multi_queue_huge_vm(
         self,
         environment: Environment,
         log: Logger,
@@ -106,7 +162,7 @@ class DpdkPerformance(TestSuite):
         """,
         priority=3,
         requirement=simple_requirement(
-            min_count=2, network_interface=Sriov(), min_nic_count=2
+            min_count=2, network_interface=Sriov(), min_nic_count=2, min_core_count=4
         ),
     )
     def perf_dpdk_netvsc_pmd_dual_core(
@@ -123,10 +179,40 @@ class DpdkPerformance(TestSuite):
         """,
         priority=3,
         requirement=simple_requirement(
-            min_count=2, network_interface=Sriov(), min_nic_count=2
+            min_count=2, network_interface=Sriov(), min_nic_count=2, min_core_count=8
         ),
     )
     def perf_dpdk_netvsc_pmd_multi_core(
+        self,
+        environment: Environment,
+        log: Logger,
+        variables: Dict[str, Any],
+    ) -> None:
+
+        core_counts = [
+            n.tools[Lscpu].get_core_count() for n in environment.nodes.list()
+        ]
+
+        assert_that(core_counts).described_as(
+            "Nodes contain different core counts, DPDK Suite expects sender "
+            "and receiver to have same core count."
+        ).contains_only(core_counts[0])
+
+        self._run_dpdk_perf_test(
+            "netvsc", environment, log, variables, use_cores=core_counts[0]
+        )
+
+    @TestCaseMetadata(
+        description="""
+        DPDK Performance: direct use of VF, maximum core count, default queues
+        Run on a big VM
+        """,
+        priority=3,
+        requirement=simple_requirement(
+            min_count=2, network_interface=Sriov(), min_nic_count=2, min_core_count=48
+        ),
+    )
+    def perf_dpdk_netvsc_pmd_multi_core_huge_vm(
         self,
         environment: Environment,
         log: Logger,
@@ -152,10 +238,29 @@ class DpdkPerformance(TestSuite):
         """,
         priority=3,
         requirement=simple_requirement(
-            min_count=2, network_interface=Sriov(), min_nic_count=2
+            min_count=2, network_interface=Sriov(), min_nic_count=2, min_core_count=8
         ),
     )
     def perf_dpdk_netvsc_pmd_multi_queue(
+        self,
+        environment: Environment,
+        log: Logger,
+        variables: Dict[str, Any],
+    ) -> None:
+
+        self._run_dpdk_perf_test("netvsc", environment, log, variables, use_queues=True)
+
+    @TestCaseMetadata(
+        description="""
+        DPDK Performance: direct use of VF, maximum core count, maximum tx/rx queues,
+        Run on a huge machine
+        """,
+        priority=3,
+        requirement=simple_requirement(
+            min_count=2, network_interface=Sriov(), min_nic_count=2, min_core_count=48
+        ),
+    )
+    def perf_dpdk_netvsc_pmd_multi_queue_huge_vm(
         self,
         environment: Environment,
         log: Logger,
