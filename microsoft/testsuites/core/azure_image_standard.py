@@ -529,38 +529,35 @@ class AzureImageStandard(TestSuite):
 
             # verify repository configuration
             if isinstance(node.os, Ubuntu):
-                contains_security_repo_url = any(
+                contains_security_keyword = any(
                     [
-                        "security.ubuntu.com" in repository.uri
-                        for repository in debian_repositories
-                    ]
-                )
-                contains_security_keyword_url = any(
-                    [
-                        "-security" in repository.uri
+                        "-security" in repository.name
                         for repository in debian_repositories
                     ]
                 )
                 contains_archive_repo_url = any(
                     [
-                        "archive.ubuntu.com" in repository.uri
+                        "azure.archive.ubuntu.com" in repository.uri
                         for repository in debian_repositories
                     ]
                 )
-                contains_ports_repo_url = any(
+                contains_updates_keyword = any(
                     [
-                        "ports.ubuntu.com" in repository.uri
+                        "-updates" in repository.name
                         for repository in debian_repositories
                     ]
                 )
 
                 is_repository_configured_correctly = (
-                    contains_security_repo_url and contains_archive_repo_url
-                ) or (contains_security_keyword_url and contains_ports_repo_url)
+                    contains_archive_repo_url
+                    and contains_security_keyword
+                    and contains_updates_keyword
+                )
+
                 assert_that(
                     is_repository_configured_correctly,
-                    "`security.ubuntu.com`,`azure.archive.ubuntu.com` or "
-                    "`security`,`ports.ubuntu.com` should be in `apt-get "
+                    "`azure.archive.ubuntu.com`, `security`, "
+                    "`updates` should be in `apt-get "
                     "update` output",
                 ).is_true()
             else:
