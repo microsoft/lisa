@@ -529,12 +529,6 @@ class AzureImageStandard(TestSuite):
 
             # verify repository configuration
             if isinstance(node.os, Ubuntu):
-                contains_security_repo_url = any(
-                    [
-                        "security.ubuntu.com" in repository.uri
-                        for repository in debian_repositories
-                    ]
-                )
                 contains_security_keyword_url = any(
                     [
                         "-security" in repository.uri
@@ -554,13 +548,13 @@ class AzureImageStandard(TestSuite):
                     ]
                 )
 
-                is_repository_configured_correctly = (
-                    contains_security_repo_url and contains_archive_repo_url
-                ) or (contains_security_keyword_url and contains_ports_repo_url)
+                is_repository_configured_correctly = contains_archive_repo_url or (
+                    contains_security_keyword_url and contains_ports_repo_url
+                )
                 assert_that(
                     is_repository_configured_correctly,
-                    "`security.ubuntu.com`,`azure.archive.ubuntu.com` or "
-                    "`security`,`ports.ubuntu.com` should be in `apt-get "
+                    "`azure.archive.ubuntu.com` or `security`, "
+                    "`ports.ubuntu.com` should be in `apt-get "
                     "update` output",
                 ).is_true()
             else:
