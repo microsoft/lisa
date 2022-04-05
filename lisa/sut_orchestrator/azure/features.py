@@ -46,6 +46,7 @@ from .common import (
     get_compute_client,
     get_network_client,
     get_node_context,
+    get_vm,
     global_credential_access_lock,
     wait_operation,
 )
@@ -272,10 +273,7 @@ class NetworkInterface(AzureFeatureMixin, features.NetworkInterface):
     def switch_sriov(self, enable: bool) -> None:
         azure_platform: AzurePlatform = self._platform  # type: ignore
         network_client = get_network_client(azure_platform)
-        compute_client = get_compute_client(azure_platform)
-        vm = compute_client.virtual_machines.get(
-            self._resource_group_name, self._node.name
-        )
+        vm = get_vm(azure_platform, self._node)
         for nic in vm.network_profile.network_interfaces:
             # get nic name from nic id
             # /subscriptions/[subid]/resourceGroups/[rgname]/providers
@@ -311,11 +309,8 @@ class NetworkInterface(AzureFeatureMixin, features.NetworkInterface):
     def is_enabled_sriov(self) -> bool:
         azure_platform: AzurePlatform = self._platform  # type: ignore
         network_client = get_network_client(azure_platform)
-        compute_client = get_compute_client(azure_platform)
         sriov_enabled: bool = False
-        vm = compute_client.virtual_machines.get(
-            self._resource_group_name, self._node.name
-        )
+        vm = get_vm(azure_platform, self._node)
         nic = self._get_primary(vm.network_profile.network_interfaces)
         nic_name = nic.id.split("/")[-1]
         primary_nic = network_client.network_interfaces.get(
@@ -330,9 +325,7 @@ class NetworkInterface(AzureFeatureMixin, features.NetworkInterface):
         azure_platform: AzurePlatform = self._platform  # type: ignore
         network_client = get_network_client(azure_platform)
         compute_client = get_compute_client(azure_platform)
-        vm = compute_client.virtual_machines.get(
-            self._resource_group_name, self._node.name
-        )
+        vm = get_vm(azure_platform, self._node)
         current_nic_count = len(vm.network_profile.network_interfaces)
         nic_count_after_add_extra = extra_nic_count + current_nic_count
         assert (
@@ -405,9 +398,7 @@ class NetworkInterface(AzureFeatureMixin, features.NetworkInterface):
         azure_platform: AzurePlatform = self._platform  # type: ignore
         network_client = get_network_client(azure_platform)
         compute_client = get_compute_client(azure_platform)
-        vm = compute_client.virtual_machines.get(
-            self._resource_group_name, self._node.name
-        )
+        vm = get_vm(azure_platform, self._node)
         if len(vm.network_profile.network_interfaces) == 1:
             self._log.debug("No existed extra nics can be disassociated.")
             return
@@ -772,9 +763,8 @@ class Disk(AzureFeatureMixin, features.Disk):
             managed_disks.append(async_disk_update.result())
 
         # attach managed disk
-        vm = compute_client.virtual_machines.get(
-            self._resource_group_name, self._vm_name
-        )
+        azure_platform: AzurePlatform = self._platform  # type: ignore
+        vm = get_vm(azure_platform, self._node)
         for i, managed_disk in enumerate(managed_disks):
             lun = str(i + current_disk_count)
             vm.storage_profile.data_disks.append(
@@ -811,9 +801,8 @@ class Disk(AzureFeatureMixin, features.Disk):
             names = self.disks
 
         # detach managed disk
-        vm = compute_client.virtual_machines.get(
-            self._resource_group_name, self._vm_name
-        )
+        azure_platform: AzurePlatform = self._platform  # type: ignore
+        vm = get_vm(azure_platform, self._node)
 
         # remove managed disk
         data_disks = vm.storage_profile.data_disks
