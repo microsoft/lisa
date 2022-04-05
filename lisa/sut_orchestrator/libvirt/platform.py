@@ -1,14 +1,17 @@
 # Copyright (c) Microsoft Corporation.
 # Licensed under the MIT license.
 
+import faulthandler
 import io
 import os
 import random
 import string
+import sys
 import tempfile
 import time
 import xml.etree.ElementTree as ET  # noqa: N817
 from pathlib import Path
+from threading import Timer
 from typing import Any, List, Optional, Tuple, Type, cast
 
 import libvirt  # type: ignore
@@ -492,6 +495,10 @@ class BaseLibvirtPlatform(Platform):
         except Exception as ex:
             log.warning(f"Failed to delete VM files directory: {ex}")
 
+    def _watchdog_callback(self) -> None:
+        faulthandler.dump_traceback(file=sys.__stderr__, all_threads=True)
+        os._exit(1)
+
     # Delete a VM.
     def _stop_and_delete_vm_flags(
         self,
@@ -502,6 +509,9 @@ class BaseLibvirtPlatform(Platform):
         lv_undefine_flags: int,
     ) -> None:
         node_context = get_node_context(node)
+
+        watchdog = Timer(60.0, self._watchdog_callback)
+        watchdog.start()
 
         # Find the VM.
         try:
@@ -522,6 +532,8 @@ class BaseLibvirtPlatform(Platform):
             domain.undefineFlags(lv_undefine_flags)
         except libvirt.libvirtError as ex:
             log.warning(f"VM delete failed. {ex}")
+
+        watchdog.cancel()
 
     def _stop_and_delete_vm(
         self,
