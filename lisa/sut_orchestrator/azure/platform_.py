@@ -518,7 +518,7 @@ class AzurePlatform(Platform):
                     self._deploy(location, deployment_parameters, log)
 
                 # Even skipped deploy, try best to initialize nodes
-                self._initialize_nodes(environment, log)
+                self.initialize_environment(environment, log)
             except Exception as identifier:
                 self._delete_environment(environment, log)
                 raise identifier
@@ -1312,7 +1312,7 @@ class AzurePlatform(Platform):
     def _load_vms(
         self, environment: Environment, log: Logger
     ) -> Dict[str, VirtualMachine]:
-        compute_client = get_compute_client(self)
+        compute_client = get_compute_client(self, api_version="2020-06-01")
         environment_context = get_environment_context(environment=environment)
 
         log.debug(
@@ -1410,7 +1410,7 @@ class AzurePlatform(Platform):
             )
         return public_ips_map
 
-    def _initialize_nodes(self, environment: Environment, log: Logger) -> None:
+    def initialize_environment(self, environment: Environment, log: Logger) -> None:
         node_context_map: Dict[str, Node] = {}
         for node in environment.nodes.list():
             node_context = get_node_context(node)
