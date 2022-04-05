@@ -23,8 +23,9 @@ from dataclasses_json import dataclass_json
 from marshmallow import validate
 
 from lisa import schema
-from lisa.environment import Environment
-from lisa.node import Node
+from lisa.environment import Environment, load_environments
+from lisa.feature import Features
+from lisa.node import Node, RemoteNode
 from lisa.secret import PATTERN_HEADTAIL, add_secret
 from lisa.util import LisaException, constants, field_metadata
 from lisa.util.logger import Logger
@@ -637,6 +638,59 @@ def delete_file_share(
         credential, subscription_id, account_name, resource_group_name
     )
     share_service_client.delete_share(file_share_name)
+
+
+def load_environment(
+    platform: "AzurePlatform", resource_group_name: str, log: Logger
+) -> Environment:
+    """
+    reverse load environment from a resource group.
+    """
+
+    # create mock environment from environments
+    environment_runbook = schema.Environment()
+
+    compute_client = get_compute_client(platform)
+    vms = compute_client.virtual_machines.list(resource_group_name)
+    for vm in vms:
+        node_schema = schema.RemoteNode(name=vm.name)
+        environment_runbook.nodes.append(node_schema)
+
+    environments = load_environments(
+        schema.EnvironmentRoot(environments=[environment_runbook])
+    )
+    environment = next(x for x in environments.values())
+
+    public_ips = platform.load_public_ips_from_resource_group(resource_group_name, log)
+
+    platform_runbook: schema.Platform = platform.runbook
+    for node in environment.nodes.list():
+        assert isinstance(node, RemoteNode)
+
+        node_context = get_node_context(node)
+        node_context.vm_name = node.name
+        node_context.resource_group_name = resource_group_name
+
+        node_context.username = platform_runbook.admin_username
+        node_context.password = platform_runbook.admin_password
+        node_context.private_key_file = platform_runbook.admin_private_key_file
+
+        node.set_connection_info(
+            public_address=public_ips[node.name],
+            username=node_context.username,
+            password=node_context.password,
+            private_key_file=node_context.private_key_file,
+        )
+
+        node.features = Features(node, platform)
+
+    environment_context = get_environment_context(environment)
+    environment_context.resource_group_is_created = False
+    environment_context.resource_group_name = resource_group_name
+
+    platform.initialize_environment(environment, log)
+
+    return environment
 
 
 class DataDisk:
