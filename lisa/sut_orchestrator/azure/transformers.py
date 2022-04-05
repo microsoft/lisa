@@ -11,9 +11,8 @@ from retry import retry
 
 from lisa import schema
 from lisa.environment import Environments, EnvironmentSpace
-from lisa.feature import Features
 from lisa.features import StartStop
-from lisa.node import Node, RemoteNode, quick_connect
+from lisa.node import Node, RemoteNode
 from lisa.parameter_parser.runbook import RunbookBuilder
 from lisa.platform_ import load_platform_from_builder
 from lisa.transformer import Transformer
@@ -30,10 +29,10 @@ from .common import (
     check_or_create_storage_account,
     get_compute_client,
     get_environment_context,
-    get_network_client,
-    get_node_context,
     get_or_create_storage_container,
     get_storage_account_name,
+    get_vm,
+    load_environment,
     wait_copy_blob,
     wait_operation,
 )
@@ -119,23 +118,21 @@ class VhdTransformer(Transformer):
         runbook: VhdTransformerSchema = self.runbook
         platform = _load_platform(self._runbook_builder, self.type_name())
 
-        compute_client = get_compute_client(platform)
-        vm_name = runbook.vm_name
-        if not vm_name:
-            # if no vm_name specified, use the first vm
-            vms = compute_client.virtual_machines.list(
-                runbook.resource_group_name, runbook.vm_name
+        environment = load_environment(platform, runbook.resource_group_name, self._log)
+
+        if runbook.vm_name:
+            node = next(
+                x for x in environment.nodes.list() if x.name == runbook.vm_name
             )
-            vm_name = next(vm.name for vm in vms)
-            assert (
-                vm_name
-            ), f"cannot find vm in resource group {runbook.resource_group_name}"
+        else:
+            # if no vm_name specified, use the first vm
+            node = next(x for x in environment.nodes.list())
 
-        virtual_machine = compute_client.virtual_machines.get(
-            runbook.resource_group_name, runbook.vm_name
-        )
+        assert isinstance(node, RemoteNode)
 
-        node = self._prepare_virtual_machine(platform, virtual_machine)
+        self._prepare_virtual_machine(node)
+
+        virtual_machine = get_vm(platform, node)
 
         vhd_location = self._export_vhd(platform, virtual_machine)
 
@@ -143,37 +140,10 @@ class VhdTransformer(Transformer):
 
         return {self.__url_name: vhd_location}
 
-    def _prepare_virtual_machine(
-        self, platform: AzurePlatform, virtual_machine: Any
-    ) -> Node:
+    def _prepare_virtual_machine(self, node: RemoteNode) -> None:
         runbook: VhdTransformerSchema = self.runbook
         if not runbook.public_address:
-            runbook.public_address = self._get_public_ip_address(
-                platform, virtual_machine
-            )
-
-        platform_runbook: schema.Platform = platform.runbook
-
-        if not runbook.username:
-            runbook.username = platform_runbook.admin_username
-        if not runbook.password:
-            runbook.password = platform_runbook.admin_password
-        if not runbook.private_key_file:
-            runbook.private_key_file = platform_runbook.admin_private_key_file
-
-        node_runbook = schema.RemoteNode(
-            name=runbook.vm_name,
-            public_address=runbook.public_address,
-            port=runbook.public_port,
-            username=runbook.username,
-            password=runbook.password,
-            private_key_file=runbook.private_key_file,
-        )
-        node = quick_connect(node_runbook, f"{self.type_name()}_vm")
-        node.features = Features(node, platform)
-        node_context = get_node_context(node)
-        node_context.vm_name = runbook.vm_name
-        node_context.resource_group_name = runbook.resource_group_name
+            runbook.public_address = node.public_address
 
         # prepare vm for exporting
         wa = node.tools[Waagent]
@@ -183,8 +153,6 @@ class VhdTransformer(Transformer):
         # stop the vm
         startstop = node.features[StartStop]
         startstop.stop()
-
-        return node
 
     def _export_vhd(self, platform: AzurePlatform, virtual_machine: Any) -> str:
         runbook: VhdTransformerSchema = self.runbook
@@ -228,7 +196,6 @@ class VhdTransformer(Transformer):
 
         path = _generate_vhd_path(container_client, runbook.file_name_part)
         vhd_path = f"{container_client.url}/{path}"
-        self._log.info(f"copying vhd: {vhd_path}")
         blob_client = container_client.get_blob_client(path)
         blob_client.start_copy_from_url(sas_url, metadata=None, incremental_copy=False)
 
@@ -259,24 +226,11 @@ class VhdTransformer(Transformer):
         self, platform: AzurePlatform, virtual_machine: Any
     ) -> str:
         runbook: VhdTransformerSchema = self.runbook
-        for (
-            network_interface_reference
-        ) in virtual_machine.network_profile.network_interfaces:
-            if network_interface_reference.primary:
-                network_interface_name = network_interface_reference.id.split("/")[-1]
-                break
-        network_client = get_network_client(platform)
-        network_interface = network_client.network_interfaces.get(
-            runbook.resource_group_name, network_interface_name
+        public_ips = platform.load_public_ips_from_resource_group(
+            runbook.resource_group_name
         )
 
-        for ip_config in network_interface.ip_configurations:
-            if ip_config.public_ip_address:
-                public_ip_name = ip_config.public_ip_address.id.split("/")[-1]
-                break
-        public_ip_address: str = network_client.public_ip_addresses.get(
-            runbook.resource_group_name, public_ip_name
-        ).ip_address
+        public_ip_address: str = public_ips[runbook.vm_name]
 
         assert (
             public_ip_address
