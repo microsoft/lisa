@@ -27,7 +27,7 @@ from azure.mgmt.compute.models import (  # type: ignore
     VirtualMachineImage,
 )
 from azure.mgmt.marketplaceordering.models import AgreementTerms  # type: ignore
-from azure.mgmt.network.models import NetworkInterface, PublicIPAddress  # type: ignore
+from azure.mgmt.network.models import NetworkInterface  # type: ignore
 from azure.mgmt.resource import SubscriptionClient  # type: ignore
 from azure.mgmt.resource.resources.models import (  # type: ignore
     Deployment,
@@ -1373,25 +1373,28 @@ class AzurePlatform(Platform):
         return nics_map
 
     @retry(exceptions=LisaException, tries=150, delay=2)  # type: ignore
-    def _load_public_ips(
+    def load_public_ips_from_resource_group(
         self, resource_group_name: str, log: Logger
-    ) -> Dict[str, PublicIPAddress]:
+    ) -> Dict[str, str]:
         network_client = get_network_client(self)
         log.debug(f"listing public ips in resource group '{resource_group_name}'")
         # get public IP
         public_ip_addresses = network_client.public_ip_addresses.list(
             resource_group_name
         )
-        public_ips_map: Dict[str, PublicIPAddress] = {}
+        public_ips_map: Dict[str, str] = {}
         for ip_address in public_ip_addresses:
             # nic name is like node-0-nic-2, get vm name part for later pick
             # only find primary nic, which is ended by -nic-0
             node_name_from_public_ip = RESOURCE_ID_PUBLIC_IP_PATTERN.findall(
                 ip_address.name
             )
+            assert (
+                ip_address
+            ), f"public IP address cannot be empty, ip_address object: {ip_address}"
             if node_name_from_public_ip:
                 name = node_name_from_public_ip[0]
-                public_ips_map[name] = ip_address
+                public_ips_map[name] = ip_address.ip_address
                 log.debug(
                     f"  found public IP '{ip_address.name}', and saved for next step."
                 )
@@ -1416,7 +1419,7 @@ class AzurePlatform(Platform):
         vms_map: Dict[str, VirtualMachine] = self._load_vms(environment, log)
         nics_map: Dict[str, NetworkInterface] = self._load_nics(environment, log)
         environment_context = get_environment_context(environment=environment)
-        public_ips_map: Dict[str, PublicIPAddress] = self._load_public_ips(
+        public_ips_map: Dict[str, str] = self.load_public_ips_from_resource_group(
             environment_context.resource_group_name, log
         )
 
@@ -1429,9 +1432,6 @@ class AzurePlatform(Platform):
                 )
             nic = nics_map[vm_name]
             public_ip = public_ips_map[vm_name]
-            assert (
-                public_ip.ip_address
-            ), f"public IP address cannot be empty, public_ip object: {public_ip}"
 
             address = nic.ip_configurations[0].private_ip_address
             if not node.name:
@@ -1441,7 +1441,7 @@ class AzurePlatform(Platform):
             node.set_connection_info(
                 address=address,
                 port=22,
-                public_address=public_ip.ip_address,
+                public_address=public_ip,
                 public_port=22,
                 username=node_context.username,
                 password=node_context.password,
@@ -1617,11 +1617,10 @@ class AzurePlatform(Platform):
         node_context = get_node_context(node)
         vm_name = node_context.vm_name
         resource_group_name = node_context.resource_group_name
-        public_ips_map: Dict[str, PublicIPAddress] = self._load_public_ips(
+        public_ips_map: Dict[str, str] = self.load_public_ips_from_resource_group(
             resource_group_name=resource_group_name, log=self._log
         )
-        assert public_ips_map[vm_name] and public_ips_map[vm_name].ip_address
-        return public_ips_map[vm_name].ip_address  # type: ignore
+        return public_ips_map[vm_name]
 
     @lru_cache(maxsize=10)
     def _parse_marketplace_image(
