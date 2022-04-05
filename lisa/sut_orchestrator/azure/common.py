@@ -693,6 +693,14 @@ def load_environment(
     return environment
 
 
+def get_vm(platform: "AzurePlatform", node: Node) -> Any:
+    context = node.get_context(NodeContext)
+    compute_client = get_compute_client(platform=platform)
+    vm = compute_client.virtual_machines.get(context.resource_group_name, node.name)
+
+    return vm
+
+
 class DataDisk:
     # refer https://docs.microsoft.com/en-us/azure/virtual-machines/disks-types
     IOPS_SIZE_DICT: Dict[schema.DiskType, Dict[int, int]] = {
