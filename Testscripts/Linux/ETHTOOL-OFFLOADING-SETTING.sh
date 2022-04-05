@@ -86,7 +86,7 @@ fi
 
 # Check if Extra NICs have ips
 if [[ "$NIC_COUNT" -gt 1 ]];then
-    SERVER_NIC_IPs=($(ip add show | grep -v SLAVE | grep BROADCAST | sed 's/:/ /g' | awk '{print $2}'))
+    SERVER_NIC_IPs=($(ip addr show | grep -v SLAVE | grep BROADCAST | sed 's/:/ /g' | awk '{print $2}'))
     for SERVER_NIC in "${SERVER_NIC_IPs[@]}"
     do
         server_ip_address=$(ip addr show $SERVER_NIC | grep 'inet\b')
@@ -103,7 +103,7 @@ if [[ "$NIC_COUNT" -gt 1 ]];then
             fi
         fi
     done
-    CLIENT_NIC_IPs=$(ssh root@"$VF_IP2" "ip add show | grep -v SLAVE | grep BROADCAST | sed 's/:/ /g' | awk '{print \$2}'")
+    CLIENT_NIC_IPs=$(ssh root@"$VF_IP2" "ip addr show | grep -v SLAVE | grep BROADCAST | sed 's/:/ /g' | awk '{print \$2}'")
     for CLIENT_NIC in "${CLIENT_NIC_IPs[@]}"
     do
         client_ip_address=$(ssh root@"$VF_IP2" "ip addr show $CLIENT_NIC | grep 'inet\b'")
