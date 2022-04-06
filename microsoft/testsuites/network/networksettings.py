@@ -569,7 +569,7 @@ class NetworkSettings(TestSuite):
         source_iperf3 = server_node.tools[Iperf3]
         dest_iperf3 = client_node.tools[Iperf3]
         source_iperf3.run_as_server_async()
-        dest_iperf3.run_as_client(
+        dest_iperf3.run_as_client_async(
             server_ip=server_node.internal_address,
             log_file=client_iperf3_log,
             parallel_number=64,

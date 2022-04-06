@@ -3,6 +3,7 @@
 
 import json
 import re
+import time
 from decimal import Decimal
 from typing import TYPE_CHECKING, Any, Dict, List, Pattern, Type, cast
 
@@ -14,7 +15,9 @@ from lisa.messages import (
     create_message,
 )
 from lisa.operating_system import Posix
-from lisa.util import constants
+from lisa.tools import Cat
+from lisa.util import LisaException, constants
+from lisa.util.perf_timer import create_timer
 from lisa.util.process import ExecutableResult, Process
 
 from .firewall import Firewall
@@ -150,7 +153,7 @@ class Iperf3(Tool):
             expected_exit_code_failure_message="fail to launch iperf3 server",
         )
 
-    def run_as_client_async(
+    def run_as_client_async(  # noqa: C901
         self,
         server_ip: str,
         bitrate: str = "",
@@ -160,12 +163,11 @@ class Iperf3(Tool):
         port: int = 0,
         buffer_length: int = 0,
         log_file: str = "",
-        run_time_seconds: int = 10,
+        run_time_seconds: int = 0,
         parallel_number: int = 0,
         client_ip: str = "",
         ip_version: str = "",
         udp_mode: bool = False,
-        run_infinite: bool = True,
     ) -> Process:
         # -c: run iperf3 as client mode, followed by iperf3 server ip address
         # -t: run iperf3 testing for given seconds
@@ -183,8 +185,8 @@ class Iperf3(Tool):
         # -4: only use IPv4
         # -6: only use IPv6
 
-        # set runtime to infinite if run_infinite is True
-        if run_infinite:
+        # set runtime to infinite if run_time_seconds is not set
+        if run_time_seconds <= 0:
             run_time = "inf"
         else:
             run_time = str(run_time_seconds)
@@ -222,10 +224,25 @@ class Iperf3(Tool):
             f"{self.command} {cmd}", shell=True, sudo=True
         )
 
-        # IPerf output emits lines of the following form when it is running
-        # 132.00-133.00 sec   167 MBytes  1.40 Gbits/sec    5    626 KBytes
-        # check if stdout buffers contain "bits/sec" to determine if running
-        process.wait_output("bits/sec")
+        if log_file:
+            timeout = 60
+            timer = create_timer()
+            while timeout > timer.elapsed(False):
+                cat = self.node.tools[Cat]
+                iperf_log = cat.read(
+                    log_file, sudo=True, force_run=True, no_debug_log=True
+                )
+                if "Connecting to host " in iperf_log:
+                    return process
+                time.sleep(1)
+            raise LisaException("fail to launch iperf3 client.")
+
+        # if output is json format, the output will be print after run time
+        if not output_json:
+            # IPerf output emits lines of the following form when it is running
+            # 132.00-133.00 sec   167 MBytes  1.40 Gbits/sec    5    626 KBytes
+            # check if stdout buffers contain "bits/sec" to determine if running
+            process.wait_output("bits/sec")
 
         return process
 
@@ -263,6 +280,7 @@ class Iperf3(Tool):
         return process.wait_result(
             expected_exit_code=0,
             expected_exit_code_failure_message="fail to launch iperf3 client",
+            timeout=run_time_seconds,
         )
 
     def create_iperf_tcp_performance_message(

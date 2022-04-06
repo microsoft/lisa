@@ -17,9 +17,12 @@ class Cat(Tool):
         file: str,
         force_run: bool = False,
         sudo: bool = False,
+        no_debug_log: bool = False,
     ) -> str:
         # Run `cat <file>`
-        result = self.run(file, force_run=force_run, sudo=sudo, shell=True)
+        result = self.run(
+            file, force_run=force_run, sudo=sudo, shell=True, no_debug_log=no_debug_log
+        )
         result.assert_exit_code(message=f"Error : {result.stdout}")
         return result.stdout
 
