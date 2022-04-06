@@ -131,7 +131,6 @@ class WindowsShellType(object):
         if cwd is not None:
             commands.append(f"pushd {cwd} & ")
             commands.append(" ".join(command_args))
-            commands.append(" & popd")
         else:
             commands.append(" ".join(command_args))
         return " ".join(commands)
