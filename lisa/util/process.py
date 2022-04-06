@@ -326,6 +326,7 @@ def _create_exports(update_envs: Dict[str, str]) -> str:
     result: str = ""
 
     for key, value in update_envs.items():
-        result += f"export {key}={value};"
+        value = value.replace('"', '\\"')
+        result += f'export {key}="{value}";'
 
     return result
