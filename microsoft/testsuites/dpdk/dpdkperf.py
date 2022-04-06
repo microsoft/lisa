@@ -47,6 +47,7 @@ class DpdkPerformance(TestSuite):
         log: Logger,
         variables: Dict[str, Any],
     ) -> None:
+        self._validate_core_counts_are_equal(environment)
         self._run_dpdk_perf_test("failsafe", environment, log, variables)
 
     @TestCaseMetadata(
@@ -156,6 +157,7 @@ class DpdkPerformance(TestSuite):
         log: Logger,
         variables: Dict[str, Any],
     ) -> None:
+        self._validate_core_counts_are_equal(environment)
         self._run_dpdk_perf_test("netvsc", environment, log, variables)
 
     @TestCaseMetadata(
