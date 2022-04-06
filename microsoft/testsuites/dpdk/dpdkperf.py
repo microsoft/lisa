@@ -38,7 +38,7 @@ class DpdkPerformance(TestSuite):
         """,
         priority=3,
         requirement=simple_requirement(
-            min_count=2, network_interface=Sriov(), min_nic_count=2
+            min_count=2, network_interface=Sriov(), min_nic_count=2, min_core_count=4
         ),
     )
     def perf_dpdk_failsafe_pmd_dual_core(
@@ -47,6 +47,7 @@ class DpdkPerformance(TestSuite):
         log: Logger,
         variables: Dict[str, Any],
     ) -> None:
+
         self._run_dpdk_perf_test("failsafe", environment, log, variables)
 
     @TestCaseMetadata(
@@ -55,7 +56,10 @@ class DpdkPerformance(TestSuite):
         """,
         priority=3,
         requirement=simple_requirement(
-            min_count=2, network_interface=Sriov(), min_nic_count=2
+            min_count=2,
+            network_interface=Sriov(),
+            min_nic_count=2,
+            min_core_count=8,
         ),
     )
     def perf_dpdk_failsafe_pmd_multi_core(
@@ -65,17 +69,31 @@ class DpdkPerformance(TestSuite):
         variables: Dict[str, Any],
     ) -> None:
 
-        core_counts = [
-            n.tools[Lscpu].get_core_count() for n in environment.nodes.list()
-        ]
+        self._run_dpdk_perf_test(
+            "failsafe", environment, log, variables, use_max_cores=True
+        )
 
-        assert_that(core_counts).described_as(
-            "Nodes contain different core counts, DPDK Suite expects sender "
-            "and receiver to have same core count."
-        ).contains_only(core_counts[0])
+    @TestCaseMetadata(
+        description="""
+        DPDK Performance: failsafe mode, maximal core count, default queue settings
+        """,
+        priority=3,
+        requirement=simple_requirement(
+            min_count=2,
+            network_interface=Sriov(),
+            min_nic_count=2,
+            min_core_count=48,
+        ),
+    )
+    def perf_dpdk_failsafe_pmd_multi_core_huge_vm(
+        self,
+        environment: Environment,
+        log: Logger,
+        variables: Dict[str, Any],
+    ) -> None:
 
         self._run_dpdk_perf_test(
-            "failsafe", environment, log, variables, use_cores=core_counts[0]
+            "failsafe", environment, log, variables, use_max_cores=True
         )
 
     @TestCaseMetadata(
@@ -85,10 +103,31 @@ class DpdkPerformance(TestSuite):
         """,
         priority=3,
         requirement=simple_requirement(
-            min_count=2, network_interface=Sriov(), min_nic_count=2
+            min_count=2, network_interface=Sriov(), min_nic_count=2, min_core_count=8
         ),
     )
     def perf_dpdk_failsafe_pmd_multi_queue(
+        self,
+        environment: Environment,
+        log: Logger,
+        variables: Dict[str, Any],
+    ) -> None:
+
+        self._run_dpdk_perf_test(
+            "failsafe", environment, log, variables, use_queues=True
+        )
+
+    @TestCaseMetadata(
+        description="""
+        DPDK Performance: failsafe mode, maximum core count, maximum tx/rx queues
+        Run on a huge machine
+        """,
+        priority=3,
+        requirement=simple_requirement(
+            min_count=2, network_interface=Sriov(), min_nic_count=2, min_core_count=48
+        ),
+    )
+    def perf_dpdk_failsafe_pmd_multi_queue_huge_vm(
         self,
         environment: Environment,
         log: Logger,
@@ -106,7 +145,7 @@ class DpdkPerformance(TestSuite):
         """,
         priority=3,
         requirement=simple_requirement(
-            min_count=2, network_interface=Sriov(), min_nic_count=2
+            min_count=2, network_interface=Sriov(), min_nic_count=2, min_core_count=4
         ),
     )
     def perf_dpdk_netvsc_pmd_dual_core(
@@ -115,6 +154,7 @@ class DpdkPerformance(TestSuite):
         log: Logger,
         variables: Dict[str, Any],
     ) -> None:
+        self._validate_core_counts_are_equal(environment)
         self._run_dpdk_perf_test("netvsc", environment, log, variables)
 
     @TestCaseMetadata(
@@ -123,7 +163,7 @@ class DpdkPerformance(TestSuite):
         """,
         priority=3,
         requirement=simple_requirement(
-            min_count=2, network_interface=Sriov(), min_nic_count=2
+            min_count=2, network_interface=Sriov(), min_nic_count=2, min_core_count=8
         ),
     )
     def perf_dpdk_netvsc_pmd_multi_core(
@@ -133,17 +173,29 @@ class DpdkPerformance(TestSuite):
         variables: Dict[str, Any],
     ) -> None:
 
-        core_counts = [
-            n.tools[Lscpu].get_core_count() for n in environment.nodes.list()
-        ]
+        self._run_dpdk_perf_test(
+            "netvsc", environment, log, variables, use_max_cores=True
+        )
 
-        assert_that(core_counts).described_as(
-            "Nodes contain different core counts, DPDK Suite expects sender "
-            "and receiver to have same core count."
-        ).contains_only(core_counts[0])
+    @TestCaseMetadata(
+        description="""
+        DPDK Performance: direct use of VF, maximum core count, default queues
+        Run on a big VM
+        """,
+        priority=3,
+        requirement=simple_requirement(
+            min_count=2, network_interface=Sriov(), min_nic_count=2, min_core_count=48
+        ),
+    )
+    def perf_dpdk_netvsc_pmd_multi_core_huge_vm(
+        self,
+        environment: Environment,
+        log: Logger,
+        variables: Dict[str, Any],
+    ) -> None:
 
         self._run_dpdk_perf_test(
-            "netvsc", environment, log, variables, use_cores=core_counts[0]
+            "netvsc", environment, log, variables, use_max_cores=True
         )
 
     @TestCaseMetadata(
@@ -152,10 +204,29 @@ class DpdkPerformance(TestSuite):
         """,
         priority=3,
         requirement=simple_requirement(
-            min_count=2, network_interface=Sriov(), min_nic_count=2
+            min_count=2, network_interface=Sriov(), min_nic_count=2, min_core_count=8
         ),
     )
     def perf_dpdk_netvsc_pmd_multi_queue(
+        self,
+        environment: Environment,
+        log: Logger,
+        variables: Dict[str, Any],
+    ) -> None:
+
+        self._run_dpdk_perf_test("netvsc", environment, log, variables, use_queues=True)
+
+    @TestCaseMetadata(
+        description="""
+        DPDK Performance: direct use of VF, maximum core count, maximum tx/rx queues,
+        Run on a huge machine
+        """,
+        priority=3,
+        requirement=simple_requirement(
+            min_count=2, network_interface=Sriov(), min_nic_count=2, min_core_count=48
+        ),
+    )
+    def perf_dpdk_netvsc_pmd_multi_queue_huge_vm(
         self,
         environment: Environment,
         log: Logger,
@@ -170,17 +241,23 @@ class DpdkPerformance(TestSuite):
         environment: Environment,
         log: Logger,
         variables: Dict[str, Any],
-        use_cores: int = 0,
+        use_max_cores: bool = False,
         use_queues: bool = False,
     ) -> None:
         # run build + validation to populate results
+        max_core_count = self._validate_core_counts_are_equal(environment)
+        if use_max_cores:
+            core_count_argument = max_core_count
+        else:
+            core_count_argument = 0  # expected default, test will use 2 cores.
+
         if use_queues:
             send_kit, receive_kit = verify_dpdk_send_receive_multi_txrx_queue(
                 environment, log, variables, pmd
             )
         else:
             send_kit, receive_kit = verify_dpdk_send_receive(
-                environment, log, variables, pmd, use_cores
+                environment, log, variables, pmd, core_count_argument
             )
 
         # gather the performance data into message format
@@ -240,3 +317,14 @@ class DpdkPerformance(TestSuite):
         )
 
         return send_results, receive_results
+
+    def _validate_core_counts_are_equal(self, environment: Environment) -> int:
+        core_counts = [
+            n.tools[Lscpu].get_core_count() for n in environment.nodes.list()
+        ]
+
+        assert_that(core_counts).described_as(
+            "Nodes contain different core counts, DPDK Suite expects sender "
+            "and receiver to have same core count."
+        ).contains_only(core_counts[0])
+        return core_counts[0]
