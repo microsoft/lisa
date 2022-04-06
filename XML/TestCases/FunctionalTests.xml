@@ -1,5 +1,23 @@
 <TestCases>
   <test>
+    <TestName>DEPLOYMENT-COMMUNITY-VM</TestName>
+    <testScript>VERIFY-DEPLOYMENT-PROVISION.ps1</testScript>
+    <files>
+    </files>
+    <TestParameters>
+      <!-- Custom expected number of cores inside the VM. Empty by default. -->
+      <param>vCpu=VCPU</param>
+    </TestParameters>
+    <Platform>Azure,HyperV</Platform>
+    <Category>Functional</Category>
+    <Area>PROVISIONING</Area>
+    <Tags>provision</Tags>
+    <Priority>0</Priority>
+    <SetupConfig>
+      <SetupType>OneVMCommunity</SetupType>
+    </SetupConfig>
+  </test>
+  <test>
     <TestName>VERIFY-DEPLOYMENT-PROVISION</TestName>
     <testScript>VERIFY-DEPLOYMENT-PROVISION.ps1</testScript>
     <files>

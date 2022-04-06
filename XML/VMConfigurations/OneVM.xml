@@ -1,4 +1,25 @@
 <TestSetup>
+    <OneVMCommunity>
+        <isDeployed>NO</isDeployed>
+        <ResourceGroup>
+            <VirtualMachine>
+                <state></state>
+		<InstanceSize>Standard_D2s_v3</InstanceSize>
+                <RoleName></RoleName>
+                <EndPoints>
+                    <Name>SSH</Name>
+                    <Protocol>tcp</Protocol>
+                    <LocalPort>1112</LocalPort>
+                    <PublicPort>1112</PublicPort>
+                </EndPoints>
+		<DataDisk>
+                    <LUN>0</LUN>
+                    <DiskSizeInGB>1023</DiskSizeInGB>
+                    <HostCaching>None</HostCaching>
+		</DataDisk>
+            </VirtualMachine>
+        </ResourceGroup>
+    </OneVMCommunity>
     <OneVM>
         <isDeployed>NO</isDeployed>
         <ResourceGroup>
