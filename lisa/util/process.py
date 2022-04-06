@@ -121,6 +121,7 @@ class Process:
             # mode.
             shell = True
 
+        update_envs = update_envs.copy()
         split_command = self._process_command(command, sudo, shell, update_envs)
 
         cwd_path: Optional[str] = None
