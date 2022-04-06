@@ -93,7 +93,6 @@ def run_network_workload(environment: Environment) -> Decimal:
     iperf3_client_result = iperf3_client.run_as_client_async(
         server_ip=server_node.internal_address,
         parallel_number=8,
-        run_infinite=False,
         run_time_seconds=120,
     )
     result_before_hb = iperf3_client_result.wait_result()
