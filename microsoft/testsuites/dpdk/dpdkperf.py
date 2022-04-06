@@ -47,7 +47,7 @@ class DpdkPerformance(TestSuite):
         log: Logger,
         variables: Dict[str, Any],
     ) -> None:
-        self._validate_core_counts_are_equal(environment)
+
         self._run_dpdk_perf_test("failsafe", environment, log, variables)
 
     @TestCaseMetadata(
@@ -69,10 +69,8 @@ class DpdkPerformance(TestSuite):
         variables: Dict[str, Any],
     ) -> None:
 
-        core_count = self._validate_core_counts_are_equal(environment)
-
         self._run_dpdk_perf_test(
-            "failsafe", environment, log, variables, use_cores=core_count
+            "failsafe", environment, log, variables, use_max_cores=True
         )
 
     @TestCaseMetadata(
@@ -94,9 +92,8 @@ class DpdkPerformance(TestSuite):
         variables: Dict[str, Any],
     ) -> None:
 
-        core_count = self._validate_core_counts_are_equal(environment)
         self._run_dpdk_perf_test(
-            "failsafe", environment, log, variables, use_cores=core_count
+            "failsafe", environment, log, variables, use_max_cores=True
         )
 
     @TestCaseMetadata(
@@ -176,10 +173,8 @@ class DpdkPerformance(TestSuite):
         variables: Dict[str, Any],
     ) -> None:
 
-        core_count = self._validate_core_counts_are_equal(environment)
-
         self._run_dpdk_perf_test(
-            "netvsc", environment, log, variables, use_cores=core_count
+            "netvsc", environment, log, variables, use_max_cores=True
         )
 
     @TestCaseMetadata(
@@ -199,10 +194,8 @@ class DpdkPerformance(TestSuite):
         variables: Dict[str, Any],
     ) -> None:
 
-        core_count = self._validate_core_counts_are_equal(environment)
-
         self._run_dpdk_perf_test(
-            "netvsc", environment, log, variables, use_cores=core_count
+            "netvsc", environment, log, variables, use_max_cores=True
         )
 
     @TestCaseMetadata(
@@ -248,17 +241,23 @@ class DpdkPerformance(TestSuite):
         environment: Environment,
         log: Logger,
         variables: Dict[str, Any],
-        use_cores: int = 0,
+        use_max_cores: bool = False,
         use_queues: bool = False,
     ) -> None:
         # run build + validation to populate results
+        max_core_count = self._validate_core_counts_are_equal(environment)
+        if use_max_cores:
+            core_count_argument = max_core_count
+        else:
+            core_count_argument = 0  # expected default, test will use 2 cores.
+
         if use_queues:
             send_kit, receive_kit = verify_dpdk_send_receive_multi_txrx_queue(
                 environment, log, variables, pmd
             )
         else:
             send_kit, receive_kit = verify_dpdk_send_receive(
-                environment, log, variables, pmd, use_cores
+                environment, log, variables, pmd, core_count_argument
             )
 
         # gather the performance data into message format
