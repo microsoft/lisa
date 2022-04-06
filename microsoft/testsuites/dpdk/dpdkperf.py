@@ -68,17 +68,10 @@ class DpdkPerformance(TestSuite):
         variables: Dict[str, Any],
     ) -> None:
 
-        core_counts = [
-            n.tools[Lscpu].get_core_count() for n in environment.nodes.list()
-        ]
-
-        assert_that(core_counts).described_as(
-            "Nodes contain different core counts, DPDK Suite expects sender "
-            "and receiver to have same core count."
-        ).contains_only(core_counts[0])
+        core_count = self._validate_core_counts_are_equal(environment)
 
         self._run_dpdk_perf_test(
-            "failsafe", environment, log, variables, use_cores=core_counts[0]
+            "failsafe", environment, log, variables, use_cores=core_count
         )
 
     @TestCaseMetadata(
@@ -100,17 +93,9 @@ class DpdkPerformance(TestSuite):
         variables: Dict[str, Any],
     ) -> None:
 
-        core_counts = [
-            n.tools[Lscpu].get_core_count() for n in environment.nodes.list()
-        ]
-
-        assert_that(core_counts).described_as(
-            "Nodes contain different core counts, DPDK Suite expects sender "
-            "and receiver to have same core count."
-        ).contains_only(core_counts[0])
-
+        core_count = self._validate_core_counts_are_equal(environment)
         self._run_dpdk_perf_test(
-            "failsafe", environment, log, variables, use_cores=core_counts[0]
+            "failsafe", environment, log, variables, use_cores=core_count
         )
 
     @TestCaseMetadata(
@@ -189,17 +174,10 @@ class DpdkPerformance(TestSuite):
         variables: Dict[str, Any],
     ) -> None:
 
-        core_counts = [
-            n.tools[Lscpu].get_core_count() for n in environment.nodes.list()
-        ]
-
-        assert_that(core_counts).described_as(
-            "Nodes contain different core counts, DPDK Suite expects sender "
-            "and receiver to have same core count."
-        ).contains_only(core_counts[0])
+        core_count = self._validate_core_counts_are_equal(environment)
 
         self._run_dpdk_perf_test(
-            "netvsc", environment, log, variables, use_cores=core_counts[0]
+            "netvsc", environment, log, variables, use_cores=core_count
         )
 
     @TestCaseMetadata(
@@ -219,17 +197,10 @@ class DpdkPerformance(TestSuite):
         variables: Dict[str, Any],
     ) -> None:
 
-        core_counts = [
-            n.tools[Lscpu].get_core_count() for n in environment.nodes.list()
-        ]
-
-        assert_that(core_counts).described_as(
-            "Nodes contain different core counts, DPDK Suite expects sender "
-            "and receiver to have same core count."
-        ).contains_only(core_counts[0])
+        core_count = self._validate_core_counts_are_equal(environment)
 
         self._run_dpdk_perf_test(
-            "netvsc", environment, log, variables, use_cores=core_counts[0]
+            "netvsc", environment, log, variables, use_cores=core_count
         )
 
     @TestCaseMetadata(
@@ -345,3 +316,14 @@ class DpdkPerformance(TestSuite):
         )
 
         return send_results, receive_results
+
+    def _validate_core_counts_are_equal(self, environment: Environment) -> int:
+        core_counts = [
+            n.tools[Lscpu].get_core_count() for n in environment.nodes.list()
+        ]
+
+        assert_that(core_counts).described_as(
+            "Nodes contain different core counts, DPDK Suite expects sender "
+            "and receiver to have same core count."
+        ).contains_only(core_counts[0])
+        return core_counts[0]
