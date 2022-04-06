@@ -431,6 +431,7 @@ class Ntttcp(Tool):
         return self._check_exists()
 
     def _set_tasks_max(self) -> None:
+        need_reboot = False
         if self.node.shell.exists(
             self.node.get_pure_path(
                 "/usr/lib/systemd/system/user-.slice.d/10-defaults.conf"
@@ -442,14 +443,19 @@ class Ntttcp(Tool):
                 file="/usr/lib/systemd/system/user-.slice.d/10-defaults.conf",
                 sudo=True,
             )
+            need_reboot = True
         elif self.node.shell.exists(
             self.node.get_pure_path("/etc/systemd/logind.conf")
         ):
             self.node.tools[Sed].append(
                 "UserTasksMax=122880", "/etc/systemd/logind.conf", sudo=True
             )
+            need_reboot = True
         else:
             self._log.debug(
                 "no config file exist for systemd, either there is no systemd"
                 " service or the config file location is incorrect."
             )
+        if need_reboot:
+            self._log.debug("reboot vm to make sure TasksMax change take effect")
+            self.node.reboot()
