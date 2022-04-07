@@ -2,8 +2,11 @@
 # Licensed under the MIT license.
 
 import re
+from dataclasses import dataclass
 from enum import Enum
-from typing import Any, List, Set, cast
+from typing import Any, List, Set, Type, cast
+
+from dataclasses_json import dataclass_json
 
 from lisa import schema
 from lisa.base_tools import Wget
@@ -17,9 +20,20 @@ from lisa.util import LisaException, constants
 FEATURE_NAME_GPU = "Gpu"
 
 
+@dataclass_json()
+@dataclass()
 class GpuSettings(schema.FeatureSettings):
     type: str = FEATURE_NAME_GPU
     install_by_platform: bool = True
+
+    def __hash__(self) -> int:
+        return hash(self._get_key())
+
+    def _get_key(self) -> str:
+        return f"{self.type}/{self.install_by_platform}"
+
+    def _generate_min_capability(self, capability: Any) -> Any:
+        return self
 
 
 # Link to the latest GRID driver
@@ -55,6 +69,10 @@ class Gpu(Feature):
         "libglvnd-dev",
         "ubuntu-desktop",
     ]
+
+    @classmethod
+    def settings_type(cls) -> Type[schema.FeatureSettings]:
+        return GpuSettings
 
     @classmethod
     def name(cls) -> str:
