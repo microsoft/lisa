@@ -151,6 +151,7 @@ class Process:
                 allow_error=True,
                 store_pid=self._is_posix,
                 encoding="utf-8",
+                use_pty=self._is_posix,
             )
             # save for logging.
             self._cmd = split_command
@@ -218,15 +219,6 @@ class Process:
                 process_result.stderr_output = filter_ansi_escape(
                     process_result.stderr_output
                 )
-
-                # Remove the extra line like below, Not sure where it's from,
-                # may need investigate more.
-                #
-                # 0;C:\Windows\system32\conhost.exe
-                if process_result.output:
-                    process_result.output = "".join(
-                        process_result.output.splitlines()[:-1]
-                    )
 
             self._stdout_writer.close()
             self._stderr_writer.close()
