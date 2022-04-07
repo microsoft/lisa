@@ -81,13 +81,6 @@
             "metadata": {
                 "description": "data disk array."
             }
-        },
-        "enable_hibernation": {
-            "type": "bool",
-            "defaultValue": false,
-            "metadata": {
-                "description": "flag to set hibernation"
-            }
         }
     },
     "variables": {
