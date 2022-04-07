@@ -1590,6 +1590,7 @@ class AzurePlatform(Platform):
             [
                 schema.FeatureSettings.create(features.StartStop.name()),
                 schema.FeatureSettings.create(features.SerialConsole.name()),
+                schema.FeatureSettings.create(features.Resize.name()),
             ]
         )
         node_space.disk.disk_type.add(schema.DiskType.StandardHDDLRS)
