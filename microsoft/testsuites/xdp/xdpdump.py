@@ -82,7 +82,7 @@ class XdpDump(Tool):
             self._bpf_samples_repo, cwd=self.get_tool_path(use_global=True)
         )
         assert_that(code_path).described_as(
-            "xdpdump cloned path is inconstent with preconfigured"
+            "xdpdump cloned path is inconsistent with preconfigured"
         ).is_equal_to(self._code_path.parent)
         git.init_submodules(cwd=self._code_path)
 
