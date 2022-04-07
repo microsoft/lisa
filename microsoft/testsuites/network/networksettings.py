@@ -401,9 +401,12 @@ class NetworkSettings(TestSuite):
                 original_hlevel = device_hlevel_info.protocol_hash_map[protocol]
                 expected_hlevel = not original_hlevel
 
-                new_settings = ethtool.change_device_rx_hash_level(
-                    interface, protocol, expected_hlevel
-                )
+                try:
+                    new_settings = ethtool.change_device_rx_hash_level(
+                        interface, protocol, expected_hlevel
+                    )
+                except UnsupportedOperationException as identifier:
+                    raise SkippedException(identifier)
                 assert_that(
                     new_settings.protocol_hash_map[protocol],
                     f"Changing RX hash level for {protocol} didn't succeed",
