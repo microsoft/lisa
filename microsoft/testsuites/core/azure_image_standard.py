@@ -835,6 +835,9 @@ class AzureImageStandard(TestSuite):
             "/etc/shadow", current_user, True, True, True
         )
         for passwd_raw_output in passwd_outputs.splitlines():
-            user_name, user_passwd = passwd_raw_output.split(":")
+            # sample line of /etc/shadow
+            # root:x:0:0:root:/root:/bin/bash
+            # get first two columns of /etc/shadow
+            user_name, user_passwd = passwd_raw_output.split(":")[0:2]
             if not ("*" in user_passwd or "!" in user_passwd):
                 raise LisaException(f"password of user {user_name} should be deleted.")
