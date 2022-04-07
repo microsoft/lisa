@@ -51,6 +51,7 @@ from lisa.util import (
     constants,
     dump_file,
     field_metadata,
+    generate_random_chars,
     get_matched_str,
     get_public_key_data,
     plugin_manager,
@@ -1027,6 +1028,12 @@ class AzurePlatform(Platform):
                 node_context.password = arm_parameters.admin_password
             else:
                 is_windows = True
+                if not self.runbook.admin_password:
+                    # password is required, if it doesn't present, generate one.
+                    password = generate_random_chars()
+                    add_secret(password)
+                    self.runbook.admin_password = password
+
                 node_context.password = self.runbook.admin_password
             node_context.private_key_file = self.runbook.admin_private_key_file
 
@@ -1042,10 +1049,10 @@ class AzurePlatform(Platform):
         if is_windows:
             # set password for windows any time.
             arm_parameters.admin_password = self.runbook.admin_password
-        arm_parameters.nodes = nodes_parameters
-        arm_parameters.storage_name = get_storage_account_name(
-            self.subscription_id, arm_parameters.location
-        )
+            arm_parameters.nodes = nodes_parameters
+            arm_parameters.storage_name = get_storage_account_name(
+                self.subscription_id, arm_parameters.location
+            )
         if (
             self._azure_runbook.availability_set_properties
             or self._azure_runbook.availability_set_tags
