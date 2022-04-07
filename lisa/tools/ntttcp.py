@@ -201,6 +201,12 @@ class Ntttcp(Tool):
         process = self.node.execute_async(
             f"ulimit -n 204800 && {self.command} {cmd}", shell=True, sudo=True
         )
+        # NTTTCP for Linux 1.4.0
+        # ---------------------------------------------------------
+        # 01:16:35 INFO: no role specified. use receiver role
+        # 01:16:35 INFO: 65 threads created
+        # above output means ntttcp server is ready
+        process.wait_output("threads created")
         return process
 
     def run_as_server(
