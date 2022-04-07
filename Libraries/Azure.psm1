@@ -1769,7 +1769,8 @@ Function Invoke-AllResourceGroupDeployments($SetupTypeData, $CurrentTestData, $R
 			}
 			$uniqueId = New-TimeBasedUniqueId
 			$retryDeployment = 0
-			$groupName = "LISAv2-$RGIdentifier-$TestID-$uniqueId"
+			#$groupName = "LISAv2-$RGIdentifier-$TestID-$uniqueId"
+			$groupName = "lab-$RGIdentifier-$uniqueId"
 			if ($SetupTypeData.ResourceGroup.Count -gt 1) {
 				$groupName = "$groupName-$resourceGroupCount"
 			}

@@ -1,7 +1,7 @@
 <TestCases>
   <test>
-    <TestName>DEPLOYMENT-COMMUNITY-VM</TestName>
-    <testScript>VERIFY-DEPLOYMENT-PROVISION.ps1</testScript>
+    <TestName>TOOL-DEPLOYMENT-PROVISION</TestName>
+    <testScript>TOOL-DEPLOYMENT-PROVISION.ps1</testScript>
     <files>
     </files>
     <TestParameters>
