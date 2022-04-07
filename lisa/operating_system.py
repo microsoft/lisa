@@ -20,6 +20,7 @@ from typing import (
 )
 
 from assertpy import assert_that
+from retry import retry
 from semver import VersionInfo
 
 from lisa.base_tools import Cat, Sed, Wget
@@ -705,6 +706,7 @@ class Debian(Linux):
             expected_exit_code_failure_message="fail to add repository",
         )
 
+    @retry(tries=10, delay=5)  # type: ignore
     def _initialize_package_installation(self) -> None:
         # wait running system package process.
         self.wait_running_package_process()
@@ -712,6 +714,7 @@ class Debian(Linux):
         result = self._node.execute("apt-get update", sudo=True)
         result.assert_exit_code(message="\n".join(self.get_apt_error(result.stdout)))
 
+    @retry(tries=10, delay=5)  # type: ignore
     def _install_packages(
         self, packages: List[str], signed: bool = True, timeout: int = 600
     ) -> None:
