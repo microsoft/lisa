@@ -1,7 +1,9 @@
 # Copyright (c) Microsoft Corporation.
 # Licensed under the MIT license.
 
+import random
 import re
+import string
 import sys
 from datetime import datetime
 from pathlib import Path
@@ -523,3 +525,8 @@ def truncate_keep_prefix(content: str, kept_len: int, prefix: str = "lisa-") -> 
             f"kept length must be greater than prefix '{prefix}'"
         ).is_less_than_or_equal_to(kept_len)
     return f"{prefix}{content[len(prefix) : ][-kept_len+len(prefix):]}"
+
+
+def generate_random_chars(length: int = 20) -> str:
+    candidates = string.ascii_letters + string.digits
+    return "".join(random.choice(candidates) for _ in range(length))
