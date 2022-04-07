@@ -92,6 +92,8 @@ class SharedImageGallerySchema:
 @dataclass
 class AzureNodeSchema:
     name: str = ""
+    # It decides the real computer name. It cannot be too long.
+    short_name: str = ""
     vm_size: str = ""
     location: str = ""
     # Required by shared gallery images which are present in

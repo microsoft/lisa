@@ -297,7 +297,7 @@
                     "vmSize": "[parameters('nodes')[copyIndex('vmCopy')]['vm_size']]"
                 },
                 "osProfile": {
-                    "computername": "[parameters('nodes')[copyIndex('vmCopy')]['name']]",
+                    "computername": "[parameters('nodes')[copyIndex('vmCopy')]['short_name']]",
                     "adminUsername": "[parameters('admin_username')]",
                     "adminPassword": "[if(or(empty(parameters('admin_key_data')), not(parameters('nodes')[copyIndex('vmCopy')]['is_linux'])), parameters('admin_password'), json('null'))]",
                     "linuxConfiguration": "[if(and(not(empty(parameters('admin_key_data'))), parameters('nodes')[copyIndex('vmCopy')]['is_linux']), lisa.getLinuxConfiguration(concat('/home/', parameters('admin_username'), '/.ssh/authorized_keys'), parameters('admin_key_data')), json('null'))]"
