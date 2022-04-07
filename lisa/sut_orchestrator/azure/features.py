@@ -827,6 +827,7 @@ class Disk(AzureFeatureMixin, features.Disk):
         assert isinstance(self._node.capability.disk.data_disk_count, int)
         self.disks = [name for name in self.disks if name not in names]
         self._node.capability.disk.data_disk_count -= len(names)
+        self._node.close()
 
 
 def get_azure_disk_type(disk_type: schema.DiskType) -> str:
