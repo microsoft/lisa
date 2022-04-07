@@ -781,7 +781,7 @@ class Ethtool(Tool):
         result = self.run(
             f"-n {interface} rx-flow-hash {protocol}", force_run=force_run
         )
-        if (result.exit_code != 0) and ("Operation not supported" in result.stdout):
+        if "Operation not supported" in result.stdout:
             raise UnsupportedOperationException(
                 f"ethtool -n {interface} operation not supported."
             )
@@ -813,7 +813,7 @@ class Ethtool(Tool):
             sudo=True,
             force_run=True,
         )
-        if (result.exit_code != 0) and ("Operation not supported" in result.stdout):
+        if "Operation not supported" in result.stdout:
             raise UnsupportedOperationException(
                 f"ethtool -N {interface} rx-flow-hash {protocol} {param}"
                 " operation not supported."
