@@ -873,7 +873,7 @@ class Resize(AzureFeatureMixin, features.Resize):
         )
 
         # Waiting for the Long Running Operation to finish
-        wait_operation(lro_poller, time_out=300)
+        wait_operation(lro_poller, time_out=1200)
 
         self._node.close()
         new_capability = copy.deepcopy(new_vm_size_info.capability)

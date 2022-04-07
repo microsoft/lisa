@@ -1,9 +1,12 @@
 # Copyright (c) Microsoft Corporation.
 # Licensed under the MIT license.
+import time
+from typing import Optional
 
 from assertpy import assert_that
 
 from lisa import (
+    Logger,
     Node,
     TestCaseMetadata,
     TestSuite,
@@ -37,14 +40,29 @@ class VmHotResize(TestSuite):
             supported_features=[Resize],
         ),
     )
-    def verify_vm_hot_resize(self, node: Node) -> None:
+    def verify_vm_hot_resize(self, log: Logger, node: Node) -> None:
         resize = node.features[Resize]
-        expected_vm_capability = resize.resize()
+        retry = 1
+        maxretry = 10
+        while retry < maxretry:
+            try:
+                expected_vm_capability: Optional[NodeSpace] = None
+                expected_vm_capability = resize.resize()
+                break
+            except Exception as identifier:
+                if "cannot find current vm size in eligible list" in str(identifier):
+                    retry = retry + 1
+                elif "OperationNotAllowed" in str(identifier):
+                    retry = retry + 1
+                else:
+                    raise identifier
+                time.sleep(1)
+        assert expected_vm_capability, "fail to find proper vm size"
         self._verify_core_count(node, expected_vm_capability)
 
     def _verify_core_count(self, node: Node, expected_vm_capability: NodeSpace) -> None:
         lscpu = node.tools[Lscpu]
-        actual_core_count = lscpu.get_core_count()
+        actual_core_count = lscpu.get_core_count(force_run=True)
         expected_core_count = expected_vm_capability.core_count
         assert_that(actual_core_count).described_as(
             "The VM resize succeeded but the amount of cores that the vm has is "
