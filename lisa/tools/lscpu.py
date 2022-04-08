@@ -8,6 +8,7 @@ from typing import Any, List, Optional, Type
 from assertpy import assert_that
 
 from lisa.executable import Tool
+from lisa.tools.powershell import PowerShell
 from lisa.util import LisaException
 
 CpuType = Enum(
@@ -237,12 +238,15 @@ class Lscpu(Tool):
 class WindowsLscpu(Lscpu):
     @property
     def command(self) -> str:
-        return "wmic cpu get"
+        return ""
+
+    def _check_exists(self) -> bool:
+        return True
 
     def get_core_count(self, force_run: bool = False) -> int:
-        result = self.run("ThreadCount", force_run=force_run)
-        lines = result.stdout.splitlines(keepends=False)
-        assert "ThreadCount" == lines[0].strip(), f"actual: '{lines[0]}'"
-        self._core_count = int(lines[2].strip())
-
-        return self._core_count
+        result = self.node.tools[PowerShell].run_cmdlet(
+            "(Get-CimInstance Win32_ComputerSystem).NumberOfLogicalProcessors",
+            force_run=force_run,
+        )
+        core_count = int(result.strip())
+        return core_count
