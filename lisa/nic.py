@@ -11,7 +11,7 @@ from typing import TYPE_CHECKING, Any, Dict, List, Optional
 from assertpy import assert_that
 
 from lisa.tools import Echo
-from lisa.util import InitializableMixin, LisaException
+from lisa.util import InitializableMixin, LisaException, find_groups_in_lines
 
 if TYPE_CHECKING:
     from lisa import Node
@@ -71,32 +71,11 @@ class Nics(InitializableMixin):
         qdisc mq master eth0 state UP group default qlen 1000
         link/ether 00:22:48:79:6c:c2 brd ff:ff:ff:ff:ff:ff
     """
-    __mac_regex = (
-        r"ether\s+"  # looking for the ether address
-        r"([0-9a-fA-F]{2}:"  # capture mac address
-        r"[0-9a-fA-F]{2}:"
-        r"[0-9a-fA-F]{2}:"
-        r"[0-9a-fA-F]{2}:"
-        r"[0-9a-fA-F]{2}:"
-        r"[0-9a-fA-F]{2})"
-    )
-    __ip_regex = (
-        r"inet\s+"  # looking for ip address in output
-        r"([0-9a-fA-F]{1,3}\."  # capture ipv4 address
-        r"[0-9a-fA-F]{1,3}\."
-        r"[0-9a-fA-F]{1,3}\."
-        r"[0-9a-fA-F]{1,3})"
-    )
     __ip_addr_show_regex = re.compile(
         (
-            r"[0-9]+: ([a-zA-Z0-9_-]+):\s+(.*)\n"  # capture nic name and info
-            r"\s+link\/(("  # capture link type and info
-            + __mac_regex  # capture mac if it's present
-            + r")?.*)\n"  # and whatever else is on that line
-            r"(\s+"  # optional group to capture ip address
-            + __ip_regex  # capture the ipv4 address if it's present
-            + r".*\n.*\n)?"  # and the rest of the line and attributes
-            r"(\s+inet6.*\n.*\n)?"  # optional capture inet6 and attributes
+            r"\d+: (?P<name>\w+): \<.+\> .+\n\s+"
+            r"link\/ether (?P<mac>[0-9a-z:]+) .+\n?"
+            r"(?:\s+inet (?P<ip_addr>[\d.]+)\/.*\n)?"
         )
     )
 
@@ -220,16 +199,20 @@ class Nics(InitializableMixin):
                 f"Could not run {command} on node {self._node.name}"
             ),
         )
-        split_ip_entries = self.__ip_addr_show_regex.findall(result.stdout)
+        entries = find_groups_in_lines(
+            result.stdout, self.__ip_addr_show_regex, single_line=False
+        )
         found_nics = []
-        for nic_info in split_ip_entries:
-            self._node.log.debug(f"Found nic info as : {nic_info}")
-            nic, _, _, _, mac, _, ip_addr, _ = nic_info
-            if nic in self.get_upper_nics():
-                nic_entry = self.nics[nic]
+        for entry in entries:
+            self._node.log.debug(f"Found nic info: {entry}")
+            nic_name = entry["name"]
+            mac = entry["mac"]
+            ip_addr = entry["ip_addr"]
+            if nic_name in self.get_upper_nics():
+                nic_entry = self.nics[nic_name]
                 nic_entry.ip_addr = ip_addr
                 nic_entry.mac_addr = mac
-                found_nics.append(nic)
+                found_nics.append(nic_name)
 
         if not nic_name:
             assert_that(sorted(found_nics)).described_as(
