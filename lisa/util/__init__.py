@@ -351,7 +351,7 @@ def get_matched_str(
 
 
 def find_patterns_groups_in_lines(
-    lines: str, patterns: List[Pattern[str]]
+    lines: str, patterns: List[Pattern[str]], single_line: bool = True
 ) -> List[List[Dict[str, str]]]:
     """
     for each pattern find the matches and return with group names.
@@ -360,20 +360,30 @@ def find_patterns_groups_in_lines(
     # create a list for each pattern.
     for _ in range(len(patterns)):
         results.append([])
-    for line in lines.splitlines(keepends=False):
+    if single_line:
+        for line in lines.splitlines(keepends=False):
+            for index, pattern in enumerate(patterns):
+                matches = pattern.match(line)
+                if matches:
+                    results[index].append(matches.groupdict())
+    else:
         for index, pattern in enumerate(patterns):
-            matched = pattern.match(line)
-            if matched:
-                results[index].append(matched.groupdict())
+            finds = pattern.findall(lines)
+            for find in finds:
+                results[index].append(dict(zip(pattern.groupindex, find)))
     return results
 
 
-def find_groups_in_lines(lines: str, pattern: Pattern[str]) -> List[Dict[str, str]]:
-    return find_patterns_groups_in_lines(lines, [pattern])[0]
+def find_groups_in_lines(
+    lines: str, pattern: Pattern[str], single_line: bool = True
+) -> List[Dict[str, str]]:
+    return find_patterns_groups_in_lines(lines, [pattern], single_line)[0]
 
 
-def find_group_in_lines(lines: str, pattern: Pattern[str]) -> Dict[str, str]:
-    output = find_groups_in_lines(lines, pattern)
+def find_group_in_lines(
+    lines: str, pattern: Pattern[str], single_line: bool = True
+) -> Dict[str, str]:
+    output = find_groups_in_lines(lines, pattern, single_line)
     if len(output) == 1:
         result = output[0]
     elif len(output) == 0:
