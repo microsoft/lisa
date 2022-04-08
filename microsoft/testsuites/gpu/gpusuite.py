@@ -17,7 +17,7 @@ from lisa import (
     constants,
     simple_requirement,
 )
-from lisa.features import Gpu, SerialConsole
+from lisa.features import Gpu, GpuEnabled, SerialConsole
 from lisa.features.gpu import ComputeSDK
 from lisa.operating_system import Debian
 from lisa.tools import Lspci, NvidiaSmi, Pip, Python, Reboot, Tar, Wget
@@ -57,7 +57,7 @@ class GpuTestSuite(TestSuite):
         """,
         timeout=TIMEOUT,
         requirement=simple_requirement(
-            supported_features=[Gpu, SerialConsole],
+            supported_features=[GpuEnabled(), SerialConsole],
         ),
         priority=1,
     )
@@ -79,7 +79,7 @@ class GpuTestSuite(TestSuite):
         """,
         timeout=TIMEOUT,
         requirement=simple_requirement(
-            supported_features=[Gpu],
+            supported_features=[GpuEnabled()],
         ),
         priority=2,
     )
@@ -119,7 +119,7 @@ class GpuTestSuite(TestSuite):
         """,
         priority=2,
         requirement=simple_requirement(
-            supported_features=[Gpu],
+            supported_features=[GpuEnabled()],
         ),
     )
     def verify_gpu_rescind_validation(self, node: Node) -> None:
@@ -148,7 +148,7 @@ class GpuTestSuite(TestSuite):
         """,
         priority=3,
         requirement=simple_requirement(
-            supported_features=[Gpu],
+            supported_features=[GpuEnabled()],
         ),
     )
     def verify_gpu_cuda_with_pytorch(self, node: Node) -> None:

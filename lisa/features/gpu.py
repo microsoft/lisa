@@ -4,6 +4,7 @@
 import re
 from dataclasses import dataclass
 from enum import Enum
+from functools import partial
 from typing import Any, List, Set, Type, cast
 
 from dataclasses_json import dataclass_json
@@ -25,6 +26,7 @@ FEATURE_NAME_GPU = "Gpu"
 class GpuSettings(schema.FeatureSettings):
     type: str = FEATURE_NAME_GPU
     install_by_platform: bool = True
+    is_enabled: bool = False
 
     def __hash__(self) -> int:
         return hash(self._get_key())
@@ -93,12 +95,10 @@ class Gpu(Feature):
         platform needs to implement _install_by_platform. And call this method
         in platform.
         """
-        settings = cast(schema.FeatureSettings, kwargs.get("settings"))
+        settings = cast(GpuSettings, kwargs.get("settings"))
 
         # default to install by platform, unless it's specified to skip.
-        if (isinstance(settings, GpuSettings) and settings.install_by_platform) or (
-            not isinstance(settings, GpuSettings)
-        ):
+        if (settings.is_enabled) and settings.install_by_platform:
             cls._install_by_platform(*args, **kwargs)
 
     @classmethod
@@ -295,3 +295,6 @@ class Gpu(Feature):
             raise LisaException(
                 f"Distro {self._node.os.name} is not supported for GPU."
             )
+
+
+GpuEnabled = partial(GpuSettings, is_enabled=True)
