@@ -29,7 +29,7 @@ from microsoft.testsuites.xdp.xdptools import XdpTool
     area="xdp",
     category="functional",
     description="""
-    This test suite is to validate XDP fuctionality.
+    This test suite is to validate XDP functionality.
     """,
 )
 class XdpFunctional(TestSuite):

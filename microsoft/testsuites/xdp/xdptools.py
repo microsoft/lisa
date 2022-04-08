@@ -22,7 +22,7 @@ def can_install(node: Node) -> bool:
         raise UnsupportedDistroException(
             node.os,
             "Cannot find xdp_drop in ethtool statistics. "
-            "It means it doesn't support XDP.",
+            "It means this distro doesn't support XDP.",
         )
 
     return True
