@@ -226,7 +226,6 @@ class AzurePlatformSchema:
     availability_set_properties: Optional[Dict[str, Any]] = field(default=None)
     vm_tags: Optional[Dict[str, Any]] = field(default=None)
     locations: Optional[Union[str, List[str]]] = field(default=None)
-    enable_hibernation: Optional[bool] = field(default=False)
 
     log_level: str = field(
         default=logging.getLevelName(logging.WARN),
