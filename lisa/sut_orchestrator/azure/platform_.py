@@ -1049,10 +1049,12 @@ class AzurePlatform(Platform):
         if is_windows:
             # set password for windows any time.
             arm_parameters.admin_password = self.runbook.admin_password
-            arm_parameters.nodes = nodes_parameters
-            arm_parameters.storage_name = get_storage_account_name(
-                self.subscription_id, arm_parameters.location
-            )
+
+        arm_parameters.nodes = nodes_parameters
+        arm_parameters.storage_name = get_storage_account_name(
+            self.subscription_id, arm_parameters.location
+        )
+
         if (
             self._azure_runbook.availability_set_properties
             or self._azure_runbook.availability_set_tags
