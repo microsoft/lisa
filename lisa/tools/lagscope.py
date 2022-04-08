@@ -232,10 +232,11 @@ class Lagscope(Tool, KillableMixin):
 
     def get_average(self, result: ExecutableResult) -> Decimal:
         matched_results = self._average_pattern.match(result.stdout)
-        assert (
-            matched_results
-        ), "not found matched average latency statistics from lagscope results."
-        return Decimal(matched_results.group("average_latency_us"))
+        if matched_results:
+            return Decimal(matched_results.group("average_latency_us"))
+        else:
+            self._log.debug(f"no average latency found in {result.stdout}")
+            return Decimal(-1.0)
 
     def create_latency_performance_messages(
         self, result: ExecutableResult, environment: "Environment", test_case_name: str
