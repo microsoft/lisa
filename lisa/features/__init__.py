@@ -8,7 +8,7 @@ from .disks import (
     DiskStandardHDDLRS,
     DiskStandardSSDLRS,
 )
-from .gpu import Gpu, GpuSettings
+from .gpu import Gpu, GpuEnabled, GpuSettings
 from .hibernation import Hibernation, HibernationEnabled, HibernationSettings
 from .infiniband import Infiniband
 from .network_interface import NetworkInterface, Sriov, Synthetic
@@ -24,6 +24,7 @@ __all__ = [
     "DiskStandardHDDLRS",
     "DiskStandardSSDLRS",
     "Gpu",
+    "GpuEnabled",
     "GpuSettings",
     "Hibernation",
     "HibernationEnabled",
