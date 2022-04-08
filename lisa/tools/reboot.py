@@ -1,17 +1,20 @@
 # Copyright (c) Microsoft Corporation.
 # Licensed under the MIT license.
 
+import time
 from datetime import datetime, timedelta
 from pathlib import Path
 from time import sleep
-from typing import Any
+from typing import Any, Optional, Type, cast
 
 from func_timeout import FunctionTimedOut, func_set_timeout  # type: ignore
 
 from lisa.executable import Tool
 from lisa.features import SerialConsole
+from lisa.tools.powershell import PowerShell
 from lisa.util import LisaException, TcpConnetionException
 from lisa.util.perf_timer import create_timer
+from lisa.util.shell import wait_tcp_port_ready
 
 from .date import Date
 from .uptime import Uptime
@@ -32,6 +35,10 @@ class Reboot(Tool):
     @property
     def command(self) -> str:
         return self._command
+
+    @classmethod
+    def _windows_tool(cls) -> Optional[Type[Tool]]:
+        return WindowsReboot
 
     def _check_exists(self) -> bool:
         return True
@@ -127,3 +134,60 @@ class Reboot(Tool):
                 raise LisaException(
                     "timeout to wait reboot, the node may stuck on reboot command."
                 )
+
+
+class WindowsReboot(Reboot):
+    @property
+    def command(self) -> str:
+        return "powershell"
+
+    def _check_exists(self) -> bool:
+        return True
+
+    def reboot(self, time_out: int = 600) -> None:
+        last_boot_time = self.node.tools[Uptime].since_time()
+        self.node.tools[PowerShell].run_cmdlet(
+            "Restart-Computer -Force", force_run=True
+        )
+
+        # wait for nested vm ssh connection to be ready
+        from lisa.node import RemoteNode
+
+        remote_node = cast(RemoteNode, self.node)
+
+        timeout_start = time.time()
+        is_ready = False
+        self._log.debug("Waiting for VM to reboot")
+        while time.time() - timeout_start < time_out:
+            try:
+                # check that vm has accessible ssh port
+                connected, _ = wait_tcp_port_ready(
+                    address=remote_node.public_address,
+                    port=remote_node.public_port,
+                    log=self._log,
+                    timeout=20,
+                )
+
+                if not connected:
+                    raise LisaException(
+                        f"failed to connect to {remote_node.name} on port"
+                        f" {remote_node.public_port} after reboot"
+                    )
+
+                self.node.close()
+
+                # check that vm has changed last uptime
+                current_boot_time = self.node.tools[Uptime].since_time(timeout=20)
+                if last_boot_time < current_boot_time:
+                    self._log.debug("VM has rebooted")
+                    is_ready = True
+                    break
+
+            except Exception as identifier:
+                self._log.debug(f"Waiting for VM to reboot: {identifier}")
+                sleep(2)
+
+        if not is_ready:
+            raise LisaException(
+                "timeout to wait reboot, the node may not perform reboot."
+            )
