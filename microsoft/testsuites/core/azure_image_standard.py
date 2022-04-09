@@ -189,12 +189,11 @@ class AzureImageStandard(TestSuite):
             r"^(.*Unconfined exec qualifier \\(ux\\) allows some dangerous environment variables.*)$",  # noqa: E501
             re.M,
         ),
-        re.compile(r"^(.*Stopped Write warning to Azure ephemeral disk.*)$", re.M),
         re.compile(r"^(.*reloading interface list.*)$", re.M),
         re.compile(r"^(.*Server preferred version:.*)$", re.M),
         re.compile(r"^(.*WARNING Hostname record does not exist,.*)$", re.M),
         re.compile(r"^(.*Dhcp client is not running.*)$", re.M),
-        re.compile(r"^(.*Starting Write warning to Azure ephemeral disk.*)$", re.M),
+        re.compile(r"^(.*Write warning to Azure ephemeral disk.*)$", re.M),
         re.compile(r"^(.*Added ephemeral disk warning to.*)$", re.M),
         re.compile(r"^(.*Proceeding WITHOUT firewalling in effect!.*)$", re.M),
         re.compile(r"^(.*urandom warning\\(s\\) missed due to ratelimiting.*)$", re.M),
