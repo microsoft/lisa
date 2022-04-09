@@ -112,6 +112,7 @@ class Provisioning(TestSuite):
         priority=1,
         requirement=simple_requirement(
             environment_status=EnvironmentStatus.Deployed,
+            min_core_count=8,
             disk=DiskEphemeral(),
             supported_features=[SerialConsole],
         ),
