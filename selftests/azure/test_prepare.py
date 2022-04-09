@@ -51,7 +51,7 @@ class AzurePrepareTestCase(TestCase):
                 "capabilities": [
                     {"name": "MaxResourceVolumeMB", "value": "1376256"},
                     {"name": "OSVhdSizeMB", "value": "1047552"},
-                    {"name": "vCPUs", "value": "48"},
+                    {"name": "vCPUsAvailable", "value": "48"},
                     {"name": "MemoryGB", "value": "448"},
                     {"name": "vCPUsAvailable", "value": "48"},
                     {"name": "GPUs", "value": "4"},

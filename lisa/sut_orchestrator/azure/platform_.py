@@ -1496,7 +1496,7 @@ class AzurePlatform(Platform):
         ](is_allow_set=True, items=[])
         for sku_capability in resource_sku.capabilities:
             name = sku_capability.name
-            if name == "vCPUs":
+            if name == "vCPUsAvailable":
                 node_space.core_count = int(sku_capability.value)
                 if resource_sku.family in ["standardLSv2Family"]:
                     # refer https://docs.microsoft.com/en-us/azure/virtual-machines/lsv2-series # noqa: E501
