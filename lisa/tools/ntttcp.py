@@ -171,7 +171,7 @@ class Ntttcp(Tool):
     def run_as_server_async(
         self,
         nic_name: str,
-        run_time_seconds: int = 10,
+        run_time_seconds: int = 300,
         ports_count: int = 64,
         buffer_size: int = 64,
         cool_down_time_seconds: int = 1,
@@ -212,7 +212,7 @@ class Ntttcp(Tool):
     def run_as_server(
         self,
         nic_name: str,
-        run_time_seconds: int = 10,
+        run_time_seconds: int = 300,
         ports_count: int = 64,
         buffer_size: int = 64,
         cool_down_time_seconds: int = 1,
@@ -265,7 +265,7 @@ class Ntttcp(Tool):
         nic_name: str,
         server_ip: str,
         threads_count: int,
-        run_time_seconds: int = 10,
+        run_time_seconds: int = 300,
         ports_count: int = 64,
         buffer_size: int = 64,
         cool_down_time_seconds: int = 1,
