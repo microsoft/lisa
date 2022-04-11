@@ -4,28 +4,33 @@
 from typing import Any, Dict, List, Optional, Tuple
 
 from lisa import RemoteNode
+from lisa.features.network_interface import Synthetic
 from lisa.operating_system import Debian, Fedora, Suse
 from lisa.schema import Node
-from lisa.tools import Lscpu, Qemu, Wget
-from lisa.util import SkippedException
+from lisa.tools import HyperV, Lscpu, Qemu, Wget
+from lisa.tools.rm import Rm
+from lisa.util import SkippedException, fields_to_dict
 from lisa.util.logger import Logger
 from lisa.util.shell import ConnectionInfo, try_connect
 
-NESTED_VM_IMAGE_NAME = "image.qcow2"
+QEMU_NESTED_VM_IMAGE_NAME = "image.qcow2"
+HYPERV_NESTED_VM_IMAGE_NAME = "image.vhdx"
+HYPERV_NAT_NAME = "nestedvmnat"
+HYPER_IMAGE_FOLDER = "C:\\lisaimages"
 NESTED_VM_TEST_FILE_NAME = "message.txt"
 NESTED_VM_TEST_FILE_CONTENT = "Message from L1 vm!!"
 NESTED_VM_TEST_PUBLIC_FILE_URL = "http://www.github.com"
 NESTED_VM_REQUIRED_DISK_SIZE_IN_GB = 6
 
 
-def connect_nested_vm(
+def qemu_connect_nested_vm(
     host: RemoteNode,
     guest_username: str,
     guest_password: str,
     guest_port: int,
     guest_image_url: str,
     name: str = "L2-VM",
-    image_name: str = NESTED_VM_IMAGE_NAME,
+    image_name: str = QEMU_NESTED_VM_IMAGE_NAME,
     image_size: int = NESTED_VM_REQUIRED_DISK_SIZE_IN_GB,
     nic_model: str = "e1000",
     taps: int = 0,
@@ -72,26 +77,104 @@ def connect_nested_vm(
     )
 
     # setup connection to nested vm
-    nested_vm = RemoteNode(Node(name=name), 0, name)
-    nested_vm.set_connection_info(
-        public_address=host.public_address,
+    connection_info = ConnectionInfo(
+        address=host.public_address,
+        port=guest_port,
         username=guest_username,
         password=guest_password,
-        public_port=guest_port,
-        port=guest_port,
+    )
+
+    nested_vm = RemoteNode(Node(name=name), 0, name)
+    nested_vm.set_connection_info(
+        **fields_to_dict(connection_info, ["address", "port", "username", "password"])
     )
 
     # wait for nested vm ssh connection to be ready
-    try_connect(
-        ConnectionInfo(
-            address=host.public_address,
-            port=guest_port,
-            username=guest_username,
-            password=guest_password,
-        )
-    )
+    try_connect(connection_info)
 
     return nested_vm
+
+
+def hyperv_connect_nested_vm(
+    host: RemoteNode,
+    guest_username: str,
+    guest_password: str,
+    port: int,
+    guest_image_url: str,
+    name: str = "l2_vm",
+    image_name: str = HYPERV_NESTED_VM_IMAGE_NAME,
+    switch_name: str = "nestedvmswitch",
+    nat_name: str = HYPERV_NAT_NAME,
+) -> RemoteNode:
+    # delete vm if it exists, otherwise it will fail to delete
+    # any present images
+    hyperv = host.tools[HyperV]
+    hyperv.delete_vm(name)
+
+    # Download nested vm image
+    image_name = f"{name}_{image_name}"
+    file_path = host.tools[Wget].get(
+        guest_image_url,
+        HYPER_IMAGE_FOLDER,
+        image_name,
+    )
+
+    # setup NAT
+    hyperv.setup_nat_networking(switch_name, nat_name)
+    hyperv.create_vm(
+        name,
+        file_path,
+        switch_name,
+    )
+
+    # cleanup all existing port forwarding rules and
+    # enable port forwarding for the nested vm
+    local_ip = hyperv.get_ip_address(name)
+    hyperv.delete_port_forwarding(nat_name)
+    hyperv.setup_port_forwarding(nat_name, port, local_ip)
+
+    # setup connection to nested vm
+    connection_info = ConnectionInfo(
+        address=host.public_address,
+        port=port,
+        username=guest_username,
+        password=guest_password,
+    )
+
+    nested_vm = RemoteNode(Node(name=name), 0, name)
+    nested_vm.set_connection_info(
+        **fields_to_dict(connection_info, ["address", "port", "username", "password"])
+    )
+    nested_vm.capability.network_interface = Synthetic()
+
+    # wait for nested vm ssh connection to be ready
+    try_connect(connection_info)
+
+    return nested_vm
+
+
+def hyperv_remove_nested_vm(
+    host: RemoteNode,
+    name: str = "L2-VM",
+    image_name: str = HYPERV_NESTED_VM_IMAGE_NAME,
+    switch_name: str = "nestedvmswitch",
+    nat_name: str = "nestedvmnat",
+) -> None:
+    image_name = f"{name}_{image_name}"
+    file_path = f"{HYPER_IMAGE_FOLDER}\\{image_name}"
+    hyperv = host.tools[HyperV]
+
+    # Delete VM
+    hyperv.delete_vm(name)
+
+    # delete image
+    host.tools[Rm].remove_file(file_path)
+
+    # delete nat network
+    hyperv.delete_nat_networking(switch_name, nat_name)
+
+    # enable port forwarding
+    hyperv.delete_port_forwarding(nat_name)
 
 
 def parse_nested_image_variables(

@@ -2,7 +2,6 @@
 # Licensed under the MIT license.
 
 import inspect
-import time
 from pathlib import PurePosixPath
 from typing import Any, Dict, cast
 
@@ -19,12 +18,28 @@ from lisa.features import Disk
 from lisa.features.network_interface import Synthetic
 from lisa.messages import DiskSetupType, DiskType
 from lisa.node import RemoteNode
-from lisa.tools import Dnsmasq, Echo, Ip, Iptables, Lscpu, Qemu, Sysctl
+from lisa.operating_system import Windows
+from lisa.sut_orchestrator import AZURE, READY
+from lisa.tools import (
+    Dnsmasq,
+    Echo,
+    Ip,
+    Iptables,
+    Lscpu,
+    Mdadm,
+    PowerShell,
+    Qemu,
+    Sysctl,
+)
+from lisa.tools.hyperv import HyperV
 from lisa.util.logger import Logger
 from lisa.util.shell import ConnectionInfo, try_connect
 from microsoft.testsuites.nested.common import (
-    connect_nested_vm,
+    HYPERV_NAT_NAME,
+    hyperv_connect_nested_vm,
+    hyperv_remove_nested_vm,
     parse_nested_image_variables,
+    qemu_connect_nested_vm,
 )
 from microsoft.testsuites.performance.common import (
     perf_disk,
@@ -101,6 +116,57 @@ class KVMPerformance(TestSuite):  # noqa
 
     @TestCaseMetadata(
         description="""
+        This test case is to validate performance of nested VM in hyper-v
+        using fio tool with single l1 data disk attached to the l2 VM.
+        """,
+        priority=3,
+        timeout=_TIME_OUT,
+        requirement=simple_requirement(
+            supported_os=[Windows],
+            supported_platform_type=[AZURE, READY],
+            disk=schema.DiskOptionSettings(
+                disk_type=schema.DiskType.StandardSSDLRS,
+                data_disk_iops=search_space.IntRange(min=5000),
+                data_disk_count=search_space.IntRange(min=1),
+            ),
+        ),
+    )
+    def perf_nested_hyperv_storage_singledisk(
+        self, node: RemoteNode, environment: Environment, variables: Dict[str, Any]
+    ) -> None:
+        try:
+            self._storage_perf_hyperv(node, environment, variables)
+        finally:
+            hyperv_remove_nested_vm(node)
+
+    @TestCaseMetadata(
+        description="""
+        This test case is to validate performance of nested VM using fio tool with raid0
+        configuration of 6 l1 data disk attached to the l2 VM.
+        """,
+        priority=3,
+        timeout=_TIME_OUT,
+        requirement=simple_requirement(
+            supported_os=[Windows],
+            supported_platform_type=[AZURE, READY],
+            disk=schema.DiskOptionSettings(
+                disk_type=schema.DiskType.StandardSSDLRS,
+                data_disk_iops=search_space.IntRange(min=5000),
+                data_disk_count=search_space.IntRange(min=6),
+            ),
+        ),
+    )
+    def perf_nested_hyperv_storage_multidisk(
+        self, node: RemoteNode, environment: Environment, variables: Dict[str, Any]
+    ) -> None:
+        try:
+            self._storage_perf_hyperv(node, environment, variables, setup_raid=True)
+        finally:
+            hyperv_remove_nested_vm(node)
+            node.tools[Mdadm].stop_raid()
+
+    @TestCaseMetadata(
+        description="""
         This test case runs ntttcp test on two nested VMs on same L1 guest
         connected with private bridge
         """,
@@ -128,7 +194,7 @@ class KVMPerformance(TestSuite):  # noqa
             )
 
             # setup server and client
-            server = connect_nested_vm(
+            server = qemu_connect_nested_vm(
                 node,
                 nested_image_username,
                 nested_image_password,
@@ -149,7 +215,7 @@ class KVMPerformance(TestSuite):  # noqa
             server.nics.default_nic = self._NIC_NAME
             server.capability.network_interface = Synthetic()
 
-            client = connect_nested_vm(
+            client = qemu_connect_nested_vm(
                 node,
                 nested_image_username,
                 nested_image_password,
@@ -211,7 +277,7 @@ class KVMPerformance(TestSuite):  # noqa
 
         try:
             # setup nested vm on server in NAT configuration
-            server_l2 = self._setup_nat(
+            server_l2 = self._linux_setup_nat(
                 node=server_l1,
                 nested_vm_name="server_l2",
                 guest_username=nested_image_username,
@@ -227,7 +293,7 @@ class KVMPerformance(TestSuite):  # noqa
             )
 
             # setup nested vm on client in NAT configuration
-            client_l2 = self._setup_nat(
+            client_l2 = self._linux_setup_nat(
                 node=client_l1,
                 nested_vm_name="client_l2",
                 guest_username=nested_image_username,
@@ -247,8 +313,64 @@ class KVMPerformance(TestSuite):  # noqa
                 environment, server_l2, client_l2, test_case_name=inspect.stack()[1][3]
             )
         finally:
-            self._cleanup_nat(server_l1, self._BR_NAME)
-            self._cleanup_nat(client_l1, self._BR_NAME)
+            self._linux_cleanup_nat(server_l1, self._BR_NAME)
+            self._linux_cleanup_nat(client_l1, self._BR_NAME)
+
+    @TestCaseMetadata(
+        description="""
+        This script runs ntttcp test on two nested VMs on different L1 guests
+        connected with NAT
+        """,
+        priority=3,
+        timeout=_TIME_OUT,
+        requirement=simple_requirement(
+            min_count=2,
+            supported_os=[Windows],
+            supported_platform_type=[AZURE, READY],
+        ),
+    )
+    def perf_nested_hyperv_ntttcp_different_l1_nat(
+        self, environment: Environment, variables: Dict[str, Any]
+    ) -> None:
+        server_l1 = cast(RemoteNode, environment.nodes[0])
+        client_l1 = cast(RemoteNode, environment.nodes[1])
+
+        # parse nested image variables
+        (
+            nested_image_username,
+            nested_image_password,
+            _,
+            nested_image_url,
+        ) = parse_nested_image_variables(variables)
+
+        try:
+            # setup nested vm on server in NAT configuration
+            server_l2 = self._windows_setup_nat(
+                node=server_l1,
+                nested_vm_name="server_l2",
+                guest_username=nested_image_username,
+                guest_password=nested_image_password,
+                guest_port=self._SERVER_HOST_FWD_PORT,
+                guest_image_url=nested_image_url,
+            )
+
+            # setup nested vm on client in NAT configuration
+            client_l2 = self._windows_setup_nat(
+                node=client_l1,
+                nested_vm_name="client_l2",
+                guest_username=nested_image_username,
+                guest_password=nested_image_password,
+                guest_port=self._CLIENT_HOST_FWD_PORT,
+                guest_image_url=nested_image_url,
+            )
+
+            # run ntttcp test
+            perf_ntttcp(
+                environment, server_l2, client_l2, test_case_name=inspect.stack()[1][3]
+            )
+        finally:
+            hyperv_remove_nested_vm(server_l1, "server_l2")
+            hyperv_remove_nested_vm(client_l1, "client_l2")
 
     @TestCaseMetadata(
         description="""
@@ -280,7 +402,7 @@ class KVMPerformance(TestSuite):  # noqa
 
         try:
             # setup nested vm on server in NAT configuration
-            server_l2 = self._setup_nat(
+            server_l2 = self._linux_setup_nat(
                 node=server_l1,
                 nested_vm_name="server_l2",
                 guest_username=nested_image_username,
@@ -296,7 +418,7 @@ class KVMPerformance(TestSuite):  # noqa
             )
 
             # setup nested vm on client in NAT configuration
-            client_l2 = self._setup_nat(
+            client_l2 = self._linux_setup_nat(
                 node=client_l1,
                 nested_vm_name="client_l2",
                 guest_username=nested_image_username,
@@ -314,10 +436,10 @@ class KVMPerformance(TestSuite):  # noqa
             # run netperf test
             perf_tcp_pps(environment, "singlepps", server_l2, client_l2)
         finally:
-            self._cleanup_nat(server_l1, self._BR_NAME)
-            self._cleanup_nat(client_l1, self._BR_NAME)
+            self._linux_cleanup_nat(server_l1, self._BR_NAME)
+            self._linux_cleanup_nat(client_l1, self._BR_NAME)
 
-    def _setup_nat(
+    def _linux_setup_nat(
         self,
         node: RemoteNode,
         nested_vm_name: str,
@@ -370,7 +492,7 @@ class KVMPerformance(TestSuite):  # noqa
         node.tools[Dnsmasq].start(bridge_name, bridge_gateway, bridge_dhcp_range)
 
         # start nested vm
-        nested_vm = connect_nested_vm(
+        nested_vm = qemu_connect_nested_vm(
             node,
             guest_username,
             guest_password,
@@ -404,20 +526,16 @@ class KVMPerformance(TestSuite):  # noqa
         # route traffic on `eth0` and port `guest_port` on l1 vm to
         # port 22 on l2 vm
         node.tools[Iptables].run(
-            (
-                f"-t nat -A PREROUTING -i eth0 -p tcp --dport {guest_port} "
-                f"-j DNAT --to {guest_internal_ip}:22"
-            ),
+            f"-t nat -A PREROUTING -i eth0 -p tcp --dport {guest_port} "
+            f"-j DNAT --to {guest_internal_ip}:22",
             sudo=True,
             force_run=True,
         )
 
         # route all tcp traffic on `eth1` port on l1 vm to l2 vm
         node.tools[Iptables].run(
-            (
-                f"-t nat -A PREROUTING -i eth1 -d {node_eth1_ip} "
-                f"-p tcp -j DNAT --to {guest_internal_ip}"
-            ),
+            f"-t nat -A PREROUTING -i eth1 -d {node_eth1_ip} "
+            f"-p tcp -j DNAT --to {guest_internal_ip}",
             sudo=True,
             force_run=True,
         )
@@ -439,7 +557,7 @@ class KVMPerformance(TestSuite):  # noqa
 
         return nested_vm
 
-    def _cleanup_nat(self, node: RemoteNode, bridge_name: str) -> None:
+    def _linux_cleanup_nat(self, node: RemoteNode, bridge_name: str) -> None:
         # stop running QEMU instances
         node.tools[Qemu].stop_vm()
 
@@ -480,7 +598,7 @@ class KVMPerformance(TestSuite):  # noqa
             disks = ["sdb"]
 
         # get l2 vm
-        l2_vm = connect_nested_vm(
+        l2_vm = qemu_connect_nested_vm(
             node,
             nested_image_username,
             nested_image_password,
@@ -488,9 +606,9 @@ class KVMPerformance(TestSuite):  # noqa
             nested_image_url,
             disks=disks,
         )
+        l2_vm.capability.network_interface = Synthetic()
 
         # Qemu command exits immediately but the VM requires some time to boot up.
-        time.sleep(60)
         l2_vm.tools[Lscpu].get_core_count()
 
         # Each fio process start jobs equal to the iodepth to read/write from
@@ -522,3 +640,111 @@ class KVMPerformance(TestSuite):  # noqa
             size_gb=8,
             overwrite=True,
         )
+
+    def _storage_perf_hyperv(
+        self,
+        node: RemoteNode,
+        environment: Environment,
+        variables: Dict[str, Any],
+        filename: str = "/dev/sdb",
+        start_iodepth: int = 1,
+        max_iodepth: int = 1024,
+        setup_raid: bool = False,
+    ) -> None:
+        (
+            nested_image_username,
+            nested_image_password,
+            nested_image_port,
+            nested_image_url,
+        ) = parse_nested_image_variables(variables)
+
+        mdadm = node.tools[Mdadm]
+
+        # cleanup any previous raid configurations to free
+        # data disks
+        mdadm.stop_raid()
+
+        # get data disk id
+        powershell = node.tools[PowerShell]
+        data_disks_id_str = powershell.run_cmdlet(
+            "(Get-Disk | "
+            "Where-Object {$_.FriendlyName -eq 'Msft Virtual Disk'}).Number"
+        )
+        data_disks_id = data_disks_id_str.strip().replace("\r", "").split("\n")
+
+        # set data disks offline
+        for disk in data_disks_id:
+            powershell.run_cmdlet(
+                f"Set-Disk -Number {disk} -IsOffline $true", force_run=True
+            )
+
+        # create raid
+        if setup_raid:
+            mdadm.create_raid(data_disks_id)
+
+        # get l2 vm
+        nested_vm = hyperv_connect_nested_vm(
+            node,
+            nested_image_username,
+            nested_image_password,
+            nested_image_port,
+            nested_image_url,
+        )
+
+        # Each fio process start jobs equal to the iodepth to read/write from
+        # the disks. The max number of jobs can be equal to the core count of
+        # the node.
+        # Examples:
+        # iodepth = 4, core count = 8 => max_jobs = 4
+        # iodepth = 16, core count = 8 => max_jobs = 8
+        num_jobs = []
+        iodepth_iter = start_iodepth
+        core_count = node.tools[Lscpu].get_core_count()
+        while iodepth_iter <= max_iodepth:
+            num_jobs.append(min(iodepth_iter, core_count))
+            iodepth_iter = iodepth_iter * 2
+
+        # run fio test
+        perf_disk(
+            nested_vm,
+            start_iodepth,
+            max_iodepth,
+            filename,
+            test_name=inspect.stack()[1][3],
+            core_count=core_count,
+            disk_count=1,
+            disk_setup_type=DiskSetupType.raid0,
+            disk_type=DiskType.premiumssd,
+            environment=environment,
+            num_jobs=num_jobs,
+            size_gb=8,
+            overwrite=True,
+        )
+
+    def _windows_setup_nat(
+        self,
+        node: RemoteNode,
+        nested_vm_name: str,
+        guest_username: str,
+        guest_password: str,
+        guest_port: int,
+        guest_image_url: str,
+    ) -> RemoteNode:
+        nested_vm = hyperv_connect_nested_vm(
+            node,
+            guest_username,
+            guest_password,
+            guest_port,
+            guest_image_url,
+            name=nested_vm_name,
+        )
+
+        # ntttcp uses port in the range (5000, 5065)
+        # map all traffic on these ports to the guest vm
+        local_ip = node.tools[HyperV].get_ip_address(nested_vm_name)
+        for i in range(5000, 5065):
+            node.tools[HyperV].setup_port_forwarding(
+                nat_name=HYPERV_NAT_NAME, host_port=i, guest_port=i, guest_ip=local_ip
+            )
+
+        return nested_vm
