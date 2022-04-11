@@ -26,6 +26,7 @@ from .git import Git
 from .hibernation_setup import HibernationSetup
 from .hostname import Hostname
 from .hwclock import Hwclock
+from .hyperv import HyperV
 from .interrupt_inspector import InterruptInspector
 from .ip import Ip
 from .iperf3 import Iperf3
@@ -62,6 +63,7 @@ from .python import Pip, Python
 from .qemu import Qemu
 from .qemu_img import QemuImg
 from .reboot import Reboot
+from .rm import Rm
 from .sar import Sar
 from .service import Service
 from .ssh import Ssh
@@ -110,6 +112,7 @@ __all__ = [
     "HibernationSetup",
     "Hostname",
     "Hwclock",
+    "HyperV",
     "InterruptInspector",
     "Ip",
     "Iperf3",
@@ -152,6 +155,7 @@ __all__ = [
     "QemuImg",
     "Reboot",
     "Rpm",
+    "Rm",
     "Sar",
     "Sed",
     "Service",
