@@ -11,8 +11,8 @@ from microsoft.testsuites.nested.common import (
     NESTED_VM_TEST_FILE_CONTENT,
     NESTED_VM_TEST_FILE_NAME,
     NESTED_VM_TEST_PUBLIC_FILE_URL,
-    connect_nested_vm,
     parse_nested_image_variables,
+    qemu_connect_nested_vm,
 )
 
 
@@ -46,7 +46,7 @@ class Nested(TestSuite):
         ) = parse_nested_image_variables(variables)
 
         # get l2 vm
-        l2_vm = connect_nested_vm(
+        l2_vm = qemu_connect_nested_vm(
             node,
             nested_image_username,
             nested_image_password,
