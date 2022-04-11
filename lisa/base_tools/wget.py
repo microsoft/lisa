@@ -1,8 +1,12 @@
 import re
 from pathlib import PurePosixPath
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Optional, Type
 
 from lisa.executable import Tool
+from lisa.tools.ls import Ls
+from lisa.tools.mkdir import Mkdir
+from lisa.tools.powershell import PowerShell
+from lisa.tools.rm import Rm
 from lisa.util import LisaException, is_valid_url
 
 if TYPE_CHECKING:
@@ -90,3 +94,50 @@ class Wget(Tool):
                 f"Internet is not accessible, exception occurred with wget {e}"
             )
         return False
+
+    @classmethod
+    def _windows_tool(cls) -> Optional[Type[Tool]]:
+        return WindowsWget
+
+
+class WindowsWget(Wget):
+    @property
+    def command(self) -> str:
+        return ""
+
+    def _check_exists(self) -> bool:
+        return True
+
+    def get(
+        self,
+        url: str,
+        file_path: str = "",
+        filename: str = "",
+        overwrite: bool = True,
+        executable: bool = False,
+        sudo: bool = False,
+        force_run: bool = False,
+    ) -> str:
+        ls = self.node.tools[Ls]
+
+        fullpath = f"{file_path}\\{filename}"
+        # return if file exists and not overwrite
+        if ls.path_exists(file_path, sudo=sudo) and not overwrite:
+            self._log.debug(
+                f"File {fullpath} already exists and rewrite is set to False"
+            )
+
+        # create directory if it doesn't exist
+        self.node.tools[Mkdir].create_directory(file_path, sudo=sudo)
+
+        # TODO: add support for executables
+        # remove existing file if present and download
+        self.node.tools[Rm].remove_file(fullpath, sudo=sudo)
+        self.node.tools[PowerShell].run_cmdlet(
+            f"$ProgressPreference = 'SilentlyContinue'; Invoke-WebRequest -Uri '{url}'"
+            f" -OutFile '{fullpath}'",
+            sudo=sudo,
+            force_run=force_run,
+        )
+
+        return fullpath
