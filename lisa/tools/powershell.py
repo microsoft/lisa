@@ -23,8 +23,13 @@ class PowerShell(Tool):
         force_run: bool = False,
         sudo: bool = False,
         fail_on_error: bool = True,
+        timeout: int = 600,
     ) -> str:
-        result = self.run(cmdlet, force_run=force_run, sudo=sudo)
+        # cmdlet can have `"` characters, so we need to escape them
+        cmdlet = cmdlet.replace('"', '`"')
+        result = self.run(
+            f'"{cmdlet}"', force_run=force_run, sudo=sudo, timeout=timeout
+        )
         if fail_on_error and result.exit_code != 0:
             raise LisaException(
                 f"non-zero exit code {result.exit_code} from cmdlet '{cmdlet}'. "
