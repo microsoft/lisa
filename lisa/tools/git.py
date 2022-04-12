@@ -8,7 +8,7 @@ from typing import List
 from assertpy import assert_that
 
 from lisa.executable import Tool
-from lisa.operating_system import Posix
+from lisa.operating_system import Posix, Suse
 from lisa.util import LisaException, constants, filter_ansi_escape, get_matched_str
 
 
@@ -33,7 +33,9 @@ class Git(Tool):
         return True
 
     def _install(self) -> bool:
-        if isinstance(self.node.os, Posix):
+        if isinstance(self.node.os, Suse):
+            self.node.os.install_packages("git-core")
+        elif isinstance(self.node.os, Posix):
             self.node.os.install_packages([self])
         else:
             raise LisaException(
