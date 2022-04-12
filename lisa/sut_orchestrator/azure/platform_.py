@@ -309,6 +309,7 @@ class AzurePlatform(Platform):
             features.StartStop,
             features.Infiniband,
             features.Hibernation,
+            features.SecurityProfile,
         ]
 
     def _prepare_environment(  # noqa: C901
@@ -1170,6 +1171,7 @@ class AzurePlatform(Platform):
             image_info = self._get_image_info(
                 azure_node_runbook.location, azure_node_runbook.marketplace
             )
+            azure_node_runbook.hyperv_generation = image_info.hyper_v_generation
             # retrieve the os type for arm template.
             if azure_node_runbook.is_linux is None:
                 if image_info.os_disk_image.operating_system == "Windows":
@@ -1554,6 +1556,11 @@ class AzurePlatform(Platform):
                 if eval(sku_capability.value) is True:
                     node_space.features.add(
                         schema.FeatureSettings.create(features.Hibernation.name())
+                    )
+            elif name == "HyperVGenerations":
+                if "V2" in str(sku_capability.value):
+                    node_space.features.add(
+                        schema.FeatureSettings.create(features.SecurityProfile.name())
                     )
 
         # for some new sizes, there is no MaxNetworkInterfaces capability

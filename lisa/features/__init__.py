@@ -14,6 +14,11 @@ from .infiniband import Infiniband
 from .network_interface import NetworkInterface, Sriov, Synthetic
 from .nvme import Nvme, NvmeSettings
 from .resize import Resize
+from .security_profile import (
+    SecureBootEnabled,
+    SecurityProfile,
+    SecurityProfileSettings,
+)
 from .serial_console import SerialConsole
 from .startstop import StartStop
 
@@ -35,6 +40,9 @@ __all__ = [
     "SerialConsole",
     "NetworkInterface",
     "Resize",
+    "SecureBootEnabled",
+    "SecurityProfile",
+    "SecurityProfileSettings",
     "Sriov",
     "Synthetic",
     "StartStop",
