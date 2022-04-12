@@ -66,7 +66,7 @@ class XdpDump(Tool):
                     f"deb http://apt.llvm.org/{self.node.os.information.codename}/ "
                     f"{toolchain} main"
                 ),
-                key_location="https://apt.llvm.org/llvm-snapshot.gpg.key",
+                keys_location=["https://apt.llvm.org/llvm-snapshot.gpg.key"],
             )
 
             self.node.os.install_packages(
