@@ -15,6 +15,6 @@ run
 
 .. code:: bash
 
-    poetry install
+    poetry install -E "azure libvirt"
 
 to keep all packages up-to-date as well.

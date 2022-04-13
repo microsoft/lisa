@@ -32,7 +32,11 @@ from lisa.util.process import Process
 if platform.system() == "Windows":
     import msvcrt
 
-    import win32file  # type: ignore
+    try:
+        import win32file  # type: ignore
+    except Exception:
+        log = get_logger("init", "runner")
+        log.warn("win32file package is not installed, legacy runner cannot run correctly.")
 
 
 # TestResults\2021-02-07-18-04-09-OX53\LISAv2-Test-OX53.log
