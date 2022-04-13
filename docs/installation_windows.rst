@@ -81,7 +81,7 @@ Enter the ``PowerShell`` command prompt and then execute below commands:
    # Add poetry.exe's path to your `PATH` environment variable.
    $env:PATH += ";$env:APPDATA\Python\Scripts"
 
-   poetry install
+   poetry install -E "azure libvirt"
 
 Verify installation
 -------------------
