@@ -997,3 +997,33 @@ class Hibernation(AzureFeatureMixin, features.Hibernation):
         resources = template["resources"]
         virtual_machines = find_by_name(resources, "Microsoft.Compute/virtualMachines")
         virtual_machines["properties"].update(json.loads(cls._hibernation_properties))
+
+
+class SecurityProfile(AzureFeatureMixin, features.SecurityProfile):
+    _both_enabled_properties = """
+        {
+            "securityProfile": {
+                "uefiSettings": {
+                    "secureBootEnabled": "true",
+                    "vTpmEnabled": "true"
+                },
+                "securityType": "TrustedLaunch"
+            }
+        }
+        """
+
+    def _initialize(self, *args: Any, **kwargs: Any) -> None:
+        super()._initialize(*args, **kwargs)
+        self._initialize_information(self._node)
+
+    @classmethod
+    def _enable_secure_boot(cls, *args: Any, **kwargs: Any) -> None:
+        parameters: Any = kwargs.get("arm_parameters")
+        if 1 == parameters.nodes[0].hyperv_generation:
+            raise SkippedException("Secure boot can only be set on gen2 image/vhd.")
+        template: Any = kwargs.get("template")
+        log = cast(Logger, kwargs.get("log"))
+        log.debug("updating arm template to support secure boot.")
+        resources = template["resources"]
+        virtual_machines = find_by_name(resources, "Microsoft.Compute/virtualMachines")
+        virtual_machines["properties"].update(json.loads(cls._both_enabled_properties))

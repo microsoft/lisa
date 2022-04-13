@@ -683,19 +683,26 @@ class Debian(Linux):
 
         return repositories
 
-    def add_repository(self, repo: str, key_location: str = "") -> None:
-        if key_location:
-            wget = self._node.tools[Wget]
-            key_file_path = wget.get(
-                url=key_location,
-                file_path=str(self._node.working_path),
-            )
-            self._node.execute(
-                cmd=f"apt-key add {key_file_path}",
-                sudo=True,
-                expected_exit_code=0,
-                expected_exit_code_failure_message="fail to add apt key",
-            )
+    def add_repository(
+        self,
+        repo: str,
+        no_gpgcheck: bool = True,
+        repo_name: Optional[str] = None,
+        keys_location: Optional[List[str]] = None,
+    ) -> None:
+        if keys_location:
+            for key_location in keys_location:
+                wget = self._node.tools[Wget]
+                key_file_path = wget.get(
+                    url=key_location,
+                    file_path=str(self._node.working_path),
+                )
+                self._node.execute(
+                    cmd=f"apt-key add {key_file_path}",
+                    sudo=True,
+                    expected_exit_code=0,
+                    expected_exit_code_failure_message="fail to add apt key",
+                )
         # This command will trigger apt update too, so it doesn't need to update
         # repos again.
 
@@ -1013,6 +1020,23 @@ class RPMDistro(Linux):
                     )
                 )
         return repositories
+
+    def add_repository(
+        self,
+        repo: str,
+        no_gpgcheck: bool = True,
+        repo_name: Optional[str] = None,
+        keys_location: Optional[List[str]] = None,
+    ) -> None:
+        cmd = f'yum-config-manager --add-repo "{repo}"'
+        if no_gpgcheck:
+            cmd += " --nogpgcheck"
+        self._node.execute(
+            cmd=cmd,
+            sudo=True,
+            expected_exit_code=0,
+            expected_exit_code_failure_message="fail to add repository",
+        )
 
     def _get_package_information(self, package_name: str) -> VersionInfo:
         rpm_info = self._node.execute(
@@ -1372,6 +1396,24 @@ class Suse(Linux):
                     )
         return repo_list
 
+    def add_repository(
+        self,
+        repo: str,
+        no_gpgcheck: bool = True,
+        repo_name: Optional[str] = None,
+        keys_location: Optional[List[str]] = None,
+    ) -> None:
+        cmd = "zypper ar"
+        if no_gpgcheck:
+            cmd += " -G "
+        cmd += f" {repo} {repo_name}"
+        cmd_result = self._node.execute(cmd=cmd, sudo=True)
+        if "already exists. Please use another alias." not in cmd_result.stdout:
+            if cmd_result.exit_code != 0:
+                raise LisaException(f"fail to add repo {repo}")
+        else:
+            self._log.debug(f"repo {repo_name} already exist")
+
     def _initialize_package_installation(self) -> None:
         self.wait_running_process("zypper")
         self._node.execute(
@@ -1381,9 +1423,10 @@ class Suse(Linux):
     def _install_packages(
         self, packages: List[str], signed: bool = True, timeout: int = 600
     ) -> None:
-        command = f"zypper --non-interactive in {' '.join(packages)}"
+        command = "zypper --non-interactive"
         if not signed:
-            command += " --no-gpg-checks"
+            command += " --no-gpg-checks "
+        command += f" in {' '.join(packages)}"
         self.wait_running_process("zypper")
         install_result = self._node.execute(
             command, shell=True, sudo=True, timeout=timeout
