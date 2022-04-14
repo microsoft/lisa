@@ -4,7 +4,7 @@ Updating LISA
 Once LISA has been successfully installed on your computer, simply follow below
 steps to update.
 
-In the root foler of LISA ``(...\lisa\)``, run
+In the root folder of LISA ``(...\lisa\)``, run
 
 .. code:: bash
 

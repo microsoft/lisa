@@ -47,4 +47,4 @@ class Ntpstat(Tool):
     def check_time_sync(self) -> None:
         cmd_result = self.run(shell=True, sudo=True, force_run=True)
         if self.__not_sync in cmd_result.stdout:
-            raise LisaException("Local time is unsynchronised with time server.")
+            raise LisaException("Local time is not synced with time server.")

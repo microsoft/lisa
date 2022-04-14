@@ -60,7 +60,7 @@ class Dpdk(TestSuite):
             Prerequisites, accelerated networking must be enabled.
             The VM should have at least two network interfaces,
              with one interface for management.
-            More detailes refer https://docs.microsoft.com/en-us/azure/virtual-network/setup-dpdk#prerequisites # noqa: E501
+            More details refer https://docs.microsoft.com/en-us/azure/virtual-network/setup-dpdk#prerequisites # noqa: E501
         """,
         priority=2,
         requirement=simple_requirement(

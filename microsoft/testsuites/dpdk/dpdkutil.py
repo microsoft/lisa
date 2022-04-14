@@ -238,7 +238,7 @@ def run_testpmd_concurrent(
         time.sleep(10)  # run testpmd for a bit before disabling sriov
         test_kits = node_cmd_pairs.keys()
 
-        # disable sroiv
+        # disable sriov
         for node_resources in test_kits:
             node_resources.nic_controller.switch_sriov(enable=False)
 

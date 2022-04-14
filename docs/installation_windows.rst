@@ -56,8 +56,7 @@ this repo and ``pip`` for later installation of Poetry.
 
 In Windows, you need to install `git <https://git-scm.com/downloads>`__,
 ``virtualenv``\ (by running ``pip install virtualenv``) and `Visual C++
-redistributable
-package <https://aka.ms/vs/16/release/vc_redist.x64.exe>`__
+redistributive package <https://aka.ms/vs/16/release/vc_redist.x64.exe>`__
 
 Clone code
 ----------
