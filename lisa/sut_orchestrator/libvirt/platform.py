@@ -134,8 +134,7 @@ class BaseLibvirtPlatform(Platform):
         self._deploy_nodes(environment, log)
 
     def _delete_environment(self, environment: Environment, log: Logger) -> None:
-        with libvirt.open(self.libvirt_conn_str) as lv_conn:
-            self._delete_nodes(environment, log, lv_conn)
+        self._delete_nodes(environment, log)
 
     def _configure_environment(self, environment: Environment, log: Logger) -> None:
         environment_context = get_environment_context(environment)
@@ -287,7 +286,7 @@ class BaseLibvirtPlatform(Platform):
                     environment.platform.runbook.keep_environment
                     == constants.ENVIRONMENT_KEEP_NO
                 ):
-                    self._delete_nodes(environment, log, lv_conn)
+                    self._delete_nodes(environment, log)
 
                 raise ex
 
@@ -376,7 +375,6 @@ class BaseLibvirtPlatform(Platform):
         node_context.console_log_file_path = str(
             node.local_log_path / "qemu-console.log"
         )
-        node_context.console_logger = QemuConsoleLogger()
 
         # Read extra cloud-init data.
         extra_user_data = (
@@ -417,22 +415,22 @@ class BaseLibvirtPlatform(Platform):
     def _create_domain_and_attach_logger(
         self,
         libvirt_conn: libvirt.virConnect,
-        domain: libvirt.virDomain,
         node_context: NodeContext,
     ) -> None:
         # Start the VM in the paused state.
         # This gives the console logger a chance to connect before the VM starts
         # for real.
-        domain.createWithFlags(libvirt.VIR_DOMAIN_START_PAUSED)
+        assert node_context.domain
+        node_context.domain.createWithFlags(libvirt.VIR_DOMAIN_START_PAUSED)
 
         # Attach the console logger
-        assert node_context.console_logger
+        node_context.console_logger = QemuConsoleLogger()
         node_context.console_logger.attach(
-            libvirt_conn, domain, node_context.console_log_file_path
+            libvirt_conn, node_context.domain, node_context.console_log_file_path
         )
 
         # Start the VM.
-        domain.resume()
+        node_context.domain.resume()
 
     # Create all the VMs.
     def _create_nodes(
@@ -480,29 +478,18 @@ class BaseLibvirtPlatform(Platform):
 
         # Create libvirt domain (i.e. VM).
         xml = self._create_node_domain_xml(environment, log, node)
-        domain = lv_conn.defineXML(xml)
+        node_context.domain = lv_conn.defineXML(xml)
 
         self._create_domain_and_attach_logger(
             lv_conn,
-            domain,
             node_context,
         )
 
     # Delete all the VMs.
-    def _delete_nodes(
-        self, environment: Environment, log: Logger, lv_conn: libvirt.virConnect
-    ) -> None:
+    def _delete_nodes(self, environment: Environment, log: Logger) -> None:
         # Delete nodes.
         for node in environment.nodes.list():
-            node_context = get_node_context(node)
-
-            # Shutdown and delete the VM.
-            log.debug(f"Delete VM: {node_context.vm_name}")
-            self._stop_and_delete_vm(environment, log, lv_conn, node)
-
-            log.debug(f"Close VM console log: {node_context.vm_name}")
-            assert node_context.console_logger
-            node_context.console_logger.close()
+            self._delete_node(node, log)
 
         # Delete VM disks directory.
         try:
@@ -510,62 +497,52 @@ class BaseLibvirtPlatform(Platform):
         except Exception as ex:
             log.warning(f"Failed to delete VM files directory: {ex}")
 
-    def _watchdog_callback(self) -> None:
+    def _delete_node_watchdog_callback(self) -> None:
+        print("VM delete watchdog timer fired.\n", file=sys.__stderr__)
         faulthandler.dump_traceback(file=sys.__stderr__, all_threads=True)
         os._exit(1)
 
-    # Delete a VM.
-    def _stop_and_delete_vm_flags(
-        self,
-        environment: Environment,
-        log: Logger,
-        lv_conn: libvirt.virConnect,
-        node: Node,
-        lv_undefine_flags: int,
-    ) -> None:
+    def _delete_node(self, node: Node, log: Logger) -> None:
         node_context = get_node_context(node)
 
-        watchdog = Timer(60.0, self._watchdog_callback)
+        watchdog = Timer(60.0, self._delete_node_watchdog_callback)
         watchdog.start()
 
-        # Find the VM.
-        try:
-            domain = lv_conn.lookupByName(node_context.vm_name)
-        except libvirt.libvirtError as ex:
-            log.warning(f"VM delete failed. Can't find domain. {ex}")
-            return
-
         # Stop the VM.
-        try:
-            # In the libvirt API, "destroy" means "stop".
-            domain.destroy()
-        except libvirt.libvirtError as ex:
-            log.warning(f"VM stop failed. {ex}")
+        if node_context.domain:
+            log.debug(f"Stop VM: {node_context.vm_name}")
+            try:
+                # In the libvirt API, "destroy" means "stop".
+                node_context.domain.destroy()
+            except libvirt.libvirtError as ex:
+                log.warning(f"VM stop failed. {ex}")
+
+        # Wait for console log to close.
+        # Note: libvirt can deadlock if you try to undefine the VM while the stream
+        # is trying to close.
+        if node_context.console_logger:
+            log.debug(f"Close VM console log: {node_context.vm_name}")
+            node_context.console_logger.close()
+            node_context.console_logger = None
 
         # Undefine the VM.
-        try:
-            domain.undefineFlags(lv_undefine_flags)
-        except libvirt.libvirtError as ex:
-            log.warning(f"VM delete failed. {ex}")
+        if node_context.domain:
+            log.debug(f"Delete VM: {node_context.vm_name}")
+            try:
+                node_context.domain.undefineFlags(self._get_domain_undefine_flags())
+            except libvirt.libvirtError as ex:
+                log.warning(f"VM delete failed. {ex}")
+
+            node_context.domain = None
 
         watchdog.cancel()
 
-    def _stop_and_delete_vm(
-        self,
-        environment: Environment,
-        log: Logger,
-        lv_conn: libvirt.virConnect,
-        node: Node,
-    ) -> None:
-        self._stop_and_delete_vm_flags(
-            environment,
-            log,
-            lv_conn,
-            node,
+    def _get_domain_undefine_flags(self) -> int:
+        return int(
             libvirt.VIR_DOMAIN_UNDEFINE_MANAGED_SAVE
             | libvirt.VIR_DOMAIN_UNDEFINE_SNAPSHOTS_METADATA
             | libvirt.VIR_DOMAIN_UNDEFINE_NVRAM
-            | libvirt.VIR_DOMAIN_UNDEFINE_CHECKPOINTS_METADATA,
+            | libvirt.VIR_DOMAIN_UNDEFINE_CHECKPOINTS_METADATA
         )
 
     # Retrieve the VMs' dynamic properties (e.g. IP address).

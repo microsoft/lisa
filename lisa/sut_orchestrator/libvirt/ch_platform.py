@@ -153,32 +153,20 @@ class CloudHypervisorPlatform(BaseLibvirtPlatform):
         xml = ET.tostring(domain, "unicode")
         return xml
 
-    def _stop_and_delete_vm(
-        self,
-        environment: Environment,
-        log: Logger,
-        lv_conn: libvirt.virConnect,
-        node: Node,
-    ) -> None:
-        super()._stop_and_delete_vm_flags(
-            environment,
-            log,
-            lv_conn,
-            node,
-            0,  # ch driver currently doesn't support any flags
-        )
+    def _get_domain_undefine_flags(self) -> int:
+        return 0
 
     def _create_domain_and_attach_logger(
         self,
         libvirt_conn: libvirt.virConnect,
-        domain: libvirt.virDomain,
         node_context: NodeContext,
     ) -> None:
-        domain.createWithFlags(0)
+        assert node_context.domain
+        node_context.domain.createWithFlags(0)
 
         assert node_context.console_logger
         node_context.console_logger.attach(
-            libvirt_conn, domain, node_context.console_log_file_path
+            libvirt_conn, node_context.domain, node_context.console_log_file_path
         )
 
     # Create the OS disk.
