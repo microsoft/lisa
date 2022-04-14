@@ -20,7 +20,7 @@ from azure.mgmt.compute.models import (  # type: ignore
     VirtualMachineUpdate,
 )
 from dataclasses_json import dataclass_json
-from PIL import Image, UnidentifiedImageError
+from PIL import Image, UnidentifiedImageError  # type: ignore
 
 from lisa import Environment, Logger, features, schema, search_space
 from lisa.features import NvmeSettings

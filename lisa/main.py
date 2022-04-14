@@ -41,7 +41,7 @@ def _normalize_path(path_type: str, path: Optional[Path] = None) -> Path:
     return path
 
 
-@retry(FileExistsError, tries=10, delay=0.2)  # type: ignore
+@retry(FileExistsError, tries=10, delay=0.2)
 def test_path(
     log_root_path: Path, working_root_path: Path, run_id: str = ""
 ) -> PurePath:

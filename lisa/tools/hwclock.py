@@ -40,7 +40,7 @@ class Hwclock(Tool):
             expected_exit_code_failure_message="fail to set date",
         )
 
-    @retry(exceptions=LisaException, tries=20, delay=0.5)  # type: ignore
+    @retry(exceptions=LisaException, tries=20, delay=0.5)
     def get(self, no_error_log: bool = True) -> datetime:
         command_result = self.run(
             no_error_log=no_error_log,

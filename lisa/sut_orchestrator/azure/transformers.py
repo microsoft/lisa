@@ -43,7 +43,7 @@ DEFAULT_EXPORTED_VHD_CONTAINER_NAME = "lisa-vhd-exported"
 DEFAULT_VHD_SUBFIX = "exported"
 
 
-@retry(tries=10, jitter=(1, 2))  # type: ignore
+@retry(tries=10, jitter=(1, 2))
 def _generate_vhd_path(container_client: Any, file_name_part: str = "") -> str:
     path = PurePosixPath(
         f"{get_date_str()}/{get_datetime_path()}_"
@@ -227,7 +227,7 @@ class VhdTransformer(Transformer):
     ) -> str:
         runbook: VhdTransformerSchema = self.runbook
         public_ips = platform.load_public_ips_from_resource_group(
-            runbook.resource_group_name
+            runbook.resource_group_name, self._log
         )
 
         public_ip_address: str = public_ips[runbook.vm_name]

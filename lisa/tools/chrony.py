@@ -48,7 +48,7 @@ class Chrony(Tool):
         service = self.node.tools[Service]
         service.restart_service(service_name)
 
-    @retry(exceptions=LisaException, tries=240, delay=0.5)  # type: ignore
+    @retry(exceptions=LisaException, tries=240, delay=0.5)
     def check_tracking(self) -> None:
         cmd_result = self.run("tracking", force_run=True)
         cmd_result.assert_exit_code()
@@ -67,7 +67,7 @@ class Chrony(Tool):
             echo.run("server 2.pool.ntp.org >> /etc/chrony.conf", shell=True, sudo=True)
             echo.run("server 3.pool.ntp.org >> /etc/chrony.conf", shell=True, sudo=True)
 
-    @retry(exceptions=LisaException, tries=40, delay=0.5)  # type: ignore
+    @retry(exceptions=LisaException, tries=40, delay=0.5)
     def check_sources_and_stats(self) -> None:
         cmd_result = self.run("sources", force_run=True)
         if self.__service_not_ready in cmd_result.stdout:

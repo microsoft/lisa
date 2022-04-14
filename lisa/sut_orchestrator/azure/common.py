@@ -17,7 +17,7 @@ from azure.mgmt.storage.models import (  # type: ignore
     Sku,
     StorageAccountCreateParameters,
 )
-from azure.storage.blob import BlobServiceClient, ContainerClient  # type: ignore
+from azure.storage.blob import BlobServiceClient, ContainerClient
 from azure.storage.fileshare import ShareServiceClient  # type: ignore
 from dataclasses_json import dataclass_json
 from marshmallow import validate
@@ -620,7 +620,7 @@ def get_or_create_file_share(
         credential, subscription_id, account_name, resource_group_name
     )
     all_shares = list(share_service_client.list_shares())
-    if file_share_name not in all_shares:
+    if file_share_name not in (x.name for x in all_shares):
         share_service_client.create_share(file_share_name)
     return str("//" + share_service_client.primary_hostname + "/" + file_share_name)
 

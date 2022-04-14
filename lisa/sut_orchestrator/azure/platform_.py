@@ -34,7 +34,7 @@ from azure.mgmt.resource.resources.models import (  # type: ignore
     DeploymentMode,
     DeploymentProperties,
 )
-from azure.storage.blob import BlobClient  # type: ignore
+from azure.storage.blob import BlobClient
 from dataclasses_json import dataclass_json
 from marshmallow import fields, validate
 from retry import retry
@@ -858,7 +858,7 @@ class AzurePlatform(Platform):
                 self._arm_template = json.load(f)
         return self._arm_template
 
-    @retry(tries=10, delay=1, jitter=(0.5, 1))  # type: ignore
+    @retry(tries=10, delay=1, jitter=(0.5, 1))
     def _load_location_info_from_file(
         self, cached_file_name: Path, log: Logger
     ) -> Optional[AzureLocation]:
@@ -1331,7 +1331,7 @@ class AzurePlatform(Platform):
         return errors
 
     # the VM may not be queried after deployed. use retry to mitigate it.
-    @retry(exceptions=LisaException, tries=150, delay=2)  # type: ignore
+    @retry(exceptions=LisaException, tries=150, delay=2)
     def _load_vms(
         self, environment: Environment, log: Logger
     ) -> Dict[str, VirtualMachine]:
@@ -1358,7 +1358,7 @@ class AzurePlatform(Platform):
 
     # Use Exception, because there may be credential conflict error. Make it
     # retriable.
-    @retry(exceptions=Exception, tries=150, delay=2)  # type: ignore
+    @retry(exceptions=Exception, tries=150, delay=2)
     def _load_nics(
         self, environment: Environment, log: Logger
     ) -> Dict[str, NetworkInterface]:
@@ -1395,7 +1395,7 @@ class AzurePlatform(Platform):
             )
         return nics_map
 
-    @retry(exceptions=LisaException, tries=150, delay=2)  # type: ignore
+    @retry(exceptions=LisaException, tries=150, delay=2)
     def load_public_ips_from_resource_group(
         self, resource_group_name: str, log: Logger
     ) -> Dict[str, str]:
@@ -1655,7 +1655,7 @@ class AzurePlatform(Platform):
         )
         return public_ips_map[vm_name]
 
-    @lru_cache(maxsize=10)
+    @lru_cache(maxsize=10)  # noqa: B019
     def _parse_marketplace_image(
         self, location: str, marketplace: AzureVmMarketplaceSchema
     ) -> AzureVmMarketplaceSchema:
@@ -1674,7 +1674,7 @@ class AzurePlatform(Platform):
             new_marketplace.version = versioned_images[-1].name
         return new_marketplace
 
-    @lru_cache(maxsize=10)
+    @lru_cache(maxsize=10)  # noqa: B019
     def _process_marketplace_image_plan(
         self,
         marketplace: AzureVmMarketplaceSchema,
@@ -1822,7 +1822,7 @@ class AzurePlatform(Platform):
 
         return min_cap
 
-    @lru_cache(maxsize=10)
+    @lru_cache(maxsize=10)  # noqa: B019
     def _get_deployable_vhd_path(
         self, vhd_path: str, location: str, log: Logger
     ) -> str:
@@ -1842,7 +1842,9 @@ class AzurePlatform(Platform):
         original_blob_client = BlobClient.from_blob_url(original_vhd_path)
         properties = original_blob_client.get_blob_properties()
         if properties.content_settings:
-            original_key = properties.content_settings.get("content_md5", None)
+            original_key = properties.content_settings.get(
+                "content_md5", None
+            )  # type: ignore
 
         storage_name = get_storage_account_name(
             subscription_id=self.subscription_id, location=location, type="t"
@@ -1942,7 +1944,7 @@ class AzurePlatform(Platform):
             )
         return data_disks
 
-    @lru_cache(maxsize=10)
+    @lru_cache(maxsize=10)  # noqa: B019
     def _get_image_info(
         self, location: str, marketplace: Optional[AzureVmMarketplaceSchema]
     ) -> VirtualMachineImage:
