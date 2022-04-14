@@ -32,11 +32,14 @@ dependencies = data["tool"]["poetry"]["dependencies"]
 sphinx_dependencies = data["tool"]["poetry"]["dev-dependencies"]
 
 with open(requirement, "w") as req:
-    for module, version in dependencies.items():
-        if isinstance(version, dict):
+    for module, value in dependencies.items():
+        if isinstance(value, dict):
             # Remove platform specific dependencies.
-            continue
-        version = str(version)
+            if "platform" in value:
+                continue
+            version = value["version"]
+        else:
+            version = str(value)
         assert isinstance(module, str)
         if module in ["python"]:
             continue
