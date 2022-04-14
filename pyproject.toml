@@ -39,11 +39,15 @@ randmac = "^0.1"
 toml = "^0.10.2"
 Pillow = {version="^9.0.0", optional=true}
 
-[tool.poetry.extras]
-azure = ["azure-identity", "azure-storage-blob", "azure-mgmt-compute", "azure-mgmt-marketplaceordering", "azure-mgmt-network", "azure-mgmt-resource", "azure-mgmt-storage", "azure-storage-file-share", "PyGObject", "Pillow", "types-Pillow"]
-libvirt = ["libvirt-python"]
-legacy = ["pypiwin32"]
-doc = ["Sphinx", "sphinx-argparse", "sphinx-rtd-theme", "sphinxemoji", "sphinx-copybutton", "snooty-lextudio", "rstcheck"]
+# dev dependencies. Optional isn't supported, so put them here.
+Sphinx = {version="^4.1.0", optional=true}
+sphinx-argparse = {version="^0.2.5", optional=true}
+sphinx-rtd-theme = {version="^0.5.2", optional=true}
+sphinxemoji = {version="^0.1.8", optional=true}
+sphinx-copybutton = {version="^0.4.0", optional=true}
+rstcheck = {version="^3.3.1", optional=true}
+snooty-lextudio = {version="^1.12.0", optional=true}
+types-Pillow = {version="^8.3.3", optional=true}
 
 [tool.poetry.dev-dependencies]
 black = "^22.3.0"
@@ -59,19 +63,18 @@ pyls-black = "^0.4.7"
 pyls-isort = "^0.2.0"
 pyls-mypy = "^0.1.8"
 rope = "^1.0.0"
-Sphinx = {version="^4.1.0", optional=true}
-sphinx-argparse = {version="^0.2.5", optional=true}
-sphinx-rtd-theme = {version="^0.5.2", optional=true}
-sphinxemoji = {version="^0.1.8", optional=true}
-sphinx-copybutton = {version="^0.4.0", optional=true}
 types-retry = "^0.1.3"
 types-paramiko = "^0.1.7"
 types-requests = "^2.25.0"
 types-python-dateutil = "^0.1.4"
 types-PyYAML = "^5.4.3"
-rstcheck = {version="^3.3.1", optional=true}
-snooty-lextudio = {version="^1.12.0", optional=true}
-types-Pillow = {version="^8.3.3", optional=true}
+
+
+[tool.poetry.extras]
+azure = ["azure-identity", "azure-storage-blob", "azure-mgmt-compute", "azure-mgmt-marketplaceordering", "azure-mgmt-network", "azure-mgmt-resource", "azure-mgmt-storage", "azure-storage-file-share", "PyGObject", "Pillow", "types-Pillow"]
+libvirt = ["libvirt-python"]
+legacy = ["pypiwin32"]
+doc = ["Sphinx", "sphinx-argparse", "sphinx-rtd-theme", "sphinxemoji", "sphinx-copybutton", "snooty-lextudio", "rstcheck"]
 
 [tool.black]
 line-length = 88
