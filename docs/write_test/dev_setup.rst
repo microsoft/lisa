@@ -45,10 +45,8 @@ Visual Studio Code
          "python.linting.pylintEnabled": false,
          "editor.formatOnSave": true,
          "python.linting.mypyArgs": [
-            "--strict",
-            "--namespace-packages",
-            "--implicit-reexport",
-            "--show-column-numbers"
+            "--config-file",
+            "pyproject.toml"
          ],
          "python.sortImports.path": "isort",
          "editor.codeActionsOnSave": {
@@ -73,7 +71,7 @@ Visual Studio Code
             "reportUnnecessaryIsInstance": "none",
             "reportPrivateImportUsage": "none",
             "reportUnusedImport": "none",
-            "reportUnusedFunction": "none",
+            "reportUnusedFunction": "none"
          },
          "python.languageServer": "Pylance"
       }
