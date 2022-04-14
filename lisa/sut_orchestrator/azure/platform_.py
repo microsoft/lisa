@@ -473,6 +473,14 @@ class AzurePlatform(Platform):
                         f"cap: {environment.runbook.nodes_requirement}"
                     )
                     break
+
+            for req in nodes_requirement:
+                node_runbook = req.get_extended_runbook(AzureNodeSchema, AZURE)
+                if node_runbook.location and node_runbook.marketplace:
+                    # resolve Latest to specified version
+                    node_runbook.marketplace = self._parse_marketplace_image(
+                        node_runbook.location, node_runbook.marketplace
+                    )
         return is_success
 
     def _deploy_environment(self, environment: Environment, log: Logger) -> None:
