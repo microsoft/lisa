@@ -314,12 +314,12 @@ class Dpdk(TestSuite):
             assert_that(pps).described_as(
                 f"{tx_or_rx}-PPS ({pps}) should have been greater "
                 "than 2^20 (~1m) PPS before sriov disable."
-            ).is_greater_than(2 ** 20)
+            ).is_greater_than(2**20)
         else:
             assert_that(pps).described_as(
                 f"{tx_or_rx}-PPS ({pps}) should have been less "
                 "than 2^20 (~1m) PPS after sriov disable."
-            ).is_less_than(2 ** 20)
+            ).is_less_than(2**20)
 
     @TestCaseMetadata(
         description="""

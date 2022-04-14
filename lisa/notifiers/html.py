@@ -101,7 +101,7 @@ class Html(Notifier):
             report = TestReport(
                 nodeid=f"{message.id_}:{message.name}",
                 location=("", None, ""),
-                keywords=None,
+                keywords=dict(),
                 outcome=new_status,
                 longrepr=message.message,
                 when="call",

@@ -22,7 +22,7 @@ reload_modules_dict: Dict[str, List[str]] = {
 }
 
 
-@retry(exceptions=AssertionError, tries=150, delay=2)  # type: ignore
+@retry(exceptions=AssertionError, tries=150, delay=2)
 def initialize_nic_info(environment: Environment) -> Dict[str, Dict[str, NicInfo]]:
     vm_nics: Dict[str, Dict[str, NicInfo]] = {}
     for node in environment.nodes.list():
@@ -63,7 +63,7 @@ def get_packets(node: Node, nic_name: str, name: str = "tx_packets") -> int:
     return int(cat.read(f"/sys/class/net/{nic_name}/statistics/{name}", force_run=True))
 
 
-@retry(exceptions=AssertionError, tries=150, delay=2)  # type: ignore
+@retry(exceptions=AssertionError, tries=150, delay=2)
 def sriov_basic_test(
     environment: Environment, vm_nics: Dict[str, Dict[str, NicInfo]]
 ) -> None:

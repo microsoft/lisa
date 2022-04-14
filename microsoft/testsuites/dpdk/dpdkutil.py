@@ -341,7 +341,7 @@ def verify_dpdk_build(
     )
     assert_that(tx_pps).described_as(
         f"TX-PPS ({tx_pps}) should have been greater than 2^20 (~1m) PPS."
-    ).is_greater_than(2 ** 20)
+    ).is_greater_than(2**20)
 
 
 def verify_dpdk_send_receive(
@@ -383,10 +383,10 @@ def verify_dpdk_send_receive(
     # differences in NIC type throughput can lead to different snd/rcv counts
     assert_that(rcv_rx_pps).described_as(
         "Throughput for RECEIVE was below the correct order-of-magnitude"
-    ).is_greater_than(2 ** 20)
+    ).is_greater_than(2**20)
     assert_that(snd_tx_pps).described_as(
         "Throughput for SEND was below the correct order of magnitude"
-    ).is_greater_than(2 ** 20)
+    ).is_greater_than(2**20)
 
     return sender, receiver
 
@@ -417,9 +417,9 @@ def verify_dpdk_send_receive_multi_txrx_queue(
     # check that throughput it greater than 1m pps as a baseline
     assert_that(rcv_rx_pps).described_as(
         "Throughput for RECEIVE was below the correct order-of-magnitude"
-    ).is_greater_than(2 ** 20)
+    ).is_greater_than(2**20)
     assert_that(snd_tx_pps).described_as(
         "Throughput for SEND was below the correct order of magnitude"
-    ).is_greater_than(2 ** 20)
+    ).is_greater_than(2**20)
 
     return sender, receiver

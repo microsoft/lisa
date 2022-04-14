@@ -157,13 +157,13 @@ class CloudHypervisorPlatform(BaseLibvirtPlatform):
         self,
         environment: Environment,
         log: Logger,
-        qemu_conn: libvirt.virConnect,
+        lv_conn: libvirt.virConnect,
         node: Node,
     ) -> None:
         super()._stop_and_delete_vm_flags(
             environment,
             log,
-            qemu_conn,
+            lv_conn,
             node,
             0,  # ch driver currently doesn't support any flags
         )

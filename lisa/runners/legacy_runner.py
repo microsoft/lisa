@@ -36,7 +36,9 @@ if platform.system() == "Windows":
         import win32file  # type: ignore
     except Exception:
         log = get_logger("init", "runner")
-        log.warn("win32file package is not installed, legacy runner cannot run correctly.")
+        log.warn(
+            "win32file package is not installed, legacy runner cannot run correctly."
+        )
 
 
 # TestResults\2021-02-07-18-04-09-OX53\LISAv2-Test-OX53.log
@@ -584,7 +586,7 @@ class LogParser(InitializableMixin):
                 cases.append(current_case)
         return cases
 
-    @retry(tries=30, jitter=(1, 2))  # type: ignore
+    @retry(tries=30, jitter=(1, 2))
     def _read_log(self) -> str:
         """
         V2 opens log file frequently to write content, copying may be failed due to

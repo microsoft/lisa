@@ -70,7 +70,7 @@ def _import_root_package(package_name: str, path: Path) -> None:
     sys.modules[package_name] = module
     if init_file.exists():
         # if __init__ file exists, execute it's actual import logic.
-        spec.loader.exec_module(module)  # type: ignore
+        spec.loader.exec_module(module)
 
 
 def import_package(path: Path, package_name: str, enable_log: bool = True) -> None:

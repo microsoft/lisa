@@ -7,7 +7,7 @@ import sys
 import time
 from functools import partial
 from pathlib import Path
-from typing import Any, Dict, List, Optional, TextIO, Union, cast
+from typing import Any, Dict, List, Mapping, Optional, TextIO, Union, cast
 
 from lisa.secret import mask
 from lisa.util import LisaException, filter_ansi_escape, is_unittest
@@ -54,7 +54,7 @@ class Logger(logging.Logger):
         msg: Any,
         args: Any,
         exc_info: Any = None,
-        extra: Optional[Dict[str, Any]] = None,
+        extra: Optional[Mapping[str, object]] = None,
         stack_info: bool = False,
         stacklevel: int = 1,
     ) -> None:
@@ -212,6 +212,6 @@ def get_logger(
         name = f"{name}[{id_}]"
     if not parent:
         parent = cast(Logger, _get_root_logger())
-    logger: Logger = parent.getChild(name)  # type: ignore
+    logger: Logger = parent.getChild(name)
 
     return logger

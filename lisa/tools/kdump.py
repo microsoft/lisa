@@ -295,7 +295,7 @@ class KdumpBase(Tool):
             sysctl = self.node.tools[Sysctl]
             sysctl.write("kernel.unknown_nmi_panic", "1")
 
-    @retry(exceptions=LisaException, tries=60, delay=1)  # type: ignore
+    @retry(exceptions=LisaException, tries=60, delay=1)
     def _check_kexec_crash_loaded(self) -> None:
         """
         Sometimes it costs a while to load the value, so define this method as @retry
