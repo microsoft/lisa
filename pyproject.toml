@@ -13,14 +13,14 @@ packages = [
 PyGObject = {version = "^3.38.0", platform = 'linux', optional=true}
 PyYAML = "^5.4.1"
 assertpy = "^1.1"
-azure-identity = {version="^1.5.0", optional=true}
-azure-storage-blob = {version="12.8.1", optional=true}
-azure-mgmt-compute = {version="^21.0.0", optional=true}
-azure-mgmt-marketplaceordering = {version="^1.1.0", optional=true}
-azure-mgmt-network = {version="^18.0.0", optional=true}
-azure-mgmt-resource = {version="^16.0.0", optional=true}
-azure-mgmt-storage = {version="^17.0.0", optional=true}
-azure-storage-file-share = {version="12.4.0", optional=true}
+azure-identity = {version = "^1.9.0", optional = true}
+azure-storage-blob = {version = "^12.11.0", optional = true}
+azure-mgmt-compute = {version = "^26.1.0", optional = true}
+azure-mgmt-marketplaceordering = {version = "^1.1.0", optional = true}
+azure-mgmt-network = {version = "^19.3.0", optional = true}
+azure-mgmt-resource = {version = "^21.0.0", optional = true}
+azure-mgmt-storage = {version = "^20.0.0", optional = true}
+azure-storage-file-share = {version = "12.4.0", optional = true}
 dataclasses-json = "^0.5.2"
 func-timeout = "^4.3.5"
 paramiko = "^2.10.1"
@@ -46,19 +46,19 @@ legacy = ["pypiwin32"]
 doc = ["Sphinx", "sphinx-argparse", "sphinx-rtd-theme", "sphinxemoji", "sphinx-copybutton", "snooty-lextudio", "rstcheck"]
 
 [tool.poetry.dev-dependencies]
-black = "^21.7b0"
+black = "^22.3.0"
 coverage = "^5.3"
-flake8 = "^3.9.2"
-flake8-black = "^0.2.1"
-flake8-bugbear = "^21.3.2"
-flake8-isort = "^4.0.0"
-isort = "^5.8.0"
-mypy = "^0.910"
-pep8-naming = "^0.12.0"
-pyls-black = "^0.4.6"
+flake8 = "^4.0.1"
+flake8-black = "^0.3.2"
+flake8-bugbear = "^22.3.23"
+flake8-isort = "^4.1.1"
+isort = "^5.10.1"
+mypy = "^0.942"
+pep8-naming = "^0.12.1"
+pyls-black = "^0.4.7"
 pyls-isort = "^0.2.0"
 pyls-mypy = "^0.1.8"
-rope = "^0.18.0"
+rope = "^1.0.0"
 Sphinx = {version="^4.1.0", optional=true}
 sphinx-argparse = {version="^0.2.5", optional=true}
 sphinx-rtd-theme = {version="^0.5.2", optional=true}
