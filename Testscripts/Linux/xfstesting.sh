@@ -45,7 +45,7 @@ ConfigureXFSTestTools() {
         ;;
 
         redhat*|centos*|fedora*|almalinux*|rockylinux*)
-            pack_list=(libacl-devel libaio-devel libattr-devel libuuid-devel sqlite xfsdump xfsprogs-devel xfsprogs-qa-devel zlib-devel btrfs-progs-devel llvm-ocaml-devel uuid-devel)
+            pack_list=(libacl-devel libaio-devel libattr-devel libuuid-devel sqlite xfsdump xfsprogs-devel xfsprogs-qa-devel zlib-devel btrfs-progs-devel uuid-devel)
             which python || [ -f /usr/libexec/platform-python ] && ln -s /usr/libexec/platform-python /sbin/python
         ;;
 
