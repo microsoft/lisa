@@ -71,6 +71,22 @@ ConfigureXFSTestTools() {
     if [ -n "${NVME}" ]; then
         install_nvme_cli
     fi
+    if [[ $DISTRO_NAME == "rhel" && $DISTRO_VERSION == "7.9" ]]; then
+        yum install -y --skip-broken http://mirror.centos.org/centos/7/os/x86_64/Packages/xfsprogs-devel-4.5.0-22.el7.x86_64.rpm
+        yum install -y --skip-broken http://mirror.centos.org/centos/7/os/x86_64/Packages/btrfs-progs-devel-4.9.1-1.el7.x86_64.rpm
+        yum install -y --skip-broken http://mirror.centos.org/centos/7/os/x86_64/Packages/xfsprogs-devel-4.5.0-22.el7.x86_64.rpm
+        yum install -y --skip-broken http://mirror.centos.org/centos/7/extras/x86_64/Packages/llvm-ocaml-devel-3.4.2-8.el7.x86_64.rpm llvm-static 
+
+        yum install -y acl attr automake bc dbench dump e2fsprogs fio \
+        gawk indent libtool lvm2 make psmisc quota sed \
+        xfsdump xfsprogs \
+        libacl-devel libaio-devel libuuid-devel \
+        xfsprogs-devel btrfs-progs-devel python sqlite liburing-devel \
+        libcap-devel #gcc
+        yum install -y centos-release-scl
+        yum install -y devtoolset-8-gcc devtoolset-8-gcc-c++
+        source scl_source enable devtoolset-8
+    fi
     modprobe btrfs
     LogMsg "Packages installation complete."
     # Install dbench
