@@ -81,15 +81,36 @@ class Pktgen(Tool):
     def _install(self) -> bool:
         wget = self.node.tools[Wget]
         if isinstance(self.node.os, Fedora):
+            version = self.node.os.information.version
+            if version <= "8.1.0":
+                package_file_location = (
+                    "https://koji.mbox.centos.org/pkgs/packages/kernel-plus/4.18.0/"
+                    "147.3.1.el8_1.centos.plus/x86_64/kernel-plus-modules-internal-"
+                    "4.18.0-147.3.1.el8_1.centos.plus.x86_64.rpm"
+                )
+            elif version <= "8.2.0":
+                package_file_location = (
+                    "https://koji.mbox.centos.org/pkgs/packages/kernel-plus/4.18.0/"
+                    "193.6.3.el8_2.centos.plus/x86_64/kernel-plus-modules-internal-"
+                    "4.18.0-193.6.3.el8_2.centos.plus.x86_64.rpm"
+                )
+            elif self.node.os.information.version <= "8.3.0":
+                package_file_location = (
+                    "https://koji.mbox.centos.org/pkgs/packages/kernel-plus/4.18.0/"
+                    "240.8.1.el8_3.centos.plus/x86_64/kernel-plus-modules-internal-"
+                    "4.18.0-240.8.1.el8_3.centos.plus.x86_64.rpm"
+                )
+            else:
+                package_file_location = (
+                    "https://vault.centos.org/centos/8/centosplus/x86_64/os/Packages/"
+                    "kernel-plus-modules-internal-4.18.0-305.25.1.el8_4.centos."
+                    "plus.x86_64.rpm"
+                )
             # Install pkggen from CentOS for redhat, because there is no free
             # download for Redhat.
-            package_file_name = (
-                "kernel-plus-modules-internal-4.18.0-305.25.1."
-                "el8_4.centos.plus.x86_64.rpm"
-            )
+            package_file_name = "kernel-plus-modules-internal.rpm"
             modules_file = wget.get(
-                url=f"https://vault.centos.org/centos/8/centosplus/x86_64/os/Packages/"
-                f"{package_file_name}",
+                url=package_file_location,
                 file_path=str(self._tool_path),
                 filename=package_file_name,
                 overwrite=True,
