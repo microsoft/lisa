@@ -178,7 +178,9 @@ class Process:
                 if sudo:
                     split_command += ["sudo"]
                 envs = _create_exports(update_envs=update_envs)
-                split_command += ["sh", "-c", f"{envs} {command}"]
+                if envs:
+                    command = f"{envs} {command}"
+                split_command += ["sh", "-c", command]
                 # expand variables in posix mode
                 update_envs.clear()
         else:
