@@ -11,12 +11,7 @@ from dataclasses_json import dataclass_json
 from lisa import schema
 from lisa.messages import MessageBase, TestRunMessage, TestRunStatus
 from lisa.notifier import Notifier
-from lisa.testsuite import (
-    TestResultMessage,
-    TestStatus,
-    TestSuiteMessage,
-    TestSuiteStatus,
-)
+from lisa.testsuite import TestResultMessage, TestStatus
 from lisa.util import constants
 
 
@@ -79,15 +74,12 @@ class JUnit(Notifier):
 
     # The types of messages that this class supports.
     def _subscribed_message_type(self) -> List[Type[MessageBase]]:
-        return [TestResultMessage, TestSuiteMessage, TestRunMessage]
+        return [TestResultMessage, TestRunMessage]
 
     # Handle a message.
     def _received_message(self, message: MessageBase) -> None:
         if isinstance(message, TestRunMessage):
             self._received_test_run(message)
-
-        elif isinstance(message, TestSuiteMessage):
-            self._received_test_suite(message)
 
         elif isinstance(message, TestResultMessage):
             self._received_test_result(message)
@@ -103,16 +95,16 @@ class JUnit(Notifier):
         ):
             self._test_run_completed(message)
 
-    def _received_test_suite(self, message: TestSuiteMessage) -> None:
-        if message.status == TestSuiteStatus.INITIALIZING:
-            self._test_suite_started(message)
-
-        elif message.status == TestSuiteStatus.COMPLETED:
-            self._test_suite_completed(message)
-
     # Handle a test case message.
     def _received_test_result(self, message: TestResultMessage) -> None:
-        if message.status in [TestStatus.PASSED, TestStatus.FAILED, TestStatus.SKIPPED]:
+        if message.status == TestStatus.RUNNING:
+            self._test_case_running(message)
+
+        elif message.status in [
+            TestStatus.PASSED,
+            TestStatus.FAILED,
+            TestStatus.SKIPPED,
+        ]:
             self._test_case_completed(message)
 
     # Test run started message.
@@ -125,6 +117,10 @@ class JUnit(Notifier):
         total_failures = 0
 
         for testsuite_info in self._testsuites_info.values():
+            testsuite_info.xml.attrib["tests"] = str(testsuite_info.test_count)
+            testsuite_info.xml.attrib["failures"] = str(testsuite_info.failed_count)
+            testsuite_info.xml.attrib["errors"] = "0"
+
             total_tests += testsuite_info.test_count
             total_failures += testsuite_info.failed_count
 
@@ -133,33 +129,21 @@ class JUnit(Notifier):
         self._testsuites.attrib["failures"] = str(total_failures)
         self._testsuites.attrib["errors"] = "0"
 
-    # Test suite started message.
-    def _test_suite_started(self, message: TestSuiteMessage) -> None:
-        if message.full_name in self._testsuites_info:
-            return
+    def _test_case_running(self, message: TestResultMessage) -> None:
+        if message.suite_full_name not in self._testsuites_info:
+            # Add test suite.
+            testsuite_info = _TestSuiteInfo()
 
-        # Add test suite.
-        testsuite_info = _TestSuiteInfo()
+            testsuite_info.xml = ET.SubElement(self._testsuites, "testsuite")
+            testsuite_info.xml.attrib["name"] = message.suite_full_name
 
-        testsuite_info.xml = ET.SubElement(self._testsuites, "testsuite")
-        testsuite_info.xml.attrib["name"] = message.full_name
+            # Timestamp must not contain timezone information.
+            timestamp = message.message_time.replace(tzinfo=None).isoformat(
+                timespec="seconds"
+            )
+            testsuite_info.xml.attrib["timestamp"] = timestamp
 
-        # Timestamp must not contain timezone information.
-        timestamp = message.message_time.replace(tzinfo=None).isoformat(
-            timespec="seconds"
-        )
-        testsuite_info.xml.attrib["timestamp"] = timestamp
-
-        self._testsuites_info[message.full_name] = testsuite_info
-
-    # Test suite completed message.
-    def _test_suite_completed(self, message: TestSuiteMessage) -> None:
-        testsuite_info = self._testsuites_info[message.full_name]
-
-        testsuite_info.xml.attrib["time"] = self._get_elapsed_str(message)
-        testsuite_info.xml.attrib["tests"] = str(testsuite_info.test_count)
-        testsuite_info.xml.attrib["failures"] = str(testsuite_info.failed_count)
-        testsuite_info.xml.attrib["errors"] = "0"
+            self._testsuites_info[message.suite_full_name] = testsuite_info
 
     # Test case completed message.
     def _test_case_completed(self, message: TestResultMessage) -> None:
@@ -184,6 +168,6 @@ class JUnit(Notifier):
         testsuite_info.test_count += 1
 
     def _get_elapsed_str(
-        self, message: Union[TestResultMessage, TestSuiteMessage, TestRunMessage]
+        self, message: Union[TestResultMessage, TestRunMessage]
     ) -> str:
         return f"{message.elapsed:.3f}"
