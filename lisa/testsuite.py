@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import copy
+import traceback
 from dataclasses import dataclass, field
 from enum import Enum
 from functools import wraps
@@ -40,6 +41,16 @@ from lisa.util.logger import (
 )
 from lisa.util.perf_timer import Timer, create_timer
 
+TestSuiteStatus = Enum(
+    "TestSuiteStatus",
+    [
+        "INITIALIZING",
+        "RUNNING",
+        "FINALIZING",
+        "COMPLETED",
+    ],
+)
+
 TestStatus = Enum(
     "TestStatus",
     [
@@ -65,15 +76,24 @@ _all_cases: Dict[str, TestCaseMetadata] = {}
 
 
 @dataclass
+class TestSuiteMessage(messages.MessageBase):
+    full_name: str = ""
+    status: TestSuiteStatus = TestSuiteStatus.INITIALIZING
+
+
+@dataclass
 class TestResultMessage(messages.MessageBase):
     # id is used to identify the unique test result
     id_: str = ""
     type: str = "TestResult"
     name: str = ""
+    full_name: str = ""
+    suite_full_name: str = ""
     status: TestStatus = TestStatus.QUEUED
     message: str = ""
     information: Dict[str, str] = field(default_factory=dict)
     log_file: str = ""
+    stacktrace: Optional[str] = None
 
     @property
     def is_completed(self) -> bool:
@@ -126,15 +146,25 @@ class TestResult:
             log.info(f"case skipped: {exception}")
             log.debug("case skipped", exc_info=exception)
             # case is skipped dynamically
-            self.set_status(TestStatus.SKIPPED, f"{phase}skipped: {exception}")
+            self.set_status(
+                TestStatus.SKIPPED,
+                f"{phase}skipped: {exception}",
+                traceback.format_exc(),
+            )
         elif isinstance(exception, PassedException):
             log.info(f"case passed with warning: {exception}")
             log.debug("case passed with warning", exc_info=exception)
             # case can be passed with a warning.
-            self.set_status(TestStatus.PASSED, f"{phase}warning: {exception}")
+            self.set_status(
+                TestStatus.PASSED,
+                f"{phase}warning: {exception}",
+                traceback.format_exc(),
+            )
         elif isinstance(exception, BadEnvironmentStateException):
             log.error("case failed with environment in bad state", exc_info=exception)
-            self.set_status(TestStatus.FAILED, f"{phase}{exception}")
+            self.set_status(
+                TestStatus.FAILED, f"{phase}{exception}", traceback.format_exc()
+            )
 
             assert self.environment
             self.environment.status = EnvironmentStatus.Bad
@@ -144,16 +174,22 @@ class TestResult:
                     f"case failed and ignored. "
                     f"{exception.__class__.__name__}: {exception}"
                 )
-                self.set_status(TestStatus.ATTEMPTED, f"{phase}{exception}")
+                self.set_status(
+                    TestStatus.ATTEMPTED, f"{phase}{exception}", traceback.format_exc()
+                )
             else:
                 log.error("case failed", exc_info=exception)
                 self.set_status(
                     TestStatus.FAILED,
                     f"{phase}failed. {exception.__class__.__name__}: {exception}",
+                    traceback.format_exc(),
                 )
 
     def set_status(
-        self, new_status: TestStatus, message: Union[str, List[str]]
+        self,
+        new_status: TestStatus,
+        message: Union[str, List[str]],
+        stacktrace: Optional[str] = None,
     ) -> None:
         if message:
             if isinstance(message, str):
@@ -165,7 +201,7 @@ class TestResult:
             self.status = new_status
             if new_status == TestStatus.RUNNING:
                 self._timer = create_timer()
-            self._send_result_message()
+            self._send_result_message(stacktrace)
 
     def check_environment(
         self, environment: Environment, save_reason: bool = False
@@ -205,7 +241,7 @@ class TestResult:
                 self.check_results = check_result
         return check_result.result
 
-    def _send_result_message(self) -> None:
+    def _send_result_message(self, stacktrace: Optional[str] = None) -> None:
         if hasattr(self, "_timer"):
             self.elapsed = self._timer.elapsed(False)
 
@@ -232,7 +268,12 @@ class TestResult:
             self.information["environment"] = self.environment.name
         result_message.information.update(self.information)
         result_message.message = self.message[0:2048] if self.message else ""
-        result_message.name = self.runtime_data.metadata.full_name
+        result_message.name = self.runtime_data.metadata.name
+        result_message.full_name = self.runtime_data.metadata.full_name
+        result_message.suite_full_name = (
+            self.runtime_data.metadata.suite.test_class.__qualname__
+        )
+        result_message.stacktrace = stacktrace
 
         # some extensions may need to update or fill information.
         plugin_manager.hook.update_test_result_message(message=result_message)
@@ -541,11 +582,25 @@ class TestSuite:
             "variables": copy.copy(case_variables),
         }
 
+        suite_timer = create_timer()
+
+        test_suite_message = TestSuiteMessage()
+        test_suite_message.full_name = self._metadata.test_class.__qualname__
+        test_suite_message.status = TestSuiteStatus.INITIALIZING
+        notifier.notify(test_suite_message)
+
         #  replace to case's logger temporarily
         suite_log = self.__log
-        is_suite_continue, suite_error_message = self.__suite_method(
+        (
+            is_suite_continue,
+            suite_error_message,
+            suite_error_stacktrace,
+        ) = self.__suite_method(
             self.before_suite, test_kwargs=test_kwargs, log=suite_log
         )
+
+        test_suite_message.status = TestSuiteStatus.RUNNING
+        notifier.notify(test_suite_message)
 
         for case_result in case_results:
             case_name = case_result.runtime_data.name
@@ -587,7 +642,9 @@ class TestSuite:
                     log=case_log,
                 )
             else:
-                case_result.set_status(TestStatus.SKIPPED, suite_error_message)
+                case_result.set_status(
+                    TestStatus.SKIPPED, suite_error_message, suite_error_stacktrace
+                )
 
             if is_continue:
                 self.__run_case(
@@ -616,7 +673,14 @@ class TestSuite:
                 suite_log.info("received stop message, stop run")
                 break
 
+        test_suite_message.status = TestSuiteStatus.FINALIZING
+        notifier.notify(test_suite_message)
+
         self.__suite_method(self.after_suite, test_kwargs=test_kwargs, log=suite_log)
+
+        test_suite_message.status = TestSuiteStatus.COMPLETED
+        test_suite_message.elapsed = suite_timer.elapsed()
+        notifier.notify(test_suite_message)
 
     def stop(self) -> None:
         self._should_stop = True
@@ -655,11 +719,12 @@ class TestSuite:
 
     def __suite_method(
         self, method: Callable[..., Any], test_kwargs: Dict[str, Any], log: Logger
-    ) -> Tuple[bool, str]:
+    ) -> Tuple[bool, str, Optional[str]]:
         result: bool = True
         message: str = ""
         timer = create_timer()
         method_name = method.__name__
+        stacktrace: Optional[str] = None
         try:
             self.__call_with_retry_and_timeout(
                 method,
@@ -671,8 +736,9 @@ class TestSuite:
         except Exception as identifier:
             result = False
             message = f"{method_name}: {identifier}"
+            stacktrace = traceback.format_exc()
         log.debug(f"{method_name} end in {timer}")
-        return result, message
+        return result, message, stacktrace
 
     def __before_case(
         self,
@@ -694,7 +760,9 @@ class TestSuite:
             )
         except Exception as identifier:
             log.error("before_case: ", exc_info=identifier)
-            case_result.set_status(TestStatus.SKIPPED, f"before_case: {identifier}")
+            case_result.set_status(
+                TestStatus.SKIPPED, f"before_case: {identifier}", traceback.format_exc()
+            )
             result = False
 
         log.debug(f"before_case end in {timer}")

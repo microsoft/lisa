@@ -584,7 +584,7 @@ class RunnerTestCase(TestCase):
                 )
             else:
                 assert isinstance(test_result, TestResultMessage)
-                test_names.append(test_result.name.split(".")[1])
+                test_names.append(test_result.full_name.split(".")[1])
                 env_names.append(test_result.information.get("environment", ""))
         self.assertListEqual(
             expected_test_order,

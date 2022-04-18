@@ -82,7 +82,7 @@ class EnvironmentStats(notifier.Notifier):
         result_info = self._test_results.get(test_result.id_, None)
         if not result_info:
             result_info = TestResultInformation(
-                id=test_result.id_, name=test_result.name
+                id=test_result.id_, name=test_result.full_name
             )
             self._test_results[test_result.id_] = result_info
         result_info.status = str(test_result.status)
