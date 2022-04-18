@@ -1178,6 +1178,7 @@ class Redhat(Fedora):
             saved_path / "redhat-release.txt",
         )
 
+    @retry(tries=10, delay=5)
     def _initialize_package_installation(self) -> None:
         information = self._get_information()
         # We may hit issue when run any yum command, caused by out of date
