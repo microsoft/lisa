@@ -43,16 +43,16 @@ class TcpDump(Tool):
         self,
         nic_name: str = "",
         filter: str = "",
-        timeout: int = 5,
+        timeout: int = 0,
         packet_filename: str = "tcp_dump.pcap",
     ) -> Process:
         full_name = self.get_tool_path() / packet_filename
         # -n not resolve address to domain name.
         # -i specify the nic name
         # -w write to pcap file.
-        command = (
-            f"timeout {timeout} {self.command} -n -i {nic_name} {filter} -w {full_name}"
-        )
+        command = f"{self.command} -n -i {nic_name} {filter} -w {full_name}"
+        if timeout > 0:
+            command = f"timeout {timeout} {command}"
         process = self.node.execute_async(cmd=command, shell=True, sudo=True)
         return process
 
