@@ -18,7 +18,7 @@ from lisa import (
     simple_requirement,
 )
 from lisa.features import NetworkInterface, Sriov, Synthetic
-from lisa.tools import Ip, TcpDump
+from lisa.tools import Ip, Kill, TcpDump
 from lisa.tools.ping import INTERNET_PING_ADDRESS
 from microsoft.testsuites.xdp.common import get_dropped_count, get_xdpdump
 from microsoft.testsuites.xdp.xdpdump import BuildType
@@ -445,7 +445,7 @@ class XdpFunctional(TestSuite):
         ping_address = self._get_ping_address(environment)
 
         pcap_filename = f"{case_name}.pcap"
-        dump_process = tcpdump.dump_async(
+        tcpdump.dump_async(
             ping_source_node.nics.default_nic,
             filter=f'"icmp and host {ping_address}"',
             packet_filename=pcap_filename,
@@ -458,11 +458,8 @@ class XdpFunctional(TestSuite):
             ping_source_node=ping_source_node,
         )
 
-        # the tcpdump exits with 124 as normal.
-        dump_process.wait_result(
-            expected_exit_code=124,
-            expected_exit_code_failure_message="error on wait tcpdump",
-        )
+        kill = captured_node.tools[Kill]
+        kill.by_name("tcpdump", Kill.SIGINT)
 
         packets = tcpdump.parse(pcap_filename)
         ping_node = cast(RemoteNode, ping_source_node)
