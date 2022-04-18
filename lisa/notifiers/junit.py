@@ -100,11 +100,7 @@ class JUnit(Notifier):
         if message.status == TestStatus.RUNNING:
             self._test_case_running(message)
 
-        elif message.status in [
-            TestStatus.PASSED,
-            TestStatus.FAILED,
-            TestStatus.SKIPPED,
-        ]:
+        elif message.is_completed:
             self._test_case_completed(message)
 
     # Test run started message.
@@ -138,9 +134,7 @@ class JUnit(Notifier):
             testsuite_info.xml.attrib["name"] = message.suite_full_name
 
             # Timestamp must not contain timezone information.
-            timestamp = message.message_time.replace(tzinfo=None).isoformat(
-                timespec="seconds"
-            )
+            timestamp = message.time.replace(tzinfo=None).isoformat(timespec="seconds")
             testsuite_info.xml.attrib["timestamp"] = timestamp
 
             self._testsuites_info[message.suite_full_name] = testsuite_info
@@ -161,7 +155,10 @@ class JUnit(Notifier):
 
             testsuite_info.failed_count += 1
 
-        elif message.status == TestStatus.SKIPPED:
+        elif (
+            message.status == TestStatus.SKIPPED
+            or message.status == TestStatus.ATTEMPTED
+        ):
             skipped = ET.SubElement(testcase, "skipped")
             skipped.attrib["message"] = message.message
 

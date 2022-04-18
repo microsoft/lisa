@@ -15,7 +15,7 @@ if TYPE_CHECKING:
 @dataclass
 class MessageBase:
     type: str = "Base"
-    message_time: datetime = datetime.min
+    time: datetime = datetime.min
     elapsed: float = 0
 
 
