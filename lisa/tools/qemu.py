@@ -164,10 +164,8 @@ class Qemu(Tool):
 
     def _is_kvm_successfully_enabled(self) -> None:
         # verify that kvm module is loaded
-        lsmod_output = self.node.tools[Lsmod].run().stdout
-        is_kvm_successfully_enabled = (
-            "kvm_intel" in lsmod_output or "kvm_amd" in lsmod_output
-        )
-        assert_that(
-            is_kvm_successfully_enabled, f"KVM could not be enabled : {lsmod_output}"
-        ).is_true()
+        lsmod = self.node.tools[Lsmod]
+        is_kvm_successfully_enabled = lsmod.module_exists(
+            "kvm_intel"
+        ) or lsmod.module_exists("kvm_amd")
+        assert_that(is_kvm_successfully_enabled, "KVM could not be enabled").is_true()
