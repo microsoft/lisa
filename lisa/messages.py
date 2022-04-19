@@ -15,6 +15,7 @@ if TYPE_CHECKING:
 @dataclass
 class MessageBase:
     type: str = "Base"
+    time: datetime = datetime.min
     elapsed: float = 0
 
 
@@ -33,6 +34,7 @@ TestRunStatus = Enum(
 class TestRunMessage(MessageBase):
     type: str = "TestRun"
     status: TestRunStatus = TestRunStatus.INITIALIZING
+    runbook_name: str = ""
     test_project: str = ""
     test_pass: str = ""
     tags: Optional[List[str]] = None

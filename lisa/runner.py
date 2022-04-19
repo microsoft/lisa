@@ -41,7 +41,7 @@ def print_results(
     output_method("________________________________________")
     result_count_dict: Dict[TestStatus, int] = {}
     for test_result in test_results:
-        result_name = test_result.name
+        result_name = test_result.full_name
         result_status = test_result.status
 
         output_method(
