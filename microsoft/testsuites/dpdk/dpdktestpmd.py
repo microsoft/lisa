@@ -546,7 +546,6 @@ class DpdkTestpmd(Tool):
             node.os.add_repository("ppa:canonical-server/server-backports")
             if node.os.information.release < "16.04.0":
                 raise SkippedException(
-                    node.os,
                     f"Ubuntu {str(node.os.information.release)} is EOL and "
                     "if not supported by dpdk tests",
                 )
@@ -606,7 +605,7 @@ class DpdkTestpmd(Tool):
             if node.os.information.version.major < 7:
                 # SKIP for old unsupported versions.
                 raise SkippedException(
-                    node.os, "DPDK for Redhat < 7 is not supported by this test"
+                    "DPDK for Redhat < 7 is not supported by this test"
                 )
             elif node.os.information.version.major == 7:
                 # Add packages for rhel7
