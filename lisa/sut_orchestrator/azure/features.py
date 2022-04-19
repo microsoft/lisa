@@ -706,7 +706,7 @@ class Disk(AzureFeatureMixin, features.Disk):
         self._initialize_information(self._node)
 
     def get_raw_data_disks(self) -> List[str]:
-        pattern = re.compile(r"/dev/disk/azure/scsi[1-9]/lun[0-9][0-9]?", re.M)
+        pattern = re.compile(r"/dev/disk/azure/scsi[0-9]/lun[0-9][0-9]?", re.M)
         # /dev/disk/azure/scsi1/lun0
         cmd_result = self._node.execute(
             "ls -d /dev/disk/azure/scsi*/*", shell=True, sudo=True
