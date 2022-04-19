@@ -550,14 +550,14 @@ class DpdkTestpmd(Tool):
                     f"Ubuntu {str(node.os.information.release)} is EOL and "
                     "if not supported by dpdk tests",
                 )
-            elif "16.04" in node.os.information.release:
+            elif node.os.information.release < "18.04.0":
                 raise UnsupportedDistroException(
                     node.os,
                     "16.04 install is not supported yet."
                     "The installation must be adjusted to only install dpdk 18.11."
                     "Current install from source only supports >19.11",
                 )
-            elif "18.04" in node.os.information.release:
+            elif node.os.information.release < "20.04.0":
                 node.os.install_packages(list(self._ubuntu_packages_1804))
                 # ubuntu 18 has some issue with the packaged versions of meson
                 # and ninja. To guarantee latest, install and update with pip3
@@ -599,7 +599,7 @@ class DpdkTestpmd(Tool):
                         "pip3 upgrade for ninja failed"
                     ),
                 )
-            elif "20.04" in node.os.information.release:
+            else:
                 node.os.install_packages(list(self._ubuntu_packages_2004))
 
         elif isinstance(node.os, Redhat):
