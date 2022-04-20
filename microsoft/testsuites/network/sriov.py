@@ -302,7 +302,7 @@ class Sriov(TestSuite):
 
     @TestCaseMetadata(
         description="""
-        This case verify VM works well when provison with max (8) sriov nics.
+        This case verify VM works well when provisioning with max (8) sriov nics.
 
         Steps,
         1. Provision VM with max network interfaces with enabling accelerated network.
