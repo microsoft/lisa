@@ -7,8 +7,10 @@ from typing import List, Type
 from lisa.base_tools.wget import Wget
 from lisa.executable import Tool
 from lisa.operating_system import Posix
+from lisa.tools.gcc import Gcc
 from lisa.tools.make import Make
 from lisa.tools.tar import Tar
+from lisa.util.constants import PATH_REMOTE_ROOT
 
 
 class Sshpass(Tool):
@@ -22,7 +24,7 @@ class Sshpass(Tool):
 
     @property
     def dependencies(self) -> List[Type[Tool]]:
-        return [Make]
+        return [Make, Gcc]
 
     def copy(
         self,
@@ -53,7 +55,7 @@ class Sshpass(Tool):
         # download sshpass 1.06 source code
         download_file_path = self.node.tools[Wget].get(  # noqa: E501
             url="https://sourceforge.net/projects/sshpass/files/sshpass/1.06/sshpass-1.06.tar.gz",  # noqa: E501
-            file_path="~/",
+            file_path=PATH_REMOTE_ROOT,
             filename="sshpass.tar.gz",
         )
         download_folder_path = PurePosixPath(download_file_path).parent
