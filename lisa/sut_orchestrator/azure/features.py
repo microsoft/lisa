@@ -125,7 +125,7 @@ class SerialConsole(AzureFeatureMixin, features.SerialConsole):
                     image.save(screenshot_name, "PNG", optimize=True)
             except UnidentifiedImageError:
                 self._log.debug(
-                    "The screenshot is not generated, delete it. "
+                    "The screenshot is not generated. "
                     "The reason may be the VM is not started."
                 )
             unlink(screenshot_raw_name)
