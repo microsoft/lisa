@@ -16,7 +16,7 @@ from lisa import (
 from lisa.features import SerialConsole
 from lisa.operating_system import CentOs, Redhat
 from lisa.tools import Reboot, Uname
-from lisa.util import SkippedException, TcpConnetionException
+from lisa.util import SkippedException, TcpConnectionException
 from lisa.util.shell import wait_tcp_port_ready
 
 
@@ -74,7 +74,7 @@ class Boot(TestSuite):
                 kernel_version, "Kernel version is not debug type after reboot."
             ).contains("debug")
         else:
-            raise TcpConnetionException(
+            raise TcpConnectionException(
                 node.public_address,
                 node.public_port,
                 tcp_error_code,

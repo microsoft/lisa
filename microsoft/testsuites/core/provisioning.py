@@ -9,7 +9,7 @@ from lisa import (
     PassedException,
     RemoteNode,
     SkippedException,
-    TcpConnetionException,
+    TcpConnectionException,
     TestCaseMetadata,
     TestSuite,
     TestSuiteMetadata,
@@ -228,7 +228,7 @@ class Provisioning(TestSuite):
             serial_console.check_panic(
                 saved_path=log_path, stage="bootup", force_run=True
             )
-            raise TcpConnetionException(
+            raise TcpConnectionException(
                 node.public_address,
                 node.public_port,
                 tcp_error_code,
@@ -258,7 +258,7 @@ class Provisioning(TestSuite):
                     serial_console.check_panic(
                         saved_path=log_path, stage="reboot", force_run=True
                     )
-                    raise TcpConnetionException(
+                    raise TcpConnectionException(
                         node.public_address,
                         node.public_port,
                         tcp_error_code,
@@ -275,6 +275,6 @@ class Provisioning(TestSuite):
             )
 
             # if node cannot be connected after reboot, it should be failed.
-            if isinstance(identifier, TcpConnetionException):
+            if isinstance(identifier, TcpConnectionException):
                 raise BadEnvironmentStateException(f"after reboot, {identifier}")
             raise PassedException(identifier)

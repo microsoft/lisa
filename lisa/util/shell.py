@@ -17,7 +17,7 @@ import spurplus  # type: ignore
 from func_timeout import FunctionTimedOut, func_set_timeout  # type: ignore
 from paramiko.ssh_exception import NoValidConnectionsError, SSHException
 
-from lisa.util import InitializableMixin, LisaException, TcpConnetionException
+from lisa.util import InitializableMixin, LisaException, TcpConnectionException
 
 from .logger import Logger
 from .perf_timer import create_timer
@@ -224,7 +224,7 @@ class SshShell(InitializableMixin):
             self._connection_info.address, self._connection_info.port
         )
         if not is_ready:
-            raise TcpConnetionException(
+            raise TcpConnectionException(
                 self._connection_info.address,
                 self._connection_info.port,
                 tcp_error_code,
