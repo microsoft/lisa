@@ -224,7 +224,9 @@ class Provisioning(TestSuite):
         )
         if not is_ready:
             serial_console = node.features[SerialConsole]
-            serial_console.check_panic(saved_path=log_path, stage="bootup")
+            serial_console.check_panic(
+                saved_path=log_path, stage="bootup", force_run=True
+            )
             raise TcpConnetionException(
                 node.public_address,
                 node.public_port,
@@ -252,7 +254,9 @@ class Provisioning(TestSuite):
                 )
                 if not is_ready:
                     serial_console = node.features[SerialConsole]
-                    serial_console.check_panic(saved_path=log_path, stage="reboot")
+                    serial_console.check_panic(
+                        saved_path=log_path, stage="reboot", force_run=True
+                    )
                     raise TcpConnetionException(
                         node.public_address,
                         node.public_port,
@@ -265,7 +269,9 @@ class Provisioning(TestSuite):
         except Exception as identifier:
             serial_console = node.features[SerialConsole]
             # if there is any panic, fail before partial pass
-            serial_console.check_panic(saved_path=log_path, stage="reboot")
+            serial_console.check_panic(
+                saved_path=log_path, stage="reboot", force_run=True
+            )
 
             # if node cannot be connected after reboot, it should be failed.
             if isinstance(identifier, TcpConnetionException):
