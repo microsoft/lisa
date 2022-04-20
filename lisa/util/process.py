@@ -200,6 +200,7 @@ class Process:
         expected_exit_code_failure_message: str = "",
     ) -> ExecutableResult:
         timer = create_timer()
+        is_timeout = False
 
         while self.is_running() and timeout >= timer.elapsed(False):
             time.sleep(0.01)
@@ -208,10 +209,16 @@ class Process:
             if self._process is not None:
                 self._log.info(f"timeout in {timeout} sec, and killed")
             self.kill()
+            is_timeout = True
 
         if self._result is None:
             assert self._process
-            process_result = self._process.wait_for_result()
+            if is_timeout:
+                process_result = spur.results.result(
+                    return_code=1, allow_error=True, output="", stderr_output=""
+                )
+            else:
+                process_result = self._process.wait_for_result()
             if not self._is_posix and self._shell.is_remote:
                 # special handle remote windows. There are extra control chars
                 # and on extra line at the end.
