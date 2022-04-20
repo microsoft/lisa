@@ -112,6 +112,9 @@ class XdpDump(Tool):
             self._restore_lro(nic_name)
             raise identifier
 
+        # wait to receive at least one packet
+        xdpdump_process.wait_output("IP")
+
         return xdpdump_process
 
     def start(self, nic_name: str = "", timeout: int = 5) -> ExecutableResult:
