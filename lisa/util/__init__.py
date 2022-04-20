@@ -102,11 +102,11 @@ class UnsupportedDistroException(LisaException):
 
     def __init__(self, os: "OperatingSystem", message: str = "") -> None:
         self.name = os.name
-        self.version = os.information.version
+        self.version = os.information.full_version
         self._extended_message = message
 
     def __str__(self) -> str:
-        message = f"Unsupported distro {self.name} {self.version}"
+        message = f"Unsupported system: '{self.version}'"
         if self._extended_message:
             message = f"{message}. {self._extended_message}"
         return message
