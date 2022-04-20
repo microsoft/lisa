@@ -544,19 +544,19 @@ class DpdkTestpmd(Tool):
 
         if isinstance(node.os, Ubuntu):
             node.os.add_repository("ppa:canonical-server/server-backports")
-            if node.os.information.version < "16.04.0":
+            if node.os.information.version < "16.4.0":
                 raise SkippedException(
                     f"Ubuntu {str(node.os.information.version)} is EOL and "
                     "if not supported by dpdk tests",
                 )
-            elif node.os.information.version < "18.04.0":
+            elif node.os.information.version < "18.4.0":
                 raise UnsupportedDistroException(
                     node.os,
                     "16.04 install is not supported yet."
                     "The installation must be adjusted to only install dpdk 18.11."
                     "Current install from source only supports >19.11",
                 )
-            elif node.os.information.version < "20.04.0":
+            elif node.os.information.version < "20.4.0":
                 node.os.install_packages(list(self._ubuntu_packages_1804))
                 # ubuntu 18 has some issue with the packaged versions of meson
                 # and ninja. To guarantee latest, install and update with pip3
