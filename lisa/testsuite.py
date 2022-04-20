@@ -24,7 +24,7 @@ from lisa.util import (
     LisaException,
     PassedException,
     SkippedException,
-    TcpConnetionException,
+    TcpConnectionException,
     constants,
     fields_to_dict,
     get_datetime_path,
@@ -148,7 +148,7 @@ class TestResult:
                 f"{phase}warning: {exception}",
             )
         elif isinstance(exception, BadEnvironmentStateException) or isinstance(
-            exception, TcpConnetionException
+            exception, TcpConnectionException
         ):
             log.error("case failed with environment in bad state", exc_info=exception)
             self.set_status(TestStatus.FAILED, f"{phase}{exception}")

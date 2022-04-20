@@ -160,7 +160,7 @@ class NotMeetRequirementException(LisaException):
     ...
 
 
-class TcpConnetionException(LisaException):
+class TcpConnectionException(LisaException):
     """
     This exception is used to indicate that VM can't be connected issue.
     """

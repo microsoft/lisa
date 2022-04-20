@@ -10,7 +10,7 @@ from lisa import (
     Logger,
     RemoteNode,
     SkippedException,
-    TcpConnetionException,
+    TcpConnectionException,
     TestCaseMetadata,
     TestSuite,
     TestSuiteMetadata,
@@ -293,7 +293,7 @@ class Sriov(TestSuite):
         else:
             serial_console = node.features[SerialConsole]
             serial_console.check_panic(saved_path=log_path, stage="after_attach_nics")
-            raise TcpConnetionException(
+            raise TcpConnectionException(
                 node.public_address,
                 node.public_port,
                 tcp_error_code,
