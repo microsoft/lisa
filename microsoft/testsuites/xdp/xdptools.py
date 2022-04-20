@@ -4,7 +4,12 @@ import re
 from pathlib import PurePath
 from typing import Any, Dict
 
-from lisa import LisaException, Node, UnsupportedDistroException
+from lisa import (
+    LisaException,
+    Node,
+    UnsupportedDistroException,
+    UnsupportedOperationException,
+)
 from lisa.executable import Tool
 from lisa.operating_system import Debian, Fedora
 from lisa.tools import Ethtool, Git, Make
@@ -15,7 +20,10 @@ from lisa.util import find_groups_in_lines
 def can_install(node: Node) -> bool:
 
     ethtool = node.tools[Ethtool]
-    statistics = ethtool.get_device_statistics(node.nics.default_nic)
+    try:
+        statistics = ethtool.get_device_statistics(node.nics.default_nic)
+    except UnsupportedOperationException as identifier:
+        raise UnsupportedDistroException(node.os, str(identifier))
 
     # check if xdp supported on nic
     if not any("xdp_drop" in x for x in statistics):
