@@ -220,7 +220,12 @@ class Nics(InitializableMixin):
                 f"Nic set was {self.nics.keys()} and only found info for {found_nics}"
             ).is_equal_to(sorted(self.nics.keys()))
 
+    def reload(self) -> None:
+        self.nics.clear()
+        self._initialize()
+
     def _initialize(self, *args: Any, **kwargs: Any) -> None:
+        self._node.log.debug("reloading nic information...")
         self.nic_names = self._get_nic_names()
         self._get_node_nic_info()
         self._get_default_nic()
