@@ -43,6 +43,7 @@ from lisa.util.shell import wait_tcp_port_ready
 )
 class Provisioning(TestSuite):
     TIME_OUT = 300
+    PLATFORM_TIME_OUT = 600
 
     @TestCaseMetadata(
         description="""
@@ -250,7 +251,7 @@ class Provisioning(TestSuite):
                     node.public_address,
                     node.public_port,
                     log=log,
-                    timeout=self.TIME_OUT,
+                    timeout=self.PLATFORM_TIME_OUT,
                 )
                 if not is_ready:
                     serial_console = node.features[SerialConsole]
