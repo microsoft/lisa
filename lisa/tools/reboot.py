@@ -12,7 +12,7 @@ from func_timeout import FunctionTimedOut, func_set_timeout  # type: ignore
 from lisa.executable import Tool
 from lisa.features import SerialConsole
 from lisa.tools.powershell import PowerShell
-from lisa.util import LisaException, TcpConnetionException
+from lisa.util import BadEnvironmentStateException, LisaException, TcpConnetionException
 from lisa.util.perf_timer import create_timer
 from lisa.util.shell import wait_tcp_port_ready
 
@@ -56,7 +56,7 @@ class Reboot(Tool):
                 )
             # if node cannot be connected after reboot, it should be failed.
             if isinstance(identifier, TcpConnetionException):
-                raise LisaException(f"after reboot, {identifier}")
+                raise BadEnvironmentStateException(f"after reboot, {identifier}")
             raise identifier
 
     def reboot(self, time_out: int = 300) -> None:

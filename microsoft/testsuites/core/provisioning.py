@@ -4,7 +4,7 @@
 from pathlib import Path
 
 from lisa import (
-    LisaException,
+    BadEnvironmentStateException,
     Logger,
     PassedException,
     RemoteNode,
@@ -275,5 +275,5 @@ class Provisioning(TestSuite):
 
             # if node cannot be connected after reboot, it should be failed.
             if isinstance(identifier, TcpConnetionException):
-                raise LisaException(f"after reboot, {identifier}")
+                raise BadEnvironmentStateException(f"after reboot, {identifier}")
             raise PassedException(identifier)
