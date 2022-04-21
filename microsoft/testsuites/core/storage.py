@@ -350,6 +350,7 @@ class Storage(TestSuite):
         self, log: Logger, node: Node, type: DiskType, size: int
     ) -> None:
         disk = node.features[Disk]
+        lsblk = node.tools[Lsblk]
 
         # get max data disk count for the node
         assert node.capability.disk
@@ -366,7 +367,7 @@ class Storage(TestSuite):
         disks_to_add = max_data_disk_count - current_data_disk_count
 
         # get partition info before adding data disk
-        partitions_before_adding_disk = node.tools[Lsblk].get_partitions(force_run=True)
+        partitions_before_adding_disk = lsblk.get_disks(force_run=True)
 
         for _ in range(disks_to_add):
             # add data disk
@@ -375,9 +376,7 @@ class Storage(TestSuite):
 
             # verify that partition count is increased by 1
             # and the size of partition is correct
-            partitons_after_adding_disk = node.tools[Lsblk].get_partitions(
-                force_run=True
-            )
+            partitons_after_adding_disk = lsblk.get_disks(force_run=True)
             added_partitions = [
                 item
                 for item in partitons_after_adding_disk
@@ -386,19 +385,17 @@ class Storage(TestSuite):
             log.debug(f"added_partitions: {added_partitions}")
             assert_that(added_partitions, "Data disk should be added").is_length(1)
             assert_that(
-                added_partitions[0].size,
+                added_partitions[0].size_in_gb,
                 f"data disk { added_partitions[0].name} size should be equal to "
                 f"{size} GB",
-            ).is_equal_to(size * 1024 * 1024 * 1024)
+            ).is_equal_to(size)
 
             # remove data disk
             log.debug(f"Removing managed disk: {disks_added}")
             disk.remove_data_disk(disks_added)
 
             # verify that partition count is decreased by 1
-            partition_after_removing_disk = node.tools[Lsblk].get_partitions(
-                force_run=True
-            )
+            partition_after_removing_disk = lsblk.get_disks(force_run=True)
             added_partitions = [
                 item
                 for item in partitions_before_adding_disk
@@ -412,6 +409,7 @@ class Storage(TestSuite):
         self, log: Logger, node: Node, type: DiskType, size: int
     ) -> None:
         disk = node.features[Disk]
+        lsblk = node.tools[Lsblk]
 
         # get max data disk count for the node
         assert node.capability.disk
@@ -428,9 +426,7 @@ class Storage(TestSuite):
         disks_to_add = max_data_disk_count - current_data_disk_count
 
         # get partition info before adding data disks
-        partitions_before_adding_disks = node.tools[Lsblk].get_partitions(
-            force_run=True
-        )
+        partitions_before_adding_disks = lsblk.get_disks(force_run=True)
 
         # add data disks
         log.debug(f"Adding {disks_to_add} managed disks")
@@ -438,7 +434,7 @@ class Storage(TestSuite):
 
         # verify that partition count is increased by disks_to_add
         # and the size of partition is correct
-        partitons_after_adding_disks = node.tools[Lsblk].get_partitions(force_run=True)
+        partitons_after_adding_disks = lsblk.get_disks(force_run=True)
         added_partitions = [
             item
             for item in partitons_after_adding_disks
@@ -450,16 +446,16 @@ class Storage(TestSuite):
         ).is_length(disks_to_add)
         for partition in added_partitions:
             assert_that(
-                partition.size,
+                partition.size_in_gb,
                 f"data disk {partition.name} size should be equal to {size} GB",
-            ).is_equal_to(size * 1024 * 1024 * 1024)
+            ).is_equal_to(size)
 
         # remove data disks
         log.debug(f"Removing managed disks: {disks_added}")
         disk.remove_data_disk(disks_added)
 
         # verify that partition count is decreased by disks_to_add
-        partition_after_removing_disk = node.tools[Lsblk].get_partitions(force_run=True)
+        partition_after_removing_disk = lsblk.get_disks(force_run=True)
         added_partitions = [
             item
             for item in partitions_before_adding_disks
