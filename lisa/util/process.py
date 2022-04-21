@@ -275,7 +275,13 @@ class Process:
             self._running = self._process.is_running()
         return self._running
 
-    def wait_output(self, keyword: str, timeout: int = 300) -> None:
+    def wait_output(
+        self,
+        keyword: str,
+        timeout: int = 300,
+        error_on_missing: bool = True,
+        interval: int = 1,
+    ) -> None:
         # check if stdout buffers contain the string "keyword" to determine if
         # it is running
         start_time = time.time()
@@ -288,9 +294,16 @@ class Process:
             if keyword in self._log_buffer.getvalue():
                 return
 
-            time.sleep(1)
+            time.sleep(interval)
 
-        raise LisaException(f"{keyword} not found in stdout after {timeout} seconds")
+        if error_on_missing:
+            raise LisaException(
+                f"{keyword} not found in stdout after {timeout} seconds"
+            )
+        else:
+            self._log.debug(
+                f"not found '{keyword}' in {timeout} seconds, but ignore it."
+            )
 
     def _recycle_resource(self) -> None:
         # TODO: The spur library is not very good and leaves open
