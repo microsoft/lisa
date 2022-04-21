@@ -99,6 +99,6 @@ class Nested(TestSuite):
         # If the cleanup operation fails, mark node to be recycled
         try:
             node: Node = kwargs.pop("node")
-            node.tools[Qemu].stop_vm()
+            node.tools[Qemu].delete_vm()
         except Exception:
             raise BadEnvironmentStateException

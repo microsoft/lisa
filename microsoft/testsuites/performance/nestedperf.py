@@ -242,7 +242,7 @@ class KVMPerformance(TestSuite):  # noqa
             )
         finally:
             # stop running QEMU instances
-            node.tools[Qemu].stop_vm()
+            node.tools[Qemu].delete_vm()
 
             # clear bridge and taps
             node.tools[Ip].delete_interface(self._BR_NAME)
@@ -559,7 +559,7 @@ class KVMPerformance(TestSuite):  # noqa
 
     def _linux_cleanup_nat(self, node: RemoteNode, bridge_name: str) -> None:
         # stop running QEMU instances
-        node.tools[Qemu].stop_vm()
+        node.tools[Qemu].delete_vm()
 
         # clear bridge and taps
         node.tools[Ip].delete_interface(bridge_name)
