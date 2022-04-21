@@ -150,7 +150,6 @@ def try_connect(connection_info: ConnectionInfo, ssh_timeout: int = 300) -> Any:
 
     # wait for ssh port to be ready
     timeout_start = time.time()
-    is_ready = False
     while time.time() < timeout_start + ssh_timeout:
         try:
             paramiko_client.connect(
@@ -161,42 +160,37 @@ def try_connect(connection_info: ConnectionInfo, ssh_timeout: int = 300) -> Any:
                 key_filename=connection_info.private_key_file,
                 banner_timeout=10,
             )
+
+            stdin, stdout, _ = paramiko_client.exec_command("cmd\n")
+            # Flush commands and prevent more writes
+            stdin.flush()
+
+            # Give it some time to process the command, otherwise reads on
+            # stdout on calling contexts have been seen having empty strings
+            # from stdout, on Windows. There is a certain 3s penalty on Linux
+            # systems, as it's never ready for that (nonexisting) command, but
+            # that should only happen once per node (not per command)
+            tries = 3
+            while not stdout.channel.recv_ready() and tries:
+                sleep(1)
+                tries -= 1
+
+            stdin.channel.shutdown_write()
+            paramiko_client.close()
+
+            return stdout
         except SSHException as e:
             # socket is open, but SSH service not responded
             if str(e) == "Error reading SSH protocol banner":
                 sleep(1)
                 continue
-        except NoValidConnectionsError:
+        except (NoValidConnectionsError, ConnectionResetError):
             # ssh service is not ready
             sleep(1)
             continue
 
-        # ssh connection is ready
-        is_ready = True
-        break
-
     # raise exception if ssh service is not ready
-    if not is_ready:
-        raise LisaException(f"ssh connection cannot be established: {connection_info}")
-
-    stdin, stdout, _ = paramiko_client.exec_command("cmd\n")
-    # Flush commands and prevent more writes
-    stdin.flush()
-
-    # Give it some time to process the command, otherwise reads on
-    # stdout on calling contexts have been seen having empty strings
-    # from stdout, on Windows. There is a certain 3s penalty on Linux
-    # systems, as it's never ready for that (nonexisting) command, but
-    # that should only happen once per node (not per command)
-    tries = 3
-    while not stdout.channel.recv_ready() and tries:
-        sleep(1)
-        tries -= 1
-
-    stdin.channel.shutdown_write()
-    paramiko_client.close()
-
-    return stdout
+    raise LisaException(f"ssh connection cannot be established: {connection_info}")
 
 
 # paramiko stuck on get command output of 'fortinet' VM, and spur hide timeout of
