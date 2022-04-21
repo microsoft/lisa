@@ -2,8 +2,8 @@
 # Licensed under the MIT license.
 
 import re
-from dataclasses import dataclass
-from typing import List
+from dataclasses import dataclass, field
+from typing import Dict, List, Optional
 
 from lisa.executable import Tool
 from lisa.util import find_patterns_groups_in_lines
@@ -13,12 +13,24 @@ from lisa.util import find_patterns_groups_in_lines
 class PartitionInfo(object):
     name: str = ""
     mountpoint: str = ""
-    size: int = 0
+    size_in_gb: int = 0
     type: str = ""
     available_blocks: int = 0
     used_blocks: int = 0
     total_blocks: int = 0
     percentage_blocks_used: int = 0
+
+    @property
+    def is_mounted(self) -> bool:
+        # check if mountpoint is set
+        if self.mountpoint:
+            return True
+
+        return False
+
+    @property
+    def device_name(self) -> str:
+        return f"/dev/{self.name}"
 
     def __init__(
         self,
@@ -33,12 +45,59 @@ class PartitionInfo(object):
     ):
         self.name = name
         self.mountpoint = mountpoint
-        self.size = size
+        self.size_in_gb = int(size / (1024 * 1024 * 1024))
         self.type = type
         self.available_blocks = available_blocks
         self.used_blocks = used_blocks
         self.total_blocks = total_blocks
         self.percentage_blocks_used = percentage_blocks_used
+
+
+@dataclass
+class DiskInfo(object):
+    name: str = ""
+    mountpoint: str = ""
+    size_in_gb: int = 0
+    type: str = ""
+    partitions: List[PartitionInfo] = field(default_factory=list)
+
+    @property
+    def is_os_disk(self) -> bool:
+        # check if the disk contains boot partition
+        for partition in self.partitions:
+            if partition.mountpoint == "/boot":
+                return True
+        return False
+
+    @property
+    def is_mounted(self) -> bool:
+        # check if the disk or any of its partitions are mounted
+        if self.mountpoint:
+            return True
+
+        for partition in self.partitions:
+            if partition.mountpoint:
+                return True
+
+        return False
+
+    @property
+    def device_name(self) -> str:
+        return f"/dev/{self.name}"
+
+    def __init__(
+        self,
+        name: str,
+        mountpoint: str,
+        size: int = 0,
+        type: str = "",
+        partitions: Optional[List[PartitionInfo]] = None,
+    ):
+        self.name = name
+        self.mountpoint = mountpoint
+        self.size_in_gb = int(size / (1024 * 1024 * 1024))
+        self.type = type
+        self.partitions = partitions if partitions is not None else []
 
 
 class Lsblk(Tool):
@@ -48,21 +107,43 @@ class Lsblk(Tool):
         r'TYPE="(?P<type>\S+)"\s+MOUNTPOINT="(?P<mountpoint>\S*)"'
     )
 
+    # sda
+    _DISK_NAME_REGEX = re.compile(r"\s*(?P<name>\D+)\s*")
+
     @property
     def command(self) -> str:
         return "lsblk"
 
-    def get_partitions(self, force_run: bool = False) -> List[PartitionInfo]:
+    def get_disks(self, force_run: bool = False) -> List[DiskInfo]:
+        disks: List[DiskInfo] = []
+
         # parse output of lsblk
         output = self.run(
             "-b -P -o NAME,SIZE,TYPE,MOUNTPOINT", sudo=True, force_run=force_run
         ).stdout
-        partition_info = []
         lsblk_entries = find_patterns_groups_in_lines(
             output, [self._LSBLK_ENTRY_REGEX]
         )[0]
+
+        # create partition map
+        disk_partition_map: Dict[str, List[PartitionInfo]] = {}
         for lsblk_entry in lsblk_entries:
-            partition_info.append(
+            # we only need to add partitions to the map
+            if not lsblk_entry["type"] == "part":
+                continue
+
+            # extract drive name from partition name
+            matched = find_patterns_groups_in_lines(
+                lsblk_entry["name"], [self._DISK_NAME_REGEX]
+            )[0]
+            assert len(matched) == 1, "Could not extract drive name from partition name"
+
+            # add partition to disk partition map
+            drive_name = matched[0]["name"]
+            if drive_name not in disk_partition_map:
+                disk_partition_map[drive_name] = []
+
+            disk_partition_map[drive_name].append(
                 PartitionInfo(
                     name=lsblk_entry["name"],
                     size=int(lsblk_entry["size"]),
@@ -70,4 +151,22 @@ class Lsblk(Tool):
                     mountpoint=lsblk_entry["mountpoint"],
                 )
             )
-        return partition_info
+
+        # create disk info
+        for lsblk_entry in lsblk_entries:
+            # we only add physical disks to the list
+            if not lsblk_entry["type"] == "disk":
+                continue
+
+            # add disk to list of disks
+            disks.append(
+                DiskInfo(
+                    name=lsblk_entry["name"],
+                    mountpoint=lsblk_entry["mountpoint"],
+                    size=int(lsblk_entry["size"]),
+                    type=lsblk_entry["type"],
+                    partitions=disk_partition_map.get(lsblk_entry["name"], []),
+                )
+            )
+
+        return disks

@@ -3,11 +3,12 @@
 import re
 from dataclasses import dataclass
 from pathlib import PurePosixPath
-from typing import List, cast
+from typing import List, Optional, cast
 
 from lisa.executable import Tool
 from lisa.operating_system import Posix
 from lisa.tools import Fdisk
+from lisa.tools.mkfs import FileSystem, Mkfs
 from lisa.util import LisaException
 
 
@@ -44,6 +45,7 @@ class PartitionInfo(object):
 
 
 class Mount(Tool):
+    _DEFAULT_TYPE = FileSystem.ext4
     __UMOUNT_ERROR_PATTERN = re.compile(
         r".*(mountpoint not found|no mount point specified)", re.MULTILINE
     )
@@ -63,7 +65,12 @@ class Mount(Tool):
         return True
 
     def mount(
-        self, disk_name: str, point: str, type: str = "", options: str = ""
+        self,
+        name: str,
+        point: str,
+        type: Optional[FileSystem] = None,
+        options: str = "",
+        format: bool = False,
     ) -> None:
         self.node.shell.mkdir(PurePosixPath(point), exist_ok=True)
         runline = [self.command]
@@ -71,7 +78,10 @@ class Mount(Tool):
             runline.append(f"-t {type}")
         if options:
             runline.append(f"-o {options}")
-        runline.append(f"{disk_name} {point}")
+        if format:
+            format_type = type if type else self._DEFAULT_TYPE
+            self.node.tools[Mkfs].format_disk(name, format_type)
+        runline.append(f"{name} {point}")
         cmd_result = self.node.execute(" ".join(runline), shell=True, sudo=True)
         cmd_result.assert_exit_code()
 

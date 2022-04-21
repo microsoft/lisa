@@ -7,6 +7,7 @@ from typing import List, Pattern
 from lisa import Logger, Node, SkippedException, UnsupportedDistroException
 from lisa.nic import NicInfo
 from lisa.tools import Echo, Ethtool, Mount
+from lisa.tools.mkfs import FileSystem
 from microsoft.testsuites.xdp.xdpdump import XdpDump
 
 _rx_drop_patterns = [
@@ -62,7 +63,9 @@ def get_dropped_count(
 def set_hugepage(node: Node) -> None:
     mount = node.tools[Mount]
     for point, options in _huge_page_disks.items():
-        mount.mount(disk_name="nodev", point=point, type="hugetlbfs", options=options)
+        mount.mount(
+            name="nodev", point=point, type=FileSystem.hugetlbfs, options=options
+        )
     echo = node.tools[Echo]
     echo.write_to_file(
         "4096",

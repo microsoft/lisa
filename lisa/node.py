@@ -12,7 +12,8 @@ from lisa.executable import Tools
 from lisa.feature import Features
 from lisa.nic import Nics
 from lisa.operating_system import OperatingSystem
-from lisa.tools import Df, Echo, Reboot
+from lisa.tools import Echo, Lsblk, Mkfs, Mount, Reboot
+from lisa.tools.mkfs import FileSystem
 from lisa.util import (
     ContextMixin,
     InitializableMixin,
@@ -22,6 +23,7 @@ from lisa.util import (
     get_datetime_path,
     subclasses,
 )
+from lisa.util.constants import PATH_REMOTE_ROOT
 from lisa.util.logger import Logger, create_file_handler, get_logger, remove_handler
 from lisa.util.parallel import run_in_parallel
 from lisa.util.process import ExecutableResult, Process
@@ -286,14 +288,42 @@ class Node(subclasses.BaseClassWithRunbookMixin, ContextMixin, InitializableMixi
                 )
             )
 
-        df = self.tools[Df]
-        home_partition = df.get_partition_by_mountpoint("/home")
-        if home_partition and df.check_partition_size(home_partition, size_in_gb):
-            return home_partition.mountpoint
+        disks = self.tools[Lsblk].get_disks()
+        mount = self.tools[Mount]
 
-        mnt_partition = df.get_partition_by_mountpoint("/mnt")
-        if mnt_partition and df.check_partition_size(mnt_partition, size_in_gb):
-            return mnt_partition.mountpoint
+        # find a disk/partition with required space
+        for disk in disks:
+            # we do not write on the os disk
+            if disk.is_os_disk:
+                continue
+
+            # if the disk contains partition, check the partitions
+            if len(disk.partitions) > 0:
+                for partition in disk.partitions:
+                    if not partition.size_in_gb >= size_in_gb:
+                        continue
+
+                # mount partition if it is not mounted
+                if not partition.is_mounted:
+                    partition_name = partition.name
+                    mountpoint = f"{PATH_REMOTE_ROOT}/{partition_name}"
+                    mount.mount(partition.device_name, mountpoint, format=True)
+                else:
+                    mountpoint = partition.mountpoint
+            else:
+                if not disk.size_in_gb >= size_in_gb:
+                    continue
+
+                # mount the disk if it isn't mounted
+                if not disk.is_mounted:
+                    disk_name = disk.name
+                    mountpoint = f"{PATH_REMOTE_ROOT}/{disk_name}"
+                    self.tools[Mkfs].format_disk(disk.device_name, FileSystem.ext4)
+                    mount.mount(disk.device_name, mountpoint, format=True)
+                else:
+                    mountpoint = disk.mountpoint
+
+            return mountpoint
 
         raise LisaException(
             f"No partition with Required disk space of {size_in_gb}GB found"

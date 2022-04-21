@@ -86,7 +86,8 @@ def qemu_connect_nested_vm(
 
     nested_vm = RemoteNode(Node(name=name), 0, name)
     nested_vm.set_connection_info(
-        **fields_to_dict(connection_info, ["address", "port", "username", "password"])
+        public_port=guest_port,
+        **fields_to_dict(connection_info, ["address", "port", "username", "password"]),
     )
 
     # wait for nested vm ssh connection to be ready
