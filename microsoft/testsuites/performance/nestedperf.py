@@ -14,7 +14,7 @@ from lisa import (
     simple_requirement,
 )
 from lisa.environment import Environment
-from lisa.features import Disk
+from lisa.features.disks import Disk
 from lisa.features.network_interface import Synthetic
 from lisa.messages import DiskSetupType, DiskType
 from lisa.node import RemoteNode
@@ -85,12 +85,15 @@ class KVMPerformance(TestSuite):  # noqa
             disk=schema.DiskOptionSettings(
                 disk_type=schema.DiskType.PremiumSSDLRS,
                 data_disk_iops=search_space.IntRange(min=5000),
-                data_disk_count=search_space.IntRange(min=1),
+                data_disk_count=search_space.IntRange(min=2),
             ),
         ),
     )
     def perf_nested_kvm_storage_singledisk(
-        self, node: RemoteNode, environment: Environment, variables: Dict[str, Any]
+        self,
+        node: RemoteNode,
+        environment: Environment,
+        variables: Dict[str, Any],
     ) -> None:
         self._storage_perf_qemu(node, environment, variables, setup_raid=False)
 
@@ -105,7 +108,7 @@ class KVMPerformance(TestSuite):  # noqa
             disk=schema.DiskOptionSettings(
                 disk_type=schema.DiskType.PremiumSSDLRS,
                 data_disk_iops=search_space.IntRange(min=5000),
-                data_disk_count=search_space.IntRange(min=6),
+                data_disk_count=search_space.IntRange(min=7),
             ),
         ),
     )
@@ -172,6 +175,12 @@ class KVMPerformance(TestSuite):  # noqa
         """,
         priority=3,
         timeout=_TIME_OUT,
+        requirement=simple_requirement(
+            disk=schema.DiskOptionSettings(
+                data_disk_count=search_space.IntRange(min=1),
+                data_disk_size=search_space.IntRange(min=12),
+            ),
+        ),
     )
     def perf_nested_kvm_ntttcp_private_bridge(
         self,
@@ -258,6 +267,10 @@ class KVMPerformance(TestSuite):  # noqa
             min_count=2,
             network_interface=schema.NetworkInterfaceOptionSettings(
                 nic_count=search_space.IntRange(min=2),
+            ),
+            disk=schema.DiskOptionSettings(
+                data_disk_count=search_space.IntRange(min=1),
+                data_disk_size=search_space.IntRange(min=12),
             ),
         ),
     )
@@ -383,6 +396,10 @@ class KVMPerformance(TestSuite):  # noqa
             min_count=2,
             network_interface=schema.NetworkInterfaceOptionSettings(
                 nic_count=search_space.IntRange(min=2),
+            ),
+            disk=schema.DiskOptionSettings(
+                data_disk_count=search_space.IntRange(min=1),
+                data_disk_size=search_space.IntRange(min=12),
             ),
         ),
     )
@@ -584,7 +601,8 @@ class KVMPerformance(TestSuite):  # noqa
             nested_image_port,
             nested_image_url,
         ) = parse_nested_image_variables(variables)
-
+        # get list of disks to be used for nested vm
+        # remove the os disk and one data disk to store qemu image
         l1_data_disks = node.features[Disk].get_raw_data_disks()
         l1_data_disk_count = len(l1_data_disks)
 
