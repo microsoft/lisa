@@ -93,3 +93,12 @@ class Nested(TestSuite):
 
         # verify that files could be downloaded from internet on L2 VM
         l2_vm.tools[Wget].get(NESTED_VM_TEST_PUBLIC_FILE_URL)
+
+    def after_case(self, log: Logger, **kwargs: Any) -> None:
+        # cleanup any nested VM's added as part of the test
+        # If the cleanup operation fails, mark node to be recycled
+        try:
+            node: Node = kwargs.pop("node")
+            node.tools[Qemu].stop_vm()
+        except Exception:
+            raise BadEnvironmentStateException
