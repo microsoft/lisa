@@ -18,6 +18,7 @@ from lisa import (
 from lisa.features import NetworkInterface
 from lisa.nic import NicInfo, Nics
 from lisa.tools import Dmesg, Echo, Lsmod, Lspci, Modprobe, Mount
+from lisa.tools.mkfs import FileSystem
 from lisa.util import perf_timer
 from lisa.util.parallel import TaskManager, run_in_parallel, run_in_parallel_async
 from microsoft.testsuites.dpdk.dpdktestpmd import DpdkTestpmd
@@ -68,11 +69,11 @@ class DpdkTestResources:
 
 def init_hugepages(node: Node) -> None:
     mount = node.tools[Mount]
-    mount.mount(disk_name="nodev", point="/mnt/huge", type="hugetlbfs")
+    mount.mount(name="nodev", point="/mnt/huge", type=FileSystem.hugetlbfs)
     mount.mount(
-        disk_name="nodev",
+        name="nodev",
         point="/mnt/huge-1G",
-        type="hugetlbfs",
+        type=FileSystem.hugetlbfs,
         options="pagesize=1G",
     )
     _enable_hugepages(node)

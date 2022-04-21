@@ -54,17 +54,3 @@ class Df(Tool):
             if partition.mountpoint == mountpoint:
                 return partition
         return None
-
-    def check_partition_size(
-        self,
-        partition: PartitionInfo,
-        size_in_gb: int,
-    ) -> bool:
-        # check if the partition has enough space to download nested image file
-        unused_partition_size_in_gb = (
-            partition.total_blocks - partition.used_blocks
-        ) / (1024 * 1024)
-        if unused_partition_size_in_gb > size_in_gb:
-            return True
-
-        return False

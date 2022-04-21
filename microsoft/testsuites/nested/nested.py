@@ -5,8 +5,19 @@ from typing import Any, Dict
 
 from assertpy import assert_that
 
-from lisa import RemoteNode, TestCaseMetadata, TestSuite, TestSuiteMetadata
-from lisa.tools import Cat, Echo, Sshpass, Wget
+from lisa import (
+    RemoteNode,
+    TestCaseMetadata,
+    TestSuite,
+    TestSuiteMetadata,
+    schema,
+    search_space,
+)
+from lisa.node import Node
+from lisa.testsuite import simple_requirement
+from lisa.tools import Cat, Echo, Qemu, Sshpass, Wget
+from lisa.util import BadEnvironmentStateException
+from lisa.util.logger import Logger
 from microsoft.testsuites.nested.common import (
     NESTED_VM_TEST_FILE_CONTENT,
     NESTED_VM_TEST_FILE_NAME,
@@ -33,6 +44,12 @@ class Nested(TestSuite):
         3. Verify that files from internet can be downloaded to L2 VM.
         """,
         priority=1,
+        requirement=simple_requirement(
+            disk=schema.DiskOptionSettings(
+                data_disk_count=search_space.IntRange(min=1),
+                data_disk_size=search_space.IntRange(min=12),
+            )
+        ),
     )
     def verify_nested_kvm_basic(
         self, node: RemoteNode, variables: Dict[str, Any]

@@ -4,6 +4,7 @@
 from lisa.executable import Tool
 from lisa.operating_system import SLES, Debian, Redhat
 from lisa.tools import Firewall, Mount
+from lisa.tools.mkfs import FileSystem
 from lisa.util import UnsupportedDistroException
 
 
@@ -28,9 +29,9 @@ class NFSClient(Tool):
 
         # mount server shared directory
         self.node.tools[Mount].mount(
-            disk_name=f"{server_ip}:{server_shared_dir}",
+            name=f"{server_ip}:{server_shared_dir}",
             point=mount_dir,
-            type="nfs",
+            type=FileSystem.nfs,
             options=f"proto={protocol},vers=3",
         )
 
