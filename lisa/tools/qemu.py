@@ -101,7 +101,7 @@ class Qemu(Tool):
 
         # kill any existing qemu process if stop_existing_vm is True
         if stop_existing_vm:
-            self.stop_vm()
+            self.delete_vm()
 
         # start qemu
         self.run(
@@ -126,7 +126,7 @@ class Qemu(Tool):
             )
             self.node.execute("firewall-cmd --reload", sudo=True)
 
-    def stop_vm(self, timeout: int = 300) -> None:
+    def delete_vm(self, timeout: int = 300) -> None:
         # stop vm
         kill = self.node.tools[Kill]
         kill.by_name("qemu")
