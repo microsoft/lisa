@@ -75,7 +75,7 @@ class Mount(Tool):
         self.node.shell.mkdir(PurePosixPath(point), exist_ok=True)
         runline = [self.command]
         if type:
-            runline.append(f"-t {type}")
+            runline.append(f"-t {type.name}")
         if options:
             runline.append(f"-o {options}")
         if format:
