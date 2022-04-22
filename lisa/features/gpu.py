@@ -122,11 +122,10 @@ class Gpu(Feature):
         self._install_gpu_dep()
         try:
             # install LIS driver if required and not already installed.
-            if LisDriver.can_install:
-                self._node.tools[LisDriver]
+            self._node.tools[LisDriver]
         except Exception as identifier:
             self._log.debug(
-                "LisDriver is not installed. It might not be required. " f"{identifier}"
+                f"LisDriver is not installed. It might not be required. {identifier}"
             )
 
         # install the driver
