@@ -52,8 +52,8 @@ class Mkfs(Tool):
             raise LisaException(f"Unrecognized file system {file_system}.")
 
     def _install(self) -> bool:
-        self.node.tools[Mkfsxfs]
-        return self._check_exists()
+        # the installation is completed in format_disk based on file_system
+        return True
 
 
 class Mkfsxfs(Mkfs):
