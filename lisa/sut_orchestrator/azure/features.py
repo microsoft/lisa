@@ -708,9 +708,11 @@ class Disk(AzureFeatureMixin, features.Disk):
 
     def get_raw_data_disks(self) -> List[str]:
         pattern = re.compile(r"/dev/disk/azure/scsi[0-9]/lun[0-9][0-9]?", re.M)
+        # refer here to get data disks from folder /dev/disk/azure/scsi1
+        # https://docs.microsoft.com/en-us/troubleshoot/azure/virtual-machines/troubleshoot-device-names-problems#identify-disk-luns  # noqa: E501
         # /dev/disk/azure/scsi1/lun0
         cmd_result = self._node.execute(
-            "ls -d /dev/disk/azure/scsi*/*", shell=True, sudo=True
+            "ls -d /dev/disk/azure/scsi1/*", shell=True, sudo=True
         )
         matched = find_patterns_in_lines(cmd_result.stdout, [pattern])
         assert matched[0]
@@ -723,6 +725,8 @@ class Disk(AzureFeatureMixin, features.Disk):
                 f"readlink -f {disk}", shell=True, sudo=True
             )
             disk_array[int(disk.split("/")[-1].replace("lun", ""))] = cmd_result.stdout
+        # remove empty ones
+        disk_array = [disk for disk in disk_array if disk != ""]
         return disk_array
 
     def get_all_disks(self) -> List[str]:
