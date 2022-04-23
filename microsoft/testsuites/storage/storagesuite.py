@@ -81,4 +81,6 @@ class StorageTest(TestSuite):
 
     def after_case(self, log: Logger, **kwargs: Any) -> None:
         node: Node = kwargs.pop("node")
+        mount = node.tools[Mount]
+        mount.umount("/dev/md0", "/data")
         _stop_raid(node)
