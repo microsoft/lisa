@@ -87,7 +87,12 @@ class TvmTest(TestSuite):
                 codename = "buster"
                 repo_url = "https://packages.microsoft.com/repos/azurecore-debian"
             else:
-                codename = node.os.information.codename
+                # there is no available repo for distro which higher than ubuntu 18.04,
+                # use bionic for temp solution
+                if node.os.information.version >= "18.4.0":
+                    codename = "bionic"
+                else:
+                    codename = node.os.information.codename
                 repo_url = "http://packages.microsoft.com/repos/azurecore/"
             node.os.add_repository(
                 repo=(f"deb [arch=amd64] {repo_url} {codename} main"),
