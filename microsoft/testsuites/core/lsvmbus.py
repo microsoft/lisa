@@ -124,7 +124,7 @@ class LsVmBus(TestSuite):
             supported_platform_type=[AZURE],
         ),
     )
-    def verify_vmbus_heartbeat_properties(self, node: Node) -> None:
+    def verify_vmbus_heartbeat_properties(self, node: Node) -> None:  # noqa: C901
         lsvmbus_tool = node.tools[Lsvmbus]
         ls = node.tools[Ls]
         vmbus_devices_list = lsvmbus_tool.get_device_channels()
@@ -159,9 +159,7 @@ class LsVmBus(TestSuite):
         ]
         vmbus_channel_files: List[str] = [
             "cpu",
-            "events",
             "in_mask",
-            "interrupts",
             "out_mask",
             "read_avail",
             "write_avail",
@@ -182,54 +180,78 @@ class LsVmBus(TestSuite):
                 "client_monitor_latency",
                 "client_monitor_pending",
             ]
-            vmbus_channel_files += ["latency", "pending"]
+            vmbus_channel_files += ["pending"]
         for file in vmbus_driver_files:
             if not ls.path_exists(f"{device_path}/{file}", sudo=True):
                 raise LisaException(f"{device_path}/{file} doesn't exist")
+        # for old distro, there is no channels folder, so skip testing
         # /sys/bus/vmbus/devices/fd149e91-82e0-4a7d-afa6-2a4166cbd7c0/channels/8
-        channels = ls.list_dir(f"{device_path}/channels/", sudo=True)
-        for file in vmbus_channel_files:
+        if ls.path_exists(f"{device_path}/channels/", sudo=True):
+            channels = ls.list_dir(f"{device_path}/channels/", sudo=True)
+            for file in vmbus_channel_files:
+                for channel in channels:
+                    if not ls.path_exists(f"{channel}/{file}", sudo=True):
+                        raise LisaException(f"{channel}/{file} doesn't exist")
+            for in_out_file in in_out_files:
+                in_file_value = node.tools[Cat].read(
+                    f"{device_path}/in_{in_out_file}", force_run=True, sudo=True
+                )
+                out_file_value = node.tools[Cat].read(
+                    f"{device_path}/out_{in_out_file}", force_run=True, sudo=True
+                )
+                assert_that(in_file_value).described_as(
+                    f"value of {device_path}/in_{in_out_file} is not equal to"
+                    f" {device_path}/out_{in_out_file}"
+                ).is_equal_to(out_file_value)
+            origin_interrupts: Dict[str, str] = {}
+            origin_events: Dict[str, str] = {}
             for channel in channels:
-                if not ls.path_exists(f"{channel}/{file}", sudo=True):
-                    raise LisaException(f"{channel}/{file} doesn't exist")
-        for in_out_file in in_out_files:
-            in_file_value = node.tools[Cat].read(
-                f"{device_path}/in_{in_out_file}", force_run=True, sudo=True
-            )
-            out_file_value = node.tools[Cat].read(
-                f"{device_path}/out_{in_out_file}", force_run=True, sudo=True
-            )
-            assert_that(in_file_value).described_as(
-                f"value of {device_path}/in_{in_out_file} is not equal to"
-                f" {device_path}/out_{in_out_file}"
-            ).is_equal_to(out_file_value)
-        origin_interrupts: Dict[str, str] = {}
-        origin_events: Dict[str, str] = {}
-        for channel in channels:
-            origin_interrupts[f"{channel}/interrupts"] = node.tools[Cat].read(
-                f"{channel}/interrupts", force_run=True, sudo=True
-            )
-            origin_events[f"{channel}/events"] = node.tools[Cat].read(
-                f"{channel}/events", force_run=True, sudo=True
-            )
-        for channel in channels:
-            timeout = 60
-            timer = create_timer()
-            while timeout > timer.elapsed(False):
-                current_interrupts = node.tools[Cat].read(
-                    f"{channel}/interrupts", force_run=True, sudo=True
+                if not ls.path_exists(f"{device_path}/driver_override") and not (
+                    ls.path_exists(f"{channel}/lantency", sudo=True)
+                    or ls.path_exists(f"{channel}/latency", sudo=True)
+                ):
+                    raise LisaException(
+                        f"{channel}/lantency or {channel}/latency doesn't exist"
+                    )
+                if ls.path_exists(f"{channel}/events", sudo=True):
+                    event_path = f"{channel}/events"
+                elif ls.path_exists(f"{channel}/events_out", sudo=True):
+                    event_path = f"{channel}/events_out"
+                else:
+                    raise LisaException(
+                        f"{channel}/events or {channel}/events_out doesn't exist"
+                    )
+                if ls.path_exists(f"{channel}/interrupts", sudo=True):
+                    interrupts_path = f"{channel}/interrupts"
+                elif ls.path_exists(f"{channel}/interrupts_in", sudo=True):
+                    interrupts_path = f"{channel}/interrupts_in"
+                else:
+                    raise LisaException(
+                        f"{channel}/interrupts or {channel}/interrupts_in doesn't exist"
+                    )
+                origin_interrupts[interrupts_path] = node.tools[Cat].read(
+                    interrupts_path, force_run=True, sudo=True
                 )
-                current_events = node.tools[Cat].read(
-                    f"{channel}/events", force_run=True, sudo=True
+                origin_events[event_path] = node.tools[Cat].read(
+                    event_path, force_run=True, sudo=True
                 )
-                if int(origin_interrupts[f"{channel}/interrupts"]) < int(
-                    current_interrupts
-                ) and int(origin_events[f"{channel}/events"]) < int(current_events):
-                    break
-                time.sleep(1)
+                timeout = 60
+                timer = create_timer()
+                while timeout > timer.elapsed(False):
+                    current_interrupts = node.tools[Cat].read(
+                        interrupts_path, force_run=True, sudo=True
+                    )
+                    current_events = node.tools[Cat].read(
+                        event_path, force_run=True, sudo=True
+                    )
+                    if int(origin_interrupts[interrupts_path]) < int(
+                        current_interrupts
+                    ) and int(origin_events[event_path]) < int(current_events):
+                        break
+                    time.sleep(1)
 
-            if timeout < timer.elapsed():
-                raise LisaException(
-                    f"{channel}/interrupts or {channel}/events did not increase after"
-                    f" timeout"
-                )
+                if timeout < timer.elapsed():
+                    raise LisaException(
+                        f"{channel}/interrupts or {channel}/events did not increase "
+                        f"after timeout"
+                    )
