@@ -6,6 +6,8 @@ from lisa.executable import Tool
 from lisa.operating_system import Redhat, Suse, Ubuntu
 from lisa.util import LisaException
 
+from .python import Python
+
 # segment output of lsvmbus -vv
 # VMBUS ID  1: Class_ID = {525074dc-8985-46e2-8057-a307dc18a502}
 # - [Dynamic Memory]
@@ -190,6 +192,8 @@ class Lsvmbus(Tool):
                 )
             self._install_from_src()
 
+        python = self.node.tools[Python]
+        python.create_symblink()
         return self._check_exists()
 
     def get_device_channels(self, force_run: bool = False) -> List[VmBusDevice]:

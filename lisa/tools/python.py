@@ -18,6 +18,18 @@ class Python(Tool):
     def can_install(self) -> bool:
         return True
 
+    def create_symblink(self) -> None:
+        cmd_result = self.node.execute("python", sudo=True)
+        if 0 != cmd_result.exit_code:
+            self.node.execute(
+                "ln -s /bin/python3 /usr/bin/python",
+                sudo=True,
+                expected_exit_code=0,
+                expected_exit_code_failure_message=(
+                    "could not link python to actual path"
+                ),
+            )
+
     def _install(self) -> bool:
         if isinstance(self.node.os, Posix):
             self.node.os.install_packages("python3")
