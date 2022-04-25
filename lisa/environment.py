@@ -255,7 +255,7 @@ class Environment(ContextMixin, InitializableMixin):
 
         if not self._log_path:
             self._log_path = constants.RUN_LOCAL_LOG_PATH / self.environment_part_path
-            self._log_path.mkdir(parents=True)
+            self._log_path.mkdir(parents=True, exist_ok=True)
 
         return self._log_path
 
@@ -268,7 +268,7 @@ class Environment(ContextMixin, InitializableMixin):
             self._working_path = (
                 constants.RUN_LOCAL_WORKING_PATH / self.environment_part_path
             )
-            self._working_path.mkdir(parents=True)
+            self._working_path.mkdir(parents=True, exist_ok=True)
 
         return self._working_path
 
