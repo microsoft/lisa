@@ -298,9 +298,10 @@ class Posix(OperatingSystem, BaseClassMixin):
         packages: Union[str, Tool, Type[Tool], List[Union[str, Tool, Type[Tool]]]],
         signed: bool = True,
         timeout: int = 600,
+        backports: bool = False,
     ) -> None:
         package_names = self._get_package_list(packages)
-        self._install_packages(package_names, signed, timeout)
+        self._install_packages(package_names, signed, timeout, backports)
 
     def package_exists(self, package: Union[str, Tool, Type[Tool]]) -> bool:
         """
@@ -354,7 +355,11 @@ class Posix(OperatingSystem, BaseClassMixin):
         raise NotImplementedError("get_repositories is not implemented")
 
     def _install_packages(
-        self, packages: List[str], signed: bool = True, timeout: int = 600
+        self,
+        packages: List[str],
+        signed: bool = True,
+        timeout: int = 600,
+        backports: bool = False,
     ) -> None:
         raise NotImplementedError()
 
@@ -567,14 +572,14 @@ class Debian(Linux):
     """
     _debian_package_information_regex = re.compile(
         r"Package: ([a-zA-Z0-9:_\-\.]+)\r?\n"  # package name group
-        r"Version: ([a-zA-Z0-9:_\-\.~]+)\r?\n"  # version number group
+        r"Version: ([a-zA-Z0-9:_\-\.~+]+)\r?\n"  # version number group
     )
     _debian_version_splitter_regex = re.compile(
         r"([0-9]+:)?"  # some examples have a mystery number followed by a ':' (git)
         r"(?P<major>[0-9]+)\."  # major
         r"(?P<minor>[0-9]+)\."  # minor
         r"(?P<patch>[0-9]+)"  # patch
-        r"-(?P<build>[a-zA-Z0-9-_\.~]+)"  # build
+        r"-(?P<build>[a-zA-Z0-9-_\.~+]+)"  # build
     )
     # apt-cache policy git
     # git:
@@ -723,7 +728,11 @@ class Debian(Linux):
 
     @retry(tries=10, delay=5)
     def _install_packages(
-        self, packages: List[str], signed: bool = True, timeout: int = 600
+        self,
+        packages: List[str],
+        signed: bool = True,
+        timeout: int = 600,
+        backports: bool = False,
     ) -> None:
         file_packages = []
         for index, package in enumerate(packages):
@@ -733,10 +742,11 @@ class Debian(Linux):
                 file_packages.append(package)
                 package = Path(package).stem
                 packages[index] = package
-
-        command = (
-            f"DEBIAN_FRONTEND=noninteractive apt-get -y install {' '.join(packages)}"
-        )
+        if backports:
+            backport_flag = f"-t {self.information.codename}-backports"
+        else:
+            backport_flag = ""
+        command = f"DEBIAN_FRONTEND=noninteractive apt-get {backport_flag} -y install {' '.join(packages)}"
         if not signed:
             command += " --allow-unauthenticated"
         self.wait_running_package_process()
@@ -1059,7 +1069,11 @@ class RPMDistro(Linux):
         return self._cache_and_return_version_info(package_name, version_info)
 
     def _install_packages(
-        self, packages: List[str], signed: bool = True, timeout: int = 600
+        self,
+        packages: List[str],
+        signed: bool = True,
+        timeout: int = 600,
+        backports: bool = False,
     ) -> None:
         command = f"{self._dnf_tool()} install -y {' '.join(packages)}"
         if not signed:
@@ -1193,7 +1207,11 @@ class Redhat(Fedora):
             cmd_result.assert_exit_code()
 
     def _install_packages(
-        self, packages: List[str], signed: bool = True, timeout: int = 600
+        self,
+        packages: List[str],
+        signed: bool = True,
+        timeout: int = 600,
+        backports: bool = False,
     ) -> None:
         command = f"yum install -y {' '.join(packages)}"
         if not signed:
@@ -1422,7 +1440,11 @@ class Suse(Linux):
         )
 
     def _install_packages(
-        self, packages: List[str], signed: bool = True, timeout: int = 600
+        self,
+        packages: List[str],
+        signed: bool = True,
+        timeout: int = 600,
+        backports: bool = False,
     ) -> None:
         command = "zypper --non-interactive"
         if not signed:
