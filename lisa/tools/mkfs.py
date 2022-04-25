@@ -51,6 +51,10 @@ class Mkfs(Tool):
         else:
             raise LisaException(f"Unrecognized file system {file_system}.")
 
+    def _install(self) -> bool:
+        self.node.tools[Mkfsxfs]
+        return self._check_exists()
+
 
 class Mkfsxfs(Mkfs):
     @property
