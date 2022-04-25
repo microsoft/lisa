@@ -73,7 +73,7 @@ class CPUSuite(TestSuite):
             This test will check cpu hotplug with storage workload.
             The cpu hotplug steps are same as `verify_cpu_hot_plug` test case.
             """,
-        priority=3,
+        priority=4,
     )
     def verify_cpu_offline_storage_workload(self, log: Logger, node: Node) -> None:
         # run fio process asynchronously on the node
@@ -109,7 +109,7 @@ class CPUSuite(TestSuite):
             This test will check cpu hotplug with network workload.
             The cpu hotplug steps are same as `verify_cpu_hot_plug` test case.
             """,
-        priority=3,
+        priority=4,
         requirement=simple_requirement(
             min_count=2,
         ),
@@ -150,7 +150,7 @@ class CPUSuite(TestSuite):
             3. Verify that the channels were added to synthetic network adapter.
             4. Verify that the added channels do not handle interrupts on offlined cpu.
             """,
-        priority=3,
+        priority=4,
     )
     def verify_cpu_offlined_channel_add(self, log: Logger, node: Node) -> None:
         # skip test if kernel doesn't support cpu hotplug
