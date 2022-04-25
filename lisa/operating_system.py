@@ -298,7 +298,7 @@ class Posix(OperatingSystem, BaseClassMixin):
         packages: Union[str, Tool, Type[Tool], List[Union[str, Tool, Type[Tool]]]],
         signed: bool = True,
         timeout: int = 600,
-        extra_args: List[str] = [],
+        extra_args: Optional[List[str]] = None,
     ) -> None:
         package_names = self._get_package_list(packages)
         self._install_packages(package_names, signed, timeout, extra_args)
@@ -354,7 +354,7 @@ class Posix(OperatingSystem, BaseClassMixin):
     def get_repositories(self) -> List[RepositoryInfo]:
         raise NotImplementedError("get_repositories is not implemented")
 
-    def _process_extra_package_args(self, extra_args: List[str]) -> str:
+    def _process_extra_package_args(self, extra_args: Optional[List[str]]) -> str:
         if extra_args:
             add_args = " ".join(extra_args)
         else:
@@ -366,7 +366,7 @@ class Posix(OperatingSystem, BaseClassMixin):
         packages: List[str],
         signed: bool = True,
         timeout: int = 600,
-        extra_args: List[str] = [],
+        extra_args: Optional[List[str]] = None,
     ) -> None:
         raise NotImplementedError()
 
@@ -739,7 +739,7 @@ class Debian(Linux):
         packages: List[str],
         signed: bool = True,
         timeout: int = 600,
-        extra_args: List[str] = [],
+        extra_args: Optional[List[str]] = None,
     ) -> None:
         file_packages = []
         for index, package in enumerate(packages):
@@ -750,7 +750,10 @@ class Debian(Linux):
                 package = Path(package).stem
                 packages[index] = package
         add_args = self._process_extra_package_args(extra_args)
-        command = f"DEBIAN_FRONTEND=noninteractive apt-get {add_args} -y install {' '.join(packages)}"
+        command = (
+            f"DEBIAN_FRONTEND=noninteractive apt-get {add_args} "
+            f"-y install {' '.join(packages)}"
+        )
         if not signed:
             command += " --allow-unauthenticated"
         self.wait_running_package_process()
@@ -1077,7 +1080,7 @@ class RPMDistro(Linux):
         packages: List[str],
         signed: bool = True,
         timeout: int = 600,
-        extra_args: List[str] = [],
+        extra_args: Optional[List[str]] = None,
     ) -> None:
         add_args = self._process_extra_package_args(extra_args)
         command = f"{self._dnf_tool()} install {add_args} -y {' '.join(packages)}"
@@ -1216,7 +1219,7 @@ class Redhat(Fedora):
         packages: List[str],
         signed: bool = True,
         timeout: int = 600,
-        extra_args: List[str] = [],
+        extra_args: Optional[List[str]] = None,
     ) -> None:
         add_args = self._process_extra_package_args(extra_args)
         command = f"yum install {add_args} -y {' '.join(packages)}"
@@ -1450,7 +1453,7 @@ class Suse(Linux):
         packages: List[str],
         signed: bool = True,
         timeout: int = 600,
-        extra_args: List[str] = [],
+        extra_args: Optional[List[str]] = None,
     ) -> None:
         add_args = self._process_extra_package_args(extra_args)
         command = f"zypper --non-interactive {add_args}"
