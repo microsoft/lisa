@@ -298,10 +298,10 @@ class Posix(OperatingSystem, BaseClassMixin):
         packages: Union[str, Tool, Type[Tool], List[Union[str, Tool, Type[Tool]]]],
         signed: bool = True,
         timeout: int = 600,
-        backports: bool = False,
+        extra_args: List[str] = [],
     ) -> None:
         package_names = self._get_package_list(packages)
-        self._install_packages(package_names, signed, timeout, backports)
+        self._install_packages(package_names, signed, timeout, extra_args)
 
     def package_exists(self, package: Union[str, Tool, Type[Tool]]) -> bool:
         """
@@ -354,12 +354,19 @@ class Posix(OperatingSystem, BaseClassMixin):
     def get_repositories(self) -> List[RepositoryInfo]:
         raise NotImplementedError("get_repositories is not implemented")
 
+    def _process_extra_package_args(self, extra_args: List[str]) -> str:
+        if extra_args:
+            add_args = " ".join(extra_args)
+        else:
+            add_args = ""
+        return add_args
+
     def _install_packages(
         self,
         packages: List[str],
         signed: bool = True,
         timeout: int = 600,
-        backports: bool = False,
+        extra_args: List[str] = [],
     ) -> None:
         raise NotImplementedError()
 
@@ -732,7 +739,7 @@ class Debian(Linux):
         packages: List[str],
         signed: bool = True,
         timeout: int = 600,
-        backports: bool = False,
+        extra_args: List[str] = [],
     ) -> None:
         file_packages = []
         for index, package in enumerate(packages):
@@ -742,11 +749,8 @@ class Debian(Linux):
                 file_packages.append(package)
                 package = Path(package).stem
                 packages[index] = package
-        if backports:
-            backport_flag = f"-t {self.information.codename}-backports"
-        else:
-            backport_flag = ""
-        command = f"DEBIAN_FRONTEND=noninteractive apt-get {backport_flag} -y install {' '.join(packages)}"
+        add_args = self._process_extra_package_args(extra_args)
+        command = f"DEBIAN_FRONTEND=noninteractive apt-get {add_args} -y install {' '.join(packages)}"
         if not signed:
             command += " --allow-unauthenticated"
         self.wait_running_package_process()
@@ -1073,9 +1077,10 @@ class RPMDistro(Linux):
         packages: List[str],
         signed: bool = True,
         timeout: int = 600,
-        backports: bool = False,
+        extra_args: List[str] = [],
     ) -> None:
-        command = f"{self._dnf_tool()} install -y {' '.join(packages)}"
+        add_args = self._process_extra_package_args(extra_args)
+        command = f"{self._dnf_tool()} install {add_args} -y {' '.join(packages)}"
         if not signed:
             command += " --nogpgcheck"
 
@@ -1211,9 +1216,10 @@ class Redhat(Fedora):
         packages: List[str],
         signed: bool = True,
         timeout: int = 600,
-        backports: bool = False,
+        extra_args: List[str] = [],
     ) -> None:
-        command = f"yum install -y {' '.join(packages)}"
+        add_args = self._process_extra_package_args(extra_args)
+        command = f"yum install {add_args} -y {' '.join(packages)}"
         if not signed:
             command += " --nogpgcheck"
 
@@ -1444,9 +1450,10 @@ class Suse(Linux):
         packages: List[str],
         signed: bool = True,
         timeout: int = 600,
-        backports: bool = False,
+        extra_args: List[str] = [],
     ) -> None:
-        command = "zypper --non-interactive"
+        add_args = self._process_extra_package_args(extra_args)
+        command = f"zypper --non-interactive {add_args}"
         if not signed:
             command += " --no-gpg-checks "
         command += f" in {' '.join(packages)}"
