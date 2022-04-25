@@ -64,8 +64,9 @@ class DiskInfo(object):
     @property
     def is_os_disk(self) -> bool:
         # check if the disk contains boot partition
+        # boot partitions start with /boot/{id}
         for partition in self.partitions:
-            if partition.mountpoint == "/boot":
+            if partition.mountpoint.startswith("/boot"):
                 return True
         return False
 
