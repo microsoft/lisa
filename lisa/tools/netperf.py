@@ -31,7 +31,7 @@ class Netperf(Tool):
             cmd += " -D "
         self.node.execute(
             cmd,
-            shell=True,
+            sudo=True,
             expected_exit_code=0,
             expected_exit_code_failure_message=f"fail to run {cmd}",
         )
@@ -59,7 +59,7 @@ class Netperf(Tool):
             f"-H {server_ip} -p {port} -t {test_name} -n {core_count} -l {seconds}"
             f" -D {time_unit} -- -O '{send_recv_offset}'"
         )
-        process = self.node.execute_async(f"{self.command} {cmd}")
+        process = self.node.execute_async(f"{self.command} {cmd}", sudo=True)
         return process
 
     def _initialize(self, *args: Any, **kwargs: Any) -> None:
@@ -74,14 +74,11 @@ class Netperf(Tool):
     def _install_dep_packages(self) -> None:
         posix_os: Posix = cast(Posix, self.node.os)
         if isinstance(self.node.os, Redhat):
-            package_list = [
-                "sysstat",
-                "wget",
-            ]
+            package_list = ["sysstat", "wget", "automake", "texinfo"]
         elif isinstance(self.node.os, Debian):
             package_list = ["sysstat", "automake", "texinfo"]
         elif isinstance(self.node.os, Suse):
-            package_list = ["sysstat"]
+            package_list = ["sysstat", "automake", "texinfo"]
         else:
             raise LisaException(
                 f"tool {self.command} can't be installed in distro {self.node.os.name}."
@@ -103,4 +100,9 @@ class Netperf(Tool):
         make.make_install(code_path)
         self.node.execute(
             "ln -s /usr/local/bin/netperf /usr/bin/netperf", sudo=True, cwd=code_path
+        ).assert_exit_code()
+        self.node.execute(
+            "ln -s /usr/local/bin/netserver /usr/bin/netserver",
+            sudo=True,
+            cwd=code_path,
         ).assert_exit_code()

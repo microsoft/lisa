@@ -96,9 +96,10 @@ class Sar(Tool):
         # rxmcst/s: multicast packets receiving rate (unit: Kbytes/second)
         nic_name = self.node.nics.default_nic
         sar_result_pattern = re.compile(
-            rf"([\w\W]*?){nic_name}\s+(?P<rxpck>\d+.\d+)\s+(?P<txpck>\d+.\d+)"
-            r"\s+(?P<rxkb>\d+.\d+)\s+(?P<rxcmp>\d+.\d+)\s+(?P<txcmp>\d+.\d+)"
-            r"\s+(?P<rxmcst>\d+.\d+)\s+(?P<ifutil>\d+.\d+)",
+            rf"([\w\W]*?){nic_name}([\w\W]*?)\s+(?P<rxpck>\d+.\d+)"
+            r"([\w\W]*?)\s+(?P<txpck>\d+.\d+)([\w\W]*?)\s+(?P<rxkb>\d+.\d+)"
+            r"([\w\W]*?)\s+(?P<rxcmp>\d+.\d+)([\w\W]*?)\s+(?P<txcmp>\d+.\d+)"
+            r"([\w\W]*?)\s+(?P<rxmcst>\d+.\d+)([\w\W]*?)\s+(?P<ifutil>\d+.\d+)",
             re.M,
         )
         raw_list = re.finditer(self.sar_results_pattern, result.stdout)
