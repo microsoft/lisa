@@ -7,13 +7,23 @@ from assertpy import assert_that
 
 from lisa import Environment, Logger, RemoteNode
 from lisa.features import StartStop
+from lisa.operating_system import Redhat, Suse, Ubuntu
 from lisa.tools import Fio, HibernationSetup, Iperf3, Kill, Lscpu
-from lisa.util import LisaException
+from lisa.util import LisaException, SkippedException
 from lisa.util.perf_timer import create_timer
 from lisa.util.shell import wait_tcp_port_ready
 
 
 def verify_hibernation(node: RemoteNode, log: Logger) -> None:
+    if (
+        (isinstance(node.os, Redhat) and node.os.information.version < "8.3.0")
+        or (isinstance(node.os, Ubuntu) and node.os.information.version < "18.4.0")
+        or (isinstance(node.os, Suse) and node.os.information.version < "15.3.0")
+    ):
+        raise SkippedException(
+            f"hibernation setup tool doesn't support current distro {node.os.name}, "
+            f"version {node.os.information.version}"
+        )
     node_nic = node.nics
     lower_nics_before_hibernation = node_nic.get_lower_nics()
     upper_nics_before_hibernation = node_nic.get_upper_nics()
