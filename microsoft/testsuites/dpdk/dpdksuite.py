@@ -35,7 +35,6 @@ from microsoft.testsuites.dpdk.dpdkvpp import DpdkVpp
 
 VDEV_TYPE = "net_vdev_netvsc"
 MAX_RING_PING_LIMIT_NS = 200000
-DPDK_STABLE_GIT = "http://dpdk.org/git/dpdk-stable"
 DPDK_VF_REMOVAL_MAX_TEST_TIME = 60 * 10
 
 

@@ -23,8 +23,6 @@ from lisa.util import perf_timer
 from lisa.util.parallel import TaskManager, run_in_parallel, run_in_parallel_async
 from microsoft.testsuites.dpdk.dpdktestpmd import DpdkTestpmd
 
-DPDK_STABLE_GIT = "http://dpdk.org/git/dpdk-stable"
-
 
 class DpdkTestResources:
     def __init__(self, _node: Node, _testpmd: DpdkTestpmd) -> None:
@@ -186,7 +184,7 @@ def initialize_node_resources(
     pmd: str,
     sample_apps: Union[List[str], None] = None,
 ) -> DpdkTestResources:
-    dpdk_source = variables.get("dpdk_source", DPDK_STABLE_GIT)
+    dpdk_source = variables.get("dpdk_source", "package_manager")
     dpdk_branch = variables.get("dpdk_branch", "")
     log.info(
         "Dpdk initialize_node_resources running"
