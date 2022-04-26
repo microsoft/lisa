@@ -75,6 +75,10 @@ class Iperf3(Tool):
         r" Gbits/sec.*receiver([\w\W]*?))",
         re.MULTILINE,
     )
+    _json_pattern = re.compile(
+        r"[\w\W]*?(?P<json>{[\w\W]*.*)",
+        re.MULTILINE,
+    )
 
     @property
     def command(self) -> str:
@@ -291,8 +295,12 @@ class Iperf3(Tool):
         environment: "Environment",
         test_case_name: str,
     ) -> NetworkTCPPerformanceMessage:
-        server_json = json.loads(server_result)
-        client_json = json.loads(client_result)
+        server_result_matched = self._json_pattern.match(server_result)
+        assert server_result_matched, "fail to find json format server results"
+        client_result_matched = self._json_pattern.match(client_result)
+        assert client_result_matched, "fail to find json format client results"
+        server_json = json.loads(server_result_matched.group("json"))
+        client_json = json.loads(client_result_matched.group("json"))
         congestion_windowsize_kb_total: Decimal = Decimal(0)
         for client_interval in client_json["intervals"]:
             streams = client_interval["streams"]
