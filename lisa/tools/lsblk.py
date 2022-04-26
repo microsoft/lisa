@@ -6,7 +6,7 @@ from dataclasses import dataclass, field
 from typing import Dict, List, Optional
 
 from lisa.executable import Tool
-from lisa.util import find_patterns_groups_in_lines
+from lisa.util import LisaException, find_patterns_groups_in_lines
 
 
 @dataclass
@@ -171,3 +171,19 @@ class Lsblk(Tool):
             )
 
         return disks
+
+    def find_disk_by_mountpoint(
+        self, mountpoint: str, force_run: bool = False
+    ) -> DiskInfo:
+        disks = self.get_disks(force_run=force_run)
+        for disk in disks:
+            # check if disk is mounted and moutpoint matches
+            if disk.mountpoint == mountpoint:
+                return disk
+
+            # check if any of the partitions is mounted and moutpoint matches
+            for partition in disk.partitions:
+                if partition.mountpoint == mountpoint:
+                    return disk
+
+        raise LisaException(f"Could not find disk with mountpoint {mountpoint}")
