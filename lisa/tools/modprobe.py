@@ -63,18 +63,33 @@ class Modprobe(Tool):
     def load(
         self,
         modules: Union[str, List[str]],
-    ) -> None:
+        dry_run: bool = False,
+    ) -> bool:
+
         if isinstance(modules, list):
             modules_str = "-a " + " ".join(modules)
         else:
             modules_str = modules
-        self.run(
-            f"{modules_str}",
+        command = f"{modules_str}"
+        if dry_run:
+            command = "--dry-run" + command
+        result = self.run(
+            command,
             force_run=True,
             sudo=True,
-            expected_exit_code=0,
-            expected_exit_code_failure_message=f"Fail to load module[s]: {modules_str}",
         )
+        if dry_run:
+            return result.exit_code == 0
+
+        result.assert_exit_code(
+            expected_exit_code=0,
+            message=f"Fail to load module[s]: {modules_str}.",
+            include_output=True,
+        )
+        return True
+
+    def module_exists(self, modules: Union[str, List[str]]) -> bool:
+        return self.load(modules, dry_run=True)
 
     def reload(
         self,
