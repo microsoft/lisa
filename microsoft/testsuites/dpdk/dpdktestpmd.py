@@ -538,7 +538,17 @@ class DpdkTestpmd(Tool):
             modprobe.load("mlx4_en")
         else:
             raise UnsupportedDistroException(self.node.os)
-        modprobe.load(["ib_core", "ib_uverbs", "rdma_ucm", "ib_umad", "ib_ipoib"])
+        rdma_drivers = [
+            "ib_core",
+            "ib_uverbs",
+            "rdma_ucm",
+        ]
+        # some versions of dpdk require these two, some don't.
+        # some systems have them, some don't. Load if they're there.
+        for module in ["ib_ipoib", "ib_umad"]:
+            if modprobe.module_exists(module):
+                rdma_drivers.append(module)
+        modprobe.load(rdma_drivers)
         modprobe.load(mellanox_drivers)
 
     def _install_dependencies(self) -> None:
