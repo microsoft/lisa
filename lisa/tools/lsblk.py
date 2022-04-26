@@ -187,3 +187,19 @@ class Lsblk(Tool):
                     return disk
 
         raise LisaException(f"Could not find disk with mountpoint {mountpoint}")
+
+    def find_mountpoint_by_volume_name(
+        self, volume_name: str, force_run: bool = False
+    ) -> str:
+        disks = self.get_disks(force_run=force_run)
+        for disk in disks:
+            # check if disk is mounted and moutpoint matches
+            if disk.name == volume_name:
+                return disk.mountpoint
+
+            # check if any of the partitions is mounted and moutpoint matches
+            for partition in disk.partitions:
+                if partition.name == volume_name:
+                    return partition.mountpoint
+
+        raise LisaException(f"Could not find volume with name {volume_name}")
