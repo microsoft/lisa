@@ -87,11 +87,11 @@ class Qemu(Tool):
 
         # Add data disks
         if disks:
-            for disk in disks:
+            for i, disk in enumerate(disks):
                 cmd += (
-                    f"-drive id=datadisk-{disk},"
-                    f"file=/dev/{disk},cache=none,if=none,format=raw,aio=threads "
-                    f"-device virtio-scsi-pci -device scsi-hd,drive=datadisk-{disk} "
+                    f"-drive id=datadisk-{i},"
+                    f"file={disk},cache=none,if=none,format=raw,aio=threads "
+                    f"-device virtio-scsi-pci -device scsi-hd,drive=datadisk-{i} "
                 )
 
         # -enable-kvm: enable kvm
