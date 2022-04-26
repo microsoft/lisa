@@ -21,6 +21,14 @@ function Main {
 	$currentTestResult = Create-TestResultObject
 	try {
 		$extraNICs = $TestParams.EXTRA_NICS
+		if ($AllVMData.InstanceSize = 'Standard_NC24ads_A100_v4'){
+			$extraNICs = 2
+		}elseif ($AllVMData.InstanceSize = 'Standard_NC48ads_A100_v4'){
+			$extraNICs = 4
+		}elseif ($AllVMData.InstanceSize = 'Standard_NC96ads_A100_v4'){
+			$extraNICs = 8
+		}
+
 		$testResult = "FAIL"
 		Write-LogDbg "Stopping VM $($AllVMData.RoleName) in RG $($AllVMData.ResourceGroupName)."
 		# Stop VM before attaching new NICs
