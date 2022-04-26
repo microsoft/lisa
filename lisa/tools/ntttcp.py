@@ -146,6 +146,8 @@ class Ntttcp(Tool):
             for variable, value in sys.items():
                 sysctl.write(variable, value)
         self._set_tasks_max()
+        firewall = self.node.tools[Firewall]
+        firewall.stop()
 
     def restore_system(self, udp_mode: bool = False) -> None:
         original_settings = self._original_settings_tcp
