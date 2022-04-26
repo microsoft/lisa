@@ -288,8 +288,9 @@ class Node(subclasses.BaseClassWithRunbookMixin, ContextMixin, InitializableMixi
                 )
             )
 
-        disks = self.tools[Lsblk].get_disks()
         mount = self.tools[Mount]
+        lsblk = self.tools[Lsblk]
+        disks = lsblk.get_disks()
 
         # find a disk/partition with required space
         for disk in disks:
@@ -303,27 +304,35 @@ class Node(subclasses.BaseClassWithRunbookMixin, ContextMixin, InitializableMixi
                     if not partition.size_in_gb >= size_in_gb:
                         continue
 
-                # mount partition if it is not mounted
-                if not partition.is_mounted:
+                    # mount partition if it is not mounted
                     partition_name = partition.name
-                    mountpoint = f"{PATH_REMOTE_ROOT}/{partition_name}"
-                    mount.mount(partition.device_name, mountpoint, format=True)
-                else:
-                    mountpoint = partition.mountpoint
+                    if not partition.is_mounted:
+                        mountpoint = f"{PATH_REMOTE_ROOT}/{partition_name}"
+                        mount.mount(partition.device_name, mountpoint, format=True)
+                    else:
+                        mountpoint = partition.mountpoint
+
+                    # some distro use absolute path wrt to the root, so we need to
+                    # requery the mount point after mounting
+                    return lsblk.find_mountpoint_by_volume_name(
+                        partition_name, force_run=True
+                    )
             else:
                 if not disk.size_in_gb >= size_in_gb:
                     continue
 
                 # mount the disk if it isn't mounted
+                disk_name = disk.name
                 if not disk.is_mounted:
-                    disk_name = disk.name
                     mountpoint = f"{PATH_REMOTE_ROOT}/{disk_name}"
                     self.tools[Mkfs].format_disk(disk.device_name, FileSystem.ext4)
                     mount.mount(disk.device_name, mountpoint, format=True)
                 else:
                     mountpoint = disk.mountpoint
 
-            return mountpoint
+                # some distro use absolute path wrt to the root, so we need to requery
+                # the mount point after mounting
+                return lsblk.find_mountpoint_by_volume_name(disk_name, force_run=True)
 
         raise LisaException(
             f"No partition with Required disk space of {size_in_gb}GB found"
