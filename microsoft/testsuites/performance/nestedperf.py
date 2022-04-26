@@ -32,10 +32,12 @@ from lisa.tools import (
     Sysctl,
 )
 from lisa.tools.hyperv import HyperV
+from lisa.tools.lsblk import Lsblk
 from lisa.util.logger import Logger
 from lisa.util.shell import ConnectionInfo, try_connect
 from microsoft.testsuites.nested.common import (
     HYPERV_NAT_NAME,
+    NESTED_VM_REQUIRED_DISK_SIZE_IN_GB,
     hyperv_connect_nested_vm,
     hyperv_remove_nested_vm,
     parse_nested_image_variables,
@@ -85,14 +87,18 @@ class KVMPerformance(TestSuite):  # noqa
             disk=schema.DiskOptionSettings(
                 disk_type=schema.DiskType.PremiumSSDLRS,
                 data_disk_iops=search_space.IntRange(min=5000),
-                data_disk_count=search_space.IntRange(min=1),
+                data_disk_count=search_space.IntRange(min=2),
             ),
         ),
     )
     def perf_nested_kvm_storage_singledisk(
-        self, node: RemoteNode, environment: Environment, variables: Dict[str, Any]
+        self,
+        node: RemoteNode,
+        environment: Environment,
+        variables: Dict[str, Any],
+        log: Logger,
     ) -> None:
-        self._storage_perf_qemu(node, environment, variables, setup_raid=False)
+        self._storage_perf_qemu(node, environment, variables, log, setup_raid=False)
 
     @TestCaseMetadata(
         description="""
@@ -105,14 +111,18 @@ class KVMPerformance(TestSuite):  # noqa
             disk=schema.DiskOptionSettings(
                 disk_type=schema.DiskType.PremiumSSDLRS,
                 data_disk_iops=search_space.IntRange(min=5000),
-                data_disk_count=search_space.IntRange(min=6),
+                data_disk_count=search_space.IntRange(min=7),
             ),
         ),
     )
     def perf_nested_kvm_storage_multidisk(
-        self, node: RemoteNode, environment: Environment, variables: Dict[str, Any]
+        self,
+        node: RemoteNode,
+        environment: Environment,
+        variables: Dict[str, Any],
+        log: Logger,
     ) -> None:
-        self._storage_perf_qemu(node, environment, variables)
+        self._storage_perf_qemu(node, environment, variables, log)
 
     @TestCaseMetadata(
         description="""
@@ -573,6 +583,7 @@ class KVMPerformance(TestSuite):  # noqa
         node: RemoteNode,
         environment: Environment,
         variables: Dict[str, Any],
+        log: Logger,
         filename: str = "/dev/sdb",
         start_iodepth: int = 1,
         max_iodepth: int = 1024,
@@ -585,61 +596,83 @@ class KVMPerformance(TestSuite):  # noqa
             nested_image_url,
         ) = parse_nested_image_variables(variables)
 
+        # get data disks and remove disk we will use for downloading
+        # nested image
         l1_data_disks = node.features[Disk].get_raw_data_disks()
+        log.debug(f"l1_data_disks: {l1_data_disks}")
+
+        image_download_location = node.find_partition_with_freespace(
+            NESTED_VM_REQUIRED_DISK_SIZE_IN_GB
+        )
+        image_download_disk = (
+            node.tools[Lsblk]
+            .find_disk_by_mountpoint(image_download_location, force_run=True)
+            .device_name
+        )
+        log.debug(f"image_download_disk: {image_download_disk}")
+
+        if image_download_disk in l1_data_disks:
+            l1_data_disks.remove(image_download_disk)
+
         l1_data_disk_count = len(l1_data_disks)
 
-        # setup raid on l1 data disks
-        if setup_raid:
-            disks = ["md0"]
-            l1_partition_disks = reset_partitions(node, l1_data_disks)
+        try:
+            # setup raid on l1 data disks
+            if setup_raid:
+                disks = ["/dev/md0"]
+                l1_partition_disks = reset_partitions(node, l1_data_disks)
+                stop_raid(node)
+                reset_raid(node, l1_partition_disks)
+            else:
+                disks = [l1_data_disks[0]]
+
+            # get l2 vm
+            l2_vm = qemu_connect_nested_vm(
+                node,
+                nested_image_username,
+                nested_image_password,
+                nested_image_port,
+                nested_image_url,
+                disks=disks,
+            )
+            l2_vm.capability.network_interface = Synthetic()
+
+            # Qemu command exits immediately but the VM requires some time to boot up.
+            l2_vm.tools[Lscpu].get_core_count()
+
+            # Each fio process start jobs equal to the iodepth to read/write from
+            # the disks. The max number of jobs can be equal to the core count of
+            # the node.
+            # Examples:
+            # iodepth = 4, core count = 8 => max_jobs = 4
+            # iodepth = 16, core count = 8 => max_jobs = 8
+            num_jobs = []
+            iodepth_iter = start_iodepth
+            core_count = node.tools[Lscpu].get_core_count()
+            while iodepth_iter <= max_iodepth:
+                num_jobs.append(min(iodepth_iter, core_count))
+                iodepth_iter = iodepth_iter * 2
+
+            # Run fio test
+            # The added disks appear as /dev/sdb on the nested vm
+            perf_disk(
+                l2_vm,
+                start_iodepth,
+                max_iodepth,
+                filename,
+                test_name=inspect.stack()[1][3],
+                core_count=core_count,
+                disk_count=l1_data_disk_count,
+                disk_setup_type=DiskSetupType.raid0,
+                disk_type=DiskType.premiumssd,
+                environment=environment,
+                num_jobs=num_jobs,
+                size_gb=8,
+                overwrite=True,
+            )
+        finally:
+            node.tools[Qemu].delete_vm()
             stop_raid(node)
-            reset_raid(node, l1_partition_disks)
-        else:
-            disks = ["sdb"]
-
-        # get l2 vm
-        l2_vm = qemu_connect_nested_vm(
-            node,
-            nested_image_username,
-            nested_image_password,
-            nested_image_port,
-            nested_image_url,
-            disks=disks,
-        )
-        l2_vm.capability.network_interface = Synthetic()
-
-        # Qemu command exits immediately but the VM requires some time to boot up.
-        l2_vm.tools[Lscpu].get_core_count()
-
-        # Each fio process start jobs equal to the iodepth to read/write from
-        # the disks. The max number of jobs can be equal to the core count of
-        # the node.
-        # Examples:
-        # iodepth = 4, core count = 8 => max_jobs = 4
-        # iodepth = 16, core count = 8 => max_jobs = 8
-        num_jobs = []
-        iodepth_iter = start_iodepth
-        core_count = node.tools[Lscpu].get_core_count()
-        while iodepth_iter <= max_iodepth:
-            num_jobs.append(min(iodepth_iter, core_count))
-            iodepth_iter = iodepth_iter * 2
-
-        # run fio test
-        perf_disk(
-            l2_vm,
-            start_iodepth,
-            max_iodepth,
-            filename,
-            test_name=inspect.stack()[1][3],
-            core_count=core_count,
-            disk_count=l1_data_disk_count,
-            disk_setup_type=DiskSetupType.raid0,
-            disk_type=DiskType.premiumssd,
-            environment=environment,
-            num_jobs=num_jobs,
-            size_gb=8,
-            overwrite=True,
-        )
 
     def _storage_perf_hyperv(
         self,
