@@ -9,7 +9,7 @@ from semver import VersionInfo
 
 from lisa.executable import Tool
 from lisa.nic import NicInfo
-from lisa.operating_system import Fedora, Redhat, Ubuntu
+from lisa.operating_system import Debian, Fedora, Redhat, Ubuntu
 from lisa.tools import Echo, Git, Lscpu, Lspci, Modprobe, Service, Tar, Wget
 from lisa.util import LisaException, SkippedException, UnsupportedDistroException
 
@@ -73,6 +73,9 @@ class DpdkTestpmd(Tool):
         "ibverbs-providers",
         "pkg-config",
     ]
+
+    # these are the same at the moment but might need tweaking later
+    _debian_packages = _ubuntu_packages_2004
 
     _redhat_packages = [
         "psmisc",
@@ -373,14 +376,21 @@ class DpdkTestpmd(Tool):
         self._last_run_output = ""
         self._determine_network_hardware()
         node = self.node
+        if isinstance(node.os, Debian):
+            self._debian_backports_args = [
+                f"-t {node.os.information.codename}-backports"
+            ]
         self._install_dependencies()
         # installing from distro package manager
         if self._dpdk_source and self._dpdk_source == "package_manager":
             self.node.log.info(
                 "Installing dpdk and dev package from package manager..."
             )
-            if isinstance(node.os, Ubuntu):
-                node.os.install_packages(["dpdk", "dpdk-dev"])
+            if isinstance(node.os, Debian):
+                node.os.install_packages(
+                    ["dpdk", "dpdk-dev"],
+                    extra_args=self._debian_backports_args,
+                )
             elif isinstance(node.os, Fedora):
                 node.os.install_packages(["dpdk", "dpdk-devel"])
             else:
@@ -522,7 +532,7 @@ class DpdkTestpmd(Tool):
         else:
             mellanox_drivers = ["mlx5_core", "mlx5_ib"]
         modprobe = self.node.tools[Modprobe]
-        if isinstance(self.node.os, Ubuntu):
+        if isinstance(self.node.os, Debian):
             modprobe.load("rdma_cm")
         elif isinstance(self.node.os, Fedora):
             if not self.is_connect_x3:
@@ -538,17 +548,15 @@ class DpdkTestpmd(Tool):
             modprobe.load("mlx4_en")
         else:
             raise UnsupportedDistroException(self.node.os)
-        rdma_drivers = [
-            "ib_core",
-            "ib_uverbs",
-            "rdma_ucm",
-        ]
+        rmda_drivers = ["ib_core", "ib_uverbs", "rdma_ucm"]
+
         # some versions of dpdk require these two, some don't.
         # some systems have them, some don't. Load if they're there.
         for module in ["ib_ipoib", "ib_umad"]:
             if modprobe.module_exists(module):
-                rdma_drivers.append(module)
-        modprobe.load(rdma_drivers)
+                rmda_drivers.append(module)
+
+        modprobe.load(rmda_drivers)
         modprobe.load(mellanox_drivers)
 
     def _install_dependencies(self) -> None:
@@ -562,6 +570,7 @@ class DpdkTestpmd(Tool):
                     f"Ubuntu {str(node.os.information.version)} is EOL and "
                     "if not supported by dpdk tests",
                 )
+
             elif node.os.information.version < "18.4.0":
                 raise UnsupportedDistroException(
                     node.os,
@@ -569,8 +578,12 @@ class DpdkTestpmd(Tool):
                     "The installation must be adjusted to only install dpdk 18.11."
                     "Current install from source only supports >19.11",
                 )
+
             elif node.os.information.version < "20.4.0":
-                node.os.install_packages(list(self._ubuntu_packages_1804))
+                node.os.install_packages(
+                    list(self._ubuntu_packages_1804),
+                    extra_args=self._debian_backports_args,
+                )
                 # ubuntu 18 has some issue with the packaged versions of meson
                 # and ninja. To guarantee latest, install and update with pip3
                 node.execute(
@@ -612,8 +625,14 @@ class DpdkTestpmd(Tool):
                     ),
                 )
             else:
-                node.os.install_packages(list(self._ubuntu_packages_2004))
-
+                node.os.install_packages(
+                    list(self._ubuntu_packages_2004),
+                    extra_args=self._debian_backports_args,
+                )
+        elif isinstance(node.os, Debian):
+            node.os.install_packages(
+                list(self._debian_packages), extra_args=self._debian_backports_args
+            )
         elif isinstance(node.os, Redhat):
             if node.os.information.version.major < 7:
                 # SKIP for old unsupported versions.
