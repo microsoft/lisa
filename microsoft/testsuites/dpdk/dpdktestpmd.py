@@ -576,6 +576,8 @@ class DpdkTestpmd(Tool):
                     list(self._ubuntu_packages_1804),
                     extra_args=self._debian_backports_args,
                 )
+                if self._dpdk_source == "package_manager":
+                    return
                 # ubuntu 18 has some issue with the packaged versions of meson
                 # and ninja. To guarantee latest, install and update with pip3
                 node.execute(
@@ -658,6 +660,8 @@ class DpdkTestpmd(Tool):
                     service_name, ignore_exit_code=service.SYSTEMD_EXIT_NOPERMISSION
                 )
 
+            if self._dpdk_source == "package_manager":
+                    return
             node.execute(
                 "pip3 install --upgrade meson",
                 cwd=cwd,
