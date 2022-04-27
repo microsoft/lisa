@@ -1776,6 +1776,7 @@ class AzurePlatform(Platform):
                 schema.FeatureSettings.create(features.SerialConsole.name()),
             ]
         )
+        _convert_to_azure_node_space(node_space)
 
         return azure_capability
 
