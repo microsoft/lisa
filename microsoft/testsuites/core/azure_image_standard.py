@@ -528,15 +528,22 @@ class AzureImageStandard(TestSuite):
 
             # verify repository configuration
             if isinstance(node.os, Ubuntu):
+                repo_url_map = {
+                    CpuArchitecture.X64: "azure.archive.ubuntu.com",
+                    CpuArchitecture.ARM64: "ports.ubuntu.com",
+                }
+                lscpu = node.tools[Lscpu]
+                arch = lscpu.get_architecture()
+                repo_url = repo_url_map.get(CpuArchitecture(arch), None)
                 contains_security_keyword = any(
                     [
                         "-security" in repository.name
                         for repository in debian_repositories
                     ]
                 )
-                contains_archive_repo_url = any(
+                contains_repo_url = any(
                     [
-                        "azure.archive.ubuntu.com" in repository.uri
+                        repo_url in repository.uri
                         for repository in debian_repositories
                     ]
                 )
@@ -548,14 +555,14 @@ class AzureImageStandard(TestSuite):
                 )
 
                 is_repository_configured_correctly = (
-                    contains_archive_repo_url
+                    contains_repo_url
                     and contains_security_keyword
                     and contains_updates_keyword
                 )
 
                 assert_that(
                     is_repository_configured_correctly,
-                    "`azure.archive.ubuntu.com`, `security`, "
+                    "`azure.archive.ubuntu.com` or `ports.ubuntu.com`, `security`, "
                     "`updates` should be in `apt-get "
                     "update` output",
                 ).is_true()
