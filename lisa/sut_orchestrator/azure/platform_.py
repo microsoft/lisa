@@ -1504,16 +1504,14 @@ class AzurePlatform(Platform):
         node_space.network_interface.data_path = search_space.SetSpace[
             schema.NetworkDataPath
         ](is_allow_set=True, items=[])
+        vcpus = 0
+        vcpus_available = 0
         for sku_capability in resource_sku.capabilities:
             name = sku_capability.name
             if name == "vCPUsAvailable":
-                node_space.core_count = int(sku_capability.value)
-                if resource_sku.family in ["standardLSv2Family"]:
-                    # refer https://docs.microsoft.com/en-us/azure/virtual-machines/lsv2-series # noqa: E501
-                    # NVMe disk count = vCPU / 8
-                    nvme = NvmeSettings()
-                    nvme.disk_count = int(node_space.core_count / 8)
-                    node_space.features.add(nvme)
+                vcpus_available = int(sku_capability.value)
+            elif name == "vCPUs":
+                vcpus = int(sku_capability.value)
             elif name == "MaxDataDiskCount":
                 node_space.disk.max_data_disk_count = int(sku_capability.value)
                 node_space.disk.data_disk_count = search_space.IntRange(
@@ -1570,6 +1568,23 @@ class AzurePlatform(Platform):
                     node_space.features.add(
                         schema.FeatureSettings.create(features.SecurityProfile.name())
                     )
+
+        # Some vm sizes, like Standard_HC44rs, doesn't have vCPUsAvailable, so
+        # use vcpus.
+        if vcpus_available:
+            node_space.core_count = vcpus_available
+        else:
+            node_space.core_count = vcpus
+
+        if resource_sku.family in ["standardLSv2Family"]:
+            # refer https://docs.microsoft.com/en-us/azure/virtual-machines/lsv2-series # noqa: E501
+            # NVMe disk count = vCPU / 8
+            nvme = NvmeSettings()
+            assert isinstance(
+                node_space.core_count, int
+            ), f"actual: {node_space.core_count}"
+            nvme.disk_count = int(node_space.core_count / 8)
+            node_space.features.add(nvme)
 
         # for some new sizes, there is no MaxNetworkInterfaces capability
         # and we have to set a default value for max_nic_count
