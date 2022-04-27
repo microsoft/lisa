@@ -1006,12 +1006,12 @@ class RPMDistro(Linux):
     # microsoft-azure-rhel8-eus  Microsoft Azure RPMs for RHEL8 Extended Update Support
     _rpm_repository_info_pattern = re.compile(r"(?P<id>\S+)\s+(?P<name>\S.*\S)\s*")
 
-    # ex: dpdk-20.11-3.el8.x86_64
+    # ex: dpdk-20.11-3.el8.x86_64 or dpdk-18.11.8-1.el7_8.x86_64
     _rpm_version_splitter_regex = re.compile(
         r"(?P<package_name>[a-zA-Z0-9\-_]+)-"
         r"(?P<major>[0-9]+)\."
-        r"(?P<minor>[0-9]+)"
-        r"(?P<patch>\.[0-9]+)?"
+        r"(?P<minor>[0-9]+)\.?"
+        r"(?P<patch>[0-9]+)?"
         r"(?P<build>-[a-zA-Z0-9-_\.]+)?"
     )
 
