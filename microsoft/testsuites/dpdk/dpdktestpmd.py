@@ -565,18 +565,10 @@ class DpdkTestpmd(Tool):
 
         if isinstance(node.os, Ubuntu):
             node.os.add_repository("ppa:canonical-server/server-backports")
-            if node.os.information.version < "16.4.0":
+            if node.os.information.version < "18.4.0":
                 raise SkippedException(
-                    f"Ubuntu {str(node.os.information.version)} is EOL and "
-                    "if not supported by dpdk tests",
-                )
-
-            elif node.os.information.version < "18.4.0":
-                raise UnsupportedDistroException(
-                    node.os,
-                    "16.04 install is not supported yet."
-                    "The installation must be adjusted to only install dpdk 18.11."
-                    "Current install from source only supports >19.11",
+                    f"Ubuntu {str(node.os.information.version)} is not supported. "
+                    "Minimum documented version for DPDK support is >=18.04"
                 )
 
             elif node.os.information.version < "20.4.0":
