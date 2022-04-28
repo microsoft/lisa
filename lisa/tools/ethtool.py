@@ -341,7 +341,7 @@ class DeviceSgSettings:
     #               tx-scatter-gather-fraglist: off [fixed]
 
     _sg_settings_pattern = re.compile(
-        r"^scatter-gather:[\s+](?P<value>.*?)?$", re.MULTILINE
+        r"([\w\W]*?)tx-scatter-gather:[\s+](?P<value>.*?)?$", re.MULTILINE
     )
 
     def __init__(self, interface: str, device_gro_lro_settings_raw: str) -> None:
