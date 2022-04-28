@@ -124,7 +124,9 @@ def _aggregate_count(
         # there may not have vf nic
         if not nic_name:
             continue
-        stats = ethtool.get_device_statistics(interface=nic_name, force_run=True)
+        stats = ethtool.get_device_statistics(
+            interface=nic_name, force_run=True
+        ).counters
         # the name and pattern ordered by syn/vf
         for pattern in patterns:
             items = {key: value for key, value in stats.items() if pattern.match(key)}
