@@ -13,6 +13,8 @@ from lisa.operating_system import Debian, Fedora, Redhat, Ubuntu
 from lisa.tools import Echo, Git, Lscpu, Lspci, Modprobe, Service, Tar, Wget
 from lisa.util import LisaException, SkippedException, UnsupportedDistroException
 
+PACKAGE_MANAGER_SOURCE = "package_manager"
+
 
 class DpdkTestpmd(Tool):
     # TestPMD tool to bundle the DPDK build and toolset together.
@@ -121,6 +123,13 @@ class DpdkTestpmd(Tool):
 
     def get_dpdk_branch(self) -> VersionInfo:
         return self._dpdk_version_info
+
+    def use_package_manager_install(self) -> bool:
+        assert_that(hasattr(self, "_dpdk_source")).described_as(
+            "_dpdk_source was not set in DpdkTestpmd instance. "
+            "set_dpdk_source must be called before instantiation."
+        ).is_true()
+        return self._dpdk_source == PACKAGE_MANAGER_SOURCE
 
     def set_version_info_from_source_install(
         self, branch_identifier: str, matcher: Pattern[str]
@@ -382,7 +391,7 @@ class DpdkTestpmd(Tool):
             ]
         self._install_dependencies()
         # installing from distro package manager
-        if self._dpdk_source and self._dpdk_source == "package_manager":
+        if self.use_package_manager_install():
             self.node.log.info(
                 "Installing dpdk and dev package from package manager..."
             )
@@ -415,8 +424,8 @@ class DpdkTestpmd(Tool):
         # otherwise install from source tarball or git
         self.node.log.info(f"Installing dpdk from source: {self._dpdk_source}")
         self._dpdk_repo_path_name = "dpdk"
-        result = self.node.execute("which dpdk-testpmd")
         self.dpdk_path = self.node.working_path.joinpath(self._dpdk_repo_path_name)
+        result = self.node.execute("which dpdk-testpmd")
         if result.exit_code == 0:  # tools are already installed
             return True
         git_tool = node.tools[Git]
@@ -561,161 +570,157 @@ class DpdkTestpmd(Tool):
 
     def _install_dependencies(self) -> None:
         node = self.node
-        cwd = node.working_path
-
         if isinstance(node.os, Ubuntu):
-            node.os.add_repository("ppa:canonical-server/server-backports")
-            if node.os.information.version < "18.4.0":
-                raise SkippedException(
-                    f"Ubuntu {str(node.os.information.version)} is not supported. "
-                    "Minimum documented version for DPDK support is >=18.04"
-                )
-
-            elif node.os.information.version < "20.4.0":
-                node.os.install_packages(
-                    list(self._ubuntu_packages_1804),
-                    extra_args=self._debian_backports_args,
-                )
-                # ubuntu 18 has some issue with the packaged versions of meson
-                # and ninja. To guarantee latest, install and update with pip3
-                node.execute(
-                    "pip3 install --upgrade meson",
-                    cwd=cwd,
-                    sudo=True,
-                    shell=True,
-                    expected_exit_code=0,
-                    expected_exit_code_failure_message=(
-                        "pip3 install failed to upgrade meson to newest version."
-                    ),
-                )
-                node.execute(
-                    "mv /usr/bin/meson /usr/bin/meson.bak",
-                    cwd=cwd,
-                    sudo=True,
-                    expected_exit_code=0,
-                    expected_exit_code_failure_message=(
-                        "renaming previous meson binary or link in /usr/bin/meson"
-                        " failed."
-                    ),
-                )
-                node.execute(
-                    "ln -s /usr/local/bin/meson /usr/bin/meson",
-                    cwd=cwd,
-                    sudo=True,
-                    expected_exit_code=0,
-                    expected_exit_code_failure_message=(
-                        "could not link new meson binary to /usr/bin/meson"
-                    ),
-                )
-                node.execute(
-                    "pip3 install --upgrade ninja",
-                    cwd=cwd,
-                    sudo=True,
-                    expected_exit_code=0,
-                    expected_exit_code_failure_message=(
-                        "pip3 upgrade for ninja failed"
-                    ),
-                )
-            else:
-                node.os.install_packages(
-                    list(self._ubuntu_packages_2004),
-                    extra_args=self._debian_backports_args,
-                )
+            self._install_ubuntu_dependencies()
         elif isinstance(node.os, Debian):
             node.os.install_packages(
                 list(self._debian_packages), extra_args=self._debian_backports_args
             )
         elif isinstance(node.os, Redhat):
-            if node.os.information.version.major < 7:
-                # SKIP for old unsupported versions.
-                raise SkippedException(
-                    "DPDK for Redhat < 7 is not supported by this test"
-                )
-            elif node.os.information.version.major == 7:
-                # Add packages for rhel7
-                node.os.install_packages(list(["libmnl-devel", "libbpf-devel"]))
-
-            # RHEL 8 doesn't require special cases for installed packages.
-            # TODO: RHEL9 may require updates upon release
-
-            node.os.group_install_packages("Development Tools")
-            node.os.group_install_packages("Infiniband Support")
-            node.os.install_packages(list(self._redhat_packages))
-
-            # ensure RDMA service is started if present.
-
-            service_name = "rdma"
-            service = node.tools[Service]
-            if service.check_service_exists(service_name):
-                if not service.check_service_status(service_name):
-                    service.enable_service(service_name)
-
-                # some versions of RHEL and CentOS have service.rdma
-                # that will refuse manual start/stop and will return
-                # NOPERMISSION. This is not fatal and can be continued.
-                # If the service is present it should start when needed.
-                service.restart_service(
-                    service_name, ignore_exit_code=service.SYSTEMD_EXIT_NOPERMISSION
-                )
-
-            node.execute(
-                "pip3 install --upgrade meson",
-                cwd=cwd,
-                sudo=True,
-                expected_exit_code=0,
-                expected_exit_code_failure_message=(
-                    "Failed to update Meson to latest version with pip3"
-                ),
-            )
-            node.execute(
-                "ln -s /usr/local/bin/meson /usr/bin/meson",
-                cwd=cwd,
-                sudo=True,
-                expected_exit_code=0,
-                expected_exit_code_failure_message=(
-                    "Failed to link new meson version as the "
-                    "default version in /usr/bin"
-                ),
-            )
-            # NOTE: finding latest ninja on RH is a pain,
-            # so just fetch latest from github here
-            wget_tool = self.node.tools[Wget]
-            wget_tool.get(
-                self._ninja_url,
-                file_path=cwd.as_posix(),
-                filename="ninja-linux.zip",
-            )
-            node.execute(
-                "unzip ninja-linux.zip",
-                cwd=cwd,
-                sudo=True,
-                expected_exit_code=0,
-                expected_exit_code_failure_message=(
-                    "Failed to unzip latest ninja-linux.zip from github."
-                ),
-            )
-            node.execute(
-                "mv ninja /usr/bin/ninja",
-                cwd=cwd,
-                sudo=True,
-                expected_exit_code=0,
-                expected_exit_code_failure_message=(
-                    "Could not move latest ninja script after unzip into /usr/bin."
-                ),
-            )
-            node.execute(
-                "pip3 install --upgrade pyelftools",
-                sudo=True,
-                cwd=cwd,
-                expected_exit_code=0,
-                expected_exit_code_failure_message=(
-                    "Could not upgrade pyelftools with pip3."
-                ),
-            )
+            self._install_redhat_dependencies()
         else:
             raise UnsupportedDistroException(
                 node.os, "This OS does not have dpdk installation implemented yet."
             )
+
+    def _install_ubuntu_dependencies(self) -> None:
+        node = self.node
+        ubuntu = node.os
+        if not isinstance(ubuntu, Ubuntu):
+            fail(
+                "_install_ubuntu_dependencies was called on node "
+                f"which was not Ubuntu: {node.os.information.full_version}"
+            )
+            return  # appease the type checker
+        ubuntu.add_repository("ppa:canonical-server/server-backports")
+        if ubuntu.information.version < "18.4.0":
+            raise SkippedException(
+                f"Ubuntu {str(ubuntu.information.version)} is not supported. "
+                "Minimum documented version for DPDK support is >=18.04"
+            )
+
+        elif ubuntu.information.version < "20.4.0":
+            ubuntu.install_packages(
+                list(self._ubuntu_packages_1804),
+                extra_args=self._debian_backports_args,
+            )
+            if not self.use_package_manager_install():
+                self._install_ninja_and_meson()
+        else:
+            ubuntu.install_packages(
+                list(self._ubuntu_packages_2004),
+                extra_args=self._debian_backports_args,
+            )
+
+    def _install_redhat_dependencies(self) -> None:
+        node = self.node
+        rhel = node.os
+        if not isinstance(rhel, Redhat):
+            fail(
+                "_install_redhat_dependencies was called on node "
+                f"which was not Redhat: {node.os.information.full_version}"
+            )
+            return  # appease the type checker
+        if rhel.information.version.major < 7:
+            # SKIP for old unsupported versions.
+            raise SkippedException("DPDK for Redhat < 7 is not supported by this test")
+        elif rhel.information.version.major == 7:
+            # Add packages for rhel7
+            rhel.install_packages(list(["libmnl-devel", "libbpf-devel"]))
+
+        # RHEL 8 doesn't require special cases for installed packages.
+        # TODO: RHEL9 may require updates upon release
+
+        rhel.group_install_packages("Development Tools")
+        rhel.group_install_packages("Infiniband Support")
+        rhel.install_packages(list(self._redhat_packages))
+
+        # ensure RDMA service is started if present.
+
+        service_name = "rdma"
+        service = node.tools[Service]
+        if service.check_service_exists(service_name):
+            if not service.check_service_status(service_name):
+                service.enable_service(service_name)
+
+            # some versions of RHEL and CentOS have service.rdma
+            # that will refuse manual start/stop and will return
+            # NOPERMISSION. This is not fatal and can be continued.
+            # If the service is present it should start when needed.
+            service.restart_service(
+                service_name, ignore_exit_code=service.SYSTEMD_EXIT_NOPERMISSION
+            )
+
+        if not self.use_package_manager_install():
+            self._install_ninja_and_meson()
+
+    def _install_ninja_and_meson(self) -> None:
+        node = self.node
+        cwd = node.working_path
+        node.execute(
+            "pip3 install --upgrade meson",
+            cwd=cwd,
+            sudo=True,
+            expected_exit_code=0,
+            expected_exit_code_failure_message=(
+                "Failed to update Meson to latest version with pip3"
+            ),
+        )
+        if node.shell.exists(node.get_pure_path("/usr/bin/meson")):
+            node.execute(
+                "mv /usr/bin/meson /usr/bin/meson.bak",
+                cwd=cwd,
+                sudo=True,
+                expected_exit_code=0,
+                expected_exit_code_failure_message=(
+                    "renaming previous meson binary or link in /usr/bin/meson"
+                    " failed."
+                ),
+            )
+        node.execute(
+            "ln -s /usr/local/bin/meson /usr/bin/meson",
+            cwd=cwd,
+            sudo=True,
+            expected_exit_code=0,
+            expected_exit_code_failure_message=(
+                "Failed to link new meson version as the " "default version in /usr/bin"
+            ),
+        )
+        # NOTE: finding latest ninja is a pain,
+        # so just fetch latest from github here
+        wget_tool = self.node.tools[Wget]
+        wget_tool.get(
+            self._ninja_url,
+            file_path=cwd.as_posix(),
+            filename="ninja-linux.zip",
+        )
+        node.execute(
+            "unzip ninja-linux.zip",
+            cwd=cwd,
+            sudo=True,
+            expected_exit_code=0,
+            expected_exit_code_failure_message=(
+                "Failed to unzip latest ninja-linux.zip from github."
+            ),
+        )
+        node.execute(
+            "mv ninja /usr/bin/ninja",
+            cwd=cwd,
+            sudo=True,
+            expected_exit_code=0,
+            expected_exit_code_failure_message=(
+                "Could not move latest ninja script after unzip into /usr/bin."
+            ),
+        )
+        node.execute(
+            "pip3 install --upgrade pyelftools",
+            sudo=True,
+            cwd=cwd,
+            expected_exit_code=0,
+            expected_exit_code_failure_message=(
+                "Could not upgrade pyelftools with pip3."
+            ),
+        )
 
     def _split_testpmd_output(self) -> None:
         search_str = "Port 0: device removal event"
