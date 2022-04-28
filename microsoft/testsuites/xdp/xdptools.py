@@ -21,7 +21,7 @@ def can_install(node: Node) -> bool:
 
     ethtool = node.tools[Ethtool]
     try:
-        statistics = ethtool.get_device_statistics(node.nics.default_nic)
+        statistics = ethtool.get_device_statistics(node.nics.default_nic).counters
     except UnsupportedOperationException as identifier:
         raise UnsupportedDistroException(node.os, str(identifier))
 
