@@ -228,6 +228,11 @@ class AzurePlatformSchema:
     vm_tags: Optional[Dict[str, Any]] = field(default=None)
     locations: Optional[Union[str, List[str]]] = field(default=None)
 
+    # Provisioning error causes by waagent is not ready or other reasons. In
+    # smoke test, it can verify some points also. Other tests should use the
+    # default False to raise errors to prevent unexpected behavior.
+    ignore_provisioning_error: bool = False
+
     log_level: str = field(
         default=logging.getLevelName(logging.WARN),
         metadata=field_metadata(
@@ -1301,7 +1306,10 @@ class AzurePlatform(Platform):
             assert identifier.error, f"HttpResponseError: {identifier}"
 
             error_message = "\n".join(self._parse_detail_errors(identifier.error))
-            if "OSProvisioningTimedOut: OS Provisioning for VM" in error_message:
+            if (
+                self._azure_runbook.ignore_provisioning_error
+                and "OSProvisioningTimedOut: OS Provisioning for VM" in error_message
+            ):
                 # Provisioning timeout causes by waagent is not ready.
                 # In smoke test, it still can verify some information.
                 # Eat information here, to run test case any way.
@@ -1312,7 +1320,9 @@ class AzurePlatform(Platform):
                     f"provisioning time out, try to run case. "
                     f"Exception: {error_message}"
                 )
-            elif get_matched_str(error_message, AZURE_INTERNAL_ERROR_PATTERN):
+            elif self._azure_runbook.ignore_provisioning_error and get_matched_str(
+                error_message, AZURE_INTERNAL_ERROR_PATTERN
+            ):
                 # Similar situation with OSProvisioningTimedOut
                 # Some OSProvisioningInternalError caused by it doesn't support
                 # SSH key authentication
