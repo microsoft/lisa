@@ -661,7 +661,7 @@ class DpdkTestpmd(Tool):
                 )
 
             if self._dpdk_source == "package_manager":
-                    return
+                return
             node.execute(
                 "pip3 install --upgrade meson",
                 cwd=cwd,
