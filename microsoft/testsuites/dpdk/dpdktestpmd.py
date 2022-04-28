@@ -587,7 +587,11 @@ class DpdkTestpmd(Tool):
         node = self.node
         ubuntu = node.os
         if not isinstance(ubuntu, Ubuntu):
-            return
+            fail(
+                "_install_ubuntu_dependencies was called on node "
+                f"which was not Ubuntu: {node.os.information.full_version}"
+            )
+            return  # appease the type checker
         ubuntu.add_repository("ppa:canonical-server/server-backports")
         if ubuntu.information.version < "18.4.0":
             raise SkippedException(
@@ -612,7 +616,11 @@ class DpdkTestpmd(Tool):
         node = self.node
         rhel = node.os
         if not isinstance(rhel, Redhat):
-            return
+            fail(
+                "_install_redhat_dependencies was called on node "
+                f"which was not Redhat: {node.os.information.full_version}"
+            )
+            return  # appease the type checker
         if rhel.information.version.major < 7:
             # SKIP for old unsupported versions.
             raise SkippedException("DPDK for Redhat < 7 is not supported by this test")
