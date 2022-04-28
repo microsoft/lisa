@@ -383,7 +383,7 @@ class Sriov(TestSuite):
             )
             if device_sg_settings.sg_fixed:
                 raise SkippedException(
-                    "scatter-gather is fixed can cannot be changed for device"
+                    "scatter-gather is fixed, it cannot be changed for device"
                     f" {client_nic_info.upper}. Skipping test."
                 )
             else:
