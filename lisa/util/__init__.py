@@ -540,3 +540,12 @@ def truncate_keep_prefix(content: str, kept_len: int, prefix: str = "lisa-") -> 
 def generate_random_chars(length: int = 20) -> str:
     candidates = string.ascii_letters + string.digits
     return "".join(random.choice(candidates) for _ in range(length))
+
+
+def strip_strs(object: Any, fields: List[str]) -> Any:
+    for field in fields:
+        if hasattr(object, field):
+            value = getattr(object, field)
+            value = value.strip() if isinstance(value, str) else value
+            setattr(object, field, value)
+    return object

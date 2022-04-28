@@ -27,7 +27,7 @@ from lisa.environment import Environment, load_environments
 from lisa.feature import Features
 from lisa.node import Node, RemoteNode
 from lisa.secret import PATTERN_HEADTAIL, add_secret
-from lisa.util import LisaException, constants, field_metadata
+from lisa.util import LisaException, constants, field_metadata, strip_strs
 from lisa.util.logger import Logger
 from lisa.util.parallel import check_cancelled
 from lisa.util.perf_timer import create_timer
@@ -136,6 +136,24 @@ class AzureNodeSchema:
     _marketplace: InitVar[Optional[AzureVmMarketplaceSchema]] = None
 
     _shared_gallery: InitVar[Optional[SharedImageGallerySchema]] = None
+
+    def __post_init__(self, *args: Any, **kwargs: Any) -> None:
+        # trim whitespace of values.
+        strip_strs(
+            self,
+            [
+                "name",
+                "short_name",
+                "vm_size",
+                "location",
+                "subscription_id",
+                "marketplace_raw",
+                "shared_gallery_raw",
+                "vhd",
+                "data_disk_caching_type",
+                "disk_type",
+            ],
+        )
 
     @property
     def marketplace(self) -> Optional[AzureVmMarketplaceSchema]:
