@@ -74,7 +74,7 @@ class Netperf(Tool):
     def _install_dep_packages(self) -> None:
         posix_os: Posix = cast(Posix, self.node.os)
         if isinstance(self.node.os, Redhat):
-            package_list = ["sysstat", "wget", "automake", "texinfo"]
+            package_list = ["sysstat", "wget", "automake", "texinfo", "gcc"]
         elif isinstance(self.node.os, Debian):
             package_list = ["sysstat", "automake", "texinfo"]
         elif isinstance(self.node.os, Suse):

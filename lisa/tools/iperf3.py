@@ -295,12 +295,8 @@ class Iperf3(Tool):
         environment: "Environment",
         test_case_name: str,
     ) -> NetworkTCPPerformanceMessage:
-        server_result_matched = self._json_pattern.match(server_result)
-        assert server_result_matched, "fail to find json format server results"
-        client_result_matched = self._json_pattern.match(client_result)
-        assert client_result_matched, "fail to find json format client results"
-        server_json = json.loads(server_result_matched.group("json"))
-        client_json = json.loads(client_result_matched.group("json"))
+        server_json = json.loads(self._pre_handle(server_result))
+        client_json = json.loads(self._pre_handle(client_result))
         congestion_windowsize_kb_total: Decimal = Decimal(0)
         for client_interval in client_json["intervals"]:
             streams = client_interval["streams"]
@@ -344,9 +340,7 @@ class Iperf3(Tool):
         for client_result_raw in client_result_list:
             # remove warning which will bring exception when load json
             # warning: UDP block size 8192 exceeds TCP MSS 1406, may result in fragmentation / drops # noqa: E501
-            client_result = json.loads(
-                client_result_raw.stdout[client_result_raw.stdout.index("{") :]
-            )
+            client_result = json.loads(self._pre_handle(client_result_raw.stdout))
             if (
                 "sum" in client_result["end"].keys()
                 and "lost_percent" in client_result["end"]["sum"].keys()
@@ -371,7 +365,7 @@ class Iperf3(Tool):
         server_intervals_throughput_list: List[Decimal] = []
         server_throughput_list: List[Decimal] = []
         for server_result_raw in server_result_list:
-            server_result = json.loads(server_result_raw.stdout)
+            server_result = json.loads(self._pre_handle(server_result_raw.stdout))
             if (
                 "sum" in server_result["end"].keys()
                 and "lost_percent" in server_result["end"]["sum"].keys()
@@ -442,3 +436,9 @@ class Iperf3(Tool):
         matched = pattern.match(result)
         assert matched, "fail to get bandwidth"
         return Decimal(matched.group("bandwidth"))
+
+    def _pre_handle(self, result: str) -> str:
+        result = result.replace("-nan", "0")
+        result_matched = self._json_pattern.match(result)
+        assert result_matched, "fail to find json format results"
+        return result_matched.group("json")
