@@ -21,7 +21,7 @@ from lisa.tools import Dmesg, Echo, Lsmod, Lspci, Modprobe, Mount
 from lisa.tools.mkfs import FileSystem
 from lisa.util import perf_timer
 from lisa.util.parallel import TaskManager, run_in_parallel, run_in_parallel_async
-from microsoft.testsuites.dpdk.dpdktestpmd import DpdkTestpmd
+from microsoft.testsuites.dpdk.dpdktestpmd import PACKAGE_MANAGER_SOURCE, DpdkTestpmd
 
 
 class DpdkTestResources:
@@ -184,7 +184,7 @@ def initialize_node_resources(
     pmd: str,
     sample_apps: Union[List[str], None] = None,
 ) -> DpdkTestResources:
-    dpdk_source = variables.get("dpdk_source", "package_manager")
+    dpdk_source = variables.get("dpdk_source", PACKAGE_MANAGER_SOURCE)
     dpdk_branch = variables.get("dpdk_branch", "")
     log.info(
         "Dpdk initialize_node_resources running"
