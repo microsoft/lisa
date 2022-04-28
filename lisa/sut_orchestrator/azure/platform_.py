@@ -56,6 +56,7 @@ from lisa.util import (
     get_public_key_data,
     plugin_manager,
     set_filtered_fields,
+    strip_strs,
     truncate_keep_prefix,
 )
 from lisa.util.logger import Logger
@@ -249,6 +250,20 @@ class AzurePlatformSchema:
     wait_delete: bool = False
 
     def __post_init__(self, *args: Any, **kwargs: Any) -> None:
+        strip_strs(
+            self,
+            [
+                "service_principal_tenant_id",
+                "service_principal_client_id",
+                "service_principal_key",
+                "subscription_id",
+                "shared_resource_group_name",
+                "resource_group_name",
+                "locations",
+                "log_level",
+            ],
+        )
+
         if self.service_principal_tenant_id:
             add_secret(self.service_principal_tenant_id, mask=PATTERN_GUID)
         if self.subscription_id:

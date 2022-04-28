@@ -18,7 +18,13 @@ from marshmallow import ValidationError, fields, validate
 
 from lisa import search_space
 from lisa.secret import PATTERN_HEADTAIL, add_secret
-from lisa.util import BaseClassMixin, LisaException, constants, field_metadata
+from lisa.util import (
+    BaseClassMixin,
+    LisaException,
+    constants,
+    field_metadata,
+    strip_strs,
+)
 
 """
 Schema is dealt with three components,
@@ -1132,6 +1138,9 @@ class Criteria:
         default=None,
         metadata=field_metadata(validate=ListableValidator(str), allow_none=True),
     )
+
+    def __post_init__(self, *args: Any, **kwargs: Any) -> None:
+        strip_strs(self, ["name", "area", "category", "tags"])
 
 
 @dataclass_json()
