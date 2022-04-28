@@ -438,6 +438,25 @@ class DeviceRxHashLevel:
         )
 
 
+class DeviceStatistics:
+    # NIC statistics:
+    #     tx_scattered: 0
+    #     tx_no_memory: 0
+    _statistics_pattern = re.compile(r"^\s+(?P<name>.*?)\: +?(?P<value>\d*?)\r?$")
+
+    def __init__(self, interface: str, device_statistics_raw: str) -> None:
+        self._parse_statistics_info(interface, device_statistics_raw)
+
+    def _parse_statistics_info(self, interface: str, raw_str: str) -> None:
+        statistics: Dict[str, int] = {}
+
+        items = find_groups_in_lines(raw_str, self._statistics_pattern)
+        statistics = {x["name"]: int(x["value"]) for x in items}
+
+        self.interface = interface
+        self.counters = statistics
+
+
 @dataclass
 class DeviceSettings:
     interface: str
@@ -451,15 +470,10 @@ class DeviceSettings:
     device_rx_hash_level: Optional[DeviceRxHashLevel] = None
     device_sg_settings: Optional[DeviceSgSettings] = None
     device_firmware_version: Optional[str] = None
-    statistics: Optional[Dict[str, int]] = None
+    device_statistics: Optional[DeviceStatistics] = None
 
 
 class Ethtool(Tool):
-    # NIC statistics:
-    #     tx_scattered: 0
-    #     tx_no_memory: 0
-    _statistics_pattern = re.compile(r"^\s+(?P<name>.*?)\: +?(?P<value>\d*?)\r?$")
-
     # ethtool -i eth0
     #   driver: hv_netvsc
     #   version:
@@ -854,12 +868,11 @@ class Ethtool(Tool):
 
     def get_device_statistics(
         self, interface: str, force_run: bool = False
-    ) -> Dict[str, int]:
+    ) -> DeviceStatistics:
         device = self._get_or_create_device_setting(interface)
-        if not force_run and device.statistics:
-            return device.statistics
+        if not force_run and device.device_statistics:
+            return device.device_statistics
 
-        statistics: Dict[str, int] = {}
         result = self.run(f"-S {interface}", force_run=True)
         if (result.exit_code != 0) and (
             "Operation not supported" in result.stdout
@@ -870,11 +883,8 @@ class Ethtool(Tool):
             )
         result.assert_exit_code(message=f"Couldn't get device {interface} statistics.")
 
-        items = find_groups_in_lines(result.stdout, self._statistics_pattern)
-        statistics = {x["name"]: int(x["value"]) for x in items}
-
-        device.statistics = statistics
-        return statistics
+        device.device_statistics = DeviceStatistics(interface, result.stdout)
+        return device.device_statistics
 
     def get_device_statistics_delta(
         self, interface: str, previous_statistics: Dict[str, int]
@@ -882,7 +892,9 @@ class Ethtool(Tool):
         """
         use this method to get the delta of an operation.
         """
-        new_statistics = self.get_device_statistics(interface=interface, force_run=True)
+        new_statistics = self.get_device_statistics(
+            interface=interface, force_run=True
+        ).counters
 
         for key, value in previous_statistics.items():
             new_statistics[key] = new_statistics.get(key, 0) - value
@@ -990,7 +1002,7 @@ class Ethtool(Tool):
 
         return devices_rx_hash_level
 
-    def get_all_device_statistics(self) -> List[Dict[str, int]]:
+    def get_all_device_statistics(self) -> List[DeviceStatistics]:
         devices_statistics = []
         devices = self.get_device_list()
         for device in devices:
