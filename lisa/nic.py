@@ -70,11 +70,17 @@ class Nics(InitializableMixin):
     4: enP13530s1: <BROADCAST,MULTICAST,SLAVE,UP,LOWER_UP> mtu 1500 ...
         qdisc mq master eth0 state UP group default qlen 1000
         link/ether 00:22:48:79:6c:c2 brd ff:ff:ff:ff:ff:ff
+    6: ib0: <BROADCAST,MULTICAST,UP,LOWER_UP> mtu 2044 qdisc mq state UP ...
+        link/infiniband 00:00:09:27:fe:80:00:00:00:00:00:00:00:15:5d:...
+        inet 172.16.1.118/16 brd 172.16.255.255 scope global ib0
+            valid_lft forever preferred_lft forever
+        inet6 fe80::215:5dff:fd33:ff7f/64 scope link
+            valid_lft forever preferred_lft forever
     """
     __ip_addr_show_regex = re.compile(
         (
             r"\d+: (?P<name>\w+): \<.+\> .+\n\s+"
-            r"link\/ether (?P<mac>[0-9a-z:]+) .+\n?"
+            r"link\/(?:ether|infiniband) (?P<mac>[0-9a-z:]+) .+\n?"
             r"(?:\s+inet (?P<ip_addr>[\d.]+)\/.*\n)?"
         )
     )
