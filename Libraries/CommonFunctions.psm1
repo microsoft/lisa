@@ -109,6 +109,9 @@ Function Select-TestCases($TestXMLs, $TestCategory, $TestArea, $TestNames, $Test
     }
     if ($ExcludeTests) {
         $excludedTestsArray = @($ExcludeTests.Trim(', ').Split(',').Trim())
+        $excludedCaseLog = "ExcludedCases.log"
+        $null = New-Item -Path $LogDir -Name $excludedCaseLog -ItemType "file"
+        $excludedCaseLogPath = Join-Path -Path $LogDir -ChildPath $excludedCaseLog
     }
 
     # Filter test cases based on the criteria
@@ -178,10 +181,12 @@ Function Select-TestCases($TestXMLs, $TestCategory, $TestArea, $TestNames, $Test
                         }
                         if ($test.TestName -imatch $TestString) {
                             Write-LogInfo "Excluded Test  : $($test.TestName) [Wildcards match]"
+                            $null = Add-Content -Path $excludedCaseLogPath -Value "$($test.TestName) [Wildcards match]"
                             $ExcludeTestMatched = $true
                         }
                     } elseif ($TestString -eq $test.TestName) {
                         Write-LogInfo "Excluded Test  : $($test.TestName) [Exact match]"
+                        $null = Add-Content -Path $excludedCaseLogPath -Value "$($test.TestName) [Exact match]"
                         $ExcludeTestMatched = $true
                     }
                 }
