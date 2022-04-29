@@ -358,6 +358,7 @@ class XdpFunctional(TestSuite):
             # disable VF
             nic_feature.switch_sriov(False)
 
+            default_nic = node.nics.get_nic_by_index(0)
             # validate xdp works with synthetic
             original_count = get_dropped_count(
                 node=node,
@@ -385,6 +386,7 @@ class XdpFunctional(TestSuite):
             # enable VF and validate xdp works with VF again
             nic_feature.switch_sriov(True)
 
+            default_nic = node.nics.get_nic_by_index(0)
             original_count = get_dropped_count(
                 node=node,
                 nic=default_nic,
