@@ -112,6 +112,10 @@ class Xfstesting(TestSuite):
     EXCLUDED_TESTS = (
         "generic/211 generic/430 generic/431 generic/434 /xfs/438 xfs/490"
         + " btrfs/007 btrfs/178 btrfs/244"
+        + " xfs/030 xfs/032 xfs/050 xfs/052 xfs/106 xfs/107 xfs/122 xfs/132 xfs/138"
+        + " xfs/144 xfs/148 xfs/175 xfs/191-input-validation xfs/289 xfs/293 xfs/424"
+        + " xfs/432 xfs/500 xfs/508 xfs/512 xfs/514 xfs/515 xfs/516 xfs/518 xfs/521"
+        + " xfs/528 xfs/544"
     )
 
     @TestCaseMetadata(
@@ -403,6 +407,7 @@ class Xfstesting(TestSuite):
                 test_dev=fs_url_dict[file_share_name],
                 scratch_dev=fs_url_dict[scratch_name],
                 excluded_tests=self.EXCLUDED_TESTS,
+                mount_opts=_mount_opts,
             )
         finally:
             # clean up resources after testing.
@@ -434,6 +439,7 @@ class Xfstesting(TestSuite):
         file_system: FileSystem = FileSystem.xfs,
         test_type: str = "generic",
         excluded_tests: str = "",
+        mount_opts: str = "",
     ) -> None:
         # TODO: will include generic/641 once the kernel contains below fix.
         # exclude this case generic/641 temporarily
@@ -476,7 +482,7 @@ class Xfstesting(TestSuite):
             test_dev,
             _test_folder,
             test_type,
-            _mount_opts,
+            mount_opts,
         )
         xfstests.set_excluded_tests(excluded_tests)
         cmd_results = node.execute(

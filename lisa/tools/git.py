@@ -23,6 +23,9 @@ class Git(Tool):
         r"and is not an empty directory.",
         re.M,
     )
+    CERTIFICATE_ISSUE_PATTERN = re.compile(
+        r"server certificate verification failed", re.M
+    )
 
     @property
     def command(self) -> str:
@@ -57,6 +60,9 @@ class Git(Tool):
         cmd = f"clone {url} {dir_name} --recurse-submodules"
         # git print to stderr for normal info, so set no_error_log to True.
         result = self.run(cmd, cwd=cwd, no_error_log=True)
+        if get_matched_str(result.stdout, self.CERTIFICATE_ISSUE_PATTERN):
+            self.run("config --global http.sslverify false")
+            result = self.run(cmd, cwd=cwd, no_error_log=True, force_run=True)
         if result.exit_code == 0:
             output = result.stderr
             if not output:
