@@ -21,6 +21,7 @@ from azure.mgmt.compute.models import (  # type: ignore
 )
 from dataclasses_json import dataclass_json
 from PIL import Image, UnidentifiedImageError
+from retry import retry
 
 from lisa import Environment, Logger, features, schema, search_space
 from lisa.features import NvmeSettings
@@ -260,18 +261,6 @@ class NetworkInterface(AzureFeatureMixin, features.NetworkInterface):
         super()._initialize(*args, **kwargs)
         self._initialize_information(self._node)
 
-    def _get_primary(
-        self, nics: List[NetworkInterfaceReference]
-    ) -> NetworkInterfaceReference:
-        found_primary = False
-        for nic in nics:
-            if nic.primary:
-                found_primary = True
-                break
-        if not found_primary:
-            raise LisaException(f"fail to find primary nic for vm {self._node.name}")
-        return nic
-
     def switch_sriov(self, enable: bool) -> None:
         azure_platform: AzurePlatform = self._platform  # type: ignore
         network_client = get_network_client(azure_platform)
@@ -307,7 +296,9 @@ class NetworkInterface(AzureFeatureMixin, features.NetworkInterface):
                     f"fail to set network interface {nic_name}'s accelerated "
                     f"networking into status [{enable}]"
                 ).is_equal_to(enable)
-        self._node.nics.reload()
+
+        # wait settings effective
+        self._check_sriov_enabled(enable)
 
     def is_enabled_sriov(self) -> bool:
         azure_platform: AzurePlatform = self._platform  # type: ignore
@@ -429,6 +420,32 @@ class NetworkInterface(AzureFeatureMixin, features.NetworkInterface):
     def reload_module(self) -> None:
         modprobe_tool = self._node.tools[Modprobe]
         modprobe_tool.reload(["hv_netvsc"])
+
+    @retry(tries=60, delay=2)
+    def _check_sriov_enabled(self, enabled: bool) -> None:
+        self._node.nics.reload()
+
+        default_nic = self._node.nics.get_nic_by_index(0)
+
+        if enabled and not default_nic.lower:
+            raise LisaException("SRIOV is enabled, but VF is not found.")
+        elif not enabled and default_nic.lower:
+            raise LisaException("SRIOV is disabled, but VF exists.")
+        else:
+            # the enabled flag is consistent with VF presents.
+            ...
+
+    def _get_primary(
+        self, nics: List[NetworkInterfaceReference]
+    ) -> NetworkInterfaceReference:
+        found_primary = False
+        for nic in nics:
+            if nic.primary:
+                found_primary = True
+                break
+        if not found_primary:
+            raise LisaException(f"fail to find primary nic for vm {self._node.name}")
+        return nic
 
 
 class Nvme(AzureFeatureMixin, features.Nvme):
