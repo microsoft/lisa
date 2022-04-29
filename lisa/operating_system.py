@@ -695,6 +695,7 @@ class Debian(Linux):
 
         return repositories
 
+    @retry(tries=10, delay=5)
     def add_repository(
         self,
         repo: str,
