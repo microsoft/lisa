@@ -231,7 +231,7 @@ class Nics(InitializableMixin):
         self._initialize()
 
     def _initialize(self, *args: Any, **kwargs: Any) -> None:
-        self._node.log.debug("reloading nic information...")
+        self._node.log.debug("loading nic information...")
         self.nic_names = self._get_nic_names()
         self._get_node_nic_info()
         self._get_default_nic()
