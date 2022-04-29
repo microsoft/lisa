@@ -5,6 +5,8 @@ import time
 from dataclasses import dataclass
 from typing import List, Pattern
 
+from retry import retry
+
 from lisa.executable import Tool
 from lisa.util import find_groups_in_lines
 from lisa.util.process import Process
@@ -56,6 +58,9 @@ class TcpDump(Tool):
         process = self.node.execute_async(cmd=command, shell=True, sudo=True)
         return process
 
+    # It may be called too fast, and the capture file may not be ready.
+    # Use retry to wait it completed.
+    @retry(tries=3, delay=1)
     def parse(self, packet_filename: str = "tcp_dump.pcap") -> List[IpPacket]:
         full_name = self.get_tool_path() / packet_filename
         # -n not resolve address to domain name.
