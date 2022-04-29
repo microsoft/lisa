@@ -56,9 +56,15 @@ class NetworkSettings(TestSuite):
     #  {'name': 'rx_queue_1_bytes', 'value': '1415269'},
     #  {'name': 'rx_queue_1_xdp_drop', 'value': '0'},
     #  {'name': 'tx_queue_2_packets', 'value': '0'},]
+    #  {'name': 'cpu0_vf_rx_packets', 'value': '0'},]
+    #  {'name': 'cpu0_vf_rx_bytes', 'value': '0'},]
+    #  {'name': 'cpu0_vf_tx_packets', 'value': '0'},]
+    #  {'name': 'cpu0_vf_tx_bytes', 'value': '0'},]
     _queue_stats_regex = re.compile(r"[tr]x_queue_(?P<name>[\d]+)_packets")
     _tx_queue_stats_regex = re.compile(r"tx_queue_(?P<name>[\d]+)_packets")
     _rx_queue_stats_regex = re.compile(r"rx_queue_(?P<name>[\d]+)_packets")
+    _tx_vf_queue_stats_regex = re.compile(r"cpu(?P<name>[\d]+)_vf_tx_packets")
+    _rx_vf_queue_stats_regex = re.compile(r"cpu(?P<name>[\d]+)_vf_rx_packets")
 
     @TestCaseMetadata(
         description="""
@@ -557,7 +563,7 @@ class NetworkSettings(TestSuite):
         for device_stats in devices_statistics:
             per_queue_packets = {
                 k: v
-                for (k, v) in device_stats.items()
+                for (k, v) in device_stats.counters.items()
                 if self._queue_stats_regex.search(k)
             }
 
@@ -590,39 +596,59 @@ class NetworkSettings(TestSuite):
             raise SkippedException(identifier)
 
         for device_stats in devices_statistics:
-            per_tx_queue_packets = [
-                v
-                for (k, v) in device_stats.items()
-                if self._tx_queue_stats_regex.search(k)
-            ]
+            per_tx_queue_packets: List[int] = []
+            per_rx_queue_packets: List[int] = []
+            an_enabled = False
+            nic = client_node.nics.get_nic(device_stats.interface)
+            # check if AN is enabled on this interface
+            if nic.lower:
+                an_enabled = True
 
-            # No queue should receive/transmit 30% more packets than other queues
-            # If it does, failure should be reported
-            min_tx_queue_packets = min(per_tx_queue_packets)
-            # Avoid divide by 0 scenario while checking traffic spread among queues
-            if min_tx_queue_packets == 0:
-                min_tx_queue_packets = 1
-            max_tx_queue_packets = max(per_tx_queue_packets)
+            if an_enabled:
+                per_tx_queue_packets = [
+                    v
+                    for (k, v) in device_stats.counters.items()
+                    if self._tx_vf_queue_stats_regex.search(k)
+                ]
+            else:
+                per_tx_queue_packets = [
+                    v
+                    for (k, v) in device_stats.counters.items()
+                    if self._tx_queue_stats_regex.search(k)
+                ]
+
+            avg_tx_queue_packets = sum(per_tx_queue_packets) / len(per_tx_queue_packets)
+            per_tx_queue_pkt_percent: List[float] = []
+            for packet_count in per_tx_queue_packets:
+                per_tx_queue_pkt_percent.append(packet_count / avg_tx_queue_packets)
+
             assert_that(
-                ((max_tx_queue_packets - min_tx_queue_packets) / min_tx_queue_packets),
+                (max(per_tx_queue_pkt_percent) - min(per_tx_queue_pkt_percent)),
                 "Statistics show traffic is not evenly distributed among tx queues",
-            ).is_less_than_or_equal_to(0.3)
+            ).is_less_than_or_equal_to(0.5)
 
-            per_rx_queue_packets = [
-                v
-                for (k, v) in device_stats.items()
-                if self._rx_queue_stats_regex.search(k)
-            ]
+            if an_enabled:
+                per_rx_queue_packets = [
+                    v
+                    for (k, v) in device_stats.counters.items()
+                    if self._rx_vf_queue_stats_regex.search(k)
+                ]
+            else:
+                per_rx_queue_packets = [
+                    v
+                    for (k, v) in device_stats.counters.items()
+                    if self._rx_queue_stats_regex.search(k)
+                ]
 
-            min_rx_queue_packets = min(per_rx_queue_packets)
-            # Avoid divide by 0 scenario while checking traffic spread among queues
-            if min_rx_queue_packets == 0:
-                min_rx_queue_packets = 1
-            max_rx_queue_packets = max(per_rx_queue_packets)
+            avg_rx_queue_packets = sum(per_rx_queue_packets) / len(per_rx_queue_packets)
+            per_rx_queue_pkt_percent: List[float] = []
+            for packet_count in per_rx_queue_packets:
+                per_rx_queue_pkt_percent.append(packet_count / avg_rx_queue_packets)
+
             assert_that(
-                ((max_rx_queue_packets - min_rx_queue_packets) / min_rx_queue_packets),
+                (max(per_rx_queue_pkt_percent) - min(per_rx_queue_pkt_percent)),
                 "Statistics show traffic is not evenly distributed among rx queues",
-            ).is_less_than_or_equal_to(0.3)
+            ).is_less_than_or_equal_to(0.5)
 
     def after_case(self, log: Logger, **kwargs: Any) -> None:
         environment: Environment = kwargs.pop("environment")
