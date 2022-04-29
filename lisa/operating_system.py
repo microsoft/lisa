@@ -608,8 +608,8 @@ class Debian(Linux):
     #         500 http://azure.archive.ubuntu.com/ubuntu bionic/universe amd64 Packages # noqa: E501
     # apt-cache policy test
     # N: Unable to locate package test
-    _package_existed_in_repo_pattern = re.compile(
-        r"([\w\W]*?)Candidate: ((?!none)).*", re.M
+    _package_candidate_pattern = re.compile(
+        r"([\w\W]*?)(Candidate: \(none\)|Unable to locate package.*)", re.M
     )
 
     @classmethod
@@ -792,10 +792,10 @@ class Debian(Linux):
     def _is_package_in_repo(self, package: str) -> bool:
         command = f"apt-cache policy {package}"
         result = self._node.execute(command, sudo=True, shell=True)
-        matched = get_matched_str(result.stdout, self._package_existed_in_repo_pattern)
+        matched = get_matched_str(result.stdout, self._package_candidate_pattern)
         if matched:
-            return True
-        return False
+            return False
+        return True
 
     def _get_information(self) -> OsInformation:
         # try to set version info from /etc/os-release.
