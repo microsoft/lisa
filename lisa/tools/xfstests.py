@@ -53,6 +53,7 @@ class Xfstests(Tool):
         "xfslibs-dev",
         "zlib1g-dev",
         "btrfs-tools",
+        "btrfs-progs",
     ]
     fedora_dep = [
         "libtool",
