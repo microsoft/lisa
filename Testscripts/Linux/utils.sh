@@ -2381,6 +2381,10 @@ function add_sles_benchmark_repo () {
 	IFS='- ' read -r -a array <<< "$VERSION"
 	repo_url="https://download.opensuse.org/repositories/benchmark/SLE_${array[0]}_${array[1]}/benchmark.repo"
 	wget $repo_url -O /dev/null -o /dev/null
+	if [ $? -ne 0 ]; then
+		repo_url="https://download.opensuse.org/repositories/benchmark/${array[0]}.${array[1]}/benchmark.repo"
+		wget $repo_url -O /dev/null -o /dev/null
+	fi
 	# if no judgement for repo url not existing, the script will hung when execute zypper --no-gpg-checks refresh
 	if [ $? -eq 0 ]; then
 		LogMsg "add_sles_benchmark_repo - $repo_url"
@@ -2597,7 +2601,8 @@ function install_iperf3 () {
 		sles|sle_hpc)
 			if [[ $DISTRO_VERSION =~ 12|15 ]]; then
 				add_sles_network_utilities_repo
-				zypper --no-gpg-checks --non-interactive --gpg-auto-import-keys install sysstat git bc make gcc psmisc iperf
+				zypper --no-gpg-checks --non-interactive --gpg-auto-import-keys install sysstat bc make gcc psmisc iperf
+				install_git
 			else
 				LogErr "Unsupported SLES version"
 				return 1
@@ -2686,6 +2691,33 @@ function build_lagscope () {
 	fi
 }
 
+function install_git () {
+	which git
+	if [ $? -eq 0 ]; then
+		return
+	fi
+	check_package git-core
+	if [ $? -eq 0 ]; then
+		install_package git-core
+	fi
+	which git
+	if [ $? -eq 0 ]; then
+		return
+	fi
+	check_package git
+	if [ $? -eq 0 ]; then
+		install_package git
+	fi
+	which git
+	if [ $? -eq 0 ]; then
+		return
+	else
+		LogErr "fail to install git"
+		SetTestStateAborted
+		exit 1
+	fi
+}
+
 # Install lagscope and required packages
 function install_lagscope () {
 	LogMsg "Detected $DISTRO_NAME $DISTRO_VERSION; installing required packages of lagscope"
@@ -2693,7 +2725,8 @@ function install_lagscope () {
 	case "$DISTRO_NAME" in
 		oracle|rhel|centos|almalinux|rockylinux)
 			install_epel
-			yum -y --nogpgcheck install libaio sysstat git bc make gcc wget cmake libarchive
+			install_git
+			yum -y --nogpgcheck install libaio sysstat bc make gcc wget cmake libarchive
 			build_lagscope "${1}"
 			export PATH=$PATH:/usr/local/bin
 			iptables -F
@@ -2701,21 +2734,24 @@ function install_lagscope () {
 			;;
 
 		mariner)
-			yum -y --nogpgcheck install libaio sysstat git bc make gcc wget cmake kernel-headers binutils glibc-devel zlib-devel
+			install_git
+			yum -y --nogpgcheck install libaio sysstat bc make gcc wget cmake kernel-headers binutils glibc-devel zlib-devel
 			build_lagscope "${1}"
 			iptables -F
 			;;
 
 		ubuntu|debian)
 			dpkg_configure
-			install_package "libaio1 sysstat git bc make gcc cmake"
+			install_git
+			install_package "libaio1 sysstat bc make gcc cmake"
 			build_lagscope "${1}"
 			;;
 
 		sles|sle_hpc)
 			if [[ $DISTRO_VERSION =~ 12|15 ]]; then
 				add_sles_network_utilities_repo
-				zypper --no-gpg-checks --non-interactive --gpg-auto-import-keys install sysstat git bc make gcc dstat psmisc cmake
+				zypper --no-gpg-checks --non-interactive --gpg-auto-import-keys install sysstat bc make gcc dstat psmisc cmake
+				install_git
 				build_lagscope "${1}"
 				iptables -F
 			else
@@ -2773,7 +2809,8 @@ function install_ntttcp () {
 	case "$DISTRO_NAME" in
 		oracle|rhel|centos|almalinux|rockylinux)
 			install_epel
-			yum -y --nogpgcheck install wget libaio sysstat git bc make gcc dstat psmisc lshw cmake
+			install_git
+			yum -y --nogpgcheck install wget libaio sysstat bc make gcc dstat psmisc lshw cmake
 			build_ntttcp "${1}"
 			build_lagscope "${2}"
 			export PATH=$PATH:/usr/local/bin
@@ -2781,7 +2818,8 @@ function install_ntttcp () {
 			;;
 
 		mariner)
-			yum -y --nogpgcheck install wget libaio sysstat git bc make gcc dstat psmisc lshw cmake kernel-headers binutils glibc-devel zlib-devel
+			install_git
+			yum -y --nogpgcheck install wget libaio sysstat bc make gcc dstat psmisc lshw cmake kernel-headers binutils glibc-devel zlib-devel
 			build_ntttcp "${1}"
 			build_lagscope "${2}"
 			iptables -F
@@ -2789,7 +2827,8 @@ function install_ntttcp () {
 
 		ubuntu|debian)
 			dpkg_configure
-			install_package "wget libaio1 sysstat git bc make gcc dstat psmisc lshw cmake"
+			install_package "wget libaio1 sysstat bc make gcc dstat psmisc lshw cmake"
+			install_git
 			build_ntttcp "${1}"
 			build_lagscope "${2}"
 			;;
@@ -2797,7 +2836,8 @@ function install_ntttcp () {
 		sles|sle_hpc)
 			if [[ $DISTRO_VERSION =~ 12|15 ]]; then
 				add_sles_network_utilities_repo
-				zypper --no-gpg-checks --non-interactive --gpg-auto-import-keys install wget sysstat git bc make gcc dstat psmisc lshw cmake
+				install_git
+				zypper --no-gpg-checks --non-interactive --gpg-auto-import-keys install wget sysstat bc make gcc dstat psmisc lshw cmake
 				build_ntttcp "${1}"
 				build_lagscope "${2}"
 				iptables -F
@@ -2877,22 +2917,25 @@ function install_memcached () {
 		oracle|rhel|centos|almalinux|rockylinux)
 			install_epel
 			yum clean dbcache
-			yum -y --nogpgcheck install git sysstat zip memcached libmemcached dstat openssl-devel autoconf automake \
+			install_git
+			yum -y --nogpgcheck install sysstat zip memcached libmemcached dstat openssl-devel autoconf automake \
 			make gcc-c++ pcre-devel libevent-devel pkgconfig zlib-devel
 			export PATH=$PATH:/usr/local/bin
 			;;
 
 		ubuntu|debian)
 			dpkg_configure
-			install_package "git libaio1 sysstat zip memcached libmemcached-tools libssl-dev build-essential autoconf automake libpcre3-dev libevent-dev pkg-config zlib1g-dev"
+			install_package "libaio1 sysstat zip memcached libmemcached-tools libssl-dev build-essential autoconf automake libpcre3-dev libevent-dev pkg-config zlib1g-dev"
+			install_git
 			;;
 
 		sles|suse)
 			if [[ $DISTRO_VERSION =~ 12|15 ]]; then
 				add_sles_network_utilities_repo
-				zypper --no-gpg-checks --non-interactive --gpg-auto-import-keys install git libaio1 dstat sysstat zip \
+				zypper --no-gpg-checks --non-interactive --gpg-auto-import-keys install libaio1 dstat sysstat zip \
 				memcached libmemcached openssl-devel autoconf automake pcre-devel libevent-devel pkg-config zlib-devel \
 				make gcc-c++
+				install_git
 			else
 				LogErr "Unsupported SLES version"
 				return 1
@@ -2915,16 +2958,18 @@ function install_mariadb() {
 	case "$DISTRO_NAME" in
 		oracle|rhel|centos|almalinux|rockylinux)
 			install_epel
-			install_package "make git sysstat gcc automake openssl-devel libtool wget \
+			install_package "make sysstat gcc automake openssl-devel libtool wget \
 							mariadb mariadb-devel mariadb-server"
+			install_git
 			;;
 		ubuntu|debian)
 			dpkg_configure
+			install_git
 			DEBIAN_FRONTEND=noninteractive apt-get install -y make sysstat mysql-client*
-			DEBIAN_FRONTEND=noninteractive apt-get install -y mariadb-server pkg-config git automake libtool libmysqlclient-dev -o Acquire::ForceIPv4=true
+			DEBIAN_FRONTEND=noninteractive apt-get install -y mariadb-server pkg-config automake libtool libmysqlclient-dev -o Acquire::ForceIPv4=true
 			exit_status=$?
 			message="Install MariaDB test dependency packages"
-			if [ $exit_status -ne 0 ]; then				
+			if [ $exit_status -ne 0 ]; then
 				echo "$message faild (exit code: $exit_status)"
 				UpdateSummary "$message faild (exit code: $exit_status)"
 				SetTestStateAborted
@@ -4069,7 +4114,8 @@ function install_mdadm() {
 		LogMsg "mdadm not installed\n Installing now..."
 		check_package "mdadm"
 		if [ $? -ne 0 ]; then
-			install_package "git make"
+			install_package make
+			install_git
 			LogMsg "mdadm not installed\n Build it from source code now..."
 			git clone https://github.com/neilbrown/mdadm
 			cd mdadm

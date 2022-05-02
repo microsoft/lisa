@@ -78,7 +78,7 @@ function install_dependencies() {
     case $DISTRO in
         ubuntu* | debian*)
             CheckInstallLockUbuntu
-            deb_packages=(make git gcc flex bison clang llvm fuse gcc-multilib libfuse2 \
+            deb_packages=(make gcc flex bison clang llvm fuse gcc-multilib libfuse2 \
                         libc6-i386 libc6-dev-i386 libelf-dev libcap-ng-dev libfuse-dev \
                         libpopt-dev libnuma-dev libmount-dev libcap-dev build-essential \
                         pkg-config bc rsync)
@@ -86,7 +86,7 @@ function install_dependencies() {
             install_package "${deb_packages[@]}" >> $BUILDING_LOG 2>&1
             ;;
         centos_7 | centos_8 | redhat_7 | redhat_8)
-            rpm_packages=(make git gcc flex bison clang llvm fuse libcap-ng-devel popt-devel \
+            rpm_packages=(make gcc flex bison clang llvm fuse libcap-ng-devel popt-devel \
                         libcap-devel glibc-devel.*i686 fuse-devel elfutils-devel \
                         numactl-devel glibc-devel)
             if [[ $DISTRO != centos_8 ]]; then
@@ -97,14 +97,14 @@ function install_dependencies() {
             install_package "${rpm_packages[@]}" >> $BUILDING_LOG 2>&1
             ;;
         suse*)
-            suse_packages=(make git gcc flex bison fuse libcap-ng-devel fuse-devel popt-devel \
+            suse_packages=(make gcc flex bison fuse libcap-ng-devel fuse-devel popt-devel \
                          numactl libnuma-devel libmount-devel libcap-devel libcap-progs \
                          glibc-devel libelf-devel glibc-static)
             LogMsg "Dependency package names： ${suse_packages[@]}"
             install_package "${suse_packages[@]}" >> $BUILDING_LOG 2>&1
             ;;
          mariner)
-            rpm_packages=(make git gcc flex bison clang llvm fuse libcap-ng-devel popt-devel \
+            rpm_packages=(make gcc flex bison clang llvm fuse libcap-ng-devel popt-devel \
                         libcap-devel fuse-devel elfutils-devel numactl glibc-devel build-essential \
                         rsync)
             LogMsg "Dependency package name: ${rpm_packages[@]}"
@@ -115,6 +115,7 @@ function install_dependencies() {
             return 1
             ;;
     esac
+    install_git
 }
 
 function download_custom_kernel() {

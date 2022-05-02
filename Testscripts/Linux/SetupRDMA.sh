@@ -57,7 +57,9 @@ function Upgrade_waagent {
 	LogMsg "Starting waagent upgrade"
 	ln -s /usr/bin/python3 /usr/bin/python
 	if [[ $DISTRO =~ "suse" ]] || [[ $DISTRO =~  "sles" ]]; then
-		# add net-tools-deprecated package to work around https://github.com/Azure/WALinuxAgent/issues/1712
+		# add net-tools-deprecated package to work around
+		# https://github.com/Azure/WALinuxAgent/issues/1712
+		add_sles_network_utilities_repo
 		check_package "net-tools-deprecated"
 			if [ $? -eq 0 ]; then
 				install_package net-tools-deprecated
@@ -108,8 +110,9 @@ function Main() {
 	LogMsg "Starting RDMA required packages and software setup in VM"
 	update_repos
 	# Install common packages
-	install_package "gcc git make zip python3"
-	LogMsg "Installed the common required packages, gcc git make zip"
+	install_git
+	install_package "gcc make zip python3"
+	LogMsg "Installed the common required packages, gcc make zip"
 	# Change memory limits
 	echo "* soft memlock unlimited" >> /etc/security/limits.conf
 	echo "* hard memlock unlimited" >> /etc/security/limits.conf
