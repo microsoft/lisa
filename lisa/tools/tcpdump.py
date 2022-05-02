@@ -70,6 +70,7 @@ class TcpDump(Tool):
             expected_exit_code=0,
             expected_exit_code_failure_message=f"error on parse packet file: "
             f"{packet_filename}",
+            force_run=True,
         ).stdout
         packets: List[IpPacket] = []
         results = find_groups_in_lines(output, self._information_pattern)
