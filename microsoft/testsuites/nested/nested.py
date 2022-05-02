@@ -79,7 +79,7 @@ class Nested(TestSuite):
         node.tools[Sshpass].copy(
             NESTED_VM_TEST_FILE_NAME,
             NESTED_VM_TEST_FILE_NAME,
-            node.public_address,
+            "localhost",
             nested_image_username,
             nested_image_password,
             nested_image_port,
