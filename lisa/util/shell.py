@@ -181,10 +181,13 @@ def try_connect(connection_info: ConnectionInfo, ssh_timeout: int = 300) -> Any:
             return stdout
         except SSHException as e:
             # socket is open, but SSH service not responded
-            if str(e) == "Error reading SSH protocol banner":
+            if (
+                str(e) == "Error reading SSH protocol banner"
+                or str(e) == "SSH session not active"
+            ):
                 sleep(1)
                 continue
-        except (NoValidConnectionsError, ConnectionResetError):
+        except (NoValidConnectionsError, ConnectionResetError, TimeoutError):
             # ssh service is not ready
             sleep(1)
             continue
