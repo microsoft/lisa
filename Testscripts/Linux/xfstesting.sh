@@ -61,7 +61,8 @@ ConfigureXFSTestTools() {
     # Install common & specific dependencies
     update_repos
     install_fio
-    pack_list+=(acl attr automake bc cifs-utils dos2unix dump e2fsprogs gawk gcc git libtool lvm2 make parted quota sed xfsdump xfsprogs indent python)
+    install_git
+    pack_list+=(acl attr automake bc cifs-utils dos2unix dump e2fsprogs gawk gcc libtool lvm2 make parted quota sed xfsdump xfsprogs indent python)
     for package in "${pack_list[@]}"; do
         check_package "$package"
         if [ $? -eq 0 ]; then

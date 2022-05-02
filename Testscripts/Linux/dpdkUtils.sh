@@ -141,7 +141,7 @@ function Install_Dpdk_Dependencies() {
 
 	elif [[ "${distro}" =~ sles15* ]]; then
 		local kernel=$(uname -r)
-		dependencies_install_command="zypper --no-gpg-checks --non-interactive --gpg-auto-import-keys install gcc make git tar wget dos2unix psmisc libnuma-devel numactl librdmacm1 rdma-core-devel libmnl-devel meson"
+		dependencies_install_command="zypper --no-gpg-checks --non-interactive --gpg-auto-import-keys install gcc make tar wget dos2unix psmisc libnuma-devel numactl librdmacm1 rdma-core-devel libmnl-devel meson"
 		if [[ "${kernel}" == *azure ]]; then
 			ssh "${install_ip}" "zypper install --oldpackage -y kernel-azure-devel=${kernel::-6}"
 			dependencies_install_command="${dependencies_install_command} kernel-devel-azure"
@@ -150,6 +150,8 @@ function Install_Dpdk_Dependencies() {
 		fi
 
 		ssh "${install_ip}" "${dependencies_install_command}"
+		ssh "${install_ip}" "zypper --no-gpg-checks --non-interactive --gpg-auto-import-keys install git"
+		ssh "${install_ip}" "zypper --no-gpg-checks --non-interactive --gpg-auto-import-keys install git-core"
 		ssh "${install_ip}" "ln -sf /usr/include/libmnl/libmnl/libmnl.h /usr/include/libmnl/libmnl.h"
 	else
 		LogErr "ERROR: unsupported distro ${distro} for DPDK on Azure"
@@ -175,7 +177,7 @@ function Install_Dpdk () {
 	DPDK_DIR="dpdk"
 	SetTestStateRunning
 	LogMsg "Configuring ${1} ${DISTRO_NAME} ${DISTRO_VERSION} for DPDK test..."
-	packages=(gcc make git tar wget dos2unix psmisc)
+	packages=(gcc make tar wget dos2unix psmisc)
 	case "${DISTRO_NAME}" in
 		oracle|rhel|centos|almalinux|rockylinux)
 			if ! ([ "${DISTRO_NAME}" = "rhel" ] && [[ ${DISTRO_VERSION} == *"8."* ]]) ;then
@@ -269,6 +271,7 @@ function Install_Dpdk () {
 			exit 1
 	esac
 	ssh "${1}" ". utils.sh && install_package ${packages[@]}"
+	ssh "${1}" ". utils.sh && install_git"
 	ssh "${1}" "if [[ -e '${DPDK_DIR}' ]]; then rm -rf '${DPDK_DIR}'; fi"
 
 	if [[ $dpdkSrcLink =~ .tar ]];
