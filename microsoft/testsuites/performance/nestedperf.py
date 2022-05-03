@@ -182,6 +182,12 @@ class KVMPerformance(TestSuite):  # noqa
         """,
         priority=3,
         timeout=_TIME_OUT,
+        requirement=simple_requirement(
+            disk=schema.DiskOptionSettings(
+                data_disk_count=search_space.IntRange(min=1),
+                data_disk_size=search_space.IntRange(min=12),
+            )
+        ),
     )
     def perf_nested_kvm_ntttcp_private_bridge(
         self,
@@ -268,6 +274,10 @@ class KVMPerformance(TestSuite):  # noqa
             min_count=2,
             network_interface=schema.NetworkInterfaceOptionSettings(
                 nic_count=search_space.IntRange(min=2),
+            ),
+            disk=schema.DiskOptionSettings(
+                data_disk_count=search_space.IntRange(min=1),
+                data_disk_size=search_space.IntRange(min=12),
             ),
         ),
     )
@@ -393,6 +403,10 @@ class KVMPerformance(TestSuite):  # noqa
             min_count=2,
             network_interface=schema.NetworkInterfaceOptionSettings(
                 nic_count=search_space.IntRange(min=2),
+            ),
+            disk=schema.DiskOptionSettings(
+                data_disk_count=search_space.IntRange(min=1),
+                data_disk_size=search_space.IntRange(min=12),
             ),
         ),
     )
