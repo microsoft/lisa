@@ -24,7 +24,6 @@ from lisa import (
 from lisa.base_tools import Uname
 from lisa.operating_system import Debian, Redhat, Suse
 from lisa.tools import Cat, Ethtool, Iperf3, Modinfo, Nm
-from lisa.util import find_patterns_in_lines
 from microsoft.testsuites.network.common import cleanup_iperf3
 
 
@@ -656,21 +655,17 @@ class NetworkSettings(TestSuite):
 
     def _check_msg_level_change_supported(self, node: Node) -> None:
         msg_level_symbols: Union[str, List[str]]
-        # name:           hv_netvsc
-        # filename:       (builtin)
-        # description:    Microsoft Hyper-V network driver
-        # license:        GPL
-        # parm:           ring_size:Ring buffer size (# of pages) (uint)
-        # parm:           debug:Debug level (0=none,...,16=all) (int)
-        build_in_pattern = re.compile(r"builtin", re.M)
-
         uname_tool = node.tools[Uname]
         kernel_version = uname_tool.get_linux_information().kernel_version
 
-        modinfo = node.tools[Modinfo]
-        netvsc_module = modinfo.get_filename("hv_netvsc")
-        matched = find_patterns_in_lines(netvsc_module, [build_in_pattern])
-        if not (matched[0]):
+        config_path = f"/boot/config-{kernel_version}"
+        netvsc_builtin_result = node.execute(
+            f"grep CONFIG_HYPERV_NET=y {config_path}", shell=True
+        )
+
+        if netvsc_builtin_result.exit_code != 0:
+            modinfo = node.tools[Modinfo]
+            netvsc_module = modinfo.get_filename("hv_netvsc")
             # remove any escape character at the end of string
             netvsc_module = netvsc_module.strip()
             # if the module is archived as xz, extract it to check symbols
