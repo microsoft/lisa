@@ -60,6 +60,7 @@ class NetworkSettings(TestSuite):
     #  {'name': 'cpu0_vf_tx_packets', 'value': '0'},]
     #  {'name': 'cpu0_vf_tx_bytes', 'value': '0'},]
     _queue_stats_regex = re.compile(r"[tr]x_queue_(?P<name>[\d]+)_packets")
+    _vf_queue_stats_regex = re.compile(r"cpu(?P<name>[\d]+)_vf[tr]x_packets")
     _tx_queue_stats_regex = re.compile(r"tx_queue_(?P<name>[\d]+)_packets")
     _rx_queue_stats_regex = re.compile(r"rx_queue_(?P<name>[\d]+)_packets")
     _tx_vf_queue_stats_regex = re.compile(r"cpu(?P<name>[\d]+)_vf_tx_packets")
@@ -549,44 +550,12 @@ class NetworkSettings(TestSuite):
         ),
     )
     def validate_device_statistics(self, environment: Environment, log: Logger) -> None:
-        client_iperf3_log = "iperfResults.log"
         server_node = cast(RemoteNode, environment.nodes[0])
         client_node = cast(RemoteNode, environment.nodes[1])
         ethtool = client_node.tools[Ethtool]
 
-        try:
-            devices_statistics = ethtool.get_all_device_statistics()
-        except UnsupportedOperationException as identifier:
-            raise SkippedException(identifier)
-
-        for device_stats in devices_statistics:
-            per_queue_packets = {
-                k: v
-                for (k, v) in device_stats.counters.items()
-                if self._queue_stats_regex.search(k)
-            }
-
-            assert_that(
-                per_queue_packets,
-                "Statistics per VMBUS channel are empty. It might be because the driver"
-                " is not supported or because of very old kernel.",
-            ).is_not_empty()
-
-        # run iperf3 on server side and client side
-        # iperfResults.log stored client side log
-        source_iperf3 = server_node.tools[Iperf3]
-        dest_iperf3 = client_node.tools[Iperf3]
-        source_iperf3.run_as_server_async()
-        dest_iperf3.run_as_client_async(
-            server_ip=server_node.internal_address,
-            log_file=client_iperf3_log,
-            parallel_number=64,
-        )
-
-        # wait for a while then check any error shown up in iperfResults.log
-        dest_cat = client_node.tools[Cat]
-        iperf_log = dest_cat.read(client_iperf3_log, sudo=True, force_run=True)
-        assert_that(iperf_log).does_not_contain("error")
+        self._verify_stats_exists(server_node, client_node)
+        self._run_iperf3(server_node, client_node)
 
         # validate from the stats that traffic is evenly spread
         try:
@@ -599,7 +568,7 @@ class NetworkSettings(TestSuite):
             per_rx_queue_packets: List[int] = []
             an_enabled = False
             nic = client_node.nics.get_nic(device_stats.interface)
-            # check if AN is enabled on this interface
+            # If AN is enabled on this interface then check the vf stats.
             if nic.lower:
                 an_enabled = True
 
@@ -709,3 +678,62 @@ class NetworkSettings(TestSuite):
                 f"Get/Set message level not supported on {kernel_version},"
                 " Skipping test."
             )
+
+    def _verify_stats_exists(
+        self,
+        server_node: RemoteNode,
+        client_node: RemoteNode,
+    ) -> None:
+        ethtool = client_node.tools[Ethtool]
+        try:
+            devices_statistics = ethtool.get_all_device_statistics()
+        except UnsupportedOperationException as identifier:
+            raise SkippedException(identifier)
+
+        per_queue_stats = False
+        per_vf_queue_stats = False
+        for device_stats in devices_statistics:
+            an_enabled = False
+            nic = client_node.nics.get_nic(device_stats.interface)
+            if nic.lower:
+                an_enabled = True
+
+            if an_enabled:
+                for k in device_stats.counters.keys():
+                    if self._vf_queue_stats_regex.search(k):
+                        per_vf_queue_stats = True
+                        break
+                assert_that(
+                    per_vf_queue_stats,
+                    f"AN is enabled on interface {device_stats.interface} but VF"
+                    " Statistics per cpu are missing.",
+                ).is_true()
+            else:
+                for k in device_stats.counters.keys():
+                    if self._queue_stats_regex.search(k):
+                        per_queue_stats = True
+                        break
+                assert_that(
+                    per_queue_stats,
+                    "Statistics per VMBUS channel are empty."
+                    " It might be because the driver"
+                    " is not supported or because of very old kernel.",
+                ).is_true()
+
+    def _run_iperf3(self, server_node: RemoteNode, client_node: RemoteNode) -> None:
+        # run iperf3 on server side and client side
+        # iperfResults.log stored client side log
+        client_iperf3_log = "iperfResults.log"
+        source_iperf3 = server_node.tools[Iperf3]
+        dest_iperf3 = client_node.tools[Iperf3]
+        source_iperf3.run_as_server_async()
+        dest_iperf3.run_as_client_async(
+            server_ip=server_node.internal_address,
+            log_file=client_iperf3_log,
+            parallel_number=64,
+        )
+
+        # wait for a while then check any error shown up in iperfResults.log
+        dest_cat = client_node.tools[Cat]
+        iperf_log = dest_cat.read(client_iperf3_log, sudo=True, force_run=True)
+        assert_that(iperf_log).does_not_contain("error")
