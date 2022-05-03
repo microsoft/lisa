@@ -23,13 +23,14 @@ from assertpy import assert_that
 from retry import retry
 from semver import VersionInfo
 
-from lisa.base_tools import Cat, Sed, Wget
+from lisa.base_tools import Cat, Sed, Uname, Wget
 from lisa.executable import Tool
 from lisa.util import (
     BaseClassMixin,
     LisaException,
     MissingPackagesException,
     filter_ansi_escape,
+    find_group_in_lines,
     get_matched_str,
     parse_version,
 )
@@ -75,6 +76,16 @@ class OsInformation:
     # Full name of release and version. Examples: Ubuntu 18.04.5 LTS (Bionic
     # Beaver), Red Hat Enterprise Linux release 8.3 (Ootpa)
     full_version: str = "Unknown"
+
+
+@dataclass
+# It's similar with UnameResult, and will replace it.
+class KernelInformation:
+    version: VersionInfo
+    raw_version: str
+    hardware_platform: str
+    operating_system: str
+    version_parts: List[str]
 
 
 class OperatingSystem:
@@ -292,6 +303,21 @@ class Posix(OperatingSystem, BaseClassMixin):
 
     def replace_boot_kernel(self, kernel_version: str) -> None:
         raise NotImplementedError("update boot entry is not implemented")
+
+    def get_kernel_information(self, force_run: bool = False) -> KernelInformation:
+        uname = self._node.tools[Uname]
+        uname_result = uname.get_linux_information(force_run=force_run)
+
+        parts: List[str] = [str(x) for x in uname_result.kernel_version]
+        kernel_information = KernelInformation(
+            version=uname_result.kernel_version,
+            raw_version=uname_result.kernel_version_raw,
+            hardware_platform=uname_result.hardware_platform,
+            operating_system=uname_result.operating_system,
+            version_parts=parts,
+        )
+
+        return kernel_information
 
     def install_packages(
         self,
@@ -1113,9 +1139,39 @@ class Fedora(RPMDistro):
     # Red Hat Enterprise Linux Server 7.8 (Maipo) => 7.8
     _fedora_release_pattern_version = re.compile(r"^.*release\s+([0-9\.]+).*$")
 
+    # 305.40.1.el8_4.x86_64
+    # 240.el8.x86_64
+    __kernel_version_parts_pattern = re.compile(
+        r"^(?P<part1>\d+)\.(?P<part2>\d+)?\.?(?P<part3>\d+)?\.?"
+        r"(?P<distro>.*?)\.(?P<platform>.*?)$"
+    )
+
     @classmethod
     def name_pattern(cls) -> Pattern[str]:
         return re.compile("^Fedora|fedora$")
+
+    def get_kernel_information(self, force_run: bool = False) -> KernelInformation:
+        kernel_information = super().get_kernel_information(force_run)
+        # original parts: version_parts=['4', '18', '0', '305.40.1.el8_4.x86_64', '']
+        # target parts: version_parts=['4', '18', '0', '305', '40', '1', 'el8_4',
+        #   'x86_64']
+        groups = find_group_in_lines(
+            kernel_information.version_parts[3], self.__kernel_version_parts_pattern
+        )
+        new_parts = kernel_information.version_parts[:3]
+        # the default '1' is trying to build a meaningful Redhat version number.
+        new_parts.extend(
+            [
+                groups["part1"],
+                groups.get("part2", ""),
+                groups.get("part3", ""),
+                groups["distro"],
+                groups["platform"],
+            ]
+        )
+        kernel_information.version_parts = new_parts
+
+        return kernel_information
 
     def install_epel(self) -> None:
         # Extra Packages for Enterprise Linux (EPEL) is a special interest group
