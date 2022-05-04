@@ -1163,12 +1163,15 @@ class Fedora(RPMDistro):
         new_parts.extend(
             [
                 groups["part1"],
-                groups.get("part2", ""),
-                groups.get("part3", ""),
+                groups["part2"],
+                groups["part3"],
                 groups["distro"],
                 groups["platform"],
             ]
         )
+        for index, part in enumerate(new_parts):
+            if part is None:
+                new_parts[index] = ""
         kernel_information.version_parts = new_parts
 
         return kernel_information
