@@ -2,13 +2,13 @@
 # Licensed under the MIT license.
 import re
 from dataclasses import dataclass
-from typing import Any, List, Type
+from typing import Any, List, Type, cast
 
 from lisa.base_tools import Wget
 from lisa.executable import Tool
-from lisa.operating_system import Fedora
+from lisa.operating_system import Fedora, Posix
 from lisa.tools import Modprobe
-from lisa.util import find_patterns_groups_in_lines
+from lisa.util import LisaException, find_patterns_groups_in_lines
 
 
 @dataclass
@@ -71,72 +71,6 @@ class Pktgen(Tool):
     def dependencies(self) -> List[Type[Tool]]:
         return [Wget]
 
-    def _initialize(self, *args: Any, **kwargs: Any) -> None:
-        super()._initialize(*args, **kwargs)
-        # the command is decided by single or multiple thread. Use single here
-        # as placeholder.
-        self._tool_path = self.get_tool_path(use_global=True)
-        self._command = f"{self._tool_path}/{self._single_thread_entry}"
-
-    def _install(self) -> bool:
-        wget = self.node.tools[Wget]
-        if isinstance(self.node.os, Fedora):
-            version = self.node.os.information.version
-            if version <= "8.1.0":
-                package_file_location = (
-                    "https://koji.mbox.centos.org/pkgs/packages/kernel-plus/4.18.0/"
-                    "147.3.1.el8_1.centos.plus/x86_64/kernel-plus-modules-internal-"
-                    "4.18.0-147.3.1.el8_1.centos.plus.x86_64.rpm"
-                )
-            elif version <= "8.2.0":
-                package_file_location = (
-                    "https://koji.mbox.centos.org/pkgs/packages/kernel-plus/4.18.0/"
-                    "193.6.3.el8_2.centos.plus/x86_64/kernel-plus-modules-internal-"
-                    "4.18.0-193.6.3.el8_2.centos.plus.x86_64.rpm"
-                )
-            elif self.node.os.information.version <= "8.3.0":
-                package_file_location = (
-                    "https://koji.mbox.centos.org/pkgs/packages/kernel-plus/4.18.0/"
-                    "240.8.1.el8_3.centos.plus/x86_64/kernel-plus-modules-internal-"
-                    "4.18.0-240.8.1.el8_3.centos.plus.x86_64.rpm"
-                )
-            else:
-                package_file_location = (
-                    "https://vault.centos.org/centos/8/centosplus/x86_64/os/Packages/"
-                    "kernel-plus-modules-internal-4.18.0-305.25.1.el8_4.centos."
-                    "plus.x86_64.rpm"
-                )
-            # Install pkggen from CentOS for redhat, because there is no free
-            # download for Redhat.
-            package_file_name = "kernel-plus-modules-internal.rpm"
-            modules_file = wget.get(
-                url=package_file_location,
-                file_path=str(self._tool_path),
-                filename=package_file_name,
-                overwrite=True,
-            )
-            # extract pktgen.ko.xz
-            self.node.execute(
-                f"rpm2cpio {modules_file} | "
-                f"cpio -iv --to-stdout *{self._module_name} > {self._module_name}",
-                shell=True,
-                cwd=self._tool_path,
-                expected_exit_code=0,
-                expected_exit_code_failure_message=f"failed on extract {modules_file}.",
-            )
-        else:
-            # assume other distros have the pktgen inside.
-            ...
-
-        # download scripts to run pktgen
-        for original_name, new_name in self._scripts.items():
-            url = f"{self._root_url}/{original_name}?h={self._version}"
-            wget.get(
-                url, file_path=str(self._tool_path), filename=new_name, executable=True
-            )
-
-        return self._check_exists()
-
     def send_packets(
         self,
         destination_ip: str,
@@ -175,3 +109,71 @@ class Pktgen(Tool):
         )
 
         return PktgenResult.create(result.stdout)
+
+    def _initialize(self, *args: Any, **kwargs: Any) -> None:
+        super()._initialize(*args, **kwargs)
+        # the command is decided by single or multiple thread. Use single here
+        # as placeholder.
+        self._tool_path = self.get_tool_path(use_global=True)
+        self._command = f"{self._tool_path}/{self._single_thread_entry}"
+
+    def _install(self) -> bool:
+        wget = self.node.tools[Wget]
+        if isinstance(self.node.os, Fedora):
+            self._install_fedora()
+        else:
+            # assume other distros have the pktgen inside.
+            ...
+
+        # download scripts to run pktgen
+        for original_name, new_name in self._scripts.items():
+            url = f"{self._root_url}/{original_name}?h={self._version}"
+            wget.get(
+                url, file_path=str(self._tool_path), filename=new_name, executable=True
+            )
+
+        return self._check_exists()
+
+    def _install_fedora(self) -> None:
+        posix = cast(Posix, self.node.os)
+        kernel_information = posix.get_kernel_information()
+
+        # TODO: To support more versions if it's needed. Currently, it's only
+        # used in xdp, which starts from 8.x.
+        if kernel_information.version.finalize_version() < "4.18.0":
+            raise LisaException(
+                f"unsupported kernel version: {kernel_information.raw_version}"
+            )
+
+        # ['4', '18', '0', '305', '40', '1', 'el8_4', 'x86_64']
+        parts = kernel_information.version_parts[:]
+
+        # Full example:
+        # https://koji.mbox.centos.org/pkgs/packages/kernel-plus/4.18.0/
+        #   240.1.1.el8_3.centos.plus/x86_64/kernel-plus-modules-internal-
+        #   4.18.0-240.1.1.el8_3.centos.plus.x86_64.rpm",
+        rpm_location = (
+            f"https://koji.mbox.centos.org/pkgs/packages/kernel-plus/4.18.0/"
+            f"{'.'.join(parts[3:7])}.centos.plus/{parts[7]}/kernel-plus-modules-"
+            f"internal-4.18.0-{'.'.join(parts[3:7])}.centos.plus.{parts[7]}.rpm"
+        )
+        # Install pkggen from CentOS for redhat, because there is no free
+        # download for Redhat.
+        package_file_name = "kernel-plus-modules-internal.rpm"
+
+        wget = self.node.tools[Wget]
+        modules_file = wget.get(
+            url=rpm_location,
+            file_path=str(self._tool_path),
+            filename=package_file_name,
+            overwrite=True,
+        )
+        # extract pktgen.ko.xz
+        self.node.execute(
+            f"rpm2cpio {modules_file} | "
+            f"cpio -iv --to-stdout *{self._module_name} > {self._module_name}",
+            shell=True,
+            cwd=self._tool_path,
+            expected_exit_code=0,
+            expected_exit_code_failure_message=f"failed on extract {modules_file}.",
+        )
