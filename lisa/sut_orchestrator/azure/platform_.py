@@ -1201,9 +1201,10 @@ class AzurePlatform(Platform):
             )
 
             # HyperVGenerationTypes return "V1"/"V2", so we need to strip "V"
-            azure_node_runbook.hyperv_generation = int(
-                image_info.hyper_v_generation.strip("V")
-            )
+            if image_info.hyper_v_generation:
+                azure_node_runbook.hyperv_generation = int(
+                    image_info.hyper_v_generation.strip("V")
+                )
 
             # retrieve the os type for arm template.
             if azure_node_runbook.is_linux is None:
