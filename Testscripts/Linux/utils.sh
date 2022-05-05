@@ -3067,7 +3067,11 @@ function create_raid0() {
 	do
 		LogMsg "Partition disk /dev/${disk}"
 		(echo d; echo n; echo p; echo 1; echo; echo; echo t; echo fd; echo w;) | fdisk /dev/${disk}
-		raidDevices="${raidDevices} /dev/${disk}1"
+		if [[ $(is_asap_vmsku) == 1 ]]; then
+			raidDevices="${raidDevices} /dev/${disk}p1"
+		else
+			raidDevices="${raidDevices} /dev/${disk}1"
+		fi
 		count=$(( $count + 1 ))
 	done
 	LogMsg "Creating RAID of ${count} devices."
