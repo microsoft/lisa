@@ -2585,6 +2585,19 @@ Function Get-DeviceName
     return $ret
 }
 
+Function Is-ASAP
+{
+    param (
+        [String] $ip,
+        [String] $port,
+        [String] $username,
+        [String] $password
+    )
+    $ret = Run-LinuxCmd -ip $ip -port $port -username $username -password $password `
+        -command ". utils.sh; is_asap_vmsku" -runAsSudo
+    return $ret
+}
+
 # This function will return expected devices count and keyword which part of output from command lspci based on provided device type
 # NVME - Disk count = vCPU/8
 #    size Standard_L8s_v2, vCPU 8, NVMe Disk 1

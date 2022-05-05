@@ -22,7 +22,14 @@ function Main {
             # These VM sizes don't have local disk. So the attached disk starts from dev/sdb
             $diskPattern = "Disk /dev/sd[a-z][a-z]|sd[b-z]:"
         } else {
-            $diskPattern = "Disk /dev/sd[a-z][a-z]|sd[c-z]:"
+            $isASAP = Is-ASAP -username $user -password $password -ip $AllVMData.PublicIP -port $AllVMData.SSHPort
+            Write-LogInfo "isASAP Output: $isASAP"
+            if ($isASAP){
+                $diskNamePattern = "Disk /dev/nvme0n[1-3][0-9]|nvme0n[2-9]"
+            }
+            else {
+                $diskNamePattern = "Disk /dev/sd[a-z][a-z]|sd[c-z]"
+            }
         }
         While ($count -lt $diskCount) {
             $count += 1
@@ -50,7 +57,7 @@ function Main {
             $Null = Update-AzVM -VM $VirtualMachine -ResourceGroupName $ResourceGroupUnderTest
             Write-LogInfo "#$count - Successfully added an empty data disk to the VM of size $diskSizeinGB"
             Write-LogInfo "Verifying if data disk is added to the VM: Running fdisk on remote VM"
-            $fdiskOutput = Run-LinuxCmd -username $user -password $password -ip $VM.PublicIP -port $VM.SSHPort -command "/sbin/fdisk -l | grep /dev/sd" -runAsSudo
+            $fdiskOutput = Run-LinuxCmd -username $user -password $password -ip $VM.PublicIP -port $VM.SSHPort -command "/sbin/fdisk -l | grep /dev/" -runAsSudo
             foreach ($line in ($fdiskOutput.Split([Environment]::NewLine))) {
                 if ($line -imatch $diskPattern -and ([int]($line.Split()[2]) -ge [int]$diskSizeinGB)) {
                     Write-LogInfo "Data disk is successfully attached to the VM: $line"
