@@ -112,6 +112,30 @@ class UnsupportedDistroException(LisaException):
         return message
 
 
+class UnsupportedKernelException(LisaException):
+    """
+    This exception is used to indicate that a test case does not support the testing
+    kernel.
+    """
+
+    def __init__(self, os: "OperatingSystem", message: str = "") -> None:
+        self.version = os.information.full_version
+        self.kernel_version = ""
+        if hasattr(os, "get_kernel_information"):
+            self.kernel_version = (
+                os.get_kernel_information().raw_version  # type: ignore
+            )
+        self._extended_message = message
+
+    def __str__(self) -> str:
+        message = (
+            f"Unsupported kernel version: '{self.kernel_version}' on '{self.version}'"
+        )
+        if self._extended_message:
+            message = f"{message}. {self._extended_message}"
+        return message
+
+
 class UnsupportedCpuArchitectureException(LisaException):
     """
     This exception is used to indicate that a test case does not support the

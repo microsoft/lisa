@@ -21,6 +21,7 @@ from lisa.util import (
     TcpConnectionException,
     UnsupportedCpuArchitectureException,
     UnsupportedDistroException,
+    UnsupportedKernelException,
     UnsupportedOperationException,
     constants,
 )
@@ -45,6 +46,7 @@ __all__ = [
     "TestSuite",
     "UnsupportedCpuArchitectureException",
     "UnsupportedDistroException",
+    "UnsupportedKernelException",
     "UnsupportedOperationException",
     "create_timer",
     "constants",
