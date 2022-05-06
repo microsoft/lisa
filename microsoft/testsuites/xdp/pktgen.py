@@ -8,7 +8,7 @@ from lisa.base_tools import Wget
 from lisa.executable import Tool
 from lisa.operating_system import Fedora, Posix
 from lisa.tools import Modprobe
-from lisa.util import LisaException, find_patterns_groups_in_lines
+from lisa.util import UnsupportedKernelException, find_patterns_groups_in_lines
 
 
 @dataclass
@@ -141,9 +141,7 @@ class Pktgen(Tool):
         # TODO: To support more versions if it's needed. Currently, it's only
         # used in xdp, which starts from 8.x.
         if kernel_information.version.finalize_version() < "4.18.0":
-            raise LisaException(
-                f"unsupported kernel version: {kernel_information.raw_version}"
-            )
+            raise UnsupportedKernelException(self.node.os)
 
         # ['4', '18', '0', '305', '40', '1', 'el8_4', 'x86_64']
         parts = kernel_information.version_parts[:]
