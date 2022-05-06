@@ -12,9 +12,11 @@ from lisa import (
     Environment,
     Logger,
     Node,
+    SkippedException,
     TestCaseMetadata,
     TestSuite,
     TestSuiteMetadata,
+    UnsupportedKernelException,
     simple_requirement,
 )
 from lisa.executable import Tool
@@ -417,7 +419,10 @@ class XdpPerformance(TestSuite):
         receiver = environment.nodes[2]
 
         # install pktgen on sender
-        pktgen = sender.tools[Pktgen]
+        try:
+            pktgen = sender.tools[Pktgen]
+        except UnsupportedKernelException as identifier:
+            raise SkippedException(identifier)
         # install xdp dump on forwarder and receiver
         forwarder_xdpdump, receiver_xdpdump = run_in_parallel(
             [
