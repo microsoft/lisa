@@ -30,6 +30,12 @@ try:
 except ModuleNotFoundError:
     print("azure package is not installed.")
 
+# Aws modules
+try:
+    import lisa.sut_orchestrator.aws.platform_  # noqa: F401
+except ModuleNotFoundError:
+    print("aws package is not installed.")
+
 
 if platform.system() == "Linux":
     # libvirt modules
