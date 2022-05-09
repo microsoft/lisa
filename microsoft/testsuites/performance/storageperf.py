@@ -23,16 +23,7 @@ from lisa.features.network_interface import Sriov, Synthetic
 from lisa.messages import DiskSetupType, DiskType
 from lisa.node import RemoteNode
 from lisa.operating_system import SLES, Debian, Redhat
-from lisa.tools import (
-    FIOMODES,
-    FileSystem,
-    Fio,
-    Lscpu,
-    Mkfs,
-    Mount,
-    NFSClient,
-    NFSServer,
-)
+from lisa.tools import FileSystem, Lscpu, Mkfs, Mount, NFSClient, NFSServer
 from lisa.util import SkippedException
 from microsoft.testsuites.performance.common import (
     perf_disk,
@@ -127,6 +118,7 @@ class StoragePerformance(TestSuite):
                 disk_type=schema.DiskType.PremiumSSDLRS,
                 data_disk_iops=search_space.IntRange(min=5000),
                 data_disk_count=search_space.IntRange(min=12),
+                data_disk_size=search_space.IntRange(min=10),
             ),
             network_interface=Sriov(),
         ),
@@ -149,6 +141,7 @@ class StoragePerformance(TestSuite):
                 disk_type=schema.DiskType.PremiumSSDLRS,
                 data_disk_iops=search_space.IntRange(min=5000),
                 data_disk_count=search_space.IntRange(min=12),
+                data_disk_size=search_space.IntRange(min=10),
             ),
             network_interface=Sriov(),
         ),
@@ -172,6 +165,7 @@ class StoragePerformance(TestSuite):
                 disk_type=schema.DiskType.PremiumSSDLRS,
                 data_disk_iops=search_space.IntRange(min=5000),
                 data_disk_count=search_space.IntRange(min=12),
+                data_disk_size=search_space.IntRange(min=10),
             ),
             network_interface=Synthetic(),
         ),
@@ -192,6 +186,7 @@ class StoragePerformance(TestSuite):
                 disk_type=schema.DiskType.PremiumSSDLRS,
                 data_disk_iops=search_space.IntRange(min=5000),
                 data_disk_count=search_space.IntRange(min=12),
+                data_disk_size=search_space.IntRange(min=10),
             ),
             network_interface=Synthetic(),
         ),
@@ -213,7 +208,6 @@ class StoragePerformance(TestSuite):
         block_size: int = 4,
         start_iodepth: int = 1,
         max_iodepth: int = 1024,
-        ssh_timeout: int = TIME_OUT,
     ) -> None:
         server_node = cast(RemoteNode, environment.nodes[0])
         client_node = cast(RemoteNode, environment.nodes[1])
@@ -267,22 +261,6 @@ class StoragePerformance(TestSuite):
             protocol,
         )
 
-        # Run a dummy fio job on client to create required test files and
-        # transfer over network. If this step is skipped, it can impact
-        # the test result.
-        client_node.tools[Fio].launch(
-            name="prepare",
-            filename=filename,
-            mode=FIOMODES.read.name,
-            ssh_timeout=ssh_timeout,
-            size_gb=1024,
-            block_size="1M",
-            iodepth=128,
-            overwrite=True,
-            numjob=8,
-            cwd=PurePosixPath(client_nfs_mount_dir),
-        )
-
         # run fio test
         perf_disk(
             client_node,
@@ -296,7 +274,7 @@ class StoragePerformance(TestSuite):
             disk_type=DiskType.premiumssd,
             num_jobs=num_jobs,
             block_size=block_size,
-            size_gb=1024,
+            size_gb=8,
             overwrite=True,
             cwd=PurePosixPath(client_nfs_mount_dir),
             environment=environment,
@@ -333,7 +311,7 @@ class StoragePerformance(TestSuite):
             disk_type=DiskType.premiumssd,
             numjob=core_count,
             block_size=block_size,
-            size_gb=1024,
+            size_gb=8,
             overwrite=True,
             environment=environment,
         )
