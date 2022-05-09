@@ -2,6 +2,7 @@
 # Licensed under the MIT license.
 
 from lisa.executable import Tool
+from lisa.operating_system import Posix
 from lisa.tools.kill import Kill
 
 
@@ -9,6 +10,15 @@ class Dnsmasq(Tool):
     @property
     def command(self) -> str:
         return "dnsmasq"
+
+    @property
+    def can_install(self) -> bool:
+        return True
+
+    def install(self) -> bool:
+        posix_os: Posix = self.node.os  # type: ignore
+        posix_os.install_packages("dnsmasq")
+        return self._check_exists()
 
     def start(
         self,
