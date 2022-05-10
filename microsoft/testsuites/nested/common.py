@@ -21,6 +21,7 @@ NESTED_VM_TEST_FILE_NAME = "message.txt"
 NESTED_VM_TEST_FILE_CONTENT = "Message from L1 vm!!"
 NESTED_VM_TEST_PUBLIC_FILE_URL = "http://www.github.com"
 NESTED_VM_REQUIRED_DISK_SIZE_IN_GB = 6
+NESTED_VM_DOWNLOAD_TIMEOUT = 3600
 
 
 def qemu_connect_nested_vm(
@@ -63,6 +64,7 @@ def qemu_connect_nested_vm(
         file_path=image_folder_path,
         filename=image_name,
         sudo=True,
+        timeout=NESTED_VM_DOWNLOAD_TIMEOUT,
     )
 
     # start nested vm
