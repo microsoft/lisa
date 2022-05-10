@@ -12,6 +12,8 @@ from lisa import (
     TestCaseMetadata,
     TestSuite,
     TestSuiteMetadata,
+    schema,
+    search_space,
     simple_requirement,
 )
 from lisa.environment import Environment
@@ -74,19 +76,27 @@ class CPUSuite(TestSuite):
             The cpu hotplug steps are same as `verify_cpu_hot_plug` test case.
             """,
         priority=4,
+        requirement=simple_requirement(
+            disk=schema.DiskOptionSettings(
+                data_disk_count=search_space.IntRange(min=1),
+                data_disk_size=search_space.IntRange(min=20),
+            ),
+        ),
     )
     def verify_cpu_offline_storage_workload(self, log: Logger, node: Node) -> None:
         # run fio process asynchronously on the node
+        fio_data_size_in_gb = 1
         try:
+            image_folder_path = node.find_partition_with_freespace(fio_data_size_in_gb)
             fio_process = node.tools[Fio].launch_async(
                 name="workload",
-                filename="fiodata",
+                filename=f"{image_folder_path}/fiodata",
                 mode="readwrite",
                 iodepth=128,
                 numjob=10,
                 time=300,
                 block_size="1M",
-                size_gb=1,
+                size_gb=fio_data_size_in_gb,
                 group_reporting=False,
                 overwrite=True,
                 time_based=True,
