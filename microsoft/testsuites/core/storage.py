@@ -40,6 +40,7 @@ from lisa.util import BadEnvironmentStateException, LisaException, get_matched_s
 class Storage(TestSuite):
 
     DEFAULT_DISK_SIZE_IN_GB = 20
+    TIME_OUT = 12000
 
     # Defaults targetpw
     _uncommented_default_targetpw_regex = re.compile(
@@ -257,6 +258,7 @@ class Storage(TestSuite):
         3. Serially add and remove the data disks and verify that the added
         disks are present in the vm.
         """,
+        timeout=TIME_OUT,
         requirement=simple_requirement(disk=DiskStandardHDDLRS()),
     )
     def hot_add_disk_serial(self, log: Logger, node: Node) -> None:
@@ -270,6 +272,7 @@ class Storage(TestSuite):
         be added serially while the vm is running. The test steps are same as
         `hot_add_disk_serial`.
         """,
+        timeout=TIME_OUT,
         requirement=simple_requirement(disk=DiskStandardSSDLRS()),
     )
     def hot_add_disk_serial_standard_ssd(self, log: Logger, node: Node) -> None:
@@ -283,6 +286,7 @@ class Storage(TestSuite):
         be added serially while the vm is running. The test steps are same as
         `hot_add_disk_serial`.
         """,
+        timeout=TIME_OUT,
         requirement=simple_requirement(disk=DiskPremiumSSDLRS()),
     )
     def hot_add_disk_serial_premium_ssd(self, log: Logger, node: Node) -> None:
@@ -302,6 +306,7 @@ class Storage(TestSuite):
         5. Remove the disks from the vm in parallel.
         6. Verify that the disks are removed from the OS.
         """,
+        timeout=TIME_OUT,
         requirement=simple_requirement(disk=DiskStandardHDDLRS()),
     )
     def hot_add_disk_parallel(self, log: Logger, node: Node) -> None:
@@ -315,6 +320,7 @@ class Storage(TestSuite):
         be added serially while the vm is running. The test steps are same as
         `hot_add_disk_parallel`.
         """,
+        timeout=TIME_OUT,
         requirement=simple_requirement(disk=DiskStandardSSDLRS()),
     )
     def hot_add_disk_parallel_standard_ssd(self, log: Logger, node: Node) -> None:
@@ -328,6 +334,7 @@ class Storage(TestSuite):
         be added serially while the vm is running. The test steps are same as
         `hot_add_disk_parallel`.
         """,
+        timeout=TIME_OUT,
         requirement=simple_requirement(disk=DiskPremiumSSDLRS()),
     )
     def hot_add_disk_parallel_premium_ssd(self, log: Logger, node: Node) -> None:
