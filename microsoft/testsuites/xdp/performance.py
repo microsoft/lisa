@@ -353,9 +353,12 @@ class XdpPerformance(TestSuite):
         receiver = environment.nodes[1]
 
         # install pktgen on sender, and xdpdump on receiver.
-        tools: List[Any] = run_in_parallel(
-            [partial(sender.tools.get, Pktgen), partial(get_xdpdump, receiver)]
-        )
+        try:
+            tools: List[Any] = run_in_parallel(
+                [partial(sender.tools.get, Pktgen), partial(get_xdpdump, receiver)]
+            )
+        except UnsupportedKernelException as identifier:
+            raise SkippedException(identifier)
 
         # type annotations
         pktgen: Pktgen = tools[0]
