@@ -40,6 +40,7 @@ class Wget(Tool):
         executable: bool = False,
         sudo: bool = False,
         force_run: bool = False,
+        timeout: int = 600,
     ) -> str:
         is_valid_url(url)
 
@@ -63,7 +64,12 @@ class Wget(Tool):
         else:
             command = f"{command} -P {download_path}"
         command_result = self.run(
-            command, no_error_log=True, shell=True, sudo=sudo, force_run=force_run
+            command,
+            no_error_log=True,
+            shell=True,
+            sudo=sudo,
+            force_run=force_run,
+            timeout=timeout,
         )
         matched_result = self.__pattern_path.match(command_result.stdout)
         if matched_result:
@@ -117,6 +123,7 @@ class WindowsWget(Wget):
         executable: bool = False,
         sudo: bool = False,
         force_run: bool = False,
+        timeout: int = 600,
     ) -> str:
         ls = self.node.tools[Ls]
 
@@ -138,6 +145,7 @@ class WindowsWget(Wget):
             f" -OutFile '{fullpath}'",
             sudo=sudo,
             force_run=force_run,
+            timeout=timeout,
         )
 
         return fullpath
