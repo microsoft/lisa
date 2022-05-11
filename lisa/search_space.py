@@ -266,13 +266,6 @@ class SetSpace(RequirementMixin, Set[T]):
                     result.add_reason(f"requirements excludes {names}")
         return result
 
-    def _generate_min_capability(self, capability: Any) -> Optional[Set[T]]:
-        result = None
-        if self.is_allow_set and len(self) > 0:
-            result = self
-
-        return result
-
     def add(self, element: T) -> None:
         super().add(element)
         self.items.append(element)
@@ -280,6 +273,18 @@ class SetSpace(RequirementMixin, Set[T]):
     def update(self, *s: Iterable[T]) -> None:
         super().update(*s)
         self.items.extend(*s)
+
+    def _generate_min_capability(self, capability: Any) -> Optional[Set[T]]:
+        result: Optional[SetSpace[T]] = None
+        if self.is_allow_set and len(self) > 0:
+            assert isinstance(capability, SetSpace), f"actual: {type(capability)}"
+            result = SetSpace(is_allow_set=self.is_allow_set)
+            if len(capability) > 0:
+                for item in self:
+                    if item in capability:
+                        result.add(item)
+
+        return result
 
 
 def decode_set_space(data: Any) -> Any:
@@ -421,7 +426,7 @@ def check_setspace(
     return result
 
 
-def generate_min_capability_setspace_from_priority(
+def generate_min_capability_setspace_by_priority(
     requirement: Optional[Union[SetSpace[T], T]],
     capability: Optional[Union[SetSpace[T], T]],
     priority_list: List[T],

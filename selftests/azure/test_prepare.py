@@ -207,7 +207,7 @@ class AzurePrepareTestCase(TestCase):
 
     def test_partial_match(self) -> None:
         # the "A2" should match Standard_A2_v2, instead of Standard_A2m_v2. The
-        # test data has two Standard_A2m_v2, so the test case can gurantee the
+        # test data has two Standard_A2m_v2, so the test case can guarantee the
         # problem won't be hidden by different behavior.
         env = self.load_environment(node_req_count=2)
         self.set_node_runbook(env, 0, location="", vm_size="A2m")
