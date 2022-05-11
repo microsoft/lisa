@@ -604,7 +604,7 @@ class NetworkInterfaceOptionSettings(FeatureSettings):
             raise LisaException("nic_count cannot be zero")
 
         min_value.data_path = (
-            search_space.generate_min_capability_setspace_from_priority(
+            search_space.generate_min_capability_setspace_by_priority(
                 self.data_path, capability.data_path, _network_data_path_priority
             )
         )

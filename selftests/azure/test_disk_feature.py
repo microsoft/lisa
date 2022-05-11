@@ -120,7 +120,7 @@ class AzureDiskFeatureTestCase(TestCase):
         )
 
     def test_disk_specify_iops_use_premium(self) -> None:
-        # giveng premium disk type
+        # given premium disk type
         req = features.AzureDiskOptionSettings(
             disk_type=search_space.SetSpace[schema.DiskType](
                 items=[schema.DiskType.PremiumSSDLRS]
