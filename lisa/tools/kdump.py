@@ -247,7 +247,7 @@ class KdumpBase(Tool):
                 sed.substitute(
                     match_lines="^GRUB_CMDLINE_LINUX",
                     regexp='"$',
-                    replacement=f" crashkernel={crashkernel}",
+                    replacement=f' crashkernel={crashkernel}"',
                     file=cfg_file,
                     sudo=True,
                 )
@@ -371,7 +371,10 @@ class KdumpRedhat(KdumpBase):
         else:
             if self.node.shell.exists(PurePosixPath("/sys/firmware/efi")):
                 # System with UEFI firmware
-                return "grub2-mkconfig -o /boot/efi/EFI/redhat/grub.cfg"
+                grub_file_path = self.node.execute(
+                    "find /boot/efi/EFI/* -name grub.cfg", shell=True, sudo=True
+                )
+                return f"grub2-mkconfig -o {grub_file_path}"
             else:
                 # System with BIOS firmware
                 return "grub2-mkconfig -o /boot/grub2/grub.cfg"
