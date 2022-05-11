@@ -81,10 +81,6 @@ class Gpu(Feature):
         return FEATURE_NAME_GPU
 
     @classmethod
-    def enabled(cls) -> bool:
-        return True
-
-    @classmethod
     def can_disable(cls) -> bool:
         return True
 
@@ -104,6 +100,9 @@ class Gpu(Feature):
     @classmethod
     def remove_virtual_gpus(cls, devices: List[PciDevice]) -> List[PciDevice]:
         return [x for x in devices if x.vendor != "Microsoft Corporation"]
+
+    def enabled(self) -> bool:
+        return True
 
     def is_supported(self) -> bool:
         raise NotImplementedError
