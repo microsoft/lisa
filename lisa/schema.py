@@ -397,14 +397,24 @@ disk_type_priority: List[DiskType] = [
 @dataclass()
 class DiskOptionSettings(FeatureSettings):
     type: str = constants.FEATURE_DISK
-    disk_type: Optional[Union[search_space.SetSpace[DiskType], DiskType]] = field(
-        default=DiskType.StandardHDDLRS,
+    disk_type: Optional[
+        Union[search_space.SetSpace[DiskType], DiskType]
+    ] = field(  # type:ignore
+        default_factory=partial(
+            search_space.SetSpace,
+            items=[
+                DiskType.StandardHDDLRS,
+                DiskType.StandardSSDLRS,
+                DiskType.Ephemeral,
+                DiskType.PremiumSSDLRS,
+            ],
+        ),
         metadata=field_metadata(
             decoder=partial(search_space.decode_set_space_by_type, base_type=DiskType)
         ),
     )
     data_disk_count: search_space.CountSpace = field(
-        default=search_space.IntRange(min=0),
+        default_factory=partial(search_space.IntRange, min=0),
         metadata=field_metadata(decoder=search_space.decode_count_space),
     )
     data_disk_caching_type: str = field(
@@ -420,7 +430,7 @@ class DiskOptionSettings(FeatureSettings):
         ),
     )
     data_disk_iops: search_space.CountSpace = field(
-        default=None,
+        default_factory=partial(search_space.IntRange, min=0),
         metadata=field_metadata(
             allow_none=True, decoder=search_space.decode_count_space
         ),
@@ -527,8 +537,14 @@ class NetworkInterfaceOptionSettings(FeatureSettings):
     type: str = "NetworkInterface"
     data_path: Optional[
         Union[search_space.SetSpace[NetworkDataPath], NetworkDataPath]
-    ] = field(
-        default=NetworkDataPath.Synthetic,
+    ] = field(  # type: ignore
+        default_factory=partial(
+            search_space.SetSpace,
+            items=[
+                NetworkDataPath.Synthetic,
+                NetworkDataPath.Sriov,
+            ],
+        ),
         metadata=field_metadata(
             decoder=partial(
                 search_space.decode_set_space_by_type, base_type=NetworkDataPath
@@ -537,13 +553,13 @@ class NetworkInterfaceOptionSettings(FeatureSettings):
     )
     # nic_count is used for specifying associated nic count during provisioning vm
     nic_count: search_space.CountSpace = field(
-        default=search_space.IntRange(min=1),
+        default_factory=partial(search_space.IntRange, min=1),
         metadata=field_metadata(decoder=search_space.decode_count_space),
     )
     # max_nic_count is used for getting the size max nic capability, it can be used to
     #  check how many nics the vm can be associated after provisioning
     max_nic_count: search_space.CountSpace = field(
-        default=None,
+        default_factory=partial(search_space.IntRange, min=1),
         metadata=field_metadata(
             allow_none=True, decoder=search_space.decode_count_space
         ),
