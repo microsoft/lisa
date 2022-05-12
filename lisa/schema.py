@@ -372,7 +372,7 @@ class FeatureSettings(
     def _get_key(self) -> str:
         return self.type
 
-    def _generate_min_capability(self, capability: Any) -> Any:
+    def _call_requirement_method(self, method_name: str, capability: Any) -> Any:
         # default FeatureSetting is a place holder, nothing to do.
         return FeatureSettings.create(self.type)
 
@@ -506,18 +506,38 @@ class DiskOptionSettings(FeatureSettings):
             f"{self.data_disk_iops}/{self.data_disk_size}"
         )
 
-    def _generate_min_capability(self, capability: Any) -> Any:
+    def _call_requirement_method(self, method_name: str, capability: Any) -> Any:
         assert isinstance(capability, DiskOptionSettings), f"actual: {type(capability)}"
-        min_value = DiskOptionSettings()
+        value = DiskOptionSettings()
+        search_space_countspace_method = getattr(
+            search_space, f"{method_name}_countspace"
+        )
+        if self.disk_type or capability.disk_type:
+            value.disk_type = getattr(
+                search_space, f"{method_name}_setspace_by_priority"
+            )(self.disk_type, capability.disk_type, disk_type_priority)
         if self.data_disk_count or capability.data_disk_count:
-            min_value.data_disk_count = search_space.generate_min_capability_countspace(
+            value.data_disk_count = search_space_countspace_method(
                 self.data_disk_count, capability.data_disk_count
             )
+        if self.data_disk_iops or capability.data_disk_iops:
+            value.data_disk_iops = search_space_countspace_method(
+                self.data_disk_iops, capability.data_disk_iops
+            )
         if self.data_disk_size or capability.data_disk_size:
-            min_value.data_disk_size = search_space.generate_min_capability_countspace(
+            value.data_disk_size = search_space_countspace_method(
                 self.data_disk_size, capability.data_disk_size
             )
-        return min_value
+        if self.data_disk_caching_type or capability.data_disk_caching_type:
+            value.data_disk_caching_type = (
+                self.data_disk_caching_type or capability.data_disk_caching_type
+            )
+        if self.max_data_disk_count or capability.max_data_disk_count:
+            value.max_data_disk_count = search_space_countspace_method(
+                self.max_data_disk_count, capability.max_data_disk_count
+            )
+
+        return value
 
 
 class NetworkDataPath(str, Enum):
@@ -609,31 +629,33 @@ class NetworkInterfaceOptionSettings(FeatureSettings):
         )
 
         result.merge(
-            search_space.check_setspace(self.max_nic_count, capability.max_nic_count),
+            search_space.check_countspace(self.max_nic_count, capability.max_nic_count),
             "max_nic_count",
         )
 
         return result
 
-    def _generate_min_capability(self, capability: Any) -> Any:
+    def _call_requirement_method(self, method_name: str, capability: Any) -> Any:
         assert isinstance(
             capability, NetworkInterfaceOptionSettings
         ), f"actual: {type(capability)}"
-        min_value = NetworkInterfaceOptionSettings()
-        min_value.max_nic_count = capability.max_nic_count
+        value = NetworkInterfaceOptionSettings()
+
+        value.max_nic_count = getattr(search_space, f"{method_name}_countspace")(
+            self.max_nic_count, capability.max_nic_count
+        )
+
         if self.nic_count or capability.nic_count:
-            min_value.nic_count = search_space.generate_min_capability_countspace(
+            value.nic_count = getattr(search_space, f"{method_name}_countspace")(
                 self.nic_count, capability.nic_count
             )
         else:
             raise LisaException("nic_count cannot be zero")
 
-        min_value.data_path = (
-            search_space.generate_min_capability_setspace_by_priority(
-                self.data_path, capability.data_path, _network_data_path_priority
-            )
+        value.data_path = getattr(search_space, f"{method_name}_setspace_by_priority")(
+            self.data_path, capability.data_path, _network_data_path_priority
         )
-        return min_value
+        return value
 
 
 @dataclass_json()
@@ -852,55 +874,51 @@ class NodeSpace(search_space.RequirementMixin, TypedSchema, ExtendableSchemaMixi
 
         return any(feature for feature in self.features if feature.type == find_type)
 
-    def _generate_min_capability(self, capability: Any) -> Any:
-        # copy to duplicate extended schema
-        min_value: NodeSpace = copy.deepcopy(self)
+    def _call_requirement_method(self, method_name: str, capability: Any) -> Any:
         assert isinstance(capability, NodeSpace), f"actual: {type(capability)}"
 
+        # copy to duplicate extended schema
+        value: NodeSpace = copy.deepcopy(self)
         if self.node_count or capability.node_count:
             if isinstance(self.node_count, int) and isinstance(
                 capability.node_count, int
             ):
                 # capability can have more node
-                min_value.node_count = capability.node_count
+                value.node_count = capability.node_count
             else:
-                min_value.node_count = search_space.generate_min_capability_countspace(
+                value.node_count = getattr(search_space, f"{method_name}_countspace")(
                     self.node_count, capability.node_count
                 )
         else:
             raise LisaException("node_count cannot be zero")
         if self.core_count or capability.core_count:
-            min_value.core_count = search_space.generate_min_capability_countspace(
+            value.core_count = getattr(search_space, f"{method_name}_countspace")(
                 self.core_count, capability.core_count
             )
         else:
             raise LisaException("core_count cannot be zero")
         if self.memory_mb or capability.memory_mb:
-            min_value.memory_mb = search_space.generate_min_capability_countspace(
+            value.memory_mb = getattr(search_space, f"{method_name}_countspace")(
                 self.memory_mb, capability.memory_mb
             )
         else:
             raise LisaException("memory_mb cannot be zero")
         if self.disk or capability.disk:
-            min_value.disk = search_space.generate_min_capability(
-                self.disk, capability.disk
-            )
+            value.disk = getattr(search_space, method_name)(self.disk, capability.disk)
         if self.network_interface or capability.network_interface:
-            min_value.network_interface = search_space.generate_min_capability(
+            value.network_interface = getattr(search_space, method_name)(
                 self.network_interface, capability.network_interface
             )
 
         if self.gpu_count or capability.gpu_count:
-            min_value.gpu_count = search_space.generate_min_capability_countspace(
+            value.gpu_count = getattr(search_space, f"{method_name}_countspace")(
                 self.gpu_count, capability.gpu_count
             )
         else:
-            min_value.gpu_count = 0
+            value.gpu_count = 0
 
         if capability.features:
-            min_value.features = search_space.SetSpace[FeatureSettings](
-                is_allow_set=True
-            )
+            value.features = search_space.SetSpace[FeatureSettings](is_allow_set=True)
             for original_cap_feature in capability.features:
                 capability_feature = self._get_or_create_feature_settings(
                     original_cap_feature
@@ -909,14 +927,14 @@ class NodeSpace(search_space.RequirementMixin, TypedSchema, ExtendableSchemaMixi
                     self._find_feature_by_type(capability_feature.type, self.features)
                     or capability_feature
                 )
-                min_feature = requirement_feature.generate_min_capability(
+                current_feature = getattr(requirement_feature, method_name)(
                     capability_feature
                 )
-                min_value.features.add(min_feature)
+                value.features.add(current_feature)
         if capability.excluded_features:
             # TODO: the min value for excluded feature is not clear. It may need
             # to be improved with real scenarios.
-            min_value.excluded_features = search_space.SetSpace[FeatureSettings](
+            value.excluded_features = search_space.SetSpace[FeatureSettings](
                 is_allow_set=False
             )
             for original_cap_feature in capability.excluded_features:
@@ -929,11 +947,11 @@ class NodeSpace(search_space.RequirementMixin, TypedSchema, ExtendableSchemaMixi
                     )
                     or capability_feature
                 )
-                min_feature = requirement_feature.generate_min_capability(
+                current_feature = getattr(requirement_feature, method_name)(
                     capability_feature
                 )
-                min_value.excluded_features.add(min_feature)
-        return min_value
+                value.excluded_features.add(current_feature)
+        return value
 
     def _find_feature_by_type(
         self,

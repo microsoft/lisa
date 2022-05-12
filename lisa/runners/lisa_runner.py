@@ -22,7 +22,7 @@ from lisa.platform_ import (
 from lisa.runner import BaseRunner
 from lisa.testselector import select_testcases
 from lisa.testsuite import TestCaseRequirement, TestResult, TestStatus, TestSuite
-from lisa.util import LisaException, constants, deep_update_dict
+from lisa.util import LisaException, constants
 from lisa.util.parallel import Task, check_cancelled
 from lisa.variable import VariableEntry
 
@@ -608,11 +608,6 @@ class LisaRunner(BaseRunner):
             is_allow_set=True, items=[platform_type]
         )
 
-        platform_requirement_data: Optional[Dict[str, Any]] = None
-        if hasattr(self, "platform"):
-            platform_requirement_data = cast(
-                schema.Platform, self.platform.runbook
-            ).requirement
         # if platform defined requirement, replace the requirement from
         # test case.
         platform_requirement = self._create_platform_requirement()
@@ -629,20 +624,19 @@ class LisaRunner(BaseRunner):
                 assert test_req.environment
 
                 environment_requirement = copy.copy(test_req.environment)
-                # if platform defined requirement, replace the requirement from
-                # test case.
-                if platform_requirement_data:
+                if platform_requirement:
                     for index, node_requirement in enumerate(
                         environment_requirement.nodes
                     ):
                         node_requirement_data: Dict[
                             str, Any
                         ] = node_requirement.to_dict()  # type: ignore
-                        node_requirement_data = deep_update_dict(
-                            platform_requirement_data, node_requirement_data
-                        )
-                        node_requirement = schema.load_by_type(
+
+                        original_node_requirement = schema.load_by_type(
                             schema.NodeSpace, node_requirement_data
+                        )
+                        node_requirement = original_node_requirement.intersect(
+                            platform_requirement
                         )
                         environment_requirement.nodes[index] = node_requirement
 
