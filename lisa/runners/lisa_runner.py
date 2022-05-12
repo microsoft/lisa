@@ -613,6 +613,9 @@ class LisaRunner(BaseRunner):
             platform_requirement_data = cast(
                 schema.Platform, self.platform.runbook
             ).requirement
+        # if platform defined requirement, replace the requirement from
+        # test case.
+        platform_requirement = self._create_platform_requirement()
         for test_result in test_results:
             test_req: TestCaseRequirement = test_result.runtime_data.requirement
 
@@ -648,3 +651,27 @@ class LisaRunner(BaseRunner):
                     # if env prepare or deploy failed and the test result is not
                     # run, the failure will attach to this test result.
                     env.source_test_result = test_result
+
+    def _create_platform_requirement(self) -> Optional[schema.NodeSpace]:
+        if not hasattr(self, "platform"):
+            return None
+
+        platform_requirement_data = cast(
+            schema.Platform, self.platform.runbook
+        ).requirement
+        if platform_requirement_data is None:
+            return None
+
+        platform_requirement: schema.NodeSpace = schema.load_by_type(
+            schema.Capability, platform_requirement_data
+        )
+        # fill in required fields as max capability. So it can be
+        # used as a capability in next steps to merge with test requirement.
+        if not platform_requirement.disk:
+            platform_requirement.disk = schema.DiskOptionSettings()
+        if not platform_requirement.network_interface:
+            platform_requirement.network_interface = (
+                schema.NetworkInterfaceOptionSettings()
+            )
+
+        return platform_requirement
