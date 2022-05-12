@@ -172,6 +172,8 @@ class Xfstests(Tool):
         config_path = xfstests_path.joinpath("local.config")
         if self.node.shell.exists(config_path):
             self.node.shell.remove(config_path)
+        if "generic" == test_type:
+            test_type = "xfs"
         echo = self.node.tools[Echo]
         if mount_opts:
             content = "\n".join(
