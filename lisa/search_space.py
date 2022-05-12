@@ -91,6 +91,14 @@ class IntRange(RequirementMixin):
             max_inclusive = "(inc)" if self.max_inclusive else "(exc)"
         return f"[{self.min},{max_value}{max_inclusive}]"
 
+    def __eq__(self, __o: object) -> bool:
+        assert isinstance(__o, IntRange), f"actual type: {type(__o)}"
+        return (
+            self.min == __o.min
+            and self.max == __o.max
+            and self.max_inclusive == __o.max_inclusive
+        )
+
     def check(self, capability: Any) -> ResultReason:
         result = ResultReason()
         if capability is None:
