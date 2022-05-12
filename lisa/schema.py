@@ -384,6 +384,15 @@ class DiskType(str, Enum):
     StandardSSDLRS = "StandardSSDLRS"
 
 
+# disk types are ordered by commonly and cost. The earlier is lower cost.
+disk_type_priority: List[DiskType] = [
+    DiskType.StandardHDDLRS,
+    DiskType.StandardSSDLRS,
+    DiskType.Ephemeral,
+    DiskType.PremiumSSDLRS,
+]
+
+
 @dataclass_json()
 @dataclass()
 class DiskOptionSettings(FeatureSettings):

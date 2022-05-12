@@ -458,14 +458,6 @@ class Nvme(AzureFeatureMixin, features.Nvme):
         self._initialize_information(self._node)
 
 
-# disk types are ordered by commonly and cost. The earlier is lower cost.
-_ordered_disk_types: List[schema.DiskType] = [
-    schema.DiskType.StandardHDDLRS,
-    schema.DiskType.StandardSSDLRS,
-    schema.DiskType.Ephemeral,
-    schema.DiskType.PremiumSSDLRS,
-]
-
 # Tuple: (IOPS, Disk Size)
 _disk_size_iops_map: Dict[schema.DiskType, List[Tuple[int, int]]] = {
     schema.DiskType.PremiumSSDLRS: [
@@ -581,7 +573,7 @@ class AzureDiskOptionSettings(schema.DiskOptionSettings):
 
         min_value.disk_type = (
             search_space.generate_min_capability_setspace_by_priority(
-                self.disk_type, capability.disk_type, _ordered_disk_types
+                self.disk_type, capability.disk_type, schema.disk_type_priority
             )
         )
 
