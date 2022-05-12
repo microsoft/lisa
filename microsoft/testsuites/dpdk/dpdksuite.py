@@ -371,6 +371,12 @@ class Dpdk(TestSuite):
     def verify_dpdk_ring_ping(
         self, node: Node, log: Logger, variables: Dict[str, Any]
     ) -> None:
+
+        # ring ping requires dpdk source to run, since default is package_manager
+        # we special case here to use to dpdk-stable as the default.
+        if not variables.get("dpdk_source"):
+            variables["dpdk_source"] = "https://dpdk.org/git/dpdk-stable"
+
         # setup and unwrap the resources for this test
         test_kit = initialize_node_resources(node, log, variables, "failsafe")
         testpmd = test_kit.testpmd
