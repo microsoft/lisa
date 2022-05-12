@@ -35,6 +35,7 @@ def qemu_connect_nested_vm(
     image_size: int = NESTED_VM_REQUIRED_DISK_SIZE_IN_GB,
     nic_model: str = "e1000",
     taps: int = 0,
+    cores: int = 2,
     bridge: Optional[str] = None,
     disks: Optional[List[str]] = None,
     stop_existing_vm: bool = True,
@@ -75,6 +76,7 @@ def qemu_connect_nested_vm(
         taps=taps,
         bridge=bridge,
         disks=disks,
+        cores=cores,
         stop_existing_vm=stop_existing_vm,
     )
 
