@@ -69,6 +69,7 @@ from .sar import Sar
 from .service import Service
 from .ssh import Ssh
 from .sshpass import Sshpass
+from .start_configuration import StartConfiguration
 from .stat import Stat
 from .stress_ng import StressNg
 from .swap import Swap
@@ -163,6 +164,7 @@ __all__ = [
     "Service",
     "Ssh",
     "Sshpass",
+    "StartConfiguration",
     "Stat",
     "StressNg",
     "Swap",
