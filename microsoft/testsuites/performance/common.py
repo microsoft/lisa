@@ -211,6 +211,8 @@ def perf_ntttcp(
     udp_mode: bool = False,
     connections: Optional[List[int]] = None,
     test_case_name: str = "",
+    server_nic_name: Optional[str] = None,
+    client_nic_name: Optional[str] = None,
 ) -> List[Union[NetworkTCPPerformanceMessage, NetworkUDPPerformanceMessage]]:
     # Either server and client are set explicitly or we use the first two nodes
     # from the environment. We never combine the two options. We need to specify
@@ -249,13 +251,22 @@ def perf_ntttcp(
         for lagscope in [client_lagscope, server_lagscope]:
             lagscope.set_busy_poll()
         data_path = get_nic_datapath(client)
-        server_nic_name = server.nics.default_nic
-        client_nic_name = client.nics.default_nic
-        dev_differentiator = "Hypervisor callback interrupts"
         if NetworkDataPath.Sriov.value == data_path:
-            server_nic_name = server.nics.get_lower_nics()[0]
-            client_nic_name = client.nics.get_lower_nics()[0]
+            server_nic_name = (
+                server_nic_name if server_nic_name else server.nics.get_lower_nics()[0]
+            )
+            client_nic_name = (
+                client_nic_name if client_nic_name else client.nics.get_lower_nics()[0]
+            )
             dev_differentiator = "mlx"
+        else:
+            server_nic_name = (
+                server_nic_name if server_nic_name else server.nics.default_nic
+            )
+            client_nic_name = (
+                client_nic_name if client_nic_name else client.nics.default_nic
+            )
+            dev_differentiator = "Hypervisor callback interrupts"
         server_lagscope.run_as_server(ip=server.internal_address)
         max_server_threads = 64
         perf_ntttcp_message_list: List[

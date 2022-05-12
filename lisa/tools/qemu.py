@@ -30,7 +30,7 @@ class Qemu(Tool):
         port: int,
         guest_image_path: str,
         cores: int = 2,
-        memory: int = 2048,
+        memory: int = 4096,
         nic_model: str = "e1000",
         taps: int = 0,
         bridge: Optional[str] = None,

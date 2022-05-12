@@ -2,7 +2,6 @@
 # Licensed under the MIT license.
 
 import inspect
-from pathlib import PurePosixPath
 from typing import Any, Dict, cast
 
 from lisa import (
@@ -22,17 +21,17 @@ from lisa.operating_system import Windows
 from lisa.sut_orchestrator import AZURE, READY
 from lisa.tools import (
     Dnsmasq,
-    Echo,
+    HyperV,
     Ip,
     Iptables,
+    Lsblk,
     Lscpu,
     Mdadm,
     PowerShell,
     Qemu,
+    StartConfiguration,
     Sysctl,
 )
-from lisa.tools.hyperv import HyperV
-from lisa.tools.lsblk import Lsblk
 from lisa.util.logger import Logger
 from lisa.util.shell import ConnectionInfo, try_connect
 from microsoft.testsuites.nested.common import (
@@ -183,10 +182,11 @@ class KVMPerformance(TestSuite):  # noqa
         priority=3,
         timeout=_TIME_OUT,
         requirement=simple_requirement(
+            min_core_count=16,
             disk=schema.DiskOptionSettings(
                 data_disk_count=search_space.IntRange(min=1),
                 data_disk_size=search_space.IntRange(min=12),
-            )
+            ),
         ),
     )
     def perf_nested_kvm_ntttcp_private_bridge(
@@ -202,6 +202,9 @@ class KVMPerformance(TestSuite):  # noqa
             _,
             nested_image_url,
         ) = parse_nested_image_variables(variables)
+
+        # get cpu count
+        cpu_count = node.tools[Lscpu].get_core_count()
 
         try:
             # setup bridge
@@ -219,16 +222,16 @@ class KVMPerformance(TestSuite):  # noqa
                 image_name=self._SERVER_IMAGE,
                 nic_model="virtio-net-pci",
                 taps=1,
+                cores=cpu_count,
                 bridge=self._BR_NAME,
                 name="server",
                 log=log,
             )
             server.tools[Ip].add_ipv4_address(
-                self._NIC_NAME, f"{self._SERVER_IP_ADDR}/24"
+                self._NIC_NAME, f"{self._SERVER_IP_ADDR}/{self._BR_CIDR}", persist=True
             )
-            server.tools[Ip].up(self._NIC_NAME)
+            server.tools[Ip].up(self._NIC_NAME, persist=True)
             server.internal_address = self._SERVER_IP_ADDR
-            server.nics.default_nic = self._NIC_NAME
             server.capability.network_interface = Synthetic()
 
             client = qemu_connect_nested_vm(
@@ -240,21 +243,26 @@ class KVMPerformance(TestSuite):  # noqa
                 image_name=self._CLIENT_IMAGE,
                 nic_model="virtio-net-pci",
                 taps=1,
+                cores=cpu_count,
                 bridge=self._BR_NAME,
                 name="client",
                 stop_existing_vm=False,
                 log=log,
             )
             client.tools[Ip].add_ipv4_address(
-                self._NIC_NAME, f"{self._CLIENT_IP_ADDR}/24"
+                self._NIC_NAME, f"{self._CLIENT_IP_ADDR}/{self._BR_CIDR}", persist=True
             )
-            client.tools[Ip].up(self._NIC_NAME)
-            client.nics.default_nic = self._NIC_NAME
+            client.tools[Ip].up(self._NIC_NAME, persist=True)
             client.capability.network_interface = Synthetic()
 
             # run ntttcp test
             perf_ntttcp(
-                environment, server, client, test_case_name=inspect.stack()[1][3]
+                environment,
+                server,
+                client,
+                server_nic_name=self._NIC_NAME,
+                client_nic_name=self._NIC_NAME,
+                test_case_name=inspect.stack()[1][3],
             )
         finally:
             # stop running QEMU instances
@@ -272,6 +280,7 @@ class KVMPerformance(TestSuite):  # noqa
         timeout=_TIME_OUT,
         requirement=simple_requirement(
             min_count=2,
+            min_core_count=16,
             network_interface=schema.NetworkInterfaceOptionSettings(
                 nic_count=search_space.IntRange(min=2),
             ),
@@ -330,7 +339,12 @@ class KVMPerformance(TestSuite):  # noqa
 
             # run ntttcp test
             perf_ntttcp(
-                environment, server_l2, client_l2, test_case_name=inspect.stack()[1][3]
+                environment,
+                server_l2,
+                client_l2,
+                server_nic_name=self._NIC_NAME,
+                client_nic_name=self._NIC_NAME,
+                test_case_name=inspect.stack()[1][3],
             )
         finally:
             self._linux_cleanup_nat(server_l1, self._BR_NAME)
@@ -484,6 +498,8 @@ class KVMPerformance(TestSuite):  # noqa
         to the nested VM's port 22.
         2. Forward all traffic on node's eth1 interface to the nested VM.
         """
+        # get core count
+        core_count = node.tools[Lscpu].get_core_count()
 
         node_eth1_ip = node.nics.get_nic("eth1").ip_addr
         bridge_dhcp_range = f"{guest_internal_ip},{guest_internal_ip}"
@@ -523,25 +539,15 @@ class KVMPerformance(TestSuite):  # noqa
             guest_port,
             guest_image_url,
             taps=1,
+            cores=core_count,
             bridge=bridge_name,
             stop_existing_vm=True,
             name=nested_vm_name,
         )
 
         # configure rc.local to run dhclient on reboot
-        nested_vm.tools[Echo].write_to_file(
-            "#!/bin/sh -e", PurePosixPath("/etc/rc.local"), append=True, sudo=True
-        )
-        nested_vm.tools[Echo].write_to_file(
-            "ip link set dev ens4 up",
-            PurePosixPath("/etc/rc.local"),
-            append=True,
-            sudo=True,
-        )
-        nested_vm.tools[Echo].write_to_file(
-            "dhclient ens4", PurePosixPath("/etc/rc.local"), append=True, sudo=True
-        )
-        nested_vm.execute("chmod +x /etc/rc.local", sudo=True)
+        nested_vm.tools[StartConfiguration].add_command("ip link set dev ens4 up")
+        nested_vm.tools[StartConfiguration].add_command("dhclient ens4")
 
         # reboot nested vm and close ssh connection
         nested_vm.execute("reboot", sudo=True)
@@ -576,7 +582,6 @@ class KVMPerformance(TestSuite):  # noqa
 
         # set default nic interfaces on l2 vm
         nested_vm.internal_address = node_eth1_ip
-        nested_vm.nics.default_nic = guest_default_nic
         nested_vm.capability.network_interface = Synthetic()
 
         return nested_vm

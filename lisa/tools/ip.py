@@ -8,6 +8,7 @@ from assertpy import assert_that
 
 from lisa.executable import Tool
 from lisa.tools import Cat
+from lisa.tools.start_configuration import StartConfiguration
 from lisa.tools.whoami import Whoami
 from lisa.util import LisaException
 
@@ -25,7 +26,9 @@ class Ip(Tool):
     def _check_exists(self) -> bool:
         return True
 
-    def _set_device_status(self, nic_name: str, status: str) -> None:
+    def _set_device_status(
+        self, nic_name: str, status: str, persist: bool = False
+    ) -> None:
         self.node.execute(
             f"ip link set {nic_name} {status}",
             shell=True,
@@ -35,12 +38,16 @@ class Ip(Tool):
                 f"Could not set {nic_name} to '{status}'"
             ),
         )
+        if persist:
+            self.node.tools[StartConfiguration].add_command(
+                f"ip link set {nic_name} {status}"
+            )
 
-    def up(self, nic_name: str) -> None:
-        self._set_device_status(nic_name, "up")
+    def up(self, nic_name: str, persist: bool = False) -> None:
+        self._set_device_status(nic_name, "up", persist=persist)
 
-    def down(self, nic_name: str) -> None:
-        self._set_device_status(nic_name, "down")
+    def down(self, nic_name: str, persist: bool = False) -> None:
+        self._set_device_status(nic_name, "down", persist=persist)
 
     def addr_flush(self, nic_name: str) -> None:
         self.node.execute(
@@ -53,7 +60,7 @@ class Ip(Tool):
             ),
         )
 
-    def add_ipv4_address(self, nic_name: str, ip: str) -> None:
+    def add_ipv4_address(self, nic_name: str, ip: str, persist: bool = True) -> None:
         self.run(
             f"addr add {ip} dev {nic_name}",
             sudo=True,
@@ -62,6 +69,10 @@ class Ip(Tool):
                 f"Could not add address to device {nic_name}"
             ),
         )
+        if persist:
+            self.node.tools[StartConfiguration].add_command(
+                f"ip addr add {ip} dev {nic_name}"
+            )
 
     def restart_device(self, nic_name: str) -> None:
         self.node.execute(
