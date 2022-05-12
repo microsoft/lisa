@@ -2442,7 +2442,7 @@ function install_fio () {
 			yum -y --nogpgcheck install wget sysstat mdadm blktrace libaio fio bc libaio-devel gcc gcc-c++ kernel-devel
 			if ! command -v fio; then
 				LogMsg "fio is not installed\n Build it from source code now..."
-				fio_version="3.13"
+				fio_version="3.30"
 				wget https://github.com/axboe/fio/archive/fio-${fio_version}.tar.gz
 				tar xvf fio-${fio_version}.tar.gz
 				pushd fio-fio-${fio_version} && ./configure && make && make install
@@ -2457,7 +2457,7 @@ function install_fio () {
 			dnf -y --nogpgcheck install wget build-essential sysstat blktrace libaio bc libaio-devel gcc kernel-devel kernel-headers binutils glibc-devel zlib-devel
 			if ! command -v fio; then
 				LogMsg "fio is not installed\n Build it from source code now..."
-				fio_version="3.13"
+				fio_version="3.30"
 				wget https://github.com/axboe/fio/archive/fio-${fio_version}.tar.gz
 				tar xvf fio-${fio_version}.tar.gz
 				pushd fio-fio-${fio_version} && ./configure && make && make install
@@ -2491,7 +2491,7 @@ function install_fio () {
 			which fio
 			if [ $? -ne 0 ]; then
 				LogMsg "fio is not installed\n Build it from source code now..."
-				fio_version="3.13"
+				fio_version="3.30"
 				wget https://github.com/axboe/fio/archive/fio-${fio_version}.tar.gz
 				tar xvf fio-${fio_version}.tar.gz
 				pushd fio-fio-${fio_version} && ./configure && make && make install
