@@ -29,6 +29,7 @@ from lisa.features.gpu import ComputeSDK
 from lisa.features.resize import ResizeAction
 from lisa.node import Node, RemoteNode
 from lisa.operating_system import CentOs, Redhat, Suse, Ubuntu
+from lisa.search_space import RequirementMethod
 from lisa.tools import Dmesg, Lspci, Modprobe
 from lisa.util import (
     LisaException,
@@ -36,6 +37,7 @@ from lisa.util import (
     SkippedException,
     constants,
     find_patterns_in_lines,
+    set_filtered_fields,
 )
 
 if TYPE_CHECKING:
@@ -548,7 +550,7 @@ class AzureDiskOptionSettings(schema.DiskOptionSettings):
 
         return result
 
-    def _generate_min_capability(self, capability: Any) -> Any:
+    def _call_requirement_method(self, method_name: str, capability: Any) -> Any:
         assert isinstance(
             capability, AzureDiskOptionSettings
         ), f"actual: {type(capability)}"
@@ -556,7 +558,12 @@ class AzureDiskOptionSettings(schema.DiskOptionSettings):
         assert (
             capability.disk_type
         ), "capability should have at least one disk type, but it's None"
-        min_value = AzureDiskOptionSettings()
+        value = AzureDiskOptionSettings()
+        super_value = schema.DiskOptionSettings._call_requirement_method(
+            self, method_name, capability
+        )
+        set_filtered_fields(super_value, value, ["data_disk_count"])
+
         cap_disk_type = capability.disk_type
         if isinstance(cap_disk_type, search_space.SetSpace):
             assert (
@@ -571,15 +578,13 @@ class AzureDiskOptionSettings(schema.DiskOptionSettings):
                 f"unknown disk type on capability, type: {cap_disk_type}"
             )
 
-        min_value.disk_type = (
-            search_space.generate_min_capability_setspace_by_priority(
-                self.disk_type, capability.disk_type, schema.disk_type_priority
-            )
+        value.disk_type = getattr(search_space, f"{method_name}_setspace_by_priority")(
+            self.disk_type, capability.disk_type, schema.disk_type_priority
         )
 
         # below values affect data disk only.
         if self.data_disk_count is not None or capability.data_disk_count is not None:
-            min_value.data_disk_count = search_space.generate_min_capability_countspace(
+            value.data_disk_count = getattr(search_space, f"{method_name}_countspace")(
                 self.data_disk_count, capability.data_disk_count
             )
 
@@ -587,78 +592,86 @@ class AzureDiskOptionSettings(schema.DiskOptionSettings):
             self.max_data_disk_count is not None
             or capability.max_data_disk_count is not None
         ):
-            min_value.max_data_disk_count = (
-                search_space.generate_min_capability_countspace(
-                    self.max_data_disk_count, capability.max_data_disk_count
-                )
-            )
+            value.max_data_disk_count = getattr(
+                search_space, f"{method_name}_countspace"
+            )(self.max_data_disk_count, capability.max_data_disk_count)
 
-        disk_type_iops = _disk_size_iops_map.get(min_value.disk_type, None)
-        # ignore unsupported disk type like Ephemeral. It supports only os
-        # disk. Calculate for iops, if it has value. If not, try disk size
-        if disk_type_iops:
-            if self.data_disk_iops:
-                req_disk_iops = search_space.count_space_to_int_range(
-                    self.data_disk_iops
-                )
-                cap_disk_iops = search_space.count_space_to_int_range(
-                    capability.data_disk_iops
-                )
-                min_iops = max(req_disk_iops.min, cap_disk_iops.min)
-                max_iops = min(req_disk_iops.max, cap_disk_iops.max)
+        # The Ephemeral doesn't support data disk, but it needs a value. And it
+        # doesn't need to calculate on intersect
+        value.data_disk_iops = 0
+        value.data_disk_size = 0
 
-                min_value.data_disk_iops = min(
-                    iops
-                    for iops, _ in disk_type_iops
-                    if iops >= min_iops and iops <= max_iops
-                )
-                min_value.data_disk_size = self._get_disk_size_from_iops(
-                    min_value.data_disk_iops, disk_type_iops
-                )
-            elif self.data_disk_size:
-                req_disk_size = search_space.count_space_to_int_range(
-                    self.data_disk_size
-                )
-                cap_disk_size = search_space.count_space_to_int_range(
-                    capability.data_disk_size
-                )
-                min_size = max(req_disk_size.min, cap_disk_size.min)
-                max_size = min(req_disk_size.max, cap_disk_size.max)
+        if method_name == RequirementMethod.generate_min_capability:
+            assert isinstance(
+                value.disk_type, schema.DiskType
+            ), f"actual: {type(value.disk_type)}"
+            disk_type_iops = _disk_size_iops_map.get(value.disk_type, None)
+            # ignore unsupported disk type like Ephemeral. It supports only os
+            # disk. Calculate for iops, if it has value. If not, try disk size
+            if disk_type_iops:
+                if isinstance(self.data_disk_iops, int) or (
+                    self.data_disk_iops != search_space.IntRange(min=0)
+                ):
+                    req_disk_iops = search_space.count_space_to_int_range(
+                        self.data_disk_iops
+                    )
+                    cap_disk_iops = search_space.count_space_to_int_range(
+                        capability.data_disk_iops
+                    )
+                    min_iops = max(req_disk_iops.min, cap_disk_iops.min)
+                    max_iops = min(req_disk_iops.max, cap_disk_iops.max)
 
-                min_value.data_disk_iops = min(
-                    iops
-                    for iops, disk_size in disk_type_iops
-                    if disk_size >= min_size and disk_size <= max_size
-                )
-                min_value.data_disk_size = self._get_disk_size_from_iops(
-                    min_value.data_disk_iops, disk_type_iops
-                )
-            else:
-                # if req is not specified, query minimum value.
-                cap_disk_size = search_space.count_space_to_int_range(
-                    capability.data_disk_size
-                )
-                min_value.data_disk_iops = min(
-                    iops
-                    for iops, _ in disk_type_iops
-                    if iops >= cap_disk_size.min and iops <= cap_disk_size.max
-                )
-                min_value.data_disk_size = self._get_disk_size_from_iops(
-                    min_value.data_disk_iops, disk_type_iops
-                )
-        else:
-            # The Ephemeral doesn't support data disk, but it needs a value.
-            min_value.data_disk_iops = 0
-            min_value.data_disk_size = 0
+                    value.data_disk_iops = min(
+                        iops
+                        for iops, _ in disk_type_iops
+                        if iops >= min_iops and iops <= max_iops
+                    )
+                    value.data_disk_size = self._get_disk_size_from_iops(
+                        value.data_disk_iops, disk_type_iops
+                    )
+                elif self.data_disk_size:
+                    req_disk_size = search_space.count_space_to_int_range(
+                        self.data_disk_size
+                    )
+                    cap_disk_size = search_space.count_space_to_int_range(
+                        capability.data_disk_size
+                    )
+                    min_size = max(req_disk_size.min, cap_disk_size.min)
+                    max_size = min(req_disk_size.max, cap_disk_size.max)
+
+                    value.data_disk_iops = min(
+                        iops
+                        for iops, disk_size in disk_type_iops
+                        if disk_size >= min_size and disk_size <= max_size
+                    )
+                    value.data_disk_size = self._get_disk_size_from_iops(
+                        value.data_disk_iops, disk_type_iops
+                    )
+                else:
+                    # if req is not specified, query minimum value.
+                    cap_disk_size = search_space.count_space_to_int_range(
+                        capability.data_disk_size
+                    )
+                    value.data_disk_iops = min(
+                        iops
+                        for iops, _ in disk_type_iops
+                        if iops >= cap_disk_size.min and iops <= cap_disk_size.max
+                    )
+                    value.data_disk_size = self._get_disk_size_from_iops(
+                        value.data_disk_iops, disk_type_iops
+                    )
 
         # all caching types are supported, so just take the value from requirement.
-        min_value.data_disk_caching_type = self.data_disk_caching_type
+        value.data_disk_caching_type = self.data_disk_caching_type
 
-        min_value.has_resource_disk = self._generate_min_capability_has_resource_disk(
+        check_result = self._check_has_resource_disk(
             self.has_resource_disk, capability.has_resource_disk
         )
+        if not check_result.result:
+            raise NotMeetRequirementException("capability doesn't support requirement")
+        value.has_resource_disk = capability.has_resource_disk
 
-        return min_value
+        return value
 
     def _get_disk_size_from_iops(
         self, data_disk_iops: int, disk_type_iops: List[Tuple[int, int]]
@@ -687,16 +700,6 @@ class AzureDiskOptionSettings(schema.DiskOptionSettings):
                     )
 
         return result
-
-    def _generate_min_capability_has_resource_disk(
-        self, requirement: Optional[bool], capability: Optional[bool]
-    ) -> Optional[bool]:
-        check_result = self._check_has_resource_disk(requirement, capability)
-        if not check_result.result:
-            raise NotMeetRequirementException(
-                "cannot get min value, capability doesn't support requirement"
-            )
-        return capability
 
     def _get_key(self) -> str:
         return f"{super()._get_key()}/{self.has_resource_disk}"
