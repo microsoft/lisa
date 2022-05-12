@@ -322,6 +322,8 @@ def decode_set_space_by_type(
         decoded_data = new_data
     elif isinstance(data, str):
         decoded_data = base_type(data)  # type: ignore
+    elif isinstance(data, SetSpace):
+        decoded_data = data
     else:
         raise LisaException(f"unknown data type: {type(data)}")
     return decoded_data
