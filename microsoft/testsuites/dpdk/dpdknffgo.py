@@ -4,9 +4,9 @@
 from typing import List, Type
 
 from lisa.executable import Tool
-from lisa.operating_system import Debian
+from lisa.operating_system import Debian, Ubuntu
 from lisa.tools import Echo, Git, Make, Tar, Wget
-from lisa.util import UnsupportedDistroException
+from lisa.util import SkippedException, UnsupportedDistroException
 
 
 class DpdkNffGo(Tool):
@@ -48,6 +48,15 @@ class DpdkNffGo(Tool):
         return isinstance(self.node.os, Debian)
 
     def _install(self) -> bool:
+        os = self.node.os
+        version = os.information.version
+        if not (
+            (isinstance(os, Ubuntu) and version >= "18.4.0")
+            or (isinstance(os, Debian) and version >= "10.0.0")
+        ):
+            raise SkippedException(
+                "NFF-GO test is not supported on EOL debian or Ubuntu"
+            )
         node = self.node
         git = node.tools[Git]
         echo = node.tools[Echo]
