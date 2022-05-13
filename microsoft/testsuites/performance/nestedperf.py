@@ -141,12 +141,13 @@ class KVMPerformance(TestSuite):  # noqa
         ),
     )
     def perf_nested_hyperv_storage_singledisk(
-        self, node: RemoteNode, environment: Environment, variables: Dict[str, Any]
+        self,
+        node: RemoteNode,
+        environment: Environment,
+        variables: Dict[str, Any],
+        log: Logger,
     ) -> None:
-        try:
-            self._storage_perf_hyperv(node, environment, variables)
-        finally:
-            hyperv_remove_nested_vm(node)
+        self._storage_perf_hyperv(node, environment, variables, log)
 
     @TestCaseMetadata(
         description="""
@@ -166,13 +167,13 @@ class KVMPerformance(TestSuite):  # noqa
         ),
     )
     def perf_nested_hyperv_storage_multidisk(
-        self, node: RemoteNode, environment: Environment, variables: Dict[str, Any]
+        self,
+        node: RemoteNode,
+        environment: Environment,
+        variables: Dict[str, Any],
+        log: Logger,
     ) -> None:
-        try:
-            self._storage_perf_hyperv(node, environment, variables, setup_raid=True)
-        finally:
-            hyperv_remove_nested_vm(node)
-            node.tools[Mdadm].stop_raid()
+        self._storage_perf_hyperv(node, environment, variables, log, setup_raid=True)
 
     @TestCaseMetadata(
         description="""
@@ -265,11 +266,15 @@ class KVMPerformance(TestSuite):  # noqa
                 test_case_name=inspect.stack()[1][3],
             )
         finally:
-            # stop running QEMU instances
-            node.tools[Qemu].delete_vm()
+            try:
+                # stop running QEMU instances
+                node.tools[Qemu].delete_vm()
 
-            # clear bridge and taps
-            node.tools[Ip].delete_interface(self._BR_NAME)
+                # clear bridge and taps
+                node.tools[Ip].delete_interface(self._BR_NAME)
+            except Exception as e:
+                log.debug(f"Failed to clean up vm: {e}")
+                node.mark_dirty()
 
     @TestCaseMetadata(
         description="""
@@ -291,7 +296,7 @@ class KVMPerformance(TestSuite):  # noqa
         ),
     )
     def perf_nested_kvm_ntttcp_different_l1_nat(
-        self, environment: Environment, variables: Dict[str, Any]
+        self, environment: Environment, variables: Dict[str, Any], log: Logger
     ) -> None:
         server_l1 = cast(RemoteNode, environment.nodes[0])
         client_l1 = cast(RemoteNode, environment.nodes[1])
@@ -347,8 +352,8 @@ class KVMPerformance(TestSuite):  # noqa
                 test_case_name=inspect.stack()[1][3],
             )
         finally:
-            self._linux_cleanup_nat(server_l1, self._BR_NAME)
-            self._linux_cleanup_nat(client_l1, self._BR_NAME)
+            self._linux_cleanup_nat(server_l1, self._BR_NAME, log)
+            self._linux_cleanup_nat(client_l1, self._BR_NAME, log)
 
     @TestCaseMetadata(
         description="""
@@ -364,7 +369,7 @@ class KVMPerformance(TestSuite):  # noqa
         ),
     )
     def perf_nested_hyperv_ntttcp_different_l1_nat(
-        self, environment: Environment, variables: Dict[str, Any]
+        self, environment: Environment, variables: Dict[str, Any], log: Logger
     ) -> None:
         server_l1 = cast(RemoteNode, environment.nodes[0])
         client_l1 = cast(RemoteNode, environment.nodes[1])
@@ -403,8 +408,19 @@ class KVMPerformance(TestSuite):  # noqa
                 environment, server_l2, client_l2, test_case_name=inspect.stack()[1][3]
             )
         finally:
-            hyperv_remove_nested_vm(server_l1, "server_l2")
-            hyperv_remove_nested_vm(client_l1, "client_l2")
+            # cleanup server
+            try:
+                hyperv_remove_nested_vm(server_l1, "server_l2")
+            except Exception as e:
+                log.debug(f"Failed to clean up server vm: {e}")
+                server_l1.mark_dirty()
+
+            # cleanup client
+            try:
+                hyperv_remove_nested_vm(client_l1, "client_l2")
+            except Exception as e:
+                log.debug(f"Failed to clean up client vm: {e}")
+                client_l1.mark_dirty()
 
     @TestCaseMetadata(
         description="""
@@ -425,7 +441,7 @@ class KVMPerformance(TestSuite):  # noqa
         ),
     )
     def perf_nested_kvm_netperf_pps_nat(
-        self, environment: Environment, variables: Dict[str, Any]
+        self, environment: Environment, variables: Dict[str, Any], log: Logger
     ) -> None:
         server_l1 = cast(RemoteNode, environment.nodes[0])
         client_l1 = cast(RemoteNode, environment.nodes[1])
@@ -474,8 +490,8 @@ class KVMPerformance(TestSuite):  # noqa
             # run netperf test
             perf_tcp_pps(environment, "singlepps", server_l2, client_l2)
         finally:
-            self._linux_cleanup_nat(server_l1, self._BR_NAME)
-            self._linux_cleanup_nat(client_l1, self._BR_NAME)
+            self._linux_cleanup_nat(server_l1, self._BR_NAME, log)
+            self._linux_cleanup_nat(client_l1, self._BR_NAME, log)
 
     def _linux_setup_nat(
         self,
@@ -586,16 +602,25 @@ class KVMPerformance(TestSuite):  # noqa
 
         return nested_vm
 
-    def _linux_cleanup_nat(self, node: RemoteNode, bridge_name: str) -> None:
-        # stop running QEMU instances
-        node.tools[Qemu].delete_vm()
+    def _linux_cleanup_nat(
+        self,
+        node: RemoteNode,
+        bridge_name: str,
+        log: Logger,
+    ) -> None:
+        try:
+            # stop running QEMU instances
+            node.tools[Qemu].delete_vm()
 
-        # clear bridge and taps
-        node.tools[Ip].delete_interface(bridge_name)
+            # clear bridge and taps
+            node.tools[Ip].delete_interface(bridge_name)
 
-        # flush ip tables
-        node.tools[Iptables].reset_table()
-        node.tools[Iptables].reset_table("nat")
+            # flush ip tables
+            node.tools[Iptables].reset_table()
+            node.tools[Iptables].reset_table("nat")
+        except Exception as e:
+            log.debug(f"Failed to clean up NAT configuration: {e}")
+            node.mark_dirty()
 
     def _storage_perf_qemu(
         self,
@@ -690,14 +715,19 @@ class KVMPerformance(TestSuite):  # noqa
                 overwrite=True,
             )
         finally:
-            node.tools[Qemu].delete_vm()
-            stop_raid(node)
+            try:
+                node.tools[Qemu].delete_vm()
+                stop_raid(node)
+            except Exception as e:
+                log.debug(f"Failed to cleanup Qemu VM: {e}")
+                node.mark_dirty()
 
     def _storage_perf_hyperv(
         self,
         node: RemoteNode,
         environment: Environment,
         variables: Dict[str, Any],
+        log: Logger,
         filename: str = "/dev/sdb",
         start_iodepth: int = 1,
         max_iodepth: int = 1024,
@@ -712,66 +742,74 @@ class KVMPerformance(TestSuite):  # noqa
 
         mdadm = node.tools[Mdadm]
 
-        # cleanup any previous raid configurations to free
-        # data disks
-        mdadm.stop_raid()
+        try:
+            # cleanup any previous raid configurations to free
+            # data disks
+            mdadm.stop_raid()
 
-        # get data disk id
-        powershell = node.tools[PowerShell]
-        data_disks_id_str = powershell.run_cmdlet(
-            "(Get-Disk | "
-            "Where-Object {$_.FriendlyName -eq 'Msft Virtual Disk'}).Number"
-        )
-        data_disks_id = data_disks_id_str.strip().replace("\r", "").split("\n")
+            # get data disk id
+            powershell = node.tools[PowerShell]
+            data_disks_id_str = powershell.run_cmdlet(
+                "(Get-Disk | "
+                "Where-Object {$_.FriendlyName -eq 'Msft Virtual Disk'}).Number"
+            )
+            data_disks_id = data_disks_id_str.strip().replace("\r", "").split("\n")
 
-        # set data disks offline
-        for disk in data_disks_id:
-            powershell.run_cmdlet(
-                f"Set-Disk -Number {disk} -IsOffline $true", force_run=True
+            # set data disks offline
+            for disk in data_disks_id:
+                powershell.run_cmdlet(
+                    f"Set-Disk -Number {disk} -IsOffline $true", force_run=True
+                )
+
+            # create raid
+            if setup_raid:
+                mdadm.create_raid(data_disks_id)
+
+            # get l2 vm
+            nested_vm = hyperv_connect_nested_vm(
+                node,
+                nested_image_username,
+                nested_image_password,
+                nested_image_port,
+                nested_image_url,
             )
 
-        # create raid
-        if setup_raid:
-            mdadm.create_raid(data_disks_id)
+            # Each fio process start jobs equal to the iodepth to read/write from
+            # the disks. The max number of jobs can be equal to the core count of
+            # the node.
+            # Examples:
+            # iodepth = 4, core count = 8 => max_jobs = 4
+            # iodepth = 16, core count = 8 => max_jobs = 8
+            num_jobs = []
+            iodepth_iter = start_iodepth
+            core_count = node.tools[Lscpu].get_core_count()
+            while iodepth_iter <= max_iodepth:
+                num_jobs.append(min(iodepth_iter, core_count))
+                iodepth_iter = iodepth_iter * 2
 
-        # get l2 vm
-        nested_vm = hyperv_connect_nested_vm(
-            node,
-            nested_image_username,
-            nested_image_password,
-            nested_image_port,
-            nested_image_url,
-        )
-
-        # Each fio process start jobs equal to the iodepth to read/write from
-        # the disks. The max number of jobs can be equal to the core count of
-        # the node.
-        # Examples:
-        # iodepth = 4, core count = 8 => max_jobs = 4
-        # iodepth = 16, core count = 8 => max_jobs = 8
-        num_jobs = []
-        iodepth_iter = start_iodepth
-        core_count = node.tools[Lscpu].get_core_count()
-        while iodepth_iter <= max_iodepth:
-            num_jobs.append(min(iodepth_iter, core_count))
-            iodepth_iter = iodepth_iter * 2
-
-        # run fio test
-        perf_disk(
-            nested_vm,
-            start_iodepth,
-            max_iodepth,
-            filename,
-            test_name=inspect.stack()[1][3],
-            core_count=core_count,
-            disk_count=1,
-            disk_setup_type=DiskSetupType.raid0,
-            disk_type=DiskType.premiumssd,
-            environment=environment,
-            num_jobs=num_jobs,
-            size_gb=8,
-            overwrite=True,
-        )
+            # run fio test
+            perf_disk(
+                nested_vm,
+                start_iodepth,
+                max_iodepth,
+                filename,
+                test_name=inspect.stack()[1][3],
+                core_count=core_count,
+                disk_count=1,
+                disk_setup_type=DiskSetupType.raid0,
+                disk_type=DiskType.premiumssd,
+                environment=environment,
+                num_jobs=num_jobs,
+                size_gb=8,
+                overwrite=True,
+            )
+        finally:
+            try:
+                hyperv_remove_nested_vm(node)
+                node.tools[Mdadm].stop_raid()
+            except Exception as e:
+                log.debug(f"Failed to cleanup Hyper-V vm: {e}")
+                node.mark_dirty()
 
     def _windows_setup_nat(
         self,
