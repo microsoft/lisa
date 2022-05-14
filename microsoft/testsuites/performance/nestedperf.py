@@ -528,6 +528,14 @@ class KVMPerformance(TestSuite):  # noqa
         node.tools[Ip].set_bridge_configuration(bridge_name, "stp_state", "0")
         node.tools[Ip].set_bridge_configuration(bridge_name, "forward_delay", "0")
 
+        # reset bridge lease file to remove old dns leases
+        node.execute(
+            f"cp /dev/null /var/run/qemu-dnsmasq-{bridge_name}.leases", sudo=True
+        )
+
+        # start dnsmasq
+        node.tools[Dnsmasq].start(bridge_name, bridge_gateway, bridge_dhcp_range)
+
         # reset filter table to accept all traffic
         node.tools[Iptables].reset_table()
 
@@ -538,14 +546,6 @@ class KVMPerformance(TestSuite):  # noqa
             sudo=True,
             force_run=True,
         )
-
-        # reset bridge lease file to remove old dns leases
-        node.execute(
-            f"cp /dev/null /var/run/qemu-dnsmasq-{bridge_name}.leases", sudo=True
-        )
-
-        # start dnsmasq
-        node.tools[Dnsmasq].start(bridge_name, bridge_gateway, bridge_dhcp_range)
 
         # start nested vm
         nested_vm = qemu_connect_nested_vm(
