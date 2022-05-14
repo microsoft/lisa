@@ -3,6 +3,7 @@
 
 from lisa.executable import Tool
 from lisa.operating_system import Posix
+from lisa.tools.firewall import Firewall
 from lisa.tools.kill import Kill
 
 
@@ -26,6 +27,9 @@ class Dnsmasq(Tool):
         gateway: str,
         dhcp_range: str,
     ) -> None:
+        # stop firewall
+        self.node.tools[Firewall].stop()
+
         # kill dnsmasq if it is running
         kill = self.node.tools[Kill]
         kill.by_name("dnsmasq")
