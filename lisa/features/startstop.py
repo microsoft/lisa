@@ -1,9 +1,15 @@
 # Copyright (c) Microsoft Corporation.
 # Licensed under the MIT license.
+from enum import Enum
 
 from lisa.feature import Feature
 
 FEATURE_NAME_STARTSTOP = "StartStop"
+
+
+class StopState(str, Enum):
+    Hibernate = "hibernate"
+    Shutdown = "shutdown"
 
 
 class StartStop(Feature):
@@ -16,7 +22,7 @@ class StartStop(Feature):
         # no reason to disable it, it can not be used
         return False
 
-    def _stop(self, wait: bool = True) -> None:
+    def _stop(self, wait: bool = True, state: StopState = StopState.Shutdown) -> None:
         raise NotImplementedError()
 
     def _start(self, wait: bool = True) -> None:
@@ -29,9 +35,9 @@ class StartStop(Feature):
         # most platform support shutdown
         return True
 
-    def stop(self, wait: bool = True) -> None:
+    def stop(self, wait: bool = True, state: StopState = StopState.Shutdown) -> None:
         self._log.info("stopping")
-        self._stop(wait=wait)
+        self._stop(wait=wait, state=state)
         self._node.close()
 
     def start(self, wait: bool = True) -> None:
