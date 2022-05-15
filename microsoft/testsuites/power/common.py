@@ -5,7 +5,7 @@ from typing import cast
 
 from assertpy import assert_that
 
-from lisa import Environment, Logger, RemoteNode
+from lisa import Environment, Logger, RemoteNode, features
 from lisa.features import StartStop
 from lisa.operating_system import Redhat, Suse, Ubuntu
 from lisa.tools import Fio, HibernationSetup, Iperf3, Kill, Lscpu
@@ -30,9 +30,11 @@ def verify_hibernation(node: RemoteNode, log: Logger) -> None:
     hibernation_setup_tool = node.tools[HibernationSetup]
     entry_before_hibernation = hibernation_setup_tool.check_entry()
     exit_before_hibernation = hibernation_setup_tool.check_exit()
+    received_before_hibernation = hibernation_setup_tool.check_received()
+    uevent_before_hibernation = hibernation_setup_tool.check_uevent()
     startstop = node.features[StartStop]
     hibernation_setup_tool.start()
-    hibernation_setup_tool.hibernate()
+    startstop.stop(state=features.StopState.Hibernate)
     is_ready = True
     timeout = 900
     timer = create_timer()
@@ -50,6 +52,8 @@ def verify_hibernation(node: RemoteNode, log: Logger) -> None:
     startstop.start()
     entry_after_hibernation = hibernation_setup_tool.check_entry()
     exit_after_hibernation = hibernation_setup_tool.check_exit()
+    received_after_hibernation = hibernation_setup_tool.check_received()
+    uevent_after_hibernation = hibernation_setup_tool.check_uevent()
     assert_that(
         entry_after_hibernation - entry_before_hibernation,
         "not find 'hibernation entry'.",
@@ -57,6 +61,14 @@ def verify_hibernation(node: RemoteNode, log: Logger) -> None:
     assert_that(
         exit_after_hibernation - exit_before_hibernation,
         "not find 'hibernation exit'.",
+    ).is_equal_to(1)
+    assert_that(
+        received_after_hibernation - received_before_hibernation,
+        "not find 'Hibernation request received'.",
+    ).is_equal_to(1)
+    assert_that(
+        uevent_after_hibernation - uevent_before_hibernation,
+        "not find 'Sent hibernation uevent'.",
     ).is_equal_to(1)
 
     node_nic = node.nics

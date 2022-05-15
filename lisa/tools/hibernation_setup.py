@@ -16,8 +16,16 @@ from .service import Systemctl
 
 class HibernationSetup(Tool):
     _repo = "https://github.com/microsoft/hibernation-setup-tool"
+    # [  159.967060] PM: hibernation entry
     _entry_pattern = re.compile(r"^(.*hibernation entry.*)$", re.MULTILINE)
+    # [   22.813227] PM: hibernation exit
     _exit_pattern = re.compile(r"^(.*hibernation exit.*)$", re.MULTILINE)
+    # [  159.898723] hv_utils: Hibernation request received
+    _received_pattern = re.compile(
+        r"^(.*Hibernation request received.*)$", re.MULTILINE
+    )
+    # [  159.898806] hv_utils: Sent hibernation uevent
+    _uevent_pattern = re.compile(r"^(.*Sent hibernation uevent.*)$", re.MULTILINE)
 
     @property
     def command(self) -> str:
@@ -43,6 +51,12 @@ class HibernationSetup(Tool):
 
     def check_exit(self) -> int:
         return self._check(self._exit_pattern)
+
+    def check_received(self) -> int:
+        return self._check(self._received_pattern)
+
+    def check_uevent(self) -> int:
+        return self._check(self._uevent_pattern)
 
     def hibernate(self) -> None:
         self.node.tools[Systemctl].hibernate()

@@ -20,7 +20,7 @@ from .security_profile import (
     SecurityProfileSettings,
 )
 from .serial_console import SerialConsole
-from .startstop import StartStop
+from .startstop import StartStop, StopState
 
 __all__ = [
     "Disk",
@@ -44,6 +44,7 @@ __all__ = [
     "SecurityProfile",
     "SecurityProfileSettings",
     "Sriov",
+    "StopState",
     "Synthetic",
     "StartStop",
 ]

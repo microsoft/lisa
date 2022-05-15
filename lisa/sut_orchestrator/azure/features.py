@@ -63,8 +63,15 @@ class AzureFeatureMixin:
 
 
 class StartStop(AzureFeatureMixin, features.StartStop):
-    def _stop(self, wait: bool = True) -> None:
-        self._execute(wait, "begin_deallocate")
+    def _stop(
+        self,
+        wait: bool = True,
+        state: features.StopState = features.StopState.Shutdown,
+    ) -> None:
+        if state == features.StopState.Hibernate:
+            self._execute(wait, "begin_deallocate", hibernate=True)
+        else:
+            self._execute(wait, "begin_deallocate")
 
     def _start(self, wait: bool = True) -> None:
         self._execute(wait, "begin_start")
@@ -86,13 +93,15 @@ class StartStop(AzureFeatureMixin, features.StartStop):
         super()._initialize(*args, **kwargs)
         self._initialize_information(self._node)
 
-    def _execute(self, wait: bool, operator: str) -> None:
+    def _execute(self, wait: bool, operator: str, **kwargs: Any) -> None:
         platform: AzurePlatform = self._platform  # type: ignore
         # The latest version may not be deployed to server side, use specified version.
-        compute_client = get_compute_client(platform, api_version="2020-06-01")
+        compute_client = get_compute_client(platform, api_version="2021-07-01")
         operator_method = getattr(compute_client.virtual_machines, operator)
         operation = operator_method(
-            resource_group_name=self._resource_group_name, vm_name=self._vm_name
+            resource_group_name=self._resource_group_name,
+            vm_name=self._vm_name,
+            **kwargs,
         )
         if wait:
             wait_operation(operation, failure_identity="Start/Stop")
