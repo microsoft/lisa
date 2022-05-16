@@ -18,6 +18,7 @@ from lisa.tools import QemuImg
 from lisa.util.logger import Logger
 
 from .. import CLOUD_HYPERVISOR
+from .console_logger import QemuConsoleLogger
 from .schema import BaseLibvirtNodeSchema, CloudHypervisorNodeSchema, DiskImageFormat
 
 
@@ -164,7 +165,7 @@ class CloudHypervisorPlatform(BaseLibvirtPlatform):
         assert node_context.domain
         node_context.domain.createWithFlags(0)
 
-        assert node_context.console_logger
+        node_context.console_logger = QemuConsoleLogger()
         node_context.console_logger.attach(
             libvirt_conn, node_context.domain, node_context.console_log_file_path
         )
