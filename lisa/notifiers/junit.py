@@ -141,7 +141,9 @@ class JUnit(Notifier):
 
     # Test case completed message.
     def _test_case_completed(self, message: TestResultMessage) -> None:
-        testsuite_info = self._testsuites_info[message.suite_full_name]
+        testsuite_info = self._testsuites_info.get(message.suite_full_name)
+        if not testsuite_info:
+            return
 
         testcase = ET.SubElement(testsuite_info.xml, "testcase")
         testcase.attrib["name"] = message.name
