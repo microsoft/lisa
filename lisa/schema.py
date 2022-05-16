@@ -695,8 +695,8 @@ class NodeSpace(search_space.RequirementMixin, TypedSchema, ExtendableSchemaMixi
         default=search_space.IntRange(min=512),
         metadata=field_metadata(decoder=search_space.decode_count_space),
     )
-    disk: Optional[DiskOptionSettings] = None
-    network_interface: Optional[NetworkInterfaceOptionSettings] = None
+    disk: DiskOptionSettings = DiskOptionSettings()
+    network_interface: NetworkInterfaceOptionSettings = NetworkInterfaceOptionSettings()
     gpu_count: search_space.CountSpace = field(
         default=search_space.IntRange(min=0),
         metadata=field_metadata(decoder=search_space.decode_count_space),

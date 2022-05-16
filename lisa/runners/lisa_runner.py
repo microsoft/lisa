@@ -635,8 +635,8 @@ class LisaRunner(BaseRunner):
                         original_node_requirement = schema.load_by_type(
                             schema.NodeSpace, node_requirement_data
                         )
-                        node_requirement = original_node_requirement.intersect(
-                            platform_requirement
+                        node_requirement = platform_requirement.intersect(
+                            original_node_requirement
                         )
                         environment_requirement.nodes[index] = node_requirement
 
