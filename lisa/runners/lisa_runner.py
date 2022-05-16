@@ -22,7 +22,7 @@ from lisa.platform_ import (
 from lisa.runner import BaseRunner
 from lisa.testselector import select_testcases
 from lisa.testsuite import TestCaseRequirement, TestResult, TestStatus, TestSuite
-from lisa.util import LisaException, constants
+from lisa.util import LisaException, constants, deep_update_dict
 from lisa.util.parallel import Task, check_cancelled
 from lisa.variable import VariableEntry
 
@@ -637,6 +637,13 @@ class LisaRunner(BaseRunner):
                         )
                         node_requirement = original_node_requirement.intersect(
                             platform_requirement
+                        )
+
+                        assert isinstance(platform_requirement.extended_schemas, dict)
+                        assert isinstance(node_requirement.extended_schemas, dict)
+                        node_requirement.extended_schemas = deep_update_dict(
+                            platform_requirement.extended_schemas,
+                            node_requirement.extended_schemas,
                         )
                         environment_requirement.nodes[index] = node_requirement
 
