@@ -32,6 +32,8 @@ class KvmUnitTestSuite(TestSuite):
     def kvm_unit_tests_for_azure_vm(
         self, log: Logger, node: Node, log_path: Path
     ) -> None:
+        # TODO: These failures need to be investigated to figure out the exact
+        # cause.
         expected_failures = [
             "pmu_lbr",
             "svm_pause_filter",
