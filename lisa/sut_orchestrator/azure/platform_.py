@@ -1638,9 +1638,10 @@ class AzurePlatform(Platform):
         # https://docs.microsoft.com/en-us/azure/virtual-machines/azure-vms-no-temp-disk
         if resource_sku.family in [
             "standardDv4Family",
-            "standardDsv4Family",
+            "standardDSv4Family",
             "standardEv4Family",
-            "standardEsv4Family",
+            "standardESv4Family",
+            "standardEASv4Family",
         ]:
             node_space.disk.has_resource_disk = False
         else:
