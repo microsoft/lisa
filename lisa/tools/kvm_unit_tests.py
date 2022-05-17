@@ -12,7 +12,7 @@ from .make import Make
 
 
 class KvmUnitTests(Tool):
-    test_runner_cmd: str
+    test_runner_cmd: str = ""
     repo_root: PurePath
 
     repo = "https://gitlab.com/kvm-unit-tests/kvm-unit-tests.git"
@@ -37,7 +37,7 @@ class KvmUnitTests(Tool):
 
     @property
     def exists(self) -> bool:
-        return self.test_runner_cmd is not None
+        return True if self.test_runner_cmd else False
 
     def _install_dep(self) -> None:
         posix_os: Posix = cast(Posix, self.node.os)
@@ -51,7 +51,7 @@ class KvmUnitTests(Tool):
                 posix_os.install_packages(package)
 
     def _install(self) -> bool:
-        print("Installing kvm-unit-tests")
+        self._log.info("Building kvm-unit-tests")
         self._install_dep()
         tool_path = self.get_tool_path()
         make = self.node.tools[Make]
@@ -65,12 +65,17 @@ class KvmUnitTests(Tool):
         make.make("", self.repo_root)
 
         self.test_runner_cmd = str(self.repo_root.joinpath("run_tests.sh"))
-        print("Finished installation\n")
+        self._log.info("Finished building kvm-unit-tests")
         return True
 
     def run_tests(self, timeout: int) -> List[str]:
         result = self.run(
-            "", timeout=timeout, sudo=True, force_run=True, cwd=self.repo_root
+            "",
+            timeout=timeout,
+            sudo=True,
+            force_run=True,
+            cwd=self.repo_root,
+            no_info_log=False,  # print out result of each test
         )
 
         lines = result.stdout.split("\n")
@@ -86,5 +91,5 @@ class KvmUnitTests(Tool):
         for test_name in test_names:
             self.node.shell.copy_back(
                 self.repo_root / "logs" / f"{test_name}.log",
-                log_path / f"{test_name}.log",
+                log_path / f"{test_name}.failure.log",
             )

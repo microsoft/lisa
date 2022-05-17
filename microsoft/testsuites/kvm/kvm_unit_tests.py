@@ -13,7 +13,8 @@ from lisa.tools import KvmUnitTests
     area="virt",
     category="community",
     description="""
-    This test suite is to execute tests from the community kvm-unit-tests repo.
+    This test suite for executing the community maintained KVM tests at:
+        https://gitlab.com/kvm-unit-tests/kvm-unit-tests
     """,
 )
 class KvmUnitTestSuite(TestSuite):
