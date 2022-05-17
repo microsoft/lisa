@@ -84,6 +84,7 @@ from .uptime import Uptime
 from .who import Who
 from .whoami import Whoami
 from .xfstests import Xfstests
+from .kvm_unit_tests import KvmUnitTests
 
 __all__ = [
     "Blkid",
@@ -181,4 +182,5 @@ __all__ = [
     "Who",
     "Whoami",
     "Xfstests",
+    "KvmUnitTests",
 ]
