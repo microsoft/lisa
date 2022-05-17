@@ -108,7 +108,9 @@ class Storage(TestSuite):
         resource_disk_from_mtab = get_matched_str(
             mtab, self._get_mtab_mount_point_regex(resource_disk_mount_point)
         )
-        assert resource_disk_from_mtab
+        assert (
+            resource_disk_from_mtab
+        ), f"resource disk mountpoint not found {resource_disk_mount_point}"
         assert_that(
             resource_disk_from_mtab, "Resource disk should not be equal to os disk"
         ).is_not_equal_to(os_disk)
