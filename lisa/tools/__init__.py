@@ -32,6 +32,7 @@ from .ip import Ip
 from .iperf3 import Iperf3
 from .kdump import KdumpBase
 from .kill import Kill
+from .kvm_unit_tests import KvmUnitTests
 from .lagscope import Lagscope
 from .ls import Ls
 from .lsblk import Lsblk
@@ -84,7 +85,6 @@ from .uptime import Uptime
 from .who import Who
 from .whoami import Whoami
 from .xfstests import Xfstests
-from .kvm_unit_tests import KvmUnitTests
 
 __all__ = [
     "Blkid",

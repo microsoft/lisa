@@ -2,19 +2,18 @@
 # Licensed under the MIT license.
 import string
 from pathlib import Path, PurePath
-from typing import List, Optional, Type, cast
+from typing import List, Type, cast
 
 from lisa.executable import Tool
-from lisa.operating_system import Debian, Posix, Redhat, Suse
-from lisa.tools import Cat, Echo
-from lisa.util import LisaException, find_patterns_in_lines
+from lisa.operating_system import Posix
 
 from .git import Git
 from .make import Make
 
+
 class KvmUnitTests(Tool):
-    test_runner_cmd: Optional[Path] = None
-    repo_root: Optional[Path] = None
+    test_runner_cmd: str
+    repo_root: PurePath
 
     repo = "https://gitlab.com/kvm-unit-tests/kvm-unit-tests.git"
     deps = [
@@ -60,38 +59,32 @@ class KvmUnitTests(Tool):
 
         # run ./configure in the repo
         configure_path = self.repo_root.joinpath("configure")
-        self.node.execute(configure_path, cwd=self.repo_root,
-                expected_exit_code=0);
+        self.node.execute(str(configure_path), cwd=self.repo_root, expected_exit_code=0)
 
         # run make in the repo
         make.make("", self.repo_root)
 
-        self.test_runner_cmd = str(self.repo_root.joinpath("run_tests.sh"));
+        self.test_runner_cmd = str(self.repo_root.joinpath("run_tests.sh"))
         print("Finished installation\n")
-        return True 
+        return True
 
     def run_tests(self, timeout: int) -> List[str]:
         result = self.run(
-            "",
-            timeout=timeout,
-            sudo=True,
-            force_run=True,
-            cwd=self.repo_root
+            "", timeout=timeout, sudo=True, force_run=True, cwd=self.repo_root
         )
 
-        lines = result.stdout.split('\n')
+        lines = result.stdout.split("\n")
         failures: List[str] = []
         for line in lines:
-            line = ''.join(filter(lambda c: c in string.printable, line))
-            if 'FAIL' in line:
-                test_name = line.split(' ')[1]
-                failures.append(test_name);
+            line = "".join(filter(lambda c: c in string.printable, line))
+            if "FAIL" in line:
+                test_name = line.split(" ")[1]
+                failures.append(test_name)
         return failures
 
     def save_logs(self, test_names: List[str], log_path: Path) -> None:
         for test_name in test_names:
             self.node.shell.copy_back(
                 self.repo_root / "logs" / f"{test_name}.log",
-                log_path / f"{test_name}.log"
+                log_path / f"{test_name}.log",
             )
-
