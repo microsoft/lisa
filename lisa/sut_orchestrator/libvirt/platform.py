@@ -771,12 +771,16 @@ class BaseLibvirtPlatform(Platform):
         network_interface_source = ET.SubElement(network_interface, "source")
         network_interface_source.attrib["network"] = "default"
 
+        network_interface_model = ET.SubElement(network_interface, "model")
+        network_interface_model.attrib["type"] = "virtio"
+
         self._add_disk_xml(
             node_context,
             devices,
             node_context.cloud_init_file_path,
             "cdrom",
             "raw",
+            "sata",
         )
         self._add_disk_xml(
             node_context,
@@ -784,6 +788,7 @@ class BaseLibvirtPlatform(Platform):
             node_context.os_disk_file_path,
             "disk",
             "qcow2",
+            "virtio",
         )
 
         for data_disk in node_context.data_disks:
@@ -793,6 +798,7 @@ class BaseLibvirtPlatform(Platform):
                 data_disk.file_path,
                 "disk",
                 "qcow2",
+                "virtio",
             )
 
         xml = ET.tostring(domain, "unicode")
@@ -805,6 +811,7 @@ class BaseLibvirtPlatform(Platform):
         file_path: str,
         device_type: str,
         image_type: str,
+        bus_type: str,
     ) -> None:
         device_name = self._new_disk_device_name(node_context)
 
@@ -818,7 +825,7 @@ class BaseLibvirtPlatform(Platform):
 
         disk_target = ET.SubElement(disk, "target")
         disk_target.attrib["dev"] = device_name
-        disk_target.attrib["bus"] = "sata"
+        disk_target.attrib["bus"] = bus_type
 
         disk_source = ET.SubElement(disk, "source")
         disk_source.attrib["file"] = file_path
