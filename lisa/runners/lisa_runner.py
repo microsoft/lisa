@@ -610,8 +610,8 @@ class LisaRunner(BaseRunner):
 
         # if platform defined requirement, replace the requirement from
         # test case.
-        platform_requirement = self._create_platform_requirement()
         for test_result in test_results:
+            platform_requirement = self._create_platform_requirement()
             test_req: TestCaseRequirement = test_result.runtime_data.requirement
 
             # check if there is platform requirement on test case
@@ -635,6 +635,40 @@ class LisaRunner(BaseRunner):
                         original_node_requirement = schema.load_by_type(
                             schema.NodeSpace, node_requirement_data
                         )
+
+                        # Manage the union of the platform requirements and the node
+                        # requirements before taking the intersection of
+                        # the rest of the requirements.
+                        platform_requirement.features = search_space.SetSpace(
+                            True,
+                            (
+                                platform_requirement.features.items
+                                if platform_requirement.features
+                                else []
+                            )
+                            + (
+                                original_node_requirement.features.items
+                                if original_node_requirement.features
+                                else []
+                            ),
+                        )
+                        original_node_requirement.excluded_features = (
+                            search_space.SetSpace(
+                                False,
+                                (
+                                    platform_requirement.excluded_features.items
+                                    if platform_requirement.excluded_features
+                                    else []
+                                )
+                                + (
+                                    original_node_requirement.excluded_features.items
+                                    if original_node_requirement.excluded_features
+                                    else []
+                                ),
+                            )
+                        )
+                        platform_requirement.excluded_features = None
+
                         node_requirement = original_node_requirement.intersect(
                             platform_requirement
                         )
