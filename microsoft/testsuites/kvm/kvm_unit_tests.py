@@ -1,16 +1,15 @@
 # Copyright (c) Microsoft Corporation.
 # Licensed under the MIT license.
-
 from pathlib import Path
 
 from assertpy.assertpy import assert_that
 
 from lisa import Logger, Node, TestCaseMetadata, TestSuite, TestSuiteMetadata
-from lisa.tools import KvmUnitTests
+from microsoft.testsuites.kvm.kvm_unit_tests_tool import KvmUnitTests
 
 
 @TestSuiteMetadata(
-    area="virt",
+    area="kvm",
     category="community",
     description="""
     This test suite for executing the community maintained KVM tests at:
@@ -18,16 +17,11 @@ from lisa.tools import KvmUnitTests
     """,
 )
 class KvmUnitTestSuite(TestSuite):
-    # These tests take some time to finish executing. The default
-    # timeout of 600 is not sufficient.
-    TIME_OUT = 1200
-
     @TestCaseMetadata(
         description="""
             Runs the kvm-unit-tests suite for Azure VMs.
         """,
         priority=3,
-        timeout=TIME_OUT,
     )
     def kvm_unit_tests_for_azure_vm(
         self, log: Logger, node: Node, log_path: Path
@@ -42,7 +36,7 @@ class KvmUnitTestSuite(TestSuite):
             "debug",
         ]
 
-        failures = node.tools[KvmUnitTests].run_tests(self.TIME_OUT)
+        failures = node.tools[KvmUnitTests].run_tests()
         if failures:
             log.info(f"Failed tests: {failures}")
 
