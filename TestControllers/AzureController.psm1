@@ -202,7 +202,7 @@ Class AzureController : TestController {
 		}
 		$this.VmUsername = $azureConfig.TestCredentials.LinuxUsername
 		$this.VmPassword = $azureConfig.TestCredentials.LinuxPassword
-		$this.SSHPrivateKey = $azureConfig.TestCredentials.sshPrivateKey
+		#$this.SSHPrivateKey = $azureConfig.TestCredentials.sshPrivateKey
 
 		# global variables: StorageAccount, TestLocation
 		if ($this.TestLocation -and ($this.TestLocation.Trim(", ").Split(",").Trim().Count -eq 1)) {
