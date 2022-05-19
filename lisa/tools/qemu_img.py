@@ -5,7 +5,6 @@ from typing import cast
 
 from lisa.executable import Tool
 from lisa.operating_system import CBLMariner, Linux, Ubuntu
-from lisa.util import LisaException
 
 
 class QemuImg(Tool):
@@ -24,10 +23,10 @@ class QemuImg(Tool):
         linux: Linux = cast(Linux, self.node.os)
         if isinstance(self.node.os, CBLMariner):
             linux.install_packages("qemu-img")
-        elif isinstance(self.node.os, CBLMariner):
+        elif isinstance(self.node.os, Ubuntu):
             linux.install_packages("qemu-utils")
         else:
-            raise LisaException("Missing QemuImg tool install impl for {linux} os")
+            raise NotImplementedError(f"Missing QemuImg tool install impl for {linux}")
         return self._check_exists()
 
     def create_new_qcow2(self, output_img_path: str, size_mib: int) -> None:
