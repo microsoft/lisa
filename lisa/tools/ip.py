@@ -18,6 +18,13 @@ class Ip(Tool):
     __mac_address_pattern = re.compile(
         "[0-9a-f]{2}([-:]?)[0-9a-f]{2}(\\1[0-9a-f]{2}){4}$", re.M
     )
+    __ip_addr_show_regex = re.compile(
+        (
+            r"\d+: (?P<name>\w+): \<.+\> .+\n\s+"
+            r"link\/(?:ether|infiniband) (?P<mac>[0-9a-z:]+) .+\n?"
+            r"(?:\s+inet (?P<ip_addr>[\d.]+)\/.*\n)?"
+        )
+    )
 
     @property
     def command(self) -> str:
@@ -117,6 +124,12 @@ class Ip(Tool):
             (result.stderr and "not exist" in result.stderr)
             or (result.stdout and "not exist" in result.stdout)
         )
+
+    def get_mac(self, nic_name: str) -> str:
+        result = self.run(f"link show {nic_name}", force_run=True, sudo=True)
+        matched = self.__ip_addr_show_regex.match(result.stdout)
+        assert matched
+        return matched.group("mac")
 
     def setup_bridge(self, name: str, ip: str) -> None:
         if self.nic_exists(name):
