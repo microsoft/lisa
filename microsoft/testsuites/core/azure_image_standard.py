@@ -116,20 +116,8 @@ class AzureImageStandard(TestSuite):
             r"^(.*open /dev/vmbus/hv_vss failed; error: 2 No such file or directory.*)$",  # noqa: E501
             re.M,
         ),
-        re.compile(
-            r"^(.*hv-vss-daemon.service: Main process exited, code=exited, status=1/FAILURE.*)$",  # noqa: E501
-            re.M,
-        ),
-        re.compile(
-            r"^(.*hv-vss-daemon.service: Failed with result 'exit-code'.*)$", re.M
-        ),
-        re.compile(
-            r"^(.*hv-fcopy-daemon.service: Main process exited, code=exited, status=1/FAILURE.*)$",  # noqa: E501
-            re.M,
-        ),
-        re.compile(
-            r"^(.*hv-fcopy-daemon.service: Failed with result 'exit-code'.*)$", re.M
-        ),
+        re.compile(r"^(.*hv-vss-daemon.service.*)$", re.M),
+        re.compile(r"^(.*hv-fcopy-daemon.service.*)$", re.M),
         re.compile(r"^(.*dnf.*: Failed determining last makecache time.*)$", re.M),
         re.compile(
             r"^(.*dbus-daemon.*: .system. Activation via systemd failed for unit 'dbus-org.freedesktop.resolve1.service': Unit dbus-org.freedesktop.resolve1.service not found.*)$",  # noqa: E501
@@ -205,6 +193,8 @@ class AzureImageStandard(TestSuite):
             r"^(.*WARNING ExtHandler ExtHandler cgroups v2 mounted at.*)$", re.M
         ),
         re.compile(r"^(.*dataloss warning file.*)$", re.M),
+        re.compile(r"^(.*GRUB failed boot detection.*)$", re.M),
+        re.compile(r"^(.*nofail.*)$", re.M),
     ]
 
     @TestCaseMetadata(
