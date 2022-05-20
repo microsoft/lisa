@@ -24,6 +24,11 @@ class NFSServer(Tool):
         # create directory to share
         self.node.execute(f"chmod -R a+rwX {dir_name}", sudo=True)
 
+        # clear /etc/export file to remove any previous exports
+        self.node.tools[Echo].write_to_file(
+            "", PurePosixPath("/etc/exports"), sudo=True
+        )
+
         # add client ip to /etc/exports file
         for client_ip in client_ips:
             self.node.tools[Echo].write_to_file(
