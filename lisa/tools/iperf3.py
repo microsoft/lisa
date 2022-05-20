@@ -92,6 +92,9 @@ class Iperf3(Tool):
     def dependencies(self) -> List[Type[Tool]]:
         return [Git, Make]
 
+    def help(self) -> ExecutableResult:
+        return self.run("-h")
+
     def install(self) -> bool:
         posix_os: Posix = cast(Posix, self.node.os)
         posix_os.install_packages("iperf3")
@@ -222,7 +225,11 @@ class Iperf3(Tool):
         if log_file:
             if self.node.shell.exists(self.node.get_pure_path(log_file)):
                 self.node.shell.remove(self.node.get_pure_path(log_file))
-            cmd += f" --logfile {log_file}"
+            help = self.help()
+            if "--logfile" in help.stdout:
+                cmd += f" --logfile {log_file}"
+            else:
+                cmd += f" > {log_file} 2>&1"
 
         process = self.node.execute_async(
             f"{self.command} {cmd}", shell=True, sudo=True
