@@ -13,6 +13,7 @@ from lisa import (
     TestCaseMetadata,
     TestSuite,
     TestSuiteMetadata,
+    UnsupportedDistroException,
     schema,
     search_space,
     simple_requirement,
@@ -478,7 +479,10 @@ class Xfstesting(TestSuite):
                 {test_dev: _test_folder, scratch_dev: _scratch_folder},
                 file_system=file_system,
             )
-        xfstests = node.tools[Xfstests]
+        try:
+            xfstests = node.tools[Xfstests]
+        except UnsupportedDistroException as identifier:
+            raise SkippedException(identifier)
         xfstests.set_local_config(
             scratch_dev,
             _scratch_folder,
