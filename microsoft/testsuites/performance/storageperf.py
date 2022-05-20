@@ -274,7 +274,7 @@ class StoragePerformance(TestSuite):
             disk_type=DiskType.premiumssd,
             num_jobs=num_jobs,
             block_size=block_size,
-            size_gb=8,
+            size_gb=1,
             overwrite=True,
             cwd=PurePosixPath(client_nfs_mount_dir),
             environment=environment,
