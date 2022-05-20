@@ -1568,10 +1568,18 @@ class AzurePlatform(Platform):
                 )
             elif name == "AcceleratedNetworkingEnabled":
                 # refer https://docs.microsoft.com/en-us/azure/virtual-machines/dcv2-series#configuration # noqa: E501
-                # standardDCSv2Family doesn't support `Accelerated Networking`
+                # https://docs.microsoft.com/en-us/azure/virtual-machines/ncv2-series
+                # https://docs.microsoft.com/en-us/azure/virtual-machines/ncv3-series
+                # https://docs.microsoft.com/en-us/azure/virtual-machines/nd-series
+                # below VM size families don't support `Accelerated Networking`
                 # but API return `True`, fix this issue temporarily
                 # will revert it till bug fixed.
-                if "standardDCSv2Family" == resource_sku.family:
+                if resource_sku.family in [
+                    "standardDCSv2Family",
+                    "standardNCSv2Family",
+                    "standardNCSv3Family",
+                    "standardNDSFamily",
+                ]:
                     continue
                 if eval(sku_capability.value) is True:
                     # update data path types if sriov feature is supported
