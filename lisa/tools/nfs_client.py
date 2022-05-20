@@ -5,7 +5,7 @@ from lisa.executable import Tool
 from lisa.operating_system import SLES, Debian, Redhat
 from lisa.tools import Firewall, Mount
 from lisa.tools.mkfs import FileSystem
-from lisa.util import UnsupportedDistroException
+from lisa.util import SkippedException, UnsupportedDistroException
 
 
 class NFSClient(Tool):
@@ -24,6 +24,19 @@ class NFSClient(Tool):
         mount_dir: str,
         protocol: str = "tcp",
     ) -> None:
+
+        # skip test if protocol is udp and CONFIG_NFS_DISABLE_UDP_SUPPORT is
+        # set in kernel
+        # https://bugs.launchpad.net/ubuntu/+source/linux/+bug/1964093
+        if protocol == "udp":
+            result = self.node.execute(
+                "grep -E 'CONFIG_NFS_DISABLE_UDP_SUPPORT=y' /boot/config-$(uname -r)",
+                shell=True,
+                sudo=True,
+            ).stdout
+            if result:
+                raise SkippedException("NFS udp support is disabled in kernel")
+
         # stop firewall
         self.node.tools[Firewall].stop()
 
