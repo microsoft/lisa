@@ -48,7 +48,7 @@ class Ufw(Tool):
         return False
 
     def stop(self) -> None:
-        self.run("disable", shell=True, sudo=True)
+        self.run("disable", shell=True, sudo=True, force_run=True)
 
 
 class Iptables(Tool):
