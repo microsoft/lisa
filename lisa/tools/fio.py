@@ -74,7 +74,7 @@ class Fio(Tool):
         iodepth: int,
         numjob: int,
         time: int = 120,
-        ssh_timeout: int = 600,
+        ssh_timeout: int = 1800,
         block_size: str = "4K",
         size_gb: int = 0,
         direct: bool = True,
