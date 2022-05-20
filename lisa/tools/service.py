@@ -116,7 +116,10 @@ class Systemctl(Tool):
         cmd_result = self.run(
             f"--full --no-pager status {name}", shell=True, sudo=True, force_run=True
         )
-        if "could not be found" in cmd_result.stdout:
+        if (
+            "could not be found" in cmd_result.stdout
+            or "not-found" in cmd_result.stdout
+        ):
             return False
         return True
 
@@ -125,8 +128,9 @@ class Systemctl(Tool):
             f"--full --no-pager status {name}", shell=True, sudo=True, force_run=True
         )
         return (
-            "could not be found" not in cmd_result.stdout and 0 == cmd_result.exit_code
-        )
+            "could not be found" not in cmd_result.stdout
+            or "not-found" in cmd_result.stdout
+        ) and 0 == cmd_result.exit_code
 
 
 def _check_error_codes(cmd_result: ExecutableResult, error_code: int = 0) -> None:
