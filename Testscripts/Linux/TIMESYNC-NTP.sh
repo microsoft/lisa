@@ -201,7 +201,7 @@ while [ $isOver == false ]; do
     delay=$(echo "$delay" | sed s'/.$//')
 
     # If the above value is not a number it means the output is an error message and exit loop
-    re='^-?[0-9]+([.][0-9]+)?$'
+    re='^[-|+]?[0-9]+([.][0-9]+)?$'
     if ! [[ $delay =~ $re ]] ; then
         ntpqErr="$(ntpq -c rl $loopbackIP 2>&1)"
         LogErr "ntpq returned $ntpqErr. Aborting test."

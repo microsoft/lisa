@@ -75,6 +75,8 @@ Run_Fstrim() {
             SetTestStateFailed
             exit 0
         fi
+        # force sync
+        echo 2 > /proc/sys/vm/drop_caches
         #check how much is trimmed after file is created
         trim_final=$(fstrim  "$namespace" -v)
         if [ $? -ne 0 ]; then
