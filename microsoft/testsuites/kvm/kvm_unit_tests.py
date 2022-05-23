@@ -4,7 +4,15 @@ from pathlib import Path
 
 from assertpy.assertpy import assert_that
 
-from lisa import Logger, Node, TestCaseMetadata, TestSuite, TestSuiteMetadata
+from lisa import (
+    Logger,
+    Node,
+    TestCaseMetadata,
+    TestSuite,
+    TestSuiteMetadata,
+    simple_requirement,
+)
+from lisa.sut_orchestrator import AZURE, READY
 from microsoft.testsuites.kvm.kvm_unit_tests_tool import KvmUnitTests
 
 
@@ -12,18 +20,19 @@ from microsoft.testsuites.kvm.kvm_unit_tests_tool import KvmUnitTests
     area="kvm",
     category="community",
     description="""
-    This test suite for executing the community maintained KVM tests at:
-        https://gitlab.com/kvm-unit-tests/kvm-unit-tests
+    This test suite is for executing the community maintained KVM tests.
+    See: https://gitlab.com/kvm-unit-tests/kvm-unit-tests
     """,
 )
 class KvmUnitTestSuite(TestSuite):
     @TestCaseMetadata(
         description="""
-            Runs the kvm-unit-tests suite for Azure VMs.
+            Runs kvm-unit-tests.
         """,
+        requirement=simple_requirement(supported_platform_type=[AZURE, READY]),
         priority=3,
     )
-    def kvm_unit_tests_for_azure_vm(
+    def verify_kvm_unit_tests_for_azure_vm(
         self, log: Logger, node: Node, log_path: Path
     ) -> None:
         # TODO: These failures need to be investigated to figure out the exact
@@ -36,11 +45,9 @@ class KvmUnitTestSuite(TestSuite):
             "debug",
         ]
 
-        failures = node.tools[KvmUnitTests].run_tests()
+        failures = node.tools[KvmUnitTests].run_tests(log_path)
         if failures:
             log.info(f"Failed tests: {failures}")
-
-        node.tools[KvmUnitTests].save_logs(failures, log_path)
 
         unexpected_failures = list(
             filter(lambda x: x not in expected_failures, failures)

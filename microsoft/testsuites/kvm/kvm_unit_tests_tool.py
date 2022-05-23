@@ -2,7 +2,7 @@
 # Licensed under the MIT license.
 import string
 from pathlib import Path, PurePath
-from typing import List, Type, cast
+from typing import Any, List, Type, cast
 
 from lisa.executable import Tool
 from lisa.operating_system import Posix
@@ -14,7 +14,7 @@ class KvmUnitTests(Tool):
     # timeout of 600 is not sufficient.
     TIME_OUT = 1200
 
-    test_runner_cmd: str = ""
+    cmd_path: PurePath
     repo_root: PurePath
 
     repo = "https://gitlab.com/kvm-unit-tests/kvm-unit-tests.git"
@@ -27,7 +27,7 @@ class KvmUnitTests(Tool):
 
     @property
     def command(self) -> str:
-        return str(self.test_runner_cmd)
+        return str(self.cmd_path)
 
     @property
     def can_install(self) -> bool:
@@ -37,11 +37,7 @@ class KvmUnitTests(Tool):
     def dependencies(self) -> List[Type[Tool]]:
         return [Git, Make]
 
-    @property
-    def exists(self) -> bool:
-        return True if self.test_runner_cmd else False
-
-    def run_tests(self) -> List[str]:
+    def run_tests(self, failure_logs_path: Path) -> List[str]:
         result = self.run(
             "",
             timeout=self.TIME_OUT,
@@ -58,20 +54,25 @@ class KvmUnitTests(Tool):
             if "FAIL" in line:
                 test_name = line.split(" ")[1]
                 failures.append(test_name)
+        self._save_logs(failures, failure_logs_path)
         return failures
 
-    def save_logs(self, test_names: List[str], log_path: Path) -> None:
+    def _save_logs(self, test_names: List[str], log_path: Path) -> None:
         for test_name in test_names:
             self.node.shell.copy_back(
                 self.repo_root / "logs" / f"{test_name}.log",
                 log_path / f"{test_name}.failure.log",
             )
 
+    def _initialize(self, *args: Any, **kwargs: Any) -> None:
+        tool_path = self.get_tool_path()
+        self.repo_root = tool_path.joinpath("kvm-unit-tests")
+        self.cmd_path = self.repo_root.joinpath("run_tests.sh")
+
     def _install_dep(self) -> None:
         posix_os: Posix = cast(Posix, self.node.os)
-        tool_path = self.get_tool_path()
         git = self.node.tools[Git]
-        git.clone(self.repo, tool_path)
+        git.clone(self.repo, self.get_tool_path())
 
         # install dependency packages
         for package in list(self.deps):
@@ -79,11 +80,9 @@ class KvmUnitTests(Tool):
                 posix_os.install_packages(package)
 
     def _install(self) -> bool:
-        self._log.info("Building kvm-unit-tests")
+        self._log.debug("Building kvm-unit-tests")
         self._install_dep()
-        tool_path = self.get_tool_path()
         make = self.node.tools[Make]
-        self.repo_root = tool_path.joinpath("kvm-unit-tests")
 
         # run ./configure in the repo
         configure_path = self.repo_root.joinpath("configure")
@@ -92,6 +91,5 @@ class KvmUnitTests(Tool):
         # run make in the repo
         make.make("", self.repo_root)
 
-        self.test_runner_cmd = str(self.repo_root.joinpath("run_tests.sh"))
-        self._log.info("Finished building kvm-unit-tests")
-        return True
+        self._log.debug("Finished building kvm-unit-tests")
+        return self._check_exists()
