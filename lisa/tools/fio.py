@@ -47,8 +47,8 @@ class Fio(Tool):
     # lat (usec): min=18, max=93375, avg=142.51, stdev=59.57
     # get IOPS and total delay
     _result_pattern = re.compile(
-        r"([\w\W]*?)IOPS=(?P<iops>.+?)," r"([\w\W]*?).* lat.*avg=(?P<latency>.+?),",
-        re.M,
+        r"([\w\W]*?)IOPS=(?P<iops>.+?),([\w\W]*?).* lat.*avg=(?P<latency>.+?),",
+        re.M | re.IGNORECASE,
     )
 
     @property
