@@ -64,6 +64,7 @@ class Dpdk(TestSuite):
         priority=2,
         requirement=simple_requirement(
             min_nic_count=2,
+            min_core_count=8,
             network_interface=Sriov(),
         ),
     )
@@ -84,6 +85,7 @@ class Dpdk(TestSuite):
         priority=2,
         requirement=simple_requirement(
             min_nic_count=2,
+            min_core_count=8,
             network_interface=Sriov(),
         ),
     )
@@ -99,6 +101,7 @@ class Dpdk(TestSuite):
         priority=3,
         requirement=simple_requirement(
             min_nic_count=2,
+            min_core_count=8,
             network_interface=Sriov(),
         ),
     )
@@ -140,6 +143,7 @@ class Dpdk(TestSuite):
         priority=3,
         requirement=simple_requirement(
             min_nic_count=2,
+            min_core_count=8,
             network_interface=Sriov(),
         ),
     )
@@ -247,6 +251,7 @@ class Dpdk(TestSuite):
         priority=2,
         requirement=simple_requirement(
             min_nic_count=2,
+            min_core_count=8,
             network_interface=Sriov(),
             min_count=2,
         ),
@@ -274,6 +279,7 @@ class Dpdk(TestSuite):
         priority=2,
         requirement=simple_requirement(
             min_nic_count=2,
+            min_core_count=8,
             network_interface=Sriov(),
         ),
     )
@@ -331,6 +337,7 @@ class Dpdk(TestSuite):
         priority=2,
         requirement=simple_requirement(
             min_nic_count=2,
+            min_core_count=8,
             network_interface=Sriov(),
         ),
     )
@@ -439,6 +446,7 @@ class Dpdk(TestSuite):
         priority=2,
         requirement=simple_requirement(
             min_nic_count=2,
+            min_core_count=8,
             network_interface=Sriov(),
             min_count=2,
         ),
@@ -460,6 +468,7 @@ class Dpdk(TestSuite):
         priority=2,
         requirement=simple_requirement(
             min_nic_count=2,
+            min_core_count=8,
             network_interface=Sriov(),
             min_count=2,
         ),
@@ -479,6 +488,7 @@ class Dpdk(TestSuite):
         priority=2,
         requirement=simple_requirement(
             min_nic_count=2,
+            min_core_count=8,
             network_interface=Sriov(),
             min_count=2,
         ),
@@ -498,6 +508,7 @@ class Dpdk(TestSuite):
         priority=2,
         requirement=simple_requirement(
             min_nic_count=2,
+            min_core_count=8,
             network_interface=Sriov(),
             min_count=2,
         ),
@@ -518,6 +529,7 @@ class Dpdk(TestSuite):
         priority=2,
         requirement=simple_requirement(
             min_nic_count=2,
+            min_core_count=8,
             network_interface=Sriov(),
         ),
     )
