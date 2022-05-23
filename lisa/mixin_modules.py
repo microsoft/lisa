@@ -39,6 +39,7 @@ if platform.system() == "Linux":
         import lisa.sut_orchestrator.libvirt.platform  # noqa: F401
         import lisa.sut_orchestrator.libvirt.qemu_platform  # noqa: F401
         import lisa.sut_orchestrator.libvirt.schema  # noqa: F401
+        import lisa.sut_orchestrator.libvirt.transformers  # noqa: F401
     except ModuleNotFoundError:
         print("libvirt package is not installed")
 
