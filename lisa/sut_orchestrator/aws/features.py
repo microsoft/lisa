@@ -45,7 +45,8 @@ class StartStop(AwsFeatureMixin, features.StartStop):
         platform: AwsPlatform = self._platform  # type: ignore
         ec2_client = platform._ec2_client
         ec2_client.reboot_instances(InstanceIds=[self._intsance_id])
-        ec2_client.get_waiter("instance_running").wait()
+        if wait:
+            ec2_client.get_waiter("instance_running").wait()
 
     def _initialize(self, *args: Any, **kwargs: Any) -> None:
         super()._initialize(*args, **kwargs)
@@ -63,7 +64,9 @@ def get_aws_disk_type(disk_type: schema.DiskType) -> str:
 
     return result
 
-
+# There are more disk types in AWS than Azure, like io2/gp3/io 2 Block Express.
+# If need to verify the storage performance of other types, please update the following mapping.
+# Refer to https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/ebs-volume-types.html
 _disk_type_mapping: Dict[schema.DiskType, str] = {
     schema.DiskType.PremiumSSDLRS: "io1",
     schema.DiskType.StandardHDDLRS: "st1",
@@ -265,7 +268,7 @@ class NetworkInterface(AwsFeatureMixin, features.NetworkInterface):
             f"Only associated nic {networkinterface_id} into VM {self._node.name}."
         )
 
-
+# TODO: GPU feature is not verified yet.
 class Gpu(AwsFeatureMixin, features.Gpu):
     # Only contains some types of ec2 instances which support GPU here.
     # Please refer to the following link for more types:

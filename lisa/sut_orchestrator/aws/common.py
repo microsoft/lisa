@@ -37,8 +37,8 @@ class NodeContext:
 @dataclass_json()
 @dataclass
 class AwsVmMarketplaceSchema:
-    # amazon/AWS Deep Learning AMI GPU CUDA 11.2.1 (Ubuntu 20.04) 20220208
-    imageid: str = "ami-097324d9d7113bccb"
+    # Ubuntu Server 18.04 with SQL Server 2019 Express Edition AMI provided by Amazon
+    imageid: str = "ami-0340a222114f27094"
 
 
 @dataclass_json()
@@ -48,7 +48,7 @@ class AwsNodeSchema:
     vm_size: str = ""
     location: str = ""
 
-    marketplace_raw: Optional[Union[Dict[Any, Any], str]] = field(
+    marketplace_raw: Optional[str] = field(
         default=None, metadata=field_metadata(data_key="marketplace")
     )
 
@@ -79,59 +79,19 @@ class AwsNodeSchema:
         # this is a safe guard and prevent mypy error on typing
         if not hasattr(self, "_marketplace"):
             self._marketplace: Optional[AwsVmMarketplaceSchema] = None
-        marketplace: Optional[AwsVmMarketplaceSchema] = self._marketplace
-        if not marketplace:
-            if isinstance(self.marketplace_raw, dict):
-                # Users decide the cases of image names,
-                #  the inconsistent cases cause the mismatched error in notifiers.
-                # The lower() normalizes the image names,
-                #  it has no impact on deployment.
-                self.marketplace_raw = dict(
-                    (k, v.lower()) for k, v in self.marketplace_raw.items()
-                )
-                marketplace = schema.load_by_type(
-                    AwsVmMarketplaceSchema, self.marketplace_raw
-                )
-                # this step makes marketplace_raw is validated, and
-                # filter out any unwanted content.
-                self.marketplace_raw = marketplace.to_dict()  # type: ignore
-            elif self.marketplace_raw:
-                assert isinstance(
-                    self.marketplace_raw, str
-                ), f"actual: {type(self.marketplace_raw)}"
 
-                self.marketplace_raw = self.marketplace_raw.strip()
+        if not self._marketplace:
+            assert isinstance(
+                self.marketplace_raw, str
+            ), f"actual: {type(self.marketplace_raw)}"
+            self.marketplace_raw = self.marketplace_raw.strip()
+            self._marketplace = AwsVmMarketplaceSchema(self.marketplace_raw)
 
-                if self.marketplace_raw:
-                    # Users decide the cases of image names,
-                    #  the inconsistent cases cause the mismatched error in notifiers.
-                    # The lower() normalizes the image names,
-                    #  it has no impact on deployment.
-                    marketplace_strings = re.split(
-                        r"[:\s]+", self.marketplace_raw.lower()
-                    )
-
-                    if len(marketplace_strings) == 1:
-                        marketplace = AwsVmMarketplaceSchema(*marketplace_strings)
-                        # marketplace_raw is used
-                        self.marketplace_raw = marketplace.to_dict()  # type: ignore
-                    else:
-                        raise LisaException(
-                            f"Invalid value for the provided marketplace "
-                            f"parameter: '{self.marketplace_raw}'."
-                            f"The marketplace parameter should be in the format: "
-                            f"'<'ImageId'>'"
-                        )
-            self._marketplace = marketplace
-        return marketplace
+        return self._marketplace
 
     @marketplace.setter
     def marketplace(self, value: Optional[AwsVmMarketplaceSchema]) -> None:
         self._marketplace = value
-        if value is None:
-            self.marketplace_raw = None
-        else:
-            self.marketplace_raw = value.to_dict()  # type: ignore
 
     def get_image_id(self) -> str:
         result = ""
