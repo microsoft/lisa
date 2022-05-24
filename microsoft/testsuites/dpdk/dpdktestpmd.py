@@ -592,13 +592,11 @@ class DpdkTestpmd(Tool):
                 f"which was not Ubuntu: {node.os.information.full_version}"
             )
             return  # appease the type checker
-        ubuntu.add_repository("ppa:canonical-server/server-backports")
         if ubuntu.information.version < "18.4.0":
             raise SkippedException(
                 f"Ubuntu {str(ubuntu.information.version)} is not supported. "
                 "Minimum documented version for DPDK support is >=18.04"
             )
-
         elif ubuntu.information.version < "20.4.0":
             ubuntu.install_packages(
                 list(self._ubuntu_packages_1804),
