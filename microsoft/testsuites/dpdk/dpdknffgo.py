@@ -54,8 +54,8 @@ class DpdkNffGo(Tool):
             (isinstance(os, Ubuntu) and version >= "18.4.0")
             or (isinstance(os, Debian) and version >= "10.0.0")
         ):
-            raise SkippedException(
-                "NFF-GO test is not supported on EOL debian or Ubuntu"
+            raise UnsupportedDistroException(
+                os, "NFF-GO test is not supported on EOL debian or Ubuntu"
             )
         node = self.node
         git = node.tools[Git]
