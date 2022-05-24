@@ -34,11 +34,10 @@ class Nvme(Feature):
         return NvmeSettings
 
     @classmethod
-    def enabled(cls) -> bool:
+    def can_disable(cls) -> bool:
         return True
 
-    @classmethod
-    def can_disable(cls) -> bool:
+    def enabled(self) -> bool:
         return True
 
     def get_devices(self) -> List[str]:
