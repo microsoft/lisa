@@ -5,9 +5,9 @@ from pathlib import Path, PurePath
 from typing import List, Type, cast
 
 from lisa.executable import Tool
-from lisa.operating_system import Debian, Posix, Redhat, Suse
+from lisa.operating_system import Debian, Posix, Redhat, Suse, Ubuntu
 from lisa.tools import Cat, Echo
-from lisa.util import LisaException, find_patterns_in_lines
+from lisa.util import LisaException, UnsupportedDistroException, find_patterns_in_lines
 
 from .git import Git
 from .make import Make
@@ -119,6 +119,11 @@ class Xfstests(Tool):
         if isinstance(self.node.os, Redhat):
             package_list.extend(self.fedora_dep)
         elif isinstance(self.node.os, Debian):
+            if (
+                isinstance(self.node.os, Ubuntu)
+                and self.node.os.information.version < "18.4.0"
+            ):
+                raise UnsupportedDistroException(self.node.os)
             package_list.extend(self.debian_dep)
         elif isinstance(self.node.os, Suse):
             package_list.extend(self.suse_dep)
@@ -147,8 +152,8 @@ class Xfstests(Tool):
         self.node.execute("useradd fsgqa2", sudo=True)
 
     def _install(self) -> bool:
-        self._add_test_users()
         self._install_dep()
+        self._add_test_users()
         tool_path = self.get_tool_path()
         make = self.node.tools[Make]
         code_path = tool_path.joinpath("xfstests-dev")

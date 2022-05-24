@@ -118,7 +118,7 @@ class Lspci(Tool):
         return self._pci_devices
 
     def disable_devices_by_type(self, device_type: str) -> int:
-        devices = self.get_devices_by_type(device_type)
+        devices = self.get_devices_by_type(device_type, force_run=True)
         if 0 == len(devices):
             self._log.debug("No matched devices found.")
             return len(devices)

@@ -10,7 +10,7 @@ from typing import TYPE_CHECKING, Any, Dict, List, Optional
 
 from assertpy import assert_that
 
-from lisa.tools import Echo
+from lisa.tools import Echo, Ip
 from lisa.util import InitializableMixin, LisaException, find_groups_in_lines
 
 if TYPE_CHECKING:
@@ -106,6 +106,16 @@ class Nics(InitializableMixin):
             r"/sys/class/net/"
             r"([a-zA-Z0-9_\-]+)"  # upper interface GROUP1
             r"/lower_([a-zA-Z0-9_\-]+)"  # lower interface GROUP2
+            r"/device -> ../../../"  # link to devices guid
+            r"([a-zA-Z0-9]{4}:[a-zA-Z0-9]{2}:[a-zA-Z0-9]{2}.[a-zA-Z0-9])"  # bus info
+        )
+    )
+
+    # /sys/class/net/enP35158p0s2/device -> ../../../8956:00:02.0
+    __nic_vf_slot_regex = re.compile(
+        (
+            r"/sys/class/net/"
+            r"([a-zA-Z0-9_\-]+)"  # lower interface name
             r"/device -> ../../../"  # link to devices guid
             r"([a-zA-Z0-9]{4}:[a-zA-Z0-9]{2}:[a-zA-Z0-9]{2}.[a-zA-Z0-9])"  # bus info
         )
@@ -312,6 +322,18 @@ class Nics(InitializableMixin):
             sriov_match = self.__nic_lower_regex.search(line)
             if sriov_match:
                 upper_nic, lower_nic, pci_slot = sriov_match.groups()
+                nic_info = NicInfo(upper_nic, lower_nic, pci_slot)
+                self.append(nic_info)
+            sriov_match = self.__nic_vf_slot_regex.search(line)
+            if sriov_match:
+                lower_nic, pci_slot = sriov_match.groups()
+                ip = self._node.tools[Ip]
+                lower_nic_mac = ip.get_mac(lower_nic)
+                for nic_name in [x for x in self.nic_names if x != lower_nic]:
+                    upper_nic_mac = ip.get_mac(nic_name)
+                    if upper_nic_mac == lower_nic_mac:
+                        upper_nic = nic_name
+                        break
                 nic_info = NicInfo(upper_nic, lower_nic, pci_slot)
                 self.append(nic_info)
 
