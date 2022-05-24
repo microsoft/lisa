@@ -44,16 +44,15 @@ class Hibernation(Feature):
         return HibernationSettings
 
     @classmethod
-    def enabled(cls) -> bool:
-        return True
-
-    @classmethod
     def can_disable(cls) -> bool:
         return True
 
     @classmethod
     def _enable_hibernation(cls, *args: Any, **kwargs: Any) -> None:
         raise NotImplementedError()
+
+    def enabled(self) -> bool:
+        return True
 
 
 HibernationEnabled = partial(HibernationSettings, is_enabled=True)

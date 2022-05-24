@@ -44,16 +44,15 @@ class SecurityProfile(Feature):
         return SecurityProfileSettings
 
     @classmethod
-    def enabled(cls) -> bool:
-        return True
-
-    @classmethod
     def can_disable(cls) -> bool:
         return True
 
     @classmethod
     def _enable_secure_boot(cls, *args: Any, **kwargs: Any) -> None:
         raise NotImplementedError()
+
+    def enabled(self) -> bool:
+        return True
 
 
 SecureBootEnabled = partial(SecurityProfileSettings, secure_boot_enabled=True)
