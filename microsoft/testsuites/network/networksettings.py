@@ -23,7 +23,7 @@ from lisa import (
 )
 from lisa.base_tools import Uname
 from lisa.operating_system import Debian, Redhat, Suse
-from lisa.tools import Cat, Ethtool, Iperf3, Modinfo, Nm
+from lisa.tools import Ethtool, Iperf3, Modinfo, Nm
 from microsoft.testsuites.network.common import cleanup_iperf3
 
 
@@ -60,7 +60,7 @@ class NetworkSettings(TestSuite):
     #  {'name': 'cpu0_vf_tx_packets', 'value': '0'},]
     #  {'name': 'cpu0_vf_tx_bytes', 'value': '0'},]
     _queue_stats_regex = re.compile(r"[tr]x_queue_(?P<name>[\d]+)_packets")
-    _vf_queue_stats_regex = re.compile(r"cpu(?P<name>[\d]+)_vf[tr]x_packets")
+    _vf_queue_stats_regex = re.compile(r"cpu(?P<name>[\d]+)_vf_[tr]x_packets")
     _tx_queue_stats_regex = re.compile(r"tx_queue_(?P<name>[\d]+)_packets")
     _rx_queue_stats_regex = re.compile(r"rx_queue_(?P<name>[\d]+)_packets")
     _tx_vf_queue_stats_regex = re.compile(r"cpu(?P<name>[\d]+)_vf_tx_packets")
@@ -723,17 +723,11 @@ class NetworkSettings(TestSuite):
     def _run_iperf3(self, server_node: RemoteNode, client_node: RemoteNode) -> None:
         # run iperf3 on server side and client side
         # iperfResults.log stored client side log
-        client_iperf3_log = "iperfResults.log"
         source_iperf3 = server_node.tools[Iperf3]
         dest_iperf3 = client_node.tools[Iperf3]
         source_iperf3.run_as_server_async()
         dest_iperf3.run_as_client_async(
             server_ip=server_node.internal_address,
-            log_file=client_iperf3_log,
             parallel_number=64,
+            run_time_seconds=120,
         )
-
-        # wait for a while then check any error shown up in iperfResults.log
-        dest_cat = client_node.tools[Cat]
-        iperf_log = dest_cat.read(client_iperf3_log, sudo=True, force_run=True)
-        assert_that(iperf_log).does_not_contain("error")
