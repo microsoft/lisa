@@ -4,15 +4,7 @@ from pathlib import Path
 
 from assertpy.assertpy import assert_that
 
-from lisa import (
-    Logger,
-    Node,
-    TestCaseMetadata,
-    TestSuite,
-    TestSuiteMetadata,
-    simple_requirement,
-)
-from lisa.sut_orchestrator import AZURE, READY
+from lisa import Logger, Node, TestCaseMetadata, TestSuite, TestSuiteMetadata
 from microsoft.testsuites.kvm.kvm_unit_tests_tool import KvmUnitTests
 
 
@@ -29,12 +21,9 @@ class KvmUnitTestSuite(TestSuite):
         description="""
             Runs kvm-unit-tests.
         """,
-        requirement=simple_requirement(supported_platform_type=[AZURE, READY]),
         priority=3,
     )
-    def verify_kvm_unit_tests_for_azure_vm(
-        self, log: Logger, node: Node, log_path: Path
-    ) -> None:
+    def verify_kvm_unit_tests(self, log: Logger, node: Node, log_path: Path) -> None:
         # TODO: These failures need to be investigated to figure out the exact
         # cause.
         expected_failures = [

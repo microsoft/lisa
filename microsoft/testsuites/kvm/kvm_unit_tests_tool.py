@@ -65,14 +65,14 @@ class KvmUnitTests(Tool):
             )
 
     def _initialize(self, *args: Any, **kwargs: Any) -> None:
-        tool_path = self.get_tool_path()
+        tool_path = self.get_tool_path(use_global=True)
         self.repo_root = tool_path.joinpath("kvm-unit-tests")
         self.cmd_path = self.repo_root.joinpath("run_tests.sh")
 
     def _install_dep(self) -> None:
         posix_os: Posix = cast(Posix, self.node.os)
         git = self.node.tools[Git]
-        git.clone(self.repo, self.get_tool_path())
+        git.clone(self.repo, self.get_tool_path(use_global=True))
 
         # install dependency packages
         for package in list(self.deps):
