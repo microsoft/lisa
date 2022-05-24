@@ -353,9 +353,15 @@ class FeatureSettings(
         return hash(self._get_key())
 
     @staticmethod
-    def create(type: str) -> "FeatureSettings":
+    def create(
+        type: str, extended_schemas: Optional[Dict[Any, Any]] = None
+    ) -> "FeatureSettings":
         # If a feature has no setting, it will return the default settings.
-        return FeatureSettings(type=type)
+        if extended_schemas:
+            feature = FeatureSettings(type=type, extended_schemas=extended_schemas)
+        else:
+            feature = FeatureSettings(type=type)
+        return feature
 
     def check(self, capability: Any) -> search_space.ResultReason:
         assert isinstance(capability, FeatureSettings), f"actual: {type(capability)}"
@@ -374,7 +380,10 @@ class FeatureSettings(
 
     def _call_requirement_method(self, method_name: str, capability: Any) -> Any:
         # default FeatureSetting is a place holder, nothing to do.
-        return FeatureSettings.create(self.type)
+        extended_schemas = None
+        if hasattr(capability, "extended_schemas"):
+            extended_schemas = capability.extended_schemas
+        return FeatureSettings.create(self.type, extended_schemas=extended_schemas)
 
 
 class DiskType(str, Enum):
