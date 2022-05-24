@@ -9,7 +9,7 @@ from semver import VersionInfo
 
 from lisa.executable import Tool
 from lisa.nic import NicInfo
-from lisa.operating_system import Debian, Fedora, Redhat, Ubuntu
+from lisa.operating_system import Debian, Fedora, Redhat, Suse, Ubuntu
 from lisa.tools import Echo, Git, Lscpu, Lspci, Modprobe, Service, Tar, Wget
 from lisa.util import LisaException, SkippedException, UnsupportedDistroException
 
@@ -568,8 +568,34 @@ class DpdkTestpmd(Tool):
         modprobe.load(rmda_drivers)
         modprobe.load(mellanox_drivers)
 
+    def check_dpdk_support(self) -> None:
+        # check requirements according to:
+        # https://docs.microsoft.com/en-us/azure/virtual-network/setup-dpdk
+        node = self.node
+        supported = False
+        if isinstance(node.os, Debian):
+            if isinstance(node.os, Ubuntu):
+                supported = node.os.information.version >= "18.4.0"
+            else:
+                supported = node.os.information.version >= "10.0.0"
+        elif isinstance(node.os, Redhat):
+            supported = node.os.information.version >= "7.5.0"
+        elif isinstance(node.os, Suse):
+            supported = node.os.information.version >= "15.0.0"
+        else:
+            # this OS is not supported
+            raise UnsupportedDistroException(
+                node.os, "This OS is not supported by the DPDK test suite for Azure."
+            )
+
+        if not supported:
+            raise UnsupportedDistroException(
+                node.os, "This OS version is EOL and is not supported for DPDK on Azure"
+            )
+
     def _install_dependencies(self) -> None:
         node = self.node
+        self.check_dpdk_support()  # will skip if OS is not supported
         if isinstance(node.os, Ubuntu):
             self._install_ubuntu_dependencies()
         elif isinstance(node.os, Debian):
@@ -619,10 +645,8 @@ class DpdkTestpmd(Tool):
                 f"which was not Redhat: {node.os.information.full_version}"
             )
             return  # appease the type checker
-        if rhel.information.version.major < 7:
-            # SKIP for old unsupported versions.
-            raise SkippedException("DPDK for Redhat < 7 is not supported by this test")
-        elif rhel.information.version.major == 7:
+
+        if rhel.information.version.major == 7:
             # Add packages for rhel7
             rhel.install_packages(list(["libmnl-devel", "libbpf-devel"]))
 

@@ -13,6 +13,7 @@ from lisa import (
     Node,
     RemoteNode,
     SkippedException,
+    UnsupportedDistroException,
     constants,
 )
 from lisa.features import NetworkInterface
@@ -209,7 +210,11 @@ def initialize_node_resources(
     testpmd.set_dpdk_source(dpdk_source)
     testpmd.set_dpdk_branch(dpdk_branch)
     testpmd.add_sample_apps_to_build_list(sample_apps)
-    testpmd.install()
+    try:
+        testpmd.install()
+    except UnsupportedDistroException as err:
+        # forward message from distro exception
+        raise SkippedException(err)
 
     assert_that(len(node.nics)).described_as(
         "Test needs at least 1 NIC on the test node."
