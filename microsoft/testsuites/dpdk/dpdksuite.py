@@ -108,7 +108,8 @@ class Dpdk(TestSuite):
     def verify_dpdk_ovs(
         self, node: Node, log: Logger, variables: Dict[str, Any]
     ) -> None:
-        # initialize DPDK first, OVS requires it built before configuring.
+        # initialize DPDK first, OVS requires it built from source before configuring.
+        self._force_dpdk_default_source(variables)
         test_kit = initialize_node_resources(node, log, variables, "failsafe")
 
         # checkout OpenVirtualSwitch
@@ -171,6 +172,8 @@ class Dpdk(TestSuite):
         self, node: Node, log: Logger, variables: Dict[str, Any]
     ) -> None:
 
+        # multiprocess test requires dpdk source.
+        self._force_dpdk_default_source(variables)
         kill = node.tools[Kill]
         pmd = "failsafe"
         server_app_name = "dpdk-mp_server"
@@ -381,9 +384,7 @@ class Dpdk(TestSuite):
 
         # ring ping requires dpdk source to run, since default is package_manager
         # we special case here to use to dpdk-stable as the default.
-        if not variables.get("dpdk_source"):
-            variables["dpdk_source"] = "https://dpdk.org/git/dpdk-stable"
-
+        self._force_dpdk_default_source(variables)
         # setup and unwrap the resources for this test
         test_kit = initialize_node_resources(node, log, variables, "failsafe")
         testpmd = test_kit.testpmd
@@ -571,3 +572,7 @@ class Dpdk(TestSuite):
                 "/dev/uio0 still exists after driver unload"
             ),
         )
+
+    def _force_dpdk_default_source(self, variables: Dict[str, Any]) -> None:
+        if not variables.get("dpdk_source"):
+            variables["dpdk_source"] = "https://dpdk.org/git/dpdk-stable"
