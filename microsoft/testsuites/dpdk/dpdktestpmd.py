@@ -418,7 +418,7 @@ class DpdkTestpmd(Tool):
                 f"Installed DPDK version {str(self._dpdk_version_info)} "
                 "from package manager"
             )
-            self._load_drivers_for_dpdk()
+            #self._load_drivers_for_dpdk()
             return True
 
         # otherwise install from source tarball or git

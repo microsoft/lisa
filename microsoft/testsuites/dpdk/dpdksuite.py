@@ -14,7 +14,7 @@ from lisa import (
     TestSuite,
     TestSuiteMetadata,
 )
-from lisa.features import Sriov
+from lisa.features import Sriov, Infiniband
 from lisa.testsuite import simple_requirement
 from lisa.tools import Echo, Git, Ip, Kill, Lsmod, Make, Modprobe
 from microsoft.testsuites.dpdk.dpdknffgo import DpdkNffGo
@@ -66,6 +66,7 @@ class Dpdk(TestSuite):
             min_nic_count=2,
             min_core_count=8,
             network_interface=Sriov(),
+            supported_features=[Infiniband],
         ),
     )
     def verify_dpdk_build_netvsc(
@@ -87,11 +88,13 @@ class Dpdk(TestSuite):
             min_nic_count=2,
             min_core_count=8,
             network_interface=Sriov(),
+            supported_features=[Infiniband],
         ),
     )
     def verify_dpdk_build_failsafe(
         self, node: Node, log: Logger, variables: Dict[str, Any]
     ) -> None:
+        node.features[Infiniband].setup_rdma()
         verify_dpdk_build(node, log, variables, "failsafe")
 
     @TestCaseMetadata(
