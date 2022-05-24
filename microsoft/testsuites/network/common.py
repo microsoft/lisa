@@ -192,3 +192,15 @@ def remove_extra_nics(environment: Environment) -> None:
         node = cast(RemoteNode, environment.nodes[0])
         network_interface_feature = node.features[NetworkInterface]
         network_interface_feature.remove_extra_nics()
+
+
+def sriov_disable_enable(environment: Environment, times: int = 4) -> None:
+    vm_nics = initialize_nic_info(environment)
+    sriov_basic_test(environment, vm_nics)
+    node = cast(RemoteNode, environment.nodes[0])
+    network_interface_feature = node.features[NetworkInterface]
+    for _ in range(times):
+        sriov_is_enabled = network_interface_feature.is_enabled_sriov()
+        if sriov_is_enabled:
+            sriov_basic_test(environment, vm_nics)
+        network_interface_feature.switch_sriov(enable=(not sriov_is_enabled))

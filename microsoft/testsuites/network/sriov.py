@@ -23,7 +23,7 @@ from lisa import (
 )
 from lisa.features import NetworkInterface, SerialConsole
 from lisa.nic import NicInfo
-from lisa.sut_orchestrator import AZURE, READY
+from lisa.sut_orchestrator import AZURE
 from lisa.tools import Cat, Ethtool, InterruptInspector, Iperf3, Lspci
 from lisa.util.shell import wait_tcp_port_ready
 from microsoft.testsuites.network.common import (
@@ -33,6 +33,7 @@ from microsoft.testsuites.network.common import (
     remove_extra_nics,
     remove_module,
     sriov_basic_test,
+    sriov_disable_enable,
     sriov_vf_connection_test,
 )
 
@@ -194,24 +195,16 @@ class Sriov(TestSuite):
         2. Set enable_accelerated_networking as False to disable sriov.
         3. Set enable_accelerated_networking as True to enable sriov.
         4. Do the basic sriov check.
+        5. Do step 2 ~ step 4 for 2 times.
         """,
         priority=2,
         requirement=simple_requirement(
             network_interface=features.Sriov(),
-            supported_platform_type=[AZURE, READY],
+            supported_platform_type=[AZURE],
         ),
     )
     def verify_sriov_disable_enable(self, environment: Environment) -> None:
-        vm_nics = initialize_nic_info(environment)
-        sriov_basic_test(environment, vm_nics)
-        node = cast(RemoteNode, environment.nodes[0])
-        network_interface_feature = node.features[NetworkInterface]
-        for _ in range(3):
-            sriov_is_enabled = network_interface_feature.is_enabled_sriov()
-            if sriov_is_enabled:
-                sriov_basic_test(environment, vm_nics)
-            network_interface_feature.switch_sriov(enable=(not sriov_is_enabled))
-        network_interface_feature.switch_sriov(enable=True)
+        sriov_disable_enable(environment)
 
     @TestCaseMetadata(
         description="""
