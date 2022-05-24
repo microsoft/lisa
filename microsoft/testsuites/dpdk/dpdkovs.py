@@ -106,8 +106,7 @@ class DpdkOvs(Tool):
 
         return True
 
-    def _check_ovs_dpdk_compatibility(self, dpdk_tool: DpdkTestpmd) -> None:
-        dpdk_version = dpdk_tool.get_dpdk_branch()
+    def get_ovs_dpdk_compatibility(self) -> VersionInfo:
         # confirm supported ovs:dpdk version pairing based on
         # https://docs.openvswitch.org/en/latest/faq/releases/
         # to account for minor releases check release is below a major version threshold
@@ -138,15 +137,18 @@ class DpdkOvs(Tool):
             for version_limit in ovs_dpdk_version_pairings:
                 ovs_upper_limit, dpdk_version_requirement = version_limit
                 if self.ovs_version < ovs_upper_limit:
-                    # located the correct range, check if versions match
-                    if dpdk_version.major == dpdk_version_requirement:
-                        break
-                    # if they don't match, fail
-                    fail(
-                        f"OVS Version {self.ovs_version} requires DPDK "
-                        f"major version of {dpdk_version_requirement}, "
-                        f"found {dpdk_version}"
-                    )
+                    # located the correct range, return major version to select
+                    return VersionInfo(dpdk_version_requirement, 11, 0)
+
+    def _check_ovs_dpdk_compatibility(self, dpdk_tool: DpdkTestpmd) -> None:
+        if (
+            self.get_ovs_dpdk_compatibility().major
+            != dpdk_tool._dpdk_version_info.major
+        ):
+            fail(
+                "Dpdk version did not match OVS version after check/set!"
+                "Check DpdkOvs class for errors"
+            )
 
     def build_with_dpdk(self, dpdk_tool: DpdkTestpmd) -> None:
         node = self.node

@@ -183,9 +183,10 @@ def initialize_node_resources(
     variables: Dict[str, Any],
     pmd: str,
     sample_apps: Union[List[str], None] = None,
+    default_dpdk_branch: str = ""
 ) -> DpdkTestResources:
     dpdk_source = variables.get("dpdk_source", PACKAGE_MANAGER_SOURCE)
-    dpdk_branch = variables.get("dpdk_branch", "")
+    dpdk_branch = variables.get("dpdk_branch", default_dpdk_branch)
     log.info(
         "Dpdk initialize_node_resources running"
         f"found dpdk_source '{dpdk_source}' and dpdk_branch '{dpdk_branch}'"

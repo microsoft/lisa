@@ -110,10 +110,21 @@ class Dpdk(TestSuite):
     ) -> None:
         # initialize DPDK first, OVS requires it built from source before configuring.
         self._force_dpdk_default_source(variables)
-        test_kit = initialize_node_resources(node, log, variables, "failsafe")
 
         # checkout OpenVirtualSwitch
         ovs = node.tools[DpdkOvs]
+
+        # OVS has really specific version requirements. Grab the version
+        # to checkout and force the branch checkout for DPDK
+        dpdk_version = ovs.get_ovs_dpdk_compatibility()
+
+        test_kit = initialize_node_resources(
+            node,
+            log,
+            variables,
+            "failsafe",
+            default_dpdk_branch=f"{dpdk_version.major}.{dpdk_version.minor}",
+        )
 
         # provide ovs build with DPDK tool info and build
         ovs.build_with_dpdk(test_kit.testpmd)
@@ -322,12 +333,12 @@ class Dpdk(TestSuite):
             assert_that(pps).described_as(
                 f"{tx_or_rx}-PPS ({pps}) should have been greater "
                 "than 2^20 (~1m) PPS before sriov disable."
-            ).is_greater_than(2**20)
+            ).is_greater_than(2 ** 20)
         else:
             assert_that(pps).described_as(
                 f"{tx_or_rx}-PPS ({pps}) should have been less "
                 "than 2^20 (~1m) PPS after sriov disable."
-            ).is_less_than(2**20)
+            ).is_less_than(2 ** 20)
 
     @TestCaseMetadata(
         description="""
