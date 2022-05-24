@@ -212,9 +212,14 @@ class DpdkTestpmd(Tool):
         # default is to use cores 0 and 1
         core_count_arg = 2
 
-        # queue test forces multicore, use_core_count can override it if needed.
-        if txq or rxq:
+        # force set number of cores if the override argument is present.
+        if use_core_count:
+            core_count_arg = use_core_count
+        # use either as many cores as we can or one for each queue and port
+        core_count_arg = min(cores_available, core_count_arg + txq + rxq)
 
+        # check queue args and add the flags if they are present
+        if txq or rxq:
             # set number of queues to use for tx and rx
             assert_that(txq).described_as(
                 "TX queue value must be greater than 0 if txq is used"
@@ -223,13 +228,6 @@ class DpdkTestpmd(Tool):
                 "RX queue value must be greater than 0 if rxq is used"
             ).is_greater_than(0)
             extra_args += f" --txq={txq} --rxq={rxq}  --port-topology=chained "
-
-            # use either as many cores as we can or one for each queue and port
-            core_count_arg = min(cores_available, core_count_arg + txq + rxq)
-
-        # force set number of cores if the override argument is present.
-        if use_core_count:
-            core_count_arg = use_core_count
 
         # check cores_to_use argument is sane, 2 < arg <= number_available
         assert_that(core_count_arg).described_as(
