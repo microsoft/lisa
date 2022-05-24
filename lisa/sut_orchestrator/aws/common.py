@@ -85,7 +85,10 @@ class AwsNodeSchema:
                 self.marketplace_raw, str
             ), f"actual: {type(self.marketplace_raw)}"
             self.marketplace_raw = self.marketplace_raw.strip()
-            self._marketplace = AwsVmMarketplaceSchema(self.marketplace_raw)
+            if self.marketplace_raw:
+                self._marketplace = AwsVmMarketplaceSchema(self.marketplace_raw)
+            else:
+                self._marketplace = AwsVmMarketplaceSchema()
 
         return self._marketplace
 
@@ -94,13 +97,7 @@ class AwsNodeSchema:
         self._marketplace = value
 
     def get_image_id(self) -> str:
-        result = ""
-        if self.marketplace:
-            assert isinstance(
-                self.marketplace_raw, dict
-            ), f"actual type: {type(self.marketplace_raw)}"
-            result = self.marketplace_raw["imageid"]
-        return result
+        return self.marketplace.imageid
 
 
 def get_node_context(node: Node) -> NodeContext:
