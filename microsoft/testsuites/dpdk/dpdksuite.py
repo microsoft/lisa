@@ -574,5 +574,5 @@ class Dpdk(TestSuite):
         )
 
     def _force_dpdk_default_source(self, variables: Dict[str, Any]) -> None:
-        if not variables.get("dpdk_source"):
+        if not variables.get("dpdk_source", None):
             variables["dpdk_source"] = "https://dpdk.org/git/dpdk-stable"
