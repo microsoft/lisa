@@ -6,7 +6,7 @@ from typing import List, Type
 from lisa.executable import Tool
 from lisa.operating_system import Debian, Ubuntu
 from lisa.tools import Echo, Git, Make, Tar, Wget
-from lisa.util import SkippedException, UnsupportedDistroException
+from lisa.util import UnsupportedDistroException
 
 
 class DpdkNffGo(Tool):
