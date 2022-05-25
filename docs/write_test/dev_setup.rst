@@ -73,6 +73,7 @@ Visual Studio Code
             "reportUnusedImport": "none",
             "reportUnusedFunction": "none"
          },
+         "python.analysis.stubPath": "./typings",
          "python.languageServer": "Pylance"
       }
 
