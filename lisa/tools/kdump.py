@@ -367,7 +367,10 @@ class KdumpRedhat(KdumpBase):
 
     def _get_crashkernel_update_cmd(self, crashkernel: str) -> str:
         if self.node.os.information.version >= "8.0.0-0":
-            return f'grubby --update-kernel=ALL --args="crashkernel={crashkernel}"'
+            return (
+                "grubby --update-kernel=/boot/vmlinuz-$(uname -r)"
+                f' --args="crashkernel={crashkernel}"'
+            )
         else:
             if self.node.shell.exists(PurePosixPath("/sys/firmware/efi")):
                 # System with UEFI firmware
