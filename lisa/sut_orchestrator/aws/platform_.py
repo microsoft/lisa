@@ -355,10 +355,18 @@ class AwsPlatform(Platform):
                     estimated_cost: int = 0
                     location_caps = self.get_eligible_vm_sizes(location_name, log)
                     for req_index, req in enumerate(nodes_requirement):
+                        node_runbook = req.get_extended_runbook(AwsNodeSchema, AWS)
+                        image = self._ec2_resource.Image(node_runbook.get_image_id())
+
                         for aws_cap in location_caps:
                             if found_capabilities[req_index]:
                                 # found, so skipped
                                 break
+                            # Check if the instance type is on the same archtecture as image.
+                            supported_archs = aws_cap.resource_sku["ProcessorInfo"]["SupportedArchitectures"]
+                            if image.architecture != supported_archs[0]:
+                                continue
+
                             check_result = req.check(aws_cap.capability)
                             if check_result.result:
                                 min_cap = self._generate_min_capability(
@@ -640,7 +648,8 @@ class AwsPlatform(Platform):
                 try:
                     instance = self._ec2_resource.Instance(instance_id)
                     instance.terminate()
-                    instance.wait_until_terminated()
+                    if self._aws_runbook.wait_delete:
+                        instance.wait_until_terminated()
                     log.info("Terminating instance %s.", instance_id)
                 except ClientError:
                     log.exception("Couldn't terminate instance %s.", instance_id)

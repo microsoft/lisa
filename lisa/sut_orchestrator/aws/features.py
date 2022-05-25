@@ -34,13 +34,15 @@ class StartStop(AwsFeatureMixin, features.StartStop):
         platform: AwsPlatform = self._platform  # type: ignore
         ec2_client = platform._ec2_client
         ec2_client.stop_instances(InstanceIds=[self._intsance_id])
-        ec2_client.get_waiter("instance_stopped").wait()
+        if wait:
+            ec2_client.get_waiter("instance_stopped").wait()
 
     def _start(self, wait: bool = True) -> None:
         platform: AwsPlatform = self._platform  # type: ignore
         ec2_client = platform._ec2_client
         ec2_client.start_instances(InstanceIds=[self._intsance_id])
-        ec2_client.get_waiter("instance_running").wait()
+        if wait:
+            ec2_client.get_waiter("instance_running").wait()
 
     def _restart(self, wait: bool = True) -> None:
         platform: AwsPlatform = self._platform  # type: ignore
@@ -65,6 +67,7 @@ def get_aws_disk_type(disk_type: schema.DiskType) -> str:
 
     return result
 
+
 # There are more disk types in AWS than Azure, like io2/gp3/io 2 Block Express.
 # If need to verify the storage performance of other types, please update the following mapping.
 # Refer to https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/ebs-volume-types.html.
@@ -74,6 +77,7 @@ _disk_type_mapping: Dict[schema.DiskType, str] = {
     schema.DiskType.StandardHDDLRS: "st1",
     schema.DiskType.StandardSSDLRS: "gp3",
 }
+
 
 # Tuple: (IOPS, Disk Size)
 _disk_size_iops_map: Dict[schema.DiskType, List[Tuple[int, int]]] = {

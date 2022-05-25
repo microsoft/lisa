@@ -1,10 +1,9 @@
 # Copyright (c) Microsoft Corporation.
 # Licensed under the MIT license.
 
-import re
 import sys
 from dataclasses import InitVar, dataclass, field
-from typing import Any, Dict, List, Optional, Union
+from typing import Any, Dict, List, Optional
 
 from dataclasses_json import dataclass_json
 from marshmallow import validate
@@ -106,19 +105,6 @@ def get_node_context(node: Node) -> NodeContext:
 
 def get_environment_context(environment: Environment) -> EnvironmentContext:
     return environment.get_context(EnvironmentContext)
-
-
-def wait_operation(operation: Any, time_out: int = sys.maxsize) -> Any:
-    timer = create_timer()
-    while time_out > timer.elapsed(False):
-        check_cancelled()
-        if operation.done():
-            break
-        operation.wait(1)
-    if time_out < timer.elapsed():
-        raise Exception(
-            f"timeout on wait Azure operation completed after {time_out} seconds."
-        )
 
 
 class DataDiskCreateOption:
