@@ -10,9 +10,11 @@ from lisa import (
     TestCaseMetadata,
     TestSuite,
     TestSuiteMetadata,
+    UnsupportedDistroException,
 )
 from lisa.features import SecureBootEnabled
 from lisa.operating_system import Debian, Posix, Redhat, Suse, Ubuntu
+from lisa.sut_orchestrator.azure.tools import VmGeneration
 from lisa.testsuite import simple_requirement
 from lisa.util import find_patterns_in_lines
 
@@ -40,6 +42,7 @@ class TvmTest(TestSuite):
         ),
     )
     def verify_secureboot_compatibility(self, node: Node) -> None:
+        self._is_supported(node)
         self._add_azure_core_repo(node)
         posix_os: Posix = cast(Posix, node.os)
         posix_os.install_packages("azure-security", signed=False)
@@ -66,6 +69,7 @@ class TvmTest(TestSuite):
         ),
     )
     def verify_measuredboot_compatibility(self, node: Node) -> None:
+        self._is_supported(node)
         self._add_azure_core_repo(node)
         posix_os: Posix = cast(Posix, node.os)
         posix_os.install_packages("azure-compatscanner", signed=False)
@@ -77,6 +81,20 @@ class TvmTest(TestSuite):
                 "This OS image is not compatible with Measured Boot."
             ),
         )
+
+    def _is_supported(self, node: Node) -> None:
+        vm_generation = node.tools[VmGeneration].get_generation()
+        if "1" == vm_generation:
+            raise SkippedException("TVM cases only support generation 2 VM.")
+        if (
+            (isinstance(node.os, Debian) and node.os.information.version < "11.0.0")
+            or (isinstance(node.os, Ubuntu) and node.os.information.version < "18.4.0")
+            or (isinstance(node.os, Redhat) and node.os.information.version < "8.3.0")
+            or (isinstance(node.os, Suse) and node.os.information.version < "15.2.0")
+        ):
+            raise SkippedException(
+                UnsupportedDistroException(node.os, "TVM doesn't support this version.")
+            )
 
     def _add_azure_core_repo(self, node: Node) -> None:
         if isinstance(node.os, Redhat):
