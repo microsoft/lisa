@@ -669,6 +669,13 @@ class AzureDiskOptionSettings(schema.DiskOptionSettings):
                     value.data_disk_size = self._get_disk_size_from_iops(
                         value.data_disk_iops, disk_type_iops
                     )
+        elif method_name == RequirementMethod.intersect:
+            value.data_disk_iops = search_space.intersect_countspace(
+                self.data_disk_iops, capability.data_disk_iops
+            )
+            value.data_disk_size = search_space.intersect_countspace(
+                self.data_disk_size, capability.data_disk_size
+            )
 
         # all caching types are supported, so just take the value from requirement.
         value.data_disk_caching_type = self.data_disk_caching_type

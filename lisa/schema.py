@@ -22,6 +22,7 @@ from lisa.util import (
     BaseClassMixin,
     LisaException,
     constants,
+    deep_update_dict,
     field_metadata,
     strip_strs,
 )
@@ -380,10 +381,20 @@ class FeatureSettings(
 
     def _call_requirement_method(self, method_name: str, capability: Any) -> Any:
         # default FeatureSetting is a place holder, nothing to do.
-        extended_schemas = None
-        if hasattr(capability, "extended_schemas"):
-            extended_schemas = capability.extended_schemas
-        return FeatureSettings.create(self.type, extended_schemas=extended_schemas)
+        value = FeatureSettings.create(self.type)
+
+        # intersect the extended schemas
+        if (
+            self.extended_schemas
+            and method_name == search_space.RequirementMethod.intersect
+        ):
+            if capability is not None:
+                value.extended_schemas = deep_update_dict(
+                    self.extended_schemas,
+                    capability.extended_schemas,
+                )
+
+        return value
 
 
 class DiskType(str, Enum):
@@ -517,7 +528,12 @@ class DiskOptionSettings(FeatureSettings):
 
     def _call_requirement_method(self, method_name: str, capability: Any) -> Any:
         assert isinstance(capability, DiskOptionSettings), f"actual: {type(capability)}"
+        parent_value = super()._call_requirement_method(method_name, capability)
+
+        # convert parent type to child type
         value = DiskOptionSettings()
+        value.extended_schemas = parent_value.extended_schemas
+
         search_space_countspace_method = getattr(
             search_space, f"{method_name}_countspace"
         )
@@ -648,7 +664,11 @@ class NetworkInterfaceOptionSettings(FeatureSettings):
         assert isinstance(
             capability, NetworkInterfaceOptionSettings
         ), f"actual: {type(capability)}"
+        parent_value = super()._call_requirement_method(method_name, capability)
+
+        # convert parent type to child type
         value = NetworkInterfaceOptionSettings()
+        value.extended_schemas = parent_value.extended_schemas
 
         value.max_nic_count = getattr(search_space, f"{method_name}_countspace")(
             self.max_nic_count, capability.max_nic_count
