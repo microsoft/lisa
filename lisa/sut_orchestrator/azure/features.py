@@ -28,7 +28,7 @@ from lisa.features import NvmeSettings
 from lisa.features.gpu import ComputeSDK
 from lisa.features.resize import ResizeAction
 from lisa.node import Node, RemoteNode
-from lisa.operating_system import CentOs, Redhat, Suse, Ubuntu
+from lisa.operating_system import Redhat, Suse, Ubuntu
 from lisa.search_space import RequirementMethod
 from lisa.tools import Dmesg, Lspci, Modprobe
 from lisa.util import (
@@ -180,11 +180,16 @@ class Gpu(AzureFeatureMixin, features.Gpu):
 
     def is_supported(self) -> bool:
         # TODO: more supportability can be defined here
-        supported_distro = (CentOs, Redhat, Ubuntu, Suse)
-        if isinstance(self._node.os, supported_distro):
-            return True
+        node = self._node
+        supported = False
+        if isinstance(node.os, Redhat):
+            supported = node.os.information.version >= "7.0.0"
+        elif isinstance(node.os, Ubuntu):
+            supported = node.os.information.version >= "18.0.0"
+        elif isinstance(node.os, Suse):
+            supported = node.os.information.version >= "15.0.0"
 
-        return False
+        return supported
 
     def get_supported_driver(self) -> List[ComputeSDK]:
         driver_list = []
