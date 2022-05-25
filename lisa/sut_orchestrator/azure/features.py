@@ -170,7 +170,7 @@ class Gpu(AzureFeatureMixin, features.Gpu):
         {
             "publisher": "Microsoft.HpcCompute",
             "type": "NvidiaGpuDriverLinux",
-            "typeHandlerVersion": "1.6",
+            "typeHandlerVersion": "1.7",
             "autoUpgradeMinorVersion": true,
             "settings": {
             }
