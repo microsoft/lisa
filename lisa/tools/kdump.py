@@ -262,7 +262,7 @@ class KdumpBase(Tool):
 
         # Update grub
         update_cmd = self._get_crashkernel_update_cmd(crashkernel)
-        result = self.node.execute(update_cmd, sudo=True)
+        result = self.node.execute(update_cmd, sudo=True, shell=True)
         result.assert_exit_code(message="Failed to update grub")
 
     def config_dump_path(self) -> None:
@@ -367,7 +367,10 @@ class KdumpRedhat(KdumpBase):
 
     def _get_crashkernel_update_cmd(self, crashkernel: str) -> str:
         if self.node.os.information.version >= "8.0.0-0":
-            return f'grubby --update-kernel=ALL --args="crashkernel={crashkernel}"'
+            return (
+                "grubby --update-kernel=/boot/vmlinuz-$(uname -r)"
+                f' --args="crashkernel={crashkernel}"'
+            )
         else:
             if self.node.shell.exists(PurePosixPath("/sys/firmware/efi")):
                 # System with UEFI firmware
