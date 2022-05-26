@@ -325,6 +325,7 @@ def perf_ntttcp(
                 ntttcp_message = client_ntttcp.create_ntttcp_tcp_performance_message(
                     server_result_temp,
                     client_result_temp,
+                    run_time_seconds=300,
                     client_average_latency,
                     str(test_thread),
                     buffer_size,
