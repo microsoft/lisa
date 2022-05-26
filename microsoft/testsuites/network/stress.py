@@ -14,12 +14,15 @@ from lisa import (
     features,
     node_requirement,
     schema,
+    simple_requirement,
 )
 from lisa.nic import NicInfo
+from lisa.sut_orchestrator import AZURE
 from lisa.tools import Cat, Iperf3
 from microsoft.testsuites.network.common import (
     cleanup_iperf3,
     initialize_nic_info,
+    sriov_disable_enable,
     sriov_vf_connection_test,
 )
 
@@ -99,6 +102,36 @@ class Stress(TestSuite):
 
         # 3. Do VF connection test.
         sriov_vf_connection_test(environment, vm_nics)
+
+    @TestCaseMetadata(
+        description="""
+        This case verify VM works well after disable and enable accelerated network in
+         network interface through sdk under stress.
+
+        It is a regression test case to check the bug
+         https://git.launchpad.net/~canonical-kernel/ubuntu/+source/linux-azure/+git/
+         bionic/commit/id=16a3c750a78d8, which misses the second hunk of the upstream
+         patch https://git.kernel.org/pub/scm/linux/kernel/git/torvalds/linux.git/
+         commit/?id=877b911a5ba0. Details please check https://bugs.launchpad.net/
+         ubuntu/+source/linux-azure/+bug/1965618
+
+        Steps,
+        1. Do the basic sriov check.
+        2. Set enable_accelerated_networking as False to disable sriov.
+        3. Set enable_accelerated_networking as True to enable sriov.
+        4. Do the basic sriov check.
+        5. Do step 2 ~ step 4 for 25 times.
+        """,
+        priority=3,
+        timeout=4000,
+        requirement=simple_requirement(
+            min_core_count=4,
+            network_interface=features.Sriov(),
+            supported_platform_type=[AZURE],
+        ),
+    )
+    def verify_stress_sriov_disable_enable(self, environment: Environment) -> None:
+        sriov_disable_enable(environment, times=50)
 
     def after_case(self, log: Logger, **kwargs: Any) -> None:
         environment: Environment = kwargs.pop("environment")
