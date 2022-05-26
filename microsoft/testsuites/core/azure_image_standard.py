@@ -222,7 +222,7 @@ class AzureImageStandard(TestSuite):
         matched = get_matched_str(sudoers_out, self._uncommented_default_targetpw_regex)
         assert_that(
             matched, "Defaults targetpw should not be enabled in /etc/sudoers"
-        ).is_empty()
+        ).is_length(0)
 
     @TestCaseMetadata(
         description="""
