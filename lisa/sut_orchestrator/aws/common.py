@@ -1,9 +1,8 @@
 # Copyright (c) Microsoft Corporation.
 # Licensed under the MIT license.
 
-import sys
 from dataclasses import InitVar, dataclass, field
-from typing import Any, Dict, List, Optional
+from typing import Dict, List, Optional
 
 from dataclasses_json import dataclass_json
 from marshmallow import validate
@@ -12,8 +11,6 @@ from lisa import schema
 from lisa.environment import Environment
 from lisa.node import Node
 from lisa.util import LisaException, constants, field_metadata
-from lisa.util.parallel import check_cancelled
-from lisa.util.perf_timer import create_timer
 
 
 @dataclass
@@ -74,7 +71,7 @@ class AwsNodeSchema:
     _marketplace: InitVar[Optional[AwsVmMarketplaceSchema]] = None
 
     @property
-    def marketplace(self) -> Optional[AwsVmMarketplaceSchema]:
+    def marketplace(self) -> AwsVmMarketplaceSchema:
         # this is a safe guard and prevent mypy error on typing
         if not hasattr(self, "_marketplace"):
             self._marketplace: Optional[AwsVmMarketplaceSchema] = None

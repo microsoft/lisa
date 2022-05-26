@@ -10,10 +10,11 @@ from difflib import SequenceMatcher
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Type, Union
 
-import boto3  # type: ignore
+import boto3
 from botocore.exceptions import ClientError
 from dataclasses_json import dataclass_json
 from marshmallow import fields, validate
+from mypy_boto3_ec2.type_defs import InstanceTypeInfoTypeDef, IpPermissionTypeDef
 from retry import retry
 
 from lisa import feature, schema, search_space
@@ -72,7 +73,7 @@ class AwsCapability:
     vm_size: str
     capability: schema.NodeSpace
     estimated_cost: int
-    resource_sku: Dict[str, Any]
+    resource_sku: InstanceTypeInfoTypeDef
 
     def __post_init__(self, *args: Any, **kwargs: Any) -> None:
         # reload features settings with platform specified types.
@@ -158,11 +159,11 @@ class AwsPlatform(Platform):
 
         self._aws_runbook = aws_runbook
         self._ec2_client = boto3.client("ec2")
-        self._ec2_resource = boto3.resource("ec2")
 
     def _create_key_pair(self, key_name: str, private_key_file: str) -> Any:
         try:
-            key_pair = self._ec2_resource.import_key_pair(
+            ec2_resource = boto3.resource("ec2")
+            key_pair = ec2_resource.import_key_pair(
                 KeyName=key_name,
                 PublicKeyMaterial=get_public_key_data(private_key_file),
             )
@@ -173,27 +174,49 @@ class AwsPlatform(Platform):
         else:
             return key_pair
 
-    def _check_or_create_security_group(
+    def _check_or_create_security_group(  # noqa: C901
         self, security_group_name: str, group_description: str
     ) -> Any:
         try:
+            ec2_resource = boto3.resource("ec2")
+
             # By default, AWS users can create up to 5 VPCs
             for i in range(50, 55):
-                vpcs = list(self._ec2_resource.vpcs.filter(
-                        Filters=[{"Name": "cidr", "Values": ["173." + str(i) + ".0.0/16"]}])
+                cidr_block = "173." + str(i) + ".0.0/16"
+                vpcs = list(
+                    ec2_resource.vpcs.filter(
+                        Filters=[{"Name": "cidr", "Values": [cidr_block]}]
                     )
+                )
                 if len(vpcs) == 0:
-                    self._vpc = self._ec2_resource.create_vpc(CidrBlock="173." + str(i) + ".0.0/16")
-                    self._log.info(f"Create a new VPC: {self._vpc.id} with CIDR block {self._vpc.cidr_block}")
-                    self._internet_gateway = self._ec2_resource.create_internet_gateway()
-                    self._vpc.attach_internet_gateway(InternetGatewayId=self._internet_gateway.id)
-                    self._route_table = self._ec2_resource.create_route_table(VpcId=self._vpc.id)
-                    self._route_table.create_route(DestinationCidrBlock="0.0.0.0/0", GatewayId=self._internet_gateway.id)
-                    self._log.info(f"Create an internet gateway: {self._internet_gateway.id} and a route table {self._route_table.id}")
+                    self._vpc = ec2_resource.create_vpc(CidrBlock=cidr_block)
+                    self._log.info(
+                        f"Create a new VPC: {self._vpc.id}"
+                        f"with CIDR block {self._vpc.cidr_block}"
+                    )
+                    self._internet_gateway = ec2_resource.create_internet_gateway()
+                    self._vpc.attach_internet_gateway(
+                        InternetGatewayId=self._internet_gateway.id
+                    )
+                    self._route_table = ec2_resource.create_route_table(
+                        VpcId=self._vpc.id
+                    )
+                    self._route_table.create_route(
+                        DestinationCidrBlock="0.0.0.0/0",
+                        GatewayId=self._internet_gateway.id
+                    )
+                    self._log.info(
+                        "Create an internet gateway: %s and a route table %s",
+                        self._internet_gateway.id,
+                        self._route_table.id
+                    )
                     break
 
             if self._vpc is None:
-                raise LisaException("Couldn't get/create VPCs as there are 5 exiting VPCs. Please wait for others finishing test.")
+                raise LisaException(
+                    "Couldn't get/create VPCs as there are 5 exiting VPCs."
+                    "Please wait for others finishing test."
+                )
         except ClientError:
             self._log.exception("Couldn't get/create VPCs.")
             raise
@@ -203,7 +226,9 @@ class AwsPlatform(Platform):
                 GroupName=security_group_name, Description=group_description
             )
             self._log.info(
-                "Created security group %s in VPC %s.", security_group_name, self._vpc.id
+                "Created security group %s in VPC %s.",
+                security_group_name,
+                self._vpc.id
             )
         except ClientError:
             self._log.exception(
@@ -212,7 +237,7 @@ class AwsPlatform(Platform):
             raise
 
         try:
-            ip_permissions = [
+            ip_permissions: List[IpPermissionTypeDef] = [
                 {
                     # SSH ingress open to anyone
                     "IpProtocol": "tcp",
@@ -259,6 +284,7 @@ class AwsPlatform(Platform):
         4. get min capability for each match
         """
         is_success: bool = True
+        ec2_resource = boto3.resource("ec2")
 
         if environment.runbook.nodes_requirement:
             is_success = False
@@ -356,14 +382,16 @@ class AwsPlatform(Platform):
                     location_caps = self.get_eligible_vm_sizes(location_name, log)
                     for req_index, req in enumerate(nodes_requirement):
                         node_runbook = req.get_extended_runbook(AwsNodeSchema, AWS)
-                        image = self._ec2_resource.Image(node_runbook.get_image_id())
+                        image = ec2_resource.Image(node_runbook.get_image_id())
 
                         for aws_cap in location_caps:
                             if found_capabilities[req_index]:
                                 # found, so skipped
                                 break
-                            # Check if the instance type is on the same archtecture as image.
-                            supported_archs = aws_cap.resource_sku["ProcessorInfo"]["SupportedArchitectures"]
+                            # Check if the instance type is on the same archtecture
+                            # as the image.
+                            prcoessor_info = aws_cap.resource_sku["ProcessorInfo"]
+                            supported_archs = prcoessor_info["SupportedArchitectures"]
                             if image.architecture != supported_archs[0]:
                                 continue
 
@@ -571,6 +599,7 @@ class AwsPlatform(Platform):
     def _deploy(
         self, deployment_parameters: AwsDeployParameter, log: Logger
     ) -> Dict[str, Any]:
+        ec2_resource = boto3.resource("ec2")
         instances = {}
         subnets = self._create_subnets(self._vpc.id, deployment_parameters, log)
         block_device_mappings = self._create_block_devices(deployment_parameters, log)
@@ -581,7 +610,7 @@ class AwsPlatform(Platform):
             )
 
             try:
-                instance = self._ec2_resource.create_instances(
+                instance = ec2_resource.create_instances(
                     ImageId=node.get_image_id(),
                     InstanceType=node.vm_size,
                     NetworkInterfaces=network_interfaces,
@@ -597,7 +626,7 @@ class AwsPlatform(Platform):
 
                 # Enable ENA support if the test case requires.
                 # Don't support the Intel 82599 Virtual Function (VF) interface now.
-                # Refer to https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/enhanced-networking.html.
+                # Refer to the document about AWS Enhanced networking on Linux.
                 if node.enable_sriov and (not instance.ena_support):
                     self._ec2_client.modify_instance_attribute(
                         InstanceId=instance.id,
@@ -609,7 +638,8 @@ class AwsPlatform(Platform):
                 instances[node.name] = instance.instance_id
             except ClientError:
                 log.exception(
-                    "Couldn't create instance with image %s, instance type %s, and key %s.",
+                    "Couldn't create instance with image %s, "
+                    "instance type %s, and key %s.",
                     node.get_image_id(),
                     node.vm_size,
                     deployment_parameters.key_pair_name,
@@ -638,47 +668,20 @@ class AwsPlatform(Platform):
                 f"as it's a dry run."
             )
         else:
-            assert self._ec2_resource
+            ec2_resource = boto3.resource("ec2")
             for node in environment.nodes.list():
                 node_context = get_node_context(node)
                 instance_id = node_context.intsance_id
-                if not instance_id:
-                    continue
+                self.terminate_instance(ec2_resource, instance_id, log)
 
-                try:
-                    instance = self._ec2_resource.Instance(instance_id)
-                    instance.terminate()
-                    if self._aws_runbook.wait_delete:
-                        instance.wait_until_terminated()
-                    log.info("Terminating instance %s.", instance_id)
-                except ClientError:
-                    log.exception("Couldn't terminate instance %s.", instance_id)
-                    raise
+            self.delete_security_group(
+                ec2_resource,
+                environment_context.security_group_id,
+                environment_context.security_group_name,
+                log
+            )
 
-            try:
-                self._ec2_resource.SecurityGroup(
-                    environment_context.security_group_id
-                ).delete()
-                log.info(
-                    f"deleting resource group: {environment_context.security_group_name}"
-                )
-            except ClientError:
-                log.exception(
-                    "Couldn't delete security group %s.",
-                    environment_context.security_group_name,
-                )
-                raise
-
-            try:
-                self._ec2_resource.KeyPair(
-                    environment_context.key_pair_name
-                ).delete()
-                log.info("Deleted key %s.", environment_context.key_pair_name)
-            except ClientError:
-                log.exception(
-                    "Couldn't delete key %s.", environment_context.key_pair_name
-                )
-                raise
+            self.delete_key_pair(ec2_resource, environment_context.key_pair_name, log)
 
             try:
                 log.info(
@@ -699,6 +702,52 @@ class AwsPlatform(Platform):
                 )
                 raise
 
+    def terminate_instance(
+        self,
+        ec2_resource: Any,
+        instance_id: str,
+        log: Logger
+    ) -> None:
+        if not instance_id:
+            return
+
+        try:
+            instance = ec2_resource.Instance(instance_id)
+            instance.terminate()
+            instance.wait_until_terminated()
+            log.info("Terminating instance %s.", instance_id)
+        except ClientError:
+            log.exception("Couldn't terminate instance %s.", instance_id)
+            raise
+
+    def delete_security_group(
+        self,
+        ec2_resource: Any,
+        group_id: str,
+        security_group_name: str,
+        log: Logger
+    ) -> None:
+        try:
+            ec2_resource.SecurityGroup(group_id).delete()
+            log.info(
+                "Deleting security group: %s.",
+                security_group_name
+            )
+        except ClientError:
+            log.exception(
+                "Couldn't delete security group %s.",
+                security_group_name,
+            )
+            raise
+
+    def delete_key_pair(self, ec2_resource: Any, key_name: str, log: Logger) -> None:
+        try:
+            ec2_resource.KeyPair(key_name).delete()
+            log.info("Deleted key pair %s.", key_name)
+        except ClientError:
+            log.exception("Couldn't delete key pair %s.", key_name)
+            raise
+
     def _create_subnets(
         self, vpc_id: str, deployment_parameters: AwsDeployParameter, log: Logger
     ) -> Dict[int, Any]:
@@ -711,7 +760,9 @@ class AwsPlatform(Platform):
                     CidrBlock=cidr_block,
                     VpcId=vpc_id,
                 )
-                self._route_table.associate_with_subnet(SubnetId=subnets[i]["Subnet"]["SubnetId"])
+                self._route_table.associate_with_subnet(
+                    SubnetId=subnets[i]["Subnet"]["SubnetId"]
+                )
         except ClientError:
             log.exception("Could not create a custom subnet.")
             raise
@@ -789,11 +840,12 @@ class AwsPlatform(Platform):
     ) -> list[str]:
         # In current implementation, all nodes use the same image.
         image_id = deployment_parameters.nodes[0].get_image_id()
-        virtualization_type = self._ec2_resource.Image(image_id).virtualization_type
+        virtualization_type = boto3.resource("ec2").Image(image_id).virtualization_type
         volumes: List[str] = []
 
         # Create the available volumn names based on virtualization type.
-        # Refer to https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/device_naming.html
+        # Refer to the following link
+        # https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/device_naming.html
         if virtualization_type == "hvm":
             for c in range(ord('b'), ord('c') + 1):
                 for p in range(ord('a'), ord('z') + 1):
@@ -803,13 +855,16 @@ class AwsPlatform(Platform):
                 for p in range(1, 7):
                     volumes.append(f"/dev/sd{chr(c)}{p}")
         else:
-            raise LisaException(f"The virtualization type {virtualization_type} is not supported now.")
+            raise LisaException(
+                f"The virtualization type {virtualization_type} is not supported now."
+            )
 
         return volumes
 
     def _initialize_nodes(
         self, environment: Environment, instances: Dict[str, Any], log: Logger
     ) -> None:
+        ec2_resource = boto3.resource("ec2")
         node_context_map: Dict[str, Node] = {}
         for node in environment.nodes.list():
             node_context = get_node_context(node)
@@ -818,13 +873,12 @@ class AwsPlatform(Platform):
 
         for vm_name, node in node_context_map.items():
             node_context = get_node_context(node)
-            vm = self._ec2_resource.Instance(node_context.intsance_id)
+            vm = ec2_resource.Instance(node_context.intsance_id)
             if not vm:
                 raise LisaException(
                     f"cannot find vm: '{vm_name}', make sure deployment is correct."
                 )
 
-            private_ip = vm.private_ip_address
             public_ip = vm.public_ip_address
             assert public_ip, "public IP address cannot be empty!"
 
@@ -833,7 +887,7 @@ class AwsPlatform(Platform):
 
             assert isinstance(node, RemoteNode)
             node.set_connection_info(
-                address=private_ip,
+                address=vm.private_ip_address,
                 port=22,
                 public_address=public_ip,
                 public_port=22,
@@ -842,7 +896,7 @@ class AwsPlatform(Platform):
                 private_key_file=node_context.private_key_file,
             )
 
-    @retry(tries=10, delay=1, jitter=(0.5, 1))  # type: ignore
+    @retry(tries=10, delay=1, jitter=(0.5, 1))
     def _load_location_info_from_file(
         self, cached_file_name: Path, log: Logger
     ) -> Optional[AwsLocation]:
@@ -923,7 +977,7 @@ class AwsPlatform(Platform):
         return location_data
 
     def _instance_type_to_capability(  # noqa: C901
-        self, location: str, instance_type: Dict[str, Any]
+        self, location: str, instance_type: Any
     ) -> schema.NodeSpace:
         # fill in default values, in case no capability meet.
         node_space = schema.NodeSpace(
@@ -1073,11 +1127,12 @@ class AwsPlatform(Platform):
         data_disks: List[DataDiskSchema] = []
         assert node.capability.disk
         if aws_node_runbook.marketplace:
-            image = self._ec2_resource.Image(aws_node_runbook.marketplace.imageid)
+            image = boto3.resource("ec2").Image(aws_node_runbook.marketplace.imageid)
 
             # AWS images has the root data disks by default
             for data_disk in image.block_device_mappings:
                 if "Ebs" in data_disk and "VolumeSize" in data_disk["Ebs"]:
+                    assert isinstance(node.capability.disk.data_disk_iops, int)
                     data_disks.append(
                         DataDiskSchema(
                             node.capability.disk.data_disk_caching_type,
@@ -1092,6 +1147,7 @@ class AwsPlatform(Platform):
         ), f"actual: {type(node.capability.disk.data_disk_count)}"
         for _ in range(node.capability.disk.data_disk_count):
             assert isinstance(node.capability.disk.data_disk_size, int)
+            assert isinstance(node.capability.disk.data_disk_iops, int)
             data_disks.append(
                 DataDiskSchema(
                     node.capability.disk.data_disk_caching_type,

@@ -9,6 +9,8 @@ from typing import TYPE_CHECKING, Any, Dict, List, Optional, Tuple, Type
 from assertpy import assert_that
 from dataclasses_json import dataclass_json
 
+import boto3
+
 from lisa import features, schema, search_space
 from lisa.features.gpu import ComputeSDK
 from lisa.node import Node
@@ -30,26 +32,36 @@ class AwsFeatureMixin:
 
 
 class StartStop(AwsFeatureMixin, features.StartStop):
-    def _stop(self, wait: bool = True) -> None:
-        platform: AwsPlatform = self._platform  # type: ignore
-        ec2_client = platform._ec2_client
-        ec2_client.stop_instances(InstanceIds=[self._intsance_id])
+    def _stop(
+        self,
+        wait: bool = True,
+        state: features.StopState = features.StopState.Shutdown,
+    ) -> None:
+        ec2_resource = boto3.resource("ec2")
+        instance = ec2_resource.Instance(self._intsance_id)
+
+        if state == features.StopState.Hibernate:
+            instance.stop(Hibernate=True)
+        else:
+            instance.stop()
         if wait:
-            ec2_client.get_waiter("instance_stopped").wait()
+            instance.wait_until_stopped()
 
     def _start(self, wait: bool = True) -> None:
-        platform: AwsPlatform = self._platform  # type: ignore
-        ec2_client = platform._ec2_client
-        ec2_client.start_instances(InstanceIds=[self._intsance_id])
+        ec2_resource = boto3.resource("ec2")
+        instance = ec2_resource.Instance(self._intsance_id)
+
+        instance.start()
         if wait:
-            ec2_client.get_waiter("instance_running").wait()
+            instance.wait_until_running()
 
     def _restart(self, wait: bool = True) -> None:
-        platform: AwsPlatform = self._platform  # type: ignore
-        ec2_client = platform._ec2_client
-        ec2_client.reboot_instances(InstanceIds=[self._intsance_id])
+        ec2_resource = boto3.resource("ec2")
+        instance = ec2_resource.Instance(self._intsance_id)
+
+        instance.reboot()
         if wait:
-            ec2_client.get_waiter("instance_running").wait()
+            instance.wait_until_running()
 
     def _initialize(self, *args: Any, **kwargs: Any) -> None:
         super()._initialize(*args, **kwargs)
@@ -69,7 +81,7 @@ def get_aws_disk_type(disk_type: schema.DiskType) -> str:
 
 
 # There are more disk types in AWS than Azure, like io2/gp3/io 2 Block Express.
-# If need to verify the storage performance of other types, please update the following mapping.
+# If need to verify the storage performance of other types, please update the mapping.
 # Refer to https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/ebs-volume-types.html.
 # DiskType.Ephemeral is not supported on AWS now.
 _disk_type_mapping: Dict[schema.DiskType, str] = {
@@ -123,7 +135,9 @@ class SerialConsole(AwsFeatureMixin, features.SerialConsole):
             )
             screenshot_name = saved_path.joinpath("serial_console.jpg")
             with open(screenshot_name, "wb") as f:
-                f.write(base64.decodebytes(screenshot_response["ImageData"].encode("utf-8")))
+                f.write(
+                    base64.decodebytes(screenshot_response["ImageData"].encode("utf-8"))
+                )
 
         diagnostic_data = ec2_client.get_console_output(InstanceId=self._intsance_id)
         output_bytes = diagnostic_data["Output"].encode("ascii")
@@ -144,7 +158,7 @@ class NetworkInterface(AwsFeatureMixin, features.NetworkInterface):
         super()._initialize(*args, **kwargs)
         self._initialize_information(self._node)
 
-    def _get_primary(self, nics: List[Dict[str, Any]]) -> Dict[str, Any]:
+    def _get_primary(self, nics: List[Any]) -> Any:
         found_primary = False
         for nic in nics:
             if nic["Attachment"]["DeviceIndex"] == 0:
@@ -156,8 +170,7 @@ class NetworkInterface(AwsFeatureMixin, features.NetworkInterface):
 
     def switch_sriov(self, enable: bool) -> None:
         aws_platform: AwsPlatform = self._platform  # type: ignore
-        node_context = get_node_context(self._node)
-        instance = aws_platform._ec2_resource.Instance(node_context.intsance_id)
+        instance = boto3.resource("ec2").Instance(self._intsance_id)
 
         # Don't check Intel 82599 Virtual Function (VF) interface at current
         if instance.ena_support == enable:
@@ -186,20 +199,15 @@ class NetworkInterface(AwsFeatureMixin, features.NetworkInterface):
             ).is_equal_to(enable)
 
     def is_enabled_sriov(self) -> bool:
-        sriov_enabled: bool = False
-        aws_platform: AwsPlatform = self._platform  # type: ignore
-        node_context = get_node_context(self._node)
-        instance = aws_platform._ec2_resource.Instance(node_context.intsance_id)
-
-        sriov_enabled = instance.ena_support
-        return sriov_enabled
+        instance = boto3.resource("ec2").Instance(self._intsance_id)
+        return instance.ena_support
 
     def attach_nics(
         self, extra_nic_count: int, enable_accelerated_networking: bool = True
     ) -> None:
         aws_platform: AwsPlatform = self._platform  # type: ignore
-        node_context = get_node_context(self._node)
-        instance = aws_platform._ec2_resource.Instance(node_context.intsance_id)
+        ec2_resource = boto3.resource("ec2")
+        instance = ec2_resource.Instance(self._intsance_id)
 
         current_nic_count = len(instance.network_interfaces)
         nic_count_after_add_extra = extra_nic_count + current_nic_count
@@ -224,7 +232,7 @@ class NetworkInterface(AwsFeatureMixin, features.NetworkInterface):
         while index < current_nic_count + extra_nic_count - 1:
             extra_nic_name = f"{self._node.name}-extra-{index}"
             self._log.debug(f"start to create the nic {extra_nic_name}.")
-            network_interface = aws_platform._ec2_resource.create_network_interface(
+            network_interface = ec2_resource.create_network_interface(
                 Description=extra_nic_name,
                 Groups=[
                     nic["Groups"][0]["GroupId"],
@@ -249,8 +257,7 @@ class NetworkInterface(AwsFeatureMixin, features.NetworkInterface):
 
     def remove_extra_nics(self) -> None:
         aws_platform: AwsPlatform = self._platform  # type: ignore
-        node_context = get_node_context(self._node)
-        instance = aws_platform._ec2_resource.Instance(node_context.intsance_id)
+        instance = boto3.resource("ec2").Instance(self._intsance_id)
 
         for network_interface in instance.network_interfaces_attribute:
             if network_interface["Attachment"]["DeviceIndex"] != 0:
@@ -266,6 +273,7 @@ class NetworkInterface(AwsFeatureMixin, features.NetworkInterface):
         self._log.debug(
             f"Only associated nic {networkinterface_id} into VM {self._node.name}."
         )
+
 
 # TODO: GPU feature is not verified yet.
 class Gpu(AwsFeatureMixin, features.Gpu):
@@ -316,6 +324,7 @@ class Gpu(AwsFeatureMixin, features.Gpu):
             )
         return driver_list
 
+
 class Disk(AwsFeatureMixin, features.Disk):
     """
     This Disk feature is mainly to associate Aws disk options settings.
@@ -331,8 +340,7 @@ class Disk(AwsFeatureMixin, features.Disk):
 
     def get_raw_data_disks(self) -> List[str]:
         # Return all EBS devices except the root device
-        platform: AwsPlatform = self._platform  # type: ignore
-        instance = platform._ec2_resource.Instance(self._intsance_id)
+        instance = boto3.resource("ec2").Instance(self._intsance_id)
         disk_array: List[str] = []
 
         for device_mapping in instance.block_device_mappings:
@@ -510,4 +518,3 @@ class AwsDiskOptionSettings(schema.DiskOptionSettings):
         return next(
             disk_size for iops, disk_size in disk_type_iops if iops == data_disk_iops
         )
-
