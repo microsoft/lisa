@@ -1,0 +1,59 @@
+name: aws default
+include:
+  - path: ./tiers/tier.yml
+variable:
+  # The security group and keypair resource are region specific in AWS.
+  # All resource and instances will be created in the same region at current.
+  - name: location
+    value: "us-west-2"
+  - name: keep_environment
+    value: "no"
+  - name: security_group_name
+    value: ""
+  - name: key_pair_name
+    value: ""
+  - name: aws_access_key_id
+    value: ""
+  - name: aws_secret_access_key
+    value: ""
+    is_secret: true
+  - name: aws_session_token
+    value: ""
+  - name: marketplace_image
+    value: ""
+  # Update the default user name for the AMI you used to launch your instance.
+  # Refer to https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/connection-prereqs.html.
+  - name: admin_username
+    value: "ubuntu"
+  - name: admin_private_key_file
+    value: ""
+    is_secret: true
+  - name: vm_size
+    value: ""
+  - name: deploy
+    value: true
+  - name: wait_delete
+    value: false
+notifier:
+  - type: html
+platform:
+  - type: aws
+    admin_username: $(admin_username)
+    admin_private_key_file: $(admin_private_key_file)
+    keep_environment: $(keep_environment)
+    aws:
+      security_group_name: $(security_group_name)
+      key_pair_name: $(key_pair_name)
+      aws_access_key_id: $(aws_access_key_id)
+      aws_secret_access_key: $(aws_secret_access_key)
+      aws_session_token: $(aws_session_token)
+      aws_default_region: $(location)
+      deploy: $(deploy)
+      wait_delete: $(wait_delete)
+    requirement:
+      core_count:
+        min: 2
+      aws:
+        marketplace: $(marketplace_image)
+        location: $(location)
+        vm_size: $(vm_size)

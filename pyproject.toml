@@ -39,6 +39,10 @@ randmac = "^0.1"
 toml = "^0.10.2"
 Pillow = {version="^9.0.0", optional=true}
 
+# AWS related packages
+boto3 = {version = "^1.21.37", optional = true}
+boto3-stubs = {version = "^1.21.37", extras = ["essential"], optional = true}
+
 # dev dependencies. Optional isn't supported, so put them here.
 Sphinx = {version="^4.1.0", optional=true}
 sphinx-argparse = {version="^0.2.5", optional=true}
@@ -73,6 +77,7 @@ types-PyYAML = "^5.4.3"
 [tool.poetry.extras]
 azure = ["azure-identity", "azure-storage-blob", "azure-mgmt-compute", "azure-mgmt-marketplaceordering", "azure-mgmt-network", "azure-mgmt-resource", "azure-mgmt-storage", "azure-storage-file-share", "PyGObject", "Pillow", "types-Pillow"]
 libvirt = ["libvirt-python"]
+aws = ["boto3", "boto3-stubs"]
 legacy = ["pypiwin32"]
 doc = ["Sphinx", "sphinx-argparse", "sphinx-rtd-theme", "sphinxemoji", "sphinx-copybutton", "snooty-lextudio", "rstcheck"]
 

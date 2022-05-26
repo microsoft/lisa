@@ -4,7 +4,7 @@ all: setup run test check
 
 # Install Python packages
 setup:
-	@poetry install --no-ansi --remove-untracked -E "azure libvirt doc legacy"
+	@poetry install --no-ansi --remove-untracked -E "azure libvirt doc legacy aws"
 
 # Run LISA
 run:
