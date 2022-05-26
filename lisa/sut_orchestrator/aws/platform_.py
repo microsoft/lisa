@@ -9,12 +9,13 @@ from dataclasses import dataclass, field
 from datetime import datetime
 from difflib import SequenceMatcher
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Type, Union
+from typing import Any, Dict, List, Optional, Type, Union, cast
 
 import boto3
 from botocore.exceptions import ClientError
 from dataclasses_json import dataclass_json
 from marshmallow import fields, validate
+from mypy_boto3_ec2.literals import InstanceTypeType
 from mypy_boto3_ec2.type_defs import InstanceTypeInfoTypeDef, IpPermissionTypeDef
 from retry import retry
 
@@ -22,7 +23,7 @@ from lisa import feature, schema, search_space
 from lisa.environment import Environment
 from lisa.node import Node, RemoteNode
 from lisa.platform_ import Platform
-from lisa.secret import PATTERN_GUID, add_secret
+from lisa.secret import add_secret
 from lisa.util import (
     LisaException,
     constants,
@@ -152,11 +153,11 @@ class AwsPlatformSchema:
         )
 
         if self.aws_access_key_id:
-            add_secret(self.aws_access_key_id, mask=PATTERN_GUID)
+            add_secret(self.aws_access_key_id)
         if self.aws_secret_access_key:
-            add_secret(self.aws_secret_access_key, mask=PATTERN_GUID)
+            add_secret(self.aws_secret_access_key)
         if self.aws_session_token:
-            add_secret(self.aws_session_token, mask=PATTERN_GUID)
+            add_secret(self.aws_session_token)
 
         if not self.locations:
             self.locations = LOCATIONS
@@ -656,7 +657,7 @@ class AwsPlatform(Platform):
             try:
                 instance = ec2_resource.create_instances(
                     ImageId=node.get_image_id(),
-                    InstanceType=node.vm_size,  # type: ignore
+                    InstanceType=cast(InstanceTypeType, node.vm_size),
                     NetworkInterfaces=network_interfaces,
                     BlockDeviceMappings=block_device_mappings,
                     KeyName=deployment_parameters.key_pair_name,
@@ -804,7 +805,7 @@ class AwsPlatform(Platform):
         node: AwsNodeSchema,
         subnets: Dict[int, Any],
         log: Logger,
-    ) -> list[Any]:
+    ) -> List[Any]:
         network_interfaces = [
             {
                 "Description": f"{node.name}-extra-0",
@@ -832,7 +833,7 @@ class AwsPlatform(Platform):
         self,
         deployment_parameters: AwsDeployParameter,
         log: Logger,
-    ) -> list[Any]:
+    ) -> List[Any]:
         # There are some instance volume limits, please refer to
         # https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/volume_limits.html#linux-specific-volume-limits
         block_device_mappings = []
@@ -865,7 +866,7 @@ class AwsPlatform(Platform):
 
     def _get_available_volumes(
         self, deployment_parameters: AwsDeployParameter
-    ) -> list[str]:
+    ) -> List[str]:
         # In current implementation, all nodes use the same image.
         image_id = deployment_parameters.nodes[0].get_image_id()
         virtualization_type = boto3.resource("ec2").Image(image_id).virtualization_type
