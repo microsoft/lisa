@@ -6,10 +6,9 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Dict, List, Optional, Tuple, Type
 
+import boto3
 from assertpy import assert_that
 from dataclasses_json import dataclass_json
-
-import boto3
 
 from lisa import features, schema, search_space
 from lisa.features.gpu import ComputeSDK

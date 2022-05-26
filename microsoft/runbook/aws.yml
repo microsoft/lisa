@@ -2,6 +2,8 @@ name: aws default
 include:
   - path: ./tiers/tier.yml
 variable:
+  # The security group and keypair resource are region specific in AWS.
+  # All resource and instances will be created in the same region at current.
   - name: location
     value: "us-west-2"
   - name: keep_environment
@@ -9,6 +11,13 @@ variable:
   - name: security_group_name
     value: ""
   - name: key_pair_name
+    value: ""
+  - name: aws_access_key_id
+    value: ""
+  - name: aws_secret_access_key
+    value: ""
+    is_secret: true
+  - name: aws_session_token
     value: ""
   - name: marketplace_image
     value: ""
@@ -35,6 +44,10 @@ platform:
     aws:
       security_group_name: $(security_group_name)
       key_pair_name: $(key_pair_name)
+      aws_access_key_id: $(aws_access_key_id)
+      aws_secret_access_key: $(aws_secret_access_key)
+      aws_session_token: $(aws_session_token)
+      aws_default_region: $(location)
       deploy: $(deploy)
       wait_delete: $(wait_delete)
     requirement:

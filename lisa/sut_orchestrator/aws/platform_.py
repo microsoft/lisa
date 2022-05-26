@@ -3,6 +3,7 @@
 
 import json
 import logging
+import os
 import re
 from dataclasses import dataclass, field
 from datetime import datetime
@@ -21,7 +22,14 @@ from lisa import feature, schema, search_space
 from lisa.environment import Environment
 from lisa.node import Node, RemoteNode
 from lisa.platform_ import Platform
-from lisa.util import LisaException, constants, field_metadata, get_public_key_data
+from lisa.secret import PATTERN_GUID, add_secret
+from lisa.util import (
+    LisaException,
+    constants,
+    field_metadata,
+    get_public_key_data,
+    strip_strs,
+)
 from lisa.util.logger import Logger
 
 from .. import AWS
@@ -99,6 +107,10 @@ class AwsLocation:
 @dataclass_json()
 @dataclass
 class AwsPlatformSchema:
+    aws_access_key_id: str = field(default="")
+    aws_secret_access_key: str = field(default="")
+    aws_session_token: str = field(default="")
+    aws_default_region: str = field(default="")
     security_group_name: str = field(default="")
     key_pair_name: str = field(default="")
     locations: Optional[Union[str, List[str]]] = field(default=None)
@@ -125,6 +137,27 @@ class AwsPlatformSchema:
     wait_delete: bool = False
 
     def __post_init__(self, *args: Any, **kwargs: Any) -> None:
+        strip_strs(
+            self,
+            [
+                "aws_access_key_id",
+                "aws_secret_access_key",
+                "aws_session_token",
+                "aws_default_region",
+                "security_group_name",
+                "key_pair_name",
+                "locations",
+                "log_level",
+            ],
+        )
+
+        if self.aws_access_key_id:
+            add_secret(self.aws_access_key_id, mask=PATTERN_GUID)
+        if self.aws_secret_access_key:
+            add_secret(self.aws_secret_access_key, mask=PATTERN_GUID)
+        if self.aws_session_token:
+            add_secret(self.aws_session_token, mask=PATTERN_GUID)
+
         if not self.locations:
             self.locations = LOCATIONS
 
@@ -158,7 +191,20 @@ class AwsPlatform(Platform):
         assert aws_runbook, "platform runbook cannot be empty"
 
         self._aws_runbook = aws_runbook
+        self._initialize_credential()
+        # boto3 client is thread safe
         self._ec2_client = boto3.client("ec2")
+
+    def _initialize_credential(self) -> None:
+        aws_runbook = self._aws_runbook
+        if aws_runbook.aws_access_key_id:
+            os.environ["AWS_ACCESS_KEY_ID"] = aws_runbook.aws_access_key_id
+        if aws_runbook.aws_secret_access_key:
+            os.environ["AWS_SECRET_ACCESS_KEY"] = aws_runbook.aws_secret_access_key
+        if aws_runbook.aws_session_token:
+            os.environ["AWS_SESSION_TOKEN"] = aws_runbook.aws_session_token
+        if aws_runbook.aws_default_region:
+            os.environ["AWS_DEFAULT_REGION"] = aws_runbook.aws_default_region
 
     def _create_key_pair(self, key_name: str, private_key_file: str) -> Any:
         try:
@@ -203,12 +249,12 @@ class AwsPlatform(Platform):
                     )
                     self._route_table.create_route(
                         DestinationCidrBlock="0.0.0.0/0",
-                        GatewayId=self._internet_gateway.id
+                        GatewayId=self._internet_gateway.id,
                     )
                     self._log.info(
                         "Create an internet gateway: %s and a route table %s",
                         self._internet_gateway.id,
-                        self._route_table.id
+                        self._route_table.id,
                     )
                     break
 
@@ -228,7 +274,7 @@ class AwsPlatform(Platform):
             self._log.info(
                 "Created security group %s in VPC %s.",
                 security_group_name,
-                self._vpc.id
+                self._vpc.id,
             )
         except ClientError:
             self._log.exception(
@@ -255,9 +301,7 @@ class AwsPlatform(Platform):
             ]
 
             security_group.authorize_ingress(IpPermissions=ip_permissions)
-            self._log.info(
-                "Set inbound rules for %s to allow SSH.",
-                security_group.id)
+            self._log.info("Set inbound rules for %s to allow SSH.", security_group.id)
         except ClientError:
             self._log.exception(
                 "Couldnt authorize inbound rules for %s.", security_group_name
@@ -612,7 +656,7 @@ class AwsPlatform(Platform):
             try:
                 instance = ec2_resource.create_instances(
                     ImageId=node.get_image_id(),
-                    InstanceType=node.vm_size,
+                    InstanceType=node.vm_size,  # type: ignore
                     NetworkInterfaces=network_interfaces,
                     BlockDeviceMappings=block_device_mappings,
                     KeyName=deployment_parameters.key_pair_name,
@@ -678,15 +722,13 @@ class AwsPlatform(Platform):
                 ec2_resource,
                 environment_context.security_group_id,
                 environment_context.security_group_name,
-                log
+                log,
             )
 
             self.delete_key_pair(ec2_resource, environment_context.key_pair_name, log)
 
             try:
-                log.info(
-                    f"deleting vpc: {self._vpc.id}"
-                )
+                log.info(f"deleting vpc: {self._vpc.id}")
                 for association in self._route_table.associations:
                     association.delete()
                 self._route_table.delete()
@@ -703,10 +745,7 @@ class AwsPlatform(Platform):
                 raise
 
     def terminate_instance(
-        self,
-        ec2_resource: Any,
-        instance_id: str,
-        log: Logger
+        self, ec2_resource: Any, instance_id: str, log: Logger
     ) -> None:
         if not instance_id:
             return
@@ -718,27 +757,18 @@ class AwsPlatform(Platform):
             log.info("Terminating instance %s.", instance_id)
         except ClientError:
             log.exception("Couldn't terminate instance %s.", instance_id)
-            raise
 
     def delete_security_group(
-        self,
-        ec2_resource: Any,
-        group_id: str,
-        security_group_name: str,
-        log: Logger
+        self, ec2_resource: Any, group_id: str, security_group_name: str, log: Logger
     ) -> None:
         try:
             ec2_resource.SecurityGroup(group_id).delete()
-            log.info(
-                "Deleting security group: %s.",
-                security_group_name
-            )
+            log.info("Deleting security group: %s.", security_group_name)
         except ClientError:
             log.exception(
                 "Couldn't delete security group %s.",
                 security_group_name,
             )
-            raise
 
     def delete_key_pair(self, ec2_resource: Any, key_name: str, log: Logger) -> None:
         try:
@@ -746,7 +776,6 @@ class AwsPlatform(Platform):
             log.info("Deleted key pair %s.", key_name)
         except ClientError:
             log.exception("Couldn't delete key pair %s.", key_name)
-            raise
 
     def _create_subnets(
         self, vpc_id: str, deployment_parameters: AwsDeployParameter, log: Logger
@@ -835,8 +864,7 @@ class AwsPlatform(Platform):
         return block_device_mappings
 
     def _get_available_volumes(
-        self,
-        deployment_parameters: AwsDeployParameter
+        self, deployment_parameters: AwsDeployParameter
     ) -> list[str]:
         # In current implementation, all nodes use the same image.
         image_id = deployment_parameters.nodes[0].get_image_id()
@@ -847,11 +875,11 @@ class AwsPlatform(Platform):
         # Refer to the following link
         # https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/device_naming.html
         if virtualization_type == "hvm":
-            for c in range(ord('b'), ord('c') + 1):
-                for p in range(ord('a'), ord('z') + 1):
+            for c in range(ord("b"), ord("c") + 1):
+                for p in range(ord("a"), ord("z") + 1):
                     volumes.append(f"/dev/xvd{chr(c)}{chr(p)}")
         elif virtualization_type == "paravirtual":
-            for c in range(ord('f'), ord('p') + 1):
+            for c in range(ord("f"), ord("p") + 1):
                 for p in range(1, 7):
                     volumes.append(f"/dev/sd{chr(c)}{p}")
         else:
