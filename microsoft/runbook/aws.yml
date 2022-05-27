@@ -21,10 +21,10 @@ variable:
     value: ""
   - name: marketplace_image
     value: ""
-  # Update the default user name for the AMI you used to launch your instance.
+  # Update the default user name for the AMI you use to launch your instance.
   # Refer to https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/connection-prereqs.html.
   - name: admin_username
-    value: "ubuntu"
+    value: ""
   - name: admin_private_key_file
     value: ""
     is_secret: true

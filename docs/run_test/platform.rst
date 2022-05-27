@@ -11,6 +11,8 @@ Run tests on different platforms
 
 -  `Run on Linux and QEMU <#run-on-linux-and-qemu>`__
 
+-  `Run on AWS <#run-on-aws>`__
+
 Run on Azure
 ------------
 
@@ -159,3 +161,43 @@ For CBL-Mariner:
    .. code:: bash
 
       ./lisa.sh  -r ./microsoft/runbook/qemu/CBL-Mariner.yml -v "admin_private_key_file:<private key file>" -v "qcow2:<qcow2 file>"
+
+Run on AWS
+------------
+
+Linux VM can be deployed on AWS using Amazon Machine Image (AMI) that provides
+the information required to launch an instance. At current all AWS resources will
+be deplyoed to the same configured region.
+
+1. Configure the credentials for AWS.
+   The credentials could be configured in multiple ways. Please create access keys
+   for an AWS Identity and Access Management(IAM) user by following the
+   `cli configuration quick start <https://docs.aws.amazon.com/cli/latest/userguide/cli-configure-quickstart.html>`_.
+   If you have the AWS CLI, then you can run "aws configure" to set up the credentials.
+
+   Or you could add the following configurations to aws runbook:
+
+   .. code:: yaml
+
+      platform:
+      - type: aws
+         ...
+         aws:
+            aws_access_key_id: $(aws_access_key_id)
+            aws_secret_access_key: $(aws_secret_access_key)
+            aws_default_region: $(location)
+         requirement:
+            ...
+            aws:
+               ...
+               marketplace: "<ami_image_id>"
+
+2. Run LISA with the parameters below:
+
+   .. code:: bash
+
+      ./lisa.sh  -r ./microsoft/runbook/aws.yml -v "admin_username:<username>" -v "admin_private_key_file:<private key file>"
+
+   Update the default user name for the AMI you use to lauch the instance.
+   For an Ubuntu AMI, the user name is ubuntu. Please refer to the
+   `general prerequisites for connecting to the instance <https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/connection-prereqs.html>`_.
