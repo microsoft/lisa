@@ -404,6 +404,15 @@ class NetworkInterface(AzureFeatureMixin, features.NetworkInterface):
         self._log.debug(f"attach the nics into VM {self._node.name} successfully.")
         startstop.start()
 
+    def get_nic_count(self, is_sriov_enabled: bool = True) -> int:
+        return len(
+            [
+                x
+                for x in self._get_all_nics()
+                if x.enable_accelerated_networking == is_sriov_enabled
+            ]
+        )
+
     def remove_extra_nics(self) -> None:
         azure_platform: AzurePlatform = self._platform  # type: ignore
         network_client = get_network_client(azure_platform)
@@ -462,6 +471,23 @@ class NetworkInterface(AzureFeatureMixin, features.NetworkInterface):
         if not found_primary:
             raise LisaException(f"fail to find primary nic for vm {self._node.name}")
         return nic
+
+    def _get_all_nics(self) -> Any:
+        azure_platform: AzurePlatform = self._platform  # type: ignore
+        network_client = get_network_client(azure_platform)
+        vm = get_vm(azure_platform, self._node)
+        all_nics = []
+        for nic in vm.network_profile.network_interfaces:
+            # get nic name from nic id
+            # /subscriptions/[subid]/resourceGroups/[rgname]/providers
+            # /Microsoft.Network/networkInterfaces/[nicname]
+            nic_name = nic.id.split("/")[-1]
+            all_nics.append(
+                network_client.network_interfaces.get(
+                    self._resource_group_name, nic_name
+                )
+            )
+        return all_nics
 
 
 class Nvme(AzureFeatureMixin, features.Nvme):
