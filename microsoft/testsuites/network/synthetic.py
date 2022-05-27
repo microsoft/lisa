@@ -3,6 +3,7 @@
 from typing import Any, Dict
 
 from assertpy import assert_that
+from retry import retry
 
 from lisa import (
     Environment,
@@ -111,6 +112,7 @@ class Synthetic(TestSuite):
         environment: Environment = kwargs.pop("environment")
         remove_extra_nics(environment)
 
+    @retry(exceptions=AssertionError, tries=30, delay=2)
     def _initialize_nic_info(
         self, environment: Environment
     ) -> Dict[str, Dict[str, NicInfo]]:
