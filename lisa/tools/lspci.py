@@ -40,7 +40,11 @@ DEVICE_TYPE_DICT: Dict[str, List[str]] = {
     constants.DEVICE_TYPE_GPU: ["3D controller", "VGA compatible controller"],
 }
 
-PATTERN_MODULE_IN_USE = re.compile(r"Kernel driver in use: (.*)\r", re.M)
+# Kernel driver in use: mlx4_core
+# Kernel driver in use: mlx5_core
+# Kernel driver in use: mlx4_core\r
+# Kernel driver in use: mlx5_core\r
+PATTERN_MODULE_IN_USE = re.compile(r"Kernel driver in use: ([A-Za-z0-9_-]*)", re.M)
 
 
 class PciDevice:
