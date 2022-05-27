@@ -91,7 +91,9 @@ class Fdisk(Tool):
     def _get_partitions(self, disk_name: str) -> List[str]:
         partition_pattern = re.compile(rf"({disk_name}p[0-9]|{disk_name}[0-9])+")
         cmd_result = self.node.execute(
-            "ls -lt /dev/sd* && ls -lt /dev/nvme*", shell=True, sudo=True
+            "ls -lt /dev/sd*; ls -lt /dev/nvme*; ls -lt /dev/xvd*",
+            shell=True,
+            sudo=True,
         )
         matched = find_patterns_in_lines(cmd_result.stdout, [partition_pattern])
         return matched[0]
