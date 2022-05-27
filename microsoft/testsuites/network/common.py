@@ -8,7 +8,7 @@ from retry import retry
 from lisa import Environment, Node, RemoteNode, constants
 from lisa.features import NetworkInterface
 from lisa.nic import NicInfo, Nics
-from lisa.tools import Cat, Kill, Lsmod, Lspci, Modprobe, Ssh
+from lisa.tools import Cat, Kill, Lsmod, Lspci, Modprobe, Ssh, Uname
 
 # ConnectX-3 uses mlx4_core
 # mlx4_en and mlx4_ib depends on mlx4_core
@@ -20,31 +20,44 @@ reload_modules_dict: Dict[str, List[str]] = {
     "mlx5_core": ["mlx5_ib"],
     "mlx4_core": ["mlx4_en", "mlx4_ib"],
 }
+modules_config_dict: Dict[str, str] = {
+    "mlx5_core": "CONFIG_MLX5_CORE",
+    "mlx4_core": "CONFIG_MLX4_CORE",
+}
 
 
-@retry(exceptions=AssertionError, tries=150, delay=2)
+@retry(exceptions=AssertionError, tries=30, delay=2)
 def initialize_nic_info(environment: Environment) -> Dict[str, Dict[str, NicInfo]]:
     vm_nics: Dict[str, Dict[str, NicInfo]] = {}
     for node in environment.nodes.list():
+        network_interface_feature = node.features[NetworkInterface]
+        sriov_count = network_interface_feature.get_nic_count()
+        assert_that(sriov_count).described_as(
+            f"there is no sriov nic attached to VM {node.name}"
+        ).is_greater_than(0)
         node_nic_info = Nics(node)
         node_nic_info.initialize()
-        for _, node_nic in node_nic_info.nics.items():
-            assert_that(node_nic.lower).described_as(
-                f"This interface {node_nic.upper} does not have a paired VF."
-            ).is_not_empty()
+        assert_that(len(node_nic_info.get_lower_nics())).described_as(
+            f"VF count inside VM is {len(node_nic_info.get_lower_nics())},"
+            f"actual sriov nic count is {sriov_count}"
+        ).is_equal_to(sriov_count)
         vm_nics[node.name] = node_nic_info.nics
     return vm_nics
 
 
-def remove_module(node: Node) -> str:
+def get_used_module(node: Node) -> str:
     lspci = node.tools[Lspci]
-    modprobe = node.tools[Modprobe]
     devices_slots = lspci.get_device_names_by_type(
         constants.DEVICE_TYPE_SRIOV, force_run=True
     )
     # there will not be multiple Mellanox types in one VM
     # get the used module using any one of sriov device
-    module_in_used = lspci.get_used_module(devices_slots[0])
+    return lspci.get_used_module(devices_slots[0])
+
+
+def remove_module(node: Node) -> str:
+    modprobe = node.tools[Modprobe]
+    module_in_used = get_used_module(node)
     assert_that(reload_modules_dict).described_as(
         f"used modules {module_in_used} should be contained"
         f" in dict {reload_modules_dict}"
@@ -58,6 +71,15 @@ def load_module(node: Node, module_name: str) -> None:
     modprobe.load(module_name)
 
 
+def is_module_built_in(node: Node, used_module: str) -> bool:
+    uname = node.tools[Uname]
+    kernel_version = uname.get_linux_information().kernel_version
+    config_path = f"/boot/config-{kernel_version}"
+    config = modules_config_dict[used_module]
+    config_result = node.execute(f"grep {config}=y {config_path}", shell=True)
+    return config_result.exit_code == 0
+
+
 def get_packets(node: Node, nic_name: str, name: str = "tx_packets") -> int:
     cat = node.tools[Cat]
     return int(cat.read(f"/sys/class/net/{nic_name}/statistics/{name}", force_run=True))
@@ -69,24 +91,23 @@ def sriov_basic_test(
 ) -> None:
     for node in environment.nodes.list():
         # 1. Check module of sriov network device is loaded.
-        modules_exist = False
-        lsmod = node.tools[Lsmod]
-        for module in ["mlx4_core", "mlx4_en", "mlx5_core", "ixgbevf"]:
-            if lsmod.module_exists(module):
-                modules_exist = True
-        assert_that(modules_exist).described_as(
-            "The module of sriov network device isn't loaded."
-        ).is_true()
+        used_module = get_used_module(node)
+        if not is_module_built_in(node, used_module):
+            lsmod = node.tools[Lsmod]
+            assert_that(lsmod.module_exists(used_module, force_run=True)).described_as(
+                "The module of sriov network device isn't loaded."
+            ).is_true()
 
         # 2. Check VF counts listed from lspci is expected.
         lspci = node.tools[Lspci]
         devices_slots = lspci.get_device_names_by_type(
             constants.DEVICE_TYPE_SRIOV, force_run=True
         )
+
         assert_that(devices_slots).described_as(
             "count of sriov devices listed from lspci is not expected,"
             " please check the driver works properly"
-        ).is_length(len(vm_nics[node.name]))
+        ).is_length(len([x for x in vm_nics[node.name].values() if x.lower != ""]))
 
 
 def sriov_vf_connection_test(
@@ -144,7 +165,7 @@ def sriov_vf_connection_test(
         # check the connectivity between source and dest machine using ping
         for _ in range(max_retry_times):
             cmd_result = source_node.execute(
-                f"ping -c 1 {dest_ip} -I {source_synthetic_nic}"
+                f"ping -c 1 {dest_ip} -I {source_synthetic_nic}", sudo=True
             )
             if cmd_result.exit_code == 0:
                 break
