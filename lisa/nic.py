@@ -333,9 +333,9 @@ class Nics(InitializableMixin):
                     upper_nic_mac = ip.get_mac(nic_name)
                     if upper_nic_mac == lower_nic_mac:
                         upper_nic = nic_name
+                        nic_info = NicInfo(upper_nic, lower_nic, pci_slot)
+                        self.append(nic_info)
                         break
-                nic_info = NicInfo(upper_nic, lower_nic, pci_slot)
-                self.append(nic_info)
 
         # Collects NIC info for any unpaired NICS
         for nic_name in [
