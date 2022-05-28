@@ -20,7 +20,7 @@ from lisa import (
 from lisa.features import Gpu, GpuEnabled, SerialConsole
 from lisa.features.gpu import ComputeSDK
 from lisa.operating_system import Debian
-from lisa.tools import Lspci, NvidiaSmi, Pip, Python, Reboot, Tar, Wget
+from lisa.tools import Lspci, NvidiaSmi, Pip, Python, Reboot, Service, Tar, Wget
 from lisa.util import get_matched_str
 
 _cudnn_location = (
@@ -131,6 +131,9 @@ class GpuTestSuite(TestSuite):
         # 1. Disable GPU devices.
         gpu_devices = lspci.get_devices_by_type(device_type=constants.DEVICE_TYPE_GPU)
         gpu_devices = gpu.remove_virtual_gpus(gpu_devices)
+        # stop the service which uses nvidia module
+        service = node.tools[Service]
+        service.stop_service("nvidia-persistenced")
 
         for device in gpu_devices:
             lspci.disable_device(device)
