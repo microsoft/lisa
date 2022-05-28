@@ -276,6 +276,7 @@ class Sriov(TestSuite):
     def verify_sriov_add_max_nics(
         self, log_path: Path, log: Logger, environment: Environment
     ) -> None:
+        remove_extra_nics(environment)
         node = cast(RemoteNode, environment.nodes[0])
         network_interface_feature = node.features[NetworkInterface]
         network_interface_feature.attach_nics(extra_nic_count=7)
