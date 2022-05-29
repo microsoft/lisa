@@ -38,6 +38,9 @@ class NetworkInterface(Feature):
     def reload_module(self) -> None:
         raise NotImplementedError
 
+    def get_nic_count(self, is_sriov_enabled: bool = True) -> int:
+        raise NotImplementedError
+
 
 Sriov = partial(NetworkInterfaceOptionSettings, data_path=schema.NetworkDataPath.Sriov)
 Synthetic = partial(

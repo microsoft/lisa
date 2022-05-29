@@ -28,7 +28,9 @@ from lisa.tools import Cat, Ethtool, InterruptInspector, Iperf3, Lspci
 from lisa.util.shell import wait_tcp_port_ready
 from microsoft.testsuites.network.common import (
     cleanup_iperf3,
+    get_used_module,
     initialize_nic_info,
+    is_module_built_in,
     load_module,
     remove_extra_nics,
     remove_module,
@@ -274,6 +276,7 @@ class Sriov(TestSuite):
     def verify_sriov_add_max_nics(
         self, log_path: Path, log: Logger, environment: Environment
     ) -> None:
+        remove_extra_nics(environment)
         node = cast(RemoteNode, environment.nodes[0])
         network_interface_feature = node.features[NetworkInterface]
         network_interface_feature.attach_nics(extra_nic_count=7)
@@ -329,6 +332,12 @@ class Sriov(TestSuite):
         ),
     )
     def verify_sriov_reload_modules(self, environment: Environment) -> None:
+        for node in environment.nodes.list():
+            used_module = get_used_module(node)
+            if is_module_built_in(node, used_module):
+                raise SkippedException(
+                    "current VM's mlx driver is built-in, can not reload."
+                )
         vm_nics = initialize_nic_info(environment)
         sriov_basic_test(environment, vm_nics)
         module_in_used: Dict[str, str] = {}
