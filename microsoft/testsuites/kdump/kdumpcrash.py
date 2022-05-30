@@ -1,11 +1,8 @@
 # Copyright (c) Microsoft Corporation.
 # Licensed under the MIT license.
 import time
-from pathlib import PurePosixPath
 from random import randint
 from typing import cast
-
-from assertpy import assert_that
 
 from lisa import (
     LisaException,
@@ -22,7 +19,7 @@ from lisa import (
     search_space,
 )
 from lisa.operating_system import Redhat
-from lisa.tools import Dmesg, Echo, KdumpBase, Lscpu, Uname
+from lisa.tools import Dmesg, Echo, KdumpBase, Ls, Lscpu, Uname
 from lisa.util.perf_timer import create_timer
 from lisa.util.shell import try_connect
 
@@ -192,13 +189,16 @@ class KdumpCrash(TestSuite):
 
     def _get_boot_config_path(self, node: Node) -> str:
         uname_tool = node.tools[Uname]
-        kernel_ver = uname_tool.get_linux_information().kernel_version
+        kernel_ver = uname_tool.get_linux_information().kernel_version_raw
         config_path = f"/boot/config-{kernel_ver}"
-        assert_that(node.shell.exists(PurePosixPath(config_path))).described_as(
-            f"/boot/config-{kernel_ver} not exist. "
-            "Please check if the kernel version is right."
-        ).is_true()
-        return config_path
+        ls = node.tools[Ls]
+        if not ls.path_exists(config_path, sudo=True):
+            raise LisaException(
+                f"{config_path} file doesn't exist. "
+                "Please check if the kernel version is right."
+            )
+        else:
+            return config_path
 
     def _check_supported(self, node: Node) -> None:
         # Check the VMBus version for kdump supported
@@ -223,7 +223,7 @@ class KdumpCrash(TestSuite):
             isinstance(node.os, Redhat) and node.os.information.version >= "8.0.0-0"
         ):
             result = node.execute(
-                f"grep CONFIG_KEXEC_AUTO_RESERVE=y {config_path}", shell=True
+                f"grep CONFIG_KEXEC_AUTO_RESERVE=y {config_path}", shell=True, sudo=True
             )
             if self.crash_kernel == "auto" and result.exit_code != 0:
                 raise SkippedException("crashkernel=auto doesn't work for the distro.")
