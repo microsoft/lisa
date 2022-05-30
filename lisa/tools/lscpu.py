@@ -55,13 +55,16 @@ class Lscpu(Tool):
     # CPU(s):              16
     __vcpu = re.compile(r"^CPU\(s\):[ ]+([\d]+)\r?$", re.M)
     # Thread(s) per core:  1
-    __thread_per_core = re.compile(r"^Thread\(s\) per core:[ ]+([\d]+)\r?$", re.M)
+    #      Thread(s) per core:  1
+    __thread_per_core = re.compile(r"^[ ]*Thread\(s\) per core:[ ]+([\d]+)\r?$", re.M)
     # Core(s) per socket:  8
-    __core_per_socket = re.compile(r"^Core\(s\) per socket:[ ]+([\d]+)\r?$", re.M)
+    #     Core(s) per socket:  2
+    __core_per_socket = re.compile(r"^[ ]*Core\(s\) per socket:[ ]+([\d]+)\r?$", re.M)
     # Core(s) per cluster: 16
     __core_per_cluster = re.compile(r"^Core\(s\) per cluster:[ ]+([\d]+)\r?$", re.M)
     # Socket(s):           2
-    __sockets = re.compile(r"^Socket\(s\):[ ]+([\d]+)\r?$", re.M)
+    #     Socket(s):           1
+    __sockets = re.compile(r"^[ ]*Socket\(s\):[ ]+([\d]+)\r?$", re.M)
     # Cluster(s):          1
     __clusters = re.compile(r"^Cluster\(s\):[ ]+([\d]+)\r?$", re.M)
     # Architecture:        x86_64
