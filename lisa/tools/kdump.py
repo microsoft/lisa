@@ -199,7 +199,7 @@ class KdumpBase(Tool):
 
     def check_required_kernel_config(self, config_path: str) -> None:
         for config in self.required_kernel_config:
-            result = self.node.execute(f"grep {config}=y {config_path}")
+            result = self.node.execute(f"grep {config}=y {config_path}", sudo=True)
             result.assert_exit_code(
                 message=f"The kernel config {config} is not set."
                 "Kdump is not supported."
