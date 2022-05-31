@@ -32,6 +32,20 @@ class SerialConsole(Feature):
         ),
     ]
 
+    # blk_update_request: I/O error, dev sdc, sector 0
+    # ata1.00: exception Emask 0x0 SAct 0x0 SErr 0x0 action 0x0
+    # Failure: File system check of the root filesystem failed
+    # (initramfs)
+    initramfs_patterns: List[Pattern[str]] = [
+        re.compile(r"^(.*blk_update_request: I/O error.*)$", re.MULTILINE),
+        re.compile(r"^(.*exception.*)$", re.MULTILINE),
+        re.compile(
+            r"^(.*Failure: File system check of the root filesystem failed.*)$",
+            re.MULTILINE,
+        ),
+        re.compile(r"^(.*\(initramfs\).*)$", re.MULTILINE),
+    ]
+
     @classmethod
     def name(cls) -> str:
         return FEATURE_NAME_SERIAL_CONSOLE
@@ -135,3 +149,21 @@ class SerialConsole(Feature):
 
         if panics:
             raise LisaException(f"{stage} found panic in serial log: {panics}")
+
+    def check_initramfs(
+        self, saved_path: Optional[Path], stage: str = "", force_run: bool = False
+    ) -> None:
+        self._node.log.debug("checking initramfs in serial log...")
+        content: str = self.get_console_log(saved_path=saved_path, force_run=force_run)
+
+        initramfs_logs = [
+            x
+            for sublist in find_patterns_in_lines(content, self.initramfs_patterns)
+            for x in sublist
+            if x
+        ]
+
+        if initramfs_logs:
+            raise LisaException(
+                f"{stage} found initramfs in serial log: {initramfs_logs}"
+            )
