@@ -141,6 +141,7 @@ class Xfstests(Tool):
             #  same distro. so, install it when the package exists in the repo.
             if posix_os.is_package_in_repo(package):
                 posix_os.install_packages(package)
+        # fix compile issue on RHEL/CentOS 7.x
         if (
             isinstance(self.node.os, Redhat)
             and self.node.os.information.version < "8.0.0"
@@ -156,6 +157,18 @@ class Xfstests(Tool):
             self.node.execute("rm -f /bin/gcc", sudo=True, shell=True)
             self.node.execute(
                 "ln -s /opt/rh/devtoolset-7/root/usr/bin/gcc /bin/gcc",
+                sudo=True,
+                shell=True,
+            )
+        # fix compile issue on SLES12SP5
+        if (
+            isinstance(self.node.os, Suse)
+            and self.node.os.information.version < "15.0.0"
+        ):
+            posix_os.install_packages(packages="gcc5")
+            self.node.execute("rm -rf /usr/bin/gcc", sudo=True, shell=True)
+            self.node.execute(
+                "ln -s /usr/bin/gcc-5 /usr/bin/gcc",
                 sudo=True,
                 shell=True,
             )
