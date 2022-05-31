@@ -141,6 +141,24 @@ class Xfstests(Tool):
             #  same distro. so, install it when the package exists in the repo.
             if posix_os.is_package_in_repo(package):
                 posix_os.install_packages(package)
+        if (
+            isinstance(self.node.os, Redhat)
+            and self.node.os.information.version < "8.0.0"
+        ):
+            posix_os.install_packages(packages="centos-release-scl")
+            posix_os.install_packages(
+                "http://mirror.centos.org/centos/7/os/x86_64/Packages/"
+                "xfsprogs-devel-4.5.0-22.el7.x86_64.rpm"
+            )
+            posix_os.install_packages(
+                packages="devtoolset-7-gcc*", extra_args=["--skip-broken"]
+            )
+            self.node.execute("rm -f /bin/gcc", sudo=True, shell=True)
+            self.node.execute(
+                "ln -s /opt/rh/devtoolset-7/root/usr/bin/gcc /bin/gcc",
+                sudo=True,
+                shell=True,
+            )
 
     def _add_test_users(self) -> None:
         # prerequisite for xfstesting

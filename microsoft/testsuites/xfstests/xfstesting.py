@@ -109,6 +109,13 @@ class Xfstesting(TestSuite):
     # TODO: will include btrfs/244 once the kernel contains below fix.
     # exclude btrfs/244 temporarily for below commit not picked up by distro vendor.
     # https://git.kernel.org/pub/scm/linux/kernel/git/next/linux-next.git/commit/fs/btrfs/volumes.c?id=e4571b8c5e9ffa1e85c0c671995bd4dcc5c75091 # noqa: E501
+    # TODO: will include ext4/054 once the kernel contains below fix.
+    # This is a regression test for three kernel commit:
+    # 1. 0f2f87d51aebc (ext4: prevent partial update of the extent blocks)
+    # 2. 9c6e071913792 (ext4: check for inconsistent extents between index
+    #    and leaf block)
+    # 3. 8dd27fecede55 (ext4: check for out-of-order index extents in
+    #    ext4_valid_extent_entries())
     # TODO: will figure out the detailed reason of every excluded case.
     EXCLUDED_TESTS = (
         "generic/211 generic/430 generic/431 generic/434 /xfs/438 xfs/490"
@@ -116,7 +123,7 @@ class Xfstesting(TestSuite):
         + " xfs/030 xfs/032 xfs/050 xfs/052 xfs/106 xfs/107 xfs/122 xfs/132 xfs/138"
         + " xfs/144 xfs/148 xfs/175 xfs/191-input-validation xfs/289 xfs/293 xfs/424"
         + " xfs/432 xfs/500 xfs/508 xfs/512 xfs/514 xfs/515 xfs/516 xfs/518 xfs/521"
-        + " xfs/528 xfs/544"
+        + " xfs/528 xfs/544 ext4/054"
     )
 
     @TestCaseMetadata(
