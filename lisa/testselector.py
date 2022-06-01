@@ -166,7 +166,8 @@ def _apply_filter(  # noqa: C901
     assert criteria_runbook, "test case criteria cannot be None"
     criteria_runbook_dict = criteria_runbook.__dict__
     for runbook_key, runbook_value in criteria_runbook_dict.items():
-        if runbook_value is None:
+        # the value may be 0 in priority, it shouldn't be skipped.
+        if runbook_value is None or runbook_value == "":
             continue
         if runbook_key in [
             constants.NAME,
