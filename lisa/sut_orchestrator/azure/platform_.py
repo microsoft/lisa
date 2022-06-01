@@ -1160,11 +1160,11 @@ class AzurePlatform(Platform):
             azure_node_runbook.name = truncate_keep_prefix(
                 f"{name_prefix}-n{index}", 50
             )
-            # It's used as computer name only. Windows doesn't support name more
-            # than 15 chars
-            azure_node_runbook.short_name = truncate_keep_prefix(
-                azure_node_runbook.name, 15
-            )
+        # It's used as computer name only. Windows doesn't support name more
+        # than 15 chars
+        azure_node_runbook.short_name = truncate_keep_prefix(
+            azure_node_runbook.name, 15
+        )
         if not azure_node_runbook.vm_size:
             raise LisaException("vm_size is not detected before deploy")
         if not azure_node_runbook.location:
