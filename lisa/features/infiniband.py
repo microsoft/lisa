@@ -74,7 +74,7 @@ class Infiniband(Feature):
     def get_ib_interfaces(self) -> List[IBDevice]:
         """Gets the list of Infiniband devices
         excluding any ethernet devices
-        and get their cooresponding network interface
+        and get their corresponding network interface
         Returns list of IBDevice(ib_device_name, nic_name, ip_addr)
         Example IBDevice("mlx5_ib0", "ib0", "172.16.1.23")"""
         ib_devices = []
@@ -308,7 +308,7 @@ class Infiniband(Feature):
 
     def install_intel_mpi(self) -> None:
         node = self._node
-        # Intall Intel MPI
+        # Install Intel MPI
         wget = node.tools[Wget]
         script_path = wget.get(
             "https://partnerpipelineshare.blob.core.windows.net/mpi/"
@@ -324,7 +324,7 @@ class Infiniband(Feature):
 
     def install_open_mpi(self) -> None:
         node = self._node
-        # Intall Open MPI
+        # Install Open MPI
         wget = node.tools[Wget]
         tar_file_path = wget.get(
             "https://download.open-mpi.org/release/open-mpi/v4.0/openmpi-4.0.5.tar.gz",
@@ -348,7 +348,7 @@ class Infiniband(Feature):
 
     def install_ibm_mpi(self) -> None:
         node = self._node
-        # Intall Open MPI
+        # Install Open MPI
         wget = node.tools[Wget]
         script_path = wget.get(
             "https://partnerpipelineshare.blob.core.windows.net/mpi/"
@@ -371,7 +371,7 @@ class Infiniband(Feature):
 
     def install_mvapich_mpi(self) -> None:
         node = self._node
-        # Intall Open MPI
+        # Install Open MPI
         wget = node.tools[Wget]
         tar_file_path = wget.get(
             "https://partnerpipelineshare.blob.core.windows.net/"

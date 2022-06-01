@@ -28,10 +28,10 @@ from lisa.util.shell import try_connect
     area="kdump",
     category="functional",
     description="""
-    This test suite is used to verify if kernel crash dmup is effect, which is judged
+    This test suite is used to verify if kernel crash dump is effect, which is judged
     through vmcore file is generated after triggering kdump by sysrq.
 
-    It has 7 test cases. They verfy if kdump is effect when:
+    It has 7 test cases. They verify if kdump is effect when:
         1. VM has 1 cpu
         2. VM has 2-8 cpus and trigger kdump on cpu 1
         3. VM has 33-192 cpus and trigger kdump on cpu 32
@@ -51,7 +51,7 @@ class KdumpCrash(TestSuite):
 
     @TestCaseMetadata(
         description="""
-        This test case verfies if kdump is effect when VM has 1 cpu.
+        This test case verifies if kdump is effect when VM has 1 cpu.
         VM need 2G memory at least to make sure it has enough memory to load crash
         kernel.
 
@@ -59,7 +59,7 @@ class KdumpCrash(TestSuite):
         1. Check if vmbus version and kernel configurations support for crash dump.
         2. Specify the memory reserved for crash kernel in kernel cmdline, setting the
             "crashkernel" option to the required value.
-            a. Modify the grub config file to add crashkrenel option or change the
+            a. Modify the grub config file to add crashkernel option or change the
                 value to the required one. (For Redhat 8, no need to modify grub config
                 file. It can specify crashkernel by using grubby command directly)
             b. Update grub config
@@ -86,7 +86,7 @@ class KdumpCrash(TestSuite):
 
     @TestCaseMetadata(
         description="""
-        This test case verfies if the kdump is effect when VM has 2~8 cpus, and
+        This test case verifies if the kdump is effect when VM has 2~8 cpus, and
         trigger kdump on the second cpu(cpu1), which is designed by a known issue.
         The test steps are same as `kdumpcrash_validate_single_core`.
         """,
@@ -102,7 +102,7 @@ class KdumpCrash(TestSuite):
 
     @TestCaseMetadata(
         description="""
-        This test case verfies if the kdump is effect when VM has any cores, and
+        This test case verifies if the kdump is effect when VM has any cores, and
         trigger kdump on the random cpu.
         The test steps are same as `kdumpcrash_validate_single_core`.
         """,
@@ -116,7 +116,7 @@ class KdumpCrash(TestSuite):
 
     @TestCaseMetadata(
         description="""
-        This test case verfies if the kdump is effect when VM has 33~192 cpus and
+        This test case verifies if the kdump is effect when VM has 33~192 cpus and
         trigger kdump on the 33th cpu(cpu32), which is designed by a known issue.
         The test steps are same as `kdumpcrash_validate_single_core`.
         """,
@@ -130,7 +130,7 @@ class KdumpCrash(TestSuite):
 
     @TestCaseMetadata(
         description="""
-        This test case verfies if the kdump is effect when VM has 193~415 cpus, and
+        This test case verifies if the kdump is effect when VM has 193~415 cpus, and
         trigger kdump on the 193th cpu(cpu192), which is designed by a known issue.
         The test steps are same as `kdumpcrash_validate_single_core`.
         """,
@@ -144,7 +144,7 @@ class KdumpCrash(TestSuite):
 
     @TestCaseMetadata(
         description="""
-        This test case verfies if the kdump is effect when VM has more than 415 cpus,
+        This test case verifies if the kdump is effect when VM has more than 415 cpus,
         and trigger kdump on the 416th cpu(cpu415), which is designed by a known issue.
         The test steps are same as `kdumpcrash_validate_single_core`.
         """,
@@ -158,7 +158,7 @@ class KdumpCrash(TestSuite):
 
     @TestCaseMetadata(
         description="""
-        This test case verfies if the kdump is effect when crashkernel is set auto.
+        This test case verifies if the kdump is effect when crashkernel is set auto.
         The test steps are same as `kdumpcrash_validate_single_core`.
         """,
         priority=2,
@@ -169,7 +169,7 @@ class KdumpCrash(TestSuite):
 
     @TestCaseMetadata(
         description="""
-        This test case verfies if the kdump is effect when crashkernel is set auto and
+        This test case verifies if the kdump is effect when crashkernel is set auto and
         the memory is more than 2T. With the crashkernel=auto parameter, system will
         reserved a suitable size memory for crash kernel. We want to see if the
         crashkernel=auto can also handle this scenario when the system memory is large.
@@ -216,7 +216,7 @@ class KdumpCrash(TestSuite):
         # CONFIG_KEXEC_AUTO_RESERVE. For version 8, the ifdefine of that config is
         # removed. For these changes we can refer to Centos kernel, gotten according
         # to https://wiki.centos.org/action/show/Sources?action=show&redirect=sources
-        # In addiation, we didn't see upstream kernel has the auto crashkernel feature.
+        # In addition, we didn't see upstream kernel has the auto crashkernel feature.
         # It may be a patch owned by Redhat/Centos.
         config_path = self._get_boot_config_path(node)
         if not (
@@ -273,7 +273,7 @@ class KdumpCrash(TestSuite):
 
         # Wait for the VM dump file and boot up
         # When the crash kernel boots up, port 22 can be connected even if dump file
-        # is not completed. So we cann't use wait_tcp_port_ready function to judge if
+        # is not completed. So we can't use wait_tcp_port_ready function to judge if
         # the dump process is completed and the VM already boots up. We can use
         # try_connect function
         timer = create_timer()

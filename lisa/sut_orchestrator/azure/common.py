@@ -423,7 +423,7 @@ def get_storage_account_name(
     subscription_id: str, location: str, type: str = "s"
 ) -> str:
     subscription_id_postfix = subscription_id[-8:]
-    # name should be shorter than 24 charactor
+    # name should be shorter than 24 character
     return f"lisa{type}{location[0:11]}{subscription_id_postfix}"
 
 

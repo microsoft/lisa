@@ -375,7 +375,7 @@ class AzurePlatform(Platform):
                 )
                 if node_runbook.location:
                     if existing_location:
-                        # if any one has different location, calculate again
+                        # if any one has different location, raise an exception.
                         if existing_location != node_runbook.location:
                             raise LisaException(
                                 f"predefined node must be in same location, "
