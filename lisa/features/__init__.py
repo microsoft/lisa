@@ -1,6 +1,7 @@
 # Copyright (c) Microsoft Corporation.
 # Licensed under the MIT license.
 
+from .acc import ACC
 from .disks import (
     Disk,
     DiskEphemeral,
@@ -23,6 +24,7 @@ from .serial_console import SerialConsole
 from .startstop import StartStop, StopState
 
 __all__ = [
+    "ACC",
     "Disk",
     "DiskEphemeral",
     "DiskPremiumSSDLRS",

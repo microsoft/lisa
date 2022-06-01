@@ -565,6 +565,65 @@ class DiskOptionSettings(FeatureSettings):
         return value
 
 
+@dataclass_json()
+@dataclass()
+class ACCOptionSettings(FeatureSettings):
+    type: str = "ACC"
+    is_supported: Optional[bool] = None
+
+    def __eq__(self, o: object) -> bool:
+        assert isinstance(o, ACCOptionSettings), f"actual: {type(o)}"
+        return self.is_supported == o.is_supported
+
+    def __str__(self) -> str:
+        return self.__repr__()
+
+    def __repr__(self) -> str:
+        return f"is_supported: {self.is_supported}"
+
+    def check(self, capability: Any) -> search_space.ResultReason:
+        assert isinstance(capability, ACCOptionSettings), f"actual: {type(capability)}"
+        result = search_space.ResultReason()
+        result.merge(
+            self._check_acc(self.is_supported, capability.is_supported),
+            "is_supported",
+        )
+
+        return result
+
+    def _call_requirement_method(self, method_name: str, capability: Any) -> Any:
+        assert isinstance(capability, ACCOptionSettings), f"actual: {type(capability)}"
+        parent_value = super()._call_requirement_method(method_name, capability)
+
+        # convert parent type to child type
+        value = ACCOptionSettings()
+        value.extended_schemas = parent_value.extended_schemas
+        value.is_supported = capability.is_supported
+
+        return value
+
+    def _check_acc(
+        self, requirement: Optional[bool], capability: Optional[bool]
+    ) -> search_space.ResultReason:
+        result = search_space.ResultReason()
+        # if requirement is none, capability can be either of True or False
+        # else requirement should match capability
+        if requirement is not None:
+            if capability is None:
+                result.add_reason(
+                    "if requirements isn't None, capability shouldn't be None"
+                )
+            else:
+                if requirement != capability:
+                    result.add_reason(
+                        "requirement is a truth value, capability should be exact "
+                        f"match, requirement: {requirement}, "
+                        f"capability: {capability}"
+                    )
+
+        return result
+
+
 class NetworkDataPath(str, Enum):
     Synthetic = "Synthetic"
     Sriov = "Sriov"
@@ -724,6 +783,7 @@ class NodeSpace(search_space.RequirementMixin, TypedSchema, ExtendableSchemaMixi
         default=search_space.IntRange(min=512),
         metadata=field_metadata(decoder=search_space.decode_count_space),
     )
+    acc: Optional[ACCOptionSettings] = None
     disk: Optional[DiskOptionSettings] = None
     network_interface: Optional[NetworkInterfaceOptionSettings] = None
     gpu_count: search_space.CountSpace = field(
@@ -758,6 +818,7 @@ class NodeSpace(search_space.RequirementMixin, TypedSchema, ExtendableSchemaMixi
             and self.node_count == o.node_count
             and self.core_count == o.core_count
             and self.memory_mb == o.memory_mb
+            and self.acc == o.acc
             and self.disk == o.disk
             and self.network_interface == o.network_interface
             and self.gpu_count == o.gpu_count
@@ -774,6 +835,7 @@ class NodeSpace(search_space.RequirementMixin, TypedSchema, ExtendableSchemaMixi
             f"default:{self.is_default},"
             f"count:{self.node_count},core:{self.core_count},"
             f"mem:{self.memory_mb},disk:{self.disk},"
+            f"acc:{self.acc},"
             f"network interface: {self.network_interface}, gpu:{self.gpu_count},"
             f"f:{self.features},ef:{self.excluded_features},"
             f"{super().__repr__()}"
@@ -852,6 +914,7 @@ class NodeSpace(search_space.RequirementMixin, TypedSchema, ExtendableSchemaMixi
             search_space.check_countspace(self.memory_mb, capability.memory_mb),
             "memory_mb",
         )
+        result.merge(self.acc.check(capability.acc)) if self.acc else None
         if self.disk:
             result.merge(self.disk.check(capability.disk))
         if self.network_interface:
@@ -932,13 +995,14 @@ class NodeSpace(search_space.RequirementMixin, TypedSchema, ExtendableSchemaMixi
             )
         else:
             raise LisaException("memory_mb cannot be zero")
+        if self.acc or capability.acc:
+            value.acc = getattr(search_space, method_name)(self.acc, capability.acc)
         if self.disk or capability.disk:
             value.disk = getattr(search_space, method_name)(self.disk, capability.disk)
         if self.network_interface or capability.network_interface:
             value.network_interface = getattr(search_space, method_name)(
                 self.network_interface, capability.network_interface
             )
-
         if self.gpu_count or capability.gpu_count:
             value.gpu_count = getattr(search_space, f"{method_name}_countspace")(
                 self.gpu_count, capability.gpu_count

@@ -338,6 +338,7 @@ def simple_requirement(
     min_data_disk_count: Optional[int] = None,
     disk: Optional[schema.DiskOptionSettings] = None,
     network_interface: Optional[schema.NetworkInterfaceOptionSettings] = None,
+    acc: Optional[schema.ACCOptionSettings] = None,
     supported_platform_type: Optional[List[str]] = None,
     unsupported_platform_type: Optional[List[str]] = None,
     supported_os: Optional[List[Type[OperatingSystem]]] = None,
@@ -370,6 +371,11 @@ def simple_requirement(
         if min_nic_count:
             network_interface.nic_count = search_space.IntRange(min=min_nic_count)
         node.network_interface = network_interface
+
+    if not acc:
+        node.acc = schema.ACCOptionSettings()
+    else:
+        node.acc = acc
 
     return _create_test_case_requirement(
         node,

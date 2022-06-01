@@ -708,5 +708,8 @@ class LisaRunner(BaseRunner):
             platform_requirement.network_interface = (
                 schema.NetworkInterfaceOptionSettings()
             )
+        if not platform_requirement.acc:
+            platform_requirement.acc = schema.ACCOptionSettings()
+            platform_requirement.acc.is_supported = True
 
         return platform_requirement

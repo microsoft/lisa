@@ -1525,6 +1525,7 @@ class AzurePlatform(Platform):
         node_space.features = search_space.SetSpace[schema.FeatureSettings](
             is_allow_set=True
         )
+        node_space.acc = schema.ACCOptionSettings()
         node_space.disk = features.AzureDiskOptionSettings()
         node_space.disk.disk_type = search_space.SetSpace[schema.DiskType](
             is_allow_set=True, items=[]
@@ -1614,6 +1615,12 @@ class AzurePlatform(Platform):
             node_space.core_count = vcpus_available
         else:
             node_space.core_count = vcpus
+
+        # mark acc feature if it's supported
+        if resource_sku.family in ["standardDCSv2Family"]:
+            node_space.acc.is_supported = True
+        else:
+            node_space.acc.is_supported = False
 
         if resource_sku.family in ["standardLSv2Family"]:
             # refer https://docs.microsoft.com/en-us/azure/virtual-machines/lsv2-series # noqa: E501
