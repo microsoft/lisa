@@ -286,7 +286,7 @@ class Posix(OperatingSystem, BaseClassMixin):
     #   Distributor ID:	Scientific
     #   Description:	Scientific Linux release 6.7 (Carbon)
     # In most of the distros, the text in the brackets is the codename.
-    # This regex gets the codename for the ditsro
+    # This regex gets the codename for the distro
     _distro_codename_pattern = re.compile(r"^.*\(([^)]+)")
 
     def __init__(self, node: Any) -> None:
