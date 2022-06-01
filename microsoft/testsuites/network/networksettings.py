@@ -60,11 +60,11 @@ class NetworkSettings(TestSuite):
     #  {'name': 'cpu0_vf_tx_packets', 'value': '0'},]
     #  {'name': 'cpu0_vf_tx_bytes', 'value': '0'},]
     _queue_stats_regex = re.compile(r"[tr]x_queue_(?P<name>[\d]+)_packets")
-    _vf_queue_stats_regex = re.compile(r"cpu(?P<name>[\d]+)_vf_[tr]x_packets")
+    _vf_queue_stats_regex = re.compile(r"[tr]x(?P<name>[\d]+)_packets")
     _tx_queue_stats_regex = re.compile(r"tx_queue_(?P<name>[\d]+)_packets")
     _rx_queue_stats_regex = re.compile(r"rx_queue_(?P<name>[\d]+)_packets")
-    _tx_vf_queue_stats_regex = re.compile(r"cpu(?P<name>[\d]+)_vf_tx_packets")
-    _rx_vf_queue_stats_regex = re.compile(r"cpu(?P<name>[\d]+)_vf_rx_packets")
+    _vf_tx_stats_regex = re.compile(r"tx(?P<name>[\d]+)_packets")
+    _vf_rx_stats_regex = re.compile(r"rx(?P<name>[\d]+)_packets")
 
     @TestCaseMetadata(
         description="""
@@ -566,23 +566,37 @@ class NetworkSettings(TestSuite):
         for device_stats in devices_statistics:
             per_tx_queue_packets: List[int] = []
             per_rx_queue_packets: List[int] = []
-            an_enabled = False
             nic = client_node.nics.get_nic(device_stats.interface)
+
             # If AN is enabled on this interface then check the vf stats.
             if nic.lower:
-                an_enabled = True
+                try:
+                    device_stats = ethtool.get_device_statistics(nic.lower, True)
+                except UnsupportedOperationException as identifier:
+                    raise SkippedException(identifier)
 
-            if an_enabled:
                 per_tx_queue_packets = [
                     v
                     for (k, v) in device_stats.counters.items()
-                    if self._tx_vf_queue_stats_regex.search(k)
+                    if self._vf_tx_stats_regex.search(k)
+                ]
+
+                per_rx_queue_packets = [
+                    v
+                    for (k, v) in device_stats.counters.items()
+                    if self._vf_rx_stats_regex.search(k)
                 ]
             else:
                 per_tx_queue_packets = [
                     v
                     for (k, v) in device_stats.counters.items()
                     if self._tx_queue_stats_regex.search(k)
+                ]
+
+                per_rx_queue_packets = [
+                    v
+                    for (k, v) in device_stats.counters.items()
+                    if self._rx_queue_stats_regex.search(k)
                 ]
 
             avg_tx_queue_packets = sum(per_tx_queue_packets) / len(per_tx_queue_packets)
@@ -594,19 +608,6 @@ class NetworkSettings(TestSuite):
                 (max(per_tx_queue_pkt_percent) - min(per_tx_queue_pkt_percent)),
                 "Statistics show traffic is not evenly distributed among tx queues",
             ).is_less_than_or_equal_to(0.5)
-
-            if an_enabled:
-                per_rx_queue_packets = [
-                    v
-                    for (k, v) in device_stats.counters.items()
-                    if self._rx_vf_queue_stats_regex.search(k)
-                ]
-            else:
-                per_rx_queue_packets = [
-                    v
-                    for (k, v) in device_stats.counters.items()
-                    if self._rx_queue_stats_regex.search(k)
-                ]
 
             avg_rx_queue_packets = sum(per_rx_queue_packets) / len(per_rx_queue_packets)
             per_rx_queue_pkt_percent: List[float] = []
@@ -693,20 +694,21 @@ class NetworkSettings(TestSuite):
         per_queue_stats = False
         per_vf_queue_stats = False
         for device_stats in devices_statistics:
-            an_enabled = False
             nic = client_node.nics.get_nic(device_stats.interface)
             if nic.lower:
-                an_enabled = True
+                try:
+                    device_stats = ethtool.get_device_statistics(nic.lower, True)
+                except UnsupportedOperationException as identifier:
+                    raise SkippedException(identifier)
 
-            if an_enabled:
                 for k in device_stats.counters.keys():
                     if self._vf_queue_stats_regex.search(k):
                         per_vf_queue_stats = True
                         break
                 assert_that(
                     per_vf_queue_stats,
-                    f"AN is enabled on interface {device_stats.interface} but VF"
-                    " Statistics per cpu are missing.",
+                    f"AN is enabled on interface {device_stats.interface} but"
+                    " statistics for VF nic are missing.",
                 ).is_true()
             else:
                 for k in device_stats.counters.keys():
