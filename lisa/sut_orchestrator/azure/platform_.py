@@ -1154,16 +1154,18 @@ class AzurePlatform(Platform):
         )
 
         if not azure_node_runbook.name:
-            # the max length of vm name is 64 chars. Below logic takes last 40
-            # chars in resource group name and keep the leading "lisa-". So it's
-            # easy to identify it's a lisa created node.
-            azure_node_runbook.name = truncate_keep_prefix(
-                f"{name_prefix}-n{index}", 50
-            )
+            # the max length of vm name is 64 chars. Below logic takes last 45
+            # chars in resource group name and keep the leading 5 chars.
+            # name_prefix can contain any of customized (existing) or
+            # generated (starts with "lisa-") resource group name,
+            # so, pass the first 5 chars as prefix to truncate_keep_prefix
+            # to handle both cases
+            node_name = f"{name_prefix}-n{index}"
+            azure_node_runbook.name = truncate_keep_prefix(node_name, 50, node_name[:5])
         # It's used as computer name only. Windows doesn't support name more
         # than 15 chars
         azure_node_runbook.short_name = truncate_keep_prefix(
-            azure_node_runbook.name, 15
+            azure_node_runbook.name, 15, azure_node_runbook.name[:5]
         )
         if not azure_node_runbook.vm_size:
             raise LisaException("vm_size is not detected before deploy")
