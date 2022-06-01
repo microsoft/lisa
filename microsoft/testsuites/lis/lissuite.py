@@ -95,7 +95,7 @@ class Lis(TestSuite):
             This avoids half / corrupted installations.
 
             Steps:
-            1. Test leaves "bare minimum" size avaialble for LIS install and checks if
+            1. Test leaves "bare minimum" size available for LIS install and checks if
              LIS installation is successful.
         """,
         priority=2,
@@ -151,8 +151,8 @@ class Lis(TestSuite):
         boot_partition_buffer_space = 1048576
         root_partition = df.get_partition_by_mountpoint("/")
         boot_partition = df.get_partition_by_mountpoint("/boot")
-        assert root_partition, "fail to get root artition"
-        assert boot_partition, "fail to get boot artition"
+        assert root_partition, "fail to get root partition"
+        assert boot_partition, "fail to get boot partition"
         ramdisk_size_factor = 1
         if root_partition.name != boot_partition.name:
             ramdisk_size_factor = 2

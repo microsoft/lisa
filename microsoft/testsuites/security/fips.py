@@ -18,10 +18,10 @@ class Fips(TestSuite):
     @TestCaseMetadata(
         description="""
         This test case will
-        1. Check whether FIPS can be enaled on the VM
+        1. Check whether FIPS can be enabled on the VM
         2. Enable FIPS
         3. Restart the VM for the changes to take effect
-        4. Verify that FIPS was enabled propperly
+        4. Verify that FIPS was enabled properly
         """,
         priority=3,
     )
@@ -41,5 +41,5 @@ class Fips(TestSuite):
         result = node.execute("fips-mode-setup --check")
 
         assert_that(result.stdout).described_as(
-            "FIPS was not propperly enabled."
+            "FIPS was not properly enabled."
         ).contains("is enabled")
