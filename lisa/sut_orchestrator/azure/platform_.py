@@ -1628,7 +1628,7 @@ class AzurePlatform(Platform):
             node_space.core_count = vcpus
 
         # add acc feature if it's supported
-        if resource_sku.family in ["standardDCSv2Family"]:
+        if resource_sku.family in ["standardDCSv2Family", "standardDCSv3Family"]:
             node_space.features.update(
                 [
                     schema.FeatureSettings.create(base_features.ACC.name()),
