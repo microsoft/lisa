@@ -735,6 +735,7 @@ class Debian(Linux):
                 key_file_path = wget.get(
                     url=key_location,
                     file_path=str(self._node.working_path),
+                    force_run=True,
                 )
                 self._node.execute(
                     cmd=f"apt-key add {key_file_path}",
