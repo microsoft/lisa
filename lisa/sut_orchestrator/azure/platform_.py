@@ -448,7 +448,7 @@ class AzurePlatform(Platform):
                         f"Cannot find vm_size {node_runbook.vm_size} in {location}. "
                         f"Mockup capability to run tests."
                     )
-                    mock_up_capability = self._generate_mockup_capability(
+                    mock_up_capability = self._generate_max_capability(
                         node_runbook.vm_size, location
                     )
                     min_cap = self._generate_min_capability(
@@ -1798,9 +1798,7 @@ class AzurePlatform(Platform):
 
         return plan
 
-    def _generate_mockup_capability(
-        self, vm_size: str, location: str
-    ) -> AzureCapability:
+    def _generate_max_capability(self, vm_size: str, location: str) -> AzureCapability:
 
         # some vm size cannot be queried from API, so use default capability to
         # run with best guess on capability.
