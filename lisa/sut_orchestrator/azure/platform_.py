@@ -6,7 +6,6 @@ import json
 import logging
 import os
 import re
-import lisa.features as base_features
 from copy import deepcopy
 from dataclasses import dataclass, field
 from datetime import datetime
@@ -40,6 +39,7 @@ from dataclasses_json import dataclass_json
 from marshmallow import fields, validate
 from retry import retry
 
+import lisa.features as base_features
 from lisa import feature, schema, search_space
 from lisa.environment import Environment
 from lisa.features import NvmeSettings
@@ -323,7 +323,7 @@ class AzurePlatform(Platform):
         return [
             features.Disk,
             features.Gpu,
-            features.Nvme,
+            base_features.Nvme,
             features.SerialConsole,
             features.NetworkInterface,
             features.Resize,
@@ -1843,7 +1843,7 @@ class AzurePlatform(Platform):
         # all nodes support following features
         node_space.features.update(
             [
-                schema.FeatureSettings.create(features.Nvme.name()),
+                schema.FeatureSettings.create(base_features.Nvme.name()),
                 schema.FeatureSettings.create(features.Gpu.name()),
                 schema.FeatureSettings.create(features.StartStop.name()),
                 schema.FeatureSettings.create(features.SerialConsole.name()),
