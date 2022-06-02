@@ -95,6 +95,10 @@ class AzureNodeSchema:
     # It decides the real computer name. It cannot be too long.
     short_name: str = ""
     vm_size: str = ""
+    # Force to maximize capability of the vm size. It bypass requirements on
+    # test cases, and uses to force run performance tests on any vm size.
+    maximize_capability: bool = False
+
     location: str = ""
     # Required by shared gallery images which are present in
     # subscription different from where LISA is run

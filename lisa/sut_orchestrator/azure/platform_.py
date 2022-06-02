@@ -419,6 +419,14 @@ class AzurePlatform(Platform):
                             matched_cap = azure_cap
                             matched_score = matcher.ratio()
                     if matched_cap:
+                        # If max capability is set, use the max capability,
+                        # instead of the real capability. It needs to be in the
+                        # loop, to find supported locations.
+                        if node_runbook.maximize_capability:
+                            matched_cap = self._generate_max_capability(
+                                node_runbook.vm_size, location_name
+                            )
+
                         predefined_cost += matched_cap.estimated_cost
 
                         min_cap = self._generate_min_capability(
@@ -1841,13 +1849,9 @@ class AzurePlatform(Platform):
         )
 
         # all nodes support following features
+        all_features = self.supported_features()
         node_space.features.update(
-            [
-                schema.FeatureSettings.create(base_features.Nvme.name()),
-                schema.FeatureSettings.create(features.Gpu.name()),
-                schema.FeatureSettings.create(features.StartStop.name()),
-                schema.FeatureSettings.create(features.SerialConsole.name()),
-            ]
+            [schema.FeatureSettings.create(x.name()) for x in all_features]
         )
         _convert_to_azure_node_space(node_space)
 
