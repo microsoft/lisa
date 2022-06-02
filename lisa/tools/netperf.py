@@ -1,7 +1,7 @@
 # Copyright (c) Microsoft Corporation.
 # Licensed under the MIT license.
 
-from typing import Any, cast
+from typing import Any, List, Type, cast
 
 from lisa.executable import Tool
 from lisa.operating_system import Debian, Posix, Redhat, Suse
@@ -9,8 +9,10 @@ from lisa.util import LisaException
 from lisa.util.process import Process
 
 from .firewall import Firewall
+from .gcc import Gcc
 from .git import Git
 from .make import Make
+from .texinfo import Texinfo
 
 
 class Netperf(Tool):
@@ -24,6 +26,10 @@ class Netperf(Tool):
     @property
     def can_install(self) -> bool:
         return True
+
+    @property
+    def dependencies(self) -> List[Type[Tool]]:
+        return [Gcc, Git, Make, Texinfo]
 
     def run_as_server(self, port: int = 30000, daemon: bool = True) -> None:
         cmd = f"netserver -p {port} "
@@ -74,11 +80,11 @@ class Netperf(Tool):
     def _install_dep_packages(self) -> None:
         posix_os: Posix = cast(Posix, self.node.os)
         if isinstance(self.node.os, Redhat):
-            package_list = ["sysstat", "wget", "automake", "texinfo", "gcc"]
+            package_list = ["sysstat", "wget", "automake"]
         elif isinstance(self.node.os, Debian):
-            package_list = ["sysstat", "automake", "texinfo"]
+            package_list = ["sysstat", "automake"]
         elif isinstance(self.node.os, Suse):
-            package_list = ["sysstat", "automake", "texinfo"]
+            package_list = ["sysstat", "automake"]
         else:
             raise LisaException(
                 f"tool {self.command} can't be installed in distro {self.node.os.name}."

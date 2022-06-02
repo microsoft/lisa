@@ -78,6 +78,7 @@ from .sysctl import Sysctl
 from .tar import Tar
 from .taskset import TaskSet
 from .tcpdump import TcpDump
+from .texinfo import Texinfo
 from .timedatectl import Timedatectl
 from .unzip import Unzip
 from .uptime import Uptime
@@ -172,6 +173,7 @@ __all__ = [
     "Sysctl",
     "Tar",
     "TaskSet",
+    "Texinfo",
     "TcpDump",
     "Timedatectl",
     "Uname",

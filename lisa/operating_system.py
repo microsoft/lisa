@@ -1312,6 +1312,9 @@ class Redhat(Fedora):
         return False
 
     def _is_package_in_repo(self, package: str) -> bool:
+        if self._first_time_installation:
+            self._initialize_package_installation()
+            self._first_time_installation = True
         command = f"yum --showduplicates list {package}"
         result = self._node.execute(command, sudo=True, shell=True)
         return 0 == result.exit_code
