@@ -16,8 +16,9 @@ from lisa import (
 )
 from lisa.operating_system import Redhat
 from lisa.sut_orchestrator.azure.tools import LisDriver
-from lisa.tools import Find, Lsinitrd, Lsmod, Modinfo, Modprobe, Uname
+from lisa.tools import Find, Lsinitrd, Lsmod, Modinfo, Modprobe, Uname, Dmesg
 from lisa.util import SkippedException
+from lisa.base_tools import Cat
 
 
 @TestSuiteMetadata(
@@ -267,3 +268,41 @@ class HvModule(TestSuite):
                 modules.append(module)
 
         return modules
+
+    @TestCaseMetadata(
+        description="""
+        This testcase is to check if the hv_balloon driver has registered
+        correctly. It also checks if the hv_balloon driver is registered with
+        the right protocol version and parameters.
+
+        Steps,
+        1. Check dmesg if it contains hv-balloon driver registration string
+        2. Check dmesg if it contains hv-balloon protocol version number string
+        """,
+        priority=2,
+    )
+    def verify_hvballoon_for_reg(self, node: Node, log: Logger) -> None:
+        cat = node.tools[Cat]
+
+        drv_reg_str = "registering driver hv_balloon"
+        drv_proto_str = "hv_balloon: Using Dynamic Memory protocol version 2.0"
+        drv_param_hotadd = "/sys/module/hv_balloon/parameters/hot_add"
+        drv_param_delay = ("/sys/module/hv_balloon/parameters/"
+                            "pressure_report_delay")
+
+        dmesg = node.tools[Dmesg]
+
+        assert_that(dmesg.get_output()).contains(drv_reg_str)
+        assert_that(dmesg.get_output()).contains(drv_proto_str)
+
+        param_hotadd_val = cat.read(
+                drv_param_hotadd, sudo=True, force_run=True)
+        assert_that(param_hotadd_val).described_as(
+            "hot add not enabled for the driver"
+            ).is_equal_to("Y")
+
+        param_delay_val = cat.read(
+                drv_param_delay, sudo=True, force_run=True)
+        assert_that(param_delay_val). described_as(
+            "Pressure report delay set to non zero value"
+            ).is_equal_to("0")
