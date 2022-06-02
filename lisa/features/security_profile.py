@@ -6,7 +6,7 @@ from typing import Any, Type, cast
 
 from dataclasses_json import dataclass_json
 
-from lisa import schema
+from lisa import schema, search_space
 from lisa.feature import Feature
 
 FEATURE_NAME_SECURITY_PROFILE = "Security_Profile"
@@ -26,6 +26,17 @@ class SecurityProfileSettings(schema.FeatureSettings):
 
     def _generate_min_capability(self, capability: Any) -> Any:
         return self
+
+    def check(self, capability: Any) -> search_space.ResultReason:
+        result = super().check(capability)
+
+        result.merge(
+            search_space.check_countspace(
+                self.secure_boot_enabled, capability.secure_boot_enabled
+            ),
+            "secure_boot_enabled",
+        )
+        return result
 
 
 class SecurityProfile(Feature):
