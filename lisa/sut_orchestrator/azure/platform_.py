@@ -6,6 +6,7 @@ import json
 import logging
 import os
 import re
+import lisa.features as base_features
 from copy import deepcopy
 from dataclasses import dataclass, field
 from datetime import datetime
@@ -330,6 +331,7 @@ class AzurePlatform(Platform):
             features.Infiniband,
             features.Hibernation,
             features.SecurityProfile,
+            base_features.ACC,
         ]
 
     def _prepare_environment(  # noqa: C901
@@ -1614,6 +1616,14 @@ class AzurePlatform(Platform):
             node_space.core_count = vcpus_available
         else:
             node_space.core_count = vcpus
+
+        # add acc feature if it's supported
+        if resource_sku.family in ["standardDCSv2Family"]:
+            node_space.features.update(
+                [
+                    schema.FeatureSettings.create(base_features.ACC.name()),
+                ]
+            )
 
         if resource_sku.family in ["standardLSv2Family"]:
             # refer https://docs.microsoft.com/en-us/azure/virtual-machines/lsv2-series # noqa: E501
