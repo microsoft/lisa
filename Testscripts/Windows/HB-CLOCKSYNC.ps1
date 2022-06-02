@@ -216,7 +216,7 @@ fi
 			Wait-Time -seconds 15
 			$state = Run-LinuxCmd -ip $AllVMData[0].PublicIP -port $AllVMData[0].SSHPort -username $user -password $password -command "date > /dev/null; echo $?"
 			if ($state) {
-				$kernelCompileCompleted = Run-LinuxCmd -ip $AllVMData[0].PublicIP -port $AllVMData[0].SSHPort -username $user -password $password -command "dmesg | grep -i 'hibernation exit'"
+				$kernelCompileCompleted = Run-LinuxCmd -ip $AllVMData[0].PublicIP -port $AllVMData[0].SSHPort -username $user -password $password -command "dmesg | grep -i 'hibernation exit'" -runAsSudo
 				# This verification might be revised in future. Checking with dmesg is risky.
 				if ($kernelCompileCompleted -ne "hibernation exit") {
 					Write-LogErr "VM $($AllVMData[0].RoleName) resumed successfully but could not determine hibernation completion"
