@@ -222,21 +222,22 @@ class HvModule(TestSuite):
                 "kernel and therefore can not be reloaded"
             )
 
-        for i in range(loop_count):
-            result = node.execute(
-                f"modprobe -r -v {module}; modprobe -v {module}; "
-                "ip link set eth0 down; ip link set eth0 up; dhclient -r; dhclient",
-                sudo=True,
-                shell=True,
-                expected_exit_code=0,
-                expected_exit_code_failure_message=f"{module} failed to reload",
-            )
-            did_unload = "rmmod" in result.stdout
-            did_reload = "insmod" in result.stdout
-            assert_that(did_unload and did_reload).described_as(
-                f"{module} reload did not perform rmmod and insmod "
-                f"on iteration #{i+1}. Output: {result.stdout}"
-            ).is_true()
+        result = node.execute(
+            ("for i in $(seq 1 %i); do " % loop_count)
+            + f"modprobe -r -v {module}; modprobe -v {module}; "
+            "done; sleep 1; "
+            "ip link set eth0 down; ip link set eth0 up; dhclient -r; dhclient",
+            sudo=True,
+            shell=True,
+            expected_exit_code=0,
+            expected_exit_code_failure_message=f"{module} failed to reload",
+        )
+        assert_that(result.stdout.count("rmmod")).described_as(
+            f"Expected {module} to be removed {loop_count} times"
+        ).is_equal_to(loop_count)
+        assert_that(result.stdout.count("insmod")).described_as(
+            f"Expected {module} to be inserted {loop_count} times"
+        ).is_equal_to(loop_count)
 
     def _get_expected_modules(self, node: Node) -> List[str]:
         """
