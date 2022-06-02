@@ -9,7 +9,7 @@ from semver import VersionInfo
 
 from lisa.executable import Tool
 from lisa.nic import NicInfo
-from lisa.operating_system import Debian, Fedora, Redhat, Suse, Ubuntu
+from lisa.operating_system import Debian, Fedora, Oracle, Redhat, Suse, Ubuntu
 from lisa.tools import Echo, Git, Lscpu, Lspci, Modprobe, Service, Tar, Wget
 from lisa.util import LisaException, SkippedException, UnsupportedDistroException
 
@@ -578,7 +578,7 @@ class DpdkTestpmd(Tool):
                 supported = node.os.information.version >= "18.4.0"
             else:
                 supported = node.os.information.version >= "10.0.0"
-        elif isinstance(node.os, Redhat):
+        elif isinstance(node.os, Redhat) and not isinstance(node.os, Oracle):
             supported = node.os.information.version >= "7.5.0"
         elif isinstance(node.os, Suse):
             supported = node.os.information.version >= "15.0.0"
