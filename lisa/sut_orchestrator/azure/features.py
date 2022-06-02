@@ -24,7 +24,6 @@ from PIL import Image, UnidentifiedImageError
 from retry import retry
 
 from lisa import Environment, Logger, features, schema, search_space
-from lisa.features import NvmeSettings
 from lisa.features.gpu import ComputeSDK
 from lisa.features.resize import ResizeAction
 from lisa.node import Node, RemoteNode
@@ -488,16 +487,6 @@ class NetworkInterface(AzureFeatureMixin, features.NetworkInterface):
                 )
             )
         return all_nics
-
-
-class Nvme(AzureFeatureMixin, features.Nvme):
-    @classmethod
-    def settings_type(cls) -> Type[schema.FeatureSettings]:
-        return NvmeSettings
-
-    def _initialize(self, *args: Any, **kwargs: Any) -> None:
-        super()._initialize(*args, **kwargs)
-        self._initialize_information(self._node)
 
 
 # Tuple: (IOPS, Disk Size)
