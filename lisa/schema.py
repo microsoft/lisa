@@ -874,7 +874,7 @@ class NodeSpace(search_space.RequirementMixin, TypedSchema, ExtendableSchemaMixi
         if self.excluded_features:
             for feature in self.excluded_features:
                 cap_feature = self._find_feature_by_type(
-                    feature.type, capability.excluded_features
+                    feature.type, capability.features
                 )
                 if cap_feature:
                     result.add_reason(
