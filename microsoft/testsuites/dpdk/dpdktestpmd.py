@@ -11,7 +11,12 @@ from lisa.executable import Tool
 from lisa.nic import NicInfo
 from lisa.operating_system import Debian, Fedora, Oracle, Redhat, Suse, Ubuntu
 from lisa.tools import Echo, Git, Lscpu, Lspci, Modprobe, Service, Tar, Wget
-from lisa.util import LisaException, SkippedException, UnsupportedDistroException
+from lisa.util import (
+    LisaException,
+    MissingPackagesException,
+    SkippedException,
+    UnsupportedDistroException,
+)
 
 PACKAGE_MANAGER_SOURCE = "package_manager"
 
@@ -81,7 +86,6 @@ class DpdkTestpmd(Tool):
 
     _redhat_packages = [
         "psmisc",
-        "kernel-devel-$(uname -r)",
         "numactl-devel.x86_64",
         "librdmacm-devel",
         "pkgconfig",
@@ -649,6 +653,12 @@ class DpdkTestpmd(Tool):
         if rhel.information.version.major == 7:
             # Add packages for rhel7
             rhel.install_packages(list(["libmnl-devel", "libbpf-devel"]))
+
+        try:
+            rhel.install_packages("kernel-devel-$(uname -r)")
+        except MissingPackagesException:
+            node.log.debug("kernel-devel-$(uname -r) not found. Trying kernel-devel")
+            rhel.install_packages("kernel-devel")
 
         # RHEL 8 doesn't require special cases for installed packages.
         # TODO: RHEL9 may require updates upon release
