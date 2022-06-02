@@ -1132,6 +1132,11 @@ class RPMDistro(Linux):
 
         return False
 
+    def _is_package_in_repo(self, package: str) -> bool:
+        command = f"{self._dnf_tool()} --showduplicates list {package} -y"
+        result = self._node.execute(command, sudo=True, shell=True)
+        return 0 == result.exit_code
+
     def _dnf_tool(self) -> str:
         return "dnf"
 
