@@ -1133,7 +1133,7 @@ class RPMDistro(Linux):
         return False
 
     def _is_package_in_repo(self, package: str) -> bool:
-        command = f"{self._dnf_tool()} --showduplicates list {package} -y"
+        command = f"{self._dnf_tool()} list {package} -y"
         result = self._node.execute(command, sudo=True, shell=True)
         return 0 == result.exit_code
 
@@ -1413,7 +1413,7 @@ class CBLMariner(RPMDistro):
         self._dnf_tool_name: str
 
     def _initialize_package_installation(self) -> None:
-        result = self._node.execute("command -v dnf", no_info_log=True)
+        result = self._node.execute("command -v dnf", no_info_log=True, shell=True)
         if result.exit_code == 0:
             self._dnf_tool_name = "dnf"
             return

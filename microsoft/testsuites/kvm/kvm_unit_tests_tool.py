@@ -58,6 +58,9 @@ class KvmUnitTests(Tool):
         return failures
 
     def _save_logs(self, test_names: List[str], log_path: Path) -> None:
+        logs_dir = self.repo_root / "logs"
+        self.node.execute(f"chmod a+x {str(logs_dir)}", shell=True, sudo=True)
+        self.node.execute(f"chmod -R a+r {str(logs_dir)}", shell=True, sudo=True)
         for test_name in test_names:
             self.node.shell.copy_back(
                 self.repo_root / "logs" / f"{test_name}.log",
