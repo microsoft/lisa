@@ -3,7 +3,7 @@ Linux Integration Services Automation (LISA)
 
 |CI Workflow| |GitHub license| |Docs|
 
-**Linux Integration Services Automation (LISA)** is a Linux quality
+**Linux Integration Services Automation (LISA)** is an Linux quality
 validation system, which consists of two parts：
 
 -  A test framework to drive test execution.
@@ -11,7 +11,7 @@ validation system, which consists of two parts：
 
 ``LISA`` was originally designed and implemented for Microsoft Azure and
 Windows HyperV platforms; now it can be used to validate Linux quality
-on any platforms if the proper orchestrator module implemented.
+on any platforms if the proper orchestrator module is implemented.
 
 Why LISA
 --------
@@ -28,10 +28,10 @@ Why LISA
    Azure, Windows HyperV, Linux bare metal, and other cloud based
    platforms.
 
--  **End-to-end**: ``LISA`` supports platform specific orchestrator to
+-  **End-to-end**: ``LISA`` supports platform specific orchestrators to
    create and delete test environment automatically; it also provides
-   flexibility to preserve environment for troubleshooting if test
-   failed.
+   flexibility to preserve environments for troubleshooting if test(s)
+   fails.
 
 Documents
 ---------
@@ -43,25 +43,25 @@ Documents
 -  `Command line reference <https://mslisa.rtfd.io/en/main/run_test/command_line.html>`__
 -  `Runbook reference <https://mslisa.rtfd.io/en/main/run_test/runbook.html>`__
 -  `Extend and customize LISA <https://mslisa.rtfd.io/en/main/write_test/extension.html>`__
--  `Run previous version LISA (aka
+-  `Run the previous version of LISA (aka
    LISAv2) <https://mslisa.rtfd.io/en/main/run_test/run_legacy.html>`__
 
 Contribute
 ----------
 
-You are very welcome to contribute. Please follow `the contribution
+You are very welcome to contribute to this repository. Please follow `the contribution
 document <https://mslisa.rtfd.io/en/main/contributing.html>`__ for details.
 
 History and road map
 --------------------
 
-The previous LISA called LISAv2, which is in `master
+The previous LISA called LISAv2, which is in `the master
 branch <https://github.com/microsoft/lisa/tree/master>`__. The previous
 LISA can be used standalone or called from the current LISA. Learn more
 from `how to run LISAv2 test cases <https://mslisa.rtfd.io/en/main/run_test/run_legacy.html>`__.
 
-LISA is in active developing, and a lot of exciting features are
-implementing. We’re listening your
+LISA is in active developing, and a lot of exciting features are being
+implemented. We’re listening to your
 `feedback <https://github.com/microsoft/lisa/issues/new>`__.
 
 License
