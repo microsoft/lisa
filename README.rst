@@ -3,7 +3,7 @@ Linux Integration Services Automation (LISA)
 
 |CI Workflow| |GitHub license| |Docs|
 
-**Linux Integration Services Automation (LISA)** is an Linux quality
+**Linux Integration Services Automation (LISA)** is a Linux quality
 validation system, which consists of two parts：
 
 -  A test framework to drive test execution.
