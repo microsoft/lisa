@@ -11,7 +11,7 @@ from semver import VersionInfo
 from lisa.base_tools import Cat, Sed, Wget
 from lisa.executable import Tool
 from lisa.operating_system import Debian, Posix, Redhat, Suse
-from lisa.tools import Gcc, KernelConfig
+from lisa.tools import Gcc
 from lisa.tools.make import Make
 from lisa.tools.service import Service
 from lisa.tools.sysctl import Sysctl
@@ -197,12 +197,13 @@ class KdumpBase(Tool):
     def _install(self) -> bool:
         raise NotImplementedError()
 
-    def check_required_kernel_config(self) -> None:
+    def check_required_kernel_config(self, config_path: str) -> None:
         for config in self.required_kernel_config:
-            if not self.node.tools[KernelConfig].is_driver_built_in(config):
-                raise LisaException(
-                    "The kernel config {config} is not set. Kdump is not supported."
-                )
+            result = self.node.execute(f"grep {config}=y {config_path}", sudo=True)
+            result.assert_exit_code(
+                message=f"The kernel config {config} is not set."
+                "Kdump is not supported."
+            )
 
     def _get_crashkernel_cfg_file(self) -> str:
         """
