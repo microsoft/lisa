@@ -6,7 +6,7 @@ from typing import Any, Type, cast
 
 from dataclasses_json import dataclass_json
 
-from lisa import schema
+from lisa import schema, search_space
 from lisa.feature import Feature
 
 FEATURE_NAME_HIBERNATION = "Hibernation"
@@ -26,6 +26,15 @@ class HibernationSettings(schema.FeatureSettings):
 
     def _generate_min_capability(self, capability: Any) -> Any:
         return self
+
+    def check(self, capability: Any) -> search_space.ResultReason:
+        result = super().check(capability)
+
+        result.merge(
+            search_space.check_countspace(self.is_enabled, capability.is_enabled),
+            "is_enabled",
+        )
+        return result
 
 
 class Hibernation(Feature):

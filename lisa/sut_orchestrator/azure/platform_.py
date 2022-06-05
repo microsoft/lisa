@@ -42,7 +42,7 @@ from retry import retry
 import lisa.features as base_features
 from lisa import feature, schema, search_space
 from lisa.environment import Environment
-from lisa.features import NvmeSettings
+from lisa.features import HibernationSettings, NvmeSettings
 from lisa.node import Node, RemoteNode, local
 from lisa.platform_ import Platform
 from lisa.secret import PATTERN_GUID, add_secret
@@ -1603,9 +1603,7 @@ class AzurePlatform(Platform):
                     )
             elif name == "HibernationSupported":
                 if eval(sku_capability.value) is True:
-                    node_space.features.add(
-                        schema.FeatureSettings.create(features.Hibernation.name())
-                    )
+                    node_space.features.add(HibernationSettings(is_enabled=True))
             elif name == "HyperVGenerations":
                 if "V2" in str(sku_capability.value):
                     node_space.features.add(
