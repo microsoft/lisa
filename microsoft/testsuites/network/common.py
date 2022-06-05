@@ -8,7 +8,7 @@ from retry import retry
 from lisa import Environment, Node, RemoteNode, constants
 from lisa.features import NetworkInterface
 from lisa.nic import NicInfo, Nics
-from lisa.tools import Cat, Kill, Lsmod, Lspci, Modprobe, Ssh, Uname
+from lisa.tools import Cat, KernelConfig, Kill, Lsmod, Lspci, Modprobe, Ssh
 
 # ConnectX-3 uses mlx4_core
 # mlx4_en and mlx4_ib depends on mlx4_core
@@ -55,6 +55,10 @@ def get_used_module(node: Node) -> str:
     return lspci.get_used_module(devices_slots[0])
 
 
+def get_used_config(node: Node) -> str:
+    return modules_config_dict[get_used_module(node)]
+
+
 def remove_module(node: Node) -> str:
     modprobe = node.tools[Modprobe]
     module_in_used = get_used_module(node)
@@ -71,15 +75,6 @@ def load_module(node: Node, module_name: str) -> None:
     modprobe.load(module_name)
 
 
-def is_module_built_in(node: Node, used_module: str) -> bool:
-    uname = node.tools[Uname]
-    kernel_version = uname.get_linux_information().kernel_version
-    config_path = f"/boot/config-{kernel_version}"
-    config = modules_config_dict[used_module]
-    config_result = node.execute(f"grep {config}=y {config_path}", shell=True)
-    return config_result.exit_code == 0
-
-
 def get_packets(node: Node, nic_name: str, name: str = "tx_packets") -> int:
     cat = node.tools[Cat]
     return int(cat.read(f"/sys/class/net/{nic_name}/statistics/{name}", force_run=True))
@@ -92,7 +87,7 @@ def sriov_basic_test(
     for node in environment.nodes.list():
         # 1. Check module of sriov network device is loaded.
         used_module = get_used_module(node)
-        if not is_module_built_in(node, used_module):
+        if not node.tools[KernelConfig].is_built_in(modules_config_dict[used_module]):
             lsmod = node.tools[Lsmod]
             assert_that(lsmod.module_exists(used_module, force_run=True)).described_as(
                 "The module of sriov network device isn't loaded."

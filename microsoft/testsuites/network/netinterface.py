@@ -18,8 +18,7 @@ from lisa import (
 )
 from lisa.features import NetworkInterface, Synthetic
 from lisa.nic import Nics
-from lisa.operating_system import CoreOs
-from lisa.tools import Dhclient, Ip, Uname, Wget
+from lisa.tools import Dhclient, Ip, KernelConfig, Wget
 from lisa.util import perf_timer
 
 
@@ -168,14 +167,5 @@ class NetInterface(TestSuite):
             ).is_equal_to(origin_mac_address)
 
     def _validate_netvsc_built_in(self, node: Node) -> None:
-        uname_tool = node.tools[Uname]
-        kernel_ver = uname_tool.get_linux_information().kernel_version
-        config_path = f"/boot/config-{kernel_ver}"
-        if isinstance(node.os, CoreOs):
-            config_path = f"/usr/boot/config-{kernel_ver}"
-
-        netvsc_builtin_result = node.execute(
-            f"grep CONFIG_HYPERV_NET=y {config_path}", shell=True
-        )
-        if netvsc_builtin_result.exit_code == 0:
+        if node.tools[KernelConfig].is_built_in("CONFIG_HYPERV_NET"):
             raise SkippedException("Skipping test since hv_netvsc module is built-in")

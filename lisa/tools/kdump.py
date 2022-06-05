@@ -18,6 +18,8 @@ from lisa.tools.sysctl import Sysctl
 from lisa.tools.tar import Tar
 from lisa.util import LisaException, UnsupportedDistroException
 
+from .kernel_config import KernelConfig
+
 if TYPE_CHECKING:
     from lisa.node import Node
 
@@ -197,13 +199,12 @@ class KdumpBase(Tool):
     def _install(self) -> bool:
         raise NotImplementedError()
 
-    def check_required_kernel_config(self, config_path: str) -> None:
+    def check_required_kernel_config(self) -> None:
         for config in self.required_kernel_config:
-            result = self.node.execute(f"grep {config}=y {config_path}", sudo=True)
-            result.assert_exit_code(
-                message=f"The kernel config {config} is not set."
-                "Kdump is not supported."
-            )
+            if not self.node.tools[KernelConfig].is_built_in(config):
+                raise LisaException(
+                    "The kernel config {config} is not set. Kdump is not supported."
+                )
 
     def _get_crashkernel_cfg_file(self) -> str:
         """

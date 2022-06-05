@@ -19,7 +19,7 @@ from lisa import (
     search_space,
 )
 from lisa.operating_system import Redhat
-from lisa.tools import Dmesg, Echo, KdumpBase, Ls, Lscpu, Uname
+from lisa.tools import Dmesg, Echo, KdumpBase, KernelConfig, Lscpu
 from lisa.util.perf_timer import create_timer
 from lisa.util.shell import try_connect
 
@@ -187,19 +187,6 @@ class KdumpCrash(TestSuite):
         self.crash_kernel = "auto"
         self._kdump_test(node, log)
 
-    def _get_boot_config_path(self, node: Node) -> str:
-        uname_tool = node.tools[Uname]
-        kernel_ver = uname_tool.get_linux_information().kernel_version_raw
-        config_path = f"/boot/config-{kernel_ver}"
-        ls = node.tools[Ls]
-        if not ls.path_exists(config_path, sudo=True):
-            raise LisaException(
-                f"{config_path} file doesn't exist. "
-                "Please check if the kernel version is right."
-            )
-        else:
-            return config_path
-
     def _check_supported(self, node: Node) -> None:
         # Check the VMBus version for kdump supported
         dmesg = node.tools[Dmesg]
@@ -218,19 +205,17 @@ class KdumpCrash(TestSuite):
         # to https://wiki.centos.org/action/show/Sources?action=show&redirect=sources
         # In addiation, we didn't see upstream kernel has the auto crashkernel feature.
         # It may be a patch owned by Redhat/Centos.
-        config_path = self._get_boot_config_path(node)
         if not (
             isinstance(node.os, Redhat) and node.os.information.version >= "8.0.0-0"
         ):
-            result = node.execute(
-                f"grep CONFIG_KEXEC_AUTO_RESERVE=y {config_path}", shell=True, sudo=True
-            )
-            if self.crash_kernel == "auto" and result.exit_code != 0:
+            if self.crash_kernel == "auto" and not node.tools[KernelConfig].is_built_in(
+                "CONFIG_KEXEC_AUTO_RESERVE"
+            ):
                 raise SkippedException("crashkernel=auto doesn't work for the distro.")
 
         # Check the kernel config for kdump supported
         kdump = node.tools[KdumpBase]
-        kdump.check_required_kernel_config(config_path)
+        kdump.check_required_kernel_config()
 
     def _kdump_test(self, node: Node, log: Logger) -> None:
         try:

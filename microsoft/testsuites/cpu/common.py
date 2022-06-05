@@ -5,7 +5,7 @@ from __future__ import annotations
 from typing import Dict, List
 
 from lisa import BadEnvironmentStateException, Logger, Node
-from lisa.tools import Cat, Dmesg, Echo, Lscpu, Lsvmbus, Uname
+from lisa.tools import Cat, Dmesg, Echo, KernelConfig, Lscpu, Lsvmbus, Uname
 from lisa.util import SkippedException
 
 
@@ -15,11 +15,7 @@ class CPUState:
 
 
 def check_runnable(node: Node) -> None:
-    uname = node.tools[Uname]
-    kernel_version = uname.get_linux_information().kernel_version
-    config_path = f"/boot/config-{kernel_version}"
-    config_result = node.execute(f"grep CONFIG_HOTPLUG_CPU=y {config_path}", shell=True)
-    if config_result.exit_code != 0:
+    if not node.tools[KernelConfig].is_built_in("CONFIG_HOTPLUG_CPU"):
         raise SkippedException(
             f"the distro {node.os.name} doesn't support cpu hotplug."
         )

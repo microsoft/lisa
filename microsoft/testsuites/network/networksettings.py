@@ -23,7 +23,7 @@ from lisa import (
 )
 from lisa.base_tools import Uname
 from lisa.operating_system import Debian, Redhat, Suse
-from lisa.tools import Ethtool, Iperf3, Modinfo, Nm
+from lisa.tools import Ethtool, Iperf3, KernelConfig, Modinfo, Nm
 from microsoft.testsuites.network.common import cleanup_iperf3
 
 
@@ -628,12 +628,7 @@ class NetworkSettings(TestSuite):
         uname_tool = node.tools[Uname]
         kernel_version = uname_tool.get_linux_information().kernel_version
 
-        config_path = f"/boot/config-{kernel_version}"
-        netvsc_builtin_result = node.execute(
-            f"grep CONFIG_HYPERV_NET=y {config_path}", shell=True
-        )
-
-        if netvsc_builtin_result.exit_code != 0:
+        if not node.tools[KernelConfig].is_built_in("CONFIG_HYPERV_NET"):
             modinfo = node.tools[Modinfo]
             netvsc_module = modinfo.get_filename("hv_netvsc")
             # remove any escape character at the end of string
