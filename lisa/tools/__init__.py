@@ -31,6 +31,7 @@ from .interrupt_inspector import InterruptInspector
 from .ip import Ip
 from .iperf3 import Iperf3
 from .kdump import KdumpBase
+from .kernel_config import KernelConfig
 from .kill import Kill
 from .lagscope import Lagscope
 from .ls import Ls
@@ -121,6 +122,7 @@ __all__ = [
     "Iperf3",
     "Iptables",
     "KdumpBase",
+    "KernelConfig",
     "Kill",
     "Lagscope",
     "Ls",
