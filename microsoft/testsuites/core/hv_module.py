@@ -16,7 +16,7 @@ from lisa import (
 )
 from lisa.operating_system import Redhat
 from lisa.sut_orchestrator.azure.tools import LisDriver
-from lisa.tools import Find, Lsinitrd, Lsmod, Modinfo, Modprobe, Uname
+from lisa.tools import Find, KernelConfig, Lsinitrd, Lsmod, Modinfo, Modprobe, Uname
 from lisa.util import SkippedException
 
 
@@ -59,7 +59,7 @@ class HvModule(TestSuite):
         lis_driver = node.tools[LisDriver]
         lis_version = lis_driver.get_version()
 
-        hv_modules = self._get_expected_modules(node)
+        hv_modules = self._get_not_built_in_modules(node)
         for module in hv_modules:
             module_version = VersionInfo.parse(modinfo.get_version(module))
             assert_that(module_version).described_as(
@@ -87,7 +87,7 @@ class HvModule(TestSuite):
             "hid_hyperv": "hid-hyperv.ko",
             "hyperv_keyboard": "hyperv-keyboard.ko",
         }
-        skip_modules = self._get_directly_loaded_modules(node)
+        skip_modules = self._get_built_in_modules(node)
         hv_modules_file_names = {
             k: v
             for (k, v) in all_necessary_hv_modules_file_names.items()
@@ -126,7 +126,7 @@ class HvModule(TestSuite):
             "Required Hyper-V modules are missing from initrd."
         ).is_length(0)
 
-    def _get_directly_loaded_modules(self, node: Node) -> List[str]:
+    def _get_built_in_modules(self, node: Node) -> List[str]:
         """
         Returns the hv_modules that are directly loaded into the kernel and
         therefore would not show up in lsmod or be needed in initrd.
@@ -140,18 +140,10 @@ class HvModule(TestSuite):
             "hv_balloon": "CONFIG_HYPERV_BALLOON",
             "hyperv_keyboard": "CONFIG_HYPERV_KEYBOARD",
         }
-        uname = node.tools[Uname]
-        kernel_version = uname.get_linux_information().kernel_version_raw
-        config_path = f"/boot/config-{kernel_version}"
 
         modules = []
         for module in hv_modules_configuration:
-            if (
-                node.execute(
-                    f"grep ^{hv_modules_configuration[module]}=y {config_path}"
-                ).exit_code
-                == 0
-            ):
+            if node.tools[KernelConfig].is_built_in(hv_modules_configuration[module]):
                 modules.append(module)
 
         return modules
@@ -165,7 +157,7 @@ class HvModule(TestSuite):
         priority=1,
     )
     def verify_hyperv_modules(self, log: Logger, node: Node) -> None:
-        hv_modules = self._get_expected_modules(node)
+        hv_modules = self._get_not_built_in_modules(node)
         distro_version = node.os.information.version
 
         # Some versions of RHEL and CentOS have the LIS package installed
@@ -216,7 +208,7 @@ class HvModule(TestSuite):
             except Exception:
                 log.debug("Updating LIS failed. Moving on to attempt reload.")
 
-        if module not in self._get_expected_modules(node):
+        if module not in self._get_not_built_in_modules(node):
             raise SkippedException(
                 f"{module} is loaded statically into the "
                 "kernel and therefore can not be reloaded"
@@ -238,7 +230,7 @@ class HvModule(TestSuite):
                 f"on iteration #{i+1}. Output: {result.stdout}"
             ).is_true()
 
-    def _get_expected_modules(self, node: Node) -> List[str]:
+    def _get_not_built_in_modules(self, node: Node) -> List[str]:
         """
         Returns the hv_modules that are not directly loaded into the kernel and
         therefore would be expected to show up in lsmod.
@@ -252,17 +244,10 @@ class HvModule(TestSuite):
             "hv_balloon": "CONFIG_HYPERV_BALLOON",
             "hyperv_keyboard": "CONFIG_HYPERV_KEYBOARD",
         }
-        uname = node.tools[Uname]
-        kernel_version = uname.get_linux_information().kernel_version_raw
-        config_path = f"/boot/config-{kernel_version}"
-
         modules = []
         for module in hv_modules_configuration:
-            if (
-                node.execute(
-                    f"grep ^{hv_modules_configuration[module]}=y {config_path}"
-                ).exit_code
-                != 0
+            if not node.tools[KernelConfig].is_built_in(
+                hv_modules_configuration[module]
             ):
                 modules.append(module)
 

@@ -24,13 +24,12 @@ from lisa import (
 from lisa.features import NetworkInterface, SerialConsole
 from lisa.nic import NicInfo
 from lisa.sut_orchestrator import AZURE
-from lisa.tools import Cat, Ethtool, InterruptInspector, Iperf3, Lspci
+from lisa.tools import Cat, Ethtool, InterruptInspector, Iperf3, KernelConfig, Lspci
 from lisa.util.shell import wait_tcp_port_ready
 from microsoft.testsuites.network.common import (
     cleanup_iperf3,
-    get_used_module,
+    get_used_config,
     initialize_nic_info,
-    is_module_built_in,
     load_module,
     remove_extra_nics,
     remove_module,
@@ -333,8 +332,7 @@ class Sriov(TestSuite):
     )
     def verify_sriov_reload_modules(self, environment: Environment) -> None:
         for node in environment.nodes.list():
-            used_module = get_used_module(node)
-            if is_module_built_in(node, used_module):
+            if node.tools[KernelConfig].is_built_in(get_used_config(node)):
                 raise SkippedException(
                     "current VM's mlx driver is built-in, can not reload."
                 )
