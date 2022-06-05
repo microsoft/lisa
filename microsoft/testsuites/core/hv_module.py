@@ -16,7 +16,7 @@ from lisa import (
 )
 from lisa.operating_system import Redhat
 from lisa.sut_orchestrator.azure.tools import LisDriver
-from lisa.tools import Find, KernelConfig, Lsinitrd, Lsmod, Modinfo, Modprobe, Uname
+from lisa.tools import Find, Lsinitrd, Lsmod, Modinfo, Modprobe, Uname
 from lisa.util import SkippedException
 
 
@@ -140,11 +140,17 @@ class HvModule(TestSuite):
             "hv_balloon": "CONFIG_HYPERV_BALLOON",
             "hyperv_keyboard": "CONFIG_HYPERV_KEYBOARD",
         }
+        uname = node.tools[Uname]
+        kernel_version = uname.get_linux_information().kernel_version_raw
+        config_path = f"/boot/config-{kernel_version}"
 
         modules = []
         for module in hv_modules_configuration:
-            if node.tools[KernelConfig].is_driver_built_as_module(
-                hv_modules_configuration[module]
+            if (
+                node.execute(
+                    f"grep ^{hv_modules_configuration[module]}=y {config_path}"
+                ).exit_code
+                == 0
             ):
                 modules.append(module)
 
@@ -246,10 +252,17 @@ class HvModule(TestSuite):
             "hv_balloon": "CONFIG_HYPERV_BALLOON",
             "hyperv_keyboard": "CONFIG_HYPERV_KEYBOARD",
         }
+        uname = node.tools[Uname]
+        kernel_version = uname.get_linux_information().kernel_version_raw
+        config_path = f"/boot/config-{kernel_version}"
+
         modules = []
         for module in hv_modules_configuration:
-            if node.tools[KernelConfig].is_driver_built_in(
-                hv_modules_configuration[module]
+            if (
+                node.execute(
+                    f"grep ^{hv_modules_configuration[module]}=y {config_path}"
+                ).exit_code
+                != 0
             ):
                 modules.append(module)
 

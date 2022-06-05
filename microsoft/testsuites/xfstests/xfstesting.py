@@ -30,19 +30,18 @@ from lisa.sut_orchestrator.azure.common import (
     get_storage_credential,
 )
 from lisa.sut_orchestrator.azure.platform_ import AzurePlatform
-from lisa.tools import (
-    Echo,
-    Fdisk,
-    FileSystem,
-    KernelConfig,
-    Mkfs,
-    Mount,
-    Parted,
-    Xfstests,
-)
+from lisa.tools import Echo, Fdisk, FileSystem, Mkfs, Mount, Parted, Uname, Xfstests
 
 _scratch_folder = "/root/scratch"
 _test_folder = "/root/test"
+_fstab_info = (
+    "nofail,vers=3.1.1,credentials=/etc/smbcredentials/lisa.cred"
+    ",dir_mode=0777,file_mode=0777,serverino"
+)
+_mount_opts = (
+    "-o vers=3.1.1,credentials=/etc/smbcredentials/lisa.cred"
+    ",dir_mode=0777,file_mode=0777,serverino"
+)
 
 
 def _prepare_data_disk(
@@ -69,19 +68,10 @@ def _prepare_data_disk(
         node.execute(f"mkdir {mount_point}", sudo=True)
 
 
-def _get_smb_version(node: Node) -> str:
-    if node.tools[KernelConfig].is_driver_enabled("CONFIG_CIFS_SMB311"):
-        version = "3.1.1"
-    else:
-        version = "3.0"
-    return version
-
-
 def _prepare_azure_file_share(
     node: Node,
     account_credential: Dict[str, str],
     test_folders_share_dict: Dict[str, str],
-    fstab_info: str,
 ) -> None:
     folder_path = node.get_pure_path("/etc/smbcredentials")
     if node.shell.exists(folder_path):
@@ -97,7 +87,7 @@ def _prepare_azure_file_share(
     for folder_name, share in test_folders_share_dict.items():
         node.execute(f"mkdir {folder_name}", sudo=True)
         echo.write_to_file(
-            f"{share} {folder_name} cifs {fstab_info}",
+            f"{share} {folder_name} cifs {_fstab_info}",
             node.get_pure_path("/etc/fstab"),
             sudo=True,
             append=True,
@@ -379,20 +369,6 @@ class Xfstesting(TestSuite):
     ) -> None:
         assert isinstance(environment.platform, AzurePlatform)
         node = cast(RemoteNode, environment.nodes[0])
-        if not node.tools[KernelConfig].is_driver_enabled("CONFIG_CIFS"):
-            raise SkippedException(
-                f"OS {node.os.name} Version {node.os.information.version} doesn't"
-                " enable cifs module."
-            )
-        version = _get_smb_version(node)
-        fstab_info = (
-            f"nofail,vers={version},credentials=/etc/smbcredentials/lisa.cred"
-            ",dir_mode=0777,file_mode=0777,serverino"
-        )
-        mount_opts = (
-            f"-o vers={version},credentials=/etc/smbcredentials/lisa.cred"
-            ",dir_mode=0777,file_mode=0777,serverino"
-        )
         platform = environment.platform
         information = environment.get_information()
         resource_group_name = information["resource_group_name"]
@@ -434,7 +410,6 @@ class Xfstesting(TestSuite):
                     _test_folder: fs_url_dict[file_share_name],
                     _scratch_folder: fs_url_dict[scratch_name],
                 },
-                fstab_info,
             )
 
             self._execute_xfstests(
@@ -443,7 +418,7 @@ class Xfstesting(TestSuite):
                 test_dev=fs_url_dict[file_share_name],
                 scratch_dev=fs_url_dict[scratch_name],
                 excluded_tests=self.EXCLUDED_TESTS,
-                mount_opts=mount_opts,
+                mount_opts=_mount_opts,
             )
         finally:
             # clean up resources after testing.
@@ -489,7 +464,16 @@ class Xfstesting(TestSuite):
             excluded_tests += " generic/641"
 
         if test_type == FileSystem.btrfs.name:
-            if not node.tools[KernelConfig].is_driver_enabled("CONFIG_BTRFS_FS"):
+            uname_tool = node.tools[Uname]
+            kernel_ver = uname_tool.get_linux_information().kernel_version
+            config_path = f"/boot/config-{kernel_ver}"
+            config = "CONFIG_BTRFS_FS=y|CONFIG_BTRFS_FS=m"
+            result = node.execute(
+                f"grep -E '{config}' /boot/config-$(uname -r) {config_path}",
+                shell=True,
+                sudo=True,
+            )
+            if result.exit_code != 0:
                 raise SkippedException(
                     "Current distro doesn't support btrfs file system."
                 )
