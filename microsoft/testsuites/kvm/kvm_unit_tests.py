@@ -5,6 +5,8 @@ from pathlib import Path
 from assertpy.assertpy import assert_that
 
 from lisa import Logger, Node, TestCaseMetadata, TestSuite, TestSuiteMetadata
+from lisa.tools import Lscpu
+from lisa.util import SkippedException
 from microsoft.testsuites.kvm.kvm_unit_tests_tool import KvmUnitTests
 
 
@@ -24,6 +26,11 @@ class KvmUnitTestSuite(TestSuite):
         priority=3,
     )
     def verify_kvm_unit_tests(self, log: Logger, node: Node, log_path: Path) -> None:
+        # ensure virtualization is enabled in hardware before running tests
+        virtualization_enabled = node.tools[Lscpu].is_virtualization_enabled()
+        if not virtualization_enabled:
+            raise SkippedException("Virtualization is not enabled in hardware")
+
         # TODO: These failures need to be investigated to figure out the exact
         # cause.
         expected_failures = [
