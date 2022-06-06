@@ -13,7 +13,11 @@ from lisa import (
 )
 from lisa.features import HibernationEnabled, Sriov
 from lisa.testsuite import simple_requirement
-from microsoft.testsuites.power.common import cleanup_env, verify_hibernation
+from microsoft.testsuites.power.common import (
+    cleanup_env,
+    is_distro_supported,
+    verify_hibernation,
+)
 
 
 @TestSuiteMetadata(
@@ -38,6 +42,7 @@ class PowerStress(TestSuite):
     )
     def verify_stress_hibernation(self, environment: Environment, log: Logger) -> None:
         node = cast(RemoteNode, environment.nodes[0])
+        is_distro_supported(node)
         for _ in range(0, self._loop):
             verify_hibernation(node, log)
 

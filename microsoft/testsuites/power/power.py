@@ -20,6 +20,7 @@ from lisa.tools import Date, Hwclock, StressNg
 from lisa.util.perf_timer import create_timer
 from microsoft.testsuites.power.common import (
     cleanup_env,
+    is_distro_supported,
     run_network_workload,
     run_storage_workload,
     verify_hibernation,
@@ -59,6 +60,7 @@ class Power(TestSuite):
         self, environment: Environment, log: Logger
     ) -> None:
         node = cast(RemoteNode, environment.nodes[0])
+        is_distro_supported(node)
         verify_hibernation(node, log)
 
     @TestCaseMetadata(
@@ -76,6 +78,7 @@ class Power(TestSuite):
         self, environment: Environment, log: Logger
     ) -> None:
         node = cast(RemoteNode, environment.nodes[0])
+        is_distro_supported(node)
         verify_hibernation(node, log)
 
     @TestCaseMetadata(
@@ -96,6 +99,7 @@ class Power(TestSuite):
         self, environment: Environment, log: Logger
     ) -> None:
         node = cast(RemoteNode, environment.nodes[0])
+        is_distro_supported(node)
         date = node.tools[Date]
         current_date = date.current()
         newdate = current_date.replace(year=current_date.year + 1)
@@ -140,6 +144,7 @@ class Power(TestSuite):
         self, environment: Environment, log: Logger
     ) -> None:
         client_node = cast(RemoteNode, environment.nodes[0])
+        is_distro_supported(client_node)
         run_network_workload(environment)
         verify_hibernation(client_node, log)
         run_network_workload(environment)
@@ -162,6 +167,7 @@ class Power(TestSuite):
         self, environment: Environment, log: Logger
     ) -> None:
         node = cast(RemoteNode, environment.nodes[0])
+        is_distro_supported(node)
         run_storage_workload(node)
         verify_hibernation(node, log)
         run_storage_workload(node)
@@ -184,6 +190,7 @@ class Power(TestSuite):
         self, environment: Environment, log: Logger
     ) -> None:
         node = cast(RemoteNode, environment.nodes[0])
+        is_distro_supported(node)
         stress_ng_tool = node.tools[StressNg]
         stress_ng_tool.launch(16, "100%", 300)
         verify_hibernation(node, log)

@@ -14,7 +14,7 @@ from lisa.util.perf_timer import create_timer
 from lisa.util.shell import wait_tcp_port_ready
 
 
-def verify_hibernation(node: RemoteNode, log: Logger) -> None:
+def is_distro_supported(node: RemoteNode) -> None:
     if (
         (isinstance(node.os, Redhat) and node.os.information.version < "8.3.0")
         or (isinstance(node.os, Ubuntu) and node.os.information.version < "18.4.0")
@@ -24,6 +24,9 @@ def verify_hibernation(node: RemoteNode, log: Logger) -> None:
             f"hibernation setup tool doesn't support current distro {node.os.name}, "
             f"version {node.os.information.version}"
         )
+
+
+def verify_hibernation(node: RemoteNode, log: Logger) -> None:
     node_nic = node.nics
     lower_nics_before_hibernation = node_nic.get_lower_nics()
     upper_nics_before_hibernation = node_nic.get_upper_nics()
