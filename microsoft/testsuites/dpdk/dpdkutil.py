@@ -2,6 +2,7 @@ import re
 import time
 from collections import deque
 from functools import partial
+from pathlib import PurePosixPath
 from typing import Any, Dict, List, Tuple, Union
 
 from assertpy import assert_that, fail
@@ -134,23 +135,35 @@ def generate_send_receive_run_info(
     return kit_cmd_pairs
 
 
-def bind_nic_to_dpdk_pmd(nics: Nics, nic: NicInfo, pmd: str) -> None:
+UIO_HV_GENERIC_SYSFS_PATH = "/sys/bus/vmbus/drivers/uio_hv_generic"
+HV_NETVSC_SYSFS_PATH = "/sys/bus/vmbus/drivers/hv_netvsc"
+
+
+def bind_nic_to_dpdk_pmd(nics: Nics, nic: NicInfo, pmd: str) -> PurePosixPath:
     current_driver = nics.get_nic_driver(nic.upper)
+    old_sysfs_driver_path = nic.driver_sysfs_path
+    # dpdk pmds are named based on the driver
+    # that's bound to the VF device.
+    # Because of this, we either need to :
+
+    # bind the primary NIC to uio_hv_generic and allow the
+    #  VF device to be bound to the netvsc_pmd
     if pmd == "netvsc":
-        if current_driver == "uio_hv_generic":
-            return
-        # bind_dev_to_new_driver
-        nics.unbind(nic, current_driver)
-        nics.bind(nic, "uio_hv_generic")
-        nic.bound_driver = "uio_hv_generic"
+        if current_driver != "uio_hv_generic":
+            # bind_dev_to_new_driver
+            nics.unbind(nic)
+            nics.bind(nic, UIO_HV_GENERIC_SYSFS_PATH)
+
+    # or (re)?bind the primary aka synthetic nic to hv_netvsc
+    # which will handle the failover. We'll tell DPDK to use the failsafe
+    # pmd when launching testpmd
     elif pmd == "failsafe":
-        if current_driver == "hv_netvsc":
-            return
-        nics.unbind(nic, current_driver)
-        nics.bind(nic, "hv_netvsc")
-        nic.bound_driver = "hv_netvsc"
+        if current_driver != "hv_netvsc":
+            nics.unbind(nic)
+            nics.bind(nic, HV_NETVSC_SYSFS_PATH)
     else:
         fail(f"Unrecognized pmd {pmd} passed to test init procedure.")
+    return old_sysfs_driver_path
 
 
 def enable_uio_hv_generic_for_nic(node: Node, nic: NicInfo) -> None:

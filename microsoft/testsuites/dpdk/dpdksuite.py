@@ -540,8 +540,11 @@ class Dpdk(TestSuite):
         lsmod = node.tools[Lsmod]
         modprobe = node.tools[Modprobe]
         nic = node.nics.get_nic_by_index()
+        node.nics.get_nic_driver(nic.upper)
         if nic.bound_driver == "hv_netvsc":
             enable_uio_hv_generic_for_nic(node, nic)
+        # 'don't care' if there was another driver bound,
+        #  we will bind to failsafe at the end either way
         bind_nic_to_dpdk_pmd(node.nics, nic, "netvsc")
         node.execute(
             "test -e /dev/uio0",
@@ -554,8 +557,7 @@ class Dpdk(TestSuite):
         assert_that(lsmod.module_exists("uio_hv_generic", force_run=True)).described_as(
             "uio_hv_generic was not found after bind"
         ).is_true()
-        node.nics.unbind(nic, "uio_hv_generic")
-        node.nics.bind(nic, "hv_netvsc")
+        bind_nic_to_dpdk_pmd(node.nics, nic, "failsafe")
         nic.bound_driver = node.nics.get_nic_driver(nic.upper)
         assert_that(nic.bound_driver).described_as(
             (
