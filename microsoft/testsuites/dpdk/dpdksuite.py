@@ -21,8 +21,8 @@ from lisa.tools import Echo, Git, Ip, Kill, Lsmod, Make, Modprobe
 from microsoft.testsuites.dpdk.dpdknffgo import DpdkNffGo
 from microsoft.testsuites.dpdk.dpdkovs import DpdkOvs
 from microsoft.testsuites.dpdk.dpdkutil import (
+    UIO_HV_GENERIC_SYSFS_PATH,
     UnsupportedPackageVersionException,
-    bind_nic_to_dpdk_pmd,
     check_send_receive_compatibility,
     enable_uio_hv_generic_for_nic,
     generate_send_receive_run_info,
@@ -550,6 +550,7 @@ class Dpdk(TestSuite):
             - check that sysfs entry is created
             - unbind
             - check that the driver is unloaded.
+            - rebind to original driver
         """,
         priority=2,
         requirement=simple_requirement(
@@ -564,9 +565,14 @@ class Dpdk(TestSuite):
         lsmod = node.tools[Lsmod]
         modprobe = node.tools[Modprobe]
         nic = node.nics.get_nic_by_index()
+        node.nics.get_nic_driver(nic.upper)
         if nic.bound_driver == "hv_netvsc":
             enable_uio_hv_generic_for_nic(node, nic)
-        bind_nic_to_dpdk_pmd(node.nics, nic, "netvsc")
+
+        original_driver = nic.driver_sysfs_path
+        node.nics.unbind(nic)
+        node.nics.bind(nic, UIO_HV_GENERIC_SYSFS_PATH)
+
         node.execute(
             "test -e /dev/uio0",
             shell=True,
@@ -578,15 +584,18 @@ class Dpdk(TestSuite):
         assert_that(lsmod.module_exists("uio_hv_generic", force_run=True)).described_as(
             "uio_hv_generic was not found after bind"
         ).is_true()
-        node.nics.unbind(nic, "uio_hv_generic")
-        node.nics.bind(nic, "hv_netvsc")
+
+        node.nics.unbind(nic)
+        node.nics.bind(nic, str(original_driver))
         nic.bound_driver = node.nics.get_nic_driver(nic.upper)
+
         assert_that(nic.bound_driver).described_as(
             (
                 "Driver after unbind/rebind was unexpected. "
                 f"Expected hv_netvsc, found {nic.bound_driver}"
             )
         ).is_equal_to("hv_netvsc")
+
         modprobe.remove(["uio_hv_generic"])
         node.execute(
             "test -e /dev/uio0",

@@ -39,7 +39,8 @@ class NicInfo:
         self.ip_addr = ""
         self.mac_addr = ""
         self.dev_uuid = ""
-        self.bound_driver = "hv_netvsc"  # NOTE: azure default
+        self.bound_driver = ""
+        self.driver_sysfs_path = PurePosixPath("")
 
     def __str__(self) -> str:
         return (
@@ -155,19 +156,21 @@ class Nics(InitializableMixin):
     def get_device_slots(self) -> List[str]:
         return [x.pci_slot for x in self.nics.values() if x.pci_slot]
 
+    # update the current nic driver in the NicInfo instance
+    # grabs the driver short name and the driver sysfs path
     def get_nic_driver(self, nic_name: str) -> str:
         # get the current driver for the nic from the node
         # sysfs provides a link to the driver entry at device/driver
         nic = self.get_nic(nic_name)
-        cmd = f"readlink /sys/class/net/{nic.upper}/device/driver"
+        cmd = f"readlink -f /sys/class/net/{nic_name}/device/driver"
         # ex return value:
-        # ../../../../module/hv_netvsc
+        # /sys/bus/vmbus/drivers/hv_netvsc
         found_link = self._node.execute(cmd, expected_exit_code=0).stdout
         assert_that(found_link).described_as(
             f"sysfs check for NIC device {nic_name} driver returned no output"
         ).is_not_equal_to("")
-        as_path = PurePosixPath(found_link)
-        driver_name = as_path.name
+        nic.driver_sysfs_path = PurePosixPath(found_link)
+        driver_name = nic.driver_sysfs_path.name
         assert_that(driver_name).described_as(
             f"sysfs entry contained no filename for device driver: {found_link}"
         ).is_not_equal_to("")
@@ -187,21 +190,29 @@ class Nics(InitializableMixin):
     def nic_info_is_present(self, nic_name: str) -> bool:
         return nic_name in self.get_upper_nics() or nic_name in self.get_lower_nics()
 
-    def unbind(self, nic: NicInfo, driver_module: str) -> None:
+    def unbind(self, nic: NicInfo) -> None:
+        # unbind nic from current driver and return the old sysfs path
         echo = self._node.tools[Echo]
+        # if sysfs path is not set, fetch the current driver
+        if not nic.driver_sysfs_path:
+            self.get_nic_driver(nic.upper)
+        unbind_path = nic.driver_sysfs_path.joinpath("unbind")
         echo.write_to_file(
             nic.dev_uuid,
-            self._node.get_pure_path(f"/sys/bus/vmbus/drivers/{driver_module}/unbind"),
+            unbind_path,
             sudo=True,
         )
 
-    def bind(self, nic: NicInfo, driver_module: str) -> None:
+    def bind(self, nic: NicInfo, driver_module_path: str) -> None:
         echo = self._node.tools[Echo]
+        nic.driver_sysfs_path = PurePosixPath(driver_module_path)
+        bind_path = nic.driver_sysfs_path.joinpath("bind")
         echo.write_to_file(
             nic.dev_uuid,
-            self._node.get_pure_path(f"/sys/bus/vmbus/drivers/{driver_module}/bind"),
+            self._node.get_pure_path(f"{str(bind_path)}"),
             sudo=True,
         )
+        nic.bound_driver = nic.driver_sysfs_path.name
 
     def load_interface_info(self, nic_name: Optional[str] = None) -> None:
         command = "/sbin/ip addr show"
@@ -247,6 +258,8 @@ class Nics(InitializableMixin):
         self._get_default_nic()
         self.load_interface_info()
         self._get_nic_uuids()
+        for nic in self.get_upper_nics():
+            self.get_nic_driver(nic)
 
     def _get_nic_names(self) -> List[str]:
         # identify all of the nics on the device, excluding tunnels and loopbacks etc.
