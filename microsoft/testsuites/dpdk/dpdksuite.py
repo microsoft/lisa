@@ -20,7 +20,7 @@ from lisa.tools import Echo, Git, Ip, Kill, Lsmod, Make, Modprobe
 from microsoft.testsuites.dpdk.dpdknffgo import DpdkNffGo
 from microsoft.testsuites.dpdk.dpdkovs import DpdkOvs
 from microsoft.testsuites.dpdk.dpdkutil import (
-    bind_nic_to_dpdk_pmd,
+    UIO_HV_GENERIC_SYSFS_PATH,
     enable_uio_hv_generic_for_nic,
     generate_send_receive_run_info,
     init_hugepages,
@@ -526,6 +526,7 @@ class Dpdk(TestSuite):
             - check that sysfs entry is created
             - unbind
             - check that the driver is unloaded.
+            - rebind to original driver
         """,
         priority=2,
         requirement=simple_requirement(
@@ -543,9 +544,11 @@ class Dpdk(TestSuite):
         node.nics.get_nic_driver(nic.upper)
         if nic.bound_driver == "hv_netvsc":
             enable_uio_hv_generic_for_nic(node, nic)
-        # 'don't care' if there was another driver bound,
-        #  we will bind to failsafe at the end either way
-        bind_nic_to_dpdk_pmd(node.nics, nic, "netvsc")
+
+        original_driver = nic.bound_driver
+        node.nics.unbind(nic)
+        node.nics.bind(nic, UIO_HV_GENERIC_SYSFS_PATH)
+
         node.execute(
             "test -e /dev/uio0",
             shell=True,
@@ -557,14 +560,18 @@ class Dpdk(TestSuite):
         assert_that(lsmod.module_exists("uio_hv_generic", force_run=True)).described_as(
             "uio_hv_generic was not found after bind"
         ).is_true()
-        bind_nic_to_dpdk_pmd(node.nics, nic, "failsafe")
+
+        node.nics.unbind(nic)
+        node.nics.bind(nic, original_driver)
         nic.bound_driver = node.nics.get_nic_driver(nic.upper)
+
         assert_that(nic.bound_driver).described_as(
             (
                 "Driver after unbind/rebind was unexpected. "
                 f"Expected hv_netvsc, found {nic.bound_driver}"
             )
         ).is_equal_to("hv_netvsc")
+
         modprobe.remove(["uio_hv_generic"])
         node.execute(
             "test -e /dev/uio0",

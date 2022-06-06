@@ -81,7 +81,7 @@ class DpdkTestpmd(Tool):
 
     _redhat_packages = [
         "psmisc",
-        "kernel-devel-$(uname -r)",
+        "kernel-devel",
         "numactl-devel.x86_64",
         "librdmacm-devel",
         "pkgconfig",
