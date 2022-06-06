@@ -292,8 +292,12 @@ class HvModule(TestSuite):
 
         dmesg = node.tools[Dmesg]
 
-        assert_that(dmesg.get_output()).contains(drv_reg_str)
-        assert_that(dmesg.get_output()).contains(drv_proto_str)
+        assert_that(drv_reg_str in dmesg.get_output()).described_as(
+                "registrating hv_balloon driver message "
+                "not found in dmesg").is_true()
+        assert_that(drv_proto_str in  dmesg.get_output()).described_as(
+                "Using Dynamic memory protocol version 2.0"
+                "not found in dmesg").is_true()
 
         param_hotadd_val = cat.read(
                 drv_param_hotadd, sudo=True, force_run=True)
