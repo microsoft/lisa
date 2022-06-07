@@ -154,11 +154,13 @@ class Xfstesting(TestSuite):
     def xfstesting_generic_standard_datadisk_validation(
         self, node: Node, log_path: Path
     ) -> None:
+        xfstests = self._install_xfstests(node)
         disk = node.features[Disk]
         data_disks = disk.get_raw_data_disks()
         self._execute_xfstests(
             node,
             log_path,
+            xfstests,
             data_disks[0],
             f"{data_disks[0]}1",
             f"{data_disks[0]}2",
@@ -183,11 +185,13 @@ class Xfstesting(TestSuite):
     def xfstesting_xfs_standard_datadisk_validation(
         self, node: Node, log_path: Path
     ) -> None:
+        xfstests = self._install_xfstests(node)
         disk = node.features[Disk]
         data_disks = disk.get_raw_data_disks()
         self._execute_xfstests(
             node,
             log_path,
+            xfstests,
             data_disks[0],
             f"{data_disks[0]}1",
             f"{data_disks[0]}2",
@@ -213,11 +217,13 @@ class Xfstesting(TestSuite):
     def xfstesting_ext4_standard_datadisk_validation(
         self, node: Node, log_path: Path
     ) -> None:
+        xfstests = self._install_xfstests(node)
         disk = node.features[Disk]
         data_disks = disk.get_raw_data_disks()
         self._execute_xfstests(
             node,
             log_path,
+            xfstests,
             data_disks[0],
             f"{data_disks[0]}1",
             f"{data_disks[0]}2",
@@ -244,11 +250,13 @@ class Xfstesting(TestSuite):
     def xfstesting_btrfs_standard_datadisk_validation(
         self, node: Node, log_path: Path
     ) -> None:
+        xfstests = self._install_xfstests(node)
         disk = node.features[Disk]
         data_disks = disk.get_raw_data_disks()
         self._execute_xfstests(
             node,
             log_path,
+            xfstests,
             data_disks[0],
             f"{data_disks[0]}1",
             f"{data_disks[0]}2",
@@ -271,11 +279,13 @@ class Xfstesting(TestSuite):
     def xfstesting_generic_nvme_datadisk_validation(
         self, node: Node, log_path: Path
     ) -> None:
+        xfstests = self._install_xfstests(node)
         nvme_disk = node.features[Nvme]
         nvme_data_disks = nvme_disk.get_raw_data_disks()
         self._execute_xfstests(
             node,
             log_path,
+            xfstests,
             nvme_data_disks[0],
             f"{nvme_data_disks[0]}p1",
             f"{nvme_data_disks[0]}p2",
@@ -296,11 +306,13 @@ class Xfstesting(TestSuite):
     def xfstesting_xfs_nvme_datadisk_validation(
         self, node: Node, log_path: Path
     ) -> None:
+        xfstests = self._install_xfstests(node)
         nvme_disk = node.features[Nvme]
         nvme_data_disks = nvme_disk.get_raw_data_disks()
         self._execute_xfstests(
             node,
             log_path,
+            xfstests,
             nvme_data_disks[0],
             f"{nvme_data_disks[0]}p1",
             f"{nvme_data_disks[0]}p2",
@@ -322,11 +334,13 @@ class Xfstesting(TestSuite):
     def xfstesting_ext4_nvme_datadisk_validation(
         self, node: Node, log_path: Path
     ) -> None:
+        xfstests = self._install_xfstests(node)
         nvme_disk = node.features[Nvme]
         nvme_data_disks = nvme_disk.get_raw_data_disks()
         self._execute_xfstests(
             node,
             log_path,
+            xfstests,
             nvme_data_disks[0],
             f"{nvme_data_disks[0]}p1",
             f"{nvme_data_disks[0]}p2",
@@ -349,11 +363,13 @@ class Xfstesting(TestSuite):
     def xfstesting_btrfs_nvme_datadisk_validation(
         self, node: Node, log_path: Path
     ) -> None:
+        xfstests = self._install_xfstests(node)
         nvme_disk = node.features[Nvme]
         nvme_data_disks = nvme_disk.get_raw_data_disks()
         self._execute_xfstests(
             node,
             log_path,
+            xfstests,
             nvme_data_disks[0],
             f"{nvme_data_disks[0]}p1",
             f"{nvme_data_disks[0]}p2",
@@ -383,6 +399,7 @@ class Xfstesting(TestSuite):
             raise UnsupportedDistroException(
                 node.os, "current distro not enable cifs module."
             )
+        xfstests = self._install_xfstests(node)
         version = _get_smb_version(node)
         fstab_info = (
             f"nofail,vers={version},credentials=/etc/smbcredentials/lisa.cred"
@@ -439,6 +456,7 @@ class Xfstesting(TestSuite):
             self._execute_xfstests(
                 node,
                 log_path,
+                xfstests,
                 test_dev=fs_url_dict[file_share_name],
                 scratch_dev=fs_url_dict[scratch_name],
                 excluded_tests=self.EXCLUDED_TESTS,
@@ -468,6 +486,7 @@ class Xfstesting(TestSuite):
         self,
         node: Node,
         log_path: Path,
+        xfstests: Xfstests,
         data_disk: str = "",
         test_dev: str = "",
         scratch_dev: str = "",
@@ -501,10 +520,7 @@ class Xfstesting(TestSuite):
                 {test_dev: _test_folder, scratch_dev: _scratch_folder},
                 file_system=file_system,
             )
-        try:
-            xfstests = node.tools[Xfstests]
-        except UnsupportedDistroException as identifier:
-            raise SkippedException(identifier)
+
         xfstests.set_local_config(
             scratch_dev,
             _scratch_folder,
@@ -522,3 +538,10 @@ class Xfstesting(TestSuite):
             timeout=self.TIME_OUT,
         )
         xfstests.check_test_results(cmd_results.stdout, log_path)
+
+    def _install_xfstests(self, node: Node) -> Xfstests:
+        try:
+            xfstests = node.tools[Xfstests]
+            return xfstests
+        except UnsupportedDistroException as identifier:
+            raise SkippedException(identifier)
