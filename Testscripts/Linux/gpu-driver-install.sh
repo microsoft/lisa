@@ -59,7 +59,7 @@ function skip_test() {
 			fi
 			if [[ $DISTRO == "ubuntu_x" ]]; then
 				# skip other ubuntu version than 16.04, 18.04, 20.04, 21.04
-				if [[ $VERSION_ID != "16.04" && $VERSION_ID != "18.04" && $VERSION_ID != "20.04" && $VERSION_ID != "21.04" ]]; then
+				if [[ $VERSION_ID != "16.04" && $VERSION_ID != "18.04" && $VERSION_ID != "20.04" && $VERSION_ID != "21.04" && $VERSION_ID != "21.10" && $VERSION_ID != "22.04" ]]; then
 					unsupport_flag=1
 				fi
 			fi
@@ -125,26 +125,19 @@ function InstallCUDADrivers() {
 
 	ubuntu*)
 		GetOSVersion
-		# Temporary fix till driver for ubuntu19 and ubuntu20 series list under http://developer.download.nvidia.com/compute/cuda/repos/
-		if [[ $os_RELEASE =~ 19.* ]] || [[ $os_RELEASE =~ 20.* ]] || [[ $os_RELEASE =~ 21.* ]]; then
-			LogMsg "There is no cuda driver for $os_RELEASE, used the one for 18.10"
-			os_RELEASE="18.10"
-		fi
-		CUDA_REPO_PKG="cuda-repo-ubuntu${os_RELEASE//./}_${CUDADriverVersion}_amd64.deb"
-		LogMsg "Using ${CUDA_REPO_PKG}"
-
-		wget http://developer.download.nvidia.com/compute/cuda/repos/ubuntu"${os_RELEASE//./}"/x86_64/"${CUDA_REPO_PKG}" -O /tmp/"${CUDA_REPO_PKG}"
-		if [ $? -ne 0 ]; then
-			LogErr "Failed to download ${CUDA_REPO_PKG}"
-			SetTestStateAborted
-			return 1
+		if [[ $os_RELEASE == 16.04 ]] || [[ $os_RELEASE == 18.04 ]] || [[ $os_RELEASE == 20.04 ]] || [[ $os_RELEASE == 22.04 ]]; then
+			LogMsg "Proceeding with installation for $os_RELEASE"
+			release="${os_RELEASE//./}"
 		else
-			LogMsg "Successfully downloaded ${CUDA_REPO_PKG}"
+			# for versions which not in below list will try to use 1804
+			release="1804"
 		fi
-
-		apt-key adv --fetch-keys http://developer.download.nvidia.com/compute/cuda/repos/ubuntu"${os_RELEASE//./}"/x86_64/7fa2af80.pub
-		dpkg -i /tmp/"${CUDA_REPO_PKG}"
-		LogMsg "Installed ${CUDA_REPO_PKG}"
+		if [[ $os_RELEASE == 16.04 ]]; then
+			apt install -y gnupg-curl
+		fi
+		wget -O "/etc/apt/preferences.d/cuda-repository-pin-600" "https://developer.download.nvidia.com/compute/cuda/repos/ubuntu$release/x86_64/cuda-ubuntu$release.pin"
+		apt-key adv --fetch-keys "https://developer.download.nvidia.com/compute/cuda/repos/ubuntu$release/x86_64/3bf863cc.pub"
+		add-apt-repository -y "deb http://developer.download.nvidia.com/compute/cuda/repos/ubuntu$release/x86_64/ /"
 		dpkg_configure
 		apt update
 

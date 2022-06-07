@@ -57,30 +57,28 @@ install_azure_dcap_client() {
     #======================================
     pushd .
     cd ~
-    
+
     git clone https://github.com/microsoft/Azure-DCAP-Client.git
- 
+
     # Adding permissions to be able to switch branches
     sudo chown -R $(whoami):$(whoami) ~/Azure-DCAP-Client/
- 
+
     cd ~/Azure-DCAP-Client/
- 
+    sudo add-apt-repository ppa:team-xbmc/ppa -y
     sudo apt-get update -y
     sudo apt-get install -y libgtest-dev libcurl4-openssl-dev
     sudo apt-get install -y cmake
+    sudo apt-get install -y nlohmann-json3-dev
     cd /usr/src/gtest
     sudo cmake CMakeLists.txt
     sudo make
- 
-    # Copy or symlink libgtest.a and libgtest_main.a to /usr/lib folder.
-    sudo cp *.a /usr/lib
- 
+
     # Building library.
     cd ~/Azure-DCAP-Client/src/Linux/
     sudo ./configure
     sudo make
     sudo make install
- 
+
     # Ensure correct DCAP quote provider is picked up
     if [ -f /usr/lib/libdcap_quoteprov.so ] && [ -f /usr/local/lib/libdcap_quoteprov.so ];
     then
@@ -91,10 +89,10 @@ install_azure_dcap_client() {
     else
         echo "Could not find /usr/lib/libdcap_quoteprov.so and /usr/local/lib/libdcap_quoteprov.so"
     fi
- 
+
     echo "Printing information about /usr/lib/libdcap_quoteprov.so"
     ls -l /usr/lib/libdcap_quoteprov.so
- 
+
     echo "Printing environment variables after DCAP setup"
     printenv
     echo "Done printing environment variables after DCAP setup"

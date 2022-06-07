@@ -48,7 +48,7 @@ update_repos
 LogMsg "Installing dependencies"
 common_packages=(m4 bison flex make gcc psmisc autoconf automake)
 # RedHat 8 does no longer have the ntp package
-if [[ $DISTRO != redhat_8 ]]; then
+if [[ $DISTRO != redhat_8 ]] && [[ $DISTRO != almalinux_8 ]]; then
 	common_packages+=(ntp)
 fi
 update_repos
@@ -72,7 +72,7 @@ case $DISTRO in
     "redhat"* | "centos"* | "fedora"* | "almalinux"* | "rockylinux"*)
 		rpm_packages=(git libaio-devel libattr libcap-devel libdb)
 		# this must be revised later once epel_8 is available
-		if [[ $DISTRO != redhat_8 ]]; then
+		if [[ $DISTRO != redhat_8 ]] && [[ $DISTRO != almalinux_8 ]]; then
 			rpm_packages+=(db4-utils)
 		fi
 		install_epel
