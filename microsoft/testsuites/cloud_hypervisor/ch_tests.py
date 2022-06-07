@@ -18,7 +18,7 @@ from microsoft.testsuites.cloud_hypervisor.ch_tests_tool import CloudHypervisorT
 
 
 @TestSuiteMetadata(
-    area="kvm",
+    area="cloud-hypervisor",
     category="community",
     description="""
     This test suite is for executing the tests maintained in the
