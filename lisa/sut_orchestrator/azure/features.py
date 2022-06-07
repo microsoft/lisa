@@ -763,7 +763,12 @@ class Disk(AzureFeatureMixin, features.Disk):
             "ls -d /dev/disk/azure/scsi1/*", shell=True, sudo=True
         )
         matched = find_patterns_in_lines(cmd_result.stdout, [pattern])
-        assert matched[0]
+        # https://docs.microsoft.com/en-us/troubleshoot/azure/virtual-machines/troubleshoot-device-names-problems#get-the-latest-azure-storage-rules  # noqa: E501
+        assert matched[0], (
+            "no data disks found under folder /dev/disk/azure/scsi1/,"
+            " please check data disks exist or not, also check udev"
+            " rule which is to construct a set of symbolic links exist or not"
+        )
         matched_disk_array = set(matched[0])
         disk_array: List[str] = [""] * len(matched_disk_array)
         for disk in matched_disk_array:
