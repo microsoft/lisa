@@ -1394,24 +1394,6 @@ class CentOs(Redhat):
             saved_path / "centos-release.txt",
         )
 
-    def _initialize_package_installation(self) -> None:
-        # refer https://www.centos.org/centos-linux-eol/
-        # CentOS is EOL, old repo mirror was moved to vault.centos.org
-        # if there is no mirror used, nothing will be changed
-        sed = self._node.tools[Sed]
-        sed.substitute(
-            regexp="mirrorlist",
-            replacement="#mirrorlist",
-            file="/etc/yum.repos.d/CentOS-*",
-            sudo=True,
-        )
-        sed.substitute(
-            regexp="#baseurl=http:\\/\\/mirror.centos.org",
-            replacement="baseurl=http:\\/\\/vault.centos.org",
-            file="/etc/yum.repos.d/CentOS-*",
-            sudo=True,
-        )
-
 
 class Oracle(Redhat):
     @classmethod
