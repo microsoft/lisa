@@ -11,7 +11,12 @@ from lisa.base_tools import Cat, Wget
 from lisa.executable import Tool
 from lisa.operating_system import CoreOs, Redhat
 from lisa.tools import Gcc, Modinfo, PowerShell, Uname
-from lisa.util import LisaException, find_patterns_in_lines, get_matched_str
+from lisa.util import (
+    LisaException,
+    UnsupportedDistroException,
+    find_patterns_in_lines,
+    get_matched_str,
+)
 from lisa.util.process import ExecutableResult
 
 
@@ -193,7 +198,9 @@ class LisDriver(Tool):
         ):
             return True
 
-        return False
+        raise UnsupportedDistroException(
+            self.node.os, "lis driver can't be installed on this distro"
+        )
 
     def download(self) -> PurePath:
         if not self.node.shell.exists(self.node.working_path.joinpath("LISISO")):

@@ -11,7 +11,12 @@ from lisa.operating_system import CentOs, Redhat
 from lisa.sut_orchestrator.azure.tools import LisDriver
 from lisa.testsuite import simple_requirement
 from lisa.tools import Cat, Df, Fallocate, Modinfo, Rpm, Stat, Uname, Wget
-from lisa.util import LisaException, SkippedException, get_matched_str
+from lisa.util import (
+    LisaException,
+    SkippedException,
+    UnsupportedDistroException,
+    get_matched_str,
+)
 
 
 @TestSuiteMetadata(
@@ -50,7 +55,7 @@ class Lis(TestSuite):
         cat = node.tools[Cat]
         modinfo_tool = node.tools[Modinfo]
         wget_tool = node.tools[Wget]
-        node.tools[LisDriver]
+        self._check_lis_installable(node)
 
         # Checking for RPM Package Manager
         rpm_qa = node.execute("rpm -qa").stdout
@@ -121,16 +126,7 @@ class Lis(TestSuite):
     def _verify_lis_preinstall_disk_size(
         self, node: Node, log: Logger, test_type: str = "positive"
     ) -> None:
-        try:
-            lisdriver = node.tools[LisDriver]
-        except Exception as identifier:
-            if "cannot find [lisdriver]" in str(identifier):
-                raise SkippedException(
-                    f"lis driver doesn't support current distro {node.os.name}, "
-                    f"version {node.os.information.version}"
-                )
-            else:
-                raise identifier
+        lisdriver = self._check_lis_installable(node)
         fallocate = node.tools[Fallocate]
         stat = node.tools[Stat]
         df = node.tools[Df]
@@ -241,6 +237,13 @@ class Lis(TestSuite):
             "Detected version and Source version are different for hex value. Expected"
             f" LIS version: {source_version_hex}, Actual LIS version: {version_hex}"
         )
+
+    def _check_lis_installable(self, node: Node) -> LisDriver:
+        try:
+            lisdriver = node.tools[LisDriver]
+            return lisdriver
+        except UnsupportedDistroException as err:
+            raise SkippedException(err)
 
     def _clean_up_files(self, node: Node) -> None:
         node.execute("rm -f /lib/modules/file.out", sudo=True)
