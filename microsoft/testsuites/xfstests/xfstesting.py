@@ -250,6 +250,7 @@ class Xfstesting(TestSuite):
     def xfstesting_btrfs_standard_datadisk_validation(
         self, node: Node, log_path: Path
     ) -> None:
+        self._check_btrfs_supported(node)
         xfstests = self._install_xfstests(node)
         disk = node.features[Disk]
         data_disks = disk.get_raw_data_disks()
@@ -363,6 +364,7 @@ class Xfstesting(TestSuite):
     def xfstesting_btrfs_nvme_datadisk_validation(
         self, node: Node, log_path: Path
     ) -> None:
+        self._check_btrfs_supported(node)
         xfstests = self._install_xfstests(node)
         nvme_disk = node.features[Nvme]
         nvme_data_disks = nvme_disk.get_raw_data_disks()
@@ -506,12 +508,6 @@ class Xfstesting(TestSuite):
         ):
             excluded_tests += " generic/641"
 
-        if test_type == FileSystem.btrfs.name:
-            if not node.tools[KernelConfig].is_enabled("CONFIG_BTRFS_FS"):
-                raise SkippedException(
-                    "Current distro doesn't support btrfs file system."
-                )
-
         # prepare data disk when xfstesting target is data disk
         if data_disk:
             _prepare_data_disk(
@@ -545,3 +541,7 @@ class Xfstesting(TestSuite):
             return xfstests
         except UnsupportedDistroException as identifier:
             raise SkippedException(identifier)
+
+    def _check_btrfs_supported(self, node: Node) -> None:
+        if not node.tools[KernelConfig].is_enabled("CONFIG_BTRFS_FS"):
+            raise SkippedException("Current distro doesn't support btrfs file system.")
