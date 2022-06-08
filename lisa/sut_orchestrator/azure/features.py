@@ -276,7 +276,7 @@ class NetworkInterface(AzureFeatureMixin, features.NetworkInterface):
         super()._initialize(*args, **kwargs)
         self._initialize_information(self._node)
 
-    def switch_sriov(self, enable: bool) -> None:
+    def switch_sriov(self, enable: bool, wait: bool = True) -> None:
         azure_platform: AzurePlatform = self._platform  # type: ignore
         network_client = get_network_client(azure_platform)
         vm = get_vm(azure_platform, self._node)
@@ -313,7 +313,8 @@ class NetworkInterface(AzureFeatureMixin, features.NetworkInterface):
                 ).is_equal_to(enable)
 
         # wait settings effective
-        self._check_sriov_enabled(enable)
+        if wait:
+            self._check_sriov_enabled(enable)
 
     def is_enabled_sriov(self) -> bool:
         azure_platform: AzurePlatform = self._platform  # type: ignore

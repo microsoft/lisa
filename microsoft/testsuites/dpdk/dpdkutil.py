@@ -244,7 +244,7 @@ def run_testpmd_concurrent(
 
         # disable sriov
         for node_resources in test_kits:
-            node_resources.nic_controller.switch_sriov(enable=False)
+            node_resources.nic_controller.switch_sriov(enable=False, wait=False)
 
         # wait for disable to hit the vm
         for node_resources in test_kits:
@@ -258,7 +258,7 @@ def run_testpmd_concurrent(
 
         # re-enable sriov
         for node_resources in test_kits:
-            node_resources.nic_controller.switch_sriov(enable=True)
+            node_resources.nic_controller.switch_sriov(enable=True, wait=False)
 
         # wait for re-enable to hit vms
         for node_resources in test_kits:
