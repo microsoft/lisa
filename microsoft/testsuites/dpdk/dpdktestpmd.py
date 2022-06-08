@@ -260,20 +260,14 @@ class DpdkTestpmd(Tool):
             cmd,
             sudo=True,
         )
-        self.timer_proc.wait_result()
         proc_result = testpmd_proc.wait_result()
         self._last_run_output = proc_result.stdout
         self.populate_performance_data()
         return proc_result.stdout
 
     def kill_previous_testpmd_command(self) -> None:
-        # kill testpmd early, then kill the timer proc that is still running
-        assert_that(self.timer_proc).described_as(
-            "Timer process was not initialized before "
-            "calling kill_previous_testpmd_command"
-        ).is_not_none()
+        # kill testpmd early
         self.node.execute(f"killall -s INT {self.command}", sudo=True, shell=True)
-        self.timer_proc.kill()
 
     def get_data_from_testpmd_output(
         self,
