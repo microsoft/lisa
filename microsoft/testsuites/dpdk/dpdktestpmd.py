@@ -2,6 +2,7 @@
 # Licensed under the MIT license.
 
 import re
+from pathlib import PurePosixPath
 from typing import List, Pattern, Tuple, Type, Union
 
 from assertpy import assert_that, fail
@@ -49,7 +50,7 @@ class DpdkTestpmd(Tool):
     def command(self) -> str:
         return self._testpmd_install_path
 
-    _testpmd_install_path = "/usr/local/bin/dpdk-testpmd"
+    _testpmd_install_path = ""
     _ubuntu_packages_1804 = [
         "librdmacm-dev",
         "build-essential",
@@ -425,14 +426,11 @@ class DpdkTestpmd(Tool):
 
             self._dpdk_version_info = node.os.get_package_information("dpdk")
 
-            if self._dpdk_version_info >= "19.11.0":
-                self._testpmd_install_path = "dpdk-testpmd"
-            else:
-                self._testpmd_install_path = "testpmd"
             self.node.log.info(
                 f"Installed DPDK version {str(self._dpdk_version_info)} "
                 "from package manager"
             )
+            self.find_testpmd_binary()
             self._load_drivers_for_dpdk()
             return True
 
@@ -440,8 +438,10 @@ class DpdkTestpmd(Tool):
         self.node.log.info(f"Installing dpdk from source: {self._dpdk_source}")
         self._dpdk_repo_path_name = "dpdk"
         self.dpdk_path = self.node.working_path.joinpath(self._dpdk_repo_path_name)
-        result = self.node.execute("which dpdk-testpmd")
-        if result.exit_code == 0:  # tools are already installed
+
+        if self.find_testpmd_binary(
+            assert_on_fail=False
+        ):  # tools are already installed
             return True
         git_tool = node.tools[Git]
         echo_tool = node.tools[Echo]
@@ -546,6 +546,8 @@ class DpdkTestpmd(Tool):
             node.get_pure_path("~/.bashrc"),
             append=True,
         )
+
+        self.find_testpmd_binary(check_path="/usr/local/bin")
 
         return True
 
@@ -764,6 +766,28 @@ class DpdkTestpmd(Tool):
                 "Could not upgrade pyelftools with pip3."
             ),
         )
+
+    def find_testpmd_binary(
+        self, check_path: str = "", assert_on_fail: bool = True
+    ) -> bool:
+        node = self.node
+        if self._testpmd_install_path:
+            return True
+        for bin_name in ["dpdk-testpmd", "testpmd"]:
+            if check_path:
+                bin_path = PurePosixPath(check_path).joinpath(bin_name)
+                bin_name = str(bin_path)
+            result = node.execute(f"which {bin_name}")
+            if result.exit_code == 0:
+                self._testpmd_install_path = result.stdout.strip()
+                break
+        found_path = PurePosixPath(self._testpmd_install_path)
+        path_check = bool(self._testpmd_install_path) and node.shell.exists(found_path)
+        if assert_on_fail and not path_check:
+            fail("Could not locate testpmd binary after installation!")
+        elif not path_check:
+            self._testpmd_install_path = ""
+        return path_check
 
     def _split_testpmd_output(self) -> None:
         search_str = "Port 0: device removal event"
