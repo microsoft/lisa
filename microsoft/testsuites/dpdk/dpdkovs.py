@@ -107,7 +107,7 @@ class DpdkOvs(Tool):
         return True
 
     def _check_ovs_dpdk_compatibility(self, dpdk_tool: DpdkTestpmd) -> None:
-        dpdk_version = dpdk_tool.get_dpdk_branch()
+        dpdk_version = dpdk_tool.get_dpdk_version()
         # confirm supported ovs:dpdk version pairing based on
         # https://docs.openvswitch.org/en/latest/faq/releases/
         # to account for minor releases check release is below a major version threshold

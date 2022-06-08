@@ -17,6 +17,8 @@ from lisa.tools import Lscpu
 from lisa.util import constants
 from microsoft.testsuites.dpdk.dpdkutil import (
     DpdkTestResources,
+    SkippedException,
+    UnsupportedPackageVersionException,
     verify_dpdk_send_receive,
     verify_dpdk_send_receive_multi_txrx_queue,
 )
@@ -251,14 +253,17 @@ class DpdkPerformance(TestSuite):
         else:
             core_count_argument = 0  # expected default, test will use 2 cores.
 
-        if use_queues:
-            send_kit, receive_kit = verify_dpdk_send_receive_multi_txrx_queue(
-                environment, log, variables, pmd
-            )
-        else:
-            send_kit, receive_kit = verify_dpdk_send_receive(
-                environment, log, variables, pmd, core_count_argument
-            )
+        try:
+            if use_queues:
+                send_kit, receive_kit = verify_dpdk_send_receive_multi_txrx_queue(
+                    environment, log, variables, pmd
+                )
+            else:
+                send_kit, receive_kit = verify_dpdk_send_receive(
+                    environment, log, variables, pmd, core_count_argument
+                )
+        except UnsupportedPackageVersionException as err:
+            raise SkippedException(err)
 
         # gather the performance data into message format
         result_messages = self._create_pps_performance_results(

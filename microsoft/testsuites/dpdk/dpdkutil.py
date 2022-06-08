@@ -5,6 +5,7 @@ from functools import partial
 from typing import Any, Dict, List, Tuple, Union
 
 from assertpy import assert_that, fail
+from semver import VersionInfo
 
 from lisa import (
     Environment,
@@ -18,11 +19,45 @@ from lisa import (
 )
 from lisa.features import NetworkInterface
 from lisa.nic import NicInfo, Nics
+from lisa.operating_system import OperatingSystem
 from lisa.tools import Dmesg, Echo, Lsmod, Lspci, Modprobe, Mount
 from lisa.tools.mkfs import FileSystem
 from lisa.util import perf_timer
 from lisa.util.parallel import TaskManager, run_in_parallel, run_in_parallel_async
 from microsoft.testsuites.dpdk.dpdktestpmd import PACKAGE_MANAGER_SOURCE, DpdkTestpmd
+
+
+# DPDK added new flags in 19.11 that some tests rely on for send/recv
+# Adding an exception so we don't have to catch all LisaExceptions
+class UnsupportedPackageVersionException(LisaException):
+    """
+    Exception to indicate that a required package does not support a
+    feature or function needed for a specific test.
+    """
+
+    def __init__(
+        self,
+        os: "OperatingSystem",
+        package_name: str,
+        package_version: VersionInfo,
+        missing_feature: str,
+        message: str = "",
+    ) -> None:
+        self.name = os.name
+        self.version = os.information.full_version
+        self._extended_message = message
+        self.package_info = f"{package_name}: {str(package_version)}"
+        self.missing_feature = missing_feature
+
+    def __str__(self) -> str:
+        message = (
+            f"Detected incompatible package on: '{self.version}'."
+            f"Package {self.package_info} does not support an operation "
+            f"required for this test: {self.missing_feature}"
+        )
+        if self._extended_message:
+            message = f"{message}. {self._extended_message}"
+        return message
 
 
 class DpdkTestResources:
@@ -230,6 +265,17 @@ def initialize_node_resources(
     return DpdkTestResources(node, testpmd)
 
 
+def check_send_receive_compatibility(test_kits: List[DpdkTestResources]) -> None:
+    for kit in test_kits:
+        if not kit.testpmd.has_tx_ip_flag():
+            raise UnsupportedPackageVersionException(
+                kit.node.os,
+                "dpdk",
+                kit.testpmd.get_dpdk_version(),
+                "-tx-ip flag for ip forwarding",
+            )
+
+
 def run_testpmd_concurrent(
     node_cmd_pairs: Dict[DpdkTestResources, str],
     seconds: int,
@@ -368,7 +414,11 @@ def verify_dpdk_send_receive(
     log.debug((f"\nsender:{external_ips[0]}\nreceiver:{external_ips[1]}\n"))
 
     test_kits = init_nodes_concurrent(environment, log, variables, pmd)
+
+    check_send_receive_compatibility(test_kits)
+
     sender, receiver = test_kits
+
     kit_cmd_pairs = generate_send_receive_run_info(
         pmd, sender, receiver, core_count=core_count
     )
@@ -400,6 +450,9 @@ def verify_dpdk_send_receive_multi_txrx_queue(
 ) -> Tuple[DpdkTestResources, DpdkTestResources]:
 
     test_kits = init_nodes_concurrent(environment, log, variables, pmd)
+
+    check_send_receive_compatibility(test_kits)
+
     sender, receiver = test_kits
 
     kit_cmd_pairs = generate_send_receive_run_info(

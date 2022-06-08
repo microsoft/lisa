@@ -125,8 +125,19 @@ class DpdkTestpmd(Tool):
     def set_dpdk_branch(self, dpdk_branch: str) -> None:
         self._dpdk_branch = dpdk_branch
 
-    def get_dpdk_branch(self) -> VersionInfo:
+    def get_dpdk_version(self) -> VersionInfo:
         return self._dpdk_version_info
+
+    def has_tx_ip_flag(self) -> bool:
+        dpdk_version = self.get_dpdk_version()
+        if not dpdk_version:
+            fail(
+                "Test suite bug: dpdk version was not set prior "
+                "to querying the version information."
+            )
+
+        # black doesn't like to direct return VersionInfo comparison
+        return bool(dpdk_version >= "19.11.0")  # appease the type checker
 
     def use_package_manager_install(self) -> bool:
         assert_that(hasattr(self, "_dpdk_source")).described_as(

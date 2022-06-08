@@ -10,6 +10,7 @@ from lisa import (
     Environment,
     Logger,
     Node,
+    SkippedException,
     TestCaseMetadata,
     TestSuite,
     TestSuiteMetadata,
@@ -20,7 +21,9 @@ from lisa.tools import Echo, Git, Ip, Kill, Lsmod, Make, Modprobe
 from microsoft.testsuites.dpdk.dpdknffgo import DpdkNffGo
 from microsoft.testsuites.dpdk.dpdkovs import DpdkOvs
 from microsoft.testsuites.dpdk.dpdkutil import (
+    UnsupportedPackageVersionException,
     bind_nic_to_dpdk_pmd,
+    check_send_receive_compatibility,
     enable_uio_hv_generic_for_nic,
     generate_send_receive_run_info,
     init_hugepages,
@@ -264,6 +267,12 @@ class Dpdk(TestSuite):
     ) -> None:
 
         test_kits = init_nodes_concurrent(environment, log, variables, "failsafe")
+
+        try:
+            check_send_receive_compatibility(test_kits)
+        except UnsupportedPackageVersionException:
+            raise SkippedException(UnsupportedPackageVersionException)
+
         sender, receiver = test_kits
 
         kit_cmd_pairs = generate_send_receive_run_info("failsafe", sender, receiver)
@@ -455,9 +464,12 @@ class Dpdk(TestSuite):
     def verify_dpdk_send_receive_multi_txrx_queue_failsafe(
         self, environment: Environment, log: Logger, variables: Dict[str, Any]
     ) -> None:
-        verify_dpdk_send_receive_multi_txrx_queue(
-            environment, log, variables, "failsafe"
-        )
+        try:
+            verify_dpdk_send_receive_multi_txrx_queue(
+                environment, log, variables, "failsafe"
+            )
+        except UnsupportedPackageVersionException as err:
+            raise SkippedException(err)
 
     @TestCaseMetadata(
         description="""
@@ -477,7 +489,12 @@ class Dpdk(TestSuite):
     def verify_dpdk_send_receive_multi_txrx_queue_netvsc(
         self, environment: Environment, log: Logger, variables: Dict[str, Any]
     ) -> None:
-        verify_dpdk_send_receive_multi_txrx_queue(environment, log, variables, "netvsc")
+        try:
+            verify_dpdk_send_receive_multi_txrx_queue(
+                environment, log, variables, "netvsc"
+            )
+        except UnsupportedPackageVersionException as err:
+            raise SkippedException(err)
 
     @TestCaseMetadata(
         description="""
@@ -497,7 +514,10 @@ class Dpdk(TestSuite):
     def verify_dpdk_send_receive_failsafe(
         self, environment: Environment, log: Logger, variables: Dict[str, Any]
     ) -> None:
-        verify_dpdk_send_receive(environment, log, variables, "failsafe")
+        try:
+            verify_dpdk_send_receive(environment, log, variables, "failsafe")
+        except UnsupportedPackageVersionException as err:
+            raise SkippedException(err)
 
     @TestCaseMetadata(
         description="""
@@ -517,7 +537,11 @@ class Dpdk(TestSuite):
     def verify_dpdk_send_receive_netvsc(
         self, environment: Environment, log: Logger, variables: Dict[str, Any]
     ) -> None:
-        verify_dpdk_send_receive(environment, log, variables, "netvsc")
+
+        try:
+            verify_dpdk_send_receive(environment, log, variables, "netvsc")
+        except UnsupportedPackageVersionException as err:
+            raise SkippedException(err)
 
     @TestCaseMetadata(
         description="""
