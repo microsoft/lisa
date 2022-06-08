@@ -15,7 +15,7 @@ from lisa import (
     search_space,
 )
 from lisa.tools import Lscpu
-from lisa.utils import SkippedException
+from lisa.util import SkippedException
 from microsoft.testsuites.cloud_hypervisor.ch_tests_tool import CloudHypervisorTests
 
 
@@ -42,7 +42,7 @@ class CloudHypervisorTestSuite(TestSuite):
     def verify_cloud_hypervisor_integration_tests(
         self, log: Logger, node: Node, log_path: Path
     ) -> None:
-        self._ensure_virtualization_enabled()
+        self._ensure_virtualization_enabled(node)
         skip_tests = ["test_vfio"]
         failures = node.tools[CloudHypervisorTests].run_tests("integration", skip_tests)
         assert_that(failures).is_empty()
@@ -61,13 +61,13 @@ class CloudHypervisorTestSuite(TestSuite):
     def verify_cloud_hypervisor_live_migration_tests(
         self, log: Logger, node: Node, log_path: Path
     ) -> None:
-        self._ensure_virtualization_enabled()
+        self._ensure_virtualization_enabled(node)
         failures = node.tools[CloudHypervisorTests].run_tests(
             "integration-live-migration"
         )
         assert_that(failures).is_empty()
 
-    def _ensure_virtualization_support(self) -> None:
-        virtualization_enabled = self.node.tools[Lscpu].is_virtualization_enabled()
+    def _ensure_virtualization_enabled(self, node: Node) -> None:
+        virtualization_enabled = node.tools[Lscpu].is_virtualization_enabled()
         if not virtualization_enabled:
             raise SkippedException("Virtualization is not enabled in hardware")
