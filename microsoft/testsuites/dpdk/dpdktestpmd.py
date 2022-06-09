@@ -11,7 +11,7 @@ from semver import VersionInfo
 from lisa.executable import Tool
 from lisa.nic import NicInfo
 from lisa.operating_system import Debian, Fedora, Oracle, Redhat, Suse, Ubuntu
-from lisa.tools import Echo, Git, Lscpu, Lspci, Modprobe, Service, Tar, Wget
+from lisa.tools import Echo, Git, Lscpu, Lspci, Modprobe, Service, Tar, Unzip, Wget
 from lisa.util import (
     LisaException,
     MissingPackagesException,
@@ -739,14 +739,10 @@ class DpdkTestpmd(Tool):
             file_path=cwd.as_posix(),
             filename="ninja-linux.zip",
         )
-        node.execute(
-            "unzip ninja-linux.zip",
-            cwd=cwd,
+        node.tools[Unzip].extract(
+            file=str(cwd.joinpath("ninja-linux.zip")),
+            dest_dir=str(cwd),
             sudo=True,
-            expected_exit_code=0,
-            expected_exit_code_failure_message=(
-                "Failed to unzip latest ninja-linux.zip from github."
-            ),
         )
         node.execute(
             "mv ninja /usr/bin/ninja",
