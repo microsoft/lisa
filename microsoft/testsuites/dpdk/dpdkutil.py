@@ -18,7 +18,7 @@ from lisa import (
     constants,
 )
 from lisa.features import NetworkInterface
-from lisa.nic import NicInfo, Nics
+from lisa.nic import NicInfo
 from lisa.operating_system import OperatingSystem
 from lisa.tools import Dmesg, Echo, Lsmod, Lspci, Modprobe, Mount
 from lisa.tools.mkfs import FileSystem
@@ -170,23 +170,8 @@ def generate_send_receive_run_info(
     return kit_cmd_pairs
 
 
-def bind_nic_to_dpdk_pmd(nics: Nics, nic: NicInfo, pmd: str) -> None:
-    current_driver = nics.get_nic_driver(nic.upper)
-    if pmd == "netvsc":
-        if current_driver == "uio_hv_generic":
-            return
-        # bind_dev_to_new_driver
-        nics.unbind(nic, current_driver)
-        nics.bind(nic, "uio_hv_generic")
-        nic.bound_driver = "uio_hv_generic"
-    elif pmd == "failsafe":
-        if current_driver == "hv_netvsc":
-            return
-        nics.unbind(nic, current_driver)
-        nics.bind(nic, "hv_netvsc")
-        nic.bound_driver = "hv_netvsc"
-    else:
-        fail(f"Unrecognized pmd {pmd} passed to test init procedure.")
+UIO_HV_GENERIC_SYSFS_PATH = "/sys/bus/vmbus/drivers/uio_hv_generic"
+HV_NETVSC_SYSFS_PATH = "/sys/bus/vmbus/drivers/hv_netvsc"
 
 
 def enable_uio_hv_generic_for_nic(node: Node, nic: NicInfo) -> None:
@@ -237,8 +222,6 @@ def initialize_node_resources(
     # dump some info about the pci devices before we start
     lspci = node.tools[Lspci]
     log.info(f"Node[{node.name}] LSPCI Info:\n{lspci.run().stdout}\n")
-    # init and enable hugepages (required by dpdk)
-    init_hugepages(node)
 
     # initialize testpmd tool (installs dpdk)
     testpmd = DpdkTestpmd(node)
@@ -251,17 +234,31 @@ def initialize_node_resources(
         # forward message from distro exception
         raise SkippedException(err)
 
+    # init and enable hugepages (required by dpdk)
+    init_hugepages(node)
+
     assert_that(len(node.nics)).described_as(
         "Test needs at least 1 NIC on the test node."
     ).is_greater_than_or_equal_to(1)
 
-    nic_to_bind = node.nics.get_nic_by_index()
+    test_nic = node.nics.get_nic_by_index()
+
+    # check an assumption that our nics are bound to hv_netvsc
+    # at test start.
+
+    assert_that(test_nic.bound_driver).described_as(
+        f"Error: Expected test nic {test_nic.upper} to be "
+        f"bound to hv_netvsc. Found {test_nic.bound_driver}."
+    ).is_equal_to("hv_netvsc")
 
     # netvsc pmd requires uio_hv_generic to be loaded before use
     if pmd == "netvsc":
-        enable_uio_hv_generic_for_nic(node, nic_to_bind)
+        enable_uio_hv_generic_for_nic(node, test_nic)
+        # if this device is paired, set the upper device 'down'
+        if test_nic.lower:
+            node.nics.unbind(test_nic)
+            node.nics.bind(test_nic, UIO_HV_GENERIC_SYSFS_PATH)
 
-    bind_nic_to_dpdk_pmd(node.nics, nic_to_bind, pmd)
     return DpdkTestResources(node, testpmd)
 
 
