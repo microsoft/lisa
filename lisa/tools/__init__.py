@@ -59,6 +59,7 @@ from .nvidiasmi import NvidiaSmi
 from .nvmecli import Nvmecli
 from .parted import Parted
 from .pgrep import Pgrep, ProcessInfo
+from .pidof import Pidof
 from .ping import Ping
 from .powershell import PowerShell
 from .python import Pip, Python
@@ -151,6 +152,7 @@ __all__ = [
     "NvidiaSmi",
     "Nvmecli",
     "Parted",
+    "Pidof",
     "Pgrep",
     "Ping",
     "Pip",

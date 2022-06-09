@@ -1,9 +1,10 @@
 # Copyright (c) Microsoft Corporation.
 # Licensed under the MIT license.
 
+
 from lisa.executable import Tool
 
-from .pgrep import Pgrep
+from .pidof import Pidof
 
 
 class Kill(Tool):
@@ -21,9 +22,22 @@ class Kill(Tool):
         return False
 
     def by_name(self, process_name: str, signum: int = SIGKILL) -> None:
-        running_processes = self.node.tools[Pgrep].get_processes(process_name)
-        for process in running_processes:
-            self.by_pid(process.id, signum)
+
+        # attempt kill by name first
+        kill_by_name = self.run(
+            f"-s {signum} {process_name}", sudo=True, shell=True, force_run=True
+        )
+        if kill_by_name.exit_code == 0:
+            return
+
+        # fallback to kill by pid if first attempt fails for some reason
+        pids = self.node.tools[Pidof].get_pids(process_name)
+        for pid in pids:
+            self.by_pid(pid, signum)
+        else:
+            self._log.debug(
+                f"Kill for {process_name} did not find any processes to kill."
+            )
 
     def by_pid(self, pid: str, signum: int = SIGKILL) -> None:
         self.run(
