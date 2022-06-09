@@ -70,9 +70,9 @@ class DpdkTestResources:
         test_nic = self.node.nics.get_nic_by_index()
         # generate hotplug pattern for this specific nic
         self.vf_hotplug_regex = re.compile(
-            f"{test_nic.upper}: Data path switched to VF: {test_nic.lower}"
+            f"{test_nic.upper}: Data path switched to VF:"
         )
-        self.vf_slot_removal_regex = re.compile(f"VF unregistering: {test_nic.lower}")
+        self.vf_slot_removal_regex = re.compile(f"{test_nic.upper}: VF unregistering:")
 
     def wait_for_dmesg_output(self, wait_for: str, timeout: int) -> bool:
         search_pattern = None
