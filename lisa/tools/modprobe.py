@@ -97,15 +97,14 @@ class Modprobe(Tool):
     ) -> None:
         for mod_name in mod_names:
             if self.is_module_loaded(mod_name, force_run=True):
-                process = self.node.execute_async(
-                    f"modprobe -r {mod_name} && modprobe {mod_name}",
+                self.node.execute(
+                    (
+                        f"modprobe -r {mod_name} && modprobe {mod_name} && "
+                        "ip link set eth0 down && ip link set eth0 up && "
+                        "dhclient -r && dhclient"
+                    ),
                     sudo=True,
                     shell=True,
-                )
-                process.wait_result(
-                    expected_exit_code=0,
-                    expected_exit_code_failure_message="Failed to remove and load"
-                    f" module {mod_name}",
                 )
 
     def load_by_file(self, file_name: str) -> None:
