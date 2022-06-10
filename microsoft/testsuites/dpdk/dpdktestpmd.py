@@ -2,6 +2,7 @@
 # Licensed under the MIT license.
 
 import re
+from functools import partial
 from pathlib import PurePosixPath
 from typing import List, Pattern, Tuple, Type, Union
 
@@ -10,14 +11,29 @@ from semver import VersionInfo
 
 from lisa.executable import Tool
 from lisa.nic import NicInfo
+from lisa.node import Node
 from lisa.operating_system import Debian, Fedora, Oracle, Redhat, Suse, Ubuntu
-from lisa.tools import Echo, Git, Lscpu, Lspci, Modprobe, Service, Tar, Unzip, Wget
+from lisa.tools import (
+    Echo,
+    Git,
+    Kill,
+    Lscpu,
+    Lspci,
+    Modprobe,
+    Pidof,
+    Service,
+    Tar,
+    Unzip,
+    Wget,
+)
 from lisa.util import (
     LisaException,
     MissingPackagesException,
     SkippedException,
     UnsupportedDistroException,
 )
+from lisa.util.parallel import TaskManager, run_in_parallel_async
+from lisa.util.perf_timer import create_timer
 
 PACKAGE_MANAGER_SOURCE = "package_manager"
 
@@ -267,29 +283,42 @@ class DpdkTestpmd(Tool):
     def run_for_n_seconds(self, cmd: str, timeout: int) -> str:
         self._last_run_timeout = timeout
         self.node.log.info(f"{self.node.name} running: {cmd}")
-        self.timer_proc = self.node.execute_async(
-            f"sleep {timeout} && killall -s INT {cmd.split()[0]}",
-            sudo=True,
-            shell=True,
-        )
+
+        # run testpmd async
         testpmd_proc = self.node.execute_async(
             cmd,
             sudo=True,
         )
-        self.timer_proc.wait_result()
+
+        # setup a timer
+        self.killer = create_async_timeout(self.node, self.command, timeout)
+
+        # wait for killer to finish (or be canceled)
+        self.killer.wait_for_all_workers()
         proc_result = testpmd_proc.wait_result()
         self._last_run_output = proc_result.stdout
         self.populate_performance_data()
         return proc_result.stdout
 
+    def check_testpmd_is_running(self) -> bool:
+        pids = self.node.tools[Pidof].get_pids(self.command, sudo=True)
+        return len(pids) == 0
+
     def kill_previous_testpmd_command(self) -> None:
-        # kill testpmd early, then kill the timer proc that is still running
-        assert_that(self.timer_proc).described_as(
-            "Timer process was not initialized before "
-            "calling kill_previous_testpmd_command"
-        ).is_not_none()
-        self.node.execute(f"killall -s INT {self.command}", sudo=True, shell=True)
-        self.timer_proc.kill()
+        # kill testpmd early
+        if not hasattr(self, "killer"):
+            fail(
+                "Test Suite Error: kill_previous_testpmd_command was called"
+                " but there was no task killer registered."
+            )
+        # cancel the scheduled killer
+        self.killer.cancel()
+        # and kill immediately
+        self.node.tools[Kill].by_name(self.command)
+        if self.check_testpmd_is_running():
+            raise LisaException(
+                "Testpmd is not responding to signals, failing the test."
+            )
 
     def get_data_from_testpmd_output(
         self,
@@ -859,3 +888,24 @@ def _discard_first_zeroes(data: List[int]) -> List[int]:
 
 def _mean(data: List[int]) -> int:
     return sum(data) // len(data)
+
+
+# Cancellable timeout tool
+def create_async_timeout(node: Node, command: str, timeout: int) -> TaskManager[None]:
+
+    # setup a timer
+    def kill_timer(timeout: int) -> None:
+        timer = create_timer()
+        while timer.elapsed(False) < timeout:
+            pass
+
+    # and killer callback, callback will not run if timer is cancelled
+    def kill_callback(x: None) -> None:
+        node.tools[Kill].by_name(command)
+
+    # initiate async timer
+    kill_manager = run_in_parallel_async(
+        [partial(kill_timer, timeout)], kill_callback, node.log
+    )
+
+    return kill_manager
