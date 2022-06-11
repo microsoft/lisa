@@ -214,22 +214,34 @@ class HvModule(TestSuite):
                 "kernel and therefore can not be reloaded"
             )
 
-        result = node.execute(
-            ("for i in $(seq 1 %i); do " % loop_count)
-            + f"modprobe -r -v {module}; modprobe -v {module}; "
-            "done; sleep 1; "
-            "ip link set eth0 down; ip link set eth0 up; dhclient -r; dhclient",
-            sudo=True,
+        for _ in range(0, loop_count):
+            result = node.execute(
+                (
+                    f"modprobe -r -v {module}; modprobe -v {module}; "
+                    "ip link set eth0 down; ip link set eth0 up;"
+                    "dhclient -r; dhclient"
+                ),
+                sudo=True,
+                shell=True,
+                expected_exit_code=0,
+                expected_exit_code_failure_message=f"{module} failed to reload",
+            )
+            assert_that(result.stdout.count("rmmod")).described_as(
+                f"Expected {module} to be removed 1 times"
+            ).is_equal_to(1)
+            assert_that(result.stdout.count("insmod")).described_as(
+                f"Expected {module} to be inserted 1 times"
+            ).is_equal_to(1)
+        node.execute(
+            "date",
             shell=True,
+            sudo=True,
             expected_exit_code=0,
-            expected_exit_code_failure_message=f"{module} failed to reload",
+            expected_exit_code_failure_message=(
+                f"fail to run date on node {node.name} after reload module {module} "
+                f"for {loop_count} times"
+            ),
         )
-        assert_that(result.stdout.count("rmmod")).described_as(
-            f"Expected {module} to be removed {loop_count} times"
-        ).is_equal_to(loop_count)
-        assert_that(result.stdout.count("insmod")).described_as(
-            f"Expected {module} to be inserted {loop_count} times"
-        ).is_equal_to(loop_count)
 
     def _get_not_built_in_modules(self, node: Node) -> List[str]:
         """
