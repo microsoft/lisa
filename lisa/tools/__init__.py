@@ -52,6 +52,7 @@ from .netperf import Netperf
 from .nfs_client import NFSClient
 from .nfs_server import NFSServer
 from .nm import Nm
+from .nproc import Nproc
 from .ntp import Ntp
 from .ntpstat import Ntpstat
 from .ntttcp import Ntttcp
@@ -146,6 +147,7 @@ __all__ = [
     "NFSClient",
     "NFSServer",
     "Nm",
+    "Nproc",
     "Ntp",
     "Ntpstat",
     "Ntttcp",
