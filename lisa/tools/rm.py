@@ -20,6 +20,9 @@ class Rm(Tool):
     def remove_file(self, path: str, sudo: bool = False) -> None:
         self.run(path, sudo=sudo, force_run=True)
 
+    def remove_directory(self, path: str, sudo: bool = False) -> None:
+        self.run(f"-rf {path}", sudo=sudo, force_run=True)
+
     @classmethod
     def _windows_tool(cls) -> Optional[Type[Tool]]:
         return WindowsRm
@@ -40,3 +43,6 @@ class WindowsRm(Rm):
             return
 
         self.node.tools[PowerShell].run_cmdlet(f"Remove-Item {path} -Force", sudo=sudo)
+
+    def remove_directory(self, path: str, sudo: bool = False) -> None:
+        raise NotImplementedError
