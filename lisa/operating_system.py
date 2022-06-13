@@ -1319,7 +1319,7 @@ class Redhat(Fedora):
     def _is_package_in_repo(self, package: str) -> bool:
         if self._first_time_installation:
             self._initialize_package_installation()
-            self._first_time_installation = True
+            self._first_time_installation = False
         command = f"yum --showduplicates list {package}"
         result = self._node.execute(command, sudo=True, shell=True)
         return 0 == result.exit_code
@@ -1393,6 +1393,21 @@ class CentOs(Redhat):
             self._node.get_pure_path("/etc/centos-release"),
             saved_path / "centos-release.txt",
         )
+
+    def _initialize_package_installation(self) -> None:
+        information = self._get_information()
+        if 8 == information.version.major:
+            # refer https://www.centos.org/centos-linux-eol/
+            # CentOS 8 is EOL, old repo mirror was moved to vault.centos.org
+            # CentOS-AppStream.repo, CentOS-Base.repo may contain non-existed repo
+            # use skip_if_unavailable to aviod installation issues bring in by above
+            #  issue
+            cmd_results = self._node.execute("yum repolist -v", sudo=True)
+            if 0 != cmd_results.exit_code:
+                cmd_results = self._node.execute(
+                    "yum-config-manager --save --setopt=skip_if_unavailable=true",
+                    sudo=True,
+                )
 
 
 class Oracle(Redhat):
