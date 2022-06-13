@@ -72,7 +72,7 @@ class Modprobe(Tool):
             modules_str = modules
         command = f"{modules_str}"
         if dry_run:
-            command = "--dry-run" + command
+            command = f"--dry-run {command}"
         result = self.run(
             command,
             force_run=True,
