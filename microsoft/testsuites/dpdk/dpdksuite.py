@@ -14,6 +14,7 @@ from lisa import (
     TestCaseMetadata,
     TestSuite,
     TestSuiteMetadata,
+    UnsupportedDistroException,
 )
 from lisa.features import Sriov
 from lisa.testsuite import simple_requirement
@@ -154,7 +155,11 @@ class Dpdk(TestSuite):
     def verify_dpdk_nff_go(
         self, node: Node, log: Logger, variables: Dict[str, Any]
     ) -> None:
-        nff_go = node.tools[DpdkNffGo]
+        try:
+            nff_go = node.tools[DpdkNffGo]
+        except UnsupportedDistroException as err:
+            raise SkippedException(err)
+
         # hugepages needed for dpdk tests
         init_hugepages(node)
         # run the nff-go tests
@@ -270,8 +275,8 @@ class Dpdk(TestSuite):
 
         try:
             check_send_receive_compatibility(test_kits)
-        except UnsupportedPackageVersionException:
-            raise SkippedException(UnsupportedPackageVersionException)
+        except UnsupportedPackageVersionException as err:
+            raise SkippedException(err)
 
         sender, receiver = test_kits
 
