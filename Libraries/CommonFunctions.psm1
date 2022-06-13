@@ -2624,6 +2624,14 @@ Function Get-ExpectedDevicesCount {
                 [int]$expectedCount = $($vmCPUCount/5)
             } elseif ($size -match "ads_A100_v4") {
                 [int]$expectedCount = $($vmCPUCount/24)
+            } elseif ($size -match "ads_A10_v4") {
+                if ($size -match "NC8ads_A10_v4") {
+                    [int]$expectedCount = 1
+                } elseif ($size -match "NC16ads_A10_v4") {
+                    [int]$expectedCount = 1
+                } elseif ($size -match "NC32ads_A10_v4") {
+                    [int]$expectedCount = 2
+                }
             } elseif (($size -imatch "Standard_ND" -or $size -imatch "Standard_NV") -and $size -imatch "v3") {
                 [int]$expectedCount = $($vmCPUCount/12)
             } else {

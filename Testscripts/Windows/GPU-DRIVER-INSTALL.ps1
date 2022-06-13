@@ -38,6 +38,9 @@ function Start-Validation {
     } elseif ($allVMData.InstanceSize -imatch "ads_A100_v4") {
         $gpuName = "A100"
         $deviceIDPattern = "Device_ID.*-444532304235"
+    }elseif ($allVMData.InstanceSize -imatch "ads_A10_v4") {
+        $gpuName = "A10"
+        $deviceIDPattern = "Device_ID.*-230542421f15"
     }
 
     # region PCI Express pass-through in lsvmbus
