@@ -65,13 +65,6 @@ class CloudHypervisorTests(Tool):
             self.node.tools[Echo].write_to_file(
                 daemon_json, daemon_json_file, sudo=True
             )
-            """
-            self.node.execute(
-                f"echo '{daemon_json}' | sudo tee {daemon_json_file}",
-                shell=True,
-                sudo=True,
-            )
-            """
         self.node.tools[Docker].start()
 
         return self._check_exists()
