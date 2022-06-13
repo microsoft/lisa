@@ -11,7 +11,7 @@ from semver import VersionInfo
 from lisa.base_tools import Cat, Sed, Wget
 from lisa.executable import Tool
 from lisa.operating_system import Debian, Posix, Redhat, Suse
-from lisa.tools import Gcc
+from lisa.tools import Find, Gcc
 from lisa.tools.make import Make
 from lisa.tools.service import Service
 from lisa.tools.sysctl import Sysctl
@@ -98,15 +98,30 @@ class Kexec(Tool):
         kexec_tar = wget.get(self._kexec_repo, str(tool_path))
         tar = self.node.tools[Tar]
         tar.extract(kexec_tar, str(tool_path))
-        kexec_source = tar.get_root_folder(kexec_tar)
-        code_path = tool_path.joinpath(kexec_source)
+        find_tool = self.node.tools[Find]
+        kexec_source_folder = find_tool.find_files(
+            tool_path, name_pattern="kexec-tools*", type="d"
+        )
+        code_path = tool_path.joinpath(kexec_source_folder[0])
         self.node.tools[Gcc]
         make = self.node.tools[Make]
-        self.node.execute("./configure", cwd=code_path).assert_exit_code()
-        make.make_install(cwd=code_path)
         self.node.execute(
-            "yes | cp -f /usr/local/sbin/kexec /sbin/", sudo=True, shell=True
-        ).assert_exit_code()
+            "./configure",
+            expected_exit_code=0,
+            expected_exit_code_failure_message=(
+                "Fail to run configure when compiling kexec-tools from source code"
+            ),
+            cwd=code_path,
+            sudo=True,
+        )
+        make.make_install(cwd=code_path, sudo=True)
+        self.node.execute(
+            "yes | cp -f /usr/local/sbin/kexec /sbin/",
+            expected_exit_code=0,
+            expected_exit_code_failure_message=("It is failed to copy kexec to /sbin/"),
+            sudo=True,
+            shell=True,
+        )
 
 
 class Makedumpfile(Tool):

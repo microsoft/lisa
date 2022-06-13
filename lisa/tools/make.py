@@ -38,7 +38,9 @@ class Make(Tool):
         sudo: bool = True,
         update_envs: Optional[Dict[str, str]] = None,
     ) -> None:
-        self.make(arguments="", cwd=cwd, timeout=timeout, update_envs=update_envs)
+        self.make(
+            arguments="", cwd=cwd, timeout=timeout, sudo=sudo, update_envs=update_envs
+        )
 
         # install with sudo
         self.make(
