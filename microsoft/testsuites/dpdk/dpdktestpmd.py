@@ -542,7 +542,7 @@ class DpdkTestpmd(Tool):
         node.execute(
             "ninja",
             cwd=self.dpdk_build_path,
-            timeout=1200,
+            timeout=1800,
             expected_exit_code=0,
             expected_exit_code_failure_message=(
                 "ninja build for dpdk failed. check build spew for missing headers "
