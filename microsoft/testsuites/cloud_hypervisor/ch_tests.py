@@ -1,6 +1,7 @@
 # Copyright (c) Microsoft Corporation.
 # Licensed under the MIT license.
 from pathlib import Path
+from typing import Any
 
 from assertpy.assertpy import assert_that
 
@@ -28,6 +29,10 @@ from microsoft.testsuites.cloud_hypervisor.ch_tests_tool import CloudHypervisorT
     """,
 )
 class CloudHypervisorTestSuite(TestSuite):
+    def before_case(self, log: Logger, **kwargs: Any) -> None:
+        node = kwargs["node"]
+        self._ensure_virtualization_enabled(node)
+
     @TestCaseMetadata(
         description="""
             Runs cloud-hypervisor integration tests.
@@ -42,10 +47,8 @@ class CloudHypervisorTestSuite(TestSuite):
     def verify_cloud_hypervisor_integration_tests(
         self, log: Logger, node: Node, log_path: Path
     ) -> None:
-        self._ensure_virtualization_enabled(node)
-        skip_tests = ["test_vfio"]
-        failures = node.tools[CloudHypervisorTests].run_tests("integration", skip_tests)
-        assert_that(failures).is_empty()
+        failures = node.tools[CloudHypervisorTests].run_tests("integration")
+        assert_that(failures).described_as("Unexpected failures").is_empty()
 
     @TestCaseMetadata(
         description="""
@@ -61,11 +64,10 @@ class CloudHypervisorTestSuite(TestSuite):
     def verify_cloud_hypervisor_live_migration_tests(
         self, log: Logger, node: Node, log_path: Path
     ) -> None:
-        self._ensure_virtualization_enabled(node)
         failures = node.tools[CloudHypervisorTests].run_tests(
             "integration-live-migration"
         )
-        assert_that(failures).is_empty()
+        assert_that(failures).described_as("Unexpected failures").is_empty()
 
     def _ensure_virtualization_enabled(self, node: Node) -> None:
         virtualization_enabled = node.tools[Lscpu].is_virtualization_enabled()

@@ -2,11 +2,11 @@
 # Licensed under the MIT license.
 import re
 from pathlib import PurePath
-from typing import Any, List, Type
+from typing import Any, List, Optional, Type
 
 from lisa.executable import Tool
 from lisa.operating_system import CBLMariner
-from lisa.tools import Docker, Git, Modprobe
+from lisa.tools import Docker, Echo, Git, Modprobe
 
 
 class CloudHypervisorTests(Tool):
@@ -29,7 +29,7 @@ class CloudHypervisorTests(Tool):
     def dependencies(self) -> List[Type[Tool]]:
         return [Git, Docker]
 
-    def run_tests(self, test_type: str, skip: List[str] = None) -> List[str]:
+    def run_tests(self, test_type: str, skip: Optional[List[str]] = None) -> List[str]:
         self.node.tools[Modprobe].load("openvswitch")
 
         if skip is not None:
@@ -43,33 +43,50 @@ class CloudHypervisorTests(Tool):
             force_run=True,
             cwd=self.repo_root,
             no_info_log=False,  # print out result of each test
-            expected_exit_code=0,
         )
 
-        return self._extract_failed_tests(result.stdout)
+        failures = self._extract_failed_tests(result.stdout)
+        if not failures:
+            result.assert_exit_code()
+
+        return failures
 
     def _initialize(self, *args: Any, **kwargs: Any) -> None:
         tool_path = self.get_tool_path(use_global=True)
         self.repo_root = tool_path / "cloud-hypervisor"
         self.cmd_path = self.repo_root / "scripts" / "dev_cli.sh"
-        print(str(self.cmd_path))
 
     def _install(self) -> bool:
         git = self.node.tools[Git]
         git.clone(self.repo, self.get_tool_path(use_global=True))
         if isinstance(self.node.os, CBLMariner):
-            daemon_json_file = "/etc/docker/daemon.json"
+            daemon_json_file = PurePath("/etc/docker/daemon.json")
             daemon_json = '{"default-ulimits":{"nofile":{"Hard":65535,"Name":"nofile","Soft":65535}}}'  # noqa: E501
+            self.node.tools[Echo].write_to_file(
+                daemon_json, daemon_json_file, sudo=True
+            )
+            """
             self.node.execute(
                 f"echo '{daemon_json}' | sudo tee {daemon_json_file}",
                 shell=True,
                 sudo=True,
             )
+            """
         self.node.tools[Docker].start()
 
         return self._check_exists()
 
     def _extract_failed_tests(self, output: str) -> List[str]:
+        # The failures list is output by the test runner in this format:
+        #
+        # failures:
+        #     failed_test_name_1
+        #     failed_test_name_2
+        #     ... so on
+        #
+        # To parse, we first find the "failures:" line and then parse the
+        # following lines that begin with one or more whitespaces to extract
+        # the test name.
         lines = output.split("\n")
         failures = []
         found_failures = False
