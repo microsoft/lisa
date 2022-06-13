@@ -45,19 +45,28 @@ class DpdkNffGo(Tool):
     @property
     def can_install(self) -> bool:
         # nff-go only implemented for debain in lisav2
-        return isinstance(self.node.os, Debian)
+        # but this will be tested for during _install function
+        return True
 
     def _install(self) -> bool:
-        os = self.node.os
-        version = os.information.version
-        if not (
-            (isinstance(os, Ubuntu) and version >= "18.4.0")
-            or (isinstance(os, Debian) and version >= "10.0.0")
-        ):
-            raise UnsupportedDistroException(
-                os, "NFF-GO test is not supported on EOL debian or Ubuntu"
-            )
         node = self.node
+        os = node.os
+        version = os.information.version
+        if isinstance(os, Ubuntu):
+            if version < "18.4.0":
+                raise UnsupportedDistroException(
+                    os, "NFF-GO test is not supported on EOL Ubuntu"
+                )
+        elif isinstance(os, Debian):
+            if version < "10.0.0":
+                raise UnsupportedDistroException(
+                    os, "NFF-GO test is not supported on EOL Debian"
+                )
+        else:
+            raise UnsupportedDistroException(
+                os, "NFF-GO test not implemented on this OS"
+            )
+
         git = node.tools[Git]
         echo = node.tools[Echo]
         wget = node.tools[Wget]
