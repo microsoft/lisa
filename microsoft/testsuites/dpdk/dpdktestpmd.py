@@ -587,8 +587,25 @@ class DpdkTestpmd(Tool):
         else:
             mellanox_drivers = ["mlx5_core", "mlx5_ib"]
         modprobe = self.node.tools[Modprobe]
-        if isinstance(self.node.os, Debian):
-            modprobe.load("rdma_cm")
+        if isinstance(self.node.os, Debian) and not isinstance(self.node.os, Ubuntu):
+            # NOTE: debian buster doesn't include rdma and ib drivers
+            # on 5.4 specifically for linux-image-cloud:
+            # https://bugs.debian.org/cgi-bin/bugreport.cgi?bug=1012639
+            # for backports on this release we should update the kernel to latest
+            kernel_info = self.node.os.get_kernel_information(force_run=True)
+            # update to at least 5.10 (known good for buster linux-image-cloud-(arch))
+            if (
+                self.node.os.information.codename == "buster"
+                and kernel_info.version <= "5.10.0"
+            ):
+                self.node.log.debug(
+                    f"Debian (buster) kernel version found: {str(kernel_info.version)} "
+                    "Updating linux-image-cloud to most recent kernel."
+                )
+                # grab the linux-image package name from kernel version metadata
+                linux_image_package = "linux-image-cloud-[a-zA-Z0-9]*"
+                self.node.os.install_packages([linux_image_package])
+                self.node.reboot()
         elif isinstance(self.node.os, Fedora):
             if not self.is_connect_x3:
                 self.node.execute(
