@@ -6,6 +6,7 @@ import re
 from typing import List
 
 from assertpy import assert_that
+from semver import VersionInfo
 
 from lisa.executable import Tool
 from lisa.operating_system import Posix, Suse
@@ -26,6 +27,7 @@ class Git(Tool):
     CERTIFICATE_ISSUE_PATTERN = re.compile(
         r"server certificate verification failed", re.M
     )
+    VERSION_PATTERN = re.compile(r"[0-9]+\.[0-9]+\.[0-9]+")
 
     @property
     def command(self) -> str:
@@ -180,18 +182,28 @@ class Git(Tool):
     ) -> str:
         sort_arg = ""
         contains_arg = ""
+        # git tag sort was not added until 2.36.1 in 2015
+        # https://github.com/git/git/commit/b7cc53e92c806b73e14b03f60c17b7c29e52b4a4
+
+        # git tag exposes various sort options, apply them if present
+        # default is sort by version, ascending
         if sort_by:
-            # git tag exposes various sort options, apply them if present
-            # default is sort by version, ascending
             sort_arg = f"--sort={sort_by}"
         if contains:
             # git tag allows you to filter by a commit id, apply it is present.
             contains_arg = f"--contains {contains}"
 
-        git_cmd = f"--no-pager tag {sort_arg} {contains_arg}"
+        if self.get_version() >= VersionInfo.parse("2.36.1") or not sort_arg:
+            git_cmd = f"--no-pager tag {sort_arg} {contains_arg}"
+        else:
+            # version is less than 2.36 and sorting is desired
+            # ask git to list tags and sort with sort -V
+            git_cmd = f" --no-pager tag -l {contains_arg} | sort -V"
+
         tags = self.run(
             git_cmd,
             cwd=cwd,
+            shell=True,
             expected_exit_code=0,
             expected_exit_code_failure_message=(
                 "git tag failed to fetch tags, "
@@ -215,3 +227,8 @@ class Git(Tool):
             return tags[-1]
         else:
             return tags[0]
+
+    def get_version(self) -> VersionInfo:
+        result = self.run("--version")
+        version_str = get_matched_str(result.stdout, self.VERSION_PATTERN)
+        return VersionInfo.parse(version_str)
