@@ -98,7 +98,7 @@ class Tar(Tool):
         assert_that(folders).described_as(
             (
                 "ERROR: get_root_folder was called but tar file "
-                "{file} has multiple top level output folders."
+                f"{file} has multiple top level output folders."
             )
         ).is_length(1)
         return folders[0].replace("/", "")
