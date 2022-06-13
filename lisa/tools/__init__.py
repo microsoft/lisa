@@ -82,6 +82,7 @@ from .taskset import TaskSet
 from .tcpdump import TcpDump
 from .texinfo import Texinfo
 from .timedatectl import Timedatectl
+from .timeout import Timeout
 from .unzip import Unzip
 from .uptime import Uptime
 from .who import Who
@@ -180,6 +181,7 @@ __all__ = [
     "Texinfo",
     "TcpDump",
     "Timedatectl",
+    "Timeout",
     "Uname",
     "Unzip",
     "Uptime",
