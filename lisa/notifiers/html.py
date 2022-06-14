@@ -12,10 +12,15 @@ from dataclasses_json import dataclass_json
 from pytest_html.plugin import HTMLReport  # type: ignore
 
 from lisa import schema
-from lisa.messages import MessageBase, TestRunMessage, TestRunStatus
+from lisa.messages import (
+    MessageBase,
+    TestResultMessage,
+    TestRunMessage,
+    TestRunStatus,
+    TestStatus,
+)
 from lisa.notifier import Notifier
 from lisa.secret import mask
-from lisa.testsuite import TestResultMessage, TestStatus
 from lisa.util import LisaException, constants
 
 

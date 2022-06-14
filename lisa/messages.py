@@ -1,4 +1,4 @@
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import datetime
 from decimal import Decimal
 from enum import Enum
@@ -29,6 +29,26 @@ TestRunStatus = Enum(
     ],
 )
 
+TestStatus = Enum(
+    "TestStatus",
+    [
+        # A test result is created, but not assigned to any running queue.
+        "QUEUED",
+        # A test result is assigned to an environment, may be run later or not
+        # able to run. It may be returned to QUEUED status, if the environment
+        # doesn't fit this case.
+        "ASSIGNED",
+        # A test result is running
+        "RUNNING",
+        "FAILED",
+        "PASSED",
+        # A test result is skipped, won't be run anymore.
+        "SKIPPED",
+        # A test result is failed with known issue.
+        "ATTEMPTED",
+    ],
+)
+
 
 @dataclass
 class TestRunMessage(MessageBase):
@@ -40,6 +60,37 @@ class TestRunMessage(MessageBase):
     tags: Optional[List[str]] = None
     run_name: str = ""
     message: str = ""
+
+
+@dataclass
+class TestResultMessageBase(MessageBase):
+    type: str = "TestResultMessageBase"
+    name: str = ""
+    suite_name: str = ""
+    status: TestStatus = TestStatus.QUEUED
+    information: Dict[str, str] = field(default_factory=dict)
+
+
+@dataclass
+class TestResultMessage(TestResultMessageBase):
+    # id is used to identify the unique test result
+    id_: str = ""
+    type: str = "TestResult"
+    full_name: str = ""
+    suite_full_name: str = ""
+    message: str = ""
+    log_file: str = ""
+    stacktrace: Optional[str] = None
+
+    @property
+    def is_completed(self) -> bool:
+        return _is_completed_status(self.status)
+
+
+@dataclass
+class CommunityTestMessage(TestResultMessageBase):
+    hardware_platform: str = ""
+    type: str = "CommunityTestResult"
 
 
 class NetworkProtocol(str, Enum):
@@ -177,7 +228,16 @@ class NetworkUDPPerformanceMessage(PerfMessage):
     packet_size_kbytes: Decimal = Decimal(0)
 
 
-def create_message(
+def _is_completed_status(status: TestStatus) -> bool:
+    return status in [
+        TestStatus.FAILED,
+        TestStatus.PASSED,
+        TestStatus.SKIPPED,
+        TestStatus.ATTEMPTED,
+    ]
+
+
+def create_perf_message(
     message_type: Type[T],
     node: "Node",
     environment: "Environment",
@@ -195,6 +255,27 @@ def create_message(
     dict_to_fields(environment.get_information(), message)
     message.test_case_name = test_case_name
     message.data_path = data_path
+    if other_fields:
+        dict_to_fields(other_fields, message)
+    return message
+
+
+TestResultMessageType = TypeVar("TestResultMessageType", bound=TestResultMessageBase)
+
+
+def create_test_result_message(
+    message_type: Type[TestResultMessageType],
+    environment: "Environment",
+    test_case_name: str = "",
+    suite_name: str = "",
+    test_status: TestStatus = TestStatus.QUEUED,
+    other_fields: Optional[Dict[str, Any]] = None,
+) -> TestResultMessageType:
+    message = message_type()
+    dict_to_fields(environment.get_information(), message)
+    message.name = test_case_name
+    message.suite_name = suite_name
+    message.status = test_status
     if other_fields:
         dict_to_fields(other_fields, message)
     return message

@@ -9,9 +9,9 @@ from typing import Any, Callable, Dict, Iterator, List, Optional, Type
 from lisa import messages, notifier, schema, transformer
 from lisa.action import Action
 from lisa.combinator import Combinator
+from lisa.messages import TestResultMessage, TestStatus
 from lisa.notifier import register_notifier
 from lisa.parameter_parser.runbook import RunbookBuilder
-from lisa.testsuite import TestResultMessage, TestStatus
 from lisa.util import BaseClassMixin, InitializableMixin, LisaException, constants
 from lisa.util.logger import create_file_handler, get_logger, remove_handler
 from lisa.util.parallel import Task, TaskManager, cancel, set_global_task_manager

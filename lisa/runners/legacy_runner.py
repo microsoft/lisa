@@ -13,13 +13,13 @@ from typing import TYPE_CHECKING, Any, Dict, Iterable, List, Optional, Pattern
 from retry import retry
 
 from lisa import schema
+from lisa.messages import TestStatus
 from lisa.node import Node
 from lisa.runner import BaseRunner
 from lisa.testsuite import (
     TestCaseMetadata,
     TestCaseRuntimeData,
     TestResult,
-    TestStatus,
     TestSuiteMetadata,
 )
 from lisa.tools import Git

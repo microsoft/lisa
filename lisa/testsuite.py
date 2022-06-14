@@ -6,7 +6,6 @@ from __future__ import annotations
 import copy
 import traceback
 from dataclasses import dataclass, field
-from enum import Enum
 from functools import wraps
 from pathlib import Path
 from time import sleep
@@ -15,9 +14,10 @@ from typing import Any, Callable, Dict, List, Optional, Tuple, Type, Union
 from func_timeout import FunctionTimedOut, func_timeout  # type: ignore
 from retry.api import retry_call
 
-from lisa import messages, notifier, schema, search_space
+from lisa import notifier, schema, search_space
 from lisa.environment import Environment, EnvironmentSpace, EnvironmentStatus
 from lisa.feature import Feature
+from lisa.messages import TestResultMessage, TestStatus, _is_completed_status
 from lisa.operating_system import OperatingSystem, Windows
 from lisa.util import (
     BadEnvironmentStateException,
@@ -42,48 +42,8 @@ from lisa.util.logger import (
 )
 from lisa.util.perf_timer import Timer, create_timer
 
-TestStatus = Enum(
-    "TestStatus",
-    [
-        # A test result is created, but not assigned to any running queue.
-        "QUEUED",
-        # A test result is assigned to an environment, may be run later or not
-        # able to run. It may be returned to QUEUED status, if the environment
-        # doesn't fit this case.
-        "ASSIGNED",
-        # A test result is running
-        "RUNNING",
-        "FAILED",
-        "PASSED",
-        # A test result is skipped, won't be run anymore.
-        "SKIPPED",
-        # A test result is failed with known issue.
-        "ATTEMPTED",
-    ],
-)
-
 _all_suites: Dict[str, TestSuiteMetadata] = {}
 _all_cases: Dict[str, TestCaseMetadata] = {}
-
-
-@dataclass
-class TestResultMessage(messages.MessageBase):
-    # id is used to identify the unique test result
-    id_: str = ""
-    type: str = "TestResult"
-    name: str = ""
-    full_name: str = ""
-    suite_name: str = ""
-    suite_full_name: str = ""
-    status: TestStatus = TestStatus.QUEUED
-    message: str = ""
-    information: Dict[str, str] = field(default_factory=dict)
-    log_file: str = ""
-    stacktrace: Optional[str] = None
-
-    @property
-    def is_completed(self) -> bool:
-        return _is_completed_status(self.status)
 
 
 @dataclass
@@ -863,15 +823,6 @@ def _add_case_to_suite(
     test_case.suite = test_suite
     test_case.full_name = f"{test_suite.name}.{test_case.name}"
     test_suite.cases.append(test_case)
-
-
-def _is_completed_status(status: TestStatus) -> bool:
-    return status in [
-        TestStatus.FAILED,
-        TestStatus.PASSED,
-        TestStatus.SKIPPED,
-        TestStatus.ATTEMPTED,
-    ]
 
 
 plugin_manager.add_hookspecs(TestResult)

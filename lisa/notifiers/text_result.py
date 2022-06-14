@@ -5,8 +5,8 @@ from pathlib import Path
 from typing import Any, List, Type
 
 from lisa import messages, notifier, schema
+from lisa.messages import TestResultMessage
 from lisa.runner import print_results
-from lisa.testsuite import TestResultMessage
 from lisa.util import LisaException, constants
 
 

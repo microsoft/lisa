@@ -12,7 +12,7 @@ from lisa import (
 )
 from lisa.environment import Environment
 from lisa.features import Sriov
-from lisa.messages import NetworkPPSPerformanceMessage, create_message
+from lisa.messages import NetworkPPSPerformanceMessage, create_perf_message
 from lisa.tools import Lscpu
 from lisa.util import constants
 from microsoft.testsuites.dpdk.dpdkutil import (
@@ -306,14 +306,14 @@ class DpdkPerformance(TestSuite):
         receiver_fields["fwd_pps_average"] = receiver.get_mean_tx_pps()
         receiver_fields["fwd_pps_minimum"] = receiver.get_min_tx_pps()
 
-        send_results = create_message(
+        send_results = create_perf_message(
             NetworkPPSPerformanceMessage,
             send_kit.node,
             environment,
             test_case_name,
             sender_fields,
         )
-        receive_results = create_message(
+        receive_results = create_perf_message(
             NetworkPPSPerformanceMessage,
             receive_kit.node,
             environment,

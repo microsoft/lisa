@@ -12,7 +12,7 @@ from lisa.messages import (
     NetworkTCPPerformanceMessage,
     NetworkUDPPerformanceMessage,
     TransportProtocol,
-    create_message,
+    create_perf_message,
 )
 from lisa.operating_system import Posix
 from lisa.tools import Cat
@@ -324,7 +324,7 @@ class Iperf3(Tool):
             other_fields["retransmitted_segments"] = client_stream["sender"][
                 "retransmits"
             ]
-        return create_message(
+        return create_perf_message(
             NetworkTCPPerformanceMessage,
             self.node,
             environment,
@@ -408,7 +408,7 @@ class Iperf3(Tool):
         other_fields["send_buffer_size"] = Decimal(buffer_length)
         other_fields["connections_num"] = connections_num
         other_fields["protocol_type"] = TransportProtocol.Udp
-        return create_message(
+        return create_perf_message(
             NetworkUDPPerformanceMessage,
             self.node,
             environment,

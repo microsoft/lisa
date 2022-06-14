@@ -10,7 +10,7 @@ from lisa.messages import (
     NetworkTCPPerformanceMessage,
     NetworkUDPPerformanceMessage,
     TransportProtocol,
-    create_message,
+    create_perf_message,
 )
 from lisa.tools import Firewall, Gcc, Git, Make, Sed
 from lisa.util import constants
@@ -370,7 +370,7 @@ class Ntttcp(Tool):
         other_fields["pkts_interrupts"] = client_result.pkts_interrupt
         other_fields["sender_cycles_per_byte"] = client_result.cycles_per_byte
         other_fields["receiver_cycles_rer_byte"] = server_result.cycles_per_byte
-        return create_message(
+        return create_perf_message(
             NetworkTCPPerformanceMessage,
             self.node,
             environment,
@@ -403,7 +403,7 @@ class Ntttcp(Tool):
             * (client_result.throughput_in_gbps - server_result.throughput_in_gbps)
             / client_result.throughput_in_gbps
         )
-        return create_message(
+        return create_perf_message(
             NetworkUDPPerformanceMessage,
             self.node,
             environment,

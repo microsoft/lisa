@@ -7,10 +7,11 @@ from unittest import TestCase
 import lisa
 from lisa import LisaException, constants, schema
 from lisa.environment import EnvironmentStatus, load_environments
+from lisa.messages import TestResultMessage, TestStatus
 from lisa.notifier import register_notifier
 from lisa.runner import RunnerResult
 from lisa.runners.lisa_runner import LisaRunner
-from lisa.testsuite import TestResult, TestResultMessage, TestStatus, simple_requirement
+from lisa.testsuite import TestResult, simple_requirement
 from lisa.util.parallel import Task
 from selftests import test_platform, test_testsuite
 from selftests.test_environment import generate_runbook as generate_env_runbook
