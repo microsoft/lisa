@@ -3,7 +3,25 @@
 
 from lisa.executable import Tool
 from lisa.tools.lsblk import Lsblk
-from lisa.tools.swapon import SwapOn
+from lisa.tools.rm import Rm
+
+
+class SwapOn(Tool):
+    @property
+    def command(self) -> str:
+        return "swapon"
+
+
+class SwapOff(Tool):
+    @property
+    def command(self) -> str:
+        return "swapoff"
+
+
+class MkSwap(Tool):
+    @property
+    def command(self) -> str:
+        return "mkswap"
 
 
 class Swap(Tool):
@@ -30,3 +48,14 @@ class Swap(Tool):
             return True
 
         return False
+
+    def create_swap(
+        self, path: str = "/tmp/swap", bytes: str = "1M", count: int = 1024
+    ) -> None:
+        self.node.execute(f"dd if=/dev/zero of={path} bs={bytes} count={count}")
+        self.node.tools[MkSwap].run(path, sudo=True, force_run=True)
+        self.node.tools[SwapOn].run(path, sudo=True, force_run=True)
+
+    def delete_swap(self, path: str = "/tmp/swap") -> None:
+        self.node.tools[SwapOff].run(path, sudo=True, force_run=True)
+        self.node.tools[Rm].remove_file(path, sudo=True)

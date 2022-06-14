@@ -78,7 +78,6 @@ from .start_configuration import StartConfiguration
 from .stat import Stat
 from .stress_ng import StressNg
 from .swap import Swap
-from .swapon import SwapOn
 from .sysctl import Sysctl
 from .tar import Tar
 from .taskset import TaskSet
@@ -179,7 +178,6 @@ __all__ = [
     "Stat",
     "StressNg",
     "Swap",
-    "SwapOn",
     "Sysctl",
     "Tar",
     "TaskSet",
