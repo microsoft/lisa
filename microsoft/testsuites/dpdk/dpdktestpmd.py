@@ -587,7 +587,10 @@ class DpdkTestpmd(Tool):
         else:
             mellanox_drivers = ["mlx5_core", "mlx5_ib"]
         modprobe = self.node.tools[Modprobe]
-        if isinstance(self.node.os, Debian) and not isinstance(self.node.os, Ubuntu):
+        if isinstance(self.node.os, Ubuntu):
+            # Ubuntu shouldn't need any special casing, skip to loading rdma/ib
+            pass
+        elif isinstance(self.node.os, Debian):
             # NOTE: debian buster doesn't include rdma and ib drivers
             # on 5.4 specifically for linux-image-cloud:
             # https://bugs.debian.org/cgi-bin/bugreport.cgi?bug=1012639
@@ -617,7 +620,6 @@ class DpdkTestpmd(Tool):
                     ),
                     sudo=True,
                 )
-            modprobe.load("mlx4_en")
         else:
             raise UnsupportedDistroException(self.node.os)
         rmda_drivers = ["ib_core", "ib_uverbs", "rdma_ucm"]
