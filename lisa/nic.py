@@ -185,7 +185,23 @@ class Nics(InitializableMixin):
         # when there are more than one nic on the system
         number_of_nics = len(self.get_upper_nics())
         assert_that(number_of_nics).is_greater_than(0)
-        return self.nics[self.get_upper_nics()[index]]
+        try:
+            nic_name = self.get_upper_nics()[index]
+        except IndexError:
+            raise LisaException(
+                f"Attempted get_upper_nics()[{index}], only "
+                f"{number_of_nics} nics are registered in node.nics. "
+                f"Had upper interfaces: {self.get_upper_nics()}"
+            )
+
+        try:
+            nic = self.nics[nic_name]
+        except KeyError:
+            raise LisaException(
+                f"NicInfo for interface {nic_name} not found! "
+                f"Had upper interfaces: {self.get_upper_nics()}"
+            )
+        return nic
 
     def nic_info_is_present(self, nic_name: str) -> bool:
         return nic_name in self.get_upper_nics() or nic_name in self.get_lower_nics()
