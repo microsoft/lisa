@@ -22,6 +22,7 @@ from .fdisk import Fdisk
 from .find import Find
 from .fio import FIOMODES, Fio, FIOResult
 from .firewall import Firewall, Iptables
+from .free import Free
 from .gcc import Gcc
 from .git import Git
 from .hibernation_setup import HibernationSetup
@@ -113,6 +114,7 @@ __all__ = [
     "Fio",
     "FIOResult",
     "Firewall",
+    "Free",
     "Gcc",
     "Git",
     "Ip",
