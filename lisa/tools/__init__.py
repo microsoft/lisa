@@ -5,6 +5,7 @@
 from lisa.base_tools import Cat, Rpm, Sed, Uname, Wget
 
 from .blkid import Blkid
+from .chmod import Chmod
 from .chown import Chown
 from .chrony import Chrony
 from .date import Date
@@ -92,6 +93,7 @@ from .xfstests import Xfstests
 __all__ = [
     "Blkid",
     "Cat",
+    "Chmod",
     "Chown",
     "Chrony",
     "Date",
