@@ -7,7 +7,7 @@ from typing import Any, Dict, List, Optional, TextIO, Type
 
 from lisa import messages, notifier, schema
 from lisa.environment import EnvironmentMessage, EnvironmentStatus
-from lisa.testsuite import TestResultMessage
+from lisa.messages import TestResultMessage
 from lisa.util import LisaException, constants
 from lisa.util.perf_timer import create_timer
 

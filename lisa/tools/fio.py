@@ -7,7 +7,7 @@ from enum import Enum
 from typing import TYPE_CHECKING, Any, Dict, List, Optional, cast
 
 from lisa.executable import Tool
-from lisa.messages import DiskPerformanceMessage, create_message
+from lisa.messages import DiskPerformanceMessage, create_perf_message
 from lisa.operating_system import Debian, Posix, Redhat, Suse
 from lisa.util import LisaException, constants
 from lisa.util.process import Process
@@ -213,7 +213,7 @@ class Fio(Tool):
             result_copy["tool"] = constants.DISK_PERFORMANCE_TOOL_FIO
             if other_fields:
                 result_copy.update(other_fields)
-            fio_result_message = create_message(
+            fio_result_message = create_perf_message(
                 DiskPerformanceMessage,
                 self.node,
                 environment,

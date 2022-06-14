@@ -9,9 +9,14 @@ from typing import IO, Any, Dict, List, Type, Union, cast
 from dataclasses_json import dataclass_json
 
 from lisa import schema
-from lisa.messages import MessageBase, TestRunMessage, TestRunStatus
+from lisa.messages import (
+    MessageBase,
+    TestResultMessage,
+    TestRunMessage,
+    TestRunStatus,
+    TestStatus,
+)
 from lisa.notifier import Notifier
-from lisa.testsuite import TestResultMessage, TestStatus
 from lisa.util import constants
 
 

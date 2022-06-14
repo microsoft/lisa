@@ -7,7 +7,7 @@ from typing import TYPE_CHECKING, Any, Dict, List, Type, cast
 
 from lisa import notifier
 from lisa.executable import Tool
-from lisa.messages import NetworkLatencyPerformanceMessage, create_message
+from lisa.messages import NetworkLatencyPerformanceMessage, create_perf_message
 from lisa.operating_system import Debian, Posix, Redhat, Suse
 from lisa.util import LisaException, constants, find_groups_in_lines, get_datetime_path
 from lisa.util.process import ExecutableResult, Process
@@ -269,7 +269,7 @@ class Lagscope(Tool, KillableMixin):
             )
             other_fields["frequency"] = int(matched_result["frequency"])
             other_fields["interval_us"] = int(matched_result["interval_us"])
-            message = create_message(
+            message = create_perf_message(
                 NetworkLatencyPerformanceMessage,
                 self.node,
                 environment,

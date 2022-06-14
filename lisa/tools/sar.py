@@ -5,7 +5,7 @@ from decimal import Decimal
 from typing import TYPE_CHECKING, Any, Dict, List, cast
 
 from lisa.executable import Tool
-from lisa.messages import NetworkPPSPerformanceMessage, create_message
+from lisa.messages import NetworkPPSPerformanceMessage, create_perf_message
 from lisa.operating_system import Posix
 from lisa.util import constants
 from lisa.util.process import ExecutableResult, Process
@@ -126,7 +126,7 @@ class Sar(Tool):
         result_fields["rx_tx_pps_maximum"] = max(tx_rx_pps)
         result_fields["rx_tx_pps_average"] = Decimal(sum(tx_rx_pps) / len(tx_rx_pps))
         result_fields["rx_tx_pps_minimum"] = min(tx_rx_pps)
-        message = create_message(
+        message = create_perf_message(
             NetworkPPSPerformanceMessage,
             self.node,
             environment,

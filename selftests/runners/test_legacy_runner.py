@@ -8,8 +8,8 @@ from unittest import TestCase
 from dataclasses_json import dataclass_json
 
 from lisa import schema
+from lisa.messages import TestStatus
 from lisa.runners import legacy_runner
-from lisa.testsuite import TestStatus
 from lisa.util import LisaException
 from lisa.util.logger import get_logger
 

@@ -1,7 +1,6 @@
 # Copyright (c) Microsoft Corporation.
 # Licensed under the MIT license.
-from lisa.messages import MessageBase
-from lisa.testsuite import TestResultMessage
+from lisa.messages import MessageBase, TestResultMessage
 
 
 def simplify_message(message: MessageBase) -> None:

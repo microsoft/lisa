@@ -13,6 +13,7 @@ from lisa.environment import (
     EnvironmentStatus,
     load_environments,
 )
+from lisa.messages import TestStatus
 from lisa.platform_ import (
     Platform,
     PlatformMessage,
@@ -21,7 +22,7 @@ from lisa.platform_ import (
 )
 from lisa.runner import BaseRunner
 from lisa.testselector import select_testcases
-from lisa.testsuite import TestCaseRequirement, TestResult, TestStatus, TestSuite
+from lisa.testsuite import TestCaseRequirement, TestResult, TestSuite
 from lisa.util import LisaException, constants, deep_update_dict
 from lisa.util.parallel import Task, check_cancelled
 from lisa.variable import VariableEntry
