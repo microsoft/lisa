@@ -478,7 +478,7 @@ class CustomScriptBuilder:
 
         for file_str in files:
             file = pathlib.PurePath(file_str)
-            if not file.is_absolute():
+            if file.is_absolute():
                 raise LisaException(f"file must be relative path: '{file_str}'")
 
             absolute_file = root_path.joinpath(file).resolve()
