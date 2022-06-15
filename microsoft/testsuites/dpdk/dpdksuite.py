@@ -17,7 +17,7 @@ from lisa import (
 )
 from lisa.features import Sriov
 from lisa.testsuite import simple_requirement
-from lisa.tools import Echo, Git, Ip, Kill, Lsmod, Make, Modprobe
+from lisa.tools import Echo, Git, Ip, Kill, Lsmod, Make, Modprobe, Service
 from microsoft.testsuites.dpdk.dpdknffgo import DpdkNffGo
 from microsoft.testsuites.dpdk.dpdkovs import DpdkOvs
 from microsoft.testsuites.dpdk.dpdkutil import (
@@ -609,3 +609,11 @@ class Dpdk(TestSuite):
     def _force_dpdk_default_source(self, variables: Dict[str, Any]) -> None:
         if not variables.get("dpdk_source", None):
             variables["dpdk_source"] = "https://dpdk.org/git/dpdk-stable"
+
+    def after_case(self, log: Logger, **kwargs: Any) -> None:
+        node: Node = kwargs.pop("node")
+        modprobe = node.tools[Modprobe]
+        if modprobe.module_exists("uio_hv_generic"):
+            node.tools[Service].stop_service("vpp")
+            modprobe.remove(["uio_hv_generic"])
+            modprobe.reload(["hv_netvsc"])

@@ -302,7 +302,7 @@ class DpdkTestpmd(Tool):
 
     def check_testpmd_is_running(self) -> bool:
         pids = self.node.tools[Pidof].get_pids(self.command, sudo=True)
-        return len(pids) == 0
+        return len(pids) > 0
 
     def kill_previous_testpmd_command(self) -> None:
         # kill testpmd early
