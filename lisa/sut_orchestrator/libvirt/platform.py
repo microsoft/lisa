@@ -714,10 +714,6 @@ class BaseLibvirtPlatform(Platform):
         if not node_context.use_bios_firmware:
             os.attrib["firmware"] = "efi"
 
-            # Ensure secure-boot is disabled.
-            os_loader = ET.SubElement(os, "loader")
-            os_loader.attrib["secure"] = "no"
-
         os_type = ET.SubElement(os, "type")
         os_type.text = "hvm"
 
