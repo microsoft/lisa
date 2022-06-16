@@ -40,7 +40,7 @@ class CloudHypervisorTestSuite(TestSuite):
         priority=3,
         requirement=node_requirement(
             node=schema.NodeSpace(
-                core_count=16, memory_mb=search_space.IntRange(min=16 * 1024)
+                min_core_count=16, memory_mb=search_space.IntRange(min=16 * 1024)
             ),
         ),
     )
@@ -57,7 +57,7 @@ class CloudHypervisorTestSuite(TestSuite):
         priority=3,
         requirement=node_requirement(
             node=schema.NodeSpace(
-                core_count=16, memory_mb=search_space.IntRange(min=16 * 1024)
+                min_core_count=16, memory_mb=search_space.IntRange(min=16 * 1024)
             ),
         ),
     )
