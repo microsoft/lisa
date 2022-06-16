@@ -1332,7 +1332,7 @@ Function Invoke-AllResourceGroupDeployments($SetupTypeData, $CurrentTestData, $R
 			Add-Content -Value "$($indents[3])^type^: ^Microsoft.Compute/virtualMachines^," -Path $jsonFile
 			Add-Content -Value "$($indents[3])^name^: ^$vmName^," -Path $jsonFile
 			Add-Content -Value "$($indents[3])^location^: ^[variables('location')]^," -Path $jsonFile
-			if ($ImageName -and !$VHDName) {
+			<#if ($ImageName -and !$VHDName) {
 				if ($version -ne "latest") {
 					$used_image = Get-AzVMImage -Location $Location -PublisherName $publisher -Offer $offer -Skus $sku -Version $version
 				}
@@ -1349,7 +1349,7 @@ Function Invoke-AllResourceGroupDeployments($SetupTypeData, $CurrentTestData, $R
 				Add-Content -Value "$($indents[4])^product^: ^$($used_image.PurchasePlan.Product)^," -Path $jsonFile
 				Add-Content -Value "$($indents[4])^publisher^: ^$($used_image.PurchasePlan.Publisher)^" -Path $jsonFile
 				Add-Content -Value "$($indents[3])}," -Path $jsonFile
-			}
+			}#>
 			Add-Content -Value "$($indents[3])^tags^: {^TestID^: ^$TestID^}," -Path $jsonFile
 			Add-Content -Value "$($indents[3])^dependsOn^: " -Path $jsonFile
 			Add-Content -Value "$($indents[3])[" -Path $jsonFile
@@ -1749,7 +1749,8 @@ Function Invoke-AllResourceGroupDeployments($SetupTypeData, $CurrentTestData, $R
 							$script:ARMImageVersions["$osImage"] = "$imagePublisher $imageOffer $imageSku $($allImageVersions[-1].Version)"
 						}
 						else {
-							Throw "Latest image version does not exist for '$imagePublisher $imageOffer $imageSku'"
+							#Throw "Latest image version does not exist for '$imagePublisher $imageOffer $imageSku'"
+							$script:ARMImageVersions["$osImage"] = "$imagePublisher $imageOffer $imageSku latest"
 						}
 					}
 					$CurrentTestData.SetupConfig.ARMImageName = $script:ARMImageVersions.$osImage
