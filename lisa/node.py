@@ -27,7 +27,7 @@ from lisa.util.constants import PATH_REMOTE_ROOT
 from lisa.util.logger import Logger, create_file_handler, get_logger, remove_handler
 from lisa.util.parallel import run_in_parallel
 from lisa.util.process import ExecutableResult, Process
-from lisa.util.shell import ConnectionInfo, LocalShell, Shell, SshShell
+from lisa.util.shell import LocalShell, Shell, SshShell
 
 T = TypeVar("T")
 __local_node: Optional[Node] = None
@@ -489,7 +489,7 @@ class RemoteNode(Node):
         assert public_port
         assert port
 
-        self._connection_info: ConnectionInfo = ConnectionInfo(
+        self._connection_info: schema.ConnectionInfo = schema.ConnectionInfo(
             public_address,
             public_port,
             username,

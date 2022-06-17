@@ -3,7 +3,7 @@
 
 from typing import Any, Dict, List, Optional, Tuple
 
-from lisa import RemoteNode
+from lisa import RemoteNode, schema
 from lisa.features.network_interface import Synthetic
 from lisa.operating_system import Debian, Fedora, Suse
 from lisa.schema import Node
@@ -11,7 +11,7 @@ from lisa.tools import HyperV, Lscpu, Qemu, Wget
 from lisa.tools.rm import Rm
 from lisa.util import SkippedException, fields_to_dict
 from lisa.util.logger import Logger
-from lisa.util.shell import ConnectionInfo, try_connect
+from lisa.util.shell import try_connect
 
 QEMU_NESTED_VM_IMAGE_NAME = "image.qcow2"
 HYPERV_NESTED_VM_IMAGE_NAME = "image.vhdx"
@@ -81,7 +81,7 @@ def qemu_connect_nested_vm(
     )
 
     # setup connection to nested vm
-    connection_info = ConnectionInfo(
+    connection_info = schema.ConnectionInfo(
         address=host.public_address,
         port=guest_port,
         username=guest_username,
@@ -139,7 +139,7 @@ def hyperv_connect_nested_vm(
     hyperv.setup_port_forwarding(nat_name, port, local_ip)
 
     # setup connection to nested vm
-    connection_info = ConnectionInfo(
+    connection_info = schema.ConnectionInfo(
         address=host.public_address,
         port=port,
         username=guest_username,

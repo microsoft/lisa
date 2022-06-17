@@ -5,6 +5,7 @@ import copy
 from dataclasses import dataclass, field
 from enum import Enum
 from functools import partial
+from pathlib import Path
 from typing import Any, Dict, List, Optional, Type, TypeVar, Union, cast
 
 from dataclasses_json import (
@@ -1307,6 +1308,46 @@ class LegacyTestCase(BaseTestCaseFilter):
     @classmethod
     def type_name(cls) -> str:
         return constants.TESTCASE_TYPE_LEGACY
+
+
+@dataclass_json()
+@dataclass
+class ConnectionInfo:
+    address: str = ""
+    port: int = field(
+        default=22,
+        metadata=field_metadata(
+            field_function=fields.Int, validate=validate.Range(min=1, max=65535)
+        ),
+    )
+    username: str = constants.DEFAULT_USER_NAME
+    password: Optional[str] = ""
+    private_key_file: Optional[str] = ""
+
+    def __post_init__(self, *args: Any, **kwargs: Any) -> None:
+        add_secret(self.username, PATTERN_HEADTAIL)
+        add_secret(self.password)
+        add_secret(self.private_key_file)
+
+        if not self.password and not self.private_key_file:
+            raise LisaException(
+                "at least one of password or private_key_file need to be set when "
+                "connecting"
+            )
+        elif not self.private_key_file:
+            # use password
+            # spurplus doesn't process empty string correctly, use None
+            self.private_key_file = None
+        else:
+            if not Path(self.private_key_file).exists():
+                raise FileNotFoundError(self.private_key_file)
+            self.password = None
+
+        if not self.username:
+            raise LisaException("username must be set")
+
+    def __str__(self) -> str:
+        return f"{self.username}@{self.address}:{self.port}"
 
 
 @dataclass_json()
