@@ -17,6 +17,7 @@ import spurplus  # type: ignore
 from func_timeout import FunctionTimedOut, func_set_timeout  # type: ignore
 from paramiko.ssh_exception import NoValidConnectionsError, SSHException
 
+from lisa import schema
 from lisa.util import InitializableMixin, LisaException, TcpConnectionException
 
 from .logger import Logger
@@ -55,42 +56,6 @@ def wait_tcp_port_ready(
             except Exception as e:
                 raise LisaException(f"failed to connect to {address}:{port}: {e}")
     return is_ready, result
-
-
-class ConnectionInfo:
-    def __init__(
-        self,
-        address: str = "",
-        port: int = 22,
-        username: str = "root",
-        password: Optional[str] = "",
-        private_key_file: Optional[str] = None,
-    ) -> None:
-        self.address = address
-        self.port = port
-        self.username = username
-        self.password = password
-        self.private_key_file = private_key_file
-
-        if not self.password and not self.private_key_file:
-            raise LisaException(
-                "at least one of password or private_key_file need to be set when "
-                "connecting"
-            )
-        elif not self.private_key_file:
-            # use password
-            # spurplus doesn't process empty string correctly, use None
-            self.private_key_file = None
-        else:
-            if not Path(self.private_key_file).exists():
-                raise FileNotFoundError(self.private_key_file)
-            self.password = None
-
-        if not self.username:
-            raise LisaException("username must be set")
-
-    def __str__(self) -> str:
-        return f"{self.username}@{self.address}:{self.port}"
 
 
 class WindowsShellType(object):
@@ -137,7 +102,10 @@ class WindowsShellType(object):
 
 
 # retry strategy is the same as spurplus.connect_with_retries.
-def try_connect(connection_info: ConnectionInfo, ssh_timeout: int = 300) -> Any:
+def try_connect(
+    connection_info: schema.ConnectionInfo,
+    ssh_timeout: int = 300,
+) -> Any:
     # spur always run a posix command and will fail on Windows.
     # So try with paramiko firstly.
     paramiko_client = paramiko.SSHClient()
@@ -207,7 +175,7 @@ def _spawn_ssh_process(shell: spur.ssh.SshShell, **kwargs: Any) -> spur.ssh.SshP
 
 
 class SshShell(InitializableMixin):
-    def __init__(self, connection_info: ConnectionInfo) -> None:
+    def __init__(self, connection_info: schema.ConnectionInfo) -> None:
         super().__init__()
         self.is_remote = True
         self._connection_info = connection_info

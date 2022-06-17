@@ -33,7 +33,7 @@ from lisa.tools import (
     Sysctl,
 )
 from lisa.util.logger import Logger
-from lisa.util.shell import ConnectionInfo, try_connect
+from lisa.util.shell import try_connect
 from microsoft.testsuites.nested.common import (
     HYPERV_NAT_NAME,
     NESTED_VM_REQUIRED_DISK_SIZE_IN_GB,
@@ -588,7 +588,7 @@ class KVMPerformance(TestSuite):  # noqa
 
         # wait till nested vm is up
         try_connect(
-            ConnectionInfo(
+            schema.ConnectionInfo(
                 address=node.public_address,
                 port=guest_port,
                 username=guest_username,
