@@ -5,7 +5,7 @@ import copy
 from functools import partial
 from typing import Any, Callable, Dict, List, Optional, cast
 
-from lisa import SkippedException, notifier, schema, search_space
+from lisa import SkippedException, development, notifier, schema, search_space
 from lisa.action import ActionStatus
 from lisa.environment import (
     Environment,
@@ -50,6 +50,9 @@ class LisaRunner(BaseRunner):
         self.platform.initialize()
         platform_message = PlatformMessage(name=self.platform.type_name())
         notifier.notify(platform_message)
+
+        # load development settings
+        development.load_development_settings(self._runbook.dev)
 
     @property
     def is_done(self) -> bool:

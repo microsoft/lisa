@@ -1352,6 +1352,27 @@ class ConnectionInfo:
 
 @dataclass_json()
 @dataclass
+class ProxyConnectionInfo(ConnectionInfo):
+    private_address: str = ""
+    private_port: int = field(
+        default=22,
+        metadata=field_metadata(
+            field_function=fields.Int, validate=validate.Range(min=1, max=65535)
+        ),
+    )
+
+
+@dataclass_json()
+@dataclass
+class Development:
+    enabled: bool = True
+    enable_trace: bool = False
+    mock_tcp_ping: bool = False
+    jump_boxes: List[ProxyConnectionInfo] = field(default_factory=list)
+
+
+@dataclass_json()
+@dataclass
 class Runbook:
     # run name prefix to help grouping results and put it in title.
     name: str = "not_named"
@@ -1372,6 +1393,7 @@ class Runbook:
     testcase_raw: List[Any] = field(
         default_factory=list, metadata=field_metadata(data_key=constants.TESTCASE)
     )
+    dev: Optional[Development] = field(default=None)
 
     def __post_init__(self, *args: Any, **kwargs: Any) -> None:
         if not self.platform:
