@@ -124,7 +124,7 @@ class Tool(InitializableMixin):
     def dependencies(self) -> List[Type[Tool]]:
         """
         Declare all dependencies here, it can be other tools, but prevent to be a
-        circle dependency. The depdendented tools are checked and installed firstly.
+        circle dependency. The dependent tools are checked and installed firstly.
         """
         return []
 

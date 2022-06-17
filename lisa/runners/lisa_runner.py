@@ -74,7 +74,7 @@ class LisaRunner(BaseRunner):
         available_results = [x for x in self.test_results if x.can_run]
         self._sort_test_results(available_results)
 
-        # check deleteable environments
+        # check deletable environments
         delete_task = self._delete_unused_environments()
         if delete_task:
             return delete_task
@@ -185,7 +185,7 @@ class LisaRunner(BaseRunner):
 
     def _delete_unused_environments(self) -> Optional[Task[None]]:
         available_environments = self._sort_environments(self.environments)
-        # check deleteable environments
+        # check deletable environments
         for environment in available_environments:
             # if an environment is in using, or not deployed, they won't be
             # deleted until end of runner.

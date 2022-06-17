@@ -34,8 +34,8 @@ def wait_tcp_port_ready(
     times: int = 0
     result: int = 0
 
-    timout_timer = create_timer()
-    while timout_timer.elapsed(False) < timeout:
+    timeout_timer = create_timer()
+    while timeout_timer.elapsed(False) < timeout:
         with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as tcp_socket:
             try:
                 result = tcp_socket.connect_ex((address, port))
@@ -47,7 +47,7 @@ def wait_tcp_port_ready(
                         log.debug(
                             f"cannot connect to {address}:{port}, "
                             f"error code: {result}, current try: {times + 1},"
-                            f" elapsed: {timout_timer.elapsed(False)} "
+                            f" elapsed: {timeout_timer.elapsed(False)} "
                             f"(timeout on {timeout}). retrying..."
                         )
                     sleep(1)

@@ -187,7 +187,7 @@ class Transformer(TypedSchema, ExtendableSchemaMixin):
     rename: Dict[str, str] = field(default_factory=dict)
     # enable this transformer or not, only enabled transformers run actually.
     enabled: bool = True
-    # decide when the transformer run. The init means run at very begining
+    # decide when the transformer run. The init means run at very beginning
     # phase, which is before the combinator. The expanded means run after
     # combinator expanded variables.
     phase: str = field(
