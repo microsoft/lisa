@@ -7,6 +7,7 @@ import shutil
 import socket
 import sys
 import time
+from functools import partial
 from pathlib import Path, PurePath
 from time import sleep
 from typing import Any, Dict, List, Mapping, Optional, Sequence, Tuple, Union, cast
@@ -17,11 +18,13 @@ import spurplus  # type: ignore
 from func_timeout import FunctionTimedOut, func_set_timeout  # type: ignore
 from paramiko.ssh_exception import NoValidConnectionsError, SSHException
 
-from lisa import schema
+from lisa import development, schema
 from lisa.util import InitializableMixin, LisaException, TcpConnectionException
 
-from .logger import Logger
+from .logger import Logger, get_logger
 from .perf_timer import create_timer
+
+_get_jump_box_logger = partial(get_logger, name="jump_box")
 
 
 def wait_tcp_port_ready(
@@ -34,6 +37,11 @@ def wait_tcp_port_ready(
     # TODO: may need to support IPv6.
     times: int = 0
     result: int = 0
+
+    if development.is_mock_tcp_ping():
+        # If it's True, it means the direct connection doesn't work. Return a
+        # mock value for test purpose.
+        return True, 0
 
     timeout_timer = create_timer()
     while timeout_timer.elapsed(False) < timeout:
@@ -105,6 +113,7 @@ class WindowsShellType(object):
 def try_connect(
     connection_info: schema.ConnectionInfo,
     ssh_timeout: int = 300,
+    sock: Optional[Any] = None,
 ) -> Any:
     # spur always run a posix command and will fail on Windows.
     # So try with paramiko firstly.
@@ -127,6 +136,7 @@ def try_connect(
                 password=connection_info.password,
                 key_filename=connection_info.private_key_file,
                 banner_timeout=10,
+                sock=sock,
             )
 
             stdin, stdout, _ = paramiko_client.exec_command("cmd\n")
@@ -180,6 +190,8 @@ class SshShell(InitializableMixin):
         self.is_remote = True
         self._connection_info = connection_info
         self._inner_shell: Optional[spur.SshShell] = None
+        self._jump_boxes: List[Any] = []
+        self._jump_box_sock: Any = None
 
         paramiko_logger = logging.getLogger("paramiko")
         paramiko_logger.setLevel(logging.WARN)
@@ -194,14 +206,22 @@ class SshShell(InitializableMixin):
                 self._connection_info.port,
                 tcp_error_code,
             )
+
+        sock = self._establish_jump_boxes(
+            address=self._connection_info.address,
+            port=self._connection_info.port,
+        )
+
         try:
-            stdout = try_connect(self._connection_info)
+            stdout = try_connect(self._connection_info, sock=sock)
         except Exception as identifier:
             raise LisaException(
                 f"failed to connect SSH "
                 f"[{self._connection_info.address}:{self._connection_info.port}], "
                 f"{identifier.__class__.__name__}: {identifier}"
             )
+
+        self._close_jump_boxes()
 
         # Some windows doesn't end the text stream, so read first line only.
         # it's  enough to detect os.
@@ -215,6 +235,11 @@ class SshShell(InitializableMixin):
             self.is_posix = True
             shell_type = spur.ssh.ShellTypes.sh
 
+        sock = self._establish_jump_boxes(
+            address=self._connection_info.address,
+            port=self._connection_info.port,
+        )
+
         spur_kwargs = {
             "hostname": self._connection_info.address,
             "port": self._connection_info.port,
@@ -226,6 +251,7 @@ class SshShell(InitializableMixin):
             # IP in different time. If so, there is host key conflict. So do not
             # load host keys to avoid this kind of error.
             "load_system_host_keys": False,
+            "sock": sock,
         }
 
         spur_ssh_shell = spur.SshShell(shell_type=shell_type, **spur_kwargs)
@@ -240,6 +266,8 @@ class SshShell(InitializableMixin):
             # after closed, can be reconnect
             self._inner_shell = None
         self._is_initialized = False
+
+        self._close_jump_boxes()
 
     @property
     def is_connected(self) -> bool:
@@ -498,6 +526,83 @@ class SshShell(InitializableMixin):
         if isinstance(path, PurePath):
             path = str(path)
         return path
+
+    def _establish_jump_boxes(self, address: str, port: int) -> Any:
+        jump_boxes_runbook = development.get_jump_boxes()
+        sock: Any = None
+        is_trace_enabled = development.is_trace_enabled()
+        if is_trace_enabled:
+            jb_logger = _get_jump_box_logger()
+            jb_logger.debug(f"proxy sock: {sock}")
+
+        for index, runbook in enumerate(jump_boxes_runbook):
+            if is_trace_enabled:
+                jb_logger.debug(f"creating connection from source: {runbook} ")
+            client = paramiko.SSHClient()
+            client.set_missing_host_key_policy(paramiko.MissingHostKeyPolicy())
+            client.connect(
+                hostname=runbook.address,
+                port=runbook.port,
+                username=runbook.username,
+                password=runbook.password,
+                key_filename=runbook.private_key_file,
+                banner_timeout=10,
+                sock=sock,
+            )
+
+            if index < len(jump_boxes_runbook) - 1:
+                next_hop = jump_boxes_runbook[index + 1]
+                dest_address = (
+                    next_hop.private_address
+                    if next_hop.private_address
+                    else next_hop.address
+                )
+                dest_port = (
+                    next_hop.private_port if next_hop.private_port else next_hop.port
+                )
+            else:
+                dest_address = address
+                dest_port = port
+
+            if is_trace_enabled:
+                jb_logger.debug(f"next hop: {dest_address}:{dest_port}")
+            sock = self._open_jump_box_channel(
+                client,
+                src_address=runbook.address,
+                src_port=runbook.port,
+                dest_address=dest_address,
+                dest_port=dest_port,
+            )
+            self._jump_boxes.append(client)
+
+        return sock
+
+    def _open_jump_box_channel(
+        self,
+        client: paramiko.SSHClient,
+        src_address: str,
+        src_port: int,
+        dest_address: str,
+        dest_port: int,
+    ) -> Any:
+        transport = client.get_transport()
+        assert transport
+
+        sock = transport.open_channel(
+            kind="direct-tcpip",
+            src_addr=(src_address, src_port),
+            dest_addr=(dest_address, dest_port),
+        )
+
+        return sock
+
+    def _close_jump_boxes(self) -> None:
+        for index in reversed(range(len(self._jump_boxes))):
+            self._jump_boxes[index].close()
+            self._jump_boxes[index] = None
+
+        self._jump_boxes.clear()
+        self._jump_box_sock = None
 
 
 class LocalShell(InitializableMixin):
