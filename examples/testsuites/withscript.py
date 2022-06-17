@@ -33,7 +33,7 @@ class WithScript(TestSuite):
 
     @TestCaseMetadata(
         description="""
-        this test case run script on a linux node, and demostrate
+        this test case run script on a linux node, and demonstrate
         1. how to use customized script on tested node.
         1. how to use requirement to limit case excludes an os.
         2. use perf_timer to measure performance and output result.

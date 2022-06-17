@@ -968,7 +968,7 @@ class Resize(AzureFeatureMixin, features.Resize):
         # current location and that are available for the current vm size to resize to
         for size in available_sizes:
             vm_size_name = size.as_dict()["name"]
-            # Geting eligible vm sizes and their capability data
+            # Getting eligible vm sizes and their capability data
             new_vm_size = next(
                 (x for x in eligible_sizes if x.vm_size == vm_size_name), None
             )
