@@ -1061,7 +1061,7 @@ class RPMDistro(Linux):
             if repo_info:
                 repositories.append(
                     RPMRepositoryInfo(
-                        name=repo_info.group("name"), id=repo_info.group("id")
+                        name=repo_info.group("name"), id=repo_info.group("id").lower()
                     )
                 )
         return repositories
