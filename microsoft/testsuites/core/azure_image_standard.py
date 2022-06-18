@@ -60,11 +60,10 @@ class AzureImageStandard(TestSuite):
     # suse_cloud_application_platform_tools_module_x86_64:sle-module-cap-tools15-sp2-debuginfo-updates
     _update_repo_regex = re.compile(r"^(?!.*(debug|non)).*update.*$")
 
-    # rhui-microsoft-azure-rhel7                                       Micr enabled: 8
-    #  rhui-rhel-7-server-rhui-optional-rpms/7Server/x86_64             Red  disabled
-    _redhat_repo_regex = re.compile(
-        r"rhui-(?P<name>\S+)\s+(?P<source>\S+)\s+(enabled|disabled)"
-    )
+    # rhui-microsoft-azure-rhel7                                       Micr enabled
+    # rhui-rhel-7-server-rhui-optional-rpms/7Server/x86_64             Red  disabled
+    # rhui-rhel-8-for-x86_64-baseos-rhui-source-rpms            Red Hat Enter disabled
+    _redhat_repo_regex = re.compile(r"rhui-(?P<name>\S+)[ ]*.*(enabled|disabled)", re.M)
 
     # pattern to get failure, error, warnings from dmesg, syslog/messages
     _error_fail_warnings_pattern: List[Pattern[str]] = [
@@ -673,8 +672,8 @@ class AzureImageStandard(TestSuite):
                     "Updates repository should be present",
                 ).is_true()
 
-            # verify that atleast five repositories are present in Redhat
-            if isinstance(node.os, Redhat):
+            # verify that at least five repositories are present in Redhat
+            if type(node.os) == Redhat:
                 fedora_repositories = find_patterns_in_lines(
                     node.execute("yum repolist all -q", sudo=True).stdout,
                     [self._redhat_repo_regex],
