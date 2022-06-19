@@ -56,13 +56,14 @@ class Docker(Tool):
             expected_exit_code_failure_message="Docker run failed.",
         )
 
-    def start(self) -> None:
+    def start(self, name: str = "docker") -> None:
         self._log.debug("Start docker engine")
         service = self.node.tools[Service]
-        service.enable_service("docker")
-        service.restart_service("docker")
+        service.enable_service(name)
+        service.restart_service(name)
 
     def _install(self) -> bool:
+        service_name = "docker"
         if isinstance(self.node.os, Debian):
             self.node.os.install_packages("docker.io")
         elif (
@@ -79,13 +80,28 @@ class Docker(Tool):
             self.node.execute("./get-docker.sh", sudo=True)
         # RHEL 8 and its derivatives don't support docker
         elif isinstance(self.node.os, Redhat):
-            self.node.os.install_packages(
-                ["docker", "docker-ce", "docker.socket", "docker.service"]
-            )
+            if self.node.os.information.version >= "8.0.0":
+                self.node.os.install_packages("podman")
+                self.node.execute(
+                    "ln -s /run/podman/podman.sock /var/run/docker.sock",
+                    sudo=True,
+                    shell=True,
+                )
+                self.node.execute(
+                    "ln -s /bin/podman /bin/docker", sudo=True, shell=True
+                )
+                service_name = "podman"
+            else:
+                self.node.os.add_repository(
+                    repo="https://download.docker.com/linux/centos/docker-ce.repo",
+                    repo_name="docker-ce.repo",
+                )
+                self.node.os.install_packages(
+                    ["docker-ce", "docker-ce-cli", "containerd.io"]
+                )
         elif isinstance(self.node.os, CBLMariner):
             self.node.os.install_packages(["moby-engine", "moby-cli"])
         else:
             raise LisaException(f"{self.node.os.information.vendor} not supported")
-
-        self.start()
+        self.start(service_name)
         return self._check_exists()
