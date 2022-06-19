@@ -2,7 +2,7 @@
 # Licensed under the MIT license.
 
 
-from lisa.base_tools import Cat, Rpm, Sed, Uname, Wget
+from lisa.base_tools import Cat, Rpm, Sed, Uname, Wget, YumConfigManager
 
 from .blkid import Blkid
 from .chmod import Chmod
@@ -188,6 +188,7 @@ __all__ = [
     "Unzip",
     "Uptime",
     "Wget",
+    "YumConfigManager",
     "Who",
     "Whoami",
     "Xfstests",
