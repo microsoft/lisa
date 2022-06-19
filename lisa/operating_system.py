@@ -23,7 +23,7 @@ from assertpy import assert_that
 from retry import retry
 from semver import VersionInfo
 
-from lisa.base_tools import Cat, Sed, Uname, Wget
+from lisa.base_tools import Cat, Sed, Uname, Wget, YumConfigManager
 from lisa.executable import Tool
 from lisa.util import (
     BaseClassMixin,
@@ -1073,15 +1073,7 @@ class RPMDistro(Linux):
         repo_name: Optional[str] = None,
         keys_location: Optional[List[str]] = None,
     ) -> None:
-        cmd = f'yum-config-manager --add-repo "{repo}"'
-        if no_gpgcheck:
-            cmd += " --nogpgcheck"
-        self._node.execute(
-            cmd=cmd,
-            sudo=True,
-            expected_exit_code=0,
-            expected_exit_code_failure_message="fail to add repository",
-        )
+        self._node.tools[YumConfigManager].add_repository(repo, no_gpgcheck)
 
     def _get_package_information(self, package_name: str) -> VersionInfo:
         rpm_info = self._node.execute(
@@ -1404,10 +1396,7 @@ class CentOs(Redhat):
             #  issue
             cmd_results = self._node.execute("yum repolist -v", sudo=True)
             if 0 != cmd_results.exit_code:
-                cmd_results = self._node.execute(
-                    "yum-config-manager --save --setopt=skip_if_unavailable=true",
-                    sudo=True,
-                )
+                self._node.tools[YumConfigManager].set_opt("skip_if_unavailable=true")
 
 
 class Oracle(Redhat):
