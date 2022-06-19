@@ -26,7 +26,13 @@ class DockerCompose(Tool):
         service.restart_service("docker-compose")
 
     def up(self, path: PurePath) -> None:
-        self.run("up -d", sudo=True, cwd=path)
+        self.run(
+            "up -d",
+            sudo=True,
+            cwd=path,
+            expected_exit_code=0,
+            expected_exit_code_failure_message="fail to launch docker-compose up -d",
+        )
 
     def _install(self) -> bool:
         # The default installed docker-compose package doesn't work for
