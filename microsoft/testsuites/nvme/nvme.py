@@ -16,7 +16,7 @@ from lisa import (
 )
 from lisa.features import Nvme, NvmeSettings, Sriov
 from lisa.sut_orchestrator.azure.platform_ import AzurePlatform
-from lisa.tools import Cat, Fdisk, Lscpu, Lspci, Mount, Nvmecli
+from lisa.tools import Cat, Echo, Fdisk, Lscpu, Lspci, Mount, Nvmecli
 from lisa.tools.fdisk import FileSystem
 
 
@@ -228,6 +228,9 @@ class NvmeTestSuite(TestSuite):
 
             # 6. Check how much the mountpoint is trimmed after deleting the file,
             #  and compare the final fstrim status with initial fstrim status.
+            node.tools[Echo].write_to_file(
+                "2", node.get_pure_path("/proc/sys/vm/drop_caches"), sudo=True
+            )
             final_fstrim = node.execute(
                 f"fstrim {mount_point} -v", shell=True, sudo=True
             )
