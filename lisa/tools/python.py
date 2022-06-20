@@ -1,12 +1,13 @@
 # Copyright (c) Microsoft Corporation.
 # Licensed under the MIT license.
+import re
+from typing import List, Type
 
-
-from typing import Any, List, Type
+from assertpy import assert_that
 
 from lisa.executable import Tool
-from lisa.operating_system import Posix, Redhat, Ubuntu
-from lisa.util import UnsupportedDistroException
+from lisa.operating_system import Posix
+from lisa.util import UnsupportedDistroException, get_matched_str
 
 
 class Python(Tool):
@@ -28,9 +29,11 @@ class Python(Tool):
 
 
 class Pip(Tool):
+    _no_permission_pattern = re.compile(r"Permission denied", re.M)
+
     @property
     def command(self) -> str:
-        return self._command
+        return "pip3"
 
     @property
     def can_install(self) -> bool:
@@ -40,28 +43,26 @@ class Pip(Tool):
     def dependencies(self) -> List[Type[Tool]]:
         return [Python]
 
-    def _initialize(self, *args: Any, **kwargs: Any) -> None:
-        if isinstance(self.node.os, Ubuntu):
-            self._command = "pip3"
-        else:
-            self._command = "pip"
-
     def _install(self) -> bool:
-        if isinstance(self.node.os, Redhat):
-            package_name = "python-pip"
-        else:
-            package_name = "python3-pip"
+        package_name = "python3-pip"
         assert isinstance(self.node.os, Posix)
         self.node.os.install_packages(package_name)
         return self._check_exists()
 
     def install_packages(self, packages_name: str) -> None:
-        self.run(
+        cmd_result = self.run(
             f"install -q {packages_name}",
-            expected_exit_code=0,
-            expected_exit_code_failure_message=f"error on pip install package: "
-            f"{packages_name}",
         )
+        if 0 != cmd_result.exit_code and get_matched_str(
+            cmd_result.stdout, self._no_permission_pattern
+        ):
+            cmd_result = self.run(
+                f"install -q {packages_name}",
+                sudo=True,
+            )
+        assert_that(
+            cmd_result.exit_code, "fail to install {packages_name}"
+        ).is_equal_to(0)
 
     def exists_package(self, package_name: str) -> bool:
         result = self.run(f"show {package_name}", force_run=True)
