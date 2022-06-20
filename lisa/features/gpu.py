@@ -164,7 +164,9 @@ class Gpu(Feature):
 
     def get_gpu_count_with_lspci(self) -> int:
         lspci_tool = self._node.tools[Lspci]
-        device_list = lspci_tool.get_devices_by_type(constants.DEVICE_TYPE_GPU)
+        device_list = lspci_tool.get_devices_by_type(
+            constants.DEVICE_TYPE_GPU, force_run=True
+        )
         # Remove Microsoft Virtual one. It presents with GRID driver.
         device_list = self.remove_virtual_gpus(device_list)
 
