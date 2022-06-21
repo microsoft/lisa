@@ -40,11 +40,8 @@ class Lsmod(Tool):
             force_run=force_run,
             no_info_log=no_info_log,
             no_error_log=no_error_log,
+            expected_exit_code=0
         )
-        if result.exit_code != 0:
-            raise LisaException(
-                f"{self._command} command got non-zero exit code: {result.exit_code}"
-            )
 
         module_info = find_patterns_in_lines(result.stdout, [self.__output_pattern])
         if any(mod_name in info for sublist in module_info for info in sublist):

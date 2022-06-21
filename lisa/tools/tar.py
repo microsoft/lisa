@@ -34,11 +34,14 @@ class Tar(Tool):
         if strip_components:
             # optionally strip N top level components from a tar file
             tar_cmd += f" --strip-components={strip_components}"
-        result = self.run(tar_cmd, shell=True, force_run=True, sudo=sudo)
-        if result.exit_code != 0:
-            raise LisaException(
-                f"Failed to extract file to {dest_dir}, {result.stderr}"
-            )
+        result = self.run(
+            tar_cmd,
+            shell=True,
+            force_run=True,
+            sudo=sudo,
+            expected_exit_code=0,
+            expected_exit_code_failure_message=f"Failed to extract file to {dest_dir}"
+        )
 
     def list(
         self, file: str, recursive: bool = True, folders_only: bool = False

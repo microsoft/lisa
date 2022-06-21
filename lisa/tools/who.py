@@ -24,12 +24,13 @@ class Who(Tool):
     def last_boot(self, no_error_log: bool = True) -> datetime:
         # always force run, because it's used to detect if the system is rebooted.
         command_result = self.run(
-            "-b", force_run=True, no_error_log=no_error_log, timeout=10
+            "-b",
+            force_run=True,
+            no_error_log=no_error_log,
+            timeout=10,
+            expected_exit_code=0,
         )
-        if command_result.exit_code != 0:
-            raise LisaException(
-                f"'last' return non-zero exit code: {command_result.stderr}"
-            )
+
         datetime_output = get_matched_str(command_result.stdout, self.last_time_pattern)
 
         return parser().parse(datetime_output)

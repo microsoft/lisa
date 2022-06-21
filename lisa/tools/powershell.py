@@ -30,11 +30,8 @@ class PowerShell(Tool):
         result = self.run(
             f'"{cmdlet}"', force_run=force_run, sudo=sudo, timeout=timeout
         )
-        if fail_on_error and result.exit_code != 0:
-            raise LisaException(
-                f"non-zero exit code {result.exit_code} from cmdlet '{cmdlet}'. "
-                f"output: {result.stdout}"
-            )
+        if fail_on_error:
+            result.assert_exit_code(0)
         return result.stdout
 
     def install_module(self, name: str) -> None:

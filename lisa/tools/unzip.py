@@ -32,9 +32,10 @@ class Unzip(Tool):
         # create folder when it doesn't exist
         self.node.execute(f"mkdir -p {dest_dir}", shell=True)
         result = self.run(
-            f"{file} -d {dest_dir}", shell=True, force_run=True, sudo=sudo
+            f"{file} -d {dest_dir}",
+            shell=True,
+            force_run=True,
+            sudo=sudo,
+            expected_exit_code=0,
+            expected_exit_code_failure_message=f"Failed to extract file to {dest_dir}"
         )
-        if result.exit_code != 0:
-            raise LisaException(
-                f"Failed to extract file to {dest_dir}, {result.stderr}"
-            )

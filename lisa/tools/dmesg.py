@@ -43,8 +43,7 @@ class Dmesg(Tool):
         throw_error: bool = True,
     ) -> str:
         command_output = self._run(force_run=force_run)
-        if command_output.exit_code != 0:
-            raise LisaException(f"exit code should be zero: {command_output.exit_code}")
+        command_output.assert_exit_code(0)
         matched_lines: List[str] = []
         for line in command_output.stdout.splitlines(keepends=False):
             for pattern in self.__errors_patterns:

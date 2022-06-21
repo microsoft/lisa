@@ -26,12 +26,14 @@ class Fips(TestSuite):
         priority=3,
     )
     def verify_fips_enable(self, log: Logger, node: Node) -> None:
-        result = node.execute("command -v fips-mode-setup", shell=True)
-        if result.exit_code != 0:
-            raise SkippedException(
-                "Command not found: fips-mode-setup. "
-                f"Please ensure {node.os.name} supports fips mode."
-            )
+        result = node.execute(
+            "command -v fips-mode-setup",
+            shell=True,
+            expected_exit_code=0,
+            expected_exit_code_failure_message="Command not found: fips-mode-setup. "
+                                              f"Please ensure {node.os.name} supports "
+                                               "fips mode."
+        )
 
         node.execute("fips-mode-setup --enable", sudo=True)
 

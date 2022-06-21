@@ -354,23 +354,30 @@ class LibvirtSourceInstaller(LibvirtInstaller):
             shell=True,
             sudo=True,
             cwd=code_path,
+            expected_exit_code=0
+            expected_exit_code_failure_message="'ninja -C build' command failed."
         )
-        assert not result.exit_code, "'ninja -C build' command failed."
         result = self._node.execute(
             "ninja -C build install",
             shell=True,
             sudo=True,
             cwd=code_path,
+            expected_exit_code=0,
+            expected_exit_code_failure_message="'ninja -C build' command failed."
         )
-        assert not result.exit_code, "'ninja -C build' command failed."
         self._node.execute("ldconfig", shell=True, sudo=True)
 
     def _install_dependencies(self) -> None:
         linux: Linux = cast(Linux, self._node.os)
         dep_packages_list = self.__distro_package_mapping[type(linux).__name__]
         linux.install_packages(list(dep_packages_list))
-        result = self._node.execute("pip3 install meson", shell=True, sudo=True)
-        assert not result.exit_code, "Failed to install meson"
+        result = self._node.execute(
+            "pip3 install meson",
+            shell=True,
+            sudo=True
+            expected_exit_code=0,
+            expected_exit_code_failure_message="Failed to install meson"
+        )
 
     def install(self) -> str:
         runbook: SourceInstallerSchema = self.runbook
@@ -404,8 +411,9 @@ class CloudHypervisorSourceInstaller(CloudHypervisorInstaller):
             shell=True,
             sudo=False,
             cwd=code_path,
+            expected_exit_code=0,
+            expected_exit_code_failure_message="Failed to build cloud-hypervisor"
         )
-        assert not result.exit_code, "Failed to build cloud-hypervisor"
         self._node.execute(
             "cp ./target/release/cloud-hypervisor /usr/local/bin",
             shell=True,
@@ -431,8 +439,9 @@ class CloudHypervisorSourceInstaller(CloudHypervisorInstaller):
             "curl https://sh.rustup.rs -sSf | sh -s -- -y",
             shell=True,
             sudo=False,
+            expected_exit_code=0,
+            expected_exit_code_failure_message="Failed to install Rust & Cargo"
         )
-        assert not result.exit_code, "Failed to install Rust & Cargo"
         self._node.execute("source ~/.cargo/env", shell=True, sudo=False)
         if isinstance(self._node.os, Ubuntu):
             output = self._node.execute("echo $HOME", shell=True)

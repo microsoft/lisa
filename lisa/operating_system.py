@@ -1506,8 +1506,7 @@ class Suse(Linux):
         cmd += f" {repo} {repo_name}"
         cmd_result = self._node.execute(cmd=cmd, sudo=True)
         if "already exists. Please use another alias." not in cmd_result.stdout:
-            if cmd_result.exit_code != 0:
-                raise LisaException(f"fail to add repo {repo}")
+            cmd_result.assert_exit_code(0, message=f"fail to add repo {repo}")
         else:
             self._log.debug(f"repo {repo_name} already exist")
 

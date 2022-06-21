@@ -67,10 +67,12 @@ class Dhclient(Tool):
                 f"-r {interface} && dhclient {interface}",
                 shell=True,
                 sudo=True,
+                expected_exit_code=0
             )
         else:
-            result = self.run("-r && dhclient", shell=True, sudo=True)
-        if result.exit_code != 0:
-            raise LisaException(
-                f"dhclient renew return non-zero exit code: {result.stdout}"
+            result = self.run(
+                "-r && dhclient",
+                shell=True,
+                sudo=True,
+                expected_exit_code=0
             )

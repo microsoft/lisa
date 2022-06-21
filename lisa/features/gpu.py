@@ -196,13 +196,10 @@ class Gpu(Feature):
             executable=True,
         )
         result = self._node.execute(
-            f"{grid_file_path} --no-nouveau-check --silent --no-cc-version-check"
+            f"{grid_file_path} --no-nouveau-check --silent --no-cc-version-check",
+            expected_exit_code=0,
+            expected_exit_code_failure_message="Failed to install the GRID driver!"
         )
-        if result.exit_code != 0:
-            raise LisaException(
-                "Failed to install the GRID driver! "
-                f"exit-code: {result.exit_code} stderr: {result.stderr}"
-            )
 
         self._log.debug("Successfully installed the GRID driver")
 

@@ -22,12 +22,14 @@ class Uptime(Tool):
 
     def since_time(self, no_error_log: bool = True, timeout: int = 600) -> datetime:
         # always force run, because it's used to detect if the system is rebooted.
-        command_result = self.run("-s", force_run=True, no_error_log=no_error_log)
-        if command_result.exit_code != 0:
-            raise LisaException(
-                f"get unexpected non-zero exit code {command_result.exit_code} "
-                f"when run {self.command} -s."
-            )
+        command_result = self.run(
+            "-s",
+            force_run=True,
+            no_error_log=no_error_log
+            expected_exit_code=0,
+            expected_exit_code_failure_message="get unexpected non-zero exit code "
+                                              f"when run {self.command} -s."
+        )
         return parser().parse(command_result.stdout)
 
     @classmethod
