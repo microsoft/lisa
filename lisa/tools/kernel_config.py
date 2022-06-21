@@ -45,5 +45,5 @@ class KernelConfig(Tool):
 
     def _initialize(self, *args: Any, **kwargs: Any) -> None:
         uname_tool = self.node.tools[Uname]
-        kernel_ver = uname_tool.get_linux_information().kernel_version
+        kernel_ver = uname_tool.get_linux_information().kernel_version_raw
         self.config_path: str = f"/boot/config-{kernel_ver}"
