@@ -6,7 +6,7 @@ from typing import cast
 
 from lisa.executable import Tool
 from lisa.operating_system import Posix, Suse
-from lisa.util import LisaException
+from lisa.util import LisaException, get_matched_str
 
 FileSystem = Enum(
     "mkfs",
@@ -32,7 +32,7 @@ class Mkfs(Tool):
         cmd_result = self.node.execute(
             f"echo y | {file_system} {disk}", shell=True, sudo=True
         )
-        if self.__EXIST_FILE_SYSTEM_PATTERN.match(cmd_result.stdout):
+        if get_matched_str(cmd_result.stdout, self.__EXIST_FILE_SYSTEM_PATTERN):
             cmd_result = self.node.execute(
                 f"echo y | {file_system} -f {disk}", shell=True, sudo=True
             )
