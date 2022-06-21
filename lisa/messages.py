@@ -278,4 +278,5 @@ def create_test_result_message(
     message.status = test_status
     if other_fields:
         dict_to_fields(other_fields, message)
+    message.information.update(environment.get_information())
     return message
