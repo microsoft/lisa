@@ -34,12 +34,17 @@ class Make(Tool):
     def make_install(
         self,
         cwd: PurePath,
+        arguments: str = "",
         timeout: int = 600,
         sudo: bool = True,
         update_envs: Optional[Dict[str, str]] = None,
     ) -> None:
         self.make(
-            arguments="", cwd=cwd, timeout=timeout, sudo=sudo, update_envs=update_envs
+            arguments=arguments,
+            cwd=cwd,
+            timeout=timeout,
+            sudo=sudo,
+            update_envs=update_envs,
         )
 
         # install with sudo
