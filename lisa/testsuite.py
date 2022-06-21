@@ -555,6 +555,7 @@ class TestSuite:
             case_kwargs.update({"log_path": case_log_path})
             case_kwargs.update({"working_path": case_working_path})
             case_kwargs.update({"part_path": case_part_path})
+            case_kwargs.update({"result": case_result})
 
             case_log.info(
                 f"test case '{case_result.runtime_data.full_name}' is running"

@@ -12,6 +12,7 @@ from lisa import Environment, notifier
 from lisa.executable import Tool
 from lisa.messages import CommunityTestMessage, TestStatus, create_test_result_message
 from lisa.operating_system import CBLMariner, Debian, Fedora, Posix, Redhat, Suse
+from lisa.testsuite import TestResult
 from lisa.tools import (
     Cat,
     Chmod,
@@ -70,6 +71,7 @@ class Ltp(Tool):
 
     def run_test(
         self,
+        test_result: TestResult,
         environment: Environment,
         ltp_tests: List[str],
         skip_tests: List[str],
@@ -152,9 +154,9 @@ class Ltp(Tool):
             info["information"]["exit_value"] = result.exit_value
             community_message = create_test_result_message(
                 CommunityTestMessage,
+                test_result.id_,
                 environment,
                 result.name,
-                type(self).__name__,
                 result.status,
                 other_fields=info,
             )

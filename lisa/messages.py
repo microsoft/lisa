@@ -64,21 +64,21 @@ class TestRunMessage(MessageBase):
 
 @dataclass
 class TestResultMessageBase(MessageBase):
+    # id is used to identify the unique test result
+    id_: str = ""
     type: str = "TestResultMessageBase"
     name: str = ""
-    suite_name: str = ""
     status: TestStatus = TestStatus.QUEUED
+    message: str = ""
     information: Dict[str, str] = field(default_factory=dict)
 
 
 @dataclass
 class TestResultMessage(TestResultMessageBase):
-    # id is used to identify the unique test result
-    id_: str = ""
     type: str = "TestResult"
     full_name: str = ""
+    suite_name: str = ""
     suite_full_name: str = ""
-    message: str = ""
     log_file: str = ""
     stacktrace: Optional[str] = None
 
@@ -265,18 +265,19 @@ TestResultMessageType = TypeVar("TestResultMessageType", bound=TestResultMessage
 
 def create_test_result_message(
     message_type: Type[TestResultMessageType],
+    id: str,
     environment: "Environment",
     test_case_name: str = "",
-    suite_name: str = "",
     test_status: TestStatus = TestStatus.QUEUED,
+    test_message: str = "",
     other_fields: Optional[Dict[str, Any]] = None,
 ) -> TestResultMessageType:
     message = message_type()
     dict_to_fields(environment.get_information(), message)
+    message.id_ = id
     message.name = test_case_name
-    message.suite_name = suite_name
     message.status = test_status
+    message.message = test_message
     if other_fields:
         dict_to_fields(other_fields, message)
-    message.information.update(environment.get_information())
     return message
