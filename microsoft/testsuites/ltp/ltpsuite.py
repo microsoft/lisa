@@ -15,6 +15,7 @@ from lisa import (
     search_space,
     simple_requirement,
 )
+from lisa.testsuite import TestResult
 from lisa.tools import Lsblk, Swap
 from microsoft.testsuites.ltp.ltp import Ltp
 
@@ -51,6 +52,7 @@ class LtpTestsuite(TestSuite):
         environment: Environment,
         log_path: str,
         variables: Dict[str, Any],
+        result: TestResult,
     ) -> None:
         # parse variables
         tests = variables.get("ltp_test", "")
@@ -76,7 +78,12 @@ class LtpTestsuite(TestSuite):
 
         # run ltp lite tests
         node.tools[Ltp].run_test(
-            environment, test_list, skip_test_list, log_path, drive_name=drive_name
+            result,
+            environment,
+            test_list,
+            skip_test_list,
+            log_path,
+            drive_name=drive_name,
         )
 
     def after_case(self, log: Logger, **kwargs: Any) -> None:
