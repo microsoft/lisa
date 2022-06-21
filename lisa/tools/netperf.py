@@ -103,7 +103,11 @@ class Netperf(Tool):
         if self.node.shell.exists(self.node.get_pure_path(f"{code_path}/autogen.sh")):
             self.node.execute("./autogen.sh", cwd=code_path).assert_exit_code()
         self.node.execute("./configure", cwd=code_path).assert_exit_code()
-        make.make_install(code_path)
+        arguments = ""
+        # fix compile issue when gcc version >= 10
+        if self.node.tools[Gcc].get_version() >= "10.0.0":
+            arguments = "CFLAGS=-fcommon"
+        make.make_install(code_path, arguments=arguments)
         self.node.execute(
             "ln -s /usr/local/bin/netperf /usr/bin/netperf", sudo=True, cwd=code_path
         ).assert_exit_code()
