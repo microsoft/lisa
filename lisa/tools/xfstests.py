@@ -248,7 +248,9 @@ class Xfstests(Tool):
             echo = self.node.tools[Echo]
             echo.write_to_file(exclude_tests, exclude_file_path)
 
-    def check_test_results(self, raw_message: str, log_path: Path) -> None:
+    def check_test_results(
+        self, raw_message: str, log_path: Path, test_type: str
+    ) -> None:
         xfstests_path = self.get_xfstests_path()
         results_path = xfstests_path / "results/check.log"
         if not self.node.shell.exists(results_path):
@@ -277,26 +279,30 @@ class Xfstests(Tool):
             fail_info += find_patterns_in_lines(
                 raw_message, [re.compile(f".*{fail_case}.*$", re.MULTILINE)]
             )[0][0]
-        self.save_xfstests_log(fail_cases.split(), log_path)
+        self.save_xfstests_log(fail_cases.split(), log_path, test_type)
         raise LisaException(
             f"Fail {fail_count} cases of total {total_count}, fail cases"
             f" {fail_cases}, details {fail_info}, please investigate."
         )
 
-    def save_xfstests_log(self, fail_cases: List[str], log_path: Path) -> None:
+    def save_xfstests_log(
+        self, fail_cases: List[str], log_path: Path, test_type: str
+    ) -> None:
+        if "generic" == test_type:
+            test_type = "xfs"
         xfstests_path = self.get_xfstests_path()
         self.node.shell.copy_back(
             xfstests_path / "results/check.log",
             log_path / "xfstests/check.log",
         )
         for fail_case in fail_cases:
-            file_name = f"xfstests/{fail_case}.out.bad"
+            file_name = f"results/{test_type}/{fail_case}.out.bad"
             result_path = xfstests_path / file_name
             if self.node.shell.exists(result_path):
                 self.node.shell.copy_back(result_path, log_path / file_name)
             else:
                 self._log.debug(f"{file_name} doesn't exist.")
-            file_name = f"xfstests/{fail_case}.full"
+            file_name = f"results/{test_type}/{fail_case}.full"
             result_path = xfstests_path / file_name
             if self.node.shell.exists(result_path):
                 self.node.shell.copy_back(result_path, log_path / file_name)
