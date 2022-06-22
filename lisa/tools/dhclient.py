@@ -64,7 +64,7 @@ class Dhclient(Tool):
     def renew(self, interface: Optional[str] = None) -> None:
         if interface:
             result = self.run(
-                f"-r {interface} && dhclient {interface}",
+                "-r {interface} && dhclient {interface}",
                 shell=True,
                 sudo=True,
                 expected_exit_code=0
