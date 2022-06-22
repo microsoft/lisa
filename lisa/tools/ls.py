@@ -30,7 +30,10 @@ class Ls(Tool):
             sudo=sudo,
             shell=True,
         )
-        return cmd_result.stdout.split()
+        if cmd_result.exit_code == 0:
+            return cmd_result.stdout.split()
+        else:
+            return []
 
     @classmethod
     def _windows_tool(cls) -> Optional[Type[Tool]]:
