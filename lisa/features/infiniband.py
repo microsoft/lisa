@@ -10,10 +10,14 @@ from assertpy import assert_that
 from lisa.base_tools import Cat, Sed, Uname, Wget
 from lisa.feature import Feature
 from lisa.operating_system import CentOs, Redhat, Ubuntu
-from lisa.tools import Firewall, Make
+from lisa.tools import Firewall, Ls, Make
 from lisa.tools.service import Service
 from lisa.tools.tar import Tar
-from lisa.util import LisaException
+from lisa.util import (
+    MissingPackagesException,
+    UnsupportedDistroException,
+    UnsupportedKernelException,
+)
 
 FEATURE_NAME_INFINIBAND = "Infiniband"
 
@@ -200,14 +204,13 @@ class Infiniband(Feature):
             "tk",
             "gcc-gfortran",
             "tcsh",
-            "kernel-devel",
             "kernel-modules-extra",
             "createrepo",
             "libtool",
             "fuse-libs",
             "gcc-c++",
-            "glibc.i686",
-            "libgcc.i686",
+            "glibc",
+            "libgcc",
             "byacc",
             "libevent",
         ]
@@ -224,11 +227,24 @@ class Infiniband(Feature):
             else:
                 redhat_required_packages.append("python3-devel")
                 redhat_required_packages.append("python2-devel")
+
             node.os.install_packages(list(redhat_required_packages))
-        elif isinstance(node.os, Ubuntu):
+
+            try:
+                node.os.install_packages("kernel-devel-$(uname -r)")
+            except MissingPackagesException:
+                node.log.debug(
+                    "kernel-devel-$(uname -r) not found. Trying kernel-devel"
+                )
+                node.os.install_packages("kernel-devel")
+        elif isinstance(node.os, Ubuntu) and node.os.information.version >= "18.4.0":
             node.os.install_packages(list(ubuntu_required_packages))
         else:
-            raise LisaException(f"Unsupported distro: {node.os.name} is not supported.")
+            raise UnsupportedDistroException(
+                node.os,
+                "Only CentOS 7.6-8.3 and Ubuntu 18.04-20.04 distros are "
+                "supported by the HCP team",
+            )
 
         # Turn off firewall
         firewall = node.tools[Firewall]
@@ -268,10 +284,22 @@ class Infiniband(Feature):
 
         extra_params = ""
         if isinstance(node.os, Redhat):
+            ls = node.tools[Ls]
+            kernel_dirs = ls.list_dir("/usr/src/kernels")
+            if f"/usr/src/kernels/{kernel}" in kernel_dirs:
+                kernel_src = f"/usr/src/kernels/{kernel}"
+            elif kernel_dirs:
+                kernel_src = kernel_dirs[0]
+            else:
+                raise UnsupportedKernelException(
+                    node.os, "Cannot install OFED drivers without kernel-devel package"
+                )
+
             extra_params = (
-                f"--kernel {kernel} --kernel-sources /usr/src/kernels/{kernel}  "
+                f"--kernel {kernel} --kernel-sources {kernel_src}  "
                 f"--skip-repo --skip-unsupported-devices-check --without-fw-update"
             )
+
         node.execute(
             f"./{mofed_folder}/mlnxofedinstall --add-kernel-support {extra_params}",
             expected_exit_code=0,

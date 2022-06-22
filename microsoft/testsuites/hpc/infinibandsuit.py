@@ -15,7 +15,7 @@ from lisa import (
 from lisa.features import Infiniband, Sriov
 from lisa.sut_orchestrator.azure.tools import Waagent
 from lisa.tools import Find, Modprobe, Ssh
-from lisa.util import SkippedException
+from lisa.util import SkippedException, UnsupportedDistroException
 from lisa.util.parallel import run_in_parallel
 
 
@@ -41,7 +41,11 @@ class InfinibandSuit(TestSuite):
     )
     def verify_hpc_over_sriov(self, log: Logger, node: Node) -> None:
 
-        infiniband = node.features[Infiniband]
+        try:
+            infiniband = node.features[Infiniband]
+        except UnsupportedDistroException as err:
+            raise SkippedException(err)
+
         assert_that(infiniband.is_over_sriov()).described_as(
             "Based on VM SKU information we expected Infiniband over SR-IOV,"
             " but no matching devices were found."
@@ -83,7 +87,11 @@ class InfinibandSuit(TestSuite):
     )
     def verify_hpc_over_nd(self, log: Logger, node: Node) -> None:
 
-        infiniband = node.features[Infiniband]
+        try:
+            infiniband = node.features[Infiniband]
+        except UnsupportedDistroException as err:
+            raise SkippedException(err)
+
         if not infiniband.is_over_nd():
             raise SkippedException("Inifiniband over ND was not detected.")
 
@@ -122,12 +130,16 @@ class InfinibandSuit(TestSuite):
         client_node = environment.nodes[1]
 
         # Ensure RDMA is setup
-        run_in_parallel(
-            [
-                lambda: client_node.features[Infiniband],
-                lambda: server_node.features[Infiniband],
-            ]
-        )
+        try:
+            run_in_parallel(
+                [
+                    lambda: client_node.features[Infiniband],
+                    lambda: server_node.features[Infiniband],
+                ]
+            )
+        except UnsupportedDistroException as err:
+            raise SkippedException(err)
+
         server_infiniband = server_node.features[Infiniband]
         server_ib_interfaces = server_infiniband.get_ib_interfaces()
 
@@ -182,12 +194,15 @@ class InfinibandSuit(TestSuite):
         client_node = environment.nodes[1]
 
         # Ensure RDMA is setup
-        run_in_parallel(
-            [
-                lambda: client_node.features[Infiniband],
-                lambda: server_node.features[Infiniband],
-            ]
-        )
+        try:
+            run_in_parallel(
+                [
+                    lambda: client_node.features[Infiniband],
+                    lambda: server_node.features[Infiniband],
+                ]
+            )
+        except UnsupportedDistroException as err:
+            raise SkippedException(err)
 
         server_ib = server_node.features[Infiniband]
         client_ib = client_node.features[Infiniband]
@@ -270,12 +285,15 @@ class InfinibandSuit(TestSuite):
         client_node = environment.nodes[1]
 
         # Ensure RDMA is setup
-        run_in_parallel(
-            [
-                lambda: client_node.features[Infiniband],
-                lambda: server_node.features[Infiniband],
-            ]
-        )
+        try:
+            run_in_parallel(
+                [
+                    lambda: client_node.features[Infiniband],
+                    lambda: server_node.features[Infiniband],
+                ]
+            )
+        except UnsupportedDistroException as err:
+            raise SkippedException(err)
 
         server_ib = server_node.features[Infiniband]
         client_ib = client_node.features[Infiniband]
@@ -364,12 +382,15 @@ class InfinibandSuit(TestSuite):
         client_node = environment.nodes[1]
 
         # Ensure RDMA is setup
-        run_in_parallel(
-            [
-                lambda: client_node.features[Infiniband],
-                lambda: server_node.features[Infiniband],
-            ]
-        )
+        try:
+            run_in_parallel(
+                [
+                    lambda: client_node.features[Infiniband],
+                    lambda: server_node.features[Infiniband],
+                ]
+            )
+        except UnsupportedDistroException as err:
+            raise SkippedException(err)
 
         server_ib = server_node.features[Infiniband]
         client_ib = client_node.features[Infiniband]
@@ -433,12 +454,15 @@ class InfinibandSuit(TestSuite):
         client_node = environment.nodes[1]
 
         # Ensure RDMA is setup
-        run_in_parallel(
-            [
-                lambda: client_node.features[Infiniband],
-                lambda: server_node.features[Infiniband],
-            ]
-        )
+        try:
+            run_in_parallel(
+                [
+                    lambda: client_node.features[Infiniband],
+                    lambda: server_node.features[Infiniband],
+                ]
+            )
+        except UnsupportedDistroException as err:
+            raise SkippedException(err)
 
         server_ib = server_node.features[Infiniband]
         client_ib = client_node.features[Infiniband]
