@@ -3,7 +3,7 @@
 import random
 import string
 from pathlib import Path
-from typing import Dict, cast
+from typing import Any, Dict, cast
 
 from lisa import (
     Logger,
@@ -62,7 +62,9 @@ def _prepare_data_disk(
 
     parted.make_label(disk_name)
     parted.make_partition(disk_name, "primary", "1", "50%")
+    node.execute("sync")
     parted.make_partition(disk_name, "secondary", "50%", "100%")
+    node.execute("sync")
 
     for disk, mount_point in disk_mount.items():
         mkfs.format_disk(disk, file_system)
@@ -484,6 +486,16 @@ class Xfstesting(TestSuite):
             # revert file into original status after testing.
             node.execute("cp -f /etc/fstab_cifs /etc/fstab", sudo=True)
 
+    def after_case(self, log: Logger, **kwargs: Any) -> None:
+        node: Node = kwargs.pop("node")
+        for path in [
+            "/dev/mapper/delay-test",
+            "/dev/mapper/huge-test",
+            "/dev/mapper/huge-test-zero",
+        ]:
+            if 0 == node.execute(f"ls -lt {path}", sudo=True).exit_code:
+                node.execute(f"dmsetup remove {path}", sudo=True)
+
     def _execute_xfstests(
         self,
         node: Node,
@@ -533,7 +545,7 @@ class Xfstesting(TestSuite):
             cwd=xfstests.get_xfstests_path(),
             timeout=self.TIME_OUT,
         )
-        xfstests.check_test_results(cmd_results.stdout, log_path)
+        xfstests.check_test_results(cmd_results.stdout, log_path, test_type)
 
     def _install_xfstests(self, node: Node) -> Xfstests:
         try:
