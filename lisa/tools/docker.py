@@ -47,7 +47,7 @@ class Docker(Tool):
         docker_run_output: str,
     ) -> None:
         self.run(
-            f"run --name {container_name} " f"{image_name} 1> {docker_run_output} 2>&1",
+            f"run --name {container_name} {image_name} 1> {docker_run_output} 2>&1",
             shell=True,
             sudo=True,
             cwd=self.node.working_path,
@@ -65,7 +65,14 @@ class Docker(Tool):
     def _install(self) -> bool:
         service_name = "docker"
         if isinstance(self.node.os, Debian):
-            self.node.os.install_packages("docker.io")
+            try:
+                self.node.os.install_packages("docker.io")
+            except Exception as e:
+                self._log.error(
+                    f"Failed to install docker.io: {e}, trying to install docker from"
+                    " repo"
+                )
+                self._install_from_repo()
         elif (
             isinstance(self.node.os, CentOs)
             and self.node.os.information.release >= "8.0"
@@ -105,3 +112,34 @@ class Docker(Tool):
             raise LisaException(f"{self.node.os.information.vendor} not supported")
         self.start(service_name)
         return self._check_exists()
+
+    def _install_from_repo(self) -> None:
+        if isinstance(self.node.os, Debian):
+            self.node.os.install_packages(
+                [
+                    "apt-transport-https",
+                    "ca-certificates",
+                    "curl",
+                    "gnupg2",
+                    "software-properties-common",
+                ]
+            )
+            self.node.execute(
+                "curl -fsSL https://download.docker.com/linux/debian/gpg | sudo apt-key"
+                " add -",
+                shell=True,
+                sudo=True,
+            )
+            lsb_release_code = self.node.os.information.codename
+            self.node.os.add_repository(
+                repo=(
+                    "deb [arch=amd64] https://download.docker.com/linux/debian"
+                    f" {lsb_release_code} stable"
+                ),
+            )
+            self.node.execute("apt update", sudo=True, shell=True)
+            self.node.os.install_packages("docker-ce")
+        else:
+            raise LisaException(
+                f"{self.node.os.information.vendor} not supported for install from repo"
+            )
