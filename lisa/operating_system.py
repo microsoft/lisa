@@ -343,6 +343,9 @@ class Posix(OperatingSystem, BaseClassMixin):
         Return Value - bool
         """
         package_name = self.__resolve_package_name(package)
+        if self._first_time_installation:
+            self._initialize_package_installation()
+            self._first_time_installation = False
         return self._is_package_in_repo(package_name)
 
     def update_packages(
@@ -1309,9 +1312,6 @@ class Redhat(Fedora):
         return False
 
     def _is_package_in_repo(self, package: str) -> bool:
-        if self._first_time_installation:
-            self._initialize_package_installation()
-            self._first_time_installation = False
         command = f"yum --showduplicates list {package}"
         result = self._node.execute(command, sudo=True, shell=True)
         return 0 == result.exit_code
