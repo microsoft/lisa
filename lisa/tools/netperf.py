@@ -4,7 +4,7 @@
 from typing import Any, List, Type, cast
 
 from lisa.executable import Tool
-from lisa.operating_system import Debian, Posix, Redhat, Suse
+from lisa.operating_system import CBLMariner, Debian, Posix, Redhat, Suse
 from lisa.util import LisaException
 from lisa.util.process import Process
 
@@ -85,6 +85,15 @@ class Netperf(Tool):
             package_list = ["sysstat", "automake"]
         elif isinstance(self.node.os, Suse):
             package_list = ["sysstat", "automake"]
+        elif isinstance(self.node.os, CBLMariner):
+            package_list = [
+                "kernel-headers",
+                "binutils",
+                "glibc-devel",
+                "zlib-devel",
+                "automake",
+                "autoconf",
+            ]
         else:
             raise LisaException(
                 f"tool {self.command} can't be installed in distro {self.node.os.name}."
