@@ -1,7 +1,7 @@
 # Copyright (c) Microsoft Corporation.
 # Licensed under the MIT license.
 import time
-from pathlib import Path
+from pathlib import Path, PurePosixPath
 from random import randint
 from typing import cast
 
@@ -21,6 +21,7 @@ from lisa import (
 )
 from lisa.features import SerialConsole
 from lisa.operating_system import Redhat
+from lisa.sut_orchestrator.azure.tools import Waagent
 from lisa.tools import Dmesg, Echo, KdumpBase, KernelConfig, Lscpu
 from lisa.util.perf_timer import create_timer
 from lisa.util.shell import try_connect
@@ -231,6 +232,24 @@ class KdumpCrash(TestSuite):
         kdump = node.tools[KdumpBase]
         kdump.check_required_kernel_config()
 
+    def _get_resource_disk_dump_path(self, node: Node) -> str:
+        if node.shell.exists(
+            PurePosixPath("/var/log/cloud-init.log")
+        ) and node.shell.exists(PurePosixPath("/var/lib/cloud/instance")):
+            mount_point = "/mnt"
+        else:
+            mount_point = node.tools[Waagent].get_resource_disk_mount_point()
+
+        dump_path = mount_point + "/crash"
+        node.execute(
+            f"mkdir -p {dump_path}",
+            expected_exit_code=0,
+            expected_exit_code_failure_message=(f"Fail to create dir {dump_path}"),
+            shell=True,
+            sudo=True,
+        )
+        return dump_path
+
     def _kdump_test(self, node: Node, log_path: Path, log: Logger) -> None:
         try:
             self._check_supported(node)
@@ -238,8 +257,21 @@ class KdumpCrash(TestSuite):
             raise SkippedException(identifier)
 
         kdump = node.tools[KdumpBase]
+
+        memory_size = node.execute(
+            "free -h | grep Mem | awk '{print $2}'", shell=True, sudo=True
+        )
+        if "Ti" in memory_size.stdout and float(memory_size.stdout.strip("Ti")) > 1:
+            # System memory is more than 1T, need to change the dump path
+            # and set crashkernel=2G
+            kdump.config_resource_disk_dump_path(
+                self._get_resource_disk_dump_path(node)
+            )
+            self.crash_kernel = "2G"
+            self.timeout_of_dump_crash = 1200
+            if float(memory_size.stdout.strip("Ti")) > 6:
+                self.timeout_of_dump_crash = 2000
         kdump.config_crashkernel_memory(self.crash_kernel)
-        kdump.config_dump_path()
         kdump.enable_kdump_service()
         # Cleaning up any previous crash dump files
         node.execute(
