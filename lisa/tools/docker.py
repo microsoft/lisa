@@ -47,7 +47,7 @@ class Docker(Tool):
         docker_run_output: str,
     ) -> None:
         self.run(
-            f"run --name {container_name} {image_name} 1> {docker_run_output} 2>&1",
+            f"run --name {container_name} {image_name} > {docker_run_output} 2>&1",
             shell=True,
             sudo=True,
             cwd=self.node.working_path,
