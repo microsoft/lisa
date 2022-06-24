@@ -281,11 +281,11 @@ class KdumpBase(Tool):
         result = self.node.execute(update_cmd, sudo=True, shell=True)
         result.assert_exit_code(message="Failed to update grub")
 
-    def config_dump_path(self) -> None:
+    def config_resource_disk_dump_path(self, dump_path: str) -> None:
         """
         If the system memory size is bigger than 1T, the default size of /var/crash
-        maybe not enough to store the dump file, need change the dump path. The distro
-        which doesn't have enough space for /var/crash, need override this method.
+        may not be enough to store the dump file, need to configure the dump path.
+        The distro which may not have enough space, need override this method.
         """
         return
 
@@ -398,33 +398,23 @@ class KdumpRedhat(KdumpBase):
                 # System with BIOS firmware
                 return "grub2-mkconfig -o /boot/grub2/grub.cfg"
 
-    def config_dump_path(self) -> None:
+    def config_resource_disk_dump_path(self, dump_path: str) -> None:
         """
         If the system memory size is bigger than 1T, the default size of /var/crash
-        maybe not enough to store the dump file, need change the dump path
+        may not be enough to store the dump file, need to change the dump path
         """
         kdump_conf = "/etc/kdump.conf"
-        check_memory_cmd = "free -h | grep Mem | awk '{print $2}'"
-        result = self.node.execute(check_memory_cmd, shell=True, sudo=True)
-        if "Ti" not in result.stdout:
-            # System memory size is smaller than 1T, no need to change dump path
-            return
-        size = float(result.stdout.strip("Ti"))
-        if size > 1:
-            self.dump_path = "/mnt/crash"
-            self.node.execute(
-                f"mkdir -p {self.dump_path}", shell=True, sudo=True
-            ).assert_exit_code()
-            # Change dump path in kdump conf
-            sed = self.node.tools[Sed]
-            sed.substitute(
-                match_lines="^path",
-                regexp="path",
-                replacement="#path",
-                file=kdump_conf,
-                sudo=True,
-            )
-            sed.append(f"path {self.dump_path}", kdump_conf, sudo=True)
+        self.dump_path = dump_path
+        # Change dump path in kdump conf
+        sed = self.node.tools[Sed]
+        sed.substitute(
+            match_lines="^path",
+            regexp="path",
+            replacement="#path",
+            file=kdump_conf,
+            sudo=True,
+        )
+        sed.append(f"path {self.dump_path}", kdump_conf, sudo=True)
 
 
 class KdumpDebian(KdumpBase):
