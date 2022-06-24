@@ -110,6 +110,7 @@ class AzureNodeSchema:
         default=None, metadata=field_metadata(data_key="shared_gallery")
     )
     vhd: str = ""
+    osdisk_size_in_gb: int = 30
     hyperv_generation: int = field(
         default=1,
         metadata=field_metadata(validate=validate.OneOf([1, 2])),

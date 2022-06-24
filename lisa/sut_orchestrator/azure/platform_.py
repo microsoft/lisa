@@ -19,6 +19,7 @@ from typing import Any, Dict, List, Optional, Tuple, Type, Union, cast
 from azure.core.exceptions import HttpResponseError
 from azure.identity import DefaultAzureCredential
 from azure.mgmt.compute.models import (  # type: ignore
+    GalleryImageVersion,
     PurchasePlan,
     ResourceSku,
     RunCommandInput,
@@ -74,6 +75,7 @@ from .common import (
     AzureVmPurchasePlanSchema,
     DataDiskCreateOption,
     DataDiskSchema,
+    SharedImageGallerySchema,
     check_or_create_resource_group,
     check_or_create_storage_account,
     get_compute_client,
@@ -1163,6 +1165,7 @@ class AzurePlatform(Platform):
             AzureNodeSchema, type_name=AZURE
         )
 
+        os_disk_size = 30
         if not azure_node_runbook.name:
             # the max length of vm name is 64 chars. Below logic takes last 45
             # chars in resource group name and keep the leading 5 chars.
@@ -1191,10 +1194,17 @@ class AzurePlatform(Platform):
             azure_node_runbook.vhd = self._get_deployable_vhd_path(
                 azure_node_runbook.vhd, azure_node_runbook.location, log
             )
+            os_disk_size = max(
+                os_disk_size, self._get_vhd_os_disk_size(azure_node_runbook.vhd)
+            )
             azure_node_runbook.marketplace = None
             azure_node_runbook.shared_gallery = None
         elif azure_node_runbook.shared_gallery:
             azure_node_runbook.marketplace = None
+            os_disk_size = max(
+                os_disk_size,
+                self._get_sig_os_disk_size(azure_node_runbook.shared_gallery),
+            )
         elif azure_node_runbook.marketplace:
             # marketplace value is already set in runbook
             pass
@@ -1211,7 +1221,9 @@ class AzurePlatform(Platform):
             image_info = self._get_image_info(
                 azure_node_runbook.location, azure_node_runbook.marketplace
             )
-
+            os_disk_size = max(
+                os_disk_size, image_info.os_disk_image.additional_properties["sizeInGb"]
+            )
             # HyperVGenerationTypes return "V1"/"V2", so we need to strip "V"
             if image_info.hyper_v_generation:
                 azure_node_runbook.hyperv_generation = int(
@@ -1236,6 +1248,7 @@ class AzurePlatform(Platform):
                     plan_product=plan_product,
                     plan_publisher=plan_publisher,
                 )
+        azure_node_runbook.osdisk_size_in_gb = os_disk_size
 
         if azure_node_runbook.is_linux is None:
             # fill it default value
@@ -2088,6 +2101,70 @@ class AzurePlatform(Platform):
         result = wait_operation(operation=operation, failure_identity="enable ssh")
         log.debug("SSH script result:")
         log.dump_json(logging.DEBUG, result)
+
+    def _get_vhd_os_disk_size(self, blob_url: str) -> int:
+        vhd_blob = BlobClient.from_blob_url(
+            blob_url=blob_url,
+            credential=self.credential,
+        )
+        properties = vhd_blob.get_blob_properties()
+        assert properties.size
+        return int(properties.size / 1024 / 1024 / 1024)
+
+    def _get_sig_info(
+        self, shared_image: SharedImageGallerySchema
+    ) -> GalleryImageVersion:
+        compute_client = get_compute_client(self)
+        if not shared_image.resource_group_name:
+            # /subscriptions/xxxx/resourceGroups/xxxx/providers/Microsoft.Compute/
+            # galleries/xxxx
+            rg_pattern = re.compile(r"resourceGroups/(.*)/providers", re.M)
+            galleries = compute_client.galleries.list()
+            rg_name = ""
+            for gallery in galleries:
+                if gallery.name.lower() == shared_image.image_gallery:
+                    rg_name = get_matched_str(gallery.id, rg_pattern)
+                    break
+            if not rg_name:
+                raise LisaException(
+                    f"not find matched gallery {shared_image.image_gallery}"
+                )
+        shared_image.resource_group_name = rg_name
+        gallery_images = compute_client.gallery_image_versions.list_by_gallery_image(
+            resource_group_name=shared_image.resource_group_name,
+            gallery_name=shared_image.image_gallery,
+            gallery_image_name=shared_image.image_definition,
+        )
+        if shared_image.image_version.lower() != "latest":
+            found_image = compute_client.gallery_image_versions.get(
+                resource_group_name=shared_image.resource_group_name,
+                gallery_name=shared_image.image_gallery,
+                gallery_image_name=shared_image.image_definition,
+                gallery_image_version_name=shared_image.image_version,
+                expand="ReplicationStatus",
+            )
+        else:
+            image: GalleryImageVersion = None
+            time: Optional[datetime] = None
+            for image in gallery_images:
+                gallery_image = compute_client.gallery_image_versions.get(
+                    resource_group_name=shared_image.resource_group_name,
+                    gallery_name=shared_image.image_gallery,
+                    gallery_image_name=shared_image.image_definition,
+                    gallery_image_version_name=image.name,
+                    expand="ReplicationStatus",
+                )
+                if not time:
+                    time = gallery_image.publishing_profile.published_date
+                if gallery_image.publishing_profile.published_date > time:
+                    time = gallery_image.publishing_profile.published_date
+                    found_image = gallery_image
+        return found_image
+
+    def _get_sig_os_disk_size(self, shared_image: SharedImageGallerySchema) -> int:
+        found_image = self._get_sig_info(shared_image)
+        assert found_image.storage_profile.os_disk_image.size_in_gb
+        return int(found_image.storage_profile.os_disk_image.size_in_gb)
 
 
 def _convert_to_azure_node_space(node_space: schema.NodeSpace) -> None:
