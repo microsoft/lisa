@@ -112,7 +112,7 @@ class CPUSuite(TestSuite):
             ).is_true()
         finally:
             # kill fio process
-            node.tools[Kill].by_name("fio")
+            node.tools[Kill].by_name("fio", ignore_not_exist=True)
 
     @TestCaseMetadata(
         description="""
@@ -147,8 +147,8 @@ class CPUSuite(TestSuite):
             ).is_true()
         finally:
             # kill fio process
-            server.tools[Kill].by_name("iperf3")
-            client.tools[Kill].by_name("iperf3")
+            server.tools[Kill].by_name("iperf3", ignore_not_exist=True)
+            client.tools[Kill].by_name("iperf3", ignore_not_exist=True)
 
     @TestCaseMetadata(
         description="""
