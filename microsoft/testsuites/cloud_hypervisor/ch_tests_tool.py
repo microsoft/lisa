@@ -65,7 +65,7 @@ class CloudHypervisorTests(Tool):
                 daemon_json, daemon_json_file, sudo=True
             )
 
-        self.node.execute("groupadd -f docker")
+        self.node.execute("groupadd -f docker", expected_exit_code=0)
         username = self.node.tools[Whoami].get_username()
         res = self.node.execute("getent group docker", expected_exit_code=0)
         if username not in res.stdout:  # if current user is not in docker group
