@@ -6,11 +6,11 @@ from typing import Any, List, Optional, Type
 
 from lisa.executable import Tool
 from lisa.operating_system import CBLMariner
-from lisa.tools import Docker, Echo, Git, Modprobe
+from lisa.tools import Docker, Echo, Git, Whoami
 
 
 class CloudHypervisorTests(Tool):
-    TIME_OUT = 1800
+    TIME_OUT = 3600
 
     repo = "https://github.com/cloud-hypervisor/cloud-hypervisor.git"
 
@@ -30,8 +30,6 @@ class CloudHypervisorTests(Tool):
         return [Git, Docker]
 
     def run_tests(self, test_type: str, skip: Optional[List[str]] = None) -> List[str]:
-        self.node.tools[Modprobe].load("openvswitch")
-
         if skip is not None:
             skip_args = " ".join(map(lambda t: f"--skip {t}", skip))
         else:
@@ -43,6 +41,7 @@ class CloudHypervisorTests(Tool):
             force_run=True,
             cwd=self.repo_root,
             no_info_log=False,  # print out result of each test
+            shell=True,
         )
 
         failures = self._extract_failed_tests(result.stdout)
@@ -65,6 +64,15 @@ class CloudHypervisorTests(Tool):
             self.node.tools[Echo].write_to_file(
                 daemon_json, daemon_json_file, sudo=True
             )
+
+        self.node.execute("groupadd -f docker")
+        username = self.node.tools[Whoami].get_username()
+        res = self.node.execute("getent group docker", expected_exit_code=0)
+        if username not in res.stdout:  # if current user is not in docker group
+            self.node.execute(f"usermod -a -G docker {username}", sudo=True)
+            # reboot for group membership change to take effect
+            self.node.reboot()
+
         self.node.tools[Docker].start()
 
         return self._check_exists()

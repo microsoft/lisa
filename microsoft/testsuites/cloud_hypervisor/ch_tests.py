@@ -15,7 +15,7 @@ from lisa import (
     schema,
     search_space,
 )
-from lisa.tools import Lscpu
+from lisa.tools import Lscpu, Modprobe
 from lisa.util import SkippedException
 from microsoft.testsuites.cloud_hypervisor.ch_tests_tool import CloudHypervisorTests
 
@@ -29,6 +29,14 @@ from microsoft.testsuites.cloud_hypervisor.ch_tests_tool import CloudHypervisorT
     """,
 )
 class CloudHypervisorTestSuite(TestSuite):
+    def before_suite(self, log: Logger, **kwargs: Any) -> None:
+        node = kwargs["node"]
+        node.tools[Modprobe].load("openvswitch")
+
+    def after_suite(self, log: Logger, **kwargs: Any) -> None:
+        node = kwargs["node"]
+        node.tools[Modprobe].remove("openvswitch")
+
     def before_case(self, log: Logger, **kwargs: Any) -> None:
         node = kwargs["node"]
         self._ensure_virtualization_enabled(node)
@@ -40,7 +48,8 @@ class CloudHypervisorTestSuite(TestSuite):
         priority=3,
         requirement=node_requirement(
             node=schema.NodeSpace(
-                min_core_count=16, memory_mb=search_space.IntRange(min=16 * 1024)
+                core_count=search_space.IntRange(min=16),
+                memory_mb=search_space.IntRange(min=16 * 1024),
             ),
         ),
     )
@@ -57,7 +66,8 @@ class CloudHypervisorTestSuite(TestSuite):
         priority=3,
         requirement=node_requirement(
             node=schema.NodeSpace(
-                min_core_count=16, memory_mb=search_space.IntRange(min=16 * 1024)
+                core_count=search_space.IntRange(min=16),
+                memory_mb=search_space.IntRange(min=16 * 1024),
             ),
         ),
     )
