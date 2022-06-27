@@ -3,6 +3,7 @@
 
 
 from lisa.executable import Tool
+from lisa.util import LisaException
 from lisa.util.constants import SIGKILL
 
 from .pidof import Pidof
@@ -17,7 +18,9 @@ class Kill(Tool):
     def can_install(self) -> bool:
         return False
 
-    def by_name(self, process_name: str, signum: int = SIGKILL) -> None:
+    def by_name(
+        self, process_name: str, signum: int = SIGKILL, ignore_not_exist: bool = False
+    ) -> None:
 
         # attempt kill by name first
         kill_by_name = self.run(
@@ -29,19 +32,26 @@ class Kill(Tool):
         # fallback to kill by pid if first attempt fails for some reason
         pids = self.node.tools[Pidof].get_pids(process_name, sudo=True)
         for pid in pids:
-            self.by_pid(pid, signum)
+            self.by_pid(pid, signum, ignore_not_exist)
         else:
             self._log.debug(
                 f"Kill for {process_name} did not find any processes to kill."
             )
 
-    def by_pid(self, pid: str, signum: int = SIGKILL) -> None:
-        self.run(
+    def by_pid(
+        self, pid: str, signum: int = SIGKILL, ignore_not_exist: bool = False
+    ) -> None:
+        result = self.run(
             f"-{signum} {pid}",
             shell=True,
             sudo=True,
             force_run=True,
-            expected_exit_code=0,
-            expected_exit_code_failure_message="fail to run "
-            f"{self.command} -{signum} {pid}",
         )
+
+        if result.exit_code != 0:
+            if ignore_not_exist and "No such process" in result.stdout:
+                self._log.debug(f"Kill for {pid} did not find any processes to kill.")
+            else:
+                raise LisaException(
+                    f"failed to run {self.command} -{signum} {pid}: {result.stdout}"
+                )
