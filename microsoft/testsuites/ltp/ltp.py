@@ -191,13 +191,14 @@ class Ltp(Tool):
             self.node.os.install_packages(
                 ["libaio-devel", "libattr", "libcap-devel", "libdb"]
             )
+
+            # db4-utils and ntp are not available in Redhat >= 8.0
+            # ntp is replaced by chrony in Redhat8 release
             if not (
                 isinstance(self.node.os, Redhat)
-                and self.node.os.information.release >= "8.0"
+                and self.node.os.information.version >= "8.0.0"
             ):
-                self.node.os.install_packages(["db4-utils"])
-            else:
-                self.node.os.install_packages(["ntp"])
+                self.node.os.install_packages(["db4-utils", "ntp"])
         elif isinstance(self.node.os, Debian):
             self.node.os.install_packages(
                 [
