@@ -1,6 +1,5 @@
 # Copyright (c) Microsoft Corporation.
 # Licensed under the MIT license.
-from pathlib import PurePosixPath
 from typing import Any
 
 from lisa.executable import Tool
