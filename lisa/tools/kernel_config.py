@@ -41,7 +41,9 @@ class KernelConfig(Tool):
         return self.is_built_as_module(config_name) or self.is_built_in(config_name)
 
     def _check_exists(self) -> bool:
-        return self.node.shell.exists(PurePosixPath(self.config_path))
+        return (
+            self.node.execute(f"ls -lt {self.config_path}", sudo=True)
+        ).exit_code == 0
 
     def _initialize(self, *args: Any, **kwargs: Any) -> None:
         uname_tool = self.node.tools[Uname]
