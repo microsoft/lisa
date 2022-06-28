@@ -183,7 +183,7 @@ class AzureImageStandard(TestSuite):
         re.compile(r"^(.*Write warning to Azure ephemeral disk.*)$", re.M),
         re.compile(r"^(.*Added ephemeral disk warning to.*)$", re.M),
         re.compile(r"^(.*Proceeding WITHOUT firewalling in effect!.*)$", re.M),
-        re.compile(r"^(.*urandom warning\\(s\\) missed due to ratelimiting.*)$", re.M),
+        re.compile(r"^(.*urandom warning.* missed due to ratelimiting.*)$", re.M),
         re.compile(
             r"^(.*kdumpctl.*: Warning: There might not be enough space to save a vmcore.*)$",  # noqa: E501
             re.M,
@@ -192,6 +192,14 @@ class AzureImageStandard(TestSuite):
             r"^(.*WARNING ExtHandler ExtHandler cgroups v2 mounted at.*)$", re.M
         ),
         re.compile(r"^(.*dataloss warning file.*)$", re.M),
+        re.compile(
+            r"(.*temp-disk-dataloss-warning.*Deactivated successfully.*)$",
+            re.M,
+        ),
+        re.compile(
+            r"(.*was skipped because all trigger condition checks failed.*)$", re.M
+        ),
+        re.compile(r"(.*was skipped because of a failed condition check.*)$", re.M),
         re.compile(r"^(.*GRUB failed boot detection.*)$", re.M),
         re.compile(r"^(.*nofail.*)$", re.M),
     ]
