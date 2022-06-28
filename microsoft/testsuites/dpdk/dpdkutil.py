@@ -141,6 +141,9 @@ def generate_send_receive_run_info(
 ) -> Dict[DpdkTestResources, str]:
 
     snd_nic, rcv_nic = [x.node.nics.get_nic_by_index() for x in [sender, receiver]]
+    snd_ssh_nic, rcv_ssh_nic = [
+        x.node.nics.get_nic_by_index(0) for x in [sender, receiver]
+    ]
 
     snd_cmd = sender.testpmd.generate_testpmd_command(
         snd_nic,
@@ -151,6 +154,7 @@ def generate_send_receive_run_info(
         txq=txq,
         rxq=rxq,
         use_core_count=core_count,
+        nic_to_exclude=snd_ssh_nic,
     )
     rcv_cmd = receiver.testpmd.generate_testpmd_command(
         rcv_nic,
@@ -160,6 +164,7 @@ def generate_send_receive_run_info(
         txq=txq,
         rxq=rxq,
         use_core_count=core_count,
+        nic_to_exclude=rcv_ssh_nic,
     )
 
     kit_cmd_pairs = {
@@ -376,12 +381,10 @@ def verify_dpdk_build(
 
     # grab a nic and run testpmd
     test_nic = node.nics.get_nic_by_index()
+    ssh_nic = node.nics.get_nic_by_index(0)
 
     testpmd_cmd = testpmd.generate_testpmd_command(
-        test_nic,
-        0,
-        "txonly",
-        pmd,
+        test_nic, 0, "txonly", pmd, nic_to_exclude=ssh_nic
     )
     testpmd.run_for_n_seconds(testpmd_cmd, 10)
     tx_pps = testpmd.get_mean_tx_pps()

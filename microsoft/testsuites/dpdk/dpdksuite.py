@@ -312,8 +312,13 @@ class Dpdk(TestSuite):
         test_kit = initialize_node_resources(node, log, variables, "failsafe")
         testpmd = test_kit.testpmd
         test_nic = node.nics.get_nic_by_index()
+        ssh_nic = test_kit.node.nics.get_nic_by_index(0)
         testpmd_cmd = testpmd.generate_testpmd_command(
-            test_nic, 0, "txonly", "failsafe"
+            test_nic,
+            0,
+            "txonly",
+            "failsafe",
+            nic_to_exclude=ssh_nic,
         )
         kit_cmd_pairs = {
             test_kit: testpmd_cmd,

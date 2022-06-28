@@ -180,6 +180,7 @@ class DpdkTestpmd(Tool):
         self,
         node_nic: NicInfo,
         vdev_id: int,
+        nic_to_exclude: NicInfo,
     ) -> str:
         # handle generating different flags for pmds/device combos for testpmd
         assert_that(node_nic.lower).described_as(
@@ -193,16 +194,25 @@ class DpdkTestpmd(Tool):
         if self._dpdk_version_info and self._dpdk_version_info >= "19.11.0":
             vdev_name = "net_vdev_netvsc"
         else:
-            vdev_name = "net_failsafe"
+            raise LisaException(
+                "DPDK Version does not have vdev_netvsc PMD: "
+                f"{str(self._dpdk_version_info) }"
+            )
 
-        if self._dpdk_version_info and self._dpdk_version_info >= "20.11.0":
-            allow_flag = "--allow"
-        else:
-            allow_flag = "-w"
+        # block device from EAL probes. We always want to block the
+        # interface servicing SSH.
+        # https://doc.dpdk.org/guides-19.08/nics/fail_safe.htm
+
+        disallowed_interfaces = f" -b {nic_to_exclude.pci_slot}"
 
         if node_nic.bound_driver == "hv_netvsc":
-            vdev_info = f'--vdev="{vdev_name}{vdev_id},iface={node_nic.upper}"'
+            # failsafe uses hv_netvsc for the eth interface.
+            vdev_info = (
+                f'--vdev="{vdev_name}{vdev_id},iface=eth1,force=1"'  # failsafe pmd
+            )
         elif node_nic.bound_driver == "uio_hv_generic":
+            # we have blocklisted the other NIC and unbound the synthetic
+            # so the test one will get probed automatically
             pass
         else:
             fail(
@@ -212,7 +222,8 @@ class DpdkTestpmd(Tool):
                     "Cannot generate testpmd include arguments."
                 )
             )
-        return vdev_info + f' {allow_flag} "{node_nic.pci_slot}"'
+
+        return vdev_info + disallowed_interfaces
 
     def generate_testpmd_command(
         self,
@@ -220,6 +231,7 @@ class DpdkTestpmd(Tool):
         vdev_id: int,
         mode: str,
         pmd: str,
+        nic_to_exclude: NicInfo,
         extra_args: str = "",
         txq: int = 0,
         rxq: int = 0,
@@ -235,7 +247,9 @@ class DpdkTestpmd(Tool):
         #   --forward-mode=txonly \
         #   --eth-peer=<port id>,<receiver peer MAC address> \
         #   --stats-period <display interval in seconds>
-        nic_include_info = self.generate_testpmd_include(nic_to_include, vdev_id)
+        nic_include_info = self.generate_testpmd_include(
+            nic_to_include, vdev_id, nic_to_exclude
+        )
 
         # dpdk can use multiple cores to service the
         # number of queues and ports present. Get the amount to work with.
