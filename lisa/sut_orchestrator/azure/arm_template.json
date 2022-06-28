@@ -309,7 +309,8 @@
                         "diffDiskSettings": "[if(equals(parameters('nodes')[copyIndex('vmCopy')]['disk_type'], 'Ephemeral'), json('{\"option\": \"local\", \"placement\": \"ResourceDisk\"}'), json('null'))]",
                         "managedDisk": "[if(not(equals(parameters('nodes')[copyIndex('vmCopy')]['disk_type'], 'Ephemeral')), json(concat('{\"storageAccountType\": \"',parameters('nodes')[copyIndex('vmCopy')]['disk_type'],'\"}')), json('null'))]",
                         "caching": "[if(equals(parameters('nodes')[copyIndex('vmCopy')]['disk_type'], 'Ephemeral'), 'ReadOnly', 'ReadWrite')]",
-                        "createOption": "FromImage"
+                        "createOption": "FromImage",
+                        "diskSizeGB": "[parameters('nodes')[copyIndex('vmCopy')]['osdisk_size_in_gb']]"
                     },
                     "copy": [
                         {
