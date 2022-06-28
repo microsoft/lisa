@@ -24,7 +24,15 @@ from lisa import (
 from lisa.features import NetworkInterface, SerialConsole
 from lisa.nic import NicInfo
 from lisa.sut_orchestrator import AZURE
-from lisa.tools import Cat, Ethtool, InterruptInspector, Iperf3, KernelConfig, Lspci
+from lisa.tools import (
+    Cat,
+    Ethtool,
+    Firewall,
+    InterruptInspector,
+    Iperf3,
+    KernelConfig,
+    Lspci,
+)
 from lisa.util.shell import wait_tcp_port_ready
 from microsoft.testsuites.network.common import (
     cleanup_iperf3,
@@ -48,6 +56,11 @@ from microsoft.testsuites.network.common import (
 )
 class Sriov(TestSuite):
     TIME_OUT = 300
+
+    def before_case(self, log: Logger, **kwargs: Any) -> None:
+        environment: Environment = kwargs.pop("environment")
+        for node in environment.nodes.list():
+            node.tools[Firewall].stop()
 
     @TestCaseMetadata(
         description="""
