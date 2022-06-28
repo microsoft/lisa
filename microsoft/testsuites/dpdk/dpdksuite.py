@@ -198,6 +198,11 @@ class Dpdk(TestSuite):
             ],
         )
 
+        if test_kit.testpmd.is_connect_x3:
+            raise SkippedException(
+                "Unsupported Hardware: ConnectX3 does not support secondary process RX"
+            )
+
         # enable hugepages needed for dpdk EAL
         init_hugepages(node)
 
