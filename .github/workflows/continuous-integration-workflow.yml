@@ -9,19 +9,20 @@ on:
       - main
 jobs:
   build:
-    runs-on: ${{ matrix.os }}
+    runs-on: ${{ matrix.os }} with python ${{ matrix.python-version }}
     strategy:
       matrix:
         os: [ubuntu-20.04, windows-2019]
+        python-version: ["3.8", "3.9", "3.10", "3.11-dev"]
       fail-fast: false
     steps:
       - name: Checkout repository to $GITHUB_WORKSPACE
         uses: actions/checkout@v2
 
-      - name: Setup bootstrap Python
-        uses: actions/setup-python@v2
+      - name: Set up Python ${{ matrix.python-version }}
+        uses: actions/setup-python@v3
         with:
-          python-version: "3.8"
+          python-version: ${{ matrix.python-version }}
 
       - name: Install Poetry for Linux
         if: runner.os == 'Linux'
