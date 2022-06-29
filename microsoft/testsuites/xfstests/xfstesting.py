@@ -20,7 +20,7 @@ from lisa import (
 )
 from lisa.environment import Environment
 from lisa.features import Disk, Nvme
-from lisa.operating_system import Redhat
+from lisa.operating_system import CBLMariner, Redhat
 from lisa.sut_orchestrator import AZURE
 from lisa.sut_orchestrator.azure.common import (
     check_or_create_storage_account,
@@ -520,6 +520,9 @@ class Xfstesting(TestSuite):
         ):
             excluded_tests += " generic/641"
 
+        # xfs/081 case will hung for long time
+        if isinstance(node.os, CBLMariner):
+            excluded_tests += " xfs/081"
         # prepare data disk when xfstesting target is data disk
         if data_disk:
             _prepare_data_disk(
