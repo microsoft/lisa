@@ -5,7 +5,7 @@ from pathlib import Path, PurePath
 from typing import List, Type, cast
 
 from lisa.executable import Tool
-from lisa.operating_system import Debian, Posix, Redhat, Suse, Ubuntu
+from lisa.operating_system import CBLMariner, Debian, Posix, Redhat, Suse, Ubuntu
 from lisa.tools import Cat, Echo
 from lisa.util import LisaException, UnsupportedDistroException, find_patterns_in_lines
 
@@ -26,7 +26,6 @@ class Xfstests(Tool):
         "e2fsprogs",
         "gawk",
         "gcc",
-        "git",
         "libtool",
         "lvm2",
         "make",
@@ -64,7 +63,6 @@ class Xfstests(Tool):
         "libaio-devel",
         "libattr-devel",
         "sqlite",
-        "xfsdump",
         "xfsprogs-qa-devel",
         "zlib-devel",
         "btrfs-progs-devel",
@@ -77,9 +75,27 @@ class Xfstests(Tool):
         "libaio-devel",
         "libattr-devel",
         "sqlite",
-        "xfsdump",
         "xfsprogs-devel",
         "lib-devel",
+    ]
+    mariner_dep = [
+        "python-iniparse",
+        "libacl-devel",
+        "libaio-devel",
+        "libattr-devel",
+        "sqlite",
+        "xfsprogs-devel",
+        "zlib-devel",
+        "trfs-progs-devel",
+        "diffutils",
+        "btrfs-progs",
+        "btrfs-progs-devel",
+        "gcc",
+        "autoconf",
+        "binutils",
+        "kernel-headers",
+        "util-linux-devel",
+        "psmisc",
     ]
     # Passed all 35 tests
     __all_pass_pattern = re.compile(
@@ -127,6 +143,8 @@ class Xfstests(Tool):
             package_list.extend(self.debian_dep)
         elif isinstance(self.node.os, Suse):
             package_list.extend(self.suse_dep)
+        elif isinstance(self.node.os, CBLMariner):
+            package_list.extend(self.mariner_dep)
         else:
             raise LisaException(
                 f"Current distro {self.node.os.name} doesn't support xfstests."
