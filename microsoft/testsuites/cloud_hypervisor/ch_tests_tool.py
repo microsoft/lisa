@@ -4,8 +4,11 @@ import re
 from pathlib import PurePath
 from typing import Any, List, Optional, Type
 
+from lisa import Environment, notifier
 from lisa.executable import Tool
+from lisa.messages import CommunityTestMessage, TestStatus, create_test_result_message
 from lisa.operating_system import CBLMariner
+from lisa.testsuite import TestResult
 from lisa.tools import Docker, Echo, Git, Whoami
 
 
@@ -29,7 +32,13 @@ class CloudHypervisorTests(Tool):
     def dependencies(self) -> List[Type[Tool]]:
         return [Git, Docker]
 
-    def run_tests(self, test_type: str, skip: Optional[List[str]] = None) -> List[str]:
+    def run_tests(
+        self,
+        test_result: TestResult,
+        environment: Environment,
+        test_type: str,
+        skip: Optional[List[str]] = None,
+    ) -> List[str]:
         if skip is not None:
             skip_args = " ".join(map(lambda t: f"--skip {t}", skip))
         else:
@@ -47,6 +56,16 @@ class CloudHypervisorTests(Tool):
         failures = self._extract_failed_tests(result.stdout)
         if not failures:
             result.assert_exit_code()
+        for failure in failures:
+            community_msg = create_test_result_message(
+                CommunityTestMessage,
+                test_result.id_,
+                environment,
+                failure,
+                TestStatus.FAILED,
+            )
+
+            notifier.notify(community_msg)
 
         return failures
 

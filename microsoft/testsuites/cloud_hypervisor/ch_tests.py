@@ -6,6 +6,7 @@ from typing import Any
 from assertpy.assertpy import assert_that
 
 from lisa import (
+    Environment,
     Logger,
     Node,
     TestCaseMetadata,
@@ -15,6 +16,7 @@ from lisa import (
     schema,
     search_space,
 )
+from lisa.testsuite import TestResult
 from lisa.tools import Lscpu, Modprobe
 from lisa.util import SkippedException
 from microsoft.testsuites.cloud_hypervisor.ch_tests_tool import CloudHypervisorTests
@@ -54,10 +56,19 @@ class CloudHypervisorTestSuite(TestSuite):
         ),
     )
     def verify_cloud_hypervisor_integration_tests(
-        self, log: Logger, node: Node, log_path: Path
+        self,
+        log: Logger,
+        node: Node,
+        environment: Environment,
+        log_path: Path,
+        result: TestResult,
     ) -> None:
-        failures = node.tools[CloudHypervisorTests].run_tests("integration")
-        assert_that(failures).described_as("Unexpected failures").is_empty()
+        failures = node.tools[CloudHypervisorTests].run_tests(
+            result, environment, "integration"
+        )
+        assert_that(
+            failures, f"Unexpected failures: {failures}"
+        ).is_empty()
 
     @TestCaseMetadata(
         description="""
@@ -72,12 +83,19 @@ class CloudHypervisorTestSuite(TestSuite):
         ),
     )
     def verify_cloud_hypervisor_live_migration_tests(
-        self, log: Logger, node: Node, log_path: Path
+        self,
+        log: Logger,
+        node: Node,
+        environment: Environment,
+        log_path: Path,
+        result: TestResult,
     ) -> None:
         failures = node.tools[CloudHypervisorTests].run_tests(
-            "integration-live-migration"
+            result, environment, "integration-live-migration"
         )
-        assert_that(failures).described_as("Unexpected failures").is_empty()
+        assert_that(
+            failures, f"Unexpected failures: {failures}"
+        ).is_empty()
 
     def _ensure_virtualization_enabled(self, node: Node) -> None:
         virtualization_enabled = node.tools[Lscpu].is_virtualization_enabled()
