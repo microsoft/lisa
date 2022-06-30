@@ -19,6 +19,7 @@ from lisa import (
 from lisa.features import Sriov
 from lisa.testsuite import simple_requirement
 from lisa.tools import Echo, Git, Ip, Kill, Lsmod, Make, Modprobe, Service
+from lisa.util.constants import SIGINT
 from microsoft.testsuites.dpdk.dpdknffgo import DpdkNffGo
 from microsoft.testsuites.dpdk.dpdkovs import DpdkOvs
 from microsoft.testsuites.dpdk.dpdkutil import (
@@ -240,7 +241,7 @@ class Dpdk(TestSuite):
         )
 
         # client blocks and returns, kill server once client is finished.
-        kill.by_name(str(server_app_name), signum=Kill.SIGINT)
+        kill.by_name(str(server_app_name), signum=SIGINT)
         server_result = server_proc.wait_result()
 
         # perform the checks from v2

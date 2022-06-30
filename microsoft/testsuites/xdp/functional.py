@@ -20,6 +20,7 @@ from lisa import (
 from lisa.features import NetworkInterface, Sriov, Synthetic
 from lisa.tools import Ip, Kill, TcpDump
 from lisa.tools.ping import INTERNET_PING_ADDRESS
+from lisa.util.constants import SIGINT
 from microsoft.testsuites.xdp.common import get_dropped_count, get_xdpdump
 from microsoft.testsuites.xdp.xdpdump import BuildType
 from microsoft.testsuites.xdp.xdptools import XdpTool
@@ -461,7 +462,7 @@ class XdpFunctional(TestSuite):
         )
 
         kill = captured_node.tools[Kill]
-        kill.by_name("tcpdump", Kill.SIGINT)
+        kill.by_name("tcpdump", SIGINT)
 
         packets = tcpdump.parse(pcap_filename)
         ping_node = cast(RemoteNode, ping_source_node)
