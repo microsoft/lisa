@@ -19,7 +19,7 @@ from lisa import (
 )
 from lisa.features import NetworkInterface
 from lisa.nic import NicInfo
-from lisa.operating_system import OperatingSystem
+from lisa.operating_system import OperatingSystem, Ubuntu
 from lisa.tools import Dmesg, Echo, Lsmod, Lspci, Modprobe, Mount
 from lisa.tools.mkfs import FileSystem
 from lisa.util import perf_timer
@@ -131,6 +131,19 @@ def _enable_hugepages(node: Node) -> None:
     )
 
 
+def _set_forced_source_by_distro(node: Node, variables: Dict[str, Any]) -> None:
+    # DPDK packages 17.11 which is EOL and doesn't have the
+    # net_vdev_netvsc pmd used for simple handling of hyper-v
+    # guests. Force stable source build on this platform.
+    # Default to 19.11 unless another version is provided by the
+    # user
+    if isinstance(node.os, Ubuntu) and node.os.information.version < "20.4.0":
+        variables["dpdk_source"] = variables.get(
+            "dpdk_source", "https://dpdk.org/git/dpdk-stable"
+        )
+        variables["dpdk_branch"] = variables.get("dpdk_branch", "v19.11")
+
+
 def generate_send_receive_run_info(
     pmd: str,
     sender: DpdkTestResources,
@@ -205,6 +218,7 @@ def initialize_node_resources(
     pmd: str,
     sample_apps: Union[List[str], None] = None,
 ) -> DpdkTestResources:
+    _set_forced_source_by_distro(node, variables)
     dpdk_source = variables.get("dpdk_source", PACKAGE_MANAGER_SOURCE)
     dpdk_branch = variables.get("dpdk_branch", "")
     log.info(
