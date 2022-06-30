@@ -31,7 +31,7 @@ class Kill(Tool):
             return
 
         # fallback to kill by pid if first attempt fails for some reason
-        pids = self.node.tools[Pidof].get_pids(process_name)
+        pids = self.node.tools[Pidof].get_pids(process_name, sudo=True)
         for pid in pids:
             self.by_pid(pid, signum)
         else:
