@@ -3,16 +3,12 @@
 
 
 from lisa.executable import Tool
+from lisa.util.constants import SIGKILL
 
 from .pidof import Pidof
 
 
 class Kill(Tool):
-
-    SIGINT = 2
-    SIGTERM = 15
-    SIGKILL = 9
-
     @property
     def command(self) -> str:
         return "kill"
