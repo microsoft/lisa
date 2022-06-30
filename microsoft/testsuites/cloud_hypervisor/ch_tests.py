@@ -66,9 +66,7 @@ class CloudHypervisorTestSuite(TestSuite):
         failures = node.tools[CloudHypervisorTests].run_tests(
             result, environment, "integration"
         )
-        assert_that(
-            failures, f"Unexpected failures: {failures}"
-        ).is_empty()
+        assert_that(failures, f"Unexpected failures: {failures}").is_empty()
 
     @TestCaseMetadata(
         description="""
@@ -93,9 +91,7 @@ class CloudHypervisorTestSuite(TestSuite):
         failures = node.tools[CloudHypervisorTests].run_tests(
             result, environment, "integration-live-migration"
         )
-        assert_that(
-            failures, f"Unexpected failures: {failures}"
-        ).is_empty()
+        assert_that(failures, f"Unexpected failures: {failures}").is_empty()
 
     def _ensure_virtualization_enabled(self, node: Node) -> None:
         virtualization_enabled = node.tools[Lscpu].is_virtualization_enabled()
