@@ -11,7 +11,7 @@ from lisa import (
     simple_requirement,
 )
 from lisa.environment import Environment
-from lisa.features import Sriov
+from lisa.features import Gpu, Infiniband, Sriov
 from lisa.messages import NetworkPPSPerformanceMessage, create_perf_message
 from lisa.tools import Lscpu
 from lisa.util import constants
@@ -40,7 +40,11 @@ class DpdkPerformance(TestSuite):
         """,
         priority=3,
         requirement=simple_requirement(
-            min_count=2, network_interface=Sriov(), min_nic_count=2, min_core_count=4
+            min_count=2,
+            network_interface=Sriov(),
+            min_nic_count=2,
+            min_core_count=4,
+            unsupported_features=[Gpu, Infiniband],
         ),
     )
     def perf_dpdk_failsafe_pmd_dual_core(
@@ -62,6 +66,7 @@ class DpdkPerformance(TestSuite):
             network_interface=Sriov(),
             min_nic_count=2,
             min_core_count=8,
+            unsupported_features=[Gpu, Infiniband],
         ),
     )
     def perf_dpdk_failsafe_pmd_multi_core(
@@ -85,6 +90,7 @@ class DpdkPerformance(TestSuite):
             network_interface=Sriov(),
             min_nic_count=2,
             min_core_count=48,
+            unsupported_features=[Gpu, Infiniband],
         ),
     )
     def perf_dpdk_failsafe_pmd_multi_core_huge_vm(
@@ -105,7 +111,11 @@ class DpdkPerformance(TestSuite):
         """,
         priority=3,
         requirement=simple_requirement(
-            min_count=2, network_interface=Sriov(), min_nic_count=2, min_core_count=8
+            min_count=2,
+            network_interface=Sriov(),
+            min_nic_count=2,
+            min_core_count=8,
+            unsupported_features=[Gpu, Infiniband],
         ),
     )
     def perf_dpdk_failsafe_pmd_multi_queue(
@@ -126,7 +136,11 @@ class DpdkPerformance(TestSuite):
         """,
         priority=3,
         requirement=simple_requirement(
-            min_count=2, network_interface=Sriov(), min_nic_count=2, min_core_count=48
+            min_count=2,
+            network_interface=Sriov(),
+            min_nic_count=2,
+            min_core_count=48,
+            unsupported_features=[Gpu, Infiniband],
         ),
     )
     def perf_dpdk_failsafe_pmd_multi_queue_huge_vm(
@@ -147,7 +161,11 @@ class DpdkPerformance(TestSuite):
         """,
         priority=3,
         requirement=simple_requirement(
-            min_count=2, network_interface=Sriov(), min_nic_count=2, min_core_count=4
+            min_count=2,
+            network_interface=Sriov(),
+            min_nic_count=2,
+            min_core_count=4,
+            unsupported_features=[Gpu, Infiniband],
         ),
     )
     def perf_dpdk_netvsc_pmd_dual_core(
@@ -165,7 +183,11 @@ class DpdkPerformance(TestSuite):
         """,
         priority=3,
         requirement=simple_requirement(
-            min_count=2, network_interface=Sriov(), min_nic_count=2, min_core_count=8
+            min_count=2,
+            network_interface=Sriov(),
+            min_nic_count=2,
+            min_core_count=8,
+            unsupported_features=[Gpu, Infiniband],
         ),
     )
     def perf_dpdk_netvsc_pmd_multi_core(
@@ -186,7 +208,11 @@ class DpdkPerformance(TestSuite):
         """,
         priority=3,
         requirement=simple_requirement(
-            min_count=2, network_interface=Sriov(), min_nic_count=2, min_core_count=48
+            min_count=2,
+            network_interface=Sriov(),
+            min_nic_count=2,
+            min_core_count=48,
+            unsupported_features=[Gpu, Infiniband],
         ),
     )
     def perf_dpdk_netvsc_pmd_multi_core_huge_vm(
@@ -206,7 +232,11 @@ class DpdkPerformance(TestSuite):
         """,
         priority=3,
         requirement=simple_requirement(
-            min_count=2, network_interface=Sriov(), min_nic_count=2, min_core_count=8
+            min_count=2,
+            network_interface=Sriov(),
+            min_nic_count=2,
+            min_core_count=8,
+            unsupported_features=[Gpu, Infiniband],
         ),
     )
     def perf_dpdk_netvsc_pmd_multi_queue(
@@ -225,7 +255,11 @@ class DpdkPerformance(TestSuite):
         """,
         priority=3,
         requirement=simple_requirement(
-            min_count=2, network_interface=Sriov(), min_nic_count=2, min_core_count=48
+            min_count=2,
+            network_interface=Sriov(),
+            min_nic_count=2,
+            min_core_count=48,
+            unsupported_features=[Gpu, Infiniband],
         ),
     )
     def perf_dpdk_netvsc_pmd_multi_queue_huge_vm(
