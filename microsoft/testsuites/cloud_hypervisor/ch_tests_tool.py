@@ -1,8 +1,11 @@
 # Copyright (c) Microsoft Corporation.
 # Licensed under the MIT license.
-import re
+import json
+from dataclasses import dataclass
 from pathlib import PurePath
 from typing import Any, List, Optional, Type
+
+from assertpy.assertpy import assert_that
 
 from lisa import Environment, notifier
 from lisa.executable import Tool
@@ -10,6 +13,12 @@ from lisa.messages import CommunityTestMessage, TestStatus, create_test_result_m
 from lisa.operating_system import CBLMariner
 from lisa.testsuite import TestResult
 from lisa.tools import Docker, Echo, Git, Whoami
+
+
+@dataclass
+class CloudHypervisorTestResult:
+    name: str = ""
+    status: TestStatus = TestStatus.QUEUED
 
 
 class CloudHypervisorTests(Tool):
@@ -38,14 +47,14 @@ class CloudHypervisorTests(Tool):
         environment: Environment,
         test_type: str,
         skip: Optional[List[str]] = None,
-    ) -> List[str]:
+    ) -> None:
         if skip is not None:
             skip_args = " ".join(map(lambda t: f"--skip {t}", skip))
         else:
             skip_args = ""
 
         result = self.run(
-            f"tests --{test_type} -- -- {skip_args}",
+            f"tests --{test_type} -- -- {skip_args} -Z unstable-options --format json",
             timeout=self.TIME_OUT,
             force_run=True,
             cwd=self.repo_root,
@@ -53,21 +62,21 @@ class CloudHypervisorTests(Tool):
             shell=True,
         )
 
-        failures = self._extract_failed_tests(result.stdout)
+        results = self._extract_test_results(result.stdout)
+        failures = list(filter(lambda r: r.status == TestStatus.FAILED, results))
         if not failures:
             result.assert_exit_code()
-        for failure in failures:
-            community_msg = create_test_result_message(
-                CommunityTestMessage,
+
+        for r in results:
+            self._send_community_test_msg(
                 test_result.id_,
                 environment,
-                failure,
-                TestStatus.FAILED,
+                r.name,
+                r.status,
             )
 
-            notifier.notify(community_msg)
-
-        return failures
+        failure_names = list(map(lambda x: x.name, failures))
+        assert_that(failures, f"Unexpected failures: {failure_names}").is_empty()
 
     def _initialize(self, *args: Any, **kwargs: Any) -> None:
         tool_path = self.get_tool_path(use_global=True)
@@ -96,30 +105,55 @@ class CloudHypervisorTests(Tool):
 
         return self._check_exists()
 
-    def _extract_failed_tests(self, output: str) -> List[str]:
-        # The failures list is output by the test runner in this format:
+    def _extract_test_results(self, output: str) -> List[CloudHypervisorTestResult]:
+        results: List[CloudHypervisorTestResult] = []
+
+        # Cargo will output test status for each test separately in JSON format. Parse
+        # the output line by line to obtain the list of all tests run along with their
+        # outcomes.
         #
-        # failures:
-        #     failed_test_name_1
-        #     failed_test_name_2
-        #     ... so on
-        #
-        # To parse, we first find the "failures:" line and then parse the
-        # following lines that begin with one or more whitespaces to extract
-        # the test name.
+        # Example output:
+        # { "type": "test", "event": "ok", "name": "integration::test_vfio" }
         lines = output.split("\n")
-        failures = []
-        found_failures = False
-        failure_re = re.compile("\\s+(\\S+)")
         for line in lines:
-            if line.startswith("failures:"):
-                found_failures = True
+            result = {}
+            try:
+                result = json.loads(line)
+            except json.decoder.JSONDecodeError:
                 continue
 
-            if found_failures:
-                matches = failure_re.match(line)
-                if matches is None:
-                    found_failures = False
-                    continue
-                failures.append(matches.group(1))
-        return failures
+            if type(result) is not dict:
+                continue
+
+            if "type" not in result or result["type"] != "test":
+                continue
+
+            if "event" not in result or result["event"] not in ["ok", "failed"]:
+                continue
+
+            status = TestStatus.PASSED if result["event"] == "ok" else TestStatus.FAILED
+            results.append(
+                CloudHypervisorTestResult(
+                    name=result["name"],
+                    status=status,
+                )
+            )
+
+        return results
+
+    def _send_community_test_msg(
+        self,
+        test_id: str,
+        environment: Environment,
+        test_name: str,
+        test_status: TestStatus,
+    ) -> None:
+        community_msg = create_test_result_message(
+            CommunityTestMessage,
+            test_id,
+            environment,
+            test_name,
+            test_status,
+        )
+
+        notifier.notify(community_msg)

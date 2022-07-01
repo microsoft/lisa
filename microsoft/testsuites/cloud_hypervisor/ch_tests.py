@@ -3,8 +3,6 @@
 from pathlib import Path
 from typing import Any
 
-from assertpy.assertpy import assert_that
-
 from lisa import (
     Environment,
     Logger,
@@ -63,10 +61,7 @@ class CloudHypervisorTestSuite(TestSuite):
         log_path: Path,
         result: TestResult,
     ) -> None:
-        failures = node.tools[CloudHypervisorTests].run_tests(
-            result, environment, "integration"
-        )
-        assert_that(failures, f"Unexpected failures: {failures}").is_empty()
+        node.tools[CloudHypervisorTests].run_tests(result, environment, "integration")
 
     @TestCaseMetadata(
         description="""
@@ -88,10 +83,9 @@ class CloudHypervisorTestSuite(TestSuite):
         log_path: Path,
         result: TestResult,
     ) -> None:
-        failures = node.tools[CloudHypervisorTests].run_tests(
+        node.tools[CloudHypervisorTests].run_tests(
             result, environment, "integration-live-migration"
         )
-        assert_that(failures, f"Unexpected failures: {failures}").is_empty()
 
     def _ensure_virtualization_enabled(self, node: Node) -> None:
         virtualization_enabled = node.tools[Lscpu].is_virtualization_enabled()
