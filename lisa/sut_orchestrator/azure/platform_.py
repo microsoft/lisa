@@ -1766,6 +1766,11 @@ class AzurePlatform(Platform):
                     offer=marketplace.offer,
                     skus=marketplace.sku,
                 )
+            if 0 == len(versioned_images):
+                raise LisaException(
+                    f"cannot find any version of image {marketplace.publisher} "
+                    f"{marketplace.offer} {marketplace.sku} in {location}"
+                )
             # any one should be the same to get purchase plan
             new_marketplace.version = versioned_images[-1].name
         return new_marketplace
