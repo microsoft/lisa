@@ -6,7 +6,7 @@ from typing import cast
 from retry import retry
 
 from lisa.executable import Tool
-from lisa.operating_system import Debian, Posix, Redhat, Suse
+from lisa.operating_system import CBLMariner, Debian, Posix, Redhat, Suse
 from lisa.util import LisaException
 
 from .echo import Echo
@@ -37,7 +37,11 @@ class Chrony(Tool):
     def restart(self) -> None:
         if isinstance(self.node.os, Debian):
             service_name = "chrony"
-        elif isinstance(self.node.os, Redhat) or isinstance(self.node.os, Suse):
+        elif (
+            isinstance(self.node.os, Redhat)
+            or isinstance(self.node.os, Suse)
+            or isinstance(self.node.os, CBLMariner)
+        ):
             service_name = "chronyd"
         else:
             posix_os: Posix = cast(Posix, self.node.os)
@@ -50,7 +54,7 @@ class Chrony(Tool):
 
     @retry(exceptions=LisaException, tries=240, delay=0.5)
     def check_tracking(self) -> None:
-        cmd_result = self.run("tracking", force_run=True)
+        cmd_result = self.run("tracking", force_run=True, sudo=True)
         cmd_result.assert_exit_code()
         if not self.__leap_status_pattern.match(cmd_result.stdout):
             raise LisaException(
@@ -69,11 +73,11 @@ class Chrony(Tool):
 
     @retry(exceptions=LisaException, tries=40, delay=0.5)
     def check_sources_and_stats(self) -> None:
-        cmd_result = self.run("sources", force_run=True)
+        cmd_result = self.run("sources", force_run=True, sudo=True)
         if self.__service_not_ready in cmd_result.stdout:
             raise LisaException("chrony sources is not ready, retry.")
         cmd_result.assert_exit_code()
-        cmd_result = self.run("sourcestats", force_run=True)
+        cmd_result = self.run("sourcestats", force_run=True, sudo=True)
         if self.__service_not_ready in cmd_result.stdout:
             raise LisaException("chrony sourcestats is not ready, retry.")
         cmd_result.assert_exit_code()
