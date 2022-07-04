@@ -19,6 +19,7 @@ from lisa.util import (
     subclasses,
 )
 from lisa.util.logger import Logger
+from lisa.util.process import ExecutableResult
 
 
 @dataclass_json()
@@ -53,6 +54,13 @@ class InstallerTransformerSchema(schema.Transformer):
 
 
 class BaseInstaller(subclasses.BaseClassWithRunbookMixin):
+    _command = ""
+    _distro_package_mapping: Dict[str, List[str]] = {}
+
+    @classmethod
+    def type_name(cls) -> str:
+        return "base_installer"
+
     def __init__(
         self,
         runbook: Any,
@@ -66,22 +74,38 @@ class BaseInstaller(subclasses.BaseClassWithRunbookMixin):
         self._log = log
 
     def validate(self) -> None:
-        raise NotImplementedError()
+        if type(self._node.os).__name__ not in self._distro_package_mapping:
+            raise UnsupportedDistroException(
+                self._node.os,
+                f"'{self.type_name()}' installer is not supported.",
+            )
 
     def install(self) -> str:
         raise NotImplementedError()
 
+    def _run_command(self) -> ExecutableResult:
+        return self._node.execute(f"{self._command} --version", shell=True)
+
+    def _get_version(self) -> str:
+        result = self._run_command()
+        result_output = filter_ansi_escape(result.stdout)
+        return result_output
+
+    def _is_installed(self) -> bool:
+        result = self._run_command()
+        return result.exit_code == 0
+
 
 class QemuInstaller(BaseInstaller):
-    ...
+    _command = "qemu-system-x86_64"
 
 
 class CloudHypervisorInstaller(BaseInstaller):
-    ...
+    _command = "cloud-hypervisor"
 
 
 class LibvirtInstaller(BaseInstaller):
-    ...
+    _command = "libvirtd"
 
 
 class QemuInstallerTransformer(Transformer):
@@ -110,24 +134,17 @@ class QemuInstallerTransformer(Transformer):
             node=node,
             log=self._log,
         )
-        qemu_version = installer.install()
-        self._log.info(f"installed qemu version: {qemu_version}")
-        node.reboot()
+        if not installer._is_installed():
+            installer.validate()
+            qemu_version = installer.install()
+            self._log.info(f"installed qemu version: {qemu_version}")
+            node.reboot()
+        else:
+            qemu_version = installer._get_version()
+            self._log.info(f"Already installed! qemu version: {qemu_version}")
 
         if runbook.libvirt:
-            libvirt_factory = subclasses.Factory[LibvirtInstaller](LibvirtInstaller)
-            libvirt_installer = libvirt_factory.create_by_runbook(
-                runbook=runbook.libvirt,
-                node=node,
-                log=self._log,
-            )
-            libvirt_version = libvirt_installer.install()
-            self._log.info(f"installed libvirt version: {libvirt_version}")
-
-            if isinstance(node.os, Ubuntu):
-                node.execute("systemctl disable apparmor", shell=True, sudo=True)
-            node.execute("systemctl enable libvirtd", shell=True, sudo=True)
-            node.reboot()
+            _install_libvirt(runbook.libvirt, node, self._log)
 
         return {}
 
@@ -158,31 +175,24 @@ class CloudHypervisorInstallerTransformer(Transformer):
             node=node,
             log=self._log,
         )
-        ch_version = installer.install()
-        self._log.info(f"installed qemu version: {ch_version}")
-        node.reboot()
+        if not installer._is_installed():
+            installer.validate()
+            ch_version = installer.install()
+            self._log.info(f"installed cloud-hypervisor version: {ch_version}")
+            node.reboot()
+        else:
+            ch_version = installer._get_version()
+            self._log.info(f"Already installed! cloud-hypervisor version: {ch_version}")
 
         if runbook.libvirt:
-            libvirt_factory = subclasses.Factory[LibvirtInstaller](LibvirtInstaller)
-            libvirt_installer = libvirt_factory.create_by_runbook(
-                runbook=runbook.libvirt,
-                node=node,
-                log=self._log,
-            )
-            libvirt_version = libvirt_installer.install()
-            self._log.info(f"installed libvirt version: {libvirt_version}")
-
-            if isinstance(node.os, Ubuntu):
-                node.execute("systemctl disable apparmor", shell=True, sudo=True)
-            node.execute("systemctl enable libvirtd", shell=True, sudo=True)
-            node.reboot()
+            _install_libvirt(runbook.libvirt, node, self._log)
 
         return {}
 
 
 class LibvirtPackageInstaller(LibvirtInstaller):
 
-    __distro_package_mapping = {
+    _distro_package_mapping = {
         Ubuntu.__name__: ["libvirt-daemon-system"],
         CBLMariner.__name__: ["dnsmasq", "ebtables", "libvirt"],
     }
@@ -195,29 +205,18 @@ class LibvirtPackageInstaller(LibvirtInstaller):
     def type_schema(cls) -> Type[schema.TypedSchema]:
         return BaseInstallerSchema
 
-    def validate(self) -> None:
-        if type(self._node.os).__name__ not in self.__distro_package_mapping:
-            raise UnsupportedDistroException(
-                self._node.os,
-                f"'{self.type_name()}' installer is not supported.",
-            )
-
     def install(self) -> str:
         node: Node = self._node
         linux: Linux = cast(Linux, node.os)
-        packages_list = self.__distro_package_mapping[type(linux).__name__]
+        packages_list = self._distro_package_mapping[type(linux).__name__]
         self._log.info(f"installing packages: {packages_list}")
         linux.install_packages(list(packages_list))
-        version = self._get_version()
-        return version
-
-    def _get_version(self) -> str:
-        return _get_package_version(self._node, "libvirtd")
+        return self._get_version()
 
 
 class QemuPackageInstaller(QemuInstaller):
 
-    __distro_package_mapping = {
+    _distro_package_mapping = {
         Ubuntu.__name__: ["qemu-kvm"],
         CBLMariner.__name__: ["qemu-kvm"],
     }
@@ -230,29 +229,18 @@ class QemuPackageInstaller(QemuInstaller):
     def type_schema(cls) -> Type[schema.TypedSchema]:
         return BaseInstallerSchema
 
-    def validate(self) -> None:
-        if type(self._node.os).__name__ not in self.__distro_package_mapping:
-            raise UnsupportedDistroException(
-                self._node.os,
-                f"'{self.type_name()}' installer is not supported.",
-            )
-
     def install(self) -> str:
         node: Node = self._node
         linux: Linux = cast(Linux, node.os)
-        packages_list = self.__distro_package_mapping[type(linux).__name__]
+        packages_list = self._distro_package_mapping[type(linux).__name__]
         self._log.info(f"installing packages: {packages_list}")
         linux.install_packages(list(packages_list))
-        version = self._get_version()
-        return version
-
-    def _get_version(self) -> str:
-        return _get_package_version(self._node, "qemu-system-x86_64")
+        return self._get_version()
 
 
 class CloudHypervisorPackageInstaller(CloudHypervisorInstaller):
 
-    __distro_package_mapping = {
+    _distro_package_mapping = {
         CBLMariner.__name__: ["cloud-hypervisor"],
     }
 
@@ -264,29 +252,18 @@ class CloudHypervisorPackageInstaller(CloudHypervisorInstaller):
     def type_schema(cls) -> Type[schema.TypedSchema]:
         return BaseInstallerSchema
 
-    def validate(self) -> None:
-        if type(self._node.os).__name__ not in self.__distro_package_mapping:
-            raise UnsupportedDistroException(
-                self._node.os,
-                f"'{self.type_name()}' installer is not supported.",
-            )
-
     def install(self) -> str:
         node: Node = self._node
         linux: Linux = cast(Linux, node.os)
-        packages_list = self.__distro_package_mapping[type(linux).__name__]
+        packages_list = self._distro_package_mapping[type(linux).__name__]
         self._log.info(f"installing packages: {packages_list}")
         linux.install_packages(list(packages_list))
-        version = self._get_version()
-        return version
-
-    def _get_version(self) -> str:
-        return _get_package_version(self._node, "cloud-hypervisor")
+        return self._get_version()
 
 
 class LibvirtSourceInstaller(LibvirtInstaller):
 
-    __distro_package_mapping = {
+    _distro_package_mapping = {
         Ubuntu.__name__: [
             "ninja-build",
             "dnsmasq-base",
@@ -330,13 +307,6 @@ class LibvirtSourceInstaller(LibvirtInstaller):
     def type_schema(cls) -> Type[schema.TypedSchema]:
         return SourceInstallerSchema
 
-    def validate(self) -> None:
-        if type(self._node.os).__name__ not in self.__distro_package_mapping:
-            raise UnsupportedDistroException(
-                self._node.os,
-                f"'{self.type_name()}' installer is not supported.",
-            )
-
     def _build_and_install(self, code_path: PurePath) -> None:
         self._node.execute(
             "meson build -D driver_ch=enabled -D driver_qemu=disabled \\"
@@ -367,7 +337,7 @@ class LibvirtSourceInstaller(LibvirtInstaller):
 
     def _install_dependencies(self) -> None:
         linux: Linux = cast(Linux, self._node.os)
-        dep_packages_list = self.__distro_package_mapping[type(linux).__name__]
+        dep_packages_list = self._distro_package_mapping[type(linux).__name__]
         linux.install_packages(list(dep_packages_list))
         result = self._node.execute("pip3 install meson", shell=True, sudo=True)
         assert not result.exit_code, "Failed to install meson"
@@ -380,12 +350,12 @@ class LibvirtSourceInstaller(LibvirtInstaller):
         code_path = _get_source_code(runbook, self._node, self.type_name(), self._log)
         self._log.info("Building source code of Libvirt...")
         self._build_and_install(code_path)
-        return _get_package_version(self._node, "libvirtd")
+        return self._get_version()
 
 
 class CloudHypervisorSourceInstaller(CloudHypervisorInstaller):
 
-    __distro_package_mapping = {
+    _distro_package_mapping = {
         Ubuntu.__name__: ["gcc"],
         CBLMariner.__name__: ["gcc", "binutils", "glibc-devel"],
     }
@@ -425,7 +395,7 @@ class CloudHypervisorSourceInstaller(CloudHypervisorInstaller):
 
     def _install_dependencies(self) -> None:
         linux: Linux = cast(Linux, self._node.os)
-        packages_list = self.__distro_package_mapping[type(linux).__name__]
+        packages_list = self._distro_package_mapping[type(linux).__name__]
         linux.install_packages(list(packages_list))
         result = self._node.execute(
             "curl https://sh.rustup.rs -sSf | sh -s -- -y",
@@ -453,10 +423,16 @@ class CloudHypervisorSourceInstaller(CloudHypervisorInstaller):
         code_path = _get_source_code(runbook, self._node, self.type_name(), self._log)
         self._log.info("Building source code of Cloudhypervisor...")
         self._build_and_install(code_path)
-        return _get_package_version(self._node, "cloud-hypervisor")
+        return self._get_version()
 
 
 class CloudHypervisorBinaryInstaller(CloudHypervisorInstaller):
+
+    _distro_package_mapping = {
+        Ubuntu.__name__: ["jq"],
+        CBLMariner.__name__: ["jq"],
+    }
+
     @classmethod
     def type_name(cls) -> str:
         return "binary"
@@ -467,7 +443,9 @@ class CloudHypervisorBinaryInstaller(CloudHypervisorInstaller):
 
     def install(self) -> str:
         linux: Linux = cast(Linux, self._node.os)
-        linux.install_packages("jq")
+        packages_list = self._distro_package_mapping[type(linux).__name__]
+        self._log.info(f"installing packages: {packages_list}")
+        linux.install_packages(list(packages_list))
         command = (
             "curl -s https://api.github.com/repos/cloud-hypervisor/"
             "cloud-hypervisor/releases/latest | jq -r '.tag_name'"
@@ -494,7 +472,7 @@ class CloudHypervisorBinaryInstaller(CloudHypervisorInstaller):
             "setcap cap_net_admin+ep /usr/local/bin/cloud-hypervisor",
             sudo=True,
         )
-        return _get_package_version(self._node, "cloud-hypervisor")
+        return self._get_version()
 
 
 def _get_source_code(
@@ -507,7 +485,22 @@ def _get_source_code(
     return code_path
 
 
-def _get_package_version(node: Node, package: str) -> str:
-    result = node.execute(f"{package} --version", shell=True)
-    result_output = filter_ansi_escape(result.stdout)
-    return result_output
+def _install_libvirt(runbook: schema.TypedSchema, node: Node, log: Logger) -> None:
+    libvirt_factory = subclasses.Factory[LibvirtInstaller](LibvirtInstaller)
+    libvirt_installer = libvirt_factory.create_by_runbook(
+        runbook=runbook,
+        node=node,
+        log=log,
+    )
+    if not libvirt_installer._is_installed():
+        libvirt_installer.validate()
+        libvirt_version = libvirt_installer.install()
+        log.info(f"installed libvirt version: {libvirt_version}")
+
+        if isinstance(node.os, Ubuntu):
+            node.execute("systemctl disable apparmor", shell=True, sudo=True)
+        node.execute("systemctl enable libvirtd", shell=True, sudo=True)
+        node.reboot()
+    else:
+        libvirt_version = libvirt_installer._get_version()
+        log.info(f"Already installed! libvirt version: {libvirt_version}")
