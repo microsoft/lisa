@@ -8,7 +8,7 @@ from typing import TYPE_CHECKING, Any, Dict, List, Type, cast
 from lisa import notifier
 from lisa.executable import Tool
 from lisa.messages import NetworkLatencyPerformanceMessage, create_perf_message
-from lisa.operating_system import Debian, Posix, Redhat, Suse
+from lisa.operating_system import CBLMariner, Debian, Posix, Redhat, Suse
 from lisa.util import LisaException, constants, find_groups_in_lines, get_datetime_path
 from lisa.util.process import ExecutableResult, Process
 
@@ -350,6 +350,14 @@ class Lagscope(Tool, KillableMixin):
                 "blktrace",
                 "dstat",
                 "psmisc",
+                "cmake",
+            ]
+        elif isinstance(self.node.os, CBLMariner):
+            package_list = [
+                "kernel-headers",
+                "binutils",
+                "glibc-devel",
+                "zlib-devel",
                 "cmake",
             ]
         else:

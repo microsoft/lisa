@@ -6,7 +6,7 @@ from typing import cast
 from retry import retry
 
 from lisa.executable import Tool
-from lisa.operating_system import Debian, Posix, Redhat, Suse
+from lisa.operating_system import CBLMariner, Debian, Posix, Redhat, Suse
 from lisa.tools import Echo
 from lisa.util import LisaException
 
@@ -57,9 +57,13 @@ class Ntp(Tool):
             and self.node.os.information.version <= "11.0.0"
         ):
             service_name = "ntp"
-        elif isinstance(self.node.os, Redhat) or (
-            isinstance(self.node.os, Suse)
-            and self.node.os.information.version >= "12.0.0"
+        elif (
+            isinstance(self.node.os, Redhat)
+            or (
+                isinstance(self.node.os, Suse)
+                and self.node.os.information.version >= "12.0.0"
+            )
+            or isinstance(self.node.os, CBLMariner)
         ):
             service_name = "ntpd"
         else:

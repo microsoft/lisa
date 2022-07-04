@@ -5,7 +5,7 @@ from pathlib import PurePath
 
 from lisa.base_tools import Uname, Wget
 from lisa.executable import Tool
-from lisa.operating_system import Posix, Redhat
+from lisa.operating_system import CBLMariner, Posix, Redhat
 from lisa.tools.service import Service
 from lisa.util import LisaException
 
@@ -37,7 +37,7 @@ class DockerCompose(Tool):
     def _install(self) -> bool:
         # The default installed docker-compose package doesn't work for
         # redhat so it uses the latest version
-        if isinstance(self.node.os, Redhat):
+        if isinstance(self.node.os, Redhat) or isinstance(self.node.os, CBLMariner):
             wget_tool = self.node.tools[Wget]
             uname_tool = self.node.tools[Uname]
             hardware = uname_tool.get_linux_information().hardware_platform

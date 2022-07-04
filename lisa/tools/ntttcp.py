@@ -12,6 +12,7 @@ from lisa.messages import (
     TransportProtocol,
     create_perf_message,
 )
+from lisa.operating_system import CBLMariner
 from lisa.tools import Firewall, Gcc, Git, Make, Sed
 from lisa.util import constants
 from lisa.util.process import ExecutableResult, Process
@@ -427,6 +428,15 @@ class Ntttcp(Tool):
                 self._original_settings_udp.append({variable: sysctl.get(variable)})
 
     def _install(self) -> bool:
+        if isinstance(self.node.os, CBLMariner):
+            self.node.os.install_packages(
+                [
+                    "kernel-headers",
+                    "binutils",
+                    "glibc-devel",
+                    "zlib-devel",
+                ]
+            )
         tool_path = self.get_tool_path()
         git = self.node.tools[Git]
         git.clone(self.repo, tool_path)
