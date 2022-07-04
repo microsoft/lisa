@@ -8,7 +8,7 @@ from typing import TYPE_CHECKING, Any, Dict, List, Optional, cast
 
 from lisa.executable import Tool
 from lisa.messages import DiskPerformanceMessage, create_perf_message
-from lisa.operating_system import Debian, Posix, Redhat, Suse
+from lisa.operating_system import CBLMariner, Debian, Posix, Redhat, Suse
 from lisa.util import LisaException, constants
 from lisa.util.process import Process
 
@@ -61,8 +61,9 @@ class Fio(Tool):
 
     def install(self) -> bool:
         posix_os: Posix = cast(Posix, self.node.os)
-        posix_os.install_packages("fio")
-        if not self._check_exists():
+        if posix_os.package_exists("fio"):
+            posix_os.install_packages("fio")
+        else:
             self._install_from_src()
         return self._check_exists()
 
@@ -290,6 +291,22 @@ class Fio(Tool):
             ]
         elif isinstance(self.node.os, Suse):
             package_list = ["wget", "mdadm", "blktrace", "libaio1", "sysstat", "bc"]
+        elif isinstance(self.node.os, CBLMariner):
+            package_list = [
+                "wget",
+                "build-essential",
+                "sysstat",
+                "blktrace",
+                "libaio",
+                "bc",
+                "libaio-devel",
+                "gcc",
+                "kernel-devel",
+                "kernel-headers",
+                "binutils",
+                "glibc-devel",
+                "zlib-devel",
+            ]
         else:
             raise LisaException(
                 f"tool {self.command} can't be installed in distro {self.node.os.name}."
