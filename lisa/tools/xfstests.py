@@ -276,7 +276,7 @@ class Xfstests(Tool):
                 f"Result path {results_path} doesn't exist, please check testing runs"
                 " well or not."
             )
-        results = self.node.tools[Cat].run(str(results_path), sudo=True)
+        results = self.node.tools[Cat].run(str(results_path), force_run=True, sudo=True)
         results.assert_exit_code()
         pass_match = self.__all_pass_pattern.match(results.stdout)
         if pass_match:
