@@ -36,6 +36,7 @@ from .kdump import KdumpBase
 from .kernel_config import KernelConfig
 from .kill import Kill
 from .lagscope import Lagscope
+from .ln import Ln
 from .ls import Ls
 from .lsblk import Lsblk
 from .lscpu import Lscpu
@@ -131,6 +132,7 @@ __all__ = [
     "KernelConfig",
     "Kill",
     "Lagscope",
+    "Ln",
     "Ls",
     "Lsblk",
     "Lscpu",
