@@ -16,6 +16,7 @@ from lisa import (
 )
 from lisa.operating_system import (
     SLES,
+    CBLMariner,
     CoreOs,
     CpuArchitecture,
     Debian,
@@ -254,7 +255,7 @@ class AzureImageStandard(TestSuite):
                 grub_output = node.tools[Cat].read("/boot/grub/grub.conf", sudo=True)
             else:
                 raise LisaException("Unable to locate grub file")
-        elif isinstance(node.os, Fedora):
+        elif isinstance(node.os, Fedora) or isinstance(node.os, CBLMariner):
             if isinstance(node.os, Redhat) and node.os.information.version >= "8.0.0":
                 grub_output = node.tools[Cat].read("/boot/grub2/grubenv", sudo=True)
             elif (
