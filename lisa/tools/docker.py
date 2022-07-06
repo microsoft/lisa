@@ -83,6 +83,7 @@ class Docker(Tool):
                 filename="get-docker.sh",
                 file_path="./",
                 executable=True,
+                force_run=True,
             )
             self.node.execute("./get-docker.sh", sudo=True)
         # RHEL 8 and its derivatives don't support docker
@@ -113,6 +114,7 @@ class Docker(Tool):
                 )
                 gpg_donwload_path = self.node.tools[Wget].get(
                     "http://mirror.centos.org/centos/7/os/x86_64/RPM-GPG-KEY-CentOS-7",
+                    force_run=True,
                 )
                 self.node.execute(f"rpm --import {gpg_donwload_path}", sudo=True)
 
