@@ -12,6 +12,7 @@ from .disks import (
 from .gpu import Gpu, GpuEnabled, GpuSettings
 from .hibernation import Hibernation, HibernationEnabled, HibernationSettings
 from .infiniband import Infiniband
+from .nested_virtualization import NestedVirtualization
 from .network_interface import NetworkInterface, Sriov, Synthetic
 from .nvme import Nvme, NvmeSettings
 from .resize import Resize
@@ -37,6 +38,7 @@ __all__ = [
     "HibernationEnabled",
     "HibernationSettings",
     "Infiniband",
+    "NestedVirtualization",
     "Nvme",
     "NvmeSettings",
     "SerialConsole",
