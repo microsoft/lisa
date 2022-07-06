@@ -1047,6 +1047,9 @@ class RPMDistro(Linux):
     )
 
     def get_repositories(self) -> List[RepositoryInfo]:
+        if self._first_time_installation:
+            self._initialize_package_installation()
+            self._first_time_installation = False
         repo_list_str = self._node.execute(
             f"{self._dnf_tool()} repolist", sudo=True
         ).stdout.splitlines()
