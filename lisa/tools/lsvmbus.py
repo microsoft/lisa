@@ -6,6 +6,9 @@ from lisa.executable import Tool
 from lisa.operating_system import Redhat, Suse, Ubuntu
 from lisa.util import LisaException
 
+from .ln import Ln
+from .python import Python
+
 # segment output of lsvmbus -vv
 # VMBUS ID  1: Class_ID = {525074dc-8985-46e2-8057-a307dc18a502}
 # - [Dynamic Memory]
@@ -124,6 +127,11 @@ class Lsvmbus(Tool):
     def _initialize(self, *args: Any, **kwargs: Any) -> None:
         self._command = "lsvmbus"
         self._vmbus_devices: List[VmBusDevice] = []
+        cmd_result = self.node.execute("which python", sudo=True)
+        if 0 != cmd_result.exit_code:
+            ln = self.node.tools[Ln]
+            self.node.tools[Python]
+            ln.create_link("/bin/python3", "/usr/bin/python")
 
     def _check_exists(self) -> bool:
         _exists = super()._check_exists()
