@@ -89,31 +89,34 @@ function InstallCUDADrivers() {
 		CUDA_REPO_PKG="cuda-repo-rhel7-${CUDADriverVersion}.x86_64.rpm"
 		LogMsg "Using ${CUDA_REPO_PKG}"
 
-		wget http://developer.download.nvidia.com/compute/cuda/repos/rhel7/x86_64/"${CUDA_REPO_PKG}" -O /tmp/"${CUDA_REPO_PKG}"
-		if [ $? -ne 0 ]; then
-			LogErr "Failed to download ${CUDA_REPO_PKG}"
-			SetTestStateAborted
-			return 1
-		else
-			LogMsg "Successfully downloaded the ${CUDA_REPO_PKG} file in /tmp directory"
-		fi
+#		wget http://developer.download.nvidia.com/compute/cuda/repos/rhel7/x86_64/"${CUDA_REPO_PKG}" -O /tmp/"${CUDA_REPO_PKG}"
+#		if [ $? -ne 0 ]; then
+#			LogErr "Failed to download ${CUDA_REPO_PKG}"
+#			SetTestStateAborted
+#			return 1
+#		else
+#			LogMsg "Successfully downloaded the ${CUDA_REPO_PKG} file in /tmp directory"
+#		fi
+#
+#		rpm -ivh /tmp/"${CUDA_REPO_PKG}"
+#		LogMsg "Installed the rpm package, ${CUDA_REPO_PKG}"
+#
+#		# For RHEL/CentOS, it might be needed to install vulkan-filesystem to install CUDA drivers.
+#		# Download and Install vulkan-filesystem
+#		wget http://mirror.centos.org/centos/7/os/x86_64/Packages/vulkan-filesystem-1.1.97.0-1.el7.noarch.rpm -O /tmp/vulkan-filesystem-1.1.97.0-1.el7.noarch.rpm
+#		if [ $? -ne 0 ]; then
+#			LogErr "Failed to download vulkan-filesystem rpm"
+#			SetTestStateAborted
+#			return 1
+#		else
+#			LogMsg "Successfully downloaded the vulkan-filesystem rpm file in /tmp directory"
+#		fi
+#		yum -y install /tmp/vulkan-filesystem-1.1.97.0-1.el7.noarch.rpm
+#
+#		yum --nogpgcheck -y install cuda-drivers > $HOME/install_drivers.log 2>&1
+wget https://download.microsoft.com/download/4/3/9/439aea00-a02d-4875-8712-d1ab46cf6a73/NVIDIA-Linux-x86_64-510.47.03-grid-azure.run -O /tmp/NVIDIA-Linux-x86_64-510.47.03-grid-azure.run
+sudo sh /tmp/NVIDIA-Linux-x86_64-510.47.03-grid-azure.run --silent
 
-		rpm -ivh /tmp/"${CUDA_REPO_PKG}"
-		LogMsg "Installed the rpm package, ${CUDA_REPO_PKG}"
-
-		# For RHEL/CentOS, it might be needed to install vulkan-filesystem to install CUDA drivers.
-		# Download and Install vulkan-filesystem
-		wget http://mirror.centos.org/centos/7/os/x86_64/Packages/vulkan-filesystem-1.1.97.0-1.el7.noarch.rpm -O /tmp/vulkan-filesystem-1.1.97.0-1.el7.noarch.rpm
-		if [ $? -ne 0 ]; then
-			LogErr "Failed to download vulkan-filesystem rpm"
-			SetTestStateAborted
-			return 1
-		else
-			LogMsg "Successfully downloaded the vulkan-filesystem rpm file in /tmp directory"
-		fi
-		yum -y install /tmp/vulkan-filesystem-1.1.97.0-1.el7.noarch.rpm
-
-		yum --nogpgcheck -y install cuda-drivers > $HOME/install_drivers.log 2>&1
 		if [ $? -ne 0 ]; then
 			LogErr "Failed to install the cuda-drivers!"
 			SetTestStateAborted
@@ -130,25 +133,32 @@ function InstallCUDADrivers() {
 			LogMsg "There is no cuda driver for $os_RELEASE, used the one for 18.10"
 			os_RELEASE="18.10"
 		fi
-		CUDA_REPO_PKG="cuda-repo-ubuntu${os_RELEASE//./}_${CUDADriverVersion}_amd64.deb"
-		LogMsg "Using ${CUDA_REPO_PKG}"
+#		CUDA_REPO_PKG="cuda-repo-ubuntu${os_RELEASE//./}_${CUDADriverVersion}_amd64.deb"
+#		LogMsg "Using ${CUDA_REPO_PKG}"
+#
+#		wget http://developer.download.nvidia.com/compute/cuda/repos/ubuntu"${os_RELEASE//./}"/x86_64/"${CUDA_REPO_PKG}" -O /tmp/"${CUDA_REPO_PKG}"
+#		if [ $? -ne 0 ]; then
+#			LogErr "Failed to download ${CUDA_REPO_PKG}"
+#			SetTestStateAborted
+#			return 1
+#		else
+#			LogMsg "Successfully downloaded ${CUDA_REPO_PKG}"
+#		fi
+#
+#		# apt-key adv --fetch-keys http://developer.download.nvidia.com/compute/cuda/repos/ubuntu"${os_RELEASE//./}"/x86_64/7fa2af80.pub
+#		apt-key adv --fetch-keys http://developer.download.nvidia.com/compute/cuda/repos/ubuntu"${os_RELEASE//./}"/x86_64/3bf863cc.pub
+#		dpkg -i /tmp/"${CUDA_REPO_PKG}"
+#		LogMsg "Installed ${CUDA_REPO_PKG}"
+#		dpkg_configure
+#		apt update
+#
+#		apt -y --allow-unauthenticated install cuda-drivers > $HOME/install_drivers.log 2>&1
+#wget https://developer.download.nvidia.com/compute/cuda/11.7.0/local_installers/cuda_11.7.0_515.43.04_linux.run  -O /tmp/cuda_11.7.0_515.43.04_linux.run
+#sudo sh /tmp/cuda_11.7.0_515.43.04_linux.run --silent
 
-		wget http://developer.download.nvidia.com/compute/cuda/repos/ubuntu"${os_RELEASE//./}"/x86_64/"${CUDA_REPO_PKG}" -O /tmp/"${CUDA_REPO_PKG}"
-		if [ $? -ne 0 ]; then
-			LogErr "Failed to download ${CUDA_REPO_PKG}"
-			SetTestStateAborted
-			return 1
-		else
-			LogMsg "Successfully downloaded ${CUDA_REPO_PKG}"
-		fi
+wget https://download.microsoft.com/download/4/3/9/439aea00-a02d-4875-8712-d1ab46cf6a73/NVIDIA-Linux-x86_64-510.47.03-grid-azure.run -O /tmp/NVIDIA-Linux-x86_64-510.47.03-grid-azure.run
+sudo sh /tmp/NVIDIA-Linux-x86_64-510.47.03-grid-azure.run --silent
 
-		apt-key adv --fetch-keys http://developer.download.nvidia.com/compute/cuda/repos/ubuntu"${os_RELEASE//./}"/x86_64/7fa2af80.pub
-		dpkg -i /tmp/"${CUDA_REPO_PKG}"
-		LogMsg "Installed ${CUDA_REPO_PKG}"
-		dpkg_configure
-		apt update
-
-		apt -y --allow-unauthenticated install cuda-drivers > $HOME/install_drivers.log 2>&1
 		if [ $? -ne 0 ]; then
 			LogErr "Failed to install cuda-drivers package!"
 			SetTestStateAborted
