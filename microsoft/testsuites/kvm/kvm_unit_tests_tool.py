@@ -1,6 +1,5 @@
 # Copyright (c) Microsoft Corporation.
 # Licensed under the MIT license.
-import string
 from dataclasses import dataclass
 from pathlib import Path, PurePath
 from typing import Any, List, Type, cast
