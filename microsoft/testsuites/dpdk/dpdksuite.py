@@ -636,9 +636,10 @@ class Dpdk(TestSuite):
             variables["dpdk_source"] = "https://dpdk.org/git/dpdk-stable"
 
     def after_case(self, log: Logger, **kwargs: Any) -> None:
-        node: Node = kwargs.pop("node")
-        modprobe = node.tools[Modprobe]
-        if modprobe.module_exists("uio_hv_generic"):
-            node.tools[Service].stop_service("vpp")
-            modprobe.remove(["uio_hv_generic"])
-            modprobe.reload(["hv_netvsc"])
+        environment: Environment = kwargs.pop("environment")
+        for node in environment.nodes.list():
+            modprobe = node.tools[Modprobe]
+            if modprobe.module_exists("uio_hv_generic"):
+                node.tools[Service].stop_service("vpp")
+                modprobe.remove(["uio_hv_generic"])
+                modprobe.reload(["hv_netvsc"])
