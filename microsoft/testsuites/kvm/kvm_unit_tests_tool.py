@@ -13,6 +13,7 @@ from lisa.messages import CommunityTestMessage, TestStatus, create_test_result_m
 from lisa.operating_system import Posix
 from lisa.testsuite import TestResult
 from lisa.tools import Git, Make
+from lisa.util import LisaException
 
 
 @dataclass
@@ -73,6 +74,8 @@ class KvmUnitTests(Tool):
         )
 
         results = self._parse_results(exec_result.stdout)
+        if not results:
+            raise LisaException("Did not find any test results in stdout.")
 
         failed_tests = []
         for result in results:
@@ -106,22 +109,28 @@ class KvmUnitTests(Tool):
         # parantheses.
         for line in lines:
             result = KvmUnitTestResult()
-            line = "".join(filter(lambda c: c in string.printable, line))
             parts = line.split(" ")
 
-            result.name = parts[1]
+            if len(parts) < 2:
+                self._log.warn(f"Unexpected line in output: {line}")
+                continue
 
+            result.name = parts[1]
             status = parts[0]
-            if status == "PASS":
+            # The status text is surrounded by ANSI escape codes for outputting
+            # it as a colored text. So, use 'in' instead of '==' while determining
+            # the test status.
+            if "PASS" in status:
                 result.status = TestStatus.PASSED
-            elif status == "FAIL":
+            elif "FAIL" in status:
                 if result.name in self.EXPECTED_FAILURES:
                     result.status = TestStatus.ATTEMPTED
                 else:
                     result.status = TestStatus.FAILED
-            elif status == "SKIP":
+            elif "SKIP" in status:
                 result.status = TestStatus.SKIPPED
             else:
+                self._log.warn(f"Unknown test status in line: {line}")
                 continue
 
             results.append(result)
