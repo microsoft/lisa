@@ -1,9 +1,10 @@
 import re
-from typing import Any, List
+from typing import Any, List, Type
 
 from lisa.base_tools.wget import Wget
 from lisa.executable import Tool
 from lisa.operating_system import Redhat, Suse, Ubuntu
+from lisa.tools.python import Python
 from lisa.util import LisaException
 
 # segment output of lsvmbus -vv
@@ -121,6 +122,10 @@ class Lsvmbus(Tool):
     def can_install(self) -> bool:
         return True
 
+    @property
+    def dependencies(self) -> List[Type[Tool]]:
+        return [Python]
+
     def _initialize(self, *args: Any, **kwargs: Any) -> None:
         self._command = "lsvmbus"
         self._vmbus_devices: List[VmBusDevice] = []
@@ -181,6 +186,9 @@ class Lsvmbus(Tool):
             # refer to similar logic in _check_exists above
             if self.__pattern_not_found.match(cmd_result.stdout):
                 self._install_from_src()
+
+        # set `python` as link to `python3`
+        self.node.execute(f"ln -s /usr/bin/python3 /usr/bin/python", sudo=True)
 
         if not self._check_exists():
             if package_name:
