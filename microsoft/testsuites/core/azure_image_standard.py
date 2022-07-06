@@ -506,7 +506,7 @@ class AzureImageStandard(TestSuite):
         priority=1,
         requirement=simple_requirement(supported_platform_type=[AZURE, READY]),
     )
-    def verify_repository_installed(self, node: Node) -> None:
+    def verify_repository_installed(self, node: Node) -> None:  # noqa: C901
         assert isinstance(node.os, Posix)
 
         if isinstance(node.os, Debian):
@@ -692,6 +692,27 @@ class AzureImageStandard(TestSuite):
                     len(fedora_repositories),
                     "yum repolist all should be greater than 5",
                 ).is_greater_than(5)
+        elif isinstance(node.os, CBLMariner):
+            repositories = node.os.get_repositories()
+            mariner_repositories = [
+                cast(RPMRepositoryInfo, repo) for repo in repositories
+            ]
+            expected_repo_list = [
+                "mariner-official-base",
+                "mariner-official-microsoft",
+            ]
+            if 1 == node.os.information.version.major:
+                expected_repo_list += ["mariner-official-update"]
+            elif 2 == node.os.information.version.major:
+                expected_repo_list += ["mariner-official-extras"]
+            for id in expected_repo_list:
+                is_repository_present = any(
+                    [id in repository.id for repository in mariner_repositories]
+                )
+                assert_that(
+                    is_repository_present,
+                    f"{id} repository should be present",
+                ).is_true()
         else:
             raise LisaException(f"Unsupported distro type : {type(node.os)}")
 
