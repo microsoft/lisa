@@ -326,6 +326,7 @@ class AzurePlatform(Platform):
             features.Disk,
             features.Gpu,
             base_features.Nvme,
+            base_features.NestedVirtualization,
             features.SerialConsole,
             features.NetworkInterface,
             features.Resize,
@@ -1645,6 +1646,33 @@ class AzurePlatform(Platform):
             node_space.features.update(
                 [
                     schema.FeatureSettings.create(base_features.ACC.name()),
+                ]
+            )
+
+        # add vm which support nested virtualization
+        # https://docs.microsoft.com/en-us/azure/virtual-machines/acu
+        if resource_sku.family in [
+            "standardDv3Family",
+            "standardDSv3Family",
+            "standardDv4Family",
+            "standardDSv4Family",
+            "standardDDv4Family",
+            "standardDDSv4Family",
+            "standardEv3Family",
+            "standardESv3Family",
+            "standardEv4Family",
+            "standardESv4Family",
+            "standardEDv4Family",
+            "standardEDSv4Family",
+            "standardFSv2Family",
+            "standardMSFamily",
+            "standardMSMediumMemoryv2Family",
+        ]:
+            node_space.features.update(
+                [
+                    schema.FeatureSettings.create(
+                        base_features.NestedVirtualization.name()
+                    ),
                 ]
             )
 
