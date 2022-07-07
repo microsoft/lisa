@@ -298,6 +298,8 @@ class Xfstests(Tool):
                 raw_message, [re.compile(f".*{fail_case}.*$", re.MULTILINE)]
             )[0][0]
         self.save_xfstests_log(fail_cases.split(), log_path, test_type)
+        results_folder = xfstests_path / "results/"
+        self.node.execute(f"rm -rf {results_folder}", sudo=True)
         raise LisaException(
             f"Fail {fail_count} cases of total {total_count}, fail cases"
             f" {fail_cases}, details {fail_info}, please investigate."
