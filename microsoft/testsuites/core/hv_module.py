@@ -195,6 +195,9 @@ class HvModule(TestSuite):
         This test case will reload hyper-v modules as a stress test.
         """,
         priority=1,
+        requirement=simple_requirement(
+            min_core_count=4,
+        ),
     )
     def reload_hyperv_modules(self, case_name: str, log: Logger, node: Node) -> None:
         # Constants
