@@ -105,7 +105,7 @@ function Main {
         if ($oldHostVersion -ne $newHostVersion) {
             # If host version changed means vm was rebooted.
             Write-LogInfo "VM host version is updated. New Host version: $newHostVersion"
-            return "FAIL"
+            #return "FAIL"
         }
         return "PASS"
     }
