@@ -63,7 +63,7 @@ class CloudHypervisorTests(Tool):
         )
 
         results = self._extract_test_results(result.stdout)
-        failures = list(filter(lambda r: r.status == TestStatus.FAILED, results))
+        failures = [r.name for r in results if r.status == TestStatus.FAILED]
         if not failures:
             result.assert_exit_code()
 
@@ -75,8 +75,7 @@ class CloudHypervisorTests(Tool):
                 r.status,
             )
 
-        failure_names = list(map(lambda x: x.name, failures))
-        assert_that(failures, f"Unexpected failures: {failure_names}").is_empty()
+        assert_that(failures, f"Unexpected failures: {failures}").is_empty()
 
     def _initialize(self, *args: Any, **kwargs: Any) -> None:
         tool_path = self.get_tool_path(use_global=True)
