@@ -731,22 +731,20 @@ class AzureImageStandard(TestSuite):
         requirement=simple_requirement(supported_platform_type=[AZURE, READY]),
     )
     def verify_serial_console_is_enabled(self, node: Node) -> None:
-        console_settings = {
-            CpuArchitecture.X64: "console=ttyS0",
-            CpuArchitecture.ARM64: "console=ttyAMA0",
+        console_device = {
+            CpuArchitecture.X64: "ttyS0",
+            CpuArchitecture.ARM64: "ttyAMA0",
         }
-        dmesg = node.tools[Dmesg]
-        dmesg_output = dmesg.get_output()
-        kernel_command_line_pattern = re.compile(r"Kernel command line.*", re.M)
-        command_line = get_matched_str(dmesg_output, kernel_command_line_pattern)
-        assert command_line, "Fail to find kernel command line from dmesg output"
         lscpu = node.tools[Lscpu]
         arch = lscpu.get_architecture()
-        current_console_settings = console_settings[CpuArchitecture(arch)]
+        current_console_device = console_device[CpuArchitecture(arch)]
+        console_enabled_string = f"printk: console [{current_console_device}] enabled"
+        dmesg = node.tools[Dmesg]
         assert_that(
-            command_line,
-            f"expected to see {current_console_settings} in current arch {arch}",
-        ).contains(current_console_settings)
+            dmesg.get_output(),
+            f"Fail to find console enabled line '{console_enabled_string}' "
+            "from dmesg output",
+        ).contains(console_enabled_string)
 
     @TestCaseMetadata(
         description="""
