@@ -1,5 +1,6 @@
 # Copyright (c) Microsoft Corporation.
 # Licensed under the MIT license.
+import re
 from dataclasses import dataclass
 from pathlib import Path, PurePath
 from typing import Any, List, Type, cast
@@ -106,31 +107,24 @@ class KvmUnitTests(Tool):
         #
         # For now, we don't do anything with the additional info in the
         # parantheses.
+        line_regex = re.compile(r"^\S+(PASS|FAIL|SKIP)\S+ (\S+) .*$")
         for line in lines:
-            result = KvmUnitTestResult()
-            parts = line.split(" ")
-
-            if len(parts) < 2:
-                self._log.warn(f"Unexpected line in output: {line}")
+            match = re.search(line_regex, line)
+            if not match:
                 continue
 
-            result.name = parts[1]
-            status = parts[0]
-            # The status text is surrounded by ANSI escape codes for outputting
-            # it as a colored text. So, use 'in' instead of '==' while determining
-            # the test status.
-            if "PASS" in status:
+            result = KvmUnitTestResult()
+            result.name = match.group(2)
+            status = match.group(1)
+            if status == "PASS":
                 result.status = TestStatus.PASSED
-            elif "FAIL" in status:
+            elif status == "FAIL":
                 if result.name in self.EXPECTED_FAILURES:
                     result.status = TestStatus.ATTEMPTED
                 else:
                     result.status = TestStatus.FAILED
-            elif "SKIP" in status:
-                result.status = TestStatus.SKIPPED
             else:
-                self._log.warn(f"Unknown test status in line: {line}")
-                continue
+                result.status = TestStatus.SKIPPED
 
             results.append(result)
 
