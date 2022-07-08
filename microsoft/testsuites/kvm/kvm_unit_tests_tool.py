@@ -1,18 +1,41 @@
 # Copyright (c) Microsoft Corporation.
 # Licensed under the MIT license.
-import string
+import re
+from dataclasses import dataclass
 from pathlib import Path, PurePath
 from typing import Any, List, Type, cast
 
+from assertpy import assert_that
+
+from lisa import Environment, notifier
 from lisa.executable import Tool
+from lisa.messages import CommunityTestMessage, TestStatus, create_test_result_message
 from lisa.operating_system import Posix
+from lisa.testsuite import TestResult
 from lisa.tools import Git, Make
+from lisa.util import LisaException
+
+
+@dataclass
+class KvmUnitTestResult:
+    name: str = ""
+    status: TestStatus = TestStatus.QUEUED
 
 
 class KvmUnitTests(Tool):
     # These tests take some time to finish executing. The default
     # timeout of 600 is not sufficient.
     TIME_OUT = 1200
+
+    # TODO: These failures need to be investigated to figure out the exact
+    # cause.
+    EXPECTED_FAILURES = [
+        "pmu_lbr",
+        "svm_pause_filter",
+        "vmx",
+        "ept",
+        "debug",
+    ]
 
     cmd_path: PurePath
     repo_root: PurePath
@@ -23,6 +46,7 @@ class KvmUnitTests(Tool):
         "make",
         "binutils",
         "qemu-kvm",
+        "qemu-system-x86",
     ]
 
     @property
@@ -37,8 +61,10 @@ class KvmUnitTests(Tool):
     def dependencies(self) -> List[Type[Tool]]:
         return [Git, Make]
 
-    def run_tests(self, failure_logs_path: Path) -> List[str]:
-        result = self.run(
+    def run_tests(
+        self, test_result: TestResult, environment: Environment, failure_logs_path: Path
+    ) -> None:
+        exec_result = self.run(
             "",
             timeout=self.TIME_OUT,
             sudo=True,
@@ -47,15 +73,62 @@ class KvmUnitTests(Tool):
             no_info_log=False,  # print out result of each test
         )
 
-        lines = result.stdout.split("\n")
-        failures: List[str] = []
+        results = self._parse_results(exec_result.stdout)
+        if not results:
+            raise LisaException("Did not find any test results in stdout.")
+
+        failed_tests = []
+        for result in results:
+            if result.status == TestStatus.FAILED:
+                failed_tests.append(result.name)
+            community_message = create_test_result_message(
+                CommunityTestMessage,
+                test_result.id_,
+                environment,
+                result.name,
+                result.status,
+            )
+
+            notifier.notify(community_message)
+
+        self._save_logs(failed_tests, failure_logs_path)
+        assert_that(failed_tests, f"Unexpected failures: {failed_tests}").is_empty()
+
+    def _parse_results(self, output: str) -> List[KvmUnitTestResult]:
+        lines = output.split("\n")
+        results: List[KvmUnitTestResult] = []
+
+        # Each line is printed in this format:
+        #
+        # PASS kvm (<some additional info...>)
+        # |    |
+        # |    +-> test name
+        # +-> test status (can also be FAIL or SKIP)
+        #
+        # For now, we don't do anything with the additional info in the
+        # parantheses.
+        line_regex = re.compile(r"^\S+(PASS|FAIL|SKIP)\S+ (\S+) .*$")
         for line in lines:
-            line = "".join(filter(lambda c: c in string.printable, line))
-            if "FAIL" in line:
-                test_name = line.split(" ")[1]
-                failures.append(test_name)
-        self._save_logs(failures, failure_logs_path)
-        return failures
+            match = re.search(line_regex, line)
+            if not match:
+                continue
+
+            result = KvmUnitTestResult()
+            result.name = match.group(2)
+            status = match.group(1)
+            if status == "PASS":
+                result.status = TestStatus.PASSED
+            elif status == "FAIL":
+                if result.name in self.EXPECTED_FAILURES:
+                    result.status = TestStatus.ATTEMPTED
+                else:
+                    result.status = TestStatus.FAILED
+            else:
+                result.status = TestStatus.SKIPPED
+
+            results.append(result)
+
+        return results
 
     def _save_logs(self, test_names: List[str], log_path: Path) -> None:
         logs_dir = self.repo_root / "logs"
