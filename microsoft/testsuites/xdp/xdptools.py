@@ -112,7 +112,7 @@ class XdpTool(Tool):
             self.node.os.install_packages(
                 "llvm-toolset elfutils-devel m4 wireshark perf make gcc tc "
                 # pcaplib
-                "http://rpmfind.net/linux/centos/8.5.2111/PowerTools/"
+                "https://vault.centos.org/centos/8/PowerTools/"
                 "x86_64/os/Packages/libpcap-devel-1.9.1-5.el8.x86_64.rpm"
             )
         else:
