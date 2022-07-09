@@ -84,7 +84,7 @@ class Tar(Tool):
         # if we need to test anything, add inputs that pass all tests
         if filters:
             for item in content:
-                if all(map(lambda x: x(item), filters)):
+                if all(map(lambda x: x(item), filters)):  # noqa: B023
                     output.append(item)
             return output
         else:
