@@ -73,7 +73,7 @@ class XdpDump(Tool):
                 "clang llvm libelf-dev build-essential libbpfcc-dev"
             )
         elif isinstance(self.node.os, Fedora):
-            self.node.os.install_packages("git llvm clang elfutils-devel make")
+            self.node.os.install_packages("git llvm clang elfutils-devel make gcc")
         else:
             raise UnsupportedDistroException(self.node.os)
 
