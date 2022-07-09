@@ -109,11 +109,19 @@ class XdpTool(Tool):
             config_envs.update({"CLANG": "clang-10", "LLC": "llc-10"})
 
         elif isinstance(self.node.os, Fedora):
+            if self.node.os.information.version >= "9.0.0":
+                self.node.os.install_packages(
+                    "http://mirror.stream.centos.org/9-stream/AppStream/"
+                    "x86_64/os/Packages/libpcap-devel-1.10.0-4.el9.x86_64.rpm"
+                )
+            else:
+                self.node.os.install_packages(
+                    "tc https://vault.centos.org/centos/8/PowerTools/"
+                    "x86_64/os/Packages/libpcap-devel-1.9.1-5.el8.x86_64.rpm"
+                )
             self.node.os.install_packages(
-                "llvm-toolset elfutils-devel m4 wireshark perf make gcc tc "
+                "llvm-toolset elfutils-devel m4 wireshark perf make gcc"
                 # pcaplib
-                "https://vault.centos.org/centos/8/PowerTools/"
-                "x86_64/os/Packages/libpcap-devel-1.9.1-5.el8.x86_64.rpm"
             )
         else:
             raise UnsupportedDistroException(self.node.os)
