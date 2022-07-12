@@ -135,6 +135,30 @@ class KernelInstallerTransformer(Transformer):
             posix = cast(Posix, node.os)
             posix.replace_boot_kernel(installed_kernel_version)
 
+        if installer.runbook.source == "linux-image-azure-fde":
+            efi_files = node.execute(
+                "ls -t /usr/lib/linux/efi/kernel.efi-*-azure-cvm",
+                sudo=True,
+                shell=True,
+                expected_exit_code=0,
+                expected_exit_code_failure_message=(
+                    "fail to find kernel.efi file for kernel type linux-image-azure-fde"
+                ),
+            )
+            efi_file = efi_files.stdout.splitlines()[0]
+            node.execute(
+                (
+                    "cp /boot/efi/EFI/ubuntu/grubx64.efi "
+                    "/boot/efi/EFI/ubuntu/grubx64.efi.bak"
+                ),
+                sudo=True,
+            )
+            node.execute(
+                f"cp {efi_file} /boot/efi/EFI/ubuntu/grubx64.efi",
+                sudo=True,
+                shell=True,
+            )
+
         self._log.info("rebooting")
         node.reboot()
         self._log.info(
