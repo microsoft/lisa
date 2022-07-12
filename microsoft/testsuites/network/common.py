@@ -205,7 +205,7 @@ def cleanup_iperf3(environment: Environment) -> None:
 
 def remove_extra_nics(environment: Environment) -> None:
     for node in environment.nodes.list():
-        node = cast(RemoteNode, environment.nodes[0])
+        node = cast(RemoteNode, node)
         network_interface_feature = node.features[NetworkInterface]
         network_interface_feature.remove_extra_nics()
 
