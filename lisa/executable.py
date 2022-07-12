@@ -32,32 +32,36 @@ T = TypeVar("T")
 
 class Tool(InitializableMixin):
     """
-    The base class, which wraps an executable, package, or scripts on a node.
-    A tool can be installed, and execute on a node. When a tool is needed, call
-    Tools[] to get one object. The Tools[] checks if it's installed. If it's
-    not installed, then check if it can be installed, and then install or fail.
+    The base class, which wraps an executable, package, or scripts on a node. A
+    tool can be installed, and execute on a node. When a tool is needed, call
+    Tools[] to get one object. The Tools[] checks if it's installed. If it's not
+    installed, then check if it can be installed, and then install or fail.
     After the tool instance returned, the run/Async of the tool will call
     execute/Async of node. So that the command passes to current node.
 
-    The must be implemented methods are marked with @abstractmethod, includes
-    command: it's the command name, like echo, ntttcp. it uses in run/Async to run it,
-             and isInstalledInternal to check if it's installed.
+    The must be implemented methods are marked with @abstractmethod, includes,
 
-    The should be implemented methods throws NotImplementedError, but not marked as
-    abstract method, includes,
-    can_install: specify if a tool can be installed or not. If a tool is not builtin, it
-                must implement this method.
+    command: it's the command name, like echo, ntttcp. it uses in run/Async to
+    run it, and isInstalledInternal to check if it's installed.
+
+    The should be implemented methods throws NotImplementedError, but not marked
+    as abstract method, includes,
+
+    can_install: specify if a tool can be installed or not. If a tool is not
+    builtin, it must implement this method.
+
     _install: If a tool is not builtin, it must implement this method. This
-                     method needs to install a tool, and make sure it can be detected
-                     by isInstalledInternal.
+    method needs to install a tool, and make sure it can be detected by
+    isInstalledInternal.
 
-    The may be implemented methods is empty, includes
+    The may be implemented methods is empty, includes,
+
     initialize: It's called when a tool is created, and before to call any other
-                methods. It can be used to initialize variables or time-costing
-                operations.
+    methods. It can be used to initialize variables or time-costing operations.
+
     dependencies: All depended tools, they will be checked and installed before
-                  current tool installed. For example, ntttcp uses git to clone code
-                  and build. So it depends on Git tool.
+    current tool installed. For example, ntttcp uses git to clone code and
+    build. So it depends on Git tool.
 
     See details on method descriptions.
     """
