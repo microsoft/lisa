@@ -79,11 +79,13 @@ class Platform(subclasses.BaseClassWithRunbookMixin, InitializableMixin):
 
     def _prepare_environment(self, environment: Environment, log: Logger) -> bool:
         """
-        What to be prepared for an environment
-        1. check if platform can meet requirement of this environment
-        2. if #1 is yes, specified platform context,
-            so that the environment can be created in deploy phase
-            with same spec as prepared.
+        Steps to prepare an environment.
+
+        1. check if platform can meet requirement of this environment.
+
+        2. if #1 is yes, specified platform context, so that the environment can
+           be created in deploy phase with same spec as prepared.
+
         3. set cost for environment priority.
 
         return True, if environment can be deployed. False, if cannot.
