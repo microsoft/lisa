@@ -52,23 +52,25 @@ can save everyone’s time.
 Test composition
 ----------------
 
-The LISA test is composed of :ref:`write_test/write_case:metadata`,
-:ref:`write_test/write_case:test case body` and
-:ref:`write_test/write_case:setup and clean-up`.
+A typical test case includes definition, setup, run, and validation.
 
-Metadata
-~~~~~~~~
+   .. figure:: ../img/sample.png
+      :alt: sample test case
 
-Metadata provides documentations and settings for test cases and test suites,
-illustrates the main test logic, and is used to generate specifications. Both of
-the following examples are taken from `provision.py
+
+Test definition
+~~~~~~~~~~~~~~~
+
+The test definitions provides documentations and settings for test cases and
+test suites, illustrates the main test logic, and is used to generate
+specifications. Both of the following examples are taken from `provision.py
 <https://github.com/microsoft/lisa/blob/main/microsoft/testsuites/core/provisioning.py>`__.
 See `example tests
 <https://github.com/microsoft/lisa/tree/main/examples/testsuites>`__ for more
 examples.
 
-Metadata in test suite
-^^^^^^^^^^^^^^^^^^^^^^
+Definition in test suite
+^^^^^^^^^^^^^^^^^^^^^^^^
 
 A test suite is a set of test cases with similar test purposes or shared
 steps.
@@ -112,10 +114,9 @@ steps.
 -  **owner** defines the owner of this test case. The default value is
    "Microsoft". The owner information displays in test list, and used for support.
 
-Metadata in test case
-^^^^^^^^^^^^^^^^^^^^^
 
-A test case is a test that has its own test purpose and steps.
+Definition in test case
+^^^^^^^^^^^^^^^^^^^^^^^
 
 .. code:: python
 
@@ -197,11 +198,8 @@ Find more examples in `example tests
 Setup and clean-up
 ~~~~~~~~~~~~~~~~~~
 
-There are four methods in two pairs:
-
-1. ``before_suite`` & ``after_suite``
-
-2. ``before_case`` & ``after_case``
+There are two methods to setup and cleanup for test cases: ``before_case`` and
+``after_case``.
 
 They are used to share common logic or variables among test cases. They
 will be called in the corresponding step.
@@ -209,12 +207,6 @@ will be called in the corresponding step.
 The kwargs supports variables similar to those in test methods.
 
 .. code:: python
-
-   def before_suite(self, **kwargs: Any) -> None:
-       ...
-
-   def after_suite(self, **kwargs: Any) -> None:
-       ...
 
    def before_case(self, **kwargs: Any) -> None:
        ...
