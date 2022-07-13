@@ -2,7 +2,6 @@
 # Licensed under the MIT license.
 
 import re
-from functools import partial
 from pathlib import PurePosixPath
 from typing import List, Pattern, Tuple, Type, Union
 
@@ -11,7 +10,6 @@ from semver import VersionInfo
 
 from lisa.executable import Tool
 from lisa.nic import NicInfo
-from lisa.node import Node
 from lisa.operating_system import Debian, Fedora, Oracle, Redhat, Suse, Ubuntu
 from lisa.tools import (
     Echo,
@@ -23,6 +21,7 @@ from lisa.tools import (
     Pidof,
     Service,
     Tar,
+    Timeout,
     Unzip,
     Wget,
 )
@@ -32,8 +31,7 @@ from lisa.util import (
     SkippedException,
     UnsupportedDistroException,
 )
-from lisa.util.parallel import TaskManager, run_in_parallel_async
-from lisa.util.perf_timer import create_timer
+from lisa.util.constants import SIGINT
 
 PACKAGE_MANAGER_SOURCE = "package_manager"
 
@@ -51,6 +49,10 @@ class DpdkTestpmd(Tool):
             r"[a-fA-F0-9]{2}\.[a-fA-F0-9]"
             r" \(socket 0\)"
         )
+    )
+    _search_hotplug_regex_alt = re.compile(
+        r"EAL: PCI device [a-fA-F0-9]{4}:[a-fA-F0-9]{2}:[a-fA-F0-9]{2}\.[a-fA-F0-9] "
+        r"on NUMA socket [0-9]+"
     )
 
     # ex v19.11-rc3 or 19.11
@@ -277,25 +279,16 @@ class DpdkTestpmd(Tool):
         return (
             f"{self._testpmd_install_path} {core_args} -n 4 --proc-type=primary "
             f"{nic_include_info} -- --forward-mode={mode} {extra_args} "
-            "-a --stats-period 1"
+            "-a --stats-period 2"
         )
 
     def run_for_n_seconds(self, cmd: str, timeout: int) -> str:
         self._last_run_timeout = timeout
         self.node.log.info(f"{self.node.name} running: {cmd}")
 
-        # run testpmd async
-        testpmd_proc = self.node.execute_async(
-            cmd,
-            sudo=True,
+        proc_result = self.node.tools[Timeout].run_with_timeout(
+            cmd, timeout, SIGINT, kill_timeout=timeout + 10
         )
-
-        # setup a timer
-        self.killer = create_async_timeout(self.node, self.command, timeout)
-
-        # wait for killer to finish (or be canceled)
-        self.killer.wait_for_all_workers()
-        proc_result = testpmd_proc.wait_result()
         self._last_run_output = proc_result.stdout
         self.populate_performance_data()
         return proc_result.stdout
@@ -306,19 +299,20 @@ class DpdkTestpmd(Tool):
 
     def kill_previous_testpmd_command(self) -> None:
         # kill testpmd early
-        if not hasattr(self, "killer"):
-            fail(
-                "Test Suite Error: kill_previous_testpmd_command was called"
-                " but there was no task killer registered."
-            )
-        # cancel the scheduled killer
-        self.killer.cancel()
-        # and kill immediately
-        self.node.tools[Kill].by_name(self.command)
+
+        self.node.tools[Kill].by_name(self.command, ignore_not_exist=True)
         if self.check_testpmd_is_running():
-            raise LisaException(
-                "Testpmd is not responding to signals, failing the test."
+            self.node.log.debug(
+                "Testpmd is not responding to signals, attempt reload of hv_netvsc."
             )
+            self.node.tools[Modprobe].reload(["hv_netvsc"])
+            if self.check_testpmd_is_running():
+                raise LisaException("Testpmd has hung, killing the test.")
+            else:
+                self.node.log.debug(
+                    "Testpmd killed with hv_netvsc reload. "
+                    "Proceeding with processing test run results."
+                )
 
     def get_data_from_testpmd_output(
         self,
@@ -847,11 +841,15 @@ class DpdkTestpmd(Tool):
         after_rescind = self._last_run_output[device_removal_index:]
         # Identify the device add event
         hotplug_match = self._search_hotplug_regex.search(after_rescind)
-        if not hotplug_match:
-            raise LisaException(
-                "Could not identify vf hotplug events in testpmd output."
-            )
 
+        if not hotplug_match:
+            hotplug_alt_match = self._search_hotplug_regex_alt.search(after_rescind)
+            if hotplug_alt_match:
+                hotplug_match = hotplug_alt_match
+            else:
+                raise LisaException(
+                    "Could not identify vf hotplug events in testpmd output."
+                )
         self.node.log.info(f"Identified hotplug event: {hotplug_match.group(0)}")
 
         before_reenable = after_rescind[: hotplug_match.start()]
@@ -907,24 +905,3 @@ def _discard_first_zeroes(data: List[int]) -> List[int]:
 
 def _mean(data: List[int]) -> int:
     return sum(data) // len(data)
-
-
-# Cancellable timeout tool
-def create_async_timeout(node: Node, command: str, timeout: int) -> TaskManager[None]:
-
-    # setup a timer
-    def kill_timer(timeout: int) -> None:
-        timer = create_timer()
-        while timer.elapsed(False) < timeout:
-            pass
-
-    # and killer callback, callback will not run if timer is cancelled
-    def kill_callback(x: None) -> None:
-        node.tools[Kill].by_name(command)
-
-    # initiate async timer
-    kill_manager = run_in_parallel_async(
-        [partial(kill_timer, timeout)], kill_callback, node.log
-    )
-
-    return kill_manager
