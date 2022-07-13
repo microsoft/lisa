@@ -10,7 +10,7 @@ from semver import VersionInfo
 
 from lisa.base_tools import Cat, Sed, Wget
 from lisa.executable import Tool
-from lisa.operating_system import Debian, Posix, Redhat, Suse
+from lisa.operating_system import CBLMariner, Debian, Posix, Redhat, Suse
 from lisa.tools import Find, Gcc
 from lisa.tools.make import Make
 from lisa.tools.service import Service
@@ -144,7 +144,7 @@ class Makedumpfile(Tool):
 
     def _install(self) -> bool:
         assert isinstance(self.node.os, Posix)
-        if isinstance(self.node.os, Redhat):
+        if isinstance(self.node.os, Redhat) or isinstance(self.node.os, CBLMariner):
             self.node.os.install_packages("kexec-tools")
         else:
             self.node.os.install_packages("makedumpfile")
@@ -196,6 +196,8 @@ class KdumpBase(Tool):
             return KdumpDebian(node)
         elif isinstance(node.os, Suse):
             return KdumpSuse(node)
+        elif isinstance(node.os, CBLMariner):
+            return KdumpCBLMariner(node)
         else:
             raise UnsupportedDistroException(os=node.os)
 
@@ -223,10 +225,18 @@ class KdumpBase(Tool):
 
     def _get_crashkernel_cfg_file(self) -> str:
         """
-        This method return the path of cfg file where we config crashkernel memory.
+        This method returns the path of cfg file where we configure crashkernel memory.
         If distro has a different cfg file path, override it.
         """
         return "/etc/default/grub"
+
+    def _get_crashkernel_cfg_cmdline(self) -> str:
+        """
+        This method returns the cmdline string where we can configure crashkernel memory
+        in the file _get_crashkernel_cfg_file returns.
+        If distro has a different cmdline, override it.
+        """
+        return "GRUB_CMDLINE_LINUX"
 
     def _get_crashkernel_update_cmd(self, crashkernel: str) -> str:
         """
@@ -243,17 +253,20 @@ class KdumpBase(Tool):
 
         # For Redhat 8 and later version, the cfg_file should be None.
         cfg_file = self._get_crashkernel_cfg_file()
+        cmdline = self._get_crashkernel_cfg_cmdline()
         if cfg_file:
-            assert self.node.shell.exists(PurePosixPath(cfg_file)), (
-                f"{cfg_file} doesn't exist. Please check the right grub file for "
-                f"{self.node.os.name} {self.node.os.information.version}."
+            self.node.execute(
+                f"ls -lt {cfg_file}",
+                expected_exit_code=0,
+                expected_exit_code_failure_message=f"{cfg_file} doesn't exist",
+                sudo=True,
             )
             cat = self.node.tools[Cat]
             sed = self.node.tools[Sed]
-            result = cat.run(cfg_file)
+            result = cat.run(cfg_file, sudo=True, force_run=True)
             if "crashkernel" in result.stdout:
                 sed.substitute(
-                    match_lines="^GRUB_CMDLINE_LINUX",
+                    match_lines=f"^{cmdline}",
                     regexp='crashkernel=[^[:space:]"]*',
                     replacement=f"crashkernel={crashkernel}",
                     file=cfg_file,
@@ -261,14 +274,14 @@ class KdumpBase(Tool):
                 )
             else:
                 sed.substitute(
-                    match_lines="^GRUB_CMDLINE_LINUX",
+                    match_lines=f"^{cmdline}",
                     regexp='"$',
                     replacement=f' crashkernel={crashkernel}"',
                     file=cfg_file,
                     sudo=True,
                 )
             # Check if crashkernel is insert in cfg file
-            result = cat.run(cfg_file, force_run=True)
+            result = cat.run(cfg_file, sudo=True, force_run=True)
             if f"crashkernel={crashkernel}" not in result.stdout:
                 raise LisaException(
                     f'No find "crashkernel={crashkernel}" in {cfg_file} after'
@@ -447,3 +460,23 @@ class KdumpSuse(KdumpBase):
         assert isinstance(self.node.os, Suse)
         self.node.os.install_packages("kdump")
         return self._check_exists()
+
+
+class KdumpCBLMariner(KdumpBase):
+    @property
+    def command(self) -> str:
+        return "kdumpctl"
+
+    def _install(self) -> bool:
+        assert isinstance(self.node.os, CBLMariner)
+        self.node.os.install_packages("kexec-tools")
+        return self._check_exists()
+
+    def _get_crashkernel_cfg_file(self) -> str:
+        return "/boot/mariner.cfg"
+
+    def _get_crashkernel_cfg_cmdline(self) -> str:
+        return "mariner_cmdline"
+
+    def _get_crashkernel_update_cmd(self, crashkernel: str) -> str:
+        return ""
