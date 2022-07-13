@@ -206,6 +206,14 @@ will be called in the corresponding step.
 
 The kwargs supports variables similar to those in test methods.
 
+The ``before_case`` is used to setup environment or prepare test data. It will
+be called before each test case in the same test suite. If it fails, the test
+case will be skipped.
+
+The ``after_case`` is used to cleanup and recover the environment. It will be
+called after each test case in the same test suite. It's called regardless the
+test result. It doesn't affect the test result, when it fails.
+
 .. code:: python
 
    def before_case(self, **kwargs: Any) -> None:
