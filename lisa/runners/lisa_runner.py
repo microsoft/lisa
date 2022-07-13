@@ -352,11 +352,20 @@ class LisaRunner(BaseRunner):
         # on next test cases, close the connection after each test run. It will
         # be connected on the next command automatically.
         environment.nodes.close()
+        # Try to connect node(s), if cannot access node(s) of this environment,
+        # set the current environment as Bad. So that this environment won't be reused.
+        if not environment.nodes.test_connections():
+            environment.status = EnvironmentStatus.Bad
+            self._log.debug(
+                f"set environment '{environment.name}' as bad, "
+                f"because after test case '{test_result.name}', "
+                f"node(s) cannot be accessible."
+            )
+        environment.nodes.close()
 
         # keep failed environment, not to delete
         if (
-            test_result.is_completed
-            and test_result.status == TestStatus.FAILED
+            test_result.status == TestStatus.FAILED
             and self.platform.runbook.keep_environment
             == constants.ENVIRONMENT_KEEP_FAILED
         ):
@@ -387,23 +396,20 @@ class LisaRunner(BaseRunner):
         """
         # the predefined environment shouldn't be deleted, because it
         # serves all test cases.
-        if (
-            environment.status
-            in [
-                EnvironmentStatus.Deployed,
-                EnvironmentStatus.Connected,
-            ]
-        ) or (
-            environment.status == EnvironmentStatus.Prepared and environment.is_in_use
+        if environment.status == EnvironmentStatus.Deleted or (
+            environment.status == EnvironmentStatus.Prepared
+            and not environment.is_in_use
         ):
+            # The prepared only environment doesn't need to be deleted.
+            # It may cause platform fail to delete non-existing environment.
+            environment.status = EnvironmentStatus.Deleted
+        else:
             try:
                 self.platform.delete_environment(environment)
             except Exception as identifier:
                 self._log.debug(
                     f"error on deleting environment '{environment.name}': {identifier}"
                 )
-        else:
-            environment.status = EnvironmentStatus.Deleted
 
     def _get_results_by_priority(
         self, test_results: List[TestResult], priority: int
