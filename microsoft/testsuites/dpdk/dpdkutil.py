@@ -1,10 +1,9 @@
-import re
 import time
 from collections import deque
 from functools import partial
 from typing import Any, Dict, List, Tuple, Union
 
-from assertpy import assert_that, fail
+from assertpy import assert_that
 from semver import VersionInfo
 
 from lisa import (
@@ -22,7 +21,6 @@ from lisa.nic import NicInfo
 from lisa.operating_system import OperatingSystem, Ubuntu
 from lisa.tools import Dmesg, Echo, Lsmod, Lspci, Modprobe, Mount
 from lisa.tools.mkfs import FileSystem
-from lisa.util import perf_timer
 from lisa.util.parallel import TaskManager, run_in_parallel, run_in_parallel_async
 from microsoft.testsuites.dpdk.dpdktestpmd import PACKAGE_MANAGER_SOURCE, DpdkTestpmd
 
@@ -67,38 +65,6 @@ class DpdkTestResources:
         self.nic_controller = _node.features[NetworkInterface]
         self.dmesg = _node.tools[Dmesg]
         self._last_dmesg = ""
-        test_nic = self.node.nics.get_nic_by_index()
-        # generate hotplug pattern for this specific nic
-        self.vf_hotplug_regex = re.compile(
-            f"{test_nic.upper}: Data path switched to VF:"
-        )
-        self.vf_slot_removal_regex = re.compile(f"{test_nic.upper}: VF unregistering:")
-
-    def wait_for_dmesg_output(self, wait_for: str, timeout: int) -> bool:
-        search_pattern = None
-        if wait_for == "AN_DISABLE":
-            search_pattern = self.vf_slot_removal_regex
-        elif wait_for == "AN_REENABLE":
-            search_pattern = self.vf_hotplug_regex
-        else:
-            raise LisaException(
-                "Unknown search pattern specified in "
-                "DpdkTestResources:wait_for_dmesg_output"
-            )
-
-        self.node.log.info(search_pattern.pattern)
-        timer = perf_timer.Timer()
-        while timer.elapsed(stop=False) < timeout:
-            output = self.dmesg.get_output(force_run=True)
-            if search_pattern.search(output.replace(self._last_dmesg, "")):
-                self._last_dmesg = output  # save old output to filter next time
-                self.node.log.info(
-                    f"Found VF hotplug info after {timer.elapsed()} seconds"
-                )
-                return True
-            else:
-                time.sleep(1)
-        return False
 
 
 def init_hugepages(node: Node) -> None:
@@ -141,7 +107,7 @@ def _set_forced_source_by_distro(node: Node, variables: Dict[str, Any]) -> None:
         variables["dpdk_source"] = variables.get(
             "dpdk_source", "https://dpdk.org/git/dpdk-stable"
         )
-        variables["dpdk_branch"] = variables.get("dpdk_branch", "v19.11")
+        variables["dpdk_branch"] = variables.get("dpdk_branch", "v21.11")
 
 
 def generate_send_receive_run_info(
@@ -300,35 +266,22 @@ def run_testpmd_concurrent(
     task_manager = start_testpmd_concurrent(node_cmd_pairs, seconds, log, output)
     if rescind_sriov:
         time.sleep(10)  # run testpmd for a bit before disabling sriov
+
         test_kits = node_cmd_pairs.keys()
 
-        # disable sriov
+        # disable sriov (and wait for change to apply)
         for node_resources in test_kits:
-            node_resources.nic_controller.switch_sriov(enable=False, wait=False)
+            node_resources.nic_controller.switch_sriov(enable=False, wait=True)
 
-        # wait for disable to hit the vm
-        for node_resources in test_kits:
-            if not node_resources.wait_for_dmesg_output("AN_DISABLE", seconds // 3):
-                fail(
-                    "Accelerated Network disable not found in dmesg"
-                    f" before timeout for node {node_resources.node.name}"
-                )
-
-        time.sleep(10)  # let testpmd run with sriov disabled
+        # let run for a bit with SRIOV disabled
+        time.sleep(10)
 
         # re-enable sriov
         for node_resources in test_kits:
-            node_resources.nic_controller.switch_sriov(enable=True, wait=False)
+            node_resources.nic_controller.switch_sriov(enable=True, wait=True)
 
-        # wait for re-enable to hit vms
-        for node_resources in test_kits:
-            if not node_resources.wait_for_dmesg_output("AN_REENABLE", seconds // 2):
-                fail(
-                    "Accelerated Network re-enable not found "
-                    f" in dmesg before timeout for node  {node_resources.node.name}"
-                )
-
-        time.sleep(15)  # let testpmd run with sriov re-enabled
+        # run for a bit with SRIOV re-enabled
+        time.sleep(10)
 
         # kill the commands to collect the output early and terminate before timeout
         for node_resources in test_kits:
