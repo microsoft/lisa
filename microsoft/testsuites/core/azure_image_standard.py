@@ -738,7 +738,7 @@ class AzureImageStandard(TestSuite):
         lscpu = node.tools[Lscpu]
         arch = lscpu.get_architecture()
         current_console_device = console_device[CpuArchitecture(arch)]
-        console_enabled_string = f"printk: console [{current_console_device}] enabled"
+        console_enabled_string = f"console [{current_console_device}] enabled"
         dmesg = node.tools[Dmesg]
         assert_that(
             dmesg.get_output(),
