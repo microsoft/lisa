@@ -350,6 +350,14 @@ class Node(subclasses.BaseClassWithRunbookMixin, ContextMixin, InitializableMixi
         self.log.debug("mark node to dirty")
         self._is_dirty = True
 
+    def test_connection(self) -> bool:
+        try:
+            self.execute("date")
+            return True
+        except Exception as identifier:
+            self.log.debug(f"cannot access VM {self.name}, error is {identifier}")
+        return False
+
     def _initialize(self, *args: Any, **kwargs: Any) -> None:
         if not hasattr(self, "_log_handler"):
             self._log_handler = create_file_handler(
@@ -625,6 +633,9 @@ class Nodes:
 
     def append(self, node: Node) -> None:
         self._list.append(node)
+
+    def test_connections(self) -> bool:
+        return all(run_in_parallel([x.test_connection for x in self._list]))
 
 
 def local_node_connect(
