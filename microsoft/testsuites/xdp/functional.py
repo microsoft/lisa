@@ -1,7 +1,7 @@
 # Copyright (c) Microsoft Corporation.
 # Licensed under the MIT license.
 
-from typing import List, cast
+from typing import Any, List, cast
 
 from assertpy import assert_that
 
@@ -18,7 +18,7 @@ from lisa import (
     simple_requirement,
 )
 from lisa.features import NetworkInterface, Sriov, Synthetic
-from lisa.tools import Ip, Kill, TcpDump
+from lisa.tools import Firewall, Ip, Kill, TcpDump
 from lisa.tools.ping import INTERNET_PING_ADDRESS
 from lisa.util.constants import SIGINT
 from microsoft.testsuites.xdp.common import get_dropped_count, get_xdpdump
@@ -34,6 +34,11 @@ from microsoft.testsuites.xdp.xdptools import XdpTool
     """,
 )
 class XdpFunctional(TestSuite):
+    def before_case(self, log: Logger, **kwargs: Any) -> None:
+        environment: Environment = kwargs.pop("environment")
+        for node in environment.nodes.list():
+            node.tools[Firewall].stop()
+
     @TestCaseMetadata(
         description="""
         It validates the basic functionality of XDP. It runs multiple times to

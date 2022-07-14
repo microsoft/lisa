@@ -22,7 +22,7 @@ from lisa import (
 from lisa.executable import Tool
 from lisa.features import Sriov, Synthetic
 from lisa.nic import NicInfo
-from lisa.tools import Kill, Lagscope, Lscpu, Ntttcp
+from lisa.tools import Firewall, Kill, Lagscope, Lscpu, Ntttcp
 from lisa.util.parallel import run_in_parallel
 from microsoft.testsuites.performance.common import (
     calculate_middle_average,
@@ -52,6 +52,11 @@ _default_latency_threshold = 1.4
     """,
 )
 class XdpPerformance(TestSuite):
+    def before_case(self, log: Logger, **kwargs: Any) -> None:
+        environment: Environment = kwargs.pop("environment")
+        for node in environment.nodes.list():
+            node.tools[Firewall].stop()
+
     @TestCaseMetadata(
         description="""
         This case tests the packet forwarded rate of the XDP TX forwarding on
