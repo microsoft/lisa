@@ -7,7 +7,7 @@ from typing import Any, List, Type, cast
 from lisa.base_tools import Wget
 from lisa.executable import Tool
 from lisa.operating_system import Fedora, Posix
-from lisa.tools import Modprobe
+from lisa.tools import KernelConfig, Modprobe
 from lisa.util import UnsupportedKernelException, find_patterns_groups_in_lines
 
 
@@ -122,9 +122,8 @@ class Pktgen(Tool):
         if isinstance(self.node.os, Fedora):
             self._install_fedora()
         else:
-            # assume other distros have the pktgen inside.
-            ...
-
+            if not self.node.tools[KernelConfig].is_enabled("CONFIG_NET_PKTGEN"):
+                raise UnsupportedKernelException(self.node.os)
         # download scripts to run pktgen
         for original_name, new_name in self._scripts.items():
             url = f"{self._root_url}/{original_name}?h={self._version}"
