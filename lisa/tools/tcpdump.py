@@ -39,7 +39,7 @@ class TcpDump(Tool):
 
     @property
     def can_install(self) -> bool:
-        return False
+        return True
 
     def dump_async(
         self,
@@ -71,6 +71,7 @@ class TcpDump(Tool):
             expected_exit_code_failure_message=f"error on parse packet file: "
             f"{packet_filename}",
             force_run=True,
+            sudo=True,
         ).stdout
         packets: List[IpPacket] = []
         results = find_groups_in_lines(output, self._information_pattern)
@@ -85,3 +86,7 @@ class TcpDump(Tool):
         self._log.debug(f"{len(packets)} packets loaded.")
 
         return packets
+
+    def _install(self) -> bool:
+        self.node.os.install_packages("tcpdump")  # type: ignore
+        return self._check_exists()
