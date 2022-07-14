@@ -10,7 +10,7 @@ from semver import VersionInfo
 
 from lisa.base_tools import Cat, Sed, Wget
 from lisa.executable import Tool
-from lisa.operating_system import CBLMariner, Debian, Posix, Redhat, Suse
+from lisa.operating_system import CBLMariner, Debian, Posix, Redhat, Suse, Ubuntu
 from lisa.tools import Find, Gcc
 from lisa.tools.make import Make
 from lisa.tools.service import Service
@@ -246,6 +246,13 @@ class KdumpBase(Tool):
         """
         return "grub2-mkconfig -o /boot/grub2/grub.cfg"
 
+    def get_dumpfile_name(self) -> str:
+        """
+        Returns name of the dump file. If distro has a different file name,
+        override the method
+        """
+        return "vmcore"
+
     def config_crashkernel_memory(
         self,
         crashkernel: str,
@@ -366,15 +373,6 @@ class KdumpBase(Tool):
         # Check if memory is reserved for crash kernel
         self._check_crashkernel_memory_reserved()
 
-    def check_vmcore_exist(self) -> None:
-        cmd = f"find {self.dump_path} -type f -size +10M"
-        result = self.node.execute(cmd, shell=True, sudo=True)
-        if result.stdout == "":
-            raise LisaException(
-                "No file was found in /var/crash of size greater than 10M."
-                "The dump file didn't generate, please double check."
-            )
-
 
 class KdumpRedhat(KdumpBase):
     @property
@@ -445,6 +443,12 @@ class KdumpDebian(KdumpBase):
 
     def _get_crashkernel_update_cmd(self, crashkernel: str) -> str:
         return "update-grub"
+
+    def _get_dumpfile_name(self) -> str:
+        if isinstance(self.node.os, Ubuntu):
+            return "dump.*"
+        else:
+            return "vmcore.*"
 
     def enable_kdump_service(self) -> None:
         service = self.node.tools[Service]

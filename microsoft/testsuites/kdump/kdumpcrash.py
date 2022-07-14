@@ -1,6 +1,5 @@
 # Copyright (c) Microsoft Corporation.
 # Licensed under the MIT license.
-import time
 from pathlib import Path, PurePosixPath
 from random import randint
 from typing import cast
@@ -22,7 +21,7 @@ from lisa import (
 from lisa.features import SerialConsole
 from lisa.operating_system import Redhat
 from lisa.sut_orchestrator.azure.tools import Waagent
-from lisa.tools import Dmesg, Echo, KdumpBase, KernelConfig, Lscpu
+from lisa.tools import Dmesg, Echo, KdumpBase, KernelConfig, Lscpu, Stat
 from lisa.util.perf_timer import create_timer
 from lisa.util.shell import try_connect
 
@@ -302,38 +301,107 @@ class KdumpCrash(TestSuite):
         except Exception as identifier:
             log.debug(f"ignorable ssh exception: {identifier}")
 
-        # Wait for the VM dump file and boot up
-        # When the crash kernel boots up, port 22 can be connected even if dump file
-        # is not completed. So we can't use wait_tcp_port_ready function to judge if
-        # the dump process is completed and the VM already boots up. We can use
-        # try_connect function
+        # Check if the vmcore file is generated after triggering a crash
+        self._check_kdump_result(node, log_path, log, kdump)
+
+        # We should clean up the vmcore file since the test is passed
+        node.execute(f"rm -rf {kdump.dump_path}/*", shell=True, sudo=True)
+
+    def _check_kdump_result(
+        self, node: Node, log_path: Path, log: Logger, kdump: KdumpBase
+    ) -> None:
+        # We use this function to check if the dump file is generated.
+        # Steps:
+        # 1. Try to connect the VM;
+        # 2. If connected:
+        #    1). Check if the dump file is generated. If so, then jump the loop.
+        #       The test is passed.
+        #    2). If there is no dump file, check the incomplete file (When dumping
+        #        hasn't completed, the dump file is named as "*incomplete").
+        #           a. If there is no incomplete file either, then raise and exception.
+        #           b. If there is an incomplete file, then check if the file size
+        #              is growing. If so, check it in a loop until the dump completes
+        #              or incomplete file doesn't grow or timeout.
+        # 3. The VM can be connected may just when the crash kernel boots up. When
+        #    dumping or rebooting after dump completes, the VM might be disconnected.
+        #    We need to catch the exception, and retry to connect the VM. Then follow
+        #    the same steps to check.
         timer = create_timer()
         remote_node = cast(RemoteNode, node)
-        stdout = None
-        while not stdout and timer.elapsed(False) < self.timeout_of_dump_crash:
+        system_disconnected = True
+        serial_console = node.features[SerialConsole]
+        while system_disconnected and timer.elapsed(False) < self.timeout_of_dump_crash:
             try:
-                stdout = try_connect(remote_node._connection_info)
+                try_connect(remote_node._connection_info)
             except Exception as identifier:
                 log.debug(
-                    "failed to connect SSH "
+                    "Fail to connect SSH "
                     f"{remote_node._connection_info.address}:"
                     f"{remote_node._connection_info.port}. "
                     f"{identifier.__class__.__name__}: {identifier}. Retry..."
                 )
-                time.sleep(10)
-            if not stdout:
-                serial_console = node.features[SerialConsole]
                 serial_console.check_initramfs(
                     saved_path=log_path, stage="after_trigger_crash", force_run=True
                 )
-        if not stdout:
-            raise LisaException("Timeout to connect the VM after triggering kdump.")
+                system_disconnected = True
+                continue
 
-        # After trigger kdump, the VM will reboot. We need to close and re-initialize
-        node.close()
-        node.initialize()
-        # Verify if the kernel kdump process creates a vmcore file of size 10M+
-        kdump.check_vmcore_exist()
+            # If there is no exception, then the system is connected
+            system_disconnected = False
+
+            # After trigger kdump, the VM will reboot. We need to close and initialize
+            node.close()
+            dump_file = kdump.get_dumpfile_name()
+            saved_dumpfile_size = 0
+            while True:
+                try:
+                    result = node.execute(
+                        f"find {kdump.dump_path} -name {dump_file} -type f -size +10M",
+                        shell=True,
+                        sudo=True,
+                    )
+                    if result.exit_code == 0:
+                        break
+
+                    # When the system is dumping vmcore, but doesn't complete,
+                    # then the vmcore file is named as *-incomplete
+                    result = node.execute(
+                        f"find {kdump.dump_path} -name '*incomplete*'",
+                        shell=True,
+                        sudo=True,
+                    )
+                except Exception as identifier:
+                    log.debug(
+                        "Fail to execute command. It may be caused by the system kernel"
+                        " reboot after dumping vmcore."
+                        f"{identifier.__class__.__name__}: {identifier}. Retry..."
+                    )
+                    system_disconnected = True
+                    break
+                # Getting tool here can avoid failure caused by system disconnected
+                stat = node.tools[Stat]
+                if result.exit_code == 0:
+                    incomplete_file = result.stdout
+                    incomplete_file_size = stat.get_total_size(incomplete_file)
+                    if incomplete_file_size > saved_dumpfile_size:
+                        saved_dumpfile_size = incomplete_file_size
+                    else:
+                        raise LisaException(
+                            "The vmcore file is incomplete with file size"
+                            f" {incomplete_file_size}"
+                        )
+                else:
+                    raise LisaException(
+                        "No vmcore or vmcore-incomplete is found under "
+                        f"{kdump.dump_path} with file size greater than 10M."
+                    )
+                if timer.elapsed(False) > self.timeout_of_dump_crash:
+                    raise LisaException(
+                        "Timeout to dump vmcore file."
+                        f"The size of vmcore-incomplete is {incomplete_file_size}"
+                    )
+        if system_disconnected:
+            raise LisaException("Timeout to connect the VM after triggering kdump.")
 
     def _trigger_kdump_on_specified_cpu(
         self, cpu_num: int, node: Node, log_path: Path, log: Logger
