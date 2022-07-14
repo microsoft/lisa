@@ -8,7 +8,7 @@ from assertpy import assert_that
 from lisa import Node, UnsupportedDistroException
 from lisa.executable import ExecutableResult, Tool
 from lisa.nic import NicInfo
-from lisa.operating_system import Fedora, Ubuntu
+from lisa.operating_system import CBLMariner, Fedora, Ubuntu
 from lisa.tools import Ethtool, Git, Make, Ping, Sed
 from lisa.tools.ethtool import DeviceGroLroSettings
 from lisa.util.process import Process
@@ -74,6 +74,11 @@ class XdpDump(Tool):
             )
         elif isinstance(self.node.os, Fedora):
             self.node.os.install_packages("git llvm clang elfutils-devel make gcc")
+        elif isinstance(self.node.os, CBLMariner):
+            self.node.os.install_packages(
+                "git llvm clang elfutils-devel make gcc kernel-headers binutils "
+                "glibc-devel zlib-devel cmake"
+            )
         else:
             raise UnsupportedDistroException(self.node.os)
 
