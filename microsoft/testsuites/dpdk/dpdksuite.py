@@ -15,6 +15,8 @@ from lisa import (
     TestSuite,
     TestSuiteMetadata,
     UnsupportedDistroException,
+    schema,
+    search_space,
 )
 from lisa.features import Gpu, Infiniband, Sriov
 from lisa.testsuite import simple_requirement
@@ -111,6 +113,10 @@ class Dpdk(TestSuite):
             min_core_count=8,
             network_interface=Sriov(),
             unsupported_features=[Gpu, Infiniband],
+            disk=schema.DiskOptionSettings(
+                data_disk_count=search_space.IntRange(min=1),
+                data_disk_size=search_space.IntRange(min=32),
+            ),
         ),
     )
     def verify_dpdk_ovs(
