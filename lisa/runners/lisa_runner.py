@@ -23,7 +23,7 @@ from lisa.platform_ import (
 from lisa.runner import BaseRunner
 from lisa.testselector import select_testcases
 from lisa.testsuite import TestCaseRequirement, TestResult, TestSuite
-from lisa.util import LisaException, constants, deep_update_dict
+from lisa.util import LisaException, constants, deep_update_dict, is_unittest
 from lisa.util.parallel import Task, check_cancelled
 from lisa.variable import VariableEntry
 
@@ -354,7 +354,7 @@ class LisaRunner(BaseRunner):
         environment.nodes.close()
         # Try to connect node(s), if cannot access node(s) of this environment,
         # set the current environment as Bad. So that this environment won't be reused.
-        if not environment.nodes.test_connections():
+        if not is_unittest() and not environment.nodes.test_connections():
             environment.status = EnvironmentStatus.Bad
             self._log.debug(
                 f"set environment '{environment.name}' as bad, "
