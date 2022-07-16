@@ -194,16 +194,26 @@ class DpdkTestpmd(Tool):
 
         if self._dpdk_version_info and self._dpdk_version_info >= "19.11.0":
             vdev_name = "net_vdev_netvsc"
+            vdev_flags = f"iface={node_nic.upper},force=1"
         else:
             vdev_name = "net_failsafe"
+            vdev_flags = (
+                f"dev({node_nic.pci_slot}),dev(net_tap0,iface={node_nic.upper})"
+            )
 
-        if self._dpdk_version_info and self._dpdk_version_info >= "20.11.0":
-            allow_flag = "--allow"
-        else:
-            allow_flag = "-w"
+        other_nics = [
+            self.node.nics.get_nic(nic)
+            for nic in self.node.nics.get_upper_nics()
+            if nic != node_nic.upper
+        ]
+
+        # exclude pci slots not associated with the test nic
+        exclude_nics = ""
+        for nic in other_nics:
+            exclude_nics += f' -b "{nic.pci_slot}"'
 
         if node_nic.bound_driver == "hv_netvsc":
-            vdev_info = f'--vdev="{vdev_name}{vdev_id},iface={node_nic.upper}"'
+            vdev_info = f'--vdev="{vdev_name}{vdev_id},{vdev_flags}"'
         elif node_nic.bound_driver == "uio_hv_generic":
             pass
         else:
@@ -214,7 +224,7 @@ class DpdkTestpmd(Tool):
                     "Cannot generate testpmd include arguments."
                 )
             )
-        return vdev_info + f' {allow_flag} "{node_nic.pci_slot}"'
+        return vdev_info + exclude_nics
 
     def generate_testpmd_command(
         self,
@@ -279,7 +289,7 @@ class DpdkTestpmd(Tool):
         return (
             f"{self._testpmd_install_path} {core_args} -n 4 --proc-type=primary "
             f"{nic_include_info} -- --forward-mode={mode} {extra_args} "
-            "-a --stats-period 2"
+            "-a --stats-period 2 --port-topology=chained"
         )
 
     def run_for_n_seconds(self, cmd: str, timeout: int) -> str:

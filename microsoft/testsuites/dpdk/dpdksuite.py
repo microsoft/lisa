@@ -298,6 +298,10 @@ class Dpdk(TestSuite):
 
         sender, receiver = test_kits
 
+        # Want to only switch receiver sriov to avoid timing weirdness
+        receiver.switch_sriov = True
+        sender.switch_sriov = False
+
         kit_cmd_pairs = generate_send_receive_run_info("failsafe", sender, receiver)
 
         run_testpmd_concurrent(

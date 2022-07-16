@@ -58,6 +58,7 @@ class UnsupportedPackageVersionException(LisaException):
         return message
 
 
+# container class for test resources to be passed to run_testpmd_concurrent
 class DpdkTestResources:
     def __init__(self, _node: Node, _testpmd: DpdkTestpmd) -> None:
         self.testpmd = _testpmd
@@ -65,6 +66,7 @@ class DpdkTestResources:
         self.nic_controller = _node.features[NetworkInterface]
         self.dmesg = _node.tools[Dmesg]
         self._last_dmesg = ""
+        self.switch_sriov = True
 
 
 def init_hugepages(node: Node) -> None:
@@ -101,13 +103,13 @@ def _set_forced_source_by_distro(node: Node, variables: Dict[str, Any]) -> None:
     # DPDK packages 17.11 which is EOL and doesn't have the
     # net_vdev_netvsc pmd used for simple handling of hyper-v
     # guests. Force stable source build on this platform.
-    # Default to 19.11 unless another version is provided by the
-    # user
+    # Default to 20.11 unless another version is provided by the
+    # user. 20.11 is the latest dpdk version for 18.04.
     if isinstance(node.os, Ubuntu) and node.os.information.version < "20.4.0":
         variables["dpdk_source"] = variables.get(
             "dpdk_source", "https://dpdk.org/git/dpdk-stable"
         )
-        variables["dpdk_branch"] = variables.get("dpdk_branch", "v21.11")
+        variables["dpdk_branch"] = variables.get("dpdk_branch", "v20.11")
 
 
 def generate_send_receive_run_info(
@@ -134,7 +136,7 @@ def generate_send_receive_run_info(
     rcv_cmd = receiver.testpmd.generate_testpmd_command(
         rcv_nic,
         0,
-        "macswap",  # receive packet, swap mac address for snd/rcv, and forward
+        "rxonly",
         pmd,
         txq=txq,
         rxq=rxq,
@@ -263,6 +265,7 @@ def run_testpmd_concurrent(
     rescind_sriov: bool = False,
 ) -> Dict[DpdkTestResources, str]:
     output: Dict[DpdkTestResources, str] = dict()
+
     task_manager = start_testpmd_concurrent(node_cmd_pairs, seconds, log, output)
     if rescind_sriov:
         time.sleep(10)  # run testpmd for a bit before disabling sriov
@@ -270,14 +273,14 @@ def run_testpmd_concurrent(
         test_kits = node_cmd_pairs.keys()
 
         # disable sriov (and wait for change to apply)
-        for node_resources in test_kits:
+        for node_resources in [x for x in test_kits if x.switch_sriov]:
             node_resources.nic_controller.switch_sriov(enable=False, wait=True)
 
         # let run for a bit with SRIOV disabled
         time.sleep(10)
 
         # re-enable sriov
-        for node_resources in test_kits:
+        for node_resources in [x for x in test_kits if x.switch_sriov]:
             node_resources.nic_controller.switch_sriov(enable=True, wait=True)
 
         # run for a bit with SRIOV re-enabled
