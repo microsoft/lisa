@@ -2,7 +2,7 @@
 # Licensed under the MIT license.
 import re
 from pathlib import Path, PurePath
-from typing import List, Type, cast
+from typing import Any, List, Type, cast
 
 from lisa.executable import Tool
 from lisa.operating_system import CBLMariner, Debian, Posix, Redhat, Suse, Ubuntu
@@ -114,7 +114,9 @@ class Xfstests(Tool):
 
     @property
     def command(self) -> str:
-        return "xfstests"
+        # The command is not used
+        # _check_exists is overwritten to check tool existence
+        return "mockup"
 
     @property
     def can_install(self) -> bool:
@@ -124,9 +126,18 @@ class Xfstests(Tool):
     def dependencies(self) -> List[Type[Tool]]:
         return [Git, Make]
 
+    def _initialize(self, *args: Any, **kwargs: Any) -> None:
+        super()._initialize(*args, **kwargs)
+        self._code_path = self.get_tool_path(use_global=True) / "xfstests-dev"
+
+    def _check_exists(self) -> bool:
+        return (
+            self.node.execute(f"ls -lt {self._code_path}", sudo=True, shell=True)
+        ).exit_code == 0
+
     def _install_dep(self) -> None:
         posix_os: Posix = cast(Posix, self.node.os)
-        tool_path = self.get_tool_path()
+        tool_path = self.get_tool_path(use_global=True)
         git = self.node.tools[Git]
         git.clone(self.repo, tool_path)
         # install dependency packages
@@ -203,15 +214,14 @@ class Xfstests(Tool):
     def _install(self) -> bool:
         self._install_dep()
         self._add_test_users()
-        tool_path = self.get_tool_path()
+        tool_path = self.get_tool_path(use_global=True)
         make = self.node.tools[Make]
         code_path = tool_path.joinpath("xfstests-dev")
         make.make_install(code_path)
         return True
 
     def get_xfstests_path(self) -> PurePath:
-        tool_path = self.get_tool_path()
-        return tool_path.joinpath("xfstests-dev")
+        return self._code_path
 
     def set_local_config(
         self,
