@@ -444,7 +444,7 @@ class KdumpDebian(KdumpBase):
     def _get_crashkernel_update_cmd(self, crashkernel: str) -> str:
         return "update-grub"
 
-    def _get_dumpfile_name(self) -> str:
+    def get_dumpfile_name(self) -> str:
         if isinstance(self.node.os, Ubuntu):
             return "dump.*"
         else:

@@ -1,5 +1,6 @@
 # Copyright (c) Microsoft Corporation.
 # Licensed under the MIT license.
+import time
 from pathlib import Path, PurePosixPath
 from random import randint
 from typing import cast
@@ -355,12 +356,15 @@ class KdumpCrash(TestSuite):
             saved_dumpfile_size = 0
             while True:
                 try:
+                    # The exit code of this command is always 0.
+                    # We should check the stdout. If the stdout is not null, then
+                    # the dump file is generated.
                     result = node.execute(
                         f"find {kdump.dump_path} -name {dump_file} -type f -size +10M",
                         shell=True,
                         sudo=True,
                     )
-                    if result.exit_code == 0:
+                    if result.stdout:
                         break
 
                     # When the system is dumping vmcore, but doesn't complete,
@@ -378,10 +382,9 @@ class KdumpCrash(TestSuite):
                     )
                     system_disconnected = True
                     break
-                # Getting tool here can avoid failure caused by system disconnected
-                stat = node.tools[Stat]
                 if result.exit_code == 0:
                     incomplete_file = result.stdout
+                    stat = node.tools[Stat]
                     incomplete_file_size = stat.get_total_size(incomplete_file)
                     if incomplete_file_size > saved_dumpfile_size:
                         saved_dumpfile_size = incomplete_file_size
@@ -400,6 +403,7 @@ class KdumpCrash(TestSuite):
                         "Timeout to dump vmcore file."
                         f"The size of vmcore-incomplete is {incomplete_file_size}"
                     )
+                time.sleep(2)
         if system_disconnected:
             raise LisaException("Timeout to connect the VM after triggering kdump.")
 
