@@ -41,7 +41,7 @@ class StressNg(Tool):
         cmd = ""
         if num_workers:
             cmd += f" --vm {num_workers} "
-        if num_workers:
+        if vm_bytes:
             cmd += f" --vm-bytes {vm_bytes} "
         if timeout_in_seconds:
             cmd += f" --timeout {timeout_in_seconds} "

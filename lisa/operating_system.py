@@ -209,6 +209,7 @@ class OperatingSystem:
         ...
 
     @classmethod
+    @retry(tries=10, delay=6)
     def _get_detect_string(cls, node: Any) -> Iterable[str]:
         typed_node: Node = node
         cmd_result = typed_node.execute(cmd="lsb_release -d", no_error_log=True)

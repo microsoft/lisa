@@ -1,6 +1,7 @@
 # Copyright (c) Microsoft Corporation.
 # Licensed under the MIT license.
 from decimal import Decimal
+from time import sleep
 from typing import cast
 
 from assertpy import assert_that
@@ -8,10 +9,9 @@ from assertpy import assert_that
 from lisa import Environment, Logger, RemoteNode, features
 from lisa.features import StartStop
 from lisa.operating_system import Redhat, Suse, Ubuntu
-from lisa.tools import Fio, HibernationSetup, Iperf3, KernelConfig, Kill, Lscpu
-from lisa.util import LisaException, SkippedException, constants
+from lisa.tools import Dmesg, Fio, HibernationSetup, Iperf3, KernelConfig, Kill, Lscpu
+from lisa.util import LisaException, SkippedException
 from lisa.util.perf_timer import create_timer
-from lisa.util.shell import wait_tcp_port_ready
 
 
 def is_distro_supported(node: RemoteNode) -> None:
@@ -32,7 +32,10 @@ def is_distro_supported(node: RemoteNode) -> None:
         )
 
 
-def verify_hibernation(node: RemoteNode, log: Logger) -> None:
+def verify_hibernation(environment: Environment, log: Logger, index: int = 1) -> None:
+    information = environment.get_information()
+    resource_group_name = information["resource_group_name"]
+    node = cast(RemoteNode, environment.nodes[0])
     node_nic = node.nics
     lower_nics_before_hibernation = node_nic.get_lower_nics()
     upper_nics_before_hibernation = node_nic.get_nic_names()
@@ -41,24 +44,43 @@ def verify_hibernation(node: RemoteNode, log: Logger) -> None:
     exit_before_hibernation = hibernation_setup_tool.check_exit()
     received_before_hibernation = hibernation_setup_tool.check_received()
     uevent_before_hibernation = hibernation_setup_tool.check_uevent()
+    # only set up hibernation setup tool for the first time
+    if 1 == index:
+        hibernation_setup_tool.start()
+    sleep(300)
     startstop = node.features[StartStop]
-    hibernation_setup_tool.start()
-    startstop.stop(state=features.StopState.Hibernate)
+    try:
+        startstop.stop(state=features.StopState.Hibernate)
+    except Exception as identifier:
+        try:
+            dmesg = node.tools[Dmesg]
+            content = dmesg.get_output(force_run=True)
+            log.debug(content)
+        except Exception as identifier_dmesg:
+            log.debug(
+                f"identifier_dmesg exception is {identifier_dmesg.__class__.__name__}: "
+                f"{identifier_dmesg}"
+            )
+        log.debug(f"exception is {identifier.__class__.__name__}: {identifier}")
+        raise identifier
     is_ready = True
     timeout = 900
     timer = create_timer()
     while timeout > timer.elapsed(False):
-        is_ready, _ = wait_tcp_port_ready(
-            node.connection_info[constants.ENVIRONMENTS_NODES_REMOTE_ADDRESS],
-            node.connection_info[constants.ENVIRONMENTS_NODES_REMOTE_PORT],
-            log=log,
-            timeout=10,
-        )
-        if not is_ready:
+        if "VM deallocated" == startstop.status(resource_group_name, node.name):
+            is_ready = False
             break
     if is_ready:
-        raise LisaException("VM still can be accessed after hibernation")
+        raise LisaException("VM is not in deallocated status after hibernation")
     startstop.start()
+    dmesg = node.tools[Dmesg]
+    content = dmesg.get_output(force_run=True)
+    if "Hibernate inconsistent memory map detected" in content:
+        raise LisaException(
+            "fail to hibernate for 'Hibernate inconsistent memory map detected'"
+        )
+    if "Call Trace:" in content:
+        raise LisaException("'Call Trace' in dmesg output")
     entry_after_hibernation = hibernation_setup_tool.check_entry()
     exit_after_hibernation = hibernation_setup_tool.check_exit()
     received_after_hibernation = hibernation_setup_tool.check_received()
@@ -121,6 +143,7 @@ def run_network_workload(environment: Environment) -> Decimal:
     iperf3_server = server_node.tools[Iperf3]
     iperf3_client = client_node.tools[Iperf3]
     iperf3_server.run_as_server_async()
+    sleep(5)
     iperf3_client_result = iperf3_client.run_as_client_async(
         server_ip=server_node.internal_address,
         parallel_number=8,

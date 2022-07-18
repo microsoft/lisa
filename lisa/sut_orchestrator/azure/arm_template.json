@@ -600,7 +600,7 @@
                             },
                             "caching": "ReadOnly",
                             "createOption": "FromImage",
-                            "diskSizeGB": "[parameters('node')['osdisk_size_in_gb']]"
+                            "diskSizeGB": 138
                         }
                     }
                 },

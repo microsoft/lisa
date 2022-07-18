@@ -43,6 +43,7 @@ class HibernationSetup(Tool):
     def start(self) -> None:
         self.run(
             sudo=True,
+            timeout=1200,
             expected_exit_code=0,
             expected_exit_code_failure_message="fail to start",
         )

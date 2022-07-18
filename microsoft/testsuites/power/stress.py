@@ -43,6 +43,7 @@ class PowerStress(TestSuite):
             This case is to verify vm hibernation in a loop.
         """,
         priority=3,
+        timeout=72000,
         requirement=simple_requirement(
             network_interface=Sriov(),
             supported_features=[HibernationEnabled()],
@@ -51,8 +52,8 @@ class PowerStress(TestSuite):
     def stress_hibernation(self, environment: Environment, log: Logger) -> None:
         node = cast(RemoteNode, environment.nodes[0])
         is_distro_supported(node)
-        for _ in range(0, self._loop):
-            verify_hibernation(node, log)
+        for index in range(1, self._loop):
+            verify_hibernation(environment, log, index)
 
     def after_case(self, log: Logger, **kwargs: Any) -> None:
         environment: Environment = kwargs.pop("environment")

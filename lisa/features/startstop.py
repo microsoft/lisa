@@ -48,3 +48,6 @@ class StartStop(Feature):
         self._log.info("restarting")
         self._restart(wait=wait)
         self._node.close()
+
+    def status(self, resource_group_name: str, name: str) -> str:
+        raise NotImplementedError()

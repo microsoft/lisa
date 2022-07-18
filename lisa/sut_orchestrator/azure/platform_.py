@@ -1931,6 +1931,16 @@ class AzurePlatform(Platform):
             node_space.network_interface.max_nic_count = 1
             node_space.network_interface.nic_count = search_space.IntRange(min=1, max=1)
 
+        if resource_sku.family in [
+            "StandardDsv5Family",
+            "StandardDdsv5Family",
+            "StandardDasv5Family",
+            "StandardDadsv5Family",
+        ]:
+            node_space.features.add(
+                schema.FeatureSettings.create(features.Hibernation.name())
+            )
+
         # some vm size do not have resource disk present
         # https://docs.microsoft.com/en-us/azure/virtual-machines/azure-vms-no-temp-disk
         resource_disk_size = azure_raw_capabilities.get("MaxResourceVolumeMB", None)

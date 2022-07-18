@@ -1,6 +1,5 @@
 # Copyright (c) Microsoft Corporation.
 # Licensed under the MIT license.
-
 import logging
 import os
 import re
@@ -18,6 +17,7 @@ import spur  # type: ignore
 import spurplus  # type: ignore
 from func_timeout import FunctionTimedOut, func_set_timeout  # type: ignore
 from paramiko.ssh_exception import NoValidConnectionsError, SSHException
+from retry import retry
 
 from lisa import development, schema
 from lisa.util import (
@@ -311,6 +311,7 @@ class SshShell(InitializableMixin):
             is_inner_shell_ready = True
         return is_inner_shell_ready
 
+    @retry(tries=60, delay=5)
     def spawn(
         self,
         command: Sequence[str],
