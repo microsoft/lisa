@@ -473,9 +473,10 @@ class DpdkTestpmd(Tool):
         self.dpdk_path = self.node.working_path.joinpath(self._dpdk_repo_path_name)
 
         if self.find_testpmd_binary(
-            assert_on_fail=False
+            assert_on_fail=False, check_path="/usr/local/bin"
         ):  # tools are already installed
             return True
+
         git_tool = node.tools[Git]
         echo_tool = node.tools[Echo]
 
