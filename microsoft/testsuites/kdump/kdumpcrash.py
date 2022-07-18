@@ -352,7 +352,6 @@ class KdumpCrash(TestSuite):
 
             # After trigger kdump, the VM will reboot. We need to close and initialize
             node.close()
-            dump_file = kdump.get_dumpfile_name()
             saved_dumpfile_size = 0
             while True:
                 try:
@@ -360,7 +359,8 @@ class KdumpCrash(TestSuite):
                     # We should check the stdout. If the stdout is not null, then
                     # the dump file is generated.
                     result = node.execute(
-                        f"find {kdump.dump_path} -name {dump_file} -type f -size +10M",
+                        f"find {kdump.dump_path} -type f -size +10M "
+                        "-name vmcore -o -name dump.* -o -name vmcore.*",
                         shell=True,
                         sudo=True,
                     )
@@ -382,7 +382,7 @@ class KdumpCrash(TestSuite):
                     )
                     system_disconnected = True
                     break
-                if result.exit_code == 0:
+                if result.stdout:
                     incomplete_file = result.stdout
                     stat = node.tools[Stat]
                     incomplete_file_size = stat.get_total_size(incomplete_file)

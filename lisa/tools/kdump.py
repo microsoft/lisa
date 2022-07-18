@@ -10,7 +10,7 @@ from semver import VersionInfo
 
 from lisa.base_tools import Cat, Sed, Wget
 from lisa.executable import Tool
-from lisa.operating_system import CBLMariner, Debian, Posix, Redhat, Suse, Ubuntu
+from lisa.operating_system import CBLMariner, Debian, Posix, Redhat, Suse
 from lisa.tools import Find, Gcc
 from lisa.tools.make import Make
 from lisa.tools.service import Service
@@ -246,13 +246,6 @@ class KdumpBase(Tool):
         """
         return "grub2-mkconfig -o /boot/grub2/grub.cfg"
 
-    def get_dumpfile_name(self) -> str:
-        """
-        Returns name of the dump file. If distro has a different file name,
-        override the method
-        """
-        return "vmcore"
-
     def config_crashkernel_memory(
         self,
         crashkernel: str,
@@ -443,12 +436,6 @@ class KdumpDebian(KdumpBase):
 
     def _get_crashkernel_update_cmd(self, crashkernel: str) -> str:
         return "update-grub"
-
-    def get_dumpfile_name(self) -> str:
-        if isinstance(self.node.os, Ubuntu):
-            return "dump.*"
-        else:
-            return "vmcore.*"
 
     def enable_kdump_service(self) -> None:
         service = self.node.tools[Service]
