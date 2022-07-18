@@ -86,6 +86,7 @@ from .common import (
     get_or_create_storage_container,
     get_resource_management_client,
     get_storage_account_name,
+    get_storage_client,
     global_credential_access_lock,
     wait_copy_blob,
     wait_operation,
@@ -168,6 +169,16 @@ SAS_URL_PATTERN = re.compile(
 )
 SAS_COPIED_CONTAINER_NAME = "lisa-sas-copied"
 
+# /subscriptions/xxxx/resourceGroups/xxxx/providers/Microsoft.Compute/galleries/xxxx
+# /subscriptions/xxxx/resourceGroups/xxxx/providers/Microsoft.Storage/storageAccounts/xxxx
+RESOURCE_GROUP_PATTERN = re.compile(r"resourceGroups/(.*)/providers", re.M)
+# https://sc.blob.core.windows.net/container/xxxx/xxxx/xxxx.vhd
+STORAGE_CONTAINER_BLOB_PATTERN = re.compile(
+    r"https://(?P<sc>.*)"
+    r"(?:\.blob\.core\.windows\.net|blob\.storage\.azure\.net)"
+    r"/(?P<container>[^/]+)/?/(?P<blob>.*)",
+    re.M,
+)
 _global_sas_vhd_copy_lock = Lock()
 
 
@@ -2136,12 +2147,27 @@ class AzurePlatform(Platform):
         log.dump_json(logging.DEBUG, result)
 
     def _get_vhd_os_disk_size(self, blob_url: str) -> int:
-        vhd_blob = BlobClient.from_blob_url(
-            blob_url=blob_url,
+        matched = STORAGE_CONTAINER_BLOB_PATTERN.match(blob_url)
+        assert matched, f"fail to get matched info from {blob_url}"
+        sc_name = matched.group("sc")
+        container_name = matched.group("container")
+        blob_name = matched.group("blob")
+
+        storage_client = get_storage_client(self.credential, self.subscription_id)
+        sc = [x for x in storage_client.storage_accounts.list() if x.name == sc_name]
+        assert sc, f"fail to get storage account {sc_name} from {self.subscription_id}"
+        rg = get_matched_str(sc[0].id, RESOURCE_GROUP_PATTERN)
+        container_client = get_or_create_storage_container(
             credential=self.credential,
+            subscription_id=self.subscription_id,
+            account_name=sc_name,
+            container_name=container_name,
+            resource_group_name=rg,
         )
+
+        vhd_blob = container_client.get_blob_client(blob_name)
         properties = vhd_blob.get_blob_properties()
-        assert properties.size
+        assert properties.size, f"fail to get blob size of {blob_url}"
         return int(properties.size / 1024 / 1024 / 1024)
 
     def _get_sig_info(
@@ -2149,14 +2175,11 @@ class AzurePlatform(Platform):
     ) -> GalleryImageVersion:
         compute_client = get_compute_client(self)
         if not shared_image.resource_group_name:
-            # /subscriptions/xxxx/resourceGroups/xxxx/providers/Microsoft.Compute/
-            # galleries/xxxx
-            rg_pattern = re.compile(r"resourceGroups/(.*)/providers", re.M)
             galleries = compute_client.galleries.list()
             rg_name = ""
             for gallery in galleries:
                 if gallery.name.lower() == shared_image.image_gallery:
-                    rg_name = get_matched_str(gallery.id, rg_pattern)
+                    rg_name = get_matched_str(gallery.id, RESOURCE_GROUP_PATTERN)
                     break
             if not rg_name:
                 raise LisaException(
