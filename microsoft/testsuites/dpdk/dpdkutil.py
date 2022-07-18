@@ -201,6 +201,13 @@ def initialize_node_resources(
         f"SRIOV was not enabled for this test node ({node.name})"
     ).is_true()
 
+    assert_that(node.nics.get_lower_nics()).described_as(
+        "Did not detect any upper/lower sriov paired nics!: "
+        f"upper: {node.nics.get_upper_nics()} "
+        f"lower: {node.nics.get_lower_nics()} "
+        f"unpaired: {node.nics.get_unpaired_devices()}"
+    ).is_not_empty()
+
     # dump some info about the pci devices before we start
     lspci = node.tools[Lspci]
     log.info(f"Node[{node.name}] LSPCI Info:\n{lspci.run().stdout}\n")
