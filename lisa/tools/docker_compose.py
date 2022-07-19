@@ -34,25 +34,34 @@ class DockerCompose(Tool):
             expected_exit_code_failure_message="fail to launch docker-compose up -d",
         )
 
+    def _install_from_source(self) -> None:
+        wget_tool = self.node.tools[Wget]
+        uname_tool = self.node.tools[Uname]
+        hardware = uname_tool.get_linux_information().hardware_platform
+        filename = "docker-compose"
+        wget_tool.run(
+            "https://github.com/docker/compose/releases/download/1.23.2"
+            f"/docker-compose-Linux-{hardware} -O {filename}",
+            sudo=True,
+        )
+        self.node.execute(f"sudo chmod +x {filename}")
+        self.node.execute(
+            "mv docker-compose /usr/bin/", sudo=True, expected_exit_code=0
+        )
+
     def _install(self) -> bool:
         # The default installed docker-compose package doesn't work for
         # redhat so it uses the latest version
         if isinstance(self.node.os, Redhat) or isinstance(self.node.os, CBLMariner):
-            wget_tool = self.node.tools[Wget]
-            uname_tool = self.node.tools[Uname]
-            hardware = uname_tool.get_linux_information().hardware_platform
-            filename = "docker-compose"
-            wget_tool.run(
-                "https://github.com/docker/compose/releases/download/1.23.2"
-                f"/docker-compose-Linux-{hardware} -O {filename}",
-                sudo=True,
-            )
-            self.node.execute(f"sudo chmod +x {filename}")
-            self.node.execute(
-                "mv docker-compose /usr/bin/", sudo=True, expected_exit_code=0
-            )
+            self._install_from_source()
         elif isinstance(self.node.os, Posix):
-            self.node.os.install_packages("docker-compose")
+            try:
+                self._install_from_source()
+            except Exception as e:
+                self._log.info(
+                    f"Failed to install docker-compose from source. Error: {e}"
+                )
+                self.node.os.install_packages("docker-compose")
         else:
             raise LisaException(f"Not supported on {self.node.os.information.vendor}")
         return self._check_exists()
