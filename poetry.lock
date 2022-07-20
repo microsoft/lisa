@@ -238,14 +238,14 @@ uvloop = ["uvloop (>=0.15.2)"]
 
 [[package]]
 name = "boto3"
-version = "1.24.26"
+version = "1.24.34"
 description = "The AWS SDK for Python"
 category = "main"
 optional = true
 python-versions = ">= 3.7"
 
 [package.dependencies]
-botocore = ">=1.27.26,<1.28.0"
+botocore = ">=1.27.34,<1.28.0"
 jmespath = ">=0.7.1,<2.0.0"
 s3transfer = ">=0.6.0,<0.7.0"
 
@@ -254,8 +254,8 @@ crt = ["botocore[crt] (>=1.21.0,<2.0a0)"]
 
 [[package]]
 name = "boto3-stubs"
-version = "1.24.26"
-description = "Type annotations for boto3 1.24.26 generated with mypy-boto3-builder 7.7.2"
+version = "1.24.34"
+description = "Type annotations for boto3 1.24.34 generated with mypy-boto3-builder 7.9.2"
 category = "main"
 optional = true
 python-versions = ">=3.6"
@@ -269,6 +269,7 @@ mypy-boto3-lambda = {version = ">=1.24.0,<1.25.0", optional = true, markers = "e
 mypy-boto3-rds = {version = ">=1.24.0,<1.25.0", optional = true, markers = "extra == \"essential\""}
 mypy-boto3-s3 = {version = ">=1.24.0,<1.25.0", optional = true, markers = "extra == \"essential\""}
 mypy-boto3-sqs = {version = ">=1.24.0,<1.25.0", optional = true, markers = "extra == \"essential\""}
+types-s3transfer = "*"
 typing-extensions = ">=4.1.0"
 
 [package.extras]
@@ -434,7 +435,6 @@ kafkaconnect = ["mypy-boto3-kafkaconnect (>=1.24.0,<1.25.0)"]
 kendra = ["mypy-boto3-kendra (>=1.24.0,<1.25.0)"]
 keyspaces = ["mypy-boto3-keyspaces (>=1.24.0,<1.25.0)"]
 kinesis = ["mypy-boto3-kinesis (>=1.24.0,<1.25.0)"]
-ssm = ["mypy-boto3-ssm (>=1.24.0,<1.25.0)"]
 kinesis-video-archived-media = ["mypy-boto3-kinesis-video-archived-media (>=1.24.0,<1.25.0)"]
 kinesis-video-media = ["mypy-boto3-kinesis-video-media (>=1.24.0,<1.25.0)"]
 kinesis-video-signaling = ["mypy-boto3-kinesis-video-signaling (>=1.24.0,<1.25.0)"]
@@ -554,6 +554,7 @@ snow-device-management = ["mypy-boto3-snow-device-management (>=1.24.0,<1.25.0)"
 snowball = ["mypy-boto3-snowball (>=1.24.0,<1.25.0)"]
 sns = ["mypy-boto3-sns (>=1.24.0,<1.25.0)"]
 sqs = ["mypy-boto3-sqs (>=1.24.0,<1.25.0)"]
+ssm = ["mypy-boto3-ssm (>=1.24.0,<1.25.0)"]
 ssm-contacts = ["mypy-boto3-ssm-contacts (>=1.24.0,<1.25.0)"]
 ssm-incidents = ["mypy-boto3-ssm-incidents (>=1.24.0,<1.25.0)"]
 sso = ["mypy-boto3-sso (>=1.24.0,<1.25.0)"]
@@ -587,7 +588,7 @@ xray = ["mypy-boto3-xray (>=1.24.0,<1.25.0)"]
 
 [[package]]
 name = "botocore"
-version = "1.27.26"
+version = "1.27.34"
 description = "Low-level, data-driven core of boto 3."
 category = "main"
 optional = true
@@ -603,8 +604,8 @@ crt = ["awscrt (==0.13.8)"]
 
 [[package]]
 name = "botocore-stubs"
-version = "1.27.26"
-description = "Type annotations for botocore 1.27.26 generated with mypy-boto3-builder 7.7.2"
+version = "1.27.34"
+description = "Type annotations for botocore 1.27.34 generated with mypy-boto3-builder 7.9.2"
 category = "main"
 optional = true
 python-versions = ">=3.6"
@@ -1030,8 +1031,8 @@ typing-extensions = ">=4.1.0"
 
 [[package]]
 name = "mypy-boto3-dynamodb"
-version = "1.24.12"
-description = "Type annotations for boto3.DynamoDB 1.24.12 service generated with mypy-boto3-builder 7.7.1"
+version = "1.24.27"
+description = "Type annotations for boto3.DynamoDB 1.24.27 service generated with mypy-boto3-builder 7.6.0"
 category = "main"
 optional = true
 python-versions = ">=3.6"
@@ -1041,8 +1042,8 @@ typing-extensions = ">=4.1.0"
 
 [[package]]
 name = "mypy-boto3-ec2"
-version = "1.24.19"
-description = "Type annotations for boto3.EC2 1.24.19 service generated with mypy-boto3-builder 7.7.2"
+version = "1.24.32"
+description = "Type annotations for boto3.EC2 1.24.32 service generated with mypy-boto3-builder 7.9.2"
 category = "main"
 optional = true
 python-versions = ">=3.6"
@@ -1203,7 +1204,7 @@ dev = ["pre-commit", "tox"]
 
 [[package]]
 name = "portalocker"
-version = "2.4.0"
+version = "2.5.1"
 description = "Wraps the portalocker recipe for easy usage"
 category = "main"
 optional = true
@@ -1215,7 +1216,7 @@ pywin32 = {version = ">=226", markers = "platform_system == \"Windows\""}
 [package.extras]
 docs = ["sphinx (>=1.7.1)"]
 redis = ["redis"]
-tests = ["pytest (>=5.4.1)", "pytest-cov (>=2.8.1)", "sphinx (>=3.0.3)", "pytest-mypy (>=0.8.0)", "redis"]
+tests = ["pytest (>=5.4.1)", "pytest-cov (>=2.8.1)", "pytest-timeout (>=2.1.0)", "sphinx (>=3.0.3)", "pytest-mypy (>=0.8.0)", "redis"]
 
 [[package]]
 name = "py"
@@ -1275,7 +1276,7 @@ python-versions = ">=3.6"
 
 [[package]]
 name = "pygobject"
-version = "3.42.1"
+version = "3.42.2"
 description = "Python bindings for GObject Introspection"
 category = "main"
 optional = true
@@ -1373,14 +1374,14 @@ pytest-metadata = "*"
 
 [[package]]
 name = "pytest-metadata"
-version = "2.0.0"
+version = "2.0.2"
 description = "pytest plugin for test session metadata"
 category = "main"
 optional = false
 python-versions = ">=3.7,<4.0"
 
 [package.dependencies]
-pytest = ">=7.1.1,<8.0.0"
+pytest = ">=3.0.0,<8.0.0"
 
 [[package]]
 name = "python-dateutil"
@@ -1824,7 +1825,7 @@ python-versions = "*"
 
 [[package]]
 name = "types-requests"
-version = "2.28.0"
+version = "2.28.2"
 description = "Typing stubs for requests"
 category = "dev"
 optional = false
@@ -1839,6 +1840,14 @@ version = "0.1.5"
 description = "Typing stubs for retry"
 category = "dev"
 optional = false
+python-versions = "*"
+
+[[package]]
+name = "types-s3transfer"
+version = "0.6.0.post1"
+description = "Type annotations and code completion for s3transfer"
+category = "main"
+optional = true
 python-versions = "*"
 
 [[package]]
@@ -1892,15 +1901,15 @@ socks = ["PySocks (>=1.5.6,!=1.5.7,<2.0)"]
 
 [[package]]
 name = "zipp"
-version = "3.8.0"
+version = "3.8.1"
 description = "Backport of pathlib-compatible object wrapper for zip files"
 category = "main"
 optional = true
 python-versions = ">=3.7"
 
 [package.extras]
-docs = ["sphinx", "jaraco.packaging (>=9)", "rst.linker (>=1.9)"]
-testing = ["pytest (>=6)", "pytest-checkdocs (>=2.4)", "pytest-flake8", "pytest-cov", "pytest-enabler (>=1.0.1)", "jaraco.itertools", "func-timeout", "pytest-black (>=0.3.7)", "pytest-mypy (>=0.9.1)"]
+docs = ["sphinx", "jaraco.packaging (>=9)", "rst.linker (>=1.9)", "jaraco.tidelift (>=1.4)"]
+testing = ["pytest (>=6)", "pytest-checkdocs (>=2.4)", "pytest-flake8", "pytest-cov", "pytest-enabler (>=1.3)", "jaraco.itertools", "func-timeout", "pytest-black (>=0.3.7)", "pytest-mypy (>=0.9.1)"]
 
 [extras]
 aws = ["boto3", "boto3-stubs"]
@@ -1912,7 +1921,7 @@ libvirt = ["libvirt-python"]
 [metadata]
 lock-version = "1.1"
 python-versions = "^3.8"
-content-hash = "481874cfdc71738781d7e152ca0f71bc0accef5af9887c8fe6baa9498aabcc2c"
+content-hash = "48c46376d56ed560705be56a7a332c1090e7a73693e99fe2b57ff725edad9bfe"
 
 [metadata.files]
 alabaster = [
@@ -1944,10 +1953,7 @@ azure-mgmt-compute = [
     {file = "azure-mgmt-compute-26.1.0.zip", hash = "sha256:2bade74fcb31d8f08816173ed5e080b3f22d1126eff7103ef060e7da16422475"},
     {file = "azure_mgmt_compute-26.1.0-py3-none-any.whl", hash = "sha256:d394a1772286e005009a3b40ebbeda135b4b1d5bda18f8af1ad4e87f6f3096e5"},
 ]
-azure-mgmt-core = [
-    {file = "azure-mgmt-core-1.3.1.zip", hash = "sha256:c89ebf18c227bc98a1eecca95460b8a7e230590d456c8fa9c2d5acdc670f7808"},
-    {file = "azure_mgmt_core-1.3.1-py3-none-any.whl", hash = "sha256:9667b9d65f2b41fed854e9d3a56f293739d327bf0d4e16252d9e785a6f4fe581"},
-]
+azure-mgmt-core = []
 azure-mgmt-marketplaceordering = [
     {file = "azure-mgmt-marketplaceordering-1.1.0.zip", hash = "sha256:68b381f52a4df4435dacad5a97e1c59ac4c981f667dcca8f9d04453417d60ad8"},
     {file = "azure_mgmt_marketplaceordering-1.1.0-py2.py3-none-any.whl", hash = "sha256:dbce4ea08ead3fce6c663a0b448f7e34e92ce4cdb23393aead0a65f082cb14f0"},
@@ -1995,7 +2001,10 @@ click = [
     {file = "click-8.1.3-py3-none-any.whl", hash = "sha256:bb4d8133cb15a609f44e8213d9b391b0809795062913b383c62be0ee95b1db48"},
     {file = "click-8.1.3.tar.gz", hash = "sha256:7682dc8afb30297001674575ea00d1814d808d6a36af415a82bd481d37ba7b8e"},
 ]
-colorama = []
+colorama = [
+    {file = "colorama-0.4.5-py2.py3-none-any.whl", hash = "sha256:854bf444933e37f5824ae7bfc1e98d5bce2ebe4160d46b5edf346a89358e99da"},
+    {file = "colorama-0.4.5.tar.gz", hash = "sha256:e6c6b4334fc50988a639d9b98aa429a0b57da6e17b9a44f0451f930b6967b7a4"},
+]
 coverage = [
     {file = "coverage-5.5-cp27-cp27m-macosx_10_9_x86_64.whl", hash = "sha256:b6d534e4b2ab35c9f93f46229363e17f63c53ad01330df9f2d6bd1187e5eaacf"},
     {file = "coverage-5.5-cp27-cp27m-manylinux1_i686.whl", hash = "sha256:b7895207b4c843c76a25ab8c1e866261bcfe27bfaa20c192de5190121770672b"},
@@ -2161,10 +2170,7 @@ mccabe = [
     {file = "mccabe-0.6.1-py2.py3-none-any.whl", hash = "sha256:ab8a6258860da4b6677da4bd2fe5dc2c659cff31b3ee4f7f5d64e79735b80d42"},
     {file = "mccabe-0.6.1.tar.gz", hash = "sha256:dd8d182285a0fe56bace7f45b5e7d1a6ebcbf524e8f3bd87eb0f125271b8831f"},
 ]
-msal = [
-    {file = "msal-1.18.0-py2.py3-none-any.whl", hash = "sha256:9c10e6cb32e0b6b8eaafc1c9a68bc3b2ff71505e0c5b8200799582d8b9f22947"},
-    {file = "msal-1.18.0.tar.gz", hash = "sha256:576af55866038b60edbcb31d831325a1bd8241ed272186e2832968fd4717d202"},
-]
+msal = []
 msal-extensions = [
     {file = "msal-extensions-1.0.0.tar.gz", hash = "sha256:c676aba56b0cce3783de1b5c5ecfe828db998167875126ca4b47dc6436451354"},
     {file = "msal_extensions-1.0.0-py2.py3-none-any.whl", hash = "sha256:91e3db9620b822d0ed2b4d1850056a0f133cba04455e62f11612e40f5502f2ee"},
@@ -2244,10 +2250,7 @@ pluggy = [
     {file = "pluggy-0.13.1-py2.py3-none-any.whl", hash = "sha256:966c145cd83c96502c3c3868f50408687b38434af77734af1e9ca461a4081d2d"},
     {file = "pluggy-0.13.1.tar.gz", hash = "sha256:15b2acde666561e1298d71b523007ed7364de07029219b604cf808bfa1c765b0"},
 ]
-portalocker = [
-    {file = "portalocker-2.4.0-py2.py3-none-any.whl", hash = "sha256:b092f48e1e30a234ab3dd1cfd44f2f235e8a41f4e310e463fc8d6798d1c3c235"},
-    {file = "portalocker-2.4.0.tar.gz", hash = "sha256:a648ad761b8ea27370cb5915350122cd807b820d2193ed5c9cc28f163df637f4"},
-]
+portalocker = []
 py = [
     {file = "py-1.11.0-py2.py3-none-any.whl", hash = "sha256:607c53218732647dff4acdfcd50cb62615cedf612e72d1724fb1a0cc6405b378"},
     {file = "py-1.11.0.tar.gz", hash = "sha256:51c75c4126074b472f746a24399ad32f6053d1b34b68d2fa41e558e6f4a98719"},
@@ -2280,9 +2283,7 @@ pygments = [
     {file = "Pygments-2.12.0-py3-none-any.whl", hash = "sha256:dc9c10fb40944260f6ed4c688ece0cd2048414940f1cea51b8b226318411c519"},
     {file = "Pygments-2.12.0.tar.gz", hash = "sha256:5eb116118f9612ff1ee89ac96437bb6b49e8f04d8a13b514ba26f620208e26eb"},
 ]
-pygobject = [
-    {file = "PyGObject-3.42.1.tar.gz", hash = "sha256:80d6a3ad1630e9d1edf31b9e9fad9a894c57e18545a3c95ef0044ac4042b8620"},
-]
+pygobject = []
 pyjwt = [
     {file = "PyJWT-2.4.0-py3-none-any.whl", hash = "sha256:72d1d253f32dbd4f5c88eaf1fdc62f3a19f676ccbadb9dbc5d07e951b2b26daf"},
     {file = "PyJWT-2.4.0.tar.gz", hash = "sha256:d42908208c699b3b973cbeb01a969ba6a96c821eefb1c5bfe4c390c01d67abba"},
@@ -2315,10 +2316,7 @@ pytest-html = [
     {file = "pytest-html-3.1.1.tar.gz", hash = "sha256:3ee1cf319c913d19fe53aeb0bc400e7b0bc2dbeb477553733db1dad12eb75ee3"},
     {file = "pytest_html-3.1.1-py3-none-any.whl", hash = "sha256:b7f82f123936a3f4d2950bc993c2c1ca09ce262c9ae12f9ac763a2401380b455"},
 ]
-pytest-metadata = [
-    {file = "pytest-metadata-2.0.0.tar.gz", hash = "sha256:08dcc2779f4393309dd6d341ea1ddc15265239b6c4d51671737e784406ec07dc"},
-    {file = "pytest_metadata-2.0.0-py3-none-any.whl", hash = "sha256:e25f1a77ed02baf1d83911604247a70d60d7dcb970aa12be38e1ed58d4d38e65"},
-]
+pytest-metadata = []
 python-dateutil = [
     {file = "python-dateutil-2.8.2.tar.gz", hash = "sha256:0123cacc1627ae19ddf3c27a5de5bd67ee4586fbdd6440d9748f8abb483d3e86"},
     {file = "python_dateutil-2.8.2-py2.py3-none-any.whl", hash = "sha256:961d03dc3453ebbc59dbdea9e4e11c5651520a876d0f4db161e8674aae935da9"},
@@ -2495,6 +2493,7 @@ types-retry = [
     {file = "types-retry-0.1.5.tar.gz", hash = "sha256:d4634dfb072f2208bd0cd919c9c46c9f4fe517d57f683aad3897098478d1dcb0"},
     {file = "types_retry-0.1.5-py3-none-any.whl", hash = "sha256:d40287362de2bac4b18e7d6764f4bee7b0d8667c4f806a7efb542398156394a2"},
 ]
+types-s3transfer = []
 types-toml = [
     {file = "types-toml-0.1.5.tar.gz", hash = "sha256:fc5e1df92c245404e4360c63568e9f0e732b0cabea7a220a4788d52b78f5dc59"},
     {file = "types_toml-0.1.5-py3-none-any.whl", hash = "sha256:dd00526680595aad0eade682bd8a9e9513e9b4b8932daed159925fe446fc90a9"},
@@ -2507,7 +2506,4 @@ typing-inspect = [
     {file = "typing_inspect-0.7.1.tar.gz", hash = "sha256:047d4097d9b17f46531bf6f014356111a1b6fb821a24fe7ac909853ca2a782aa"},
 ]
 urllib3 = []
-zipp = [
-    {file = "zipp-3.8.0-py3-none-any.whl", hash = "sha256:c4f6e5bbf48e74f7a38e7cc5b0480ff42b0ae5178957d564d18932525d5cf099"},
-    {file = "zipp-3.8.0.tar.gz", hash = "sha256:56bf8aadb83c24db6c4b577e13de374ccfb67da2078beba1d037c17980bf43ad"},
-]
+zipp = []
