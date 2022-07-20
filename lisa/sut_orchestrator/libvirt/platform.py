@@ -25,9 +25,9 @@ from lisa.environment import Environment
 from lisa.feature import Feature
 from lisa.node import Node, RemoteNode, local_node_connect
 from lisa.platform_ import Platform
-from lisa.tools import Iptables, QemuImg
+from lisa.tools import Iptables, QemuImg, Uname
 from lisa.util import LisaException, constants, get_public_key_data
-from lisa.util.logger import Logger
+from lisa.util.logger import Logger, filter_ansi_escape
 
 from . import libvirt_events_thread
 from .console_logger import QemuConsoleLogger
@@ -45,6 +45,12 @@ from .schema import (
     DiskImageFormat,
 )
 from .serial_console import SerialConsole
+
+# Host environment information fields
+KEY_HOST_DISTRO = "host_distro"
+KEY_HOST_KERNEL = "host_kernel_version"
+KEY_LIBVIRT_VERSION = "libvirt_version"
+KEY_VMM_VERSION = "vmm_version"
 
 
 class _HostCapabilities:
@@ -64,6 +70,13 @@ class BaseLibvirtPlatform(Platform):
         self.platform_runbook: BaseLibvirtPlatformSchema
         self.host_node: Node
         self.vm_disks_dir: str
+
+        self._host_environment_information_hooks = {
+            KEY_HOST_DISTRO: self._get_host_distro,
+            KEY_HOST_KERNEL: self._get_host_kernel_version,
+            KEY_LIBVIRT_VERSION: self._get_libvirt_version,
+            KEY_VMM_VERSION: self._get_vmm_version,
+        }
 
     @classmethod
     def type_name(cls) -> str:
@@ -1072,3 +1085,40 @@ class BaseLibvirtPlatform(Platform):
         node_runbook_type: type = type(self).node_runbook_type()
         assert issubclass(node_runbook_type, BaseLibvirtNodeSchema)
         return node_runbook_type
+
+    def _get_host_distro(self) -> str:
+        result = self.host_node.os.information.full_version if self.host_node else ""
+        return result
+
+    def _get_host_kernel_version(self) -> str:
+        result = ""
+        if self.host_node:
+            uname = self.host_node.tools[Uname]
+            result = uname.get_linux_information().kernel_version_raw
+        return result
+
+    def _get_libvirt_version(self) -> str:
+        result = ""
+        if self.host_node:
+            result = self.host_node.execute("libvirtd --version", shell=True).stdout
+            result = filter_ansi_escape(result)
+        return result
+
+    def _get_vmm_version(self) -> str:
+        return "Unknown"
+
+    def _get_environment_information(self, environment: Environment) -> Dict[str, str]:
+        information: Dict[str, str] = {}
+
+        if self.host_node:
+            node: Node = self.host_node
+            for key, method in self._host_environment_information_hooks.items():
+                node.log.debug(f"detecting {key} ...")
+                try:
+                    value = method()
+                    if value:
+                        information[key] = value
+                except Exception as identifier:
+                    node.log.exception(f"error on get {key}.", exc_info=identifier)
+
+        return information

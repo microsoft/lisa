@@ -2,6 +2,7 @@
 # Licensed under the MIT license.
 
 import os
+import re
 import xml.etree.ElementTree as ET  # noqa: N817
 from pathlib import Path
 from typing import List, Type
@@ -15,11 +16,13 @@ from lisa.node import Node
 from lisa.sut_orchestrator.libvirt.context import NodeContext, get_node_context
 from lisa.sut_orchestrator.libvirt.platform import BaseLibvirtPlatform
 from lisa.tools import QemuImg
-from lisa.util.logger import Logger
+from lisa.util.logger import Logger, filter_ansi_escape
 
 from .. import CLOUD_HYPERVISOR
 from .console_logger import QemuConsoleLogger
 from .schema import BaseLibvirtNodeSchema, CloudHypervisorNodeSchema, DiskImageFormat
+
+CH_VERSION_PATTERN = re.compile(r"cloud-hypervisor (?P<ch_version>.+)")
 
 
 class CloudHypervisorPlatform(BaseLibvirtPlatform):
@@ -193,3 +196,16 @@ class CloudHypervisorPlatform(BaseLibvirtPlatform):
                 expected_exit_code=0,
                 expected_exit_code_failure_message="Failed to copy os disk image",
             )
+
+    def _get_vmm_version(self) -> str:
+        result = "Unknown"
+        if self.host_node:
+            output = self.host_node.execute(
+                "cloud-hypervisor --version",
+                shell=True,
+            ).stdout
+            output = filter_ansi_escape(output)
+            match = re.search(CH_VERSION_PATTERN, output.strip())
+            if match:
+                result = match.group("ch_version")
+        return result
