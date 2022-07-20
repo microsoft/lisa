@@ -1,6 +1,7 @@
 # Copyright (c) Microsoft Corporation.
 # Licensed under the MIT license.
 
+import re
 from typing import List, Type
 
 from lisa.environment import Environment
@@ -9,10 +10,12 @@ from lisa.node import Node
 from lisa.sut_orchestrator.libvirt.context import get_node_context
 from lisa.sut_orchestrator.libvirt.platform import BaseLibvirtPlatform
 from lisa.tools import QemuImg
-from lisa.util.logger import Logger
+from lisa.util.logger import Logger, filter_ansi_escape
 
 from .. import QEMU
 from .schema import QemuNodeSchema
+
+QEMU_VERSION_PATTERN = re.compile(r"QEMU emulator version (?P<qemu_version>.+)\s")
 
 
 class QemuPlatform(BaseLibvirtPlatform):
@@ -39,3 +42,16 @@ class QemuPlatform(BaseLibvirtPlatform):
         self.host_node.tools[QemuImg].create_diff_qcow2(
             node_context.os_disk_file_path, node_context.os_disk_base_file_path
         )
+
+    def _get_vmm_version(self) -> str:
+        result = "Unknown"
+        if self.host_node:
+            output = self.host_node.execute(
+                "qemu-system-x86_64 --version",
+                shell=True,
+            ).stdout
+            output = filter_ansi_escape(output)
+            match = re.search(QEMU_VERSION_PATTERN, output.strip())
+            if match:
+                result = match.group("qemu_version")
+        return result
