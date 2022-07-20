@@ -197,9 +197,7 @@ class DpdkTestpmd(Tool):
             vdev_flags = f"iface={node_nic.upper},force=1"
         else:
             vdev_name = "net_failsafe"
-            vdev_flags = (
-                f"dev({node_nic.pci_slot}),dev(net_tap0,iface={node_nic.upper})"
-            )
+            vdev_flags = f"dev({node_nic.pci_slot}),mac={node_nic.mac_addr}"
 
         other_nics = [
             self.node.nics.get_nic(nic)
@@ -287,7 +285,7 @@ class DpdkTestpmd(Tool):
         core_args = f"-l 0-{core_count_arg-1}"
 
         return (
-            f"{self._testpmd_install_path} {core_args} -n 4 --proc-type=primary "
+            f"{self._testpmd_install_path} {core_args} -n 4 --proc-type=auto "
             f"{nic_include_info} -- --forward-mode={mode} {extra_args} "
             "-a --stats-period 2 --port-topology=chained"
         )
@@ -858,6 +856,10 @@ class DpdkTestpmd(Tool):
             if hotplug_alt_match:
                 hotplug_match = hotplug_alt_match
             else:
+                command_dumped = "timeout: the monitored command dumped core"
+                if command_dumped in self._last_run_output:
+                    raise LisaException("Testpmd crashed after device removal.")
+
                 raise LisaException(
                     "Could not identify vf hotplug events in testpmd output."
                 )
