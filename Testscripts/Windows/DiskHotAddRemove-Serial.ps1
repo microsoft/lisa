@@ -29,7 +29,14 @@ function Main {
             # These VM sizes don't have local disk. So the attached disk starts from dev/sdb
             $diskPattern = "Disk /dev/sd[a-z][a-z]|sd[b-z]:"
         } else {
-            $diskPattern = "Disk /dev/sd[a-z][a-z]|sd[c-z]:"
+            $isASAP = Is-ASAP -username $user -password $password -ip $AllVMData.PublicIP -port $AllVMData.SSHPort
+            Write-LogInfo "isASAP Output: $isASAP"
+            if ($isASAP){
+                $diskPattern = "Disk /dev/nvme0n[1-3][0-9]|nvme0n[2-9]:"
+            }
+            else {
+                $diskPattern = "Disk /dev/sd[a-z][a-z]|sd[c-z]:"
+            }
         }
         While ($count -lt $diskCount) {
             $count += 1
@@ -61,7 +68,7 @@ function Main {
                 throw "Fail to attach an empty data disk of size $diskSizeinGB GB to VM"
             }
             Write-LogInfo "Verifying if data disk is added to the VM: Running fdisk on remote VM"
-            $fdiskOutput = Run-LinuxCmd -username $user -password $password -ip $AllVMData.PublicIP -port $AllVMData.SSHPort -command "/sbin/fdisk -l | grep /dev/sd" -runAsSudo
+            $fdiskOutput = Run-LinuxCmd -username $user -password $password -ip $AllVMData.PublicIP -port $AllVMData.SSHPort -command "/sbin/fdisk -l | grep /dev/" -runAsSudo
             foreach ($line in ($fdiskOutput.Split([Environment]::NewLine))) {
                 if($line -imatch $diskPattern -and [int64]($line.Split()[4]) -eq (([int64]($diskSizeinGB) * [int64]1073741824))) {
                     $verifiedDiskCount += 1
@@ -83,7 +90,7 @@ function Main {
                 throw "Failed to remove the data disk from the VM"
             }
             Write-LogInfo "Verifying if data disk is removed from the VM: Running fdisk on remote VM"
-            $fdiskFinalOutput = Run-LinuxCmd -username $user -password $password -ip $AllVMData.PublicIP -port $AllVMData.SSHPort -command "/sbin/fdisk -l | grep /dev/sd" -runAsSudo
+            $fdiskFinalOutput = Run-LinuxCmd -username $user -password $password -ip $AllVMData.PublicIP -port $AllVMData.SSHPort -command "/sbin/fdisk -l | grep /dev/" -runAsSudo
             foreach ($line in ($fdiskFinalOutput.Split([Environment]::NewLine))) {
                 if($line -imatch $diskPattern -and [int64]($line.Split()[4]) -eq (([int64]($diskSizeinGB) * [int64]1073741824))) {
                     $testResult = $resultFail

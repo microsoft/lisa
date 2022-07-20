@@ -835,6 +835,7 @@
   <test>
     <TestName>STORAGE-HOT-ADD-DISK-SERIAL</TestName>
     <testScript>DiskHotAddRemove-Serial.ps1</testScript>
+    <files>.\Testscripts\Linux\utils.sh</files>
     <testParameters>
       <param>DiskSize=30</param>
       <param>DiskSku=DATA_DISK_SKU</param>
@@ -850,6 +851,7 @@
   </test>
   <test>
     <testName>STORAGE-HOT-ADD-DISK-PARALLEL</testName>
+    <files>.\Testscripts\Linux\utils.sh</files>
     <testScript>DiskHotAddRemove-Parallel.ps1</testScript>
     <files>
     </files>
