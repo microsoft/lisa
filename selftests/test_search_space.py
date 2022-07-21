@@ -3,7 +3,7 @@
 
 import logging
 import unittest
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Any, List, Optional, TypeVar
 
 from lisa.search_space import (
@@ -30,7 +30,9 @@ class MockSchema:
 
 @dataclass
 class MockItem(RequirementMixin):
-    number: CountSpace = IntRange(min=1, max=5)
+    number: CountSpace = field(
+        default_factory=lambda: IntRange(min=1, max=5)
+    )
 
     def check(self, capability: Any) -> ResultReason:
         assert isinstance(capability, MockItem), f"actual: {type(capability)}"

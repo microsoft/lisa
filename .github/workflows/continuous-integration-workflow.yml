@@ -53,12 +53,12 @@ jobs:
 
       - name: Calculate code coverage
         run: make coverage
-        if: matrix.python-version == "3.8"
+        if: matrix.python-version == '3.8'
 
       - name: Run black/flake8/isort/mypy
         run: make check
-        if: matrix.python-version == "3.8"
+        if: matrix.python-version == '3.8'
 
       - name: Run ShellCheck
-        if: runner.os == 'Linux' && matrix.python-version == "3.8"
+        if: runner.os == 'Linux' && matrix.python-version == '3.8'
         uses: ludeeus/action-shellcheck@0.5.0

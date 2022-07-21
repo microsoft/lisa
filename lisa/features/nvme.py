@@ -93,7 +93,7 @@ class Nvme(Feature):
 class NvmeSettings(FeatureSettings):
     type: str = "Nvme"
     disk_count: search_space.CountSpace = field(
-        default=search_space.IntRange(min=0),
+        default_factory=lambda: search_space.IntRange(min=0),
         metadata=field_metadata(decoder=search_space.decode_count_space),
     )
 
