@@ -2,9 +2,9 @@
 # Licensed under the MIT license.
 
 import logging
-from functools import partial
 import unittest
 from dataclasses import dataclass, field
+from functools import partial
 from typing import Any, List, Optional, TypeVar
 
 from lisa.search_space import (
