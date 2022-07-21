@@ -82,9 +82,7 @@ def _get_environment_id() -> int:
 class EnvironmentMessage(MessageBase):
     type: str = "Environment"
     name: str = ""
-    runbook: schema.Environment = field(
-        default_factory=lambda: schema.Environment()
-    )
+    runbook: schema.Environment = field(default_factory=lambda: schema.Environment())
     status: EnvironmentStatus = EnvironmentStatus.New
 
 
