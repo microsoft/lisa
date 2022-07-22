@@ -87,7 +87,11 @@ class CloudHypervisorPlatform(BaseLibvirtPlatform):
         )
 
     def _create_node_domain_xml(
-        self, environment: Environment, log: Logger, node: Node
+        self,
+        environment: Environment,
+        log: Logger,
+        node: Node,
+        lv_conn: libvirt.virConnect,
     ) -> str:
         node_context = get_node_context(node)
 

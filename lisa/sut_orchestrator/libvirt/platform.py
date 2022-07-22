@@ -2,7 +2,9 @@
 # Licensed under the MIT license.
 
 import faulthandler
+import fnmatch
 import io
+import json
 import os
 import random
 import string
@@ -12,7 +14,7 @@ import time
 import xml.etree.ElementTree as ET  # noqa: N817
 from pathlib import Path
 from threading import Timer
-from typing import Any, List, Optional, Tuple, Type, cast
+from typing import Any, Dict, List, Optional, Tuple, Type, cast
 
 import libvirt  # type: ignore
 import pycdlib
@@ -340,13 +342,21 @@ class BaseLibvirtPlatform(Platform):
             or node_runbook.firmware_type == FIRMWARE_TYPE_UEFI
         ):
             node_context.use_bios_firmware = False
+
         elif node_runbook.firmware_type == FIRMWARE_TYPE_BIOS:
             node_context.use_bios_firmware = True
+
+            if node_runbook.enable_secure_boot:
+                raise LisaException("Secure-boot requires UEFI firmware.")
+
         else:
             raise LisaException(
                 f"Unknown node firmware type: {node_runbook.firmware_type}."
                 f"Expecting either {FIRMWARE_TYPE_UEFI} or {FIRMWARE_TYPE_BIOS}."
             )
+
+        node_context.machine_type = node_runbook.machine_type or None
+        node_context.enable_secure_boot = node_runbook.enable_secure_boot
 
         node_context.vm_name = f"{vm_name_prefix}-{node_idx}"
         if not node.name:
@@ -477,7 +487,7 @@ class BaseLibvirtPlatform(Platform):
         self._create_node_data_disks(node)
 
         # Create libvirt domain (i.e. VM).
-        xml = self._create_node_domain_xml(environment, log, node)
+        xml = self._create_node_domain_xml(environment, log, node, lv_conn)
         node_context.domain = lv_conn.defineXML(xml)
 
         self._create_domain_and_attach_logger(
@@ -690,7 +700,11 @@ class BaseLibvirtPlatform(Platform):
 
     # Create the XML definition for the VM.
     def _create_node_domain_xml(
-        self, environment: Environment, log: Logger, node: Node
+        self,
+        environment: Environment,
+        log: Logger,
+        node: Node,
+        lv_conn: libvirt.virConnect,
     ) -> str:
         node_context = get_node_context(node)
 
@@ -709,13 +723,35 @@ class BaseLibvirtPlatform(Platform):
         assert isinstance(node.capability.core_count, int)
         vcpu.text = str(node.capability.core_count)
 
-        os = ET.SubElement(domain, "os")
+        os_tag = ET.SubElement(domain, "os")
+
+        os_type = ET.SubElement(os_tag, "type")
+        os_type.text = "hvm"
+
+        if node_context.machine_type:
+            os_type.attrib["machine"] = node_context.machine_type
 
         if not node_context.use_bios_firmware:
-            os.attrib["firmware"] = "efi"
+            # In an ideal world, we would use libvirt's firmware auto-selection feature.
+            # Unfortunatley, it isn't possible to specify the secure-boot state until
+            # libvirt v7.2.0 and Ubuntu 20.04 only has libvirt v6.0.0. Therefore, we
+            # have to select the firmware manually.
+            firmware_config = self._get_firmware_config(
+                lv_conn, node_context.machine_type, node_context.enable_secure_boot
+            )
 
-        os_type = ET.SubElement(os, "type")
-        os_type.text = "hvm"
+            print(firmware_config)
+
+            loader = ET.SubElement(os_tag, "loader")
+            loader.attrib["readonly"] = "yes"
+            loader.attrib["type"] = "pflash"
+            loader.attrib["secure"] = "yes" if node_context.enable_secure_boot else "no"
+            loader.text = firmware_config["mapping"]["executable"]["filename"]
+
+            nvram = ET.SubElement(os_tag, "nvram")
+            nvram.attrib["template"] = firmware_config["mapping"]["nvram-template"][
+                "filename"
+            ]
 
         features = ET.SubElement(domain, "features")
 
@@ -924,6 +960,89 @@ class BaseLibvirtPlatform(Platform):
         addr = addrs[0]["addr"]
         assert isinstance(addr, str)
         return addr
+
+    def _get_firmware_config(
+        self,
+        lv_conn: libvirt.virConnect,
+        machine_type: Optional[str],
+        enable_secure_boot: bool,
+    ) -> Dict[str, Any]:
+        # Resolve the machine type to its full name.
+        domain_caps_str = lv_conn.getDomainCapabilities(
+            machine=machine_type, virttype="kvm"
+        )
+        domain_caps = ET.fromstring(domain_caps_str)
+
+        full_machine_type = domain_caps.findall("./machine")[0].text
+        arch = domain_caps.findall("./arch")[0].text
+
+        # Read the QEMU firmware config files.
+        # Note: "/usr/share/qemu/firmware" is a well known location for these files.
+        firmware_configs_str = self.host_node.execute(
+            "cat /usr/share/qemu/firmware/*.json",
+            shell=True,
+            expected_exit_code=0,
+            no_debug_log=True,
+        ).stdout
+        firmware_configs = self._read_concat_json_str(firmware_configs_str)
+
+        # Filter on architecture.
+        filtered_firmware_configs = filter(
+            lambda f: f["targets"][0]["architecture"] == arch, firmware_configs
+        )
+
+        # Filter on machine type.
+        filtered_firmware_configs = filter(
+            lambda f: any(
+                fnmatch.fnmatch(full_machine_type, target_machine)
+                for target_machine in f["targets"][0]["machines"]
+            ),
+            filtered_firmware_configs,
+        )
+
+        # Exclude Intel TDX and AMD SEV-ES firmwares.
+        filtered_firmware_configs = filter(
+            lambda f: "intel-tdx" not in f["features"]
+            and "amd-sev-es" not in f["features"],
+            filtered_firmware_configs,
+        )
+
+        # Filter on secure boot.
+        if enable_secure_boot:
+            filtered_firmware_configs = filter(
+                lambda f: "secure-boot" in f["features"]
+                and "enrolled-keys" in f["features"],
+                filtered_firmware_configs,
+            )
+        else:
+            filtered_firmware_configs = filter(
+                lambda f: "secure-boot" not in f["features"], filtered_firmware_configs
+            )
+
+        # Get first matching firmware.
+        firmware_config = next(filtered_firmware_configs, None)
+        if firmware_config is None:
+            raise LisaException(
+                f"Could not find matching firmware for machine-type={machine_type} "
+                f"and secure-boot={enable_secure_boot}."
+            )
+
+        return firmware_config
+
+    # Read a bunch of JSON files that have been concatenated together.
+    def _read_concat_json_str(self, json_str: str) -> List[Dict[str, Any]]:
+        objs = []
+
+        # From: https://stackoverflow.com/a/42985887
+        decoder = json.JSONDecoder()
+        text = json_str.lstrip()  # decode hates leading whitespace
+        while text:
+            obj, index = decoder.raw_decode(text)
+            text = text[index:].lstrip()
+
+            objs.append(obj)
+
+        return objs
 
     def _libvirt_uri_schema(self) -> str:
         raise NotImplementedError()

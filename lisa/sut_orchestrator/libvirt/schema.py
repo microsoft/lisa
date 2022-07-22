@@ -67,6 +67,14 @@ class BaseLibvirtNodeSchema:
     # Whether to use UEFI or BIOS firmware.
     # Defaults to UEFI.
     firmware_type: str = ""
+    # The machine type to emulate.
+    # Defaults to the system's default (typically: i440fx).
+    # Typical options available include:
+    # - i440fx (legacy, no secure-boot support)
+    # - q35
+    machine_type: str = ""
+    # Whether to enable secure boot.
+    enable_secure_boot: bool = False
 
 
 # QEMU orchestrator's per-node configuration options.
