@@ -135,7 +135,10 @@ class KernelInstallerTransformer(Transformer):
             posix = cast(Posix, node.os)
             posix.replace_boot_kernel(installed_kernel_version)
 
-        if installer.runbook.source == "linux-image-azure-fde":
+        if (
+            hasattr(installer.runbook, "source")
+            and installer.runbook.source == "linux-image-azure-fde"
+        ):
             efi_files = node.execute(
                 "ls -t /usr/lib/linux/efi/kernel.efi-*-azure-cvm",
                 sudo=True,
