@@ -1632,7 +1632,7 @@ Function Invoke-AllResourceGroupDeployments($SetupTypeData, $CurrentTestData, $R
 				}
 			}
 			Add-Content -Value "$($indents[5])]" -Path $jsonFile
-			if ($CurrentTestData.SetupConfig.OverrideVMSize -match "Standard_E[0-9]+bs_v5") {
+			if ($CurrentTestData.SetupConfig.OverrideVMSize -match "Standard_E[0-9]+bd?s_v5") {
 				Add-Content -Value "$($indents[5])," -Path $jsonFile
 				Add-Content -Value "$($indents[5])^diskControllerType^: ^NVMe^" -Path $jsonFile
 			}
