@@ -1932,10 +1932,10 @@ class AzurePlatform(Platform):
             node_space.network_interface.nic_count = search_space.IntRange(min=1, max=1)
 
         if resource_sku.family in [
-            "StandardDsv5Family",
-            "StandardDdsv5Family",
-            "StandardDasv5Family",
-            "StandardDadsv5Family",
+            "standardDSv5Family",
+            "standardDDSv5Family",
+            "standardDASv5Family",
+            "standardDADSv5Family",
         ]:
             node_space.features.add(
                 schema.FeatureSettings.create(features.Hibernation.name())
