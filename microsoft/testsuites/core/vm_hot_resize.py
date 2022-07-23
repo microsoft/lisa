@@ -50,9 +50,12 @@ class VmHotResize(TestSuite):
                 expected_vm_capability = resize.resize()
                 break
             except Exception as identifier:
-                if "cannot find current vm size in eligible list" in str(identifier):
-                    retry = retry + 1
-                elif "OperationNotAllowed" in str(identifier):
+                if (
+                    "cannot find current vm size in eligible list" in str(identifier)
+                    or "OperationNotAllowed" in str(identifier)
+                    or "Allocation failed" in str(identifier)
+                    or "AllocationFailed" in str(identifier)
+                ):
                     retry = retry + 1
                 else:
                     raise identifier
