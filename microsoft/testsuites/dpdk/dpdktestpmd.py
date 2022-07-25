@@ -832,10 +832,10 @@ class DpdkTestpmd(Tool):
         ]
         after_rescind = self._last_run_output[device_removal_index:]
         # Identify the device add event
-        hotplug_match = self._search_hotplug_regex.search(after_rescind)
+        hotplug_match = self._search_hotplug_regex.finditer(after_rescind)
 
         if not hotplug_match:
-            hotplug_alt_match = self._search_hotplug_regex_alt.search(after_rescind)
+            hotplug_alt_match = self._search_hotplug_regex_alt.finditer(after_rescind)
             if hotplug_alt_match:
                 hotplug_match = hotplug_alt_match
             else:
@@ -843,13 +843,18 @@ class DpdkTestpmd(Tool):
                 if command_dumped in self._last_run_output:
                     raise LisaException("Testpmd crashed after device removal.")
 
-                raise LisaException(
-                    "Could not identify vf hotplug events in testpmd output."
-                )
-        self.node.log.info(f"Identified hotplug event: {hotplug_match.group(0)}")
+        # pick the last match
+        try:
+            *_, last_match = hotplug_match
+        except ValueError:
+            raise LisaException(
+                "Could not identify vf hotplug events in testpmd output."
+            )
 
-        before_reenable = after_rescind[: hotplug_match.start()]
-        after_reenable = after_rescind[hotplug_match.end() :]
+        self.node.log.info(f"Identified hotplug event: {last_match.group(0)}")
+
+        before_reenable = after_rescind[: last_match.start()]
+        after_reenable = after_rescind[last_match.end() :]
         self._testpmd_output_during_rescind = before_reenable
         self._testpmd_output_after_reenable = after_reenable
 
