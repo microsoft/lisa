@@ -3,6 +3,7 @@
 
 
 import re
+import time
 from dataclasses import dataclass, field
 from typing import Any, Dict, List, Optional, Type, cast
 
@@ -16,6 +17,7 @@ from lisa.tools import Uname
 from lisa.transformer import Transformer
 from lisa.util import field_metadata, filter_ansi_escape, get_matched_str, subclasses
 from lisa.util.logger import Logger, get_logger
+from lisa.util.perf_timer import create_timer
 
 
 @dataclass_json()
@@ -212,8 +214,21 @@ class RepoInstaller(BaseInstaller):
             f"deb {self.repo_url} {version_name} "
             f"restricted main multiverse universe"
         )
-        ubuntu.wait_running_package_process()
-        result = node.execute(f'add-apt-repository -y "{repo_entry}"', sudo=True)
+        timeout = 600
+        timer = create_timer()
+        while timeout > timer.elapsed(False):
+            ubuntu.wait_running_package_process()
+            result = node.execute(f'add-apt-repository -y "{repo_entry}"', sudo=True)
+            ubuntu_repositories = ubuntu.get_repositories()
+            if any(
+                [version_name in repository.name for repository in ubuntu_repositories]
+            ):
+                self._log.info(f"add repro {repo_entry} successfully")
+                break
+            else:
+                time.sleep(2)
+                continue
+
         if result.exit_code != 0:
             result.assert_exit_code(
                 message="failed on add repo\n"
