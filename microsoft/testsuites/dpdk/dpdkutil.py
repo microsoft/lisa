@@ -222,15 +222,12 @@ def initialize_node_resources(
     ).is_not_empty()
 
     # create tool, initialize testpmd tool (installs dpdk)
-    testpmd = DpdkTestpmd(node)
-    testpmd.set_dpdk_source(dpdk_source)
-    testpmd.set_dpdk_branch(dpdk_branch)
-    testpmd.add_sample_apps_to_build_list(sample_apps)
-    try:
-        testpmd.install()
-    except UnsupportedDistroException as err:
-        # forward message from distro exception
-        raise SkippedException(err)
+    testpmd: DpdkTestpmd = node.tools.get(
+        DpdkTestpmd,
+        dpdk_source=dpdk_source,
+        dpdk_branch=dpdk_branch,
+        sample_apps=sample_apps,
+    )
 
     # init and enable hugepages (required by dpdk)
     init_hugepages(node)

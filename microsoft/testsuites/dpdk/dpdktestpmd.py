@@ -3,14 +3,14 @@
 
 import re
 from pathlib import PurePosixPath
-from typing import List, Pattern, Tuple, Type, Union
+from typing import Any, List, Pattern, Tuple, Type, Union
 
 from assertpy import assert_that, fail
 from semver import VersionInfo
 
 from lisa.executable import Tool
 from lisa.nic import NicInfo
-from lisa.operating_system import Debian, Fedora, Oracle, Redhat, Suse, Ubuntu
+from lisa.operating_system import Debian, Fedora, Redhat, Ubuntu
 from lisa.tools import (
     Echo,
     Git,
@@ -66,9 +66,10 @@ class DpdkTestpmd(Tool):
 
     @property
     def command(self) -> str:
+        if not self._testpmd_install_path:
+            return "testpmd"
         return self._testpmd_install_path
 
-    _testpmd_install_path = ""
     _ubuntu_packages_1804 = [
         "librdmacm-dev",
         "build-essential",
@@ -138,12 +139,6 @@ class DpdkTestpmd(Tool):
     def dependencies(self) -> List[Type[Tool]]:
         return [Git, Wget, Lscpu]
 
-    def set_dpdk_source(self, dpdk_source: str) -> None:
-        self._dpdk_source = dpdk_source
-
-    def set_dpdk_branch(self, dpdk_branch: str) -> None:
-        self._dpdk_branch = dpdk_branch
-
     def get_dpdk_version(self) -> VersionInfo:
         return self._dpdk_version_info
 
@@ -163,7 +158,10 @@ class DpdkTestpmd(Tool):
             "_dpdk_source was not set in DpdkTestpmd instance. "
             "set_dpdk_source must be called before instantiation."
         ).is_true()
-        return self._dpdk_source == PACKAGE_MANAGER_SOURCE
+        if self._dpdk_source == PACKAGE_MANAGER_SOURCE:
+            return True
+        else:
+            return False
 
     def set_version_info_from_source_install(
         self, branch_identifier: str, matcher: Pattern[str]
@@ -176,7 +174,7 @@ class DpdkTestpmd(Tool):
             )
         else:
             major, minor = map(int, [match.group("major"), match.group("minor")])
-            self._dpdk_version_info = VersionInfo(major, minor)
+            self._dpdk_version_info: VersionInfo = VersionInfo(major, minor)
 
     def generate_testpmd_include(
         self,
@@ -391,6 +389,15 @@ class DpdkTestpmd(Tool):
             self._sample_apps_to_build = apps
         else:
             self._sample_apps_to_build = []
+
+    def __init__(self, *args: Any, **kwargs: Any) -> None:
+        super().__init__(*args, **kwargs)
+        self._dpdk_source = kwargs.pop("dpdk_source", PACKAGE_MANAGER_SOURCE)
+        self._dpdk_branch = kwargs.pop("dpdk_branch", "main")
+        self._sample_apps_to_build = kwargs.pop("sample_apps", [])
+        self._dpdk_version_info = VersionInfo(0, 0)
+        self._testpmd_install_path: str = ""
+        self.find_testpmd_binary(assert_on_fail=False)
 
     def _determine_network_hardware(self) -> None:
         lspci = self.node.tools[Lspci]
