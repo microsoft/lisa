@@ -22,6 +22,7 @@ from lisa.operating_system import OperatingSystem, Ubuntu
 from lisa.tools import Dmesg, Echo, Lsmod, Lspci, Modprobe, Mount
 from lisa.tools.mkfs import FileSystem
 from lisa.util.parallel import TaskManager, run_in_parallel, run_in_parallel_async
+from microsoft.testsuites.dpdk.common import check_dpdk_support
 from microsoft.testsuites.dpdk.dpdktestpmd import PACKAGE_MANAGER_SOURCE, DpdkTestpmd
 
 
@@ -205,9 +206,12 @@ def initialize_node_resources(
     lspci = node.tools[Lspci]
     log.info(f"Node[{node.name}] LSPCI Info:\n{lspci.run().stdout}\n")
 
-    # create tool, check compatibility first.
-    testpmd = DpdkTestpmd(node)
-    testpmd.check_dpdk_support()
+    # check compatibility first.
+    try:
+        check_dpdk_support(node)
+    except UnsupportedDistroException as err:
+        # forward message from distro exception
+        raise SkippedException(err)
 
     # verify SRIOV is setup as-expected on the node after compat check
     assert_that(node.nics.get_lower_nics()).described_as(
@@ -217,7 +221,8 @@ def initialize_node_resources(
         f"unpaired: {node.nics.get_unpaired_devices()}"
     ).is_not_empty()
 
-    # initialize testpmd tool (installs dpdk)
+    # create tool, initialize testpmd tool (installs dpdk)
+    testpmd = DpdkTestpmd(node)
     testpmd.set_dpdk_source(dpdk_source)
     testpmd.set_dpdk_branch(dpdk_branch)
     testpmd.add_sample_apps_to_build_list(sample_apps)
