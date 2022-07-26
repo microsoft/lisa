@@ -108,7 +108,7 @@ def _set_forced_source_by_distro(node: Node, variables: Dict[str, Any]) -> None:
     # user. 20.11 is the latest dpdk version for 18.04.
     if isinstance(node.os, Ubuntu) and node.os.information.version < "20.4.0":
         variables["dpdk_source"] = variables.get(
-            "dpdk_source", "https://dpdk.org/git/dpdk-stable"
+            "dpdk_source", "https://github.com/DPDK/dpdk"
         )
         variables["dpdk_branch"] = variables.get("dpdk_branch", "v20.11")
 
