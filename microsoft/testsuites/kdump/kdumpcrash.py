@@ -360,7 +360,8 @@ class KdumpCrash(TestSuite):
                     # the dump file is generated.
                     result = node.execute(
                         f"find {kdump.dump_path} -type f -size +10M "
-                        "-name vmcore -o -name dump.* -o -name vmcore.*",
+                        "\\( -name vmcore -o -name dump.* -o -name vmcore.* \\) "
+                        "-exec ls -lh {} \\;",
                         shell=True,
                         sudo=True,
                     )
