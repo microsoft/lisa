@@ -446,7 +446,7 @@ class NetworkInterface(AzureFeatureMixin, features.NetworkInterface):
         modprobe_tool = self._node.tools[Modprobe]
         modprobe_tool.reload(["hv_netvsc"])
 
-    @retry(tries=60, delay=2)
+    @retry(tries=60, delay=10)
     def _check_sriov_enabled(self, enabled: bool) -> None:
         self._node.nics.reload()
 
