@@ -350,14 +350,14 @@ class KdumpCrash(TestSuite):
             # If there is no exception, then the system is connected
             system_disconnected = False
 
-            # After trigger kdump, the VM will reboot. We need to close and initialize
+            # After trigger kdump, the VM will reboot. We need to close the node
             node.close()
             saved_dumpfile_size = 0
+            # Check in this loop until the dump file is generated or incomplete file
+            # doesn't grow or timeout
             while True:
                 try:
-                    # The exit code of this command is always 0.
-                    # We should check the stdout. If the stdout is not null, then
-                    # the dump file is generated.
+                    # The exit code of this command is always 0. Check the stdout
                     result = node.execute(
                         f"find {kdump.dump_path} -type f -size +10M "
                         "\\( -name vmcore -o -name dump.* -o -name vmcore.* \\) "
@@ -367,14 +367,16 @@ class KdumpCrash(TestSuite):
                     )
                     if result.stdout:
                         break
-
-                    # When the system is dumping vmcore, but doesn't complete,
-                    # then the vmcore file is named as *-incomplete
+                    # Check if has dump incomplete file
                     result = node.execute(
                         f"find {kdump.dump_path} -name '*incomplete*'",
                         shell=True,
                         sudo=True,
                     )
+                    if result.stdout:
+                        incomplete_file = result.stdout
+                        stat = node.tools[Stat]
+                        incomplete_file_size = stat.get_total_size(incomplete_file)
                 except Exception as identifier:
                     log.debug(
                         "Fail to execute command. It may be caused by the system kernel"
@@ -384,9 +386,6 @@ class KdumpCrash(TestSuite):
                     system_disconnected = True
                     break
                 if result.stdout:
-                    incomplete_file = result.stdout
-                    stat = node.tools[Stat]
-                    incomplete_file_size = stat.get_total_size(incomplete_file)
                     if incomplete_file_size > saved_dumpfile_size:
                         saved_dumpfile_size = incomplete_file_size
                     else:
@@ -404,7 +403,7 @@ class KdumpCrash(TestSuite):
                         "Timeout to dump vmcore file."
                         f"The size of vmcore-incomplete is {incomplete_file_size}"
                     )
-                time.sleep(2)
+                time.sleep(5)
         if system_disconnected:
             raise LisaException("Timeout to connect the VM after triggering kdump.")
 
