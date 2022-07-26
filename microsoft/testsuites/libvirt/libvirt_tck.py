@@ -20,7 +20,7 @@ from microsoft.testsuites.libvirt.libvirt_tck_tool import LibvirtTck
     area="libvirt",
     category="community",
     description="""
-    TODO
+    Runs the Libvirt TCK (Technology Compatibility Kit) tests.
     """,
 )
 class LibvirtTckSuite(TestSuite):

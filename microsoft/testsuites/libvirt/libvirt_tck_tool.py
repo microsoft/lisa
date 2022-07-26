@@ -22,7 +22,10 @@ class LibvirtTckTestResult:
 
 
 class LibvirtTck(Tool):
-    TIME_OUT = 3600  # TODO: calibrate
+    TIME_OUT = 3600
+
+    # The failures in these tests need to be investigated and fixed. Until then, treat
+    # them as expected failures.
     EXPECTED_FAILURES = [
         "100-apply-verify-host_t",
         "220-no-ip-spoofing_t",
@@ -138,6 +141,9 @@ class LibvirtTck(Tool):
         return self._check_exists()
 
     def _is_expected_failure(self, name: str) -> bool:
+        # The test name in the output appears with its full path. Whereas the
+        # self.EXPECTED_FAILURES contain just the test names. That's why
+        # endswith() is used here.
         return len([f for f in self.EXPECTED_FAILURES if name.endswith(f)]) > 0
 
     def _extract_test_results(self, output: str) -> List[LibvirtTckTestResult]:
