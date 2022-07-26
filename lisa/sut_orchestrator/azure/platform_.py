@@ -1213,6 +1213,9 @@ class AzurePlatform(Platform):
             azure_node_runbook.shared_gallery = None
         elif azure_node_runbook.shared_gallery:
             azure_node_runbook.marketplace = None
+            azure_node_runbook.shared_gallery = self._parse_shared_gallery_image(
+                azure_node_runbook.location, azure_node_runbook.shared_gallery
+            )
             os_disk_size = max(
                 os_disk_size,
                 self._get_sig_os_disk_size(azure_node_runbook.shared_gallery),
@@ -1814,6 +1817,51 @@ class AzurePlatform(Platform):
             new_marketplace.version = versioned_images[-1].name
         return new_marketplace
 
+    def _parse_shared_gallery_image(
+        self, location: str, shared_image: SharedImageGallerySchema
+    ) -> SharedImageGallerySchema:
+        new_shared_image = copy.copy(shared_image)
+        compute_client = get_compute_client(self)
+        if not shared_image.resource_group_name:
+            # /subscriptions/xxxx/resourceGroups/xxxx/providers/Microsoft.Compute/
+            # galleries/xxxx
+            rg_pattern = re.compile(r"resourceGroups/(.*)/providers", re.M)
+            galleries = compute_client.galleries.list()
+            rg_name = ""
+            for gallery in galleries:
+                if gallery.name.lower() == shared_image.image_gallery:
+                    rg_name = get_matched_str(gallery.id, rg_pattern)
+                    break
+            if not rg_name:
+                raise LisaException(
+                    f"not find matched gallery {shared_image.image_gallery}"
+                )
+        new_shared_image.resource_group_name = rg_name
+        if shared_image.image_version.lower() == "latest":
+            gallery_images = (
+                compute_client.gallery_image_versions.list_by_gallery_image(
+                    resource_group_name=new_shared_image.resource_group_name,
+                    gallery_name=new_shared_image.image_gallery,
+                    gallery_image_name=new_shared_image.image_definition,
+                )
+            )
+            image: GalleryImageVersion = None
+            time: Optional[datetime] = None
+            for image in gallery_images:
+                gallery_image = compute_client.gallery_image_versions.get(
+                    resource_group_name=new_shared_image.resource_group_name,
+                    gallery_name=new_shared_image.image_gallery,
+                    gallery_image_name=new_shared_image.image_definition,
+                    gallery_image_version_name=image.name,
+                    expand="ReplicationStatus",
+                )
+                if not time:
+                    time = gallery_image.publishing_profile.published_date
+                if gallery_image.publishing_profile.published_date > time:
+                    time = gallery_image.publishing_profile.published_date
+                    new_shared_image.image_version = image.name
+        return new_shared_image
+
     @lru_cache(maxsize=10)  # noqa: B019
     def _process_marketplace_image_plan(
         self,
@@ -2174,48 +2222,13 @@ class AzurePlatform(Platform):
         self, shared_image: SharedImageGallerySchema
     ) -> GalleryImageVersion:
         compute_client = get_compute_client(self)
-        if not shared_image.resource_group_name:
-            galleries = compute_client.galleries.list()
-            rg_name = ""
-            for gallery in galleries:
-                if gallery.name.lower() == shared_image.image_gallery:
-                    rg_name = get_matched_str(gallery.id, RESOURCE_GROUP_PATTERN)
-                    break
-            if not rg_name:
-                raise LisaException(
-                    f"not find matched gallery {shared_image.image_gallery}"
-                )
-        shared_image.resource_group_name = rg_name
-        gallery_images = compute_client.gallery_image_versions.list_by_gallery_image(
+        return compute_client.gallery_image_versions.get(
             resource_group_name=shared_image.resource_group_name,
             gallery_name=shared_image.image_gallery,
             gallery_image_name=shared_image.image_definition,
+            gallery_image_version_name=shared_image.image_version,
+            expand="ReplicationStatus",
         )
-        if shared_image.image_version.lower() != "latest":
-            found_image = compute_client.gallery_image_versions.get(
-                resource_group_name=shared_image.resource_group_name,
-                gallery_name=shared_image.image_gallery,
-                gallery_image_name=shared_image.image_definition,
-                gallery_image_version_name=shared_image.image_version,
-                expand="ReplicationStatus",
-            )
-        else:
-            image: GalleryImageVersion = None
-            time: Optional[datetime] = None
-            for image in gallery_images:
-                gallery_image = compute_client.gallery_image_versions.get(
-                    resource_group_name=shared_image.resource_group_name,
-                    gallery_name=shared_image.image_gallery,
-                    gallery_image_name=shared_image.image_definition,
-                    gallery_image_version_name=image.name,
-                    expand="ReplicationStatus",
-                )
-                if not time:
-                    time = gallery_image.publishing_profile.published_date
-                if gallery_image.publishing_profile.published_date > time:
-                    time = gallery_image.publishing_profile.published_date
-                    found_image = gallery_image
-        return found_image
 
     def _get_sig_os_disk_size(self, shared_image: SharedImageGallerySchema) -> int:
         found_image = self._get_sig_info(shared_image)
