@@ -201,6 +201,15 @@ def initialize_node_resources(
         f"SRIOV was not enabled for this test node ({node.name})"
     ).is_true()
 
+    # dump some info about the pci devices before we start
+    lspci = node.tools[Lspci]
+    log.info(f"Node[{node.name}] LSPCI Info:\n{lspci.run().stdout}\n")
+
+    # create tool, check compatibility first.
+    testpmd = DpdkTestpmd(node)
+    testpmd.check_dpdk_support()
+
+    # verify SRIOV is setup as-expected on the node after compat check
     assert_that(node.nics.get_lower_nics()).described_as(
         "Did not detect any upper/lower sriov paired nics!: "
         f"upper: {node.nics.get_upper_nics()} "
@@ -208,12 +217,7 @@ def initialize_node_resources(
         f"unpaired: {node.nics.get_unpaired_devices()}"
     ).is_not_empty()
 
-    # dump some info about the pci devices before we start
-    lspci = node.tools[Lspci]
-    log.info(f"Node[{node.name}] LSPCI Info:\n{lspci.run().stdout}\n")
-
     # initialize testpmd tool (installs dpdk)
-    testpmd = DpdkTestpmd(node)
     testpmd.set_dpdk_source(dpdk_source)
     testpmd.set_dpdk_branch(dpdk_branch)
     testpmd.add_sample_apps_to_build_list(sample_apps)

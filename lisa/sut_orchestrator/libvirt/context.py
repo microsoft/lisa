@@ -39,6 +39,8 @@ class NodeContext:
     use_bios_firmware: bool = False
     data_disks: List[DataDiskContext] = field(default_factory=list)
     next_disk_index: int = 0
+    machine_type: Optional[str] = None
+    enable_secure_boot: bool = False
 
     console_logger: Optional[QemuConsoleLogger] = None
     domain: Optional[libvirt.virDomain] = None

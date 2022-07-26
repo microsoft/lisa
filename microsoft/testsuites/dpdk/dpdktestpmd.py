@@ -858,6 +858,10 @@ class DpdkTestpmd(Tool):
             if hotplug_alt_match:
                 hotplug_match = hotplug_alt_match
             else:
+                command_dumped = "timeout: the monitored command dumped core"
+                if command_dumped in self._last_run_output:
+                    raise LisaException("Testpmd crashed after device removal.")
+
                 raise LisaException(
                     "Could not identify vf hotplug events in testpmd output."
                 )
