@@ -336,9 +336,6 @@ class DpdkPerformance(TestSuite):
         receiver_fields["rx_pps_maximum"] = receiver.get_max_rx_pps()
         receiver_fields["rx_pps_average"] = receiver.get_mean_rx_pps()
         receiver_fields["rx_pps_minimum"] = receiver.get_min_rx_pps()
-        receiver_fields["fwd_pps_maximum"] = receiver.get_max_tx_pps()
-        receiver_fields["fwd_pps_average"] = receiver.get_mean_tx_pps()
-        receiver_fields["fwd_pps_minimum"] = receiver.get_min_tx_pps()
 
         send_results = create_perf_message(
             NetworkPPSPerformanceMessage,
