@@ -20,13 +20,18 @@ from microsoft.testsuites.libvirt.libvirt_tck_tool import LibvirtTck
     area="libvirt",
     category="community",
     description="""
-    Runs the Libvirt TCK (Technology Compatibility Kit) tests.
+    Runs the libvirt TCK (Technology Compatibility Kit) tests. It is a suite
+    of functional/integration tests designed to test a libvirt driver's complicance
+    with API semantics, distro configuration etc.
+
+    More info: https://gitlab.com/libvirt/libvirt-tck/-/blob/master/README.rst
     """,
 )
 class LibvirtTckSuite(TestSuite):
     @TestCaseMetadata(
         description="""
-            Runs the Libvirt TCK (Technology Compatibility Kit) tests.
+        Runs the Libvirt TCK (Technology Compatibility Kit) tests with the default
+        configuration i.e. the tests will exercise the qemu driver in libvirt.
         """,
         priority=3,
     )
