@@ -130,7 +130,7 @@ class DpdkTestpmd(Tool):
 
     @property
     def can_install(self) -> bool:
-        for _os in [Ubuntu, Fedora]:
+        for _os in [Debian, Fedora]:
             if isinstance(self.node.os, _os):
                 return True
         return False
