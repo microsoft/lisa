@@ -71,7 +71,8 @@ Visual Studio Code
             "reportUnnecessaryIsInstance": "none",
             "reportPrivateImportUsage": "none",
             "reportUnusedImport": "none",
-            "reportUnusedFunction": "none"
+            "reportUnusedFunction": "none",
+            "reportOptionalMemberAccess": "none"
          },
          "python.analysis.stubPath": "./typings",
          "python.languageServer": "Pylance"
