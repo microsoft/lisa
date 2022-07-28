@@ -9,9 +9,9 @@ from lisa import (
     TestSuiteMetadata,
     simple_requirement,
 )
-from lisa.environment import Environment
 from lisa.features import Nvme, NvmeSettings
 from lisa.messages import DiskSetupType, DiskType
+from lisa.testsuite import TestResult
 from lisa.tools import Echo, Lscpu
 from microsoft.testsuites.performance.common import perf_disk
 
@@ -36,7 +36,7 @@ class NvmePerformace(TestSuite):
             supported_features=[NvmeSettings(disk_count=8)],
         ),
     )
-    def perf_nvme(self, node: Node, environment: Environment) -> None:
+    def perf_nvme(self, node: Node, result: TestResult) -> None:
         nvme = node.features[Nvme]
         nvme_namespaces = nvme.get_namespaces()
         disk_count = len(nvme_namespaces)
@@ -70,5 +70,5 @@ class NvmePerformace(TestSuite):
             numjob=core_count,
             disk_setup_type=DiskSetupType.raw,
             disk_type=DiskType.nvme,
-            environment=environment,
+            test_result=result,
         )

@@ -22,6 +22,7 @@ from lisa import (
 from lisa.executable import Tool
 from lisa.features import Sriov, Synthetic
 from lisa.nic import NicInfo
+from lisa.testsuite import TestResult
 from lisa.tools import Firewall, Kill, Lagscope, Lscpu, Ntttcp
 from lisa.util.parallel import run_in_parallel
 from microsoft.testsuites.performance.common import (
@@ -206,9 +207,9 @@ class XdpPerformance(TestSuite):
             min_nic_count=2, min_count=2, min_core_count=8, network_interface=Sriov()
         ),
     )
-    def perf_xdp_lagscope_latency(self, environment: Environment, log: Logger) -> None:
+    def perf_xdp_lagscope_latency(self, result: TestResult, log: Logger) -> None:
         self._execute_latency_test(
-            environment,
+            result,
             Lagscope,
             log,
         )
@@ -226,19 +227,21 @@ class XdpPerformance(TestSuite):
             min_nic_count=2, min_count=2, min_core_count=8, network_interface=Sriov()
         ),
     )
-    def perf_xdp_ntttcp_latency(self, environment: Environment, log: Logger) -> None:
+    def perf_xdp_ntttcp_latency(self, result: TestResult, log: Logger) -> None:
         self._execute_latency_test(
-            environment,
+            result,
             Ntttcp,
             log,
         )
 
     def _execute_latency_test(
         self,
-        environment: Environment,
+        test_result: TestResult,
         tool_type: Type[Tool],
         log: Logger,
     ) -> None:
+        environment = test_result.environment
+        assert environment, "fail to get environment from testresult"
         server = environment.nodes[0]
         client = environment.nodes[1]
 
@@ -254,14 +257,14 @@ class XdpPerformance(TestSuite):
 
         for _ in range(tested_runs):
             latency_without_xdp.append(
-                self._send_packets_for_latency(server, client, environment, tool_type)
+                self._send_packets_for_latency(server, client, test_result, tool_type)
             )
 
             try:
                 server_xdpdump.start_async(nic_name=server_nic.upper, timeout=0)
                 latency_with_xdp.append(
                     self._send_packets_for_latency(
-                        server, client, environment, tool_type
+                        server, client, test_result, tool_type
                     )
                 )
             finally:
@@ -285,7 +288,7 @@ class XdpPerformance(TestSuite):
         self,
         server: Node,
         client: Node,
-        environment: Environment,
+        test_result: TestResult,
         tool_type: Type[Tool],
     ) -> float:
         assert_that(tool_type).described_as("the tool is not supported").is_in(
@@ -315,8 +318,8 @@ class XdpPerformance(TestSuite):
                 result = client_lagscope.run_as_client(server_ip=server_nic.ip_addr)
                 lagscope_messages = client_lagscope.create_latency_performance_messages(
                     result=result,
-                    environment=environment,
                     test_case_name=inspect.stack()[2].function,
+                    test_result=test_result,
                 )
 
                 assert lagscope_messages
@@ -333,7 +336,7 @@ class XdpPerformance(TestSuite):
                     lagscope.restore_busy_poll()
         else:
             ntttcp_messages = perf_ntttcp(
-                environment,
+                test_result=test_result,
                 udp_mode=False,
                 connections=[1],
                 test_case_name=inspect.stack()[2].function,
