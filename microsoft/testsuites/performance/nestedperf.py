@@ -12,13 +12,13 @@ from lisa import (
     search_space,
     simple_requirement,
 )
-from lisa.environment import Environment
 from lisa.features import Disk
 from lisa.features.network_interface import Synthetic
 from lisa.messages import DiskSetupType, DiskType
 from lisa.node import RemoteNode
 from lisa.operating_system import Windows
 from lisa.sut_orchestrator import AZURE, READY
+from lisa.testsuite import TestResult
 from lisa.tools import (
     Dnsmasq,
     HyperV,
@@ -93,11 +93,11 @@ class KVMPerformance(TestSuite):  # noqa
     def perf_nested_kvm_storage_singledisk(
         self,
         node: RemoteNode,
-        environment: Environment,
         variables: Dict[str, Any],
         log: Logger,
+        result: TestResult,
     ) -> None:
-        self._storage_perf_qemu(node, environment, variables, log, setup_raid=False)
+        self._storage_perf_qemu(node, result, variables, log, setup_raid=False)
 
     @TestCaseMetadata(
         description="""
@@ -117,11 +117,11 @@ class KVMPerformance(TestSuite):  # noqa
     def perf_nested_kvm_storage_multidisk(
         self,
         node: RemoteNode,
-        environment: Environment,
+        result: TestResult,
         variables: Dict[str, Any],
         log: Logger,
     ) -> None:
-        self._storage_perf_qemu(node, environment, variables, log)
+        self._storage_perf_qemu(node, result, variables, log)
 
     @TestCaseMetadata(
         description="""
@@ -143,11 +143,11 @@ class KVMPerformance(TestSuite):  # noqa
     def perf_nested_hyperv_storage_singledisk(
         self,
         node: RemoteNode,
-        environment: Environment,
+        result: TestResult,
         variables: Dict[str, Any],
         log: Logger,
     ) -> None:
-        self._storage_perf_hyperv(node, environment, variables, log)
+        self._storage_perf_hyperv(node, result, variables, log)
 
     @TestCaseMetadata(
         description="""
@@ -169,11 +169,11 @@ class KVMPerformance(TestSuite):  # noqa
     def perf_nested_hyperv_storage_multidisk(
         self,
         node: RemoteNode,
-        environment: Environment,
+        result: TestResult,
         variables: Dict[str, Any],
         log: Logger,
     ) -> None:
-        self._storage_perf_hyperv(node, environment, variables, log, setup_raid=True)
+        self._storage_perf_hyperv(node, result, variables, log, setup_raid=True)
 
     @TestCaseMetadata(
         description="""
@@ -193,7 +193,7 @@ class KVMPerformance(TestSuite):  # noqa
     def perf_nested_kvm_ntttcp_private_bridge(
         self,
         node: RemoteNode,
-        environment: Environment,
+        result: TestResult,
         variables: Dict[str, Any],
         log: Logger,
     ) -> None:
@@ -258,7 +258,7 @@ class KVMPerformance(TestSuite):  # noqa
 
             # run ntttcp test
             perf_ntttcp(
-                environment,
+                result,
                 server,
                 client,
                 server_nic_name=self._NIC_NAME,
@@ -296,8 +296,14 @@ class KVMPerformance(TestSuite):  # noqa
         ),
     )
     def perf_nested_kvm_ntttcp_different_l1_nat(
-        self, environment: Environment, variables: Dict[str, Any], log: Logger
+        self,
+        result: TestResult,
+        variables: Dict[str, Any],
+        log: Logger,
     ) -> None:
+        environment = result.environment
+        assert environment, "fail to get environment from testresult"
+
         server_l1 = cast(RemoteNode, environment.nodes[0])
         client_l1 = cast(RemoteNode, environment.nodes[1])
 
@@ -344,7 +350,7 @@ class KVMPerformance(TestSuite):  # noqa
 
             # run ntttcp test
             perf_ntttcp(
-                environment,
+                result,
                 server_l2,
                 client_l2,
                 server_nic_name=self._NIC_NAME,
@@ -369,8 +375,14 @@ class KVMPerformance(TestSuite):  # noqa
         ),
     )
     def perf_nested_hyperv_ntttcp_different_l1_nat(
-        self, environment: Environment, variables: Dict[str, Any], log: Logger
+        self,
+        result: TestResult,
+        variables: Dict[str, Any],
+        log: Logger,
     ) -> None:
+        environment = result.environment
+        assert environment, "fail to get environment from testresult"
+
         server_l1 = cast(RemoteNode, environment.nodes[0])
         client_l1 = cast(RemoteNode, environment.nodes[1])
 
@@ -405,7 +417,10 @@ class KVMPerformance(TestSuite):  # noqa
 
             # run ntttcp test
             perf_ntttcp(
-                environment, server_l2, client_l2, test_case_name=inspect.stack()[1][3]
+                result,
+                server_l2,
+                client_l2,
+                test_case_name=inspect.stack()[1][3],
             )
         finally:
             # cleanup server
@@ -441,8 +456,14 @@ class KVMPerformance(TestSuite):  # noqa
         ),
     )
     def perf_nested_kvm_netperf_pps_nat(
-        self, environment: Environment, variables: Dict[str, Any], log: Logger
+        self,
+        result: TestResult,
+        variables: Dict[str, Any],
+        log: Logger,
     ) -> None:
+        environment = result.environment
+        assert environment, "fail to get environment from testresult"
+
         server_l1 = cast(RemoteNode, environment.nodes[0])
         client_l1 = cast(RemoteNode, environment.nodes[1])
 
@@ -488,7 +509,7 @@ class KVMPerformance(TestSuite):  # noqa
             )
 
             # run netperf test
-            perf_tcp_pps(environment, "singlepps", server_l2, client_l2)
+            perf_tcp_pps(result, "singlepps", server_l2, client_l2)
         finally:
             self._linux_cleanup_nat(server_l1, self._BR_NAME, log)
             self._linux_cleanup_nat(client_l1, self._BR_NAME, log)
@@ -625,7 +646,7 @@ class KVMPerformance(TestSuite):  # noqa
     def _storage_perf_qemu(
         self,
         node: RemoteNode,
-        environment: Environment,
+        result: TestResult,
         variables: Dict[str, Any],
         log: Logger,
         filename: str = "/dev/sdb",
@@ -709,7 +730,7 @@ class KVMPerformance(TestSuite):  # noqa
                 disk_count=l1_data_disk_count,
                 disk_setup_type=DiskSetupType.raid0,
                 disk_type=DiskType.premiumssd,
-                environment=environment,
+                test_result=result,
                 num_jobs=num_jobs,
                 size_gb=8,
                 overwrite=True,
@@ -725,7 +746,7 @@ class KVMPerformance(TestSuite):  # noqa
     def _storage_perf_hyperv(
         self,
         node: RemoteNode,
-        environment: Environment,
+        test_result: TestResult,
         variables: Dict[str, Any],
         log: Logger,
         filename: str = "/dev/sdb",
@@ -798,7 +819,7 @@ class KVMPerformance(TestSuite):  # noqa
                 disk_count=1,
                 disk_setup_type=DiskSetupType.raid0,
                 disk_type=DiskType.premiumssd,
-                environment=environment,
+                test_result=test_result,
                 num_jobs=num_jobs,
                 size_gb=8,
                 overwrite=True,

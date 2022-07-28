@@ -11,6 +11,7 @@ from lisa import (
 )
 from lisa.environment import Environment
 from lisa.features import Sriov, Synthetic
+from lisa.testsuite import TestResult
 from lisa.tools.iperf3 import (
     IPERF_TCP_BUFFER_LENGTHS,
     IPERF_TCP_CONCURRENCY,
@@ -46,8 +47,8 @@ class NetworkPerformace(TestSuite):
             network_interface=Synthetic(),
         ),
     )
-    def perf_tcp_latency_synthetic(self, environment: Environment) -> None:
-        perf_tcp_latency(environment)
+    def perf_tcp_latency_synthetic(self, result: TestResult) -> None:
+        perf_tcp_latency(result)
 
     @TestCaseMetadata(
         description="""
@@ -59,8 +60,8 @@ class NetworkPerformace(TestSuite):
             network_interface=Sriov(),
         ),
     )
-    def perf_tcp_latency_sriov(self, environment: Environment) -> None:
-        perf_tcp_latency(environment)
+    def perf_tcp_latency_sriov(self, result: TestResult) -> None:
+        perf_tcp_latency(result)
 
     @TestCaseMetadata(
         description="""
@@ -73,8 +74,8 @@ class NetworkPerformace(TestSuite):
             network_interface=Synthetic(),
         ),
     )
-    def perf_tcp_single_pps_synthetic(self, environment: Environment) -> None:
-        perf_tcp_pps(environment, "singlepps")
+    def perf_tcp_single_pps_synthetic(self, result: TestResult) -> None:
+        perf_tcp_pps(result, "singlepps")
 
     @TestCaseMetadata(
         description="""
@@ -87,8 +88,8 @@ class NetworkPerformace(TestSuite):
             network_interface=Sriov(),
         ),
     )
-    def perf_tcp_single_pps_sriov(self, environment: Environment) -> None:
-        perf_tcp_pps(environment, "singlepps")
+    def perf_tcp_single_pps_sriov(self, result: TestResult) -> None:
+        perf_tcp_pps(result, "singlepps")
 
     @TestCaseMetadata(
         description="""
@@ -101,8 +102,8 @@ class NetworkPerformace(TestSuite):
             network_interface=Synthetic(),
         ),
     )
-    def perf_tcp_max_pps_synthetic(self, environment: Environment) -> None:
-        perf_tcp_pps(environment, "maxpps")
+    def perf_tcp_max_pps_synthetic(self, result: TestResult) -> None:
+        perf_tcp_pps(result, "maxpps")
 
     @TestCaseMetadata(
         description="""
@@ -115,8 +116,8 @@ class NetworkPerformace(TestSuite):
             network_interface=Sriov(),
         ),
     )
-    def perf_tcp_max_pps_sriov(self, environment: Environment) -> None:
-        perf_tcp_pps(environment, "maxpps")
+    def perf_tcp_max_pps_sriov(self, result: TestResult) -> None:
+        perf_tcp_pps(result, "maxpps")
 
     @TestCaseMetadata(
         description="""
@@ -130,10 +131,8 @@ class NetworkPerformace(TestSuite):
             network_interface=Synthetic(),
         ),
     )
-    def perf_tcp_ntttcp_128_connections_synthetic(
-        self, environment: Environment
-    ) -> None:
-        perf_ntttcp(environment, connections=[128])
+    def perf_tcp_ntttcp_128_connections_synthetic(self, result: TestResult) -> None:
+        perf_ntttcp(result, connections=[128])
 
     @TestCaseMetadata(
         description="""
@@ -146,8 +145,8 @@ class NetworkPerformace(TestSuite):
             network_interface=Synthetic(),
         ),
     )
-    def perf_tcp_ntttcp_synthetic(self, environment: Environment) -> None:
-        perf_ntttcp(environment)
+    def perf_tcp_ntttcp_synthetic(self, result: TestResult) -> None:
+        perf_ntttcp(result)
 
     @TestCaseMetadata(
         description="""
@@ -160,8 +159,8 @@ class NetworkPerformace(TestSuite):
             network_interface=Sriov(),
         ),
     )
-    def perf_tcp_ntttcp_sriov(self, environment: Environment) -> None:
-        perf_ntttcp(environment)
+    def perf_tcp_ntttcp_sriov(self, result: TestResult) -> None:
+        perf_ntttcp(result)
 
     @TestCaseMetadata(
         description="""
@@ -174,8 +173,8 @@ class NetworkPerformace(TestSuite):
             network_interface=Synthetic(),
         ),
     )
-    def perf_udp_1k_ntttcp_synthetic(self, environment: Environment) -> None:
-        perf_ntttcp(environment, udp_mode=True)
+    def perf_udp_1k_ntttcp_synthetic(self, result: TestResult) -> None:
+        perf_ntttcp(result, udp_mode=True)
 
     @TestCaseMetadata(
         description="""
@@ -188,8 +187,8 @@ class NetworkPerformace(TestSuite):
             network_interface=Sriov(),
         ),
     )
-    def perf_udp_1k_ntttcp_sriov(self, environment: Environment) -> None:
-        perf_ntttcp(environment, udp_mode=True)
+    def perf_udp_1k_ntttcp_sriov(self, result: TestResult) -> None:
+        perf_ntttcp(result, udp_mode=True)
 
     @TestCaseMetadata(
         description="""
@@ -202,9 +201,9 @@ class NetworkPerformace(TestSuite):
             network_interface=Synthetic(),
         ),
     )
-    def perf_tcp_iperf_synthetic(self, environment: Environment) -> None:
+    def perf_tcp_iperf_synthetic(self, result: TestResult) -> None:
         perf_iperf(
-            environment,
+            result,
             connections=IPERF_TCP_CONCURRENCY,
             buffer_length_list=IPERF_TCP_BUFFER_LENGTHS,
         )
@@ -220,9 +219,9 @@ class NetworkPerformace(TestSuite):
             network_interface=Sriov(),
         ),
     )
-    def perf_tcp_iperf_sriov(self, environment: Environment) -> None:
+    def perf_tcp_iperf_sriov(self, result: TestResult) -> None:
         perf_iperf(
-            environment,
+            result,
             connections=IPERF_TCP_CONCURRENCY,
             buffer_length_list=IPERF_TCP_BUFFER_LENGTHS,
         )
@@ -238,9 +237,9 @@ class NetworkPerformace(TestSuite):
             network_interface=Synthetic(),
         ),
     )
-    def perf_udp_iperf_synthetic(self, environment: Environment) -> None:
+    def perf_udp_iperf_synthetic(self, result: TestResult) -> None:
         perf_iperf(
-            environment,
+            result,
             connections=IPERF_UDP_CONCURRENCY,
             buffer_length_list=IPERF_UDP_BUFFER_LENGTHS,
             udp_mode=True,
@@ -257,9 +256,9 @@ class NetworkPerformace(TestSuite):
             network_interface=Sriov(),
         ),
     )
-    def perf_udp_iperf_sriov(self, environment: Environment) -> None:
+    def perf_udp_iperf_sriov(self, result: TestResult) -> None:
         perf_iperf(
-            environment,
+            result,
             connections=IPERF_UDP_CONCURRENCY,
             buffer_length_list=IPERF_UDP_BUFFER_LENGTHS,
             udp_mode=True,

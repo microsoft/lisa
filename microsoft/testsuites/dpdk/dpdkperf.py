@@ -10,9 +10,9 @@ from lisa import (
     notifier,
     simple_requirement,
 )
-from lisa.environment import Environment
 from lisa.features import Gpu, Infiniband, Sriov
 from lisa.messages import NetworkPPSPerformanceMessage, create_perf_message
+from lisa.testsuite import TestResult
 from lisa.tools import Lscpu
 from lisa.util import constants
 from microsoft.testsuites.dpdk.dpdkutil import (
@@ -49,12 +49,12 @@ class DpdkPerformance(TestSuite):
     )
     def perf_dpdk_failsafe_pmd_dual_core(
         self,
-        environment: Environment,
+        result: TestResult,
         log: Logger,
         variables: Dict[str, Any],
     ) -> None:
 
-        self._run_dpdk_perf_test("failsafe", environment, log, variables)
+        self._run_dpdk_perf_test("failsafe", result, log, variables)
 
     @TestCaseMetadata(
         description="""
@@ -71,14 +71,12 @@ class DpdkPerformance(TestSuite):
     )
     def perf_dpdk_failsafe_pmd_multi_core(
         self,
-        environment: Environment,
+        result: TestResult,
         log: Logger,
         variables: Dict[str, Any],
     ) -> None:
 
-        self._run_dpdk_perf_test(
-            "failsafe", environment, log, variables, use_max_cores=True
-        )
+        self._run_dpdk_perf_test("failsafe", result, log, variables, use_max_cores=True)
 
     @TestCaseMetadata(
         description="""
@@ -95,14 +93,12 @@ class DpdkPerformance(TestSuite):
     )
     def perf_dpdk_failsafe_pmd_multi_core_huge_vm(
         self,
-        environment: Environment,
+        result: TestResult,
         log: Logger,
         variables: Dict[str, Any],
     ) -> None:
 
-        self._run_dpdk_perf_test(
-            "failsafe", environment, log, variables, use_max_cores=True
-        )
+        self._run_dpdk_perf_test("failsafe", result, log, variables, use_max_cores=True)
 
     @TestCaseMetadata(
         description="""
@@ -120,14 +116,12 @@ class DpdkPerformance(TestSuite):
     )
     def perf_dpdk_failsafe_pmd_multi_queue(
         self,
-        environment: Environment,
+        result: TestResult,
         log: Logger,
         variables: Dict[str, Any],
     ) -> None:
 
-        self._run_dpdk_perf_test(
-            "failsafe", environment, log, variables, use_queues=True
-        )
+        self._run_dpdk_perf_test("failsafe", result, log, variables, use_queues=True)
 
     @TestCaseMetadata(
         description="""
@@ -145,14 +139,12 @@ class DpdkPerformance(TestSuite):
     )
     def perf_dpdk_failsafe_pmd_multi_queue_huge_vm(
         self,
-        environment: Environment,
+        result: TestResult,
         log: Logger,
         variables: Dict[str, Any],
     ) -> None:
 
-        self._run_dpdk_perf_test(
-            "failsafe", environment, log, variables, use_queues=True
-        )
+        self._run_dpdk_perf_test("failsafe", result, log, variables, use_queues=True)
 
     @TestCaseMetadata(
         description="""
@@ -170,12 +162,12 @@ class DpdkPerformance(TestSuite):
     )
     def perf_dpdk_netvsc_pmd_dual_core(
         self,
-        environment: Environment,
+        result: TestResult,
         log: Logger,
         variables: Dict[str, Any],
     ) -> None:
-        self._validate_core_counts_are_equal(environment)
-        self._run_dpdk_perf_test("netvsc", environment, log, variables)
+        self._validate_core_counts_are_equal(result)
+        self._run_dpdk_perf_test("netvsc", result, log, variables)
 
     @TestCaseMetadata(
         description="""
@@ -192,14 +184,12 @@ class DpdkPerformance(TestSuite):
     )
     def perf_dpdk_netvsc_pmd_multi_core(
         self,
-        environment: Environment,
+        result: TestResult,
         log: Logger,
         variables: Dict[str, Any],
     ) -> None:
 
-        self._run_dpdk_perf_test(
-            "netvsc", environment, log, variables, use_max_cores=True
-        )
+        self._run_dpdk_perf_test("netvsc", result, log, variables, use_max_cores=True)
 
     @TestCaseMetadata(
         description="""
@@ -217,14 +207,12 @@ class DpdkPerformance(TestSuite):
     )
     def perf_dpdk_netvsc_pmd_multi_core_huge_vm(
         self,
-        environment: Environment,
+        result: TestResult,
         log: Logger,
         variables: Dict[str, Any],
     ) -> None:
 
-        self._run_dpdk_perf_test(
-            "netvsc", environment, log, variables, use_max_cores=True
-        )
+        self._run_dpdk_perf_test("netvsc", result, log, variables, use_max_cores=True)
 
     @TestCaseMetadata(
         description="""
@@ -241,12 +229,12 @@ class DpdkPerformance(TestSuite):
     )
     def perf_dpdk_netvsc_pmd_multi_queue(
         self,
-        environment: Environment,
+        result: TestResult,
         log: Logger,
         variables: Dict[str, Any],
     ) -> None:
 
-        self._run_dpdk_perf_test("netvsc", environment, log, variables, use_queues=True)
+        self._run_dpdk_perf_test("netvsc", result, log, variables, use_queues=True)
 
     @TestCaseMetadata(
         description="""
@@ -264,24 +252,27 @@ class DpdkPerformance(TestSuite):
     )
     def perf_dpdk_netvsc_pmd_multi_queue_huge_vm(
         self,
-        environment: Environment,
+        result: TestResult,
         log: Logger,
         variables: Dict[str, Any],
     ) -> None:
 
-        self._run_dpdk_perf_test("netvsc", environment, log, variables, use_queues=True)
+        self._run_dpdk_perf_test("netvsc", result, log, variables, use_queues=True)
 
     def _run_dpdk_perf_test(
         self,
         pmd: str,
-        environment: Environment,
+        test_result: TestResult,
         log: Logger,
         variables: Dict[str, Any],
         use_max_cores: bool = False,
         use_queues: bool = False,
     ) -> None:
+        environment = test_result.environment
+        assert environment, "fail to get environment from testresult"
+
         # run build + validation to populate results
-        max_core_count = self._validate_core_counts_are_equal(environment)
+        max_core_count = self._validate_core_counts_are_equal(test_result)
         if use_max_cores:
             core_count_argument = max_core_count
         else:
@@ -301,7 +292,7 @@ class DpdkPerformance(TestSuite):
 
         # gather the performance data into message format
         result_messages = self._create_pps_performance_results(
-            send_kit, receive_kit, environment, f"perf_dpdk_{pmd}"
+            send_kit, receive_kit, test_result, f"perf_dpdk_{pmd}"
         )
 
         # pass result messages to notifier
@@ -312,7 +303,7 @@ class DpdkPerformance(TestSuite):
         self,
         send_kit: DpdkTestResources,
         receive_kit: DpdkTestResources,
-        environment: Environment,
+        test_result: TestResult,
         test_case_name: str,
     ) -> Tuple[NetworkPPSPerformanceMessage, NetworkPPSPerformanceMessage]:
         sender_fields: Dict[str, Any] = {}
@@ -340,21 +331,24 @@ class DpdkPerformance(TestSuite):
         send_results = create_perf_message(
             NetworkPPSPerformanceMessage,
             send_kit.node,
-            environment,
+            test_result,
             test_case_name,
             sender_fields,
         )
         receive_results = create_perf_message(
             NetworkPPSPerformanceMessage,
             receive_kit.node,
-            environment,
+            test_result,
             test_case_name,
             receiver_fields,
         )
 
         return send_results, receive_results
 
-    def _validate_core_counts_are_equal(self, environment: Environment) -> int:
+    def _validate_core_counts_are_equal(self, test_result: TestResult) -> int:
+        environment = test_result.environment
+        assert environment, "fail to get environment from testresult"
+
         core_counts = [
             n.tools[Lscpu].get_core_count() for n in environment.nodes.list()
         ]

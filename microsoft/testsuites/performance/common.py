@@ -15,6 +15,7 @@ from lisa.messages import (
     NetworkUDPPerformanceMessage,
 )
 from lisa.schema import NetworkDataPath
+from lisa.testsuite import TestResult
 from lisa.tools import (
     FIOMODES,
     Fdisk,
@@ -43,7 +44,7 @@ def perf_disk(
     disk_count: int,
     disk_setup_type: DiskSetupType,
     disk_type: DiskType,
-    environment: Environment,
+    test_result: TestResult,
     test_name: str = "",
     num_jobs: Optional[List[int]] = None,
     block_size: int = 4,
@@ -90,7 +91,7 @@ def perf_disk(
     fio_messages: List[DiskPerformanceMessage] = fio.create_performance_messages(
         fio_result_list,
         test_name=test_name,
-        environment=environment,
+        test_result=test_result,
         other_fields=other_fields,
     )
     for fio_message in fio_messages:
@@ -137,9 +138,10 @@ def reset_raid(node: Node, disk_list: List[str]) -> None:
     mdadm.create_raid(disk_list)
 
 
-def perf_tcp_latency(
-    environment: Environment,
-) -> List[NetworkLatencyPerformanceMessage]:
+def perf_tcp_latency(test_result: TestResult) -> List[NetworkLatencyPerformanceMessage]:
+    environment = test_result.environment
+    assert environment, "fail to get environment from testresult"
+
     client = cast(RemoteNode, environment.nodes[0])
     server = cast(RemoteNode, environment.nodes[1])
     client_lagscope = client.tools[Lagscope]
@@ -150,8 +152,8 @@ def perf_tcp_latency(
         server_lagscope.run_as_server(ip=server.internal_address)
         latency_perf_messages = client_lagscope.create_latency_performance_messages(
             client_lagscope.run_as_client(server_ip=server.internal_address),
-            environment,
             inspect.stack()[1][3],
+            test_result,
         )
     finally:
         for lagscope in [client_lagscope, server_lagscope]:
@@ -161,7 +163,7 @@ def perf_tcp_latency(
 
 
 def perf_tcp_pps(
-    environment: Environment,
+    test_result: TestResult,
     test_type: str,
     server: Optional[RemoteNode] = None,
     client: Optional[RemoteNode] = None,
@@ -174,6 +176,8 @@ def perf_tcp_pps(
         assert server is not None, "server need to be specified, if client is set"
         assert client is not None, "client need to be specified, if server is set"
     else:
+        environment = test_result.environment
+        assert environment, "fail to get environment from testresult"
         # set server and client from environment, if not set explicitly
         server = cast(RemoteNode, environment.nodes[1])
         client = cast(RemoteNode, environment.nodes[0])
@@ -199,13 +203,13 @@ def perf_tcp_pps(
     server_sar.get_statistics_async()
     result = client_sar.get_statistics()
     pps_message = client_sar.create_pps_performance_messages(
-        result, inspect.stack()[1][3], environment, test_type
+        result, inspect.stack()[1][3], test_type, test_result
     )
     notifier.notify(pps_message)
 
 
 def perf_ntttcp(
-    environment: Environment,
+    test_result: TestResult,
     server: Optional[RemoteNode] = None,
     client: Optional[RemoteNode] = None,
     udp_mode: bool = False,
@@ -222,6 +226,8 @@ def perf_ntttcp(
         assert server is not None, "server need to be specified, if client is set"
         assert client is not None, "client need to be specified, if server is set"
     else:
+        environment = test_result.environment
+        assert environment, "fail to get environment from testresult"
         # set server and client from environment, if not set explicitly
         server = cast(RemoteNode, environment.nodes[1])
         client = cast(RemoteNode, environment.nodes[0])
@@ -329,8 +335,8 @@ def perf_ntttcp(
                     client_result_temp,
                     str(test_thread),
                     buffer_size,
-                    environment,
                     test_case_name,
+                    test_result,
                 )
             else:
                 ntttcp_message = client_ntttcp.create_ntttcp_tcp_performance_message(
@@ -339,8 +345,8 @@ def perf_ntttcp(
                     client_average_latency,
                     str(test_thread),
                     buffer_size,
-                    environment,
                     test_case_name,
+                    test_result,
                 )
             notifier.notify(ntttcp_message)
 
@@ -354,11 +360,14 @@ def perf_ntttcp(
 
 
 def perf_iperf(
-    environment: Environment,
+    test_result: TestResult,
     connections: List[int],
     buffer_length_list: List[int],
     udp_mode: bool = False,
 ) -> None:
+    environment = test_result.environment
+    assert environment, "fail to get environment from testresult"
+
     client = cast(RemoteNode, environment.nodes[0])
     server = cast(RemoteNode, environment.nodes[1])
     client_iperf3 = client.tools[Iperf3]
@@ -424,8 +433,8 @@ def perf_iperf(
                         client_result_list,
                         buffer_length,
                         connection,
-                        environment,
                         test_case_name,
+                        test_result,
                     )
                 )
             else:
@@ -434,8 +443,8 @@ def perf_iperf(
                         server_result_list[0].stdout,
                         client_result_list[0].stdout,
                         buffer_length,
-                        environment,
                         test_case_name,
+                        test_result,
                     )
                 )
     for iperf3_message in iperf3_messages_list:

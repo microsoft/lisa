@@ -17,12 +17,12 @@ from lisa import (
     search_space,
     simple_requirement,
 )
-from lisa.environment import Environment
 from lisa.features import Disk
 from lisa.features.network_interface import Sriov, Synthetic
 from lisa.messages import DiskSetupType, DiskType
 from lisa.node import RemoteNode
 from lisa.operating_system import SLES, Debian, Redhat
+from lisa.testsuite import TestResult
 from lisa.tools import FileSystem, Lscpu, Mkfs, Mount, NFSClient, NFSServer
 from lisa.util import SkippedException
 from microsoft.testsuites.performance.common import (
@@ -59,8 +59,8 @@ class StoragePerformance(TestSuite):
             ),
         ),
     )
-    def perf_premium_datadisks_4k(self, node: Node, environment: Environment) -> None:
-        self._perf_premium_datadisks(node, environment)
+    def perf_premium_datadisks_4k(self, node: Node, result: TestResult) -> None:
+        self._perf_premium_datadisks(node, result)
 
     @TestCaseMetadata(
         description="""
@@ -77,10 +77,8 @@ class StoragePerformance(TestSuite):
             ),
         ),
     )
-    def perf_premium_datadisks_1024k(
-        self, node: Node, environment: Environment
-    ) -> None:
-        self._perf_premium_datadisks(node, environment, block_size=1024)
+    def perf_premium_datadisks_1024k(self, node: Node, result: TestResult) -> None:
+        self._perf_premium_datadisks(node, result, block_size=1024)
 
     @TestCaseMetadata(
         description="""
@@ -97,10 +95,10 @@ class StoragePerformance(TestSuite):
             ),
         ),
     )
-    def perf_premium_datadisks_io(self, node: Node, environment: Environment) -> None:
+    def perf_premium_datadisks_io(self, node: Node, result: TestResult) -> None:
         self._perf_premium_datadisks(
             node,
-            environment,
+            result,
             max_iodepth=64,
             filename="/dev/sdc",
         )
@@ -123,10 +121,8 @@ class StoragePerformance(TestSuite):
             network_interface=Sriov(),
         ),
     )
-    def perf_storage_over_nfs_sriov_tcp_4k(self, environment: Environment) -> None:
-        self._perf_nfs(
-            environment,
-        )
+    def perf_storage_over_nfs_sriov_tcp_4k(self, result: TestResult) -> None:
+        self._perf_nfs(result)
 
     @TestCaseMetadata(
         description="""
@@ -146,11 +142,8 @@ class StoragePerformance(TestSuite):
             network_interface=Sriov(),
         ),
     )
-    def perf_storage_over_nfs_sriov_udp_4k(self, environment: Environment) -> None:
-        self._perf_nfs(
-            environment,
-            protocol="udp",
-        )
+    def perf_storage_over_nfs_sriov_udp_4k(self, result: TestResult) -> None:
+        self._perf_nfs(result, protocol="udp")
 
     @TestCaseMetadata(
         description="""
@@ -170,8 +163,8 @@ class StoragePerformance(TestSuite):
             network_interface=Synthetic(),
         ),
     )
-    def perf_storage_over_nfs_synthetic_tcp_4k(self, environment: Environment) -> None:
-        self._perf_nfs(environment)
+    def perf_storage_over_nfs_synthetic_tcp_4k(self, result: TestResult) -> None:
+        self._perf_nfs(result)
 
     @TestCaseMetadata(
         description="""
@@ -191,15 +184,12 @@ class StoragePerformance(TestSuite):
             network_interface=Synthetic(),
         ),
     )
-    def perf_storage_over_nfs_synthetic_udp_4k(self, environment: Environment) -> None:
-        self._perf_nfs(
-            environment,
-            protocol="udp",
-        )
+    def perf_storage_over_nfs_synthetic_udp_4k(self, result: TestResult) -> None:
+        self._perf_nfs(result, protocol="udp")
 
     def _perf_nfs(
         self,
-        environment: Environment,
+        test_result: TestResult,
         server_raid_disk_name: str = "/dev/md0",
         server_raid_disk_mount_dir: str = "/mnt/nfs_share",
         client_nfs_mount_dir: str = "/mnt/nfs_client_share",
@@ -209,6 +199,9 @@ class StoragePerformance(TestSuite):
         start_iodepth: int = 1,
         max_iodepth: int = 1024,
     ) -> None:
+        environment = test_result.environment
+        assert environment, "fail to get environment from testresult"
+
         server_node = cast(RemoteNode, environment.nodes[0])
         client_node = cast(RemoteNode, environment.nodes[1])
 
@@ -277,13 +270,13 @@ class StoragePerformance(TestSuite):
             size_gb=1,
             overwrite=True,
             cwd=PurePosixPath(client_nfs_mount_dir),
-            environment=environment,
+            test_result=test_result,
         )
 
     def _perf_premium_datadisks(
         self,
         node: Node,
-        environment: Environment,
+        test_result: TestResult,
         block_size: int = 4,
         max_iodepth: int = 256,
         filename: str = "/dev/md0",
@@ -313,7 +306,7 @@ class StoragePerformance(TestSuite):
             block_size=block_size,
             size_gb=8,
             overwrite=True,
-            environment=environment,
+            test_result=test_result,
         )
 
     def after_case(self, log: Logger, **kwargs: Any) -> None:
