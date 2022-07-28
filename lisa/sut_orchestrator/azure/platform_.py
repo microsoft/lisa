@@ -374,30 +374,13 @@ class AzurePlatform(Platform):
             # fills predefined locations here.
             predefined_caps: List[Any] = [None] * node_count
             # make sure all vms are in same location.
-            existing_location: str = ""
             predefined_cost: int = 0
 
             for req in nodes_requirement:
                 # covert to azure node space, so the azure extensions can be loaded.
                 _convert_to_azure_node_space(req)
 
-                # check locations
-                # apply azure specified values
-                # they will pass into arm template
-                node_runbook: AzureNodeSchema = req.get_extended_runbook(
-                    AzureNodeSchema, AZURE
-                )
-                if node_runbook.location:
-                    if existing_location:
-                        # if any one has different location, raise an exception.
-                        if existing_location != node_runbook.location:
-                            raise LisaException(
-                                f"predefined node must be in same location, "
-                                f"previous: {existing_location}, "
-                                f"found: {node_runbook.location}"
-                            )
-                    else:
-                        existing_location = node_runbook.location
+            existing_location = _get_existing_location(nodes_requirement)
 
             if existing_location:
                 locations = [existing_location]
@@ -2257,3 +2240,24 @@ def _convert_to_azure_node_space(node_space: schema.NodeSpace) -> None:
             node_space.network_interface = schema.load_by_type(
                 schema.NetworkInterfaceOptionSettings, node_space.network_interface
             )
+
+
+def _get_existing_location(nodes_requirement: List[schema.NodeSpace]) -> str:
+    existing_location: str = ""
+    for req in nodes_requirement:
+        # check locations
+        # apply azure specified values
+        # they will pass into arm template
+        node_runbook: AzureNodeSchema = req.get_extended_runbook(AzureNodeSchema, AZURE)
+        if node_runbook.location:
+            if existing_location:
+                # if any one has different location, raise an exception.
+                if existing_location != node_runbook.location:
+                    raise LisaException(
+                        f"predefined node must be in same location, "
+                        f"previous: {existing_location}, "
+                        f"found: {node_runbook.location}"
+                    )
+            else:
+                existing_location = node_runbook.location
+    return existing_location
