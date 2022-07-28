@@ -15,7 +15,7 @@ from lisa.util.process import Process
 from .git import Git
 
 if TYPE_CHECKING:
-    from lisa.environment import Environment
+    from lisa.testsuite import TestResult
 
 
 class FIOResult:
@@ -194,7 +194,7 @@ class Fio(Tool):
         self,
         fio_results_list: List[FIOResult],
         test_name: str,
-        environment: "Environment",
+        test_result: "TestResult",
         other_fields: Optional[Dict[str, Any]] = None,
     ) -> List[DiskPerformanceMessage]:
         fio_message: List[DiskPerformanceMessage] = []
@@ -218,7 +218,7 @@ class Fio(Tool):
             fio_result_message = create_perf_message(
                 DiskPerformanceMessage,
                 self.node,
-                environment,
+                test_result,
                 test_name,
                 result_copy,
             )

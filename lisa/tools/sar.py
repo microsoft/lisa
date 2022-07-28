@@ -13,7 +13,7 @@ from lisa.util.process import ExecutableResult, Process
 from .firewall import Firewall
 
 if TYPE_CHECKING:
-    from lisa.environment import Environment
+    from lisa.testsuite import TestResult
 
 
 class Sar(Tool):
@@ -83,8 +83,8 @@ class Sar(Tool):
         self,
         result: ExecutableResult,
         test_case_name: str,
-        environment: "Environment",
         test_type: str,
+        test_result: "TestResult",
     ) -> NetworkPPSPerformanceMessage:
         # IFACE: Name of the network interface for which statistics are reported.
         # rxpck/s: packet receiving rate (unit: packets/second)
@@ -129,7 +129,7 @@ class Sar(Tool):
         message = create_perf_message(
             NetworkPPSPerformanceMessage,
             self.node,
-            environment,
+            test_result,
             test_case_name,
             result_fields,
         )

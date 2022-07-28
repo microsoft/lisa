@@ -20,7 +20,7 @@ from lisa.util.process import ExecutableResult, Process
 from .sysctl import Sysctl
 
 if TYPE_CHECKING:
-    from lisa.environment import Environment
+    from lisa.testsuite import TestResult
 
 NTTTCP_TCP_CONCURRENCY = [
     1,
@@ -353,8 +353,8 @@ class Ntttcp(Tool):
         latency: Decimal,
         connections_num: str,
         buffer_size: int,
-        environment: "Environment",
         test_case_name: str,
+        test_result: "TestResult",
     ) -> NetworkTCPPerformanceMessage:
         other_fields: Dict[str, Any] = {}
         other_fields["tool"] = constants.NETWORK_PERFORMANCE_TOOL_NTTTCP
@@ -374,7 +374,7 @@ class Ntttcp(Tool):
         return create_perf_message(
             NetworkTCPPerformanceMessage,
             self.node,
-            environment,
+            test_result,
             test_case_name,
             other_fields,
         )
@@ -385,8 +385,8 @@ class Ntttcp(Tool):
         client_result: NtttcpResult,
         connections_num: str,
         buffer_size: int,
-        environment: "Environment",
         test_case_name: str,
+        test_result: "TestResult",
     ) -> NetworkUDPPerformanceMessage:
         other_fields: Dict[str, Any] = {}
         other_fields["tool"] = constants.NETWORK_PERFORMANCE_TOOL_NTTTCP
@@ -407,7 +407,7 @@ class Ntttcp(Tool):
         return create_perf_message(
             NetworkUDPPerformanceMessage,
             self.node,
-            environment,
+            test_result,
             test_case_name,
             other_fields,
         )
