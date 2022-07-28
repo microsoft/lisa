@@ -20,7 +20,7 @@ from .mixins import KillableMixin
 from .sysctl import Sysctl
 
 if TYPE_CHECKING:
-    from lisa.environment import Environment
+    from lisa.testsuite import TestResult
 
 
 class Lagscope(Tool, KillableMixin):
@@ -241,7 +241,10 @@ class Lagscope(Tool, KillableMixin):
             return Decimal(-1.0)
 
     def create_latency_performance_messages(
-        self, result: ExecutableResult, environment: "Environment", test_case_name: str
+        self,
+        result: ExecutableResult,
+        test_case_name: str,
+        test_result: "TestResult",
     ) -> List[NetworkLatencyPerformanceMessage]:
         matched_results = self._result_pattern.match(result.stdout)
         assert (
@@ -274,7 +277,7 @@ class Lagscope(Tool, KillableMixin):
             message = create_perf_message(
                 NetworkLatencyPerformanceMessage,
                 self.node,
-                environment,
+                test_result,
                 test_case_name,
                 other_fields,
             )

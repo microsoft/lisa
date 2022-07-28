@@ -25,7 +25,7 @@ from .git import Git
 from .make import Make
 
 if TYPE_CHECKING:
-    from lisa.environment import Environment
+    from lisa.testsuite import TestResult
 
 IPERF_TCP_BUFFER_LENGTHS = [
     32,
@@ -299,8 +299,8 @@ class Iperf3(Tool):
         server_result: str,
         client_result: str,
         buffer_length: int,
-        environment: "Environment",
         test_case_name: str,
+        test_result: "TestResult",
     ) -> NetworkTCPPerformanceMessage:
         server_json = json.loads(self._pre_handle(server_result))
         client_json = json.loads(self._pre_handle(client_result))
@@ -327,7 +327,7 @@ class Iperf3(Tool):
         return create_perf_message(
             NetworkTCPPerformanceMessage,
             self.node,
-            environment,
+            test_result,
             test_case_name,
             other_fields,
         )
@@ -338,8 +338,8 @@ class Iperf3(Tool):
         client_result_list: List[ExecutableResult],
         buffer_length: int,
         connections_num: int,
-        environment: "Environment",
         test_case_name: str,
+        test_result: "TestResult",
     ) -> NetworkUDPPerformanceMessage:
         client_udp_lost_list: List[Decimal] = []
         client_intervals_throughput_list: List[Decimal] = []
@@ -411,7 +411,7 @@ class Iperf3(Tool):
         return create_perf_message(
             NetworkUDPPerformanceMessage,
             self.node,
-            environment,
+            test_result,
             test_case_name,
             other_fields,
         )
