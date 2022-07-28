@@ -10,6 +10,7 @@ from lisa.util import dict_to_fields
 if TYPE_CHECKING:
     from lisa import Node
     from lisa.environment import Environment
+    from lisa.testsuite import TestResult
 
 
 @dataclass
@@ -121,6 +122,7 @@ class PerfMessage(MessageBase):
     data_path: str = ""
     test_date: datetime = datetime.utcnow()
     role: str = ""
+    test_result_id: str = ""
 
 
 T = TypeVar("T", bound=PerfMessage)
@@ -240,10 +242,13 @@ def _is_completed_status(status: TestStatus) -> bool:
 def create_perf_message(
     message_type: Type[T],
     node: "Node",
-    environment: "Environment",
+    test_result: "TestResult",
     test_case_name: str = "",
     other_fields: Optional[Dict[str, Any]] = None,
 ) -> T:
+    environment = test_result.environment
+    assert environment, "fail to get environment from testresult"
+
     data_path: str = ""
     assert (
         node.capability.network_interface
@@ -255,6 +260,7 @@ def create_perf_message(
     dict_to_fields(environment.get_information(), message)
     message.test_case_name = test_case_name
     message.data_path = data_path
+    message.test_result_id = test_result.id_
     if other_fields:
         dict_to_fields(other_fields, message)
     return message
