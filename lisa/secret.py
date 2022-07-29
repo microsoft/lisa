@@ -16,8 +16,14 @@ PATTERN_FILENAME = (
     re.compile(r"^[^.]*?[\\/]?(.)[^\\/]*?(.[.]?[^.]*)$"),
     r"\1***\2",
 )
+# https://xx.core.windows.net/vhds/CentOS.vhd?sp=r&st=xx%2012:10:45&5;CA%aEMpls3D
+# replace as https://xx.core.windows.net/vhds/CentOS.vhd***
+PATTERN_URL = (
+    re.compile(r"(https?://([-\w]+\.)+[-\w]+(/[-./\w]*)?\??)([\w]+=[%&-:;=\w]*)?$"),
+    r"\1***",
+)
 
-patterns = {"guid": PATTERN_GUID, "headtail": PATTERN_HEADTAIL}
+patterns = {"guid": PATTERN_GUID, "headtail": PATTERN_HEADTAIL, "url": PATTERN_URL}
 
 
 def replace(
@@ -55,13 +61,19 @@ def add_secret(
     sub: str = "******",
 ) -> None:
     global _secret_list
-    if origin and origin not in _secret_set:
+    if origin:
         if not isinstance(origin, str):
             origin = str(origin)
-        _secret_set.add(origin)
-        _secret_list.append((origin, replace(origin, sub=sub, mask=mask)))
-        # deal with longer first, in case it's broken by shorter
-        _secret_list = sorted(_secret_list, reverse=True, key=lambda x: len(x[0]))
+        if origin in _secret_set:
+            for index, secret in enumerate(_secret_list):
+                if origin == secret[0]:
+                    _secret_list[index] = (origin, replace(origin, sub=sub, mask=mask))
+                    break
+        else:
+            _secret_set.add(origin)
+            _secret_list.append((origin, replace(origin, sub=sub, mask=mask)))
+            # deal with longer first, in case it's broken by shorter
+            _secret_list = sorted(_secret_list, reverse=True, key=lambda x: len(x[0]))
 
 
 def mask(input: str) -> str:
