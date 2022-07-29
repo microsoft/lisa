@@ -13,7 +13,9 @@ from lisa.util import LisaException, constants, find_groups_in_lines, get_dateti
 from lisa.util.process import ExecutableResult, Process
 
 from .firewall import Firewall
+from .gcc import Gcc
 from .git import Git
+from .make import Make
 from .mixins import KillableMixin
 from .sysctl import Sysctl
 
@@ -97,7 +99,7 @@ class Lagscope(Tool, KillableMixin):
 
     @property
     def dependencies(self) -> List[Type[Tool]]:
-        return [Git]
+        return [Git, Make, Gcc]
 
     @property
     def command(self) -> str:
@@ -324,8 +326,6 @@ class Lagscope(Tool, KillableMixin):
         posix_os: Posix = cast(Posix, self.node.os)
         if isinstance(self.node.os, Redhat):
             package_list = [
-                "make",
-                "gcc",
                 "libaio",
                 "sysstat",
                 "bc",
@@ -335,16 +335,12 @@ class Lagscope(Tool, KillableMixin):
             ]
         elif isinstance(self.node.os, Debian):
             package_list = [
-                "make",
-                "gcc",
                 "libaio1",
                 "sysstat",
                 "cmake",
             ]
         elif isinstance(self.node.os, Suse):
             package_list = [
-                "make",
-                "gcc",
                 "sysstat",
                 "bc",
                 "blktrace",
