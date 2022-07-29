@@ -293,7 +293,12 @@ Class TestSummary
 		$str = "`r`n[LISAv2 Test Results Summary]`r`n"
 		$str += "Test Run On           : " + $this.TestStartTime
 		if ($OSVHD) {
-			$str += "`r`nVHD Under Test        : " + $OSVHD
+			if ($OSVHD -match $global:SasurlPattern) {
+				$str += "`r`nVHD Under Test        : " + $($OSVHD -replace ($global:TokenPattern, "***"))
+			} else {
+				$str += "`r`nVHD Under Test        : " + $OSVHD
+			}
+
 		}
 		# This is 'ARMImageName' from Controller
 		if ($ARMImageName) {
