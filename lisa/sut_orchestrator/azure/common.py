@@ -26,7 +26,7 @@ from lisa import schema
 from lisa.environment import Environment, load_environments
 from lisa.feature import Features
 from lisa.node import Node, RemoteNode
-from lisa.secret import PATTERN_HEADTAIL, add_secret
+from lisa.secret import PATTERN_HEADTAIL, PATTERN_URL, add_secret
 from lisa.util import LisaException, constants, field_metadata, strip_strs
 from lisa.util.logger import Logger
 from lisa.util.parallel import check_cancelled
@@ -162,6 +162,8 @@ class AzureNodeSchema:
                 "disk_type",
             ],
         )
+        # If vhd contains sas token, need add mask
+        add_secret(self.vhd, PATTERN_URL)
 
     @property
     def marketplace(self) -> Optional[AzureVmMarketplaceSchema]:
