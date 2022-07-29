@@ -140,6 +140,8 @@ $CURRENT_DIR = Split-Path -Parent $MyInvocation.MyCommand.Path
 Import-Module "${CURRENT_DIR}\LISAv2-Framework" -Force
 
 $params = @{}
+$global:SasurlPattern = "https?://([-\w]+\.)+[-\w]+(/[-./\w]*)?\?[\w]+=[%&-:;=\w]*"
+$global:TokenPattern = "\?[\w]+=[%&-:;=\w]*"
 $MyInvocation.MyCommand.Parameters.Keys | ForEach-Object {
 	$value = (Get-Variable -Name $_ -Scope "Script" -ErrorAction "SilentlyContinue").Value
 	if ($value) {
@@ -147,7 +149,11 @@ $MyInvocation.MyCommand.Parameters.Keys | ForEach-Object {
 		if ($params.TestNames) {
 			$params.TestNames = $params.TestNames.replace(' ','')
 		}
-		Write-Host ($_ + " = " + $params[$_])
+		if ($_ -eq "OsVHD" -and ($value -match $global:SasurlPattern)) {
+			Write-Host ($_ + " = " + $($params[$_] -replace ($global:TokenPattern, "***")))
+		} else {
+			Write-Host ($_ + " = " + $params[$_])
+		}
 	}
 }
 $params["Verbose"] = $PSCmdlet.MyInvocation.BoundParameters["Verbose"]
