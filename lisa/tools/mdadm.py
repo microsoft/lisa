@@ -3,12 +3,19 @@
 from typing import List, Optional, Type, cast
 
 from lisa.executable import Tool
-from lisa.operating_system import Posix
+from lisa.operating_system import CBLMariner, Debian, Fedora, Posix, Suse
 from lisa.tools.hyperv import HyperV
 from lisa.tools.powershell import PowerShell
+from lisa.util import LisaException
+
+from .gcc import Gcc
+from .git import Git
+from .make import Make
 
 
 class Mdadm(Tool):
+    _repo = "https://github.com/neilbrown/mdadm"
+
     @property
     def command(self) -> str:
         return "mdadm"
@@ -51,8 +58,46 @@ class Mdadm(Tool):
 
     def _install(self) -> bool:
         posix_os: Posix = cast(Posix, self.node.os)
-        posix_os.install_packages("mdadm")
+        if posix_os.is_package_in_repo("mdadm"):
+            posix_os.install_packages("mdadm")
+        else:
+            self._install_from_src()
         return self._check_exists()
+
+    def _install_from_src(self) -> None:
+        self._install_dep_packages()
+        posix_os: Posix = cast(Posix, self.node.os)
+        posix_os.install_packages([Gcc])
+        tool_path = self.get_tool_path()
+        git = self.node.tools[Git]
+        git.clone(self._repo, tool_path)
+        make = self.node.tools[Make]
+        code_path = tool_path.joinpath("mdadm")
+        make.make_install(cwd=code_path)
+
+    def _install_dep_packages(self) -> None:
+        posix_os: Posix = cast(Posix, self.node.os)
+        if isinstance(self.node.os, CBLMariner):
+            package_list = [
+                "kernel-headers",
+                "binutils",
+                "glibc-devel",
+                "zlib-devel",
+                "cmake",
+            ]
+        elif (
+            isinstance(self.node.os, Fedora)
+            or isinstance(self.node.os, Debian)
+            or isinstance(self.node.os, Suse)
+        ):
+            pass
+        else:
+            raise LisaException(
+                f"tool {self.command} can't be installed in distro {self.node.os.name}."
+            )
+        for package in list(package_list):
+            if posix_os.is_package_in_repo(package):
+                posix_os.install_packages(package)
 
 
 class WindowsMdadm(Mdadm):
