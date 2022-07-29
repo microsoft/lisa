@@ -181,3 +181,9 @@ class SerialConsole(Feature):
                 f"{stage} found initramfs in serial log: "
                 f"{initramfs_logs} {filesystem_exception_logs}"
             )
+
+    def read(self) -> str:
+        raise NotImplementedError
+
+    def write(self, data: str) -> None:
+        raise NotImplementedError

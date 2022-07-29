@@ -1,6 +1,7 @@
 # Copyright (c) Microsoft Corporation.
 # Licensed under the MIT license.
 
+import asyncio
 import copy
 import json
 import re
@@ -11,7 +12,15 @@ from random import randint
 from typing import TYPE_CHECKING, Any, Dict, List, Optional, Tuple, Type, cast
 
 import requests
+import websockets
 from assertpy import assert_that
+from azure.core.exceptions import (
+    ClientAuthenticationError,
+    HttpResponseError,
+    ResourceExistsError,
+    ResourceNotFoundError,
+    map_error,
+)
 from azure.mgmt.compute.models import (  # type: ignore
     DiskCreateOption,
     DiskCreateOptionTypes,
@@ -19,6 +28,10 @@ from azure.mgmt.compute.models import (  # type: ignore
     NetworkInterfaceReference,
     VirtualMachineUpdate,
 )
+from azure.mgmt.core.exceptions import ARMErrorFormat
+from azure.mgmt.serialconsole import MicrosoftSerialConsoleClient  # type: ignore
+from azure.mgmt.serialconsole.models import SerialPort, SerialPortState  # type: ignore
+from azure.mgmt.serialconsole.operations import SerialPortsOperations  # type: ignore
 from dataclasses_json import dataclass_json
 from PIL import Image, UnidentifiedImageError
 from retry import retry
@@ -108,10 +121,189 @@ class StartStop(AzureFeatureMixin, features.StartStop):
             wait_operation(operation, failure_identity="Start/Stop")
 
 
+class FixedSerialPortsOperations(SerialPortsOperations):  # type: ignore
+    def connect(
+        self,
+        resource_group_name,  # type: str
+        resource_provider_namespace,  # type: str
+        parent_resource_type,  # type: str
+        parent_resource,  # type: str
+        serial_port,  # type: str
+        **kwargs,  # type: Any
+    ) -> Any:
+        """Connect to serial port of the target resource.
+        This class overrides the Serial Ports Operations class since this package
+        is incorrectly sending the POST request. It's missing the "content-type"
+        field.
+        """
+        cls = kwargs.pop("cls", None)
+        error_map = {
+            401: ClientAuthenticationError,
+            404: ResourceNotFoundError,
+            409: ResourceExistsError,
+        }
+        error_map.update(kwargs.pop("error_map", {}))
+        api_version = "2018-05-01"
+        accept = "application/json"
+        content_type = accept
+
+        # Construct URL
+        url = self.connect.metadata["url"]  # type: ignore
+        path_format_arguments = {
+            "resourceGroupName": self._serialize.url(
+                "resource_group_name", resource_group_name, "str"
+            ),
+            "resourceProviderNamespace": self._serialize.url(
+                "resource_provider_namespace", resource_provider_namespace, "str"
+            ),
+            "parentResourceType": self._serialize.url(
+                "parent_resource_type", parent_resource_type, "str", skip_quote=True
+            ),
+            "parentResource": self._serialize.url(
+                "parent_resource", parent_resource, "str"
+            ),
+            "serialPort": self._serialize.url("serial_port", serial_port, "str"),
+            "subscriptionId": self._serialize.url(
+                "self._config.subscription_id", self._config.subscription_id, "str"
+            ),
+        }
+        url = self._client.format_url(url, **path_format_arguments)
+
+        # Construct parameters
+        query_parameters = {}  # type: Dict[str, Any]
+        query_parameters["api-version"] = self._serialize.query(
+            "api_version", api_version, "str"
+        )
+
+        # Construct headers
+        header_parameters = {}  # type: Dict[str, Any]
+
+        # Fix SerialPortsOperations: Add Content-Type header
+        header_parameters["Content-Type"] = self._serialize.header(
+            "content_type", content_type, "str"
+        )
+        header_parameters["Accept"] = self._serialize.header("accept", accept, "str")
+
+        request = self._client.post(url, query_parameters, header_parameters)
+        pipeline_response = self._client._pipeline.run(request, stream=False, **kwargs)
+        response = pipeline_response.http_response
+
+        if response.status_code not in [200]:
+            map_error(  # type: ignore
+                status_code=response.status_code, response=response, error_map=error_map
+            )
+            raise HttpResponseError(
+                response=response, error_format=ARMErrorFormat
+            )  # type: ignore
+
+        deserialized = self._deserialize("SerialPortConnectResult", pipeline_response)
+
+        if cls:
+            return cls(pipeline_response, deserialized, {})
+
+        return deserialized
+
+    connect.metadata = {  # type: ignore
+        "url": (
+            "/subscriptions/{subscriptionId}/"
+            "resourcegroups/{resourceGroupName}/"
+            "providers/{resourceProviderNamespace}/"
+            "{parentResourceType}/{parentResource}/"
+            "providers/Microsoft.SerialConsole/"
+            "serialPorts/{serialPort}/connect"
+        )
+    }
+
+
 class SerialConsole(AzureFeatureMixin, features.SerialConsole):
+    RESOURCE_PROVIDER_NAMESPACE = "Microsoft.Compute"
+    PARENT_RESOURCE_TYPE = "virtualMachines"
+    DEFAULT_SERIAL_PORT_ID = 0
+
     def _initialize(self, *args: Any, **kwargs: Any) -> None:
         super()._initialize(*args, **kwargs)
         self._initialize_information(self._node)
+        self._initialize_serial_console(id=self.DEFAULT_SERIAL_PORT_ID)
+
+    @retry(tries=3, delay=5)
+    def write(self, cmd: str) -> None:
+        # websocket connection is not stable, so we need to retry
+        try:
+            self._write(cmd)
+            return
+        except websockets.ConnectionClosed as e:  # type: ignore
+            # If the connection is closed, we need to reconnect
+            self._log.debug(f"Connection closed: {e}")
+            self._ws = None
+            self._get_connection()
+            raise e
+
+    @retry(tries=3, delay=5)
+    def read(self) -> str:
+        # websocket connection is not stable, so we need to retry
+        try:
+            # run command with timeout
+            output = self._read()
+            return output
+        except websockets.ConnectionClosed as e:  # type: ignore
+            # If the connection is closed, we need to reconnect
+            self._log.debug(f"Connection closed: {e}")
+            self._ws = None
+            self._get_connection()
+            raise e
+
+    def _get_event_loop(self) -> asyncio.AbstractEventLoop:
+        # create asyncio loop if it doesn't exist
+        try:
+            return asyncio.get_event_loop()
+        except RuntimeError:
+            loop = asyncio.new_event_loop()
+            asyncio.set_event_loop(loop)
+            return loop
+
+    def _get_connection(self) -> Any:
+        if self._ws is None:
+            self._log.debug("Creating connection to serial console")
+            connection_str = self._get_connection_string()
+
+            # create websocket connection
+            self._ws = self._get_event_loop().run_until_complete(
+                websockets.connect(connection_str)  # type: ignore
+            )
+
+        return self._ws
+
+    def _write(self, cmd: str) -> None:
+        # connect to websocket and send command
+        ws = self._get_connection()
+        self._get_event_loop().run_until_complete(ws.send(cmd))
+
+    def _read(self) -> str:
+        # connect to websocket
+        ws = self._get_connection()
+
+        # read all the available messages
+        output: str = ""
+        while True:
+            try:
+                msg = self._get_event_loop().run_until_complete(
+                    asyncio.wait_for(ws.recv(), timeout=10)
+                )
+                output += msg
+            except asyncio.TimeoutError:
+                # this implies that the buffer is empty
+                break
+
+        # assert isinstance(self._output_string, str)
+        if self._output_string in output:
+            # implies that the connection was reset
+            diff = output[len(self._output_string) :]
+            self._output_string: str = output
+            return diff
+        else:
+            self._output_string += output
+
+        return output
 
     def _get_console_log(self, saved_path: Optional[Path]) -> bytes:
         platform: AzurePlatform = self._platform  # type: ignore
@@ -144,6 +336,71 @@ class SerialConsole(AzureFeatureMixin, features.SerialConsole):
         log_response = requests.get(diagnostic_data.serial_console_log_blob_uri)
 
         return log_response.content
+
+    def _get_connection_string(self) -> str:
+        # setup connection string
+        platform: AzurePlatform = self._platform  # type: ignore
+        connection = self._serial_port_operations.connect(
+            resource_group_name=self._resource_group_name,
+            resource_provider_namespace=self.RESOURCE_PROVIDER_NAMESPACE,
+            parent_resource_type=self.PARENT_RESOURCE_TYPE,
+            parent_resource=self._vm_name,
+            serial_port=self._serial_port.name,
+        )
+        token = platform.credential.get_token("").token
+        serial_port_connection_str = (
+            f"{connection.connection_string}?authorization={token}"
+        )
+
+        return serial_port_connection_str
+
+    def _initialize_serial_console(self, id: int) -> None:
+        platform: AzurePlatform = self._platform  # type: ignore
+        with global_credential_access_lock:
+            self._serial_console_client = MicrosoftSerialConsoleClient(
+                credential=platform.credential, subscription_id=platform.subscription_id
+            )
+            self._serial_port_operations: FixedSerialPortsOperations = (
+                FixedSerialPortsOperations(
+                    self._serial_console_client._client,
+                    self._serial_console_client._config,
+                    self._serial_console_client._serialize,
+                    self._serial_console_client._deserialize,
+                )
+            )
+
+        # create serial port if not exists
+        # list serial ports
+        # https://docs.microsoft.com/en-us/python/api/azure-mgmt-serialconsole/azure.mgmt.serialconsole.operations.serialportsoperations?view=azure-python#azure-mgmt-serialconsole-operations-serialportsoperations-list
+        serial_ports = self._serial_port_operations.list(
+            resource_group_name=self._resource_group_name,
+            resource_provider_namespace=self.RESOURCE_PROVIDER_NAMESPACE,
+            parent_resource_type=self.PARENT_RESOURCE_TYPE,
+            parent_resource=self._vm_name,
+        )
+        serial_port_ids = [int(port.name) for port in serial_ports.value]
+
+        if id not in serial_port_ids:
+            self._serial_port: SerialPort = self._serial_port_operations.create(
+                resource_group_name=self._resource_group_name,
+                resource_provider_namespace=self.RESOURCE_PROVIDER_NAMESPACE,
+                parent_resource_type=self.PARENT_RESOURCE_TYPE,
+                parent_resource=self._vm_name,
+                serial_port=id,
+                parameters=SerialPort(state=SerialPortState.ENABLED),
+            )
+        else:
+            self._serial_port = [
+                serialport
+                for serialport in serial_ports.value
+                if int(serialport.name) == id
+            ][0]
+
+        # setup shared web socket connection variable
+        self._ws = None
+
+        # setup output buffer
+        self._output_string = ""
 
 
 class Gpu(AzureFeatureMixin, features.Gpu):
@@ -893,7 +1150,7 @@ class Disk(AzureFeatureMixin, features.Disk):
 
 def get_azure_disk_type(disk_type: schema.DiskType) -> str:
     assert isinstance(disk_type, schema.DiskType), (
-        f"the disk_type must be one value when calling get_disk_type. "
+        "the disk_type must be one value when calling get_disk_type. "
         f"But it's {disk_type}"
     )
 
@@ -979,8 +1236,7 @@ class Resize(AzureFeatureMixin, features.Resize):
 
         current_network_interface = current_vm_size.capability.network_interface
         assert_that(current_network_interface).described_as(
-            "current_network_interface is not of type "
-            "NetworkInterfaceOptionSettings."
+            "current_network_interface is not of type NetworkInterfaceOptionSettings."
         ).is_instance_of(schema.NetworkInterfaceOptionSettings)
         current_data_path = current_network_interface.data_path  # type: ignore
         current_core_count = current_vm_size.capability.core_count
