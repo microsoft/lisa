@@ -18,7 +18,6 @@ from lisa import (
     search_space,
     simple_requirement,
 )
-from lisa.environment import Environment
 from lisa.features import Disk, Nvme
 from lisa.operating_system import CBLMariner, Redhat
 from lisa.sut_orchestrator import AZURE
@@ -30,16 +29,9 @@ from lisa.sut_orchestrator.azure.common import (
     get_storage_credential,
 )
 from lisa.sut_orchestrator.azure.platform_ import AzurePlatform
-from lisa.tools import (
-    Echo,
-    Fdisk,
-    FileSystem,
-    KernelConfig,
-    Mkfs,
-    Mount,
-    Parted,
-    Xfstests,
-)
+from lisa.testsuite import TestResult
+from lisa.tools import Echo, Fdisk, FileSystem, KernelConfig, Mkfs, Mount, Parted
+from microsoft.testsuites.xfstests.xfstests import Xfstests
 
 _scratch_folder = "/root/scratch"
 _test_folder = "/root/test"
@@ -154,15 +146,18 @@ class Xfstesting(TestSuite):
         priority=3,
     )
     def xfstesting_generic_standard_datadisk_validation(
-        self, node: Node, log_path: Path
+        self, log_path: Path, result: TestResult
     ) -> None:
+        environment = result.environment
+        assert environment, "fail to get environment from testresult"
+        node = cast(RemoteNode, environment.nodes[0])
         xfstests = self._install_xfstests(node)
         disk = node.features[Disk]
         data_disks = disk.get_raw_data_disks()
         self._execute_xfstests(
-            node,
             log_path,
             xfstests,
+            result,
             data_disks[0],
             f"{data_disks[0]}1",
             f"{data_disks[0]}2",
@@ -185,15 +180,18 @@ class Xfstesting(TestSuite):
         priority=3,
     )
     def xfstesting_xfs_standard_datadisk_validation(
-        self, node: Node, log_path: Path
+        self, log_path: Path, result: TestResult
     ) -> None:
+        environment = result.environment
+        assert environment, "fail to get environment from testresult"
+        node = cast(RemoteNode, environment.nodes[0])
         xfstests = self._install_xfstests(node)
         disk = node.features[Disk]
         data_disks = disk.get_raw_data_disks()
         self._execute_xfstests(
-            node,
             log_path,
             xfstests,
+            result,
             data_disks[0],
             f"{data_disks[0]}1",
             f"{data_disks[0]}2",
@@ -217,15 +215,18 @@ class Xfstesting(TestSuite):
         priority=3,
     )
     def xfstesting_ext4_standard_datadisk_validation(
-        self, node: Node, log_path: Path
+        self, log_path: Path, result: TestResult
     ) -> None:
+        environment = result.environment
+        assert environment, "fail to get environment from testresult"
+        node = cast(RemoteNode, environment.nodes[0])
         xfstests = self._install_xfstests(node)
         disk = node.features[Disk]
         data_disks = disk.get_raw_data_disks()
         self._execute_xfstests(
-            node,
             log_path,
             xfstests,
+            result,
             data_disks[0],
             f"{data_disks[0]}1",
             f"{data_disks[0]}2",
@@ -250,16 +251,19 @@ class Xfstesting(TestSuite):
         priority=3,
     )
     def xfstesting_btrfs_standard_datadisk_validation(
-        self, node: Node, log_path: Path
+        self, log_path: Path, result: TestResult
     ) -> None:
+        environment = result.environment
+        assert environment, "fail to get environment from testresult"
+        node = cast(RemoteNode, environment.nodes[0])
         self._check_btrfs_supported(node)
         xfstests = self._install_xfstests(node)
         disk = node.features[Disk]
         data_disks = disk.get_raw_data_disks()
         self._execute_xfstests(
-            node,
             log_path,
             xfstests,
+            result,
             data_disks[0],
             f"{data_disks[0]}1",
             f"{data_disks[0]}2",
@@ -280,15 +284,18 @@ class Xfstesting(TestSuite):
         ),
     )
     def xfstesting_generic_nvme_datadisk_validation(
-        self, node: Node, log_path: Path
+        self, log_path: Path, result: TestResult
     ) -> None:
+        environment = result.environment
+        assert environment, "fail to get environment from testresult"
+        node = cast(RemoteNode, environment.nodes[0])
         xfstests = self._install_xfstests(node)
         nvme_disk = node.features[Nvme]
         nvme_data_disks = nvme_disk.get_raw_data_disks()
         self._execute_xfstests(
-            node,
             log_path,
             xfstests,
+            result,
             nvme_data_disks[0],
             f"{nvme_data_disks[0]}p1",
             f"{nvme_data_disks[0]}p2",
@@ -307,15 +314,18 @@ class Xfstesting(TestSuite):
         ),
     )
     def xfstesting_xfs_nvme_datadisk_validation(
-        self, node: Node, log_path: Path
+        self, log_path: Path, result: TestResult
     ) -> None:
+        environment = result.environment
+        assert environment, "fail to get environment from testresult"
+        node = cast(RemoteNode, environment.nodes[0])
         xfstests = self._install_xfstests(node)
         nvme_disk = node.features[Nvme]
         nvme_data_disks = nvme_disk.get_raw_data_disks()
         self._execute_xfstests(
-            node,
             log_path,
             xfstests,
+            result,
             nvme_data_disks[0],
             f"{nvme_data_disks[0]}p1",
             f"{nvme_data_disks[0]}p2",
@@ -335,15 +345,18 @@ class Xfstesting(TestSuite):
         ),
     )
     def xfstesting_ext4_nvme_datadisk_validation(
-        self, node: Node, log_path: Path
+        self, log_path: Path, result: TestResult
     ) -> None:
+        environment = result.environment
+        assert environment, "fail to get environment from testresult"
+        node = cast(RemoteNode, environment.nodes[0])
         xfstests = self._install_xfstests(node)
         nvme_disk = node.features[Nvme]
         nvme_data_disks = nvme_disk.get_raw_data_disks()
         self._execute_xfstests(
-            node,
             log_path,
             xfstests,
+            result,
             nvme_data_disks[0],
             f"{nvme_data_disks[0]}p1",
             f"{nvme_data_disks[0]}p2",
@@ -364,16 +377,19 @@ class Xfstesting(TestSuite):
         ),
     )
     def xfstesting_btrfs_nvme_datadisk_validation(
-        self, node: Node, log_path: Path
+        self, log_path: Path, result: TestResult
     ) -> None:
+        environment = result.environment
+        assert environment, "fail to get environment from testresult"
+        node = cast(RemoteNode, environment.nodes[0])
         self._check_btrfs_supported(node)
         xfstests = self._install_xfstests(node)
         nvme_disk = node.features[Nvme]
         nvme_data_disks = nvme_disk.get_raw_data_disks()
         self._execute_xfstests(
-            node,
             log_path,
             xfstests,
+            result,
             nvme_data_disks[0],
             f"{nvme_data_disks[0]}p1",
             f"{nvme_data_disks[0]}p2",
@@ -395,8 +411,10 @@ class Xfstesting(TestSuite):
         priority=3,
     )
     def xfstesting_azure_file_share_validation(
-        self, log: Logger, environment: Environment, log_path: Path
+        self, log: Logger, log_path: Path, result: TestResult
     ) -> None:
+        environment = result.environment
+        assert environment, "fail to get environment from testresult"
         assert isinstance(environment.platform, AzurePlatform)
         node = cast(RemoteNode, environment.nodes[0])
         if not node.tools[KernelConfig].is_enabled("CONFIG_CIFS"):
@@ -458,9 +476,9 @@ class Xfstesting(TestSuite):
             )
 
             self._execute_xfstests(
-                node,
                 log_path,
                 xfstests,
+                result,
                 test_dev=fs_url_dict[file_share_name],
                 scratch_dev=fs_url_dict[scratch_name],
                 excluded_tests=self.EXCLUDED_TESTS,
@@ -498,9 +516,9 @@ class Xfstesting(TestSuite):
 
     def _execute_xfstests(
         self,
-        node: Node,
         log_path: Path,
         xfstests: Xfstests,
+        result: TestResult,
         data_disk: str = "",
         test_dev: str = "",
         scratch_dev: str = "",
@@ -509,6 +527,10 @@ class Xfstesting(TestSuite):
         excluded_tests: str = "",
         mount_opts: str = "",
     ) -> None:
+        environment = result.environment
+        assert environment, "fail to get environment from testresult"
+
+        node = cast(RemoteNode, environment.nodes[0])
         # TODO: will include generic/641 once the kernel contains below fix.
         # exclude this case generic/641 temporarily
         # it will trigger oops on RHEL8.3/8.4, VM will reboot
@@ -541,14 +563,8 @@ class Xfstesting(TestSuite):
             mount_opts,
         )
         xfstests.set_excluded_tests(excluded_tests)
-        cmd_results = node.execute(
-            f"bash check -g {test_type}/quick -E exclude.txt",
-            sudo=True,
-            shell=True,
-            cwd=xfstests.get_xfstests_path(),
-            timeout=self.TIME_OUT,
-        )
-        xfstests.check_test_results(cmd_results.stdout, log_path, test_type)
+        output = xfstests.run_test(test_type, self.TIME_OUT)
+        xfstests.check_test_results(output, log_path, test_type, result, data_disk)
 
     def _install_xfstests(self, node: Node) -> Xfstests:
         try:
