@@ -90,7 +90,6 @@ from .unzip import Unzip
 from .uptime import Uptime
 from .who import Who
 from .whoami import Whoami
-from .xfstests import Xfstests
 
 __all__ = [
     "Blkid",
@@ -195,5 +194,4 @@ __all__ = [
     "YumConfigManager",
     "Who",
     "Whoami",
-    "Xfstests",
 ]
