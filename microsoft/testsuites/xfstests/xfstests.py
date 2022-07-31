@@ -1,16 +1,25 @@
 # Copyright (c) Microsoft Corporation.
 # Licensed under the MIT license.
 import re
+from dataclasses import dataclass
 from pathlib import Path, PurePath
-from typing import Any, List, Type, cast
+from typing import Any, Dict, List, Type, cast
 
+from lisa import notifier
 from lisa.executable import Tool
+from lisa.messages import CommunityTestMessage, TestStatus, create_test_result_message
 from lisa.operating_system import CBLMariner, Debian, Posix, Redhat, Suse, Ubuntu
+from lisa.testsuite import TestResult
 from lisa.tools import Cat, Echo
+from lisa.tools.git import Git
+from lisa.tools.make import Make
 from lisa.util import LisaException, UnsupportedDistroException, find_patterns_in_lines
 
-from .git import Git
-from .make import Make
+
+@dataclass
+class XfstestsResult:
+    name: str = ""
+    status: TestStatus = TestStatus.QUEUED
 
 
 class Xfstests(Tool):
@@ -111,12 +120,22 @@ class Xfstests(Tool):
         r"([\w\W]*?)Failures: (?P<fail_cases>.*)",
         re.MULTILINE,
     )
+    # Ran: generic/001 generic/002 generic/003 ...
+    __all_cases_pattern = re.compile(
+        r"([\w\W]*?)Ran: (?P<all_cases>.*)",
+        re.MULTILINE,
+    )
+    # Not run: generic/110 generic/111 generic/115 ...
+    __not_run_cases_pattern = re.compile(
+        r"([\w\W]*?)Not run: (?P<not_run_cases>.*)",
+        re.MULTILINE,
+    )
 
     @property
     def command(self) -> str:
         # The command is not used
         # _check_exists is overwritten to check tool existence
-        return "mockup"
+        return str(self.get_tool_path(use_global=True) / "xfstests-dev" / "check")
 
     @property
     def can_install(self) -> bool:
@@ -126,14 +145,20 @@ class Xfstests(Tool):
     def dependencies(self) -> List[Type[Tool]]:
         return [Git, Make]
 
+    def run_test(self, test_type: str, timeout: int = 14400) -> str:
+        cmd_result = self.run(
+            f"-g {test_type}/quick -E exclude.txt",
+            sudo=True,
+            shell=True,
+            force_run=True,
+            cwd=self.get_xfstests_path(),
+            timeout=timeout,
+        )
+        return cmd_result.stdout
+
     def _initialize(self, *args: Any, **kwargs: Any) -> None:
         super()._initialize(*args, **kwargs)
         self._code_path = self.get_tool_path(use_global=True) / "xfstests-dev"
-
-    def _check_exists(self) -> bool:
-        return (
-            self.node.execute(f"ls -lt {self._code_path}", sudo=True, shell=True)
-        ).exit_code == 0
 
     def _install_dep(self) -> None:
         posix_os: Posix = cast(Posix, self.node.os)
@@ -276,9 +301,63 @@ class Xfstests(Tool):
             echo = self.node.tools[Echo]
             echo.write_to_file(exclude_tests, exclude_file_path)
 
-    def check_test_results(
-        self, raw_message: str, log_path: Path, test_type: str
+    def create_send_community_test_msg(
+        self,
+        test_result: TestResult,
+        raw_message: str,
+        test_type: str,
+        data_disk: str,
     ) -> None:
+        environment = test_result.environment
+        assert environment, "fail to get environment from testresult"
+        all_cases_match = self.__all_cases_pattern.match(raw_message)
+        assert all_cases_match, "fail to find run cases from xfstests output"
+        all_cases = (all_cases_match.group("all_cases")).split()
+        not_run_cases: List[str] = []
+        fail_cases: List[str] = []
+        not_run_match = self.__not_run_cases_pattern.match(raw_message)
+        if not_run_match:
+            not_run_cases = (not_run_match.group("not_run_cases")).split()
+        fail_match = self.__fail_cases_pattern.match(raw_message)
+        if fail_match:
+            fail_cases = (fail_match.group("fail_cases")).split()
+        pass_cases = [
+            x for x in all_cases if x not in not_run_cases and x not in not_run_cases
+        ]
+        results: List[XfstestsResult] = []
+        for case in fail_cases:
+            results.append(XfstestsResult(case, TestStatus.FAILED))
+        for case in pass_cases:
+            results.append(XfstestsResult(case, TestStatus.PASSED))
+        for case in not_run_cases:
+            results.append(XfstestsResult(case, TestStatus.SKIPPED))
+        for result in results:
+            # create test result message
+            info: Dict[str, Any] = {}
+            info["information"] = {}
+            info["information"]["test_type"] = test_type
+            info["information"]["data_disk"] = data_disk
+            community_message = create_test_result_message(
+                CommunityTestMessage,
+                test_result.id_,
+                environment,
+                result.name,
+                result.status,
+                other_fields=info,
+            )
+
+            # notify community test result
+            notifier.notify(community_message)
+
+    def check_test_results(
+        self,
+        raw_message: str,
+        log_path: Path,
+        test_type: str,
+        result: TestResult,
+        data_disk: str = "",
+    ) -> None:
+        self.create_send_community_test_msg(result, raw_message, test_type, data_disk)
         xfstests_path = self.get_xfstests_path()
         results_path = xfstests_path / "results/check.log"
         if not self.node.shell.exists(results_path):
