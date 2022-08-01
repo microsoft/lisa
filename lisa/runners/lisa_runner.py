@@ -82,8 +82,9 @@ class LisaRunner(BaseRunner):
 
         # sort environments by status
         available_environments = self._sort_environments(self.environments)
-        available_results = [x for x in self.test_results if x.can_run]
-        self._sort_test_results(available_results)
+        available_results = self._sort_test_results(
+            [x for x in self.test_results if x.can_run]
+        )
 
         # check deletable environments
         delete_task = self._delete_unused_environments()
