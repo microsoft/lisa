@@ -32,6 +32,7 @@ from marshmallow import validate
 from lisa import schema
 from lisa.environment import Environment, load_environments
 from lisa.feature import Features
+from lisa.features.security_profile import SecurityProfileType
 from lisa.node import Node, RemoteNode
 from lisa.secret import PATTERN_HEADTAIL, PATTERN_URL, add_secret
 from lisa.util import LisaException, constants, field_metadata, strip_strs
@@ -117,6 +118,20 @@ class AzureNodeSchema:
         default=None, metadata=field_metadata(data_key="shared_gallery")
     )
     vhd: str = ""
+    security_profile: Optional[SecurityProfileType] = field(
+        default=None,
+        metadata=field_metadata(
+            validate=validate.OneOf(
+                [
+                    None,
+                    SecurityProfileType.Standard,
+                    SecurityProfileType.Boot,
+                    SecurityProfileType.CVM,
+                ]
+            )
+        ),
+    )
+    osdisk_size_in_gb: int = 30
     hyperv_generation: int = field(
         default=1,
         metadata=field_metadata(validate=validate.OneOf([1, 2])),
