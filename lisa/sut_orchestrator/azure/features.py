@@ -39,6 +39,7 @@ from retry import retry
 from lisa import Environment, Logger, features, schema, search_space
 from lisa.features.gpu import ComputeSDK
 from lisa.features.resize import ResizeAction
+from lisa.features.security_profile import SecurityProfileSettings, SecurityProfileType
 from lisa.node import Node, RemoteNode
 from lisa.operating_system import Redhat, Suse, Ubuntu
 from lisa.search_space import RequirementMethod
@@ -1412,7 +1413,7 @@ class SecurityProfile(AzureFeatureMixin, features.SecurityProfile):
                     "secureBootEnabled": "true",
                     "vTpmEnabled": "true"
                 },
-                "securityType": "TrustedLaunch"
+                "securityType": "%s"
             }
         }
         """
@@ -1426,24 +1427,78 @@ class SecurityProfile(AzureFeatureMixin, features.SecurityProfile):
         cls, *args: Any, **kwargs: Any
     ) -> Optional[schema.FeatureSettings]:
         raw_capabilities: Any = kwargs.get("raw_capabilities")
+        capabilities: set[SecurityProfileType] = {SecurityProfileType.Standard}
 
-        value = raw_capabilities.get("HyperVGenerations", None)
-        if value and "V2" in str(value):
-            return schema.FeatureSettings.create(cls.name())
+        gen_value = raw_capabilities.get("HyperVGenerations", None)
+        cvm_value = raw_capabilities.get("ConfidentialComputingType", None)
+        if gen_value and "V2" in str(gen_value):
+            capabilities.add(SecurityProfileType.Boot)
+        if cvm_value:
+            capabilities.add(SecurityProfileType.CVM)
 
-        return None
+        return SecurityProfileSettings(
+            security_profile=search_space.SetSpace(True, capabilities)
+        )
+
+    @classmethod
+    def on_before_deployment(cls, *args: Any, **kwargs: Any) -> None:
+        settings = cast(SecurityProfileSettings, kwargs.get("settings"))
+        runbook: Any = cast(Any, kwargs.get("arm_parameters")).nodes[0]
+        try:
+            if runbook.security_profile:
+                runbook_settings = SecurityProfileSettings(
+                    security_profile=search_space.SetSpace(
+                        items=[SecurityProfileType(runbook.security_profile)]
+                    )
+                )
+                settings = settings.generate_min_capability(runbook_settings)
+        except ValueError:
+            raise LisaException(
+                f"Bad runbook value for secuirty profile: {runbook.security_profile}"
+            )
+        if SecurityProfileType.Standard not in settings.security_profile:
+            cls._enable_secure_boot(*args, **kwargs)
 
     @classmethod
     def _enable_secure_boot(cls, *args: Any, **kwargs: Any) -> None:
         parameters: Any = kwargs.get("arm_parameters")
+        settings: Any = kwargs.get("settings")
         if 1 == parameters.nodes[0].hyperv_generation:
             raise SkippedException("Secure boot can only be set on gen2 image/vhd.")
         template: Any = kwargs.get("template")
         log = cast(Logger, kwargs.get("log"))
-        log.debug("updating arm template to support secure boot.")
         resources = template["resources"]
         virtual_machines = find_by_name(resources, "Microsoft.Compute/virtualMachines")
-        virtual_machines["properties"].update(json.loads(cls._both_enabled_properties))
+        if SecurityProfileType.Standard in settings.security_profile:
+            log.debug("Security profile set to none. Arm template will not be updated.")
+            return
+        elif SecurityProfileType.Boot in settings.security_profile:
+            log.debug("Security Profile set to secure boot. Updating arm template.")
+            security_type = "TrustedLaunch"
+        elif SecurityProfileType.CVM in settings.security_profile:
+            log.debug("Security Profile set to CVM. Updating arm template.")
+            security_type = "ConfidentialVM"
+
+            virtual_machines["properties"]["storageProfile"]["osDisk"][
+                "managedDisk"
+            ] = (
+                "[if(not(equals(parameters('nodes')[copyIndex('vmCopy')]['disk_type'], "
+                "'Ephemeral')), json(concat('{\"storageAccountType\": \"',parameters"
+                "('nodes')[copyIndex('vmCopy')]['disk_type'],'\",\"securityProfile\":{"
+                '"securityEncryptionType": "VMGuestStateOnly"}}\')), json(\'null\'))]'
+            )
+        else:
+            raise LisaException(
+                "Security profile: not all requirements could be met. "
+                "Please check VM SKU capabilities, test requirements, "
+                "and runbook requirements."
+            )
+
+        virtual_machines["properties"].update(
+            json.loads(
+                cls._both_enabled_properties % security_type,
+            )
+        )
 
 
 class IsolatedResource(AzureFeatureMixin, features.IsolatedResource):
