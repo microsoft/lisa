@@ -524,7 +524,7 @@ class AzurePlatform(Platform):
             resource_group_name = truncate_keep_prefix(
                 f"{normalized_name}-e{environment.id}", 80
             )
-            environment_context.resource_group_is_created = True
+            environment_context.resource_group_is_specified = True
 
         environment_context.resource_group_name = resource_group_name
         if self._azure_runbook.dry_run:
@@ -568,10 +568,10 @@ class AzurePlatform(Platform):
             return
         assert self._azure_runbook
 
-        if not environment_context.resource_group_is_created:
+        if not environment_context.resource_group_is_specified:
             log.info(
                 f"skipped to delete resource group: {resource_group_name}, "
-                f"as it's not created by this run."
+                f"as it's specified in runbook."
             )
         elif self._azure_runbook.dry_run:
             log.info(
