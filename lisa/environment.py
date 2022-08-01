@@ -51,7 +51,7 @@ EnvironmentStatus = Enum(
         "Prepared",
         # deployed, and platform says success
         "Deployed",
-        # intialized and connected via SSH
+        # initialized and connected via SSH
         "Connected",
         # deleted by platform
         "Deleted",
