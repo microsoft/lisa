@@ -78,6 +78,8 @@ class LisaRunner(BaseRunner):
             platform=self.platform,
         )
 
+        self._cleanup_deleted_environments()
+
         # sort environments by status
         available_environments = self._sort_environments(self.environments)
         available_results = [x for x in self.test_results if x.can_run]
@@ -353,6 +355,8 @@ class LisaRunner(BaseRunner):
             case_results=test_results,
             case_variables=case_variables,
         )
+        # release environment reference to optimize memory.
+        test_result.environment = None
 
         # Some test cases may break the ssh connections. To reduce side effects
         # on next test cases, close the connection after each test run. It will
@@ -416,6 +420,14 @@ class LisaRunner(BaseRunner):
                 self._log.debug(
                     f"error on deleting environment '{environment.name}': {identifier}"
                 )
+
+    def _cleanup_deleted_environments(self) -> None:
+        # remove reference to unused environments. It can save memory on big runs.
+        new_environments: List[Environment] = []
+        for environment in self.environments[:]:
+            if environment.status != EnvironmentStatus.Deleted:
+                new_environments.append(environment)
+        self.environments = new_environments
 
     def _get_results_by_priority(
         self, test_results: List[TestResult], priority: int
@@ -484,6 +496,8 @@ class LisaRunner(BaseRunner):
             f"'{result.runtime_data.metadata.full_name}({result.id_})': "
             f"{exception}"
         )
+        # release environment reference to optimize memory.
+        result.environment = None
 
     def _get_runnable_test_results(
         self,
