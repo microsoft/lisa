@@ -50,7 +50,7 @@ class AzureDiskFeatureTestCase(TestCase):
         with self.assertRaises(LisaException) as cm:
             req.generate_min_capability(cap)
         self.assertIsInstance(cm.exception, LisaException)
-        self.assertIn("cannot get min value", str(cm.exception))
+        self.assertIn("capability doesn't support requirement", str(cm.exception))
 
     def test_disk_one_default_data_disk(self) -> None:
         # 1 data disk in req, no value, the cap get from lowest cost

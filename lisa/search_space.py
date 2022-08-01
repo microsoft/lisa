@@ -84,8 +84,7 @@ class RequirementMixin:
         check_result = self.check(capability)
         if not check_result.result:
             raise NotMeetRequirementException(
-                "cannot get min value, capability doesn't support requirement:"
-                f"{check_result.reasons}"
+                f"capability doesn't support requirement: {check_result.reasons}"
             )
 
 
@@ -433,7 +432,8 @@ def generate_min_capability_countspace(
     check_result = check_countspace(requirement, capability)
     if not check_result.result:
         raise NotMeetRequirementException(
-            "cannot get min value, capability doesn't support requirement"
+            "cannot get min value, capability doesn't support requirement: "
+            f"{check_result.reasons}"
         )
     if requirement is None:
         if capability:
@@ -461,7 +461,8 @@ def intersect_countspace(requirement: CountSpace, capability: CountSpace) -> Any
     check_result = check_countspace(requirement, capability)
     if not check_result.result:
         raise NotMeetRequirementException(
-            "cannot get intersect, capability doesn't support requirement"
+            "cannot get intersect, capability doesn't support requirement: "
+            f"{check_result.reasons}"
         )
     if requirement is None and capability:
         return copy.copy(capability)
@@ -513,6 +514,7 @@ def generate_min_capability_setspace_by_priority(
     if not check_result.result:
         raise NotMeetRequirementException(
             "cannot get min value, capability doesn't support requirement"
+            f"{check_result.reasons}"
         )
 
     assert capability is not None, "Capability shouldn't be None"
@@ -549,7 +551,7 @@ def intersect_setspace_by_priority(
     check_result = check_setspace(requirement, capability)
     if not check_result.result:
         raise NotMeetRequirementException(
-            "cannot get min value, capability doesn't support requirement"
+            f"capability doesn't support requirement: {check_result.reasons}"
         )
 
     assert capability is not None, "Capability shouldn't be None"
@@ -620,7 +622,7 @@ def _call_requirement_method(
     check_result = check(requirement, capability)
     if not check_result.result:
         raise NotMeetRequirementException(
-            "cannot call {method}, capability doesn't support requirement"
+            f"cannot call {method}, capability doesn't support requirement"
         )
 
     result: Optional[T_SEARCH_SPACE] = None
