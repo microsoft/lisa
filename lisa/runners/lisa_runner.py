@@ -106,14 +106,22 @@ class LisaRunner(BaseRunner):
                         # skip in used environments
                         continue
 
-                    environment_results = self._get_runnable_test_results(
-                        test_results=can_run_results, environment=environment
-                    )
+                    # try to pick the designated test result.
+                    environment_results = [
+                        x
+                        for x in can_run_results
+                        if environment.source_test_result
+                        and x.id_ == environment.source_test_result.id_
+                    ]
+                    if not environment_results:
+                        environment_results = self._get_runnable_test_results(
+                            test_results=can_run_results, environment=environment
+                        )
 
                     if not environment_results:
                         continue
 
-                    task = self._associate_environment_test_results(
+                    task = self._dispatch_test_result(
                         environment=environment, test_results=environment_results
                     )
                     # there is more checking conditions. If some conditions doesn't
@@ -136,7 +144,7 @@ class LisaRunner(BaseRunner):
                 self._delete_environment_task(environment, [])
         super().close()
 
-    def _associate_environment_test_results(
+    def _dispatch_test_result(
         self, environment: Environment, test_results: List[TestResult]
     ) -> Optional[Task[None]]:
         check_cancelled()
