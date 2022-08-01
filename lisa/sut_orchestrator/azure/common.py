@@ -46,7 +46,7 @@ global_credential_access_lock = Lock()
 @dataclass
 class EnvironmentContext:
     resource_group_name: str = ""
-    resource_group_is_created: bool = False
+    resource_group_is_specified: bool = False
 
 
 @dataclass
@@ -712,7 +712,7 @@ def load_environment(
         node.features = Features(node, platform)
 
     environment_context = get_environment_context(environment)
-    environment_context.resource_group_is_created = False
+    environment_context.resource_group_is_specified = False
     environment_context.resource_group_name = resource_group_name
 
     platform.initialize_environment(environment, log)

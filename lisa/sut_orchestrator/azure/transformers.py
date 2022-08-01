@@ -321,7 +321,7 @@ class DeleteTransformer(Transformer):
         assert environment
         environment_context = get_environment_context(environment)
         environment_context.resource_group_name = runbook.resource_group_name
-        environment_context.resource_group_is_created = True
+        environment_context.resource_group_is_specified = True
 
         platform.delete_environment(environment)
 
