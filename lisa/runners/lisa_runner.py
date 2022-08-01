@@ -23,7 +23,13 @@ from lisa.platform_ import (
 from lisa.runner import BaseRunner
 from lisa.testselector import select_testcases
 from lisa.testsuite import TestCaseRequirement, TestResult, TestSuite
-from lisa.util import LisaException, constants, deep_update_dict, is_unittest
+from lisa.util import (
+    LisaException,
+    NotMeetRequirementException,
+    constants,
+    deep_update_dict,
+    is_unittest,
+)
 from lisa.util.parallel import Task, check_cancelled
 from lisa.variable import VariableEntry
 
@@ -629,6 +635,7 @@ class LisaRunner(BaseRunner):
                 check_result = platform_type_set.check(test_req.platform_type)
                 if not check_result.result:
                     test_result.set_status(TestStatus.SKIPPED, check_result.reasons)
+                    continue
 
             if test_result.can_run:
                 assert test_req.environment
@@ -679,9 +686,13 @@ class LisaRunner(BaseRunner):
                         )
                         platform_requirement.excluded_features = None
 
-                        node_requirement = original_node_requirement.intersect(
-                            platform_requirement
-                        )
+                        try:
+                            node_requirement = original_node_requirement.intersect(
+                                platform_requirement
+                            )
+                        except NotMeetRequirementException as identifier:
+                            test_result.set_status(TestStatus.SKIPPED, str(identifier))
+                            break
 
                         assert isinstance(platform_requirement.extended_schemas, dict)
                         assert isinstance(node_requirement.extended_schemas, dict)
@@ -691,6 +702,8 @@ class LisaRunner(BaseRunner):
                         )
                         environment_requirement.nodes[index] = node_requirement
 
+            if test_result.can_run:
+                # the requirement may be skipped by high platform requirement.
                 env = existing_environments.from_requirement(environment_requirement)
                 if env:
                     # if env prepare or deploy failed and the test result is not
