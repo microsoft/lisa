@@ -143,7 +143,7 @@ class CPUSuite(TestSuite):
             # verify that the iperf3 was running when hotplug was triggered
             assert_that(
                 client_iperf_process.is_running(),
-                "Network workload was not running during CPUhotplug",
+                "Network workload was not running during CPU hotplug",
             ).is_true()
         finally:
             # kill fio process
@@ -153,16 +153,16 @@ class CPUSuite(TestSuite):
     @TestCaseMetadata(
         description="""
             This test will check that the added channels to synthetic network
-            adapter do not handle interrupts on offlined cpu.
+            adapter do not handle interrupts on offline cpu.
             Steps:
-            1. Get list of offlined CPUs.
+            1. Get list of offline CPUs.
             2. Add channels to synthetic network adapter.
             3. Verify that the channels were added to synthetic network adapter.
-            4. Verify that the added channels do not handle interrupts on offlined cpu.
+            4. Verify that the added channels do not handle interrupts on offline cpu.
             """,
         priority=4,
     )
-    def verify_cpu_offlined_channel_add(self, log: Logger, node: Node) -> None:
+    def verify_cpu_offline_channel_add(self, log: Logger, node: Node) -> None:
         # skip test if kernel doesn't support cpu hotplug
         check_runnable(node)
 
@@ -191,15 +191,15 @@ class CPUSuite(TestSuite):
             available_cpus = cpu_count - len(idle_cpus) - 1
             node.tools[Ethtool].change_device_channels_info("eth0", available_cpus)
 
-            # verify that the added channels do not handle interrupts on offlined cpu.
+            # verify that the added channels do not handle interrupts on offline cpu.
             lsvmbus_channels = node.tools[Lsvmbus].get_device_channels(force_run=True)
             for channel in lsvmbus_channels:
                 # verify that channels were added to synthetic network adapter
                 if channel.class_id == "f8615163-df3e-46c5-913f-f2d2f965ed0e":
-                    log.debug(f"Network synethic channel: {channel}")
+                    log.debug(f"Network synthetic channel: {channel}")
                     assert_that(channel.channel_vp_map).is_length(available_cpus)
 
-                # verify that devices do not handle interrupts on offlined cpu
+                # verify that devices do not handle interrupts on offline cpu
                 for channel_vp in channel.channel_vp_map:
                     assert_that(channel_vp.target_cpu).is_not_in(idle_cpus)
         finally:
