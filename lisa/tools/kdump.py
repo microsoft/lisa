@@ -10,7 +10,7 @@ from semver import VersionInfo
 
 from lisa.base_tools import Cat, Sed, Wget
 from lisa.executable import Tool
-from lisa.operating_system import CBLMariner, Debian, Posix, Redhat, Suse
+from lisa.operating_system import CBLMariner, Debian, Oracle, Posix, Redhat, Suse
 from lisa.tools import Find, Gcc
 from lisa.tools.make import Make
 from lisa.tools.service import Service
@@ -378,7 +378,9 @@ class KdumpRedhat(KdumpBase):
         return self._check_exists()
 
     def _get_crashkernel_cfg_file(self) -> str:
-        if self.node.os.information.version >= "8.0.0-0":
+        if self.node.os.information.version >= "8.0.0-0" and not isinstance(
+            self.node.os, Oracle
+        ):
             # For Redhat 8 and later version, we can use grubby command to config
             # crashkernel. No need to get the crashkernel cfg file
             return ""
@@ -386,7 +388,9 @@ class KdumpRedhat(KdumpBase):
             return "/etc/default/grub"
 
     def _get_crashkernel_update_cmd(self, crashkernel: str) -> str:
-        if self.node.os.information.version >= "8.0.0-0":
+        if self.node.os.information.version >= "8.0.0-0" and not isinstance(
+            self.node.os, Oracle
+        ):
             return (
                 "grubby --update-kernel=/boot/vmlinuz-$(uname -r)"
                 f' --args="crashkernel={crashkernel}"'
