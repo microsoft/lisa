@@ -14,11 +14,18 @@ _rx_drop_patterns = [
     # rx_queue_0_xdp_drop
     re.compile(r"^rx_queue_\d+_xdp_drop$"),
     # rx_xdp_drop
-    re.compile(r"^rx_xdp_drop$"),
+    # rx_0_xdp_drop
+    # rx_1_xdp_drop
+    # rx_2_xdp_drop
+    # ....
+    re.compile(r"^rx_([0-9]+_)?xdp_drop$"),
 ]
 _tx_forwarded_patterns = [
     # rx_xdp_tx
-    re.compile(r"^rx_xdp_tx$"),
+    # rx_0_xdp_tx
+    # rx_1_xdp_tx
+    # ...
+    re.compile(r"^rx_([0-9]+_)?xdp_tx$"),
     # rx_xdp_tx_xmit
     re.compile(r"^rx_xdp_tx_xmit$"),
 ]
