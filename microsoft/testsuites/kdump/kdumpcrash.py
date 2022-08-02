@@ -353,6 +353,7 @@ class KdumpCrash(TestSuite):
             # After trigger kdump, the VM will reboot. We need to close the node
             node.close()
             saved_dumpfile_size = 0
+            check_count = 10
             # Check in this loop until the dump file is generated or incomplete file
             # doesn't grow or timeout
             while True:
@@ -389,10 +390,12 @@ class KdumpCrash(TestSuite):
                     if incomplete_file_size > saved_dumpfile_size:
                         saved_dumpfile_size = incomplete_file_size
                     else:
-                        raise LisaException(
-                            "The vmcore file is incomplete with file size"
-                            f" {incomplete_file_size}"
-                        )
+                        check_count = check_count - 1
+                        if check_count <= 0:
+                            raise LisaException(
+                                "The vmcore file is incomplete with file size"
+                                f" {round(incomplete_file_size/1024/1024, 2)}MB"
+                            )
                 else:
                     raise LisaException(
                         "No vmcore or vmcore-incomplete is found under "
@@ -400,8 +403,8 @@ class KdumpCrash(TestSuite):
                     )
                 if timer.elapsed(False) > self.timeout_of_dump_crash:
                     raise LisaException(
-                        "Timeout to dump vmcore file."
-                        f"The size of vmcore-incomplete is {incomplete_file_size}"
+                        "Timeout to dump vmcore file. The size of vmcore-incomplete is"
+                        f" {round(incomplete_file_size/1024/1024, 2)}MB"
                     )
                 time.sleep(5)
         if system_disconnected:
