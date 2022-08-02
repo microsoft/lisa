@@ -79,7 +79,7 @@ def verify_hibernation(environment: Environment, log: Logger, index: int = 1) ->
         raise LisaException(
             "fail to hibernate for 'Hibernate inconsistent memory map detected'"
         )
-    if "Call Trace:" in content:
+    if "Call Trace:" in content and "Out of memory" not in content:
         raise LisaException("'Call Trace' in dmesg output")
     entry_after_hibernation = hibernation_setup_tool.check_entry()
     exit_after_hibernation = hibernation_setup_tool.check_exit()
