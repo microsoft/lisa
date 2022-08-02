@@ -89,7 +89,7 @@ class SerialConsole(Feature):
             pattern,
             first_match=False,
         )
-        # prevent the log is not ready, invalidata it for next capture.
+        # prevent the log is not ready, invalidate it for next capture.
         if not result:
             self._node.log.debug(
                 "no matched content in serial log, invalidate the cache."

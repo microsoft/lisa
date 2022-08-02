@@ -214,7 +214,7 @@ class KdumpCrash(TestSuite):
             )
 
         # Below code aims to check the kernel config for "auto crashkernel" supported.
-        # Rehat/Centos has this "auto crashkernel" feature. For version 7, it needs the
+        # Redhat/Centos has this "auto crashkernel" feature. For version 7, it needs the
         # CONFIG_KEXEC_AUTO_RESERVE. For version 8, the ifdefine of that config is
         # removed. For these changes we can refer to Centos kernel, gotten according
         # to https://wiki.centos.org/action/show/Sources?action=show&redirect=sources

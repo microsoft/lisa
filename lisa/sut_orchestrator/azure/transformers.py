@@ -40,14 +40,14 @@ from .platform_ import AzurePlatform
 from .tools import Waagent
 
 DEFAULT_EXPORTED_VHD_CONTAINER_NAME = "lisa-vhd-exported"
-DEFAULT_VHD_SUBFIX = "exported"
+DEFAULT_VHD_SUFFIX = "exported"
 
 
 @retry(tries=10, jitter=(1, 2))
 def _generate_vhd_path(container_client: Any, file_name_part: str = "") -> str:
     path = PurePosixPath(
         f"{get_date_str()}/{get_datetime_path()}_"
-        f"{DEFAULT_VHD_SUBFIX}_{file_name_part}.vhd"
+        f"{DEFAULT_VHD_SUFFIX}_{file_name_part}.vhd"
     )
     blobs = container_client.list_blobs(name_starts_with=path)
     for _ in blobs:
