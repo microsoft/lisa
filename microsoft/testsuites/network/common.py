@@ -19,10 +19,12 @@ from lisa.tools import Cat, KernelConfig, Kill, Lsmod, Lspci, Modprobe, Ssh
 reload_modules_dict: Dict[str, List[str]] = {
     "mlx5_core": ["mlx5_ib"],
     "mlx4_core": ["mlx4_en", "mlx4_ib"],
+    "mana": ["mana_en", "mana_ib"],
 }
 modules_config_dict: Dict[str, str] = {
     "mlx5_core": "CONFIG_MLX5_CORE",
     "mlx4_core": "CONFIG_MLX4_CORE",
+    "mana": "CONFIG_MICROSOFT_MANA",
 }
 
 
