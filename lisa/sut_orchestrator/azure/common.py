@@ -4,6 +4,7 @@
 import re
 import sys
 from dataclasses import InitVar, dataclass, field
+from datetime import datetime, timedelta
 from threading import Lock
 from time import sleep
 from typing import TYPE_CHECKING, Any, Dict, List, Optional, Union
@@ -17,7 +18,13 @@ from azure.mgmt.storage.models import (  # type: ignore
     Sku,
     StorageAccountCreateParameters,
 )
-from azure.storage.blob import BlobServiceClient, ContainerClient
+from azure.storage.blob import (
+    AccountSasPermissions,
+    BlobServiceClient,
+    ContainerClient,
+    ResourceTypes,
+    generate_account_sas,
+)
 from azure.storage.fileshare import ShareServiceClient  # type: ignore
 from dataclasses_json import dataclass_json
 from marshmallow import validate
@@ -493,13 +500,38 @@ def get_storage_credential(
     return {"account_name": account_name, "account_key": key.value}
 
 
-def get_or_create_storage_container(
+def generate_sas_token(
     credential: Any,
     subscription_id: str,
     account_name: str,
-    container_name: str,
     resource_group_name: str,
-) -> ContainerClient:
+    expired_hours: int = 2,
+) -> Any:
+    shared_key_credential = get_storage_credential(
+        credential=credential,
+        subscription_id=subscription_id,
+        account_name=account_name,
+        resource_group_name=resource_group_name,
+    )
+    resource_types = ResourceTypes(  # type: ignore
+        service=True, container=True, object=True
+    )
+    sas_token = generate_account_sas(
+        account_name=shared_key_credential["account_name"],
+        account_key=shared_key_credential["account_key"],
+        resource_types=resource_types,
+        permission=AccountSasPermissions(read=True),  # type: ignore
+        expiry=datetime.utcnow() + timedelta(hours=expired_hours),
+    )
+    return sas_token
+
+
+def get_blob_service_client(
+    credential: Any,
+    subscription_id: str,
+    account_name: str,
+    resource_group_name: str,
+) -> BlobServiceClient:
     """
     Create a Azure Storage container if it does not exist.
     """
@@ -511,6 +543,22 @@ def get_or_create_storage_container(
     )
     blob_service_client = BlobServiceClient(
         f"https://{account_name}.blob.core.windows.net", shared_key_credential
+    )
+    return blob_service_client
+
+
+def get_or_create_storage_container(
+    credential: Any,
+    subscription_id: str,
+    account_name: str,
+    container_name: str,
+    resource_group_name: str,
+) -> ContainerClient:
+    """
+    Create a Azure Storage container if it does not exist.
+    """
+    blob_service_client = get_blob_service_client(
+        credential, subscription_id, account_name, resource_group_name
     )
     container_client = blob_service_client.get_container_client(container_name)
     if not container_client.exists():
