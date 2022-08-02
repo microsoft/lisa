@@ -170,13 +170,13 @@ class FixedSerialPortsOperations(SerialPortsOperations):  # type: ignore
         url = self._client.format_url(url, **path_format_arguments)
 
         # Construct parameters
-        query_parameters = {}  # type: Dict[str, Any]
+        query_parameters: Dict[str, Any] = {}
         query_parameters["api-version"] = self._serialize.query(
             "api_version", api_version, "str"
         )
 
         # Construct headers
-        header_parameters = {}  # type: Dict[str, Any]
+        header_parameters: Dict[str, Any] = {}
 
         # Fix SerialPortsOperations: Add Content-Type header
         header_parameters["Content-Type"] = self._serialize.header(
@@ -226,10 +226,10 @@ class SerialConsole(AzureFeatureMixin, features.SerialConsole):
         self._initialize_serial_console(id=self.DEFAULT_SERIAL_PORT_ID)
 
     @retry(tries=3, delay=5)
-    def write(self, cmd: str) -> None:
+    def write(self, data: str) -> None:
         # websocket connection is not stable, so we need to retry
         try:
-            self._write(cmd)
+            self._write(data)
             return
         except websockets.ConnectionClosed as e:  # type: ignore
             # If the connection is closed, we need to reconnect
