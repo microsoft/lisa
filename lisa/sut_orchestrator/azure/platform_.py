@@ -78,6 +78,7 @@ from .common import (
     SharedImageGallerySchema,
     check_or_create_resource_group,
     check_or_create_storage_account,
+    generate_sas_token,
     get_compute_client,
     get_environment_context,
     get_marketplace_ordering_client,
@@ -1923,6 +1924,29 @@ class AzurePlatform(Platform):
 
         return min_cap
 
+    def _generate_sas_token(self, result_dict: Dict[str, str]) -> Any:
+        sc_name = result_dict["account_name"]
+        container_name = result_dict["container_name"]
+        rg = result_dict["resource_group_name"]
+        blob_name = result_dict["blob_name"]
+
+        source_container_client = get_or_create_storage_container(
+            credential=self.credential,
+            subscription_id=self.subscription_id,
+            account_name=sc_name,
+            container_name=container_name,
+            resource_group_name=rg,
+        )
+        source_blob = source_container_client.get_blob_client(blob_name)
+        sas_token = generate_sas_token(
+            credential=self.credential,
+            subscription_id=self.subscription_id,
+            account_name=sc_name,
+            resource_group_name=rg,
+        )
+        source_url = source_blob.url + "?" + sas_token
+        return source_url
+
     @lru_cache(maxsize=10)  # noqa: B019
     def _get_deployable_vhd_path(
         self, vhd_path: str, location: str, log: Logger
@@ -1934,8 +1958,21 @@ class AzurePlatform(Platform):
         """
         matches = SAS_URL_PATTERN.match(vhd_path)
         if not matches:
-            return vhd_path
-        log.debug("found the vhd is a sas url, it may need to be copied.")
+            vhd_details = self._get_vhd_details(vhd_path)
+            vhd_location = vhd_details["location"]
+            if location == vhd_location:
+                return vhd_path
+            else:
+                vhd_path = self._generate_sas_token(vhd_details)
+                matches = SAS_URL_PATTERN.match(vhd_path)
+                assert matches, f"fail to generate sas url for {vhd_path}"
+                log.debug(
+                    f"the vhd location {location} is not same with running case "
+                    f"location {vhd_location}, generate a sas url for source vhd, "
+                    f"it needs to be copied into location {location}."
+                )
+        else:
+            log.debug("found the vhd is a sas url, it may need to be copied.")
 
         # get original vhd's hash key for comparing.
         original_key: Optional[bytearray] = None
@@ -2001,6 +2038,26 @@ class AzurePlatform(Platform):
             wait_copy_blob(blob_client, vhd_path, log)
 
         return full_vhd_path
+
+    def _get_vhd_details(self, vhd_path: str) -> Any:
+        matched = STORAGE_CONTAINER_BLOB_PATTERN.match(vhd_path)
+        assert matched, f"fail to get matched info from {vhd_path}"
+        sc_name = matched.group("sc")
+        container_name = matched.group("container")
+        blob_name = matched.group("blob")
+        storage_client = get_storage_client(self.credential, self.subscription_id)
+        sc = [x for x in storage_client.storage_accounts.list() if x.name == sc_name]
+        assert sc[
+            0
+        ], f"fail to get storage account {sc_name} from {self.subscription_id}"
+        rg = get_matched_str(sc[0].id, RESOURCE_GROUP_PATTERN)
+        return {
+            "location": sc[0].location,
+            "resource_group_name": rg,
+            "account_name": sc_name,
+            "container_name": container_name,
+            "blob_name": blob_name,
+        }
 
     def _generate_data_disks(
         self,
@@ -2113,25 +2170,16 @@ class AzurePlatform(Platform):
         log.dump_json(logging.DEBUG, result)
 
     def _get_vhd_os_disk_size(self, blob_url: str) -> int:
-        matched = STORAGE_CONTAINER_BLOB_PATTERN.match(blob_url)
-        assert matched, f"fail to get matched info from {blob_url}"
-        sc_name = matched.group("sc")
-        container_name = matched.group("container")
-        blob_name = matched.group("blob")
-
-        storage_client = get_storage_client(self.credential, self.subscription_id)
-        sc = [x for x in storage_client.storage_accounts.list() if x.name == sc_name]
-        assert sc, f"fail to get storage account {sc_name} from {self.subscription_id}"
-        rg = get_matched_str(sc[0].id, RESOURCE_GROUP_PATTERN)
+        result_dict = self._get_vhd_details(blob_url)
         container_client = get_or_create_storage_container(
             credential=self.credential,
             subscription_id=self.subscription_id,
-            account_name=sc_name,
-            container_name=container_name,
-            resource_group_name=rg,
+            account_name=result_dict["account_name"],
+            container_name=result_dict["container_name"],
+            resource_group_name=result_dict["resource_group_name"],
         )
 
-        vhd_blob = container_client.get_blob_client(blob_name)
+        vhd_blob = container_client.get_blob_client(result_dict["blob_name"])
         properties = vhd_blob.get_blob_properties()
         assert properties.size, f"fail to get blob size of {blob_url}"
         return int(properties.size / 1024 / 1024 / 1024)
