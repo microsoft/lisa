@@ -38,7 +38,7 @@ class StressNg(Tool):
         # --timeout T, timeout after T seconds
         # --vm-bytes N, allocate N bytes per vm worker
         #  (default 256MB)
-        cmd = ""
+        cmd = " --vm-keep "
         if num_workers:
             cmd += f" --vm {num_workers} "
         if vm_bytes:
