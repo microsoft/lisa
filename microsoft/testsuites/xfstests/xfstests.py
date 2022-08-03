@@ -7,7 +7,7 @@ from typing import Any, Dict, List, Type, cast
 
 from lisa import notifier
 from lisa.executable import Tool
-from lisa.messages import CommunityTestMessage, TestStatus, create_test_result_message
+from lisa.messages import SubTestMessage, TestStatus, create_test_result_message
 from lisa.operating_system import CBLMariner, Debian, Posix, Redhat, Suse, Ubuntu
 from lisa.testsuite import TestResult
 from lisa.tools import Cat, Echo
@@ -301,7 +301,7 @@ class Xfstests(Tool):
             echo = self.node.tools[Echo]
             echo.write_to_file(exclude_tests, exclude_file_path)
 
-    def create_send_community_test_msg(
+    def create_send_subtest_msg(
         self,
         test_result: TestResult,
         raw_message: str,
@@ -337,8 +337,8 @@ class Xfstests(Tool):
             info["information"] = {}
             info["information"]["test_type"] = test_type
             info["information"]["data_disk"] = data_disk
-            community_message = create_test_result_message(
-                CommunityTestMessage,
+            subtest_message = create_test_result_message(
+                SubTestMessage,
                 test_result.id_,
                 environment,
                 result.name,
@@ -346,8 +346,8 @@ class Xfstests(Tool):
                 other_fields=info,
             )
 
-            # notify community test result
-            notifier.notify(community_message)
+            # notify subtest result
+            notifier.notify(subtest_message)
 
     def check_test_results(
         self,
@@ -357,7 +357,7 @@ class Xfstests(Tool):
         result: TestResult,
         data_disk: str = "",
     ) -> None:
-        self.create_send_community_test_msg(result, raw_message, test_type, data_disk)
+        self.create_send_subtest_msg(result, raw_message, test_type, data_disk)
         xfstests_path = self.get_xfstests_path()
         results_path = xfstests_path / "results/check.log"
         if not self.node.shell.exists(results_path):

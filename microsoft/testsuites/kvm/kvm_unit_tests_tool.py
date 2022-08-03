@@ -9,7 +9,7 @@ from assertpy import assert_that
 
 from lisa import Environment, notifier
 from lisa.executable import Tool
-from lisa.messages import CommunityTestMessage, TestStatus, create_test_result_message
+from lisa.messages import SubTestMessage, TestStatus, create_test_result_message
 from lisa.operating_system import Posix
 from lisa.testsuite import TestResult
 from lisa.tools import Git, Make
@@ -81,15 +81,15 @@ class KvmUnitTests(Tool):
         for result in results:
             if result.status == TestStatus.FAILED:
                 failed_tests.append(result.name)
-            community_message = create_test_result_message(
-                CommunityTestMessage,
+            subtest_message = create_test_result_message(
+                SubTestMessage,
                 test_result.id_,
                 environment,
                 result.name,
                 result.status,
             )
 
-            notifier.notify(community_message)
+            notifier.notify(subtest_message)
 
         self._save_logs(failed_tests, failure_logs_path)
         assert_that(failed_tests, f"Unexpected failures: {failed_tests}").is_empty()
