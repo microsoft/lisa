@@ -50,6 +50,7 @@ from lisa.secret import PATTERN_GUID, add_secret
 from lisa.tools import Dmesg, Hostname, Modinfo, Whoami
 from lisa.util import (
     LisaException,
+    NotMeetRequirementException,
     constants,
     dump_file,
     field_metadata,
@@ -2227,9 +2228,14 @@ def _convert_to_azure_node_space(node_space: schema.NodeSpace) -> None:
             )
             for current_settings in node_space.features:
                 # reload to type specified settings
-                settings_type = feature.get_feature_settings_type_by_name(
-                    current_settings.type, AzurePlatform.supported_features()
-                )
+                try:
+                    settings_type = feature.get_feature_settings_type_by_name(
+                        current_settings.type, AzurePlatform.supported_features()
+                    )
+                except NotMeetRequirementException as identifier:
+                    raise LisaException(
+                        f"platform doesn't support all features. {identifier}"
+                    )
                 new_settings.add(schema.load_by_type(settings_type, current_settings))
             node_space.features = new_settings
         if node_space.disk:

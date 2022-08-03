@@ -14,7 +14,12 @@ from typing import (
 )
 
 from lisa import schema
-from lisa.util import InitializableMixin, LisaException, constants
+from lisa.util import (
+    InitializableMixin,
+    LisaException,
+    NotMeetRequirementException,
+    constants,
+)
 from lisa.util.logger import get_logger
 
 if TYPE_CHECKING:
@@ -133,8 +138,8 @@ def get_feature_settings_type_by_name(
         if feature.name() == feature_name:
             return feature.settings_type()
 
-    raise LisaException(
-        f"cannot find feature settings type "
+    raise NotMeetRequirementException(
+        f"cannot find feature settings "
         f"for '{feature_name}' in {[x.name() for x in features]}"
     )
 
@@ -147,6 +152,6 @@ def get_feature_settings_by_name(
         if single_setting.type == feature_name:
             return single_setting
 
-    raise LisaException(
+    raise NotMeetRequirementException(
         f"cannot find feature with type '{feature_name}' in {feature_settings}"
     )
