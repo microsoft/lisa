@@ -347,6 +347,7 @@ class AzurePlatform(Platform):
             features.Hibernation,
             features.SecurityProfile,
             base_features.ACC,
+            features.IsolatedResource,
         ]
 
     def _prepare_environment(  # noqa: C901
