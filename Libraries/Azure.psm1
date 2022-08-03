@@ -449,6 +449,7 @@ Function Invoke-AllResourceGroupDeployments($SetupTypeData, $CurrentTestData, $R
 		}
 		$UseSpecializedImage = $CurrentTestData.SetupConfig.ImageType -contains "Specialized"
 		$IsWindowsOS = $CurrentTestData.SetupConfig.OSType -contains "Windows"
+		$IsASAP = $CurrentTestData.SetupConfig.DiskControllerType -contains "NVMe"
 		if ($IsWindowsOS) {
 			$OSType = "Windows"
 			if (!$global:password) {
@@ -1632,7 +1633,7 @@ Function Invoke-AllResourceGroupDeployments($SetupTypeData, $CurrentTestData, $R
 				}
 			}
 			Add-Content -Value "$($indents[5])]" -Path $jsonFile
-			if ($CurrentTestData.SetupConfig.OverrideVMSize -match "Standard_E[0-9]+bd?s_v5") {
+			if ($IsASAP) {
 				Add-Content -Value "$($indents[5])," -Path $jsonFile
 				Add-Content -Value "$($indents[5])^diskControllerType^: ^NVMe^" -Path $jsonFile
 			}

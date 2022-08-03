@@ -322,6 +322,9 @@ Class AzureController : TestController {
 			if (("Windows", "Linux") -contains $this.CustomParams["OSType"]) {
 				Add-SetupConfig -AllTests $AllTests -ConfigName "OSType" -ConfigValue $this.CustomParams["OSType"] -Force $this.ForceCustom
 			}
+			if (("NVMe", "SRIOV") -contains $this.CustomParams["DiskControllerType"]) {
+				Add-SetupConfig -AllTests $AllTests -ConfigName "DiskControllerType" -ConfigValue $this.CustomParams["DiskControllerType"] -Force $this.ForceCustom
+			}
 			if ($this.CustomParams.TiPSessionId -and $this.CustomParams.TiPCluster -and $this.CustomParams.PlatformFaultDomainCount -and $this.CustomParams.PlatformUpdateDomainCount) {
 				Add-SetupConfig -AllTests $AllTests -ConfigName "TiPSessionId" -ConfigValue $this.CustomParams.TiPSessionId -Force $true
 				Add-SetupConfig -AllTests $AllTests -ConfigName "TiPCluster" -ConfigValue $this.CustomParams.TiPCluster -Force $true
