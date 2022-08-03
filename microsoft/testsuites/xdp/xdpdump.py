@@ -56,10 +56,8 @@ class XdpDump(Tool):
         if isinstance(self.node.os, Ubuntu):
             if self.node.os.information.version < "18.4.0":
                 raise UnsupportedDistroException(self.node.os)
-            elif self.node.os.information.version == "18.4.0":
-                toolchain = f"llvm-toolchain-{self.node.os.information.codename}-6.0"
             else:
-                toolchain = f"llvm-toolchain-{self.node.os.information.codename}"
+                toolchain = f"llvm-toolchain-{self.node.os.information.codename}-15"
 
             self.node.os.add_repository(
                 repo=(
@@ -87,7 +85,7 @@ class XdpDump(Tool):
             self._bpf_samples_repo, cwd=self.get_tool_path(use_global=True)
         )
         assert_that(code_path).described_as(
-            "xdpdump cloned path is inconsistent with preconfigured"
+            "xdpdump cloned path is inconsistent with pre-configured"
         ).is_equal_to(self._code_path.parent)
         git.init_submodules(cwd=self._code_path)
 
