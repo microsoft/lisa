@@ -1560,8 +1560,6 @@ class AzurePlatform(Platform):
         node_space.network_interface.data_path = search_space.SetSpace[
             schema.NetworkDataPath
         ](is_allow_set=True, items=[])
-        vcpus = 0
-        vcpus_available = 0
 
         # fill supported features
         azure_raw_capabilities: Dict[str, str] = {}
@@ -1583,13 +1581,17 @@ class AzurePlatform(Platform):
             if feature_setting:
                 node_space.features.add(feature_setting)
 
+        # calculate cpu count. Some vm sizes, like Standard_HC44rs, doesn't have
+        # vCPUsAvailable, so use vCPUs.
+        vcpus_available = int(azure_raw_capabilities.get("vCPUsAvailable", "0"))
+        if vcpus_available:
+            node_space.core_count = vcpus_available
+        else:
+            node_space.core_count = int(azure_raw_capabilities.get("vCPUs", "0"))
+
         for sku_capability in resource_sku.capabilities:
             name = sku_capability.name
-            if name == "vCPUsAvailable":
-                vcpus_available = int(sku_capability.value)
-            elif name == "vCPUs":
-                vcpus = int(sku_capability.value)
-            elif name == "MaxDataDiskCount":
+            if name == "MaxDataDiskCount":
                 node_space.disk.max_data_disk_count = int(sku_capability.value)
                 node_space.disk.data_disk_count = search_space.IntRange(
                     max=node_space.disk.max_data_disk_count
@@ -1653,13 +1655,6 @@ class AzurePlatform(Platform):
                     node_space.features.add(
                         schema.FeatureSettings.create(features.SecurityProfile.name())
                     )
-
-        # Some vm sizes, like Standard_HC44rs, doesn't have vCPUsAvailable, so
-        # use vcpus.
-        if vcpus_available:
-            node_space.core_count = vcpus_available
-        else:
-            node_space.core_count = vcpus
 
         # add acc feature if it's supported
         if resource_sku.family in ["standardDCSv2Family", "standardDCSv3Family"]:
