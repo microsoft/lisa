@@ -77,7 +77,7 @@ class XdpDump(Tool):
         elif isinstance(self.node.os, CBLMariner):
             self.node.os.install_packages(
                 "git llvm clang elfutils-devel make gcc kernel-headers binutils "
-                "glibc-devel zlib-devel cmake"
+                "glibc-devel zlib-devel cmake clang-devel"
             )
         else:
             raise UnsupportedDistroException(self.node.os)
