@@ -1351,3 +1351,35 @@ class SecurityProfile(AzureFeatureMixin, features.SecurityProfile):
         resources = template["resources"]
         virtual_machines = find_by_name(resources, "Microsoft.Compute/virtualMachines")
         virtual_machines["properties"].update(json.loads(cls._both_enabled_properties))
+
+
+class IsolatedResource(AzureFeatureMixin, features.IsolatedResource):
+    # From https://docs.microsoft.com/en-us/azure/security/fundamentals/isolation-choices#compute-isolation # noqa: E501
+    supported_vm_sizes = set(
+        [
+            "Standard_E80ids_v4",
+            "Standard_E80is_v4",
+            "Standard_E104i_v5",
+            "Standard_E104is_v5",
+            "Standard_E104id_v5",
+            "Standard_E104ids_v5",
+            "Standard_M192is_v2",
+            "Standard_M192ims_v2",
+            "Standard_M192ids_v2",
+            "Standard_M192idms_v2",
+            "Standard_F72s_v2",
+            "Standard_M128ms",
+            # add custom vm sizes below,
+        ]
+    )
+
+    @classmethod
+    def check_supported(
+        cls, *args: Any, **kwargs: Any
+    ) -> Optional[schema.FeatureSettings]:
+        resource_sku: Any = kwargs.get("resource_sku")
+
+        if resource_sku.name in cls.supported_vm_sizes:
+            return schema.FeatureSettings.create(cls.name())
+
+        return None
