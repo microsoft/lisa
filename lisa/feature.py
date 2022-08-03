@@ -76,6 +76,15 @@ class Feature(InitializableMixin):
         """
         ...
 
+    @classmethod
+    def check_supported(
+        cls, *args: Any, **kwargs: Any
+    ) -> Optional[schema.FeatureSettings]:
+        """
+        It's called in platform to check if a node support the feature or not.
+        """
+        return None
+
     def _initialize(self, *args: Any, **kwargs: Any) -> None:
         """
         override for initializing
