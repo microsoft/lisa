@@ -9,7 +9,7 @@ from assertpy.assertpy import assert_that
 
 from lisa import Environment, notifier
 from lisa.executable import Tool
-from lisa.messages import CommunityTestMessage, TestStatus, create_test_result_message
+from lisa.messages import SubTestMessage, TestStatus, create_test_result_message
 from lisa.operating_system import Posix
 from lisa.testsuite import TestResult
 from lisa.tools import Git
@@ -83,7 +83,7 @@ class LibvirtTck(Tool):
             result.assert_exit_code()
 
         for r in results:
-            self._send_community_test_msg(
+            self._send_subtest_msg(
                 test_result.id_,
                 environment,
                 r.name,
@@ -171,19 +171,19 @@ class LibvirtTck(Tool):
 
         return results
 
-    def _send_community_test_msg(
+    def _send_subtest_msg(
         self,
         test_id: str,
         environment: Environment,
         test_name: str,
         test_status: TestStatus,
     ) -> None:
-        community_msg = create_test_result_message(
-            CommunityTestMessage,
+        subtest_msg = create_test_result_message(
+            SubTestMessage,
             test_id,
             environment,
             test_name,
             test_status,
         )
 
-        notifier.notify(community_msg)
+        notifier.notify(subtest_msg)

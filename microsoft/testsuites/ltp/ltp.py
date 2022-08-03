@@ -10,7 +10,7 @@ from assertpy import assert_that
 
 from lisa import Environment, notifier
 from lisa.executable import Tool
-from lisa.messages import CommunityTestMessage, TestStatus, create_test_result_message
+from lisa.messages import SubTestMessage, TestStatus, create_test_result_message
 from lisa.operating_system import CBLMariner, Debian, Fedora, Posix, Redhat, Suse
 from lisa.testsuite import TestResult
 from lisa.tools import (
@@ -152,8 +152,8 @@ class Ltp(Tool):
             info["information"] = {}
             info["information"]["version"] = result.version
             info["information"]["exit_value"] = result.exit_value
-            community_message = create_test_result_message(
-                CommunityTestMessage,
+            subtest_message = create_test_result_message(
+                SubTestMessage,
                 test_result.id_,
                 environment,
                 result.name,
@@ -161,8 +161,8 @@ class Ltp(Tool):
                 other_fields=info,
             )
 
-            # notify community test result
-            notifier.notify(community_message)
+            # notify subtest result
+            notifier.notify(subtest_message)
 
         # assert that none of the tests failed
         assert_that(

@@ -89,9 +89,9 @@ class TestResultMessage(TestResultMessageBase):
 
 
 @dataclass
-class CommunityTestMessage(TestResultMessageBase):
+class SubTestMessage(TestResultMessageBase):
     hardware_platform: str = ""
-    type: str = "CommunityTestResult"
+    type: str = "SubTestResult"
 
 
 class NetworkProtocol(str, Enum):
