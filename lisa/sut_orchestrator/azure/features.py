@@ -223,7 +223,7 @@ class SerialConsole(AzureFeatureMixin, features.SerialConsole):
     def _initialize(self, *args: Any, **kwargs: Any) -> None:
         super()._initialize(*args, **kwargs)
         self._initialize_information(self._node)
-        self._initialize_serial_console(id=self.DEFAULT_SERIAL_PORT_ID)
+        self._serial_console_initialized: bool = False
 
     @retry(tries=3, delay=5)
     def write(self, data: str) -> None:
@@ -274,11 +274,15 @@ class SerialConsole(AzureFeatureMixin, features.SerialConsole):
         return self._ws
 
     def _write(self, cmd: str) -> None:
+        self._initialize_serial_console(id=self.DEFAULT_SERIAL_PORT_ID)
+
         # connect to websocket and send command
         ws = self._get_connection()
         self._get_event_loop().run_until_complete(ws.send(cmd))
 
     def _read(self) -> str:
+        self._initialize_serial_console(id=self.DEFAULT_SERIAL_PORT_ID)
+
         # connect to websocket
         ws = self._get_connection()
 
@@ -355,6 +359,11 @@ class SerialConsole(AzureFeatureMixin, features.SerialConsole):
         return serial_port_connection_str
 
     def _initialize_serial_console(self, id: int) -> None:
+        if self._serial_console_initialized:
+            return
+
+        self._serial_console_initialized = True
+
         platform: AzurePlatform = self._platform  # type: ignore
         with global_credential_access_lock:
             self._serial_console_client = MicrosoftSerialConsoleClient(
