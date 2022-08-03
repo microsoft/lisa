@@ -1561,6 +1561,27 @@ class AzurePlatform(Platform):
         ](is_allow_set=True, items=[])
         vcpus = 0
         vcpus_available = 0
+
+        # fill supported features
+        azure_raw_capabilities: Dict[str, str] = {}
+        for sku_capability in resource_sku.capabilities:
+            # prevent to loop in every feature
+            azure_raw_capabilities[sku_capability.name] = sku_capability.value
+        for supported_feature in self.supported_features():
+            if supported_feature.name() in [
+                features.Disk.name(),
+                features.NetworkInterface.name(),
+            ]:
+                # Skip the disk and network interfaces features. They will be
+                # handled by node_space directly.
+                continue
+
+            feature_setting = supported_feature.check_supported(
+                raw_capabilities=azure_raw_capabilities, resource_sku=resource_sku
+            )
+            if feature_setting:
+                node_space.features.add(feature_setting)
+
         for sku_capability in resource_sku.capabilities:
             name = sku_capability.name
             if name == "vCPUsAvailable":
