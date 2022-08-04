@@ -1435,3 +1435,15 @@ class IsolatedResource(AzureFeatureMixin, features.IsolatedResource):
             return schema.FeatureSettings.create(cls.name())
 
         return None
+
+
+class ACC(AzureFeatureMixin, features.ACC):
+    @classmethod
+    def create_setting(
+        cls, *args: Any, **kwargs: Any
+    ) -> Optional[schema.FeatureSettings]:
+        resource_sku: Any = kwargs.get("resource_sku")
+
+        if resource_sku.family in ["standardDCSv2Family", "standardDCSv3Family"]:
+            return schema.FeatureSettings.create(cls.name())
+        return None

@@ -346,7 +346,7 @@ class AzurePlatform(Platform):
             features.Infiniband,
             features.Hibernation,
             features.SecurityProfile,
-            base_features.ACC,
+            features.ACC,
             features.IsolatedResource,
         ]
 
@@ -1643,12 +1643,6 @@ class AzurePlatform(Platform):
             ]:
                 # update data path types if sriov feature is supported
                 node_space.network_interface.data_path.add(schema.NetworkDataPath.Sriov)
-
-        # add acc feature if it's supported
-        if resource_sku.family in ["standardDCSv2Family", "standardDCSv3Family"]:
-            node_space.features.add(
-                schema.FeatureSettings.create(base_features.ACC.name())
-            )
 
         # add vm which support nested virtualization
         # https://docs.microsoft.com/en-us/azure/virtual-machines/acu
