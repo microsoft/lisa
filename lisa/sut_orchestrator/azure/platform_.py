@@ -1577,7 +1577,7 @@ class AzurePlatform(Platform):
                 # handled by node_space directly.
                 continue
 
-            feature_setting = supported_feature.check_supported(
+            feature_setting = supported_feature.create_setting(
                 raw_capabilities=azure_raw_capabilities, resource_sku=resource_sku
             )
             if feature_setting:
