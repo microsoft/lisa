@@ -43,7 +43,6 @@ from retry import retry
 import lisa.features as base_features
 from lisa import feature, schema, search_space
 from lisa.environment import Environment
-from lisa.features import NvmeSettings
 from lisa.node import Node, RemoteNode, local
 from lisa.platform_ import Platform
 from lisa.secret import PATTERN_GUID, add_secret
@@ -337,7 +336,7 @@ class AzurePlatform(Platform):
         return [
             features.Disk,
             features.Gpu,
-            base_features.Nvme,
+            features.Nvme,
             base_features.NestedVirtualization,
             features.SerialConsole,
             features.NetworkInterface,
@@ -1566,22 +1565,6 @@ class AzurePlatform(Platform):
         for sku_capability in resource_sku.capabilities:
             # prevent to loop in every feature
             azure_raw_capabilities[sku_capability.name] = sku_capability.value
-        for supported_feature in self.supported_features():
-            if supported_feature.name() in [
-                features.Disk.name(),
-                features.NetworkInterface.name(),
-            ]:
-                # Skip the disk and network interfaces features. They will be
-                # handled by node_space directly.
-                continue
-
-            feature_setting = supported_feature.create_setting(
-                raw_capabilities=azure_raw_capabilities,
-                resource_sku=resource_sku,
-                node_space=node_space,
-            )
-            if feature_setting:
-                node_space.features.add(feature_setting)
 
         # calculate cpu count. Some vm sizes, like Standard_HC44rs, doesn't have
         # vCPUsAvailable, so use vCPUs.
@@ -1667,16 +1650,6 @@ class AzurePlatform(Platform):
                 schema.FeatureSettings.create(base_features.NestedVirtualization.name())
             )
 
-        if resource_sku.family in ["standardLSv2Family"]:
-            # refer https://docs.microsoft.com/en-us/azure/virtual-machines/lsv2-series # noqa: E501
-            # NVMe disk count = vCPU / 8
-            nvme = NvmeSettings()
-            assert isinstance(
-                node_space.core_count, int
-            ), f"actual: {node_space.core_count}"
-            nvme.disk_count = int(node_space.core_count / 8)
-            node_space.features.add(nvme)
-
         # for some new sizes, there is no MaxNetworkInterfaces capability
         # and we have to set a default value for max_nic_count
         if not node_space.network_interface.max_nic_count:
@@ -1702,6 +1675,23 @@ class AzurePlatform(Platform):
             node_space.disk.has_resource_disk = False
         else:
             node_space.disk.has_resource_disk = True
+
+        for supported_feature in self.supported_features():
+            if supported_feature.name() in [
+                features.Disk.name(),
+                features.NetworkInterface.name(),
+            ]:
+                # Skip the disk and network interfaces features. They will be
+                # handled by node_space directly.
+                continue
+
+            feature_setting = supported_feature.create_setting(
+                raw_capabilities=azure_raw_capabilities,
+                resource_sku=resource_sku,
+                node_space=node_space,
+            )
+            if feature_setting:
+                node_space.features.add(feature_setting)
 
         # all nodes support following features
         node_space.features.update(

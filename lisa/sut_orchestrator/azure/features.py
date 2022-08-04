@@ -1447,3 +1447,29 @@ class ACC(AzureFeatureMixin, features.ACC):
         if resource_sku.family in ["standardDCSv2Family", "standardDCSv3Family"]:
             return schema.FeatureSettings.create(cls.name())
         return None
+
+
+class Nvme(AzureFeatureMixin, features.Nvme):
+    @classmethod
+    def create_setting(
+        cls, *args: Any, **kwargs: Any
+    ) -> Optional[schema.FeatureSettings]:
+        resource_sku: Any = kwargs.get("resource_sku")
+        node_space: Any = kwargs.get("node_space")
+
+        assert isinstance(node_space, schema.NodeSpace), f"actual: {type(node_space)}"
+        # add vm which support nested virtualization
+        # https://docs.microsoft.com/en-us/azure/virtual-machines/acu
+        if resource_sku.family in [
+            "standardLSv2Family",
+        ]:
+            # refer https://docs.microsoft.com/en-us/azure/virtual-machines/lsv2-series # noqa: E501
+            # NVMe disk count = vCPU / 8
+            nvme = features.NvmeSettings()
+            assert isinstance(
+                node_space.core_count, int
+            ), f"actual: {node_space.core_count}"
+            nvme.disk_count = int(node_space.core_count / 8)
+            return nvme
+
+        return None
