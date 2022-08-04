@@ -40,7 +40,6 @@ from dataclasses_json import dataclass_json
 from marshmallow import fields, validate
 from retry import retry
 
-import lisa.features as base_features
 from lisa import feature, schema, search_space
 from lisa.environment import Environment
 from lisa.node import Node, RemoteNode, local
@@ -337,7 +336,7 @@ class AzurePlatform(Platform):
             features.Disk,
             features.Gpu,
             features.Nvme,
-            base_features.NestedVirtualization,
+            features.NestedVirtualization,
             features.SerialConsole,
             features.NetworkInterface,
             features.Resize,
@@ -1626,29 +1625,6 @@ class AzurePlatform(Platform):
             ]:
                 # update data path types if sriov feature is supported
                 node_space.network_interface.data_path.add(schema.NetworkDataPath.Sriov)
-
-        # add vm which support nested virtualization
-        # https://docs.microsoft.com/en-us/azure/virtual-machines/acu
-        if resource_sku.family in [
-            "standardDv3Family",
-            "standardDSv3Family",
-            "standardDv4Family",
-            "standardDSv4Family",
-            "standardDDv4Family",
-            "standardDDSv4Family",
-            "standardEv3Family",
-            "standardESv3Family",
-            "standardEv4Family",
-            "standardESv4Family",
-            "standardEDv4Family",
-            "standardEDSv4Family",
-            "standardFSv2Family",
-            "standardMSFamily",
-            "standardMSMediumMemoryv2Family",
-        ]:
-            node_space.features.add(
-                schema.FeatureSettings.create(base_features.NestedVirtualization.name())
-            )
 
         # for some new sizes, there is no MaxNetworkInterfaces capability
         # and we have to set a default value for max_nic_count
