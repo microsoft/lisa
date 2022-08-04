@@ -1646,12 +1646,7 @@ class AzurePlatform(Platform):
 
         for sku_capability in resource_sku.capabilities:
             name = sku_capability.name
-            if name == "HibernationSupported":
-                if eval(sku_capability.value) is True:
-                    node_space.features.add(
-                        schema.FeatureSettings.create(features.Hibernation.name())
-                    )
-            elif name == "HyperVGenerations":
+            if name == "HyperVGenerations":
                 if "V2" in str(sku_capability.value):
                     node_space.features.add(
                         schema.FeatureSettings.create(features.SecurityProfile.name())
