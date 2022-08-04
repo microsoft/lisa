@@ -1589,51 +1589,69 @@ class AzurePlatform(Platform):
         else:
             node_space.core_count = int(azure_raw_capabilities.get("vCPUs", "0"))
 
+        memory_value = azure_raw_capabilities.get("MemoryGB", None)
+        if memory_value:
+            node_space.memory_mb = int(float(memory_value) * 1024)
+
+        max_disk_count = azure_raw_capabilities.get("MaxDataDiskCount", None)
+        if max_disk_count:
+            node_space.disk.max_data_disk_count = int(max_disk_count)
+            node_space.disk.data_disk_count = search_space.IntRange(
+                max=node_space.disk.max_data_disk_count
+            )
+
+        max_disk_count = azure_raw_capabilities.get("MaxNetworkInterfaces", None)
+        if max_disk_count:
+            # set a min value for nic_count work around for an azure python sdk bug
+            # nic_count is 0 when get capability for some sizes e.g. Standard_D8a_v3
+            sku_nic_count = int(max_disk_count)
+            if sku_nic_count == 0:
+                sku_nic_count = 1
+            node_space.network_interface.nic_count = search_space.IntRange(
+                min=1, max=sku_nic_count
+            )
+            node_space.network_interface.max_nic_count = sku_nic_count
+
+        # set AN
+        an_enabled = azure_raw_capabilities.get("AcceleratedNetworkingEnabled", None)
+        if an_enabled and eval(an_enabled) is True:
+            # refer
+            # https://docs.microsoft.com/en-us/azure/virtual-machines/dcv2-series#configuration
+            # https://docs.microsoft.com/en-us/azure/virtual-machines/ncv2-series
+            # https://docs.microsoft.com/en-us/azure/virtual-machines/ncv3-series
+            # https://docs.microsoft.com/en-us/azure/virtual-machines/nd-series
+            # below VM size families don't support `Accelerated Networking` but
+            # API return `True`, fix this issue temporarily will revert it till
+            # bug fixed.
+            if resource_sku.family not in [
+                "standardDCSv2Family",
+                "standardNCSv2Family",
+                "standardNCSv3Family",
+                "standardNDSFamily",
+            ]:
+                # update data path types if sriov feature is supported
+                node_space.network_interface.data_path.add(schema.NetworkDataPath.Sriov)
+        elif resource_sku.family in [
+            # For Dp/Ep_v5 VM size, the `Accelerated Networking` is required.
+            # But the API return `False`. Fix this issue temporarily and revert
+            # it till bug fixed
+            "standardDPDSv5Family",
+            "standardDPLDSv5Family",
+            "standardDPLSv5Family",
+            "standardDPSv5Family",
+            "standardEPDSv5Family",
+            "standardEPSv5Family",
+        ]:
+            node_space.network_interface.data_path.add(schema.NetworkDataPath.Sriov)
+
         for sku_capability in resource_sku.capabilities:
             name = sku_capability.name
-            if name == "MaxDataDiskCount":
-                node_space.disk.max_data_disk_count = int(sku_capability.value)
-                node_space.disk.data_disk_count = search_space.IntRange(
-                    max=node_space.disk.max_data_disk_count
-                )
-            elif name == "MemoryGB":
-                node_space.memory_mb = int(float(sku_capability.value) * 1024)
-            elif name == "MaxNetworkInterfaces":
-                # set a min value for nic_count work around for an azure python sdk bug
-                # nic_count is 0 when get capability for some sizes e.g. Standard_D8a_v3
-                sku_nic_count = int(sku_capability.value)
-                if sku_nic_count == 0:
-                    sku_nic_count = 1
-                node_space.network_interface.nic_count = search_space.IntRange(
-                    min=1, max=sku_nic_count
-                )
-                node_space.network_interface.max_nic_count = sku_nic_count
-            elif name == "GPUs":
+            if name == "GPUs":
                 node_space.gpu_count = int(sku_capability.value)
                 # update features list if gpu feature is supported
                 node_space.features.add(
                     schema.FeatureSettings.create(features.Gpu.name())
                 )
-            elif name == "AcceleratedNetworkingEnabled":
-                # refer https://docs.microsoft.com/en-us/azure/virtual-machines/dcv2-series#configuration # noqa: E501
-                # https://docs.microsoft.com/en-us/azure/virtual-machines/ncv2-series
-                # https://docs.microsoft.com/en-us/azure/virtual-machines/ncv3-series
-                # https://docs.microsoft.com/en-us/azure/virtual-machines/nd-series
-                # below VM size families don't support `Accelerated Networking`
-                # but API return `True`, fix this issue temporarily
-                # will revert it till bug fixed.
-                if resource_sku.family in [
-                    "standardDCSv2Family",
-                    "standardNCSv2Family",
-                    "standardNCSv3Family",
-                    "standardNDSFamily",
-                ]:
-                    continue
-                if eval(sku_capability.value) is True:
-                    # update data path types if sriov feature is supported
-                    node_space.network_interface.data_path.add(
-                        schema.NetworkDataPath.Sriov
-                    )
             elif name == "PremiumIO":
                 if eval(sku_capability.value) is True:
                     node_space.disk.disk_type.add(schema.DiskType.PremiumSSDLRS)
@@ -1699,18 +1717,6 @@ class AzurePlatform(Platform):
         # and we have to set a default value for max_nic_count
         if not node_space.network_interface.max_nic_count:
             node_space.network_interface.max_nic_count = 8
-
-        # For Dp/Ep_v5 VM size, the `Accelerated Networking` is required. But the API
-        # return `False`. Fix this issue temporarily and revert it till bug fixed
-        if resource_sku.family in [
-            "standardDPDSv5Family",
-            "standardDPLDSv5Family",
-            "standardDPLSv5Family",
-            "standardDPSv5Family",
-            "standardEPDSv5Family",
-            "standardEPSv5Family",
-        ]:
-            node_space.network_interface.data_path.add(schema.NetworkDataPath.Sriov)
 
         # some vm size do not have resource disk present
         # https://docs.microsoft.com/en-us/azure/virtual-machines/azure-vms-no-temp-disk
