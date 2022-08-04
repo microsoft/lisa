@@ -203,6 +203,7 @@ class AzureImageStandard(TestSuite):
         re.compile(r"(.*was skipped because of a failed condition check.*)$", re.M),
         re.compile(r"^(.*GRUB failed boot detection.*)$", re.M),
         re.compile(r"^(.*nofail.*)$", re.M),
+        re.compile(r"^(.*SGI XFS with ACLs, security attributes, realtime, verbose warnings, quota, no debug enabled.*)$", re.M)
     ]
 
     @TestCaseMetadata(
