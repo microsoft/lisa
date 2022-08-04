@@ -77,6 +77,12 @@ class AzureFeatureMixin:
 
 
 class StartStop(AzureFeatureMixin, features.StartStop):
+    @classmethod
+    def create_setting(
+        cls, *args: Any, **kwargs: Any
+    ) -> Optional[schema.FeatureSettings]:
+        return schema.FeatureSettings.create(cls.name())
+
     def _stop(
         self,
         wait: bool = True,
@@ -224,6 +230,12 @@ class SerialConsole(AzureFeatureMixin, features.SerialConsole):
         super()._initialize(*args, **kwargs)
         self._initialize_information(self._node)
         self._serial_console_initialized: bool = False
+
+    @classmethod
+    def create_setting(
+        cls, *args: Any, **kwargs: Any
+    ) -> Optional[schema.FeatureSettings]:
+        return schema.FeatureSettings.create(cls.name())
 
     @retry(tries=3, delay=5)
     def write(self, data: str) -> None:
@@ -1206,6 +1218,12 @@ _disk_type_mapping: Dict[schema.DiskType, str] = {
 
 
 class Resize(AzureFeatureMixin, features.Resize):
+    @classmethod
+    def create_setting(
+        cls, *args: Any, **kwargs: Any
+    ) -> Optional[schema.FeatureSettings]:
+        return schema.FeatureSettings.create(cls.name())
+
     def resize(
         self, resize_action: ResizeAction = ResizeAction.IncreaseCoreCount
     ) -> schema.NodeSpace:
