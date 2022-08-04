@@ -369,27 +369,24 @@ class AzurePlatform(Platform):
         if not environment.runbook.nodes_requirement:
             return True
 
-        is_success: bool = False
         nodes_requirement = environment.runbook.nodes_requirement
+
+        # covert to azure node space, so the azure extensions can be loaded.
+        for req in nodes_requirement:
+            _convert_to_azure_node_space(req)
+
+        is_success: bool = False
         node_count = len(nodes_requirement)
         # fills predefined locations here.
         predefined_caps: List[Any] = [None] * node_count
         # make sure all vms are in same location.
         predefined_cost: int = 0
 
-        for req in nodes_requirement:
-            # covert to azure node space, so the azure extensions can be loaded.
-            _convert_to_azure_node_space(req)
+        # get eligible locations
+        locations = _get_allowed_locations(nodes_requirement)
 
-        existing_location = _get_existing_location(nodes_requirement)
-
-        if existing_location:
-            locations = [existing_location]
-        else:
-            locations = LOCATIONS
-
-        # check eligible locations
         found_or_skipped = False
+        matched_location = ""
         for location_name in locations:
             predefined_cost = 0
             predefined_caps = [None] * node_count
@@ -431,8 +428,8 @@ class AzurePlatform(Platform):
                         req, matched_cap, location_name
                     )
 
-                    if not existing_location:
-                        existing_location = location_name
+                    if not matched_location:
+                        matched_location = location_name
                     predefined_caps[req_index] = min_cap
                     found_or_skipped = True
                 else:
@@ -462,14 +459,14 @@ class AzurePlatform(Platform):
                 )
                 predefined_caps[req_index] = min_cap
 
+        # skip unmatched location
+        if matched_location:
+            locations = [matched_location]
+
         for location_name in locations:
             # in each location, all node must be found
             # fill them as None and check after met capability
             found_capabilities: List[Any] = list(predefined_caps)
-
-            # skip unmatched location
-            if existing_location and existing_location != location_name:
-                continue
 
             estimated_cost: int = 0
             location_caps = self.get_eligible_vm_sizes(location_name, log)
@@ -1898,7 +1895,7 @@ class AzurePlatform(Platform):
         # Apply azure specified values. They will pass into arm template
         azure_node_runbook = min_cap.get_extended_runbook(AzureNodeSchema, AZURE)
         if azure_node_runbook.location:
-            assert azure_node_runbook.location == location, (
+            assert location in azure_node_runbook.location, (
                 f"predefined location [{azure_node_runbook.location}] "
                 f"must be same as "
                 f"cap location [{location}]"
@@ -2188,22 +2185,29 @@ def _convert_to_azure_node_space(node_space: schema.NodeSpace) -> None:
             )
 
 
-def _get_existing_location(nodes_requirement: List[schema.NodeSpace]) -> str:
-    existing_location: str = ""
+def _get_allowed_locations(nodes_requirement: List[schema.NodeSpace]) -> List[str]:
+    existing_locations_str: str = ""
     for req in nodes_requirement:
         # check locations
         # apply azure specified values
         # they will pass into arm template
         node_runbook: AzureNodeSchema = req.get_extended_runbook(AzureNodeSchema, AZURE)
         if node_runbook.location:
-            if existing_location:
+            if existing_locations_str:
                 # if any one has different location, raise an exception.
-                if existing_location != node_runbook.location:
+                if existing_locations_str != node_runbook.location:
                     raise LisaException(
                         f"predefined node must be in same location, "
-                        f"previous: {existing_location}, "
+                        f"previous: {existing_locations_str}, "
                         f"found: {node_runbook.location}"
                     )
             else:
-                existing_location = node_runbook.location
-    return existing_location
+                existing_locations_str = node_runbook.location
+
+    if existing_locations_str:
+        existing_locations = existing_locations_str.split(",")
+        existing_locations = [x.strip() for x in existing_locations]
+    else:
+        existing_locations = LOCATIONS[:]
+
+    return existing_locations
