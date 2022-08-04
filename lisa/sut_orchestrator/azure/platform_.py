@@ -1646,12 +1646,7 @@ class AzurePlatform(Platform):
 
         for sku_capability in resource_sku.capabilities:
             name = sku_capability.name
-            if name == "RdmaEnabled":
-                if eval(sku_capability.value) is True:
-                    node_space.features.add(
-                        schema.FeatureSettings.create(features.Infiniband.name())
-                    )
-            elif name == "HibernationSupported":
+            if name == "HibernationSupported":
                 if eval(sku_capability.value) is True:
                     node_space.features.add(
                         schema.FeatureSettings.create(features.Hibernation.name())
