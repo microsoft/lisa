@@ -528,6 +528,18 @@ class Infiniband(AzureFeatureMixin, features.Infiniband):
         arm_parameters.availability_set_properties["platformUpdateDomainCount"] = 1
         arm_parameters.use_availability_sets = True
 
+    @classmethod
+    def create_setting(
+        cls, *args: Any, **kwargs: Any
+    ) -> Optional[schema.FeatureSettings]:
+        raw_capabilities: Any = kwargs.get("raw_capabilities")
+
+        value = raw_capabilities.get("RdmaEnabled", None)
+        if value and eval(value) is True:
+            return schema.FeatureSettings.create(cls.name())
+
+        return None
+
     def is_over_sriov(self) -> bool:
         lspci = self._node.tools[Lspci]
         device_list = lspci.get_devices()
