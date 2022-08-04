@@ -1374,7 +1374,7 @@ class IsolatedResource(AzureFeatureMixin, features.IsolatedResource):
     )
 
     @classmethod
-    def check_supported(
+    def create_setting(
         cls, *args: Any, **kwargs: Any
     ) -> Optional[schema.FeatureSettings]:
         resource_sku: Any = kwargs.get("resource_sku")

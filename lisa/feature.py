@@ -77,11 +77,12 @@ class Feature(InitializableMixin):
         ...
 
     @classmethod
-    def check_supported(
+    def create_setting(
         cls, *args: Any, **kwargs: Any
     ) -> Optional[schema.FeatureSettings]:
         """
         It's called in platform to check if a node support the feature or not.
+        If it's supported, create a setting.
         """
         return None
 
