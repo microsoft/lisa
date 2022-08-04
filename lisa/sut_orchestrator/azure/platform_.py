@@ -1669,14 +1669,6 @@ class AzurePlatform(Platform):
             if feature_setting:
                 node_space.features.add(feature_setting)
 
-        # all nodes support following features
-        node_space.features.update(
-            [
-                schema.FeatureSettings.create(features.StartStop.name()),
-                schema.FeatureSettings.create(features.SerialConsole.name()),
-                schema.FeatureSettings.create(features.Resize.name()),
-            ]
-        )
         node_space.disk.disk_type.add(schema.DiskType.StandardHDDLRS)
         node_space.disk.disk_type.add(schema.DiskType.StandardSSDLRS)
         node_space.network_interface.data_path.add(schema.NetworkDataPath.Synthetic)
