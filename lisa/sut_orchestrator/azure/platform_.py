@@ -1576,7 +1576,9 @@ class AzurePlatform(Platform):
                 continue
 
             feature_setting = supported_feature.create_setting(
-                raw_capabilities=azure_raw_capabilities, resource_sku=resource_sku
+                raw_capabilities=azure_raw_capabilities,
+                resource_sku=resource_sku,
+                node_space=node_space,
             )
             if feature_setting:
                 node_space.features.add(feature_setting)
