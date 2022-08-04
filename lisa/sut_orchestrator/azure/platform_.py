@@ -1602,11 +1602,11 @@ class AzurePlatform(Platform):
                 max=node_space.disk.max_data_disk_count
             )
 
-        max_disk_count = azure_raw_capabilities.get("MaxNetworkInterfaces", None)
-        if max_disk_count:
+        max_nic_count = azure_raw_capabilities.get("MaxNetworkInterfaces", None)
+        if max_nic_count:
             # set a min value for nic_count work around for an azure python sdk bug
             # nic_count is 0 when get capability for some sizes e.g. Standard_D8a_v3
-            sku_nic_count = int(max_disk_count)
+            sku_nic_count = int(max_nic_count)
             if sku_nic_count == 0:
                 sku_nic_count = 1
             node_space.network_interface.nic_count = search_space.IntRange(
