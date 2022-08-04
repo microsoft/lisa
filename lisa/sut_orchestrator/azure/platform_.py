@@ -1614,6 +1614,16 @@ class AzurePlatform(Platform):
             )
             node_space.network_interface.max_nic_count = sku_nic_count
 
+        premium_io_supported = azure_raw_capabilities.get("PremiumIO", None)
+        if premium_io_supported and eval(premium_io_supported) is True:
+            node_space.disk.disk_type.add(schema.DiskType.PremiumSSDLRS)
+
+        ephemeral_supported = azure_raw_capabilities.get(
+            "EphemeralOSDiskSupported", None
+        )
+        if ephemeral_supported and eval(ephemeral_supported) is True:
+            node_space.disk.disk_type.add(schema.DiskType.Ephemeral)
+
         # set AN
         an_enabled = azure_raw_capabilities.get("AcceleratedNetworkingEnabled", None)
         if an_enabled and eval(an_enabled) is True:
@@ -1636,13 +1646,7 @@ class AzurePlatform(Platform):
 
         for sku_capability in resource_sku.capabilities:
             name = sku_capability.name
-            if name == "PremiumIO":
-                if eval(sku_capability.value) is True:
-                    node_space.disk.disk_type.add(schema.DiskType.PremiumSSDLRS)
-            elif name == "EphemeralOSDiskSupported":
-                if eval(sku_capability.value) is True:
-                    node_space.disk.disk_type.add(schema.DiskType.Ephemeral)
-            elif name == "RdmaEnabled":
+            if name == "RdmaEnabled":
                 if eval(sku_capability.value) is True:
                     node_space.features.add(
                         schema.FeatureSettings.create(features.Infiniband.name())
