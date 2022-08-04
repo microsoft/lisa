@@ -1449,6 +1449,36 @@ class ACC(AzureFeatureMixin, features.ACC):
         return None
 
 
+class NestedVirtualization(AzureFeatureMixin, features.NestedVirtualization):
+    @classmethod
+    def create_setting(
+        cls, *args: Any, **kwargs: Any
+    ) -> Optional[schema.FeatureSettings]:
+        resource_sku: Any = kwargs.get("resource_sku")
+
+        # add vm which support nested virtualization
+        # https://docs.microsoft.com/en-us/azure/virtual-machines/acu
+        if resource_sku.family in [
+            "standardDv3Family",
+            "standardDSv3Family",
+            "standardDv4Family",
+            "standardDSv4Family",
+            "standardDDv4Family",
+            "standardDDSv4Family",
+            "standardEv3Family",
+            "standardESv3Family",
+            "standardEv4Family",
+            "standardESv4Family",
+            "standardEDv4Family",
+            "standardEDSv4Family",
+            "standardFSv2Family",
+            "standardMSFamily",
+            "standardMSMediumMemoryv2Family",
+        ]:
+            return schema.FeatureSettings.create(cls.name())
+        return None
+
+
 class Nvme(AzureFeatureMixin, features.Nvme):
     @classmethod
     def create_setting(
