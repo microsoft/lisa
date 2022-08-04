@@ -1631,18 +1631,6 @@ class AzurePlatform(Platform):
             ]:
                 # update data path types if sriov feature is supported
                 node_space.network_interface.data_path.add(schema.NetworkDataPath.Sriov)
-        elif resource_sku.family in [
-            # For Dp/Ep_v5 VM size, the `Accelerated Networking` is required.
-            # But the API return `False`. Fix this issue temporarily and revert
-            # it till bug fixed
-            "standardDPDSv5Family",
-            "standardDPLDSv5Family",
-            "standardDPLSv5Family",
-            "standardDPSv5Family",
-            "standardEPDSv5Family",
-            "standardEPSv5Family",
-        ]:
-            node_space.network_interface.data_path.add(schema.NetworkDataPath.Sriov)
 
         for sku_capability in resource_sku.capabilities:
             name = sku_capability.name
