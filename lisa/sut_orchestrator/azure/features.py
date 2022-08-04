@@ -1381,6 +1381,18 @@ class SecurityProfile(AzureFeatureMixin, features.SecurityProfile):
         self._initialize_information(self._node)
 
     @classmethod
+    def create_setting(
+        cls, *args: Any, **kwargs: Any
+    ) -> Optional[schema.FeatureSettings]:
+        raw_capabilities: Any = kwargs.get("raw_capabilities")
+
+        value = raw_capabilities.get("HyperVGenerations", None)
+        if value and "V2" in str(value):
+            return schema.FeatureSettings.create(cls.name())
+
+        return None
+
+    @classmethod
     def _enable_secure_boot(cls, *args: Any, **kwargs: Any) -> None:
         parameters: Any = kwargs.get("arm_parameters")
         if 1 == parameters.nodes[0].hyperv_generation:

@@ -1644,14 +1644,6 @@ class AzurePlatform(Platform):
                 # update data path types if sriov feature is supported
                 node_space.network_interface.data_path.add(schema.NetworkDataPath.Sriov)
 
-        for sku_capability in resource_sku.capabilities:
-            name = sku_capability.name
-            if name == "HyperVGenerations":
-                if "V2" in str(sku_capability.value):
-                    node_space.features.add(
-                        schema.FeatureSettings.create(features.SecurityProfile.name())
-                    )
-
         # add acc feature if it's supported
         if resource_sku.family in ["standardDCSv2Family", "standardDCSv3Family"]:
             node_space.features.add(
