@@ -1336,6 +1336,18 @@ class Hibernation(AzureFeatureMixin, features.Hibernation):
         self._initialize_information(self._node)
 
     @classmethod
+    def create_setting(
+        cls, *args: Any, **kwargs: Any
+    ) -> Optional[schema.FeatureSettings]:
+        raw_capabilities: Any = kwargs.get("raw_capabilities")
+
+        value = raw_capabilities.get("HibernationSupported", None)
+        if value and eval(value) is True:
+            return schema.FeatureSettings.create(cls.name())
+
+        return None
+
+    @classmethod
     def _enable_hibernation(cls, *args: Any, **kwargs: Any) -> None:
         parameters: Any = kwargs.get("arm_parameters")
         if parameters.use_availability_sets:
