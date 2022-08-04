@@ -1636,13 +1636,7 @@ class AzurePlatform(Platform):
 
         for sku_capability in resource_sku.capabilities:
             name = sku_capability.name
-            if name == "GPUs":
-                node_space.gpu_count = int(sku_capability.value)
-                # update features list if gpu feature is supported
-                node_space.features.add(
-                    schema.FeatureSettings.create(features.Gpu.name())
-                )
-            elif name == "PremiumIO":
+            if name == "PremiumIO":
                 if eval(sku_capability.value) is True:
                     node_space.disk.disk_type.add(schema.DiskType.PremiumSSDLRS)
             elif name == "EphemeralOSDiskSupported":

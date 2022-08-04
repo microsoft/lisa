@@ -476,6 +476,22 @@ class Gpu(AzureFeatureMixin, features.Gpu):
             )
         return driver_list
 
+    @classmethod
+    def create_setting(
+        cls, *args: Any, **kwargs: Any
+    ) -> Optional[schema.FeatureSettings]:
+        raw_capabilities: Any = kwargs.get("raw_capabilities")
+        node_space = kwargs.get("node_space")
+
+        assert isinstance(node_space, schema.NodeSpace), f"actual: {type(node_space)}"
+
+        value = raw_capabilities.get("GPUs", None)
+        if value:
+            node_space.gpu_count = int(value)
+            return schema.FeatureSettings.create(cls.name())
+
+        return None
+
     def _initialize(self, *args: Any, **kwargs: Any) -> None:
         super()._initialize(*args, **kwargs)
         self._initialize_information(self._node)
