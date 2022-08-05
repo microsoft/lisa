@@ -24,6 +24,7 @@ from lisa import schema, search_space
 from lisa.environment import Environment
 from lisa.feature import Feature
 from lisa.node import Node, RemoteNode, local_node_connect
+from lisa.operating_system import CBLMariner
 from lisa.platform_ import Platform
 from lisa.tools import Iptables, QemuImg, Uname
 from lisa.util import LisaException, constants, get_public_key_data
@@ -809,10 +810,12 @@ class BaseLibvirtPlatform(Platform):
         video = ET.SubElement(devices, "video")
 
         video_model = ET.SubElement(video, "model")
-        video_model.attrib["type"] = "qxl"
-
-        graphics = ET.SubElement(devices, "graphics")
-        graphics.attrib["type"] = "spice"
+        if isinstance(self.host_node.os, CBLMariner):
+            video_model.attrib["type"] = "vga"
+        else:
+            video_model.attrib["type"] = "qxl"
+            graphics = ET.SubElement(devices, "graphics")
+            graphics.attrib["type"] = "spice"
 
         network_interface = ET.SubElement(devices, "interface")
         network_interface.attrib["type"] = "network"
