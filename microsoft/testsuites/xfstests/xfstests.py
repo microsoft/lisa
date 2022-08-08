@@ -162,9 +162,6 @@ class Xfstests(Tool):
 
     def _install_dep(self) -> None:
         posix_os: Posix = cast(Posix, self.node.os)
-        tool_path = self.get_tool_path(use_global=True)
-        git = self.node.tools[Git]
-        git.clone(self.repo, tool_path)
         # install dependency packages
         package_list = []
         package_list.extend(self.common_dep)
@@ -240,6 +237,8 @@ class Xfstests(Tool):
         self._install_dep()
         self._add_test_users()
         tool_path = self.get_tool_path(use_global=True)
+        git = self.node.tools[Git]
+        git.clone(self.repo, tool_path)
         make = self.node.tools[Make]
         code_path = tool_path.joinpath("xfstests-dev")
         make.make_install(code_path)
