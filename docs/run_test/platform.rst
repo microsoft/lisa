@@ -5,7 +5,9 @@ Run tests on different platforms
 
    *  `Use vhd <#use-vhd>`__
    *  `Use marketplace image <#use-marketplace-image>`__
-   *  `Running with existing deployment <#use-existing-deployment>`__
+   *  `Use shared image gallery <#use-shared-image-gallery>`__
+   *  `Use existing deployment <#use-existing-deployment>`__
+   *  `Set other Azure parameters <#set-other-azure-parameters>`__
 
 -  `Run on Ready computers <#run-on-ready-computers>`__
 
@@ -62,9 +64,11 @@ To run using marketplace image, add the following to runbook:
             ...
             marketplace: "<Publisher> <Offer> <Sku> <Version>"
 
-Running using shared image gallery ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ To run
-using shared image gallery, add the following to runbook if the shared image
-gallery is in the same subscription that is used to run LISA :
+Use shared image gallery
+^^^^^^^^^^^^^^^^^^^^^^^^
+
+To run using shared image gallery, add the following to runbook if the shared
+image gallery is in the same subscription that is used to run LISA :
 
 .. code:: yaml
 
@@ -95,8 +99,8 @@ the shared image gallery.
 The remaining steps are same as outlined in
 :doc:`Getting started with Azure <quick_run>`.
 
-Running with existing deployment
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+Use existing deployment
+^^^^^^^^^^^^^^^^^^^^^^^
 
 In addition to deploying a new Azure server and running tests, you can
 skip the deployment phase and use existing resource group.
@@ -104,6 +108,36 @@ skip the deployment phase and use existing resource group.
 The advantage is that it can run all test cases of Azure. The shortage
 is that the VM name is fixed, and it should be node-0, so each resource
 group can put only one VM.
+
+Set other Azure parameters
+^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+The other parameters, like location, vm size, can be specified during
+deployment.
+
+.. code:: yaml
+
+   platform:
+   - type: azure
+      ...
+      requirement:
+         ...
+         azure:
+            ...
+            location: "<one or multiple locations, split by comma>"
+            vm_size: "<vm size>"
+            maximize_capability: "<true or false>"
+
+* **location**. Specify which locations is used to deploy VMs. It can be one or
+  multiple locations. For example, westus2 or westus2,eastus. If multiple
+  locations are specified, it means each environment deploys VMs in one of
+  location. To test multiple locations together, the :ref:`combinator
+  <combinator>` is needed.
+* **vm_size**. Specify which vm_size is used to deploy.
+* **maximize_capability**. True means to ignore test requirement, and try best to
+  run all test cases. Notice, there are some features are conflict by natural,
+  so some test cases may not be picked up. This setting is useful to force run
+  perf tests on not designed VM sizes.
 
 Run on Ready computers
 ----------------------
@@ -167,7 +201,7 @@ Run on AWS
 
 Linux VM can be deployed on AWS using Amazon Machine Image (AMI) that provides
 the information required to launch an instance. At current all AWS resources will
-be deplyoed to the same configured region.
+be deployed to the same configured region.
 
 1. Configure the credentials for AWS.
    The credentials could be configured in multiple ways. Please create access keys
@@ -198,6 +232,6 @@ be deplyoed to the same configured region.
 
       ./lisa.sh  -r ./microsoft/runbook/aws.yml -v "admin_username:<username>" -v "admin_private_key_file:<private key file>"
 
-   Update the default user name for the AMI you use to lauch the instance.
+   Update the default user name for the AMI you use to launch the instance.
    For an Ubuntu AMI, the user name is ubuntu. Please refer to the
    `general prerequisites for connecting to the instance <https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/connection-prereqs.html>`_.
