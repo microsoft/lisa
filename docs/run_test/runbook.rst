@@ -509,6 +509,8 @@ its value will be overwritten by the transformer. For example,
 ``to_list_image`` to ``image``. The original variable name must exist in
 the output variables of the transformer.
 
+.. _combinator:
+
 combinator
 ~~~~~~~~~~
 
