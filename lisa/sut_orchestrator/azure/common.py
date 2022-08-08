@@ -117,21 +117,6 @@ class AzureNodeSchema:
     )
     nic_count: int = 1
     enable_sriov: bool = False
-    data_disk_count: int = 0
-    data_disk_caching_type: str = field(
-        default=constants.DATADISK_CACHING_TYPE_NONE,
-        metadata=field_metadata(
-            validate=validate.OneOf(
-                [
-                    constants.DATADISK_CACHING_TYPE_NONE,
-                    constants.DATADISK_CACHING_TYPE_READONLY,
-                    constants.DATADISK_CACHING_TYPE_READYWRITE,
-                ]
-            )
-        ),
-    )
-    data_disk_iops: int = 500
-    data_disk_size: int = 32
     disk_type: str = ""
 
     # for marketplace image, which need to accept terms

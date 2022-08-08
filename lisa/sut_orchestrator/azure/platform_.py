@@ -1256,17 +1256,6 @@ class AzurePlatform(Platform):
         azure_node_runbook.disk_type = features.get_azure_disk_type(
             node_space.disk.disk_type
         )
-        azure_node_runbook.data_disk_caching_type = (
-            node_space.disk.data_disk_caching_type
-        )
-        assert isinstance(
-            node_space.disk.data_disk_iops, int
-        ), f"actual: {type(node_space.disk.data_disk_iops)}"
-        azure_node_runbook.data_disk_iops = node_space.disk.data_disk_iops
-        assert isinstance(
-            node_space.disk.data_disk_size, int
-        ), f"actual: {type(node_space.disk.data_disk_size)}"
-        azure_node_runbook.data_disk_size = node_space.disk.data_disk_size
 
         assert node_space.network_interface
         assert isinstance(
@@ -1913,16 +1902,6 @@ class AzurePlatform(Platform):
         ), f"actual: {type(min_cap.network_interface.data_path)}"
         if min_cap.network_interface.data_path == schema.NetworkDataPath.Sriov:
             azure_node_runbook.enable_sriov = True
-
-        assert min_cap.disk, "disk must exists"
-        assert isinstance(
-            min_cap.disk.data_disk_count, int
-        ), f"actual: {min_cap.disk.data_disk_count}"
-        azure_node_runbook.data_disk_count = min_cap.disk.data_disk_count
-        assert isinstance(
-            min_cap.disk.data_disk_caching_type, str
-        ), f"actual: {min_cap.disk.data_disk_caching_type}"
-        azure_node_runbook.data_disk_caching_type = min_cap.disk.data_disk_caching_type
 
         return min_cap
 
