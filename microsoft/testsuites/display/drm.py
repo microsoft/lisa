@@ -13,6 +13,7 @@ from lisa import (
     simple_requirement,
 )
 from lisa.base_tools import Cat
+from lisa.operating_system import Redhat
 from lisa.sut_orchestrator import AZURE, READY
 from lisa.tools import Lsmod, Uname
 from lisa.util import SkippedException
@@ -70,5 +71,11 @@ class Drm(TestSuite):
     def before_case(self, log: Logger, **kwargs: Any) -> None:
         node = kwargs["node"]
         kernel_version = node.tools[Uname].get_linux_information().kernel_version
-        if kernel_version <= "5.13.0":
+        if (
+            isinstance(node.os, Redhat)
+            and node.os.information.version >= "9.0.0"
+            and kernel_version > "5.13.0"
+        ):
+            log.debug("Currently only RHEL9 enables drm driver.")
+        else:
             raise SkippedException("DRM hyperv driver is supported from 5.14.x kernel.")
