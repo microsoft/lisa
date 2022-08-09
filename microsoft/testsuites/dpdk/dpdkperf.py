@@ -47,7 +47,7 @@ class DpdkPerformance(TestSuite):
             supported_features=[IsolatedResource],
         ),
     )
-    def perf_dpdk_failsafe_pmd_dual_core(
+    def perf_dpdk_failsafe_pmd_minimal(
         self,
         result: TestResult,
         log: Logger,
@@ -58,7 +58,7 @@ class DpdkPerformance(TestSuite):
 
     @TestCaseMetadata(
         description="""
-        DPDK Performance: failsafe mode, maximal core count, default queue settings
+        DPDK Performance: failsafe mode, multiple service cores
         """,
         priority=3,
         requirement=simple_requirement(
@@ -76,33 +76,35 @@ class DpdkPerformance(TestSuite):
         variables: Dict[str, Any],
     ) -> None:
 
-        self._run_dpdk_perf_test("failsafe", result, log, variables, use_max_cores=True)
+        self._run_dpdk_perf_test("failsafe", result, log, variables, service_cores=4)
 
     @TestCaseMetadata(
         description="""
-        DPDK Performance: failsafe mode, maximal core count, default queue settings
+        DPDK Performance: failsafe mode, multiple service cores, max nics
         """,
         priority=3,
         requirement=simple_requirement(
             min_count=2,
             network_interface=Sriov(),
-            min_nic_count=2,
+            min_nic_count=8,
             unsupported_features=[Gpu, Infiniband],
             supported_features=[IsolatedResource],
         ),
     )
-    def perf_dpdk_failsafe_pmd_multi_core_huge_vm(
+    def perf_dpdk_failsafe_pmd_multi_core_max_nic(
         self,
         result: TestResult,
         log: Logger,
         variables: Dict[str, Any],
     ) -> None:
 
-        self._run_dpdk_perf_test("failsafe", result, log, variables, use_max_cores=True)
+        self._run_dpdk_perf_test(
+            "failsafe", result, log, variables, use_max_nics=True, service_cores=4
+        )
 
     @TestCaseMetadata(
         description="""
-        DPDK Performance: failsafe mode, maximum core count, maximum tx/rx queues
+        DPDK Performance: failsafe mode, muliple tx/rx queues
 
         """,
         priority=3,
@@ -125,26 +127,57 @@ class DpdkPerformance(TestSuite):
 
     @TestCaseMetadata(
         description="""
-        DPDK Performance: failsafe mode, maximum core count, maximum tx/rx queues
-        Run on a huge machine
+        DPDK Performance: failsafe mode, mutiple tx/rx queues, max nics
         """,
         priority=3,
         requirement=simple_requirement(
             min_count=2,
             network_interface=Sriov(),
-            min_nic_count=2,
+            min_nic_count=8,
             unsupported_features=[Gpu, Infiniband],
             supported_features=[IsolatedResource],
         ),
     )
-    def perf_dpdk_failsafe_pmd_multi_queue_huge_vm(
+    def perf_dpdk_failsafe_pmd_multi_queue_max_nics(
         self,
         result: TestResult,
         log: Logger,
         variables: Dict[str, Any],
     ) -> None:
 
-        self._run_dpdk_perf_test("failsafe", result, log, variables, use_queues=True)
+        self._run_dpdk_perf_test(
+            "failsafe", result, log, variables, use_max_nics=True, use_queues=True
+        )
+
+    @TestCaseMetadata(
+        description="""
+        DPDK Performance: failsafe mode, many service cores, many queues, max nics
+        """,
+        priority=3,
+        requirement=simple_requirement(
+            min_count=2,
+            network_interface=Sriov(),
+            min_nic_count=8,
+            unsupported_features=[Gpu, Infiniband],
+            supported_features=[IsolatedResource],
+        ),
+    )
+    def perf_dpdk_failsafe_pmd_multi_queue_multi_core_max_nics(
+        self,
+        result: TestResult,
+        log: Logger,
+        variables: Dict[str, Any],
+    ) -> None:
+
+        self._run_dpdk_perf_test(
+            "failsafe",
+            result,
+            log,
+            variables,
+            service_cores=4,
+            use_max_nics=True,
+            use_queues=True,
+        )
 
     @TestCaseMetadata(
         description="""
@@ -160,18 +193,17 @@ class DpdkPerformance(TestSuite):
             supported_features=[IsolatedResource],
         ),
     )
-    def perf_dpdk_netvsc_pmd_dual_core(
+    def perf_dpdk_netvsc_pmd_minimal(
         self,
         result: TestResult,
         log: Logger,
         variables: Dict[str, Any],
     ) -> None:
-        self._validate_core_counts_are_equal(result)
         self._run_dpdk_perf_test("netvsc", result, log, variables)
 
     @TestCaseMetadata(
         description="""
-        DPDK Performance: direct use of VF, maximum core count, default queues
+        DPDK Performance: direct use of VF, multiple service cores
         """,
         priority=3,
         requirement=simple_requirement(
@@ -189,34 +221,36 @@ class DpdkPerformance(TestSuite):
         variables: Dict[str, Any],
     ) -> None:
 
-        self._run_dpdk_perf_test("netvsc", result, log, variables, use_max_cores=True)
+        self._run_dpdk_perf_test("netvsc", result, log, variables, service_cores=4)
 
     @TestCaseMetadata(
         description="""
-        DPDK Performance: direct use of VF, maximum core count, default queues
+        DPDK Performance: direct use of VF, multiple service cores, max nics
         Run on a big VM
         """,
         priority=3,
         requirement=simple_requirement(
             min_count=2,
             network_interface=Sriov(),
-            min_nic_count=2,
+            min_nic_count=8,
             unsupported_features=[Gpu, Infiniband],
             supported_features=[IsolatedResource],
         ),
     )
-    def perf_dpdk_netvsc_pmd_multi_core_huge_vm(
+    def perf_dpdk_netvsc_pmd_multi_core_max_nics(
         self,
         result: TestResult,
         log: Logger,
         variables: Dict[str, Any],
     ) -> None:
 
-        self._run_dpdk_perf_test("netvsc", result, log, variables, use_max_cores=True)
+        self._run_dpdk_perf_test(
+            "netvsc", result, log, variables, service_cores=4, use_max_nics=True
+        )
 
     @TestCaseMetadata(
         description="""
-        DPDK Performance: direct use of VF, maximum core count, maximum tx/rx queues
+        DPDK Performance: direct use of VF, multiple tx/rx queues
         """,
         priority=3,
         requirement=simple_requirement(
@@ -238,26 +272,57 @@ class DpdkPerformance(TestSuite):
 
     @TestCaseMetadata(
         description="""
-        DPDK Performance: direct use of VF, maximum core count, maximum tx/rx queues,
-        Run on a huge machine
+        DPDK Performance: direct use of VF, multiple tx/rx queues, max nics
         """,
         priority=3,
         requirement=simple_requirement(
             min_count=2,
             network_interface=Sriov(),
-            min_nic_count=2,
+            min_nic_count=8,
             unsupported_features=[Gpu, Infiniband],
             supported_features=[IsolatedResource],
         ),
     )
-    def perf_dpdk_netvsc_pmd_multi_queue_huge_vm(
+    def perf_dpdk_netvsc_pmd_multi_queue_max_nics(
         self,
         result: TestResult,
         log: Logger,
         variables: Dict[str, Any],
     ) -> None:
 
-        self._run_dpdk_perf_test("netvsc", result, log, variables, use_queues=True)
+        self._run_dpdk_perf_test(
+            "netvsc", result, log, variables, use_queues=True, use_max_nics=True
+        )
+
+    @TestCaseMetadata(
+        description="""
+        DPDK Performance: direct use of VF, many service cores, many queues, max nics
+        """,
+        priority=3,
+        requirement=simple_requirement(
+            min_count=2,
+            network_interface=Sriov(),
+            min_nic_count=8,
+            unsupported_features=[Gpu, Infiniband],
+            supported_features=[IsolatedResource],
+        ),
+    )
+    def perf_dpdk_netvsc_pmd_multi_queue_multi_core_max_nics(
+        self,
+        result: TestResult,
+        log: Logger,
+        variables: Dict[str, Any],
+    ) -> None:
+
+        self._run_dpdk_perf_test(
+            "netvsc",
+            result,
+            log,
+            variables,
+            service_cores=4,
+            use_max_nics=True,
+            use_queues=True,
+        )
 
     def _run_dpdk_perf_test(
         self,
@@ -265,27 +330,33 @@ class DpdkPerformance(TestSuite):
         test_result: TestResult,
         log: Logger,
         variables: Dict[str, Any],
-        use_max_cores: bool = False,
+        use_max_nics: bool = False,
         use_queues: bool = False,
+        service_cores: int = 1,
     ) -> None:
         environment = test_result.environment
         assert environment, "fail to get environment from testresult"
 
         # run build + validation to populate results
-        max_core_count = self._validate_core_counts_are_equal(test_result)
-        if use_max_cores:
-            core_count_argument = max_core_count
-        else:
-            core_count_argument = 0  # expected default, test will use 2 cores.
-
+        self._validate_core_counts_are_equal(test_result)
         try:
             if use_queues:
                 send_kit, receive_kit = verify_dpdk_send_receive_multi_txrx_queue(
-                    environment, log, variables, pmd
+                    environment,
+                    log,
+                    variables,
+                    pmd,
+                    use_max_nics=use_max_nics,
+                    use_service_cores=service_cores,
                 )
             else:
                 send_kit, receive_kit = verify_dpdk_send_receive(
-                    environment, log, variables, pmd, core_count_argument
+                    environment,
+                    log,
+                    variables,
+                    pmd,
+                    use_max_nics=use_max_nics,
+                    use_service_cores=service_cores,
                 )
         except UnsupportedPackageVersionException as err:
             raise SkippedException(err)
@@ -345,7 +416,7 @@ class DpdkPerformance(TestSuite):
 
         return send_results, receive_results
 
-    def _validate_core_counts_are_equal(self, test_result: TestResult) -> int:
+    def _validate_core_counts_are_equal(self, test_result: TestResult) -> None:
         environment = test_result.environment
         assert environment, "fail to get environment from testresult"
 
@@ -357,4 +428,3 @@ class DpdkPerformance(TestSuite):
             "Nodes contain different core counts, DPDK Suite expects sender "
             "and receiver to have same core count."
         ).contains_only(core_counts[0])
-        return core_counts[0]

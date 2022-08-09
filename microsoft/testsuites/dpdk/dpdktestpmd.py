@@ -177,52 +177,79 @@ class DpdkTestpmd(Tool):
             self._dpdk_version_info: VersionInfo = VersionInfo(major, minor)
 
     def generate_testpmd_include(
-        self,
-        node_nic: NicInfo,
-        vdev_id: int,
+        self, node_nic: NicInfo, vdev_id: int, use_max_nics: bool = False
     ) -> str:
         # handle generating different flags for pmds/device combos for testpmd
-        assert_that(node_nic.lower).described_as(
-            (
-                f"This interface {node_nic.upper} does not have a lower interface "
-                "and pci slot associated with it. Aborting."
-            )
-        ).is_not_equal_to("")
-        vdev_info = ""
 
-        if self._dpdk_version_info and self._dpdk_version_info >= "19.11.0":
-            vdev_name = "net_vdev_netvsc"
-            vdev_flags = f"iface={node_nic.upper},force=1"
-        else:
-            vdev_name = "net_failsafe"
-            vdev_flags = (
-                f"dev({node_nic.pci_slot}),dev(net_tap0,iface={node_nic.upper})"
+        # identify which nics to inlude in test, exclude others
+
+        # TODO: Test does not make full use of multiple nics yet.
+        if use_max_nics:
+            self.node.log.warn(
+                "NOTE: Testpmd suite does not yet make full use of multiple nics"
             )
 
-        other_nics = [
+        # if use_max_nics:
+        #     ssh_nic = self.node.nics.get_nic(self.node.nics.default_nic)
+        #     include_nics = [
+        #         self.node.nics.get_nic(nic)
+        #         for nic in self.node.nics.get_upper_nics()
+        #         if nic != ssh_nic.upper
+        #     ]
+        #     exclude_nics = [ssh_nic]
+        # else:
+        include_nics = [node_nic]
+        exclude_nics = [
             self.node.nics.get_nic(nic)
             for nic in self.node.nics.get_upper_nics()
             if nic != node_nic.upper
         ]
 
-        # exclude pci slots not associated with the test nic
-        exclude_nics = ""
-        for nic in other_nics:
-            exclude_nics += f' -b "{nic.pci_slot}"'
-
-        if node_nic.bound_driver == "hv_netvsc":
-            vdev_info = f'--vdev="{vdev_name}{vdev_id},{vdev_flags}"'
-        elif node_nic.bound_driver == "uio_hv_generic":
-            pass
-        else:
-            fail(
-                (
-                    f"Unknown driver({node_nic.bound_driver}) bound to "
-                    f"{node_nic.upper}/{node_nic.lower}."
-                    "Cannot generate testpmd include arguments."
+        # build list of vdev info flags for each nic
+        vdev_info = ""
+        self.node.log.info(f"Running test with {len(include_nics)} nics.")
+        for nic in include_nics:
+            if self._dpdk_version_info and self._dpdk_version_info >= "19.11.0":
+                vdev_name = "net_vdev_netvsc"
+                vdev_flags = f"iface={nic.upper},force=1"
+            else:
+                vdev_name = "net_failsafe"
+                vdev_flags = f"dev({nic.pci_slot}),dev(net_tap0,iface={nic.upper})"
+            if nic.bound_driver == "hv_netvsc":
+                vdev_info += f'--vdev="{vdev_name}{vdev_id},{vdev_flags}" '
+            elif nic.bound_driver == "uio_hv_generic":
+                pass
+            else:
+                fail(
+                    (
+                        f"Unknown driver({nic.bound_driver}) bound to "
+                        f"{nic.upper}/{nic.lower}."
+                        "Cannot generate testpmd include arguments."
+                    )
                 )
-            )
-        return vdev_info + exclude_nics
+
+        # exclude pci slots not associated with the test nic
+        exclude_flags = ""
+        for nic in exclude_nics:
+            exclude_flags += f' -b "{nic.pci_slot}"'
+
+        return vdev_info + exclude_flags
+
+    def _calculate_core_count(
+        self, txq: int, rxq: int, use_max_nics: bool, service_cores: int = 1
+    ) -> int:
+        # Use either:
+        #   - as many cores as are available, minus a core for the system
+        #   - 1 per queue on each nic + one per NIC PMD
+        cores_available = self.node.tools[Lscpu].get_core_count()
+        if use_max_nics:
+            nics_available = len(self.node.nics.get_upper_nics()) - 1
+        else:
+            nics_available = 1
+        return min(
+            cores_available - 1,
+            (nics_available * (txq + rxq)) + (nics_available * service_cores),
+        )
 
     def generate_testpmd_command(
         self,
@@ -233,7 +260,8 @@ class DpdkTestpmd(Tool):
         extra_args: str = "",
         txq: int = 0,
         rxq: int = 0,
-        use_core_count: int = 0,
+        service_cores: int = 1,
+        use_max_nics: bool = False,
     ) -> str:
         #   testpmd \
         #   -l <core-list> \
@@ -245,44 +273,37 @@ class DpdkTestpmd(Tool):
         #   --forward-mode=txonly \
         #   --eth-peer=<port id>,<receiver peer MAC address> \
         #   --stats-period <display interval in seconds>
-        nic_include_info = self.generate_testpmd_include(nic_to_include, vdev_id)
 
-        # dpdk can use multiple cores to service the
-        # number of queues and ports present. Get the amount to work with.
-        cores_available = self.node.tools[Lscpu].get_core_count()
+        # if test asks for multicore, it implies using more than one nic
+        # otherwise default core count for single nic will be used
+        # and then adjusted for queue count
+        if not (rxq or txq):
+            txq = 1
+            rxq = 1
 
-        # default is to use cores 0 and 1
-        core_count_arg = 2
+        # calculate how many cores to use based on txq/rxq per nic and how many nics
+        use_core_count = self._calculate_core_count(
+            txq, rxq, use_max_nics, service_cores=service_cores
+        )
 
-        # queue test forces multicore, use_core_count can override it if needed.
+        # generate the include/exclude arguments
+        nic_include_info = self.generate_testpmd_include(
+            nic_to_include, vdev_id, use_max_nics
+        )
+
+        # set up queue arguments
         if txq or rxq:
-
-            # set number of queues to use for tx and rx
+            # set number of queues to use for txq and rxq (per nic, default is 1)
             assert_that(txq).described_as(
                 "TX queue value must be greater than 0 if txq is used"
             ).is_greater_than(0)
             assert_that(rxq).described_as(
                 "RX queue value must be greater than 0 if rxq is used"
             ).is_greater_than(0)
-            extra_args += f" --txq={txq} --rxq={rxq}  --port-topology=chained "
-
-            # use either as many cores as we can or one for each queue and port
-            core_count_arg = min(cores_available, core_count_arg + txq + rxq)
-
-        # force set number of cores if the override argument is present.
-        if use_core_count:
-            core_count_arg = use_core_count
-
-        # check cores_to_use argument is sane, 2 < arg <= number_available
-        assert_that(core_count_arg).described_as(
-            "Attempted to use more cores than are available on the system for DPDK."
-        ).is_less_than_or_equal_to(cores_available)
-        assert_that(core_count_arg).described_as(
-            "DPDK requires a minimum of two cores."
-        ).is_greater_than(1)
+            extra_args += f" --txq={txq} --rxq={rxq}  "
 
         # use the selected amount of cores, adjusting for 0 index.
-        core_args = f"-l 0-{core_count_arg-1}"
+        core_args = f"-l 0-{use_core_count-1}"
 
         return (
             f"{self._testpmd_install_path} {core_args} -n 4 --proc-type=primary "
