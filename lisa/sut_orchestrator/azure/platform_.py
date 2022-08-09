@@ -400,21 +400,9 @@ class AzurePlatform(Platform):
                     found_or_skipped = True
                     continue
 
-                # find predefined vm size on all available's.
-                location_info: AzureLocation = self._get_location_info(
-                    location_name, log
+                matched_cap = self._get_vm_size_by_name(
+                    name=node_runbook.vm_size, location=location_name, log=log
                 )
-                matched_score: float = 0
-                matched_cap: Optional[AzureCapability] = None
-                matcher = SequenceMatcher(None, node_runbook.vm_size.lower(), "")
-                for azure_cap in location_info.capabilities:
-                    matcher.set_seq2(azure_cap.vm_size.lower())
-                    if (
-                        node_runbook.vm_size.lower() in azure_cap.vm_size.lower()
-                        and matched_score < matcher.ratio()
-                    ):
-                        matched_cap = azure_cap
-                        matched_score = matcher.ratio()
                 if matched_cap:
                     # If max capability is set, use the max capability,
                     # instead of the real capability. It needs to be in the
@@ -2200,6 +2188,25 @@ class AzurePlatform(Platform):
         found_image = self._get_sig_info(shared_image)
         assert found_image.storage_profile.os_disk_image.size_in_gb
         return int(found_image.storage_profile.os_disk_image.size_in_gb)
+
+    def _get_vm_size_by_name(
+        self, name: str, location: str, log: Logger
+    ) -> Optional[AzureCapability]:
+        # find predefined vm size on all available's.
+        location_info: AzureLocation = self._get_location_info(location, log)
+        matched_score: float = 0
+        matched_cap: Optional[AzureCapability] = None
+        matcher = SequenceMatcher(None, name.lower(), "")
+        for azure_cap in location_info.capabilities:
+            matcher.set_seq2(azure_cap.vm_size.lower())
+            if (
+                name.lower() in azure_cap.vm_size.lower()
+                and matched_score < matcher.ratio()
+            ):
+                matched_cap = azure_cap
+                matched_score = matcher.ratio()
+
+        return matched_cap
 
 
 def _convert_to_azure_node_space(node_space: schema.NodeSpace) -> None:
