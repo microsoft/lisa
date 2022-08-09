@@ -754,8 +754,8 @@ class NetworkInterface(AzureFeatureMixin, features.NetworkInterface):
 
     @retry(tries=60, delay=10)
     def _check_sriov_enabled(self, enabled: bool) -> None:
+        self._node.close()
         self._node.nics.reload()
-
         default_nic = self._node.nics.get_nic_by_index(0)
 
         if enabled and not default_nic.lower:
