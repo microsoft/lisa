@@ -69,6 +69,7 @@ from . import features
 from .common import (
     AZURE_SHARED_RG_NAME,
     AzureArmParameter,
+    AzureNodeArmParameter,
     AzureNodeSchema,
     AzureVmMarketplaceSchema,
     AzureVmPurchasePlanSchema,
@@ -1013,7 +1014,7 @@ class AzurePlatform(Platform):
         arm_parameters.vm_tags["lisa_username"] = local().tools[Whoami].get_username()
         arm_parameters.vm_tags["lisa_hostname"] = local().tools[Hostname].get_hostname()
 
-        nodes_parameters: List[AzureNodeSchema] = []
+        nodes_parameters: List[AzureNodeArmParameter] = []
         features_settings: Dict[str, schema.FeatureSettings] = {}
 
         for node_space in environment.runbook.nodes_requirement:
@@ -1037,11 +1038,13 @@ class AzurePlatform(Platform):
             # save parsed runbook back, for example, the version of marketplace may be
             # parsed from latest to a specified version.
             node.capability.set_extended_runbook(azure_node_runbook)
-            nodes_parameters.append(azure_node_runbook)
+
+            node_arm_parameters = self._create_node_arm_parameters(node.capability, log)
+            nodes_parameters.append(node_arm_parameters)
 
             # Set data disk array
             arm_parameters.data_disks = self._generate_data_disks(
-                node, azure_node_runbook
+                node, node_arm_parameters
             )
 
             if not arm_parameters.location:
@@ -1158,7 +1161,6 @@ class AzurePlatform(Platform):
             AzureNodeSchema, type_name=AZURE
         )
 
-        os_disk_size = 30
         if not azure_node_runbook.name:
             # the max length of vm name is 64 chars. Below logic takes last 45
             # chars in resource group name and keep the leading 5 chars.
@@ -1187,9 +1189,6 @@ class AzurePlatform(Platform):
             azure_node_runbook.vhd = self._get_deployable_vhd_path(
                 azure_node_runbook.vhd, azure_node_runbook.location, log
             )
-            os_disk_size = max(
-                os_disk_size, self._get_vhd_os_disk_size(azure_node_runbook.vhd)
-            )
             azure_node_runbook.marketplace = None
             azure_node_runbook.shared_gallery = None
         elif azure_node_runbook.shared_gallery:
@@ -1197,16 +1196,12 @@ class AzurePlatform(Platform):
             azure_node_runbook.shared_gallery = self._parse_shared_gallery_image(
                 azure_node_runbook.location, azure_node_runbook.shared_gallery
             )
-            os_disk_size = max(
-                os_disk_size,
-                self._get_sig_os_disk_size(azure_node_runbook.shared_gallery),
-            )
-        elif azure_node_runbook.marketplace:
-            # marketplace value is already set in runbook
-            pass
-        else:
+        elif not azure_node_runbook.marketplace:
             # set to default marketplace, if nothing specified
             azure_node_runbook.marketplace = AzureVmMarketplaceSchema()
+        else:
+            # marketplace value is already set in runbook
+            ...
 
         if azure_node_runbook.marketplace:
             # resolve Latest to specified version
@@ -1216,9 +1211,6 @@ class AzurePlatform(Platform):
 
             image_info = self._get_image_info(
                 azure_node_runbook.location, azure_node_runbook.marketplace
-            )
-            os_disk_size = max(
-                os_disk_size, image_info.os_disk_image.additional_properties["sizeInGb"]
             )
             # HyperVGenerationTypes return "V1"/"V2", so we need to strip "V"
             if image_info.hyper_v_generation:
@@ -1232,43 +1224,73 @@ class AzurePlatform(Platform):
                     azure_node_runbook.is_linux = False
                 else:
                     azure_node_runbook.is_linux = True
-            if not azure_node_runbook.purchase_plan and image_info.plan:
-                # expand values for lru cache
-                plan_name = image_info.plan.name
-                plan_product = image_info.plan.product
-                plan_publisher = image_info.plan.publisher
-                # accept the default purchase plan automatically.
-                azure_node_runbook.purchase_plan = self._process_marketplace_image_plan(
-                    marketplace=azure_node_runbook.marketplace,
-                    plan_name=plan_name,
-                    plan_product=plan_product,
-                    plan_publisher=plan_publisher,
-                )
-        azure_node_runbook.osdisk_size_in_gb = os_disk_size
 
         if azure_node_runbook.is_linux is None:
             # fill it default value
             azure_node_runbook.is_linux = True
 
+        return azure_node_runbook
+
+    def _create_node_arm_parameters(
+        self, capability: schema.Capability, log: Logger
+    ) -> AzureNodeArmParameter:
+        runbook = capability.get_extended_runbook(AzureNodeSchema, type_name=AZURE)
+        arm_parameters = AzureNodeArmParameter.from_node_runbook(runbook)
+
+        os_disk_size = 30
+        if arm_parameters.vhd:
+            # vhd is higher priority
+            arm_parameters.vhd = self._get_deployable_vhd_path(
+                arm_parameters.vhd, arm_parameters.location, log
+            )
+            os_disk_size = max(
+                os_disk_size, self._get_vhd_os_disk_size(arm_parameters.vhd)
+            )
+        elif arm_parameters.shared_gallery:
+            os_disk_size = max(
+                os_disk_size,
+                self._get_sig_os_disk_size(arm_parameters.shared_gallery),
+            )
+        else:
+            assert (
+                arm_parameters.marketplace
+            ), "not set one of marketplace, shared_gallery or vhd."
+            image_info = self._get_image_info(
+                arm_parameters.location, arm_parameters.marketplace
+            )
+            if not arm_parameters.purchase_plan and image_info.plan:
+                # expand values for lru cache
+                plan_name = image_info.plan.name
+                plan_product = image_info.plan.product
+                plan_publisher = image_info.plan.publisher
+                # accept the default purchase plan automatically.
+                arm_parameters.purchase_plan = self._process_marketplace_image_plan(
+                    marketplace=arm_parameters.marketplace,
+                    plan_name=plan_name,
+                    plan_product=plan_product,
+                    plan_publisher=plan_publisher,
+                )
+        arm_parameters.osdisk_size_in_gb = os_disk_size
+
         # Set disk type
-        assert node_space.disk, "node space must have disk defined."
-        assert isinstance(node_space.disk.disk_type, schema.DiskType)
-        azure_node_runbook.disk_type = features.get_azure_disk_type(
-            node_space.disk.disk_type
+        assert capability.disk, "node space must have disk defined."
+        assert isinstance(capability.disk.disk_type, schema.DiskType)
+        arm_parameters.disk_type = features.get_azure_disk_type(
+            capability.disk.disk_type
         )
 
-        assert node_space.network_interface
+        assert capability.network_interface
         assert isinstance(
-            node_space.network_interface.nic_count, int
-        ), f"actual: {node_space.network_interface.nic_count}"
-        azure_node_runbook.nic_count = node_space.network_interface.nic_count
+            capability.network_interface.nic_count, int
+        ), f"actual: {capability.network_interface.nic_count}"
+        arm_parameters.nic_count = capability.network_interface.nic_count
         assert isinstance(
-            node_space.network_interface.data_path, schema.NetworkDataPath
-        ), f"actual: {type(node_space.network_interface.data_path)}"
-        if node_space.network_interface.data_path == schema.NetworkDataPath.Sriov:
-            azure_node_runbook.enable_sriov = True
+            capability.network_interface.data_path, schema.NetworkDataPath
+        ), f"actual: {type(capability.network_interface.data_path)}"
+        if capability.network_interface.data_path == schema.NetworkDataPath.Sriov:
+            arm_parameters.enable_sriov = True
 
-        return azure_node_runbook
+        return arm_parameters
 
     def _validate_template(
         self, deployment_parameters: Dict[str, Any], log: Logger
@@ -1892,16 +1914,6 @@ class AzurePlatform(Platform):
         # the location may not be set
         azure_node_runbook.location = location
         azure_node_runbook.vm_size = azure_capability.vm_size
-        assert min_cap.network_interface
-        assert isinstance(
-            min_cap.network_interface.nic_count, int
-        ), f"actual: {min_cap.network_interface.nic_count}"
-        azure_node_runbook.nic_count = min_cap.network_interface.nic_count
-        assert isinstance(
-            min_cap.network_interface.data_path, schema.NetworkDataPath
-        ), f"actual: {type(min_cap.network_interface.data_path)}"
-        if min_cap.network_interface.data_path == schema.NetworkDataPath.Sriov:
-            azure_node_runbook.enable_sriov = True
 
         return min_cap
 
@@ -1987,7 +1999,7 @@ class AzurePlatform(Platform):
     def _generate_data_disks(
         self,
         node: Node,
-        azure_node_runbook: AzureNodeSchema,
+        azure_node_runbook: AzureNodeArmParameter,
     ) -> List[DataDiskSchema]:
         data_disks: List[DataDiskSchema] = []
         assert node.capability.disk

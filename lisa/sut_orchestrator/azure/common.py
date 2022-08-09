@@ -110,17 +110,11 @@ class AzureNodeSchema:
         default=None, metadata=field_metadata(data_key="shared_gallery")
     )
     vhd: str = ""
-    osdisk_size_in_gb: int = 30
     hyperv_generation: int = field(
         default=1,
         metadata=field_metadata(validate=validate.OneOf([1, 2])),
     )
-    nic_count: int = 1
-    enable_sriov: bool = False
-    disk_type: str = ""
 
-    # for marketplace image, which need to accept terms
-    purchase_plan: Optional[AzureVmPurchasePlanSchema] = None
     # the linux and Windows has different settings. If it's not specified, it's
     # True by default for SIG and vhd, and is parsed from marketplace
     # image.
@@ -297,6 +291,32 @@ class AzureNodeSchema:
         return result
 
 
+@dataclass_json()
+@dataclass
+class AzureNodeArmParameter(AzureNodeSchema):
+    nic_count: int = 1
+    # for marketplace image, which need to accept terms
+    purchase_plan: Optional[AzureVmPurchasePlanSchema] = None
+
+    enable_sriov: bool = False
+    disk_type: str = ""
+    osdisk_size_in_gb: int = 30
+
+    @classmethod
+    def from_node_runbook(cls, runbook: AzureNodeSchema) -> "AzureNodeArmParameter":
+        parameters = runbook.to_dict()  # type: ignore
+        if "marketplace" in parameters:
+            parameters["marketplace_raw"] = parameters["marketplace"]
+            del parameters["marketplace"]
+        if "shared_gallery" in parameters:
+            parameters["shared_gallery_raw"] = parameters["shared_gallery"]
+            del parameters["shared_gallery"]
+
+        arm_parameters = AzureNodeArmParameter(**parameters)
+
+        return arm_parameters
+
+
 class DataDiskCreateOption:
     DATADISK_CREATE_OPTION_TYPE_EMPTY: str = "Empty"
     DATADISK_CREATE_OPTION_TYPE_FROM_IMAGE: str = "FromImage"
@@ -360,7 +380,7 @@ class AzureArmParameter:
     shared_resource_group_name: str = AZURE_SHARED_RG_NAME
     availability_set_tags: Dict[str, str] = field(default_factory=dict)
     availability_set_properties: Dict[str, Any] = field(default_factory=dict)
-    nodes: List[AzureNodeSchema] = field(default_factory=list)
+    nodes: List[AzureNodeArmParameter] = field(default_factory=list)
     data_disks: List[DataDiskSchema] = field(default_factory=list)
     use_availability_sets: bool = False
     vm_tags: Dict[str, Any] = field(default_factory=dict)
