@@ -46,9 +46,5 @@ class Find(Tool):
         # for possibility of newline character in the file/folder name.
         cmd += " -print0"
 
-        result = self.run(cmd, sudo=sudo)
-        if result.exit_code != 0:
-            raise LisaException(
-                f"{cmd} command got non-zero exit code: {result.exit_code}"
-            )
+        result = self.run(cmd, sudo=sudo, expected_exit_code=0)
         return result.stdout.split("\x00")

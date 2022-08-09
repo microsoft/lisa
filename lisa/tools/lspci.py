@@ -112,8 +112,6 @@ class Lspci(Tool):
                 force_run=force_run,
                 shell=True,
                 expected_exit_code=0,
-                expected_exit_code_failure_message=f"get unexpected non-zero exit code"
-                f" when run {self.command} -m.",
             )
             for pci_raw in result.stdout.splitlines():
                 pci_device = PciDevice(pci_raw)
@@ -153,8 +151,6 @@ class Lspci(Tool):
             force_run=True,
             shell=True,
             expected_exit_code=0,
-            expected_exit_code_failure_message="get unexpected non-zero exit code,"
-            f"when run {self.command} -nks {slot}.",
         )
         matched = get_matched_str(result.stdout, PATTERN_MODULE_IN_USE)
         assert matched

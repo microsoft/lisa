@@ -253,8 +253,9 @@ class Windows(OperatingSystem):
             cmd="ver",
             shell=True,
             no_error_log=True,
+            expected_exit_code=0,
+            expected_exit_code_failure_message="error on get os information:",
         )
-        cmd_result.assert_exit_code(message="error on get os information:")
         assert cmd_result.stdout, "not found os information from 'ver'"
 
         full_version = cmd_result.stdout
@@ -455,8 +456,11 @@ class Posix(OperatingSystem, BaseClassMixin):
     def _get_information(self) -> OsInformation:
         # try to set version info from /etc/os-release.
         cat = self._node.tools[Cat]
-        cmd_result = cat.run("/etc/os-release")
-        cmd_result.assert_exit_code(message="error on get os information")
+        cmd_result = cat.run(
+            "/etc/os-release",
+            expected_exit_code=0,
+            expected_exit_code_failure_message="error on get os information",
+        )
 
         vendor: str = ""
         release: str = ""
@@ -799,14 +803,13 @@ class Debian(Linux):
             command, shell=True, sudo=True, timeout=timeout
         )
         # get error lines.
-        if install_result.exit_code != 0:
-            install_result.assert_exit_code(
-                0,
-                f"Failed to install {packages}, "
-                f"please check the package name and repo are correct or not.\n"
-                + "\n".join(self.get_apt_error(install_result.stdout))
-                + "\n",
-            )
+        install_result.assert_exit_code(
+            0,
+            f"Failed to install {packages}, "
+            f"please check the package name and repo are correct or not.\n"
+            + "\n".join(self.get_apt_error(install_result.stdout))
+            + "\n",
+        )
 
     def _package_exists(self, package: str) -> bool:
         command = "dpkg --get-selections"
@@ -831,8 +834,11 @@ class Debian(Linux):
     def _get_information(self) -> OsInformation:
         # try to set version info from /etc/os-release.
         cat = self._node.tools[Cat]
-        cmd_result = cat.run("/etc/os-release")
-        cmd_result.assert_exit_code(message="error on get os information")
+        cmd_result = cat.run(
+            "/etc/os-release",
+            expected_exit_code=0,
+            expected_exit_code_failure_message="error on get os information",
+        )
 
         vendor: str = ""
         release: str = ""
@@ -861,8 +867,11 @@ class Debian(Linux):
         # marketplace image - debian debian-10 10-backports-gen2 0.20210201.535
         # version from /etc/os-release is 10
         # version from /etc/debian_version is 10.7
-        cmd_result = cat.run("/etc/debian_version")
-        cmd_result.assert_exit_code(message="error on get debian version")
+        cmd_result = cat.run(
+            "/etc/debian_version",
+            expected_exit_code=0,
+            expected_exit_code_failure_message="error on get debian version",
+        )
         release = cmd_result.stdout
 
         if vendor == "":
@@ -968,9 +977,12 @@ class Ubuntu(Debian):
 
     def _get_information(self) -> OsInformation:
         cmd_result = self._node.execute(
-            cmd="lsb_release -a", shell=True, no_error_log=True
+            cmd="lsb_release -a",
+            shell=True,
+            no_error_log=True,
+            expected_exit_code=0,
+            expected_exit_code_failure_message="error on get os information",
         )
-        cmd_result.assert_exit_code(message="error on get os information")
         assert cmd_result.stdout, "not found os information from 'lsb_release -a'"
 
         for row in cmd_result.stdout.splitlines():
@@ -1113,10 +1125,14 @@ class RPMDistro(Linux):
         if not signed:
             command += " --nogpgcheck"
 
-        install_result = self._node.execute(
-            command, shell=True, sudo=True, timeout=timeout
+        self._node.execute(
+            command,
+            shell=True,
+            sudo=True,
+            timeout=timeout,
+            expected_exit_code=0,
+            expected_exit_code_failure_message=f"Failed to install {packages}.",
         )
-        install_result.assert_exit_code(0, f"Failed to install {packages}.")
 
         self._log.debug(f"{packages} is/are installed successfully.")
 
@@ -1205,9 +1221,10 @@ class Fedora(RPMDistro):
             # Fedora release 22 (Twenty Two)
             cmd="cat /etc/fedora-release",
             no_error_log=True,
+            expected_exit_code=0,
+            expected_exit_code_failure_message="error on get os information",
         )
 
-        cmd_result.assert_exit_code(message="error on get os information")
         full_version = cmd_result.stdout
         if "Fedora" not in full_version:
             raise LisaException("OS version information not found")
@@ -1273,10 +1290,11 @@ class Redhat(Fedora):
         #  repo to resolve the issue.
         # Details please refer https://docs.microsoft.com/en-us/azure/virtual-machines/workloads/redhat/redhat-rhui#azure-rhui-infrastructure # noqa: E501
         if "Red Hat" == information.vendor:
-            cmd_result = self._node.execute(
-                "yum update -y --disablerepo='*' --enablerepo='*microsoft*' ", sudo=True
+            self._node.execute(
+                "yum update -y --disablerepo='*' --enablerepo='*microsoft*' ",
+                sudo=True,
+                expected_exit_code=0,
             )
-            cmd_result.assert_exit_code()
 
     def _install_packages(
         self,
@@ -1332,9 +1350,8 @@ class Redhat(Fedora):
             # Parse /etc/redhat-release to support 6.x and 8.x. Refer to
             # examples of __legacy_redhat_information_pattern.
             cmd_result = self._node.execute(
-                cmd="cat /etc/redhat-release", no_error_log=True
+                cmd="cat /etc/redhat-release", no_error_log=True, expected_exit_code=0
             )
-            cmd_result.assert_exit_code()
             full_version = cmd_result.stdout
             matches = self.__legacy_redhat_information_pattern.match(full_version)
             assert matches, f"cannot match version information from: {full_version}"
@@ -1513,8 +1530,7 @@ class Suse(Linux):
         cmd += f" {repo} {repo_name}"
         cmd_result = self._node.execute(cmd=cmd, sudo=True)
         if "already exists. Please use another alias." not in cmd_result.stdout:
-            if cmd_result.exit_code != 0:
-                raise LisaException(f"fail to add repo {repo}")
+            cmd_result.assert_exit_code(0, f"fail to add repo {repo}")
         else:
             self._log.debug(f"repo {repo_name} already exist")
 

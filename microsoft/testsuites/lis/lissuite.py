@@ -132,8 +132,7 @@ class Lis(TestSuite):
         df = node.tools[Df]
         rpm = node.tools[Rpm]
         cmd_result = lisdriver.uninstall_from_iso()
-        if 0 != cmd_result.exit_code:
-            raise LisaException("fail to uninstall lis")
+        cmd_result.assert_exit_code(0, "failed to uninstall lis")
         self._clean_up_files(node)
         lib_module_folder = "/lib/modules"
         boot_folder = "/boot"

@@ -65,8 +65,7 @@ class Waagent(Tool):
         # the vm need to be exported clearly, it needs to remove the current
         # user with below command:
         # self.run("-deprovision+user --force", sudo=True)
-        result = self.run("-deprovision --force", sudo=True)
-        result.assert_exit_code()
+        self.run("-deprovision --force", sudo=True, expected_exit_code=0)
 
     def get_configuration(self) -> Dict[str, str]:
         if isinstance(self.node.os, CoreOs):
@@ -237,11 +236,11 @@ class LisDriver(Tool):
 
     def _install(self) -> bool:
         result = self.install_from_iso()
-        if result.exit_code != 0:
-            raise LisaException(
-                f"Unable to install the LIS RPMs! exit_code: {result.exit_code}"
-                f"stderr: {result.stderr}"
-            )
+        result.assert_exit_code(
+            0,
+            f"Unable to install the LIS RPMs! exit_code: {result.exit_code}"
+            f"stderr: {result.stderr}",
+        )
         self.node.reboot(360)
         return True
 
