@@ -205,12 +205,13 @@ class Lsvmbus(Tool):
             self._vmbus_devices = []
             result = self.run("-vv", force_run=force_run, shell=True)
             if result.exit_code != 0:
-                result = self.run("-vv", force_run=force_run, shell=True, sudo=True)
-                if result.exit_code != 0:
-                    raise LisaException(
-                        f"get unexpected non-zero exit code {result.exit_code} "
-                        f"when run {self.command} -vv."
-                    )
+                result = self.run(
+                    "-vv",
+                    force_run=force_run,
+                    shell=True,
+                    sudo=True,
+                    expected_exit_code=0,
+                )
             raw_list = re.finditer(PATTERN_VMBUS_DEVICE, result.stdout)
             for vmbus_raw in raw_list:
                 vmbus_device = VmBusDevice(vmbus_raw.group())

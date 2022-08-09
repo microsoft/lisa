@@ -21,7 +21,11 @@ class Cat(Tool):
     ) -> str:
         # Run `cat <file>`
         result = self.run(
-            file, force_run=force_run, sudo=sudo, shell=True, no_debug_log=no_debug_log
+            file,
+            force_run=force_run,
+            sudo=sudo,
+            shell=True,
+            no_debug_log=no_debug_log,
         )
         result.assert_exit_code(message=f"Error : {result.stdout}")
         return result.stdout

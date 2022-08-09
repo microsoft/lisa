@@ -200,12 +200,11 @@ class Gpu(Feature):
         result = self._node.execute(
             f"{grid_file_path} --no-nouveau-check --silent --no-cc-version-check"
         )
-        if result.exit_code != 0:
-            raise LisaException(
-                "Failed to install the GRID driver! "
-                f"exit-code: {result.exit_code} stderr: {result.stderr}"
-            )
-
+        result.assert_exit_code(
+            0,
+            "Failed to install the GRID driver! "
+            f"exit-code: {result.exit_code} stderr: {result.stderr}",
+        )
         self._log.debug("Successfully installed the GRID driver")
 
     # download and install CUDA Driver

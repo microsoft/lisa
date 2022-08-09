@@ -7,7 +7,7 @@ from typing import Optional
 from lisa.base_tools import Cat
 from lisa.executable import Tool
 from lisa.operating_system import Debian, Fedora, Suse
-from lisa.util import LisaException, UnsupportedDistroException, find_group_in_lines
+from lisa.util import UnsupportedDistroException, find_group_in_lines
 
 
 class Dhclient(Tool):
@@ -70,7 +70,6 @@ class Dhclient(Tool):
             )
         else:
             result = self.run("-r && dhclient", shell=True, sudo=True)
-        if result.exit_code != 0:
-            raise LisaException(
-                f"dhclient renew return non-zero exit code: {result.stdout}"
-            )
+        result.assert_exit_code(
+            0, f"dhclient renew return non-zero exit code: {result.stdout}"
+        )
