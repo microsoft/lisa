@@ -205,7 +205,8 @@ class AzureImageStandard(TestSuite):
         re.compile(r"^(.*nofail.*)$", re.M),
         re.compile(
             r"^(.*SGI XFS with ACLs, security attributes, realtime, verbose warnings, quota, no debug enabled.*)$",  # noqa: E501
-            re.M)
+            re.M,
+        ),
     ]
 
     @TestCaseMetadata(
