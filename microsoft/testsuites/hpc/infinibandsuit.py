@@ -15,7 +15,11 @@ from lisa import (
 from lisa.features import Infiniband, Sriov
 from lisa.sut_orchestrator.azure.tools import Waagent
 from lisa.tools import Find, Modprobe, Ssh
-from lisa.util import SkippedException, UnsupportedDistroException
+from lisa.util import (
+    SkippedException,
+    UnsupportedDistroException,
+    UnsupportedKernelException,
+)
 from lisa.util.parallel import run_in_parallel
 
 
@@ -43,7 +47,7 @@ class InfinibandSuit(TestSuite):
 
         try:
             infiniband = node.features[Infiniband]
-        except UnsupportedDistroException as err:
+        except (UnsupportedDistroException, UnsupportedKernelException) as err:
             raise SkippedException(err)
 
         assert_that(infiniband.is_over_sriov()).described_as(
@@ -89,7 +93,7 @@ class InfinibandSuit(TestSuite):
 
         try:
             infiniband = node.features[Infiniband]
-        except UnsupportedDistroException as err:
+        except (UnsupportedDistroException, UnsupportedKernelException) as err:
             raise SkippedException(err)
 
         if not infiniband.is_over_nd():
@@ -137,7 +141,7 @@ class InfinibandSuit(TestSuite):
                     lambda: server_node.features[Infiniband],
                 ]
             )
-        except UnsupportedDistroException as err:
+        except (UnsupportedDistroException, UnsupportedKernelException) as err:
             raise SkippedException(err)
 
         server_infiniband = server_node.features[Infiniband]
@@ -201,7 +205,7 @@ class InfinibandSuit(TestSuite):
                     lambda: server_node.features[Infiniband],
                 ]
             )
-        except UnsupportedDistroException as err:
+        except (UnsupportedDistroException, UnsupportedKernelException) as err:
             raise SkippedException(err)
 
         server_ib = server_node.features[Infiniband]
@@ -292,7 +296,7 @@ class InfinibandSuit(TestSuite):
                     lambda: server_node.features[Infiniband],
                 ]
             )
-        except UnsupportedDistroException as err:
+        except (UnsupportedDistroException, UnsupportedKernelException) as err:
             raise SkippedException(err)
 
         server_ib = server_node.features[Infiniband]
@@ -389,7 +393,7 @@ class InfinibandSuit(TestSuite):
                     lambda: server_node.features[Infiniband],
                 ]
             )
-        except UnsupportedDistroException as err:
+        except (UnsupportedDistroException, UnsupportedKernelException) as err:
             raise SkippedException(err)
 
         server_ib = server_node.features[Infiniband]
@@ -461,7 +465,7 @@ class InfinibandSuit(TestSuite):
                     lambda: server_node.features[Infiniband],
                 ]
             )
-        except UnsupportedDistroException as err:
+        except (UnsupportedDistroException, UnsupportedKernelException) as err:
             raise SkippedException(err)
 
         server_ib = server_node.features[Infiniband]
