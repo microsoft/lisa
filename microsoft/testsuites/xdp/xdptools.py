@@ -11,7 +11,7 @@ from lisa import (
     UnsupportedOperationException,
 )
 from lisa.executable import Tool
-from lisa.operating_system import Debian, Fedora
+from lisa.operating_system import CentOs, Debian, Fedora
 from lisa.tools import Ethtool, Git, Make
 from lisa.tools.ethtool import DeviceGroLroSettings
 from lisa.util import find_groups_in_lines
@@ -115,8 +115,12 @@ class XdpTool(Tool):
                     "x86_64/os/Packages/libpcap-devel-1.10.0-4.el9.x86_64.rpm"
                 )
             else:
+                if isinstance(self.node.os, CentOs):
+                    self.node.os.install_packages("iproute-tc")
+                else:
+                    self.node.os.install_packages("tc")
                 self.node.os.install_packages(
-                    "tc https://vault.centos.org/centos/8/PowerTools/"
+                    "https://vault.centos.org/centos/8/PowerTools/"
                     "x86_64/os/Packages/libpcap-devel-1.9.1-5.el8.x86_64.rpm"
                 )
             self.node.os.install_packages(
