@@ -371,6 +371,8 @@ class AzurePlatform(Platform):
         if not environment.runbook.nodes_requirement:
             return True
 
+        # reload requirement to match
+        environment.runbook.reload_requirements()
         nodes_requirement = environment.runbook.nodes_requirement
 
         # covert to azure node space, so the azure extensions can be loaded.
@@ -477,8 +479,8 @@ class AzurePlatform(Platform):
                 if all(x for x in found_capabilities):
                     break
 
+            # all found and replace current requirement
             if all(x for x in found_capabilities):
-                # all found and replace current requirement
                 environment.runbook.nodes_requirement = found_capabilities
                 environment.cost = estimated_cost + predefined_cost
                 is_success = True
@@ -489,11 +491,11 @@ class AzurePlatform(Platform):
                 )
                 break
 
+        # resolve Latest to specified version
         for req in nodes_requirement:
             node_runbook = req.get_extended_runbook(AzureNodeSchema, AZURE)
             if node_runbook.location and node_runbook.marketplace:
-                # resolve Latest to specified version
-                node_runbook.marketplace = self._parse_marketplace_image(
+                node_runbook.marketplace = self._resolve_marketplace_image(
                     node_runbook.location, node_runbook.marketplace
                 )
         return is_success
@@ -1194,7 +1196,7 @@ class AzurePlatform(Platform):
 
         if azure_node_runbook.marketplace:
             # resolve Latest to specified version
-            azure_node_runbook.marketplace = self._parse_marketplace_image(
+            azure_node_runbook.marketplace = self._resolve_marketplace_image(
                 azure_node_runbook.location, azure_node_runbook.marketplace
             )
 
@@ -1721,7 +1723,7 @@ class AzurePlatform(Platform):
         return public_ips_map[vm_name]
 
     @lru_cache(maxsize=10)  # noqa: B019
-    def _parse_marketplace_image(
+    def _resolve_marketplace_image(
         self, location: str, marketplace: AzureVmMarketplaceSchema
     ) -> AzureVmMarketplaceSchema:
         new_marketplace = copy.copy(marketplace)

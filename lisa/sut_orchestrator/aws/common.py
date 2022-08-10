@@ -23,7 +23,7 @@ class EnvironmentContext:
 
 @dataclass
 class NodeContext:
-    intsance_id: str = ""
+    instance_id: str = ""
     vm_name: str = ""
     username: str = ""
     password: str = ""
@@ -158,7 +158,7 @@ class DataDiskSchema:
 
 class DataDisk:
     # refer https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/ebs-volume-types.html
-    # StandardHDDLRS/StandardSSDLRS/PremiumSSDLRS are mapped to valumn type st1/gp2/io1.
+    # StandardHDDLRS/StandardSSDLRS/PremiumSSDLRS are mapped to volume type st1/gp2/io1.
     IOPS_SIZE_DICT: Dict[schema.DiskType, Dict[int, int]] = {
         schema.DiskType.PremiumSSDLRS: {
             64000: 4,
