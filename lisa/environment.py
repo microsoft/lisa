@@ -186,7 +186,7 @@ class Environment(ContextMixin, InitializableMixin):
         # cheaper env can fit cases earlier to run more cases on it.
         # 1. smaller is higher priority, it can be index of candidate environment
         # 2. 0 means no cost.
-        self.cost: int = 0
+        self.cost: float = 0
 
         # indicate is this environment is deploying, preparing, testing or not.
         self.is_in_use: bool = False

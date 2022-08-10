@@ -339,7 +339,7 @@ class AwsPlatform(Platform):
             predefined_caps: List[Any] = [None] * node_count
             # make sure all vms are in same location.
             existing_location: str = ""
-            predefined_cost: int = 0
+            predefined_cost: float = 0
 
             for req in nodes_requirement:
                 # covert to aws node space, so the aws extensions can be loaded.
@@ -423,7 +423,7 @@ class AwsPlatform(Platform):
                     if existing_location and existing_location != location_name:
                         continue
 
-                    estimated_cost: int = 0
+                    estimated_cost: float = 0
                     location_caps = self.get_eligible_vm_sizes(location_name, log)
                     for req_index, req in enumerate(nodes_requirement):
                         node_runbook = req.get_extended_runbook(AwsNodeSchema, AWS)

@@ -66,7 +66,6 @@
                     "items": []
                 }
             },
-            "estimated_cost": 8,
             "resource_sku": {
                 "resource_type": "virtualMachines",
                 "name": "Standard_D8a_v3",
@@ -212,7 +211,6 @@
                     "is_allow_set": false
                 }
             },
-            "estimated_cost": 1,
             "resource_sku": {
                 "resource_type": "virtualMachines",
                 "name": "Standard_DS1_v2",
@@ -395,7 +393,6 @@
                     "items": []
                 }
             },
-            "estimated_cost": 2,
             "resource_sku": {
                 "resource_type": "virtualMachines",
                 "name": "Standard_DS2_v2",
@@ -581,7 +578,6 @@
                     "items": []
                 }
             },
-            "estimated_cost": 2,
             "resource_sku": {
                 "resource_type": "virtualMachines",
                 "name": "Standard_A2m_v2",
@@ -763,7 +759,6 @@
                     "items": []
                 }
             },
-            "estimated_cost": 2,
             "resource_sku": {
                 "resource_type": "virtualMachines",
                 "name": "Standard_A2_v2",
@@ -945,7 +940,6 @@
                     "items": []
                 }
             },
-            "estimated_cost": 2,
             "resource_sku": {
                 "resource_type": "virtualMachines",
                 "name": "Standard_A2m_v2",
