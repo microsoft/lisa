@@ -781,6 +781,16 @@ class NodeSpace(search_space.RequirementMixin, TypedSchema, ExtendableSchemaMixi
         )
 
     @property
+    def cost(self) -> float:
+        core_count = search_space.generate_min_capability_countspace(
+            self.core_count, self.core_count
+        )
+        gpu_count = search_space.generate_min_capability_countspace(
+            self.gpu_count, self.gpu_count
+        )
+        return core_count + gpu_count * 100
+
+    @property
     def features(self) -> Optional[search_space.SetSpace[FeatureSettings]]:
         self._features = self._create_feature_settings_list(self._features)
         if self._features is not None:

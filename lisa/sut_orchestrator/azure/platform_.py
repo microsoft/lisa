@@ -189,7 +189,6 @@ class AzureCapability:
     location: str
     vm_size: str
     capability: schema.NodeSpace
-    estimated_cost: int
     resource_sku: Dict[str, Any]
 
     def __post_init__(self, *args: Any, **kwargs: Any) -> None:
@@ -384,7 +383,7 @@ class AzurePlatform(Platform):
         # fills predefined locations here.
         predefined_caps: List[Any] = [None] * node_count
         # make sure all vms are in same location.
-        predefined_cost: int = 0
+        predefined_cost: float = 0
 
         # get eligible locations
         locations = _get_allowed_locations(nodes_requirement)
@@ -414,7 +413,7 @@ class AzurePlatform(Platform):
                             node_runbook.vm_size, location_name
                         )
 
-                    predefined_cost += matched_cap.estimated_cost
+                    predefined_cost += matched_cap.capability.cost
 
                     min_cap = self._generate_min_capability(
                         req, matched_cap, location_name
@@ -460,7 +459,7 @@ class AzurePlatform(Platform):
             # fill them as None and check after met capability
             found_capabilities: List[Any] = list(predefined_caps)
 
-            estimated_cost: int = 0
+            cost: float = 0
             location_caps = self.get_eligible_vm_sizes(location_name, log)
             for req_index, req in enumerate(nodes_requirement):
                 for azure_cap in location_caps:
@@ -473,7 +472,7 @@ class AzurePlatform(Platform):
                             req, azure_cap, azure_cap.location
                         )
 
-                        estimated_cost += azure_cap.estimated_cost
+                        cost += azure_cap.cost
 
                         found_capabilities[req_index] = min_cap
                 if all(x for x in found_capabilities):
@@ -482,7 +481,7 @@ class AzurePlatform(Platform):
             # all found and replace current requirement
             if all(x for x in found_capabilities):
                 environment.runbook.nodes_requirement = found_capabilities
-                environment.cost = estimated_cost + predefined_cost
+                environment.cost = cost + predefined_cost
                 is_success = True
                 log.debug(
                     f"requirement meet, "
@@ -949,15 +948,11 @@ class AzurePlatform(Platform):
                             # estimate vm cost for priority
                             assert isinstance(capability.core_count, int)
                             assert isinstance(capability.gpu_count, int)
-                            estimated_cost = (
-                                capability.core_count + capability.gpu_count * 100
-                            )
                             azure_capability = AzureCapability(
                                 location=location,
                                 vm_size=sku_obj.name,
                                 capability=capability,
                                 resource_sku=resource_sku,
-                                estimated_cost=estimated_cost,
                             )
                             all_skus.append(azure_capability)
                     except Exception as identifier:
@@ -1703,7 +1698,7 @@ class AzurePlatform(Platform):
                         level_capabilities.append(capability)
 
                 # sort by rough cost
-                level_capabilities.sort(key=lambda x: (x.estimated_cost))
+                level_capabilities.sort(key=lambda x: (x.capability.cost))
                 log.debug(
                     f"{key}, pattern '{fallback_pattern.pattern}'"
                     f" {len(level_capabilities)} candidates: "
@@ -1872,7 +1867,6 @@ class AzurePlatform(Platform):
         azure_capability = AzureCapability(
             location=location,
             vm_size=vm_size,
-            estimated_cost=4,
             capability=node_space,
             resource_sku={},
         )
