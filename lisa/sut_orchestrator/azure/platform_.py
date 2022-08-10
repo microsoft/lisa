@@ -460,23 +460,16 @@ class AzurePlatform(Platform):
             found_capabilities: List[Any] = list(predefined_caps)
 
             cost: float = 0
-            location_caps = self.get_eligible_vm_sizes(location_name, log)
             for req_index, req in enumerate(nodes_requirement):
-                for azure_cap in location_caps:
-                    if found_capabilities[req_index]:
-                        # found, so skipped
-                        break
-                    check_result = req.check(azure_cap.capability)
-                    if check_result.result:
-                        min_cap = self._generate_min_capability(
-                            req, azure_cap, azure_cap.location
-                        )
-
-                        cost += azure_cap.cost
-
-                        found_capabilities[req_index] = min_cap
-                if all(x for x in found_capabilities):
-                    break
+                if found_capabilities[req_index]:
+                    # found, so skipped
+                    continue
+                matched_min_cap = self._get_matched_capability(
+                    requirement=req, location=location_name, log=log
+                )
+                if matched_min_cap:
+                    cost += matched_min_cap.cost
+                    found_capabilities[req_index] = matched_min_cap
 
             # all found and replace current requirement
             if all(x for x in found_capabilities):
@@ -2201,6 +2194,23 @@ class AzurePlatform(Platform):
             ):
                 matched_cap = azure_cap
                 matched_score = matcher.ratio()
+
+        return matched_cap
+
+    def _get_matched_capability(
+        self, requirement: schema.NodeSpace, location: str, log: Logger
+    ) -> Optional[schema.NodeSpace]:
+        matched_cap: Optional[schema.NodeSpace] = None
+        location_caps = self.get_eligible_vm_sizes(location, log)
+        for azure_cap in location_caps:
+            check_result = requirement.check(azure_cap.capability)
+            if check_result.result:
+                min_cap = self._generate_min_capability(
+                    requirement, azure_cap, azure_cap.location
+                )
+
+                matched_cap = min_cap
+                break
 
         return matched_cap
 
