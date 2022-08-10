@@ -207,6 +207,11 @@ class AzureImageStandard(TestSuite):
             r"^(.*SGI XFS with ACLs, security attributes, realtime, verbose warnings, quota, no debug enabled.*)$",  # noqa: E501
             re.M,
         ),
+        re.compile(
+            r"^(.*platform regulatory\.0: Direct firmware load for regulatory\.db failed with error -2.*)$",
+            re.M,
+        ),
+        re.compile(r"^(.*failed to load regulatory\.db.*)$", re.M),
     ]
 
     @TestCaseMetadata(
