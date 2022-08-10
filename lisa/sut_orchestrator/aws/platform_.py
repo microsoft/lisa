@@ -305,7 +305,7 @@ class AwsPlatform(Platform):
             self._log.info("Set inbound rules for %s to allow SSH.", security_group.id)
         except ClientError:
             self._log.exception(
-                "Couldnt authorize inbound rules for %s.", security_group_name
+                "couldn't authorize inbound rules for %s.", security_group_name
             )
             raise
         else:
@@ -433,10 +433,10 @@ class AwsPlatform(Platform):
                             if found_capabilities[req_index]:
                                 # found, so skipped
                                 break
-                            # Check if the instance type is on the same archtecture
+                            # Check if the instance type is on the same architecture
                             # as the image.
-                            prcoessor_info = aws_cap.resource_sku["ProcessorInfo"]
-                            supported_archs = prcoessor_info["SupportedArchitectures"]
+                            processor_info = aws_cap.resource_sku["ProcessorInfo"]
+                            supported_archs = processor_info["SupportedArchitectures"]
                             if image.architecture != supported_archs[0]:
                                 continue
 
@@ -716,7 +716,7 @@ class AwsPlatform(Platform):
             ec2_resource = boto3.resource("ec2")
             for node in environment.nodes.list():
                 node_context = get_node_context(node)
-                instance_id = node_context.intsance_id
+                instance_id = node_context.instance_id
                 self.terminate_instance(ec2_resource, instance_id, log)
 
             self.delete_security_group(
@@ -872,7 +872,7 @@ class AwsPlatform(Platform):
         virtualization_type = boto3.resource("ec2").Image(image_id).virtualization_type
         volumes: List[str] = []
 
-        # Create the available volumn names based on virtualization type.
+        # Create the available volume names based on virtualization type.
         # Refer to the following link
         # https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/device_naming.html
         if virtualization_type == "hvm":
@@ -897,12 +897,12 @@ class AwsPlatform(Platform):
         node_context_map: Dict[str, Node] = {}
         for node in environment.nodes.list():
             node_context = get_node_context(node)
-            node_context.intsance_id = instances[node_context.vm_name]
+            node_context.instance_id = instances[node_context.vm_name]
             node_context_map[node_context.vm_name] = node
 
         for vm_name, node in node_context_map.items():
             node_context = get_node_context(node)
-            vm = ec2_resource.Instance(node_context.intsance_id)
+            vm = ec2_resource.Instance(node_context.instance_id)
             if not vm:
                 raise LisaException(
                     f"cannot find vm: '{vm_name}', make sure deployment is correct."

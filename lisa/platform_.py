@@ -63,11 +63,11 @@ class Platform(subclasses.BaseClassWithRunbookMixin, InitializableMixin):
         """
         Indicates which feature classes should be used to instance a feature.
 
-        For example, StartStop needs platform implemention, and LISA doesn't know which
-        type uses to start/stop for Azure. So Azure platform needs to return a type
-        like azure.StartStop. The azure.StartStop use same feature string as
-        lisa.features.StartStop. When test cases reference a feature by string, it can
-        be instanced to azure.StartStop.
+        For example, StartStop needs platform implementation, and LISA doesn't
+        know which type uses to start/stop for Azure. So Azure platform needs to
+        return a type like azure.StartStop. The azure.StartStop use same feature
+        string as lisa.features.StartStop. When test cases reference a feature
+        by string, it can be instanced to azure.StartStop.
         """
         raise NotImplementedError()
 

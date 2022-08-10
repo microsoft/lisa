@@ -27,7 +27,7 @@ from .common import AwsNodeSchema, get_node_context
 class AwsFeatureMixin:
     def _initialize_information(self, node: Node) -> None:
         node_context = get_node_context(node)
-        self._intsance_id = node_context.intsance_id
+        self._instance_id = node_context.instance_id
 
 
 class StartStop(AwsFeatureMixin, features.StartStop):
@@ -37,7 +37,7 @@ class StartStop(AwsFeatureMixin, features.StartStop):
         state: features.StopState = features.StopState.Shutdown,
     ) -> None:
         ec2_resource = boto3.resource("ec2")
-        instance = ec2_resource.Instance(self._intsance_id)
+        instance = ec2_resource.Instance(self._instance_id)
 
         if state == features.StopState.Hibernate:
             instance.stop(Hibernate=True)
@@ -48,7 +48,7 @@ class StartStop(AwsFeatureMixin, features.StartStop):
 
     def _start(self, wait: bool = True) -> None:
         ec2_resource = boto3.resource("ec2")
-        instance = ec2_resource.Instance(self._intsance_id)
+        instance = ec2_resource.Instance(self._instance_id)
 
         instance.start()
         if wait:
@@ -56,7 +56,7 @@ class StartStop(AwsFeatureMixin, features.StartStop):
 
     def _restart(self, wait: bool = True) -> None:
         ec2_resource = boto3.resource("ec2")
-        instance = ec2_resource.Instance(self._intsance_id)
+        instance = ec2_resource.Instance(self._instance_id)
 
         instance.reboot()
         if wait:
@@ -74,7 +74,7 @@ def get_aws_disk_type(disk_type: schema.DiskType) -> str:
     )
 
     result = _disk_type_mapping.get(disk_type, None)
-    assert result, f"unkonwn disk type: {disk_type}"
+    assert result, f"unknown disk type: {disk_type}"
 
     return result
 
@@ -130,7 +130,7 @@ class SerialConsole(AwsFeatureMixin, features.SerialConsole):
 
         if saved_path:
             screenshot_response = ec2_client.get_console_screenshot(
-                InstanceId=self._intsance_id
+                InstanceId=self._instance_id
             )
             screenshot_name = saved_path.joinpath("serial_console.jpg")
             with open(screenshot_name, "wb") as f:
@@ -138,7 +138,7 @@ class SerialConsole(AwsFeatureMixin, features.SerialConsole):
                     base64.decodebytes(screenshot_response["ImageData"].encode("utf-8"))
                 )
 
-        diagnostic_data = ec2_client.get_console_output(InstanceId=self._intsance_id)
+        diagnostic_data = ec2_client.get_console_output(InstanceId=self._instance_id)
         output_bytes = diagnostic_data["Output"].encode("ascii")
         return base64.b64decode(output_bytes)
 
@@ -169,7 +169,7 @@ class NetworkInterface(AwsFeatureMixin, features.NetworkInterface):
 
     def switch_sriov(self, enable: bool, wait: bool = True) -> None:
         aws_platform: AwsPlatform = self._platform  # type: ignore
-        instance = boto3.resource("ec2").Instance(self._intsance_id)
+        instance = boto3.resource("ec2").Instance(self._instance_id)
 
         # Don't check Intel 82599 Virtual Function (VF) interface at current
         if instance.ena_support == enable:
@@ -198,7 +198,7 @@ class NetworkInterface(AwsFeatureMixin, features.NetworkInterface):
             ).is_equal_to(enable)
 
     def is_enabled_sriov(self) -> bool:
-        instance = boto3.resource("ec2").Instance(self._intsance_id)
+        instance = boto3.resource("ec2").Instance(self._instance_id)
         return instance.ena_support
 
     def attach_nics(
@@ -206,7 +206,7 @@ class NetworkInterface(AwsFeatureMixin, features.NetworkInterface):
     ) -> None:
         aws_platform: AwsPlatform = self._platform  # type: ignore
         ec2_resource = boto3.resource("ec2")
-        instance = ec2_resource.Instance(self._intsance_id)
+        instance = ec2_resource.Instance(self._instance_id)
 
         current_nic_count = len(instance.network_interfaces)
         nic_count_after_add_extra = extra_nic_count + current_nic_count
@@ -256,7 +256,7 @@ class NetworkInterface(AwsFeatureMixin, features.NetworkInterface):
 
     def remove_extra_nics(self) -> None:
         aws_platform: AwsPlatform = self._platform  # type: ignore
-        instance = boto3.resource("ec2").Instance(self._intsance_id)
+        instance = boto3.resource("ec2").Instance(self._instance_id)
 
         for network_interface in instance.network_interfaces_attribute:
             if network_interface["Attachment"]["DeviceIndex"] != 0:
@@ -339,7 +339,7 @@ class Disk(AwsFeatureMixin, features.Disk):
 
     def get_raw_data_disks(self) -> List[str]:
         # Return all EBS devices except the root device
-        instance = boto3.resource("ec2").Instance(self._intsance_id)
+        instance = boto3.resource("ec2").Instance(self._instance_id)
         disk_array: List[str] = []
 
         for device_mapping in instance.block_device_mappings:
