@@ -38,7 +38,6 @@ class Drm(TestSuite):
         2. Check if hyperv_drm exist in the list.
         """,
         priority=2,
-        use_new_environment=True,
     )
     def verify_drm_driver(self, node: Node, log: Logger) -> None:
         lsmod = node.tools[Lsmod]
