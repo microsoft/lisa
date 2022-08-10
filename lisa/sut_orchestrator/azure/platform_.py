@@ -1258,6 +1258,9 @@ class AzurePlatform(Platform):
             image_info = self._get_image_info(
                 arm_parameters.location, arm_parameters.marketplace
             )
+            os_disk_size = max(
+                os_disk_size, image_info.os_disk_image.additional_properties["sizeInGb"]
+            )
             if not arm_parameters.purchase_plan and image_info.plan:
                 # expand values for lru cache
                 plan_name = image_info.plan.name
