@@ -79,6 +79,7 @@ class LisaRunner(BaseRunner):
         )
 
         self._cleanup_deleted_environments()
+        self._cleanup_done_results()
 
         # sort environments by status
         available_environments = self._sort_environments(self.environments)
@@ -437,6 +438,14 @@ class LisaRunner(BaseRunner):
             if environment.status != EnvironmentStatus.Deleted:
                 new_environments.append(environment)
         self.environments = new_environments
+
+    def _cleanup_done_results(self) -> None:
+        # remove reference to completed test results. It can save memory on big runs.
+        remaining_results: List[TestResult] = []
+        for test_result in self.test_results[:]:
+            if not test_result.is_completed:
+                remaining_results.append(test_result)
+        self.test_results = remaining_results
 
     def _get_results_by_priority(
         self, test_results: List[TestResult], priority: int
