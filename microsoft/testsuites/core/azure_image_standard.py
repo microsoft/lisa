@@ -208,10 +208,14 @@ class AzureImageStandard(TestSuite):
             re.M,
         ),
         re.compile(
-            r"^(.*platform regulatory\.0: Direct firmware load for regulatory\.db failed with error -2.*)$",
+            r"^(.*platform regulatory\.0: Direct firmware load for regulatory\.db failed with error -2.*)$",  # noqa: E501
             re.M,
         ),
         re.compile(r"^(.*failed to load regulatory\.db.*)$", re.M),
+        re.compile(
+            r"^(.*This warning is only shown for the first unit using IP firewalling.*)$",  # noqa: E501
+            re.M,
+        ),
     ]
 
     @TestCaseMetadata(
