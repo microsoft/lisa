@@ -1111,8 +1111,20 @@ class Environment:
     )
     nodes_requirement: Optional[List[NodeSpace]] = None
 
+    _original_nodes_requirement: Optional[List[NodeSpace]] = None
+
     def __post_init__(self, *args: Any, **kwargs: Any) -> None:
+        self._original_nodes_requirement = self.nodes_requirement
+        self.reload_requirements()
+
+    def reload_requirements(self) -> None:
         results: List[Node] = []
+
+        self.nodes = []
+        self.nodes_requirement = None
+        if self._original_nodes_requirement:
+            self.nodes_requirement = []
+            self.nodes_requirement.extend(copy.copy(self._original_nodes_requirement))
 
         if self.nodes_raw:
             for node_raw in self.nodes_raw:
@@ -1127,7 +1139,6 @@ class Environment:
                     # load base schema for future parsing
                     node: Node = load_by_type(Node, node_raw)
                     results.append(node)
-            self.nodes_raw = None
 
         self.nodes = results
 
