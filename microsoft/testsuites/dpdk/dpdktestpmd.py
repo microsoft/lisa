@@ -442,9 +442,12 @@ class DpdkTestpmd(Tool):
         self._determine_network_hardware()
         node = self.node
         if isinstance(node.os, Debian):
-            self._debian_backports_args = [
-                f"-t {node.os.information.codename}-backports"
-            ]
+            repos = node.os.get_repositories()
+            backport_repo = f"{node.os.information.codename}-backports"
+            if any([backport_repo in repo.name for repo in repos]):
+                self._debian_backports_args = [f"-t {backport_repo}"]
+            else:
+                self._debian_backports_args = []
         self._install_dependencies()
         # installing from distro package manager
         if self.use_package_manager_install():
