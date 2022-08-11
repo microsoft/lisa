@@ -29,6 +29,7 @@ from lisa.util import (
     BaseClassMixin,
     LisaException,
     MissingPackagesException,
+    RepoNotExistException,
     filter_ansi_escape,
     find_group_in_lines,
     get_matched_str,
@@ -640,6 +641,8 @@ class Debian(Linux):
     _package_candidate_pattern = re.compile(
         r"([\w\W]*?)(Candidate: \(none\)|Unable to locate package.*)", re.M
     )
+    # E: The repository 'http://azure.archive.ubuntu.com/ubuntu groovy Release' no longer has a Release file. # noqa: E501
+    _repo_not_exist_pattern = re.compile("does not have a Release file", re.M)
 
     @classmethod
     def name_pattern(cls) -> Pattern[str]:
@@ -762,6 +765,8 @@ class Debian(Linux):
         self.wait_running_package_process()
 
         result = self._node.execute("apt-get update", sudo=True)
+        if self._repo_not_exist_pattern.search(result.stdout):
+            raise RepoNotExistException(self._node.os)
         result.assert_exit_code(message="\n".join(self.get_apt_error(result.stdout)))
 
     @retry(tries=10, delay=5)
@@ -1461,6 +1466,8 @@ class Suse(Linux):
         r"\s+(?P<enabled>\S.*\S)\s+\|\s+(?P<gpg_check>\S.*\S)\s+\|"
         r"\s+(?P<refresh>\S.*\S)\s*"
     )
+    # Warning: There are no enabled repositories defined.
+    _no_repo_defined = re.compile("There are no enabled repositories defined.", re.M)
 
     @classmethod
     def name_pattern(cls) -> Pattern[str]:
@@ -1520,9 +1527,14 @@ class Suse(Linux):
 
     def _initialize_package_installation(self) -> None:
         self.wait_running_process("zypper")
-        self._node.execute(
+        output = self._node.execute(
             "zypper --non-interactive --gpg-auto-import-keys refresh", sudo=True
-        )
+        ).stdout
+        if self._no_repo_defined.search(output):
+            raise LisaException(
+                f"There are no enabled repositories defined in "
+                f"{self._node.os.name} {self._node.os.information.version}"
+            )
 
     def _install_packages(
         self,
