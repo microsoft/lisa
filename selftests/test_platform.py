@@ -153,9 +153,10 @@ class PlatformTestCase(TestCase):
         with self.assertRaises(LisaException) as cm:
             [platform.prepare_environment(env) for env in envs.values()]
         self.assertEqual(
-            "no capability found for environment: "
-            "Environment(name='customized_0', topology='subnet', "
-            "nodes_raw=None, nodes_requirement=None)",
+            "no capability found for environment: Environment("
+            "name='customized_0', topology='subnet', nodes_raw=[{'type': 'local', "
+            "'capability': {'core_count': {'min': 4}}}], nodes_requirement=None, "
+            "_original_nodes_requirement=None)",
             str(cm.exception),
         )
 
