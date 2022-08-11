@@ -5,7 +5,7 @@ from lisa.base_tools import Wget
 from lisa.executable import Tool
 from lisa.operating_system import CBLMariner, CentOs, Debian, Redhat
 from lisa.tools.service import Service
-from lisa.util import LisaException
+from lisa.util import LisaException, RepoNotExistException
 
 
 class Docker(Tool):
@@ -67,6 +67,8 @@ class Docker(Tool):
         if isinstance(self.node.os, Debian):
             try:
                 self.node.os.install_packages("docker.io")
+            except RepoNotExistException as e:
+                raise e
             except Exception as e:
                 self._log.error(
                     f"Failed to install docker.io: {e}, trying to install docker from"
