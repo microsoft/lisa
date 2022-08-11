@@ -10,7 +10,7 @@ from semver import VersionInfo
 
 from lisa.executable import Tool
 from lisa.nic import NicInfo
-from lisa.operating_system import Debian, Fedora, Redhat, Ubuntu
+from lisa.operating_system import Debian, Fedora, Ubuntu
 from lisa.tools import (
     Echo,
     Git,
@@ -677,7 +677,7 @@ class DpdkTestpmd(Tool):
             node.os.install_packages(
                 list(self._debian_packages), extra_args=self._debian_backports_args
             )
-        elif isinstance(node.os, Redhat):
+        elif isinstance(node.os, Fedora):
             self._install_redhat_dependencies()
         else:
             raise UnsupportedDistroException(
@@ -714,10 +714,10 @@ class DpdkTestpmd(Tool):
     def _install_redhat_dependencies(self) -> None:
         node = self.node
         rhel = node.os
-        if not isinstance(rhel, Redhat):
+        if not isinstance(rhel, Fedora):
             fail(
                 "_install_redhat_dependencies was called on node "
-                f"which was not Redhat: {node.os.information.full_version}"
+                f"which was not Fedora: {node.os.information.full_version}"
             )
             return  # appease the type checker
 
