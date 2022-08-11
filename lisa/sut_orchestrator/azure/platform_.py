@@ -1659,6 +1659,9 @@ class AzurePlatform(Platform):
             "standardFSv2Family",
             "standardNCFamily",
             "standardESv3Family",
+            "standardDPSv5Family",
+            "standardEBSv5Family",
+            "standardEv5Family",
         ]:
             node_space.disk.has_resource_disk = False
         else:
