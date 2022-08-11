@@ -19,7 +19,7 @@ from lisa import (
 from lisa.features import NetworkInterface
 from lisa.nic import NicInfo
 from lisa.operating_system import OperatingSystem, Ubuntu
-from lisa.tools import Dmesg, Echo, Lsmod, Lspci, Modprobe, Mount
+from lisa.tools import Dmesg, Echo, Free, Lsmod, Lspci, Modprobe, Mount
 from lisa.tools.mkfs import FileSystem
 from lisa.util.parallel import TaskManager, run_in_parallel, run_in_parallel_async
 from microsoft.testsuites.dpdk.common import check_dpdk_support
@@ -84,15 +84,39 @@ def init_hugepages(node: Node) -> None:
 
 def _enable_hugepages(node: Node) -> None:
     echo = node.tools[Echo]
+    meminfo = node.tools[Free]
+    nics_count = len(node.nics.get_upper_nics())
+
+    request_pages_2MB = (nics_count - 1) * 1024
+    request_pages_1GB = nics_count - 1
+    memfree_2MB = meminfo.get_free_memory_mb()
+    memfree_1GB = meminfo.get_free_memory_gb()
+
+    if memfree_2MB < request_pages_2MB:
+        node.log.debug(
+            "WARNING: Not enough 2MB pages available for DPDK! "
+            f"Requesting {request_pages_2MB} found {memfree_2MB} free. "
+            "Test may fail if it cannot allocate memory."
+        )
+        request_pages_2MB = 1024
+
+    if memfree_1GB < (request_pages_1GB * 2):  # account for 2MB pages by doubling ask
+        node.log.debug(
+            "WARNING: Not enough 1GB pages available for DPDK! "
+            f"Requesting {(request_pages_1GB * 2)} found {memfree_1GB} free. "
+            "Test may fail if it cannot allocate memory."
+        )
+        request_pages_1GB = 1
+
     echo.write_to_file(
-        "1024",
+        f"{request_pages_2MB}",
         node.get_pure_path(
             "/sys/devices/system/node/node0/hugepages/hugepages-2048kB/nr_hugepages"
         ),
         sudo=True,
     )
     echo.write_to_file(
-        "1",
+        f"{request_pages_1GB}",
         node.get_pure_path(
             "/sys/devices/system/node/node0/hugepages/hugepages-1048576kB/nr_hugepages"
         ),
