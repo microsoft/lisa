@@ -112,6 +112,23 @@ class UnsupportedDistroException(LisaException):
         return message
 
 
+class RepoNotExistException(LisaException):
+    """
+    This exception is used to indicate that a repo URL not existing issue
+    """
+
+    def __init__(self, os: "OperatingSystem", message: str = "") -> None:
+        self.name = os.name
+        self.version = os.information.full_version
+        self._extended_message = message
+
+    def __str__(self) -> str:
+        message = f"Repo not existing in '{self.version}'"
+        if self._extended_message:
+            message = f"{message}. {self._extended_message}"
+        return message
+
+
 class UnsupportedKernelException(LisaException):
     """
     This exception is used to indicate that a test case does not support the testing
