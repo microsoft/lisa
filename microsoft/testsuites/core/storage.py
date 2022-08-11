@@ -22,6 +22,7 @@ from lisa.features.disks import (
     DiskStandardSSDLRS,
 )
 from lisa.node import Node
+from lisa.operating_system import CentOs
 from lisa.schema import DiskType
 from lisa.sut_orchestrator import AZURE
 from lisa.sut_orchestrator.azure.features import AzureDiskOptionSettings
@@ -480,9 +481,14 @@ class Storage(TestSuite):
         log: Logger,
         node: RemoteNode,
     ) -> str:
-        if node.shell.exists(
-            PurePosixPath("/var/log/cloud-init.log")
-        ) and node.shell.exists(PurePosixPath("/var/lib/cloud/instance")):
+        # by default, cloudinit will use /mnt as mount point of resource disk
+        # in CentOS, cloud.cfg.d/91-azure_datasource.cfg customize mount point as
+        # /mnt/resource
+        if (
+            node.shell.exists(PurePosixPath("/var/log/cloud-init.log"))
+            and node.shell.exists(PurePosixPath("/var/lib/cloud/instance"))
+            and not isinstance(node.os, CentOs)
+        ):
             log.debug("Disk handled by cloud-init.")
             mount_point = "/mnt"
         else:
