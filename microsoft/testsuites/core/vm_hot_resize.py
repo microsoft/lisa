@@ -8,12 +8,13 @@ from assertpy import assert_that
 from lisa import (
     Logger,
     Node,
+    SkippedException,
     TestCaseMetadata,
     TestSuite,
     TestSuiteMetadata,
     simple_requirement,
 )
-from lisa.features import Resize
+from lisa.features import Resize, ResizeAction
 from lisa.schema import NodeSpace
 from lisa.tools import Lscpu
 
@@ -32,7 +33,7 @@ class VmHotResize(TestSuite):
         (memory size and core count) after the resize
 
         Steps:
-        1. Resize vm
+        1. Resize vm into larger vm size
         2. Check the node's core count and memory size against their expected values
         """,
         priority=1,
@@ -41,15 +42,39 @@ class VmHotResize(TestSuite):
         ),
     )
     def verify_vm_hot_resize(self, log: Logger, node: Node) -> None:
+        self._verify_vm_hot_resize(node)
+
+    @TestCaseMetadata(
+        description="""
+        This test case resizes the node and checks if it has the expected capabilities
+        (memory size and core count) after the resize
+
+        Steps:
+        1. Resize vm into smaller vm size
+        2. Check the node's core count and memory size against their expected values
+        """,
+        priority=1,
+        requirement=simple_requirement(
+            supported_features=[Resize],
+        ),
+    )
+    def verify_vm_hot_resize_decrease(self, log: Logger, node: Node) -> None:
+        self._verify_vm_hot_resize(node, ResizeAction.DecreaseCoreCount)
+
+    def _verify_vm_hot_resize(
+        self, node: Node, resize_action: ResizeAction = ResizeAction.IncreaseCoreCount
+    ) -> None:
         resize = node.features[Resize]
         retry = 1
         maxretry = 10
         while retry < maxretry:
             try:
                 expected_vm_capability: Optional[NodeSpace] = None
-                expected_vm_capability = resize.resize()
+                expected_vm_capability = resize.resize(resize_action)
                 break
             except Exception as identifier:
+                if "no available size for resizing" in str(identifier):
+                    raise SkippedException(str(identifier))
                 if (
                     "cannot find current vm size in eligible list" in str(identifier)
                     or "OperationNotAllowed" in str(identifier)
