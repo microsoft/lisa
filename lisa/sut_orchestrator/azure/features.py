@@ -1333,6 +1333,12 @@ class Resize(AzureFeatureMixin, features.Resize):
             ):
                 avail_eligible_intersect.remove(candidate_size)
 
+        if not avail_eligible_intersect:
+            raise LisaException(
+                f"current vm size: {current_vm_size.vm_size},"
+                f" no available size for resizing with {resize_action} setting."
+            )
+
         # Choose random size from the list to resize to
         index = randint(0, len(avail_eligible_intersect) - 1)
         resize_vm_size = avail_eligible_intersect[index]
