@@ -721,6 +721,11 @@ class DpdkTestpmd(Tool):
             )
             return  # appease the type checker
 
+        # DPDK is very sensitive to rdma-core/kernel mismatches
+        # update to latest kernel before instaling dependencies
+        rhel.install_packages("kernel")
+        node.reboot()
+
         if rhel.information.version.major == 7:
             # Add packages for rhel7
             rhel.install_packages(list(["libmnl-devel", "libbpf-devel"]))
