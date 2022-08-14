@@ -80,6 +80,7 @@ class VmHotResize(TestSuite):
                     or "OperationNotAllowed" in str(identifier)
                     or "Allocation failed" in str(identifier)
                     or "AllocationFailed" in str(identifier)
+                    or "cannot boot Hypervisor Generation" in str(identifier)
                 ):
                     retry = retry + 1
                 else:
