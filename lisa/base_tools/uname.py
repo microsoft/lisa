@@ -61,7 +61,7 @@ class Uname(Tool):
     ) -> UnameResult:
         self.initialize()
         cmd_result = self.run(
-            "-vrio", force_run=force_run, no_error_log=no_error_log, no_info_log=True
+            "-vrmo", force_run=force_run, no_error_log=no_error_log, no_info_log=True
         )
         if cmd_result.exit_code != 0:
             result = UnameResult(False, VersionInfo(0))
