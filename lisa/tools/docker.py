@@ -1,6 +1,5 @@
 # Copyright (c) Microsoft Corporation.
 # Licensed under the MIT license.
-
 from lisa.base_tools import Wget
 from lisa.executable import Tool
 from lisa.operating_system import CBLMariner, CentOs, Debian, Redhat
@@ -56,14 +55,25 @@ class Docker(Tool):
             expected_exit_code_failure_message="Docker run failed.",
         )
 
-    def start(self, name: str = "docker") -> None:
+    def start(self) -> None:
         self._log.debug("Start docker engine")
         service = self.node.tools[Service]
-        service.enable_service(name)
-        service.restart_service(name)
+        # for rhel 8, the service name may be podman (newer podman package)
+        # may be io.podman.socket (older podman package)
+        # remain ones use docker service
+        # once detect one existing service, enable and restart it, then exit the loop
+        for service_name in ["docker", "podman", "io.podman.socket"]:
+            if service.check_service_exists(service_name):
+                service.enable_service(service_name)
+                service.restart_service(service_name)
+                break
+
+    def _check_exists(self) -> bool:
+        if super()._check_exists():
+            self.start()
+        return super()._check_exists()
 
     def _install(self) -> bool:
-        service_name = "docker"
         if isinstance(self.node.os, Debian):
             try:
                 self.node.os.install_packages("docker.io")
@@ -99,7 +109,6 @@ class Docker(Tool):
                 self.node.execute(
                     "ln -s /bin/podman /bin/docker", sudo=True, shell=True
                 )
-                service_name = "podman"
             else:
                 self.node.os.add_repository(
                     repo="https://download.docker.com/linux/centos/docker-ce.repo",
@@ -125,7 +134,7 @@ class Docker(Tool):
             self.node.os.install_packages(["moby-engine", "moby-cli"])
         else:
             raise LisaException(f"{self.node.os.information.vendor} not supported")
-        self.start(service_name)
+        self.start()
         return self._check_exists()
 
     def _install_from_repo(self) -> None:
