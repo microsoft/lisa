@@ -358,7 +358,7 @@ class Posix(OperatingSystem, BaseClassMixin):
 
     def capture_system_information(self, saved_path: Path) -> None:
         # avoid to involve node, it's ok if some command doesn't exist.
-        self._node.execute("uname -vrio").save_stdout_to_file(saved_path / "uname.txt")
+        self._node.execute("uname -vrmo").save_stdout_to_file(saved_path / "uname.txt")
         self._node.execute(
             "uptime -s || last reboot -F | head -1 | awk '{print $9,$6,$7,$8}'",
             shell=True,
