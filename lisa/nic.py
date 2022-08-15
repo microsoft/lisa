@@ -268,7 +268,7 @@ class Nics(InitializableMixin):
         self.nics.clear()
         self._initialize()
 
-    @retry(tries=6, delay=20)
+    @retry(tries=12, delay=10)
     def wait_for_sriov_enabled(self) -> None:
         if not self.get_lower_nics():
             self.reload()
