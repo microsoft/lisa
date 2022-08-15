@@ -213,6 +213,18 @@ class StoragePerformance(TestSuite):
         ):
             raise SkippedException(f"{server_node.os.name} not supported")
 
+        # refer below link, in RHEL 8, NFS over UDP is no longer supported.
+        # https://access.redhat.com/documentation/en-us/red_hat_enterprise_linux/8/html/deploying_different_types_of_servers/exporting-nfs-shares_deploying-different-types-of-servers#the-tcp-and-udp-protocols-in-nfsv3-and-nfsv4_exporting-nfs-shares  # noqa: E501
+        if (
+            "udp" == protocol
+            and isinstance(server_node.os, Redhat)
+            and server_node.os.information.version >= "8.0.0"
+        ):
+            raise SkippedException(
+                f"udp mode not supported on {server_node.os.information.vendor} "
+                f"{server_node.os.information.release}"
+            )
+
         # Each fio process start jobs equal to the iodepth to read/write from
         # the disks. The max number of jobs can be equal to the core count of
         # the node.
