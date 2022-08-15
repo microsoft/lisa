@@ -217,12 +217,7 @@ def initialize_node_resources(
         raise SkippedException(err)
 
     # verify SRIOV is setup as-expected on the node after compat check
-    assert_that(node.nics.get_lower_nics()).described_as(
-        "Did not detect any upper/lower sriov paired nics!: "
-        f"upper: {node.nics.get_upper_nics()} "
-        f"lower: {node.nics.get_lower_nics()} "
-        f"unpaired: {node.nics.get_unpaired_devices()}"
-    ).is_not_empty()
+    node.nics.wait_for_sriov_enabled()
 
     # create tool, initialize testpmd tool (installs dpdk)
     testpmd: DpdkTestpmd = node.tools.get(

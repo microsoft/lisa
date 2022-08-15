@@ -9,6 +9,7 @@ from pathlib import PurePosixPath
 from typing import TYPE_CHECKING, Any, Dict, List, Optional
 
 from assertpy import assert_that
+from retry import retry
 
 from lisa.tools import Echo, Ip
 from lisa.util import InitializableMixin, LisaException, find_groups_in_lines
@@ -266,6 +267,18 @@ class Nics(InitializableMixin):
     def reload(self) -> None:
         self.nics.clear()
         self._initialize()
+
+    @retry(tries=6, delay=20)
+    def wait_for_sriov_enabled(self) -> None:
+        if not self.get_lower_nics():
+            self.reload()
+        if not self.get_lower_nics():
+            assert_that(self.get_lower_nics()).described_as(
+                "Did not detect any upper/lower sriov paired nics!: "
+                f"upper: {self.get_upper_nics()} "
+                f"lower: {self.get_lower_nics()} "
+                f"unpaired: {self.get_unpaired_devices()}"
+            ).is_not_empty()
 
     def _initialize(self, *args: Any, **kwargs: Any) -> None:
         self._node.log.debug("loading nic information...")
