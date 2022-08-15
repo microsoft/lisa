@@ -667,15 +667,15 @@ class AzureImageStandard(TestSuite):
                 cast(RPMRepositoryInfo, repo) for repo in repositories
             ]
 
-            # verify that `base` repository is present
-            is_base_repository_present = any(
-                ["base" in repository.id for repository in fedora_repositories]
-            )
-            assert_that(
-                is_base_repository_present, "Base repository should be present"
-            ).is_true()
-
             if node.os.information.version >= "8.0.0":
+                # verify that `base` repository is present
+                is_base_repository_present = any(
+                    ["base" in repository.id for repository in fedora_repositories]
+                )
+                assert_that(
+                    is_base_repository_present, "Base repository should be present"
+                ).is_true()
+
                 # verify that `appstream` repository is present
                 is_appstream_repository_present = any(
                     ["appstream" in repository.id for repository in fedora_repositories]
@@ -683,15 +683,6 @@ class AzureImageStandard(TestSuite):
                 assert_that(
                     is_appstream_repository_present,
                     "AppStream repository should be present",
-                ).is_true()
-            else:
-                # verify that `update` repository is not present
-                is_updates_repository_present = any(
-                    ["updates" in repository.id for repository in fedora_repositories]
-                )
-                assert_that(
-                    is_updates_repository_present,
-                    "Updates repository should be present",
                 ).is_true()
 
             # verify that at least five repositories are present in Redhat
