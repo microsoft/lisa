@@ -143,6 +143,14 @@ class Infiniband(Feature):
         ).is_not_empty()
         return result.stdout.split()
 
+    def _get_mofed_version(self) -> str:
+        node = self._node
+        default = "5.4-3.0.3.0"
+        if isinstance(node.os, Ubuntu) and str(node.os.information.release) == "20.04":
+            return "5.7-1.0.2.0"
+
+        return default
+
     def get_pkey(self) -> str:
         ib_device_name = self.get_ib_interfaces()[0].ib_device_name
         cat = self._node.tools[Cat]
@@ -260,7 +268,7 @@ class Infiniband(Feature):
         )
 
         # Install OFED
-        mofed_version = "5.4-3.0.3.0"
+        mofed_version = self._get_mofed_version()
         if isinstance(node.os, Redhat):
             os_class = "rhel"
         else:
