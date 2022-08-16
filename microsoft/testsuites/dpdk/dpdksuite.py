@@ -58,7 +58,7 @@ class Dpdk(TestSuite):
     # regex for parsing ring ping output for the final line,
     # grabbing the max latency of 99.999% of data in nanoseconds.
     # ex: percentile 99.999 = 12302
-    _ring_ping_percentile_regex = re.compile(r"percentile 99.999 = ([0-9]+)")
+    _ring_ping_percentile_regex = re.compile(r"percentile 99.990 = ([0-9]+)")
 
     @TestCaseMetadata(
         description="""
