@@ -11,7 +11,8 @@ from typing import TYPE_CHECKING, Any, Dict, List, Optional
 from assertpy import assert_that
 from retry import retry
 
-from lisa.tools import Echo, Ip
+import lisa.util.constants as constants
+from lisa.tools import Echo, Ip, Lspci
 from lisa.util import InitializableMixin, LisaException, find_groups_in_lines
 
 if TYPE_CHECKING:
@@ -268,8 +269,18 @@ class Nics(InitializableMixin):
         self.nics.clear()
         self._initialize()
 
-    @retry(tries=12, delay=10)
+    @retry(tries=15, delay=3, backoff=1.15)
     def wait_for_sriov_enabled(self) -> None:
+        lspci = self._node.tools[Lspci]
+
+        # check for VFs on the guest
+        vfs = lspci.get_devices_by_type(constants.DEVICE_TYPE_SRIOV)
+        assert_that(vfs).described_as(
+            "Could not identify any SRIOV NICs on the test node."
+        ).is_not_empty()
+
+        # check if the NIC driver has finished setting up the
+        # failsafe pair, reload if not
         if not self.get_lower_nics():
             self.reload()
         if not self.get_lower_nics():
