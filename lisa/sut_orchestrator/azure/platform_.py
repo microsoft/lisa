@@ -14,7 +14,7 @@ from functools import lru_cache, partial
 from pathlib import Path
 from threading import Lock
 from types import SimpleNamespace
-from typing import Any, Dict, List, Optional, Tuple, Type, Union, cast
+from typing import Any, Dict, List, Optional, Set, Tuple, Type, Union, cast
 
 from azure.core.exceptions import HttpResponseError
 from azure.identity import DefaultAzureCredential
@@ -1679,14 +1679,19 @@ class AzurePlatform(Platform):
         key = self._get_location_key(location)
         if key not in self._sorted_capabilities:
             location_info: AzureLocation = self._get_location_info(location, log)
+            found_vm_sizes: Set[str] = set()
             # loop all fall back levels
             for fallback_pattern in VM_SIZE_FALLBACK_PATTERNS:
                 level_capabilities: List[AzureCapability] = []
 
                 # loop all capabilities
                 for capability in location_info.capabilities:
-                    if fallback_pattern.match(capability.vm_size):
+                    if (
+                        fallback_pattern.match(capability.vm_size)
+                        and capability.vm_size not in found_vm_sizes
+                    ):
                         level_capabilities.append(capability)
+                        found_vm_sizes.add(capability.vm_size)
 
                 # sort by rough cost
                 level_capabilities.sort(key=lambda x: (x.capability.cost))
