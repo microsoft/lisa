@@ -310,7 +310,7 @@ class AzurePlatform(Platform):
 
     _credentials: Dict[str, DefaultAzureCredential] = {}
     _locations_data_cache: Dict[str, AzureLocation] = {}
-    _eligible_capabilities: Dict[str, List[AzureCapability]] = {}
+    _sorted_capabilities: Dict[str, List[AzureCapability]] = {}
 
     def __init__(self, runbook: schema.Platform) -> None:
         super().__init__(runbook=runbook)
@@ -386,11 +386,11 @@ class AzurePlatform(Platform):
         predefined_cost: float = 0
 
         # get eligible locations
-        locations = _get_allowed_locations(nodes_requirement)
+        allowed_locations = _get_allowed_locations(nodes_requirement)
 
         found_or_skipped = False
         matched_location = ""
-        for location_name in locations:
+        for location_name in allowed_locations:
             predefined_cost = 0
             predefined_caps = [None] * node_count
             for req_index, req in enumerate(nodes_requirement):
@@ -433,7 +433,7 @@ class AzurePlatform(Platform):
             # no location/vm_size meets requirement, so generate mockup to
             # continue to test. It applies to some preview vm_size may not
             # be listed by API.
-            location = next((x for x in locations))
+            location = next((x for x in allowed_locations))
             for req_index, req in enumerate(nodes_requirement):
                 if not node_runbook.vm_size or predefined_caps[req_index]:
                     continue
@@ -452,9 +452,9 @@ class AzurePlatform(Platform):
 
         # skip unmatched location
         if matched_location:
-            locations = [matched_location]
+            allowed_locations = [matched_location]
 
-        for location_name in locations:
+        for location_name in allowed_locations:
             # in each location, all node must be found
             # fill them as None and check after met capability
             found_capabilities: List[Any] = list(predefined_caps)
@@ -1669,9 +1669,7 @@ class AzurePlatform(Platform):
 
         return node_space
 
-    def get_eligible_vm_sizes(
-        self, location: str, log: Logger
-    ) -> List[AzureCapability]:
+    def get_sorted_vm_sizes(self, location: str, log: Logger) -> List[AzureCapability]:
         # load eligible vm sizes
         # 1. vm size supported in current location
         # 2. vm size match predefined pattern
@@ -1679,7 +1677,7 @@ class AzurePlatform(Platform):
         location_capabilities: List[AzureCapability] = []
 
         key = self._get_location_key(location)
-        if key not in self._eligible_capabilities:
+        if key not in self._sorted_capabilities:
             location_info: AzureLocation = self._get_location_info(location, log)
             # loop all fall back levels
             for fallback_pattern in VM_SIZE_FALLBACK_PATTERNS:
@@ -1698,8 +1696,8 @@ class AzurePlatform(Platform):
                     f"{[x.vm_size for x in level_capabilities]}"
                 )
                 location_capabilities.extend(level_capabilities)
-            self._eligible_capabilities[key] = location_capabilities
-        return self._eligible_capabilities[key]
+            self._sorted_capabilities[key] = location_capabilities
+        return self._sorted_capabilities[key]
 
     def load_public_ip(self, node: Node, log: Logger) -> str:
         node_context = get_node_context(node)
@@ -2201,7 +2199,8 @@ class AzurePlatform(Platform):
         self, requirement: schema.NodeSpace, location: str, log: Logger
     ) -> Optional[schema.NodeSpace]:
         matched_cap: Optional[schema.NodeSpace] = None
-        location_caps = self.get_eligible_vm_sizes(location, log)
+        location_caps = self.get_sorted_vm_sizes(location, log)
+        # filter allowed vm sizes
         for azure_cap in location_caps:
             check_result = requirement.check(azure_cap.capability)
             if check_result.result:
