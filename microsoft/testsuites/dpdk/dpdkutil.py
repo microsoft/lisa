@@ -22,7 +22,7 @@ from lisa.operating_system import OperatingSystem, Ubuntu
 from lisa.tools import Dmesg, Echo, Lsmod, Lspci, Modprobe, Mount
 from lisa.tools.mkfs import FileSystem
 from lisa.util.parallel import TaskManager, run_in_parallel, run_in_parallel_async
-from microsoft.testsuites.dpdk.common import check_dpdk_support
+from microsoft.testsuites.dpdk.common import DPDK_STABLE_GIT_REPO, check_dpdk_support
 from microsoft.testsuites.dpdk.dpdktestpmd import PACKAGE_MANAGER_SOURCE, DpdkTestpmd
 
 
@@ -91,6 +91,7 @@ def _enable_hugepages(node: Node) -> None:
         ),
         sudo=True,
     )
+
     echo.write_to_file(
         "1",
         node.get_pure_path(
@@ -107,9 +108,7 @@ def _set_forced_source_by_distro(node: Node, variables: Dict[str, Any]) -> None:
     # Default to 20.11 unless another version is provided by the
     # user. 20.11 is the latest dpdk version for 18.04.
     if isinstance(node.os, Ubuntu) and node.os.information.version < "20.4.0":
-        variables["dpdk_source"] = variables.get(
-            "dpdk_source", "https://github.com/DPDK/dpdk"
-        )
+        variables["dpdk_source"] = variables.get("dpdk_source", DPDK_STABLE_GIT_REPO)
         variables["dpdk_branch"] = variables.get("dpdk_branch", "v20.11")
 
 

@@ -1220,6 +1220,25 @@ class Fedora(RPMDistro):
             sed = self._node.tools[Sed]
             sed.substitute("$releasever", "8", "/etc/yum.repos.d/epel*.repo", sudo=True)
 
+    def _verify_package_result(self, result: ExecutableResult, packages: Any) -> None:
+        # yum returns exit_code=1 if DNF handled an error with installation.
+        # We do not want to fail if exit_code=1, but warn since something may
+        # potentially have gone wrong.
+        if result.exit_code == 1:
+            self._log.debug(f"DNF handled error with installation of {packages}")
+        elif result.exit_code == 0:
+            self._log.debug(f"{packages} is/are installed successfully.")
+        else:
+            raise LisaException(
+                f"Failed to install {packages}. exit_code: {result.exit_code}"
+            )
+
+    def group_install_packages(self, group_name: str) -> None:
+        # trigger to run _initialize_package_installation
+        self._get_package_list(group_name)
+        result = self._node.execute(f'yum -y groupinstall "{group_name}"', sudo=True)
+        self._verify_package_result(result, group_name)
+
     def _get_information(self) -> OsInformation:
         cmd_result = self._node.execute(
             # Typical output of 'cat /etc/fedora-release' is -
@@ -1273,12 +1292,6 @@ class Redhat(Fedora):
         # installation, it's implemented in source code installer.
         ...
 
-    def group_install_packages(self, group_name: str) -> None:
-        # trigger to run _initialize_package_installation
-        self._get_package_list(group_name)
-        result = self._node.execute(f'yum -y groupinstall "{group_name}"', sudo=True)
-        self.__verify_package_result(result, group_name)
-
     def capture_system_information(self, saved_path: Path) -> None:
         super().capture_system_information(saved_path)
         self._node.shell.copy_back(
@@ -1327,7 +1340,7 @@ class Redhat(Fedora):
                     missing_packages.append(package)
             if missing_packages:
                 raise MissingPackagesException(missing_packages)
-        self.__verify_package_result(install_result, packages)
+        super()._verify_package_result(install_result, packages)
 
     def _package_exists(self, package: str) -> bool:
         command = f"yum list installed {package}"
@@ -1381,19 +1394,6 @@ class Redhat(Fedora):
         # redhat rhel 7-lvm 7.7.2019102813 Basic_A1 cost 2371.568 seconds
         # redhat rhel 8.1 8.1.2020020415 Basic_A0 cost 2409.116 seconds
         self._node.execute(command, sudo=True, timeout=3600)
-
-    def __verify_package_result(self, result: ExecutableResult, packages: Any) -> None:
-        # yum returns exit_code=1 if DNF handled an error with installation.
-        # We do not want to fail if exit_code=1, but warn since something may
-        # potentially have gone wrong.
-        if result.exit_code == 1:
-            self._log.debug(f"DNF handled error with installation of {packages}")
-        elif result.exit_code == 0:
-            self._log.debug(f"{packages} is/are installed successfully.")
-        else:
-            raise LisaException(
-                f"Failed to install {packages}. exit_code: {result.exit_code}"
-            )
 
     def _dnf_tool(self) -> str:
         return "yum"

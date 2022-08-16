@@ -10,7 +10,7 @@ from semver import VersionInfo
 
 from lisa.executable import Tool
 from lisa.nic import NicInfo
-from lisa.operating_system import Debian, Fedora, Redhat, Ubuntu
+from lisa.operating_system import Debian, Fedora, Ubuntu
 from lisa.tools import (
     Echo,
     Git,
@@ -104,7 +104,7 @@ class DpdkTestpmd(Tool):
     # these are the same at the moment but might need tweaking later
     _debian_packages = _ubuntu_packages_2004
 
-    _redhat_packages = [
+    _fedora_packages = [
         "psmisc",
         "numactl-devel.x86_64",
         "librdmacm-devel",
@@ -677,8 +677,8 @@ class DpdkTestpmd(Tool):
             node.os.install_packages(
                 list(self._debian_packages), extra_args=self._debian_backports_args
             )
-        elif isinstance(node.os, Redhat):
-            self._install_redhat_dependencies()
+        elif isinstance(node.os, Fedora):
+            self._install_fedora_dependencies()
         else:
             raise UnsupportedDistroException(
                 node.os, "This OS does not have dpdk installation implemented yet."
@@ -711,15 +711,20 @@ class DpdkTestpmd(Tool):
                 extra_args=self._debian_backports_args,
             )
 
-    def _install_redhat_dependencies(self) -> None:
+    def _install_fedora_dependencies(self) -> None:
         node = self.node
         rhel = node.os
-        if not isinstance(rhel, Redhat):
+        if not isinstance(rhel, Fedora):
             fail(
-                "_install_redhat_dependencies was called on node "
-                f"which was not Redhat: {node.os.information.full_version}"
+                "_install_fedora_dependencies was called on node "
+                f"which was not Fedora: {node.os.information.full_version}"
             )
             return  # appease the type checker
+
+        # DPDK is very sensitive to rdma-core/kernel mismatches
+        # update to latest kernel before instaling dependencies
+        rhel.install_packages("kernel")
+        node.reboot()
 
         if rhel.information.version.major == 7:
             # Add packages for rhel7
@@ -736,7 +741,7 @@ class DpdkTestpmd(Tool):
 
         rhel.group_install_packages("Development Tools")
         rhel.group_install_packages("Infiniband Support")
-        rhel.install_packages(list(self._redhat_packages))
+        rhel.install_packages(list(self._fedora_packages))
 
         # ensure RDMA service is started if present.
 

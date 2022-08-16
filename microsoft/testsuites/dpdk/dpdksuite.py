@@ -22,6 +22,7 @@ from lisa.features import Gpu, Infiniband, IsolatedResource, Sriov
 from lisa.testsuite import simple_requirement
 from lisa.tools import Echo, Git, Ip, Kill, Lsmod, Make, Modprobe, Service
 from lisa.util.constants import SIGINT
+from microsoft.testsuites.dpdk.common import DPDK_STABLE_GIT_REPO
 from microsoft.testsuites.dpdk.dpdknffgo import DpdkNffGo
 from microsoft.testsuites.dpdk.dpdkovs import DpdkOvs
 from microsoft.testsuites.dpdk.dpdkutil import (
@@ -645,7 +646,7 @@ class Dpdk(TestSuite):
 
     def _force_dpdk_default_source(self, variables: Dict[str, Any]) -> None:
         if not variables.get("dpdk_source", None):
-            variables["dpdk_source"] = "https://dpdk.org/git/dpdk-stable"
+            variables["dpdk_source"] = DPDK_STABLE_GIT_REPO
 
     def after_case(self, log: Logger, **kwargs: Any) -> None:
         environment: Environment = kwargs.pop("environment")

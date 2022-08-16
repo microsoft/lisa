@@ -5,6 +5,8 @@ from lisa import Node
 from lisa.operating_system import Debian, Oracle, Redhat, Suse, Ubuntu
 from lisa.util import UnsupportedDistroException
 
+DPDK_STABLE_GIT_REPO = "https://dpdk.org/git/dpdk-stable"
+
 
 def check_dpdk_support(node: Node) -> None:
     # check requirements according to:
