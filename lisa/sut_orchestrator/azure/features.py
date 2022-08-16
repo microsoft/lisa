@@ -1264,12 +1264,10 @@ class Resize(AzureFeatureMixin, features.Resize):
             node_context.resource_group_name, node_context.vm_name
         )
         # Get list of vm sizes available in the current location
-        eligible_sizes = platform.get_eligible_vm_sizes(
-            node_runbook.location, self._log
-        )
+        sorted_sizes = platform.get_sorted_vm_sizes(node_runbook.location, self._log)
 
         current_vm_size = next(
-            (x for x in eligible_sizes if x.vm_size == node_runbook.vm_size),
+            (x for x in sorted_sizes if x.vm_size == node_runbook.vm_size),
             None,
         )
         assert current_vm_size, "cannot find current vm size in eligible list"
@@ -1282,7 +1280,7 @@ class Resize(AzureFeatureMixin, features.Resize):
             vm_size_name = size.as_dict()["name"]
             # Getting eligible vm sizes and their capability data
             new_vm_size = next(
-                (x for x in eligible_sizes if x.vm_size == vm_size_name), None
+                (x for x in sorted_sizes if x.vm_size == vm_size_name), None
             )
             if not new_vm_size:
                 continue

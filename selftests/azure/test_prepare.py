@@ -31,7 +31,7 @@ class AzurePrepareTestCase(TestCase):
         # trigger data to be cached
         locations = ["westus2", "eastus2", "notreal"]
         for location in locations:
-            self._platform.get_eligible_vm_sizes(location, self._log)
+            self._platform.get_sorted_vm_sizes(location, self._log)
 
     def test_load_capability(self) -> None:
         # capability can be loaded correct
@@ -85,10 +85,10 @@ class AzurePrepareTestCase(TestCase):
         notreal_key = self._platform._get_location_key("notreal")
         self.assertTrue(notreal_key in self._platform._locations_data_cache)
 
-        assert self._platform._eligible_capabilities
+        assert self._platform._sorted_capabilities
         self.verify_eligible_vm_size("westus2", "notreal", False)
-        self.assertTrue(notreal_key in self._platform._eligible_capabilities)
-        self.assertFalse(self._platform._eligible_capabilities[notreal_key])
+        self.assertTrue(notreal_key in self._platform._sorted_capabilities)
+        self.assertFalse(self._platform._sorted_capabilities[notreal_key])
 
     def test_predefined_2nd_location(self) -> None:
         # location predefined in eastus2, so all prepared skip westus2
@@ -311,21 +311,18 @@ class AzurePrepareTestCase(TestCase):
         self, location: str, vm_size: str, expect_exists: bool
     ) -> Optional[platform_.AzureCapability]:
         result = None
-        assert self._platform._eligible_capabilities
+        assert self._platform._sorted_capabilities
         key = self._platform._get_location_key(location)
         self.assertEqual(
             expect_exists,
             any(
-                [
-                    x.vm_size == vm_size
-                    for x in self._platform._eligible_capabilities[key]
-                ]
+                [x.vm_size == vm_size for x in self._platform._sorted_capabilities[key]]
             ),
         )
         if expect_exists:
             result = next(
                 x
-                for x in self._platform._eligible_capabilities[key]
+                for x in self._platform._sorted_capabilities[key]
                 if x.vm_size == vm_size
             )
         return result
