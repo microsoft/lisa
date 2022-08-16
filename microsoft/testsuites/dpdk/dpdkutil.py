@@ -18,7 +18,7 @@ from lisa import (
 )
 from lisa.features import NetworkInterface
 from lisa.nic import NicInfo
-from lisa.operating_system import OperatingSystem, Ubuntu
+from lisa.operating_system import OperatingSystem, Redhat, Ubuntu
 from lisa.tools import Dmesg, Echo, Lsmod, Lspci, Modprobe, Mount
 from lisa.tools.mkfs import FileSystem
 from lisa.util.parallel import TaskManager, run_in_parallel, run_in_parallel_async
@@ -107,7 +107,9 @@ def _set_forced_source_by_distro(node: Node, variables: Dict[str, Any]) -> None:
     # guests. Force stable source build on this platform.
     # Default to 20.11 unless another version is provided by the
     # user. 20.11 is the latest dpdk version for 18.04.
-    if isinstance(node.os, Ubuntu) and node.os.information.version < "20.4.0":
+    if (isinstance(node.os, Ubuntu) and node.os.information.version < "20.4.0") or (
+        isinstance(node.os, Redhat) and node.os.information.version < "8.0.0"
+    ):
         variables["dpdk_source"] = variables.get("dpdk_source", DPDK_STABLE_GIT_REPO)
         variables["dpdk_branch"] = variables.get("dpdk_branch", "v20.11")
 
