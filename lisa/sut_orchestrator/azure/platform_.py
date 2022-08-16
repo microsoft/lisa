@@ -401,7 +401,7 @@ class AzurePlatform(Platform):
                     found_or_skipped = True
                     continue
 
-                matched_cap = self._get_vm_size_by_name(
+                matched_cap = self._match_capability(
                     name=node_runbook.vm_size, location=location_name, log=log
                 )
                 if matched_cap:
@@ -2176,13 +2176,20 @@ class AzurePlatform(Platform):
         assert found_image.storage_profile.os_disk_image.size_in_gb
         return int(found_image.storage_profile.os_disk_image.size_in_gb)
 
-    def _get_vm_size_by_name(
+    def _get_normalized_vm_sizes(
         self, name: str, location: str, log: Logger
-    ) -> Optional[AzureCapability]:
+    ) -> List[str]:
+        split_vm_sizes: List[str] = [x.strip() for x in name.split(",")]
+        for index, vm_size in enumerate(split_vm_sizes):
+            split_vm_sizes[index] = self._get_normalized_vm_size(vm_size, location, log)
+
+        return split_vm_sizes
+
+    def _get_normalized_vm_size(self, name: str, location: str, log: Logger) -> str:
         # find predefined vm size on all available's.
         location_info: AzureLocation = self._get_location_info(location, log)
         matched_score: float = 0
-        matched_cap: Optional[AzureCapability] = None
+        matched_name: str = ""
         matcher = SequenceMatcher(None, name.lower(), "")
         for azure_cap in location_info.capabilities:
             matcher.set_seq2(azure_cap.vm_size.lower())
@@ -2190,8 +2197,23 @@ class AzurePlatform(Platform):
                 name.lower() in azure_cap.vm_size.lower()
                 and matched_score < matcher.ratio()
             ):
-                matched_cap = azure_cap
+                matched_name = azure_cap.vm_size
                 matched_score = matcher.ratio()
+
+        return matched_name
+
+    def _match_capability(
+        self, name: str, location: str, log: Logger
+    ) -> Optional[AzureCapability]:
+        # find predefined vm size on all available's.
+        location_info: AzureLocation = self._get_location_info(location, log)
+        matched_cap: Optional[AzureCapability] = None
+
+        vm_size = self._get_normalized_vm_size(name, location, log)
+        for azure_cap in location_info.capabilities:
+            if vm_size == azure_cap.vm_size:
+                matched_cap = azure_cap
+                break
 
         return matched_cap
 
