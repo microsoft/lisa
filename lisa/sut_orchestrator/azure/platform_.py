@@ -310,7 +310,6 @@ class AzurePlatform(Platform):
 
     _credentials: Dict[str, DefaultAzureCredential] = {}
     _locations_data_cache: Dict[str, AzureLocation] = {}
-    _sorted_capabilities: Dict[str, List[AzureCapability]] = {}
 
     def __init__(self, runbook: schema.Platform) -> None:
         super().__init__(runbook=runbook)
@@ -887,7 +886,7 @@ class AzurePlatform(Platform):
                 raise identifier
         return loaded_obj
 
-    def _get_location_info(self, location: str, log: Logger) -> AzureLocation:
+    def get_location_info(self, location: str, log: Logger) -> AzureLocation:
         cached_file_name = constants.CACHE_PATH.joinpath(
             f"azure_locations_{location}.json"
         )
@@ -1669,40 +1668,29 @@ class AzurePlatform(Platform):
 
         return node_space
 
-    def get_sorted_vm_sizes(self, location: str, log: Logger) -> List[AzureCapability]:
-        # load eligible vm sizes
-        # 1. vm size supported in current location
-        # 2. vm size match predefined pattern
+    def get_sorted_vm_sizes(
+        self, capabilities: List[AzureCapability], log: Logger
+    ) -> List[AzureCapability]:
+        # sort vm size by predefined pattern
 
-        location_capabilities: List[AzureCapability] = []
+        sorted_capabilities: List[AzureCapability] = []
 
-        key = self._get_location_key(location)
-        if key not in self._sorted_capabilities:
-            location_info: AzureLocation = self._get_location_info(location, log)
-            found_vm_sizes: Set[str] = set()
-            # loop all fall back levels
-            for fallback_pattern in VM_SIZE_FALLBACK_PATTERNS:
-                level_capabilities: List[AzureCapability] = []
+        found_vm_sizes: Set[str] = set()
+        # loop all fall back levels
+        for fallback_pattern in VM_SIZE_FALLBACK_PATTERNS:
+            level_capabilities: List[AzureCapability] = []
 
-                # loop all capabilities
-                for vm_size, capability in location_info.capabilities.items():
-                    if (
-                        fallback_pattern.match(vm_size)
-                        and vm_size not in found_vm_sizes
-                    ):
-                        level_capabilities.append(capability)
-                        found_vm_sizes.add(vm_size)
+            # loop all capabilities
+            for capability in capabilities:
+                vm_size = capability.vm_size
+                if fallback_pattern.match(vm_size) and vm_size not in found_vm_sizes:
+                    level_capabilities.append(capability)
+                    found_vm_sizes.add(vm_size)
 
-                # sort by rough cost
-                level_capabilities.sort(key=lambda x: (x.capability.cost))
-                log.debug(
-                    f"{key}, pattern '{fallback_pattern.pattern}'"
-                    f" {len(level_capabilities)} candidates: "
-                    f"{[x.vm_size for x in level_capabilities]}"
-                )
-                location_capabilities.extend(level_capabilities)
-            self._sorted_capabilities[key] = location_capabilities
-        return self._sorted_capabilities[key]
+            # sort by rough cost
+            level_capabilities.sort(key=lambda x: (x.capability.cost))
+            sorted_capabilities.extend(level_capabilities)
+        return sorted_capabilities
 
     def load_public_ip(self, node: Node, log: Logger) -> str:
         node_context = get_node_context(node)
@@ -2192,7 +2180,7 @@ class AzurePlatform(Platform):
 
     def _get_normalized_vm_size(self, name: str, location: str, log: Logger) -> str:
         # find predefined vm size on all available's.
-        location_info: AzureLocation = self._get_location_info(location, log)
+        location_info: AzureLocation = self.get_location_info(location, log)
         matched_score: float = 0
         matched_name: str = ""
         matcher = SequenceMatcher(None, name.lower(), "")
@@ -2208,7 +2196,7 @@ class AzurePlatform(Platform):
         self, name: str, location: str, log: Logger
     ) -> Optional[AzureCapability]:
         # find predefined vm size on all available's.
-        location_info: AzureLocation = self._get_location_info(location, log)
+        location_info: AzureLocation = self.get_location_info(location, log)
         matched_cap: Optional[AzureCapability] = None
 
         normalized_vm_size = self._get_normalized_vm_size(name, location, log)
@@ -2223,7 +2211,10 @@ class AzurePlatform(Platform):
         self, requirement: schema.NodeSpace, location: str, log: Logger
     ) -> Optional[schema.NodeSpace]:
         matched_cap: Optional[schema.NodeSpace] = None
-        location_caps = self.get_sorted_vm_sizes(location, log)
+        location_info = self.get_location_info(location, log)
+        location_caps = self.get_sorted_vm_sizes(
+            [value for _, value in location_info.capabilities.items()], log
+        )
         # filter allowed vm sizes
         for azure_cap in location_caps:
             check_result = requirement.check(azure_cap.capability)

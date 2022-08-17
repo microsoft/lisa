@@ -31,7 +31,7 @@ class AzurePrepareTestCase(TestCase):
         # trigger data to be cached
         locations = ["westus2", "eastus2", "notreal"]
         for location in locations:
-            self._platform.get_sorted_vm_sizes(location, self._log)
+            self._platform.get_location_info(location, self._log)
 
     def test_load_capability(self) -> None:
         # capability can be loaded correct
@@ -85,10 +85,9 @@ class AzurePrepareTestCase(TestCase):
         notreal_key = self._platform._get_location_key("notreal")
         self.assertTrue(notreal_key in self._platform._locations_data_cache)
 
-        assert self._platform._sorted_capabilities
+        assert self._platform._locations_data_cache
         self.verify_eligible_vm_size("westus2", "notreal", False)
-        self.assertTrue(notreal_key in self._platform._sorted_capabilities)
-        self.assertFalse(self._platform._sorted_capabilities[notreal_key])
+        self.assertTrue(notreal_key in self._platform._locations_data_cache)
 
     def test_predefined_2nd_location(self) -> None:
         # location predefined in eastus2, so all prepared skip westus2
@@ -298,7 +297,7 @@ class AzurePrepareTestCase(TestCase):
         self, location: str, vm_size: str, expect_exists: bool
     ) -> Optional[platform_.AzureCapability]:
         matched_vm_size = ""
-        location_info = self._platform._get_location_info(location, self._log)
+        location_info = self._platform.get_location_info(location, self._log)
         self.assertEqual(
             expect_exists,
             any([x == vm_size for x in location_info.capabilities]),
@@ -313,20 +312,17 @@ class AzurePrepareTestCase(TestCase):
         self, location: str, vm_size: str, expect_exists: bool
     ) -> Optional[platform_.AzureCapability]:
         result = None
-        assert self._platform._sorted_capabilities
-        key = self._platform._get_location_key(location)
+
+        location_info = self._platform.get_location_info(location, self._log)
+        sorted_capabilities = self._platform.get_sorted_vm_sizes(
+            [value for _, value in location_info.capabilities.items()], self._log
+        )
         self.assertEqual(
             expect_exists,
-            any(
-                [x.vm_size == vm_size for x in self._platform._sorted_capabilities[key]]
-            ),
+            any([x.vm_size == vm_size for x in sorted_capabilities]),
         )
         if expect_exists:
-            result = next(
-                x
-                for x in self._platform._sorted_capabilities[key]
-                if x.vm_size == vm_size
-            )
+            result = next(x for x in sorted_capabilities if x.vm_size == vm_size)
         return result
 
     def load_environment(
