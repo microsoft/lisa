@@ -231,6 +231,11 @@ class Lscpu(Tool):
             )
         return output
 
+    def get_numa_node_count(self) -> int:
+        # get count of numa nodes on the machine, add 1 to account
+        # for 0 indexing
+        return max([int(cpu.numa_node) for cpu in self.get_cpu_info()]) + 1
+
     def is_virtualization_enabled(self) -> bool:
         result = self.run(sudo=True).stdout
         if ("VT-x" in result) or ("AMD-V" in result):

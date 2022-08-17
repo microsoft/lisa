@@ -1,3 +1,4 @@
+import random
 import time
 from collections import deque
 from functools import partial
@@ -19,7 +20,7 @@ from lisa import (
 from lisa.features import NetworkInterface
 from lisa.nic import NicInfo
 from lisa.operating_system import OperatingSystem, Ubuntu
-from lisa.tools import Dmesg, Echo, Lsmod, Lspci, Modprobe, Mount
+from lisa.tools import Dmesg, Echo, Free, Lscpu, Lsmod, Lspci, Modprobe, Mount
 from lisa.tools.mkfs import FileSystem
 from lisa.util.parallel import TaskManager, run_in_parallel, run_in_parallel_async
 from microsoft.testsuites.dpdk.common import DPDK_STABLE_GIT_REPO, check_dpdk_support
@@ -84,21 +85,55 @@ def init_hugepages(node: Node) -> None:
 
 def _enable_hugepages(node: Node) -> None:
     echo = node.tools[Echo]
-    echo.write_to_file(
-        "1024",
-        node.get_pure_path(
-            "/sys/devices/system/node/node0/hugepages/hugepages-2048kB/nr_hugepages"
-        ),
-        sudo=True,
-    )
 
-    echo.write_to_file(
-        "1",
-        node.get_pure_path(
-            "/sys/devices/system/node/node0/hugepages/hugepages-1048576kB/nr_hugepages"
-        ),
-        sudo=True,
-    )
+    meminfo = node.tools[Free]
+    nics_count = len(node.nics.get_upper_nics())
+
+    numa_nodes = node.tools[Lscpu].get_numa_node_count()
+    request_pages_2mb = (nics_count - 1) * 1024 * numa_nodes
+    request_pages_1gb = (nics_count - 1) * numa_nodes
+    memfree_2mb = meminfo.get_free_memory_mb()
+    memfree_1mb = meminfo.get_free_memory_gb()
+
+    # request 2iGB memory per nic, 1 of 2MiB pages and 1 GiB page
+    # check there is enough memory on the device first.
+    # default to enough for one nic if not enough is available
+    # this should be fine for tests on smaller SKUs
+
+    if memfree_2mb < request_pages_2mb:
+        node.log.debug(
+            "WARNING: Not enough 2MB pages available for DPDK! "
+            f"Requesting {request_pages_2mb} found {memfree_2mb} free. "
+            "Test may fail if it cannot allocate memory."
+        )
+        request_pages_2mb = 1024
+
+    if memfree_1mb < (request_pages_1gb * 2):  # account for 2MB pages by doubling ask
+        node.log.debug(
+            "WARNING: Not enough 1GB pages available for DPDK! "
+            f"Requesting {(request_pages_1gb * 2)} found {memfree_1mb} free. "
+            "Test may fail if it cannot allocate memory."
+        )
+        request_pages_1gb = 1
+
+    for i in range(numa_nodes):
+        echo.write_to_file(
+            f"{request_pages_2mb}",
+            node.get_pure_path(
+                f"/sys/devices/system/node/node{i}/hugepages/"
+                "hugepages-2048kB/nr_hugepages"
+            ),
+            sudo=True,
+        )
+
+        echo.write_to_file(
+            f"{request_pages_1gb}",
+            node.get_pure_path(
+                f"/sys/devices/system/node/node{i}/hugepages/"
+                "hugepages-1048576kB/nr_hugepages"
+            ),
+            sudo=True,
+        )
 
 
 def _set_forced_source_by_distro(node: Node, variables: Dict[str, Any]) -> None:
@@ -112,6 +147,20 @@ def _set_forced_source_by_distro(node: Node, variables: Dict[str, Any]) -> None:
         variables["dpdk_branch"] = variables.get("dpdk_branch", "v20.11")
 
 
+def get_random_nic_with_ip(test_kit: DpdkTestResources) -> NicInfo:
+    nics = [
+        test_kit.node.nics.get_nic(nic)
+        for nic in test_kit.node.nics.get_upper_nics()
+        if nic != test_kit.node.nics.get_nic_by_index(0).upper
+        and test_kit.node.nics.get_nic(nic).ip_addr
+    ]
+    if not nics:
+        raise LisaException(
+            f"Node has no secondary nics with ip addresses! {test_kit.node.name}"
+        )
+    return random.choice(nics)
+
+
 def generate_send_receive_run_info(
     pmd: str,
     sender: DpdkTestResources,
@@ -122,7 +171,7 @@ def generate_send_receive_run_info(
     use_service_cores: int = 1,
 ) -> Dict[DpdkTestResources, str]:
 
-    snd_nic, rcv_nic = [x.node.nics.get_nic_by_index() for x in [sender, receiver]]
+    snd_nic, rcv_nic = [get_random_nic_with_ip(x) for x in [sender, receiver]]
 
     snd_cmd = sender.testpmd.generate_testpmd_command(
         snd_nic,

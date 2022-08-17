@@ -41,6 +41,7 @@ class NicInfo:
         self.dev_uuid = ""
         self.bound_driver = ""
         self.driver_sysfs_path = PurePosixPath("")
+        self.numa_node = 0
 
     def __str__(self) -> str:
         return (
@@ -325,6 +326,21 @@ class Nics(InitializableMixin):
     def _get_nic_uuids(self) -> None:
         for nic in self.get_upper_nics():
             self.nics[nic].dev_uuid = self._get_nic_uuid(nic)
+
+    def _get_nic_numa_node(self, name: str) -> int:
+        result = self._node.execute(
+            f"cat /sys/class/net/{name}/device/numa_node",
+            sudo=True,
+            shell=True,
+            expected_exit_code=0,
+            expected_exit_code_failure_message=(
+                f"Could not get numa information for nic {name}"
+            ),
+        )
+        numa = int(result.stdout.strip())
+        if numa == -1:
+            numa = 0
+        return numa
 
     def _get_node_nic_info(self) -> None:
         # Identify which nics are slaved to master devices.
