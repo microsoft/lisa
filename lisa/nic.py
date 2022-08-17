@@ -274,10 +274,10 @@ class Nics(InitializableMixin):
         lspci = self._node.tools[Lspci]
 
         # check for VFs on the guest
-        vfs = lspci.get_devices_by_type(constants.DEVICE_TYPE_SRIOV)
-        assert_that(vfs).described_as(
+        vfs = lspci.get_devices_by_type(constants.DEVICE_TYPE_SRIOV, force_run=True)
+        assert_that(len(vfs)).described_as(
             "Could not identify any SRIOV NICs on the test node."
-        ).is_not_empty()
+        ).is_not_zero()
 
         # check if the NIC driver has finished setting up the
         # failsafe pair, reload if not
@@ -289,6 +289,7 @@ class Nics(InitializableMixin):
                 f"upper: {self.get_upper_nics()} "
                 f"lower: {self.get_lower_nics()} "
                 f"unpaired: {self.get_unpaired_devices()}"
+                f"vfs: {','.join([str(pci) for pci in vfs])}"
             ).is_not_empty()
 
     def _initialize(self, *args: Any, **kwargs: Any) -> None:
