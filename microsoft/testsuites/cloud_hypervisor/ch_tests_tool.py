@@ -22,7 +22,7 @@ class CloudHypervisorTestResult:
 
 
 class CloudHypervisorTests(Tool):
-    TIME_OUT = 3600
+    TIME_OUT = 7200
 
     repo = "https://github.com/cloud-hypervisor/cloud-hypervisor.git"
 
