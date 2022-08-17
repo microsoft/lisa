@@ -1,8 +1,8 @@
 {
     "updated_time": "9999-09-21T12:16:43.682968",
     "location": "westus2",
-    "capabilities": [
-        {
+    "capabilities": {
+        "Standard_M208ms_v2": {
             "location": "westus2",
             "vm_size": "Standard_M208ms_v2",
             "capability": {
@@ -170,7 +170,7 @@
                 ]
             }
         },
-        {
+        "Standard_DS1_v2": {
             "location": "westus2",
             "vm_size": "Standard_DS1_v2",
             "capability": {
@@ -346,7 +346,7 @@
                 "restrictions": []
             }
         },
-        {
+        "Standard_DS2_v2": {
             "location": "westus2",
             "vm_size": "Standard_DS2_v2",
             "capability": {
@@ -528,5 +528,5 @@
                 "restrictions": []
             }
         }
-    ]
+    }
 }

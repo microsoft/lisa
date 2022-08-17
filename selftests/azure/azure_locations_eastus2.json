@@ -1,8 +1,8 @@
 {
     "updated_time": "9999-09-21T12:16:46.895330",
     "location": "eastus2",
-    "capabilities": [
-        {
+    "capabilities": {
+        "Standard_B1ls": {
             "location": "eastus2",
             "vm_size": "Standard_B1ls",
             "capability": {
@@ -171,7 +171,7 @@
                 "restrictions": []
             }
         },
-        {
+        "Standard_DS1_v2": {
             "location": "eastus2",
             "vm_size": "Standard_DS1_v2",
             "capability": {
@@ -347,7 +347,7 @@
                 "restrictions": []
             }
         },
-        {
+        "Standard_DS2_v2": {
             "location": "eastus2",
             "vm_size": "Standard_DS2_v2",
             "capability": {
@@ -528,7 +528,7 @@
                 "restrictions": []
             }
         },
-        {
+        "Standard_DS15_v2": {
             "location": "eastus2",
             "vm_size": "Standard_DS15_v2",
             "capability": {
@@ -722,7 +722,7 @@
                 ]
             }
         },
-        {
+        "Standard_A8_v2": {
             "location": "eastus2",
             "vm_size": "Standard_A8_v2",
             "capability": {
@@ -886,7 +886,7 @@
                 "restrictions": []
             }
         },
-        {
+        "Standard_NV48s_v3": {
             "location": "eastus2",
             "vm_size": "Standard_NV48s_v3",
             "capability": {
@@ -1036,5 +1036,5 @@
                 "restrictions": []
             }
         }
-    ]
+    }
 }
