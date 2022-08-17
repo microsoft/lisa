@@ -14,6 +14,7 @@ from lisa import (
     schema,
     search_space,
 )
+from lisa.operating_system import CBLMariner, Ubuntu
 from lisa.testsuite import TestResult
 from lisa.tools import Lscpu, Modprobe
 from lisa.util import SkippedException
@@ -39,6 +40,10 @@ class CloudHypervisorTestSuite(TestSuite):
 
     def before_case(self, log: Logger, **kwargs: Any) -> None:
         node = kwargs["node"]
+        if not isinstance(node.os, (CBLMariner, Ubuntu)):
+            raise SkippedException(
+                f"Cloud Hypervisor tests are not implemented in LISA for {node.os.name}"
+            )
         self._ensure_virtualization_enabled(node)
 
     @TestCaseMetadata(

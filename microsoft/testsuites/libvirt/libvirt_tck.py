@@ -1,6 +1,7 @@
 # Copyright (c) Microsoft Corporation.
 # Licensed under the MIT license.
 from pathlib import Path
+from typing import Any
 
 from lisa import (
     Environment,
@@ -10,6 +11,7 @@ from lisa import (
     TestSuite,
     TestSuiteMetadata,
 )
+from lisa.operating_system import Ubuntu
 from lisa.testsuite import TestResult
 from lisa.tools import Lscpu
 from lisa.util import SkippedException
@@ -28,6 +30,17 @@ from microsoft.testsuites.libvirt.libvirt_tck_tool import LibvirtTck
     """,
 )
 class LibvirtTckSuite(TestSuite):
+    def before_case(self, log: Logger, **kwargs: Any) -> None:
+        node = kwargs["node"]
+        if not isinstance(node.os, Ubuntu):
+            raise SkippedException(
+                f"Libvirt TCK suite is not implemented in LISA for {node.os.name}"
+            )
+        # ensure virtualization is enabled in hardware before running tests
+        virtualization_enabled = node.tools[Lscpu].is_virtualization_enabled()
+        if not virtualization_enabled:
+            raise SkippedException("Virtualization is not enabled in hardware")
+
     @TestCaseMetadata(
         description="""
         Runs the Libvirt TCK (Technology Compatibility Kit) tests with the default
@@ -43,9 +56,4 @@ class LibvirtTckSuite(TestSuite):
         log_path: Path,
         result: TestResult,
     ) -> None:
-        # ensure virtualization is enabled in hardware before running tests
-        virtualization_enabled = node.tools[Lscpu].is_virtualization_enabled()
-        if not virtualization_enabled:
-            raise SkippedException("Virtualization is not enabled in hardware")
-
         node.tools[LibvirtTck].run_tests(result, environment, log_path)

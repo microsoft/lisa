@@ -10,6 +10,7 @@ from lisa import (
     TestSuite,
     TestSuiteMetadata,
 )
+from lisa.operating_system import CBLMariner, Ubuntu
 from lisa.testsuite import TestResult
 from lisa.tools import Lscpu
 from lisa.util import SkippedException
@@ -43,5 +44,9 @@ class KvmUnitTestSuite(TestSuite):
         virtualization_enabled = node.tools[Lscpu].is_virtualization_enabled()
         if not virtualization_enabled:
             raise SkippedException("Virtualization is not enabled in hardware")
+        if not isinstance(node.os, (CBLMariner, Ubuntu)):
+            raise SkippedException(
+                f"KVM unit tests are not implemented in LISA for {node.os.name}"
+            )
 
         node.tools[KvmUnitTests].run_tests(result, environment, log_path)
