@@ -24,6 +24,21 @@ class Ls(Tool):
         )
         return 0 == cmd_result.exit_code
 
+    def list(self, path: str, sudo: bool = False) -> List[str]:
+        cmd_result = self.run(
+            f"-d {path}/*",
+            force_run=True,
+            sudo=sudo,
+            shell=True,
+        )
+
+        # can fail due to insufficient permissions, non existent
+        # files/dirs etc.
+        if cmd_result.exit_code == 0:
+            return cmd_result.stdout.split()
+        else:
+            return []
+
     def list_dir(self, path: str, sudo: bool = False) -> List[str]:
         cmd_result = self.node.execute(
             f"{self.command} -d {path}/*/",

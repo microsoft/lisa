@@ -12,7 +12,7 @@ from lisa.executable import Tool
 from lisa.messages import SubTestMessage, TestStatus, create_test_result_message
 from lisa.operating_system import Posix
 from lisa.testsuite import TestResult
-from lisa.tools import Git, Make
+from lisa.tools import Chmod, Git, Ls, Make
 from lisa.util import LisaException
 
 
@@ -75,6 +75,7 @@ class KvmUnitTests(Tool):
 
         results = self._parse_results(exec_result.stdout)
         if not results:
+            self._save_all_logs(failure_logs_path)
             raise LisaException("Did not find any test results in stdout.")
 
         failed_tests = []
@@ -138,6 +139,18 @@ class KvmUnitTests(Tool):
             self.node.shell.copy_back(
                 self.repo_root / "logs" / f"{test_name}.log",
                 log_path / f"{test_name}.failure.log",
+            )
+
+    def _save_all_logs(self, log_path: Path) -> None:
+        logs_dir = self.repo_root / "logs"
+        self.node.tools[Chmod].chmod("a+x", str(logs_dir), sudo=True)
+        self.node.tools[Chmod].update_folder("a+r", str(logs_dir), sudo=True)
+        files = self.node.tools[Ls].list(str(logs_dir), sudo=True)
+        for f in files:
+            f_path = PurePath(f)
+            self.node.shell.copy_back(
+                f_path,
+                log_path / f"{f_path.name}",
             )
 
     def _initialize(self, *args: Any, **kwargs: Any) -> None:
