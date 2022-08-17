@@ -732,7 +732,7 @@ class KVMPerformance(TestSuite):  # noqa
                 disk_type=DiskType.premiumssd,
                 test_result=result,
                 num_jobs=num_jobs,
-                size_gb=8,
+                size_mb=8192,
                 overwrite=True,
             )
         finally:
@@ -821,7 +821,7 @@ class KVMPerformance(TestSuite):  # noqa
                 disk_type=DiskType.premiumssd,
                 test_result=test_result,
                 num_jobs=num_jobs,
-                size_gb=8,
+                size_mb=8192,
                 overwrite=True,
             )
         finally:

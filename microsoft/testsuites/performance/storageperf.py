@@ -283,7 +283,7 @@ class StoragePerformance(TestSuite):
             disk_type=DiskType.premiumssd,
             num_jobs=num_jobs,
             block_size=block_size,
-            size_gb=1,
+            size_mb=256,
             overwrite=True,
             cwd=PurePosixPath(client_nfs_mount_dir),
             test_result=test_result,
@@ -322,7 +322,7 @@ class StoragePerformance(TestSuite):
             disk_type=DiskType.premiumssd,
             numjob=core_count,
             block_size=block_size,
-            size_gb=8,
+            size_mb=8192,
             overwrite=True,
             test_result=test_result,
         )
