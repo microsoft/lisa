@@ -808,8 +808,56 @@ class AzureImageStandard(TestSuite):
 
     @TestCaseMetadata(
         description="""
+        This test will check for kernel error, failure, alert messages from demsg.
+        Kenrel only, errors and alerts only. Should never fail.
+
+        Steps:
+        1. Get failure, error, alert messages from dmesg.
+        2. If any unexpected failure, error, warning messages excluding ignorable ones
+         existing, fail the case.
+        """,
+        priority=1,
+        requirement=simple_requirement(supported_platform_type=[AZURE, READY]),
+    )
+    def verify_boot_error_fail_warnings_dmesg(self, node: Node) -> None:
+        dmesg = node.tools[Dmesg]
+        log_output = dmesg.get_output(
+            force_run=True, log_level=["warn", "err", "emerg", "alert", "crit"]
+        )
+
+        ignored_candidates = list(
+            (
+                set(
+                    [
+                        x
+                        for sublist in find_patterns_in_lines(
+                            log_output, self._error_fail_warnings_ignorable_str_list
+                        )
+                        for x in sublist
+                        if x
+                    ]
+                )
+            )
+        )
+        found_results = [
+            x
+            for sublist in find_patterns_in_lines(
+                log_output, self._error_fail_warnings_pattern
+            )
+            for x in sublist
+            if x and x not in ignored_candidates
+        ]
+        assert_that(found_results).described_as(
+            "unexpected error/failure/warnings shown up in bootup log of distro"
+            f" {node.os.name} {node.os.information.version}"
+        ).is_empty()
+
+    @TestCaseMetadata(
+        description="""
         This test will check error, failure, warning messages from demsg,
          /var/log/syslog or /var/log/messages file.
+
+        Includes userspace warnings and application messages, can be noisy.
 
         Steps:
         1. Get failure, error, warning messages from dmesg, /var/log/syslog or
@@ -820,10 +868,10 @@ class AzureImageStandard(TestSuite):
         priority=1,
         requirement=simple_requirement(supported_platform_type=[AZURE, READY]),
     )
-    def verify_boot_error_fail_warnings(self, node: Node) -> None:
+    def verify_boot_error_fail_warnings_syslog(self, node: Node) -> None:
         dmesg = node.tools[Dmesg]
         cat = node.tools[Cat]
-        log_output = dmesg.get_output(force_run=True)
+        log_output = dmesg.get_output(force_run=True, log_level=["warn"])
         if node.shell.exists(node.get_pure_path("/var/log/syslog")):
             log_output += cat.read("/var/log/syslog", force_run=True, sudo=True)
         if node.shell.exists(node.get_pure_path("/var/log/messages")):
