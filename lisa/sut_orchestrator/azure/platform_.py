@@ -209,7 +209,7 @@ class AzureLocation:
         ),
     )
     location: str = ""
-    capabilities: List[AzureCapability] = field(default_factory=list)
+    capabilities: Dict[str, AzureCapability] = field(default_factory=dict)
 
 
 @dataclass_json()
@@ -919,7 +919,7 @@ class AzurePlatform(Platform):
             compute_client = get_compute_client(self)
 
             log.debug(f"{key}: querying")
-            all_skus: List[AzureCapability] = []
+            all_skus: Dict[str, AzureCapability] = dict()
             paged_skus = compute_client.resource_skus.list(
                 f"location eq '{location}'"
             ).by_page()
@@ -947,7 +947,7 @@ class AzurePlatform(Platform):
                                 capability=capability,
                                 resource_sku=resource_sku,
                             )
-                            all_skus.append(azure_capability)
+                            all_skus[azure_capability.vm_size] = azure_capability
                     except Exception as identifier:
                         log.error(f"unknown sku: {sku_obj}")
                         raise identifier
@@ -1685,13 +1685,13 @@ class AzurePlatform(Platform):
                 level_capabilities: List[AzureCapability] = []
 
                 # loop all capabilities
-                for capability in location_info.capabilities:
+                for vm_size, capability in location_info.capabilities.items():
                     if (
-                        fallback_pattern.match(capability.vm_size)
-                        and capability.vm_size not in found_vm_sizes
+                        fallback_pattern.match(vm_size)
+                        and vm_size not in found_vm_sizes
                     ):
                         level_capabilities.append(capability)
-                        found_vm_sizes.add(capability.vm_size)
+                        found_vm_sizes.add(vm_size)
 
                 # sort by rough cost
                 level_capabilities.sort(key=lambda x: (x.capability.cost))
@@ -2196,13 +2196,10 @@ class AzurePlatform(Platform):
         matched_score: float = 0
         matched_name: str = ""
         matcher = SequenceMatcher(None, name.lower(), "")
-        for azure_cap in location_info.capabilities:
-            matcher.set_seq2(azure_cap.vm_size.lower())
-            if (
-                name.lower() in azure_cap.vm_size.lower()
-                and matched_score < matcher.ratio()
-            ):
-                matched_name = azure_cap.vm_size
+        for vm_size in location_info.capabilities:
+            matcher.set_seq2(vm_size.lower())
+            if name.lower() in vm_size.lower() and matched_score < matcher.ratio():
+                matched_name = vm_size
                 matched_score = matcher.ratio()
 
         return matched_name
@@ -2214,9 +2211,9 @@ class AzurePlatform(Platform):
         location_info: AzureLocation = self._get_location_info(location, log)
         matched_cap: Optional[AzureCapability] = None
 
-        vm_size = self._get_normalized_vm_size(name, location, log)
-        for azure_cap in location_info.capabilities:
-            if vm_size == azure_cap.vm_size:
+        normalized_vm_size = self._get_normalized_vm_size(name, location, log)
+        for vm_size, azure_cap in location_info.capabilities.items():
+            if normalized_vm_size == vm_size:
                 matched_cap = azure_cap
                 break
 
