@@ -1,14 +1,14 @@
 # Copyright (c) Microsoft Corporation.
 # Licensed under the MIT license.
 
-
 import re
+import time
 from dataclasses import dataclass, field
 from typing import Any, Dict, List, Optional, Type, cast
 
 from dataclasses_json import dataclass_json
 
-from lisa import schema
+from lisa import create_timer, schema
 from lisa.node import Node, quick_connect
 from lisa.operating_system import Posix, Ubuntu
 from lisa.secret import PATTERN_HEADTAIL, add_secret
@@ -208,16 +208,27 @@ class RepoInstaller(BaseInstaller):
             version_name = f"{release}-proposed"
         else:
             version_name = release
-        repo_entry = (
-            f"deb {self.repo_url} {version_name} "
-            f"restricted main multiverse universe"
-        )
-        ubuntu.wait_running_package_process()
-        result = node.execute(f'add-apt-repository -y "{repo_entry}"', sudo=True)
-
-        result.assert_exit_code(
-            0, "failed on add repo\n\n".join(ubuntu.get_apt_error(result.stdout))
-        )
+        if hasattr(runbook, "openpgp_key"):
+            repo_entry = f"deb {self.repo_url} {version_name} main"
+        else:
+            repo_entry = (
+                f"deb {self.repo_url} {version_name} "
+                f"restricted main multiverse universe"
+            )
+        before_add_repo = ubuntu.get_repositories()
+        timeout = 600
+        timer = create_timer()
+        while timeout > timer.elapsed(False):
+            ubuntu.wait_running_package_process()
+            ubuntu.add_repository(repo_entry)
+            after_add_repo = ubuntu.get_repositories()
+            if len(after_add_repo) - len(before_add_repo) >= 1:
+                self._log.debug(f"add repo {repo_entry} successfully")
+                break
+            else:
+                time.sleep(2)
+                self._log.debug(f"fail to add repo, try again")
+                continue
 
         full_package_name = f"{runbook.source}/{version_name}"
         self._log.info(f"installing kernel package: {full_package_name}")
