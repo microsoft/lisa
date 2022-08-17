@@ -2,16 +2,59 @@
 # Licensed under the MIT license.
 
 import re
-from typing import List
+from typing import List, Optional
 
+from assertpy import assert_that
 from semver import VersionInfo
 
 from lisa.executable import Tool
 from lisa.util import LisaException
 from lisa.util.process import ExecutableResult
 
+# Supported log facilities:
+#     kern - kernel messages
+#     user - random user-level messages
+#     mail - mail system
+#   daemon - system daemons
+#     auth - security/authorization messages
+#   syslog - messages generated internally by syslogd
+#      lpr - line printer subsystem
+#     news - network news subsystem
+
+# Supported log levels (priorities):
+#    emerg - system is unusable
+#    alert - action must be taken immediately
+#     crit - critical conditions
+#      err - error conditions
+#     warn - warning conditions
+#   notice - normal but significant condition
+#     info - informational
+#    debug - debug-level messages
+
 
 class Dmesg(Tool):
+
+    __supported_log_facilities = [
+        "kern",
+        "user",
+        "mail",
+        "daemon",
+        "auth",
+        "syslog",
+        "lpr",
+        "news",
+    ]
+
+    __supported_log_levels = [
+        "emerg",
+        "alert",
+        "crit",
+        "err",
+        "warn",
+        "notice",
+        "info",
+        "debug",
+    ]
     # meet any pattern will be considered as potential error line.
     __errors_patterns = [
         re.compile("Call Trace"),
@@ -33,8 +76,38 @@ class Dmesg(Tool):
     def _check_exists(self) -> bool:
         return True
 
-    def get_output(self, force_run: bool = False) -> str:
-        command_output = self._run(force_run=force_run)
+    def get_output(
+        self,
+        force_run: bool = False,
+        log_facility: Optional[List[str]] = None,
+        log_level: Optional[List[str]] = None,
+    ) -> str:
+        # validate and set log level and facility arguments if present
+        if log_level:
+            check_log_level = [
+                level for level in log_level if level not in self.__supported_log_levels
+            ]
+            assert_that(check_log_level).described_as(
+                "Unrecognized log level requested in dmesg tool:" f" {check_log_level}"
+            ).is_empty()
+            parameters = "--level=" + ",".join(log_level)
+        else:
+            parameters = ""
+
+        if log_facility:
+            check_log_facility = [
+                facility
+                for facility in log_facility
+                if facility not in self.__supported_log_facilities
+            ]
+            assert_that(check_log_facility).described_as(
+                "Unrecognized log facility requested in dmesg tool:"
+                f" {check_log_level}"
+            ).is_empty()
+            parameters += " --facility=" + ",".join(log_facility)
+
+        # run the command
+        command_output = self._run(parameters, force_run=force_run)
         return command_output.stdout
 
     def check_kernel_errors(
@@ -81,12 +154,12 @@ class Dmesg(Tool):
                 return VersionInfo(int(major), int(minor))
         raise LisaException("No find matched vmbus version in dmesg")
 
-    def _run(self, force_run: bool = False) -> ExecutableResult:
+    def _run(self, parameters: str = "", force_run: bool = False) -> ExecutableResult:
         # sometime it need sudo, we can retry
         # so no_error_log for first time
-        result = self.run(force_run=force_run, no_error_log=True)
+        result = self.run(parameters=parameters, force_run=force_run, no_error_log=True)
         if result.exit_code != 0:
             # may need sudo
-            result = self.run(sudo=True, force_run=force_run)
+            result = self.run(parameters=parameters, sudo=True, force_run=force_run)
         self._cached_result = result
         return result
