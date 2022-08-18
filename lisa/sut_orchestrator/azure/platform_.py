@@ -348,10 +348,7 @@ class AzurePlatform(Platform):
             features.IsolatedResource,
         ]
 
-    def _prepare_environment(  # noqa: C901
-        self, environment: Environment, log: Logger
-    ) -> bool:
-        # TODO: Reduce this function's complexity and remove the disabled warning.
+    def _prepare_environment(self, environment: Environment, log: Logger) -> bool:
         """
         Main flow
 
@@ -379,101 +376,64 @@ class AzurePlatform(Platform):
 
         is_success: bool = False
         node_count = len(nodes_requirement)
-        # fills predefined locations here.
-        predefined_caps: List[Any] = [None] * node_count
-        # make sure all vms are in same location.
-        predefined_cost: float = 0
 
         # get eligible locations
         allowed_locations = _get_allowed_locations(nodes_requirement)
+        log.debug(f"allowed locations: {allowed_locations}")
 
-        found_or_skipped = False
-        matched_location = ""
-        for location_name in allowed_locations:
-            predefined_cost = 0
-            predefined_caps = [None] * node_count
+        # Any to wait for resource
+        all_wait_for_resource: bool = False
+
+        for location in allowed_locations:
+            # capability or if it's able to wait.
+            caps: List[Union[schema.NodeSpace, bool]] = [False] * node_count
+            cost: float = 0
+
+            # get allowed vm sizes. Either it's from the runbook defined vm
+            # sizes, either from subscription supported.
             for req_index, req in enumerate(nodes_requirement):
-                found_or_skipped = False
                 node_runbook = req.get_extended_runbook(AzureNodeSchema, AZURE)
-                if not node_runbook.vm_size:
-                    # not to check, if no vm_size set
-                    found_or_skipped = True
-                    continue
-
-                matched_cap = self._match_capability(
-                    name=node_runbook.vm_size, location=location_name, log=log
-                )
-                if matched_cap:
-                    # If max capability is set, use the max capability,
-                    # instead of the real capability. It needs to be in the
-                    # loop, to find supported locations.
-                    if node_runbook.maximize_capability:
-                        matched_cap = self._generate_max_capability(
-                            node_runbook.vm_size, location_name
-                        )
-
-                    predefined_cost += matched_cap.capability.cost
-
-                    min_cap = self._generate_min_capability(
-                        req, matched_cap, location_name
+                if node_runbook.vm_size:
+                    # find the vm_size
+                    allowed_vm_sizes = self._get_normalized_vm_sizes(
+                        name=node_runbook.vm_size, location=location, log=log
                     )
 
-                    if not matched_location:
-                        matched_location = location_name
-                    predefined_caps[req_index] = min_cap
-                    found_or_skipped = True
+                    # Some preview vm size may not be queried from the list.
+                    # Force to add.
+                    if not allowed_vm_sizes:
+                        allowed_vm_sizes = [node_runbook.vm_size]
                 else:
-                    # if not found any, skip and try next location
-                    break
-            if found_or_skipped:
-                # if found all, skip other locations
-                break
-        if not found_or_skipped:
-            # no location/vm_size meets requirement, so generate mockup to
-            # continue to test. It applies to some preview vm_size may not
-            # be listed by API.
-            location = next((x for x in allowed_locations))
-            for req_index, req in enumerate(nodes_requirement):
-                if not node_runbook.vm_size or predefined_caps[req_index]:
-                    continue
+                    location_info = self.get_location_info(location, log)
+                    allowed_vm_sizes = [
+                        key for key, _ in location_info.capabilities.items()
+                    ]
 
-                log.info(
-                    f"Cannot find vm_size {node_runbook.vm_size} in {location}. "
-                    f"Mockup capability to run tests."
+                # build the capability of vm sizes. The information is useful to
+                # check quota.
+                candidate_caps = self._get_capabilities(
+                    vm_sizes=allowed_vm_sizes,
+                    location=location,
+                    use_max_capability=node_runbook.maximize_capability,
+                    log=log,
                 )
-                mock_up_capability = self._generate_max_capability(
-                    node_runbook.vm_size, location
-                )
-                min_cap = self._generate_min_capability(
-                    req, mock_up_capability, location
-                )
-                predefined_caps[req_index] = min_cap
 
-        # skip unmatched location
-        if matched_location:
-            allowed_locations = [matched_location]
+                # TODO: filter out vm sizes, which has no enough quota.
 
-        for location_name in allowed_locations:
-            # in each location, all node must be found
-            # fill them as None and check after met capability
-            found_capabilities: List[Any] = list(predefined_caps)
+                # sort vm sizes to match
+                candidate_caps = self.get_sorted_vm_sizes(candidate_caps, log)
 
-            cost: float = 0
-            for req_index, req in enumerate(nodes_requirement):
-                if found_capabilities[req_index]:
-                    # found, so skipped
-                    continue
-                matched_min_cap = self._get_matched_capability(
-                    requirement=req, location=location_name, log=log
-                )
-                if matched_min_cap:
-                    cost += matched_min_cap.cost
-                    found_capabilities[req_index] = matched_min_cap
+                # match vm sizes by capability or use the predefined vm sizes.
+                candidate_cap = self._get_matched_capability(req, candidate_caps)
+                if candidate_cap:
+                    caps[req_index] = candidate_cap
+                    cost += candidate_cap.cost
 
-            # all found and replace current requirement
-            if all(x for x in found_capabilities):
-                environment.runbook.nodes_requirement = found_capabilities
-                environment.cost = cost + predefined_cost
+            # check to return value or raise WaitForMoreResource
+            if all(isinstance(x, schema.NodeSpace) for x in caps):
+                # with above condition, all types are NodeSpace. Ignore the mypy check.
+                environment.runbook.nodes_requirement = caps  # type: ignore
+                environment.cost = cost
                 is_success = True
                 log.debug(
                     f"requirement meet, "
@@ -482,13 +442,18 @@ class AzurePlatform(Platform):
                 )
                 break
 
+        if not is_success and all_wait_for_resource:
+            # TODO raise for wait more resource
+            ...
+
         # resolve Latest to specified version
-        for req in nodes_requirement:
-            node_runbook = req.get_extended_runbook(AzureNodeSchema, AZURE)
-            if node_runbook.location and node_runbook.marketplace:
-                node_runbook.marketplace = self._resolve_marketplace_image(
-                    node_runbook.location, node_runbook.marketplace
-                )
+        if is_success:
+            for req in nodes_requirement:
+                node_runbook = req.get_extended_runbook(AzureNodeSchema, AZURE)
+                if node_runbook.location and node_runbook.marketplace:
+                    node_runbook.marketplace = self._resolve_marketplace_image(
+                        node_runbook.location, node_runbook.marketplace
+                    )
         return is_success
 
     def _deploy_environment(self, environment: Environment, log: Logger) -> None:
@@ -2176,7 +2141,7 @@ class AzurePlatform(Platform):
         for index, vm_size in enumerate(split_vm_sizes):
             split_vm_sizes[index] = self._get_normalized_vm_size(vm_size, location, log)
 
-        return split_vm_sizes
+        return [x for x in split_vm_sizes if x]
 
     def _get_normalized_vm_size(self, name: str, location: str, log: Logger) -> str:
         # find predefined vm size on all available's.
@@ -2192,31 +2157,34 @@ class AzurePlatform(Platform):
 
         return matched_name
 
-    def _match_capability(
-        self, name: str, location: str, log: Logger
-    ) -> Optional[AzureCapability]:
-        # find predefined vm size on all available's.
-        location_info: AzureLocation = self.get_location_info(location, log)
-        matched_cap: Optional[AzureCapability] = None
+    def _get_capabilities(
+        self, vm_sizes: List[str], location: str, use_max_capability: bool, log: Logger
+    ) -> List[AzureCapability]:
+        candidate_caps: List[AzureCapability] = []
 
-        normalized_vm_size = self._get_normalized_vm_size(name, location, log)
-        for vm_size, azure_cap in location_info.capabilities.items():
-            if normalized_vm_size == vm_size:
-                matched_cap = azure_cap
-                break
+        for vm_size in vm_sizes:
+            # force to use max capability to run test cases as much as possible,
+            # or force to support non-exists vm size.
+            if use_max_capability:
+                candidate_caps.append(self._generate_max_capability(vm_size, location))
+                continue
 
-        return matched_cap
+            caps = self.get_location_info(location, log).capabilities
+
+            if vm_size in caps:
+                candidate_caps.append(caps[vm_size])
+
+        return candidate_caps
 
     def _get_matched_capability(
-        self, requirement: schema.NodeSpace, location: str, log: Logger
+        self,
+        requirement: schema.NodeSpace,
+        candidate_capabilities: List[AzureCapability],
     ) -> Optional[schema.NodeSpace]:
         matched_cap: Optional[schema.NodeSpace] = None
-        location_info = self.get_location_info(location, log)
-        location_caps = self.get_sorted_vm_sizes(
-            [value for _, value in location_info.capabilities.items()], log
-        )
+
         # filter allowed vm sizes
-        for azure_cap in location_caps:
+        for azure_cap in candidate_capabilities:
             check_result = requirement.check(azure_cap.capability)
             if check_result.result:
                 min_cap = self._generate_min_capability(
