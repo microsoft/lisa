@@ -106,7 +106,7 @@ class Mount(Tool):
         # /dev/<name> on <mount_point> type <type>
         # Example:
         # /dev/sda1 on / type ext4
-        output: str = self.run().stdout
+        output: str = self.run(force_run=True).stdout
         partition_info: List[PartitionInfo] = []
         for line in output.splitlines():
             matched = self._partition_info_regex.fullmatch(line)
