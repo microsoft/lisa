@@ -1,13 +1,13 @@
 {
     "updated_time": "9999-09-21T12:16:43.682968",
-    "location": "westus2",
+    "location": "uksouth",
     "capabilities": {
         "Standard_M208ms_v2": {
-            "location": "westus2",
+            "location": "uksouth",
             "vm_size": "Standard_M208ms_v2",
             "capability": {
                 "type": "requirement",
-                "name": "westus2_Standard_M208ms_v2",
+                "name": "uksouth_Standard_M208ms_v2",
                 "isDefault": false,
                 "node_count": 1,
                 "core_count": 208,
@@ -68,11 +68,11 @@
                 "size": "M208ms_v2",
                 "family": "standardMSv2Family",
                 "locations": [
-                    "westus2"
+                    "uksouth"
                 ],
                 "location_info": [
                     {
-                        "location": "westus2",
+                        "location": "uksouth",
                         "zones": [
                             "1",
                             "3"
@@ -155,11 +155,11 @@
                     {
                         "type": "Zone",
                         "values": [
-                            "westus2"
+                            "uksouth"
                         ],
                         "restriction_info": {
                             "locations": [
-                                "westus2"
+                                "uksouth"
                             ],
                             "zones": [
                                 "2"
@@ -171,11 +171,11 @@
             }
         },
         "Standard_DS1_v2": {
-            "location": "westus2",
+            "location": "uksouth",
             "vm_size": "Standard_DS1_v2",
             "capability": {
                 "type": "requirement",
-                "name": "westus2_Standard_DS1_v2",
+                "name": "uksouth_Standard_DS1_v2",
                 "isDefault": false,
                 "node_count": 1,
                 "core_count": 1,
@@ -236,11 +236,11 @@
                 "size": "DS1_v2",
                 "family": "standardDSv2Family",
                 "locations": [
-                    "westus2"
+                    "uksouth"
                 ],
                 "location_info": [
                     {
-                        "location": "westus2",
+                        "location": "uksouth",
                         "zones": [
                             "3",
                             "2",
@@ -347,11 +347,11 @@
             }
         },
         "Standard_DS2_v2": {
-            "location": "westus2",
+            "location": "uksouth",
             "vm_size": "Standard_DS2_v2",
             "capability": {
                 "type": "requirement",
-                "name": "westus2_Standard_DS2_v2",
+                "name": "uksouth_Standard_DS2_v2",
                 "isDefault": false,
                 "node_count": 1,
                 "core_count": 2,
@@ -417,11 +417,11 @@
                 "size": "DS2_v2",
                 "family": "standardDSv2Family",
                 "locations": [
-                    "westus2"
+                    "uksouth"
                 ],
                 "location_info": [
                     {
-                        "location": "westus2",
+                        "location": "uksouth",
                         "zones": [
                             "3",
                             "2",
