@@ -225,6 +225,32 @@ class AzureImageStandard(TestSuite):
         ),
     ]
 
+    def _process_log_lines(self, log_output: str) -> List[str]:
+        ignored_candidates = list(
+            (
+                set(
+                    [
+                        x
+                        for sublist in find_patterns_in_lines(
+                            log_output, self._error_fail_warnings_ignorable_str_list
+                        )
+                        for x in sublist
+                        if x
+                    ]
+                )
+            )
+        )
+        found_results = [
+            x
+            for sublist in find_patterns_in_lines(
+                log_output, self._error_fail_warnings_pattern
+            )
+            for x in sublist
+            if x and x not in ignored_candidates
+        ]
+
+        return found_results
+
     @TestCaseMetadata(
         description="""
         This test will verify that `Defaults targetpw` is not enabled in the
@@ -824,29 +850,7 @@ class AzureImageStandard(TestSuite):
         log_output = dmesg.get_output(
             force_run=True, log_level=["warn", "err", "emerg", "alert", "crit"]
         )
-
-        ignored_candidates = list(
-            (
-                set(
-                    [
-                        x
-                        for sublist in find_patterns_in_lines(
-                            log_output, self._error_fail_warnings_ignorable_str_list
-                        )
-                        for x in sublist
-                        if x
-                    ]
-                )
-            )
-        )
-        found_results = [
-            x
-            for sublist in find_patterns_in_lines(
-                log_output, self._error_fail_warnings_pattern
-            )
-            for x in sublist
-            if x and x not in ignored_candidates
-        ]
+        found_results = self._process_log_lines(log_output)
         assert_that(found_results).described_as(
             "unexpected error/failure/warnings shown up in bootup log of distro"
             f" {node.os.name} {node.os.information.version}"
@@ -869,36 +873,15 @@ class AzureImageStandard(TestSuite):
         requirement=simple_requirement(supported_platform_type=[AZURE, READY]),
     )
     def verify_boot_error_fail_warnings_syslog(self, node: Node) -> None:
-        dmesg = node.tools[Dmesg]
         cat = node.tools[Cat]
-        log_output = dmesg.get_output(force_run=True, log_level=["warn"])
+        log_output = ""
         if node.shell.exists(node.get_pure_path("/var/log/syslog")):
             log_output += cat.read("/var/log/syslog", force_run=True, sudo=True)
         if node.shell.exists(node.get_pure_path("/var/log/messages")):
             log_output += cat.read("/var/log/messages", force_run=True, sudo=True)
 
-        ignored_candidates = list(
-            (
-                set(
-                    [
-                        x
-                        for sublist in find_patterns_in_lines(
-                            log_output, self._error_fail_warnings_ignorable_str_list
-                        )
-                        for x in sublist
-                        if x
-                    ]
-                )
-            )
-        )
-        found_results = [
-            x
-            for sublist in find_patterns_in_lines(
-                log_output, self._error_fail_warnings_pattern
-            )
-            for x in sublist
-            if x and x not in ignored_candidates
-        ]
+        found_results = self._process_log_lines(log_output)
+
         assert_that(found_results).described_as(
             "unexpected error/failure/warnings shown up in bootup log of distro"
             f" {node.os.name} {node.os.information.version}"
