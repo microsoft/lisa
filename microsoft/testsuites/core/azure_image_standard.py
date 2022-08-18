@@ -37,6 +37,7 @@ from lisa.operating_system import (
 from lisa.sut_orchestrator import AZURE, READY
 from lisa.sut_orchestrator.azure.features import AzureDiskOptionSettings
 from lisa.tools import Cat, Dmesg, Ls, Lsblk, Lscpu, Pgrep, Ssh, Whoami
+from lisa.tools.dmesg import LogLevel
 from lisa.util import (
     LisaException,
     PassedException,
@@ -847,9 +848,7 @@ class AzureImageStandard(TestSuite):
     )
     def verify_boot_error_fail_warnings_dmesg(self, node: Node) -> None:
         dmesg = node.tools[Dmesg]
-        log_output = dmesg.get_output(
-            force_run=True, log_level=["warn", "err", "emerg", "alert", "crit"]
-        )
+        log_output = dmesg.get_output(force_run=True, log_level=LogLevel.WARN)
         found_results = self._process_log_lines(log_output)
         assert_that(found_results).described_as(
             "unexpected error/failure/warnings shown up in bootup log of distro"
