@@ -2,7 +2,8 @@
 # Licensed under the MIT license.
 
 import re
-from typing import List, Optional
+from enum import Enum
+from typing import Dict, List, Literal, Optional
 
 from assertpy import assert_that
 from semver import VersionInfo
@@ -32,29 +33,39 @@ from lisa.util.process import ExecutableResult
 #    debug - debug-level messages
 
 
+class LogLevel(Enum):
+    EMERGENCY = "emerg"
+    ALERT = "alert"
+    CRITICAL = "crit"
+    ERROR = "err"
+    WARNING = "warn"
+    NOTICE = "notice"
+    INFO = "info"
+    DEBUG = "debug"
+
+
+def _get_log_levels(level: LogLevel) -> List[str]:
+    values = []
+    for level_ in LogLevel:
+        values.append(level_.value)
+        if level_ == level:
+            break
+    return values
+
+
+class LogFacility(Enum):
+    KERN = "kern"
+    USER = "user"
+    MAIL = "mail"
+    DAEMON = "daemon"
+    AUTH = "auth"
+    SYSLOG = "syslog"
+    LPR = "lpr"
+    NEWS = "news"
+
+
 class Dmesg(Tool):
 
-    __supported_log_facilities = [
-        "kern",
-        "user",
-        "mail",
-        "daemon",
-        "auth",
-        "syslog",
-        "lpr",
-        "news",
-    ]
-
-    __supported_log_levels = [
-        "emerg",
-        "alert",
-        "crit",
-        "err",
-        "warn",
-        "notice",
-        "info",
-        "debug",
-    ]
     # meet any pattern will be considered as potential error line.
     __errors_patterns = [
         re.compile("Call Trace"),
@@ -78,32 +89,23 @@ class Dmesg(Tool):
 
     def get_output(
         self,
+        log_level: Optional[LogLevel] = None,
+        log_facilities: Optional[List[LogFacility]] = None,
         force_run: bool = False,
-        log_facility: Optional[List[str]] = None,
-        log_level: Optional[List[str]] = None,
     ) -> str:
         # validate and set log level and facility arguments if present
         if log_level:
-            check_log_level = [
-                level for level in log_level if level not in self.__supported_log_levels
-            ]
-            assert_that(check_log_level).described_as(
-                "Unrecognized log level requested in dmesg tool:" f" {check_log_level}"
-            ).is_empty()
-            parameters = "--level=" + ",".join(log_level)
+            # get list of log levels up to the one we've selected
+            log_levels = _get_log_levels(log_level)
+            self.node.log.info(f"selected log levels: {log_levels}")
+            parameters = "-l " + ",".join(log_levels)
+
         else:
             parameters = ""
 
-        if log_facility:
-            check_log_facility = [
-                facility
-                for facility in log_facility
-                if facility not in self.__supported_log_facilities
-            ]
-            assert_that(check_log_facility).described_as(
-                "Unrecognized log facility requested in dmesg tool:"
-                f" {check_log_level}"
-            ).is_empty()
+        if log_facilities:
+            # get str values from enum class
+            log_facility = [x.value for x in log_facilities]
             parameters += " --facility=" + ",".join(log_facility)
 
         # run the command
