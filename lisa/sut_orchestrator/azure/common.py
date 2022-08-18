@@ -121,6 +121,8 @@ class AzureNodeSchema:
         default=1,
         metadata=field_metadata(validate=validate.OneOf([1, 2])),
     )
+    # for marketplace image, which need to accept terms
+    purchase_plan: Optional[AzureVmPurchasePlanSchema] = None
 
     # the linux and Windows has different settings. If it's not specified, it's
     # True by default for SIG and vhd, and is parsed from marketplace
@@ -304,9 +306,6 @@ class AzureNodeSchema:
 @dataclass
 class AzureNodeArmParameter(AzureNodeSchema):
     nic_count: int = 1
-    # for marketplace image, which need to accept terms
-    purchase_plan: Optional[AzureVmPurchasePlanSchema] = None
-
     enable_sriov: bool = False
     disk_type: str = ""
     osdisk_size_in_gb: int = 30
