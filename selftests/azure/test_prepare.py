@@ -182,12 +182,26 @@ class AzurePrepareTestCase(TestCase):
         # vm size is not found
         env = self.load_environment(node_req_count=1)
         self.set_node_runbook(env, 0, location="", vm_size="not_exist")
+        self.verify_prepared_nodes(
+            expected_result=False,
+            expected_locations=[],
+            expected_vm_sizes=[],
+            expected_cost=0,
+            environment=env,
+        )
+
+    def test_predefined_not_found_vm_size_max_enabled(self) -> None:
+        # vm size is not found
+        env = self.load_environment(node_req_count=1)
+        self.set_node_runbook(
+            env, 0, location="", vm_size="not_exist", max_capability=True
+        )
         # The mock up capability is matched.
         self.verify_prepared_nodes(
             expected_result=True,
             expected_locations=["westus2"],
             expected_vm_sizes=["not_exist"],
-            expected_cost=0,
+            expected_cost=1,
             environment=env,
         )
 
@@ -293,6 +307,32 @@ class AzurePrepareTestCase(TestCase):
             environment=env,
         )
 
+    def test_multiple_locations(self) -> None:
+        # vm size is not found
+        env = self.load_environment(node_req_count=1)
+        self.set_node_runbook(
+            env, 0, location="australiaeast,brazilsouth", vm_size="DS1_v2"
+        )
+        self.verify_prepared_nodes(
+            expected_result=True,
+            expected_locations=["australiaeast"],
+            expected_vm_sizes=["Standard_DS1_v2"],
+            expected_cost=1,
+            environment=env,
+        )
+
+    def test_multiple_vm_sizes(self) -> None:
+        # vm size is not found
+        env = self.load_environment(node_req_count=1)
+        self.set_node_runbook(env, 0, location="", vm_size="A8_v2,NV48s_v3")
+        self.verify_prepared_nodes(
+            expected_result=True,
+            expected_locations=["eastus2"],
+            expected_vm_sizes=["Standard_A8_v2"],
+            expected_cost=8,
+            environment=env,
+        )
+
     def verify_exists_vm_size(
         self, location: str, vm_size: str, expect_exists: bool
     ) -> Optional[platform_.AzureCapability]:
@@ -349,6 +389,7 @@ class AzurePrepareTestCase(TestCase):
         index: int,
         location: str = "",
         vm_size: str = "",
+        max_capability: bool = False,
     ) -> None:
         assert environment.runbook.nodes_requirement
         node_runbook = environment.runbook.nodes_requirement[
@@ -356,6 +397,7 @@ class AzurePrepareTestCase(TestCase):
         ].get_extended_runbook(common.AzureNodeSchema, AZURE)
         node_runbook.location = location
         node_runbook.vm_size = vm_size
+        node_runbook.maximize_capability = max_capability
         self._set_nodes_raw(environment)
 
     def verify_prepared_nodes(
