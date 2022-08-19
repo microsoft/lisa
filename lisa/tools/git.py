@@ -167,7 +167,7 @@ class Git(Tool):
         )
         return filter_ansi_escape(result.stdout).splitlines()
 
-    def last_commitid(self, cwd: pathlib.PurePath) -> List[str]:
+    def last_commitid(self, cwd: pathlib.PurePath) -> str:
         result = self.run(
             "log --pretty=format:%h HEAD^..HEAD",
             shell=True,
@@ -175,7 +175,7 @@ class Git(Tool):
             expected_exit_code=0,
             expected_exit_code_failure_message="Could not fetch commit ids from git repo.",
         )
-        return filter_ansi_escape(result.stdout).splitlines() 
+        return filter_ansi_escape(result.stdout)
 
     def init_submodules(self, cwd: pathlib.PurePath) -> None:
         self.run(
