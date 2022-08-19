@@ -869,10 +869,6 @@ class AzurePlatform(Platform):
             # refresh cached locations every 1 day.
             if delta.days < 1:
                 should_refresh = False
-                log.debug(
-                    f"{key}: cache used: {location_data.updated_time}, "
-                    f"sku count: {len(location_data.capabilities)}"
-                )
             else:
                 log.debug(
                     f"{key}: cache timeout: {location_data.updated_time},"
@@ -2164,6 +2160,7 @@ class AzurePlatform(Platform):
         self, vm_sizes: List[str], location: str, use_max_capability: bool, log: Logger
     ) -> List[AzureCapability]:
         candidate_caps: List[AzureCapability] = []
+        caps = self.get_location_info(location, log).capabilities
 
         for vm_size in vm_sizes:
             # force to use max capability to run test cases as much as possible,
@@ -2171,8 +2168,6 @@ class AzurePlatform(Platform):
             if use_max_capability:
                 candidate_caps.append(self._generate_max_capability(vm_size, location))
                 continue
-
-            caps = self.get_location_info(location, log).capabilities
 
             if vm_size in caps:
                 candidate_caps.append(caps[vm_size])
