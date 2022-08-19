@@ -393,30 +393,8 @@ class AzurePlatform(Platform):
             # get allowed vm sizes. Either it's from the runbook defined, or
             # from subscription supported .
             for req_index, req in enumerate(nodes_requirement):
-                node_runbook = req.get_extended_runbook(AzureNodeSchema, AZURE)
-                if node_runbook.vm_size:
-                    # find the vm_size
-                    allowed_vm_sizes = self._get_normalized_vm_sizes(
-                        name=node_runbook.vm_size, location=location, log=log
-                    )
+                candidate_caps = self._get_allowed_capabilities(req, location, log)
 
-                    # Some preview vm size may not be queried from the list.
-                    # Force to add.
-                    if not allowed_vm_sizes:
-                        allowed_vm_sizes = [node_runbook.vm_size]
-                else:
-                    location_info = self.get_location_info(location, log)
-                    allowed_vm_sizes = [
-                        key for key, _ in location_info.capabilities.items()
-                    ]
-
-                # build the capability of vm sizes. The information is useful to
-                # check quota.
-                candidate_caps = self._get_capabilities(
-                    vm_sizes=allowed_vm_sizes,
-                    location=location,
-                    use_max_capability=node_runbook.maximize_capability,
-                    log=log,
                 )
 
                 # TODO: filter out vm sizes, which has no enough quota.
@@ -2193,6 +2171,35 @@ class AzurePlatform(Platform):
                 break
 
         return matched_cap
+
+    def _get_allowed_capabilities(
+        self, req: schema.NodeSpace, location: str, log: Logger
+    ) -> List[AzureCapability]:
+        node_runbook = req.get_extended_runbook(AzureNodeSchema, AZURE)
+        if node_runbook.vm_size:
+            # find the vm_size
+            allowed_vm_sizes = self._get_normalized_vm_sizes(
+                name=node_runbook.vm_size, location=location, log=log
+            )
+
+            # Some preview vm size may not be queried from the list.
+            # Force to add.
+            if not allowed_vm_sizes:
+                allowed_vm_sizes = [node_runbook.vm_size]
+        else:
+            location_info = self.get_location_info(location, log)
+            allowed_vm_sizes = [key for key, _ in location_info.capabilities.items()]
+
+        # build the capability of vm sizes. The information is useful to
+        # check quota.
+        allowed_capabilities = self._get_capabilities(
+            vm_sizes=allowed_vm_sizes,
+            location=location,
+            use_max_capability=node_runbook.maximize_capability,
+            log=log,
+        )
+
+        return allowed_capabilities
 
 
 def _convert_to_azure_node_space(node_space: schema.NodeSpace) -> None:
