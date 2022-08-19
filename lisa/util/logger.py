@@ -48,6 +48,12 @@ class Logger(logging.Logger):
             content = json.dumps(content, indent=2)
             self.lines(level=level, content=content, prefix=prefix)
 
+    def warn_or_raise(self, raise_error: bool, message: str) -> None:
+        if raise_error:
+            raise LisaException(message)
+        else:
+            self.warning(message)
+
     def _log(
         self,
         level: int,
@@ -59,7 +65,7 @@ class Logger(logging.Logger):
         stacklevel: int = 1,
     ) -> None:
         """
-        Low-level log implementation, proxied to allow nested logger adapters.
+        Low-level log implementation, proxies to allow nested logger adapters.
         """
         msg = self._filter_secrets(msg)
         args = self._filter_secrets(args)
@@ -90,12 +96,6 @@ class Logger(logging.Logger):
             for index, item in enumerate(value):
                 value[index] = self._filter_secrets(item)
         return value
-
-    def warn_or_raise(self, raise_error: bool, message: str) -> None:
-        if raise_error:
-            raise LisaException(message)
-        else:
-            self.warning(message)
 
 
 class LogWriter(object):

@@ -390,8 +390,8 @@ class AzurePlatform(Platform):
             caps: List[Union[schema.NodeSpace, bool]] = [False] * node_count
             cost: float = 0
 
-            # get allowed vm sizes. Either it's from the runbook defined vm
-            # sizes, either from subscription supported.
+            # get allowed vm sizes. Either it's from the runbook defined, or
+            # from subscription supported .
             for req_index, req in enumerate(nodes_requirement):
                 node_runbook = req.get_extended_runbook(AzureNodeSchema, AZURE)
                 if node_runbook.vm_size:
