@@ -175,7 +175,7 @@ class Git(Tool):
             expected_exit_code=0,
             expected_exit_code_failure_message="Could not fetch commit ids from git repo.",
         )
-        return filter_ansi_escape(result.stdout).splitlines()[0] 
+        return filter_ansi_escape(result.stdout).splitlines()[1] 
 
     def init_submodules(self, cwd: pathlib.PurePath) -> None:
         self.run(
