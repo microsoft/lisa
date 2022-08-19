@@ -990,7 +990,8 @@ function Verify-MellanoxAdapter($vmData)
 		Copy-RemoteFiles -uploadTo $vmData.PublicIP -port $vmData.SSHPort -username $user -password $password -file ".\Testscripts\Linux\utils.sh" -upload
 		Run-LinuxCmd -ip $vmData.PublicIP -port $vmData.SSHPort -username $user -password $password -command "which lspci || (. ./utils.sh && install_package pciutils)" -runAsSudo | Out-Null
 		$pciDevices = Run-LinuxCmd -ip $vmData.PublicIP -port $vmData.SSHPort -username $user -password $password -command "lspci" -runAsSudo
-		if ( $pciDevices -imatch "Mellanox")
+		#if ( $pciDevices -imatch "Mellanox")
+        if (( $pciDevices -imatch "Mellanox") -or  ( $pciDevices -imatch "Ethernet.*Microsoft"))
 		{
 			Write-LogInfo "[Attempt $retryAttempts/$maxRetryAttemps] Mellanox Adapter detected in $($vmData.RoleName)."
 			$mellanoxAdapterDetected = $true
