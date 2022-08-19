@@ -167,6 +167,16 @@ class Git(Tool):
         )
         return filter_ansi_escape(result.stdout).splitlines()
 
+    def list_commitids(self, cwd: pathlib.PurePath) -> List[str]:
+        result = self.run(
+            "log --pretty=format:%h",
+            shell=True,
+            cwd=cwd,
+            expected_exit_code=0,
+            expected_exit_code_failure_message="Could not fetch commit ids from git repo.",
+        )
+        return filter_ansi_escape(result.stdout).splitlines() 
+
     def init_submodules(self, cwd: pathlib.PurePath) -> None:
         self.run(
             "submodule update --init",

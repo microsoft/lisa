@@ -330,10 +330,12 @@ class RepoLocation(BaseLocation):
             self._log.info(f"checkout code from: '{runbook.ref}'")
             git.checkout(ref=runbook.ref, cwd=code_path)
 
-        result = self._node.execute(
-            "git log --pretty=format:%h | head -1", cwd=code_path, shell=True
-        )
-        self._log.info(f"Kernel HEAD is now at : {result}")
+        #result = self._node.execute(
+        #    "git log --pretty=format:%h | head -1", cwd=code_path, shell=True
+        #)                
+        git = self._node.tools[Git]
+        commitids = git.list_commitids(cwd=code_path)
+        self._log.info(f"Kernel HEAD is now at : {commitids[0]}")
 
         return code_path
 
