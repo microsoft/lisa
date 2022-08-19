@@ -167,9 +167,9 @@ class Git(Tool):
         )
         return filter_ansi_escape(result.stdout).splitlines()
 
-    def list_commitids(self, cwd: pathlib.PurePath) -> List[str]:
+    def last_commitid(self, cwd: pathlib.PurePath) -> List[str]:
         result = self.run(
-            "log --pretty=format:%h",
+            "log --pretty=format:%h HEAD^..HEAD",
             shell=True,
             cwd=cwd,
             expected_exit_code=0,
