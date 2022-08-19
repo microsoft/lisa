@@ -169,7 +169,7 @@ class Git(Tool):
 
     def list_commitids(self, cwd: pathlib.PurePath) -> List[str]:
         result = self.run(
-            "--no-pager log --pretty=format:%h HEAD^..HEAD",
+            "--no-pager log --pretty=format:%h",
             shell=True,
             cwd=cwd,
             expected_exit_code=0,
