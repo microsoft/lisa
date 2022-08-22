@@ -51,6 +51,14 @@ class PciDevice:
     def __init__(self, pci_device_raw: str) -> None:
         self.parse(pci_device_raw)
 
+    def __str__(self) -> str:
+        return (
+            f"PCI device: {self.slot} "
+            f"class {self.device_class} "
+            f"vendor {self.vendor} "
+            f"info: {self.device_info} "
+        )
+
     def parse(self, raw_str: str) -> None:
         matched_pci_device_info = PATTERN_PCI_DEVICE.match(raw_str)
         if matched_pci_device_info:
