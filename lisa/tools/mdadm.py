@@ -5,6 +5,7 @@ from typing import List, Optional, Type, cast
 from lisa.executable import Tool
 from lisa.operating_system import CBLMariner, Debian, Fedora, Posix, Suse
 from lisa.tools.hyperv import HyperV
+from lisa.tools.mount import Mount
 from lisa.tools.powershell import PowerShell
 from lisa.util import LisaException
 
@@ -50,6 +51,12 @@ class Mdadm(Tool):
         self,
         volume_name: str = "/dev/md0",
     ) -> None:
+        # Check if the volume is mounted, if so unmount it
+        mount_point = self.node.tools[Mount].get_mount_point_for_partition(volume_name)
+        if mount_point:
+            self.node.tools[Mount].umount(volume_name, mount_point)
+
+        # Stop the raid volume
         self.run(f"--stop {volume_name}", force_run=True, sudo=True)
 
     @classmethod
