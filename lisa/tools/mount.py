@@ -5,6 +5,8 @@ from dataclasses import dataclass
 from pathlib import PurePosixPath
 from typing import List, Optional, cast
 
+from assertpy.assertpy import assert_that
+
 from lisa.executable import Tool
 from lisa.operating_system import Posix
 from lisa.tools import Fdisk
@@ -122,6 +124,26 @@ class Mount(Tool):
 
         self._log.debug(f"Found disk partitions : {partition_info}")
         return partition_info
+
+    def get_mount_point_for_partition(self, partition_name: str) -> Optional[str]:
+        partition_info = self.get_partition_info()
+        matched_partitions = [
+            partition
+            for partition in partition_info
+            if partition.name == partition_name
+        ]
+
+        if len(matched_partitions) == 0:
+            return None
+
+        assert_that(
+            matched_partitions,
+            f"Exactly one partition with name {partition_name} should be present",
+        ).is_length(1)
+        partition = matched_partitions[0]
+        self._log.debug(f"disk: {partition}, mount_point: {partition.mount_point}")
+
+        return partition.mount_point
 
     def _install(self) -> bool:
         posix_os: Posix = cast(Posix, self.node.os)
