@@ -3,7 +3,7 @@
 
 import inspect
 from pathlib import PurePosixPath
-from typing import Any, cast
+from typing import Any, Dict, cast
 
 from assertpy import assert_that
 
@@ -23,7 +23,7 @@ from lisa.messages import DiskSetupType, DiskType
 from lisa.node import RemoteNode
 from lisa.operating_system import SLES, Debian, Redhat
 from lisa.testsuite import TestResult
-from lisa.tools import FileSystem, Lscpu, Mkfs, Mount, NFSClient, NFSServer
+from lisa.tools import FileSystem, Lscpu, Mkfs, Mount, NFSClient, NFSServer, Sysctl
 from lisa.util import SkippedException
 from microsoft.testsuites.performance.common import (
     perf_disk,
@@ -266,6 +266,10 @@ class StoragePerformance(TestSuite):
             protocol,
         )
 
+        origin_value: Dict[str, str] = {}
+        for node in [server_node, client_node]:
+            origin_value[node.name] = node.tools[Sysctl].get("fs.aio-max-nr")
+            node.tools[Sysctl].write("fs.aio-max-nr", "1048576")
         # run fio test
         perf_disk(
             client_node,
@@ -284,6 +288,8 @@ class StoragePerformance(TestSuite):
             cwd=PurePosixPath(client_nfs_mount_dir),
             test_result=test_result,
         )
+        for node in [server_node, client_node]:
+            node.tools[Sysctl].write("fs.aio-max-nr", origin_value[node.name])
 
     def _perf_premium_datadisks(
         self,
