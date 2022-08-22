@@ -491,11 +491,11 @@ class AzureImageStandard(TestSuite):
 
     @TestCaseMetadata(
         description="""
-        This test will check that `hv-kvp-daemon-init` is installed on Debian based
-        distros. This is an optional requirement.
+        This test will check that kvp daemon is installed. This is an optional
+        requirement for Debian based distros.
 
         Steps:
-        1. Verify that list of running process matching name `hv_kvp_daemon`
+        1. Verify that list of running process matching name of kvp daemon
         has length greater than zero.
         """,
         priority=1,
@@ -506,6 +506,12 @@ class AzureImageStandard(TestSuite):
             running_processes = node.tools[Pgrep].get_processes("hv_kvp_daemon")
             if len(running_processes) == 0:
                 raise PassedException("hv_kvp_daemon is not installed")
+        elif isinstance(node.os, CBLMariner):
+            running_processes = node.tools[Pgrep].get_processes("hypervkvpd")
+            assert_that(running_processes, "Expected one running process").is_length(1)
+            assert_that(
+                running_processes[0].name, "Expected name 'hypervkvpd'"
+            ).is_equal_to("hypervkvpd")
         else:
             raise SkippedException(f"Unsupported distro type : {type(node.os)}")
 
