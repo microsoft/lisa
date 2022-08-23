@@ -220,8 +220,12 @@ class KdumpCrash(TestSuite):
         # to https://wiki.centos.org/action/show/Sources?action=show&redirect=sources
         # In addition, we didn't see upstream kernel has the auto crashkernel feature.
         # It may be a patch owned by Redhat/Centos.
+        # Note that crashkernel=auto option in the boot command line is no longer
+        # supported on RHEL 9 and later releases
         if not (
-            isinstance(node.os, Redhat) and node.os.information.version >= "8.0.0-0"
+            isinstance(node.os, Redhat)
+            and node.os.information.version >= "8.0.0-0"
+            and node.os.information.version < "9.0.0-0"
         ):
             if self.crash_kernel == "auto" and not node.tools[KernelConfig].is_built_in(
                 "CONFIG_KEXEC_AUTO_RESERVE"
