@@ -2,7 +2,7 @@
 # Licensed under the MIT license.
 
 from functools import partial
-from typing import Type
+from typing import Any, Type
 
 from lisa import schema
 from lisa.feature import Feature
@@ -40,6 +40,10 @@ class NetworkInterface(Feature):
 
     def get_nic_count(self, is_sriov_enabled: bool = True) -> int:
         raise NotImplementedError
+
+    def _initialize(self, *args: Any, **kwargs: Any) -> None:
+        self.origin_extra_synthetic_nics_count: int = 0
+        self.origin_extra_sriov_nics_count: int = 0
 
 
 Sriov = partial(NetworkInterfaceOptionSettings, data_path=schema.NetworkDataPath.Sriov)
