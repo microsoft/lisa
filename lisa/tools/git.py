@@ -172,6 +172,7 @@ class Git(Tool):
             "--no-pager log --pretty=format:%h",
             shell=True,
             cwd=cwd,
+            force_run=True,
             expected_exit_code=0,
             expected_exit_code_failure_message="Failed to fetch commit ids.",
         )
