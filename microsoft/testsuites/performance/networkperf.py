@@ -36,6 +36,7 @@ from microsoft.testsuites.performance.common import (
 )
 class NetworkPerformace(TestSuite):
     TIMEOUT = 12000
+    PPS_TIMEOUT = 2000
 
     @TestCaseMetadata(
         description="""
@@ -69,6 +70,7 @@ class NetworkPerformace(TestSuite):
          when running netperf with single port.
         """,
         priority=3,
+        timeout=PPS_TIMEOUT,
         requirement=simple_requirement(
             min_count=2,
             network_interface=Synthetic(),
@@ -83,6 +85,7 @@ class NetworkPerformace(TestSuite):
          when running netperf with single port.
         """,
         priority=3,
+        timeout=PPS_TIMEOUT,
         requirement=simple_requirement(
             min_count=2,
             network_interface=Sriov(),
@@ -97,6 +100,7 @@ class NetworkPerformace(TestSuite):
          when running netperf with multiple ports.
         """,
         priority=3,
+        timeout=PPS_TIMEOUT,
         requirement=simple_requirement(
             min_count=2,
             network_interface=Synthetic(),
@@ -111,6 +115,7 @@ class NetworkPerformace(TestSuite):
          when running netperf with multiple ports.
         """,
         priority=3,
+        timeout=PPS_TIMEOUT,
         requirement=simple_requirement(
             min_count=2,
             network_interface=Sriov(),

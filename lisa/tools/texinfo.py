@@ -5,6 +5,7 @@ from typing import cast
 from lisa.executable import Tool
 from lisa.operating_system import Posix
 from lisa.tools import Wget
+from lisa.util import MissingPackagesException
 
 from .make import Make
 from .tar import Tar
@@ -24,9 +25,9 @@ class Texinfo(Tool):
 
     def _install(self) -> bool:
         posix_os: Posix = cast(Posix, self.node.os)
-        if posix_os.is_package_in_repo("texinfo"):
+        try:
             posix_os.install_packages("texinfo")
-        else:
+        except MissingPackagesException:
             posix_os.install_packages(["perl", "perl-Data-Dumper"])
             self._install_from_src()
         return self._check_exists()
