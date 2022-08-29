@@ -120,14 +120,24 @@ class NetworkSettings(TestSuite):
             actual_settings = ethtool.change_device_ring_buffer_settings(
                 interface, expected_rx, expected_tx
             )
+
+            # The buffer size gets rounded up per PAGE_size
+            # so the expected_rx and expected_tx can vary in a range
+            #  /* Get receive buffer area. */
+            # buf_size = device_info->recv_sections * device_info->recv_section_size;
+            # buf_size = roundup(buf_size, PAGE_SIZE);
+            #
+            # /* Now setup the send buffer. */
+            # buf_size = device_info->send_sections * device_info->send_section_size;
+            # buf_size = round_up(buf_size, PAGE_SIZE);
             assert_that(
                 int(actual_settings.current_ring_buffer_settings["RX"]),
                 "Changing RX Ringbuffer setting didn't succeed",
-            ).is_equal_to(expected_rx)
+            ).is_between(expected_rx - 5, expected_rx + 5)
             assert_that(
                 int(actual_settings.current_ring_buffer_settings["TX"]),
                 "Changing TX Ringbuffer setting didn't succeed",
-            ).is_equal_to(expected_tx)
+            ).is_between(expected_tx - 5, expected_rx + 5)
 
             # Revert the settings back to original values
             reverted_settings = ethtool.change_device_ring_buffer_settings(
