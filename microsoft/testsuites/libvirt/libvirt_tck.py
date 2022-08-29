@@ -11,7 +11,7 @@ from lisa import (
     TestSuite,
     TestSuiteMetadata,
 )
-from lisa.operating_system import Ubuntu
+from lisa.operating_system import CBLMariner, Ubuntu
 from lisa.testsuite import TestResult
 from lisa.tools import Lscpu
 from lisa.util import SkippedException
@@ -32,7 +32,7 @@ from microsoft.testsuites.libvirt.libvirt_tck_tool import LibvirtTck
 class LibvirtTckSuite(TestSuite):
     def before_case(self, log: Logger, **kwargs: Any) -> None:
         node = kwargs["node"]
-        if not isinstance(node.os, Ubuntu):
+        if not isinstance(node.os, (Ubuntu, CBLMariner)):
             raise SkippedException(
                 f"Libvirt TCK suite is not implemented in LISA for {node.os.name}"
             )
