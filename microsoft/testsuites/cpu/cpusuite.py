@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import random
+import time
 from typing import cast
 
 from assertpy import assert_that
@@ -91,13 +92,15 @@ class CPUSuite(TestSuite):
         fio_data_size_in_gb = 1
         try:
             image_folder_path = node.find_partition_with_freespace(fio_data_size_in_gb)
+            # Each CPU takes ~5 seconds to toggle offline-online
+            fio_run_time = 300 + (node.tools[Lscpu].get_core_count() * 5)
             fio_process = node.tools[Fio].launch_async(
                 name="workload",
                 filename=f"{image_folder_path}/fiodata",
                 mode="readwrite",
                 iodepth=128,
                 numjob=10,
-                time=300,
+                time=fio_run_time,
                 block_size="1M",
                 size_gb=fio_data_size_in_gb,
                 group_reporting=False,
@@ -105,8 +108,14 @@ class CPUSuite(TestSuite):
                 time_based=True,
             )
 
+            # Added to find an optional runtime for fio_run_time
+            # Remove once test is stable
+            hot_plug_start_time = time.time()
+
             # verify cpu hotplug functionality
             verify_cpu_hot_plug(log, node)
+
+            log.debug(f"CPU Hotplug duration: {time.time() - hot_plug_start_time} s")
 
             # verify that the fio was running when hotplug was triggered
             assert_that(
