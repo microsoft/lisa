@@ -1,6 +1,7 @@
 # Copyright (c) Microsoft Corporation.
 # Licensed under the MIT license.
 
+import time
 from dataclasses import dataclass, field
 from pathlib import PurePath
 from typing import Any, Dict, List, Optional, Type, cast
@@ -10,7 +11,7 @@ from dataclasses_json import dataclass_json
 from lisa import schema
 from lisa.node import Node, quick_connect
 from lisa.operating_system import CBLMariner, Linux, Ubuntu
-from lisa.tools import Git, Wget
+from lisa.tools import Git, Sed, Service, Wget, Whoami
 from lisa.transformer import Transformer
 from lisa.util import (
     UnsupportedDistroException,
@@ -211,14 +212,30 @@ class LibvirtPackageInstaller(LibvirtInstaller):
         packages_list = self._distro_package_mapping[type(linux).__name__]
         self._log.info(f"installing packages: {packages_list}")
         linux.install_packages(list(packages_list))
+        self._fix_mariner_installation()
         return self._get_version()
+
+    # Some fixes to the libvirt installation on Mariner.
+    # Can be removed once the issues have been addressed in Mariner.
+    def _fix_mariner_installation(self) -> None:
+        if not isinstance(self._node.os, CBLMariner):
+            return
+
+        username = self._node.tools[Whoami].get_username()
+        self._node.execute(f"usermod -aG libvirt {username}", shell=True, sudo=True)
+        self._node.tools[Sed].substitute(
+            "hidepid=2",
+            "hidepid=0",
+            "/etc/fstab",
+            sudo=True,
+        )
 
 
 class QemuPackageInstaller(QemuInstaller):
 
     _distro_package_mapping = {
         Ubuntu.__name__: ["qemu-kvm"],
-        CBLMariner.__name__: ["qemu-kvm"],
+        CBLMariner.__name__: ["qemu-kvm", "edk2-ovmf"],
     }
 
     @classmethod
@@ -234,7 +251,13 @@ class QemuPackageInstaller(QemuInstaller):
         linux: Linux = cast(Linux, node.os)
         packages_list = self._distro_package_mapping[type(linux).__name__]
         self._log.info(f"installing packages: {packages_list}")
+        if isinstance(node.os, CBLMariner):
+            linux.install_packages(
+                ["mariner-repos-preview.noarch", "mariner-repos-extended"]
+            )
         linux.install_packages(list(packages_list))
+        username = node.tools[Whoami].get_username()
+        node.execute(f"usermod -aG {username} qemu", shell=True, sudo=True)
         return self._get_version()
 
 
@@ -505,6 +528,20 @@ def _install_libvirt(runbook: schema.TypedSchema, node: Node, log: Logger) -> No
             node.execute("systemctl disable apparmor", shell=True, sudo=True)
         node.execute("systemctl enable libvirtd", shell=True, sudo=True)
         node.reboot()
+        if isinstance(node.os, CBLMariner):
+            # After reboot, libvirtd service is in failed state and needs to
+            # be restarted manually. Doing it immediately after restart
+            # fails. So wait for a while before restarting libvirtd.
+            # This is an issue in Mariner and below lines can be removed once
+            # it has been addressed.
+            tries = 0
+            while tries <= 10:
+                try:
+                    node.tools[Service].restart_service("libvirtd")
+                    break
+                except Exception:
+                    time.sleep(1)
+                    tries += 1
     else:
         libvirt_version = libvirt_installer._get_version()
         log.info(f"Already installed! libvirt version: {libvirt_version}")
