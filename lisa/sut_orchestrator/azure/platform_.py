@@ -4,6 +4,7 @@
 import copy
 import json
 import logging
+import math
 import os
 import re
 from copy import deepcopy
@@ -2115,7 +2116,9 @@ class AzurePlatform(Platform):
         vhd_blob = container_client.get_blob_client(result_dict["blob_name"])
         properties = vhd_blob.get_blob_properties()
         assert properties.size, f"fail to get blob size of {blob_url}"
-        return int(properties.size / 1024 / 1024 / 1024)
+        # Azure requires only megabyte alignment of vhds, round size up
+        # for cases where the size is megabyte aligned
+        return math.ceil(properties.size / 1024 / 1024 / 1024)
 
     def _get_sig_info(
         self, shared_image: SharedImageGallerySchema
