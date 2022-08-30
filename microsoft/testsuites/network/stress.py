@@ -16,12 +16,14 @@ from lisa import (
     schema,
     simple_requirement,
 )
+from lisa.features import StartStop
 from lisa.nic import NicInfo
 from lisa.sut_orchestrator import AZURE
 from lisa.tools import Cat, Iperf3
 from microsoft.testsuites.network.common import (
     cleanup_iperf3,
     initialize_nic_info,
+    sriov_basic_test,
     sriov_disable_enable,
     sriov_vf_connection_test,
 )
@@ -132,6 +134,177 @@ class Stress(TestSuite):
     )
     def verify_stress_sriov_disable_enable(self, environment: Environment) -> None:
         sriov_disable_enable(environment, times=50)
+
+    @TestCaseMetadata(
+        description="""
+        This case verify VM works well when provison with max (8) synthetic nics.
+
+        Steps,
+        1. Provision VM with max network interfaces with synthetic network.
+        2. Check each nic has an ip address.
+        3. Reboot VM from guest.
+        4. Check each nic has an ip address.
+        5. Repeat step 3 and 4 for 10 times.
+        """,
+        priority=2,
+        requirement=simple_requirement(
+            min_nic_count=8,
+            network_interface=schema.NetworkInterfaceOptionSettings(
+                data_path=schema.NetworkDataPath.Synthetic,
+            ),
+        ),
+    )
+    def verify_stress_synthetic_provision_with_max_nics_reboot(
+        self, environment: Environment
+    ) -> None:
+        initialize_nic_info(environment, is_sriov=False)
+        for _ in range(10):
+            for node in environment.nodes.list():
+                node.reboot()
+            initialize_nic_info(environment, is_sriov=False)
+
+    @TestCaseMetadata(
+        description="""
+        This case verify VM works well when provison with max (8) synthetic nics.
+
+        Steps,
+        1. Provision VM with max network interfaces with synthetic network.
+        2. Check each nic has an ip address.
+        3. Reboot VM from API.
+        4. Check each nic has an ip address.
+        5. Repeat step 3 and 4 for 10 times.
+        """,
+        priority=2,
+        requirement=simple_requirement(
+            min_nic_count=8,
+            network_interface=schema.NetworkInterfaceOptionSettings(
+                data_path=schema.NetworkDataPath.Synthetic,
+            ),
+        ),
+    )
+    def verify_stress_synthetic_with_max_nics_reboot_from_platform(
+        self, environment: Environment
+    ) -> None:
+        initialize_nic_info(environment, is_sriov=False)
+        for _ in range(10):
+            for node in environment.nodes.list():
+                start_stop = node.features[StartStop]
+                start_stop.restart()
+            initialize_nic_info(environment, is_sriov=False)
+
+    @TestCaseMetadata(
+        description="""
+        This case verify VM works well when provison with max (8) synthetic nics.
+
+        Steps,
+        1. Provision VM with max network interfaces with synthetic network.
+        2. Check each nic has an ip address.
+        3. Stop and Start VM from API.
+        4. Check each nic has an ip address.
+        5. Repeat step 3 and 4 for 10 times.
+        """,
+        priority=2,
+        requirement=simple_requirement(
+            min_nic_count=8,
+            network_interface=schema.NetworkInterfaceOptionSettings(
+                data_path=schema.NetworkDataPath.Synthetic,
+            ),
+        ),
+    )
+    def verify_stress_synthetic_with_max_nics_stop_start_from_platform(
+        self, environment: Environment
+    ) -> None:
+        initialize_nic_info(environment, is_sriov=False)
+        for _ in range(10):
+            for node in environment.nodes.list():
+                start_stop = node.features[StartStop]
+                start_stop.stop()
+                start_stop.start()
+            initialize_nic_info(environment, is_sriov=False)
+
+    @TestCaseMetadata(
+        description="""
+        This case verify VM works well when provisioning with max (8) sriov nics.
+
+        Steps,
+        1. Provision VM with max network interfaces with enabling accelerated network.
+        2. Do the basic sriov testing.
+        3. Reboot VM from guest.
+        4. Do the basic sriov testing.
+        5. Repeat step 3 and 4 for 10 times.
+        """,
+        priority=2,
+        requirement=simple_requirement(
+            min_nic_count=8,
+            network_interface=features.Sriov(),
+        ),
+    )
+    def verify_stress_sriov_with_max_nics_reboot(
+        self, environment: Environment
+    ) -> None:
+        vm_nics = initialize_nic_info(environment)
+        sriov_basic_test(environment, vm_nics)
+        for _ in range(10):
+            for node in environment.nodes.list():
+                node.reboot()
+            sriov_basic_test(environment, vm_nics)
+
+    @TestCaseMetadata(
+        description="""
+        This case verify VM works well when provisioning with max (8) sriov nics.
+
+        Steps,
+        1. Provision VM with max network interfaces with enabling accelerated network.
+        2. Do the basic sriov testing.
+        3. Reboot VM from API.
+        4. Do the basic sriov testing.
+        5. Repeat step 3 and 4 for 10 times.
+        """,
+        priority=2,
+        requirement=simple_requirement(
+            min_nic_count=8,
+            network_interface=features.Sriov(),
+        ),
+    )
+    def verify_sriov_with_max_nics_reboot_from_platform(
+        self, environment: Environment
+    ) -> None:
+        vm_nics = initialize_nic_info(environment)
+        sriov_basic_test(environment, vm_nics)
+        for _ in range(10):
+            for node in environment.nodes.list():
+                start_stop = node.features[StartStop]
+                start_stop.restart()
+            sriov_basic_test(environment, vm_nics)
+
+    @TestCaseMetadata(
+        description="""
+        This case verify VM works well when provisioning with max (8) sriov nics.
+
+        Steps,
+        1. Provision VM with max network interfaces with enabling accelerated network.
+        2. Do the basic sriov testing.
+        3. Stop and Start VM from API.
+        4. Do the basic sriov testing.
+        5. Repeat step 3 and 4 for 10 times.
+        """,
+        priority=2,
+        requirement=simple_requirement(
+            min_nic_count=8,
+            network_interface=features.Sriov(),
+        ),
+    )
+    def verify_sriov_with_max_nics_stop_start_from_platform(
+        self, environment: Environment
+    ) -> None:
+        vm_nics = initialize_nic_info(environment)
+        sriov_basic_test(environment, vm_nics)
+        for _ in range(10):
+            for node in environment.nodes.list():
+                start_stop = node.features[StartStop]
+                start_stop.stop()
+                start_stop.start()
+            sriov_basic_test(environment, vm_nics)
 
     def after_case(self, log: Logger, **kwargs: Any) -> None:
         environment: Environment = kwargs.pop("environment")

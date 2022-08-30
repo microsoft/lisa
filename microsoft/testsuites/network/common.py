@@ -29,20 +29,28 @@ modules_config_dict: Dict[str, str] = {
 
 
 @retry(exceptions=AssertionError, tries=30, delay=2)
-def initialize_nic_info(environment: Environment) -> Dict[str, Dict[str, NicInfo]]:
+def initialize_nic_info(
+    environment: Environment, is_sriov: bool = True
+) -> Dict[str, Dict[str, NicInfo]]:
     vm_nics: Dict[str, Dict[str, NicInfo]] = {}
     for node in environment.nodes.list():
-        network_interface_feature = node.features[NetworkInterface]
-        sriov_count = network_interface_feature.get_nic_count()
-        assert_that(sriov_count).described_as(
-            f"there is no sriov nic attached to VM {node.name}"
-        ).is_greater_than(0)
+        if is_sriov:
+            network_interface_feature = node.features[NetworkInterface]
+            sriov_count = network_interface_feature.get_nic_count()
+            assert_that(sriov_count).described_as(
+                f"there is no sriov nic attached to VM {node.name}"
+            ).is_greater_than(0)
         node_nic_info = Nics(node)
         node_nic_info.initialize()
-        assert_that(len(node_nic_info.get_lower_nics())).described_as(
-            f"VF count inside VM is {len(node_nic_info.get_lower_nics())},"
-            f"actual sriov nic count is {sriov_count}"
-        ).is_equal_to(sriov_count)
+        for _, node_nic in node_nic_info.nics.items():
+            assert_that(node_nic.ip_addr).described_as(
+                f"This interface {node_nic.upper} does not have a IP address."
+            ).is_not_empty()
+        if is_sriov:
+            assert_that(len(node_nic_info.get_lower_nics())).described_as(
+                f"VF count inside VM is {len(node_nic_info.get_lower_nics())},"
+                f"actual sriov nic count is {sriov_count}"
+            ).is_equal_to(sriov_count)
         vm_nics[node.name] = node_nic_info.nics
     return vm_nics
 
