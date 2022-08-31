@@ -201,6 +201,14 @@ class NotMeetRequirementException(LisaException):
     ...
 
 
+class ResourceAwaitableException(Exception):
+    """
+    Wait for more resources to create environment.
+    """
+
+    ...
+
+
 class TcpConnectionException(LisaException):
     """
     This exception is used to indicate that VM can't be connected issue.

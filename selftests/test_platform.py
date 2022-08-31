@@ -18,8 +18,8 @@ from lisa.environment import (
     load_environments,
 )
 from lisa.feature import Feature
-from lisa.platform_ import Platform, WaitMoreResourceError, load_platform
-from lisa.util import plugin_manager
+from lisa.platform_ import Platform, load_platform
+from lisa.util import ResourceAwaitableException, plugin_manager
 from lisa.util.logger import Logger
 from selftests.test_environment import generate_runbook as generate_env_runbook
 
@@ -87,7 +87,7 @@ class MockPlatform(Platform):
 
     def _deploy_environment(self, environment: Environment, log: Logger) -> None:
         if self._mock_runbook.wait_more_resource_error:
-            raise WaitMoreResourceError("wait more resource")
+            raise ResourceAwaitableException("wait more resource")
         if not self._mock_runbook.deploy_success:
             raise LisaException("mock deploy failed")
         if self._mock_runbook.return_prepared and environment.runbook.nodes_requirement:
