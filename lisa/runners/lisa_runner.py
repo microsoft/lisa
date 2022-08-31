@@ -5,7 +5,14 @@ import copy
 from functools import partial
 from typing import Any, Callable, Dict, List, Optional, cast
 
-from lisa import SkippedException, development, notifier, schema, search_space
+from lisa import (
+    ResourceAwaitableException,
+    SkippedException,
+    development,
+    notifier,
+    schema,
+    search_space,
+)
 from lisa.action import ActionStatus
 from lisa.environment import (
     Environment,
@@ -14,12 +21,7 @@ from lisa.environment import (
     load_environments,
 )
 from lisa.messages import TestStatus
-from lisa.platform_ import (
-    Platform,
-    PlatformMessage,
-    WaitMoreResourceError,
-    load_platform,
-)
+from lisa.platform_ import Platform, PlatformMessage, load_platform
 from lisa.runner import BaseRunner
 from lisa.testselector import select_testcases
 from lisa.testsuite import TestCaseRequirement, TestResult, TestSuite
@@ -305,7 +307,7 @@ class LisaRunner(BaseRunner):
             assert (
                 environment.status == EnvironmentStatus.Deployed
             ), f"actual: {environment.status}"
-        except WaitMoreResourceError as identifier:
+        except ResourceAwaitableException as identifier:
             self._log.info(
                 f"[{environment.name}] waiting for more resource: "
                 f"{identifier}, skip assigning case"

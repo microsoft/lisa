@@ -44,10 +44,6 @@ class PlatformMessage(MessageBase):
     status: PlatformStatus = PlatformStatus.INITIALIZED
 
 
-class WaitMoreResourceError(Exception):
-    pass
-
-
 class Platform(subclasses.BaseClassWithRunbookMixin, InitializableMixin):
     def __init__(self, runbook: schema.Platform) -> None:
         super().__init__(runbook)
