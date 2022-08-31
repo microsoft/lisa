@@ -6,6 +6,7 @@ import re
 from typing import List, Pattern, Type
 
 from lisa.executable import Tool
+from lisa.operating_system import CBLMariner
 from lisa.util import find_patterns_in_lines
 
 from .dmesg import Dmesg
@@ -62,6 +63,8 @@ class HibernationSetup(Tool):
         self.node.tools[Systemctl].hibernate()
 
     def _install(self) -> bool:
+        if isinstance(self.node.os, CBLMariner):
+            self.node.os.install_packages(["glibc-devel", "kernel-headers", "binutils"])
         tool_path = self.get_tool_path()
         git = self.node.tools[Git]
         git.clone(self._repo, tool_path)

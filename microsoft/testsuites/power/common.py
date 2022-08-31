@@ -8,13 +8,19 @@ from assertpy import assert_that
 from lisa import Environment, Logger, RemoteNode, features
 from lisa.features import StartStop
 from lisa.operating_system import Redhat, Suse, Ubuntu
-from lisa.tools import Fio, HibernationSetup, Iperf3, Kill, Lscpu
+from lisa.tools import Fio, HibernationSetup, Iperf3, KernelConfig, Kill, Lscpu
 from lisa.util import LisaException, SkippedException
 from lisa.util.perf_timer import create_timer
 from lisa.util.shell import wait_tcp_port_ready
 
 
 def is_distro_supported(node: RemoteNode) -> None:
+    if not node.tools[KernelConfig].is_enabled("CONFIG_HIBERNATION"):
+        raise SkippedException(
+            f"CONFIG_HIBERNATION is not enabled in current distro {node.os.name}, "
+            f"version {node.os.information.version}"
+        )
+
     if (
         (isinstance(node.os, Redhat) and node.os.information.version < "8.3.0")
         or (isinstance(node.os, Ubuntu) and node.os.information.version < "18.4.0")
