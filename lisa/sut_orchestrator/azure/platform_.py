@@ -462,8 +462,15 @@ class AzurePlatform(Platform):
             if all(x for x in caps):
                 any_wait_for_resource = True
 
-        if not is_success and any_wait_for_resource:
-            raise ResourceAwaitableException("No available quota, try to deploy later.")
+        if not is_success:
+            if any_wait_for_resource:
+                raise ResourceAwaitableException(
+                    "No available quota, try to deploy later."
+                )
+            else:
+                raise NotMeetRequirementException(
+                    f"No capability found for {environment.runbook}."
+                )
 
         # resolve Latest to specified version
         if is_success:
