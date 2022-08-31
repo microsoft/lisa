@@ -11,7 +11,7 @@ from lisa import schema, search_space
 from lisa.environment import Environment
 from lisa.sut_orchestrator import AZURE
 from lisa.sut_orchestrator.azure import common, platform_
-from lisa.util import LisaException, constants
+from lisa.util import LisaException, NotMeetRequirementException, constants
 from lisa.util.logger import get_logger
 
 
@@ -182,13 +182,16 @@ class AzurePrepareTestCase(TestCase):
         # vm size is not found
         env = self.load_environment(node_req_count=1)
         self.set_node_runbook(env, 0, location="", vm_size="not_exist")
-        self.verify_prepared_nodes(
-            expected_result=False,
-            expected_locations=[],
-            expected_vm_sizes=[],
-            expected_cost=0,
-            environment=env,
-        )
+        with self.assertRaises(NotMeetRequirementException) as cm:
+            self.verify_prepared_nodes(
+                expected_result=False,
+                expected_locations=[],
+                expected_vm_sizes=[],
+                expected_cost=0,
+                environment=env,
+            )
+            self.assertIsInstance(cm.exception, NotMeetRequirementException)
+            self.assertIn("No capability found for Environment", str(cm.exception))
 
     def test_predefined_not_found_vm_size_max_enabled(self) -> None:
         # vm size is not found
