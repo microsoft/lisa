@@ -456,6 +456,7 @@ def deep_update_dict(src: Dict[str, Any], dest: Dict[str, Any]) -> Dict[str, Any
         or isinstance(dest, int)
         or isinstance(dest, bool)
         or isinstance(dest, float)
+        or isinstance(dest, str)
     ):
         result = dest
     else:
