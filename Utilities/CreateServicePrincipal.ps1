@@ -44,8 +44,14 @@ function New-ServicePrincipal() {
     $tenantId = $subscription.TenantId
     Write-Host "Create Active Directory application..."
     $application = New-AzADApplication -DisplayName $identifier
-    $objectId = $application.ObjectId
-    $ClientId = $application.ApplicationId
+    $objectId = $application.Id
+    $ClientId = $application.AppId
+    if ( -not $objectId ) {
+        $objectId = $application.ObjectId
+    }
+    if ( -not $ClientId ) {
+        $ClientId = $application.ApplicationId
+    }
     $ErrorActionPreference = "Continue"
 
     while ($true) {
