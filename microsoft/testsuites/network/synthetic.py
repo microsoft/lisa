@@ -1,13 +1,12 @@
 # Copyright (c) Microsoft Corporation.
 # Licensed under the MIT license.
-from typing import Any, Dict
+from typing import Dict
 
 from assertpy import assert_that
 from retry import retry
 
 from lisa import (
     Environment,
-    Logger,
     TestCaseMetadata,
     TestSuite,
     TestSuiteMetadata,
@@ -17,7 +16,7 @@ from lisa import (
 from lisa.features import NetworkInterface
 from lisa.nic import NicInfo, Nics
 
-from .common import remove_extra_nics
+from .common import remove_extra_nics, restore_extra_nics
 
 
 @TestSuiteMetadata(
@@ -62,6 +61,7 @@ class Synthetic(TestSuite):
         3. Check each nic has an ip address.
         """,
         priority=2,
+        use_new_environment=True,
         requirement=simple_requirement(
             network_interface=schema.NetworkInterfaceOptionSettings(
                 data_path=schema.NetworkDataPath.Synthetic,
@@ -72,12 +72,16 @@ class Synthetic(TestSuite):
     def synthetic_add_max_nics_one_time_after_provision_validation(
         self, environment: Environment
     ) -> None:
-        for node in environment.nodes.list():
-            network_interface_feature = node.features[NetworkInterface]
-            network_interface_feature.attach_nics(
-                extra_nic_count=7, enable_accelerated_networking=False
-            )
-        self._initialize_nic_info(environment)
+        remove_extra_nics(environment)
+        try:
+            for node in environment.nodes.list():
+                network_interface_feature = node.features[NetworkInterface]
+                network_interface_feature.attach_nics(
+                    extra_nic_count=7, enable_accelerated_networking=False
+                )
+            self._initialize_nic_info(environment)
+        finally:
+            restore_extra_nics(environment)
 
     @TestCaseMetadata(
         description="""
@@ -90,6 +94,7 @@ class Synthetic(TestSuite):
         3. Check each nic has an ip address.
         """,
         priority=2,
+        use_new_environment=True,
         requirement=simple_requirement(
             network_interface=schema.NetworkInterfaceOptionSettings(
                 data_path=schema.NetworkDataPath.Synthetic,
@@ -100,17 +105,17 @@ class Synthetic(TestSuite):
     def synthetic_add_max_nics_one_by_one_after_provision_validation(
         self, environment: Environment
     ) -> None:
-        for node in environment.nodes.list():
-            network_interface_feature = node.features[NetworkInterface]
-            for _ in range(7):
-                network_interface_feature.attach_nics(
-                    extra_nic_count=1, enable_accelerated_networking=False
-                )
-                self._initialize_nic_info(environment)
-
-    def after_case(self, log: Logger, **kwargs: Any) -> None:
-        environment: Environment = kwargs.pop("environment")
         remove_extra_nics(environment)
+        try:
+            for node in environment.nodes.list():
+                network_interface_feature = node.features[NetworkInterface]
+                for _ in range(7):
+                    network_interface_feature.attach_nics(
+                        extra_nic_count=1, enable_accelerated_networking=False
+                    )
+                    self._initialize_nic_info(environment)
+        finally:
+            restore_extra_nics(environment)
 
     @retry(exceptions=AssertionError, tries=30, delay=2)
     def _initialize_nic_info(

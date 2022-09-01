@@ -41,6 +41,7 @@ from microsoft.testsuites.network.common import (
     load_module,
     remove_extra_nics,
     remove_module,
+    restore_extra_nics,
     sriov_basic_test,
     sriov_disable_enable,
     sriov_vf_connection_test,
@@ -278,6 +279,7 @@ class Sriov(TestSuite):
         2. Do the basic sriov testing.
         """,
         priority=2,
+        use_new_environment=True,
         requirement=simple_requirement(
             network_interface=schema.NetworkInterfaceOptionSettings(
                 data_path=schema.NetworkDataPath.Sriov,
@@ -289,24 +291,29 @@ class Sriov(TestSuite):
         self, log_path: Path, log: Logger, environment: Environment
     ) -> None:
         remove_extra_nics(environment)
-        node = cast(RemoteNode, environment.nodes[0])
-        network_interface_feature = node.features[NetworkInterface]
-        network_interface_feature.attach_nics(extra_nic_count=7)
-        is_ready, tcp_error_code = wait_tcp_port_ready(
-            node.public_address, node.public_port, log=log, timeout=self.TIME_OUT
-        )
-        if is_ready:
-            vm_nics = initialize_nic_info(environment)
-            sriov_basic_test(environment, vm_nics)
-        else:
-            serial_console = node.features[SerialConsole]
-            serial_console.check_panic(saved_path=log_path, stage="after_attach_nics")
-            raise TcpConnectionException(
-                node.public_address,
-                node.public_port,
-                tcp_error_code,
-                "no panic found in serial log after attach nics",
+        try:
+            node = cast(RemoteNode, environment.nodes[0])
+            network_interface_feature = node.features[NetworkInterface]
+            network_interface_feature.attach_nics(extra_nic_count=7)
+            is_ready, tcp_error_code = wait_tcp_port_ready(
+                node.public_address, node.public_port, log=log, timeout=self.TIME_OUT
             )
+            if is_ready:
+                vm_nics = initialize_nic_info(environment)
+                sriov_basic_test(environment, vm_nics)
+            else:
+                serial_console = node.features[SerialConsole]
+                serial_console.check_panic(
+                    saved_path=log_path, stage="after_attach_nics"
+                )
+                raise TcpConnectionException(
+                    node.public_address,
+                    node.public_port,
+                    tcp_error_code,
+                    "no panic found in serial log after attach nics",
+                )
+        finally:
+            restore_extra_nics(environment)
 
     @TestCaseMetadata(
         description="""
@@ -635,4 +642,3 @@ class Sriov(TestSuite):
     def after_case(self, log: Logger, **kwargs: Any) -> None:
         environment: Environment = kwargs.pop("environment")
         cleanup_iperf3(environment)
-        remove_extra_nics(environment)

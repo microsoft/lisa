@@ -222,3 +222,18 @@ def sriov_disable_enable(environment: Environment, times: int = 4) -> None:
         if sriov_is_enabled:
             sriov_basic_test(environment, vm_nics)
         network_interface_feature.switch_sriov(enable=(not sriov_is_enabled))
+
+
+def restore_extra_nics(environment: Environment) -> None:
+    remove_extra_nics(environment)
+    # restore nics info into previous status
+    for node in environment.nodes.list():
+        network_interface_feature = node.features[NetworkInterface]
+        network_interface_feature.attach_nics(
+            network_interface_feature.origin_extra_sriov_nics_count,
+            enable_accelerated_networking=True,
+        )
+        network_interface_feature.attach_nics(
+            network_interface_feature.origin_extra_synthetic_nics_count,
+            enable_accelerated_networking=False,
+        )
