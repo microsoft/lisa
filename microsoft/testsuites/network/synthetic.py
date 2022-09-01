@@ -1,10 +1,5 @@
 # Copyright (c) Microsoft Corporation.
 # Licensed under the MIT license.
-from typing import Dict
-
-from assertpy import assert_that
-from retry import retry
-
 from lisa import (
     Environment,
     TestCaseMetadata,
@@ -13,10 +8,9 @@ from lisa import (
     schema,
     simple_requirement,
 )
-from lisa.features import NetworkInterface
-from lisa.nic import NicInfo, Nics
+from lisa.features import NetworkInterface, StartStop
 
-from .common import remove_extra_nics, restore_extra_nics
+from .common import initialize_nic_info, remove_extra_nics, restore_extra_nics
 
 
 @TestSuiteMetadata(
@@ -48,7 +42,88 @@ class Synthetic(TestSuite):
     def synthetic_provision_with_max_nics_validation(
         self, environment: Environment
     ) -> None:
-        self._initialize_nic_info(environment)
+        initialize_nic_info(environment, is_sriov=False)
+
+    @TestCaseMetadata(
+        description="""
+        This case verify VM works well when provison with max (8) synthetic nics.
+
+        Steps,
+        1. Provision VM with max network interfaces with synthetic network.
+        2. Check each nic has an ip address.
+        3. Reboot VM from guest.
+        4. Check each nic has an ip address.
+        """,
+        priority=2,
+        requirement=simple_requirement(
+            min_nic_count=8,
+            network_interface=schema.NetworkInterfaceOptionSettings(
+                data_path=schema.NetworkDataPath.Synthetic,
+            ),
+        ),
+    )
+    def synthetic_provision_with_max_nics_reboot_validation(
+        self, environment: Environment
+    ) -> None:
+        initialize_nic_info(environment, is_sriov=False)
+        for node in environment.nodes.list():
+            node.reboot()
+        initialize_nic_info(environment, is_sriov=False)
+
+    @TestCaseMetadata(
+        description="""
+        This case verify VM works well when provison with max (8) synthetic nics.
+
+        Steps,
+        1. Provision VM with max network interfaces with synthetic network.
+        2. Check each nic has an ip address.
+        3. Reboot VM from API.
+        4. Check each nic has an ip address.
+        """,
+        priority=2,
+        requirement=simple_requirement(
+            min_nic_count=8,
+            network_interface=schema.NetworkInterfaceOptionSettings(
+                data_path=schema.NetworkDataPath.Synthetic,
+            ),
+        ),
+    )
+    def synthetic_provision_with_max_nics_reboot_from_platform_validation(
+        self, environment: Environment
+    ) -> None:
+        initialize_nic_info(environment, is_sriov=False)
+        for node in environment.nodes.list():
+            start_stop = node.features[StartStop]
+            start_stop.restart()
+        initialize_nic_info(environment, is_sriov=False)
+
+    @TestCaseMetadata(
+        description="""
+        This case verify VM works well when provison with max (8) synthetic nics.
+
+        Steps,
+        1. Provision VM with max network interfaces with synthetic network.
+        2. Check each nic has an ip address.
+        3. Stop and Start VM from API.
+        4. Check each nic has an ip address.
+        """,
+        priority=2,
+        requirement=simple_requirement(
+            min_nic_count=8,
+            network_interface=schema.NetworkInterfaceOptionSettings(
+                data_path=schema.NetworkDataPath.Synthetic,
+            ),
+        ),
+    )
+    def synthetic_provision_with_max_nics_stop_start_from_platform_validation(
+        self, environment: Environment
+    ) -> None:
+        initialize_nic_info(environment, is_sriov=False)
+        for node in environment.nodes.list():
+            start_stop = node.features[StartStop]
+            start_stop.stop()
+            start_stop.start()
+        initialize_nic_info(environment, is_sriov=False)
 
     @TestCaseMetadata(
         description="""
@@ -79,7 +154,7 @@ class Synthetic(TestSuite):
                 network_interface_feature.attach_nics(
                     extra_nic_count=7, enable_accelerated_networking=False
                 )
-            self._initialize_nic_info(environment)
+            initialize_nic_info(environment, is_sriov=False)
         finally:
             restore_extra_nics(environment)
 
@@ -113,21 +188,6 @@ class Synthetic(TestSuite):
                     network_interface_feature.attach_nics(
                         extra_nic_count=1, enable_accelerated_networking=False
                     )
-                    self._initialize_nic_info(environment)
+                    initialize_nic_info(environment, is_sriov=False)
         finally:
             restore_extra_nics(environment)
-
-    @retry(exceptions=AssertionError, tries=30, delay=2)
-    def _initialize_nic_info(
-        self, environment: Environment
-    ) -> Dict[str, Dict[str, NicInfo]]:
-        vm_nics: Dict[str, Dict[str, NicInfo]] = {}
-        for node in environment.nodes.list():
-            node_nic_info = Nics(node)
-            node_nic_info.initialize()
-            vm_nics[node.name] = node_nic_info.nics
-            for _, node_nic in node_nic_info.nics.items():
-                assert_that(node_nic.ip_addr).described_as(
-                    f"This interface {node_nic.upper} does not have a IP address."
-                ).is_not_empty()
-        return vm_nics
