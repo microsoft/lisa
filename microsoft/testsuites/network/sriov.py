@@ -31,6 +31,7 @@ from lisa.tools import (
     InterruptInspector,
     Iperf3,
     KernelConfig,
+    Lscpu,
     Lspci,
 )
 from lisa.util.shell import wait_tcp_port_ready
@@ -627,11 +628,13 @@ class Sriov(TestSuite):
         Steps,
         1. Start iperf3 on server node.
         2. Get initial interrupts sum per irq and cpu number on client node.
-        3. Start iperf3 for 30 seconds with 128 threads on client node.
+        3. Start iperf3 for 120 seconds with 128 threads on client node.
         4. Get final interrupts sum per irq number on client node.
         5. Compare interrupts changes, expected to see interrupts increased.
         6. Get final interrupts sum per cpu on client node.
-        7. Compare interrupts changes, expected to see interrupts increased.
+        7. Collect cpus which don't have interrupts count increased.
+        8. Compare interrupts count changes, expected half of cpus' interrupts
+         increased.
         """,
         priority=2,
         requirement=node_requirement(
@@ -645,6 +648,7 @@ class Sriov(TestSuite):
     def verify_sriov_interrupts_change(self, environment: Environment) -> None:
         server_node = cast(RemoteNode, environment.nodes[0])
         client_node = cast(RemoteNode, environment.nodes[1])
+        client_lscpu = client_node.tools[Lscpu]
         vm_nics = initialize_nic_info(environment)
 
         server_iperf3 = server_node.tools[Iperf3]
@@ -677,10 +681,10 @@ class Sriov(TestSuite):
             ), "not found the server nic has the same subnet of"
             f" {client_nic_info.ip_addr}"
 
-            # 3. Start iperf3 for 30 seconds with 128 threads on client node.
+            # 3. Start iperf3 for 120 seconds with 128 threads on client node.
             client_iperf3.run_as_client(
                 server_ip=matched_server_nic_info.ip_addr,
-                run_time_seconds=30,
+                run_time_seconds=120,
                 parallel_number=128,
                 client_ip=client_nic_info.ip_addr,
             )
@@ -709,13 +713,18 @@ class Sriov(TestSuite):
                     client_nic_info.pci_slot
                 )
             )
+            unused_cpu = 0
             for cpu, init_interrupts_value in initial_pci_interrupts_by_cpus.items():
                 final_interrupts_value = final_pci_interrupts_by_cpus[cpu]
-                # 7. Compare interrupts changes, expected to see interrupts increased.
-                assert_that(final_interrupts_value).described_as(
-                    f"CPU {cpu} didn't have an increased interrupts count"
-                    " after iperf3 run!"
-                ).is_greater_than(init_interrupts_value)
+                # 7. Collect cpus which don't have interrupts count increased.
+                if final_interrupts_value == init_interrupts_value:
+                    unused_cpu += 1
+            # 8. Compare interrupts count changes, expected half of cpus' interrupts
+            #    increased.
+            assert_that(client_lscpu.get_core_count() / 2).described_as(
+                f"More than half of the vCPUs {unused_cpu} didn't have increased "
+                "interrupt count!"
+            ).is_greater_than(unused_cpu)
 
     def after_case(self, log: Logger, **kwargs: Any) -> None:
         environment: Environment = kwargs.pop("environment")
