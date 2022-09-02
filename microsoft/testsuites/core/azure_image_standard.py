@@ -732,7 +732,8 @@ class AzureImageStandard(TestSuite):
          in dmesg.
 
         Steps:
-        1. Get the kernel command line from dmesg output.
+        1. Get the kernel command line from /var/log/messages or
+            /var/log/syslog output.
         2. Check expected setting from kernel command line.
             2.1. Expected to see 'console=ttyAMA0' for aarch64.
             2.2. Expected to see 'console=ttyS0' for x86_64.
@@ -745,16 +746,30 @@ class AzureImageStandard(TestSuite):
             CpuArchitecture.X64: "ttyS0",
             CpuArchitecture.ARM64: "ttyAMA0",
         }
+
         lscpu = node.tools[Lscpu]
         arch = lscpu.get_architecture()
         current_console_device = console_device[CpuArchitecture(arch)]
-        console_enabled_string = f"console [{current_console_device}] enabled"
-        dmesg = node.tools[Dmesg]
+        console_enabled_pattern = re.compile(
+            rf"^(.*console \[{current_console_device}\] enabled.*)$", re.M
+        )
+
+        cat = node.tools[Cat]
+        if node.shell.exists(node.get_pure_path("/var/log/messages")):
+            messages_log_file = "/var/log/messages"
+        elif node.shell.exists(node.get_pure_path("/var/log/syslog")):
+            messages_log_file = "/var/log/syslog"
+        else:
+            raise LisaException("Neither /var/log/messages nor /var/log/syslog found")
+
+        log_output = cat.read(messages_log_file, force_run=True, sudo=True)
+
+        result = find_patterns_in_lines(log_output, [console_enabled_pattern])
         assert_that(
-            dmesg.get_output(),
-            f"Fail to find console enabled line '{console_enabled_string}' "
-            "from dmesg output",
-        ).contains(console_enabled_string)
+            result[0],
+            f"Fail to find console enabled line 'console [ttyS0] enabled' "
+            f"from {messages_log_file} output",
+        ).is_not_empty()
 
     @TestCaseMetadata(
         description="""
