@@ -35,6 +35,9 @@ Function Write-Log() {
 	if ($password) {
 		$text = $text.Replace($password, "******")
 	}
+	if ($text.Contains("OsVHD") -and ($text -match $global:SasurlPattern)) {
+		$text = $text -replace ($global:TokenPattern, "***")
+	}
 	$now = [Datetime]::Now.ToUniversalTime().ToString("MM/dd/yyyy HH:mm:ss")
 	$logType = $logLevel.PadRight(5, ' ')
 	$finalMessage = "$now : [$logType] $text"
