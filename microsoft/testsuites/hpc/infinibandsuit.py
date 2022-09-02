@@ -14,7 +14,7 @@ from lisa import (
 )
 from lisa.features import Infiniband, Sriov
 from lisa.sut_orchestrator.azure.tools import Waagent
-from lisa.tools import Find, Modprobe, Ssh
+from lisa.tools import Find, KernelConfig, Modprobe, Ssh
 from lisa.util import (
     SkippedException,
     UnsupportedDistroException,
@@ -90,6 +90,10 @@ class InfinibandSuit(TestSuite):
         requirement=simple_requirement(supported_features=[Infiniband]),
     )
     def verify_hpc_over_nd(self, log: Logger, node: Node) -> None:
+        try:
+            self._check_nd_enabled(node)
+        except UnsupportedDistroException as err:
+            raise SkippedException(err)
 
         try:
             infiniband = node.features[Infiniband]
@@ -511,4 +515,13 @@ class InfinibandSuit(TestSuite):
                 expected_exit_code=0,
                 expected_exit_code_failure_message=f"Failed {test} test "
                 "with MVAPICH MPI",
+            )
+
+    def _check_nd_enabled(self, node: Node) -> None:
+        # non-SRIOV RDMA VM sizes need hv_network_direct driver to initialize device
+        # non-SRIOV RDMA VM sizes will be upgraded to SR-IOV sooner
+        # recent images remove this module, so skip case in this situation
+        if not node.tools[KernelConfig].is_enabled("CONFIG_HYPERV_INFINIBAND_ND"):
+            raise UnsupportedDistroException(
+                node.os, "hv_network_direct module is not enabled"
             )
