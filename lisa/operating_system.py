@@ -1414,11 +1414,11 @@ class CentOs(Redhat):
     def _initialize_package_installation(self) -> None:
         information = self._get_information()
         if 8 == information.version.major:
-            # refer https://www.centos.org/centos-linux-eol/
-            # CentOS 8 is EOL, old repo mirror was moved to vault.centos.org
-            # CentOS-AppStream.repo, CentOS-Base.repo may contain non-existed repo
-            # use skip_if_unavailable to aviod installation issues bring in by above
-            #  issue
+            # refer https://www.centos.org/centos-linux-eol/ CentOS 8 is EOL,
+            # old repo mirror was moved to vault.centos.org
+            # CentOS-AppStream.repo, CentOS-Base.repo may contain non-existed
+            # repo use skip_if_unavailable to avoid installation issues brought
+            #  in by above issue
             cmd_results = self._node.execute("yum repolist -v", sudo=True)
             if 0 != cmd_results.exit_code:
                 self._node.tools[YumConfigManager].set_opt("skip_if_unavailable=true")
