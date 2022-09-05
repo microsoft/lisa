@@ -89,6 +89,7 @@ from .timedatectl import Timedatectl
 from .timeout import Timeout
 from .unzip import Unzip
 from .uptime import Uptime
+from .usermod import Usermod
 from .vdsotest import Vdsotest
 from .who import Who
 from .whoami import Whoami
@@ -193,6 +194,7 @@ __all__ = [
     "Uname",
     "Unzip",
     "Uptime",
+    "Usermod",
     "Wget",
     "YumConfigManager",
     "Vdsotest",

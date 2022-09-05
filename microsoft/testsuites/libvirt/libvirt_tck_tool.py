@@ -13,7 +13,7 @@ from lisa.executable import Tool
 from lisa.messages import SubTestMessage, TestStatus, create_test_result_message
 from lisa.operating_system import CBLMariner, Posix, Ubuntu
 from lisa.testsuite import TestResult
-from lisa.tools import Chmod, Echo, Git, Sed, Service, Whoami
+from lisa.tools import Chmod, Echo, Git, Sed, Service, Usermod
 
 
 @dataclass
@@ -145,8 +145,7 @@ class LibvirtTck(Tool):
                 append=True,
             )
 
-            username = self.node.tools[Whoami].get_username()
-            self.node.execute(f"usermod -aG libvirt {username}", shell=True, sudo=True)
+            self.node.tools[Usermod].add_user_to_group("libvirt", sudo=True)
 
             # Workaround for error:
             #
