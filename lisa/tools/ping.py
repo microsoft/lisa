@@ -73,7 +73,10 @@ class Ping(Tool):
             ).wait_result()
         if not ignore_error:
             result.assert_exit_code(
-                message="failed on ping. The server may not be reached.",
+                message=(
+                    "failed on ping. The server may not be reached."
+                    f" ping result is {result.stdout}"
+                ),
             )
         # return ping passed or not.
         return result.exit_code == 0
