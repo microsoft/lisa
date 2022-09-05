@@ -11,7 +11,7 @@ from dataclasses_json import dataclass_json
 from lisa import schema
 from lisa.node import Node, quick_connect
 from lisa.operating_system import CBLMariner, Linux, Ubuntu
-from lisa.tools import Git, Sed, Service, Wget, Whoami
+from lisa.tools import Git, Sed, Service, Usermod, Wget, Whoami
 from lisa.transformer import Transformer
 from lisa.util import (
     UnsupportedDistroException,
@@ -221,8 +221,7 @@ class LibvirtPackageInstaller(LibvirtInstaller):
         if not isinstance(self._node.os, CBLMariner):
             return
 
-        username = self._node.tools[Whoami].get_username()
-        self._node.execute(f"usermod -aG libvirt {username}", shell=True, sudo=True)
+        self._node.tools[Usermod].add_user_to_group("libvirt", sudo=True)
         self._node.tools[Sed].substitute(
             "hidepid=2",
             "hidepid=0",
@@ -257,7 +256,7 @@ class QemuPackageInstaller(QemuInstaller):
             )
         linux.install_packages(list(packages_list))
         username = node.tools[Whoami].get_username()
-        node.execute(f"usermod -aG {username} qemu", shell=True, sudo=True)
+        node.tools[Usermod].add_user_to_group(group=username, user="qemu", sudo=True)
         return self._get_version()
 
 
