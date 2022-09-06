@@ -62,10 +62,10 @@ class Fio(Tool):
     def install(self) -> bool:
         posix_os: Posix = cast(Posix, self.node.os)
         try:
-            self._install_from_src()
-        except Exception as e:
-            self._log.debug(f"failed to install fio from source: {e}")
             posix_os.install_packages("fio")
+        except Exception as e:
+            self._log.debug(f"failed to install fio from package: {e}")
+            self._install_from_src()
         return self._check_exists()
 
     def launch(
@@ -291,7 +291,15 @@ class Fio(Tool):
                 "zlib1g-dev",
             ]
         elif isinstance(self.node.os, Suse):
-            package_list = ["wget", "mdadm", "blktrace", "libaio1", "sysstat", "bc"]
+            package_list = [
+                "wget",
+                "mdadm",
+                "blktrace",
+                "libaio1",
+                "sysstat",
+                "bc",
+                "libaio-devel",
+            ]
         elif isinstance(self.node.os, CBLMariner):
             package_list = [
                 "wget",
