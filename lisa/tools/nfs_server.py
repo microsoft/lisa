@@ -75,6 +75,6 @@ class NFSServer(Tool):
         elif isinstance(self.node.os, Debian):
             return self.node.tools[Service].check_service_exists("nfs-kernel-server")
         elif isinstance(self.node.os, SLES):
-            return self.node.tools[Service].check_service_exists("nfs-kernel-server")
+            return self.node.tools[Service].check_service_exists("nfs-server")
         else:
             raise UnsupportedDistroException(self.node.os)
