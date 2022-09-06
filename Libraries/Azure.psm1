@@ -772,7 +772,7 @@ Function Invoke-AllResourceGroupDeployments($SetupTypeData, $CurrentTestData, $R
 				$vmName = $VMNames[$role]
 				Add-Content -Value "$($indents[2]){" -Path $jsonFile
 				Add-Content -Value "$($indents[3])^type^: ^Microsoft.Compute/disks^," -Path $jsonFile
-				Add-Content -Value "$($indents[3])^apiVersion^: ^2020-12-01^," -Path $jsonFile
+				Add-Content -Value "$($indents[3])^apiVersion^: ^2021-04-01^," -Path $jsonFile
 				Add-Content -Value "$($indents[3])^name^: ^$vmName-CustomDisk^," -Path $jsonFile
 				Add-Content -Value "$($indents[3])^location^: ^[variables('location')]^," -Path $jsonFile
 
@@ -799,12 +799,13 @@ Function Invoke-AllResourceGroupDeployments($SetupTypeData, $CurrentTestData, $R
 				$SubscriptionID = $Global:XMLSecrets.secrets.SubscriptionID
 				Add-Content -Value "$($indents[4])^securityProfile^: " -Path $jsonFile
 				Add-Content -Value "$($indents[4]){" -Path $jsonFile
-				Add-Content -Value "$($indents[5])^securityType^: ^MemoryEncryption^" -Path $jsonFile
+				Add-Content -Value "$($indents[5])^securityType^: ^ConfidentialVM_VMGuestStateOnlyEncryptedWithPlatformKey^" -Path $jsonFile
 				Add-Content -Value "$($indents[4])}," -Path $jsonFile
 				Add-Content -Value "$($indents[4])^creationData^: " -Path $jsonFile
 				Add-Content -Value "$($indents[4]){" -Path $jsonFile
-				Add-Content -Value "$($indents[5])^createOption^: ^Import^," -Path $jsonFile
+				Add-Content -Value "$($indents[5])^createOption^: ^ImportSecure^," -Path $jsonFile
 				Add-Content -Value "$($indents[5])^storageAccountId^: ^/subscriptions/$SubscriptionID/resourceGroups/$StorageResourceGroup/providers/Microsoft.Storage/storageAccounts/$StorageAccountName^," -Path $jsonFile
+				Add-Content -Value "$($indents[5])^securityDataUri^: ^$vmgsFileName^," -Path $jsonFile
 				Add-Content -Value "$($indents[5])^sourceUri^: ^https://$StorageAccountName.blob.core.windows.net/vhds/$VHDName^" -Path $jsonFile
 				Add-Content -Value "$($indents[4])}" -Path $jsonFile
 				Add-Content -Value "$($indents[3])}" -Path $jsonFile
@@ -1373,7 +1374,6 @@ Function Invoke-AllResourceGroupDeployments($SetupTypeData, $CurrentTestData, $R
 			Add-Content -Value "$($indents[3])^tags^: " -Path $jsonFile
 			Add-Content -Value "$($indents[3]){" -Path $jsonFile
 			Add-Content -Value "$($indents[4])^TestID^: ^$TestID^," -Path $jsonFile
-			Add-Content -Value "$($indents[4])^Platform.SecurityType^: ^MemoryEncryption^," -Path $jsonFile
 			Add-Content -Value "$($indents[4])^creationSource^: ^['acc-vm-engine']^" -Path $jsonFile
 			Add-Content -Value "$($indents[3])}," -Path $jsonFile
 
@@ -1415,6 +1415,7 @@ Function Invoke-AllResourceGroupDeployments($SetupTypeData, $CurrentTestData, $R
 			if ($CurrentTestData.SetupConfig.SecureBoot -or $CurrentTestData.SetupConfig.vTPM) {
 				Add-Content -Value "$($indents[4])^securityProfile^: " -Path $jsonFile
 				Add-Content -Value "$($indents[4]){" -Path $jsonFile
+				Add-Content -Value "$($indents[5])^securityType^: ^ConfidentialVM^," -Path $jsonFile
 				Add-Content -Value "$($indents[5])^uefiSettings^: " -Path $jsonFile
 				Add-Content -Value "$($indents[5]){" -Path $jsonFile
 				if ($CurrentTestData.SetupConfig.SecureBoot -and !$CurrentTestData.SetupConfig.vTPM) {
