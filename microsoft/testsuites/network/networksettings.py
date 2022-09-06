@@ -643,17 +643,26 @@ class NetworkSettings(TestSuite):
             netvsc_module = modinfo.get_filename("hv_netvsc")
             # remove any escape character at the end of string
             netvsc_module = netvsc_module.strip()
+            decompress_tool = ""
             # if the module is archived as xz, extract it to check symbols
             if netvsc_module.endswith(".xz"):
+                decompress_tool = "xz"
+            # if the module is archived as zst, extract it to check symbols
+            if netvsc_module.endswith(".zst"):
+                decompress_tool = "zstd"
+            if decompress_tool:
                 node.execute(
                     f"cp {netvsc_module} {node.working_path}/", cwd=node.working_path
                 )
                 node.execute(
-                    f"xz -d {node.working_path}/{netvsc_module.rsplit('/', 1)[-1]}",
+                    (
+                        f"{decompress_tool} -d {node.working_path}/"
+                        f"{netvsc_module.rsplit('/', 1)[-1]}"
+                    ),
                     cwd=node.working_path,
                 )
                 netvsc_module = node.execute(
-                    f"ls {node.working_path}/hv_netvsc*",
+                    f"ls {node.working_path}/hv_netvsc.ko",
                     shell=True,
                     cwd=node.working_path,
                 ).stdout
