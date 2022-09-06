@@ -325,7 +325,7 @@ class Posix(OperatingSystem, BaseClassMixin):
         self,
         packages: Union[str, Tool, Type[Tool], List[Union[str, Tool, Type[Tool]]]],
         signed: bool = False,
-        timeout: int = 600,
+        timeout: int = 1200,
         extra_args: Optional[List[str]] = None,
     ) -> None:
         package_names = self._get_package_list(packages)
