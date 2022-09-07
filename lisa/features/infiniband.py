@@ -10,7 +10,7 @@ from assertpy import assert_that
 from lisa.base_tools import Cat, Sed, Uname, Wget
 from lisa.feature import Feature
 from lisa.operating_system import CentOs, Redhat, Ubuntu
-from lisa.tools import Firewall, Ls, Make
+from lisa.tools import Firewall, Ls, Lspci, Make
 from lisa.tools.service import Service
 from lisa.tools.tar import Tar
 from lisa.util import (
@@ -74,6 +74,11 @@ class Infiniband(Feature):
     # example SKU: Standard_H16mr
     def is_over_nd(self) -> bool:
         raise NotImplementedError
+
+    def _is_legacy_device(self) -> bool:
+        lspci = self._node.tools[Lspci]
+        device_list = lspci.get_devices()
+        return any("ConnectX-3" in device.device_info for device in device_list)
 
     def get_ib_interfaces(self) -> List[IBDevice]:
         """Gets the list of Infiniband devices
@@ -146,6 +151,8 @@ class Infiniband(Feature):
     def _get_mofed_version(self) -> str:
         node = self._node
         default = "5.4-3.0.3.0"
+        if self._is_legacy_device():
+            return "4.9-5.1.0.0"
         if isinstance(node.os, Ubuntu) and str(node.os.information.release) == "20.04":
             return "5.7-1.0.2.0"
 
@@ -221,6 +228,8 @@ class Infiniband(Feature):
             "libgcc",
             "byacc",
             "libevent",
+            "pciutils",
+            "lsof",
         ]
         if isinstance(node.os, CentOs):
             node.execute(
@@ -305,8 +314,11 @@ class Infiniband(Feature):
 
             extra_params = (
                 f"--kernel {kernel} --kernel-sources {kernel_src}  "
-                f"--skip-repo --skip-unsupported-devices-check --without-fw-update"
+                f"--skip-repo --without-fw-update"
             )
+
+        if not self._is_legacy_device():
+            extra_params += " --skip-unsupported-devices-check"
 
         node.execute(
             f"./{mofed_folder}/mlnxofedinstall --add-kernel-support {extra_params}",
@@ -314,6 +326,7 @@ class Infiniband(Feature):
             expected_exit_code_failure_message="SetupRDMA: failed to install "
             "MOFED Drivers",
             sudo=True,
+            timeout=1200,
         )
         node.execute(
             "/etc/init.d/openibd force-restart",
