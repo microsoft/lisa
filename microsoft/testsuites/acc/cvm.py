@@ -64,35 +64,14 @@ class CVMSuite(TestSuite):
     def verify_isolation_config(self, log: Logger, node: Node) -> None:
         dmesg_tool = node.tools[Dmesg]
         dmesg_output = dmesg_tool.get_output()
-        raw_isolation_config = re.finditer(
-            self.__isolation_config_pattern, dmesg_output
-        )
-        for isolation_config in raw_isolation_config:
-            matched_isolation_config = self.__isolation_config_pattern.match(
-                isolation_config.group()
-            )
-        if matched_isolation_config:
-            config_a = matched_isolation_config.group("config_a")
-            config_b = matched_isolation_config.group("config_b")
-            log.debug(f"Isolation Config is Group A:{config_a}," " Group B:{config_b}")
+        isolation_config = re.search(self.__isolation_config_pattern, dmesg_output)
+        if isolation_config is not None:
+            config_a = isolation_config.group("config_a")
+            config_b = isolation_config.group("config_b")
+            log.debug(f"Isolation Config is Group A:{config_a}, Group B:{config_b}")
         else:
             raise LisaException("No find matched Isolation Config in dmesg")
         config_a = hex(int(config_a, 16))
         config_b = hex(int(config_b, 16))
         assert_that(config_b).is_equal_to(hex(0xBA2))
         assert_that(config_a).is_equal_to(hex(0x1))
-
-    def get_isolation_config(self, log: Logger, dmesg_output: str) -> dict[str, str]:
-        raw_isolation_config = re.finditer(
-            self.__isolation_config_pattern, dmesg_output
-        )
-        for isolation_config in raw_isolation_config:
-            matched_isolation_config = self.__isolation_config_pattern.match(
-                isolation_config.group()
-            )
-        if matched_isolation_config:
-            config_a = matched_isolation_config.group("config_a")
-            config_b = matched_isolation_config.group("config_b")
-            log.debug(f"Isolation Config is Group A:{config_a}," " Group B:{config_b}")
-            return {"config_a": config_a, "config_b": config_b}
-        raise LisaException("No find matched Isolation Config in dmesg")
