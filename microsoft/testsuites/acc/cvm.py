@@ -1,6 +1,8 @@
 # Copyright (c) Microsoft Corporation.
 # Licensed under the MIT license.
 
+import re
+
 from assertpy import assert_that
 
 from lisa import (
@@ -13,6 +15,7 @@ from lisa import (
 )
 from lisa.environment import EnvironmentStatus
 from lisa.tools import Dmesg, Lsvmbus
+from lisa.util import LisaException
 
 
 @TestSuiteMetadata(
@@ -23,6 +26,12 @@ from lisa.tools import Dmesg, Lsvmbus
     """,
 )
 class CVMSuite(TestSuite):
+    # [    0.000000] Hyper-V: Isolation Config: Group A 0x1, Group B 0xba2
+    __isolation_config_pattern = re.compile(
+        r"\[\s+\d+.\d+\]\s+Hyper-V: Isolation Config: Group A."
+        r"(?P<config_a>(0x[a-z,A-Z,0-9]+)), Group B.(?P<config_b>(0x[a-z,A-Z,0-9]+))"
+    )
+
     @TestCaseMetadata(
         description="""
         This case verifies that lsvmbus only shows devices
@@ -56,9 +65,10 @@ class CVMSuite(TestSuite):
         This case verifies the isolation config on guest
 
         Steps:
-        1. Call dmesg
-        2. Check to ensure config a is 0x1
-        3. Check to ensure config b is 0xba2
+        1. Call dmesg to get output
+        2. Find isolation config in output
+        3. Check to ensure config a is 0x1
+        4. Check to ensure config b is 0xba2
         """,
         priority=1,
         requirement=simple_requirement(
@@ -67,8 +77,36 @@ class CVMSuite(TestSuite):
     )
     def verify_isolation_config(self, log: Logger, node: Node) -> None:
         dmesg_tool = node.tools[Dmesg]
-        isolation_config = dmesg_tool.get_isolation_config()
-        config_a = hex(int(isolation_config["config_a"], 16))
-        config_b = hex(int(isolation_config["config_b"], 16))
+        dmesg_output = dmesg_tool.get_output()
+        raw_isolation_config = re.finditer(
+            self.__isolation_config_pattern, dmesg_output
+        )
+        for isolation_config in raw_isolation_config:
+            matched_isolation_config = self.__isolation_config_pattern.match(
+                isolation_config.group()
+            )
+        if matched_isolation_config:
+            config_a = matched_isolation_config.group("config_a")
+            config_b = matched_isolation_config.group("config_b")
+            log.debug(f"Isolation Config is Group A:{config_a}," " Group B:{config_b}")
+        else:
+            raise LisaException("No find matched Isolation Config in dmesg")
+        config_a = hex(int(config_a, 16))
+        config_b = hex(int(config_b, 16))
         assert_that(config_b).is_equal_to(hex(0xBA2))
         assert_that(config_a).is_equal_to(hex(0x1))
+
+    def get_isolation_config(self, log: Logger, dmesg_output: str) -> dict[str, str]:
+        raw_isolation_config = re.finditer(
+            self.__isolation_config_pattern, dmesg_output
+        )
+        for isolation_config in raw_isolation_config:
+            matched_isolation_config = self.__isolation_config_pattern.match(
+                isolation_config.group()
+            )
+        if matched_isolation_config:
+            config_a = matched_isolation_config.group("config_a")
+            config_b = matched_isolation_config.group("config_b")
+            log.debug(f"Isolation Config is Group A:{config_a}," " Group B:{config_b}")
+            return {"config_a": config_a, "config_b": config_b}
+        raise LisaException("No find matched Isolation Config in dmesg")

@@ -26,12 +26,6 @@ class Dmesg(Tool):
         r"\[\s+\d+.\d+\]\s+hv_vmbus:.*Vmbus version:(?P<major>\d+).(?P<minor>\d+)"
     )
 
-    # [    0.000000] Hyper-V: Isolation Config: Group A 0x1, Group B 0xba2
-    __isolation_config_pattern = re.compile(
-        r"\[\s+\d+.\d+\]\s+Hyper-V: Isolation Config: Group A."
-        r"(?P<config_a>(0x[a-z,A-Z,0-9]+)), Group B.(?P<config_b>(0x[a-z,A-Z,0-9]+))"
-    )
-
     @property
     def command(self) -> str:
         return "dmesg"
@@ -86,27 +80,6 @@ class Dmesg(Tool):
                 self._log.info(f"vmbus version is {major}.{minor}")
                 return VersionInfo(int(major), int(minor))
         raise LisaException("No find matched vmbus version in dmesg")
-
-    def get_isolation_config(self) -> dict[str, str]:
-        result = self._run()
-        result.assert_exit_code(
-            message=f"exit code should be zero, but actually {result.exit_code}"
-        )
-        raw_isolation_config = re.finditer(
-            self.__isolation_config_pattern, result.stdout
-        )
-        for isolation_config in raw_isolation_config:
-            matched_isolation_config = self.__isolation_config_pattern.match(
-                isolation_config.group()
-            )
-        if matched_isolation_config:
-            config_a = matched_isolation_config.group("config_a")
-            config_b = matched_isolation_config.group("config_b")
-            self._log.info(
-                f"Isolation Config is Group A:{config_a}," " Group B:{config_b}"
-            )
-            return {"config_a": config_a, "config_b": config_b}
-        raise LisaException("No find matched Isolation Config in dmesg")
 
     def _run(self, force_run: bool = False) -> ExecutableResult:
         # sometime it need sudo, we can retry
