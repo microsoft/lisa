@@ -5,15 +5,7 @@ import re
 
 from assertpy import assert_that
 
-from lisa import (
-    Logger,
-    Node,
-    TestCaseMetadata,
-    TestSuite,
-    TestSuiteMetadata,
-    simple_requirement,
-)
-from lisa.environment import EnvironmentStatus
+from lisa import Logger, Node, TestCaseMetadata, TestSuite, TestSuiteMetadata
 from lisa.tools import Dmesg, Lsvmbus
 from lisa.util import LisaException
 
@@ -22,7 +14,7 @@ from lisa.util import LisaException
     area="ACC_CVM",
     category="functional",
     description="""
-    This test suite ensures configuration and devices for CVM
+    This test suite ensures correct configuration and allowed devices for CVM
     """,
 )
 class CVMSuite(TestSuite):
@@ -43,9 +35,6 @@ class CVMSuite(TestSuite):
            listed are included in valid_class_ids
         """,
         priority=1,
-        requirement=simple_requirement(
-            environment_status=EnvironmentStatus.Deployed,
-        ),
     )
     def verify_lsvmbus(self, log: Logger, node: Node) -> None:
         valid_class_ids = {
@@ -71,9 +60,6 @@ class CVMSuite(TestSuite):
         4. Check to ensure config b is 0xba2
         """,
         priority=1,
-        requirement=simple_requirement(
-            environment_status=EnvironmentStatus.Deployed,
-        ),
     )
     def verify_isolation_config(self, log: Logger, node: Node) -> None:
         dmesg_tool = node.tools[Dmesg]
