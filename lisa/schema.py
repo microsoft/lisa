@@ -381,18 +381,22 @@ class FeatureSettings(
         return self.type
 
     def _call_requirement_method(self, method_name: str, capability: Any) -> Any:
+        assert isinstance(capability, FeatureSettings), f"actual: {type(capability)}"
         # default FeatureSetting is a place holder, nothing to do.
         value = FeatureSettings.create(self.type)
 
-        # intersect the extended schemas
-        if (
-            self.extended_schemas
-            and method_name == search_space.RequirementMethod.intersect
-        ):
-            if capability is not None:
+        # try best to intersect the extended schemas
+        if method_name == search_space.RequirementMethod.intersect:
+            if self.extended_schemas and capability and capability.extended_schemas:
                 value.extended_schemas = deep_update_dict(
                     self.extended_schemas,
                     capability.extended_schemas,
+                )
+            else:
+                value.extended_schemas = (
+                    capability.extended_schemas
+                    if capability and capability.extended_schemas
+                    else self.extended_schemas
                 )
 
         return value
@@ -957,7 +961,11 @@ class NodeSpace(search_space.RequirementMixin, TypedSchema, ExtendableSchemaMixi
         else:
             value.gpu_count = 0
 
-        if capability.features:
+        if (
+            capability.features
+            and method_name == search_space.RequirementMethod.generate_min_capability
+        ):
+            # The requirement features are ignored, if cap doesn't have it.
             value.features = search_space.SetSpace[FeatureSettings](is_allow_set=True)
             for original_cap_feature in capability.features:
                 capability_feature = self._get_or_create_feature_settings(
@@ -971,11 +979,25 @@ class NodeSpace(search_space.RequirementMixin, TypedSchema, ExtendableSchemaMixi
                     capability_feature
                 )
                 value.features.add(current_feature)
-        if capability.excluded_features:
+        elif method_name == search_space.RequirementMethod.intersect and (
+            capability.features or self.features
+        ):
+            # join for intersect between test requirement and runbook
+            # requirement, and should be handled in platform.
+            value.features = search_space.SetSpace[FeatureSettings](
+                is_allow_set=True,
+                items=(self.features.items if self.features else [])
+                + (capability.features.items if capability.features else []),
+            )
+
+        if (
+            capability.excluded_features
+            and method_name == search_space.RequirementMethod.generate_min_capability
+        ):
             # TODO: the min value for excluded feature is not clear. It may need
             # to be improved with real scenarios.
             value.excluded_features = search_space.SetSpace[FeatureSettings](
-                is_allow_set=False
+                is_allow_set=True
             )
             for original_cap_feature in capability.excluded_features:
                 capability_feature = self._get_or_create_feature_settings(
@@ -991,6 +1013,19 @@ class NodeSpace(search_space.RequirementMixin, TypedSchema, ExtendableSchemaMixi
                     capability_feature
                 )
                 value.excluded_features.add(current_feature)
+        elif method_name == search_space.RequirementMethod.intersect and (
+            capability.excluded_features or self.excluded_features
+        ):
+            value.excluded_features = search_space.SetSpace[FeatureSettings](
+                is_allow_set=True,
+                items=(self.excluded_features.items if self.excluded_features else [])
+                + (
+                    capability.excluded_features.items
+                    if capability.excluded_features
+                    else []
+                ),
+            )
+
         return value
 
     def _find_feature_by_type(
