@@ -322,6 +322,10 @@ class SetSpace(RequirementMixin, Set[T]):
         super().add(element)
         self.items.append(element)
 
+    def remove(self, element: T) -> None:
+        super().remove(element)
+        self.items.remove(element)
+
     def update(self, *s: Iterable[T]) -> None:
         super().update(*s)
         self.items.extend(*s)
