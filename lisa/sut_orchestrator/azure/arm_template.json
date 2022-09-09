@@ -276,7 +276,7 @@
             }
         },
         {
-            "apiVersion": "2021-03-01",
+            "apiVersion": "2022-03-01",
             "type": "Microsoft.Compute/virtualMachines",
             "copy": {
                 "name": "vmCopy",

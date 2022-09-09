@@ -77,6 +77,7 @@ from .ssh import Ssh
 from .sshpass import Sshpass
 from .start_configuration import StartConfiguration
 from .stat import Stat
+from .strace import Strace
 from .stress_ng import StressNg
 from .swap import Swap
 from .sysctl import Sysctl
@@ -88,6 +89,7 @@ from .timedatectl import Timedatectl
 from .timeout import Timeout
 from .unzip import Unzip
 from .uptime import Uptime
+from .vdsotest import Vdsotest
 from .who import Who
 from .whoami import Whoami
 
@@ -178,6 +180,7 @@ __all__ = [
     "Sshpass",
     "StartConfiguration",
     "Stat",
+    "Strace",
     "StressNg",
     "Swap",
     "Sysctl",
@@ -192,6 +195,7 @@ __all__ = [
     "Uptime",
     "Wget",
     "YumConfigManager",
+    "Vdsotest",
     "Who",
     "Whoami",
 ]

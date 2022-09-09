@@ -39,6 +39,7 @@ from retry import retry
 from lisa import Environment, Logger, features, schema, search_space
 from lisa.features.gpu import ComputeSDK
 from lisa.features.resize import ResizeAction
+from lisa.features.security_profile import SecurityProfileSettings, SecurityProfileType
 from lisa.node import Node, RemoteNode
 from lisa.operating_system import Redhat, Suse, Ubuntu
 from lisa.search_space import RequirementMethod
@@ -363,9 +364,11 @@ class SerialConsole(AzureFeatureMixin, features.SerialConsole):
             parent_resource=self._vm_name,
             serial_port=self._serial_port.name,
         )
-        token = platform.credential.get_token("").token
+        access_token = platform.credential.get_token(
+            "https://management.core.windows.net/.default"
+        ).token
         serial_port_connection_str = (
-            f"{connection.connection_string}?authorization={token}"
+            f"{connection.connection_string}?authorization={access_token}"
         )
 
         return serial_port_connection_str
@@ -373,8 +376,6 @@ class SerialConsole(AzureFeatureMixin, features.SerialConsole):
     def _initialize_serial_console(self, id: int) -> None:
         if self._serial_console_initialized:
             return
-
-        self._serial_console_initialized = True
 
         platform: AzurePlatform = self._platform  # type: ignore
         with global_credential_access_lock:
@@ -422,6 +423,9 @@ class SerialConsole(AzureFeatureMixin, features.SerialConsole):
 
         # setup output buffer
         self._output_string = ""
+
+        # mark serial console as initialized
+        self._serial_console_initialized = True
 
 
 class Gpu(AzureFeatureMixin, features.Gpu):
@@ -1412,7 +1416,7 @@ class SecurityProfile(AzureFeatureMixin, features.SecurityProfile):
                     "secureBootEnabled": "true",
                     "vTpmEnabled": "true"
                 },
-                "securityType": "TrustedLaunch"
+                "securityType": "%s"
             }
         }
         """
@@ -1426,24 +1430,62 @@ class SecurityProfile(AzureFeatureMixin, features.SecurityProfile):
         cls, *args: Any, **kwargs: Any
     ) -> Optional[schema.FeatureSettings]:
         raw_capabilities: Any = kwargs.get("raw_capabilities")
+        capabilities: List[SecurityProfileType] = [SecurityProfileType.Standard]
 
-        value = raw_capabilities.get("HyperVGenerations", None)
-        if value and "V2" in str(value):
-            return schema.FeatureSettings.create(cls.name())
+        gen_value = raw_capabilities.get("HyperVGenerations", None)
+        cvm_value = raw_capabilities.get("ConfidentialComputingType", None)
+        if gen_value and "V2" in str(gen_value):
+            capabilities.append(SecurityProfileType.Boot)
+        if cvm_value:
+            capabilities.append(SecurityProfileType.CVM)
 
-        return None
+        return SecurityProfileSettings(
+            security_profile=search_space.SetSpace(True, capabilities)
+        )
+
+    @classmethod
+    def on_before_deployment(cls, *args: Any, **kwargs: Any) -> None:
+        settings = cast(SecurityProfileSettings, kwargs.get("settings"))
+        if SecurityProfileType.Standard != settings.security_profile:
+            cls._enable_secure_boot(*args, **kwargs)
 
     @classmethod
     def _enable_secure_boot(cls, *args: Any, **kwargs: Any) -> None:
-        parameters: Any = kwargs.get("arm_parameters")
-        if 1 == parameters.nodes[0].hyperv_generation:
-            raise SkippedException("Secure boot can only be set on gen2 image/vhd.")
+        settings: Any = kwargs.get("settings")
         template: Any = kwargs.get("template")
         log = cast(Logger, kwargs.get("log"))
-        log.debug("updating arm template to support secure boot.")
         resources = template["resources"]
         virtual_machines = find_by_name(resources, "Microsoft.Compute/virtualMachines")
-        virtual_machines["properties"].update(json.loads(cls._both_enabled_properties))
+        if SecurityProfileType.Standard == settings.security_profile:
+            log.debug("Security profile set to none. Arm template will not be updated.")
+            return
+        elif SecurityProfileType.Boot == settings.security_profile:
+            log.debug("Security Profile set to secure boot. Updating arm template.")
+            security_type = "TrustedLaunch"
+        elif SecurityProfileType.CVM == settings.security_profile:
+            log.debug("Security Profile set to CVM. Updating arm template.")
+            security_type = "ConfidentialVM"
+
+            virtual_machines["properties"]["storageProfile"]["osDisk"][
+                "managedDisk"
+            ] = (
+                "[if(not(equals(parameters('nodes')[copyIndex('vmCopy')]['disk_type'], "
+                "'Ephemeral')), json(concat('{\"storageAccountType\": \"',parameters"
+                "('nodes')[copyIndex('vmCopy')]['disk_type'],'\",\"securityProfile\":{"
+                '"securityEncryptionType": "VMGuestStateOnly"}}\')), json(\'null\'))]'
+            )
+        else:
+            raise LisaException(
+                "Security profile: not all requirements could be met. "
+                "Please check VM SKU capabilities, test requirements, "
+                "and runbook requirements."
+            )
+
+        virtual_machines["properties"].update(
+            json.loads(
+                cls._both_enabled_properties % security_type,
+            )
+        )
 
 
 class IsolatedResource(AzureFeatureMixin, features.IsolatedResource):
