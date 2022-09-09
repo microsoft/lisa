@@ -155,13 +155,18 @@ def get_feature_settings_type_by_name(
 
 
 def get_feature_settings_by_name(
-    feature_name: str, feature_settings: Iterable[schema.FeatureSettings]
-) -> schema.FeatureSettings:
-    assert feature_settings, "not found features to query"
+    feature_name: str,
+    feature_settings: Iterable[schema.FeatureSettings],
+    ignore_error: bool = False,
+) -> Optional[schema.FeatureSettings]:
+    assert feature_settings is not None, "not found features to query"
     for single_setting in feature_settings:
         if single_setting.type == feature_name:
             return single_setting
 
-    raise NotMeetRequirementException(
-        f"cannot find feature with type '{feature_name}' in {feature_settings}"
-    )
+    if not ignore_error:
+        raise NotMeetRequirementException(
+            f"cannot find feature with type '{feature_name}' in {feature_settings}"
+        )
+
+    return None
