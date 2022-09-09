@@ -21,6 +21,7 @@ from .security_profile import (
     SecureBootEnabled,
     SecurityProfile,
     SecurityProfileSettings,
+    SecurityProfileType,
 )
 from .serial_console import SerialConsole
 from .startstop import StartStop, StopState
@@ -50,6 +51,7 @@ __all__ = [
     "SecureBootEnabled",
     "SecurityProfile",
     "SecurityProfileSettings",
+    "SecurityProfileType",
     "Sriov",
     "StopState",
     "Synthetic",
