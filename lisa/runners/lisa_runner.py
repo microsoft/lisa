@@ -687,37 +687,6 @@ class LisaRunner(BaseRunner):
                             schema.NodeSpace, node_requirement_data
                         )
 
-                        # Manage the union of the platform requirements and the node
-                        # requirements before taking the intersection of
-                        # the rest of the requirements.
-                        platform_requirement.features = search_space.SetSpace(
-                            True,
-                            (
-                                platform_requirement.features.items
-                                if platform_requirement.features
-                                else []
-                            )
-                            + (
-                                original_node_requirement.features.items
-                                if original_node_requirement.features
-                                else []
-                            ),
-                        )
-                        original_node_requirement.excluded_features = (
-                            search_space.SetSpace(
-                                False,
-                                (
-                                    platform_requirement.excluded_features.items
-                                    if platform_requirement.excluded_features
-                                    else []
-                                )
-                                + (
-                                    original_node_requirement.excluded_features.items
-                                    if original_node_requirement.excluded_features
-                                    else []
-                                ),
-                            )
-                        )
                         platform_requirement.excluded_features = None
 
                         try:
