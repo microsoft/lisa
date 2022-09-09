@@ -364,9 +364,11 @@ class SerialConsole(AzureFeatureMixin, features.SerialConsole):
             parent_resource=self._vm_name,
             serial_port=self._serial_port.name,
         )
-        token = platform.credential.get_token("").token
+        access_token = platform.credential.get_token(
+            "https://management.core.windows.net/.default"
+        ).token
         serial_port_connection_str = (
-            f"{connection.connection_string}?authorization={token}"
+            f"{connection.connection_string}?authorization={access_token}"
         )
 
         return serial_port_connection_str
@@ -374,8 +376,6 @@ class SerialConsole(AzureFeatureMixin, features.SerialConsole):
     def _initialize_serial_console(self, id: int) -> None:
         if self._serial_console_initialized:
             return
-
-        self._serial_console_initialized = True
 
         platform: AzurePlatform = self._platform  # type: ignore
         with global_credential_access_lock:
@@ -423,6 +423,9 @@ class SerialConsole(AzureFeatureMixin, features.SerialConsole):
 
         # setup output buffer
         self._output_string = ""
+
+        # mark serial console as initialized
+        self._serial_console_initialized = True
 
 
 class Gpu(AzureFeatureMixin, features.Gpu):
