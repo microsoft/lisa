@@ -6,7 +6,9 @@ import re
 from assertpy import assert_that
 
 from lisa import Logger, Node, TestCaseMetadata, TestSuite, TestSuiteMetadata
+from lisa.features.security_profile import CvmEnabled
 from lisa.tools import Dmesg, Lsvmbus
+from lisa.testsuite import simple_requirement
 from lisa.util import LisaException
 
 
@@ -35,6 +37,9 @@ class CVMSuite(TestSuite):
            listed are included in valid_class_ids
         """,
         priority=1,
+        requirement=simple_requirement(
+            supported_features=[CvmEnabled()],
+        ),
     )
     def verify_lsvmbus(self, log: Logger, node: Node) -> None:
         valid_class_ids = {
@@ -60,6 +65,9 @@ class CVMSuite(TestSuite):
         4. Check to ensure config b is 0xba2
         """,
         priority=1,
+        requirement=simple_requirement(
+            supported_features=[CvmEnabled()],
+        ),
     )
     def verify_isolation_config(self, log: Logger, node: Node) -> None:
         dmesg_tool = node.tools[Dmesg]
