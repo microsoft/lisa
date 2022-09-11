@@ -153,7 +153,9 @@ class Infiniband(Feature):
         default = "5.4-3.0.3.0"
         if self._is_legacy_device():
             return "4.9-5.1.0.0"
-        if isinstance(node.os, Ubuntu) and str(node.os.information.release) == "20.04":
+        if (
+            isinstance(node.os, Ubuntu) and node.os.information.version >= "20.4.0"
+        ) or (isinstance(node.os, Redhat) and node.os.information.version >= "8.2.0"):
             return "5.7-1.0.2.0"
 
         return default
@@ -210,7 +212,6 @@ class Infiniband(Feature):
             "python3",
             "kernel-rpm-macros",
             "gdb-headless",
-            "python36-devel",
             "elfutils-libelf-devel",
             "rpm-build",
             "make",
@@ -239,12 +240,17 @@ class Infiniband(Feature):
             )
 
         if isinstance(node.os, Redhat):
-            if node.os.information.version.major == 7:
-                redhat_required_packages.append("python-devel")
-            else:
-                redhat_required_packages.append("python3-devel")
-                redhat_required_packages.append("python2-devel")
-
+            if node.os.information.version.major >= 9:
+                redhat_required_packages.append("perl-CPAN")
+                redhat_required_packages.append("perl-Pod-Html")
+            for package in [
+                "python36-devel",
+                "python3-devel",
+                "python-devel",
+                "python2-devel",
+            ]:
+                if node.os.is_package_in_repo(package):
+                    redhat_required_packages.append(package)
             node.os.install_packages(list(redhat_required_packages))
 
             try:
