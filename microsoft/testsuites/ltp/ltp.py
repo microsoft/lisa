@@ -124,6 +124,9 @@ class Ltp(Tool):
         # run ltp tests
         self.run(parameters, sudo=True, force_run=True, timeout=12000)
 
+        # to avoid no permission issue when copying back files
+        self.node.tools[Chmod].update_folder("/opt/ltp", "a+rwX", sudo=True)
+
         # write output to log path
         self.node.shell.copy_back(
             PurePosixPath(self.LTP_OUTPUT_PATH), PurePath(log_path) / "ltp-output.log"
