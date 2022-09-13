@@ -982,13 +982,10 @@ class NodeSpace(search_space.RequirementMixin, TypedSchema, ExtendableSchemaMixi
         elif method_name == search_space.RequirementMethod.intersect and (
             capability.features or self.features
         ):
-            # join for intersect between test requirement and runbook
-            # requirement, and should be handled in platform.
-            value.features = search_space.SetSpace[FeatureSettings](
-                is_allow_set=True,
-                items=(self.features.items if self.features else [])
-                + (capability.features.items if capability.features else []),
-            )
+            # This is a hack to work with lisa_runner. The capability features
+            # are joined case req and runbook req. Here just take the results
+            # from capability.
+            value.features = capability.features
 
         if (
             capability.excluded_features
@@ -1016,15 +1013,10 @@ class NodeSpace(search_space.RequirementMixin, TypedSchema, ExtendableSchemaMixi
         elif method_name == search_space.RequirementMethod.intersect and (
             capability.excluded_features or self.excluded_features
         ):
-            value.excluded_features = search_space.SetSpace[FeatureSettings](
-                is_allow_set=True,
-                items=(self.excluded_features.items if self.excluded_features else [])
-                + (
-                    capability.excluded_features.items
-                    if capability.excluded_features
-                    else []
-                ),
-            )
+            # This is a hack to work with lisa_runner. The capability features
+            # are joined case req and runbook req. Here just take the results
+            # from capability.
+            value.excluded_features = capability.excluded_features
 
         return value
 
