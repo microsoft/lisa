@@ -63,7 +63,6 @@ class RequirementMixin:
         return self._generate_min_capability(capability)
 
     def intersect(self, capability: Any) -> Any:
-        self._validate_result(capability)
         return self._intersect(capability)
 
     def _call_requirement_method(self, method_name: str, capability: Any) -> Any:
