@@ -70,16 +70,33 @@ class CVMSuite(TestSuite):
         ),
     )
     def verify_isolation_config(self, log: Logger, node: Node) -> None:
+        valid_cvm_type = {
+            "HV_ISOLATION_TYPE_SNP": 2,
+        }
+
         dmesg_tool = node.tools[Dmesg]
         dmesg_output = dmesg_tool.get_output()
         isolation_config = re.search(self.__isolation_config_pattern, dmesg_output)
         if isolation_config is not None:
-            config_a = isolation_config.group("config_a")
-            config_b = isolation_config.group("config_b")
-            log.debug(f"Isolation Config is Group A:{config_a}, Group B:{config_b}")
+            isolation_config_a = int(isolation_config.group("config_a"), 16)
+            isolation_config_b = bin(int(isolation_config.group("config_b"), 16))
+            log.debug(
+                f"Isolation Config is Group A:{isolation_config_a}, "
+                f"Group B:{isolation_config_b}"
+            )
         else:
             raise LisaException("No find matched Isolation Config in dmesg")
-        config_a = hex(int(config_a, 16))
-        config_b = hex(int(config_b, 16))
-        assert_that(config_b).is_equal_to(hex(0xBA2))
-        assert_that(config_a).is_equal_to(hex(0x1))
+
+        cvm_type = int(isolation_config_b[10:14], 2)
+        assert_that(list(valid_cvm_type.values())).contains(cvm_type)
+        if cvm_type == valid_cvm_type["HV_ISOLATION_TYPE_SNP"]:
+            # config_a has 1 bit that indicates if paravisor is present
+            assert_that(isolation_config_a).is_equal_to(1)
+
+            # shared_gpa_boundary_active indicates that shared_gpa_boundary_bits is set
+            shared_gpa_boundary_active = int(isolation_config_b[8:9], 2)
+            assert_that(shared_gpa_boundary_active).is_equal_to(1)
+
+            # shared_gpa_boundary_bits indicates the bit that is used for vTOM
+            shared_gpa_boundary_bits = int(isolation_config_b[2:8], 2)
+            assert_that(shared_gpa_boundary_bits).is_equal_to(46)
