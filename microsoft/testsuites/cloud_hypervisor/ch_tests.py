@@ -16,7 +16,7 @@ from lisa import (
 )
 from lisa.operating_system import CBLMariner, Ubuntu
 from lisa.testsuite import TestResult
-from lisa.tools import Lscpu, Modprobe
+from lisa.tools import Ls, Lscpu, Modprobe
 from lisa.util import SkippedException
 from microsoft.testsuites.cloud_hypervisor.ch_tests_tool import CloudHypervisorTests
 
@@ -66,7 +66,10 @@ class CloudHypervisorTestSuite(TestSuite):
         log_path: Path,
         result: TestResult,
     ) -> None:
-        node.tools[CloudHypervisorTests].run_tests(result, environment, "integration")
+        hypervisor = self._get_hypervisor_param(node)
+        node.tools[CloudHypervisorTests].run_tests(
+            result, environment, "integration", hypervisor
+        )
 
     @TestCaseMetadata(
         description="""
@@ -88,11 +91,19 @@ class CloudHypervisorTestSuite(TestSuite):
         log_path: Path,
         result: TestResult,
     ) -> None:
+        hypervisor = self._get_hypervisor_param(node)
         node.tools[CloudHypervisorTests].run_tests(
-            result, environment, "integration-live-migration"
+            result, environment, "integration-live-migration", hypervisor
         )
 
     def _ensure_virtualization_enabled(self, node: Node) -> None:
         virtualization_enabled = node.tools[Lscpu].is_virtualization_enabled()
-        if not virtualization_enabled:
+        mshv_exists = node.tools[Ls].path_exists(path="/dev/mshv", sudo=True)
+        if not virtualization_enabled and not mshv_exists:
             raise SkippedException("Virtualization is not enabled in hardware")
+
+    def _get_hypervisor_param(self, node: Node) -> str:
+        mshv_exists = node.tools[Ls].path_exists(path="/dev/mshv", sudo=True)
+        if mshv_exists:
+            return "mshv"
+        return "kvm"

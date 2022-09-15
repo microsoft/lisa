@@ -46,6 +46,7 @@ class CloudHypervisorTests(Tool):
         test_result: TestResult,
         environment: Environment,
         test_type: str,
+        hypervisor: str,
         skip: Optional[List[str]] = None,
     ) -> None:
         if skip is not None:
@@ -54,7 +55,8 @@ class CloudHypervisorTests(Tool):
             skip_args = ""
 
         result = self.run(
-            f"tests --{test_type} -- -- {skip_args} -Z unstable-options --format json",
+            f"tests --hypervisor {hypervisor} --{test_type} -- -- {skip_args}"
+            " -Z unstable-options --format json",
             timeout=self.TIME_OUT,
             force_run=True,
             cwd=self.repo_root,
