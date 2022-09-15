@@ -2,7 +2,7 @@
 # Licensed under the MIT license.
 
 
-import os
+import subprocess
 import sys
 import traceback
 from datetime import datetime
@@ -17,6 +17,7 @@ import lisa.mixin_modules  # noqa: F401
 from lisa.parameter_parser.argparser import parse_args
 from lisa.util import constants, get_datetime_path
 from lisa.util.logger import (
+    Logger,
     create_file_handler,
     get_logger,
     remove_handler,
@@ -43,10 +44,13 @@ def _normalize_path(path_type: str, path: Optional[Path] = None) -> Path:
     return path
 
 
-def _dump_code_information() -> None:
+def _dump_code_information(log: Logger) -> None:
     command = r'git log -1 "--pretty=format:%H%d %ci, %s"'
-    os.system(command)
-    os.system(f"git submodule foreach --recursive {command}")
+    output = subprocess.getoutput(command)
+    log.info(f"git head: {output}")
+    output = subprocess.getoutput(f"git submodule foreach --recursive {command}")
+    if output:
+        log.info(f"submodules: {output}")
 
 
 @retry(FileExistsError, tries=10, delay=0.2)
@@ -124,7 +128,7 @@ def main() -> int:
         log.info(f"Python version: {sys.version}")
         log.info(f"local time: {datetime.now().astimezone()}")
 
-        _dump_code_information()
+        _dump_code_information(log)
 
         # We don't want command line args logging to leak any provided
         # secrets, if any ("s:key:value" syntax)
