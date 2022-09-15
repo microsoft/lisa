@@ -1,8 +1,10 @@
 # Copyright (c) Microsoft Corporation.
 # Licensed under the MIT license.
 
+import re
+
 from lisa.executable import Tool
-from lisa.util import LisaException
+from lisa.util import LisaException, find_group_in_lines
 
 # example output
 #               total        used        free      shared  buff/cache   available
@@ -11,6 +13,12 @@ from lisa.util import LisaException
 
 
 class Free(Tool):
+
+    # Mem:            9.0G        4.5G        412M         74M        4.1G        4.2G
+    _mem_pattern = re.compile(
+        r"^Mem: +(?P<total>\d+\.?\d*\w) +(?P<used>\d+\.?\d*\w) +(?P<free>\d+\.?\d*\w) +(?P<shared>\d+\.?\d*\w) +(?P<buff>\d+\.?\d*\w) +(?P<available>\d+\.?\d*\w)$"  # noqa: E501
+    )
+
     @property
     def command(self) -> str:
         return "free"
@@ -73,3 +81,18 @@ class Free(Tool):
 
     def get_free_memory_gb(self) -> int:
         return self._get_field_bytes_kib("Mem", "free") >> 20
+
+    def get_total_memory(self) -> str:
+        """
+        Returns total memory in power of 1000 with unit
+        Example: 20G
+        """
+        # Example
+        #             total        used        free      shared  buff/cache   available
+        # Mem:         9.0G        4.6G        751M         74M        3.7G        4.0G
+        # Swap:         0B          0B          0B
+        output = self.run("-h --si", shell=True).stdout
+
+        group = find_group_in_lines(output, self._mem_pattern)
+        total_memory = group["total"]
+        return total_memory

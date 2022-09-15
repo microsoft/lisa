@@ -23,6 +23,7 @@ from lisa.features import SerialConsole
 from lisa.operating_system import Redhat
 from lisa.sut_orchestrator.azure.tools import Waagent
 from lisa.tools import Dmesg, Echo, KdumpBase, KernelConfig, Lscpu, Stat
+from lisa.tools.free import Free
 from lisa.util.perf_timer import create_timer
 from lisa.util.shell import try_connect
 
@@ -261,11 +262,10 @@ class KdumpCrash(TestSuite):
             raise SkippedException(identifier)
 
         kdump = node.tools[KdumpBase]
+        free = node.tools[Free]
+        total_memory = free.get_total_memory()
 
-        memory_size = node.execute(
-            "free -h | grep Mem | awk '{print $2}'", shell=True, sudo=True
-        )
-        if "Ti" in memory_size.stdout and float(memory_size.stdout.strip("Ti")) > 1:
+        if "T" in total_memory and float(total_memory.strip("T")) > 1:
             # System memory is more than 1T, need to change the dump path
             # and set crashkernel=2G
             kdump.config_resource_disk_dump_path(
@@ -273,8 +273,9 @@ class KdumpCrash(TestSuite):
             )
             self.crash_kernel = "2G"
             self.timeout_of_dump_crash = 1200
-            if float(memory_size.stdout.strip("Ti")) > 6:
+            if float(total_memory.strip("T")) > 6:
                 self.timeout_of_dump_crash = 2000
+
         kdump.config_crashkernel_memory(self.crash_kernel)
         kdump.enable_kdump_service()
         # Cleaning up any previous crash dump files
