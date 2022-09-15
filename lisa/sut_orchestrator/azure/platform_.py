@@ -387,11 +387,15 @@ class AzurePlatform(Platform):
 
         # Any to wait for resource
         any_wait_for_resource: bool = False
+        errors: List[str] = []
 
         for location in allowed_locations:
-            caps = self._get_matched_capabilities(
+            caps, error = self._get_matched_capabilities(
                 location=location, nodes_requirement=nodes_requirement, log=log
             )
+
+            if error:
+                errors.append(error)
 
             self._analyze_environment_availability(location, caps)
 
@@ -421,7 +425,7 @@ class AzurePlatform(Platform):
                 )
             else:
                 raise NotMeetRequirementException(
-                    f"No capability found for {environment.runbook}."
+                    f"{errors}, runbook: {environment.runbook}."
                 )
 
         # resolve Latest to specified version
@@ -2169,14 +2173,22 @@ class AzurePlatform(Platform):
 
     def _get_matched_capabilities(
         self, location: str, nodes_requirement: List[schema.NodeSpace], log: Logger
-    ) -> List[Union[schema.NodeSpace, bool]]:
+    ) -> Tuple[List[Union[schema.NodeSpace, bool]], str]:
         # capability or if it's able to wait.
         caps: List[Union[schema.NodeSpace, bool]] = [False] * len(nodes_requirement)
+        # one of errors for all requirements. It's enough for troubleshooting.
+        error: str = ""
 
         # get allowed vm sizes. Either it's from the runbook defined, or
         # from subscription supported .
         for req_index, req in enumerate(nodes_requirement):
-            candidate_caps = self._get_allowed_capabilities(req, location, log)
+            candidate_caps, sub_error = self._get_allowed_capabilities(
+                req, location, log
+            )
+            if sub_error:
+                # no candidate found, so try next one.
+                error = sub_error
+                continue
 
             # filter vm sizes and return two list. 1st is deployable, 2nd is
             # wait able for released resource.
@@ -2194,6 +2206,10 @@ class AzurePlatform(Platform):
             candidate_cap = self._get_matched_capability(req, available_capabilities)
             if candidate_cap:
                 caps[req_index] = candidate_cap
+            else:
+                # the error will be overwritten, if there is vm sizes without
+                # quota.
+                error = f"no available vm size found on '{location}'."
 
             if not candidate_cap:
                 # check if there is awaitable VMs
@@ -2203,13 +2219,15 @@ class AzurePlatform(Platform):
                 if candidate_cap:
                     # True means awaitable.
                     caps[req_index] = True
+                    error = f"no quota found on '{location}'"
 
-        return caps
+        return caps, error
 
     def _get_allowed_capabilities(
         self, req: schema.NodeSpace, location: str, log: Logger
-    ) -> List[AzureCapability]:
+    ) -> Tuple[List[AzureCapability], str]:
         node_runbook = req.get_extended_runbook(AzureNodeSchema, AZURE)
+        error: str = ""
         if node_runbook.vm_size:
             # find the vm_size
             allowed_vm_sizes = self._get_normalized_vm_sizes(
@@ -2219,6 +2237,10 @@ class AzurePlatform(Platform):
             # Some preview vm size may not be queried from the list.
             # Force to add.
             if not allowed_vm_sizes:
+                log.debug(
+                    f"no vm size matched '{node_runbook.vm_size}' on location "
+                    f"'{location}', using the raw string as vm size name."
+                )
                 allowed_vm_sizes = [node_runbook.vm_size]
         else:
             location_info = self.get_location_info(location, log)
@@ -2233,7 +2255,10 @@ class AzurePlatform(Platform):
             log=log,
         )
 
-        return allowed_capabilities
+        if not allowed_capabilities:
+            error = f"no vm size found in '{location}' for {allowed_vm_sizes}."
+
+        return allowed_capabilities, error
 
     def _parse_cap_availabilities(
         self, capabilities: List[AzureCapability]
