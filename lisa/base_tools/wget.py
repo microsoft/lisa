@@ -1,5 +1,5 @@
 import re
-from pathlib import Path, PurePosixPath
+from pathlib import Path
 from typing import TYPE_CHECKING, Optional, Type
 
 from lisa.executable import Tool

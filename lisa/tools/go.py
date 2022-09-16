@@ -1,10 +1,8 @@
 # Copyright (c) Microsoft Corporation.
 # Licensed under the MIT license.
 
-import os
-from pathlib import PurePath,PosixPath
 from typing import TYPE_CHECKING
-from typing import Any, List, Type
+from typing import List, Type
 from lisa.executable import Tool
 from lisa.tools import Wget, Tar, Rm, Echo
 from lisa.util import LisaException
@@ -27,7 +25,7 @@ class Go(Tool):
     @property
     def can_install(self) -> bool:
         return True
-    
+
     @property
     def dependencies(self) -> List[Type[Tool]]:
         return [Wget, Tar, Rm]
@@ -44,34 +42,35 @@ class Go(Tool):
             )
         return self._check_exists()
 
-    def install_specific_version(self, version:str ) -> bool:
+    def install_specific_version(self, version: str) -> bool:
         version_map = {
             "1.19" : {
-                "url":"https://dl.google.com/go/go1.19.linux-amd64.tar.gz",
-                "filename":"go1.19.linux-amd64.tar.gz"
+                "url": "https://dl.google.com/go/go1.19.linux-amd64.tar.gz",
+                "filename": "go1.19.linux-amd64.tar.gz"
             }
         }
-        url:str = ""
-        filename:str = ""
-        supported_version_csv:str = ",".join([i for i in version_map.keys()])
-        
-        if( version not in version_map.keys()):
-            raise LisaException(f"Version {version} not supported , supported Versions are : {supported_version_csv}")
+        url: str = ""
+        supported_version_csv: str = ",".join([i for i in version_map.keys()])
+
+        if (version not in version_map.keys()):
+            raise LisaException(
+                f"Version {version} not supported , \
+                    supported Versions are : {supported_version_csv}"
+            )
         else:
             url = version_map[version]["url"]
-            filename = version_map[version]["filename"]
 
         tool_path = self.get_tool_path(use_global=True)
-        
-        ## Get GoLang Source file
+
+        # Get GoLang Source file
         wget = self.node.tools[Wget]
-        download_path = wget.get(url,file_path=tool_path.as_posix(),overwrite=True)
+        download_path = wget.get(url, file_path=tool_path.as_posix(), overwrite=True)
 
-        ## Extract tar with gzip as true
+        # Extract tar with gzip as true
         tar = self.node.tools[Tar]
-        tar.extract(file=download_path,dest_dir="/usr/local",sudo=True,gzip=True)
+        tar.extract(file=download_path, dest_dir="/usr/local", sudo=True, gzip=True)
 
-        ## Add installation path to env variable PATH
+        # Add installation path to env variable PATH
         echo = self.node.tools[Echo]
         original_path = echo.run(
             "$PATH",
@@ -80,7 +79,7 @@ class Go(Tool):
             expected_exit_code_failure_message="failure to grab $PATH via echo",
         ).stdout
         new_path = f"/usr/local/go/bin/:{original_path}"
-        self._log.debug("NewPath : "+str(new_path))
+        self._log.debug("NewPath : " + str(new_path))
         self.node.execute(
             "go version",
             cwd=tool_path,
@@ -90,14 +89,13 @@ class Go(Tool):
                 "Could not install go modules for nff-go"
             ),
         )
-        
-        ## Remove the tar file
+
+        # Remove the tar file
         rm = self.node.tools[Rm]
         rm.remove_file(download_path)
-        
+
         return self._check_exists()
 
-    
     def get_version(self) -> str:
         op = self.node.execute("go version")
         return op.stdout if op.stdout else "GoLang is not installed"

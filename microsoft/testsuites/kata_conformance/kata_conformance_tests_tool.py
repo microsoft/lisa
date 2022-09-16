@@ -2,14 +2,10 @@
 # Licensed under the MIT license.
 import json
 import os
-import re
 from dataclasses import dataclass
 from pathlib import Path, PurePath
-from threading import TIMEOUT_MAX
 from typing import Any, List, Type
-
-from assertpy import assert_that
-from kubernetes import client,config,utils
+from kubernetes import client, config, utils
 
 from lisa import Environment, notifier
 from lisa.executable import Tool
@@ -75,8 +71,8 @@ class KataConformanceTests(Tool):
             expected_exit_code_failure_message="failure to grab $PATH via echo",
         ).stdout
         new_path = f"/usr/local/go/bin/:{original_path}"
-        self._log.info("Before run_tests : New Path : "+str(new_path))
-        
+        self._log.info("Before run_tests : New Path : " + str(new_path))
+
         exec_result = self.run(
             self.cmd_args,
             timeout=self.TIME_OUT,
@@ -84,10 +80,10 @@ class KataConformanceTests(Tool):
             force_run=True,
             cwd=self.repo_root,
             no_info_log=False,  # print out result of each test
-            update_envs = {"PATH": new_path}
+            update_envs={"PATH": new_path}
         )
 
-        self._log.info("Exit code of run_tests : "+str(exec_result.exit_code))
+        self._log.info("Exit code of run_tests : " + str(exec_result.exit_code))
 
         results = self._parse_results(self.report_path.joinpath("json_report.json"))
 
@@ -105,33 +101,33 @@ class KataConformanceTests(Tool):
 
             notifier.notify(subtest_message)
 
-
     def _parse_results(self, report_filename: str) -> List[KataConformanceTestResult]:
-        
+
         results: List[KataConformanceTestResult] = []
         testcases = None
 
-        if(not os.path.exists(report_filename)):
-            raise LisaException("Can not find report file : "+str(report_filename))
-        
-        with open(report_filename,"r") as f:
+        if (not os.path.exists(report_filename)):
+            raise LisaException("Can not find report file : " + str(report_filename))
+
+        with open(report_filename, "r") as f:
             data = f.read()
             testcases = json.loads(data)
 
         for testcase in testcases[0]["SpecReports"]:
             result = KataConformanceTestResult()
             result.name = testcase["LeafNodeText"]
-            if(testcase["State"] == "passed"):
+
+            if (testcase["State"] == "passed"):
                 result.status = TestStatus.PASSED
-            elif(testcase["State"] == "failed"):
+            elif (testcase["State"] == "failed"):
                 result.status = TestStatus.FAILED
             else:
                 result.status = TestStatus.SKIPPED
-                
+
             results.append(result)
 
         return results
-    
+
     def _initialize(self, *args: Any, **kwargs: Any) -> None:
         tool_path = self.get_tool_path(use_global=True)
         self.repo_root = tool_path.joinpath("kata-conformance-test")
@@ -142,77 +138,121 @@ class KataConformanceTests(Tool):
         if not os.path.exists(self.report_path):
             os.mkdir(self.report_path)
         self.kube_config_path = os.environ.get("KUBECONFIG", None)
-        self.cmd_args =  """-kubeconfig %s -ginkgo.focus="\[Conformance\]" --ginkgo.timeout %s --ginkgo.json-report %s""" % (self.kube_config_path, "10h" ,str(self.report_path.joinpath("json_report.json")))
+        args = ""
+        args = args + f"-kubeconfig {self.kube_config_path} "
+        args = args + '--ginkgo.focus="\[Conformance\]" '
+        args = args + '--ginkgo.timeout 10h '
+        report_path = str(self.report_path.joinpath("json_report.json"))
+        args = args + f'--ginkgo.json-report {report_path} '
+        self.cmd_args = args
 
         self._install()
 
     def _install_dep(self) -> None:
         git = self.node.tools[Git]
-        self._log.info("Cloning Repo : "+self.kubernetes_repo)
+        self._log.info("Cloning Repo : " + self.kubernetes_repo)
         git.clone(self.kubernetes_repo, self.repo_root, timeout=3600)
-        self._log.info("Cloning Repo : "+self.kata_container_tests_repo)
+        self._log.info("Cloning Repo : " + self.kata_container_tests_repo)
         git.clone(self.kata_container_tests_repo, self.repo_root, timeout=3600)
 
         self._log.info("Installing GoLang")
         go = self.node.tools[Go]
         go.install_specific_version("1.19")
-        self._log.info("Installed GoLang version -> "+go.get_version())
+        self._log.info("Installed GoLang version -> " + go.get_version())
 
     def _create_kata_webhook(self) -> None:
-        kube_config = os.environ.get("KUBECONFIG",None)
-        
-        if(kube_config):
-            
-            ## Load Kube config
+        kube_config = os.environ.get("KUBECONFIG", None)
+
+        if (kube_config):
+
+            # Load Kube config
             config.load_kube_config()
-            
-            ## Create Client to perform kubernetes actions
+
+            # Create Client to perform kubernetes actions
             k8s_client = client.ApiClient()
-            
-            ## runtime_class.yaml : Create runtime class to set kata container runtime
-            ## create_pod.yaml : Create dummy pod with runtime class
-            yaml_files = ['runtime_class.yaml','create_pod.yaml']
+
+            # runtime_class.yaml : Create runtime class to set kata container runtime
+            # create_pod.yaml : Create dummy pod with runtime class
+            yaml_files = ['runtime_class.yaml', 'create_pod.yaml']
             for file in yaml_files:
-                abs_file_path = os.path.join(os.path.abspath(__file__).replace(os.path.basename(__file__),""),file)              
+                abs_file_path = os.path.join(
+                    os.path.abspath(__file__).replace(
+                        os.path.basename(__file__),
+                        ""
+                    ),
+                    file
+                )
                 self._log.debug(f"Running : {abs_file_path}")
                 utils.create_from_yaml(k8s_client, abs_file_path, verbose=True)
                 self._log.debug(f"Done with running : {abs_file_path}")
 
-            ## Create Kata webhook 
-            if(os.path.isfile(self.repo_root.joinpath('tests/kata-webhook/deploy/webhook.yaml'))):
+            # Create Kata webhook
+            if (
+                os.path.isfile(
+                    self.repo_root.joinpath(
+                        'tests/kata-webhook/deploy/webhook.yaml'
+                    )
+                )
+            ):
 
-                ## Exclude kube-system name space while creating webhook
+                # Exclude kube-system name space while creating webhook
                 self._log.debug("exclude-namespaces : Updating webhook.yaml")
-                data=""
-                with open(self.repo_root.joinpath('tests/kata-webhook/deploy/webhook.yaml'),"r") as f:
+                data = ""
+
+                with open(
+                    self.repo_root.joinpath(
+                        'tests/kata-webhook/deploy/webhook.yaml'
+                    ),
+                    "r"
+                ) as f:
                     data = f.read()
-                    data = data.replace("exclude-namespaces=rook-ceph-system,rook-ceph",'exclude-namespaces=kube-system')
-                with open(self.repo_root.joinpath('tests/kata-webhook/deploy/webhook.yaml'),"w") as f:
+                    data = data.replace(
+                        "exclude-namespaces=rook-ceph-system,rook-ceph",
+                        'exclude-namespaces=kube-system'
+                    )
+
+                with open(
+                    self.repo_root.joinpath(
+                        'tests/kata-webhook/deploy/webhook.yaml'
+                    ),
+                    "w"
+                ) as f:
                     f.write(data)
                 self._log.debug("exclude-namespaces : Updated webhook.yaml")
-                
-                ## Create config map
-                abs_file_path = os.path.join(os.path.abspath(__file__).replace(os.path.basename(__file__),""),'config_map.yaml')
+
+                # Create config map
+                abs_file_path = os.path.join(
+                    os.path.abspath(__file__).replace(
+                        os.path.basename(__file__),
+                        ""
+                    ),
+                    'config_map.yaml'
+                )
+
                 self._log.debug(f"Running {abs_file_path}")
                 utils.create_from_yaml(k8s_client, abs_file_path, verbose=True)
                 self._log.debug(f"Done with running {abs_file_path}")
 
-                ## Run create_certs.sh
+                # Run create_certs.sh
                 cert_sh_path = self.repo_root.joinpath('tests/kata-webhook')
                 command = cert_sh_path.joinpath('create-certs.sh')
                 self._log.debug(f"Running {command}")
-                self.node.execute(command,cwd=cert_sh_path, shell=True, sudo=False)
+                self.node.execute(command, cwd=cert_sh_path, shell=True, sudo=False)
                 self._log.debug(f"Done with running {cert_sh_path}")
-                
-                ## Deploy the webhook
-                deploy_webhook = self.repo_root.joinpath('tests/kata-webhook/deploy/webhook.yaml')
+
+                # Deploy the webhook
+                deploy_webhook = self.repo_root.joinpath(
+                    'tests/kata-webhook/deploy/webhook.yaml'
+                )
                 self._log.debug(f"Deploying webhook : {deploy_webhook}")
                 utils.create_from_yaml(k8s_client, deploy_webhook, verbose=True)
                 self._log.debug(f"Done with deploying webhook : {deploy_webhook}")
 
-                ## Check the webhook
+                # Check the webhook
                 self._log.debug("Checking webhook")
-                webhook_check_sh = self.repo_root.joinpath('tests/kata-webhook/webhook-check.sh')
+                webhook_check_sh = self.repo_root.joinpath(
+                    'tests/kata-webhook/webhook-check.sh'
+                )
                 self.node.execute(webhook_check_sh, shell=True, sudo=False)
                 self._log.debug("Done with checking webhook")
 
@@ -244,9 +284,14 @@ class KataConformanceTests(Tool):
             expected_exit_code_failure_message="failure to grab $PATH via echo",
         ).stdout
         new_path = f"/usr/local/go/bin/:{original_path}"
-        self._log.debug("Before Make : New Path : "+str(new_path))
+        self._log.debug("Before Make : New Path : " + str(new_path))
 
-        make.make("WHAT=test/e2e/e2e.test", kubernetes_path, timeout=self.TIME_OUT, update_envs = {"PATH": new_path})
+        make.make(
+            "WHAT=test/e2e/e2e.test",
+            kubernetes_path,
+            timeout=self.TIME_OUT,
+            update_envs={"PATH": new_path}
+        )
         self._log.debug("Finished building Kubernetes")
 
         return self._check_exists()

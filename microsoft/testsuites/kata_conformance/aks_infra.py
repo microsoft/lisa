@@ -3,21 +3,25 @@
 
 from threading import Lock
 import datetime
-import logging
 import os
-
-from azure.identity import AzureCliCredential, DefaultAzureCredential
+from azure.identity import DefaultAzureCredential
 from azure.mgmt.containerservice import ContainerServiceClient
 from azure.mgmt.resource import ResourceManagementClient, SubscriptionClient
 from lisa.util import LisaException
-
 from lisa.util.logger import Logger
 
 global_credential_access_lock = Lock()
 
 
 class AKSInfra:
-    def __init__(self, log: Logger, subscription_id: str, tenant_id: str, client_id: str, client_secret: str):
+    def __init__(
+        self,
+        log: Logger,
+        subscription_id: str,
+        tenant_id: str,
+        client_id: str,
+        client_secret: str
+    ):
         self.log = log
         self._credential_setup(subscription_id, tenant_id, client_id, client_secret)
         self.kube_path = ""
@@ -36,8 +40,6 @@ class AKSInfra:
         self._tenant_id = tenant_id
         self._client_id = client_id
         self._client_secret = client_secret
-
-        # self.credential = AzureCliCredential()
         self.credential = DefaultAzureCredential()
         subscription = None
 
@@ -58,24 +60,30 @@ class AKSInfra:
                 f"Make sure it exists and current account can access it."
             )
 
-        self.resource_mgmt_client = ResourceManagementClient(
+        self.rsc_mgmt_client = ResourceManagementClient(
+            credential=self.credential,
+            subscription_id=self._subscription_id
+        )
+        self.cntsrv_client = ContainerServiceClient(
             credential=self.credential,
             subscription_id=self._subscription_id
         )
 
-        self.containerservice_client = ContainerServiceClient(
-            credential=self.credential,
-            subscription_id=self._subscription_id
-        )
+    def create_aks_infra(
+        self,
+        kubernetes_version,
+        worker_vm_size,
+        node_count,
+        azure_region,
+        headers
+    ) -> None:
 
-    def create_aks_infra(self, kubernetes_version, worker_vm_size, node_count, azure_region, headers) -> None:
-
-        aks_cluster_name = "LISA_AKS_Conf_" + datetime.datetime.now().strftime('%Y%m%d%H%M%S')
-        self.resource_group_name = "LISA_RG_Conf_" + \
-            datetime.datetime.now().strftime('%Y%m%d%H%M%S')
-
+        ts = datetime.datetime.now().strftime('%Y%m%d%H%M%S')
+        aks_cluster_name = f"LISA_AKS_Conf_{ts}"
+        self.resource_group_name = f"LISA_RG_Conf_{ts}"
         self.log.info("Creating Resource Group : " + self.resource_group_name)
-        rg = self.resource_mgmt_client.resource_groups.create_or_update(
+
+        rg = self.rsc_mgmt_client.resource_groups.create_or_update(
             self.resource_group_name,
             {
                 "location": azure_region
@@ -87,11 +95,11 @@ class AKSInfra:
 
         self.log.info("Creating AKS Cluster : " + aks_cluster_name)
 
-        aks_cluster = self.containerservice_client.managed_clusters.begin_create_or_update(
+        aks_cluster = self.cntsrv_client.managed_clusters.begin_create_or_update(
             self.resource_group_name,
             aks_cluster_name,
             {
-                "dns_prefix": "LISA-Kata-Conf-Test-DNS-" + datetime.datetime.now().strftime('%Y%m%d%H%M%S'),
+                "dns_prefix": f"LISA-Kata-Conf-Test-DNS-{ts}",
                 "kubernetes_version": kubernetes_version,
                 "agent_pool_profiles": [
                     {
@@ -120,7 +128,7 @@ class AKSInfra:
         self.log.debug(aks_cluster)
 
         self.log.info("Setting AKS Cluster Credentials with kubeconfig file")
-        kubeconfig = self.containerservice_client.managed_clusters.list_cluster_user_credentials(
+        kubeconfig = self.cntsrv_client.managed_clusters.list_cluster_user_credentials(
             self.resource_group_name, aks_cluster_name).kubeconfigs[0]
         home_directory = os.path.expanduser('~')
         self.kube_path = os.path.join(home_directory, ".kube", "config")
@@ -134,5 +142,5 @@ class AKSInfra:
 
     def delete_aks_infra(self):
         self.log.info("Deleting Resource Group : " + self.resource_group_name)
-        self.resource_mgmt_client.resources.delete(self.resource_group_name)
+        self.rsc_mgmt_client.resources.delete(self.resource_group_name)
         self.log.info("Deleted Resource Group : " + self.resource_group_name)
