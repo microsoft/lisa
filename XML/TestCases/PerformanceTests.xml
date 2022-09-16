@@ -121,7 +121,7 @@
       <param>testDuration=NTTTCP_RUNTIME_IN_SECONDS</param>
       <param>testType=tcp</param>
       <param>testConnections=NTTTCP_MULTICLIENTS_TCP_CONNECTIONS</param>
-      <param>ntttcpVersion=master</param>
+      <param>ntttcpVersion=NTTTCP_VERSION</param>
       <param>lagscopeVersion=LAGSCOPE_VERSION</param>
     </TestParameters>
     <Platform>Azure</Platform>
@@ -143,7 +143,7 @@
       <param>testDuration=NTTTCP_RUNTIME_IN_SECONDS</param>
       <param>testType=tcp</param>
       <param>testConnections=NTTTCP_MULTICLIENTS_TCP_CONNECTIONS</param>
-      <param>ntttcpVersion=master</param>
+      <param>ntttcpVersion=NTTTCP_VERSION</param>
       <param>lagscopeVersion=LAGSCOPE_VERSION</param>
     </TestParameters>
     <Platform>Azure</Platform>
