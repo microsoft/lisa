@@ -11,7 +11,7 @@
       <param>testDuration=NTTTCP_RUNTIME_IN_SECONDS</param>
       <param>testType=tcp</param>
       <param>testConnections=NTTTCP_TCP_CONNECTIONS</param>
-      <param>ntttcpVersion=master</param>
+      <param>ntttcpVersion=NTTTCP_VERSION</param>
       <param>oneConnectionBufferSize=NTTTCP_TCP_ONE_CONNECTION_BUFFER_SIZE</param>
       <param>multiConnectionsBufferSize=NTTTCP_TCP_MULTI_CONNECTIONS_BUFFER_SIZE</param>
       <param>lagscopeVersion=LAGSCOPE_VERSION</param>
@@ -40,7 +40,7 @@
       <param>testDuration=NTTTCP_RUNTIME_IN_SECONDS</param>
       <param>testType=tcp</param>
       <param>testConnections=NTTTCP_TCP_CONNECTIONS</param>
-      <param>ntttcpVersion=master</param>
+      <param>ntttcpVersion=NTTTCP_VERSION</param>
       <param>oneConnectionBufferSize=NTTTCP_TCP_ONE_CONNECTION_BUFFER_SIZE</param>
       <param>multiConnectionsBufferSize=NTTTCP_TCP_MULTI_CONNECTIONS_BUFFER_SIZE</param>
       <param>lagscopeVersion=LAGSCOPE_VERSION</param>
