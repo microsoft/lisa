@@ -1,8 +1,9 @@
 # Copyright (c) Microsoft Corporation.
 # Licensed under the MIT license.
+import json
 from pathlib import Path
 from typing import Any, Dict
-import json
+
 from lisa import (
     Environment,
     Logger,
@@ -15,18 +16,17 @@ from lisa.operating_system import CBLMariner, Ubuntu
 from lisa.testsuite import TestResult
 from lisa.tools import Lscpu
 from lisa.util import LisaException, SkippedException
-from microsoft.testsuites.kata_conformance.kata_conformance_tests_tool \
-    import KataConformanceTests
 from microsoft.testsuites.kata_conformance.aks_infra import AKSInfra
+from microsoft.testsuites.kata_conformance.kata_conformance_tests_tool import (
+    KataConformanceTests,
+)
 
 
 def validate_variable(variables, key, log, nullable=False):
     log.debug(f"Checking for param : {key} in variables , nullable : {nullable}")
     value = variables.get(key, None)
-    if (
-        (not nullable and value is None) or (
-            not nullable and type(value) == str and value.strip() == ""
-        )
+    if (not nullable and value is None) or (
+        not nullable and type(value) == str and value.strip() == ""
     ):
         raise LisaException(key + " : Variable is null/empty")
     else:
@@ -39,7 +39,7 @@ def validate_variable(variables, key, log, nullable=False):
     description="""
     This test suite is for executing the conformance test with kata container
     which uses infra of azure AKS as kubernetes cluster
-    """
+    """,
 )
 class KataConformanceTestSuite(TestSuite):
     @TestCaseMetadata(
@@ -47,7 +47,7 @@ class KataConformanceTestSuite(TestSuite):
             Runs Kubernetes Kata Cotaniner Conformance test.
         """,
         priority=3,
-        timeout=36000
+        timeout=36000,
     )
     def kata_conformance_tests(
         self,
@@ -56,7 +56,7 @@ class KataConformanceTestSuite(TestSuite):
         environment: Environment,
         log_path: Path,
         result: TestResult,
-        variables: Dict[str, Any]
+        variables: Dict[str, Any],
     ) -> None:
         # ensure virtualization is enabled in hardware before running tests
         virtualization_enabled = node.tools[Lscpu].is_virtualization_enabled()
@@ -73,8 +73,7 @@ class KataConformanceTestSuite(TestSuite):
             variables, "subscription_id", log, nullable=True
         )
         client_id = validate_variable(
-            variables, "service_principal_client_id",
-            log, nullable=True
+            variables, "service_principal_client_id", log, nullable=True
         )
         client_secret = validate_variable(
             variables, "service_principal_key", log, nullable=True
@@ -97,24 +96,18 @@ class KataConformanceTestSuite(TestSuite):
             "OSImageResourceGroup": validate_variable(
                 variables, "os_image_resource_group", log
             ),
-            "OSImageGallery": validate_variable(
-                variables, "os_image_gallery", log
-            ),
-            "OSImageName": validate_variable(
-                variables, "os_image_name", log
-            ),
-            "OSImageVersion": validate_variable(
-                variables, "os_image_version", log
-            ),
-            "OSSKU": validate_variable(
-                variables, "ossku", log
-            )
+            "OSImageGallery": validate_variable(variables, "os_image_gallery", log),
+            "OSImageName": validate_variable(variables, "os_image_name", log),
+            "OSImageVersion": validate_variable(variables, "os_image_version", log),
+            "OSSKU": validate_variable(variables, "ossku", log),
         }
 
         aks = AKSInfra(
-            log=log, subscription_id=subscription_id,
-            client_id=client_id, client_secret=client_secret,
-            tenant_id=tenant_id
+            log=log,
+            subscription_id=subscription_id,
+            client_id=client_id,
+            client_secret=client_secret,
+            tenant_id=tenant_id,
         )
         aks.create_aks_infra(
             kubernetes_version, worker_vm_size, node_count, azure_region, headers

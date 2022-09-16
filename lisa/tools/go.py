@@ -1,13 +1,15 @@
 # Copyright (c) Microsoft Corporation.
 # Licensed under the MIT license.
 
-from typing import TYPE_CHECKING
-from typing import List, Type
-from lisa.executable import Tool
-from lisa.tools import Wget, Tar, Rm, Echo
-from lisa.util import LisaException
-from lisa.operating_system import Posix, Suse
+from typing import TYPE_CHECKING, List, Type
 
+from lisa.base_tools.wget import Wget
+from lisa.executable import Tool
+from lisa.operating_system import Posix, Suse
+from lisa.tools.echo import Echo
+from lisa.tools.rm import Rm
+from lisa.tools.tar import Tar
+from lisa.util import LisaException
 
 if TYPE_CHECKING:
     from lisa.node import Node
@@ -34,7 +36,7 @@ class Go(Tool):
         if isinstance(self.node.os, Suse):
             self.node.os.install_packages("golang-go")
         elif isinstance(self.node.os, Posix):
-            self.node.os.install_packages('golang-go')
+            self.node.os.install_packages("golang-go")
         else:
             raise LisaException(
                 "Doesn't support to install Go in Windows. "
@@ -44,15 +46,15 @@ class Go(Tool):
 
     def install_specific_version(self, version: str) -> bool:
         version_map = {
-            "1.19" : {
+            "1.19": {
                 "url": "https://dl.google.com/go/go1.19.linux-amd64.tar.gz",
-                "filename": "go1.19.linux-amd64.tar.gz"
+                "filename": "go1.19.linux-amd64.tar.gz",
             }
         }
         url: str = ""
         supported_version_csv: str = ",".join([i for i in version_map.keys()])
 
-        if (version not in version_map.keys()):
+        if version not in version_map.keys():
             raise LisaException(
                 f"Version {version} not supported , \
                     supported Versions are : {supported_version_csv}"

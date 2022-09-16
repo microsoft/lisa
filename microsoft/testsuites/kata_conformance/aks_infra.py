@@ -1,12 +1,14 @@
 # Copyright (c) Microsoft Corporation.
 # Licensed under the MIT license.
 
-from threading import Lock
 import datetime
 import os
+from threading import Lock
+
 from azure.identity import DefaultAzureCredential
 from azure.mgmt.containerservice import ContainerServiceClient
 from azure.mgmt.resource import ResourceManagementClient, SubscriptionClient
+
 from lisa.util import LisaException
 from lisa.util.logger import Logger
 
@@ -20,7 +22,7 @@ class AKSInfra:
         subscription_id: str,
         tenant_id: str,
         client_id: str,
-        client_secret: str
+        client_secret: str,
     ):
         self.log = log
         self._credential_setup(subscription_id, tenant_id, client_id, client_secret)
@@ -46,9 +48,7 @@ class AKSInfra:
         with SubscriptionClient(self.credential) as self._sub_client:
             # suppress warning message by search for different credential types
             with global_credential_access_lock:
-                subscription = self._sub_client.subscriptions.get(
-                    self._subscription_id
-                )
+                subscription = self._sub_client.subscriptions.get(self._subscription_id)
                 self.log.info(
                     f"connected to subscription: "
                     f"{subscription.id}, '{subscription.display_name}'"
@@ -61,33 +61,23 @@ class AKSInfra:
             )
 
         self.rsc_mgmt_client = ResourceManagementClient(
-            credential=self.credential,
-            subscription_id=self._subscription_id
+            credential=self.credential, subscription_id=self._subscription_id
         )
         self.cntsrv_client = ContainerServiceClient(
-            credential=self.credential,
-            subscription_id=self._subscription_id
+            credential=self.credential, subscription_id=self._subscription_id
         )
 
     def create_aks_infra(
-        self,
-        kubernetes_version,
-        worker_vm_size,
-        node_count,
-        azure_region,
-        headers
+        self, kubernetes_version, worker_vm_size, node_count, azure_region, headers
     ) -> None:
 
-        ts = datetime.datetime.now().strftime('%Y%m%d%H%M%S')
+        ts = datetime.datetime.now().strftime("%Y%m%d%H%M%S")
         aks_cluster_name = f"LISA_AKS_Conf_{ts}"
         self.resource_group_name = f"LISA_RG_Conf_{ts}"
         self.log.info("Creating Resource Group : " + self.resource_group_name)
 
         rg = self.rsc_mgmt_client.resource_groups.create_or_update(
-            self.resource_group_name,
-            {
-                "location": azure_region
-            }
+            self.resource_group_name, {"location": azure_region}
         )
         self.log.info("Resource Group Created : " + self.resource_group_name)
         self.log.debug("Resource Group Details are as below : ")
@@ -112,16 +102,14 @@ class AKSInfra:
                         "os_type": "Linux",
                         "type": "VirtualMachineScaleSets",
                         "enable_auto_scaling": True,
-                        "mode": "System"
+                        "mode": "System",
                     }
                 ],
                 "servicePrincipalProfile": {},
-                "identity": {
-                    "type": "SystemAssigned"
-                },
-                "location": azure_region
+                "identity": {"type": "SystemAssigned"},
+                "location": azure_region,
             },
-            headers=headers
+            headers=headers,
         ).result()
         self.log.info("AKS Cluster Created : " + aks_cluster_name)
         self.log.debug("AKS Cluster Detail are as below : ")
@@ -129,8 +117,9 @@ class AKSInfra:
 
         self.log.info("Setting AKS Cluster Credentials with kubeconfig file")
         kubeconfig = self.cntsrv_client.managed_clusters.list_cluster_user_credentials(
-            self.resource_group_name, aks_cluster_name).kubeconfigs[0]
-        home_directory = os.path.expanduser('~')
+            self.resource_group_name, aks_cluster_name
+        ).kubeconfigs[0]
+        home_directory = os.path.expanduser("~")
         self.kube_path = os.path.join(home_directory, ".kube", "config")
         if not os.path.exists(os.path.join(home_directory, ".kube")):
             os.mkdir(os.path.join(home_directory, ".kube"))

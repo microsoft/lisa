@@ -25,6 +25,7 @@ from .firewall import Firewall, Iptables
 from .free import Free
 from .gcc import Gcc
 from .git import Git
+from .go import Go
 from .hibernation_setup import HibernationSetup
 from .hostname import Hostname
 from .hwclock import Hwclock
@@ -93,7 +94,6 @@ from .usermod import Usermod
 from .vdsotest import Vdsotest
 from .who import Who
 from .whoami import Whoami
-from .go import Go
 
 __all__ = [
     "Blkid",
