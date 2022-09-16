@@ -54,6 +54,8 @@ sphinxemoji = {version="^0.1.8", optional=true}
 sphinx-copybutton = {version="^0.4.0", optional=true}
 rstcheck = {version="^3.3.1", optional=true}
 types-Pillow = {version="^8.3.3", optional=true}
+azure-mgmt-containerservice = "^20.3.0"
+kubernetes = "^24.2.0"
 
 [tool.poetry.dev-dependencies]
 black = "^22.3.0"
