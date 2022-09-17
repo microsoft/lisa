@@ -1033,7 +1033,32 @@ class Ubuntu(Debian):
 
 
 class FreeBSD(BSD):
-    ...
+    @retry(tries=10, delay=5)
+    def _install_packages(
+        self,
+        packages: List[str],
+        signed: bool = True,
+        timeout: int = 600,
+        extra_args: Optional[List[str]] = None,
+    ) -> None:
+        if self._first_time_installation:
+            self._initialize_package_installation()
+        self._first_time_installation = False
+        command = f"env ASSUME_ALWAYS_YES=yes pkg install -y {' '.join(packages)}"
+        install_result = self._node.execute(
+            command, shell=True, sudo=True, timeout=timeout
+        )
+        # get error lines.
+        install_result.assert_exit_code(
+            0,
+            f"Failed to install {packages}, "
+            f"please check the package name and repo are correct or not.\n",
+        )
+
+    @retry(tries=10, delay=5)
+    def _initialize_package_installation(self) -> None:
+        result = self._node.execute("pkg update", sudo=True)
+        result.assert_exit_code(message="fail to run pkg update")
 
 
 class OpenBSD(BSD):
