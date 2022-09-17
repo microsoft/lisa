@@ -249,13 +249,13 @@ class LisaRunner(BaseRunner):
                 platform_type=self.platform.type_name(),
             )
 
-        prepared_environments: List[Environment] = []
+        proceeded_environments: List[Environment] = []
         for candidate_environment in runbook_environments.values():
             try:
                 prepared_environment = platform.prepare_environment(
                     candidate_environment
                 )
-                prepared_environments.append(prepared_environment)
+                proceeded_environments.append(prepared_environment)
             except Exception as identifier:
                 if (
                     candidate_environment.source_test_result
@@ -293,10 +293,10 @@ class LisaRunner(BaseRunner):
 
         # sort by environment source and cost cases
         # user defined should be higher priority than test cases' requirement
-        prepared_environments.sort(key=lambda x: (not x.is_predefined, x.cost))
+        proceeded_environments.sort(key=lambda x: (not x.is_predefined, x.cost))
 
         self._is_prepared = True
-        self.environments = prepared_environments
+        self.environments = proceeded_environments
         return
 
     def _deploy_environment_task(
