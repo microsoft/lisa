@@ -46,7 +46,7 @@ class TvmTest(TestSuite):
         self._add_azure_core_repo(node)
         posix_os: Posix = cast(Posix, node.os)
         posix_os.install_packages("azure-security", signed=False)
-        cmd_result = node.execute("/usr/local/bin/sbinfo", sudo=True)
+        cmd_result = node.execute("/usr/local/bin/sbinfo", sudo=True, timeout=1000)
         secure_boot_pattern = re.compile(
             r"(.*\"SBEnforcementStage\": \"Secure Boot (is|is not) enforced\".*)$", re.M
         )
@@ -102,8 +102,10 @@ class TvmTest(TestSuite):
         elif isinstance(node.os, Debian):
             if not isinstance(node.os, Ubuntu):
                 node.os.install_packages(["gnupg", "software-properties-common"])
-                codename = "buster"
-                repo_url = "https://packages.microsoft.com/repos/azurecore-debian"
+                # no azure-compatscanner package in azurecore-debian
+                # use azurecore instead
+                codename = "bionic"
+                repo_url = "http://packages.microsoft.com/repos/azurecore/"
             else:
                 # there is no available repo for distro which higher than ubuntu 18.04,
                 # use bionic for temp solution
