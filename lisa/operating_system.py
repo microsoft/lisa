@@ -763,6 +763,10 @@ class Debian(Linux):
             expected_exit_code_failure_message="fail to add repository",
         )
 
+        # apt update will not be triggered on Debian during add repo
+        if type(self._node.os) == Debian:
+            self._node.execute("apt-get update", sudo=True)
+
     @retry(tries=10, delay=5)
     def _initialize_package_installation(self) -> None:
         # wait running system package process.
