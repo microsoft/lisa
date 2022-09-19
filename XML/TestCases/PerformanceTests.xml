@@ -315,8 +315,8 @@
     <files>.\Testscripts\Linux\utils.sh,.\Testscripts\Linux\perf_fio.sh,.\Testscripts\Linux\fio_jason_parser.sh,.\Testscripts\Linux\JSON.awk,.\Tools\gawk</files>
     <TestParameters>
       <param>modes=PERF-STORAGE-4K-IO-MODES</param>
-      <param>startQDepth=1</param>
-      <param>maxQDepth=1024</param>
+      <param>startQDepth=512</param>
+      <param>maxQDepth=4090</param>
       <param>startIO=4</param>
       <param>ioruntime=FIO_RUNTIME_IN_SECONDS</param>
       <param>maxIO=4</param>
