@@ -55,7 +55,7 @@ class CPUInfo:
 class Lscpu(Tool):
     # CPU(s):              16
     # Total CPU(s):            2
-    __vcpu = re.compile(r"CPU\(s\):[ ]+([\d]+)\r?$", re.M)
+    __vcpu = re.compile(r"^(CPU|Total CPU)\(s\):[ ]+([\d]+)\r?$", re.M)
     # Thread(s) per core:  1
     #      Thread(s) per core:  1
     __thread_per_core = re.compile(r"^[ ]*Thread\(s\) per core:[ ]+([\d]+)\r?$", re.M)
@@ -129,7 +129,7 @@ class Lscpu(Tool):
             len(matched),
             f"cpu count should have exact one line, but got {matched}",
         ).is_equal_to(1)
-        self._core_count = int(matched[0])
+        self._core_count = int(matched[0][1])
 
         return self._core_count
 
