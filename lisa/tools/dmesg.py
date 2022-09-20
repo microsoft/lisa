@@ -2,11 +2,13 @@
 # Licensed under the MIT license.
 
 import re
+from pathlib import PurePosixPath
 from typing import List
 
 from semver import VersionInfo
 
 from lisa.executable import Tool
+from lisa.tools import Cat
 from lisa.util import LisaException
 from lisa.util.process import ExecutableResult
 
@@ -69,17 +71,37 @@ class Dmesg(Tool):
         result.assert_exit_code(
             message=f"exit code should be zero, but actually {result.exit_code}"
         )
-        raw_vmbus_version = re.finditer(self.__vmbus_version_pattern, result.stdout)
-        for vmbus_version in raw_vmbus_version:
-            matched_vmbus_version = self.__vmbus_version_pattern.match(
-                vmbus_version.group()
-            )
-            if matched_vmbus_version:
-                major = matched_vmbus_version.group("major")
-                minor = matched_vmbus_version.group("minor")
-                self._log.info(f"vmbus version is {major}.{minor}")
-                return VersionInfo(int(major), int(minor))
-        raise LisaException("No find matched vmbus version in dmesg")
+        out = result.stdout
+        need_break = False
+        while True:
+            raw_vmbus_version = re.finditer(self.__vmbus_version_pattern, out)
+            for vmbus_version in raw_vmbus_version:
+                matched_vmbus_version = self.__vmbus_version_pattern.match(
+                    vmbus_version.group()
+                )
+                if matched_vmbus_version:
+                    major = matched_vmbus_version.group("major")
+                    minor = matched_vmbus_version.group("minor")
+                    self._log.info(f"vmbus version is {major}.{minor}")
+                    return VersionInfo(int(major), int(minor))
+            if need_break:
+                break
+            # If the vmbus version can't be found in dmesg, try to find in
+            # /var/log/messages or /var/log/syslog.
+            if self.node.shell.exists(PurePosixPath("/var/log/messages")):
+                log_file = "/var/log/messages"
+            elif self.node.shell.exists(PurePosixPath("/var/log/syslog")):
+                log_file = "/var/log/syslog"
+            else:
+                raise LisaException(
+                    "Neither /var/log/messages nor /var/log/syslog have been found"
+                )
+            cat = self.node.tools[Cat]
+            out = cat.read(log_file, force_run=True, sudo=True)
+            need_break = True
+        raise LisaException(
+            "No find matched vmbus version in dmesg, messages nor syslog"
+        )
 
     def _run(self, force_run: bool = False) -> ExecutableResult:
         # sometime it need sudo, we can retry
