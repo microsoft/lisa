@@ -8,7 +8,7 @@ read -rp "Enter subscription Id: " subscriptionId
 
 az login && az account set --subscription "$subscriptionId" && echo "Successfully login with subscription $subscriptionId"
 
-defaultIdentifier="LISAv2"$(uuidgen)
+defaultIdentifier="LISA"$(uuidgen)
 identifier="1"
 spacePattern=" |'"
 
