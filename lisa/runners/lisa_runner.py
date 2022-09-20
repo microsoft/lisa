@@ -716,7 +716,6 @@ class LisaRunner(BaseRunner):
                                 else []
                             ),
                         )
-                        platform_requirement.excluded_features = None
 
                         try:
                             node_requirement = original_node_requirement.intersect(

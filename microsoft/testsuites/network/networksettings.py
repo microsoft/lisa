@@ -577,9 +577,11 @@ class NetworkSettings(TestSuite):
             per_tx_queue_packets: List[int] = []
             per_rx_queue_packets: List[int] = []
             nic = client_node.nics.get_nic(device_stats.interface)
+            an_enabled = "AN Disabled "
 
             # If AN is enabled on this interface then check the vf stats.
             if nic.lower:
+                an_enabled = "AN Enabled "
                 try:
                     device_stats = ethtool.get_device_statistics(nic.lower, True)
                 except UnsupportedOperationException as identifier:
@@ -616,7 +618,8 @@ class NetworkSettings(TestSuite):
 
             assert_that(
                 (max(per_tx_queue_pkt_percent) - min(per_tx_queue_pkt_percent)),
-                "Statistics show traffic is not evenly distributed among tx queues",
+                f"{an_enabled}Statistics show traffic is not evenly distributed"
+                " among tx queues",
             ).is_less_than_or_equal_to(0.5)
 
             avg_rx_queue_packets = sum(per_rx_queue_packets) / len(per_rx_queue_packets)
@@ -626,7 +629,8 @@ class NetworkSettings(TestSuite):
 
             assert_that(
                 (max(per_rx_queue_pkt_percent) - min(per_rx_queue_pkt_percent)),
-                "Statistics show traffic is not evenly distributed among rx queues",
+                f"{an_enabled}Statistics show traffic is not evenly distributed"
+                " among rx queues",
             ).is_less_than_or_equal_to(0.5)
 
     def after_case(self, log: Logger, **kwargs: Any) -> None:

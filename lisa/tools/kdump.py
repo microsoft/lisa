@@ -246,6 +246,13 @@ class KdumpBase(Tool):
         """
         return "grub2-mkconfig -o /boot/grub2/grub.cfg"
 
+    def _get_kdump_service_name(self) -> str:
+        """
+        This method returns the name of kdump service. If distro has a different name,
+        needs override it.
+        """
+        return "kdump"
+
     def config_crashkernel_memory(
         self,
         crashkernel: str,
@@ -304,11 +311,17 @@ class KdumpBase(Tool):
 
     def enable_kdump_service(self) -> None:
         """
-        This method enable the kdump service. If distro has a different kdump service
-        name, need override it.
+        This method enables the kdump service.
         """
         service = self.node.tools[Service]
-        service.enable_service("kdump")
+        service.enable_service(self._get_kdump_service_name())
+
+    def restart_kdump_service(self) -> None:
+        """
+        This method restarts the kdump service.
+        """
+        service = self.node.tools[Service]
+        service.restart_service(self._get_kdump_service_name())
 
     def set_unknown_nmi_panic(self) -> None:
         """
@@ -329,6 +342,11 @@ class KdumpBase(Tool):
         """
         Sometimes it costs a while to load the value, so define this method as @retry
         """
+        # If the dump_path is not "/var/crash", for example it is "/mnt/crash",
+        # the kdump service may start before the /mnt is mounted. That will cause
+        # "Dump path /mnt/crash does not exist" error. We need to restart it.
+        if self.dump_path != "/var/crash":
+            self.restart_kdump_service()
         cat = self.node.tools[Cat]
         result = cat.run(self.kexec_crash, force_run=True)
         if "1" != result.stdout:
@@ -441,9 +459,8 @@ class KdumpDebian(KdumpBase):
     def _get_crashkernel_update_cmd(self, crashkernel: str) -> str:
         return "update-grub"
 
-    def enable_kdump_service(self) -> None:
-        service = self.node.tools[Service]
-        service.enable_service("kdump-tools")
+    def _get_kdump_service_name(self) -> str:
+        return "kdump-tools"
 
 
 class KdumpSuse(KdumpBase):

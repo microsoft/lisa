@@ -8,6 +8,7 @@ from typing import Any, List, Optional, Type
 from assertpy import assert_that
 
 from lisa.executable import Tool
+from lisa.operating_system import FreeBSD, Posix
 from lisa.tools.powershell import PowerShell
 from lisa.util import LisaException
 
@@ -53,7 +54,8 @@ class CPUInfo:
 
 class Lscpu(Tool):
     # CPU(s):              16
-    __vcpu = re.compile(r"^CPU\(s\):[ ]+([\d]+)\r?$", re.M)
+    # Total CPU(s):            2
+    __vcpu = re.compile(r"^(CPU|Total CPU)\(s\):[ ]+([\d]+)\r?$", re.M)
     # Thread(s) per core:  1
     #      Thread(s) per core:  1
     __thread_per_core = re.compile(r"^[ ]*Thread\(s\) per core:[ ]+([\d]+)\r?$", re.M)
@@ -89,8 +91,20 @@ class Lscpu(Tool):
     def _windows_tool(cls) -> Optional[Type[Tool]]:
         return WindowsLscpu
 
-    def _check_exists(self) -> bool:
+    @property
+    def can_install(self) -> bool:
         return True
+
+    def _install(self) -> bool:
+        if isinstance(self.node.os, FreeBSD):
+            self.node.os.install_packages("lscpu")
+        elif isinstance(self.node.os, Posix):
+            self.node.os.install_packages("util-linux")
+        else:
+            raise LisaException(
+                f"tool {self.command} can't be installed in distro {self.node.os.name}."
+            )
+        return self._check_exists()
 
     def get_architecture(self, force_run: bool = False) -> str:
         architecture: str = ""
@@ -115,7 +129,7 @@ class Lscpu(Tool):
             len(matched),
             f"cpu count should have exact one line, but got {matched}",
         ).is_equal_to(1)
-        self._core_count = int(matched[0])
+        self._core_count = int(matched[0][1])
 
         return self._core_count
 

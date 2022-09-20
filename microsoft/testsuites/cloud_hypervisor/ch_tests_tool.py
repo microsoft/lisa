@@ -48,6 +48,7 @@ class CloudHypervisorTests(Tool):
         test_result: TestResult,
         environment: Environment,
         test_type: str,
+        hypervisor: str,
         skip: Optional[List[str]] = None,
     ) -> None:
 
@@ -58,8 +59,8 @@ class CloudHypervisorTests(Tool):
                 skip_args = ""
 
             result = self.run(
-                f"tests --{test_type} -- -- {skip_args} -Z unstable-options \
-                    --format json",
+                f"tests --hypervisor {hypervisor} --{test_type} -- -- {skip_args}"
+                " -Z unstable-options --format json",
                 timeout=self.TIME_OUT,
                 force_run=True,
                 cwd=self.repo_root,
@@ -85,8 +86,8 @@ class CloudHypervisorTests(Tool):
             temp = self.repo_root.joinpath("perf_mtr_report")
             self.per_mtr_report_file = temp.joinpath("testcase_result.json")
 
-            self._build_ch_with_mshv()
-            perf_metrics_tests = self._list_perf_metrics_tests()
+            self._build_ch_with_mshv(hypervisor=hypervisor)
+            perf_metrics_tests = self._list_perf_metrics_tests(hypervisor=hypervisor)
             testcase_result = {}
             for testcase in perf_metrics_tests:
                 self._log.info(f"Running testcase : {testcase}")
@@ -95,7 +96,7 @@ class CloudHypervisorTests(Tool):
 
                 try:
                     result = self.run(
-                        f"tests --hypervisor mshv --metrics -- -- \
+                        f"tests --hypervisor {hypervisor} --metrics -- -- \
                             --test-filter {testcase}",
                         timeout=self.TIME_OUT,
                         force_run=True,
@@ -213,9 +214,9 @@ class CloudHypervisorTests(Tool):
 
         notifier.notify(subtest_msg)
 
-    def _build_ch_with_mshv(self) -> bool:
+    def _build_ch_with_mshv(self, hypervisor="kvm") -> bool:
         result = self.run(
-            "build --hypervisor mshv --release",
+            f"build --hypervisor {hypervisor} --release",
             timeout=self.TIME_OUT,
             force_run=True,
             cwd=self.repo_root,
@@ -226,12 +227,12 @@ class CloudHypervisorTests(Tool):
 
         self._log.debug(result.stdout)
 
-    def _list_perf_metrics_tests(self) -> List[str]:
+    def _list_perf_metrics_tests(self, hypervisor="kvm") -> List[str]:
 
         self._log.debug("Listing the performance test cases")
         tests_list = []
         result = self.run(
-            "tests --hypervisor mshv --metrics -- -- --list-tests",
+            f"tests --hypervisor {hypervisor} --metrics -- -- --list-tests",
             timeout=self.TIME_OUT,
             force_run=True,
             cwd=self.repo_root,

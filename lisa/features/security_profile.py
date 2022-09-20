@@ -43,8 +43,18 @@ class SecurityProfileSettings(schema.FeatureSettings):
             ],
         ),
         metadata=field_metadata(
-            decoder=partial(
-                search_space.decode_set_space_by_type, base_type=SecurityProfileType
+            decoder=lambda input: (
+                search_space.decode_set_space_by_type(
+                    data=input, base_type=SecurityProfileType
+                )
+                if input
+                else search_space.SetSpace(
+                    items=[
+                        SecurityProfileType.Standard,
+                        SecurityProfileType.Boot,
+                        SecurityProfileType.CVM,
+                    ]
+                )
             )
         ),
     )
