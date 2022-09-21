@@ -251,45 +251,9 @@ class LisaRunner(BaseRunner):
 
         proceeded_environments: List[Environment] = []
         for candidate_environment in runbook_environments.values():
-            try:
-                prepared_environment = platform.prepare_environment(
-                    candidate_environment
-                )
-                proceeded_environments.append(prepared_environment)
-            except Exception as identifier:
-                if (
-                    candidate_environment.source_test_result
-                    and candidate_environment.source_test_result.is_queued
-                ):
-                    matched_results = [candidate_environment.source_test_result]
-                else:
-                    matched_results = self._get_runnable_test_results(
-                        test_results=self.test_results,
-                        environment=candidate_environment,
-                    )
-                if not matched_results:
-                    self._log.info(
-                        "No requirement of test case is suitable for the preparation "
-                        f"error of the environment '{candidate_environment.name}'. "
-                        "Randomly attach a test case to this environment. "
-                        "This may be because the platform failed before populating the "
-                        "features into this environment.",
-                    )
-                    matched_results = [
-                        result for result in self.test_results if result.is_queued
-                    ]
-                if not matched_results:
-                    raise LisaException(
-                        "There are no remaining test results to run, so preparation "
-                        "errors cannot be appended to the test results. Please correct "
-                        "the error and run again. "
-                        f"original exception: {identifier}"
-                    )
-                self._attach_failed_environment_to_result(
-                    environment=candidate_environment,
-                    result=matched_results[0],
-                    exception=identifier,
-                )
+            success = self._prepare_environment(platform, candidate_environment)
+            if success:
+                proceeded_environments.append(candidate_environment)
 
         # sort by environment source and cost cases
         # user defined should be higher priority than test cases' requirement
@@ -433,6 +397,28 @@ class LisaRunner(BaseRunner):
                     f"error on deleting environment '{environment.name}': {identifier}"
                 )
 
+    def _prepare_environment(
+        self, platform: Platform, environment: Environment
+    ) -> bool:
+        success = True
+        try:
+            platform.prepare_environment(environment)
+        except Exception as identifier:
+            success = False
+
+            matched_result = self._match_failed_environment_with_result(
+                environment=environment,
+                candidate_results=self.test_results,
+                exception=identifier,
+            )
+            self._attach_failed_environment_to_result(
+                environment=environment,
+                result=matched_result,
+                exception=identifier,
+            )
+
+        return success
+
     def _cleanup_deleted_environments(self) -> None:
         # remove reference to unused environments. It can save memory on big runs.
         new_environments: List[Environment] = []
@@ -499,6 +485,40 @@ class LisaRunner(BaseRunner):
             if test_result.status == TestStatus.ASSIGNED:
                 test_result.set_status(TestStatus.QUEUED, "")
         environment.is_in_use = False
+
+    def _match_failed_environment_with_result(
+        self,
+        environment: Environment,
+        candidate_results: List[TestResult],
+        exception: Exception,
+    ) -> TestResult:
+        if environment.source_test_result and environment.source_test_result.is_queued:
+            matched_results = [environment.source_test_result]
+        else:
+            matched_results = self._get_runnable_test_results(
+                test_results=candidate_results,
+                environment=environment,
+            )
+        if not matched_results:
+            self._log.info(
+                "No requirement of test case is suitable for the preparation "
+                f"error of the environment '{environment.name}'. "
+                "Randomly attach a test case to this environment. "
+                "This may be because the platform failed before populating the "
+                "features into this environment.",
+            )
+            matched_results = [
+                result for result in self.test_results if result.is_queued
+            ]
+        if not matched_results:
+            raise LisaException(
+                "There are no remaining test results to run, so preparation "
+                "errors cannot be appended to the test results. Please correct "
+                "the error and run again. "
+                f"original exception: {exception}"
+            )
+
+        return matched_results[0]
 
     def _attach_failed_environment_to_result(
         self,
