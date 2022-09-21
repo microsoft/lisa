@@ -421,7 +421,7 @@ class AzurePlatform(Platform):
         if not is_success:
             if any_wait_for_resource:
                 raise ResourceAwaitableException(
-                    "No available quota, try to deploy later."
+                    "vm size", "No available quota, try to deploy later."
                 )
             else:
                 raise NotMeetRequirementException(

@@ -206,7 +206,15 @@ class ResourceAwaitableException(Exception):
     Wait for more resources to create environment.
     """
 
-    ...
+    def __init__(self, resource_name: str, message: str = "") -> None:
+        self.resource_name = resource_name
+        self.message = message
+
+    def __str__(self) -> str:
+        return (
+            f"awaitable resource '{self.resource_name}' is not enough. "
+            f"{self.message}"
+        )
 
 
 class TcpConnectionException(LisaException):
