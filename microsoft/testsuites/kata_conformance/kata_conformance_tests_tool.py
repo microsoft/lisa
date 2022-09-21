@@ -12,7 +12,7 @@ from lisa import Environment, notifier
 from lisa.executable import Tool
 from lisa.messages import SubTestMessage, TestStatus, create_test_result_message
 from lisa.testsuite import TestResult
-from lisa.tools import Chmod, Echo, Git, Go, Ls, Make
+from lisa.tools import Echo, Git, Go, Make
 from lisa.util import LisaException
 
 
@@ -26,16 +26,6 @@ class KataConformanceTests(Tool):
     # These tests take some time to finish executing. The default
     # timeout of 600 is not sufficient.
     TIME_OUT = 36000
-
-    # TODO: These failures need to be investigated to figure out the exact
-    # cause.
-    EXPECTED_FAILURES = [
-        "pmu_lbr",
-        "svm_pause_filter",
-        "vmx",
-        "ept",
-        "debug",
-    ]
 
     cmd_path: PurePath
     cmd_args: str
@@ -56,7 +46,7 @@ class KataConformanceTests(Tool):
 
     @property
     def dependencies(self) -> List[Type[Tool]]:
-        return [Git, Make, Go, Echo, Chmod, Ls]
+        return [Git, Make, Go]
 
     def run_tests(
         self, test_result: TestResult, environment: Environment, failure_logs_path: Path
