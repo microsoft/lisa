@@ -107,14 +107,10 @@ class CloudHypervisorTests(Tool):
                     output = result.stdout.replace("\r\n", "\n")
                     output = output.replace("\t", "")
                     if result.exit_code != 0:
-                        excep = Exception(
-                            f"Test Case Failed : {testcase}", output
-                        )
+                        excep = Exception(f"Test Case Failed : {testcase}", output)
                         raise excep
                     testcase_result[testcase]["status"] = "Succeeded"
-                    metrics = self._process_perf_metric_test_result(
-                        result.stdout
-                    )
+                    metrics = self._process_perf_metric_test_result(result.stdout)
                     testcase_result[testcase]["metrics"] = metrics
                     testcase_result[testcase]["err"] = ""
                 except Exception as e:
