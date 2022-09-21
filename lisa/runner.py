@@ -106,6 +106,7 @@ class BaseRunner(BaseClassMixin, InitializableMixin):
         self._log = get_logger("runner", str(index))
         self._log_handler: Optional[FileHandler] = None
         self._case_variables = case_variables
+        self._wait_resource_timeout = runbook.wait_resource_timeout
         self._timer = create_timer()
         self.canceled = False
 

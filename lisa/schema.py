@@ -1429,6 +1429,8 @@ class Runbook:
     test_pass: str = ""
     tags: Optional[List[str]] = None
     concurrency: int = 1
+    # minutes to wait for resource
+    wait_resource_timeout: int = 5
     include: Optional[List[Include]] = field(default=None)
     extension: Optional[List[Union[str, Extension]]] = field(default=None)
     variable: Optional[List[Variable]] = field(default=None)
