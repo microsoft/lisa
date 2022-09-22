@@ -53,8 +53,11 @@ class CPUInfo:
 
 
 class Lscpu(Tool):
+    # Positive example:
     # CPU(s):              16
     # Total CPU(s):            2
+    # Negative example:
+    # NUMA node0 CPU(s):               0
     __vcpu = re.compile(r"^(CPU|Total CPU)\(s\):[ ]+([\d]+)\r?$", re.M)
     # Thread(s) per core:  1
     #      Thread(s) per core:  1
