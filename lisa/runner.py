@@ -2,6 +2,7 @@
 # Licensed under the MIT license.
 
 import copy
+import time
 from logging import FileHandler
 from pathlib import Path
 from typing import Any, Callable, Dict, Iterator, List, Optional, Type
@@ -106,8 +107,12 @@ class BaseRunner(BaseClassMixin, InitializableMixin):
         self._log = get_logger("runner", str(index))
         self._log_handler: Optional[FileHandler] = None
         self._case_variables = case_variables
-        self._wait_resource_timeout = runbook.wait_resource_timeout
         self._timer = create_timer()
+
+        self._wait_resource_timeout = runbook.wait_resource_timeout
+        self._wait_resource_timer = create_timer()
+        self._wait_resource_logged: bool = False
+
         self.canceled = False
 
     def __repr__(self) -> str:
@@ -151,6 +156,22 @@ class BaseRunner(BaseClassMixin, InitializableMixin):
             )
 
             self._working_folder = self._working_folder / runner_path_name
+
+    def _is_awaitable_timeout(self) -> bool:
+        if self._wait_resource_timer.elapsed(False) < self._wait_resource_timeout * 60:
+            # wait a while to prevent called too fast
+            if not self._wait_resource_logged:
+                self._log.info("waiting for more resource...")
+                self._wait_resource_logged = True
+            time.sleep(5)
+            return False
+        else:
+            self._log.info("timeout on waiting for more resource...")
+            return True
+
+    def _reset_awaitable_timer(self) -> None:
+        self._wait_resource_timer.reset()
+        self._wait_resource_logged = False
 
 
 class RootRunner(Action):
