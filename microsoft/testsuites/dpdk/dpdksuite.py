@@ -74,7 +74,6 @@ class Dpdk(TestSuite):
             min_nic_count=2,
             network_interface=Sriov(),
             unsupported_features=[Gpu, Infiniband],
-            supported_features=[IsolatedResource],
         ),
     )
     def verify_dpdk_build_netvsc(
@@ -96,7 +95,6 @@ class Dpdk(TestSuite):
             min_nic_count=2,
             network_interface=Sriov(),
             unsupported_features=[Gpu, Infiniband],
-            supported_features=[IsolatedResource],
         ),
     )
     def verify_dpdk_build_failsafe(
@@ -108,7 +106,7 @@ class Dpdk(TestSuite):
         description="""
            Install and run OVS+DPDK functional tests
         """,
-        priority=3,
+        priority=4,
         requirement=simple_requirement(
             min_nic_count=2,
             network_interface=Sriov(),
@@ -156,7 +154,7 @@ class Dpdk(TestSuite):
         description="""
            Install and run ci test for NFF-Go on ubuntu
         """,
-        priority=3,
+        priority=4,
         requirement=simple_requirement(
             min_nic_count=2,
             network_interface=Sriov(),
@@ -182,7 +180,7 @@ class Dpdk(TestSuite):
            Build and run DPDK multiprocess client/server sample application.
            Requires 3 nics since client/server needs two ports + 1 nic for LISA
         """,
-        priority=3,
+        priority=4,
         requirement=simple_requirement(
             min_nic_count=3,
             network_interface=Sriov(),
@@ -376,7 +374,7 @@ class Dpdk(TestSuite):
             3. start vpp service
             4. check that azure interfaces are detected by vpp
         """,
-        priority=2,
+        priority=4,
         requirement=simple_requirement(
             min_nic_count=2,
             network_interface=Sriov(),
@@ -413,7 +411,7 @@ class Dpdk(TestSuite):
             (.2 milliseconds).
             Not dependent on any specific PMD.
         """,
-        priority=2,
+        priority=4,
         requirement=simple_requirement(
             network_interface=Sriov(),
             unsupported_features=[Gpu, Infiniband],
