@@ -169,6 +169,7 @@ class RootRunner(Action):
         # global error.
         self._runners: List[BaseRunner] = []
         self._runner_count: int = 0
+        self._idle_logged: bool = False
 
     async def start(self) -> None:
         await super().start()
@@ -345,11 +346,11 @@ class RootRunner(Action):
                         # later runners.
                         continue
 
-                # remove completed runners
-                self._log.debug(
-                    f"running count: {task_manager.running_count}, "
-                    f"id: {[x.id for x in remaining_runners]} "
-                )
+                if not self._idle_logged:
+                    self._log.debug(
+                        f"running count: {task_manager.running_count}, "
+                        f"id: {[x.id for x in remaining_runners]} "
+                    )
 
                 if task_manager.has_idle_worker():
                     if has_more_runner:
@@ -362,10 +363,16 @@ class RootRunner(Action):
                                 self._log.debug(f"Added runner {runner.id}")
                         except StopIteration:
                             has_more_runner = False
+
+                        self._idle_logged = False
                     else:
                         # reduce CPU utilization from infinite loop when idle
                         # workers are present but no task to run.
-                        self._log.debug("Idle worker available but no new runner...")
+                        if not self._idle_logged:
+                            self._log.debug(
+                                "Idle worker available but no new runner..."
+                            )
+                            self._idle_logged = True
                         break
 
     def _cleanup(self) -> None:
