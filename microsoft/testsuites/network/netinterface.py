@@ -21,6 +21,8 @@ from lisa.nic import Nics
 from lisa.tools import Dhclient, Ip, KernelConfig, Wget
 from lisa.util import perf_timer
 
+from .common import restore_extra_nics_per_node
+
 
 @TestSuiteMetadata(
     area="network",
@@ -143,8 +145,22 @@ class NetInterface(TestSuite):
         ip = node.tools[Ip]
         node_nic_info = Nics(node)
         node_nic_info.initialize()
-        test_nic = node_nic_info.get_nic_by_index()
-        test_nic_name = test_nic.upper
+        origin_nic_count = len(node_nic_info)
+        # attach one more nic for testing if only 1 nic by default
+        if 1 == origin_nic_count:
+            network_interface_feature = node.features[NetworkInterface]
+            network_interface_feature.attach_nics(
+                extra_nic_count=1, enable_accelerated_networking=True
+            )
+            node_nic_info = Nics(node)
+            node_nic_info.initialize()
+        # get one nic which is not eth0 for setting new mac address
+        current_nic_count = len(node_nic_info)
+        for index in range(0, current_nic_count):
+            test_nic = node_nic_info.get_nic_by_index(index)
+            test_nic_name = test_nic.upper
+            if "eth0" == test_nic_name:
+                continue
         assert_that(test_nic).is_not_none()
         assert_that(test_nic.ip_addr).is_not_none()
         assert_that(test_nic.mac_addr).is_not_none()
@@ -165,6 +181,11 @@ class NetInterface(TestSuite):
                 f"fail to set network interface {test_nic}'s mac "
                 f"address back into {origin_mac_address}"
             ).is_equal_to(origin_mac_address)
+            # restore vm nics status if 1 extra nic attached
+            if 1 == origin_nic_count:
+                restore_extra_nics_per_node(node)
+                node_nic_info = Nics(node)
+                node_nic_info.initialize()
 
     def _validate_netvsc_built_in(self, node: Node) -> None:
         if node.tools[KernelConfig].is_built_in("CONFIG_HYPERV_NET"):
