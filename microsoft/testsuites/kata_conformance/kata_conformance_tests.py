@@ -22,7 +22,7 @@ from microsoft.testsuites.kata_conformance.kata_conformance_tests_tool import (
 )
 
 
-def validate_variable(variables, key, log, nullable=False):
+def validate_variable(variables, key, log, nullable=True, default=None):
     log.debug(f"Checking for param : {key} in variables , nullable : {nullable}")
     value = variables.get(key, None)
     if (not nullable and value is None) or (
@@ -30,7 +30,7 @@ def validate_variable(variables, key, log, nullable=False):
     ):
         raise LisaException(key + " : Variable is null/empty")
     else:
-        return value
+        return value if value else default
 
 
 @TestSuiteMetadata(
@@ -46,8 +46,8 @@ class KataConformanceTestSuite(TestSuite):
         description="""
             Runs Kubernetes Kata Cotaniner Conformance test.
         """,
-        priority=3,
-        timeout=36000,
+        priority=4,
+        timeout=18000,
     )
     def kata_conformance_tests(
         self,
@@ -67,39 +67,50 @@ class KataConformanceTestSuite(TestSuite):
                 f"Kata Conformance tests are not implemented in LISA for {node.os.name}"
             )
 
-        log.info("Creating AKS Infra")
         log.debug("Variables " + json.dumps(variables))
         subscription_id = validate_variable(
-            variables, "subscription_id", log, nullable=True
+            variables, "subscription_id", log, nullable=False
         )
-        client_id = validate_variable(
-            variables, "service_principal_client_id", log, nullable=True
+        client_id = validate_variable(variables, "service_principal_client_id", log)
+        client_secret = validate_variable(variables, "service_principal_key", log)
+        tenant_id = validate_variable(variables, "service_principal_tenant_id", log)
+        kubernetes_version = validate_variable(
+            variables, "kubernetes_version", log, default="1.24.0"
         )
-        client_secret = validate_variable(
-            variables, "service_principal_key", log, nullable=True
+        worker_vm_size = validate_variable(
+            variables, "worker_vm_size", log, default="Standard_D4s_v5"
         )
-        tenant_id = validate_variable(
-            variables, "service_principal_tenant_id", log, nullable=True
+        node_count = validate_variable(variables, "node_count", log, default=3)
+        azure_region = validate_variable(
+            variables, "azure_region", log, default="eastus"
         )
-        kubernetes_version = validate_variable(variables, "kubernetes_version", log)
-        worker_vm_size = validate_variable(variables, "worker_vm_size", log)
-        node_count = validate_variable(variables, "node_count", log)
-        azure_region = validate_variable(variables, "azure_region", log)
 
         headers = {
             "AKSHTTPCustomFeatures": validate_variable(
-                variables, "aks_http_custom_features", log
+                variables,
+                "aks_http_custom_features",
+                log,
+                default="Microsoft.ContainerService/UseCustomizedOSImage",
             ),
             "OSImageSubscriptionID": validate_variable(
-                variables, "os_image_subscription_id", log
+                variables,
+                "os_image_subscription_id",
+                log,
+                default="b8f169b2-5b23-444a-ae4b-19a31b5e3652",
             ),
             "OSImageResourceGroup": validate_variable(
-                variables, "os_image_resource_group", log
+                variables, "os_image_resource_group", log, default="nehaagarwal_home"
             ),
-            "OSImageGallery": validate_variable(variables, "os_image_gallery", log),
-            "OSImageName": validate_variable(variables, "os_image_name", log),
-            "OSImageVersion": validate_variable(variables, "os_image_version", log),
-            "OSSKU": validate_variable(variables, "ossku", log),
+            "OSImageGallery": validate_variable(
+                variables, "os_image_gallery", log, default="packerACG"
+            ),
+            "OSImageName": validate_variable(
+                variables, "os_image_name", log, default="output"
+            ),
+            "OSImageVersion": validate_variable(
+                variables, "os_image_version", log, default="1.1661882687.6923"
+            ),
+            "OSSKU": validate_variable(variables, "ossku", log, default="CBLMariner"),
         }
 
         aks = AKSInfra(
@@ -112,6 +123,4 @@ class KataConformanceTestSuite(TestSuite):
         aks.create_aks_infra(
             kubernetes_version, worker_vm_size, node_count, azure_region, headers
         )
-        log.info("Completed AKS Infra Creation")
-
         node.tools[KataConformanceTests].run_tests(result, environment, log_path)

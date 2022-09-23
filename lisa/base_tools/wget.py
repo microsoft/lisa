@@ -1,5 +1,5 @@
 import re
-from pathlib import Path
+from pathlib import PurePosixPath
 from typing import TYPE_CHECKING, Optional, Type
 
 from lisa.executable import Tool
@@ -49,13 +49,13 @@ class Wget(Tool):
         # So that here can use the corresponding path format.
         if file_path:
             # create folder when it doesn't exist
-            self.node.shell.mkdir(Path(file_path), exist_ok=True)
+            self.node.shell.mkdir(PurePosixPath(file_path), exist_ok=True)
             download_path = f"{file_path}/{filename}"
         else:
             download_path = f"{self.node.working_path}/{filename}"
 
         # remove existing file and dir to download again.
-        download_pure_path = Path(self.node.get_pure_path(download_path))
+        download_pure_path = self.node.get_pure_path(download_path)
         if overwrite and self.node.shell.exists(download_pure_path):
             self.node.shell.remove(download_pure_path, recursive=True)
             force_run = True

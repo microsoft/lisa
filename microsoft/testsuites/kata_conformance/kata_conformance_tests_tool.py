@@ -25,7 +25,7 @@ class KataConformanceTestResult:
 class KataConformanceTests(Tool):
     # These tests take some time to finish executing. The default
     # timeout of 600 is not sufficient.
-    TIME_OUT = 36000
+    TIME_OUT = 18000
 
     cmd_path: PurePath
     cmd_args: str
@@ -129,7 +129,7 @@ class KataConformanceTests(Tool):
         args = ""
         args = args + f"-kubeconfig {self.kube_config_path} "
         args = args + '--ginkgo.focus="\[Conformance\]" '
-        args = args + "--ginkgo.timeout 10h "
+        args = args + "--ginkgo.timeout 5h "
         report_path = str(self.report_path.joinpath("json_report.json"))
         args = args + f"--ginkgo.json-report {report_path} "
         self.cmd_args = args
@@ -144,8 +144,7 @@ class KataConformanceTests(Tool):
         git.clone(self.kata_container_tests_repo, self.repo_root, timeout=3600)
 
         self._log.info("Installing GoLang")
-        go = self.node.tools[Go]
-        go.install_specific_version("1.19")
+        go = self.node.tools.get(Go, go_version="1.19")
         self._log.info("Installed GoLang version -> " + go.get_version())
 
     def _create_kata_webhook(self) -> None:

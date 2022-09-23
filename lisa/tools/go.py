@@ -1,24 +1,23 @@
 # Copyright (c) Microsoft Corporation.
 # Licensed under the MIT license.
 
-from typing import TYPE_CHECKING, List, Type
+from typing import Any, List, Type
 
 from lisa.base_tools.wget import Wget
 from lisa.executable import Tool
-from lisa.operating_system import Posix, Suse
+from lisa.operating_system import Posix
 from lisa.tools.echo import Echo
 from lisa.tools.rm import Rm
 from lisa.tools.tar import Tar
 from lisa.util import LisaException
 
-if TYPE_CHECKING:
-    from lisa.node import Node
-
 
 class Go(Tool):
-    def __init__(self, node: "Node") -> None:
-        super().__init__(node)
-        self._thread_count = 0
+    def __init__(self, *args: Any, **kwargs: Any) -> None:
+        super().__init__(*args, **kwargs)
+        go_version = kwargs.pop("go_version", None)
+        if go_version:
+            self._install_specific_version(go_version)
 
     @property
     def command(self) -> str:
@@ -33,9 +32,7 @@ class Go(Tool):
         return [Wget, Tar, Rm]
 
     def _install(self) -> bool:
-        if isinstance(self.node.os, Suse):
-            self.node.os.install_packages("golang-go")
-        elif isinstance(self.node.os, Posix):
+        if isinstance(self.node.os, Posix):
             self.node.os.install_packages("golang-go")
         else:
             raise LisaException(
@@ -44,25 +41,29 @@ class Go(Tool):
             )
         return self._check_exists()
 
-    def install_specific_version(self, version: str) -> bool:
-        version_map = {
-            "1.19": {
-                "url": "https://dl.google.com/go/go1.19.linux-amd64.tar.gz",
-                "filename": "go1.19.linux-amd64.tar.gz",
-            }
-        }
+    def _install_specific_version(self, version: str) -> bool:
+        version_list = []
+        version_list.append("1.15")
+        version_list += [f"1.15.{i}" for i in range(1, 16)]
+        version_list.append("1.16")
+        version_list += [f"1.16.{i}" for i in range(1, 16)]
+        version_list.append("1.17")
+        version_list += [f"1.17.{i}" for i in range(1, 14)]
+        version_list.append("1.18")
+        version_list += [f"1.18.{i}" for i in range(1, 17)]
+        version_list.append("1.19")
+        version_list += [f"1.19.{i}" for i in range(1, 2)]
         url: str = ""
-        supported_version_csv: str = ",".join([i for i in version_map.keys()])
 
-        if version not in version_map.keys():
+        if version not in version_list:
             raise LisaException(
                 f"Version {version} not supported , \
-                    supported Versions are : {supported_version_csv}"
+                    supported Versions are : {version_list}"
             )
         else:
-            url = version_map[version]["url"]
+            url = f"https://dl.google.com/go/go{version}.linux-amd64.tar.gz"
 
-        tool_path = self.get_tool_path(use_global=True)
+        tool_path = self.node.get_working_path()
 
         # Get GoLang Source file
         wget = self.node.tools[Wget]

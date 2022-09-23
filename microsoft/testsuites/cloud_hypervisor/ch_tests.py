@@ -96,31 +96,6 @@ class CloudHypervisorTestSuite(TestSuite):
             result, environment, "integration-live-migration", hypervisor
         )
 
-    @TestCaseMetadata(
-        description="""
-            Runs cloud-hypervisor live migration tests.
-        """,
-        priority=3,
-        requirement=node_requirement(
-            node=schema.NodeSpace(
-                core_count=search_space.IntRange(min=16),
-                memory_mb=search_space.IntRange(min=16 * 1024),
-            ),
-        ),
-    )
-    def verify_cloud_hypervisor_performance_metrics_tests(
-        self,
-        log: Logger,
-        node: Node,
-        environment: Environment,
-        log_path: Path,
-        result: TestResult,
-    ) -> None:
-        hypervisor = self._get_hypervisor_param(node)
-        node.tools[CloudHypervisorTests].run_tests(
-            result, environment, "metrics", hypervisor
-        )
-
     def _ensure_virtualization_enabled(self, node: Node) -> None:
         virtualization_enabled = node.tools[Lscpu].is_virtualization_enabled()
         mshv_exists = node.tools[Ls].path_exists(path="/dev/mshv", sudo=True)

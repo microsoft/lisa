@@ -70,7 +70,7 @@ class AKSInfra:
     def create_aks_infra(
         self, kubernetes_version, worker_vm_size, node_count, azure_region, headers
     ) -> None:
-
+        self.log.info("Creating AKS Infra")
         ts = datetime.datetime.now().strftime("%Y%m%d%H%M%S")
         aks_cluster_name = f"LISA_AKS_Conf_{ts}"
         self.resource_group_name = f"LISA_RG_Conf_{ts}"
@@ -128,6 +128,7 @@ class AKSInfra:
         os.environ["KUBECONFIG"] = self.kube_path
         self.log.debug("KUBECONFIG file is at : " + self.kube_path)
         self.log.info("AKS Cluster Credentials are configured")
+        self.log.info("Completed AKS Infra Creation")
 
     def delete_aks_infra(self):
         self.log.info("Deleting Resource Group : " + self.resource_group_name)
