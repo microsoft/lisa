@@ -405,11 +405,11 @@ class LisaRunner(BaseRunner):
         try:
             try:
                 self.platform.prepare_environment(environment)
-                self._reset_awaitable_timer()
+                self._reset_awaitable_timer("prepare")
             except ResourceAwaitableException as identifier:
                 # if timed out, raise the exception and skip the test case. If
                 # not, do nothing to keep env as new to try next time.
-                if self._is_awaitable_timeout():
+                if self._is_awaitable_timeout("prepare"):
                     raise SkippedException(identifier)
         except Exception as identifier:
             success = False

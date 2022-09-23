@@ -16,7 +16,7 @@ from lisa.parameter_parser.runbook import RunbookBuilder
 from lisa.util import BaseClassMixin, InitializableMixin, LisaException, constants
 from lisa.util.logger import create_file_handler, get_logger, remove_handler
 from lisa.util.parallel import Task, TaskManager, cancel, set_global_task_manager
-from lisa.util.perf_timer import create_timer
+from lisa.util.perf_timer import Timer, create_timer
 from lisa.util.subclasses import Factory
 from lisa.variable import VariableEntry, get_case_variables, replace_variables
 
@@ -110,7 +110,7 @@ class BaseRunner(BaseClassMixin, InitializableMixin):
         self._timer = create_timer()
 
         self._wait_resource_timeout = runbook.wait_resource_timeout
-        self._wait_resource_timer = create_timer()
+        self._wait_resource_timers: Dict[str, Timer] = dict()
         self._wait_resource_logged: bool = False
 
         self.canceled = False
@@ -157,21 +157,25 @@ class BaseRunner(BaseClassMixin, InitializableMixin):
 
             self._working_folder = self._working_folder / runner_path_name
 
-    def _is_awaitable_timeout(self) -> bool:
-        if self._wait_resource_timer.elapsed(False) < self._wait_resource_timeout * 60:
+    def _is_awaitable_timeout(self, name: str) -> bool:
+        _wait_resource_timer = self._wait_resource_timers.get(name, create_timer())
+        self._wait_resource_timers[name] = _wait_resource_timer
+        if _wait_resource_timer.elapsed(False) < self._wait_resource_timeout * 60:
             # wait a while to prevent called too fast
             if not self._wait_resource_logged:
-                self._log.info("waiting for more resource...")
+                self._log.info(f"{name} waiting for more resource...")
                 self._wait_resource_logged = True
             time.sleep(5)
             return False
         else:
-            self._log.info("timeout on waiting for more resource...")
+            self._log.info(f"{name} timeout on waiting for more resource...")
             return True
 
-    def _reset_awaitable_timer(self) -> None:
-        self._wait_resource_timer.reset()
+    def _reset_awaitable_timer(self, name: str) -> None:
+        _wait_resource_timer = self._wait_resource_timers.get(name, create_timer())
+        _wait_resource_timer.reset()
         self._wait_resource_logged = False
+        self._wait_resource_timers[name] = _wait_resource_timer
 
 
 class RootRunner(Action):
