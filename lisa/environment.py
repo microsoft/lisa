@@ -168,12 +168,12 @@ class Environment(ContextMixin, InitializableMixin):
     ) -> None:
         super().__init__()
 
-        self.nodes: Nodes = Nodes()
+        self.nodes: Nodes
         self.runbook = runbook
         self.name = runbook.name
         self.is_predefined: bool = is_predefined
         self.is_new: bool = True
-        self.id = id_
+        self.id: str = str(id_)
         self.warn_as_error = warn_as_error
         self.platform: Optional[Platform] = None
         self.log = get_logger("env", self.name)
@@ -181,6 +181,10 @@ class Environment(ContextMixin, InitializableMixin):
 
         self._default_node: Optional[Node] = None
         self._is_dirty: bool = False
+
+        # track retried times to provide an unique name.
+        self._raw_id = id_
+        self._retries: int = 0
 
         # cost uses to plan order of environments.
         # cheaper env can fit cases earlier to run more cases on it.
@@ -200,21 +204,8 @@ class Environment(ContextMixin, InitializableMixin):
             f"environments/{get_datetime_path()}-{self.name}"
         )
 
-        if not runbook.nodes_requirement and not runbook.nodes:
-            raise LisaException("not found any node or requirement in environment")
-
-        has_default_node = False
-        for node_runbook in runbook.nodes:
-            self.create_node_from_exists(
-                node_runbook=node_runbook,
-            )
-
-            has_default_node = self._validate_single_default(
-                has_default_node, node_runbook.is_default
-            )
-
         self._status: Optional[EnvironmentStatus] = None
-        self.status: EnvironmentStatus = EnvironmentStatus.New
+        self.status = EnvironmentStatus.New
 
     def __repr__(self) -> str:
         return self.name
@@ -228,6 +219,8 @@ class Environment(ContextMixin, InitializableMixin):
     def status(self, value: EnvironmentStatus) -> None:
         # sometimes there are duplicated messages, ignore if no change.
         if self._status != value:
+            if value == EnvironmentStatus.New:
+                self._reset()
             self._status = value
             environment_message = EnvironmentMessage(
                 name=self.name, status=self._status, runbook=self.runbook
@@ -366,6 +359,33 @@ class Environment(ContextMixin, InitializableMixin):
             )
         self.nodes.initialize()
         self.status = EnvironmentStatus.Connected
+
+    def _reset(self) -> None:
+        self.nodes = Nodes()
+        self.runbook.reload_requirements()
+
+        self.is_new = True
+
+        if not self.runbook.nodes_requirement and not self.runbook.nodes:
+            raise LisaException("not found any node or requirement in environment")
+
+        has_default_node = False
+        for node_runbook in self.runbook.nodes:
+            self.create_node_from_exists(
+                node_runbook=node_runbook,
+            )
+
+            has_default_node = self._validate_single_default(
+                has_default_node, node_runbook.is_default
+            )
+
+        if self._retries > 0:
+            # provide an unique id.
+            self.id = f"{self._raw_id}-{self._retries}"
+
+        self.remove_context()
+
+        self._retries += 1
 
     def _validate_single_default(
         self, has_default: bool, is_default: Optional[bool]
