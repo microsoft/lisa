@@ -250,6 +250,10 @@ class ContextMixin:
             ), f"actual: {type(self._context)}"
         return self._context
 
+    def remove_context(self) -> None:
+        if hasattr(self, "_context"):
+            delattr(self, "_context")
+
 
 class InitializableMixin:
     """
