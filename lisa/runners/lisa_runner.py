@@ -270,18 +270,22 @@ class LisaRunner(BaseRunner):
         self, environment: Environment, test_results: List[TestResult]
     ) -> None:
         try:
-            self.platform.deploy_environment(environment)
-            assert (
-                environment.status == EnvironmentStatus.Deployed
-            ), f"actual: {environment.status}"
-        except ResourceAwaitableException as identifier:
-            self._log.info(
-                f"[{environment.name}] waiting for more resource: "
-                f"{identifier}, skip assigning case"
-            )
-            self._skip_test_results(
-                test_results, additional_reason="no more resource to deploy"
-            )
+            try:
+                self.platform.deploy_environment(environment)
+                assert (
+                    environment.status == EnvironmentStatus.Deployed
+                ), f"actual: {environment.status}"
+                self._reset_awaitable_timer("deploy")
+            except ResourceAwaitableException as identifier:
+                if self._is_awaitable_timeout("deploy"):
+                    self._log.info(
+                        f"[{environment.name}] timeout on waiting for more resource: "
+                        f"{identifier}, skip assigning case."
+                    )
+                    raise SkippedException(identifier)
+                else:
+                    # rerun prepare to calculate resource again.
+                    environment.status = EnvironmentStatus.New
         except Exception as identifier:
             self._attach_failed_environment_to_result(
                 environment=environment,
