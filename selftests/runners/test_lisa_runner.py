@@ -40,6 +40,7 @@ def generate_runner(
             times=times,
         )
     ]
+    runbook.wait_resource_timeout = 0
     if env_runbook:
         runbook.environment = env_runbook
     runner = LisaRunner(runbook, 0, {})
