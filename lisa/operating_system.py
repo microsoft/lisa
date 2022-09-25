@@ -1188,6 +1188,12 @@ class RPMDistro(Linux):
     def _dnf_tool(self) -> str:
         return "dnf"
 
+    def _update_packages(self, packages: Optional[List[str]] = None) -> None:
+        command = f"{self._dnf_tool()} -y --nogpgcheck update "
+        if packages:
+            command += " ".join(packages)
+        self._node.execute(command, sudo=True, timeout=3600)
+
 
 class Fedora(RPMDistro):
     # Red Hat Enterprise Linux Server 7.8 (Maipo) => 7.8
