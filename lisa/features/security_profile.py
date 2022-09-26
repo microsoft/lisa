@@ -58,6 +58,7 @@ class SecurityProfileSettings(schema.FeatureSettings):
             )
         ),
     )
+    encrypt_disk: bool = field(default=False)
 
     def __hash__(self) -> int:
         return hash(self._get_key())
@@ -74,6 +75,7 @@ class SecurityProfileSettings(schema.FeatureSettings):
             capability.security_profile,
             security_profile_priority,
         )
+        value.encrypt_disk = self.encrypt_disk or capability.encrypt_disk
         return value
 
     def check(self, capability: Any) -> search_space.ResultReason:
