@@ -1466,13 +1466,18 @@ class SecurityProfile(AzureFeatureMixin, features.SecurityProfile):
             log.debug("Security Profile set to CVM. Updating arm template.")
             security_type = "ConfidentialVM"
 
+            security_encryption_type = (
+                "DiskWithVMGuestState" if settings.encrypt_disk else "VMGuestStateOnly"
+            )
+
             virtual_machines["properties"]["storageProfile"]["osDisk"][
                 "managedDisk"
             ] = (
                 "[if(not(equals(parameters('nodes')[copyIndex('vmCopy')]['disk_type'], "
                 "'Ephemeral')), json(concat('{\"storageAccountType\": \"',parameters"
                 "('nodes')[copyIndex('vmCopy')]['disk_type'],'\",\"securityProfile\":{"
-                '"securityEncryptionType": "VMGuestStateOnly"}}\')), json(\'null\'))]'
+                f'"securityEncryptionType": "{security_encryption_type}"'
+                "}}')), json('null'))]"
             )
         else:
             raise LisaException(
