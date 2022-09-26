@@ -187,7 +187,7 @@ class Git(Tool):
             expected_exit_code=0,
             expected_exit_code_failure_message="Failed to fetch latest commit id.",
         )
-        return filter_ansi_escape(result.stdout).splitlines()
+        return filter_ansi_escape(result.stdout)
 
     def init_submodules(self, cwd: pathlib.PurePath) -> None:
         self.run(
