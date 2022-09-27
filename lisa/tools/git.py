@@ -178,6 +178,17 @@ class Git(Tool):
         )
         return filter_ansi_escape(result.stdout).splitlines()
 
+    def get_latest_commit_id(self, cwd: pathlib.PurePath) -> str:
+        result = self.run(
+            "--no-pager log -n 1 --pretty=format:%h",
+            shell=True,
+            cwd=cwd,
+            force_run=True,
+            expected_exit_code=0,
+            expected_exit_code_failure_message="Failed to fetch latest commit id.",
+        )
+        return filter_ansi_escape(result.stdout)
+
     def init_submodules(self, cwd: pathlib.PurePath) -> None:
         self.run(
             "submodule update --init",
