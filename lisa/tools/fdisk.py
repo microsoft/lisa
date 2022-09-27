@@ -5,7 +5,7 @@ from typing import List, cast
 
 from lisa.executable import Tool
 from lisa.operating_system import Posix
-from lisa.util import find_patterns_in_lines
+from lisa.util import LisaException, find_patterns_in_lines
 
 from .mkfs import FileSystem, Mkfs
 
@@ -63,6 +63,10 @@ class Fdisk(Tool):
             )
         # get the partition, e.g. /dev/sdc1 or /dev/nvme0n1p1
         partition_disk = self._get_partitions(disk_name)
+        if not partition_disk:
+            raise LisaException(
+                f"fail to find partition(s) after formatting disk {disk_name}"
+            )
         if format:
             mkfs.format_disk(partition_disk[0], file_system)
         return partition_disk[0]
@@ -91,7 +95,7 @@ class Fdisk(Tool):
     def _get_partitions(self, disk_name: str) -> List[str]:
         partition_pattern = re.compile(rf"({disk_name}p[0-9]|{disk_name}[0-9])+")
         cmd_result = self.node.execute(
-            "ls -lt /dev/sd*; ls -lt /dev/nvme*; ls -lt /dev/xvd*",
+            "sync; ls -lt /dev/sd*; ls -lt /dev/nvme*; ls -lt /dev/xvd*",
             shell=True,
             sudo=True,
         )

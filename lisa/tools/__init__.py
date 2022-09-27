@@ -25,7 +25,6 @@ from .firewall import Firewall, Iptables
 from .free import Free
 from .gcc import Gcc
 from .git import Git
-from .go import Go
 from .hibernation_setup import HibernationSetup
 from .hostname import Hostname
 from .hwclock import Hwclock
@@ -121,7 +120,6 @@ __all__ = [
     "Free",
     "Gcc",
     "Git",
-    "Go",
     "Ip",
     "Iperf3",
     "HibernationSetup",

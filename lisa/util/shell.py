@@ -663,8 +663,7 @@ class LocalShell(InitializableMixin):
             parents: make parent directories as needed
             exist_ok: return with no error if target already present
         """
-        path = Path(path)
-        # assert isinstance(path, Path), f"actual: {type(path)}"
+        assert isinstance(path, Path), f"actual: {type(path)}"
         path.mkdir(mode=mode, parents=parents, exist_ok=exist_ok)
 
     def exists(self, path: PurePath) -> bool:
@@ -674,8 +673,7 @@ class LocalShell(InitializableMixin):
         Outputs:
             bool: True if present, False otherwise
         """
-        path = Path(path)
-        # assert isinstance(path, Path), f"actual: {type(path)}"
+        assert isinstance(path, Path), f"actual: {type(path)}"
         return path.exists()
 
     def remove(self, path: PurePath, recursive: bool = False) -> None:
@@ -685,8 +683,7 @@ class LocalShell(InitializableMixin):
             recursive: whether to remove recursively, if target is a directory
                        (will fail if that's the case and this flag is off)
         """
-        path = Path(path)
-        # assert isinstance(path, Path), f"actual: {type(path)}"
+        assert isinstance(path, Path), f"actual: {type(path)}"
         if path.is_dir():
             if recursive:
                 shutil.rmtree(path)
@@ -701,8 +698,7 @@ class LocalShell(InitializableMixin):
             path: target path. (Absolute)
             mode: numerical chmod mode entry
         """
-        path = Path(path)
-        # assert isinstance(path, Path), f"actual: {type(path)}"
+        assert isinstance(path, Path), f"actual: {type(path)}"
         path.chmod(mode)
 
     def stat(self, path: PurePath) -> os.stat_result:
@@ -712,8 +708,7 @@ class LocalShell(InitializableMixin):
         Outputs:
             os.stat_result: The status structure/class
         """
-        path = Path(path)
-        # assert isinstance(path, Path), f"actual: {type(path)}"
+        assert isinstance(path, Path), f"actual: {type(path)}"
         return path.stat()
 
     def is_dir(self, path: PurePath) -> bool:
@@ -723,8 +718,7 @@ class LocalShell(InitializableMixin):
         Outputs:
             bool: True if it is a directory, False otherwise
         """
-        path = Path(path)
-        # assert isinstance(path, Path), f"actual: {type(path)}"
+        assert isinstance(path, Path), f"actual: {type(path)}"
         return path.is_dir()
 
     def is_symlink(self, path: PurePath) -> bool:
@@ -734,8 +728,7 @@ class LocalShell(InitializableMixin):
         Outputs:
             bool: True if it is a symlink, False otherwise
         """
-        path = Path(path)
-        # assert isinstance(path, Path), f"actual: {type(path)}"
+        assert isinstance(path, Path), f"actual: {type(path)}"
         return path.is_symlink()
 
     def symlink(self, source: PurePath, destination: PurePath) -> None:
@@ -744,10 +737,8 @@ class LocalShell(InitializableMixin):
             source: source path. (Absolute)
             destination: destination path. (Absolute)
         """
-        source = Path(source)
-        destination = Path(destination)
-        # assert isinstance(source, Path), f"actual: {type(source)}"
-        # assert isinstance(destination, Path), f"actual: {type(destination)}"
+        assert isinstance(source, Path), f"actual: {type(source)}"
+        assert isinstance(destination, Path), f"actual: {type(destination)}"
         source.symlink_to(destination)
 
     def copy(self, local_path: PurePath, node_path: PurePath) -> None:

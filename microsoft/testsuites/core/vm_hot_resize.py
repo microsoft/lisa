@@ -81,6 +81,7 @@ class VmHotResize(TestSuite):
                     or "Allocation failed" in str(identifier)
                     or "AllocationFailed" in str(identifier)
                     or "cannot boot Hypervisor Generation" in str(identifier)
+                    or "due to different CPU Architectures" in str(identifier)
                 ):
                     retry = retry + 1
                 else:

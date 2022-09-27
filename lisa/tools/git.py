@@ -56,18 +56,15 @@ class Git(Tool):
         ref: str = "",
         dir_name: str = "",
         fail_on_exists: bool = True,
-        timeout: int = 600,
     ) -> pathlib.PurePath:
         self.node.shell.mkdir(cwd, exist_ok=True)
 
         cmd = f"clone {url} {dir_name} --recurse-submodules"
         # git print to stderr for normal info, so set no_error_log to True.
-        result = self.run(cmd, cwd=cwd, no_error_log=True, timeout=timeout)
+        result = self.run(cmd, cwd=cwd, no_error_log=True)
         if get_matched_str(result.stdout, self.CERTIFICATE_ISSUE_PATTERN):
             self.run("config --global http.sslverify false")
-            result = self.run(
-                cmd, cwd=cwd, no_error_log=True, force_run=True, timeout=timeout
-            )
+            result = self.run(cmd, cwd=cwd, no_error_log=True, force_run=True)
 
         # mark directory safe
         self._mark_safe(cwd)
@@ -180,6 +177,17 @@ class Git(Tool):
             expected_exit_code_failure_message="Failed to fetch commit ids.",
         )
         return filter_ansi_escape(result.stdout).splitlines()
+
+    def get_latest_commit_id(self, cwd: pathlib.PurePath) -> str:
+        result = self.run(
+            "--no-pager log -n 1 --pretty=format:%h",
+            shell=True,
+            cwd=cwd,
+            force_run=True,
+            expected_exit_code=0,
+            expected_exit_code_failure_message="Failed to fetch latest commit id.",
+        )
+        return filter_ansi_escape(result.stdout)
 
     def init_submodules(self, cwd: pathlib.PurePath) -> None:
         self.run(
