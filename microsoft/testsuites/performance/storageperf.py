@@ -2,12 +2,17 @@
 # Licensed under the MIT license.
 
 import inspect
+import json
+import os
 from pathlib import PurePosixPath
+from pathlib import Path
 from typing import Any, Dict, cast
+
 
 from assertpy import assert_that
 
 from lisa import (
+    Environment,
     Logger,
     Node,
     TestCaseMetadata,
@@ -24,6 +29,8 @@ from lisa.node import RemoteNode
 from lisa.operating_system import SLES, Debian, Redhat
 from lisa.testsuite import TestResult
 from lisa.tools import FileSystem, Lscpu, Mkfs, Mount, NFSClient, NFSServer, Sysctl
+from lisa.tools import Fio,Rm
+
 from lisa.util import SkippedException
 from microsoft.testsuites.performance.common import (
     perf_disk,
@@ -186,6 +193,109 @@ class StoragePerformance(TestSuite):
     )
     def perf_storage_over_nfs_synthetic_udp_4k(self, result: TestResult) -> None:
         self._perf_nfs(result, protocol="udp")
+
+    @TestCaseMetadata(
+        description="""
+        This test case uses fio to test data disk performance with 4K block size.
+        """,
+        priority=3,
+        timeout=TIME_OUT,
+    )
+    def perf_storage_generic_fio_test(self,
+        log: Logger,
+        node: Node,
+        environment: Environment,
+        log_path: Path,
+        result: TestResult,
+        variables: Dict[str, Any],
+    ) -> None:
+        testcases = variables.get("fio_testcase_list", None)
+        if (not testcases):
+            testcases_file_path = os.path.join(
+                os.path.abspath(__file__).replace(os.path.basename(__file__), ""),
+                "default_fio_testcases.json",
+            )
+            with open(testcases_file_path, "r") as f:
+                testcases = json.loads(f.read())["testcases"]
+
+        log.debug(f"Given testcases with params : {testcases}")
+        fio = node.tools[Fio]
+        rm = node.tools[Rm]
+        fio_result = {}
+
+        for testcase in testcases:
+            test_name = testcase["testcase_name"]
+            fio_result[test_name] = {}
+            fio_result[test_name]["runtime_param"] = testcase
+
+            try:
+                path = node.get_working_path()
+
+                log.info(f"Executing the FIO testcase : {test_name}")
+
+                name = testcase.get("name", None)
+                filename = testcase.get("filename", None)
+                mode = testcase.get("mode", None)
+                iodepth = testcase.get("iodepth", None)
+                numjob = testcase.get("numjob", None)
+                time = testcase.get("time", 120)
+                ssh_timeout = testcase.get("ssh_timeout", 6400)
+                block_size = testcase.get("block_size", "4k")
+                size_mb = testcase.get("size_mb", 0)
+                direct = testcase.get("direct", True)
+                gtod_reduce = testcase.get("gtod_reduce", False)
+                ioengine = testcase.get("ioengine", "libaio")
+                group_reporting = testcase.get("group_reporting", True)
+                overwrite = testcase.get("overwrite", False)
+                time_based = testcase.get("time_based", False)
+
+                result = fio.launch(
+                    name=name,
+                    filename=filename,
+                    mode=mode,
+                    iodepth=iodepth,
+                    numjob=numjob,
+                    time=time,
+                    ssh_timeout=ssh_timeout,
+                    block_size=block_size,
+                    size_gb=size_mb,
+                    direct=direct,
+                    gtod_reduce=gtod_reduce,
+                    ioengine=ioengine,
+                    group_reporting=group_reporting,
+                    overwrite=overwrite,
+                    time_based=time_based,
+                    cwd=path
+                )
+
+                fio_result[test_name]["status"] = "Succeeded"
+                fio_result[test_name]["error"] = ""
+                fio_result[test_name]["metrics"] = {
+                    "qdepth": result.qdepth,
+                    "mode": result.mode,
+                    "iops": str(result.iops),
+                    "latency": str(result.latency),
+                    "iodepth": result.iodepth,
+                }
+
+            except Exception as e:
+                fio_result[test_name]["status"] = "Failed"
+                fio_result[test_name]["error"] = str(e)
+                fio_result[test_name]["metrics"] = {}
+                log.error(e)
+
+            rm.remove_directory(str(path.joinpath(f"{filename}*")), sudo=True)
+
+        log.debug(fio_result)
+
+        # Saving the result
+        report_path = node.get_working_path().joinpath("fio_report")
+        report_file = report_path.joinpath("fio_test_result.json")
+        if not os.path.exists(report_path):
+            os.mkdir(report_path)
+
+        with open(report_file, "w") as f:
+            f.write(json.dumps(fio_result))
 
     def _perf_nfs(
         self,
