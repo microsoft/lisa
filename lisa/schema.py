@@ -461,7 +461,7 @@ class DiskOptionSettings(FeatureSettings):
         ),
     )
     data_disk_size: search_space.CountSpace = field(
-        default_factory=partial(search_space.IntRange, min=1),
+        default_factory=partial(search_space.IntRange, min=0),
         metadata=field_metadata(
             allow_none=True, decoder=search_space.decode_count_space
         ),
