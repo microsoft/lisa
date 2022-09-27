@@ -61,12 +61,10 @@ class Git(Tool):
 
         cmd = f"clone {url} {dir_name} --recurse-submodules"
         # git print to stderr for normal info, so set no_error_log to True.
-        result = self.run(cmd, cwd=cwd, no_error_log=True,)
+        result = self.run(cmd, cwd=cwd, no_error_log=True)
         if get_matched_str(result.stdout, self.CERTIFICATE_ISSUE_PATTERN):
             self.run("config --global http.sslverify false")
-            result = self.run(
-                cmd, cwd=cwd, no_error_log=True, force_run=True,
-            )
+            result = self.run(cmd, cwd=cwd, no_error_log=True, force_run=True)
 
         # mark directory safe
         self._mark_safe(cwd)
