@@ -102,6 +102,7 @@ class TaskManager(Generic[T_RESULT]):
         self._futures.append(future)
 
     def cancel(self) -> None:
+        self._log.info("Called to cancel all tasks.")
         self._cancelled = True
 
     def check_cancelled(self) -> None:

@@ -220,8 +220,8 @@ class RootRunner(Action):
 
             self._start_loop()
         except Exception as identifier:
+            self._log.info(f"canceling runner due to exception: {identifier}")
             cancel()
-            raise identifier
         finally:
             self._cleanup()
 
