@@ -2,7 +2,6 @@
 # Licensed under the MIT license.
 
 import re
-from pathlib import PurePosixPath
 from typing import Any, Pattern
 
 from assertpy.assertpy import assert_that
@@ -22,13 +21,14 @@ from lisa.features.disks import (
     DiskStandardSSDLRS,
 )
 from lisa.node import Node
-from lisa.operating_system import CentOs
 from lisa.schema import DiskType
 from lisa.sut_orchestrator import AZURE
 from lisa.sut_orchestrator.azure.features import AzureDiskOptionSettings
 from lisa.sut_orchestrator.azure.tools import Waagent
 from lisa.tools import Blkid, Cat, Dmesg, Echo, Lsblk, Swap
 from lisa.util import BadEnvironmentStateException, LisaException, get_matched_str
+
+from .common import get_resource_disk_mount_point
 
 
 @TestSuiteMetadata(
@@ -97,7 +97,7 @@ class Storage(TestSuite):
         ),
     )
     def verify_resource_disk_mtab_entry(self, log: Logger, node: RemoteNode) -> None:
-        resource_disk_mount_point = self._get_resource_disk_mount_point(log, node)
+        resource_disk_mount_point = get_resource_disk_mount_point(log, node)
         # os disk(root disk) is the entry with mount point `/' in the output
         # of `mount` command
         os_disk = (
@@ -154,7 +154,7 @@ class Storage(TestSuite):
         ),
     )
     def verify_resource_disk_io(self, log: Logger, node: RemoteNode) -> None:
-        resource_disk_mount_point = self._get_resource_disk_mount_point(log, node)
+        resource_disk_mount_point = get_resource_disk_mount_point(log, node)
 
         # verify that resource disk is mounted
         # function returns successfully if disk matching mount point is present
@@ -475,26 +475,6 @@ class Storage(TestSuite):
 
     def _get_managed_disk_id(self, identifier: str) -> str:
         return f"disk_{identifier}"
-
-    def _get_resource_disk_mount_point(
-        self,
-        log: Logger,
-        node: RemoteNode,
-    ) -> str:
-        # by default, cloudinit will use /mnt as mount point of resource disk
-        # in CentOS, cloud.cfg.d/91-azure_datasource.cfg customize mount point as
-        # /mnt/resource
-        if (
-            node.shell.exists(PurePosixPath("/var/log/cloud-init.log"))
-            and node.shell.exists(PurePosixPath("/var/lib/cloud/instance"))
-            and not isinstance(node.os, CentOs)
-        ):
-            log.debug("Disk handled by cloud-init.")
-            mount_point = "/mnt"
-        else:
-            log.debug("Disk handled by waagent.")
-            mount_point = node.tools[Waagent].get_resource_disk_mount_point()
-        return mount_point
 
     def _get_mtab_mount_point_regex(self, mount_point: str) -> Pattern[str]:
         regex = re.compile(rf".*\s+\/dev\/(?P<partition>\D+).*\s+{mount_point}.*")
