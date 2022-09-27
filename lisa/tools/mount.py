@@ -48,8 +48,9 @@ class PartitionInfo(object):
 
 class Mount(Tool):
     _DEFAULT_TYPE = FileSystem.ext4
+    # umount: nvme0n1: not mounted.
     __UMOUNT_ERROR_PATTERN = re.compile(
-        r".*(mountpoint not found|no mount point specified)", re.MULTILINE
+        r".*(mountpoint not found|no mount point specified|not mounted)", re.MULTILINE
     )
 
     # /dev/sda1 on / type ext4 (rw,relatime,discard)

@@ -41,12 +41,20 @@ class Dns(TestSuite):
     def verify_dns_name_resolution_after_upgrade(self, node: Node) -> None:
         self._check_dns_name_resolution(node)
         if isinstance(node.os, Debian):
+            cmd_result = node.execute(
+                "which unattended-upgrade",
+                sudo=True,
+                shell=True,
+            )
+            if 0 != cmd_result.exit_code:
+                node.os.install_packages("unattended-upgrades")
             node.execute(
                 "apt update && unattended-upgrade -d -v",
                 sudo=True,
                 shell=True,
                 expected_exit_code=0,
                 expected_exit_code_failure_message="fail to run unattended-upgrade",
+                timeout=1200,
             )
         elif isinstance(node.os, Posix):
             node.os.update_packages("")

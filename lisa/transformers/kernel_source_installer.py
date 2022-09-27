@@ -330,8 +330,8 @@ class RepoLocation(BaseLocation):
             self._log.info(f"checkout code from: '{runbook.ref}'")
             git.checkout(ref=runbook.ref, cwd=code_path)
 
-        commitids = git.list_commit_ids(cwd=code_path)
-        self._log.info(f"Kernel HEAD is now at : {commitids[0]}")
+        latest_commit_id = git.get_latest_commit_id(cwd=code_path)
+        self._log.info(f"Kernel HEAD is now at : {latest_commit_id}")
 
         return code_path
 

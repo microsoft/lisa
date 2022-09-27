@@ -585,20 +585,20 @@ class NetworkInterface(AzureFeatureMixin, features.NetworkInterface):
     def _initialize(self, *args: Any, **kwargs: Any) -> None:
         super()._initialize(*args, **kwargs)
         self._initialize_information(self._node)
-        extra_nics = self._get_all_nics()
+        all_nics = self._get_all_nics()
         # store extra synthetic and sriov nics count
         # in order to restore nics status after testing which needs change nics
         # extra synthetic nics count before testing
         self.origin_extra_synthetic_nics_count = len(
             [
                 x
-                for x in extra_nics
+                for x in all_nics
                 if x.primary is False and x.enable_accelerated_networking is False
             ]
         )
         # extra sriov nics count before testing
         self.origin_extra_sriov_nics_count = (
-            len(extra_nics) - self.origin_extra_synthetic_nics_count
+            len(all_nics) - self.origin_extra_synthetic_nics_count - 1
         )
 
     def switch_sriov(self, enable: bool, wait: bool = True) -> None:
