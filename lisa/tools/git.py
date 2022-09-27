@@ -178,7 +178,7 @@ class Git(Tool):
         )
         return filter_ansi_escape(result.stdout).splitlines()
 
-    def get_latest_commit_id(self, cwd: pathlib.PurePath) -> List[str]:
+    def get_latest_commit_id(self, cwd: pathlib.PurePath) -> str:
         result = self.run(
             "--no-pager log -n 1 --pretty=format:%h",
             shell=True,
