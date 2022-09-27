@@ -1435,7 +1435,7 @@ class SecurityProfile(AzureFeatureMixin, features.SecurityProfile):
         gen_value = raw_capabilities.get("HyperVGenerations", None)
         cvm_value = raw_capabilities.get("ConfidentialComputingType", None)
         if gen_value and "V2" in str(gen_value):
-            capabilities.append(SecurityProfileType.Boot)
+            capabilities.append(SecurityProfileType.SecureBoot)
         if cvm_value:
             capabilities.append(SecurityProfileType.CVM)
 
@@ -1459,7 +1459,7 @@ class SecurityProfile(AzureFeatureMixin, features.SecurityProfile):
         if SecurityProfileType.Standard == settings.security_profile:
             log.debug("Security profile set to none. Arm template will not be updated.")
             return
-        elif SecurityProfileType.Boot == settings.security_profile:
+        elif SecurityProfileType.SecureBoot == settings.security_profile:
             log.debug("Security Profile set to secure boot. Updating arm template.")
             security_type = "TrustedLaunch"
         elif SecurityProfileType.CVM == settings.security_profile:
