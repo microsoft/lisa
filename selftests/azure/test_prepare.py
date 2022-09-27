@@ -266,7 +266,6 @@ class AzurePrepareTestCase(TestCase):
         env.runbook._original_nodes_requirement.append(
             schema.NodeSpace(memory_mb=search_space.IntRange(min=143360))
         )
-        self._set_nodes_raw(env)
         self.verify_prepared_nodes(
             expected_result=True,
             expected_locations=["eastus2", "eastus2"],
@@ -282,7 +281,6 @@ class AzurePrepareTestCase(TestCase):
         env.runbook._original_nodes_requirement.append(
             schema.NodeSpace(core_count=8, memory_mb=16384)
         )
-        self._set_nodes_raw(env)
         self.verify_prepared_nodes(
             expected_result=True,
             expected_locations=["eastus2", "eastus2"],
@@ -301,7 +299,6 @@ class AzurePrepareTestCase(TestCase):
                 network_interface=schema.NetworkInterfaceOptionSettings(nic_count=3)
             )
         )
-        self._set_nodes_raw(env)
         self.verify_prepared_nodes(
             expected_result=True,
             expected_locations=["eastus2", "eastus2"],
@@ -382,7 +379,6 @@ class AzurePrepareTestCase(TestCase):
         environment = Environment(
             is_predefined=True, warn_as_error=False, id_=0, runbook=runbook
         )
-        self._set_nodes_raw(environment)
 
         return environment
 
@@ -401,7 +397,6 @@ class AzurePrepareTestCase(TestCase):
         node_runbook.location = location
         node_runbook.vm_size = vm_size
         node_runbook.maximize_capability = max_capability
-        self._set_nodes_raw(environment)
 
     def verify_prepared_nodes(
         self,
@@ -450,20 +445,3 @@ class AzurePrepareTestCase(TestCase):
                 self.assertLessEqual(0, node_cap.gpu_count)
 
         self.assertEqual(expected_cost, environment.cost)
-
-    def _set_nodes_raw(self, environment: Environment) -> None:
-        if not environment.runbook.nodes_requirement:
-            return
-        environment.runbook.nodes_raw = []
-        for requirement in environment.runbook.nodes_requirement:
-            extended_runbook = requirement.get_extended_runbook(
-                common.AzureNodeSchema, AZURE
-            )
-            node_raw = requirement.to_dict()  # type: ignore
-            extended_raw = extended_runbook.to_dict()  # type: ignore
-            for field in ["marketplace", "shared_gallery"]:
-                if field in extended_raw and not extended_raw[field]:
-                    del extended_raw[field]
-            node_raw["azure"] = extended_raw
-
-            environment.runbook.nodes_raw.append(node_raw)
