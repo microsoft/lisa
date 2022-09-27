@@ -1,9 +1,0 @@
-apiVersion: v1
-kind: Pod
-metadata:
-  name: myapp-pod
-spec:
-  runtimeClassName: kata-qemu
-  containers:
-    - name: aks-helloworld-one
-      image: 'mcr.microsoft.com/azuredocs/aks-helloworld:v1'

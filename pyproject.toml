@@ -54,8 +54,6 @@ sphinxemoji = {version="^0.1.8", optional=true}
 sphinx-copybutton = {version="^0.4.0", optional=true}
 rstcheck = {version="^3.3.1", optional=true}
 types-Pillow = {version="^8.3.3", optional=true}
-azure-mgmt-containerservice = {version = "^20.3.0", optional = true}
-kubernetes = {version = "^24.2.0", optional = true}
 
 [tool.poetry.dev-dependencies]
 black = "^22.3.0"
@@ -77,7 +75,7 @@ types-cachetools = "^5.2.1"
 
 
 [tool.poetry.extras]
-azure = ["azure-identity", "azure-storage-blob", "azure-mgmt-compute", "azure-mgmt-marketplaceordering", "azure-mgmt-network", "azure-mgmt-resource", "azure-mgmt-serialconsole", "azure-mgmt-storage", "azure-storage-file-share", "PyGObject", "Pillow", "types-Pillow", "azure-mgmt-containerservice", "kubernetes"]
+azure = ["azure-identity", "azure-storage-blob", "azure-mgmt-compute", "azure-mgmt-marketplaceordering", "azure-mgmt-network", "azure-mgmt-resource", "azure-mgmt-serialconsole", "azure-mgmt-storage", "azure-storage-file-share", "PyGObject", "Pillow", "types-Pillow"]
 libvirt = ["libvirt-python"]
 aws = ["boto3", "boto3-stubs"]
 legacy = ["pypiwin32"]
