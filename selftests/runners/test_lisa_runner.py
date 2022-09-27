@@ -395,21 +395,22 @@ class RunnerTestCase(TestCase):
         self.verify_env_results(
             expected_prepared=["customized_0"],
             expected_deployed_envs=[],
-            expected_deleted_envs=[],
+            expected_deleted_envs=["customized_0"],
             runner=runner,
         )
-        no_more_resource_message = "no more resource to deploy"
+        no_awaitable_resource_message = "deployment skipped: awaitable resource"
+        no_more_resource_message = "no available environment"
         self.verify_test_results(
             expected_test_order=["mock_ut1", "mock_ut2", "mock_ut3"],
-            expected_envs=["", "", ""],
+            expected_envs=["", "customized_0", ""],
             expected_status=[
                 TestStatus.SKIPPED,
                 TestStatus.SKIPPED,
                 TestStatus.SKIPPED,
             ],
             expected_message=[
-                self.__skipped_no_env,
                 no_more_resource_message,
+                no_awaitable_resource_message,
                 no_more_resource_message,
             ],
             test_results=test_results,
