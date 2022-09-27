@@ -1447,6 +1447,11 @@ class SecurityProfile(AzureFeatureMixin, features.SecurityProfile):
     def on_before_deployment(cls, *args: Any, **kwargs: Any) -> None:
         settings = cast(SecurityProfileSettings, kwargs.get("settings"))
         if SecurityProfileType.Standard != settings.security_profile:
+            parameters: Any = kwargs.get("arm_parameters")
+            if 1 == parameters.nodes[0].hyperv_generation:
+                raise SkippedException(
+                    f"{settings.security_profile} can only be set on gen2 image/vhd."
+                )
             cls._enable_secure_boot(*args, **kwargs)
 
     @classmethod
