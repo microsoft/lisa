@@ -623,6 +623,7 @@ class BaseLibvirtPlatform(Platform):
                 port_not_found = True
                 while port_not_found:
                     if self._next_available_port > 65535:
+                        self._port_forwarding_lock.release()
                         raise LisaException("No available ports on the host to forward")
 
                     # check if the port is already in use
