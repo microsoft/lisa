@@ -4,7 +4,7 @@ import json
 import os
 import re
 from dataclasses import dataclass
-from pathlib import PurePath
+from pathlib import Path, PurePath
 from typing import Any, List, Optional, Type
 
 from assertpy.assertpy import assert_that
@@ -29,6 +29,7 @@ class CHPerfMetricTestResult:
     status: TestStatus = TestStatus.QUEUED
     error: str = ""
     metrics: str = ""
+    trace: str = ""
 
 
 class CloudHypervisorTests(Tool):
@@ -95,17 +96,19 @@ class CloudHypervisorTests(Tool):
         test_result: TestResult,
         environment: Environment,
         hypervisor: str,
+        log_path: Path,
         skip: Optional[List[str]] = None,
     ) -> None:
-        temp = self.repo_root.joinpath("perf_mtr_report")
+        temp = log_path.joinpath("perf_mtr_report")
         self.per_mtr_report_file = temp.joinpath("testcase_result.json")
 
         perf_metrics_tests = self._list_perf_metrics_tests(hypervisor=hypervisor)
-        testcase_result = {}
+        testcases_result_list: List[CHPerfMetricTestResult] = []
+
         for testcase in perf_metrics_tests:
             self._log.info(f"Running testcase : {testcase}")
-            testcase_result[testcase] = {}
-            testcase_result[testcase]["status"] = "Started"
+            testcase_result = CHPerfMetricTestResult()
+            testcase_result.name = testcase
 
             try:
                 result = self.run(
@@ -120,27 +123,31 @@ class CloudHypervisorTests(Tool):
                 output = result.stdout.replace("\r\n", "\n")
                 output = output.replace("\t", "")
                 if result.exit_code != 0:
-                    excep = Exception(f"Test Case Failed : {testcase}", output)
+                    excep = Exception(f"Testcase failed : {testcase}", output)
                     raise excep
-                testcase_result[testcase]["status"] = "Succeeded"
                 metrics = self._process_perf_metric_test_result(result.stdout)
-                testcase_result[testcase]["metrics"] = metrics
-                testcase_result[testcase]["err"] = ""
+                testcase_result.status = TestStatus.PASSED
+                testcase_result.metrics = metrics
+
             except Exception as e:
                 self._log.error(f"Testcase failed , tescase name : {testcase}")
-                testcase_result[testcase]["status"] = "Failed"
-                testcase_result[testcase]["err"] = str(e.args[0])
-                testcase_result[testcase]["trace"] = str(e.args[1])
-                testcase_result[testcase]["metrics"] = ""
-        report = self._create_perf_metric_report(testcase_result)
+                testcase_result.status = TestStatus.FAILED
+                testcase_result.error = str(e.args[0])
+                testcase_result.trace = str(e.args[1])
+            testcases_result_list.append(testcase_result)
 
-        for record in report:
-            msg = record.metrics if record.status == TestStatus.PASSED else record.error
+        self._create_perf_metric_report(testcases_result_list)
+        for testcase_result in testcases_result_list:
+            msg = (
+                testcase_result.metrics
+                if testcase_result.status == TestStatus.PASSED
+                else testcase_result.error
+            )
             self._send_subtest_msg(
                 test_id=test_result.id_,
                 environment=environment,
-                test_name=record.name,
-                test_status=record.status,
+                test_name=testcase_result.name,
+                test_status=testcase_result.status,
                 test_message=msg,
             )
 
@@ -258,34 +265,26 @@ class CloudHypervisorTests(Tool):
         self._log.debug(f"Result from testcase stdout : {result}")
         return result
 
-    def _create_perf_metric_report(
-        self, testcase_result
-    ) -> List[CHPerfMetricTestResult]:
+    def _create_perf_metric_report(self, testcases_result_list) -> None:
         if not os.path.exists(self.per_mtr_report_file):
             os.mkdir(
                 os.path.abspath(self.per_mtr_report_file).replace(
                     os.path.basename(self.per_mtr_report_file), ""
                 )
             )
+
+        testcase_result_data = {"testcases": []}
+        for testcase_result in testcases_result_list:
+            testcase_result_json = {
+                "name": testcase_result.name,
+                "status": "PASSED"
+                if testcase_result.status == TestStatus.PASSED
+                else "FAILED",
+                "metrics": testcase_result.metrics,
+                "error": testcase_result.error,
+                "trace": testcase_result.trace,
+            }
+            testcase_result_data["testcases"].append(testcase_result_json)
+
         with open(self.per_mtr_report_file, "w") as f:
-            f.write(json.dumps(testcase_result))
-        result = []
-        for key, item in testcase_result.items():
-            status = ""
-            error = ""
-            metrics = None
-
-            if item["status"] == "Succeeded":
-                status = TestStatus.PASSED
-                error = ""
-                metrics = item["metrics"]
-            else:
-                status = TestStatus.FAILED
-                error = item["err"]
-                metrics = ""
-
-            temp = CHPerfMetricTestResult(
-                name=key, status=status, error=error, metrics=metrics
-            )
-            result.append(temp)
-        return result
+            f.write(json.dumps(testcase_result_data))
