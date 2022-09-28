@@ -132,7 +132,6 @@ class CloudHypervisorTests(Tool):
                 testcase_result[testcase]["err"] = str(e.args[0])
                 testcase_result[testcase]["trace"] = str(e.args[1])
                 testcase_result[testcase]["metrics"] = ""
-        self._log.debug(testcase_result)
         report = self._create_perf_metric_report(testcase_result)
 
         for record in report:
@@ -231,21 +230,23 @@ class CloudHypervisorTests(Tool):
             timeout=self.TIME_OUT,
             force_run=True,
             cwd=self.repo_root,
-            no_info_log=False,  # print out result of each test
+            no_info_log=False,
             shell=True,
             expected_exit_code=0,
         )
 
         stdout = result.stdout
+
+        # Ex. String for below regex : "boot_time_ms" (test_timeout = 2s, test_iterations = 10)
         regex = '\\"(.*)\\" \\('
+
         pattern = re.compile(regex)
         tests_list = pattern.findall(stdout)
 
-        self._log.debug(f"Testcase found : {tests_list}")
+        self._log.debug(f"Testcases found : {tests_list}")
         return tests_list
 
     def _process_perf_metric_test_result(self, output: str) -> str:
-        self._log.debug("Processing the testcase stdout")
         cnt = 0
         for line in output.split("\n"):
             if line.find("git_human_readable") >= 0:
