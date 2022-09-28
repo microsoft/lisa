@@ -190,6 +190,7 @@ class KdumpBase(Tool):
 
     @classmethod
     def create(cls, node: "Node", *args: Any, **kwargs: Any) -> Tool:
+        # FreeBSD image doesn't support kdump since the kernel has no DDB option
         if isinstance(node.os, Redhat):
             return KdumpRedhat(node)
         elif isinstance(node.os, Debian):
