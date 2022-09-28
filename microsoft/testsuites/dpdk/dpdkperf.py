@@ -40,6 +40,7 @@ class DpdkPerformance(TestSuite):
         """,
         priority=3,
         requirement=simple_requirement(
+            min_core_count=8,
             min_count=2,
             network_interface=Sriov(),
             min_nic_count=2,
@@ -62,6 +63,7 @@ class DpdkPerformance(TestSuite):
         """,
         priority=3,
         requirement=simple_requirement(
+            min_core_count=8,
             min_count=2,
             network_interface=Sriov(),
             min_nic_count=2,
@@ -84,6 +86,7 @@ class DpdkPerformance(TestSuite):
         """,
         priority=3,
         requirement=simple_requirement(
+            min_core_count=8,
             min_count=2,
             network_interface=Sriov(),
             min_nic_count=8,
@@ -109,6 +112,7 @@ class DpdkPerformance(TestSuite):
         """,
         priority=3,
         requirement=simple_requirement(
+            min_core_count=8,
             min_count=2,
             network_interface=Sriov(),
             min_nic_count=2,
@@ -131,6 +135,7 @@ class DpdkPerformance(TestSuite):
         """,
         priority=3,
         requirement=simple_requirement(
+            min_core_count=8,
             min_count=2,
             network_interface=Sriov(),
             min_nic_count=8,
@@ -156,6 +161,7 @@ class DpdkPerformance(TestSuite):
         priority=3,
         requirement=simple_requirement(
             min_count=2,
+            min_core_count=8,
             network_interface=Sriov(),
             min_nic_count=8,
             unsupported_features=[Gpu, Infiniband],
@@ -188,6 +194,7 @@ class DpdkPerformance(TestSuite):
         requirement=simple_requirement(
             min_count=2,
             network_interface=Sriov(),
+            min_core_count=8,
             min_nic_count=2,
             unsupported_features=[Gpu, Infiniband],
             supported_features=[IsolatedResource],
@@ -210,6 +217,7 @@ class DpdkPerformance(TestSuite):
             min_count=2,
             network_interface=Sriov(),
             min_nic_count=2,
+            min_core_count=8,
             unsupported_features=[Gpu, Infiniband],
             supported_features=[IsolatedResource],
         ),
@@ -233,6 +241,7 @@ class DpdkPerformance(TestSuite):
             min_count=2,
             network_interface=Sriov(),
             min_nic_count=8,
+            min_core_count=8,
             unsupported_features=[Gpu, Infiniband],
             supported_features=[IsolatedResource],
         ),
@@ -257,6 +266,7 @@ class DpdkPerformance(TestSuite):
             min_count=2,
             network_interface=Sriov(),
             min_nic_count=2,
+            min_core_count=8,
             unsupported_features=[Gpu, Infiniband],
             supported_features=[IsolatedResource],
         ),
@@ -279,6 +289,7 @@ class DpdkPerformance(TestSuite):
             min_count=2,
             network_interface=Sriov(),
             min_nic_count=8,
+            min_core_count=8,
             unsupported_features=[Gpu, Infiniband],
             supported_features=[IsolatedResource],
         ),
@@ -302,6 +313,7 @@ class DpdkPerformance(TestSuite):
         requirement=simple_requirement(
             min_count=2,
             network_interface=Sriov(),
+            min_core_count=8,
             min_nic_count=8,
             unsupported_features=[Gpu, Infiniband],
             supported_features=[IsolatedResource],
