@@ -111,8 +111,8 @@ class CloudHypervisorTestSuite(TestSuite):
         result: TestResult,
     ) -> None:
         hypervisor = self._get_hypervisor_param(node)
-        node.tools[CloudHypervisorTests].run_tests(
-            result, environment, "metrics", hypervisor
+        node.tools[CloudHypervisorTests].run_metrics_tests(
+            result, environment, hypervisor
         )
 
     def _ensure_virtualization_enabled(self, node: Node) -> None:
