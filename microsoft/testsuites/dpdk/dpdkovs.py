@@ -9,7 +9,7 @@ from semver import VersionInfo
 from lisa.executable import Tool
 from lisa.operating_system import Debian, Fedora
 from lisa.tools import Chown, Gcc, Git, Ip, Make, Modprobe, Uname, Whoami
-from lisa.util import UnsupportedDistroException
+from lisa.util import SkippedException, UnsupportedDistroException
 from microsoft.testsuites.dpdk.dpdktestpmd import DpdkTestpmd
 
 
@@ -111,42 +111,45 @@ class DpdkOvs(Tool):
         # confirm supported ovs:dpdk version pairing based on
         # https://docs.openvswitch.org/en/latest/faq/releases/
         # to account for minor releases check release is below a major version threshold
-        ovs_dpdk_version_pairings = [
-            ("2.13.0", 18),  # if below 2.13.0 then dpdk version is 18
-            ("2.15.0", 19),  # and so on
-            ("2.17.0", 20),
-            ("2.18.0", 21),
-        ]
-        # check is version too low
-        if self.ovs_version < "2.11.0":
-            fail(
-                "OVS < 2.10 is not supported with any supported "
-                "DPDK version as of 2/8/2022"
+        dpdk_to_ovs_minimum_version = {
+            19: "2.13.0",
+            20: "2.15.0",
+            21: "2.17.0",
+            22: "3.0.0",
+        }
+
+        # check if dpdk version too low
+        if dpdk_version < "19.11.0":
+            raise SkippedException(
+                f"Dpdk version {dpdk_version} is not supported by this test."
             )
-        # check if version too high (pairing is unknown)
-        elif self.ovs_version > "2.18.0":
-            raise NotImplementedError(
-                (
-                    f"Not implemented OVS version {self.ovs_version}. "
-                    "Please update the version requirement table in "
-                    "dpdkovs.py:check_ovs_dpdk_compatibilty with new data"
-                    "from https://docs.openvswitch.org/en/latest/faq/releases/"
-                )
+
+        # check if DPDK version is above the versions in the table.
+        if int(dpdk_version.major) not in dpdk_to_ovs_minimum_version.keys():
+            # we've already checked out latest OVS
+            # DPDK version is above 22, warn and proceed.
+            self.node.log.info(
+                "DPDK version is above the maximum in the version match "
+                "table. Using latest OVS. If test fails, the dpdk_to_ovs_minimum "
+                "verison table may need an update. "
+                "check https://docs.openvswitch.org/en/latest/faq/releases/"
             )
-        else:
-            # iterate confirmed supported versions
-            for version_limit in ovs_dpdk_version_pairings:
-                ovs_upper_limit, dpdk_version_requirement = version_limit
-                if self.ovs_version < ovs_upper_limit:
-                    # located the correct range, check if versions match
-                    if dpdk_version.major == dpdk_version_requirement:
-                        break
-                    # if they don't match, fail
-                    fail(
-                        f"OVS Version {self.ovs_version} requires DPDK "
-                        f"major version of {dpdk_version_requirement}, "
-                        f"found {dpdk_version}"
-                    )
+            return
+
+        # fetch the minimum version from the map
+        minimum_version = dpdk_to_ovs_minimum_version[int(dpdk_version.major)]
+
+        # we'll check out the latest version of that release
+        git = self.node.tools[Git]
+
+        # build a filter to select tags with the version prefix
+        version_major_and_minor = "\\.".join(minimum_version.split(".")[:2])
+
+        # get the tags, picks the latest with that prefix
+        tag = git.get_tag(cwd=self.repo_dir, filter=f"^v{version_major_and_minor}.*")
+
+        # checkout the revision into a local branch
+        git.checkout(tag, cwd=self.repo_dir, checkout_branch=f"local-{tag}")
 
     def build_with_dpdk(self, dpdk_tool: DpdkTestpmd) -> None:
         node = self.node
