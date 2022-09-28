@@ -4,7 +4,7 @@ import inspect
 import pathlib
 from typing import Any, Dict, List, Optional, Union, cast
 
-from lisa import Node, RemoteNode, notifier, run_in_parallel
+from lisa import LisaException, Node, RemoteNode, notifier, run_in_parallel
 from lisa.environment import Environment
 from lisa.messages import (
     DiskPerformanceMessage,
@@ -405,23 +405,39 @@ def perf_iperf(
             client_start_port = 750
             current_client_port = client_start_port
             current_client_iperf_instances = 0
+            retries = 10
             while current_client_iperf_instances < num_threads_n:
-                current_client_iperf_instances += 1
-                client_iperf3_process_list.append(
-                    client_iperf3.run_as_client_async(
-                        server.internal_address,
-                        output_json=True,
-                        report_periodic=1,
-                        report_unit="g",
-                        port=current_client_port,
-                        buffer_length=buffer_length,
-                        run_time_seconds=10,
-                        parallel_number=num_threads_p,
-                        ip_version="4",
-                        udp_mode=udp_mode,
-                    )
+                client_proc = client_iperf3.run_as_client_async(
+                    server.internal_address,
+                    output_json=True,
+                    report_periodic=1,
+                    report_unit="g",
+                    port=current_client_port,
+                    buffer_length=buffer_length,
+                    run_time_seconds=10,
+                    parallel_number=num_threads_p,
+                    ip_version="4",
+                    udp_mode=udp_mode,
                 )
-                current_client_port += 1
+                # quick check if the client is still running after 200ms
+                if client_proc.is_running(0.2):
+                    current_client_iperf_instances += 1
+                    current_client_port += 1
+                    client_iperf3_process_list.append(client_proc)
+                else:
+                    # allow some retries
+                    if retries > 0:
+                        retries -= 1
+                        client.log.info(
+                            "Client process failed to connect, "
+                            f"{retries} retries remaining..."
+                        )
+                    else:
+                        raise LisaException(
+                            f"Error: client {current_client_port} "
+                            "could not connect and retries were exhausted."
+                        )
+
             for client_iperf3_process in client_iperf3_process_list:
                 client_result_list.append(client_iperf3_process.wait_result())
             for server_iperf3_process in server_iperf3_process_list:

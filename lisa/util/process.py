@@ -275,9 +275,15 @@ class Process:
             except Exception as identifier:
                 self._log.debug(f"failed on killing process: {identifier}")
 
-    def is_running(self) -> bool:
-        if self._running and self._process:
-            self._running = self._process.is_running()
+    def is_running(self, wait: float = 0) -> bool:
+        start_time = time.monotonic()
+        while 1:
+            if self._running and self._process:
+                self._running = self._process.is_running()
+            if wait <= 0 or not self._running:
+                break
+            else:
+                wait -= time.monotonic() - start_time
         return self._running
 
     def wait_output(
