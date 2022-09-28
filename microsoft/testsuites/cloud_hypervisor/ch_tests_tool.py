@@ -22,12 +22,14 @@ class CloudHypervisorTestResult:
     name: str = ""
     status: TestStatus = TestStatus.QUEUED
 
+
 @dataclass
 class CHPerfMetricTestResult:
     name: str = ""
     status: TestStatus = TestStatus.QUEUED
     error: str = ""
     metrics: str = ""
+
 
 class CloudHypervisorTests(Tool):
     TIME_OUT = 7200
@@ -140,7 +142,7 @@ class CloudHypervisorTests(Tool):
                 environment=environment,
                 test_name=record.name,
                 test_status=record.status,
-                test_message=msg
+                test_message=msg,
             )
 
     def _initialize(self, *args: Any, **kwargs: Any) -> None:
@@ -212,15 +214,10 @@ class CloudHypervisorTests(Tool):
         environment: Environment,
         test_name: str,
         test_status: TestStatus,
-        test_message: str = ""
+        test_message: str = "",
     ) -> None:
         subtest_msg = create_test_result_message(
-            SubTestMessage,
-            test_id,
-            environment,
-            test_name,
-            test_status,
-            test_message
+            SubTestMessage, test_id, environment, test_name, test_status, test_message
         )
 
         notifier.notify(subtest_msg)
@@ -277,7 +274,7 @@ class CloudHypervisorTests(Tool):
             error = ""
             metrics = None
 
-            if (item["status"] == "Succeeded"):
+            if item["status"] == "Succeeded":
                 status = TestStatus.PASSED
                 error = ""
                 metrics = item["metrics"]
@@ -285,12 +282,9 @@ class CloudHypervisorTests(Tool):
                 status = TestStatus.FAILED
                 error = item["err"]
                 metrics = ""
-            
+
             temp = CHPerfMetricTestResult(
-                name=key,
-                status=status,
-                error=error,
-                metrics=metrics
+                name=key, status=status, error=error, metrics=metrics
             )
             result.append(temp)
         return result
