@@ -106,7 +106,6 @@ class CloudHypervisorTests(Tool):
         testcases_result_list: List[CHPerfMetricTestResult] = []
 
         for testcase in perf_metrics_tests:
-            self._log.info(f"Running testcase : {testcase}")
             testcase_result = CHPerfMetricTestResult()
             testcase_result.name = testcase
 
