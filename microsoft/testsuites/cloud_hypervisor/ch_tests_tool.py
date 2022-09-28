@@ -99,8 +99,7 @@ class CloudHypervisorTests(Tool):
         log_path: Path,
         skip: Optional[List[str]] = None,
     ) -> None:
-        temp = log_path.joinpath("perf_mtr_report")
-        self.per_mtr_report_file = temp.joinpath("testcase_result.json")
+        self.per_mtr_report_file = log_path.joinpath("perf_metrics.json")
 
         perf_metrics_tests = self._list_perf_metrics_tests(hypervisor=hypervisor)
         testcases_result_list: List[CHPerfMetricTestResult] = []
