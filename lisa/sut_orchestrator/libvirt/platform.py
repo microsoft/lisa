@@ -587,7 +587,7 @@ class BaseLibvirtPlatform(Platform):
         )
 
     def _stop_port_forwarding(self, environment: Environment, log: Logger) -> None:
-        log.debug(f"clearing port forwarding rules for environment {environment.name}")
+        log.debug(f"Clearing port forwarding rules for environment {environment.name}")
         if environment.id not in self._env_ports_mapping:
             return
         for (port, address) in self._env_ports_mapping[environment.id]:
@@ -623,7 +623,7 @@ class BaseLibvirtPlatform(Platform):
                 port_not_found = True
                 while port_not_found:
                     if self._next_available_port > 65535:
-                        raise LisaException("No available ports on Hosts to forward")
+                        raise LisaException("No available ports on the host to forward")
 
                     # check if the port is already in use
                     output = self.host_node.execute(
