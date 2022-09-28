@@ -121,14 +121,13 @@ class CloudHypervisorTests(Tool):
                 output = result.stdout.replace("\r\n", "\n")
                 output = output.replace("\t", "")
                 if result.exit_code != 0:
-                    excep = Exception(f"Testcase failed : {testcase}", output)
-                    raise excep
+                    raise Exception(f"Testcase failed : {testcase}", output)
                 metrics = self._process_perf_metric_test_result(result.stdout)
                 testcase_result.status = TestStatus.PASSED
                 testcase_result.metrics = metrics
 
             except Exception as e:
-                self._log.error(f"Testcase failed , tescase name : {testcase}")
+                self._log.error(f"Testcase failed, tescase name: {testcase}")
                 testcase_result.status = TestStatus.FAILED
                 testcase_result.error = str(e.args[0])
                 testcase_result.trace = str(e.args[1])
@@ -235,7 +234,6 @@ class CloudHypervisorTests(Tool):
             timeout=self.TIME_OUT,
             force_run=True,
             cwd=self.repo_root,
-            no_info_log=False,
             shell=True,
             expected_exit_code=0,
         )
@@ -248,7 +246,7 @@ class CloudHypervisorTests(Tool):
         pattern = re.compile(regex)
         tests_list = pattern.findall(stdout)
 
-        self._log.debug(f"Testcases found : {tests_list}")
+        self._log.debug(f"Testcases found: {tests_list}")
         return tests_list
 
     def _process_perf_metric_test_result(self, output: str) -> str:
@@ -264,12 +262,6 @@ class CloudHypervisorTests(Tool):
         return result
 
     def _create_perf_metric_report(self, testcases_result_list) -> None:
-        if not os.path.exists(self.per_mtr_report_file):
-            os.mkdir(
-                os.path.abspath(self.per_mtr_report_file).replace(
-                    os.path.basename(self.per_mtr_report_file), ""
-                )
-            )
 
         testcase_result_data = {"testcases": []}
         for testcase_result in testcases_result_list:
