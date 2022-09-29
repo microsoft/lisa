@@ -75,8 +75,6 @@ class BaseLibvirtPlatform(Platform):
         # used for port forwarding in case of Remote Host
         self._next_available_port: int
         self._port_forwarding_lock: Lock
-        # map env with list of (port, IP) used in port forwading
-        self._env_ports_mapping: Dict[int, List[Tuple[int, str]]]
 
         self._host_environment_information_hooks = {
             KEY_HOST_DISTRO: self._get_host_distro,
@@ -107,7 +105,6 @@ class BaseLibvirtPlatform(Platform):
         # 49512 is the first available private port
         self._next_available_port = 49152
         self._port_forwarding_lock = Lock()
-        self._env_ports_mapping = dict()
 
         self.platform_runbook = self.runbook.get_extended_runbook(
             self.__platform_runbook_type(), type_name=type(self).type_name()
@@ -588,11 +585,9 @@ class BaseLibvirtPlatform(Platform):
 
     def _stop_port_forwarding(self, environment: Environment, log: Logger) -> None:
         log.debug(f"Clearing port forwarding rules for environment {environment.name}")
-        if environment.id not in self._env_ports_mapping:
-            return
-        for (port, address) in self._env_ports_mapping[environment.id]:
+        environment_context = get_environment_context(environment)
+        for (port, address) in environment_context.port_forwarding_list:
             self.host_node.tools[Iptables].stop_forwarding(port, address, 22)
-        self._env_ports_mapping.pop(environment.id)
 
     # Retrieve the VMs' dynamic properties (e.g. IP address).
     def _fill_nodes_metadata(
@@ -604,7 +599,6 @@ class BaseLibvirtPlatform(Platform):
         timeout = time.time() + environment_context.network_boot_timeout
 
         if self.host_node.is_remote:
-            self._env_ports_mapping[environment.id] = list()
             remote_node = cast(RemoteNode, self.host_node)
             conn_info = remote_node.connection_info
             address = conn_info[constants.ENVIRONMENTS_NODES_REMOTE_ADDRESS]
@@ -640,7 +634,7 @@ class BaseLibvirtPlatform(Platform):
                     node_port, local_address, 22
                 )
 
-                self._env_ports_mapping[environment.id].append(
+                environment_context.port_forwarding_list.append(
                     (node_port, local_address)
                 )
             else:
