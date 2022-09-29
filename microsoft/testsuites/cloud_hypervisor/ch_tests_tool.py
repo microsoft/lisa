@@ -133,20 +133,7 @@ class CloudHypervisorTests(Tool):
                 testcase_result.trace = str(e.args[1])
             testcases_result_list.append(testcase_result)
 
-        self._create_perf_metric_report(testcases_result_list)
-        for testcase_result in testcases_result_list:
-            msg = (
-                testcase_result.metrics
-                if testcase_result.status == TestStatus.PASSED
-                else testcase_result.error
-            )
-            self._send_subtest_msg(
-                test_id=test_result.id_,
-                environment=environment,
-                test_name=testcase_result.name,
-                test_status=testcase_result.status,
-                test_message=msg,
-            )
+        self._create_perf_metric_report(testcases_result_list, test_result.id_, environment)
 
     def _initialize(self, *args: Any, **kwargs: Any) -> None:
         tool_path = self.get_tool_path(use_global=True)
@@ -261,10 +248,23 @@ class CloudHypervisorTests(Tool):
         self._log.debug(f"Result from testcase stdout : {result}")
         return result
 
-    def _create_perf_metric_report(self, testcases_result_list) -> None:
+    def _create_perf_metric_report(self, testcases_result_list, id, environment) -> None:
 
         testcase_result_data = {"testcases": []}
         for testcase_result in testcases_result_list:
+            msg = (
+                testcase_result.metrics
+                if testcase_result.status == TestStatus.PASSED
+                else testcase_result.error
+            )
+            self._send_subtest_msg(
+                test_id=id,
+                environment=environment,
+                test_name=testcase_result.name,
+                test_status=testcase_result.status,
+                test_message=msg,
+            )
+
             testcase_result_json = {
                 "name": testcase_result.name,
                 "status": "PASSED"
