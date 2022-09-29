@@ -1232,7 +1232,9 @@ class AzurePlatform(Platform):
                 # some errors, so check details
                 error_messages = self._parse_detail_errors(identifier.error)
 
-            raise LisaException("\n".join(error_messages))
+            error_message = "\n".join(error_messages)
+            plugin_manager.hook.azure_deploy_failed(error_message=error_message)
+            raise LisaException(error_message)
 
     def _deploy(
         self, location: str, deployment_parameters: Dict[str, Any], log: Logger
