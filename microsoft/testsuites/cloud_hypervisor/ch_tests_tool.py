@@ -133,7 +133,9 @@ class CloudHypervisorTests(Tool):
                 testcase_result.trace = str(e.args[1])
             testcases_result_list.append(testcase_result)
 
-        self._create_perf_metric_report(testcases_result_list, test_result.id_, environment)
+        self._create_perf_metric_report(
+            testcases_result_list, test_result.id_, environment
+        )
 
     def _initialize(self, *args: Any, **kwargs: Any) -> None:
         tool_path = self.get_tool_path(use_global=True)
@@ -248,7 +250,9 @@ class CloudHypervisorTests(Tool):
         self._log.debug(f"Result from testcase stdout : {result}")
         return result
 
-    def _create_perf_metric_report(self, testcases_result_list, id, environment) -> None:
+    def _create_perf_metric_report(
+        self, testcases_result_list, id, environment
+    ) -> None:
 
         testcase_result_data = {"testcases": []}
         for testcase_result in testcases_result_list:
