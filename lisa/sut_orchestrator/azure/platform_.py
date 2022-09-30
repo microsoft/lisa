@@ -1533,7 +1533,12 @@ class AzurePlatform(Platform):
             "EphemeralOSDiskSupported", None
         )
         if ephemeral_supported and eval(ephemeral_supported) is True:
-            node_space.disk.disk_type.add(schema.DiskType.Ephemeral)
+            # Check if CachedDiskBytes is greater than 30GB
+            # We use diffdisk as cache disk for ephemeral OS disk
+            cached_disk_bytes = azure_raw_capabilities.get("CachedDiskBytes", 0)
+            cached_disk_bytes_gb = int(cached_disk_bytes) / 1024 / 1024 / 1024
+            if cached_disk_bytes_gb >= 30:
+                node_space.disk.disk_type.add(schema.DiskType.Ephemeral)
 
         # set AN
         an_enabled = azure_raw_capabilities.get("AcceleratedNetworkingEnabled", None)
