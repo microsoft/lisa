@@ -1,9 +1,11 @@
 # Copyright (c) Microsoft Corporation.
 # Licensed under the MIT license.
 
+import copy
 import re
+import time
 from pathlib import PurePosixPath
-from typing import Any, Dict, List, Union, cast
+from typing import Any, Dict, List, Tuple, Union, cast
 
 from assertpy import assert_that
 
@@ -18,8 +20,8 @@ from lisa import (
     TestSuite,
     TestSuiteMetadata,
     UnsupportedOperationException,
-    node_requirement,
-    schema,
+    create_timer,
+    simple_requirement,
 )
 from lisa.base_tools import Uname
 from lisa.operating_system import Debian, Redhat, Suse
@@ -35,7 +37,6 @@ from microsoft.testsuites.network.common import cleanup_iperf3
     """,
 )
 class NetworkSettings(TestSuite):
-
     # regex for filtering per vmbus channel stats from the full device statistics.
     # [{'name': 'tx_scattered', 'value': '0'},
     #  {'name': 'tx_no_memory', 'value': '0'},
@@ -53,17 +54,24 @@ class NetworkSettings(TestSuite):
     #  {'name': 'tx_queue_1_bytes', 'value': '0'},
     #  {'name': 'rx_queue_1_packets', 'value': '1108'},
     #  {'name': 'rx_queue_1_bytes', 'value': '1415269'},
-    #  {'name': 'rx_queue_1_xdp_drop', 'value': '0'},
-    #  {'name': 'tx_queue_2_packets', 'value': '0'},]
-    #  {'name': 'cpu0_vf_rx_packets', 'value': '0'},]
-    #  {'name': 'cpu0_vf_rx_bytes', 'value': '0'},]
-    #  {'name': 'cpu0_vf_tx_packets', 'value': '0'},]
-    #  {'name': 'cpu0_vf_tx_bytes', 'value': '0'},]
     _queue_stats_regex = re.compile(r"[tr]x_queue_(?P<name>[\d]+)_packets")
     _vf_queue_stats_regex = re.compile(r"[tr]x(?P<name>[\d]+)_packets")
+
+    # This will match different tx queues like -
+    # {'name': 'tx_queue_0_packets', 'value': '0'}
+    # {'name': 'tx_queue_1_packets', 'value': '0'}
     _tx_queue_stats_regex = re.compile(r"tx_queue_(?P<name>[\d]+)_packets")
+    # This will match different rx queues like -
+    # {'name': 'rx_queue_0_packets', 'value': '0'}
+    # {'name': 'rx_queue_1_packets', 'value': '0'}
     _rx_queue_stats_regex = re.compile(r"rx_queue_(?P<name>[\d]+)_packets")
+    # This will match different vf tx queues like -
+    # {'name': 'tx0_packets', 'value': '966'}
+    # {'name': 'tx1_packets', 'value': '820'}
     _vf_tx_stats_regex = re.compile(r"tx(?P<name>[\d]+)_packets")
+    # This will match different vf rx queues like -
+    # {'name': 'rx0_packets', 'value': '283'}
+    # {'name': 'rx1_packets', 'value': '158'}
     _vf_rx_stats_regex = re.compile(r"rx(?P<name>[\d]+)_packets")
 
     @TestCaseMetadata(
@@ -544,19 +552,22 @@ class NetworkSettings(TestSuite):
 
     @TestCaseMetadata(
         description="""
-            This test case verifies that device statistics can be captured.
+            This test case requires 4 or more cpu cores, so as to validate
+            among 4 or more channels(queues), no particular queue is continuously
+            starving(not sending/receiving any packets).
 
             Steps:
             1. Get all the device's statistics.
             2. Validate device statistics lists per queue statistics as well.
-            3. Run traffic using iperf3 and validate traffic is evenly distributed
-                among different VMBUS channel queues.
+            3. Run traffic using iperf3 and check stats for each device.
+            4. if the same queue (say queue #0) is inactive repeatitively,
+                and the count of channels is >= 4 (total #queues), test should fail
+                and require further investigation.
         """,
         priority=2,
-        requirement=node_requirement(
-            node=schema.NodeSpace(
-                node_count=2,
-            )
+        requirement=simple_requirement(
+            min_count=2,
+            min_core_count=4,
         ),
     )
     def validate_device_statistics(self, environment: Environment, log: Logger) -> None:
@@ -565,28 +576,26 @@ class NetworkSettings(TestSuite):
         ethtool = client_node.tools[Ethtool]
 
         self._verify_stats_exists(server_node, client_node)
-        self._run_iperf3(server_node, client_node)
 
-        # validate from the stats that traffic is evenly spread
-        try:
-            devices_statistics = ethtool.get_all_device_statistics()
-        except UnsupportedOperationException as identifier:
-            raise SkippedException(identifier)
+        timeout = 300
+        timer = create_timer()
+        starving_queues: Tuple[List[int], List[int]] = ([], [])
+        prev_starved_queues = starving_queues
 
-        for device_stats in devices_statistics:
+        self._run_iperf3(server_node, client_node, run_time_seconds=timeout)
+
+        while timer.elapsed(False) < timeout:
+            # validate from the stats that no single queue is starved everytime.
+            device_stats = ethtool.get_device_statistics(
+                client_node.nics.default_nic, True
+            )
+
             per_tx_queue_packets: List[int] = []
             per_rx_queue_packets: List[int] = []
-            nic = client_node.nics.get_nic(device_stats.interface)
-            an_enabled = "AN Disabled "
-
+            nic = client_node.nics.get_nic(client_node.nics.default_nic)
             # If AN is enabled on this interface then check the vf stats.
             if nic.lower:
-                an_enabled = "AN Enabled "
-                try:
-                    device_stats = ethtool.get_device_statistics(nic.lower, True)
-                except UnsupportedOperationException as identifier:
-                    raise SkippedException(identifier)
-
+                device_stats = ethtool.get_device_statistics(nic.lower, True)
                 per_tx_queue_packets = [
                     v
                     for (k, v) in device_stats.counters.items()
@@ -611,27 +620,34 @@ class NetworkSettings(TestSuite):
                     if self._rx_queue_stats_regex.search(k)
                 ]
 
-            avg_tx_queue_packets = sum(per_tx_queue_packets) / len(per_tx_queue_packets)
-            per_tx_queue_pkt_percent: List[float] = []
-            for packet_count in per_tx_queue_packets:
-                per_tx_queue_pkt_percent.append(packet_count / avg_tx_queue_packets)
+            starving_queues = (
+                [queue for queue, pkts in enumerate(per_tx_queue_packets) if pkts == 0],
+                [queue for queue, pkts in enumerate(per_rx_queue_packets) if pkts == 0],
+            )
 
-            assert_that(
-                (max(per_tx_queue_pkt_percent) - min(per_tx_queue_pkt_percent)),
-                f"{an_enabled}Statistics show traffic is not evenly distributed"
-                " among tx queues",
-            ).is_less_than_or_equal_to(0.5)
+            if (not prev_starved_queues) and (not starving_queues):
+                # This means there is no queue that was starved in last check
+                # and this check. It establishes no single queue is being starved.
+                # Hence Test would PASS.
+                return
 
-            avg_rx_queue_packets = sum(per_rx_queue_packets) / len(per_rx_queue_packets)
-            per_rx_queue_pkt_percent: List[float] = []
-            for packet_count in per_rx_queue_packets:
-                per_rx_queue_pkt_percent.append(packet_count / avg_rx_queue_packets)
+            prev_starved_queues = ([], [])
+            prev_starved_queues = copy.deepcopy(starving_queues)
+            starving_queues = ([], [])
+            time.sleep(2)
 
-            assert_that(
-                (max(per_rx_queue_pkt_percent) - min(per_rx_queue_pkt_percent)),
-                f"{an_enabled}Statistics show traffic is not evenly distributed"
-                " among rx queues",
-            ).is_less_than_or_equal_to(0.5)
+        assert_that(
+            prev_starved_queues[0],
+            f"The tx stats for queue/queues {prev_starved_queues[0]} is/are 0."
+            " This can have perf impact, please ensure all tx queues are used for"
+            " traffic distribution.",
+        ).is_empty()
+        assert_that(
+            prev_starved_queues[1],
+            f"The rx stats for queue/queues {prev_starved_queues[1]} is/are 0"
+            " This can have perf impact, please ensure all rx queues are used for"
+            " traffic distribution.",
+        ).is_empty()
 
     def after_case(self, log: Logger, **kwargs: Any) -> None:
         environment: Environment = kwargs.pop("environment")
@@ -709,8 +725,8 @@ class NetworkSettings(TestSuite):
         except UnsupportedOperationException as identifier:
             raise SkippedException(identifier)
 
-        per_queue_stats = False
-        per_vf_queue_stats = False
+        per_queue_stats = 0
+        per_vf_queue_stats = 0
         for device_stats in devices_statistics:
             nic = client_node.nics.get_nic(device_stats.interface)
             if nic.lower:
@@ -721,26 +737,44 @@ class NetworkSettings(TestSuite):
 
                 for k in device_stats.counters.keys():
                     if self._vf_queue_stats_regex.search(k):
-                        per_vf_queue_stats = True
-                        break
+                        # Both tx/rx queues will be counted with the regex.
+                        per_vf_queue_stats += 1
+
                 assert_that(
                     per_vf_queue_stats,
                     f"AN is enabled on interface {device_stats.interface} but"
                     " statistics for VF nic are missing.",
-                ).is_true()
+                ).is_greater_than(0)
+
+                # Both tx/rx queues will be counted with the regex,
+                # so the total number would be 4+4 = 8.
+                if per_vf_queue_stats < 8:
+                    raise SkippedException(
+                        "Number of queues/channels are less than 4, so test cannot"
+                        " establish starving queues deterministcally."
+                    )
             else:
                 for k in device_stats.counters.keys():
                     if self._queue_stats_regex.search(k):
-                        per_queue_stats = True
-                        break
+                        # Both tx/rx queues will be counted with the regex.
+                        per_queue_stats += 1
+
                 assert_that(
                     per_queue_stats,
                     "Statistics per VMBUS channel are empty."
                     " It might be because the driver"
                     " is not supported or because of very old kernel.",
-                ).is_true()
+                ).is_greater_than(0)
 
-    def _run_iperf3(self, server_node: RemoteNode, client_node: RemoteNode) -> None:
+                if per_queue_stats < 8:
+                    raise SkippedException(
+                        "Number of queues/channels are less than 4, so test cannot"
+                        " establish starving queues deterministcally."
+                    )
+
+    def _run_iperf3(
+        self, server_node: RemoteNode, client_node: RemoteNode, run_time_seconds: int
+    ) -> None:
         # run iperf3 on server side and client side
         # iperfResults.log stored client side log
         source_iperf3 = server_node.tools[Iperf3]
