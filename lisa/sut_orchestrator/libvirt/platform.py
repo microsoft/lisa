@@ -613,22 +613,22 @@ class BaseLibvirtPlatform(Platform):
 
             node_port = 22
             if self.host_node.is_remote:
-                self._port_forwarding_lock.acquire()
-                port_not_found = True
-                while port_not_found:
-                    if self._next_available_port > 65535:
-                        self._port_forwarding_lock.release()
-                        raise LisaException("No available ports on the host to forward")
+                with self._port_forwarding_lock:
+                    port_not_found = True
+                    while port_not_found:
+                        if self._next_available_port > 65535:
+                            raise LisaException(
+                                "No available ports on the host to forward"
+                            )
 
-                    # check if the port is already in use
-                    output = self.host_node.execute(
-                        f"nc -vz 127.0.0.1 {self._next_available_port}"
-                    )
-                    if output.exit_code == 1:  # port not in use
-                        node_port = self._next_available_port
-                        port_not_found = False
-                    self._next_available_port += 1
-                self._port_forwarding_lock.release()
+                        # check if the port is already in use
+                        output = self.host_node.execute(
+                            f"nc -vz 127.0.0.1 {self._next_available_port}"
+                        )
+                        if output.exit_code == 1:  # port not in use
+                            node_port = self._next_available_port
+                            port_not_found = False
+                        self._next_available_port += 1
 
                 self.host_node.tools[Iptables].start_forwarding(
                     node_port, local_address, 22
