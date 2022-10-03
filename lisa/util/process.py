@@ -80,6 +80,7 @@ class Process:
         self._process: Optional[spur.local.LocalProcess] = None
         self._result: Optional[ExecutableResult] = None
         self._sudo: bool = False
+        self._nohup: bool = False
 
         # add a string stream handler to the logger
         self._log_buffer = io.StringIO()
@@ -91,6 +92,7 @@ class Process:
         command: str,
         shell: bool = False,
         sudo: bool = False,
+        nohup: bool = False,
         cwd: Optional[pathlib.PurePath] = None,
         update_envs: Optional[Dict[str, str]] = None,
         no_error_log: bool = False,
@@ -117,6 +119,7 @@ class Process:
         self._stderr_writer = LogWriter(logger=self.stderr_logger, level=stderr_level)
 
         self._sudo = sudo
+        self._nohup = nohup
 
         if update_envs is None:
             update_envs = {}
@@ -127,7 +130,7 @@ class Process:
             shell = True
 
         update_envs = update_envs.copy()
-        split_command = self._process_command(command, sudo, shell, update_envs)
+        split_command = self._process_command(command, sudo, shell, nohup, update_envs)
 
         cwd_path: Optional[str] = None
         if cwd:
@@ -141,6 +144,7 @@ class Process:
             f"cwd: {cwd_path}, "
             f"shell: {shell}, "
             f"sudo: {sudo}, "
+            f"nohup: {nohup}"
             f"posix: {self._is_posix}, "
             f"remote: {self._shell.is_remote}"
         )
@@ -170,7 +174,12 @@ class Process:
             self._log.log(stderr_level, f"not found command: {identifier}")
 
     def _process_command(
-        self, command: str, sudo: bool, shell: bool, update_envs: Dict[str, str]
+        self,
+        command: str,
+        sudo: bool,
+        shell: bool,
+        nohup: bool,
+        update_envs: Dict[str, str],
     ) -> List[str]:
         # command may be Path object, convert it to str
         command = str(command)
@@ -180,17 +189,23 @@ class Process:
                 split_command = ["cmd", "/c", command]
             else:
                 split_command = []
+                if nohup:
+                    split_command += ["nohup"]
                 if sudo:
                     split_command += ["sudo"]
                 envs = _create_exports(update_envs=update_envs)
                 if envs:
                     command = f"{envs} {command}"
+
                 split_command += ["sh", "-c", command]
                 # expand variables in posix mode
                 update_envs.clear()
         else:
-            if sudo and self._is_posix:
-                command = f"sudo {command}"
+            if self._is_posix:
+                if sudo:
+                    command = f"sudo {command}"
+                if nohup:
+                    command = f"nohup {command}"
             try:
                 split_command = shlex.split(command, posix=self._is_posix)
             except Exception as identifier:

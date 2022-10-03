@@ -89,6 +89,7 @@ class Ip(Tool):
             ),
             shell=True,
             sudo=True,
+            nohup=True,
             expected_exit_code=0,
             expected_exit_code_failure_message=(
                 f"fail to restart [down then up] the nic {nic_name}"
