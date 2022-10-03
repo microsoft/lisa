@@ -27,7 +27,6 @@ class CloudHypervisorTestResult:
 class CHPerfMetricTestResult:
     name: str = ""
     status: TestStatus = TestStatus.QUEUED
-    error: str = ""
     metrics: str = ""
     trace: str = ""
 
@@ -102,7 +101,6 @@ class CloudHypervisorTests(Tool):
         self.per_mtr_report_file = log_path.joinpath("perf_metrics.json")
 
         perf_metrics_tests = self._list_perf_metrics_tests(hypervisor=hypervisor)
-        testcases_result_list: List[CHPerfMetricTestResult] = []
 
         for testcase in perf_metrics_tests:
             testcase_result = CHPerfMetricTestResult()
@@ -129,13 +127,20 @@ class CloudHypervisorTests(Tool):
             except Exception as e:
                 self._log.error(f"Testcase failed, tescase name: {testcase}")
                 testcase_result.status = TestStatus.FAILED
-                testcase_result.error = str(e.args[0])
                 testcase_result.trace = str(e.args[1])
-            testcases_result_list.append(testcase_result)
 
-        self._create_perf_metric_report(
-            testcases_result_list, test_result.id_, environment
-        )
+            msg = (
+                testcase_result.metrics
+                if testcase_result.status == TestStatus.PASSED
+                else testcase_result.trace
+            )
+            self._send_subtest_msg(
+                test_id=test_result.id_,
+                environment=environment,
+                test_name=testcase_result.name,
+                test_status=testcase_result.status,
+                test_message=msg,
+            )
 
     def _initialize(self, *args: Any, **kwargs: Any) -> None:
         tool_path = self.get_tool_path(use_global=True)
@@ -216,7 +221,6 @@ class CloudHypervisorTests(Tool):
 
     def _list_perf_metrics_tests(self, hypervisor="kvm") -> List[str]:
 
-        self._log.debug("Listing the performance test cases")
         tests_list = []
         result = self.run(
             f"tests --hypervisor {hypervisor} --metrics -- -- --list-tests",
@@ -229,7 +233,8 @@ class CloudHypervisorTests(Tool):
 
         stdout = result.stdout
 
-        # Ex. String for below regex : "boot_time_ms" (test_timeout = 2s, test_iterations = 10)
+        # Ex. String for below regex : 
+        # "boot_time_ms" (test_timeout = 2s, test_iterations = 10)
         regex = '\\"(.*)\\" \\('
 
         pattern = re.compile(regex)
@@ -247,38 +252,4 @@ class CloudHypervisorTests(Tool):
             cnt += 1
 
         result = "\n".join([i.strip() for i in output.split("\n")[cnt:-5]])
-        self._log.debug(f"Result from testcase stdout : {result}")
         return result
-
-    def _create_perf_metric_report(
-        self, testcases_result_list, id, environment
-    ) -> None:
-
-        testcase_result_data = {"testcases": []}
-        for testcase_result in testcases_result_list:
-            msg = (
-                testcase_result.metrics
-                if testcase_result.status == TestStatus.PASSED
-                else testcase_result.error
-            )
-            self._send_subtest_msg(
-                test_id=id,
-                environment=environment,
-                test_name=testcase_result.name,
-                test_status=testcase_result.status,
-                test_message=msg,
-            )
-
-            testcase_result_json = {
-                "name": testcase_result.name,
-                "status": "PASSED"
-                if testcase_result.status == TestStatus.PASSED
-                else "FAILED",
-                "metrics": testcase_result.metrics,
-                "error": testcase_result.error,
-                "trace": testcase_result.trace,
-            }
-            testcase_result_data["testcases"].append(testcase_result_json)
-
-        with open(self.per_mtr_report_file, "w") as f:
-            f.write(json.dumps(testcase_result_data))
