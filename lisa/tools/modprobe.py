@@ -26,6 +26,7 @@ class Modprobe(Tool):
             "dhclient -r eth0; dhclient eth0",
             sudo=True,
             shell=True,
+            nohup=True,
         )
 
     def is_module_loaded(
