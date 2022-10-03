@@ -333,14 +333,18 @@ def run_testpmd_concurrent(
 
         # disable sriov (and wait for change to apply)
         for node_resources in [x for x in test_kits if x.switch_sriov]:
-            node_resources.nic_controller.switch_sriov(enable=False, wait=True)
+            node_resources.nic_controller.switch_sriov(
+                enable=False, wait=True, reset_connections=False
+            )
 
         # let run for a bit with SRIOV disabled
         time.sleep(10)
 
         # re-enable sriov
         for node_resources in [x for x in test_kits if x.switch_sriov]:
-            node_resources.nic_controller.switch_sriov(enable=True, wait=True)
+            node_resources.nic_controller.switch_sriov(
+                enable=True, wait=True, reset_connections=False
+            )
 
         # run for a bit with SRIOV re-enabled
         time.sleep(10)

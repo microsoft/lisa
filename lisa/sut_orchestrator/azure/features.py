@@ -601,7 +601,9 @@ class NetworkInterface(AzureFeatureMixin, features.NetworkInterface):
             len(all_nics) - self.origin_extra_synthetic_nics_count - 1
         )
 
-    def switch_sriov(self, enable: bool, wait: bool = True) -> None:
+    def switch_sriov(
+        self, enable: bool, wait: bool = True, reset_connections: bool = True
+    ) -> None:
         azure_platform: AzurePlatform = self._platform  # type: ignore
         network_client = get_network_client(azure_platform)
         vm = get_vm(azure_platform, self._node)
@@ -639,7 +641,7 @@ class NetworkInterface(AzureFeatureMixin, features.NetworkInterface):
 
         # wait settings effective
         if wait:
-            self._check_sriov_enabled(enable)
+            self._check_sriov_enabled(enable, reset_connections)
 
     def is_enabled_sriov(self) -> bool:
         azure_platform: AzurePlatform = self._platform  # type: ignore
@@ -774,8 +776,11 @@ class NetworkInterface(AzureFeatureMixin, features.NetworkInterface):
         modprobe_tool.reload(["hv_netvsc"])
 
     @retry(tries=60, delay=10)
-    def _check_sriov_enabled(self, enabled: bool) -> None:
-        self._node.close()
+    def _check_sriov_enabled(
+        self, enabled: bool, reset_connections: bool = True
+    ) -> None:
+        if reset_connections:
+            self._node.close()
         self._node.nics.reload()
         default_nic = self._node.nics.get_nic_by_index(0)
 

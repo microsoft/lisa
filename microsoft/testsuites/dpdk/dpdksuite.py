@@ -665,4 +665,5 @@ class Dpdk(TestSuite):
             if modprobe.module_exists("uio_hv_generic"):
                 node.tools[Service].stop_service("vpp")
                 modprobe.remove(["uio_hv_generic"])
+                node.close()
                 modprobe.reload(["hv_netvsc"])
