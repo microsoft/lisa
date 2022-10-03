@@ -387,7 +387,8 @@ class DpdkTestpmd(Tool):
             )
         )
         cast_to_ints = list(map(int, matches))
-        return _discard_first_zeroes(cast_to_ints)
+        cast_to_ints = _discard_first_zeroes(cast_to_ints)
+        return _discard_first_and_last_sample(cast_to_ints)
 
     def populate_performance_data(self) -> None:
         self.rx_pps_data = self.get_data_from_testpmd_output(
@@ -884,22 +885,25 @@ class DpdkTestpmd(Tool):
         after_rescind = self._last_run_output[device_removal_index:]
         # Identify the device add event
         hotplug_match = self._search_hotplug_regex.finditer(after_rescind)
-
-        if not hotplug_match:
+        matches_list = list(hotplug_match)
+        if not list(matches_list):
             hotplug_alt_match = self._search_hotplug_regex_alt.finditer(after_rescind)
             if hotplug_alt_match:
-                hotplug_match = hotplug_alt_match
+                matches_list = list(hotplug_alt_match)
             else:
                 command_dumped = "timeout: the monitored command dumped core"
                 if command_dumped in self._last_run_output:
                     raise LisaException("Testpmd crashed after device removal.")
 
         # pick the last match
-        try:
-            *_, last_match = hotplug_match
-        except ValueError:
+
+        if len(matches_list) > 0:
+            last_match = matches_list[-1]
+        else:
             raise LisaException(
-                "Could not identify vf hotplug events in testpmd output."
+                "Found no vf hotplug events in testpmd output. "
+                "Check output to verify if PPS drop occurred and port removal "
+                "event message matches the expected forms."
             )
 
         self.node.log.info(f"Identified hotplug event: {last_match.group(0)}")
@@ -953,6 +957,20 @@ def _discard_first_zeroes(data: List[int]) -> List[int]:
 
     # leave list as-is if data is all zeroes
     return data
+
+
+def _discard_first_and_last_sample(data: List[int]) -> List[int]:
+    # NOTE: first and last sample can be unreliable after switch messages
+    # We're sampling for an order-of-magnitude difference so it
+    # can mess up the average since we're using an unweighted mean
+
+    # discard first and last sample so long as there are enough to
+    # practically, we expect there to be > 20 unless rescind
+    # performance is hugely improved in the cloud
+    if len(data) < 3:
+        return data
+    else:
+        return data[1:-1]
 
 
 def _mean(data: List[int]) -> int:
