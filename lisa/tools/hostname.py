@@ -18,4 +18,4 @@ class Hostname(Tool):
         return False
 
     def get_hostname(self) -> str:
-        return self.run("", shell=True).stdout.strip()
+        return self.run("", shell=True, force_run=True).stdout.strip()
