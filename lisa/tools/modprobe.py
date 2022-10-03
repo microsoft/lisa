@@ -99,9 +99,9 @@ class Modprobe(Tool):
             if self.is_module_loaded(mod_name, force_run=True):
                 self.node.execute(
                     (
-                        f"modprobe -r {mod_name} && modprobe {mod_name} && "
-                        "ip link set eth0 down && ip link set eth0 up && "
-                        "dhclient -r && dhclient"
+                        f"'modprobe -r {mod_name}; modprobe {mod_name}; "
+                        "ip link set eth0 down ; ip link set eth0 up; "
+                        "dhclient -r; dhclient'"
                     ),
                     sudo=True,
                     shell=True,
