@@ -356,6 +356,10 @@ class DpdkTestpmd(Tool):
             self.node.log.debug(
                 "Testpmd is not responding to signals, attempt reload of hv_netvsc."
             )
+            self.node.close()  # reset node connection, should kill testpmd
+            if not self.check_testpmd_is_running():
+                return
+            # if this somehow didn't kill it, reset netvsc
             self.node.tools[Modprobe].reload(["hv_netvsc"])
             if self.check_testpmd_is_running():
                 raise LisaException("Testpmd has hung, killing the test.")
