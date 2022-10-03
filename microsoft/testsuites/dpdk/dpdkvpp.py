@@ -87,7 +87,7 @@ class DpdkVpp(Tool):
         elif isinstance(node.os, Fedora) or isinstance(node.os, Suse):
             pkg_type = "rpm"
         else:
-            raise SkippedException(self.node.os)
+            raise SkippedException(self.node.os, "VPP is not supported on this OS")
 
         node.execute(
             (
@@ -113,6 +113,6 @@ class DpdkVpp(Tool):
         elif isinstance(node.os, Fedora) or isinstance(node.os, Suse):
             vpp_packages.append("vpp-plugins")
         else:
-            raise SkippedException(self.node.os)
+            raise SkippedException(self.node.os, "VPP is not supported on this OS")
 
         node.os.install_packages(list(vpp_packages))
