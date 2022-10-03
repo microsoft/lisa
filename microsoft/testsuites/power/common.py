@@ -47,7 +47,7 @@ def verify_hibernation(environment: Environment, log: Logger, index: int = 1) ->
     # only set up hibernation setup tool for the first time
     if 1 == index:
         hibernation_setup_tool.start()
-    # sleep(300)
+    sleep(300)
     startstop = node.features[StartStop]
     try:
         startstop.stop(state=features.StopState.Hibernate)
