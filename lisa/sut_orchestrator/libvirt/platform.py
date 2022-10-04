@@ -13,7 +13,7 @@ import tempfile
 import time
 import xml.etree.ElementTree as ET  # noqa: N817
 from pathlib import Path
-from threading import Timer
+from threading import Lock, Timer
 from typing import Any, Dict, List, Optional, Tuple, Type, cast
 
 import libvirt  # type: ignore
@@ -26,7 +26,7 @@ from lisa.feature import Feature
 from lisa.node import Node, RemoteNode, local_node_connect
 from lisa.operating_system import CBLMariner
 from lisa.platform_ import Platform
-from lisa.tools import Iptables, QemuImg, Uname
+from lisa.tools import Iptables, Ls, QemuImg, Uname
 from lisa.util import LisaException, constants, get_public_key_data
 from lisa.util.logger import Logger, filter_ansi_escape
 
@@ -72,6 +72,10 @@ class BaseLibvirtPlatform(Platform):
         self.host_node: Node
         self.vm_disks_dir: str
 
+        # used for port forwarding in case of Remote Host
+        self._next_available_port: int
+        self._port_forwarding_lock: Lock
+
         self._host_environment_information_hooks = {
             KEY_HOST_DISTRO: self._get_host_distro,
             KEY_HOST_KERNEL: self._get_host_kernel_version,
@@ -97,6 +101,10 @@ class BaseLibvirtPlatform(Platform):
 
     def _initialize(self, *args: Any, **kwargs: Any) -> None:
         libvirt_events_thread.init()
+
+        # 49512 is the first available private port
+        self._next_available_port = 49152
+        self._port_forwarding_lock = Lock()
 
         self.platform_runbook = self.runbook.get_extended_runbook(
             self.__platform_runbook_type(), type_name=type(self).type_name()
@@ -151,6 +159,8 @@ class BaseLibvirtPlatform(Platform):
 
     def _delete_environment(self, environment: Environment, log: Logger) -> None:
         self._delete_nodes(environment, log)
+        if self.host_node.is_remote:
+            self._stop_port_forwarding(environment, log)
 
     def _configure_environment(self, environment: Environment, log: Logger) -> None:
         environment_context = get_environment_context(environment)
@@ -486,10 +496,14 @@ class BaseLibvirtPlatform(Platform):
         # Create required directories and copy the required files to the host
         # node.
         if node_context.os_disk_source_file_path:
-            self.host_node.shell.copy(
-                Path(node_context.os_disk_source_file_path),
-                Path(node_context.os_disk_base_file_path),
+            source_exists = self.host_node.tools[Ls].path_exists(
+                path=node_context.os_disk_base_file_path, sudo=True
             )
+            if not source_exists:
+                self.host_node.shell.copy(
+                    Path(node_context.os_disk_source_file_path),
+                    Path(node_context.os_disk_base_file_path),
+                )
 
         # Create cloud-init ISO file.
         self._create_node_cloud_init_iso(environment, log, node)
@@ -569,6 +583,12 @@ class BaseLibvirtPlatform(Platform):
             | libvirt.VIR_DOMAIN_UNDEFINE_CHECKPOINTS_METADATA
         )
 
+    def _stop_port_forwarding(self, environment: Environment, log: Logger) -> None:
+        log.debug(f"Clearing port forwarding rules for environment {environment.name}")
+        environment_context = get_environment_context(environment)
+        for (port, address) in environment_context.port_forwarding_list:
+            self.host_node.tools[Iptables].stop_forwarding(port, address, 22)
+
     # Retrieve the VMs' dynamic properties (e.g. IP address).
     def _fill_nodes_metadata(
         self, environment: Environment, log: Logger, lv_conn: libvirt.virConnect
@@ -578,28 +598,52 @@ class BaseLibvirtPlatform(Platform):
         # Give all the VMs some time to boot and then acquire an IP address.
         timeout = time.time() + environment_context.network_boot_timeout
 
+        if self.host_node.is_remote:
+            remote_node = cast(RemoteNode, self.host_node)
+            conn_info = remote_node.connection_info
+            address = conn_info[constants.ENVIRONMENTS_NODES_REMOTE_ADDRESS]
+
         for node in environment.nodes.list():
             assert isinstance(node, RemoteNode)
 
             # Get the VM's IP address.
-            address = self._get_node_ip_address(
+            local_address = self._get_node_ip_address(
                 environment, log, lv_conn, node, timeout
             )
 
             node_port = 22
             if self.host_node.is_remote:
-                self.host_node.tools[Iptables].start_forwarding(10022, address, 22)
+                with self._port_forwarding_lock:
+                    port_not_found = True
+                    while port_not_found:
+                        if self._next_available_port > 65535:
+                            raise LisaException(
+                                "No available ports on the host to forward"
+                            )
 
-                remote_node = cast(RemoteNode, self.host_node)
-                conn_info = remote_node.connection_info
+                        # check if the port is already in use
+                        output = self.host_node.execute(
+                            f"nc -vz 127.0.0.1 {self._next_available_port}"
+                        )
+                        if output.exit_code == 1:  # port not in use
+                            node_port = self._next_available_port
+                            port_not_found = False
+                        self._next_available_port += 1
 
-                address = conn_info[constants.ENVIRONMENTS_NODES_REMOTE_ADDRESS]
-                node_port = 10022
+                self.host_node.tools[Iptables].start_forwarding(
+                    node_port, local_address, 22
+                )
+
+                environment_context.port_forwarding_list.append(
+                    (node_port, local_address)
+                )
+            else:
+                address = local_address
 
             # Set SSH connection info for the node.
             node.set_connection_info(
-                address=address,
-                port=node_port,
+                address=local_address,
+                public_address=address,
                 public_port=node_port,
                 username=self.runbook.admin_username,
                 private_key_file=self.runbook.admin_private_key_file,
