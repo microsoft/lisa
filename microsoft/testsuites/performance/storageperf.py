@@ -3,7 +3,7 @@
 
 import inspect
 from pathlib import PurePosixPath
-from typing import Any, Dict, cast
+from typing import Any, Dict, List, cast
 
 from assertpy import assert_that
 
@@ -187,6 +187,73 @@ class StoragePerformance(TestSuite):
     def perf_storage_over_nfs_synthetic_udp_4k(self, result: TestResult) -> None:
         self._perf_nfs(result, protocol="udp")
 
+    def _configure_nfs(
+        self,
+        server: RemoteNode,
+        client: RemoteNode,
+        server_raid_disk_name: str = "/dev/md0",
+        server_raid_disk_mount_dir: str = "/mnt",
+        client_nfs_mount_dir: str = "/mnt/nfs_client_share",
+        protocol: str = "tcp",
+    ) -> None:
+        # mount raid disk on server
+        server.shell.mkdir(PurePosixPath(server_raid_disk_mount_dir), exist_ok=True)
+        server.tools[Mkfs].format_disk(server_raid_disk_name, FileSystem.ext4)
+        server.tools[Mount].mount(
+            server_raid_disk_name, server_raid_disk_mount_dir, options="nobarrier"
+        )
+
+        # setup nfs on server
+        server.tools[NFSServer].create_shared_dir(
+            [client.internal_address], server_raid_disk_mount_dir
+        )
+
+        # setup raid on client
+        client.tools[NFSClient].setup(
+            server.internal_address,
+            server_raid_disk_mount_dir,
+            client_nfs_mount_dir,
+            protocol,
+        )
+
+    def _run_fio_on_nfs(
+        self,
+        test_result: TestResult,
+        server: RemoteNode,
+        client: RemoteNode,
+        server_data_disk_count: int,
+        client_nfs_mount_dir: str,
+        core_count: int,
+        num_jobs: List[int],
+        start_iodepth: int = 1,
+        max_iodepth: int = 1024,
+        filename: str = "fiodata",
+        block_size: int = 4,
+    ) -> None:
+        origin_value: Dict[str, str] = {}
+        for node in [server, client]:
+            origin_value[node.name] = node.tools[Sysctl].get("fs.aio-max-nr")
+            node.tools[Sysctl].write("fs.aio-max-nr", "1048576")
+        perf_disk(
+            client,
+            start_iodepth,
+            max_iodepth,
+            filename,
+            test_name=inspect.stack()[1][3],
+            core_count=core_count,
+            disk_count=server_data_disk_count,
+            disk_setup_type=DiskSetupType.raid0,
+            disk_type=DiskType.premiumssd,
+            num_jobs=num_jobs,
+            block_size=block_size,
+            size_mb=256,
+            overwrite=True,
+            cwd=PurePosixPath(client_nfs_mount_dir),
+            test_result=test_result,
+        )
+        for node in [server, client]:
+            node.tools[Sysctl].write("fs.aio-max-nr", origin_value[node.name])
+
     def _perf_nfs(
         self,
         test_result: TestResult,
@@ -244,52 +311,38 @@ class StoragePerformance(TestSuite):
         server_partition_disks = reset_partitions(server_node, server_data_disks)
         reset_raid(server_node, server_partition_disks)
 
-        # mount raid disk on server
-        server_node.shell.mkdir(
-            PurePosixPath(server_raid_disk_mount_dir), exist_ok=True
-        )
-        server_node.tools[Mkfs].format_disk(server_raid_disk_name, FileSystem.ext4)
-        server_node.tools[Mount].mount(
-            server_raid_disk_name, server_raid_disk_mount_dir, options="nobarrier"
-        )
+        try:
+            self._configure_nfs(
+                server_node,
+                client_node,
+                server_raid_disk_name=server_raid_disk_name,
+                server_raid_disk_mount_dir=server_raid_disk_mount_dir,
+                client_nfs_mount_dir=client_nfs_mount_dir,
+                protocol=protocol,
+            )
 
-        # setup nfs on server
-        server_node.tools[NFSServer].create_shared_dir(
-            [client_node.internal_address], server_raid_disk_mount_dir
-        )
-
-        # setup raid on client
-        client_node.tools[NFSClient].setup(
-            server_node.internal_address,
-            server_raid_disk_mount_dir,
-            client_nfs_mount_dir,
-            protocol,
-        )
-
-        origin_value: Dict[str, str] = {}
-        for node in [server_node, client_node]:
-            origin_value[node.name] = node.tools[Sysctl].get("fs.aio-max-nr")
-            node.tools[Sysctl].write("fs.aio-max-nr", "1048576")
-        # run fio test
-        perf_disk(
-            client_node,
-            start_iodepth,
-            max_iodepth,
-            filename,
-            test_name=inspect.stack()[1][3],
-            core_count=core_count,
-            disk_count=server_data_disk_count,
-            disk_setup_type=DiskSetupType.raid0,
-            disk_type=DiskType.premiumssd,
-            num_jobs=num_jobs,
-            block_size=block_size,
-            size_mb=256,
-            overwrite=True,
-            cwd=PurePosixPath(client_nfs_mount_dir),
-            test_result=test_result,
-        )
-        for node in [server_node, client_node]:
-            node.tools[Sysctl].write("fs.aio-max-nr", origin_value[node.name])
+            # run fio test
+            self._run_fio_on_nfs(
+                test_result,
+                server_node,
+                client_node,
+                server_data_disk_count,
+                client_nfs_mount_dir,
+                core_count,
+                num_jobs,
+                start_iodepth=start_iodepth,
+                max_iodepth=max_iodepth,
+                filename=filename,
+                block_size=block_size,
+            )
+        finally:
+            # clean up
+            # stop nfs server and client
+            server_node.tools[NFSServer].stop()
+            client_node.tools[NFSClient].stop(mount_dir=client_nfs_mount_dir)
+            server_node.tools[Mount].umount(
+                server_raid_disk_name, server_raid_disk_mount_dir
+            )
 
     def _perf_premium_datadisks(
         self,

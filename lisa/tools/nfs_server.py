@@ -57,6 +57,28 @@ class NFSServer(Tool):
         else:
             raise UnsupportedDistroException(self.node.os)
 
+    def is_running(self) -> bool:
+        service = self.node.tools[Service]
+        if isinstance(self.node.os, Redhat):
+            return service.check_service_exists("nfs-server")
+        elif isinstance(self.node.os, Debian):
+            return service.check_service_exists("nfs-kernel-server")
+        elif isinstance(self.node.os, SLES):
+            return service.check_service_exists("nfsserver")
+        else:
+            raise UnsupportedDistroException(self.node.os)
+
+    def stop(self) -> None:
+        service = self.node.tools[Service]
+        if isinstance(self.node.os, Redhat):
+            service.stop_service("nfs-server")
+        elif isinstance(self.node.os, Debian):
+            service.stop_service("nfs-kernel-server")
+        elif isinstance(self.node.os, SLES):
+            service.stop_service("nfsserver")
+        else:
+            raise UnsupportedDistroException(self.node.os)
+
     def _install(self) -> bool:
         if isinstance(self.node.os, Redhat):
             self.node.os.install_packages("nfs-utils")
