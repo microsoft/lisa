@@ -32,7 +32,12 @@ def is_distro_supported(node: RemoteNode) -> None:
         )
 
 
-def verify_hibernation(environment: Environment, log: Logger, index: int = 1) -> None:
+def verify_hibernation(
+    environment: Environment,
+    log: Logger,
+    index: int = 1,
+    ignore_call_trace: bool = False,
+) -> None:
     information = environment.get_information()
     resource_group_name = information["resource_group_name"]
     node = cast(RemoteNode, environment.nodes[0])
@@ -84,7 +89,8 @@ def verify_hibernation(environment: Environment, log: Logger, index: int = 1) ->
             raise LisaException(
                 "'Call Trace' with RIP check_flush_dependency in dmesg output"
             )
-        raise LisaException("'Call Trace' in dmesg output")
+        if not ignore_call_trace:
+            raise LisaException("'Call Trace' in dmesg output")
     entry_after_hibernation = hibernation_setup_tool.check_entry()
     exit_after_hibernation = hibernation_setup_tool.check_exit()
     received_after_hibernation = hibernation_setup_tool.check_received()

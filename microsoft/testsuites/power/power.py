@@ -279,7 +279,7 @@ class Power(TestSuite):
         is_distro_supported(node)
         stress_ng_tool = node.tools[StressNg]
         stress_ng_tool.launch(16, "90%", 300)
-        verify_hibernation(environment, log)
+        verify_hibernation(environment, log, ignore_call_trace=True)
         stress_ng_tool.launch(16, "90%", 300)
 
     def after_case(self, log: Logger, **kwargs: Any) -> None:
