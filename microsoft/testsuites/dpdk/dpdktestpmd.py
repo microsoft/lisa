@@ -214,7 +214,9 @@ class DpdkTestpmd(Tool):
                 vdev_flags = f"iface={nic.upper},force=1"
             else:
                 vdev_name = "net_failsafe"
-                vdev_flags = f"dev({nic.pci_slot}),dev(net_tap0,iface={nic.upper})"
+                vdev_flags = (
+                    f"dev({nic.pci_slot}),dev(net_tap0,iface={nic.upper},force=1)"
+                )
             if nic.bound_driver == "hv_netvsc":
                 vdev_info += f'--vdev="{vdev_name}{vdev_id},{vdev_flags}" '
             elif nic.bound_driver == "uio_hv_generic":
@@ -349,13 +351,24 @@ class DpdkTestpmd(Tool):
         return len(pids) > 0
 
     def kill_previous_testpmd_command(self) -> None:
-        # kill testpmd early
 
+        # kill testpmd early
         self.node.tools[Kill].by_name(self.command, ignore_not_exist=True)
         if self.check_testpmd_is_running():
             self.node.log.debug(
+                "Testpmd is not responding to signals, "
+                "attempt network connection reset."
+            )
+
+            # reset node connections (quicker and less risky than netvsc reset)
+            self.node.close()
+            if not self.check_testpmd_is_running():
+                return
+
+            self.node.log.debug(
                 "Testpmd is not responding to signals, attempt reload of hv_netvsc."
             )
+            # if this somehow didn't kill it, reset netvsc
             self.node.tools[Modprobe].reload(["hv_netvsc"])
             if self.check_testpmd_is_running():
                 raise LisaException("Testpmd has hung, killing the test.")
