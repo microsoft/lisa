@@ -979,7 +979,7 @@ class Debian(Linux):
                 packages[index] = package
         add_args = self._process_extra_package_args(extra_args)
         command = (
-            f"DEBIAN_FRONTEND=noninteractive apt-get {add_args} "
+            f"DEBIAN_FRONTEND=noninteractive apt update && apt-get {add_args} "
             f"-y install {' '.join(packages)}"
         )
         if not signed:
