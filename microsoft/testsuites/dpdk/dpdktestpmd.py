@@ -209,7 +209,7 @@ class DpdkTestpmd(Tool):
         vdev_info = ""
         self.node.log.info(f"Running test with {len(include_nics)} nics.")
         for nic in include_nics:
-            if self._dpdk_version_info and self._dpdk_version_info >= "19.11.0":
+            if self._dpdk_version_info and self._dpdk_version_info >= "18.11.0":
                 vdev_name = "net_vdev_netvsc"
                 vdev_flags = f"iface={nic.upper},force=1"
             else:
