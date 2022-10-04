@@ -1,17 +1,17 @@
 # Copyright (c) Microsoft Corporation.
 # Licensed under the MIT license.
-
 import asyncio
 import copy
 import json
 import re
 import string
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from enum import Enum
+from functools import partial
 from os import unlink
 from pathlib import Path
 from random import randint
-from typing import TYPE_CHECKING, Any, Dict, List, Optional, Tuple, Type, cast
+from typing import TYPE_CHECKING, Any, Dict, List, Optional, Tuple, Type, Union, cast
 
 import requests
 import websockets
@@ -53,6 +53,7 @@ from lisa.util import (
     NotMeetRequirementException,
     SkippedException,
     constants,
+    field_metadata,
     find_patterns_in_lines,
     generate_random_chars,
     set_filtered_fields,
@@ -1682,7 +1683,8 @@ class Nfs(AzureFeatureMixin, features.Nfs):
             virtual_networks_id = vnet_id
             subnet_id = subnet_ids[0]
             break
-        # create private ednpoints
+
+        # create private endpoints
         ipv4_address = create_update_private_endpoints(
             platform,
             resource_group_name,
@@ -1802,3 +1804,92 @@ class AzureExtension(AzureFeatureMixin, Feature):
             AzureNodeSchema, AZURE
         )
         self._location = node_runbook.location
+
+
+@dataclass_json()
+@dataclass()
+class VhdGenerationSettings(schema.FeatureSettings):
+    type: str = "VhdGeneration"
+    # vhd generation in hyper-v
+    gen: Optional[Union[search_space.SetSpace[int], int]] = field(  # type:ignore
+        default_factory=partial(
+            search_space.SetSpace,
+            items=[1, 2],
+        ),
+        metadata=field_metadata(
+            decoder=partial(search_space.decode_set_space_by_type, base_type=int)
+        ),
+    )
+
+    def __eq__(self, o: object) -> bool:
+        assert isinstance(o, VhdGenerationSettings), f"actual: {type(o)}"
+        return self.type == o.type and self.gen == o.gen
+
+    def __repr__(self) -> str:
+        return f"gen:{self.gen}"
+
+    def __str__(self) -> str:
+        return self.__repr__()
+
+    def __hash__(self) -> int:
+        return super().__hash__()
+
+    def _get_key(self) -> str:
+        return f"{super()._get_key()}/{self.gen}"
+
+    def check(self, capability: Any) -> search_space.ResultReason:
+        assert isinstance(
+            capability, VhdGenerationSettings
+        ), f"actual: {type(capability)}"
+        result = super().check(capability)
+
+        result.merge(
+            search_space.check_setspace(self.gen, capability.gen),
+            "vhd generation",
+        )
+
+        return result
+
+    def _call_requirement_method(self, method_name: str, capability: Any) -> Any:
+        assert isinstance(
+            capability, VhdGenerationSettings
+        ), f"actual: {type(capability)}"
+
+        value = VhdGenerationSettings()
+        if self.gen or capability.gen:
+            value.gen = getattr(search_space, f"{method_name}_setspace_by_priority")(
+                self.gen, capability.gen, [1, 2]
+            )
+        return value
+
+
+class VhdGeneration(AzureFeatureMixin, Feature):
+    @classmethod
+    def create_setting(
+        cls, *args: Any, **kwargs: Any
+    ) -> Optional[schema.FeatureSettings]:
+        raw_capabilities: Any = kwargs.get("raw_capabilities")
+
+        # regard missed value as both to maximize the test scope.
+        value: str = raw_capabilities.get("HyperVGenerations", "V1,V2")
+        versions = value.split(",")
+        gens: List[int] = []
+        if "V1" in versions:
+            gens.append(1)
+        if "V2" in versions:
+            gens.append(2)
+
+        settings = VhdGenerationSettings(gen=search_space.SetSpace(items=gens))
+
+        return settings
+
+    @classmethod
+    def settings_type(cls) -> Type[schema.FeatureSettings]:
+        return VhdGenerationSettings
+
+    @classmethod
+    def can_disable(cls) -> bool:
+        return True
+
+    def enabled(self) -> bool:
+        return True
