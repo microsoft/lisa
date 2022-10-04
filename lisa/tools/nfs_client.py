@@ -5,6 +5,7 @@ from lisa.executable import Tool
 from lisa.operating_system import SLES, Debian, Redhat
 from lisa.tools import Firewall, Mount
 from lisa.tools.mkfs import FileSystem
+from lisa.tools.rm import Rm
 from lisa.util import SkippedException, UnsupportedDistroException
 
 from .kernel_config import KernelConfig
@@ -46,6 +47,10 @@ class NFSClient(Tool):
             type=FileSystem.nfs,
             options=f"proto={protocol},vers=3",
         )
+
+    def stop(self, mount_dir: str) -> None:
+        self.node.execute(f"umount -lf {mount_dir}", sudo=True)
+        self.node.tools[Rm].remove_directory(mount_dir, sudo=True)
 
     def _install(self) -> bool:
         if isinstance(self.node.os, Redhat):
