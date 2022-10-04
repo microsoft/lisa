@@ -18,6 +18,7 @@ class Cat(Tool):
         force_run: bool = False,
         sudo: bool = False,
         no_debug_log: bool = False,
+        timeout: int = 1200,
     ) -> str:
         # Run `cat <file>`
         result = self.run(
@@ -26,6 +27,7 @@ class Cat(Tool):
             sudo=sudo,
             shell=True,
             no_debug_log=no_debug_log,
+            timeout=timeout,
         )
         result.assert_exit_code(message=f"Error : {result.stdout}")
         return result.stdout
