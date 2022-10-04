@@ -1,7 +1,6 @@
 # Copyright (c) Microsoft Corporation.
 # Licensed under the MIT license.
 import json
-import os
 import re
 from dataclasses import dataclass
 from pathlib import Path, PurePath
@@ -233,8 +232,8 @@ class CloudHypervisorTests(Tool):
 
         stdout = result.stdout
 
-        # Ex. String for below regex : 
-        # "boot_time_ms" (test_timeout = 2s, test_iterations = 10)
+        # Ex. String for below regex
+        # "boot_time_ms" (test_timeout=2s,test_iterations=10)
         regex = '\\"(.*)\\" \\('
 
         pattern = re.compile(regex)
