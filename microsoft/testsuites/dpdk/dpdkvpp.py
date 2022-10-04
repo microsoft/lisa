@@ -8,7 +8,7 @@ from assertpy import assert_that
 from lisa.executable import Tool
 from lisa.operating_system import Debian, Fedora, Suse
 from lisa.tools import Gcc, Git, Make, Modprobe, Service
-from lisa.util import SkippedException
+from lisa.util import SkippedException, UnsupportedDistroException
 
 
 class DpdkVpp(Tool):
@@ -87,7 +87,11 @@ class DpdkVpp(Tool):
         elif isinstance(node.os, Fedora) or isinstance(node.os, Suse):
             pkg_type = "rpm"
         else:
-            raise SkippedException(self.node.os, "VPP is not supported on this OS")
+            raise SkippedException(
+                UnsupportedDistroException(
+                    self.node.os, "VPP is not supported on this OS"
+                )
+            )
 
         node.execute(
             (
@@ -113,6 +117,10 @@ class DpdkVpp(Tool):
         elif isinstance(node.os, Fedora) or isinstance(node.os, Suse):
             vpp_packages.append("vpp-plugins")
         else:
-            raise SkippedException(self.node.os, "VPP is not supported on this OS")
+            raise SkippedException(
+                UnsupportedDistroException(
+                    self.node.os, "VPP is not supported on this OS"
+                )
+            )
 
         node.os.install_packages(list(vpp_packages))
