@@ -5,8 +5,10 @@ import re
 from typing import Any, Dict
 
 from assertpy import fail
+from retry import retry
 
 from lisa import (
+    BadEnvironmentStateException,
     RemoteNode,
     SkippedException,
     TestCaseMetadata,
@@ -47,24 +49,32 @@ class Memory(TestSuite):
                 "This OS is not supported by the memory latency test."
             )
 
-        wget.get(
-            (
-                "https://packagecloud.io/install/repositories/"
-                f"akopytov/sysbench/script.{pkg_type}.sh"
-            ),
-            filename=SCRIPT_NAME,
-            executable=True,
-        )
+        # http can fail so make a lil function to retry a few times
+        @retry(tries=5, delay=10)
+        def resilient_wget() -> None:
+            wget.get(
+                (
+                    "https://packagecloud.io/install/repositories/"
+                    f"akopytov/sysbench/script.{pkg_type}.sh"
+                ),
+                filename=SCRIPT_NAME,
+                executable=True,
+            )
 
-        node.execute(
+        resilient_wget()
+
+        # need to update before install
+        node.os.update_packages("")
+        result = node.execute(
             f"{node.working_path.joinpath(SCRIPT_NAME)}",
             shell=True,
             sudo=True,
-            expected_exit_code=0,
-            expected_exit_code_failure_message=(
-                "Failed to run the sysbench repository add script"
-            ),
         )
+
+        if result.exit_code != 0:
+            node.log.info(
+                "Sysbench repository/dependency script failed. Will attempt package manager install."
+            )
 
         node.os.install_packages("sysbench")
 
