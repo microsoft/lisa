@@ -96,7 +96,7 @@ the format of ``s:name:value``.
 
 .. code:: sh
 
-   lisa -r ./microsoft/runbook/azure.yml -v location:westus2 -v "gallery_image:Canonical UbuntuServer 18.04-LTS Latest"
+   lisa -r ./microsoft/runbook/azure.yml -v location:westus3 -v "gallery_image:Canonical UbuntuServer 18.04-LTS Latest"
 
 run
 ---

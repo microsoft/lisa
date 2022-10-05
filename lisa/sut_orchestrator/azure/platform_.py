@@ -115,8 +115,7 @@ VM_SIZE_FALLBACK_PATTERNS = [
     re.compile(r".*"),
 ]
 LOCATIONS = [
-    "westus2",
-    "eastus2",
+    "westus3",
     "southeastasia",
     "eastus",
     "southcentralus",
@@ -126,7 +125,7 @@ LOCATIONS = [
     "australiaeast",
     "uksouth",
 ]
-RESOURCE_GROUP_LOCATION = "westus2"
+RESOURCE_GROUP_LOCATION = "westus3"
 
 # names in arm template, they should be changed with template together.
 RESOURCE_ID_PORT_POSTFIX = "-ssh"

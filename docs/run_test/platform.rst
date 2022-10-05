@@ -129,7 +129,7 @@ deployment.
             maximize_capability: "<true or false>"
 
 * **location**. Specify which locations is used to deploy VMs. It can be one or
-  multiple locations. For example, westus2 or westus2,eastus. If multiple
+  multiple locations. For example, westus3 or westus3,eastus. If multiple
   locations are specified, it means each environment deploys VMs in one of
   location. To test multiple locations together, the :ref:`combinator
   <combinator>` is needed.
