@@ -49,27 +49,31 @@ class Memory(TestSuite):
                 "This OS is not supported by the memory latency test."
             )
 
-        wget.get(
-            (
-                "https://packagecloud.io/install/repositories/"
-                f"akopytov/sysbench/script.{pkg_type}.sh"
-            ),
-            filename=SCRIPT_NAME,
-            executable=True,
-        )
-
-        # need to update before install
-        result = node.execute(
-            f"{node.working_path.joinpath(SCRIPT_NAME)}",
-            shell=True,
-            sudo=True,
-        )
-
-        if result.exit_code != 0:
-            node.log.info(
-                "Sysbench repository/dependency script failed. Will attempt package manager install."
+        @retry(tries=5, delay=10, jitter=1)
+        def wget_retry() -> None:
+            wget.get(
+                (
+                    "https://packagecloud.io/install/repositories/"
+                    f"akopytov/sysbench/script.{pkg_type}.sh"
+                ),
+                filename=SCRIPT_NAME,
+                executable=True,
             )
 
+        wget_retry()
+
+        @retry(tries=5, delay=10)
+        def run_retry() -> None:
+            node.execute(
+                f"{node.working_path.joinpath(SCRIPT_NAME)}",
+                shell=True,
+                sudo=True,
+            )
+
+        run_retry()
+
+        # need to apt/yum update before install
+        node.os._initialize_package_installation()
         node.os.install_packages("sysbench")
 
         sysbench_result = node.execute(
