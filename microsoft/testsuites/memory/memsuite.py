@@ -27,7 +27,7 @@ PERCENTILE_CHECKER = re.compile(r"95th percentile:\s+(?P<percent_data>[0-9\.]+)"
     This test suite runs a basic memory access latency check.
     """,
 )
-class Nested(TestSuite):
+class Memory(TestSuite):
     @TestCaseMetadata(
         description="""
         run a test to measure the memory latency of the node
