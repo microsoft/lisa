@@ -17,7 +17,7 @@ from lisa.operating_system import Debian, Fedora
 from lisa.tools import Wget
 
 SCRIPT_NAME = "install_script.sh"
-PERCENTILE_CHECKER = re.compile(r"95th percentile:\s+(?P<percent_data>[0-9\.]+)")
+PERCENTILE_CHECKER = re.compile(r"95th percentile:\s+(?P<percent_data>[0-9.]+)")
 
 
 @TestSuiteMetadata(
