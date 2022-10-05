@@ -52,8 +52,8 @@ class Memory(TestSuite):
                 "https://packagecloud.io/install/repositories/"
                 f"akopytov/sysbench/script.{pkg_type}.sh"
             ),
-            file_path=node.working_path.as_posix(),
             filename=SCRIPT_NAME,
+            executable=True,
         )
 
         node.execute(
