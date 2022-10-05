@@ -87,4 +87,8 @@ class Memory(TestSuite):
                         )
                     )
                 else:
-                    fail("Could not find latency data in sysbench output!")
+                    node.log.info(
+                        f"Latency check passed, found latency: {percent_data}"
+                    )
+            else:
+                fail("Could not find latency data in sysbench output!")
