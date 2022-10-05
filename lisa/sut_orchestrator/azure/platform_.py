@@ -2381,39 +2381,39 @@ class AzurePlatform(Platform):
 
 
 def _convert_to_azure_node_space(node_space: schema.NodeSpace) -> None:
-    if node_space:
-        if node_space.features:
-            new_settings = search_space.SetSpace[schema.FeatureSettings](
-                is_allow_set=True
-            )
-            for current_settings in node_space.features.items:
-                # reload to type specified settings
-                try:
-                    settings_type = feature.get_feature_settings_type_by_name(
-                        current_settings.type, AzurePlatform.supported_features()
-                    )
-                except NotMeetRequirementException as identifier:
-                    raise LisaException(
-                        f"platform doesn't support all features. {identifier}"
-                    )
-                new_setting = schema.load_by_type(settings_type, current_settings)
-                existing_setting = feature.get_feature_settings_by_name(
-                    new_setting.type, new_settings, True
-                )
-                if existing_setting:
-                    new_settings.remove(existing_setting)
-                    new_setting = existing_setting.intersect(new_setting)
+    if not node_space:
+        return
 
-                new_settings.add(new_setting)
-            node_space.features = new_settings
-        if node_space.disk:
-            node_space.disk = schema.load_by_type(
-                features.AzureDiskOptionSettings, node_space.disk
+    if node_space.features:
+        new_settings = search_space.SetSpace[schema.FeatureSettings](is_allow_set=True)
+        for current_settings in node_space.features.items:
+            # reload to type specified settings
+            try:
+                settings_type = feature.get_feature_settings_type_by_name(
+                    current_settings.type, AzurePlatform.supported_features()
+                )
+            except NotMeetRequirementException as identifier:
+                raise LisaException(
+                    f"platform doesn't support all features. {identifier}"
+                )
+            new_setting = schema.load_by_type(settings_type, current_settings)
+            existing_setting = feature.get_feature_settings_by_name(
+                new_setting.type, new_settings, True
             )
-        if node_space.network_interface:
-            node_space.network_interface = schema.load_by_type(
-                schema.NetworkInterfaceOptionSettings, node_space.network_interface
-            )
+            if existing_setting:
+                new_settings.remove(existing_setting)
+                new_setting = existing_setting.intersect(new_setting)
+
+            new_settings.add(new_setting)
+        node_space.features = new_settings
+    if node_space.disk:
+        node_space.disk = schema.load_by_type(
+            features.AzureDiskOptionSettings, node_space.disk
+        )
+    if node_space.network_interface:
+        node_space.network_interface = schema.load_by_type(
+            schema.NetworkInterfaceOptionSettings, node_space.network_interface
+        )
 
 
 def _get_allowed_locations(nodes_requirement: List[schema.NodeSpace]) -> List[str]:
