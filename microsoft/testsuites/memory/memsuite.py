@@ -49,22 +49,16 @@ class Memory(TestSuite):
                 "This OS is not supported by the memory latency test."
             )
 
-        # http can fail so make a lil function to retry a few times
-        @retry(tries=5, delay=10)
-        def resilient_wget() -> None:
-            wget.get(
-                (
-                    "https://packagecloud.io/install/repositories/"
-                    f"akopytov/sysbench/script.{pkg_type}.sh"
-                ),
-                filename=SCRIPT_NAME,
-                executable=True,
-            )
-
-        resilient_wget()
+        wget.get(
+            (
+                "https://packagecloud.io/install/repositories/"
+                f"akopytov/sysbench/script.{pkg_type}.sh"
+            ),
+            filename=SCRIPT_NAME,
+            executable=True,
+        )
 
         # need to update before install
-        node.os.update_packages("")
         result = node.execute(
             f"{node.working_path.joinpath(SCRIPT_NAME)}",
             shell=True,
