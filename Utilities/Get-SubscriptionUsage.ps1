@@ -8,7 +8,9 @@ param
     [switch] $UseSecretsFile,
     [switch] $UploadToDB,
     [string] $LogFileName = "GetSubscriptionUsage.log",
-    $AzureSecretsFile
+    $AzureSecretsFile,
+    # Comma separated skipped Storage account names.
+    [string] $SkippedStorageAccountNames
 )
 
 #Load libraries
@@ -122,6 +124,10 @@ try {
     $subscription = Get-AzSubscription -SubscriptionId $xmlSecrets.secrets.SubscriptionID
     Write-LogInfo "Running: Get-AzResource..."
     $allResources = Get-AzResource
+
+    if ($SkippedStorageAccountNames) {
+        [array] $SkippedStorageAccountNames = $SkippedStorageAccountNames.Split(",")
+    }
 
     Write-LogInfo "Running: Get-AzStorageAccount..."
     $allStorageAccounts = Get-AzStorageAccount
@@ -296,6 +302,10 @@ foreach ($region in $allRegions) {
             Write-LogInfo "+1 : $($resource.ResourceType) : $($resource.Name)"
             $currentStorageAccounts += 1
             $StorageAccountObject = $allStorageAccounts | Where-Object { $_.StorageAccountName -eq $resource.Name }
+            if ($SkippedStorageAccountNames -and $SkippedStorageAccountNames.Contains($StorageAccountObject.StorageAccountName)) {
+                Write-LogInfo "Skipping $($StorageAccountObject.StorageAccountName). Storage account marked for skip."
+                continue;
+            }
             $DataUsage = Get-StorageAccountUsage -storageAccountObject $StorageAccountObject
             $currentStandardLockedStorageUsageInGB += $DataUsage[0]
             $currentPremiumLockedStorageUsageInGB += $DataUsage[1]
