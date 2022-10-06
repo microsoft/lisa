@@ -218,7 +218,7 @@ class CloudHypervisorTests(Tool):
 
         notifier.notify(subtest_msg)
 
-    def _list_perf_metrics_tests(self, hypervisor="kvm") -> List[str]:
+    def _list_perf_metrics_tests(self, hypervisor: str = "kvm") -> List[str]:
 
         tests_list = []
         result = self.run(
