@@ -45,6 +45,7 @@ class HibernationSetup(Tool):
             timeout=1200,
             expected_exit_code=0,
             expected_exit_code_failure_message="fail to start",
+            force_run=True,
         )
 
     def check_entry(self) -> int:
