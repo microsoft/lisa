@@ -1,7 +1,6 @@
 # Copyright (c) Microsoft Corporation.
 # Licensed under the MIT license.
 
-import copy
 import re
 import time
 from pathlib import PurePosixPath
@@ -576,26 +575,28 @@ class NetworkSettings(TestSuite):
         ethtool = client_node.tools[Ethtool]
 
         self._verify_stats_exists(server_node, client_node)
+        starving_queues: Tuple[List[int], List[int]] = ([], [])
+        prev_starved_queues = starving_queues
+        an_enabled = False
+
+        device = client_node.nics.default_nic
+        nic = client_node.nics.get_nic(device)
+        if nic.lower:
+            # If AN is enabled on this interface then use VF nic stats.
+            an_enabled = True
+            device = nic.lower
 
         timeout = 300
         timer = create_timer()
-        starving_queues: Tuple[List[int], List[int]] = ([], [])
-        prev_starved_queues = starving_queues
 
         self._run_iperf3(server_node, client_node, run_time_seconds=timeout)
 
         while timer.elapsed(False) < timeout:
-            # validate from the stats that no single queue is starved everytime.
-            device_stats = ethtool.get_device_statistics(
-                client_node.nics.default_nic, True
-            )
-
             per_tx_queue_packets: List[int] = []
             per_rx_queue_packets: List[int] = []
-            nic = client_node.nics.get_nic(client_node.nics.default_nic)
-            # If AN is enabled on this interface then check the vf stats.
-            if nic.lower:
-                device_stats = ethtool.get_device_statistics(nic.lower, True)
+
+            device_stats = ethtool.get_device_statistics(device, True)
+            if an_enabled:
                 per_tx_queue_packets = [
                     v
                     for (k, v) in device_stats.counters.items()
@@ -631,8 +632,18 @@ class NetworkSettings(TestSuite):
                 # Hence Test would PASS.
                 return
 
-            prev_starved_queues = ([], [])
-            prev_starved_queues = copy.deepcopy(starving_queues)
+            prev_starved_queues = (
+                [
+                    element
+                    for element in prev_starved_queues[0]
+                    if element in starving_queues[0]
+                ],
+                [
+                    element
+                    for element in prev_starved_queues[1]
+                    if element in starving_queues[1]
+                ],
+            )
             starving_queues = ([], [])
             time.sleep(2)
 
