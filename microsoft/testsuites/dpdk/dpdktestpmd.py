@@ -10,7 +10,7 @@ from semver import VersionInfo
 
 from lisa.executable import Tool
 from lisa.nic import NicInfo
-from lisa.operating_system import Debian, Fedora, Ubuntu
+from lisa.operating_system import Debian, Fedora, Suse, Ubuntu
 from lisa.tools import (
     Echo,
     Git,
@@ -130,7 +130,7 @@ class DpdkTestpmd(Tool):
 
     @property
     def can_install(self) -> bool:
-        for _os in [Debian, Fedora]:
+        for _os in [Debian, Fedora, Suse]:
             if isinstance(self.node.os, _os):
                 return True
         return False
@@ -518,6 +518,8 @@ class DpdkTestpmd(Tool):
                 )
             elif isinstance(node.os, Fedora):
                 node.os.install_packages(["dpdk", "dpdk-devel"])
+            elif isinstance(node.os, Suse):
+                node.os.install_packages(["dpdk"])
             else:
                 raise NotImplementedError(
                     "Dpdk package names are missing in dpdktestpmd.install"
@@ -692,6 +694,8 @@ class DpdkTestpmd(Tool):
                     ),
                     sudo=True,
                 )
+        elif isinstance(self.node.os, Suse):
+            ...
         else:
             raise UnsupportedDistroException(self.node.os)
         rmda_drivers = ["ib_core", "ib_uverbs", "rdma_ucm"]
@@ -715,6 +719,8 @@ class DpdkTestpmd(Tool):
             )
         elif isinstance(node.os, Fedora):
             self._install_fedora_dependencies()
+        elif isinstance(node.os, Suse):
+            ...
         else:
             raise UnsupportedDistroException(
                 node.os, "This OS does not have dpdk installation implemented yet."
