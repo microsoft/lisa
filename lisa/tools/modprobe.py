@@ -23,7 +23,7 @@ class Modprobe(Tool):
         self.node.execute(
             "modprobe -r hv_netvsc; modprobe hv_netvsc; "
             "ip link set eth0 down; ip link set eth0 up;"
-            "dhclient -r; dhclient'",
+            "dhclient -r eth0; dhclient eth0",
             sudo=True,
             shell=True,
         )
