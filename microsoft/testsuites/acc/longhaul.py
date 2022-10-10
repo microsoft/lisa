@@ -17,7 +17,7 @@ from lisa import (
     notifier,
     TestSuiteMetadata,
     simple_requirement,
-    Environment
+    Environment,
 )
 from lisa.features import acc
 from lisa.messages import DiskSetupType, DiskType
@@ -34,6 +34,7 @@ from microsoft.testsuites.performance.common import (
 from functools import partial
 from lisa.util.parallel import T_RESULT, TaskManager, run_in_parallel_async
 
+
 @TestSuiteMetadata(
     area="ACC_longhaul",
     category="performance",
@@ -45,20 +46,24 @@ class ACCPerformance(TestSuite):
     TIME_OUT = 15000
     IOSTAT_OUTPUT_PATH = "/home/lisatest/log.txt"
 
-
     def parallel_callback(result: T_RESULT, int: result) -> None:
         print("")
 
-    def monitor_disk_throughput(self, node: Node, environment: Environment) -> None:
+    def monitor_disk_throughput(
+        self,
+        node: Node,
+        environment: Environment,
+        testresult: TestResult,
+    ) -> None:
         # wait for 10 minutes
         timeout = 60
         try:
             result = node.execute("apt-get install -y sysstat", sudo=True, shell=True)
         except:
             print("Unable to install sysstat")
-        iostat_command = f"iostat -p sda1 -dx 5 2 > {self.IOSTAT_OUTPUT_PATH}" 
+        iostat_command = f"iostat -p sda1 -dx 5 2 > {self.IOSTAT_OUTPUT_PATH}"
         try:
-            result = node.execute(iostat_command, sudo=True, shell=True,timeout=1000)
+            result = node.execute(iostat_command, sudo=True, shell=True, timeout=1000)
         except:
             print("`n`n!!! Unable to store iostat logs !!")
 
@@ -67,10 +72,10 @@ class ACCPerformance(TestSuite):
             result = node.execute(f"iostat -p sda1 -dx")
             subtest_message = create_test_result_message(
                 message_type=SubTestMessage,
-                id=1,
+                id=testresult.id_,
                 test_case_name="ACC_Longhaul_Disk",
                 test_message=result.stdout,
-                environment=environment
+                environment=environment,
             )
             notifier.notify(subtest_message)
             if result.exit_code == 1:
@@ -92,19 +97,18 @@ class ACCPerformance(TestSuite):
     def longhaul_diskperf(
         self,
         node: Node,
-        log:Logger,
+        log: Logger,
         log_path: str,
         result: TestResult,
         environment: Environment,
-        variables:Dict[str, Any]
-
+        variables: Dict[str, Any],
     ) -> None:
-        
-        block_size = 4 
+
+        block_size = 4
         cpu = node.tools[Lscpu]
         core_count = cpu.get_core_count()
         start_iodepth = 1
-        max_iodepth=2
+        max_iodepth = 2
         perf_disk_partial = partial(
             perf_disk,
             node=node,
@@ -123,10 +127,15 @@ class ACCPerformance(TestSuite):
             time=100000,
         )
 
-        monitor_disk_partial = partial(self.monitor_disk_throughput, node, environment )
-        task_manager = run_in_parallel_async([perf_disk_partial ,monitor_disk_partial], self.parallel_callback, log)
+        monitor_disk_partial = partial(
+            self.monitor_disk_throughput, node, environment, result
+        )
+        task_manager = run_in_parallel_async(
+            [perf_disk_partial, monitor_disk_partial], self.parallel_callback, log
+        )
 
         task_manager.wait_worker()
         node.shell.copy_back(
-            PurePosixPath(self.IOSTAT_OUTPUT_PATH), PurePath(log_path) / "iostat-output.txt"
+            PurePosixPath(self.IOSTAT_OUTPUT_PATH),
+            PurePath(log_path) / "iostat-output.txt",
         )
