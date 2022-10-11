@@ -1,5 +1,6 @@
 from lisa.executable import Tool
 
+
 class Systemctl(Tool):
     @property
     def command(self) -> str:
