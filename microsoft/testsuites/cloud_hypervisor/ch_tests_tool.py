@@ -117,16 +117,18 @@ class CloudHypervisorTests(Tool):
                 )
                 output = result.stdout.replace("\r\n", "\n")
                 output = output.replace("\t", "")
-                if result.exit_code != 0:
-                    raise Exception(f"Testcase failed : {testcase}", output)
-                metrics = self._process_perf_metric_test_result(result.stdout)
-                testcase_result.status = TestStatus.PASSED
-                testcase_result.metrics = metrics
+                if result.exit_code == 0:
+                    metrics = self._process_perf_metric_test_result(result.stdout)
+                    testcase_result.status = TestStatus.PASSED
+                    testcase_result.metrics = metrics
+                else:
+                    testcase_result.status = TestStatus.FAILED
+                    testcase_result.trace = output
 
             except Exception as e:
-                self._log.error(f"Testcase failed, tescase name: {testcase}")
+                self._log.info(f"Testcase failed, tescase name: {testcase}")
                 testcase_result.status = TestStatus.FAILED
-                testcase_result.trace = str(e.args[1])
+                testcase_result.trace = str(e)
 
             msg = (
                 testcase_result.metrics
