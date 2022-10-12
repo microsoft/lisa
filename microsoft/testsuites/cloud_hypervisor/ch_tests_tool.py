@@ -256,5 +256,7 @@ class CloudHypervisorTests(Tool):
 
         output = output.replace("\n", "")
         regex = '\\"results\\"\\: (.*?)\\]'
-        result = re.search(regex, output).group(0)
-        return result
+        result = re.search(regex, output)
+        if result:
+            return result.group(0)
+        return ""
