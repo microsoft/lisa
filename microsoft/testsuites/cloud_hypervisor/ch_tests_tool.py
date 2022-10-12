@@ -22,14 +22,6 @@ class CloudHypervisorTestResult:
     status: TestStatus = TestStatus.QUEUED
 
 
-@dataclass
-class CHPerfMetricTestResult:
-    name: str = ""
-    status: TestStatus = TestStatus.QUEUED
-    metrics: str = ""
-    trace: str = ""
-
-
 class CloudHypervisorTests(Tool):
     TIME_OUT = 7200
 
@@ -102,8 +94,8 @@ class CloudHypervisorTests(Tool):
         perf_metrics_tests = self._list_perf_metrics_tests(hypervisor=hypervisor)
 
         for testcase in perf_metrics_tests:
-            testcase_result = CHPerfMetricTestResult()
-            testcase_result.name = testcase
+            testcase_result = {}
+            testcase_result["name"] = testcase
 
             try:
                 result = self.run(
@@ -119,27 +111,27 @@ class CloudHypervisorTests(Tool):
                 output = output.replace("\t", "")
                 if result.exit_code == 0:
                     metrics = self._process_perf_metric_test_result(result.stdout)
-                    testcase_result.status = TestStatus.PASSED
-                    testcase_result.metrics = metrics
+                    testcase_result["status"] = TestStatus.PASSED
+                    testcase_result["metrics"] = metrics
                 else:
-                    testcase_result.status = TestStatus.FAILED
-                    testcase_result.trace = output
+                    testcase_result["status"] = TestStatus.FAILED
+                    testcase_result["trace"] = output
 
             except Exception as e:
                 self._log.info(f"Testcase failed, tescase name: {testcase}")
-                testcase_result.status = TestStatus.FAILED
-                testcase_result.trace = str(e)
+                testcase_result["status"] = TestStatus.FAILED
+                testcase_result["trace"] = str(e)
 
             msg = (
-                testcase_result.metrics
-                if testcase_result.status == TestStatus.PASSED
-                else testcase_result.trace
+                testcase_result["metrics"]
+                if testcase_result["status"] == TestStatus.PASSED
+                else testcase_result["trace"]
             )
             self._send_subtest_msg(
                 test_id=test_result.id_,
                 environment=environment,
-                test_name=testcase_result.name,
-                test_status=testcase_result.status,
+                test_name=testcase_result["name"],
+                test_status=testcase_result["status"],
                 test_message=msg,
             )
 
