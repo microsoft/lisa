@@ -117,7 +117,7 @@ class Modprobe(Tool):
                 else:
                     # execute the command for regular non-network modules
                     self.node.execute(
-                        f"'modprobe -r {mod_name}; modprobe {mod_name};",
+                        f"modprobe -r {mod_name}; modprobe {mod_name};",
                         sudo=True,
                         shell=True,
                     )
