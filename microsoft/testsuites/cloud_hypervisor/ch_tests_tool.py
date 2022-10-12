@@ -94,9 +94,9 @@ class CloudHypervisorTests(Tool):
         perf_metrics_tests = self._list_perf_metrics_tests(hypervisor=hypervisor)
 
         for testcase in perf_metrics_tests:
-            testcase_result = {}
-            testcase_result["name"] = testcase
-
+            status: TestStatus = TestStatus.QUEUED
+            metrics: str = ""
+            trace: str = ""
             try:
                 result = self.run(
                     f"tests --hypervisor {hypervisor} --metrics -- -- \
@@ -110,29 +110,29 @@ class CloudHypervisorTests(Tool):
                 output = result.stdout.replace("\r\n", "\n")
                 output = output.replace("\t", "")
                 if result.exit_code == 0:
-                    testcase_result["status"] = TestStatus.PASSED
-                    testcase_result["metrics"] = self._process_perf_metric_test_result(
+                    status = TestStatus.PASSED
+                    metrics = self._process_perf_metric_test_result(
                         result.stdout
                     )
                 else:
-                    testcase_result["status"] = TestStatus.FAILED
-                    testcase_result["trace"] = output
+                    status = TestStatus.FAILED
+                    trace = output
 
             except Exception as e:
                 self._log.info(f"Testcase failed, tescase name: {testcase}")
-                testcase_result["status"] = TestStatus.FAILED
-                testcase_result["trace"] = str(e)
+                status = TestStatus.FAILED
+                trace = str(e)
 
             msg = (
-                testcase_result["metrics"]
-                if testcase_result["status"] == TestStatus.PASSED
-                else testcase_result["trace"]
+                metrics
+                if status == TestStatus.PASSED
+                else trace
             )
             self._send_subtest_msg(
                 test_id=test_result.id_,
                 environment=environment,
-                test_name=testcase_result["name"],
-                test_status=testcase_result["status"],
+                test_name=testcase,
+                test_status=status,
                 test_message=msg,
             )
 
