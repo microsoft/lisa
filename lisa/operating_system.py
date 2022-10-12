@@ -15,6 +15,7 @@ from typing import (
     Match,
     Optional,
     Pattern,
+    Sequence,
     Type,
     Union,
 )
@@ -323,7 +324,12 @@ class Posix(OperatingSystem, BaseClassMixin):
 
     def install_packages(
         self,
-        packages: Union[str, Tool, Type[Tool], List[Union[str, Tool, Type[Tool]]]],
+        packages: Union[
+            str,
+            Tool,
+            Type[Tool],
+            Sequence[Union[str, Tool, Type[Tool]]],
+        ],
         signed: bool = False,
         timeout: int = 1200,
         extra_args: Optional[List[str]] = None,
@@ -351,7 +357,8 @@ class Posix(OperatingSystem, BaseClassMixin):
         return self._is_package_in_repo(package_name)
 
     def update_packages(
-        self, packages: Union[str, Tool, Type[Tool], List[Union[str, Tool, Type[Tool]]]]
+        self,
+        packages: Union[str, Tool, Type[Tool], Sequence[Union[str, Tool, Type[Tool]]]],
     ) -> None:
         package_names = self._get_package_list(packages)
         self._update_packages(package_names)
@@ -499,15 +506,18 @@ class Posix(OperatingSystem, BaseClassMixin):
         return information
 
     def _get_package_list(
-        self, packages: Union[str, Tool, Type[Tool], List[Union[str, Tool, Type[Tool]]]]
+        self,
+        packages: Union[
+            str,
+            Tool,
+            Type[Tool],
+            Sequence[Union[str, Tool, Type[Tool]]],
+        ],
     ) -> List[str]:
         package_names: List[str] = []
-        if not isinstance(packages, list):
+        if isinstance(packages, (str, Tool, type)):
             packages = [packages]
-
-        assert isinstance(packages, list), f"actual:{type(packages)}"
-        for item in packages:
-            package_names.append(self.__resolve_package_name(item))
+        package_names = [self.__resolve_package_name(item) for item in packages]
         if self._first_time_installation:
             self._first_time_installation = False
             self._initialize_package_installation()
