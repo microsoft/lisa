@@ -110,9 +110,10 @@ class CloudHypervisorTests(Tool):
                 output = result.stdout.replace("\r\n", "\n")
                 output = output.replace("\t", "")
                 if result.exit_code == 0:
-                    metrics = self._process_perf_metric_test_result(result.stdout)
                     testcase_result["status"] = TestStatus.PASSED
-                    testcase_result["metrics"] = metrics
+                    testcase_result["metrics"] = self._process_perf_metric_test_result(
+                        result.stdout
+                    )
                 else:
                     testcase_result["status"] = TestStatus.FAILED
                     testcase_result["trace"] = output
@@ -237,12 +238,29 @@ class CloudHypervisorTests(Tool):
         return tests_list
 
     def _process_perf_metric_test_result(self, output: str) -> str:
-        cnt = 0
-        for line in output.split("\n"):
-            if line.find("git_human_readable") >= 0:
-                cnt -= 1
-                break
-            cnt += 1
 
-        result = "\n".join([i.strip() for i in output.split("\n")[cnt:-5]])
+        # Sample Output
+        # "git_human_readable": "v27.0",
+        # "git_revision": "2ba6a9bfcfd79629aecf77504fa554ab821d138e",
+        # "git_commit_date": "Thu Sep 29 17:56:21 2022 +0100",
+        # "date": "Wed Oct 12 03:51:38 UTC 2022",
+        # "results": [
+        #     {
+        #     "name": "block_multi_queue_read_MiBps",
+        #     "mean": 158.64382311768824,
+        #     "std_dev": 7.685502103050337,
+        #     "max": 173.9743994350565,
+        #     "min": 154.10646435356466
+        #     }
+        # ]
+        # }
+        # real    1m39.856s
+        # user    0m6.376s
+        # sys     2m32.973s
+        # + RES=0
+        # + exit 0
+
+        output = output.replace("\n", "")
+        regex = '\\"results\\"\\: (.*?)\\]'
+        result = re.search(regex, output).group(0)
         return result
