@@ -711,7 +711,7 @@ class DpdkTestpmd(Tool):
             self._install_ubuntu_dependencies()
         elif isinstance(node.os, Debian):
             node.os.install_packages(
-                list(self._debian_packages), extra_args=self._debian_backports_args
+                self._debian_packages, extra_args=self._debian_backports_args
             )
         elif isinstance(node.os, Fedora):
             self._install_fedora_dependencies()
@@ -736,14 +736,14 @@ class DpdkTestpmd(Tool):
             )
         elif ubuntu.information.version < "20.4.0":
             ubuntu.install_packages(
-                list(self._ubuntu_packages_1804),
+                self._ubuntu_packages_1804,
                 extra_args=self._debian_backports_args,
             )
             if not self.use_package_manager_install():
                 self._install_ninja_and_meson()
         else:
             ubuntu.install_packages(
-                list(self._ubuntu_packages_2004),
+                self._ubuntu_packages_2004,
                 extra_args=self._debian_backports_args,
             )
 
@@ -764,7 +764,7 @@ class DpdkTestpmd(Tool):
 
         if rhel.information.version.major == 7:
             # Add packages for rhel7
-            rhel.install_packages(list(["libmnl-devel", "libbpf-devel"]))
+            rhel.install_packages(["libmnl-devel", "libbpf-devel"])
 
         try:
             rhel.install_packages("kernel-devel-$(uname -r)")
@@ -777,7 +777,7 @@ class DpdkTestpmd(Tool):
 
         rhel.group_install_packages("Development Tools")
         rhel.group_install_packages("Infiniband Support")
-        rhel.install_packages(list(self._fedora_packages))
+        rhel.install_packages(self._fedora_packages)
 
         # ensure RDMA service is started if present.
 

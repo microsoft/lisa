@@ -251,7 +251,7 @@ class Infiniband(Feature):
             ]:
                 if node.os.is_package_in_repo(package):
                     redhat_required_packages.append(package)
-            node.os.install_packages(list(redhat_required_packages))
+            node.os.install_packages(redhat_required_packages)
 
             try:
                 node.os.install_packages("kernel-devel-$(uname -r)")
@@ -261,7 +261,7 @@ class Infiniband(Feature):
                 )
                 node.os.install_packages("kernel-devel")
         elif isinstance(node.os, Ubuntu) and node.os.information.version >= "18.4.0":
-            node.os.install_packages(list(ubuntu_required_packages))
+            node.os.install_packages(ubuntu_required_packages)
         else:
             raise UnsupportedDistroException(
                 node.os,
