@@ -111,9 +111,7 @@ class CloudHypervisorTests(Tool):
                 output = output.replace("\t", "")
                 if result.exit_code == 0:
                     status = TestStatus.PASSED
-                    metrics = self._process_perf_metric_test_result(
-                        result.stdout
-                    )
+                    metrics = self._process_perf_metric_test_result(result.stdout)
                 else:
                     status = TestStatus.FAILED
                     trace = output
@@ -123,11 +121,7 @@ class CloudHypervisorTests(Tool):
                 status = TestStatus.FAILED
                 trace = str(e)
 
-            msg = (
-                metrics
-                if status == TestStatus.PASSED
-                else trace
-            )
+            msg = metrics if status == TestStatus.PASSED else trace
             self._send_subtest_msg(
                 test_id=test_result.id_,
                 environment=environment,
