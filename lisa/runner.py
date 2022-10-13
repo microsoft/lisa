@@ -199,6 +199,7 @@ class RootRunner(Action):
     async def start(self) -> None:
         await super().start()
 
+        self._results_collector: Optional[RunnerResult] = None
         try:
             transformer.run(
                 self._runbook_builder, phase=constants.TRANSFORMER_PHASE_INIT
@@ -225,12 +226,18 @@ class RootRunner(Action):
         finally:
             self._cleanup()
 
-        results = [x for x in self._results_collector.results.values()]
-        print_results(results, self._log.info)
+        if self._results_collector:
+            results = [x for x in self._results_collector.results.values()]
+            print_results(results, self._log.info)
 
-        if runbook.exit_with_failed_count:
-            # pass failed count to exit code
-            self.exit_code = sum(1 for x in results if x.status == TestStatus.FAILED)
+            if runbook.exit_with_failed_count:
+                # pass failed count to exit code
+                self.exit_code = sum(
+                    1 for x in results if x.status == TestStatus.FAILED
+                )
+        else:
+            # unknown error happened, see exception log for details.
+            self.exit_code = -1
 
     async def stop(self) -> None:
         await super().stop()
