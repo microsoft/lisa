@@ -26,7 +26,7 @@ from lisa.feature import Feature
 from lisa.node import Node, RemoteNode, local_node_connect
 from lisa.operating_system import CBLMariner
 from lisa.platform_ import Platform
-from lisa.tools import Iptables, Ls, QemuImg, Uname
+from lisa.tools import Iptables, Journalctl, Ls, QemuImg, Uname
 from lisa.util import LisaException, constants, get_public_key_data
 from lisa.util.logger import Logger, filter_ansi_escape
 
@@ -161,6 +161,10 @@ class BaseLibvirtPlatform(Platform):
         self._delete_nodes(environment, log)
         if self.host_node.is_remote:
             self._stop_port_forwarding(environment, log)
+        libvirt_log = self.host_node.tools[Journalctl].logs_for_unit("libvirtd")
+        libvirt_log_path = self.host_node.local_log_path / "libvirtd.log"
+        with open(str(libvirt_log_path), "w") as f:
+            f.write(libvirt_log)
 
     def _configure_environment(self, environment: Environment, log: Logger) -> None:
         environment_context = get_environment_context(environment)
