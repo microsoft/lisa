@@ -44,7 +44,7 @@ from lisa.util.parallel import T_RESULT, TaskManager, run_in_parallel_async
 )
 class ACCPerformance(TestSuite):
     TIME_OUT = 150000
-    MEASUREMENT_COUNT = 3000
+    MEASUREMENT_COUNT = 30#00
     MEASUREMENT_INTERVAL = 10
     IOSTAT_OUTPUT_PATH = "/home/lisatest/log_disk.txt"
     MEMSTAT_OUTPUT_PATH = "/home/lisatest/log_mem.txt"
@@ -86,7 +86,6 @@ class ACCPerformance(TestSuite):
             print(f"timeout {timeout} greater than elapsed {timer.elapsed()}")
 
     def monitor_memory_throughput(self, node: Node, environment: Environment) -> None:
-        # wait for 10 minutes
         timeout = self.MEASUREMENT_COUNT * self.MEASUREMENT_INTERVAL
         try:
             result = node.execute("apt-get install -y sysstat", sudo=True, shell=True)
@@ -151,7 +150,7 @@ class ACCPerformance(TestSuite):
             result = node.execute("apt-get install -y sysstat", sudo=True, shell=True)
         except:
             print("Unable to install sysstat")
-        cpustat_command = f" sar -u {self.MEASUREMENT_INTERVAL} {self.MEASUREMENT_COUNT} > {self.CPUSTAT_OUTPUT_PATH}" 
+        cpustat_command = f" sar -u " #{self.MEASUREMENT_INTERVAL} {self.MEASUREMENT_COUNT} > {self.CPUSTAT_OUTPUT_PATH}
         try:
             process = self.node.execute(cpustat_command, shell=True, sudo=True)
             result = node.execute(cpustat_command, sudo=True, shell=True,timeout=15000)
@@ -160,7 +159,7 @@ class ACCPerformance(TestSuite):
 
         timer = create_timer()
         while timeout > timer.elapsed(False):
-            result = node.execute(f"sar -u {self.MEASUREMENT_INTERVAL} {self.MEASUREMENT_COUNT}",timeout=timeout)
+            result = node.execute(f"sar -u 1 10",timeout=timeout) #{self.MEASUREMENT_INTERVAL} {self.MEASUREMENT_COUNT}
             subtest_message = create_test_result_message(
                 message_type=SubTestMessage,
                 id=1,
