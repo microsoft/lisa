@@ -215,6 +215,7 @@ def perf_ntttcp(
     udp_mode: bool = False,
     connections: Optional[List[int]] = None,
     test_case_name: str = "",
+    runtime_in_seconds: Optional[int] = 10,
     server_nic_name: Optional[str] = None,
     client_nic_name: Optional[str] = None,
 ) -> List[Union[NetworkTCPPerformanceMessage, NetworkUDPPerformanceMessage]]:
@@ -301,7 +302,7 @@ def perf_ntttcp(
             client_lagscope_process = client_lagscope.run_as_client_async(
                 server_ip=server.internal_address,
                 ping_count=0,
-                run_time_seconds=10,
+                run_time_seconds=runtime_in_seconds,
                 print_histogram=False,
                 print_percentile=False,
                 histogram_1st_interval_start_value=0,
