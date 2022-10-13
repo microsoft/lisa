@@ -47,9 +47,7 @@ class MultipleNodesDemo(TestSuite):
         """,
         priority=2,
     )
-    def perf_network_tcp_ipv4_throughput_ntttcp_synthetic_singleconnection(
-        self, environment: Environment, log: Logger
-    ) -> None:
+    def verify_tcp_connection(self, environment: Environment, log: Logger) -> None:
         server_node = cast(RemoteNode, environment.nodes[0])
         log.info(f"server: {server_node.internal_address}:{server_node.internal_port}")
         client_node = cast(RemoteNode, environment.nodes[1])
