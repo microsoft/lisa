@@ -44,7 +44,7 @@ class Vdsotest(Tool):
         elif isinstance(self.node.os, Debian):
             package_list.extend(["dh-autoreconf"])
         elif isinstance(self.node.os, Suse):
-            package_list.extend(["dh-autoreconf", "autoconf", "libtool", "automake"])
+            package_list.extend(["autoconf", "libtool", "automake"])
         elif isinstance(self.node.os, CBLMariner):
             package_list.extend(
                 [
