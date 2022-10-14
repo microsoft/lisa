@@ -4,7 +4,6 @@
 
 from lisa.base_tools import Cat, Rpm, Sed, Uname, Wget, YumConfigManager
 
-from .azsecd import Azsecd
 from .blkid import Blkid
 from .chmod import Chmod
 from .chown import Chown
@@ -95,7 +94,6 @@ from .who import Who
 from .whoami import Whoami
 
 __all__ = [
-    "Azsecd",
     "Blkid",
     "Cat",
     "Chmod",
