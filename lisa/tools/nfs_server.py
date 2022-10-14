@@ -5,7 +5,7 @@ from pathlib import PurePosixPath
 from typing import List
 
 from lisa.executable import Tool
-from lisa.operating_system import SLES, Debian, Redhat
+from lisa.operating_system import SLES, CBLMariner, Debian, Redhat
 from lisa.tools import Echo, Firewall
 from lisa.tools.service import Service
 from lisa.util import UnsupportedDistroException
@@ -80,7 +80,7 @@ class NFSServer(Tool):
             raise UnsupportedDistroException(self.node.os)
 
     def _install(self) -> bool:
-        if isinstance(self.node.os, Redhat):
+        if isinstance(self.node.os, Redhat) or isinstance(self.node.os, CBLMariner):
             self.node.os.install_packages("nfs-utils")
         elif isinstance(self.node.os, Debian):
             self.node.os.install_packages("nfs-kernel-server")
@@ -92,7 +92,7 @@ class NFSServer(Tool):
         return self._check_exists()
 
     def _check_exists(self) -> bool:
-        if isinstance(self.node.os, Redhat):
+        if isinstance(self.node.os, Redhat) or isinstance(self.node.os, CBLMariner):
             return self.node.tools[Service].check_service_exists("nfs-utils")
         elif isinstance(self.node.os, Debian):
             return self.node.tools[Service].check_service_exists("nfs-kernel-server")
