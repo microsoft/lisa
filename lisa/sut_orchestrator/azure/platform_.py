@@ -351,6 +351,7 @@ class AzurePlatform(Platform):
             features.SecurityProfile,
             features.ACC,
             features.IsolatedResource,
+            features.Nfs,
         ]
 
     def _prepare_environment(self, environment: Environment, log: Logger) -> bool:
