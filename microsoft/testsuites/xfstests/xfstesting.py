@@ -1,6 +1,5 @@
 # Copyright (c) Microsoft Corporation.
 # Licensed under the MIT license.
-import random
 import string
 from pathlib import Path
 from typing import Any, Dict, cast
@@ -31,6 +30,7 @@ from lisa.sut_orchestrator.azure.common import (
 from lisa.sut_orchestrator.azure.platform_ import AzurePlatform
 from lisa.testsuite import TestResult
 from lisa.tools import Echo, Fdisk, FileSystem, KernelConfig, Mkfs, Mount, Parted
+from lisa.util import generate_random_chars
 from microsoft.testsuites.xfstests.xfstests import Xfstests
 
 _scratch_folder = "/root/scratch"
@@ -435,9 +435,7 @@ class Xfstesting(TestSuite):
         information = environment.get_information()
         resource_group_name = information["resource_group_name"]
         location = information["location"]
-        random_str = "".join(
-            random.choices(string.ascii_lowercase + string.digits, k=10)
-        )
+        random_str = generate_random_chars(string.ascii_lowercase + string.digits, 10)
         storage_account_name = f"lisasc{random_str}"
         file_share_name = f"lisa{random_str}fs"
         scratch_name = f"lisa{random_str}scratch"
@@ -458,6 +456,7 @@ class Xfstesting(TestSuite):
                     account_name=storage_account_name,
                     file_share_name=share_name,
                     resource_group_name=resource_group_name,
+                    log=log,
                 )
             account_credential = get_storage_credential(
                 credential=platform.credential,
@@ -493,6 +492,7 @@ class Xfstesting(TestSuite):
                     account_name=storage_account_name,
                     file_share_name=share_name,
                     resource_group_name=resource_group_name,
+                    log=log,
                 )
             delete_storage_account(
                 credential=platform.credential,
