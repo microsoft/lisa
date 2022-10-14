@@ -654,7 +654,7 @@ class AzureImageStandard(TestSuite):
                 assert_that(
                     int(oss_repo_enable_refresh_count),
                     "One or more expected `Oss` repositories are not enabled/refreshed",
-                ).is_greater_than(2)
+                ).is_greater_than(0)
                 assert_that(
                     int(update_repo_enable_refresh_count),
                     "One or more expected `Update` repositories are not "
