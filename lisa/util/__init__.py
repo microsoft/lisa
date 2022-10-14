@@ -603,9 +603,10 @@ def truncate_keep_prefix(content: str, kept_len: int, prefix: str = "lisa-") -> 
     return f"{prefix}{content[len(prefix) : ][-kept_len+len(prefix):]}"
 
 
-def generate_random_chars(length: int = 20) -> str:
-    candidates = string.ascii_letters + string.digits
-    return "".join(random.choice(candidates) for _ in range(length))
+def generate_random_chars(
+    candidates: str = string.ascii_letters + string.digits, length: int = 20
+) -> str:
+    return "".join(random.choices(candidates, k=length))
 
 
 def strip_strs(object: Any, fields: List[str]) -> Any:
