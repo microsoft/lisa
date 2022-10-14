@@ -12,6 +12,22 @@ from typing import TYPE_CHECKING, Any, Dict, List, Optional, Union
 from azure.mgmt.compute import ComputeManagementClient  # type: ignore
 from azure.mgmt.marketplaceordering import MarketplaceOrderingAgreements  # type: ignore
 from azure.mgmt.network import NetworkManagementClient  # type: ignore
+from azure.mgmt.network.models import (  # type: ignore
+    PrivateDnsZoneConfig,
+    PrivateDnsZoneGroup,
+    PrivateEndpoint,
+    PrivateLinkServiceConnection,
+    PrivateLinkServiceConnectionState,
+    Subnet,
+)
+from azure.mgmt.privatedns import PrivateDnsManagementClient  # type: ignore
+from azure.mgmt.privatedns.models import (  # type: ignore
+    ARecord,
+    PrivateZone,
+    RecordSet,
+    SubResource,
+    VirtualNetworkLink,
+)
 from azure.mgmt.resource import ResourceManagementClient  # type: ignore
 from azure.mgmt.storage import StorageManagementClient  # type: ignore
 from azure.mgmt.storage.models import (  # type: ignore
@@ -413,6 +429,291 @@ def get_compute_client(
     )
 
 
+def create_update_private_endpoints(
+    platform: "AzurePlatform",
+    resource_group_name: str,
+    location: str,
+    subnet_id: str,
+    private_link_service_id: str,
+    group_ids: List[str],
+    log: Logger,
+    private_endpoint_name: str = "pe_test",
+    status: str = "Approved",
+    description: str = "Auto-Approved",
+) -> Any:
+    network = get_network_client(platform)
+    private_endpoint = network.private_endpoints.begin_create_or_update(
+        resource_group_name=resource_group_name,
+        private_endpoint_name=private_endpoint_name,
+        parameters=PrivateEndpoint(
+            location=location,
+            subnet=Subnet(id=subnet_id),
+            private_link_service_connections=[
+                PrivateLinkServiceConnection(
+                    name=private_endpoint_name,
+                    private_link_service_id=private_link_service_id,
+                    group_ids=group_ids,
+                    private_link_service_connection_state=(
+                        PrivateLinkServiceConnectionState(
+                            status=status, description=description
+                        )
+                    ),
+                )
+            ],
+        ),
+    )
+    log.debug(f"create private endpoints: {private_endpoint_name}")
+    result = private_endpoint.result()
+    return result.custom_dns_configs[0].ip_addresses[0]
+
+
+def delete_private_endpoints(
+    platform: "AzurePlatform",
+    resource_group_name: str,
+    log: Logger,
+    private_endpoint_name: str = "pe_test",
+) -> None:
+    network = get_network_client(platform)
+    try:
+        network.private_endpoints.get(
+            resource_group_name=resource_group_name,
+            private_endpoint_name=private_endpoint_name,
+        )
+        log.debug(f"found private endpoints: {private_endpoint_name}")
+        network.private_endpoints.begin_delete(
+            resource_group_name=resource_group_name,
+            private_endpoint_name=private_endpoint_name,
+        )
+        log.debug(f"delete private endpoints: {private_endpoint_name}")
+    except Exception:
+        log.debug(f"not find private endpoints: {private_endpoint_name}")
+
+
+def get_private_dns_management_client(
+    platform: "AzurePlatform",
+) -> PrivateDnsManagementClient:
+    return PrivateDnsManagementClient(
+        credential=platform.credential,
+        subscription_id=platform.subscription_id,
+    )
+
+
+def create_update_private_zones(
+    platform: "AzurePlatform",
+    resource_group_name: str,
+    log: Logger,
+    private_zone_name: str = "privatelink.file.core.windows.net",
+    private_zone_location: str = "global",
+) -> Any:
+    private_dns_client = get_private_dns_management_client(platform)
+    private_zones = private_dns_client.private_zones.begin_create_or_update(
+        resource_group_name=resource_group_name,
+        private_zone_name=private_zone_name,
+        parameters=PrivateZone(location=private_zone_location),  # or Private
+    )
+    log.debug(f"create private zone: {private_zone_name}")
+    result = private_zones.result()
+    return result.id
+
+
+def delete_private_zones(
+    platform: "AzurePlatform",
+    resource_group_name: str,
+    log: Logger,
+    private_zone_name: str = "privatelink.file.core.windows.net",
+) -> None:
+    private_dns_client = get_private_dns_management_client(platform)
+    try:
+        private_dns_client.private_zones.get(
+            resource_group_name=resource_group_name,
+            private_zone_name=private_zone_name,
+        )
+        log.debug(f"found private zone: {private_zone_name}")
+        timer = create_timer()
+        while timer.elapsed(False) < 60:
+            try:
+                private_dns_client.private_zones.begin_delete(
+                    resource_group_name=resource_group_name,
+                    private_zone_name=private_zone_name,
+                )
+                log.debug(f"delete private zone: {private_zone_name}")
+                break
+            except Exception as identifier:
+                if (
+                    "Can not delete resource before nested resources are deleted"
+                    in str(identifier)
+                ):
+                    sleep(1)
+                    continue
+    except Exception:
+        log.debug(f"not find private zone: {private_zone_name}")
+
+
+def create_update_record_sets(
+    platform: "AzurePlatform",
+    resource_group_name: str,
+    ipv4_address: str,
+    log: Logger,
+    private_zone_name: str = "privatelink.file.core.windows.net",
+    relative_record_set_name: str = "privatelink",
+    record_type: str = "A",
+) -> None:
+    private_dns_client = get_private_dns_management_client(platform)
+    private_dns_client.record_sets.create_or_update(
+        resource_group_name=resource_group_name,
+        private_zone_name=private_zone_name,
+        relative_record_set_name=relative_record_set_name,
+        record_type=record_type,
+        parameters=RecordSet(ttl=10, a_records=[ARecord(ipv4_address=ipv4_address)]),
+    )
+    log.debug(f"create record sets: {relative_record_set_name}")
+
+
+def delete_record_sets(
+    platform: "AzurePlatform",
+    resource_group_name: str,
+    log: Logger,
+    private_zone_name: str = "privatelink.file.core.windows.net",
+    relative_record_set_name: str = "privatelink",
+    record_type: str = "A",
+) -> None:
+    private_dns_client = get_private_dns_management_client(platform)
+    try:
+        private_dns_client.record_sets.get(
+            resource_group_name=resource_group_name,
+            private_zone_name=private_zone_name,
+            relative_record_set_name=relative_record_set_name,
+            record_type=record_type,
+        )
+        log.debug(f"found record sets: {relative_record_set_name}")
+        private_dns_client.record_sets.delete(
+            resource_group_name=resource_group_name,
+            private_zone_name=private_zone_name,
+            relative_record_set_name=relative_record_set_name,
+            record_type=record_type,
+        )
+        log.debug(f"delete record sets: {relative_record_set_name}")
+    except Exception:
+        log.debug(f"not find record sets: {relative_record_set_name}")
+
+
+def create_update_virtual_network_links(
+    platform: "AzurePlatform",
+    resource_group_name: str,
+    virtual_network_resource_id: str,
+    log: Logger,
+    private_zone_name: str = "privatelink.file.core.windows.net",
+    virtual_network_link_name: str = "vnetlink",
+    registration_enabled: bool = False,
+    virtual_network_link_location: str = "global",
+) -> None:
+    private_dns_client = get_private_dns_management_client(platform)
+    private_dns_client.virtual_network_links.begin_create_or_update(
+        resource_group_name=resource_group_name,
+        private_zone_name=private_zone_name,
+        virtual_network_link_name=virtual_network_link_name,
+        parameters=VirtualNetworkLink(
+            registration_enabled=registration_enabled,
+            location=virtual_network_link_location,
+            virtual_network=SubResource(id=virtual_network_resource_id),
+        ),
+    )
+    log.debug(f"create virtual network link: {virtual_network_link_name}")
+
+
+def delete_virtual_network_links(
+    platform: "AzurePlatform",
+    resource_group_name: str,
+    log: Logger,
+    private_zone_name: str = "privatelink.file.core.windows.net",
+    virtual_network_link_name: str = "vnetlink",
+) -> None:
+    private_dns_client = get_private_dns_management_client(platform)
+    try:
+        private_dns_client.virtual_network_links.get(
+            resource_group_name=resource_group_name,
+            private_zone_name=private_zone_name,
+            virtual_network_link_name=virtual_network_link_name,
+        )
+        log.debug(f"find virtual network link: {virtual_network_link_name}")
+        private_dns_client.virtual_network_links.begin_delete(
+            resource_group_name=resource_group_name,
+            private_zone_name=private_zone_name,
+            virtual_network_link_name=virtual_network_link_name,
+        )
+        log.debug(f"delete virtual network link: {virtual_network_link_name}")
+    except Exception:
+        log.debug(f"not find virtual network link: {virtual_network_link_name}")
+
+
+def create_update_private_dns_zone_groups(
+    platform: "AzurePlatform",
+    resource_group_name: str,
+    private_dns_zone_id: str,
+    log: Logger,
+    private_dns_zone_group_name: str = "default",
+    private_endpoint_name: str = "pe_test",
+    private_dns_zone_name: str = "privatelink.file.core.windows.net",
+) -> None:
+    network_client = get_network_client(platform)
+    # network_client.private_dns_zone_groups.delete()
+    network_client.private_dns_zone_groups.begin_create_or_update(
+        resource_group_name=resource_group_name,
+        private_dns_zone_group_name=private_dns_zone_group_name,
+        private_endpoint_name=private_endpoint_name,
+        parameters=PrivateDnsZoneGroup(
+            name=private_dns_zone_group_name,
+            private_dns_zone_configs=[
+                PrivateDnsZoneConfig(
+                    name=private_dns_zone_name,
+                    private_dns_zone_id=private_dns_zone_id,
+                )
+            ],
+        ),
+    )
+    log.debug(f"create private dns zone group: {private_dns_zone_group_name}")
+
+
+def delete_private_dns_zone_groups(
+    platform: "AzurePlatform",
+    resource_group_name: str,
+    log: Logger,
+    private_dns_zone_group_name: str = "default",
+    private_endpoint_name: str = "pe_test",
+) -> None:
+    network_client = get_network_client(platform)
+    try:
+        network_client.private_dns_zone_groups.get(
+            resource_group_name=resource_group_name,
+            private_endpoint_name=private_endpoint_name,
+            private_dns_zone_group_name=private_dns_zone_group_name,
+        )
+        log.debug(f"found private dns zone group: {private_dns_zone_group_name}")
+        network_client.private_dns_zone_groups.begin_delete(
+            resource_group_name=resource_group_name,
+            private_endpoint_name=private_endpoint_name,
+            private_dns_zone_group_name=private_dns_zone_group_name,
+        )
+        log.debug(f"delete private dns zone group: {private_dns_zone_group_name}")
+    except Exception:
+        log.debug(f"not find private dns zone group: {private_dns_zone_group_name}")
+
+
+def get_virtual_networks(
+    platform: "AzurePlatform", resource_group_name: str
+) -> Dict[str, List[str]]:
+    network_client = get_network_client(platform)
+    virtual_networks_list = network_client.virtual_networks.list(
+        resource_group_name=resource_group_name
+    )
+    virtual_network_dict: Dict[str, List[str]] = {}
+    for virtual_network in virtual_networks_list:
+        virtual_network_dict[virtual_network.id] = [
+            x.id for x in virtual_network.subnets
+        ]
+    return virtual_network_dict
+
+
 def get_network_client(platform: "AzurePlatform") -> ComputeManagementClient:
     return NetworkManagementClient(
         credential=platform.credential,
@@ -574,6 +875,9 @@ def check_or_create_storage_account(
     resource_group_name: str,
     location: str,
     log: Logger,
+    sku: str = "Standard_LRS",
+    kind: str = "StorageV2",
+    enable_https_traffic_only: bool = True,
 ) -> None:
     # check and deploy storage account.
     # storage account can be deployed inside of arm template, but if the concurrent
@@ -590,7 +894,10 @@ def check_or_create_storage_account(
     except Exception:
         log.debug(f"creating storage account: {account_name}")
         parameters = StorageAccountCreateParameters(
-            sku=Sku(name="Standard_LRS"), kind="StorageV2", location=location
+            sku=Sku(name=sku),
+            kind=kind,
+            location=location,
+            enable_https_traffic_only=enable_https_traffic_only,
         )
         operation = storage_client.storage_accounts.begin_create(
             resource_group_name=resource_group_name,
@@ -692,6 +999,8 @@ def get_or_create_file_share(
     account_name: str,
     file_share_name: str,
     resource_group_name: str,
+    log: Logger,
+    protocols: str = "SMB",
 ) -> str:
     """
     Create a Azure Storage file share if it does not exist.
@@ -701,7 +1010,8 @@ def get_or_create_file_share(
     )
     all_shares = list(share_service_client.list_shares())
     if file_share_name not in (x.name for x in all_shares):
-        share_service_client.create_share(file_share_name)
+        log.debug(f"creating file share {file_share_name} with protocols {protocols}")
+        share_service_client.create_share(file_share_name, protocols=protocols)
     return str("//" + share_service_client.primary_hostname + "/" + file_share_name)
 
 
@@ -711,6 +1021,7 @@ def delete_file_share(
     account_name: str,
     file_share_name: str,
     resource_group_name: str,
+    log: Logger,
 ) -> None:
     """
     Delete Azure Storage file share
@@ -718,6 +1029,7 @@ def delete_file_share(
     share_service_client = get_share_service_client(
         credential, subscription_id, account_name, resource_group_name
     )
+    log.debug(f"deleting file share {file_share_name}")
     share_service_client.delete_share(file_share_name)
 
 
