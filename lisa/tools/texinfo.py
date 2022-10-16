@@ -26,7 +26,7 @@ class Texinfo(Tool):
     def _install(self) -> bool:
         posix_os: Posix = cast(Posix, self.node.os)
         try:
-            posix_os.install_packages("texinfo")
+            posix_os.install_packages("texinfo", timeout=2000)
         except MissingPackagesException:
             posix_os.install_packages(["perl", "perl-Data-Dumper"])
             self._install_from_src()
