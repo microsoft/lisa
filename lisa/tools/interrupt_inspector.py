@@ -4,7 +4,7 @@
 from __future__ import annotations
 
 import re
-from typing import Dict, List
+from typing import Dict, List, Optional
 
 from lisa.executable import Tool
 from lisa.tools import Cat
@@ -93,10 +93,21 @@ class InterruptInspector(Tool):
 
         return interrupts
 
-    def sum_cpu_counter_by_irqs(self, pci_slot: str) -> List[Dict[str, int]]:
+    def sum_cpu_counter_by_irqs(
+        self,
+        pci_slot: str,
+        exclude_key_words: Optional[List[str]] = None,
+    ) -> List[Dict[str, int]]:
         interrupts_sum_by_irqs: List[Dict[str, int]] = []
         interrupts = self.get_interrupt_data()
-        matched_interrupts = [x for x in interrupts if pci_slot in x.metadata]
+        if exclude_key_words is None:
+            exclude_key_words = []
+        matched_interrupts = [
+            x
+            for x in interrupts
+            if pci_slot in x.metadata
+            and all(y not in x.metadata for y in exclude_key_words)
+        ]
         for interrupt in matched_interrupts:
             interrupts_sum_by_irqs.append({interrupt.irq_number: interrupt.counter_sum})
         return interrupts_sum_by_irqs
