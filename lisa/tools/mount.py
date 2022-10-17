@@ -6,6 +6,7 @@ from pathlib import PurePosixPath
 from typing import List, Optional, cast
 
 from assertpy.assertpy import assert_that
+from retry import retry
 
 from lisa.executable import Tool
 from lisa.operating_system import Posix
@@ -67,6 +68,7 @@ class Mount(Tool):
     def can_install(self) -> bool:
         return True
 
+    @retry(tries=10, delay=5)
     def mount(
         self,
         name: str,
