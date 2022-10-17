@@ -48,6 +48,21 @@ class Dns(TestSuite):
             )
             if 0 != cmd_result.exit_code:
                 node.os.install_packages("unattended-upgrades")
+            if type(node.os) == Debian:
+                if node.os.information.version >= "10.0.0":
+                    node.execute(
+                        "mkdir -p /var/cache/apt/archives/partial",
+                        sudo=True,
+                        shell=True,
+                        expected_exit_code=0,
+                        expected_exit_code_failure_message=(
+                            "fail to make folder /var/cache/apt/archives/partial"
+                        ),
+                    )
+                else:
+                    node.os.install_packages(
+                        ["debian-keyring", "debian-archive-keyring"]
+                    )
             node.execute(
                 "apt update && unattended-upgrade -d -v",
                 sudo=True,
