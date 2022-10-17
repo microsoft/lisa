@@ -54,7 +54,7 @@ class Dns(TestSuite):
                 shell=True,
                 expected_exit_code=0,
                 expected_exit_code_failure_message="fail to run unattended-upgrade",
-                timeout=1200,
+                timeout=2400,
             )
         elif isinstance(node.os, Posix):
             node.os.update_packages("")
