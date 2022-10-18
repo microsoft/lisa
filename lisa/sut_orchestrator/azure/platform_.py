@@ -379,7 +379,7 @@ class AzurePlatform(Platform):
 
         # covert to azure node space, so the azure extensions can be loaded.
         for req in nodes_requirement:
-            _convert_to_azure_node_space(req)
+            self._load_image_features(req)
 
         is_success: bool = False
 
@@ -1534,7 +1534,7 @@ class AzurePlatform(Platform):
         )
         if ephemeral_supported and eval(ephemeral_supported) is True:
             # Check if CachedDiskBytes is greater than 30GB
-            # We use diffdisk as cache disk for ephemeral OS disk
+            # We use diff disk as cache disk for ephemeral OS disk
             cached_disk_bytes = azure_raw_capabilities.get("CachedDiskBytes", 0)
             cached_disk_bytes_gb = int(cached_disk_bytes) / 1024 / 1024 / 1024
             if cached_disk_bytes_gb >= 30:
@@ -2378,6 +2378,50 @@ class AzurePlatform(Platform):
                     node_runbook.location, node_runbook.marketplace
                 )
 
+    def _add_image_features(self, node_space: schema.NodeSpace) -> None:
+        # Load image information, and add to requirements.
+
+        # locations used to query marketplace image information. Some image is not
+        # available in all locations, so try several of them.
+        _marketplace_image_locations = ["centraluseuap", "eastus2euap"]
+
+        if not node_space:
+            return
+
+        if not node_space.features:
+            node_space.features = search_space.SetSpace[schema.FeatureSettings](
+                is_allow_set=True
+            )
+
+        for feature_setting in node_space.features.items:
+            if feature_setting.type == features.VhdGenerationSettings.type:
+                # if requirement exists, not to add it.
+                return
+
+        azure_runbook = node_space.get_extended_runbook(AzureNodeSchema, AZURE)
+
+        if azure_runbook.marketplace:
+            for index, location in enumerate(_marketplace_image_locations):
+                try:
+                    image_info = self._get_image_info(
+                        location, azure_runbook.marketplace
+                    )
+                    break
+                except Exception as identifier:
+                    # raise exception, if last location failed.
+                    if index == len(_marketplace_image_locations) - 1:
+                        raise identifier
+
+            generation = _get_vhd_generation(image_info)
+            node_space.features.add(features.VhdGenerationSettings(gen=generation))
+
+    def _load_image_features(self, node_space: schema.NodeSpace) -> None:
+        # This method does the same thing as _convert_to_azure_node_space
+        # method, and attach the additional features. The additional features
+        # need Azure platform, so it needs to be in Azure Platform.
+        _convert_to_azure_node_space(node_space)
+        self._add_image_features(node_space)
+
 
 def _convert_to_azure_node_space(node_space: schema.NodeSpace) -> None:
     if not node_space:
@@ -2385,6 +2429,7 @@ def _convert_to_azure_node_space(node_space: schema.NodeSpace) -> None:
 
     if node_space.features:
         new_settings = search_space.SetSpace[schema.FeatureSettings](is_allow_set=True)
+
         for current_settings in node_space.features.items:
             # reload to type specified settings
             try:
