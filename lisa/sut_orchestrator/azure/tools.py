@@ -392,5 +392,5 @@ class Azsecd(Tool):
         return False
 
     def install(self) -> bool:
-        self.node.os.install_packages("azure-security") # type: ignore
+        self.node.os.install_packages("azure-security")  # type: ignore
         return self._check_exists()
