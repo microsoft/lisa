@@ -389,7 +389,7 @@ class Azsecd(Tool):
 
     @property
     def can_install(self) -> bool:
-        return False
+        return True
 
     def install(self) -> bool:
         self.node.os.install_packages("azure-security")  # type: ignore
