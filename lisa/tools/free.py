@@ -96,3 +96,6 @@ class Free(Tool):
         group = find_group_in_lines(output, self._mem_pattern)
         total_memory = group["total"]
         return total_memory
+
+    def log_memory_stats_mb(self) -> None:
+        self.run("-m", shell=True, force_run=True, no_info_log=False)

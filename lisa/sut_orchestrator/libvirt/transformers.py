@@ -211,7 +211,7 @@ class LibvirtPackageInstaller(LibvirtInstaller):
         linux: Linux = cast(Linux, node.os)
         packages_list = self._distro_package_mapping[type(linux).__name__]
         self._log.info(f"installing packages: {packages_list}")
-        linux.install_packages(list(packages_list))
+        linux.install_packages(packages_list)
         self._fix_mariner_installation()
         return self._get_version()
 
@@ -254,7 +254,7 @@ class QemuPackageInstaller(QemuInstaller):
             linux.install_packages(
                 ["mariner-repos-preview.noarch", "mariner-repos-extended"]
             )
-        linux.install_packages(list(packages_list))
+        linux.install_packages(packages_list)
         username = node.tools[Whoami].get_username()
         node.tools[Usermod].add_user_to_group(group=username, user="qemu", sudo=True)
         return self._get_version()
@@ -279,7 +279,7 @@ class CloudHypervisorPackageInstaller(CloudHypervisorInstaller):
         linux: Linux = cast(Linux, node.os)
         packages_list = self._distro_package_mapping[type(linux).__name__]
         self._log.info(f"installing packages: {packages_list}")
-        linux.install_packages(list(packages_list))
+        linux.install_packages(packages_list)
         return self._get_version()
 
 
@@ -362,7 +362,7 @@ class LibvirtSourceInstaller(LibvirtInstaller):
     def _install_dependencies(self) -> None:
         linux: Linux = cast(Linux, self._node.os)
         dep_packages_list = self._distro_package_mapping[type(linux).__name__]
-        linux.install_packages(list(dep_packages_list))
+        linux.install_packages(dep_packages_list)
         result = self._node.execute("pip3 install meson", shell=True, sudo=True)
         assert not result.exit_code, "Failed to install meson"
 
@@ -421,7 +421,7 @@ class CloudHypervisorSourceInstaller(CloudHypervisorInstaller):
     def _install_dependencies(self) -> None:
         linux: Linux = cast(Linux, self._node.os)
         packages_list = self._distro_package_mapping[type(linux).__name__]
-        linux.install_packages(list(packages_list))
+        linux.install_packages(packages_list)
         self._node.execute(
             "curl https://sh.rustup.rs -sSf | sh -s -- -y",
             shell=True,
@@ -471,7 +471,7 @@ class CloudHypervisorBinaryInstaller(CloudHypervisorInstaller):
         linux: Linux = cast(Linux, self._node.os)
         packages_list = self._distro_package_mapping[type(linux).__name__]
         self._log.info(f"installing packages: {packages_list}")
-        linux.install_packages(list(packages_list))
+        linux.install_packages(packages_list)
         command = (
             "curl -s https://api.github.com/repos/cloud-hypervisor/"
             "cloud-hypervisor/releases/latest | jq -r '.tag_name'"

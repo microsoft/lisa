@@ -150,6 +150,19 @@ azure-mgmt-core = ">=1.2.0,<2.0.0"
 msrest = ">=0.6.21"
 
 [[package]]
+name = "azure-mgmt-privatedns"
+version = "1.0.0"
+description = "Microsoft Azure DNS Private Zones Client Library for Python"
+category = "main"
+optional = true
+python-versions = "*"
+
+[package.dependencies]
+azure-common = ">=1.1,<2.0"
+azure-mgmt-core = ">=1.2.0,<2.0.0"
+msrest = ">=0.5.0"
+
+[[package]]
 name = "azure-mgmt-resource"
 version = "21.1.0"
 description = "Microsoft Azure Resource Management Client Library for Python"
@@ -2059,7 +2072,7 @@ testing = ["func-timeout", "jaraco.itertools", "pytest (>=6)", "pytest-black (>=
 
 [extras]
 aws = ["boto3", "boto3-stubs"]
-azure = ["azure-identity", "azure-storage-blob", "azure-mgmt-compute", "azure-mgmt-marketplaceordering", "azure-mgmt-network", "azure-mgmt-resource", "azure-mgmt-serialconsole", "azure-mgmt-storage", "azure-storage-file-share", "PyGObject", "Pillow", "types-Pillow", "azure-mgmt-containerservice", "kubernetes"]
+azure = ["azure-identity", "azure-storage-blob", "azure-mgmt-compute", "azure-mgmt-marketplaceordering", "azure-mgmt-network", "azure-mgmt-resource", "azure-mgmt-serialconsole", "azure-mgmt-storage", "azure-storage-file-share", "azure-mgmt-privatedns", "PyGObject", "Pillow", "types-Pillow"]
 doc = ["Sphinx", "sphinx-argparse", "sphinx-rtd-theme", "sphinxemoji", "sphinx-copybutton", "rstcheck"]
 legacy = ["pypiwin32"]
 libvirt = ["libvirt-python"]
@@ -2067,7 +2080,7 @@ libvirt = ["libvirt-python"]
 [metadata]
 lock-version = "1.1"
 python-versions = ">=3.8,<4.0"
-content-hash = "8e25dda1da7672449a77f5c3e7f840bda3dadd3f274bb7c9f5862f7d9f0dcab9"
+content-hash = "8de22236b6c14c20931b46ea58c3f0ac0cb3fffc1bbe5fc22c4977a5e6b36459"
 
 [metadata.files]
 alabaster = [
@@ -2119,6 +2132,10 @@ azure-mgmt-marketplaceordering = [
 azure-mgmt-network = [
     {file = "azure-mgmt-network-19.3.0.zip", hash = "sha256:0b6a1ccdffd76e057ab16a6c319740a0ca68d59fedf7e9c02f2437396e72aa11"},
     {file = "azure_mgmt_network-19.3.0-py2.py3-none-any.whl", hash = "sha256:00e391243ed772ebfe551dec3a3f50c4001ac622a4c5504ef4453001f8c63433"},
+]
+azure-mgmt-privatedns = [
+    {file = "azure-mgmt-privatedns-1.0.0.zip", hash = "sha256:b60f16e43f7b291582c5f57bae1b083096d8303e9d9958e2c29227a55cc27c45"},
+    {file = "azure_mgmt_privatedns-1.0.0-py2.py3-none-any.whl", hash = "sha256:683a3eedb65b40c56b08b5636d2c1d125db58d536989a858fed8661d1ec011b6"},
 ]
 azure-mgmt-resource = [
     {file = "azure-mgmt-resource-21.1.0.zip", hash = "sha256:52965ade31cd059fea2b1513d65fe616046e433de0e583dcf5c9c9bebf3ebd69"},

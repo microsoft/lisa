@@ -1,5 +1,5 @@
 from dataclasses import dataclass, field
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Tuple
 
 import libvirt  # type: ignore
 
@@ -22,6 +22,9 @@ class EnvironmentContext:
 
     # Timeout for the OS to boot and acquire an IP address, in seconds.
     network_boot_timeout: float = 30.0
+
+    # List of (port, IP) used in port forwading
+    port_forwarding_list: List[Tuple[int, str]] = field(default_factory=list)
 
 
 @dataclass

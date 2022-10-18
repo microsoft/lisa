@@ -204,6 +204,10 @@ class KdumpCrash(TestSuite):
         self._kdump_test(node, log_path, log)
 
     def _check_supported(self, node: Node) -> None:
+        # Check the kernel config for kdump supported
+        kdump = node.tools[KdumpBase]
+        kdump.check_required_kernel_config()
+
         # Check the VMBus version for kdump supported
         dmesg = node.tools[Dmesg]
         vmbus_version = dmesg.get_vmbus_version()
@@ -232,10 +236,6 @@ class KdumpCrash(TestSuite):
                 "CONFIG_KEXEC_AUTO_RESERVE"
             ):
                 raise SkippedException("crashkernel=auto doesn't work for the distro.")
-
-        # Check the kernel config for kdump supported
-        kdump = node.tools[KdumpBase]
-        kdump.check_required_kernel_config()
 
     def _get_resource_disk_dump_path(self, node: Node) -> str:
         if node.shell.exists(

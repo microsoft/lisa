@@ -206,7 +206,15 @@ class ResourceAwaitableException(Exception):
     Wait for more resources to create environment.
     """
 
-    ...
+    def __init__(self, resource_name: str, message: str = "") -> None:
+        self.resource_name = resource_name
+        self.message = message
+
+    def __str__(self) -> str:
+        return (
+            f"awaitable resource '{self.resource_name}' is not enough. "
+            f"{self.message}"
+        )
 
 
 class TcpConnectionException(LisaException):
@@ -241,6 +249,10 @@ class ContextMixin:
                 self._context, context_type
             ), f"actual: {type(self._context)}"
         return self._context
+
+    def remove_context(self) -> None:
+        if hasattr(self, "_context"):
+            delattr(self, "_context")
 
 
 class InitializableMixin:
@@ -591,9 +603,10 @@ def truncate_keep_prefix(content: str, kept_len: int, prefix: str = "lisa-") -> 
     return f"{prefix}{content[len(prefix) : ][-kept_len+len(prefix):]}"
 
 
-def generate_random_chars(length: int = 20) -> str:
-    candidates = string.ascii_letters + string.digits
-    return "".join(random.choice(candidates) for _ in range(length))
+def generate_random_chars(
+    candidates: str = string.ascii_letters + string.digits, length: int = 20
+) -> str:
+    return "".join(random.choices(candidates, k=length))
 
 
 def strip_strs(object: Any, fields: List[str]) -> Any:

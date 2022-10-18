@@ -283,13 +283,9 @@ class Gpu(Feature):
     def _install_gpu_dep(self) -> None:
         # install dependency libraries for distros
         if isinstance(self._node.os, Redhat):
-            self._node.os.install_packages(
-                list(self._redhat_gpu_dependencies), signed=False
-            )
+            self._node.os.install_packages(self._redhat_gpu_dependencies, signed=False)
         elif isinstance(self._node.os, Ubuntu):
-            self._node.os.install_packages(
-                list(self._ubuntu_gpu_dependencies), timeout=2000
-            )
+            self._node.os.install_packages(self._ubuntu_gpu_dependencies, timeout=2000)
         else:
             raise LisaException(
                 f"Distro {self._node.os.name} is not supported for GPU."

@@ -209,12 +209,14 @@ class DpdkTestpmd(Tool):
         vdev_info = ""
         self.node.log.info(f"Running test with {len(include_nics)} nics.")
         for nic in include_nics:
-            if self._dpdk_version_info and self._dpdk_version_info >= "19.11.0":
+            if self._dpdk_version_info and self._dpdk_version_info >= "18.11.0":
                 vdev_name = "net_vdev_netvsc"
                 vdev_flags = f"iface={nic.upper},force=1"
             else:
                 vdev_name = "net_failsafe"
-                vdev_flags = f"dev({nic.pci_slot}),dev(net_tap0,iface={nic.upper})"
+                vdev_flags = (
+                    f"dev({nic.pci_slot}),dev(net_tap0,iface={nic.upper},force=1)"
+                )
             if nic.bound_driver == "hv_netvsc":
                 vdev_info += f'--vdev="{vdev_name}{vdev_id},{vdev_flags}" '
             elif nic.bound_driver == "uio_hv_generic":
@@ -349,13 +351,24 @@ class DpdkTestpmd(Tool):
         return len(pids) > 0
 
     def kill_previous_testpmd_command(self) -> None:
-        # kill testpmd early
 
+        # kill testpmd early
         self.node.tools[Kill].by_name(self.command, ignore_not_exist=True)
         if self.check_testpmd_is_running():
             self.node.log.debug(
+                "Testpmd is not responding to signals, "
+                "attempt network connection reset."
+            )
+
+            # reset node connections (quicker and less risky than netvsc reset)
+            self.node.close()
+            if not self.check_testpmd_is_running():
+                return
+
+            self.node.log.debug(
                 "Testpmd is not responding to signals, attempt reload of hv_netvsc."
             )
+            # if this somehow didn't kill it, reset netvsc
             self.node.tools[Modprobe].reload(["hv_netvsc"])
             if self.check_testpmd_is_running():
                 raise LisaException("Testpmd has hung, killing the test.")
@@ -387,7 +400,8 @@ class DpdkTestpmd(Tool):
             )
         )
         cast_to_ints = list(map(int, matches))
-        return _discard_first_zeroes(cast_to_ints)
+        cast_to_ints = _discard_first_zeroes(cast_to_ints)
+        return _discard_first_and_last_sample(cast_to_ints)
 
     def populate_performance_data(self) -> None:
         self.rx_pps_data = self.get_data_from_testpmd_output(
@@ -697,7 +711,7 @@ class DpdkTestpmd(Tool):
             self._install_ubuntu_dependencies()
         elif isinstance(node.os, Debian):
             node.os.install_packages(
-                list(self._debian_packages), extra_args=self._debian_backports_args
+                self._debian_packages, extra_args=self._debian_backports_args
             )
         elif isinstance(node.os, Fedora):
             self._install_fedora_dependencies()
@@ -722,14 +736,14 @@ class DpdkTestpmd(Tool):
             )
         elif ubuntu.information.version < "20.4.0":
             ubuntu.install_packages(
-                list(self._ubuntu_packages_1804),
+                self._ubuntu_packages_1804,
                 extra_args=self._debian_backports_args,
             )
             if not self.use_package_manager_install():
                 self._install_ninja_and_meson()
         else:
             ubuntu.install_packages(
-                list(self._ubuntu_packages_2004),
+                self._ubuntu_packages_2004,
                 extra_args=self._debian_backports_args,
             )
 
@@ -750,7 +764,7 @@ class DpdkTestpmd(Tool):
 
         if rhel.information.version.major == 7:
             # Add packages for rhel7
-            rhel.install_packages(list(["libmnl-devel", "libbpf-devel"]))
+            rhel.install_packages(["libmnl-devel", "libbpf-devel"])
 
         try:
             rhel.install_packages("kernel-devel-$(uname -r)")
@@ -763,7 +777,7 @@ class DpdkTestpmd(Tool):
 
         rhel.group_install_packages("Development Tools")
         rhel.group_install_packages("Infiniband Support")
-        rhel.install_packages(list(self._fedora_packages))
+        rhel.install_packages(self._fedora_packages)
 
         # ensure RDMA service is started if present.
 
@@ -884,22 +898,25 @@ class DpdkTestpmd(Tool):
         after_rescind = self._last_run_output[device_removal_index:]
         # Identify the device add event
         hotplug_match = self._search_hotplug_regex.finditer(after_rescind)
-
-        if not hotplug_match:
+        matches_list = list(hotplug_match)
+        if not list(matches_list):
             hotplug_alt_match = self._search_hotplug_regex_alt.finditer(after_rescind)
             if hotplug_alt_match:
-                hotplug_match = hotplug_alt_match
+                matches_list = list(hotplug_alt_match)
             else:
                 command_dumped = "timeout: the monitored command dumped core"
                 if command_dumped in self._last_run_output:
                     raise LisaException("Testpmd crashed after device removal.")
 
         # pick the last match
-        try:
-            *_, last_match = hotplug_match
-        except ValueError:
+
+        if len(matches_list) > 0:
+            last_match = matches_list[-1]
+        else:
             raise LisaException(
-                "Could not identify vf hotplug events in testpmd output."
+                "Found no vf hotplug events in testpmd output. "
+                "Check output to verify if PPS drop occurred and port removal "
+                "event message matches the expected forms."
             )
 
         self.node.log.info(f"Identified hotplug event: {last_match.group(0)}")
@@ -953,6 +970,20 @@ def _discard_first_zeroes(data: List[int]) -> List[int]:
 
     # leave list as-is if data is all zeroes
     return data
+
+
+def _discard_first_and_last_sample(data: List[int]) -> List[int]:
+    # NOTE: first and last sample can be unreliable after switch messages
+    # We're sampling for an order-of-magnitude difference so it
+    # can mess up the average since we're using an unweighted mean
+
+    # discard first and last sample so long as there are enough to
+    # practically, we expect there to be > 20 unless rescind
+    # performance is hugely improved in the cloud
+    if len(data) < 3:
+        return data
+    else:
+        return data[1:-1]
 
 
 def _mean(data: List[int]) -> int:

@@ -33,6 +33,7 @@ from .hyperv import HyperV
 from .interrupt_inspector import InterruptInspector
 from .ip import Ip
 from .iperf3 import Iperf3
+from .journalctl import Journalctl
 from .kdump import KdumpBase
 from .kernel_config import KernelConfig
 from .kill import Kill
@@ -132,6 +133,7 @@ __all__ = [
     "Ip",
     "Iperf3",
     "Iptables",
+    "Journalctl",
     "KdumpBase",
     "KernelConfig",
     "Kill",

@@ -15,6 +15,7 @@ from .infiniband import Infiniband
 from .isolated_resource import IsolatedResource
 from .nested_virtualization import NestedVirtualization
 from .network_interface import NetworkInterface, Sriov, Synthetic
+from .nfs import Nfs
 from .nvme import Nvme, NvmeSettings
 from .resize import Resize, ResizeAction
 from .security_profile import (
@@ -42,6 +43,7 @@ __all__ = [
     "Infiniband",
     "IsolatedResource",
     "NestedVirtualization",
+    "Nfs",
     "Nvme",
     "NvmeSettings",
     "SerialConsole",

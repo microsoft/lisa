@@ -129,7 +129,9 @@ class Qemu(Tool):
     def delete_vm(self, timeout: int = 300) -> None:
         # stop vm
         kill = self.node.tools[Kill]
-        kill.by_name("qemu")
+        qemu_processes = self.node.tools[Pgrep].get_processes("qemu")
+        for process in qemu_processes:
+            kill.by_pid(process.id)
 
         # `Qemu` is not stopped immediately after `kill` is called.
         # Wait until we find no running qemu processes.

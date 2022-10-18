@@ -2,6 +2,7 @@
 # Licensed under the MIT license.
 
 import copy
+import time
 from logging import FileHandler
 from pathlib import Path
 from typing import Any, Callable, Dict, Iterator, List, Optional, Type
@@ -15,7 +16,7 @@ from lisa.parameter_parser.runbook import RunbookBuilder
 from lisa.util import BaseClassMixin, InitializableMixin, LisaException, constants
 from lisa.util.logger import create_file_handler, get_logger, remove_handler
 from lisa.util.parallel import Task, TaskManager, cancel, set_global_task_manager
-from lisa.util.perf_timer import create_timer
+from lisa.util.perf_timer import Timer, create_timer
 from lisa.util.subclasses import Factory
 from lisa.variable import VariableEntry, get_case_variables, replace_variables
 
@@ -107,6 +108,11 @@ class BaseRunner(BaseClassMixin, InitializableMixin):
         self._log_handler: Optional[FileHandler] = None
         self._case_variables = case_variables
         self._timer = create_timer()
+
+        self._wait_resource_timeout = runbook.wait_resource_timeout
+        self._wait_resource_timers: Dict[str, Timer] = dict()
+        self._wait_resource_logged: bool = False
+
         self.canceled = False
 
     def __repr__(self) -> str:
@@ -151,6 +157,26 @@ class BaseRunner(BaseClassMixin, InitializableMixin):
 
             self._working_folder = self._working_folder / runner_path_name
 
+    def _is_awaitable_timeout(self, name: str) -> bool:
+        _wait_resource_timer = self._wait_resource_timers.get(name, create_timer())
+        self._wait_resource_timers[name] = _wait_resource_timer
+        if _wait_resource_timer.elapsed(False) < self._wait_resource_timeout * 60:
+            # wait a while to prevent called too fast
+            if not self._wait_resource_logged:
+                self._log.info(f"{name} waiting for more resource...")
+                self._wait_resource_logged = True
+            time.sleep(5)
+            return False
+        else:
+            self._log.info(f"{name} timeout on waiting for more resource...")
+            return True
+
+    def _reset_awaitable_timer(self, name: str) -> None:
+        _wait_resource_timer = self._wait_resource_timers.get(name, create_timer())
+        _wait_resource_timer.reset()
+        self._wait_resource_logged = False
+        self._wait_resource_timers[name] = _wait_resource_timer
+
 
 class RootRunner(Action):
     """
@@ -168,6 +194,7 @@ class RootRunner(Action):
         # global error.
         self._runners: List[BaseRunner] = []
         self._runner_count: int = 0
+        self._idle_logged: bool = False
 
     async def start(self) -> None:
         await super().start()
@@ -193,8 +220,8 @@ class RootRunner(Action):
 
             self._start_loop()
         except Exception as identifier:
+            self._log.info(f"canceling runner due to exception: {identifier}")
             cancel()
-            raise identifier
         finally:
             self._cleanup()
 
@@ -344,11 +371,11 @@ class RootRunner(Action):
                         # later runners.
                         continue
 
-                # remove completed runners
-                self._log.debug(
-                    f"running count: {task_manager.running_count}, "
-                    f"id: {[x.id for x in remaining_runners]} "
-                )
+                if not self._idle_logged:
+                    self._log.debug(
+                        f"running count: {task_manager.running_count}, "
+                        f"id: {[x.id for x in remaining_runners]} "
+                    )
 
                 if task_manager.has_idle_worker():
                     if has_more_runner:
@@ -361,10 +388,16 @@ class RootRunner(Action):
                                 self._log.debug(f"Added runner {runner.id}")
                         except StopIteration:
                             has_more_runner = False
+
+                        self._idle_logged = False
                     else:
                         # reduce CPU utilization from infinite loop when idle
                         # workers are present but no task to run.
-                        self._log.debug("Idle worker available but no new runner...")
+                        if not self._idle_logged:
+                            self._log.debug(
+                                "Idle worker available but no new runner..."
+                            )
+                            self._idle_logged = True
                         break
 
     def _cleanup(self) -> None:
