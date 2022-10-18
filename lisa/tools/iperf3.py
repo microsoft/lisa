@@ -23,6 +23,7 @@ from lisa.util.process import ExecutableResult, Process
 
 from .firewall import Firewall
 from .git import Git
+from .ls import Ls
 from .make import Make
 
 if TYPE_CHECKING:
@@ -241,6 +242,9 @@ class Iperf3(Tool):
             timeout = 20
             timer = create_timer()
             while timeout > timer.elapsed(False):
+                if not self.node.tools[Ls].path_exists(log_file, sudo=True):
+                    time.sleep(1)
+                    continue
                 cat = self.node.tools[Cat]
                 iperf_log = cat.read(
                     log_file, sudo=True, force_run=True, no_debug_log=True
