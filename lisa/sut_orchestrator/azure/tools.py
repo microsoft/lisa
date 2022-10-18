@@ -381,6 +381,7 @@ class AzCmdlet(Tool):
             f"-Parameter @{{'PublicKey'='{public_key_data}'}}"
         )
 
+
 class Azsecd(Tool):
     @property
     def command(self) -> str:
