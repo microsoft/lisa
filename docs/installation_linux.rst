@@ -57,7 +57,7 @@ Poetry is used to manage Python dependencies of LISA.
 
 .. code:: bash
 
-   curl -sSL https://raw.githubusercontent.com/python-poetry/poetry/master/install-poetry.py | python3 -
+   curl -sSL https://install.python-poetry.org | python3 -
 
 After running this, you should see
 ``Add export PATH="/home/YOURUSERNAME/.local/bin:$PATH" to your shell configuration file``
