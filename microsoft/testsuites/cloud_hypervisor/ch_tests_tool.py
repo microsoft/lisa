@@ -89,12 +89,12 @@ class CloudHypervisorTests(Tool):
         log_path: Path,
         skip: Optional[List[str]] = None,
     ) -> None:
-        self.per_mtr_report_file = log_path.joinpath("perf_metrics.json")
-
         perf_metrics_tests = self._list_perf_metrics_tests(hypervisor=hypervisor)
         failed_testcases = []
 
         for testcase in perf_metrics_tests:
+            testcase_log_file = log_path.joinpath(f"{testcase}.log")
+
             status: TestStatus = TestStatus.QUEUED
             metrics: str = ""
             trace: str = ""
@@ -131,6 +131,10 @@ class CloudHypervisorTests(Tool):
                 test_status=status,
                 test_message=msg,
             )
+
+            # Write stdout of testcase to log as per given requirement
+            with open(testcase_log_file, "w") as f:
+                f.write(result.stdout)
 
         assert_that(
             failed_testcases, f"Failed Testcases: {failed_testcases}"
