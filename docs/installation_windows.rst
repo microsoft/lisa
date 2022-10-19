@@ -80,6 +80,17 @@ Enter the ``PowerShell`` command prompt and then execute below commands:
    # Add poetry.exe's path to your `PATH` environment variable.
    $env:PATH += ";$env:APPDATA\Python\Scripts"
 
+[Optional] Create poetry virtual environment in the same folder as LISA for VS Code to automatically
+pick up the python environment. Run the following commands to update poetry configuration: 
+
+.. code:: powershell 
+
+   poetry config virtualenvs.in-project true 
+
+Install python dependencies
+
+.. code:: powershell
+
    poetry install -E "azure libvirt"
 
 Verify installation
