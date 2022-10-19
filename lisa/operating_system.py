@@ -821,6 +821,12 @@ class Debian(Linux):
         install_result = self._node.execute(
             command, shell=True, sudo=True, timeout=timeout
         )
+        # fix 'unable to locate package' issue
+        if (
+            "Unable to locate package" in install_result.stdout
+            and 100 == install_result.exit_code
+        ):
+            self._initialize_package_installation()
         # get error lines.
         install_result.assert_exit_code(
             0,
