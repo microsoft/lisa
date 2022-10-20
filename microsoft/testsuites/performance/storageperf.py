@@ -256,8 +256,8 @@ class StoragePerformance(TestSuite):
                     time=time,
                     size_mb=size_mb,
                     overwrite=overwrite,
-                    core_count=None,
-                    disk_count=None,
+                    core_count=core_count,
+                    disk_count=1,
                     disk_setup_type=None,
                     disk_type=None,
                 )
