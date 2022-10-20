@@ -1566,7 +1566,7 @@ class AzurePlatform(Platform):
         # for some new sizes, there is no MaxNetworkInterfaces capability
         # and we have to set a default value for max_nic_count
         if not node_space.network_interface.max_nic_count:
-            node_space.network_interface.max_nic_count = 8
+            node_space.network_interface.max_nic_count = 1
 
         # some vm size do not have resource disk present
         # https://docs.microsoft.com/en-us/azure/virtual-machines/azure-vms-no-temp-disk
