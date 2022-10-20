@@ -15,8 +15,9 @@ from lisa import (
 from lisa.base_tools import Cat
 from lisa.operating_system import Redhat
 from lisa.sut_orchestrator import AZURE, READY
-from lisa.tools import Lsmod, Uname
+from lisa.tools import Dmesg, Lsmod, Uname
 from lisa.util import SkippedException
+from microsoft.testsuites.display.modetest import Modetest
 
 
 @TestSuiteMetadata(
@@ -66,6 +67,39 @@ class Drm(TestSuite):
         assert_that(dri_name).described_as(
             "dri node not populated for hyperv_drm"
         ).matches("hyperv_drm")
+
+    @TestCaseMetadata(
+        description="""
+        This case is to check this patch
+        https://git.kernel.org/pub/scm/linux/kernel/git/next/linux-next.git/commit/?id=19b5e6659eaf537ebeac90ae30c7df0296fe5ab9   # noqa: E501
+
+        Step,
+        1. Get dmesg output.
+        2. Check no 'Unable to send packet via vmbus' shown up in dmesg output.
+        """,
+        priority=2,
+    )
+    def verify_no_error_output(self, node: Node, log: Logger) -> None:
+        assert_that(node.tools[Dmesg].get_output(force_run=True)).described_as(
+            "this error message is not expected to be seen "
+            "if dirt_needed default value is set as false"
+        ).does_not_contain("Unable to send packet via vmbus")
+
+    @TestCaseMetadata(
+        description="""
+        This case is to check connector status using modetest utility for drm.
+
+        Step,
+        1. Install tool modetest.
+        2. Verify the status return from modetest is connected.
+        """,
+        priority=2,
+    )
+    def verify_connection_status(self, node: Node, log: Logger) -> None:
+        is_status_connected = node.tools[Modetest].is_status_connected("hyperv_drm")
+        assert_that(is_status_connected).described_as(
+            "dri connector status should be 'connected'"
+        ).is_true()
 
     def before_case(self, log: Logger, **kwargs: Any) -> None:
         node = kwargs["node"]

@@ -53,7 +53,7 @@ class DpdkOvs(Tool):
     def _install_os_packages(self) -> None:
         os = self.node.os
         if isinstance(os, Debian):
-            os.install_packages(list(self.ubuntu_packages))
+            os.install_packages(self.ubuntu_packages)
         elif isinstance(self.node.os, Fedora):
             # NOTE: RHEL 8 works without additional packages,
             # an edit may be needed later after further testing.

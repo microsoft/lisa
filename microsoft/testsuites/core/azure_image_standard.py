@@ -25,6 +25,7 @@ from lisa.operating_system import (
     Debian,
     DebianRepositoryInfo,
     Fedora,
+    FreeBSD,
     Oracle,
     Posix,
     Redhat,
@@ -654,7 +655,7 @@ class AzureImageStandard(TestSuite):
                 assert_that(
                     int(oss_repo_enable_refresh_count),
                     "One or more expected `Oss` repositories are not enabled/refreshed",
-                ).is_greater_than(2)
+                ).is_greater_than(0)
                 assert_that(
                     int(update_repo_enable_refresh_count),
                     "One or more expected `Update` repositories are not "
@@ -885,10 +886,18 @@ class AzureImageStandard(TestSuite):
     def verify_no_pre_exist_users(self, node: Node) -> None:
         current_user = node.tools[Whoami].get_username()
         cat = node.tools[Cat]
+        if isinstance(node.os, FreeBSD):
+            shadow_file = "/etc/master.passwd"
+        else:
+            shadow_file = "/etc/shadow"
         passwd_outputs = cat.read_with_filter(
-            "/etc/shadow", current_user, True, True, True
+            shadow_file, current_user, True, True, True
         )
         for passwd_raw_output in passwd_outputs.splitlines():
+            # remove comments
+            # # $FreeBSD$
+            if passwd_raw_output.strip().startswith("#"):
+                continue
             # sample line of /etc/shadow
             # root:x:0:0:root:/root:/bin/bash
             # sshd:!:19161::::::

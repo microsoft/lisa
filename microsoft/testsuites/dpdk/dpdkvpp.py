@@ -123,4 +123,4 @@ class DpdkVpp(Tool):
                 )
             )
 
-        node.os.install_packages(list(vpp_packages))
+        node.os.install_packages(vpp_packages)

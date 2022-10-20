@@ -5,6 +5,7 @@ import asyncio
 import copy
 import json
 import re
+import string
 from dataclasses import dataclass
 from os import unlink
 from pathlib import Path
@@ -50,6 +51,7 @@ from lisa.util import (
     SkippedException,
     constants,
     find_patterns_in_lines,
+    generate_random_chars,
     set_filtered_fields,
 )
 
@@ -60,10 +62,25 @@ from .. import AZURE
 from .common import (
     AzureArmParameter,
     AzureNodeSchema,
+    check_or_create_storage_account,
+    create_update_private_dns_zone_groups,
+    create_update_private_endpoints,
+    create_update_private_zones,
+    create_update_record_sets,
+    create_update_virtual_network_links,
+    delete_file_share,
+    delete_private_dns_zone_groups,
+    delete_private_endpoints,
+    delete_private_zones,
+    delete_record_sets,
+    delete_storage_account,
+    delete_virtual_network_links,
     find_by_name,
     get_compute_client,
     get_network_client,
     get_node_context,
+    get_or_create_file_share,
+    get_virtual_networks,
     get_vm,
     global_credential_access_lock,
     wait_operation,
@@ -1601,3 +1618,117 @@ class Nvme(AzureFeatureMixin, features.Nvme):
             return nvme
 
         return None
+
+
+class Nfs(AzureFeatureMixin, features.Nfs):
+    @classmethod
+    def create_setting(
+        cls, *args: Any, **kwargs: Any
+    ) -> Optional[schema.FeatureSettings]:
+        return schema.FeatureSettings.create(cls.name())
+
+    def _initialize(self, *args: Any, **kwargs: Any) -> None:
+        super()._initialize(*args, **kwargs)
+        self._initialize_information(self._node)
+        self.storage_account_name: str = ""
+        self.file_share_name: str = ""
+
+    def create_share(self) -> None:
+        platform: AzurePlatform = self._platform  # type: ignore
+        node_context = self._node.capability.get_extended_runbook(AzureNodeSchema)
+        location = node_context.location
+        resource_group_name = self._resource_group_name
+        random_str = generate_random_chars(string.ascii_lowercase + string.digits, 10)
+        self.storage_account_name = f"lisasc{random_str}"
+        self.file_share_name = f"lisa{random_str}fs"
+
+        # create storage account and file share
+        check_or_create_storage_account(
+            credential=platform.credential,
+            subscription_id=platform.subscription_id,
+            account_name=self.storage_account_name,
+            resource_group_name=resource_group_name,
+            location=location,
+            log=self._log,
+            sku="Premium_LRS",
+            kind="FileStorage",
+            enable_https_traffic_only=False,
+        )
+        get_or_create_file_share(
+            credential=platform.credential,
+            subscription_id=platform.subscription_id,
+            account_name=self.storage_account_name,
+            file_share_name=self.file_share_name,
+            resource_group_name=resource_group_name,
+            protocols="NFS",
+            log=self._log,
+        )
+
+        storage_account_resource_id = (
+            f"/subscriptions/{platform.subscription_id}/resourceGroups/"
+            f"{resource_group_name}/providers/Microsoft.Storage/storageAccounts"
+            f"/{self.storage_account_name}"
+        )
+        # get vnet and subnet id
+        virtual_networks_dict: Dict[str, List[str]] = get_virtual_networks(
+            platform, resource_group_name
+        )
+        virtual_networks_id = ""
+        subnet_id = ""
+        for vnet_id, subnet_ids in virtual_networks_dict.items():
+            virtual_networks_id = vnet_id
+            subnet_id = subnet_ids[0]
+            break
+        # create private ednpoints
+        ipv4_address = create_update_private_endpoints(
+            platform,
+            resource_group_name,
+            location,
+            subnet_id,
+            storage_account_resource_id,
+            ["file"],
+            self._log,
+        )
+        # create private zone
+        private_dns_zone_id = create_update_private_zones(
+            platform, resource_group_name, self._log
+        )
+        # create records sets
+        create_update_record_sets(
+            platform, resource_group_name, str(ipv4_address), self._log
+        )
+        # create virtual network links for the private zone
+        create_update_virtual_network_links(
+            platform, resource_group_name, virtual_networks_id, self._log
+        )
+        # create private dns zone groups
+        create_update_private_dns_zone_groups(
+            platform=platform,
+            resource_group_name=resource_group_name,
+            private_dns_zone_id=str(private_dns_zone_id),
+            log=self._log,
+        )
+
+    def delete_share(self) -> None:
+        platform: AzurePlatform = self._platform  # type: ignore
+        resource_group_name = self._resource_group_name
+        delete_private_dns_zone_groups(platform, resource_group_name, self._log)
+        delete_virtual_network_links(platform, resource_group_name, self._log)
+        delete_record_sets(platform, resource_group_name, self._log)
+        delete_private_zones(platform, resource_group_name, self._log)
+        delete_private_endpoints(platform, resource_group_name, self._log)
+        delete_file_share(
+            platform.credential,
+            platform.subscription_id,
+            self.storage_account_name,
+            self.file_share_name,
+            resource_group_name,
+            self._log,
+        )
+        delete_storage_account(
+            platform.credential,
+            platform.subscription_id,
+            self.storage_account_name,
+            resource_group_name,
+            self._log,
+        )

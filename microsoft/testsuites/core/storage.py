@@ -1,6 +1,5 @@
 # Copyright (c) Microsoft Corporation.
 # Licensed under the MIT license.
-
 import re
 from typing import Any, Pattern
 
@@ -14,7 +13,7 @@ from lisa import (
     TestSuiteMetadata,
     simple_requirement,
 )
-from lisa.features import Disk
+from lisa.features import Disk, Nfs
 from lisa.features.disks import (
     DiskPremiumSSDLRS,
     DiskStandardHDDLRS,
@@ -25,7 +24,7 @@ from lisa.schema import DiskType
 from lisa.sut_orchestrator import AZURE
 from lisa.sut_orchestrator.azure.features import AzureDiskOptionSettings
 from lisa.sut_orchestrator.azure.tools import Waagent
-from lisa.tools import Blkid, Cat, Dmesg, Echo, Lsblk, Swap
+from lisa.tools import Blkid, Cat, Dmesg, Echo, Lsblk, NFSClient, Swap
 from lisa.util import BadEnvironmentStateException, LisaException, get_matched_str
 
 from .common import get_resource_disk_mount_point
@@ -344,6 +343,37 @@ class Storage(TestSuite):
         self._hot_add_disk_parallel(
             log, node, DiskType.PremiumSSDLRS, self.DEFAULT_DISK_SIZE_IN_GB
         )
+
+    @TestCaseMetadata(
+        description="""
+        This test case will verify mount azure nfs on guest successfully.
+        """,
+        timeout=TIME_OUT,
+        requirement=simple_requirement(supported_features=[Nfs]),
+        priority=2,
+    )
+    def verify_azure_file_share_nfs(self, log: Logger, node: Node) -> None:
+        nfs = node.features[Nfs]
+        mount_dir = "/mount/azure_share"
+
+        nfs.create_share()
+        storage_account_name = nfs.storage_account_name
+        mount_nfs = f"{storage_account_name}.file.core.windows.net"
+        server_shared_dir = f"{nfs.storage_account_name}/{nfs.file_share_name}"
+        try:
+            node.tools[NFSClient].setup(
+                mount_nfs,
+                server_shared_dir,
+                mount_dir,
+            )
+        except Exception as identifier:
+            raise LisaException(
+                f"fail to mount {server_shared_dir} into {mount_dir}"
+                f"{identifier.__class__.__name__}: {identifier}."
+            )
+        finally:
+            nfs.delete_share()
+            node.tools[NFSClient].stop(mount_dir)
 
     def after_case(self, log: Logger, **kwargs: Any) -> None:
         node: Node = kwargs["node"]

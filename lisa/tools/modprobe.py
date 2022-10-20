@@ -16,6 +16,18 @@ class Modprobe(Tool):
     def _initialize(self, *args: Any, **kwargs: Any) -> None:
         self._command = "modprobe"
 
+    # hv_netvsc needs a special case, since reloading it has the potential
+    # to leave the node without a network connection if things go wrong.
+    def _reload_hv_netvsc(self) -> None:
+        # These commands must be sent together, bundle them up as one line
+        self.node.execute(
+            "modprobe -r hv_netvsc; modprobe hv_netvsc; "
+            "ip link set eth0 down; ip link set eth0 up;"
+            "dhclient -r eth0; dhclient eth0",
+            sudo=True,
+            shell=True,
+        )
+
     def is_module_loaded(
         self,
         mod_name: str,
@@ -97,15 +109,18 @@ class Modprobe(Tool):
     ) -> None:
         for mod_name in mod_names:
             if self.is_module_loaded(mod_name, force_run=True):
-                self.node.execute(
-                    (
-                        f"modprobe -r {mod_name}; modprobe {mod_name}; "
-                        "ip link set eth0 down ; ip link set eth0 up; "
-                        "dhclient -r; dhclient"
-                    ),
-                    sudo=True,
-                    shell=True,
-                )
+
+                # hv_netvsc reload requires resetting the network interface
+                if mod_name == "hv_netvsc":
+                    # handle special case
+                    self._reload_hv_netvsc()
+                else:
+                    # execute the command for regular non-network modules
+                    self.node.execute(
+                        f"modprobe -r {mod_name}; modprobe {mod_name};",
+                        sudo=True,
+                        shell=True,
+                    )
 
     def load_by_file(self, file_name: str) -> None:
         # the insmod support to load from file.

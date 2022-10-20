@@ -213,7 +213,7 @@ class StoragePerformance(TestSuite):
             server.internal_address,
             server_raid_disk_mount_dir,
             client_nfs_mount_dir,
-            protocol,
+            f"proto={protocol},vers=3",
         )
 
     def _run_fio_on_nfs(

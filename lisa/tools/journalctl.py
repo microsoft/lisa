@@ -9,10 +9,16 @@ class Journalctl(Tool):
     def command(self) -> str:
         return "journalctl"
 
-    @property
-    def exists(self) -> bool:
+    def _check_exists(self) -> bool:
         return True
 
-    @property
-    def can_install(self) -> bool:
-        return False
+    def logs_for_unit(self, unit_name: str) -> str:
+        result = self.run(
+            f"--no-pager -u {unit_name}",
+            sudo=True,
+            force_run=True,
+            no_debug_log=True,  # don't flood LISA logs
+            expected_exit_code=0,
+        )
+
+        return result.stdout
