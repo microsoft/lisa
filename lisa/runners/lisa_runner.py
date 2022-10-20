@@ -21,7 +21,7 @@ from lisa.environment import (
     load_environments,
 )
 from lisa.messages import TestStatus
-from lisa.platform_ import Platform, PlatformMessage, load_platform
+from lisa.platform_ import PlatformMessage, load_platform
 from lisa.runner import BaseRunner
 from lisa.testselector import select_testcases
 from lisa.testsuite import TestCaseRequirement, TestResult, TestSuite
@@ -43,7 +43,6 @@ class LisaRunner(BaseRunner):
 
     def _initialize(self, *args: Any, **kwargs: Any) -> None:
         super()._initialize(*args, **kwargs)
-        self._is_prepared = False
 
         # select test cases
         selected_test_cases = select_testcases(filters=self._runbook.testcase)
@@ -62,6 +61,20 @@ class LisaRunner(BaseRunner):
         # load development settings
         development.load_development_settings(self._runbook.dev)
 
+        # load environments
+        runbook_environments = load_environments(self._runbook.environment)
+        if not runbook_environments:
+            # if no runbook environment defined, generate from requirements
+            self._merge_test_requirements(
+                test_results=self.test_results,
+                existing_environments=runbook_environments,
+                platform_type=self.platform.type_name(),
+            )
+        self.environments: List[Environment] = [
+            x for x in runbook_environments.values()
+        ]
+        self._log.debug(f"candidate environment count: {len(self.environments)}")
+
     @property
     def is_done(self) -> bool:
         is_all_results_completed = all(
@@ -76,9 +89,7 @@ class LisaRunner(BaseRunner):
         return is_all_results_completed and is_all_environment_completed
 
     def fetch_task(self) -> Optional[Task[None]]:
-        self._prepare_environments(
-            platform=self.platform,
-        )
+        self._prepare_environments()
 
         self._cleanup_deleted_environments()
         self._cleanup_done_results()
@@ -132,8 +143,12 @@ class LisaRunner(BaseRunner):
                     # conditions or skip this test case.
                     if task:
                         return task
-                if not any(x.is_in_use for x in available_environments):
-                    # no environment in used, and not fit. those results cannot be run.
+                if not any(
+                    x.is_in_use or x.status == EnvironmentStatus.New
+                    for x in available_environments
+                ):
+                    # if there is no environment in used, new, and results are
+                    # not fit envs. those results cannot be run.
                     self._skip_test_results(can_run_results)
         elif available_results:
             # no available environments, so mark all test results skipped.
@@ -233,88 +248,44 @@ class LisaRunner(BaseRunner):
                 )
         return None
 
-    def _prepare_environments(
-        self,
-        platform: Platform,
-    ) -> None:
-        if self._is_prepared:
+    def _prepare_environments(self) -> None:
+        if all(x.status != EnvironmentStatus.New for x in self.environments):
             return
 
-        runbook_environments = load_environments(self._runbook.environment)
-        if not runbook_environments:
-            # if no runbook environment defined, generate from requirements
-            self._merge_test_requirements(
-                test_results=self.test_results,
-                existing_environments=runbook_environments,
-                platform_type=self.platform.type_name(),
-            )
-
-        prepared_environments: List[Environment] = []
-        for candidate_environment in runbook_environments.values():
-            try:
-                prepared_environment = platform.prepare_environment(
-                    candidate_environment
-                )
-                prepared_environments.append(prepared_environment)
-            except Exception as identifier:
-                if (
-                    candidate_environment.source_test_result
-                    and candidate_environment.source_test_result.is_queued
-                ):
-                    matched_results = [candidate_environment.source_test_result]
-                else:
-                    matched_results = self._get_runnable_test_results(
-                        test_results=self.test_results,
-                        environment=candidate_environment,
-                    )
-                if not matched_results:
-                    self._log.info(
-                        "No requirement of test case is suitable for the preparation "
-                        f"error of the environment '{candidate_environment.name}'. "
-                        "Randomly attach a test case to this environment. "
-                        "This may be because the platform failed before populating the "
-                        "features into this environment.",
-                    )
-                    matched_results = [
-                        result for result in self.test_results if result.is_queued
-                    ]
-                if not matched_results:
-                    raise LisaException(
-                        "There are no remaining test results to run, so preparation "
-                        "errors cannot be appended to the test results. Please correct "
-                        "the error and run again. "
-                        f"original exception: {identifier}"
-                    )
-                self._attach_failed_environment_to_result(
-                    environment=candidate_environment,
-                    result=matched_results[0],
-                    exception=identifier,
-                )
+        proceeded_environments: List[Environment] = []
+        for candidate_environment in self.environments:
+            success = True
+            if candidate_environment.status == EnvironmentStatus.New:
+                success = self._prepare_environment(candidate_environment)
+            if success:
+                proceeded_environments.append(candidate_environment)
 
         # sort by environment source and cost cases
         # user defined should be higher priority than test cases' requirement
-        prepared_environments.sort(key=lambda x: (not x.is_predefined, x.cost))
+        proceeded_environments.sort(key=lambda x: (not x.is_predefined, x.cost))
 
-        self._is_prepared = True
-        self.environments = prepared_environments
-        return
+        self.environments = proceeded_environments
 
     def _deploy_environment_task(
         self, environment: Environment, test_results: List[TestResult]
     ) -> None:
         try:
-            self.platform.deploy_environment(environment)
-            assert (
-                environment.status == EnvironmentStatus.Deployed
-            ), f"actual: {environment.status}"
-        except ResourceAwaitableException as identifier:
-            self._log.info(
-                f"[{environment.name}] waiting for more resource: "
-                f"{identifier}, skip assigning case"
-            )
-            self._skip_test_results(
-                test_results, additional_reason="no more resource to deploy"
-            )
+            try:
+                self.platform.deploy_environment(environment)
+                assert (
+                    environment.status == EnvironmentStatus.Deployed
+                ), f"actual: {environment.status}"
+                self._reset_awaitable_timer("deploy")
+            except ResourceAwaitableException as identifier:
+                if self._is_awaitable_timeout("deploy"):
+                    self._log.info(
+                        f"[{environment.name}] timeout on waiting for more resource: "
+                        f"{identifier}, skip assigning case."
+                    )
+                    raise SkippedException(identifier)
+                else:
+                    # rerun prepare to calculate resource again.
+                    environment.status = EnvironmentStatus.New
         except Exception as identifier:
             self._attach_failed_environment_to_result(
                 environment=environment,
@@ -433,6 +404,33 @@ class LisaRunner(BaseRunner):
                     f"error on deleting environment '{environment.name}': {identifier}"
                 )
 
+    def _prepare_environment(self, environment: Environment) -> bool:
+        success = True
+        try:
+            try:
+                self.platform.prepare_environment(environment)
+                self._reset_awaitable_timer("prepare")
+            except ResourceAwaitableException as identifier:
+                # if timed out, raise the exception and skip the test case. If
+                # not, do nothing to keep env as new to try next time.
+                if self._is_awaitable_timeout("prepare"):
+                    raise SkippedException(identifier)
+        except Exception as identifier:
+            success = False
+
+            matched_result = self._match_failed_environment_with_result(
+                environment=environment,
+                candidate_results=self.test_results,
+                exception=identifier,
+            )
+            self._attach_failed_environment_to_result(
+                environment=environment,
+                result=matched_result,
+                exception=identifier,
+            )
+
+        return success
+
     def _cleanup_deleted_environments(self) -> None:
         # remove reference to unused environments. It can save memory on big runs.
         new_environments: List[Environment] = []
@@ -499,6 +497,40 @@ class LisaRunner(BaseRunner):
             if test_result.status == TestStatus.ASSIGNED:
                 test_result.set_status(TestStatus.QUEUED, "")
         environment.is_in_use = False
+
+    def _match_failed_environment_with_result(
+        self,
+        environment: Environment,
+        candidate_results: List[TestResult],
+        exception: Exception,
+    ) -> TestResult:
+        if environment.source_test_result and environment.source_test_result.is_queued:
+            matched_results = [environment.source_test_result]
+        else:
+            matched_results = self._get_runnable_test_results(
+                test_results=candidate_results,
+                environment=environment,
+            )
+        if not matched_results:
+            self._log.info(
+                "No requirement of test case is suitable for the preparation "
+                f"error of the environment '{environment.name}'. "
+                "Randomly attach a test case to this environment. "
+                "This may be because the platform failed before populating the "
+                "features into this environment.",
+            )
+            matched_results = [
+                result for result in self.test_results if result.is_queued
+            ]
+        if not matched_results:
+            raise LisaException(
+                "There are no remaining test results to run, so preparation "
+                "errors cannot be appended to the test results. Please correct "
+                "the error and run again. "
+                f"original exception: {exception}"
+            )
+
+        return matched_results[0]
 
     def _attach_failed_environment_to_result(
         self,

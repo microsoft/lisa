@@ -24,6 +24,9 @@ class Timer:
     def elapsed_text(self, stop: bool = True) -> str:
         return f"{self.elapsed(stop):.3f} sec"
 
+    def reset(self) -> None:
+        self.start = timer()
+
     def __str__(self) -> str:
         return self.elapsed_text()
 

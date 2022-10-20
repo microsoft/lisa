@@ -66,7 +66,7 @@ class VmHotResize(TestSuite):
     ) -> None:
         resize = node.features[Resize]
         retry = 1
-        maxretry = 10
+        maxretry = 20
         while retry < maxretry:
             try:
                 expected_vm_capability: Optional[NodeSpace] = None
@@ -82,6 +82,8 @@ class VmHotResize(TestSuite):
                     or "AllocationFailed" in str(identifier)
                     or "cannot boot Hypervisor Generation" in str(identifier)
                     or "due to different CPU Architectures" in str(identifier)
+                    or "An existing connection was forcibly closed by the remote host"
+                    in str(identifier)
                 ):
                     retry = retry + 1
                 else:

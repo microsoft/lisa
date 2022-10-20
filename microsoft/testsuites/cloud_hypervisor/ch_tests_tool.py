@@ -1,8 +1,9 @@
 # Copyright (c) Microsoft Corporation.
 # Licensed under the MIT license.
 import json
+import re
 from dataclasses import dataclass
-from pathlib import PurePath
+from pathlib import Path, PurePath
 from typing import Any, List, Optional, Type
 
 from assertpy.assertpy import assert_that
@@ -49,6 +50,7 @@ class CloudHypervisorTests(Tool):
         hypervisor: str,
         skip: Optional[List[str]] = None,
     ) -> None:
+
         if skip is not None:
             skip_args = " ".join(map(lambda t: f"--skip {t}", skip))
         else:
@@ -78,6 +80,65 @@ class CloudHypervisorTests(Tool):
             )
 
         assert_that(failures, f"Unexpected failures: {failures}").is_empty()
+
+    def run_metrics_tests(
+        self,
+        test_result: TestResult,
+        environment: Environment,
+        hypervisor: str,
+        log_path: Path,
+        skip: Optional[List[str]] = None,
+    ) -> None:
+        perf_metrics_tests = self._list_perf_metrics_tests(hypervisor=hypervisor)
+        failed_testcases = []
+
+        for testcase in perf_metrics_tests:
+            testcase_log_file = log_path.joinpath(f"{testcase}.log")
+
+            status: TestStatus = TestStatus.QUEUED
+            metrics: str = ""
+            trace: str = ""
+            try:
+                result = self.run(
+                    f"tests --hypervisor {hypervisor} --metrics -- -- \
+                        --test-filter {testcase}",
+                    timeout=self.TIME_OUT,
+                    force_run=True,
+                    cwd=self.repo_root,
+                    no_info_log=False,  # print out result of each test
+                    shell=True,
+                )
+
+                if result.exit_code == 0:
+                    status = TestStatus.PASSED
+                    metrics = self._process_perf_metric_test_result(result.stdout)
+                else:
+                    status = TestStatus.FAILED
+                    trace = f"Testcase '{testcase}' failed: {result.stderr}"
+                    failed_testcases.append(testcase)
+
+            except Exception as e:
+                self._log.info(f"Testcase failed, tescase name: {testcase}")
+                status = TestStatus.FAILED
+                trace = str(e)
+                failed_testcases.append(testcase)
+
+            msg = metrics if status == TestStatus.PASSED else trace
+            self._send_subtest_msg(
+                test_id=test_result.id_,
+                environment=environment,
+                test_name=testcase,
+                test_status=status,
+                test_message=msg,
+            )
+
+            # Write stdout of testcase to log as per given requirement
+            with open(testcase_log_file, "w") as f:
+                f.write(result.stdout)
+
+        assert_that(
+            failed_testcases, f"Failed Testcases: {failed_testcases}"
+        ).is_empty()
 
     def _initialize(self, *args: Any, **kwargs: Any) -> None:
         tool_path = self.get_tool_path(use_global=True)
@@ -148,13 +209,64 @@ class CloudHypervisorTests(Tool):
         environment: Environment,
         test_name: str,
         test_status: TestStatus,
+        test_message: str = "",
     ) -> None:
         subtest_msg = create_test_result_message(
-            SubTestMessage,
-            test_id,
-            environment,
-            test_name,
-            test_status,
+            SubTestMessage, test_id, environment, test_name, test_status, test_message
         )
 
         notifier.notify(subtest_msg)
+
+    def _list_perf_metrics_tests(self, hypervisor: str = "kvm") -> List[str]:
+
+        tests_list = []
+        result = self.run(
+            f"tests --hypervisor {hypervisor} --metrics -- -- --list-tests",
+            timeout=self.TIME_OUT,
+            force_run=True,
+            cwd=self.repo_root,
+            shell=True,
+            expected_exit_code=0,
+        )
+
+        stdout = result.stdout
+
+        # Ex. String for below regex
+        # "boot_time_ms" (test_timeout=2s,test_iterations=10)
+        regex = '\\"(.*)\\" \\('
+
+        pattern = re.compile(regex)
+        tests_list = pattern.findall(stdout)
+
+        self._log.debug(f"Testcases found: {tests_list}")
+        return tests_list
+
+    def _process_perf_metric_test_result(self, output: str) -> str:
+
+        # Sample Output
+        # "git_human_readable": "v27.0",
+        # "git_revision": "2ba6a9bfcfd79629aecf77504fa554ab821d138e",
+        # "git_commit_date": "Thu Sep 29 17:56:21 2022 +0100",
+        # "date": "Wed Oct 12 03:51:38 UTC 2022",
+        # "results": [
+        #     {
+        #     "name": "block_multi_queue_read_MiBps",
+        #     "mean": 158.64382311768824,
+        #     "std_dev": 7.685502103050337,
+        #     "max": 173.9743994350565,
+        #     "min": 154.10646435356466
+        #     }
+        # ]
+        # }
+        # real    1m39.856s
+        # user    0m6.376s
+        # sys     2m32.973s
+        # + RES=0
+        # + exit 0
+
+        output = output.replace("\n", "")
+        regex = '\\"results\\"\\: (.*?)\\]'
+        result = re.search(regex, output)
+        if result:
+            return result.group(0)
+        return ""

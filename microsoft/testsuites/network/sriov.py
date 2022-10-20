@@ -649,6 +649,8 @@ class Sriov(TestSuite):
         server_node = cast(RemoteNode, environment.nodes[0])
         client_node = cast(RemoteNode, environment.nodes[1])
         client_lscpu = client_node.tools[Lscpu]
+        client_cpu_count = client_lscpu.get_core_count()
+
         vm_nics = initialize_nic_info(environment)
 
         server_iperf3 = server_node.tools[Iperf3]
@@ -658,16 +660,24 @@ class Sriov(TestSuite):
         client_interrupt_inspector = client_node.tools[InterruptInspector]
         for _, client_nic_info in vm_nics[client_node.name].items():
             # 2. Get initial interrupts sum per irq and cpu number on client node.
+            # only collect 'Completion Queue Interrupts' irqs
             initial_pci_interrupts_by_irqs = (
                 client_interrupt_inspector.sum_cpu_counter_by_irqs(
-                    client_nic_info.pci_slot
+                    client_nic_info.pci_slot,
+                    exclude_key_words=["pages", "cmd", "async"],
                 )
             )
+            assert_that(len(initial_pci_interrupts_by_irqs)).described_as(
+                "initial irqs count should be greater than 0"
+            ).is_greater_than(0)
             initial_pci_interrupts_by_cpus = (
                 client_interrupt_inspector.sum_cpu_counter_by_index(
                     client_nic_info.pci_slot
                 )
             )
+            assert_that(len(initial_pci_interrupts_by_cpus)).described_as(
+                "initial cpu count of interrupts should be equal to cpu count"
+            ).is_equal_to(client_cpu_count)
             matched_server_nic_info: NicInfo
             for _, server_nic_info in vm_nics[server_node.name].items():
                 if (
@@ -691,9 +701,13 @@ class Sriov(TestSuite):
             # 4. Get final interrupts sum per irq number on client node.
             final_pci_interrupts_by_irqs = (
                 client_interrupt_inspector.sum_cpu_counter_by_irqs(
-                    client_nic_info.pci_slot
+                    client_nic_info.pci_slot,
+                    exclude_key_words=["pages", "cmd", "async"],
                 )
             )
+            assert_that(len(final_pci_interrupts_by_irqs)).described_as(
+                "final irqs count should be greater than 0"
+            ).is_greater_than(0)
             for init_interrupts_irq in initial_pci_interrupts_by_irqs:
                 init_irq_number = list(init_interrupts_irq)[0]
                 init_interrupts_value = init_interrupts_irq[init_irq_number]
@@ -713,6 +727,9 @@ class Sriov(TestSuite):
                     client_nic_info.pci_slot
                 )
             )
+            assert_that(len(final_pci_interrupts_by_cpus)).described_as(
+                "final cpu count of interrupts should be equal to cpu count"
+            ).is_equal_to(client_cpu_count)
             unused_cpu = 0
             for cpu, init_interrupts_value in initial_pci_interrupts_by_cpus.items():
                 final_interrupts_value = final_pci_interrupts_by_cpus[cpu]
@@ -721,7 +738,7 @@ class Sriov(TestSuite):
                     unused_cpu += 1
             # 8. Compare interrupts count changes, expected half of cpus' interrupts
             #    increased.
-            assert_that(client_lscpu.get_core_count() / 2).described_as(
+            assert_that(client_cpu_count / 2).described_as(
                 f"More than half of the vCPUs {unused_cpu} didn't have increased "
                 "interrupt count!"
             ).is_greater_than(unused_cpu)

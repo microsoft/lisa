@@ -44,7 +44,7 @@ class Vdsotest(Tool):
         elif isinstance(self.node.os, Debian):
             package_list.extend(["dh-autoreconf"])
         elif isinstance(self.node.os, Suse):
-            package_list.extend(["dh-autoreconf", "autoconf", "libtool", "automake"])
+            package_list.extend(["autoconf", "libtool", "automake"])
         elif isinstance(self.node.os, CBLMariner):
             package_list.extend(
                 [
@@ -62,7 +62,7 @@ class Vdsotest(Tool):
             raise LisaException(
                 f"Current distro {self.node.os.name} doesn't support vdsotest."
             )
-        self.node.os.install_packages(list(package_list))
+        self.node.os.install_packages(package_list)
         tool_path = self.get_tool_path()
         git = self.node.tools[Git]
         git.clone(self.repo, tool_path, ref=self.branch)

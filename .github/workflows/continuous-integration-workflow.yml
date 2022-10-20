@@ -27,7 +27,7 @@ jobs:
       - name: Install Poetry for Linux
         if: runner.os == 'Linux'
         run: |
-          curl -sSL https://raw.githubusercontent.com/python-poetry/poetry/master/install-poetry.py | python - --version 1.1.5
+          curl -sSL https://install.python-poetry.org/ | python - --version 1.1.5
           echo "$HOME/.local/bin" >> $GITHUB_PATH
       - name: Install Poetry for Windows
         if: runner.os == 'Windows'
