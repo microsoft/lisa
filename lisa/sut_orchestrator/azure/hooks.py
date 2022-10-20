@@ -1,8 +1,15 @@
 import re
-from typing import Any, List, Pattern, Tuple, Type
+from functools import partial
+from typing import Any, List, Pattern, Tuple
 
 from lisa.environment import Environment
-from lisa.util import SkippedException, hookimpl, hookspec, plugin_manager
+from lisa.util import (
+    ResourceAwaitableException,
+    SkippedException,
+    hookimpl,
+    hookspec,
+    plugin_manager,
+)
 
 
 class AzureHookSpec:
@@ -29,7 +36,7 @@ class AzureHookSpec:
 
 
 class AzureHookSpecDefaultImpl:
-    __error_maps: List[Tuple[str, Pattern[str], Type[Exception]]] = [
+    __error_maps: List[Tuple[str, Pattern[str], Any]] = [
         (
             "gen1 image shouldn't run on gen2 vm size",
             re.compile(
@@ -37,7 +44,38 @@ class AzureHookSpecDefaultImpl:
                 "cannot boot Hypervisor Generation '1'\\."
             ),
             SkippedException,
-        )
+        ),
+        (
+            # QuotaExceeded: Operation could not be completed as it results in
+            # exceeding approved standardMSFamily Cores quota. Additional
+            # details - Deployment Model: Resource Manager, Location: westus2,
+            # Current Limit: 1000, Current Usage: 896, Additional Required: 128,
+            # (Minimum) New Limit Required: 1024. Submit a request for Quota
+            # increase at
+            # https://aka.ms/ProdportalCRP/#blade/Microsoft_Azure_Capacity/...........
+            # by specifying parameters listed in the ‘Details’ section for
+            # deployment to succeed. Please read more about quota limits at
+            # https://docs.microsoft.com/en-us/azure/azure-supportability/per-vm-quota-requests
+            "",
+            # If current usage is 0, it means current limit cannot fit the
+            # deployment. So, the deployment won't pass without larger limit.
+            # For example, limit is 100, but the environment needs 128. It's
+            # impossible to wait for enough.
+            re.compile(
+                r"Additional details - Deployment Model: .* Current Usage: (?!0).+, "
+                r"Additional Required: \d+,"
+            ),
+            ResourceAwaitableException,
+        ),
+        (
+            # AllocationFailed: Allocation failed. We do not have sufficient
+            # capacity for the requested VM size in this region. Read more about
+            # improving likelihood of allocation success at
+            # http://aka.ms/allocation-guidance
+            "",
+            re.compile(r"^AllocationFailed: Allocation failed."),
+            partial(ResourceAwaitableException, "vm size"),
+        ),
     ]
 
     @hookimpl

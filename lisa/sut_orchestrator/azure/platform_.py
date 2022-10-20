@@ -351,6 +351,7 @@ class AzurePlatform(Platform):
             features.SecurityProfile,
             features.ACC,
             features.IsolatedResource,
+            features.Nfs,
         ]
 
     def _prepare_environment(self, environment: Environment, log: Logger) -> bool:
@@ -421,7 +422,7 @@ class AzurePlatform(Platform):
         if not is_success:
             if any_wait_for_resource:
                 raise ResourceAwaitableException(
-                    "No available quota, try to deploy later."
+                    "vm size", "No available quota, try to deploy later."
                 )
             else:
                 raise NotMeetRequirementException(
@@ -1232,7 +1233,9 @@ class AzurePlatform(Platform):
                 # some errors, so check details
                 error_messages = self._parse_detail_errors(identifier.error)
 
-            raise LisaException("\n".join(error_messages))
+            error_message = "\n".join(error_messages)
+            plugin_manager.hook.azure_deploy_failed(error_message=error_message)
+            raise LisaException(error_message)
 
     def _deploy(
         self, location: str, deployment_parameters: Dict[str, Any], log: Logger
@@ -1533,7 +1536,12 @@ class AzurePlatform(Platform):
             "EphemeralOSDiskSupported", None
         )
         if ephemeral_supported and eval(ephemeral_supported) is True:
-            node_space.disk.disk_type.add(schema.DiskType.Ephemeral)
+            # Check if CachedDiskBytes is greater than 30GB
+            # We use diffdisk as cache disk for ephemeral OS disk
+            cached_disk_bytes = azure_raw_capabilities.get("CachedDiskBytes", 0)
+            cached_disk_bytes_gb = int(cached_disk_bytes) / 1024 / 1024 / 1024
+            if cached_disk_bytes_gb >= 30:
+                node_space.disk.disk_type.add(schema.DiskType.Ephemeral)
 
         # set AN
         an_enabled = azure_raw_capabilities.get("AcceleratedNetworkingEnabled", None)

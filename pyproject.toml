@@ -22,6 +22,7 @@ azure-mgmt-resource = {version = "^21.0.0", optional = true}
 azure-mgmt-serialconsole = {version = "^1.0.0", optional = true}
 azure-mgmt-storage = {version = "^20.0.0", optional = true}
 azure-storage-file-share = {version = "12.4.0", optional = true}
+azure-mgmt-privatedns = {version="1.0.0", optional=true}
 cachetools = "^5.2.0"
 dataclasses-json = "^0.5.2"
 func-timeout = "^4.3.5"
@@ -75,7 +76,7 @@ types-cachetools = "^5.2.1"
 
 
 [tool.poetry.extras]
-azure = ["azure-identity", "azure-storage-blob", "azure-mgmt-compute", "azure-mgmt-marketplaceordering", "azure-mgmt-network", "azure-mgmt-resource", "azure-mgmt-serialconsole", "azure-mgmt-storage", "azure-storage-file-share", "PyGObject", "Pillow", "types-Pillow"]
+azure = ["azure-identity", "azure-storage-blob", "azure-mgmt-compute", "azure-mgmt-marketplaceordering", "azure-mgmt-network", "azure-mgmt-resource", "azure-mgmt-serialconsole", "azure-mgmt-storage", "azure-storage-file-share", "azure-mgmt-privatedns", "PyGObject", "Pillow", "types-Pillow"]
 libvirt = ["libvirt-python"]
 aws = ["boto3", "boto3-stubs"]
 legacy = ["pypiwin32"]

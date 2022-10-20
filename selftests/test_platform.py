@@ -87,7 +87,7 @@ class MockPlatform(Platform):
 
     def _deploy_environment(self, environment: Environment, log: Logger) -> None:
         if self._mock_runbook.wait_more_resource_error:
-            raise ResourceAwaitableException("wait more resource")
+            raise ResourceAwaitableException("any", "wait more resource")
         if not self._mock_runbook.deploy_success:
             raise LisaException("mock deploy failed")
         if self._mock_runbook.return_prepared and environment.runbook.nodes_requirement:

@@ -180,8 +180,9 @@ def perf_tcp_pps(
         server = cast(RemoteNode, environment.nodes[1])
         client = cast(RemoteNode, environment.nodes[0])
 
-    client_netperf = client.tools[Netperf]
-    server_netperf = server.tools[Netperf]
+    client_netperf, server_netperf = run_in_parallel(
+        [lambda: client.tools[Netperf], lambda: server.tools[Netperf]]  # type: ignore
+    )
 
     cpu = client.tools[Lscpu]
     core_count = cpu.get_core_count()

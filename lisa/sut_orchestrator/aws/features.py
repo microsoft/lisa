@@ -167,7 +167,9 @@ class NetworkInterface(AwsFeatureMixin, features.NetworkInterface):
             raise LisaException(f"fail to find primary nic for vm {self._node.name}")
         return nic
 
-    def switch_sriov(self, enable: bool, wait: bool = True) -> None:
+    def switch_sriov(
+        self, enable: bool, wait: bool = True, reset_connections: bool = True
+    ) -> None:
         aws_platform: AwsPlatform = self._platform  # type: ignore
         instance = boto3.resource("ec2").Instance(self._instance_id)
 

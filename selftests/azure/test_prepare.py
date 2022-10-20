@@ -126,8 +126,8 @@ class AzurePrepareTestCase(TestCase):
         # 3 nic cannot be met by Standard_DS2_v2, as it support at most 2 nics
         # the code path of predefined and normal is different, so test it twice
         env = self.load_environment(node_req_count=1)
-        assert env.runbook.nodes_requirement
-        env.runbook.nodes_requirement.append(
+        assert env.runbook._original_nodes_requirement
+        env.runbook._original_nodes_requirement.append(
             schema.NodeSpace(
                 network_interface=schema.NetworkInterfaceOptionSettings(nic_count=3)
             )
@@ -262,11 +262,10 @@ class AzurePrepareTestCase(TestCase):
     def test_normal_may_fit_2nd_location(self) -> None:
         # normal req may fit into 2nd location, as 1st location not meet requirement
         env = self.load_environment(node_req_count=1)
-        assert env.runbook.nodes_requirement
-        env.runbook.nodes_requirement.append(
+        assert env.runbook._original_nodes_requirement
+        env.runbook._original_nodes_requirement.append(
             schema.NodeSpace(memory_mb=search_space.IntRange(min=143360))
         )
-        self._set_nodes_raw(env)
         self.verify_prepared_nodes(
             expected_result=True,
             expected_locations=["eastus2", "eastus2"],
@@ -278,11 +277,10 @@ class AzurePrepareTestCase(TestCase):
     def test_normal_may_fit_2nd_batch_vm(self) -> None:
         # fit 2nd batch of candidates
         env = self.load_environment(node_req_count=1)
-        assert env.runbook.nodes_requirement
-        env.runbook.nodes_requirement.append(
+        assert env.runbook._original_nodes_requirement
+        env.runbook._original_nodes_requirement.append(
             schema.NodeSpace(core_count=8, memory_mb=16384)
         )
-        self._set_nodes_raw(env)
         self.verify_prepared_nodes(
             expected_result=True,
             expected_locations=["eastus2", "eastus2"],
@@ -295,13 +293,12 @@ class AzurePrepareTestCase(TestCase):
         # 3 nic cannot be met by Standard_DS2_v2, as it support at most 2 nics
         # the code path of predefined and normal is different, so test it twice
         env = self.load_environment(node_req_count=1)
-        assert env.runbook.nodes_requirement
-        env.runbook.nodes_requirement.append(
+        assert env.runbook._original_nodes_requirement
+        env.runbook._original_nodes_requirement.append(
             schema.NodeSpace(
                 network_interface=schema.NetworkInterfaceOptionSettings(nic_count=3)
             )
         )
-        self._set_nodes_raw(env)
         self.verify_prepared_nodes(
             expected_result=True,
             expected_locations=["eastus2", "eastus2"],
@@ -374,15 +371,14 @@ class AzurePrepareTestCase(TestCase):
     ) -> Environment:
         runbook = schema.Environment()
         if node_req_count > 0:
-            runbook.nodes_requirement = []
+            runbook._original_nodes_requirement = []
             for _ in range(node_req_count):
                 node_req = schema.NodeSpace()
                 _ = node_req.get_extended_runbook(common.AzureNodeSchema, AZURE)
-                runbook.nodes_requirement.append(node_req)
+                runbook._original_nodes_requirement.append(node_req)
         environment = Environment(
             is_predefined=True, warn_as_error=False, id_=0, runbook=runbook
         )
-        self._set_nodes_raw(environment)
 
         return environment
 
@@ -394,14 +390,13 @@ class AzurePrepareTestCase(TestCase):
         vm_size: str = "",
         max_capability: bool = False,
     ) -> None:
-        assert environment.runbook.nodes_requirement
-        node_runbook = environment.runbook.nodes_requirement[
+        assert environment.runbook._original_nodes_requirement
+        node_runbook = environment.runbook._original_nodes_requirement[
             index
         ].get_extended_runbook(common.AzureNodeSchema, AZURE)
         node_runbook.location = location
         node_runbook.vm_size = vm_size
         node_runbook.maximize_capability = max_capability
-        self._set_nodes_raw(environment)
 
     def verify_prepared_nodes(
         self,
@@ -450,20 +445,3 @@ class AzurePrepareTestCase(TestCase):
                 self.assertLessEqual(0, node_cap.gpu_count)
 
         self.assertEqual(expected_cost, environment.cost)
-
-    def _set_nodes_raw(self, environment: Environment) -> None:
-        if not environment.runbook.nodes_requirement:
-            return
-        environment.runbook.nodes_raw = []
-        for requirement in environment.runbook.nodes_requirement:
-            extended_runbook = requirement.get_extended_runbook(
-                common.AzureNodeSchema, AZURE
-            )
-            node_raw = requirement.to_dict()  # type: ignore
-            extended_raw = extended_runbook.to_dict()  # type: ignore
-            for field in ["marketplace", "shared_gallery"]:
-                if field in extended_raw and not extended_raw[field]:
-                    del extended_raw[field]
-            node_raw["azure"] = extended_raw
-
-            environment.runbook.nodes_raw.append(node_raw)

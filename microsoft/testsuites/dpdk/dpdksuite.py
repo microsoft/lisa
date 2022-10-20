@@ -71,6 +71,7 @@ class Dpdk(TestSuite):
         """,
         priority=2,
         requirement=simple_requirement(
+            min_core_count=8,
             min_nic_count=2,
             network_interface=Sriov(),
             unsupported_features=[Gpu, Infiniband],
@@ -92,6 +93,7 @@ class Dpdk(TestSuite):
         """,
         priority=2,
         requirement=simple_requirement(
+            min_core_count=8,
             min_nic_count=2,
             network_interface=Sriov(),
             unsupported_features=[Gpu, Infiniband],
@@ -108,6 +110,7 @@ class Dpdk(TestSuite):
         """,
         priority=4,
         requirement=simple_requirement(
+            min_core_count=8,
             min_nic_count=2,
             network_interface=Sriov(),
             unsupported_features=[Gpu, Infiniband],
@@ -156,6 +159,7 @@ class Dpdk(TestSuite):
         """,
         priority=4,
         requirement=simple_requirement(
+            min_core_count=8,
             min_nic_count=2,
             network_interface=Sriov(),
             unsupported_features=[Gpu, Infiniband],
@@ -278,6 +282,7 @@ class Dpdk(TestSuite):
         """,
         priority=2,
         requirement=simple_requirement(
+            min_core_count=8,
             min_nic_count=2,
             network_interface=Sriov(),
             min_count=2,
@@ -317,6 +322,7 @@ class Dpdk(TestSuite):
         """,
         priority=2,
         requirement=simple_requirement(
+            min_core_count=8,
             min_nic_count=2,
             network_interface=Sriov(),
             unsupported_features=[Gpu, Infiniband],
@@ -376,6 +382,7 @@ class Dpdk(TestSuite):
         """,
         priority=4,
         requirement=simple_requirement(
+            min_core_count=8,
             min_nic_count=2,
             network_interface=Sriov(),
             unsupported_features=[Gpu, Infiniband],
@@ -413,6 +420,7 @@ class Dpdk(TestSuite):
         """,
         priority=4,
         requirement=simple_requirement(
+            min_core_count=8,
             network_interface=Sriov(),
             unsupported_features=[Gpu, Infiniband],
             supported_features=[IsolatedResource],
@@ -486,6 +494,7 @@ class Dpdk(TestSuite):
         """,
         priority=2,
         requirement=simple_requirement(
+            min_core_count=8,
             min_nic_count=2,
             network_interface=Sriov(),
             min_count=2,
@@ -512,6 +521,7 @@ class Dpdk(TestSuite):
         """,
         priority=2,
         requirement=simple_requirement(
+            min_core_count=8,
             min_nic_count=2,
             network_interface=Sriov(),
             min_count=2,
@@ -538,6 +548,7 @@ class Dpdk(TestSuite):
         """,
         priority=2,
         requirement=simple_requirement(
+            min_core_count=8,
             min_nic_count=2,
             network_interface=Sriov(),
             min_count=2,
@@ -562,6 +573,7 @@ class Dpdk(TestSuite):
         """,
         priority=2,
         requirement=simple_requirement(
+            min_core_count=8,
             min_nic_count=2,
             network_interface=Sriov(),
             min_count=2,
@@ -653,4 +665,5 @@ class Dpdk(TestSuite):
             if modprobe.module_exists("uio_hv_generic"):
                 node.tools[Service].stop_service("vpp")
                 modprobe.remove(["uio_hv_generic"])
+                node.close()
                 modprobe.reload(["hv_netvsc"])

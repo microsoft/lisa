@@ -19,6 +19,7 @@ class PartitionInfo(object):
     used_blocks: int = 0
     total_blocks: int = 0
     percentage_blocks_used: int = 0
+    fstype: str = ""
 
     @property
     def is_mounted(self) -> bool:
@@ -42,6 +43,7 @@ class PartitionInfo(object):
         used_blocks: int = 0,
         total_blocks: int = 0,
         percentage_blocks_used: int = 0,
+        fstype: str = "",
     ):
         self.name = name
         self.mountpoint = mountpoint
@@ -51,6 +53,7 @@ class PartitionInfo(object):
         self.used_blocks = used_blocks
         self.total_blocks = total_blocks
         self.percentage_blocks_used = percentage_blocks_used
+        self.fstype = fstype
 
 
 @dataclass
@@ -106,6 +109,7 @@ class Lsblk(Tool):
     _LSBLK_ENTRY_REGEX = re.compile(
         r'NAME="(?P<name>\S+)"\s+SIZE="(?P<size>\d+)"\s+'
         r'TYPE="(?P<type>\S+)"\s+MOUNTPOINT="(?P<mountpoint>\S*)"'
+        r'\s+FSTYPE="(?P<fstype>\S*)"'
     )
 
     # sda
@@ -120,7 +124,7 @@ class Lsblk(Tool):
 
         # parse output of lsblk
         output = self.run(
-            "-b -P -o NAME,SIZE,TYPE,MOUNTPOINT", sudo=True, force_run=force_run
+            "-b -P -o NAME,SIZE,TYPE,MOUNTPOINT,FSTYPE", sudo=True, force_run=force_run
         ).stdout
         lsblk_entries = find_patterns_groups_in_lines(
             output, [self._LSBLK_ENTRY_REGEX]
@@ -150,6 +154,7 @@ class Lsblk(Tool):
                     size=int(lsblk_entry["size"]),
                     type=lsblk_entry["type"],
                     mountpoint=lsblk_entry["mountpoint"],
+                    fstype=lsblk_entry["fstype"],
                 )
             )
 

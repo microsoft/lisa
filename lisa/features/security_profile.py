@@ -17,12 +17,12 @@ FEATURE_NAME_SECURITY_PROFILE = "Security_Profile"
 class SecurityProfileType(str, Enum):
     Standard = constants.SECURITY_PROFILE_NONE
     CVM = constants.SECURITY_PROFILE_CVM
-    Boot = constants.SECURITY_PROFILE_BOOT
+    SecureBoot = constants.SECURITY_PROFILE_BOOT
 
 
 security_profile_priority: List[SecurityProfileType] = [
     SecurityProfileType.Standard,
-    SecurityProfileType.Boot,
+    SecurityProfileType.SecureBoot,
     SecurityProfileType.CVM,
 ]
 
@@ -38,7 +38,7 @@ class SecurityProfileSettings(schema.FeatureSettings):
             search_space.SetSpace,
             items=[
                 SecurityProfileType.Standard,
-                SecurityProfileType.Boot,
+                SecurityProfileType.SecureBoot,
                 SecurityProfileType.CVM,
             ],
         ),
@@ -51,13 +51,14 @@ class SecurityProfileSettings(schema.FeatureSettings):
                 else search_space.SetSpace(
                     items=[
                         SecurityProfileType.Standard,
-                        SecurityProfileType.Boot,
+                        SecurityProfileType.SecureBoot,
                         SecurityProfileType.CVM,
                     ]
                 )
             )
         ),
     )
+    encrypt_disk: bool = field(default=False)
 
     def __hash__(self) -> int:
         return hash(self._get_key())
@@ -74,6 +75,7 @@ class SecurityProfileSettings(schema.FeatureSettings):
             capability.security_profile,
             security_profile_priority,
         )
+        value.encrypt_disk = self.encrypt_disk or capability.encrypt_disk
         return value
 
     def check(self, capability: Any) -> search_space.ResultReason:
@@ -118,7 +120,7 @@ class SecurityProfile(Feature):
 SecureBootEnabled = partial(
     SecurityProfileSettings,
     security_profile=search_space.SetSpace(
-        True, [SecurityProfileType.Boot, SecurityProfileType.CVM]
+        True, [SecurityProfileType.SecureBoot, SecurityProfileType.CVM]
     ),
 )
 

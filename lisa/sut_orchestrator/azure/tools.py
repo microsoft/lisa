@@ -380,3 +380,17 @@ class AzCmdlet(Tool):
             f"-CommandId 'RunPowerShellScript' "
             f"-Parameter @{{'PublicKey'='{public_key_data}'}}"
         )
+
+
+class Azsecd(Tool):
+    @property
+    def command(self) -> str:
+        return "azsecd"
+
+    @property
+    def can_install(self) -> bool:
+        return True
+
+    def install(self) -> bool:
+        self.node.os.install_packages("azure-security")  # type: ignore
+        return self._check_exists()

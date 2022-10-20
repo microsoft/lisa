@@ -8,12 +8,15 @@ from typing import List, Pattern, cast
 from assertpy.assertpy import assert_that
 
 from lisa import (
+    Logger,
     Node,
+    RemoteNode,
     TestCaseMetadata,
     TestSuite,
     TestSuiteMetadata,
     simple_requirement,
 )
+from lisa.features import Disk
 from lisa.operating_system import (
     SLES,
     CBLMariner,
@@ -22,6 +25,7 @@ from lisa.operating_system import (
     Debian,
     DebianRepositoryInfo,
     Fedora,
+    FreeBSD,
     Oracle,
     Posix,
     Redhat,
@@ -31,7 +35,8 @@ from lisa.operating_system import (
     Ubuntu,
 )
 from lisa.sut_orchestrator import AZURE, READY
-from lisa.tools import Cat, Dmesg, Lscpu, Pgrep, Ssh, Whoami
+from lisa.sut_orchestrator.azure.features import AzureDiskOptionSettings
+from lisa.tools import Cat, Dmesg, Ls, Lsblk, Lscpu, Pgrep, Ssh, Whoami
 from lisa.util import (
     LisaException,
     PassedException,
@@ -39,6 +44,8 @@ from lisa.util import (
     find_patterns_in_lines,
     get_matched_str,
 )
+
+from .common import get_resource_disk_mount_point
 
 
 @TestSuiteMetadata(
@@ -648,7 +655,7 @@ class AzureImageStandard(TestSuite):
                 assert_that(
                     int(oss_repo_enable_refresh_count),
                     "One or more expected `Oss` repositories are not enabled/refreshed",
-                ).is_greater_than(2)
+                ).is_greater_than(0)
                 assert_that(
                     int(update_repo_enable_refresh_count),
                     "One or more expected `Update` repositories are not "
@@ -879,10 +886,18 @@ class AzureImageStandard(TestSuite):
     def verify_no_pre_exist_users(self, node: Node) -> None:
         current_user = node.tools[Whoami].get_username()
         cat = node.tools[Cat]
+        if isinstance(node.os, FreeBSD):
+            shadow_file = "/etc/master.passwd"
+        else:
+            shadow_file = "/etc/shadow"
         passwd_outputs = cat.read_with_filter(
-            "/etc/shadow", current_user, True, True, True
+            shadow_file, current_user, True, True, True
         )
         for passwd_raw_output in passwd_outputs.splitlines():
+            # remove comments
+            # # $FreeBSD$
+            if passwd_raw_output.strip().startswith("#"):
+                continue
             # sample line of /etc/shadow
             # root:x:0:0:root:/root:/bin/bash
             # sshd:!:19161::::::
@@ -891,3 +906,77 @@ class AzureImageStandard(TestSuite):
             user_name, user_passwd = passwd_raw_output.split(":")[0:2]
             if not ("*" in user_passwd or "!" in user_passwd or "x" == user_passwd):
                 raise LisaException(f"password of user {user_name} should be deleted.")
+
+    @TestCaseMetadata(
+        description="""
+        This test will check that the readme file existed in resource disk mount point.
+
+        Steps:
+        1. Get the mount point for the resource disk. If `/var/log/cloud-init.log`
+        file is present, mount location is `/mnt`, otherwise it is obtained from
+        `ResourceDisk.MountPoint` entry in `waagent.conf` configuration file.
+        2. Verify that resource disk is mounted from the output of `mount` command.
+        3. Verify lost+found folder exists.
+        4. Verify DATALOSS_WARNING_README.txt file exists.
+        5. Verify 'WARNING: THIS IS A TEMPORARY DISK' contained in
+        DATALOSS_WARNING_README.txt file.
+        """,
+        priority=1,
+        requirement=simple_requirement(
+            disk=AzureDiskOptionSettings(has_resource_disk=True),
+            supported_platform_type=[AZURE],
+        ),
+    )
+    def verify_resource_disk_readme_file(self, log: Logger, node: RemoteNode) -> None:
+        resource_disk_mount_point = get_resource_disk_mount_point(log, node)
+
+        # verify that resource disk is mounted
+        # function returns successfully if disk matching mount point is present
+        node.features[Disk].get_partition_with_mount_point(resource_disk_mount_point)
+
+        # verify lost+found folder exists
+        fold_path = f"{resource_disk_mount_point}/lost+found"
+        folder_exists = node.tools[Ls].path_exists(fold_path, sudo=True)
+        assert_that(folder_exists, f"{fold_path} should be present").is_true()
+
+        # verify DATALOSS_WARNING_README.txt file exists
+        file_path = f"{resource_disk_mount_point}/DATALOSS_WARNING_README.txt"
+        file_exists = node.tools[Ls].path_exists(file_path, sudo=True)
+        assert_that(file_exists, f"{file_path} should be present").is_true()
+
+        # verify 'WARNING: THIS IS A TEMPORARY DISK' contained in
+        # DATALOSS_WARNING_README.txt file.
+        read_text = node.tools[Cat].read(file_path, force_run=True, sudo=True)
+        assert_that(
+            read_text,
+            f"'WARNING: THIS IS A TEMPORARY DISK' should be present in {file_path}",
+        ).contains("WARNING: THIS IS A TEMPORARY DISK")
+
+    @TestCaseMetadata(
+        description="""
+        This test will check that resource disk is formatted correctly.
+
+        Steps:
+        1. Get the mount point for the resource disk. If `/var/log/cloud-init.log`
+        file is present, mount location is `/mnt`, otherwise it is obtained from
+        `ResourceDisk.MountPoint` entry in `waagent.conf` configuration file.
+        2. Verify that resource disk file system type should not be 'ntfs'.
+        """,
+        priority=1,
+        requirement=simple_requirement(
+            disk=AzureDiskOptionSettings(has_resource_disk=True),
+            supported_platform_type=[AZURE],
+        ),
+    )
+    def verify_resource_disk_file_system(self, log: Logger, node: RemoteNode) -> None:
+        resource_disk_mount_point = get_resource_disk_mount_point(log, node)
+        node.features[Disk].get_partition_with_mount_point(resource_disk_mount_point)
+        disk_info = node.tools[Lsblk].find_disk_by_mountpoint(resource_disk_mount_point)
+        for partition in disk_info.partitions:
+            # by default, resource disk comes with ntfs type
+            # waagent or cloud-init will format it unless there are some commands hung
+            # or interrupt
+            assert_that(
+                partition.fstype,
+                "Resource disk file system type should not equal to ntfs",
+            ).is_not_equal_to("ntfs")
