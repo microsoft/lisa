@@ -1,11 +1,12 @@
 # Copyright (c) Microsoft Corporation.
 # Licensed under the MIT license.
-
 import json
 import re
 import time
 from decimal import Decimal
 from typing import TYPE_CHECKING, Any, Dict, List, Pattern, Type, cast
+
+from retry import retry
 
 from lisa.executable import Tool
 from lisa.messages import (
@@ -22,6 +23,7 @@ from lisa.util.process import ExecutableResult, Process
 
 from .firewall import Firewall
 from .git import Git
+from .ls import Ls
 from .make import Make
 
 if TYPE_CHECKING:
@@ -160,6 +162,7 @@ class Iperf3(Tool):
             expected_exit_code_failure_message="fail to launch iperf3 server",
         )
 
+    @retry(tries=10, delay=2)
     def run_as_client_async(  # noqa: C901
         self,
         server_ip: str,
@@ -236,13 +239,18 @@ class Iperf3(Tool):
         )
 
         if log_file:
-            timeout = 60
+            timeout = 20
             timer = create_timer()
             while timeout > timer.elapsed(False):
+                if not self.node.tools[Ls].path_exists(log_file, sudo=True):
+                    time.sleep(1)
+                    continue
                 cat = self.node.tools[Cat]
                 iperf_log = cat.read(
                     log_file, sudo=True, force_run=True, no_debug_log=True
                 )
+                if "Connection refused" in iperf_log:
+                    raise LisaException("connection refused by the iperf3 server")
                 if "Connecting to host " in iperf_log:
                     return process
                 time.sleep(1)

@@ -89,11 +89,12 @@ class CloudHypervisorTests(Tool):
         log_path: Path,
         skip: Optional[List[str]] = None,
     ) -> None:
-        self.per_mtr_report_file = log_path.joinpath("perf_metrics.json")
-
         perf_metrics_tests = self._list_perf_metrics_tests(hypervisor=hypervisor)
+        failed_testcases = []
 
         for testcase in perf_metrics_tests:
+            testcase_log_file = log_path.joinpath(f"{testcase}.log")
+
             status: TestStatus = TestStatus.QUEUED
             metrics: str = ""
             trace: str = ""
@@ -107,19 +108,20 @@ class CloudHypervisorTests(Tool):
                     no_info_log=False,  # print out result of each test
                     shell=True,
                 )
-                output = result.stdout.replace("\r\n", "\n")
-                output = output.replace("\t", "")
+
                 if result.exit_code == 0:
                     status = TestStatus.PASSED
                     metrics = self._process_perf_metric_test_result(result.stdout)
                 else:
                     status = TestStatus.FAILED
-                    trace = output
+                    trace = f"Testcase '{testcase}' failed: {result.stderr}"
+                    failed_testcases.append(testcase)
 
             except Exception as e:
                 self._log.info(f"Testcase failed, tescase name: {testcase}")
                 status = TestStatus.FAILED
                 trace = str(e)
+                failed_testcases.append(testcase)
 
             msg = metrics if status == TestStatus.PASSED else trace
             self._send_subtest_msg(
@@ -129,6 +131,14 @@ class CloudHypervisorTests(Tool):
                 test_status=status,
                 test_message=msg,
             )
+
+            # Write stdout of testcase to log as per given requirement
+            with open(testcase_log_file, "w") as f:
+                f.write(result.stdout)
+
+        assert_that(
+            failed_testcases, f"Failed Testcases: {failed_testcases}"
+        ).is_empty()
 
     def _initialize(self, *args: Any, **kwargs: Any) -> None:
         tool_path = self.get_tool_path(use_global=True)
