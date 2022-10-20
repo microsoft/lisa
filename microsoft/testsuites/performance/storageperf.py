@@ -259,7 +259,7 @@ class StoragePerformance(TestSuite):
                     core_count=None,
                     disk_count=None,
                     disk_setup_type=None,
-                    disk_type=None
+                    disk_type=None,
                 )
             except Exception as err:
                 failed_test_cases.append(testcase)
