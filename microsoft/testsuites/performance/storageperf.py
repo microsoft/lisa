@@ -189,7 +189,6 @@ class StoragePerformance(TestSuite):
     def perf_storage_over_nfs_synthetic_udp_4k(self, result: TestResult) -> None:
         self._perf_nfs(result, protocol="udp")
 
-
     @TestCaseMetadata(
         description="""
         This test case uses fio to test data disk performance.
