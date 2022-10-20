@@ -207,67 +207,63 @@ class StoragePerformance(TestSuite):
     ) -> None:
         testcases = variables.get("fio_testcase_list", None)
         if not testcases or len(testcases) == 0:
-            # Run default testcases
-            for size in [512, 4096]:
-                id = str(uuid.uuid4())
-                start_iodepth = 1
-                max_iodepth = 4
+            testcases = [
+                {
+                    "start_iodepth": 1,
+                    "max_iodepth": 4,
+                    "block_size": 4,
+                    "size_mb": 512,
+                    "time": 240,
+                },
+                {
+                    "start_iodepth": 1,
+                    "max_iodepth": 4,
+                    "block_size": 4,
+                    "size_mb": 4096,
+                    "time": 240,
+                },
+            ]
+        failed_test_cases = []
+        for testcase in testcases:
+            id = str(uuid.uuid4())
+            try:
+                start_iodepth = testcase.get("start_iodepth", 1)
+                max_iodepth = testcase.get("max_iodepth", 1)
                 num_jobs = []
-
-                core_count = node.tools[Lscpu].get_core_count()
                 iodepth_iter = start_iodepth
+                core_count = node.tools[Lscpu].get_core_count()
                 while iodepth_iter <= max_iodepth:
                     num_jobs.append(min(iodepth_iter, core_count))
                     iodepth_iter = iodepth_iter * 2
+
+                time = testcase.get("time", 240)
+                block_size = testcase.get("block_size", 4)
+                size_mb = testcase.get("size_mb", 512)
+                overwrite = testcase.get("overwrite", False)
+
+                test_name = f"{size_mb}_MB_{block_size}K"
+                log.debug(f"Executing the FIO testcase : {test_name}")
 
                 perf_disk(
                     node=node,
                     start_iodepth=start_iodepth,
                     max_iodepth=max_iodepth,
-                    filename=f"{size}_MB_FIO_{id}",
+                    filename=f"{size_mb}_MB_FIO_{id}",
                     test_result=result,
-                    test_name=f"{size}_MB_4K",
+                    test_name=test_name,
                     num_jobs=num_jobs,
-                    block_size=4,
-                    time=240,
-                    size_mb=size,
+                    block_size=block_size,
+                    time=time,
+                    size_mb=size_mb,
+                    overwrite=overwrite,
                 )
-        else:
-            for testcase in testcases:
-                id = str(uuid.uuid4())
-                try:
-                    start_iodepth = testcase.get("start_iodepth", 1)
-                    max_iodepth = testcase.get("max_iodepth", 1)
-                    num_jobs = []
-                    iodepth_iter = start_iodepth
-                    core_count = node.tools[Lscpu].get_core_count()
-                    while iodepth_iter <= max_iodepth:
-                        num_jobs.append(min(iodepth_iter, core_count))
-                        iodepth_iter = iodepth_iter * 2
+            except Exception as err:
+                failed_test_cases.append(testcase)
+                log.error(err)
 
-                    time = testcase.get("time", 240)
-                    block_size = testcase.get("block_size", 4)
-                    size_mb = testcase.get("size_mb", 512)
-                    overwrite = testcase.get("overwrite", False)
-
-                    test_name = f"{size_mb}_MB_{block_size}K"
-                    log.debug(f"Executing the FIO testcase : {test_name}")
-
-                    perf_disk(
-                        node=node,
-                        start_iodepth=start_iodepth,
-                        max_iodepth=max_iodepth,
-                        filename=f"{size_mb}_MB_FIO_{id}",
-                        test_result=result,
-                        test_name=test_name,
-                        num_jobs=num_jobs,
-                        block_size=block_size,
-                        time=time,
-                        size_mb=size_mb,
-                        overwrite=overwrite,
-                    )
-                except Exception as e:
-                    log.error(e)
+        assert_that(
+            failed_test_cases, f"Failed Testcases: {failed_test_cases}"
+        ).is_empty()
 
     def _perf_nfs(
         self,
