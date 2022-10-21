@@ -1155,6 +1155,8 @@ class Environment:
 
         if self.nodes_raw:
             for node_raw in self.nodes_raw:
+                if not isinstance(node_raw, dict):
+                    node_raw = node_raw.to_dict()
                 node_type = node_raw[constants.TYPE]
                 if node_type == constants.ENVIRONMENTS_NODES_REQUIREMENT:
                     original_req: NodeSpace = load_by_type(NodeSpace, node_raw)
