@@ -2,12 +2,14 @@
 # Licensed under the MIT license.
 
 import inspect
-from pathlib import PurePosixPath
+import uuid
+from pathlib import Path, PurePosixPath
 from typing import Any, Dict, List, cast
 
 from assertpy import assert_that
 
 from lisa import (
+    Environment,
     Logger,
     Node,
     TestCaseMetadata,
@@ -186,6 +188,104 @@ class StoragePerformance(TestSuite):
     )
     def perf_storage_over_nfs_synthetic_udp_4k(self, result: TestResult) -> None:
         self._perf_nfs(result, protocol="udp")
+
+    @TestCaseMetadata(
+        description="""
+        This test case uses fio to test data disk performance.
+        """,
+        priority=3,
+        timeout=TIME_OUT,
+    )
+    def perf_storage_generic_fio_test(
+        self,
+        log: Logger,
+        node: Node,
+        environment: Environment,
+        log_path: Path,
+        result: TestResult,
+        variables: Dict[str, Any],
+    ) -> None:
+        # Sample for fio_testcase_list variable in runbook
+        # - name: fio_testcase_list
+        #   value:
+        #   -
+        #     start_iodepth: 1
+        #     max_iodepth: 8
+        #     block_size: 4
+        #     size_mb: 512
+        #     time: 240
+        #     overwrite: False
+        #   -
+        #     start_iodepth: 1
+        #     max_iodepth: 8
+        #     block_size: 4
+        #     size_mb: 4096
+        #     time: 240
+        #     overwrite: False
+        #     is_case_visible: True
+
+        testcases = variables.get("fio_testcase_list", None)
+        if not testcases or len(testcases) == 0:
+            testcases = [
+                {
+                    "start_iodepth": 1,
+                    "max_iodepth": 4,
+                    "block_size": 4,
+                    "size_mb": 512,
+                    "time": 240,
+                },
+                {
+                    "start_iodepth": 1,
+                    "max_iodepth": 4,
+                    "block_size": 4,
+                    "size_mb": 4096,
+                    "time": 240,
+                },
+            ]
+        failed_test_cases = []
+        for testcase in testcases:
+            id = str(uuid.uuid4())
+            try:
+                start_iodepth = testcase.get("start_iodepth", 1)
+                max_iodepth = testcase.get("max_iodepth", 1)
+                num_jobs = []
+                iodepth_iter = start_iodepth
+                core_count = node.tools[Lscpu].get_core_count()
+                while iodepth_iter <= max_iodepth:
+                    num_jobs.append(min(iodepth_iter, core_count))
+                    iodepth_iter = iodepth_iter * 2
+
+                time = testcase.get("time", 240)
+                block_size = testcase.get("block_size", 4)
+                size_mb = testcase.get("size_mb", 512)
+                overwrite = testcase.get("overwrite", False)
+
+                test_name = f"{size_mb}_MB_{block_size}K"
+                log.debug(f"Executing the FIO testcase : {test_name}")
+
+                perf_disk(
+                    node=node,
+                    start_iodepth=start_iodepth,
+                    max_iodepth=max_iodepth,
+                    filename=f"{size_mb}_MB_FIO_{id}",
+                    test_result=result,
+                    test_name=test_name,
+                    num_jobs=num_jobs,
+                    block_size=block_size,
+                    time=time,
+                    size_mb=size_mb,
+                    overwrite=overwrite,
+                    core_count=core_count,
+                    disk_count=1,
+                    disk_setup_type=None,
+                    disk_type=None,
+                )
+            except Exception:
+                failed_test_cases.append(testcase)
+
+        assert_that(
+            failed_test_cases, f"Failed Testcases: {failed_test_cases}"
+        ).is_empty()
 
     def _configure_nfs(
         self,

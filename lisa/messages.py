@@ -250,11 +250,9 @@ def create_perf_message(
     assert environment, "fail to get environment from testresult"
 
     data_path: str = ""
-    assert (
-        node.capability.network_interface
-        and node.capability.network_interface.data_path
-    )
-    if isinstance(node.capability.network_interface.data_path, NetworkDataPath):
+    if node.capability.network_interface and isinstance(
+        node.capability.network_interface.data_path, NetworkDataPath
+    ):
         data_path = node.capability.network_interface.data_path.value
     message = message_type()
     dict_to_fields(environment.get_information(), message)
