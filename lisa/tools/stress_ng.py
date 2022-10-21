@@ -5,6 +5,7 @@ from typing import cast
 
 from lisa.executable import Tool
 from lisa.operating_system import Posix
+from lisa.util.process import Process
 
 from .gcc import Gcc
 from .git import Git
@@ -31,7 +32,7 @@ class StressNg(Tool):
             self._install_from_src()
         return self._check_exists()
 
-    def launch(
+    def launch_vm_stressor(
         self, num_workers: int = 0, vm_bytes: str = "", timeout_in_seconds: int = 0
     ) -> None:
         # --vm N, start N workers spinning on anonymous mmap
@@ -56,6 +57,21 @@ class StressNg(Tool):
 
         cmd += f" --timeout {timeout_in_seconds} "
         self.run(cmd, force_run=True, timeout=timeout_in_seconds)
+
+    def launch_job_async(self, job_file: str, sudo: bool = False) -> Process:
+        return self.run_async(f"--job {job_file}", force_run=True, sudo=sudo)
+
+    def launch_class_async(
+        self,
+        class_name: str,
+        num_workers: int = 0,
+        timeout_secs: int = 60,
+        sudo: bool = False,
+    ) -> Process:
+        return self.run_async(
+            f"--sequential {num_workers} --class {class_name} --timeout {timeout_secs}",
+            sudo=sudo,
+        )
 
     def _install_from_src(self) -> bool:
         tool_path = self.get_tool_path()
