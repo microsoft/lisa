@@ -159,9 +159,13 @@ class BaseLibvirtPlatform(Platform):
 
     def _delete_environment(self, environment: Environment, log: Logger) -> None:
         self._delete_nodes(environment, log)
+
         if self.host_node.is_remote:
             self._stop_port_forwarding(environment, log)
-        libvirt_log = self.host_node.tools[Journalctl].logs_for_unit("libvirtd")
+
+        libvirt_log = self.host_node.tools[Journalctl].logs_for_unit(
+            "libvirtd", sudo=self.host_node.is_remote
+        )
         libvirt_log_path = self.host_node.local_log_path / "libvirtd.log"
         with open(str(libvirt_log_path), "w") as f:
             f.write(libvirt_log)
