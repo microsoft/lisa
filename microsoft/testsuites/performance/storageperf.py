@@ -261,9 +261,8 @@ class StoragePerformance(TestSuite):
                     disk_setup_type=None,
                     disk_type=None,
                 )
-            except Exception as err:
+            except Exception:
                 failed_test_cases.append(testcase)
-                log.error(err)
 
         assert_that(
             failed_test_cases, f"Failed Testcases: {failed_test_cases}"
