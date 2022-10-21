@@ -205,6 +205,25 @@ class StoragePerformance(TestSuite):
         result: TestResult,
         variables: Dict[str, Any],
     ) -> None:
+        # Sample for fio_testcase_list variable in runbook
+        # - name: fio_testcase_list
+        #   value:
+        #   -
+        #     start_iodepth: 1
+        #     max_iodepth: 8
+        #     block_size: 4
+        #     size_mb: 512
+        #     time: 240
+        #     overwrite: False
+        #   -
+        #     start_iodepth: 1
+        #     max_iodepth: 8
+        #     block_size: 4
+        #     size_mb: 4096
+        #     time: 240
+        #     overwrite: False
+        #     is_case_visible: True
+
         testcases = variables.get("fio_testcase_list", None)
         if not testcases or len(testcases) == 0:
             testcases = [
