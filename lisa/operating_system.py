@@ -781,7 +781,23 @@ class Debian(Linux):
     def _initialize_package_installation(self) -> None:
         # wait running system package process.
         self.wait_running_package_process()
-
+        if type(self._node.os) == Ubuntu:
+            cmd_result = self._node.execute(
+                "cloud-init query cloud_name", sudo=True, shell=True
+            )
+            # only wait on azure platform
+            if 0 == cmd_result.exit_code and "azure" == cmd_result.stdout:
+                # wait till cloud-init finish to run the init work include updating
+                # /etc/apt/source.list file
+                self._node.execute(
+                    "cloud-init status --wait",
+                    sudo=True,
+                    shell=True,
+                    expected_exit_code=0,
+                    expected_exit_code_failure_message=(
+                        "cloud-init status is not expected"
+                    ),
+                )
         result = self._node.execute("apt-get update", sudo=True)
         if self._repo_not_exist_pattern.search(result.stdout):
             raise RepoNotExistException(self._node.os)
