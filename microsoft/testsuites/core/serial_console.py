@@ -38,5 +38,5 @@ class SerialConsoleSuite(TestSuite):
         output = serial_console.read()
 
         assert_that(
-            output, "output from serial console should be equal to command"
-        ).is_equal_to(command)
+            output, "output from serial console should contain command"
+        ).contains(command)
