@@ -36,6 +36,12 @@ def initialize_nic_info(
     for node in environment.nodes.list():
         if is_sriov:
             network_interface_feature = node.features[NetworkInterface]
+            # verify SRIOV in environment is enabled, wait for enable if not.
+            if not network_interface_feature.is_enabled_sriov():
+                network_interface_feature.switch_sriov(
+                    enable=True, wait=True, reset_connections=True
+                )
+
             sriov_count = network_interface_feature.get_nic_count()
             assert_that(sriov_count).described_as(
                 f"there is no sriov nic attached to VM {node.name}"
