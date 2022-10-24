@@ -21,7 +21,6 @@ class QemuConsoleLogger:
     # Attach logger to a libvirt VM.
     def attach(
         self,
-        qemu_conn: libvirt.virConnect,
         domain: libvirt.virDomain,
         log_file_path: str,
     ) -> None:
@@ -29,7 +28,7 @@ class QemuConsoleLogger:
         self._log_file = open(log_file_path, "ab")
 
         # Open the libvirt console stream.
-        console_stream = qemu_conn.newStream(libvirt.VIR_STREAM_NONBLOCK)
+        console_stream = domain.connect().newStream(libvirt.VIR_STREAM_NONBLOCK)
         domain.openConsole(
             None,
             console_stream,
