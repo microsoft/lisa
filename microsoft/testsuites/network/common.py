@@ -48,6 +48,7 @@ def initialize_nic_info(
             ).is_greater_than(0)
         node_nic_info = Nics(node)
         node_nic_info.initialize()
+        node_nic_info.wait_for_sriov_enabled()
         for _, node_nic in node_nic_info.nics.items():
             assert_that(node_nic.ip_addr).described_as(
                 f"This interface {node_nic.upper} does not have a IP address."
