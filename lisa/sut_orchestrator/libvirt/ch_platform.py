@@ -7,8 +7,6 @@ import xml.etree.ElementTree as ET  # noqa: N817
 from pathlib import Path
 from typing import List, Type
 
-import libvirt  # type: ignore
-
 from lisa import schema
 from lisa.environment import Environment
 from lisa.feature import Feature
@@ -73,7 +71,6 @@ class CloudHypervisorPlatform(BaseLibvirtPlatform):
         node_context: NodeContext,
         environment: Environment,
         log: Logger,
-        lv_conn: libvirt.virConnect,
     ) -> None:
         if node_context.firmware_source_path:
             self.host_node.shell.copy(
@@ -86,7 +83,6 @@ class CloudHypervisorPlatform(BaseLibvirtPlatform):
             node_context,
             environment,
             log,
-            lv_conn,
         )
 
     def _create_node_domain_xml(
@@ -94,7 +90,6 @@ class CloudHypervisorPlatform(BaseLibvirtPlatform):
         environment: Environment,
         log: Logger,
         node: Node,
-        lv_conn: libvirt.virConnect,
     ) -> str:
         node_context = get_node_context(node)
 
@@ -166,7 +161,6 @@ class CloudHypervisorPlatform(BaseLibvirtPlatform):
 
     def _create_domain_and_attach_logger(
         self,
-        libvirt_conn: libvirt.virConnect,
         node_context: NodeContext,
     ) -> None:
         assert node_context.domain
@@ -174,7 +168,7 @@ class CloudHypervisorPlatform(BaseLibvirtPlatform):
 
         node_context.console_logger = QemuConsoleLogger()
         node_context.console_logger.attach(
-            libvirt_conn, node_context.domain, node_context.console_log_file_path
+            node_context.domain, node_context.console_log_file_path
         )
 
     # Create the OS disk.
