@@ -151,7 +151,11 @@ def main() -> int:
     return exit_code
 
 
-if __name__ == "__main__":
+def cli() -> int:
+    """
+    CLI entry point
+    """
+
     exit_code = 0
     try:
         exit_code = main()
@@ -166,3 +170,7 @@ if __name__ == "__main__":
             traceback.print_exc()
     finally:
         sys.exit(exit_code)
+
+
+if __name__ == "__main__":
+    cli()
