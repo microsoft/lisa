@@ -2,7 +2,6 @@ from typing import Any
 
 from .assertpy import AssertionBuilder
 
-
 class BaseMixin:
     description: Any = ...
     def described_as(self, description: Any) -> AssertionBuilder: ...

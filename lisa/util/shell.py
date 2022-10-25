@@ -379,7 +379,10 @@ class SshShell(InitializableMixin):
                 self.spawn(command=["rm", path_str])
 
     def chmod(self, path: PurePath, mode: int) -> None:
-        """Change the file mode bits of each given file according to mode (Posix targets only)
+        """
+        Change the file mode bits of each given file according to mode
+        (Posix targets only)
+
         Inputs:
             path: target path. (Absolute. Use a PurePosixPath, if the
                                 target node is a Posix one, because LISA
@@ -693,7 +696,10 @@ class LocalShell(InitializableMixin):
             path.unlink()
 
     def chmod(self, path: PurePath, mode: int) -> None:
-        """Change the file mode bits of each given file according to mode (Posix targets only)
+        """
+        Change the file mode bits of each given file according to mode
+        (Posix targets only)
+
         Inputs:
             path: target path. (Absolute)
             mode: numerical chmod mode entry
