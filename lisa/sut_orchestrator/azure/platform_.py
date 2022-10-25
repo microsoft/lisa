@@ -1131,10 +1131,7 @@ class AzurePlatform(Platform):
                 azure_node_runbook.location, azure_node_runbook.marketplace
             )
             # HyperVGenerationTypes return "V1"/"V2", so we need to strip "V"
-            if image_info.hyper_v_generation:
-                azure_node_runbook.hyperv_generation = int(
-                    image_info.hyper_v_generation.strip("V")
-                )
+            azure_node_runbook.hyperv_generation = _get_vhd_generation(image_info)
 
             # retrieve the os type for arm template.
             if azure_node_runbook.is_linux is None:
@@ -2441,3 +2438,11 @@ def _get_allowed_locations(nodes_requirement: List[schema.NodeSpace]) -> List[st
         existing_locations = LOCATIONS[:]
 
     return existing_locations
+
+
+def _get_vhd_generation(image_info: VirtualMachineImage) -> int:
+    vhd_gen = 1
+    if image_info.hyper_v_generation:
+        vhd_gen = int(image_info.hyper_v_generation.strip("V"))
+
+    return vhd_gen
