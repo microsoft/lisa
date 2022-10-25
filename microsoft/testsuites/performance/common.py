@@ -253,8 +253,13 @@ def perf_ntttcp(
                 lambda: server.tools[Lagscope],  # type: ignore
             ]
         )
+        # no need to set task max and reboot VM when connection less than 20480
+        if max(connections) >= 20480:
+            set_task_max = True
+        else:
+            set_task_max = False
         for ntttcp in [client_ntttcp, server_ntttcp]:
-            ntttcp.setup_system(udp_mode)
+            ntttcp.setup_system(udp_mode, set_task_max)
         for lagscope in [client_lagscope, server_lagscope]:
             lagscope.set_busy_poll()
         data_path = get_nic_datapath(client)
