@@ -1,8 +1,7 @@
-from .hooks import (
-    HookImpl as HookImpl,
-    normalize_hookimpl_opts as normalize_hookimpl_opts,
-)
 from typing import Any, Optional
+
+from .hooks import HookImpl as HookImpl
+from .hooks import normalize_hookimpl_opts as normalize_hookimpl_opts
 
 class PluginValidationError(Exception):
     plugin: Any = ...

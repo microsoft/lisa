@@ -17,7 +17,7 @@ from threading import Lock, Timer
 from typing import Any, Dict, List, Optional, Tuple, Type, cast
 
 import libvirt  # type: ignore
-import pycdlib
+import pycdlib  # type: ignore
 import yaml
 
 from lisa import schema, search_space
