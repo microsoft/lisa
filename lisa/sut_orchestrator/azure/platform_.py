@@ -1679,12 +1679,12 @@ class AzurePlatform(Platform):
     ) -> SharedImageGallerySchema:
         new_shared_image = copy.copy(shared_image)
         compute_client = get_compute_client(self)
+        rg_name = shared_image.resource_group_name
         if not shared_image.resource_group_name:
             # /subscriptions/xxxx/resourceGroups/xxxx/providers/Microsoft.Compute/
             # galleries/xxxx
             rg_pattern = re.compile(r"resourceGroups/(.*)/providers", re.M)
             galleries = compute_client.galleries.list()
-            rg_name = ""
             for gallery in galleries:
                 if gallery.name.lower() == shared_image.image_gallery:
                     rg_name = get_matched_str(gallery.id, rg_pattern)
