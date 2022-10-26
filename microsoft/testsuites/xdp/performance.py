@@ -313,7 +313,7 @@ class XdpPerformance(TestSuite):
                 run_in_parallel(
                     [server_lagscope.set_busy_poll, client_lagscope.set_busy_poll]
                 )
-                server_lagscope.run_as_server(ip=server_nic.ip_addr)
+                server_lagscope.run_as_server_async(ip=server_nic.ip_addr)
 
                 result = client_lagscope.run_as_client(server_ip=server_nic.ip_addr)
                 lagscope_messages = client_lagscope.create_latency_performance_messages(
