@@ -138,7 +138,7 @@ class Ntttcp(Tool):
     def can_install(self) -> bool:
         return True
 
-    def setup_system(self, udp_mode: bool = False) -> None:
+    def setup_system(self, udp_mode: bool = False, set_task_max: bool = True) -> None:
         sysctl = self.node.tools[Sysctl]
         sys_list = self.sys_list_tcp
         if udp_mode:
@@ -146,7 +146,8 @@ class Ntttcp(Tool):
         for sys in sys_list:
             for variable, value in sys.items():
                 sysctl.write(variable, value)
-        self._set_tasks_max()
+        if set_task_max:
+            self._set_tasks_max()
         firewall = self.node.tools[Firewall]
         firewall.stop()
 

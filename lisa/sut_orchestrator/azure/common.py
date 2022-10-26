@@ -1042,12 +1042,14 @@ def load_environment(
 
     # create mock environment from environments
     environment_runbook = schema.Environment()
+    if environment_runbook.nodes_raw is None:
+        environment_runbook.nodes_raw = []
 
     compute_client = get_compute_client(platform)
     vms = compute_client.virtual_machines.list(resource_group_name)
     for vm in vms:
         node_schema = schema.RemoteNode(name=vm.name)
-        environment_runbook.nodes.append(node_schema)
+        environment_runbook.nodes_raw.append(node_schema)
 
     environments = load_environments(
         schema.EnvironmentRoot(environments=[environment_runbook])

@@ -12,10 +12,10 @@ class Journalctl(Tool):
     def _check_exists(self) -> bool:
         return True
 
-    def logs_for_unit(self, unit_name: str) -> str:
+    def logs_for_unit(self, unit_name: str, sudo: bool = True) -> str:
         result = self.run(
             f"--no-pager -u {unit_name}",
-            sudo=True,
+            sudo=sudo,
             force_run=True,
             no_debug_log=True,  # don't flood LISA logs
             expected_exit_code=0,

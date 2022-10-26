@@ -7,6 +7,7 @@ from assertpy import assert_that
 from semver import VersionInfo
 
 from lisa import (
+    Environment,
     Logger,
     Node,
     TestCaseMetadata,
@@ -15,6 +16,7 @@ from lisa import (
     simple_requirement,
 )
 from lisa.operating_system import Redhat
+from lisa.sut_orchestrator.azure.platform_ import AzurePlatform
 from lisa.sut_orchestrator.azure.tools import LisDriver
 from lisa.tools import Find, KernelConfig, Lsinitrd, Lsmod, Modinfo, Modprobe, Uname
 from lisa.util import SkippedException
@@ -76,8 +78,9 @@ class HvModule(TestSuite):
         """,
         priority=2,
     )
-    def verify_initrd_modules(self, node: Node) -> None:
+    def verify_initrd_modules(self, environment: Environment) -> None:
 
+        node = environment.nodes[0]
         # 1) Takes all of the necessary modules and removes
         #    those that are statically loaded into the kernel
         all_necessary_hv_modules_file_names = {
@@ -106,9 +109,11 @@ class HvModule(TestSuite):
 
         initrd_file_path = ""
         for file_name in initrd_possible_file_names:
-            result = find.find_files(node.get_pure_path("/boot"), file_name, sudo=True)
-            if result and result[0]:
-                initrd_file_path = result[0]
+            cmd_result = find.find_files(
+                node.get_pure_path("/boot"), file_name, sudo=True
+            )
+            if cmd_result and cmd_result[0]:
+                initrd_file_path = cmd_result[0]
                 break
 
         # 3) Use lsinitrd to check whether a necessary module
@@ -121,6 +126,12 @@ class HvModule(TestSuite):
                 initrd_file_path=initrd_file_path,
             ):
                 missing_modules.append(module)
+
+        if (
+            isinstance(environment.platform, AzurePlatform)
+            and "hid_hyperv" in missing_modules
+        ):
+            missing_modules.remove("hid_hyperv")
 
         assert_that(missing_modules).described_as(
             "Required Hyper-V modules are missing from initrd."
@@ -156,7 +167,8 @@ class HvModule(TestSuite):
         """,
         priority=1,
     )
-    def verify_hyperv_modules(self, log: Logger, node: Node) -> None:
+    def verify_hyperv_modules(self, log: Logger, environment: Environment) -> None:
+        node = environment.nodes[0]
         hv_modules = self._get_not_built_in_modules(node)
         distro_version = node.os.information.version
 
@@ -186,6 +198,11 @@ class HvModule(TestSuite):
                 log.error(f"Module {module} absent")
                 missing_modules.append(module)
 
+        if (
+            isinstance(environment.platform, AzurePlatform)
+            and "hid_hyperv" in missing_modules
+        ):
+            missing_modules.remove("hid_hyperv")
         assert_that(missing_modules).described_as(
             "Not all Hyper V drivers are present."
         ).is_length(0)

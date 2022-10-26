@@ -38,6 +38,7 @@ from .context import (
     get_environment_context,
     get_node_context,
 )
+from .platform_interface import IBaseLibvirtPlatform
 from .schema import (
     FIRMWARE_TYPE_BIOS,
     FIRMWARE_TYPE_UEFI,
@@ -46,6 +47,7 @@ from .schema import (
     DiskImageFormat,
 )
 from .serial_console import SerialConsole
+from .start_stop import StartStop
 
 # Host environment information fields
 KEY_HOST_DISTRO = "host_distro"
@@ -60,14 +62,16 @@ class _HostCapabilities:
         self.free_memory_kib = 0
 
 
-class BaseLibvirtPlatform(Platform):
+class BaseLibvirtPlatform(Platform, IBaseLibvirtPlatform):
     _supported_features: List[Type[Feature]] = [
         SerialConsole,
+        StartStop,
     ]
 
     def __init__(self, runbook: schema.Platform) -> None:
         super().__init__(runbook=runbook)
         self.libvirt_conn_str: str
+        self.libvirt_conn: libvirt.virConnect
         self.platform_runbook: BaseLibvirtPlatformSchema
         self.host_node: Node
         self.vm_disks_dir: str
@@ -110,6 +114,9 @@ class BaseLibvirtPlatform(Platform):
             self.__platform_runbook_type(), type_name=type(self).type_name()
         )
 
+        self.__init_libvirt_conn_string()
+        self.libvirt_conn = libvirt.open(self.libvirt_conn_str)
+
     def _prepare_environment(self, environment: Environment, log: Logger) -> bool:
         # Ensure environment log directory is created before connecting to any nodes.
         _ = environment.log_path
@@ -148,20 +155,22 @@ class BaseLibvirtPlatform(Platform):
                 parent_logger=log,
             )
 
-        self.__init_libvirt_conn_string()
         self._configure_environment(environment, log)
 
-        with libvirt.open(self.libvirt_conn_str) as lv_conn:
-            return self._configure_node_capabilities(environment, log, lv_conn)
+        return self._configure_node_capabilities(environment, log)
 
     def _deploy_environment(self, environment: Environment, log: Logger) -> None:
         self._deploy_nodes(environment, log)
 
     def _delete_environment(self, environment: Environment, log: Logger) -> None:
         self._delete_nodes(environment, log)
+
         if self.host_node.is_remote:
             self._stop_port_forwarding(environment, log)
-        libvirt_log = self.host_node.tools[Journalctl].logs_for_unit("libvirtd")
+
+        libvirt_log = self.host_node.tools[Journalctl].logs_for_unit(
+            "libvirtd", sudo=self.host_node.is_remote
+        )
         libvirt_log_path = self.host_node.local_log_path / "libvirtd.log"
         with open(str(libvirt_log_path), "w") as f:
             f.write(libvirt_log)
@@ -179,12 +188,12 @@ class BaseLibvirtPlatform(Platform):
         )
 
     def _configure_node_capabilities(
-        self, environment: Environment, log: Logger, lv_conn: libvirt.virConnect
+        self, environment: Environment, log: Logger
     ) -> bool:
         if not environment.runbook.nodes_requirement:
             return True
 
-        host_capabilities = self._get_host_capabilities(lv_conn, log)
+        host_capabilities = self._get_host_capabilities(log)
         nodes_capabilities = self._create_node_capabilities(host_capabilities)
 
         nodes_requirement = []
@@ -205,12 +214,10 @@ class BaseLibvirtPlatform(Platform):
         environment.runbook.nodes_requirement = nodes_requirement
         return True
 
-    def _get_host_capabilities(
-        self, lv_conn: libvirt.virConnect, log: Logger
-    ) -> _HostCapabilities:
+    def _get_host_capabilities(self, log: Logger) -> _HostCapabilities:
         host_capabilities = _HostCapabilities()
 
-        capabilities_xml_str = lv_conn.getCapabilities()
+        capabilities_xml_str = self.libvirt_conn.getCapabilities()
         capabilities_xml = ET.fromstring(capabilities_xml_str)
 
         host_xml = capabilities_xml.find("host")
@@ -230,7 +237,9 @@ class BaseLibvirtPlatform(Platform):
 
         # Get free memory.
         # Include the disk cache size, as it will be freed if memory becomes limited.
-        memory_stats = lv_conn.getMemoryStats(libvirt.VIR_NODE_MEMORY_STATS_ALL_CELLS)
+        memory_stats = self.libvirt_conn.getMemoryStats(
+            libvirt.VIR_NODE_MEMORY_STATS_ALL_CELLS
+        )
         host_capabilities.free_memory_kib = (
             memory_stats[libvirt.VIR_NODE_MEMORY_STATS_FREE]
             + memory_stats[libvirt.VIR_NODE_MEMORY_STATS_CACHED]
@@ -305,20 +314,19 @@ class BaseLibvirtPlatform(Platform):
     def _deploy_nodes(self, environment: Environment, log: Logger) -> None:
         self._configure_nodes(environment, log)
 
-        with libvirt.open(self.libvirt_conn_str) as lv_conn:
-            try:
-                self._create_nodes(environment, log, lv_conn)
-                self._fill_nodes_metadata(environment, log, lv_conn)
+        try:
+            self._create_nodes(environment, log)
+            self._fill_nodes_metadata(environment, log)
 
-            except Exception as ex:
-                assert environment.platform
-                if (
-                    environment.platform.runbook.keep_environment
-                    == constants.ENVIRONMENT_KEEP_NO
-                ):
-                    self._delete_nodes(environment, log)
+        except Exception as ex:
+            assert environment.platform
+            if (
+                environment.platform.runbook.keep_environment
+                == constants.ENVIRONMENT_KEEP_NO
+            ):
+                self._delete_nodes(environment, log)
 
-                raise ex
+            raise ex
 
     # Pre-determine all the nodes' properties, including the name of all the resouces
     # to be created. This makes it easier to cleanup everything after the test is
@@ -450,9 +458,23 @@ class BaseLibvirtPlatform(Platform):
 
                 node_context.data_disks.append(data_disk)
 
+    def restart_domain_and_attach_logger(self, node: Node) -> None:
+        node_context = get_node_context(node)
+        domain = node_context.domain
+        assert domain
+
+        if domain.isActive():
+            # VM already running.
+            return
+
+        if node_context.console_logger is not None:
+            node_context.console_logger.wait_for_close()
+            node_context.console_logger = None
+
+        self._create_domain_and_attach_logger(node_context)
+
     def _create_domain_and_attach_logger(
         self,
-        libvirt_conn: libvirt.virConnect,
         node_context: NodeContext,
     ) -> None:
         # Start the VM in the paused state.
@@ -464,7 +486,7 @@ class BaseLibvirtPlatform(Platform):
         # Attach the console logger
         node_context.console_logger = QemuConsoleLogger()
         node_context.console_logger.attach(
-            libvirt_conn, node_context.domain, node_context.console_log_file_path
+            node_context.domain, node_context.console_log_file_path
         )
 
         # Start the VM.
@@ -475,7 +497,6 @@ class BaseLibvirtPlatform(Platform):
         self,
         environment: Environment,
         log: Logger,
-        lv_conn: libvirt.virConnect,
     ) -> None:
         self.host_node.shell.mkdir(Path(self.vm_disks_dir), exist_ok=True)
 
@@ -486,7 +507,6 @@ class BaseLibvirtPlatform(Platform):
                 node_context,
                 environment,
                 log,
-                lv_conn,
             )
 
     def _create_node(
@@ -495,7 +515,6 @@ class BaseLibvirtPlatform(Platform):
         node_context: NodeContext,
         environment: Environment,
         log: Logger,
-        lv_conn: libvirt.virConnect,
     ) -> None:
         # Create required directories and copy the required files to the host
         # node.
@@ -519,11 +538,10 @@ class BaseLibvirtPlatform(Platform):
         self._create_node_data_disks(node)
 
         # Create libvirt domain (i.e. VM).
-        xml = self._create_node_domain_xml(environment, log, node, lv_conn)
-        node_context.domain = lv_conn.defineXML(xml)
+        xml = self._create_node_domain_xml(environment, log, node)
+        node_context.domain = self.libvirt_conn.defineXML(xml)
 
         self._create_domain_and_attach_logger(
-            lv_conn,
             node_context,
         )
 
@@ -594,9 +612,7 @@ class BaseLibvirtPlatform(Platform):
             self.host_node.tools[Iptables].stop_forwarding(port, address, 22)
 
     # Retrieve the VMs' dynamic properties (e.g. IP address).
-    def _fill_nodes_metadata(
-        self, environment: Environment, log: Logger, lv_conn: libvirt.virConnect
-    ) -> None:
+    def _fill_nodes_metadata(self, environment: Environment, log: Logger) -> None:
         environment_context = get_environment_context(environment)
 
         # Give all the VMs some time to boot and then acquire an IP address.
@@ -611,9 +627,7 @@ class BaseLibvirtPlatform(Platform):
             assert isinstance(node, RemoteNode)
 
             # Get the VM's IP address.
-            local_address = self._get_node_ip_address(
-                environment, log, lv_conn, node, timeout
-            )
+            local_address = self._get_node_ip_address(environment, log, node, timeout)
 
             node_port = 22
             if self.host_node.is_remote:
@@ -766,7 +780,6 @@ class BaseLibvirtPlatform(Platform):
         environment: Environment,
         log: Logger,
         node: Node,
-        lv_conn: libvirt.virConnect,
     ) -> str:
         node_context = get_node_context(node)
 
@@ -799,7 +812,7 @@ class BaseLibvirtPlatform(Platform):
             # libvirt v7.2.0 and Ubuntu 20.04 only has libvirt v6.0.0. Therefore, we
             # have to select the firmware manually.
             firmware_config = self._get_firmware_config(
-                lv_conn, node_context.machine_type, node_context.enable_secure_boot
+                node_context.machine_type, node_context.enable_secure_boot
             )
 
             print(firmware_config)
@@ -983,14 +996,13 @@ class BaseLibvirtPlatform(Platform):
         self,
         environment: Environment,
         log: Logger,
-        lv_conn: libvirt.virConnect,
         node: Node,
         timeout: float,
     ) -> str:
         node_context = get_node_context(node)
 
         while True:
-            addr = self._try_get_node_ip_address(environment, log, lv_conn, node)
+            addr = self._try_get_node_ip_address(environment, log, node)
             if addr:
                 return addr
 
@@ -1002,12 +1014,11 @@ class BaseLibvirtPlatform(Platform):
         self,
         environment: Environment,
         log: Logger,
-        lv_conn: libvirt.virConnect,
         node: Node,
     ) -> Optional[str]:
         node_context = get_node_context(node)
 
-        domain = lv_conn.lookupByName(node_context.vm_name)
+        domain = self.libvirt_conn.lookupByName(node_context.vm_name)
 
         # Acquire IP address from libvirt's DHCP server.
         interfaces = domain.interfaceAddresses(
@@ -1027,12 +1038,11 @@ class BaseLibvirtPlatform(Platform):
 
     def _get_firmware_config(
         self,
-        lv_conn: libvirt.virConnect,
         machine_type: Optional[str],
         enable_secure_boot: bool,
     ) -> Dict[str, Any]:
         # Resolve the machine type to its full name.
-        domain_caps_str = lv_conn.getDomainCapabilities(
+        domain_caps_str = self.libvirt_conn.getDomainCapabilities(
             machine=machine_type, virttype="kvm"
         )
         domain_caps = ET.fromstring(domain_caps_str)

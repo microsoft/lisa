@@ -84,6 +84,8 @@ class VmHotResize(TestSuite):
                     or "due to different CPU Architectures" in str(identifier)
                     or "An existing connection was forcibly closed by the remote host"
                     in str(identifier)
+                    or "Following SKUs have failed for Capacity Restrictions"
+                    in str(identifier)
                 ):
                     retry = retry + 1
                 else:
