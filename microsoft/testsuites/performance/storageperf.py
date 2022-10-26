@@ -277,8 +277,6 @@ class StoragePerformance(TestSuite):
                     overwrite=overwrite,
                     core_count=core_count,
                     disk_count=1,
-                    disk_setup_type=None,
-                    disk_type=None,
                 )
             except Exception:
                 failed_test_cases.append(testcase)

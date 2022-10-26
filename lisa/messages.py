@@ -130,6 +130,7 @@ T = TypeVar("T", bound=PerfMessage)
 DiskSetupType = Enum(
     "DiskSetupType",
     [
+        "unknown",
         "raw",
         "raid0",
     ],
@@ -139,6 +140,7 @@ DiskSetupType = Enum(
 DiskType = Enum(
     "DiskType",
     [
+        "unknown",
         "nvme",
         "premiumssd",
     ],
