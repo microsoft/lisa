@@ -149,7 +149,7 @@ def perf_tcp_latency(test_result: TestResult) -> List[NetworkLatencyPerformanceM
     try:
         for lagscope in [client_lagscope, server_lagscope]:
             lagscope.set_busy_poll()
-        server_lagscope.run_as_server(ip=server.internal_address)
+        server_lagscope.run_as_server_async(ip=server.internal_address)
         latency_perf_messages = client_lagscope.create_latency_performance_messages(
             client_lagscope.run_as_client(server_ip=server.internal_address),
             inspect.stack()[1][3],
@@ -157,6 +157,7 @@ def perf_tcp_latency(test_result: TestResult) -> List[NetworkLatencyPerformanceM
         )
     finally:
         for lagscope in [client_lagscope, server_lagscope]:
+            lagscope.kill()
             lagscope.restore_busy_poll()
 
     return latency_perf_messages
@@ -274,7 +275,7 @@ def perf_ntttcp(
                 client_nic_name if client_nic_name else client.nics.default_nic
             )
             dev_differentiator = "Hypervisor callback interrupts"
-        server_lagscope.run_as_server(ip=server.internal_address)
+        server_lagscope.run_as_server_async(ip=server.internal_address)
         max_server_threads = 64
         perf_ntttcp_message_list: List[
             Union[NetworkTCPPerformanceMessage, NetworkUDPPerformanceMessage]
@@ -356,6 +357,7 @@ def perf_ntttcp(
         for ntttcp in [client_ntttcp, server_ntttcp]:
             ntttcp.restore_system(udp_mode)
         for lagscope in [client_lagscope, server_lagscope]:
+            lagscope.kill()
             lagscope.restore_busy_poll()
     return perf_ntttcp_message_list
 

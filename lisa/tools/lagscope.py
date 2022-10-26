@@ -125,26 +125,18 @@ class Lagscope(Tool, KillableMixin):
         for key in self._busy_pool_keys:
             sysctl.write(key, self._original_settings[key])
 
-    def run_as_server(self, ip: str = "", daemon: bool = True) -> None:
+    def run_as_server_async(self, ip: str = "") -> Process:
         # -r: run as a receiver
         # -rip: run as server mode with specified ip address
-        # -D: run as a daemon
         cmd = ""
-        if daemon:
-            cmd += " -D"
         if ip:
             cmd += f" -r{ip}"
         else:
             cmd += " -r"
-        self.run(
-            cmd,
-            force_run=True,
-            sudo=True,
-            shell=True,
-            expected_exit_code=0,
-            expected_exit_code_failure_message=f"fail to launch cmd {self.command}"
-            f"{cmd}",
-        )
+        process = self.run_async(cmd, sudo=True, shell=True)
+        if not process.is_running():
+            raise LisaException("lagscope server failed to start")
+        return process
 
     def run_as_client_async(
         self,
