@@ -34,9 +34,9 @@ from .common import get_resource_disk_mount_point
 class DiskStorage(TestSuite):
     @TestCaseMetadata(
         description=""""
-        This is a demo test case for ramp up. The goal is to move a file from
-        the home folder to the data disk and assert the contents are in the disk.
-        The tteps are:
+        This is a demo test case for ramp up. The goal is to move a file from the home
+        folder to the data disk and assert the contents are in the disk.
+        The steps are:
         1. Setup testcase with data disk requirement.
         2. Write “Hello World!” string to a file.
         3. Move the file from home folder to data disk.
