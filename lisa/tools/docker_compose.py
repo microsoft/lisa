@@ -25,13 +25,23 @@ class DockerCompose(Tool):
         service.restart_service("docker-compose")
 
     def up(self, path: PurePath) -> None:
-        self.run(
-            "up -d",
-            sudo=True,
-            cwd=path,
-            expected_exit_code=0,
-            expected_exit_code_failure_message="fail to launch docker-compose up -d",
-        )
+        try:
+            self.run(
+                "up -d ",
+                sudo=True,
+                cwd=path,
+                expected_exit_code=0,
+                expected_exit_code_failure_message="fail to launch docker-compose up -d",
+            )
+        except AssertionError:
+            # if there's a problem, rerun with --verbose to get the error info
+            self.run(
+                "up -d --verbose",
+                sudo=True,
+                cwd=path,
+                expected_exit_code=0,
+                expected_exit_code_failure_message="fail to launch docker-compose up -d",
+            )
 
     def _install_from_source(self) -> None:
         wget_tool = self.node.tools[Wget]
