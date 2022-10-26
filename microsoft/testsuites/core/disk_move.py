@@ -62,11 +62,9 @@ class DiskStorage(TestSuite):
         output = cat.read(test_file)
         assert_that(output).matches(test_str)
 
-        # disk = node.features[Disk]
         data_disks = node.features[Disk].get_raw_data_disks()
         mount_point = "demo"
 
-        # mount = node.tools[Mount]
         node.tools[Mount].mount(data_disks[0], mount_point, format=True)
 
         if node.shell.exists(node.get_pure_path(mount_point)):
