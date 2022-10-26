@@ -1,8 +1,6 @@
 # Copyright (c) Microsoft Corporation.
 # Licensed under the MIT license.
 
-from typing import Any
-
 from assertpy import assert_that
 
 from lisa import (
@@ -16,12 +14,7 @@ from lisa import (
     simple_requirement,
 )
 from lisa.features import Disk
-from lisa.features.disks import DiskStandardHDDLRS
-from lisa.node import Node
-from lisa.schema import DiskType
 from lisa.tools import Cat, Echo, Mount
-
-from .common import get_resource_disk_mount_point
 
 
 @TestSuiteMetadata(
@@ -32,6 +25,9 @@ from .common import get_resource_disk_mount_point
     """,
 )
 class DiskStorage(TestSuite):
+    test_file = "~/test.txt"
+    test_str = "hello world!"
+
     @TestCaseMetadata(
         description=""""
         This is a demo test case for ramp up. The goal is to move a file from the home
@@ -52,15 +48,16 @@ class DiskStorage(TestSuite):
         ),
     )
     def check_disk_move_operation_frmunozp(self, node: Node, log: Logger) -> None:
-        test_file = "~/test.txt"
-        test_str = "hello world!"
 
-        echo = node.tools[Echo]
-        echo.write_to_file(test_str, node.get_pure_path(test_file))
+        node.tools[Echo].write_to_file(
+            self.test_str, node.get_pure_path(self.test_file)
+        )
 
         cat = node.tools[Cat]
-        output = cat.read(test_file)
-        assert_that(output).matches(test_str)
+        output = cat.read(self.test_file)
+        assert_that(
+            output, f"{self.test_file} should contain the string - '{self.test_str}'"
+        ).matches(self.test_str)
 
         data_disks = node.features[Disk].get_raw_data_disks()
         mount_point = "demo"
@@ -69,16 +66,21 @@ class DiskStorage(TestSuite):
 
         if node.shell.exists(node.get_pure_path(mount_point)):
             node.execute(
-                f"mv {test_file} {mount_point}",
+                f"mv {self.test_file} {mount_point}",
                 shell=True,
                 sudo=True,
                 expected_exit_code=0,
                 expected_exit_code_failure_message=(
-                    f"failed to move {test_file} to disk"
+                    f"failed to move {self.test_file} to disk"
                 ),
             )
 
         output = cat.read(f"{mount_point}/test.txt")
-        assert_that(output).is_equal_to(test_str)
+        assert_that(
+            output,
+            f"{mount_point}/test.txt. should contain the string - '{self.test_str}'",
+        ).is_equal_to(self.test_str)
 
-        assert_that(test_file).does_not_exist()
+        assert_that(
+            self.test_file, f"{self.test_file} should not exist after mv command"
+        ).does_not_exist()
