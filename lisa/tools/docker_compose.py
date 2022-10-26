@@ -34,6 +34,7 @@ class DockerCompose(Tool):
         service.restart_service("docker-compose")
 
     def up(self, path: PurePath) -> None:
+<<<<<<< HEAD
         result = self.run("up -d", sudo=True, cwd=path)
         # temp solution, will revert change once newer package
         # which can fix the issue release
@@ -46,6 +47,25 @@ class DockerCompose(Tool):
                 self.node.os.install_packages("crun-1.4.5-2*")
                 result = self.run("up -d", sudo=True, cwd=path, force_run=True)
         result.assert_exit_code(message="fail to launch docker-compose up -d")
+=======
+        try:
+            self.run(
+                "up -d ",
+                sudo=True,
+                cwd=path,
+                expected_exit_code=0,
+                expected_exit_code_failure_message="fail to launch docker-compose up -d",
+            )
+        except AssertionError:
+            # if there's a problem, rerun with --verbose to get the error info
+            self.run(
+                "up -d --verbose",
+                sudo=True,
+                cwd=path,
+                expected_exit_code=0,
+                expected_exit_code_failure_message="fail to launch docker-compose up -d",
+            )
+>>>>>>> f6900337 (add --verbose to docker compose calls after error)
 
     def _install_from_source(self) -> None:
         wget_tool = self.node.tools[Wget]
