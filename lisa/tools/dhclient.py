@@ -14,11 +14,8 @@ class Dhclient(Tool):
 
     # timeout 300;
     _debian_pattern = re.compile(r"^(?P<default>#?)timeout (?P<number>\d+);$")
-    # ipv4.dhcp-timeout:                      200
-    # ipv4.dhcp-timeout:                      0 (default)
-    _fedora_pattern = re.compile(
-        r"^ipv4\.dhcp-timeout: +(?P<number>\d+) ?(?P<default>\(default\))?$"
-    )
+    # ipv4.dhcp-timeout=300
+    _fedora_pattern = re.compile(r"^ipv4\.dhcp-timeout=+(?P<number>\d+)$")
 
     @property
     def command(self) -> str:
@@ -44,14 +41,11 @@ class Dhclient(Tool):
                 value = int(group["number"])
                 is_default_value = False
         elif isinstance(self.node.os, Fedora):
-            # the default value in fedora is 60
-            value = 60
-            # use cat to output all together
-            result = self.node.execute(
-                "nmcli connection show 'System eth0' | cat", shell=True
-            )
+            # the default value in fedora is 45
+            value = 45
+            result = self.node.execute("NetworkManager --print-config", sudo=True)
             group = find_group_in_lines(result.stdout, self._fedora_pattern)
-            if group and "default" not in group:
+            if group and value != int(group["number"]):
                 value = int(group["number"])
                 is_default_value = False
         else:
