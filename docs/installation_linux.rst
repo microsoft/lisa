@@ -2,7 +2,7 @@ Install LISA on Linux
 =====================
 
 Minimum System Requirement
------------------------
+--------------------------
 1. Your favourite Linux distro supporting Python 3.8+
 2. Dual core processor
 3. 4 GB system memory
@@ -50,7 +50,7 @@ Install Poetry on Linux
 Poetry is used to manage Python dependencies of LISA.
 
 .. warning::
-   
+
    Please enter the root folder of LISA source code to run
    following commands to install poetry, since Poetry manages dependencies
    by the working folder.
@@ -61,18 +61,18 @@ Poetry is used to manage Python dependencies of LISA.
 
 After running this, you should see
 ``Add export PATH="/home/YOURUSERNAME/.local/bin:$PATH" to your shell configuration file``
-message on the console. Follow the message and add the necessary exports to ``$HOME/.profile`` file. 
+message on the console. Follow the message and add the necessary exports to ``$HOME/.profile`` file.
 
 .. code:: bash
 
    source $HOME/.profile
 
 [Optional] Create poetry virtual environment in the same folder as LISA for VS Code to automatically
-pick up the python environment. Run the following commands to update poetry configuration: 
+pick up the python environment. Run the following commands to update poetry configuration:
 
-.. code:: bash 
+.. code:: bash
 
-   poetry config virtualenvs.in-project true 
+   poetry config virtualenvs.in-project true
 
 Install python dependencies
 

@@ -27,7 +27,7 @@ def update_file() -> None:
     data = load_path(TESTS)
     test_paths = [(base_path / Path(x.get("value", ""))).resolve() for x in data]
 
-    with open(file_path, "w") as test_spec:
+    with open(file_path, "w", encoding="utf-8") as test_spec:
         _write_title(test_spec)
 
         for test_path in test_paths:
@@ -36,9 +36,10 @@ def update_file() -> None:
                     if file.endswith(".py"):
                         # print("Processing " + file)
                         test_name = Path(root) / file
-                        with open(test_name, "r") as f:
-                            contents = f.read()
-                            tree = ast.parse(contents)
+                        tree = ast.parse(
+                            test_name.read_text(encoding="utf-8"),
+                            filename=str(test_name),
+                        )
                         cls_visitor = ClassVisitor()
                         func_visitor = FuncVisitor()
                         cls_visitor.visit(tree)

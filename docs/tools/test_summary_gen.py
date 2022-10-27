@@ -27,7 +27,7 @@ def update_summary() -> None:
 
     data = load_path(TESTS)
     test_paths = [(base_path / Path(x.get("value", ""))).resolve() for x in data]
-    with open(table_path, "w") as table:
+    with open(table_path, "w", encoding="utf-8") as table:
         _write_title(table)
 
         index = 0
@@ -38,9 +38,9 @@ def update_summary() -> None:
                     if file.endswith(".py"):
                         # print("Processing " + file)
                         filename = Path(root) / file
-                        with open(filename, "r") as f:
-                            contents = f.read()
-                            tree = ast.parse(contents)
+                        tree = ast.parse(
+                            filename.read_text(encoding="utf-8"), filename=str(filename)
+                        )
                         cls_visitor = ClassVisitor()
                         func_visitor = FuncVisitor()
                         cls_visitor.visit(tree)
