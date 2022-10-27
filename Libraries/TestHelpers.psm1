@@ -732,7 +732,7 @@ function New-ZipFile( $zipFileName, $sourceDir ) {
 Function Get-LISAv2Tools($XMLSecretFile) {
 	# Copy required binary files to working folder
 	$CurrentDirectory = Get-Location
-	$CmdArray = @('7za.exe', 'dos2unix.exe', 'gawk', 'jq', 'plink_0.71.exe', 'pscp.exe', `
+	$CmdArray = @('7za.exe', 'dos2unix.exe', 'gawk', 'jq', 'plink_0.77.exe', 'pscp.exe', `
 			'kvp_client32', 'kvp_client64', 'nc.exe', 'lz4.exe')
 
 	if ($XMLSecretFile) {
