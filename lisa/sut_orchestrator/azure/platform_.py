@@ -1123,11 +1123,10 @@ class AzurePlatform(Platform):
             ...
 
         if azure_node_runbook.marketplace:
-            # resolve Latest to specified version
+            # resolve "latest" to specified version
             azure_node_runbook.marketplace = self._resolve_marketplace_image(
                 azure_node_runbook.location, azure_node_runbook.marketplace
             )
-
             image_info = self._get_image_info(
                 azure_node_runbook.location, azure_node_runbook.marketplace
             )
@@ -2020,6 +2019,9 @@ class AzurePlatform(Platform):
     def _get_image_info(
         self, location: str, marketplace: Optional[AzureVmMarketplaceSchema]
     ) -> VirtualMachineImage:
+        # resolve "latest" to specified version
+        marketplace = self._resolve_marketplace_image(location, marketplace)
+
         compute_client = get_compute_client(self)
         assert isinstance(marketplace, AzureVmMarketplaceSchema)
         with global_credential_access_lock:
