@@ -98,12 +98,7 @@ class StoragePerformance(TestSuite):
         ),
     )
     def perf_premium_datadisks_io(self, node: Node, result: TestResult) -> None:
-        self._perf_premium_datadisks(
-            node,
-            result,
-            max_iodepth=64,
-            filename="/dev/sdc",
-        )
+        self._perf_premium_datadisks(node, result, max_iodepth=64)
 
     @TestCaseMetadata(
         description="""
@@ -446,9 +441,10 @@ class StoragePerformance(TestSuite):
         self,
         node: Node,
         test_result: TestResult,
+        disk_setup_type: DiskSetupType = DiskSetupType.raw,
+        disk_type: DiskType = DiskType.premiumssd,
         block_size: int = 4,
         max_iodepth: int = 256,
-        filename: str = "/dev/md0",
     ) -> None:
         disk = node.features[Disk]
         data_disks = disk.get_raw_data_disks()
@@ -457,7 +453,7 @@ class StoragePerformance(TestSuite):
             "At least 1 data disk for fio testing."
         ).is_greater_than(0)
         partition_disks = reset_partitions(node, data_disks)
-        reset_raid(node, partition_disks)
+        filename = ":".join(partition_disks)
         cpu = node.tools[Lscpu]
         core_count = cpu.get_core_count()
         start_iodepth = 1
@@ -469,8 +465,8 @@ class StoragePerformance(TestSuite):
             test_name=inspect.stack()[1][3],
             core_count=core_count,
             disk_count=disk_count,
-            disk_setup_type=DiskSetupType.raid0,
-            disk_type=DiskType.premiumssd,
+            disk_setup_type=disk_setup_type,
+            disk_type=disk_type,
             numjob=core_count,
             block_size=block_size,
             size_mb=8192,
