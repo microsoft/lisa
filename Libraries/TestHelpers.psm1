@@ -760,7 +760,7 @@ Function Get-LISAv2Tools($XMLSecretFile) {
 				else {
 					Write-LogInfo "File $_ successfully downloaded in Tools folder: $CurrentDirectory\Tools."
 					if ($_ -eq "plink_0.77.exe") {
-						Rename-Item -Path "$CurrentDirectory\Tools\plink_0.71.exe" -NewName "plink.exe" -Force | Out-Null
+						Rename-Item -Path "$CurrentDirectory\Tools\plink_0.77.exe" -NewName "plink.exe" -Force | Out-Null
 						Write-LogInfo "Successfully renamed File $_ to plink.exe"
 					}
 				}
