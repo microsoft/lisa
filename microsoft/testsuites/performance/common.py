@@ -190,7 +190,6 @@ def perf_tcp_pps(
     if "maxpps" == test_type:
         ssh = client.tools[Ssh]
         ssh.set_max_session()
-        client.close()
         ports = range(30000, 30032)
     else:
         ports = range(30000, 30001)
