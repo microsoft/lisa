@@ -339,6 +339,7 @@ class AzurePlatform(Platform):
     def supported_features(cls) -> List[Type[feature.Feature]]:
         return [
             features.Disk,
+            features.AzureExtension,
             features.Gpu,
             features.Nvme,
             features.NestedVirtualization,

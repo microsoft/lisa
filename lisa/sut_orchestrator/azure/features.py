@@ -7,6 +7,7 @@ import json
 import re
 import string
 from dataclasses import dataclass
+from enum import Enum
 from os import unlink
 from pathlib import Path
 from random import randint
@@ -27,6 +28,7 @@ from azure.mgmt.compute.models import (  # type: ignore
     DiskCreateOptionTypes,
     HardwareProfile,
     NetworkInterfaceReference,
+    VirtualMachineExtension,
     VirtualMachineUpdate,
 )
 from azure.mgmt.core.exceptions import ARMErrorFormat
@@ -38,6 +40,7 @@ from PIL import Image, UnidentifiedImageError
 from retry import retry
 
 from lisa import Environment, Logger, features, schema, search_space
+from lisa.feature import Feature
 from lisa.features.gpu import ComputeSDK
 from lisa.features.resize import ResizeAction
 from lisa.features.security_profile import SecurityProfileSettings, SecurityProfileType
@@ -1732,3 +1735,70 @@ class Nfs(AzureFeatureMixin, features.Nfs):
             resource_group_name,
             self._log,
         )
+
+
+class ExtensionNames(str, Enum):
+    custom_script = "CustomScript"
+
+
+class AzureExtension(AzureFeatureMixin, Feature):
+    @classmethod
+    def create_setting(
+        cls, *args: Any, **kwargs: Any
+    ) -> Optional[schema.FeatureSettings]:
+        return schema.FeatureSettings.create(cls.name())
+
+    def create_or_update(
+        self,
+        type: ExtensionNames,
+        name: str = "",
+        tags: Optional[Dict[str, str]] = None,
+        publisher: str = "Microsoft.Azure.Extensions",
+        type_handler_version: str = "2.1",
+        auto_upgrade_minor_version: Optional[bool] = None,
+        enable_automatic_upgrade: Optional[bool] = None,
+        force_update_tag: Optional[str] = None,
+        settings: Any = None,
+        protected_settings: Any = None,
+        suppress_failures: Optional[bool] = None,
+    ) -> Any:
+        platform: AzurePlatform = self._platform  # type: ignore
+        compute_client = get_compute_client(platform)
+        if not name:
+            name = f"ext-{generate_random_chars()}"
+
+        extension_parameters = VirtualMachineExtension(
+            tags=tags,
+            name=name,
+            location=self._location,
+            force_update_tag=force_update_tag,
+            publisher=publisher,
+            auto_upgrade_minor_version=auto_upgrade_minor_version,
+            type_properties_type=type,
+            type_handler_version=type_handler_version,
+            enable_automatic_upgrade=enable_automatic_upgrade,
+            settings=settings,
+            protected_settings=protected_settings,
+            suppress_failures=suppress_failures,
+        )
+
+        self._log.debug(f"extension_parameters: {extension_parameters.as_dict()}")
+
+        operation = compute_client.virtual_machine_extensions.begin_create_or_update(
+            resource_group_name=self._resource_group_name,
+            vm_name=self._vm_name,
+            vm_extension_name=name,
+            extension_parameters=extension_parameters,
+        )
+        result = wait_operation(operation)
+
+        return result
+
+    def _initialize(self, *args: Any, **kwargs: Any) -> None:
+        super()._initialize(*args, **kwargs)
+        self._initialize_information(self._node)
+
+        node_runbook = self._node.capability.get_extended_runbook(
+            AzureNodeSchema, AZURE
+        )
+        self._location = node_runbook.location
