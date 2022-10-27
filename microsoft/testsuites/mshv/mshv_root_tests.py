@@ -17,7 +17,7 @@ from lisa import (
 )
 from lisa.messages import SubTestMessage, TestStatus, create_test_result_message
 from lisa.testsuite import TestResult
-from lisa.tools import Dmesg, Free, Ls, Lscpu, QemuImg, Wget
+from lisa.tools import Dmesg, Free, Ls, Lscpu, QemuImg, Ssh, Wget
 from lisa.util import SkippedException
 from microsoft.testsuites.mshv.cloud_hypervisor_tool import CloudHypervisor
 
@@ -43,6 +43,7 @@ class MshvHostTestSuite(TestSuite):
         node = kwargs["node"]
         if not node.tools[Ls].path_exists("/dev/mshv", sudo=True):
             raise SkippedException("This suite is for MSHV root partition only")
+
         working_path = node.get_working_path()
         node.tools[Wget].get(
             "https://github.com/cloud-hypervisor/rust-hypervisor-firmware/releases/download/0.4.1/hypervisor-fw",  # noqa: E501
@@ -86,6 +87,12 @@ class MshvHostTestSuite(TestSuite):
         else:
             # fall back to defaults
             configs = [{}]
+
+        # This test can end up creating and a lot of ssh sessions and these kept active
+        # at the same time.
+        # In Ubuntu, the default limit is easily exceeded. So change the MaxSessions
+        # property in sshd_config to a high number that is unlikely to be exceeded.
+        node.tools[Ssh].set_max_session()
 
         failures = 0
         for config in configs:
