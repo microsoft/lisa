@@ -1577,6 +1577,7 @@ class AzurePlatform(Platform):
             "standardEv4Family",
             "standardESv4Family",
             "standardEASv4Family",
+            "standardDv5Family",
             "standardEASv5Family",
             "standardESv5Family",
             "standardEADSv5Family",
