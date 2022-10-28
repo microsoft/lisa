@@ -781,23 +781,6 @@ class Debian(Linux):
     def _initialize_package_installation(self) -> None:
         # wait running system package process.
         self.wait_running_package_process()
-        if type(self._node.os) == Ubuntu:
-            cmd_result = self._node.execute(
-                "cloud-init query cloud_name", sudo=True, shell=True
-            )
-            # only wait on azure platform
-            if 0 == cmd_result.exit_code and "azure" == cmd_result.stdout:
-                # wait till cloud-init finish to run the init work include updating
-                # /etc/apt/source.list file
-                self._node.execute(
-                    "cloud-init status --wait",
-                    sudo=True,
-                    shell=True,
-                    expected_exit_code=0,
-                    expected_exit_code_failure_message=(
-                        "cloud-init status is not expected"
-                    ),
-                )
         result = self._node.execute("apt-get update", sudo=True)
         if self._repo_not_exist_pattern.search(result.stdout):
             raise RepoNotExistException(self._node.os)
@@ -1010,6 +993,13 @@ class Ubuntu(Debian):
                 f"{identifier}"
             )
 
+    def wait_cloud_init_finish(self) -> None:
+        # wait till cloud-init finish to run the init work include updating
+        # /etc/apt/source.list file
+        # not add expected_exit_code, since for other platforms
+        # it may not have cloud-init
+        self._node.execute("cloud-init status --wait", sudo=True)
+
     def _get_information(self) -> OsInformation:
         cmd_result = self._node.execute(
             cmd="lsb_release -a",
@@ -1060,6 +1050,10 @@ class Ubuntu(Debian):
         # output to log for troubleshooting
         cat = self._node.tools[Cat]
         cat.run("/etc/default/grub")
+
+    def _initialize_package_installation(self) -> None:
+        self.wait_cloud_init_finish()
+        super()._initialize_package_installation()
 
 
 class FreeBSD(BSD):
