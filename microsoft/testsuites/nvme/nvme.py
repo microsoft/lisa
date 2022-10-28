@@ -318,7 +318,7 @@ class NvmeTestSuite(TestSuite):
         nvme_devices = nvme.get_devices()
         nvme_cli = node.tools[Nvmecli]
         device_format_exit_code = 0
-        ns_management_exit_code = 0
+        ns_management_exit_code = [0]
         # 1. Use `nvme id-ctrl device` command list the capabilities of the device.
         # 1.1 When 'Format NVM Supported' shown up in output of 'nvme id-ctrl device',
         #  then nvme disk can be format, otherwise, it can't be format.
@@ -328,20 +328,16 @@ class NvmeTestSuite(TestSuite):
         #  'nvme id-ctrl device', nvme namespace can be created, deleted and detached,
         #  otherwise it can't be managed.
         if not nvme_cli.support_ns_manage_attach(nvme_devices[0]):
-            # NVMe Status:INVALID_OPCODE(1)
-            ns_management_exit_code = 1
+            # for old nvme cli version, it returns 22
+            # for new nvme cli version, it returns 1
+            # refer https://github.com/linux-nvme/nvme-cli/issues/1120
+            ns_management_exit_code = [1, 22]
         for namespace in nvme_namespaces:
             # 2. `nvme format namespace` - format a namespace.
             format_namespace = nvme_cli.format_namespace(namespace)
             format_namespace.assert_exit_code(device_format_exit_code)
             # 3. `nvme create-ns namespace` - create a namespace.
             create_namespace = nvme_cli.create_namespace(namespace)
-            # NVMe Status:INVALID_OPCODE: The associated command opcode field is not
-            #  valid(1) => exit code 1
-            # NVMe status: INVALID_OPCODE: The associated command opcode field is not
-            #  valid(0x1) => exit code 22
-            if "(0x1)" in create_namespace.stdout:
-                ns_management_exit_code = 22
             create_namespace.assert_exit_code(ns_management_exit_code)
             # 4. `nvme delete-ns -n 1 namespace` - delete a namespace.
             delete_namespace = nvme_cli.delete_namespace(namespace, 1)
