@@ -753,6 +753,11 @@ class AzureImageStandard(TestSuite):
             CpuArchitecture.X64: "ttyS0",
             CpuArchitecture.ARM64: "ttyAMA0",
         }
+        if isinstance(node.os, CBLMariner):
+            if node.os.information.version < "2.0.0":
+                raise SkippedException(
+                    "CBLMariner 1.0 has a known 'wont fix' issue with this test"
+                )
 
         lscpu = node.tools[Lscpu]
         arch = lscpu.get_architecture()
