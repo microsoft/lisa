@@ -186,7 +186,9 @@ class StoragePerformance(TestSuite):
 
     @TestCaseMetadata(
         description="""
-        This test case uses fio to test data disk performance.
+            This testcase uses fio to test OS disk performance.
+            It has flexibility to run test with user parsed parameters in runbook.
+            This testcase will have default params if none are parsed in runbook.
         """,
         priority=3,
         timeout=TIME_OUT,
