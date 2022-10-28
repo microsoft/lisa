@@ -248,6 +248,9 @@ def initialize_node_resources(
 
     network_interface_feature = node.features[NetworkInterface]
     sriov_is_enabled = network_interface_feature.is_enabled_sriov()
+    if not sriov_is_enabled:
+        network_interface_feature.switch_sriov(enable=True, wait=True)
+
     log.info(f"Node[{node.name}] Verify SRIOV is enabled: {sriov_is_enabled}")
     assert_that(sriov_is_enabled).described_as(
         f"SRIOV was not enabled for this test node ({node.name})"
