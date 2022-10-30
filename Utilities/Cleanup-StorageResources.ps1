@@ -167,7 +167,7 @@ foreach ($value in $StorageAccount.value) {
 
                 $Context = New-AzStorageContext -StorageAccountName $scname -StorageAccountKey $key
                 write-host "Remove-AzStorageContainer -Name $container_name -Context $Context -Force"
-                Remove-AzStorageContainer -Name $container_name -Context $Context -Force
+                # Remove-AzStorageContainer -Name $container_name -Context $Context -Force
                 if ($?) {
                     Write-Host "Delete container $container_name successfully." -ForegroundColor Green
                 } else {
@@ -204,7 +204,7 @@ foreach ($value in $StorageAccount.value) {
                     write-host "delete $blob_name"
                     $context = New-AzStorageContext -StorageAccountName $scname -StorageAccountKey $key
                     write-host "Remove-AzStorageBlob -Container $container_name -Blob $blob_name -Context $context"
-					Remove-AzStorageBlob -Container $container_name -Blob $blob_name -Context $context
+					# Remove-AzStorageBlob -Container $container_name -Blob $blob_name -Context $context
                 }
             }
         }
