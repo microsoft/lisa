@@ -11,6 +11,7 @@ from lisa import (
     TestCaseMetadata,
     TestSuite,
     TestSuiteMetadata,
+    search_space,
     simple_requirement,
 )
 from lisa.features import Disk, Nfs
@@ -24,7 +25,8 @@ from lisa.schema import DiskType
 from lisa.sut_orchestrator import AZURE
 from lisa.sut_orchestrator.azure.features import AzureDiskOptionSettings
 from lisa.sut_orchestrator.azure.tools import Waagent
-from lisa.tools import Blkid, Cat, Dmesg, Echo, Lsblk, NFSClient, Swap
+from lisa.tools import Blkid, Cat, Dmesg, Echo, Lsblk, Mount, NFSClient, Swap
+from lisa.tools.mv import Mv
 from lisa.util import BadEnvironmentStateException, LisaException, get_matched_str
 
 from .common import get_resource_disk_mount_point
@@ -374,6 +376,70 @@ class Storage(TestSuite):
         finally:
             nfs.delete_share()
             node.tools[NFSClient].stop(mount_dir)
+
+    _FILE_PATH = "~/SAMPLE.txt"
+    _ORIGINAL_TEXT = "Hello, world!"
+    _MOUNT_POINT = "/mnt/data0"
+
+    @TestCaseMetadata(
+        description="""
+        This test case will verify mount azure nfs on guest successfully.
+        1. Write “Hello World!” string to a file.
+        2. Move the file from home folder to data disk.
+        3. Assert the file content in data disk.
+        4. Assert the file on original place doesn't exist
+        """,
+        timeout=TIME_OUT,
+        priority=4,
+        requirement=simple_requirement(
+            disk=AzureDiskOptionSettings(
+                data_disk_count=search_space.IntRange(min=1),
+                data_disk_size=search_space.IntRange(min=20),
+            ),
+        ),
+    )
+    def check_disk_write_operation_ripastri(
+        self, log: Logger, node: RemoteNode
+    ) -> None:
+        # write content to the file
+        node.tools[Echo].write_to_file(
+            self._ORIGINAL_TEXT, node.get_pure_path(self._FILE_PATH), sudo=True
+        )
+
+        # read content from the file
+        read_text = node.tools[Cat].read(self._FILE_PATH, force_run=True, sudo=True)
+
+        assert_that(
+            read_text,
+            f"content read from file {self._FILE_PATH} should be equal to "
+            "content written to file",
+        ).is_equal_to(self._ORIGINAL_TEXT)
+
+        # mount the data disk
+        data_disks = node.features[Disk].get_raw_data_disks()
+
+        assert_that(data_disks, "Unable to find required data_disks.").is_not_empty()
+
+        node.tools[Mount].mount(data_disks[0], self._MOUNT_POINT, format=True)
+        dest_path = node.get_pure_path(self._MOUNT_POINT).joinpath("sample.txt")
+
+        # Move file to data disk
+        node.tools[Mv].move_file(self._FILE_PATH, dest_path.as_posix(), sudo=True)
+
+        # read content from the file after moving
+        read_text = node.tools[Cat].read(
+            dest_path.as_posix(), force_run=True, sudo=True
+        )
+
+        assert_that(
+            read_text,
+            f"content read from the file {dest_path} should be equal to "
+            "content written to file",
+        ).is_equal_to(self._ORIGINAL_TEXT)
+
+        assert_that(
+            self._FILE_PATH, f"{self._FILE_PATH} should not exist after moving."
+        ).does_not_exist()
 
     def after_case(self, log: Logger, **kwargs: Any) -> None:
         node: Node = kwargs["node"]
