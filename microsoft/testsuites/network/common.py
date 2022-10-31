@@ -128,7 +128,7 @@ def sriov_vf_connection_test(
 
     dest_ssh.enable_public_key(source_ssh.generate_key_pairs())
     # generate 200Mb file
-    source_node.execute("dd if=/dev/zero of=large_file bs=200M count=1")
+    source_node.execute("dd if=/dev/random of=large_file bs=1M count=200")
     max_retry_times = 10
     for _, source_nic_info in vm_nics[source_node.name].items():
         matched_dest_nic_name = ""

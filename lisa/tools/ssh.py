@@ -68,6 +68,10 @@ class Ssh(Tool):
         service = self.node.tools[Service]
         service.restart_service("sshd")
 
+        # The above changes take effect only for *new* connections. So,
+        # close the current connection.
+        self.node.close()
+
     def get(self, setting: str) -> str:
         config_path = self.get_default_sshd_config_path()
         settings = self.node.tools[Cat].read(config_path, True, True)

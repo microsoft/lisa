@@ -133,7 +133,7 @@ class Lagscope(Tool, KillableMixin):
             cmd += f" -r{ip}"
         else:
             cmd += " -r"
-        process = self.run_async(cmd, sudo=True, shell=True)
+        process = self.run_async(cmd, sudo=True, shell=True, force_run=True)
         if not process.is_running():
             raise LisaException("lagscope server failed to start")
         return process
