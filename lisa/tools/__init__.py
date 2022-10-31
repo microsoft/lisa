@@ -24,6 +24,7 @@ from .fio import FIOMODES, Fio, FIOResult
 from .firewall import Firewall, Iptables
 from .free import Free
 from .gcc import Gcc
+from .gdb import Gdb
 from .git import Git
 from .hibernation_setup import HibernationSetup
 from .hostname import Hostname
@@ -120,6 +121,7 @@ __all__ = [
     "Firewall",
     "Free",
     "Gcc",
+    "Gdb",
     "Git",
     "Ip",
     "Iperf3",
