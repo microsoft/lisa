@@ -14,6 +14,7 @@ from lisa.tools import Gcc, Modinfo, PowerShell, Uname
 from lisa.util import (
     LisaException,
     UnsupportedDistroException,
+    UnsupportedKernelException,
     find_patterns_in_lines,
     get_matched_str,
 )
@@ -236,6 +237,8 @@ class LisDriver(Tool):
 
     def _install(self) -> bool:
         result = self.install_from_iso()
+        if result.stdout == "Unsupported kernel version":
+            raise UnsupportedKernelException(self.node.os)
         result.assert_exit_code(
             0,
             f"Unable to install the LIS RPMs! exit_code: {result.exit_code}"

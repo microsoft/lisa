@@ -15,6 +15,7 @@ from lisa.util import (
     LisaException,
     SkippedException,
     UnsupportedDistroException,
+    UnsupportedKernelException,
     get_matched_str,
 )
 
@@ -241,7 +242,7 @@ class Lis(TestSuite):
         try:
             lisdriver = node.tools[LisDriver]
             return lisdriver
-        except UnsupportedDistroException as err:
+        except (UnsupportedDistroException, UnsupportedKernelException) as err:
             raise SkippedException(err)
 
     def _clean_up_files(self, node: Node) -> None:
