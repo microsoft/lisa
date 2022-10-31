@@ -26,11 +26,13 @@ class Gcc(Tool):
     def can_install(self) -> bool:
         return True
 
-    def compile(self, filename: str, output_name: str = "") -> None:
+    def compile(
+        self, filename: str, output_name: str = "", arguments: str = ""
+    ) -> None:
+        cmd = f"{arguments} {filename}"
         if output_name:
-            self.run(f"{filename} -o {output_name}")
-        else:
-            self.run(filename)
+            cmd += f" -o {output_name} "
+        self.run(cmd, shell=True, force_run=True)
 
     def get_version(self) -> VersionInfo:
         output = self.run(
