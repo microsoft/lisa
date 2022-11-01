@@ -20,7 +20,7 @@ from lisa import (
 from lisa.features import NetworkInterface
 from lisa.nic import NicInfo
 from lisa.operating_system import OperatingSystem, Ubuntu
-from lisa.tools import Dmesg, Echo, Free, Lscpu, Lsmod, Lspci, Modprobe, Mount
+from lisa.tools import Dmesg, Echo, Free, Lscpu, Lsmod, Lspci, Modprobe, Mount, kernel_config
 from lisa.tools.mkfs import FileSystem
 from lisa.util.parallel import TaskManager, run_in_parallel, run_in_parallel_async
 from microsoft.testsuites.dpdk.common import DPDK_STABLE_GIT_REPO, check_dpdk_support
@@ -220,6 +220,15 @@ def enable_uio_hv_generic_for_nic(node: Node, nic: NicInfo) -> None:
     echo = node.tools[Echo]
     lsmod = node.tools[Lsmod]
     modprobe = node.tools[Modprobe]
+    kernelcfg = node.tools[kernel_config.KernelConfig]
+
+    # check if kernel config for Hyper-V VMBus is enabled
+    config = "CONFIG_UIO_HV_GENERIC"
+    if not kernelcfg.is_enabled(config):
+        raise LisaException(
+            f"The kernel config {config} is not set."
+        )
+
     # enable if it is not already enabled
     if not lsmod.module_exists("uio_hv_generic", force_run=True):
         modprobe.load("uio_hv_generic")
