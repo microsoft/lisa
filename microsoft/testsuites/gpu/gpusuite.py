@@ -19,7 +19,7 @@ from lisa import (
 )
 from lisa.features import Gpu, GpuEnabled, SerialConsole
 from lisa.features.gpu import ComputeSDK
-from lisa.operating_system import Debian
+from lisa.operating_system import AlmaLinux, Debian, Oracle, Suse
 from lisa.tools import Lspci, NvidiaSmi, Pip, Python, Reboot, Service, Tar, Wget
 from lisa.util import get_matched_str
 
@@ -199,6 +199,12 @@ def _check_driver_installed(node: Node) -> None:
         raise SkippedException(f"GPU is not supported with distro {node.os.name}")
     if ComputeSDK.AMD in gpu.get_supported_driver():
         raise SkippedException("AMD vm sizes is not supported")
+
+    if isinstance(node.os, (Suse, AlmaLinux, Oracle)):
+        raise SkippedException(
+            f"{node.os.name} doesn't support GPU driver installation."
+        )
+
     try:
         _ = node.tools[NvidiaSmi]
     except Exception as identifier:
