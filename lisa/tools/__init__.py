@@ -2,7 +2,7 @@
 # Licensed under the MIT license.
 
 
-from lisa.base_tools import Cat, Rpm, Sed, Uname, Wget, YumConfigManager
+from lisa.base_tools import Cat, Mv, Rpm, Sed, Uname, Wget, YumConfigManager
 
 from .blkid import Blkid
 from .chmod import Chmod
@@ -155,6 +155,7 @@ __all__ = [
     "Modinfo",
     "Modprobe",
     "Mount",
+    "Mv",
     "Netperf",
     "NFSClient",
     "NFSServer",

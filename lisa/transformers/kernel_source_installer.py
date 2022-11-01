@@ -8,6 +8,7 @@ from typing import Any, List, Optional, Type, cast
 from dataclasses_json import dataclass_json
 
 from lisa import schema
+from lisa.base_tools import Mv
 from lisa.node import Node
 from lisa.operating_system import Redhat, Ubuntu
 from lisa.tools import Echo, Git, Make, Sed, Uname
@@ -219,7 +220,7 @@ class SourceInstaller(BaseInstaller):
         # the gcc version of Redhat 7.x is too old. Upgrade it.
         if isinstance(node.os, Redhat) and node.os.information.version < "8.0.0":
             node.os.install_packages(["devtoolset-8"])
-            result = node.execute("mv /bin/gcc /bin/gcc_back", sudo=True)
+            node.tools[Mv].move("/bin/gcc", "/bin/gcc_back", overwrite=True, sudo=True)
             result.assert_exit_code()
             result = node.execute(
                 "ln -s /opt/rh/devtoolset-8/root/usr/bin/gcc /bin/gcc", sudo=True
