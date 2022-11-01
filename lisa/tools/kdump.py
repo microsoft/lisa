@@ -3,9 +3,9 @@
 
 import re
 from pathlib import PurePath, PurePosixPath
+from time import sleep
 from typing import TYPE_CHECKING, Any, List, Type
 
-from retry import retry
 from semver import VersionInfo
 
 from lisa.base_tools import Cat, Sed, Wget
@@ -324,6 +324,13 @@ class KdumpBase(Tool):
         service = self.node.tools[Service]
         service.restart_service(self._get_kdump_service_name())
 
+    def check_kdump_service(self) -> None:
+        """
+        This method checks the kdump service status.
+        """
+        service = self.node.tools[Service]
+        service.check_service_status(self._get_kdump_service_name())
+
     def set_unknown_nmi_panic(self) -> None:
         """
         /proc/sys/kernel/unknown_nmi_panic:
@@ -338,10 +345,9 @@ class KdumpBase(Tool):
             sysctl = self.node.tools[Sysctl]
             sysctl.write("kernel.unknown_nmi_panic", "1")
 
-    @retry(exceptions=LisaException, tries=60, delay=1)
     def _check_kexec_crash_loaded(self) -> None:
         """
-        Sometimes it costs a while to load the value, so define this method as @retry
+        Sometimes it costs a while to load the value, so retry to check many times
         """
         # If the dump_path is not "/var/crash", for example it is "/mnt/crash",
         # the kdump service may start before the /mnt is mounted. That will cause
@@ -349,9 +355,16 @@ class KdumpBase(Tool):
         if self.dump_path != "/var/crash":
             self.restart_kdump_service()
         cat = self.node.tools[Cat]
-        result = cat.run(self.kexec_crash, force_run=True)
-        if "1" != result.stdout:
-            raise LisaException(f"{self.kexec_crash} file's value is not 1.")
+        max_tries = 60
+        for tries in range(max_tries):
+            result = cat.run(self.kexec_crash, force_run=True)
+            if "1" == result.stdout:
+                break
+            elif "1" != result.stdout and tries == max_tries - 1:
+                self.check_kdump_service()
+                raise LisaException(f"{self.kexec_crash} file's value is not 1.")
+            else:
+                sleep(2)
 
     def _check_crashkernel_in_cmdline(self, crashkernel_memory: str) -> None:
         cat = self.node.tools[Cat]
