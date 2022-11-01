@@ -84,8 +84,6 @@ class GpuTestSuite(TestSuite):
         priority=2,
     )
     def verify_gpu_adapter_count(self, node: Node, log_path: Path, log: Logger) -> None:
-        _check_driver_installed(node)
-
         gpu_feature = node.features[Gpu]
         assert isinstance(node.capability.gpu_count, int)
         expected_count = node.capability.gpu_count
