@@ -1346,7 +1346,7 @@ class Redhat(Fedora):
 
     @classmethod
     def name_pattern(cls) -> Pattern[str]:
-        return re.compile("^rhel|Red|AlmaLinux|Rocky|Scientific|acronis|Actifio$")
+        return re.compile("^rhel|Red|Rocky|Scientific|acronis|Actifio$")
 
     def replace_boot_kernel(self, kernel_version: str) -> None:
         # Redhat kernel is replaced when installing RPM. For source code
@@ -1491,6 +1491,12 @@ class Oracle(Redhat):
         # The name is "Oracle Linux Server", which doesn't support the default
         # full match.
         return re.compile("^Oracle")
+
+
+class AlmaLinux(Redhat):
+    @classmethod
+    def name_pattern(cls) -> Pattern[str]:
+        return re.compile("^AlmaLinux")
 
 
 class CBLMariner(RPMDistro):
