@@ -3,7 +3,7 @@
 
 from pathlib import PurePath
 
-from lisa.base_tools import Uname, Wget
+from lisa.base_tools import Mv, Uname, Wget
 from lisa.executable import Tool
 from lisa.operating_system import CBLMariner, Posix, Redhat
 from lisa.tools.service import Service
@@ -45,8 +45,8 @@ class DockerCompose(Tool):
             sudo=True,
         )
         self.node.execute(f"sudo chmod +x {filename}")
-        self.node.execute(
-            "mv docker-compose /usr/bin/", sudo=True, expected_exit_code=0
+        self.node.tools[Mv].move(
+            "docker-compose", "/usr/bin/", overwrite=True, sudo=True
         )
 
     def _install(self) -> bool:
