@@ -371,7 +371,7 @@ def decode_set_space_by_type(
         for item in data:
             new_data.add(base_type(item))  # type: ignore
         decoded_data = new_data
-    elif isinstance(data, str):
+    elif isinstance(data, (str, int)):
         decoded_data = base_type(data)  # type: ignore
     elif isinstance(data, SetSpace):
         decoded_data = data
