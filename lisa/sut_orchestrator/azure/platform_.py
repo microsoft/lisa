@@ -2383,7 +2383,13 @@ class AzurePlatform(Platform):
 
         # locations used to query marketplace image information. Some image is not
         # available in all locations, so try several of them.
-        _marketplace_image_locations = ["centraluseuap", "eastus2euap"]
+        _marketplace_image_locations = [
+            "westus3",
+            "eastus",
+            "westus2",
+            "centraluseuap",
+            "eastus2euap",
+        ]
 
         if not node_space:
             return
