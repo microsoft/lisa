@@ -78,7 +78,9 @@ def _write_suite(file: TextIO, metadata: Dict[str, str]) -> None:
 
     file.write("    :platform: ``Azure, Ready``\n")  # Platform
     file.write(f"    :area: ``{metadata['area']}``\n")  # Area
-    file.write(f"    :category: ``{metadata['category']}``\n\n")  # Category
+
+    if metadata["category"]:
+        file.write(f"    :category: ``{metadata['category']}``\n\n")  # Category
 
 
 def _write_case(file: TextIO, metadata: Dict[str, str]) -> None:
