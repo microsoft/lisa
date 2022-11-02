@@ -30,13 +30,11 @@ def update_summary() -> None:
     with open(table_path, "w", encoding="utf-8") as table:
         _write_title(table)
 
-        index = 0
         res = []  # name, priority, platform, category, area etc.
         for test_path in test_paths:
             for root, _, files in os.walk(test_path):
                 for file in files:
                     if file.endswith(".py"):
-                        # print("Processing " + file)
                         filename = Path(root) / file
                         tree = ast.parse(
                             filename.read_text(encoding="utf-8"), filename=str(filename)
@@ -53,13 +51,12 @@ def update_summary() -> None:
                                 suite["suite_name"] = suite["name"]
                                 del suite["name"]
                                 res.append({**suite, **case})  # merge two dicts
-        for node in res:
-            index += 1
+        for index, node in enumerate(res, start=1):
             _update_line(table, node, index)
 
         link = "https://github.com/microsoft/lisa/blob/master/Documents/LISAv2-TestCase-Statistics.md"  # noqa: E501
         table.write(".. seealso::\n")
-        table.write("    `LISAv2 Tests <" + link + ">`__\n")
+        table.write(f"    `LISAv2 Tests <{link}>`__\n")
         table.write("\n")
 
 
@@ -70,16 +67,11 @@ def _write_title(file: TextIO) -> None:
     Args:
         file (TextIO): test table
     """
-    title = "Test Cases"
-    file.write(title + "\n")
-    file.write("=" * len(title) + "\n")
-    file.write("\n")
+    file.write("Test Cases\n==========\n\n")
 
     file.write(".. list-table::\n")
     # file.write("    :widths: 5 5 25 5 10 10 10\n")  # can be configured manually
-    file.write("    :header-rows: 1\n")
-    file.write("\n")
-
+    file.write("    :header-rows: 1\n\n")
     file.write("    * - Index\n")
     file.write("      - Test Suite Name\n")
     file.write("      - Test Case Name\n")
@@ -98,24 +90,14 @@ def _update_line(file: TextIO, metadata: Dict[str, str], index: int) -> None:
         metadata (Dict[str, str]): test case metadata
         index (int): no.# of test case
     """
-    file.write("    * - " + str(index) + "\n")  # Index
+    file.write(f"    * - {index}\n")  # Index
     file.write(
-        "      - "
-        + ":ref:`"
-        + metadata["suite_name"]
-        + " <"
-        + metadata["suite_name"]
-        + ">`\n"
+        f"      - :ref:`{metadata['suite_name']} <{metadata['suite_name']}>`\n"
     )  # Test Suite Name
     file.write(
-        "      - "
-        + ":ref:`"
-        + metadata["case_name"]
-        + " <"
-        + metadata["case_name"]
-        + ">`\n"
+        f"      - :ref:`{metadata['case_name']} <{metadata['case_name']}>`\n"
     )  # Test Case Name
-    file.write("      - " + str(metadata.get("priority", 2)) + "\n")  # Priority
-    file.write("      - " + "Azure, Ready" + "\n")  # Platform - defaults to both
-    file.write("      - " + metadata["category"] + "\n")  # Category
-    file.write("      - " + metadata["area"] + "\n")  # Area
+    file.write(f"      - {metadata.get('priority', 2)}\n")  # Priority
+    file.write("      - Azure, Ready\n")  # Platform - defaults to both
+    file.write(f"      - {metadata['category']}\n")  # Category
+    file.write(f"      - {metadata['area']}\n")  # Area
