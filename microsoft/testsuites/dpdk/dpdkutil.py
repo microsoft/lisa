@@ -20,7 +20,17 @@ from lisa import (
 from lisa.features import NetworkInterface
 from lisa.nic import NicInfo
 from lisa.operating_system import OperatingSystem, Ubuntu
-from lisa.tools import Dmesg, Echo, Free, Lscpu, Lsmod, Lspci, Modprobe, Mount, KernelConfig
+from lisa.tools import (
+    Dmesg,
+    Echo,
+    Free,
+    Lscpu,
+    Lsmod,
+    Lspci,
+    Modprobe,
+    Mount,
+    KernelConfig,
+)
 from lisa.tools.mkfs import FileSystem
 from lisa.util.parallel import TaskManager, run_in_parallel, run_in_parallel_async
 from microsoft.testsuites.dpdk.common import DPDK_STABLE_GIT_REPO, check_dpdk_support
