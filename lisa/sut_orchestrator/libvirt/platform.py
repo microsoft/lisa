@@ -26,7 +26,7 @@ from lisa.feature import Feature
 from lisa.node import Node, RemoteNode, local_node_connect
 from lisa.operating_system import CBLMariner
 from lisa.platform_ import Platform
-from lisa.tools import Iptables, Journalctl, Ls, QemuImg, Uname
+from lisa.tools import Chmod, Iptables, Journalctl, Ls, QemuImg, Uname
 from lisa.util import LisaException, constants, get_public_key_data
 from lisa.util.logger import Logger, filter_ansi_escape
 
@@ -522,7 +522,11 @@ class BaseLibvirtPlatform(Platform, IBaseLibvirtPlatform):
             source_exists = self.host_node.tools[Ls].path_exists(
                 path=node_context.os_disk_base_file_path, sudo=True
             )
-            if not source_exists:
+            if source_exists:
+                self.host_node.tools[Chmod].chmod(
+                    node_context.os_disk_base_file_path, "a+r", sudo=True
+                )
+            else:
                 self.host_node.shell.copy(
                     Path(node_context.os_disk_source_file_path),
                     Path(node_context.os_disk_base_file_path),
