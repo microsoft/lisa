@@ -353,6 +353,7 @@ class AzurePlatform(Platform):
             features.IsolatedResource,
             features.VhdGeneration,
             features.Nfs,
+            features.Ovl,
         ]
 
     def _prepare_environment(self, environment: Environment, log: Logger) -> bool:

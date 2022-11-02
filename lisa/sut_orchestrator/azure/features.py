@@ -556,6 +556,31 @@ class Gpu(AzureFeatureMixin, features.Gpu):
             resources.append(gpu_template)
 
 
+class Ovl(AzureFeatureMixin, features.Ovl):
+    @classmethod
+    def create_setting(
+        cls, *args: Any, **kwargs: Any
+    ) -> Optional[schema.FeatureSettings]:
+        resource_sku: Any = kwargs.get("resource_sku")
+        node_space: Any = kwargs.get("node_space")
+        assert isinstance(node_space, schema.NodeSpace), f"actual: {type(node_space)}"
+        log = cast(Logger, kwargs.get("log"))
+        log.info(f"FAMILY: {resource_sku.family}")
+        if resource_sku.family in [
+            "standardDv5Family",
+            "standardDSv5Family",
+            "standardESv5Family",
+            "standardEDv5Family",
+            "standardEDSv5Family",
+        ]:
+            return schema.FeatureSettings.create(cls.name())
+
+        return None
+
+    def _initialize(self, *args: Any, **kwargs: Any) -> None:
+        super()._initialize(*args, **kwargs)
+
+
 class Infiniband(AzureFeatureMixin, features.Infiniband):
     @classmethod
     def on_before_deployment(cls, *args: Any, **kwargs: Any) -> None:

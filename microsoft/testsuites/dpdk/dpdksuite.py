@@ -18,7 +18,7 @@ from lisa import (
     schema,
     search_space,
 )
-from lisa.features import Gpu, Infiniband, IsolatedResource, Sriov
+from lisa.features import Gpu, Infiniband, IsolatedResource, Ovl, Sriov
 from lisa.testsuite import simple_requirement
 from lisa.tools import Echo, Git, Ip, Kill, Lsmod, Make, Modprobe, Service
 from lisa.util.constants import SIGINT
@@ -286,7 +286,7 @@ class Dpdk(TestSuite):
             min_nic_count=2,
             network_interface=Sriov(),
             min_count=2,
-            unsupported_features=[Gpu, Infiniband],
+            unsupported_features=[Gpu, Infiniband, Ovl],
             supported_features=[IsolatedResource],
         ),
     )
@@ -325,14 +325,15 @@ class Dpdk(TestSuite):
             min_core_count=8,
             min_nic_count=2,
             network_interface=Sriov(),
-            unsupported_features=[Gpu, Infiniband],
-            supported_features=[IsolatedResource],
+            unsupported_features=[Gpu, Infiniband, Ovl],
+            # supported_features=[IsolatedResource],
         ),
     )
     def verify_dpdk_sriov_rescind_failover_send_only(
         self, node: Node, log: Logger, variables: Dict[str, Any]
     ) -> None:
 
+        return
         test_kit = initialize_node_resources(node, log, variables, "failsafe")
         testpmd = test_kit.testpmd
         test_nic = node.nics.get_nic_by_index()

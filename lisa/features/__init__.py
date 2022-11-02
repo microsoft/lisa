@@ -2,6 +2,7 @@
 # Licensed under the MIT license.
 
 from .acc import ACC
+from .accelerator import Ovl
 from .disks import (
     Disk,
     DiskEphemeral,
@@ -40,6 +41,7 @@ __all__ = [
     "Hibernation",
     "HibernationEnabled",
     "HibernationSettings",
+    "Ovl",
     "Infiniband",
     "IsolatedResource",
     "NestedVirtualization",
