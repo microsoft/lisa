@@ -332,6 +332,7 @@ def node_requirement(
 def simple_requirement(
     min_count: int = 1,
     min_core_count: int = 1,
+    min_gpu_count: int = 0,
     min_nic_count: Optional[int] = None,
     min_data_disk_count: Optional[int] = None,
     disk: Optional[schema.DiskOptionSettings] = None,
@@ -354,6 +355,7 @@ def simple_requirement(
     node = schema.NodeSpace()
     node.node_count = search_space.IntRange(min=min_count)
     node.core_count = search_space.IntRange(min=min_core_count)
+    node.gpu_count = search_space.IntRange(min=min_gpu_count)
 
     if min_data_disk_count or disk:
         if not disk:
