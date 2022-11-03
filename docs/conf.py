@@ -15,52 +15,17 @@ import sys
 from pathlib import Path
 from typing import List
 
-import toml
-
-root_dir = Path(__file__).parent.parent
-pyproj = root_dir / "pyproject.toml"
-requirement = root_dir / "docs" / "requirements.txt"
-
 # to import lisa package
+root_dir = Path(__file__).parent.parent
 sys.path.insert(0, str(root_dir))
 sys.path.insert(0, str(root_dir / "docs"))
 
 from tools import update_file, update_summary  # type: ignore # noqa: E402
 
-data = toml.load(pyproj)
-dependencies = data["tool"]["poetry"]["dependencies"]
-sphinx_dependencies = data["tool"]["poetry"]["dev-dependencies"]
-
-with open(requirement, "w") as req:
-    for module, value in dependencies.items():
-        if isinstance(value, dict):
-            # Remove platform specific dependencies.
-            if "platform" in value:
-                continue
-            version = value["version"]
-        else:
-            version = str(value)
-        assert isinstance(module, str)
-        if module in ["python"]:
-            continue
-        if version.startswith("^"):
-            version = version[1:]
-        req.write(module)
-        req.write(">=")
-        req.write(version)
-        req.write("\n")
-
-    for module, version in sphinx_dependencies.items():
-        if str(module)[:6].lower() == "sphinx":
-            req.write(str(module))
-            req.write(">=")
-            req.write(str(version)[1:])
-            req.write("\n")
-
 # -- Project information -----------------------------------------------------
 
 project = "Linux Integration Services Automation (LISA)"
-copyright = "2021, Microsoft"
+copyright = "Microsoft Corporation"
 author = "Microsoft"
 
 release = ""
