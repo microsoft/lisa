@@ -144,7 +144,7 @@ class Process:
             f"cwd: {cwd_path}, "
             f"shell: {shell}, "
             f"sudo: {sudo}, "
-            f"nohup: {nohup}"
+            f"nohup: {nohup}, "
             f"posix: {self._is_posix}, "
             f"remote: {self._shell.is_remote}"
         )
