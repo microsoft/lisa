@@ -5,28 +5,45 @@ We will guide you through the installation of LISA on Windows.
 
 .. note::
 
-   On Windows, after you finished an installation, or made an
+   On Windows, after you finished an installation, or make an
    environment variable change, you might need to restart your shell before moving
-   to next step, to make sure your changes take effect.
+   to next step to make sure your changes take effect.
 
 .. note::
    Please run your command prompt or shell with elevated privilege
    (such as ``'Run as Administrator'`` on Windows) when you see access denied
-   message when install tools.
+   message when installing tools.
+
 
 Install Python on Windows
 -------------------------
 
-LISA has been tested on `Python 3.8 64
-bits <https://www.python.org/>`__. The latest version of Python 3 is
-recommended. If you found LISA is not compatible with higher version
-Python, `please file an
-issue <https://github.com/microsoft/lisa/issues/new>`__.
+LISA has been tested to work with `Python 3.8 64-bit <https://www.python.org/>`__ and above.
+The latest version of Python 3 is recommended. If you find that LISA is not compatible
+with higher version Python, `please file an issue <https://github.com/microsoft/lisa/issues/new>`__.
 
-Navigate to `Python releases for
-Windows <https://www.python.org/downloads/windows/>`__. Download and
-install *Windows installer (64-bit)* for Python 3.8 64-bits or higher
-version.
+Install from Microsoft Store (recommended)
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+It is recommended to install Python from the Microsoft Store. Packages are regularly
+published by the Python Software Foundation and will set up paths as needed.
+
+To install from the Microsoft Store, search for Python in the store interface or,
+if no other Python version is installed, running `python3` from the command line
+will bring up the latest version.
+More details can be found `here<https://docs.python.org/3/using/windows.html#windows-store>`.
+
+Install using full installer (alternative)
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+The full installer allows greater customization and doesn't have the security restriction
+of the Microsoft Store packages, so may be preferred in some situations.
+
+Navigate to `Python releases for Windows <https://www.python.org/downloads/windows/>`__.
+Download and install *Windows installer (64-bit)* for Python 3.8 - 3.10 64-bit.
+
+More information on the full installer, including installation without a GUI,
+can be found `here <https://docs.python.org/3/using/windows.html#the-full-installer>`_.
 
 .. warning::
 
@@ -48,15 +65,13 @@ please manually add these two paths.
 If this is your first time installing Python, simply check “add Python
 to PATH” option in installation.
 
-Install dependencies on Windows
--------------------------------
 
-Please install ``git`` on your computer to clone LISA source code from
-this repo and ``pip`` for later installation of Poetry.
+Install system dependencies on Windows
+--------------------------------------
 
 In Windows, you need to install `git <https://git-scm.com/downloads>`__,
-``virtualenv``\ (by running ``pip install virtualenv``) and `Visual C++
-redistributive package <https://aka.ms/vs/16/release/vc_redist.x64.exe>`__
+and `Visual C++ redistributive package <https://aka.ms/vs/16/release/vc_redist.x64.exe>`__
+
 
 Clone code
 ----------
@@ -66,38 +81,34 @@ Clone code
    git clone https://github.com/microsoft/lisa.git
    cd lisa
 
-Install Poetry on Windows
--------------------------
 
-Poetry is used to manage Python dependencies of LISA.
+Directly install LISA (Option 1)
+--------------------------------
 
-Enter the ``PowerShell`` command prompt and then execute below commands:
+This will install LISA directly for the invoking user.
+To install system-wide, run from and Administrator console.
 
-.. code:: powershell
+.. code:: bash
 
-   (Invoke-WebRequest -Uri https://raw.githubusercontent.com/python-poetry/poetry/master/get-poetry.py -UseBasicParsing).Content | python -
+   pip3 install .[azure]
 
-   # Add poetry.exe's path to your `PATH` environment variable.
-   $env:PATH += ";$env:APPDATA\Python\Scripts"
 
-[Optional] Create poetry virtual environment in the same folder as LISA for VS Code to automatically
-pick up the python environment. Run the following commands to update poetry configuration: 
 
-.. code:: powershell 
+Install LISA in a virtual environment (Option 2)
+------------------------------------------------
 
-   poetry config virtualenvs.in-project true 
+If you wish to keep LISA and it's dependencies separate, you can install it
+into a virtual environment. This `guide`_ can be used if you wish to do this manually.
+Or, to use a development virtual environment, follow the instructions in :ref:`DevVirtEnv`.
 
-Install python dependencies
-
-.. code:: powershell
-
-   poetry install -E "azure libvirt"
+.. _guide: https://sublime-and-sphinx-guide.readthedocs.io/en/latest/references.html
 
 Verify installation
 -------------------
 
-``lisa.cmd`` is provided in Windows to wrap ``Poetry`` for you to run
-LISA test.
+Ensure LISA is installed or a virtual environment is activated.
+
+Run LISA with the ``lisa`` command
 
 With no argument specified, LISA will run some sample test cases with
 the default runbook (``examples/runbook/hello_world.yml``) on your local
@@ -107,7 +118,7 @@ computer.
 
 .. code:: bash
 
-   .\lisa
+   lisa
 
 FAQ and Troubleshooting
 -----------------------

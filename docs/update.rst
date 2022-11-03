@@ -1,20 +1,27 @@
 Updating LISA
 =============
 
-Once LISA has been successfully installed on your computer, simply follow below
-steps to update.
+Once LISA has been successfully installed on your computer,
+the steps below can be used to keep it updated.
 
-In the root folder of LISA ``(...\lisa\)``, run
+To update the the local repo, ensure you are in the main branch and run
+
 
 .. code:: bash
 
     git pull
 
-to keep your local source code in sync with the latest code in repo, and then
-run
+If you installed LISA, reinstall to get the latest version.
 
 .. code:: bash
 
-    poetry install -E "azure libvirt"
+   python3 -m pip install .[azure, libvirt]
 
-to keep all packages up-to-date as well.
+
+If you're using a virtual environment, recreate the virtual environment.
+
+.. code:: bash
+
+    nox -vs dev
+
+

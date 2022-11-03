@@ -4,15 +4,10 @@ Development setup
 This document describes the existing developer tooling we have in place (and
 what to expect of it).
 
--  `Environment Setup <#environment-setup>`__
+.. contents::
+   :local:
+   :depth: 2
 
-   -  `Visual Studio Code <#visual-studio-code>`__
-   -  `Emacs <#emacs>`__
-   -  `Other setups <#other-setups>`__
-
--  `Code checks <#code-checks>`__
--  `Local Documentation <#local-documentation>`__
--  `Extended reading <#extended-reading>`__
 
 Environment Setup
 -----------------
@@ -20,6 +15,77 @@ Environment Setup
 Follow the :ref:`quick_start:installation` steps to
 prepare the source code. Then follow the steps below to set up the corresponding
 development environment.
+
+.. _DevVirtEnv:
+
+Creating a LISA development virtual environment
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Nox is used to manage virtual environments for LISA.
+See `Using Nox`_ for more information.
+
+Nox can be installed with `pip`.
+
+.. code:: bash
+
+   pip3 install nox toml
+
+
+The following creates a virtual environment in ``.venv`` with an editable install
+of LISA. An editable install allows code changes in the repo to immediately affect
+the virtual environment. This is useful for iterative development.
+
+From the root of the LISA repo, run the following to create or update virtual environment.
+
+.. code:: bash
+
+   nox -vs dev
+
+By default, the extra dependencies for Azure will be installed.
+On Linux, the extra dependencies for libvirt will also be installed.
+This behavior can be overridden by passing dependency groups as additional arguments.
+
+For example, the following will only install extra dependencies for Azure.
+
+.. code:: bash
+
+   nox -vs dev -- azure
+
+Information on what extra dependency groups are supported can be found in
+:ref:`extras:LISA's extras`.
+
+
+VSCode should automatically detect and activate the virtual environment on startup
+and you can manually activate it in a shell with the following commands.
+
+
+Activate virtual environment (Bash)
+
+.. code:: bash
+
+   source .venv/bin/activate
+
+Activate virtual environment (Powershell)
+
+.. code:: powershell
+
+   .venv\Scripts\activate.ps1
+
+Activate virtual environment (cmd)
+
+.. code:: batch
+
+   .venv\Scripts\activate.bat
+
+
+When the virtual environment is active, your command prompt will be prefixed with `(lisa)`.
+
+If you wish to deactivate the virtual environment, use the ``deactivate`` command.
+
+.. code:: bash
+
+   deactivate
+
 
 Visual Studio Code
 ~~~~~~~~~~~~~~~~~~
@@ -117,7 +183,7 @@ a ``.dir-locals.el`` file as follows:
    ;;; Directory Local Variables
    ;;; For more information see (info "(emacs) Directory Variables")
 
-   ((python-mode . ((pyvenv-activate . "~/.cache/pypoetry/virtualenvs/lisa-s7Q404Ij-py3.8"))))
+   ((python-mode . ((pyvenv-activate . ".venv"))))
 
 Other setups
 ~~~~~~~~~~~~
@@ -150,24 +216,167 @@ manually.
 -  `rope <https://github.com/python-rope/rope>`__, provides completion
    and renaming support for pyls.
 
+Using Nox
+---------
+
+Nox is test automation utility that allows running tests and utilities in
+virtual environments. This allows isolation and consistency for these actions.
+
+Sessions
+~~~~~~~~
+
+Nox tasks are called sessions. A number of Nox sessions have been configured
+for LISA. They can be displayed by running ``nox --list``.
+
+.. code:: console
+
+   $  nox --list
+   Nox configuration file
+   See https://nox.thea.codes/en/stable/config.html
+
+   Sessions defined in /srv/Development/lisa/noxfile.py:
+
+   * test -> Run tests
+   * example -> Run example
+   * coverage -> Check test coverage
+   * black -> Run black
+   * isort -> Run isort
+   * flake8 -> Run flake8
+   * mypy -> Run mypy
+   * docs -> Build docs
+   * dev -> Create virtual environment for development
+
+   sessions marked with * are selected, sessions marked with - are skipped.
+
+An individual session can be run with ``nox -vs <session>``.
+
+.. code:: console
+
+   $ nox -vs flake8
+   nox > Running session flake8
+   nox > Creating virtual environment (virtualenv) using python3 in .nox/flake8
+   ...
+   nox > flake8
+   nox > Session flake8 was successful.
+
+Tags
+~~~~
+
+Another way to call Nox sessions is with tags. Tags can not currently be
+listed on the command line, but the following have been define:
+
+all
+   Runs various checks and tests to do before pushing a commit
+
+format
+   Run formatting tools such as isort and black
+
+linting
+   Run linting tools such as flake8
+
+test
+   Run unit tests and test scenarios
+
+typing
+   Run typing tools such as mypy
+
+
+To execute all sessions with a given tag, use the ``-t`` option.
+
+.. code:: console
+
+   $ nox -vt format
+   nox > Running session black
+   ...
+   nox > Running session isort
+   ...
+   nox > Ran multiple sessions:
+   nox > * black: success
+   nox > * isort: success
+
+
+To determine which sessions will be called for a tag without running them,
+use the ``--list`` option.
+
+.. code:: console
+
+   $ nox -t format --list
+   Nox configuration file
+   See https://nox.thea.codes/en/stable/config.html
+
+   Sessions defined in /srv/Development/lisa/noxfile.py:
+
+   - test -> Run tests
+   - example -> Run example
+   - coverage -> Check test coverage
+   * black -> Run black
+   * isort -> Run isort
+   - flake8 -> Run flake8
+   - mypy -> Run mypy
+   - docs -> Build docs
+   - dev -> Create virtual environment for development
+
+Running with a different Python interpreter
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+The Nox sessions for LISA are configured to run with the same Python interpreter
+used to run Nox. To use a different interpreter, use the `--force-python` option.
+You can either specify a Python version or the path to an executable.
+
+.. code:: console
+
+   $ nox -vs test --force-python 3.11
+
+.. code:: console
+
+   $ nox -vs test --force-python /usr/bin/python3.11
+
+Speeding up Nox
+~~~~~~~~~~~~~~~
+
+By default, Nox will recreate a virtual environment every time it runs.
+This ensures there are no stale dependencies, but is not always necessary.
+To reuse a virtual environment, use the ``-r`` option. To reuse the virtual
+environment without reinstalling any dependencies, use the ``-R`` option.
+This will have a greater impact for sessions with a large number of
+dependencies.
+
+
+.. code:: console
+
+   $ time nox -vs flake8
+   ...
+   real    0m9.827s
+
+   $ time nox -vrs flake8
+   ...
+   real    0m6.433s
+
+   $ time nox -vRs flake8
+   ...
+   real    0m5.638s
+
+
+
+Additional information
+~~~~~~~~~~~~~~~~~~~~~~
+
+More information on Nox can be found `here <https://nox.thea.codes>`_.
+
 Local Documentation
 -------------------
 
 It's recommended to build the documentation locally using ``Sphinx`` for preview.
 
-To do so, in ``./lisa/docs``, run 
+To do so, run
 
 .. code:: bash
 
-   poetry run make html
+   nox -vs docs
 
 You can find all generated documents in ``./lisa/docs/_build/html`` folder. Open
 them with a browser to view.
 
-.. note::
-   If there are already generated documents in ``./lisa/docs/_build/html``, run
-   ``poetry run make clean`` to ensure the documentation is clean and not
-   affected by the previous build.
 
 Extended reading
 ----------------
