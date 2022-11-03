@@ -6,12 +6,21 @@ from typing import Callable, List
 from assertpy import assert_that
 
 from lisa.executable import Tool
+from lisa.operating_system import Suse
+from lisa.tools.bzip2 import Bzip2
 
 
 class Tar(Tool):
     @property
     def command(self) -> str:
         return "tar"
+
+    def _check_exists(self) -> bool:
+        if isinstance(self.node.os, Suse):
+            # ensure that bzip2 is installed on Suse
+            _ = self.node.tools[Bzip2]
+
+        return True
 
     def extract(
         self,

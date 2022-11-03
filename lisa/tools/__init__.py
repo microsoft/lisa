@@ -14,7 +14,9 @@ from lisa.base_tools import (
     YumConfigManager,
 )
 
+from .aria import Aria
 from .blkid import Blkid
+from .bzip2 import Bzip2
 from .chmod import Chmod
 from .chown import Chown
 from .chrony import Chrony
@@ -106,7 +108,9 @@ from .who import Who
 from .whoami import Whoami
 
 __all__ = [
+    "Aria",
     "Blkid",
+    "Bzip2",
     "Cat",
     "Chmod",
     "Chown",
