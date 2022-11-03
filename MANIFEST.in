@@ -1,0 +1,9 @@
+# This file provides fine-grain control over what files are included in a
+# Python source distribution (sdist).
+# For more details see https://packaging.python.org/en/latest/guides/using-manifest-in/
+
+# These get included because they are tracked by git, so explicitly exclude
+prune .github
+exclude .git*
+
+# Everything else tracked by git is include automatically by setuptools-scm
