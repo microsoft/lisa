@@ -17,7 +17,7 @@ from lisa import (
     constants,
     simple_requirement,
 )
-from lisa.features import Gpu, GpuEnabled, SerialConsole
+from lisa.features import Gpu, GpuEnabled, SerialConsole, StartStop
 from lisa.features.gpu import ComputeSDK
 from lisa.operating_system import AlmaLinux, Debian, Oracle, Suse
 from lisa.tools import Lspci, NvidiaSmi, Pip, Python, Reboot, Service, Tar, Wget
@@ -63,6 +63,83 @@ class GpuTestSuite(TestSuite):
     )
     def verify_load_gpu_driver(self, node: Node, log_path: Path, log: Logger) -> None:
         _check_driver_installed(node)
+
+    @TestCaseMetadata(
+        description="""
+            This test case verifies if gpu is detected as PCI device
+
+            Steps:
+            1. Verify if GPU is detected as PCI Device
+            2. Reboot VM
+            3. Verify if PCI GPU device count is same as earlier
+
+        """,
+        timeout=TIMEOUT,
+        requirement=simple_requirement(min_gpu_count=1),
+        priority=1,
+    )
+    def verify_gpu_provision(self, node: Node, log: Logger) -> None:
+        start_stop = node.features[StartStop]
+        lspci = node.tools[Lspci]
+
+        init_pci_gpu = lspci.get_devices_by_type(
+            constants.DEVICE_TYPE_GPU, force_run=True
+        )
+        log.debug(f"Initial GPU count {len(init_pci_gpu)}")
+        assert_that(len(init_pci_gpu)).described_as(
+            "Number of GPU PCI device is not greater than 0"
+        ).is_greater_than(0)
+
+        start_stop.stop()
+        start_stop.start()
+
+        curr_pci_gpu = lspci.get_devices_by_type(
+            constants.DEVICE_TYPE_GPU, force_run=True
+        )
+        log.debug(f"GPU count after reboot {len(curr_pci_gpu)}")
+        assert_that(len(curr_pci_gpu)).described_as(
+            "GPU PCI device count should be same after restart"
+        ).is_equal_to(len(init_pci_gpu))
+
+    @TestCaseMetadata(
+        description="""
+            This test case verifies if multiple gpus are detected as PCI devices
+
+            Steps:
+            1. Boot VM with multiple GPUs
+            2. Verify if GPUs are detected as PCI Devices
+            3. Reboot VM
+            4. Verify if PCI GPU device count is same as earlier
+
+        """,
+        timeout=TIMEOUT,
+        # min_gpu_count is 8 since it is currently the max GPU count supported
+        # in Azure, 'Standard_ND96asr_v4'
+        requirement=simple_requirement(min_gpu_count=8),
+        priority=1,
+    )
+    def verify_max_gpu_provision(self, node: Node, log: Logger) -> None:
+        start_stop = node.features[StartStop]
+        lspci = node.tools[Lspci]
+
+        init_pci_gpu = lspci.get_devices_by_type(
+            constants.DEVICE_TYPE_GPU, force_run=True
+        )
+        log.debug(f"Initial GPU count {len(init_pci_gpu)}")
+        assert_that(len(init_pci_gpu)).described_as(
+            "Number of GPU PCI device is not greater than 0"
+        ).is_greater_than(0)
+
+        start_stop.stop()
+        start_stop.start()
+
+        curr_pci_gpu = lspci.get_devices_by_type(
+            constants.DEVICE_TYPE_GPU, force_run=True
+        )
+        log.debug(f"GPU count after reboot {len(curr_pci_gpu)}")
+        assert_that(len(curr_pci_gpu)).described_as(
+            "GPU PCI device count should be same after restart"
+        ).is_equal_to(len(init_pci_gpu))
 
     @TestCaseMetadata(
         description="""
