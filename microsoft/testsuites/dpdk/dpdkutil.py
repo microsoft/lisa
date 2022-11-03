@@ -248,6 +248,9 @@ def initialize_node_resources(
 
     network_interface_feature = node.features[NetworkInterface]
     sriov_is_enabled = network_interface_feature.is_enabled_sriov()
+    if not sriov_is_enabled:
+        network_interface_feature.switch_sriov(enable=True, wait=True)
+
     log.info(f"Node[{node.name}] Verify SRIOV is enabled: {sriov_is_enabled}")
     assert_that(sriov_is_enabled).described_as(
         f"SRIOV was not enabled for this test node ({node.name})"
@@ -447,6 +450,10 @@ def verify_dpdk_send_receive(
             raise SkippedException()
     log.debug((f"\nsender:{external_ips[0]}\nreceiver:{external_ips[1]}\n"))
 
+    # get test duration variable if set
+    # enables long-running tests to shakeQoS and SLB issue
+    test_duration: int = variables.get("dpdk_test_duration", 15)
+
     test_kits = init_nodes_concurrent(environment, log, variables, pmd)
 
     check_send_receive_compatibility(test_kits)
@@ -461,7 +468,7 @@ def verify_dpdk_send_receive(
         use_service_cores=use_service_cores,
     )
 
-    results = run_testpmd_concurrent(kit_cmd_pairs, 15, log)
+    results = run_testpmd_concurrent(kit_cmd_pairs, test_duration, log)
 
     # helpful to have the outputs labeled
     log.debug(f"\nSENDER:\n{results[sender]}")
@@ -492,6 +499,10 @@ def verify_dpdk_send_receive_multi_txrx_queue(
     use_service_cores: int = 1,
 ) -> Tuple[DpdkTestResources, DpdkTestResources]:
 
+    # get test duration variable if set
+    # enables long-running tests to shakeQoS and SLB issue
+    test_duration: int = variables.get("dpdk_test_duration", 15)
+
     test_kits = init_nodes_concurrent(environment, log, variables, pmd)
 
     check_send_receive_compatibility(test_kits)
@@ -508,7 +519,7 @@ def verify_dpdk_send_receive_multi_txrx_queue(
         use_service_cores=use_service_cores,
     )
 
-    results = run_testpmd_concurrent(kit_cmd_pairs, 15, log)
+    results = run_testpmd_concurrent(kit_cmd_pairs, test_duration, log)
 
     # helpful to have the outputs labeled
     log.debug(f"\nSENDER:\n{results[sender]}")

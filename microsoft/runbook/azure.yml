@@ -3,7 +3,7 @@ include:
   - path: ./tiers/tier.yml
 variable:
   - name: location
-    value: "westus2"
+    value: "westus3"
   - name: keep_environment
     value: "no"
   - name: resource_group_name

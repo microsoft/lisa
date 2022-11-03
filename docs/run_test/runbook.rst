@@ -132,14 +132,14 @@ use this variable in other field in this format ``$(location)``.
 
    variable:
      - name: location
-       value: westus2
+       value: westus3
 
 The value of variable passed from command line will override the value
 in runbook yaml file.
 
 .. code:: bash
 
-   lisa -r sample.yml -v "location:eastus2"
+   lisa -r sample.yml -v "location:westus3"
 
 Below section is to specify the path of yaml file which stores the
 secret values.
@@ -411,7 +411,7 @@ tier.yml
 
    variable:
      - name: location
-       value: westus2
+       value: westus3
 
 The later defined variables values in runbook have higher priority than
 the same variables previous defined. ``${location}`` will be replaced
@@ -421,7 +421,7 @@ with value ``northeurope``.
 
    variable:
      - name: location
-       value: westus2
+       value: westus3
      - name: location
        value: northeurope
 

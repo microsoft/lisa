@@ -115,8 +115,7 @@ VM_SIZE_FALLBACK_PATTERNS = [
     re.compile(r".*"),
 ]
 LOCATIONS = [
-    "westus2",
-    "eastus2",
+    "westus3",
     "southeastasia",
     "eastus",
     "southcentralus",
@@ -126,7 +125,7 @@ LOCATIONS = [
     "australiaeast",
     "uksouth",
 ]
-RESOURCE_GROUP_LOCATION = "westus2"
+RESOURCE_GROUP_LOCATION = "westus3"
 
 # names in arm template, they should be changed with template together.
 RESOURCE_ID_PORT_POSTFIX = "-ssh"
@@ -352,6 +351,7 @@ class AzurePlatform(Platform):
             features.SecurityProfile,
             features.ACC,
             features.IsolatedResource,
+            features.VhdGeneration,
             features.Nfs,
         ]
 
@@ -379,7 +379,7 @@ class AzurePlatform(Platform):
 
         # covert to azure node space, so the azure extensions can be loaded.
         for req in nodes_requirement:
-            _convert_to_azure_node_space(req)
+            self._load_image_features(req)
 
         is_success: bool = False
 
@@ -1123,19 +1123,15 @@ class AzurePlatform(Platform):
             ...
 
         if azure_node_runbook.marketplace:
-            # resolve Latest to specified version
+            # resolve "latest" to specified version
             azure_node_runbook.marketplace = self._resolve_marketplace_image(
                 azure_node_runbook.location, azure_node_runbook.marketplace
             )
-
             image_info = self._get_image_info(
                 azure_node_runbook.location, azure_node_runbook.marketplace
             )
             # HyperVGenerationTypes return "V1"/"V2", so we need to strip "V"
-            if image_info.hyper_v_generation:
-                azure_node_runbook.hyperv_generation = int(
-                    image_info.hyper_v_generation.strip("V")
-                )
+            azure_node_runbook.hyperv_generation = _get_vhd_generation(image_info)
 
             # retrieve the os type for arm template.
             if azure_node_runbook.is_linux is None:
@@ -1538,7 +1534,7 @@ class AzurePlatform(Platform):
         )
         if ephemeral_supported and eval(ephemeral_supported) is True:
             # Check if CachedDiskBytes is greater than 30GB
-            # We use diffdisk as cache disk for ephemeral OS disk
+            # We use diff disk as cache disk for ephemeral OS disk
             cached_disk_bytes = azure_raw_capabilities.get("CachedDiskBytes", 0)
             cached_disk_bytes_gb = int(cached_disk_bytes) / 1024 / 1024 / 1024
             if cached_disk_bytes_gb >= 30:
@@ -1679,12 +1675,12 @@ class AzurePlatform(Platform):
     ) -> SharedImageGallerySchema:
         new_shared_image = copy.copy(shared_image)
         compute_client = get_compute_client(self)
+        rg_name = shared_image.resource_group_name
         if not shared_image.resource_group_name:
             # /subscriptions/xxxx/resourceGroups/xxxx/providers/Microsoft.Compute/
             # galleries/xxxx
             rg_pattern = re.compile(r"resourceGroups/(.*)/providers", re.M)
             galleries = compute_client.galleries.list()
-            rg_name = ""
             for gallery in galleries:
                 if gallery.name.lower() == shared_image.image_gallery:
                     rg_name = get_matched_str(gallery.id, rg_pattern)
@@ -2023,6 +2019,9 @@ class AzurePlatform(Platform):
     def _get_image_info(
         self, location: str, marketplace: Optional[AzureVmMarketplaceSchema]
     ) -> VirtualMachineImage:
+        # resolve "latest" to specified version
+        marketplace = self._resolve_marketplace_image(location, marketplace)
+
         compute_client = get_compute_client(self)
         assert isinstance(marketplace, AzureVmMarketplaceSchema)
         with global_credential_access_lock:
@@ -2379,41 +2378,92 @@ class AzurePlatform(Platform):
                     node_runbook.location, node_runbook.marketplace
                 )
 
+    def _add_image_features(self, node_space: schema.NodeSpace) -> None:
+        # Load image information, and add to requirements.
 
-def _convert_to_azure_node_space(node_space: schema.NodeSpace) -> None:
-    if node_space:
-        if node_space.features:
-            new_settings = search_space.SetSpace[schema.FeatureSettings](
+        # locations used to query marketplace image information. Some image is not
+        # available in all locations, so try several of them.
+        _marketplace_image_locations = [
+            "westus3",
+            "eastus",
+            "westus2",
+            "centraluseuap",
+            "eastus2euap",
+        ]
+
+        if not node_space:
+            return
+
+        if not node_space.features:
+            node_space.features = search_space.SetSpace[schema.FeatureSettings](
                 is_allow_set=True
             )
-            for current_settings in node_space.features.items:
-                # reload to type specified settings
-                try:
-                    settings_type = feature.get_feature_settings_type_by_name(
-                        current_settings.type, AzurePlatform.supported_features()
-                    )
-                except NotMeetRequirementException as identifier:
-                    raise LisaException(
-                        f"platform doesn't support all features. {identifier}"
-                    )
-                new_setting = schema.load_by_type(settings_type, current_settings)
-                existing_setting = feature.get_feature_settings_by_name(
-                    new_setting.type, new_settings, True
-                )
-                if existing_setting:
-                    new_settings.remove(existing_setting)
-                    new_setting = existing_setting.intersect(new_setting)
 
-                new_settings.add(new_setting)
-            node_space.features = new_settings
-        if node_space.disk:
-            node_space.disk = schema.load_by_type(
-                features.AzureDiskOptionSettings, node_space.disk
+        for feature_setting in node_space.features.items:
+            if feature_setting.type == features.VhdGenerationSettings.type:
+                # if requirement exists, not to add it.
+                return
+
+        azure_runbook = node_space.get_extended_runbook(AzureNodeSchema, AZURE)
+
+        if azure_runbook.marketplace:
+            for index, location in enumerate(_marketplace_image_locations):
+                try:
+                    image_info = self._get_image_info(
+                        location, azure_runbook.marketplace
+                    )
+                    break
+                except Exception as identifier:
+                    # raise exception, if last location failed.
+                    if index == len(_marketplace_image_locations) - 1:
+                        raise identifier
+
+            generation = _get_vhd_generation(image_info)
+            node_space.features.add(features.VhdGenerationSettings(gen=generation))
+
+    def _load_image_features(self, node_space: schema.NodeSpace) -> None:
+        # This method does the same thing as _convert_to_azure_node_space
+        # method, and attach the additional features. The additional features
+        # need Azure platform, so it needs to be in Azure Platform.
+        _convert_to_azure_node_space(node_space)
+        self._add_image_features(node_space)
+
+
+def _convert_to_azure_node_space(node_space: schema.NodeSpace) -> None:
+    if not node_space:
+        return
+
+    if node_space.features:
+        new_settings = search_space.SetSpace[schema.FeatureSettings](is_allow_set=True)
+
+        for current_settings in node_space.features.items:
+            # reload to type specified settings
+            try:
+                settings_type = feature.get_feature_settings_type_by_name(
+                    current_settings.type, AzurePlatform.supported_features()
+                )
+            except NotMeetRequirementException as identifier:
+                raise LisaException(
+                    f"platform doesn't support all features. {identifier}"
+                )
+            new_setting = schema.load_by_type(settings_type, current_settings)
+            existing_setting = feature.get_feature_settings_by_name(
+                new_setting.type, new_settings, True
             )
-        if node_space.network_interface:
-            node_space.network_interface = schema.load_by_type(
-                schema.NetworkInterfaceOptionSettings, node_space.network_interface
-            )
+            if existing_setting:
+                new_settings.remove(existing_setting)
+                new_setting = existing_setting.intersect(new_setting)
+
+            new_settings.add(new_setting)
+        node_space.features = new_settings
+    if node_space.disk:
+        node_space.disk = schema.load_by_type(
+            features.AzureDiskOptionSettings, node_space.disk
+        )
+    if node_space.network_interface:
+        node_space.network_interface = schema.load_by_type(
+            schema.NetworkInterfaceOptionSettings, node_space.network_interface
+        )
 
 
 def _get_allowed_locations(nodes_requirement: List[schema.NodeSpace]) -> List[str]:
@@ -2442,3 +2492,11 @@ def _get_allowed_locations(nodes_requirement: List[schema.NodeSpace]) -> List[st
         existing_locations = LOCATIONS[:]
 
     return existing_locations
+
+
+def _get_vhd_generation(image_info: VirtualMachineImage) -> int:
+    vhd_gen = 1
+    if image_info.hyper_v_generation:
+        vhd_gen = int(image_info.hyper_v_generation.strip("V"))
+
+    return vhd_gen

@@ -996,7 +996,7 @@ adal = ["adal (>=1.0.2)"]
 
 [[package]]
 name = "libvirt-python"
-version = "8.6.0"
+version = "8.9.0"
 description = "The libvirt virtualization API python binding"
 category = "main"
 optional = true
@@ -2080,7 +2080,7 @@ libvirt = ["libvirt-python"]
 [metadata]
 lock-version = "1.1"
 python-versions = ">=3.8,<4.0"
-content-hash = "8de22236b6c14c20931b46ea58c3f0ac0cb3fffc1bbe5fc22c4977a5e6b36459"
+content-hash = "e489037acf90e29272395790404a8f40e499980ea9336b1bb6a206acf46e34d5"
 
 [metadata.files]
 alabaster = [
@@ -2458,7 +2458,7 @@ kubernetes = [
     {file = "kubernetes-24.2.0.tar.gz", hash = "sha256:9900f12ae92007533247167d14cdee949cd8c7721f88b4a7da5f5351da3834cd"},
 ]
 libvirt-python = [
-    {file = "libvirt-python-8.6.0.tar.gz", hash = "sha256:81f49a648a4f3fbebf4abf3f8d4b1468654689d4df6fd21a303d1c1ca9344871"},
+    {file = "libvirt-python-8.9.0.tar.gz", hash = "sha256:2e1cfc3b9bd288b3cac400a6b03593633814236dbd1ecf5a900057bb90181c65"},
 ]
 markupsafe = [
     {file = "MarkupSafe-2.1.1-cp310-cp310-macosx_10_9_universal2.whl", hash = "sha256:86b1f75c4e7c2ac2ccdaec2b9022845dbb81880ca318bb7a0a01fbf7813e3812"},
