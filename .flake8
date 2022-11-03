@@ -1,6 +1,0 @@
-[flake8]
-max-line-length = 88
-select = B,BLK,C90,E,F,I,W,N
-max-complexity = 15
-extend-ignore = E203
-exclude = .git,.venv,.vscode,__pycache__,runtime,*.pyi
