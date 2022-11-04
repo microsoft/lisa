@@ -2,14 +2,13 @@
 # Licensed under the MIT license.
 import re
 
-from lisa.base_tools import Cat, Sed
+from lisa.base_tools import Cat, Sed, Service
 from lisa.executable import Tool
 from lisa.operating_system import Ubuntu
 from lisa.util import LisaException, find_patterns_groups_in_lines
 
 from .echo import Echo
 from .find import Find
-from .service import Service
 
 
 class Ssh(Tool):

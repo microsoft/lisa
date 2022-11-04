@@ -6,8 +6,7 @@ from typing import List
 
 from lisa.executable import Tool
 from lisa.operating_system import SLES, CBLMariner, Debian, Redhat
-from lisa.tools import Echo, Firewall
-from lisa.tools.service import Service
+from lisa.tools import Echo, Firewall, Service
 from lisa.util import UnsupportedDistroException
 
 

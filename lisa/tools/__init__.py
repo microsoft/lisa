@@ -2,7 +2,17 @@
 # Licensed under the MIT license.
 
 
-from lisa.base_tools import Cat, Mv, Rpm, Sed, Uname, Wget, YumConfigManager
+from lisa.base_tools import (
+    Cat,
+    Mv,
+    Rpm,
+    Sed,
+    Service,
+    ServiceInternal,
+    Uname,
+    Wget,
+    YumConfigManager,
+)
 
 from .blkid import Blkid
 from .chmod import Chmod
@@ -74,7 +84,6 @@ from .qemu_img import QemuImg
 from .reboot import Reboot
 from .rm import Rm
 from .sar import Sar
-from .service import Service
 from .ssh import Ssh
 from .sshpass import Sshpass
 from .start_configuration import StartConfiguration
@@ -182,6 +191,7 @@ __all__ = [
     "Sar",
     "Sed",
     "Service",
+    "ServiceInternal",
     "Ssh",
     "Sshpass",
     "StartConfiguration",

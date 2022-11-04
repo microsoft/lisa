@@ -1,9 +1,8 @@
 # Copyright (c) Microsoft Corporation.
 # Licensed under the MIT license.
-from lisa.base_tools import Wget
+from lisa.base_tools import Service, Wget
 from lisa.executable import Tool
 from lisa.operating_system import CBLMariner, CentOs, Debian, Redhat
-from lisa.tools.service import Service
 from lisa.util import LisaException, RepoNotExistException
 
 

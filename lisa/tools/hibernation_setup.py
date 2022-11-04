@@ -5,6 +5,7 @@ from __future__ import annotations
 import re
 from typing import List, Pattern, Type
 
+from lisa.base_tools import Systemctl
 from lisa.executable import Tool
 from lisa.operating_system import CBLMariner
 from lisa.util import find_patterns_in_lines
@@ -12,7 +13,6 @@ from lisa.util import find_patterns_in_lines
 from .dmesg import Dmesg
 from .git import Git
 from .make import Make
-from .service import Systemctl
 
 
 class HibernationSetup(Tool):

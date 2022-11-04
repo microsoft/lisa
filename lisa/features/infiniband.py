@@ -7,11 +7,10 @@ from typing import Any, Dict, List
 
 from assertpy import assert_that
 
-from lisa.base_tools import Cat, Sed, Uname, Wget
+from lisa.base_tools import Cat, Sed, Service, Uname, Wget
 from lisa.feature import Feature
 from lisa.operating_system import CentOs, Redhat, Ubuntu
 from lisa.tools import Firewall, Ls, Lspci, Make
-from lisa.tools.service import Service
 from lisa.tools.tar import Tar
 from lisa.util import (
     MissingPackagesException,

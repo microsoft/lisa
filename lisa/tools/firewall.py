@@ -1,9 +1,8 @@
 # Copyright (c) Microsoft Corporation.
 # Licensed under the MIT license.
 
+from lisa.base_tools import Service
 from lisa.executable import Tool
-
-from .service import Service
 
 
 class Firewall(Tool):
