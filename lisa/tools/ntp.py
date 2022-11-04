@@ -7,10 +7,8 @@ from retry import retry
 
 from lisa.executable import Tool
 from lisa.operating_system import CBLMariner, Debian, Posix, Redhat, Suse
-from lisa.tools import Echo
+from lisa.tools import Echo, Service
 from lisa.util import LisaException
-
-from .service import Service
 
 
 class Ntp(Tool):

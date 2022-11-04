@@ -3,10 +3,9 @@
 
 from pathlib import PurePath
 
-from lisa.base_tools import Mv, Uname, Wget
+from lisa.base_tools import Mv, Service, Uname, Wget
 from lisa.executable import Tool
 from lisa.operating_system import CBLMariner, Posix, Redhat
-from lisa.tools.service import Service
 from lisa.util import LisaException
 
 

@@ -46,6 +46,9 @@ class Service(Tool):
     def check_service_exists(self, name: str) -> bool:
         return self._internal_tool._check_service_exists(name)  # type: ignore
 
+    def is_service_inactive(self, name: str) -> bool:
+        return self._internal_tool._is_service_inactive(name)  # type: ignore
+
 
 class ServiceInternal(Tool):
     @property
@@ -71,6 +74,10 @@ class ServiceInternal(Tool):
             "unrecognized service" not in cmd_result.stdout
             and 0 == cmd_result.exit_code
         )
+
+    def _is_service_inactive(self, name: str) -> bool:
+        cmd_result = self.run(f"{name} status", shell=True, sudo=True, force_run=True)
+        return "Active: inactive" in cmd_result.stdout
 
     def stop_service(self, name: str) -> None:
         if self._check_service_running(name):
@@ -122,6 +129,12 @@ class Systemctl(Tool):
         ):
             return False
         return True
+
+    def _is_service_inactive(self, name: str) -> bool:
+        cmd_result = self.run(
+            f"is-active {name}", shell=True, sudo=True, force_run=True
+        )
+        return "inactive" == cmd_result.stdout
 
     def _check_service_running(self, name: str) -> bool:
         cmd_result = self.run(
