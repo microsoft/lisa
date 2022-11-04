@@ -837,7 +837,7 @@ class DpdkTestpmd(Tool):
             dest_dir=str(cwd),
             sudo=True,
         )
-        node.tools[Mv].move("ninja", "/usr/bin/ninja", overwrite=True, sudo=True)
+        node.tools[Mv].move(f"{cwd}/ninja", "/usr/bin/ninja", overwrite=True, sudo=True)
         node.execute(
             "pip3 install --upgrade pyelftools",
             sudo=True,
