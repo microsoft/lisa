@@ -24,7 +24,7 @@ from assertpy import assert_that
 from retry import retry
 from semver import VersionInfo
 
-from lisa.base_tools import Cat, Sed, Uname, Wget, YumConfigManager
+from lisa.base_tools import Cat, Sed, Service, Uname, Wget, YumConfigManager
 from lisa.executable import Tool
 from lisa.util import (
     BaseClassMixin,
@@ -1610,6 +1610,14 @@ class Suse(Linux):
 
     def _initialize_package_installation(self) -> None:
         self.wait_running_process("zypper")
+        service = self._node.tools[Service]
+        if service.check_service_exists("guestregister"):
+            timeout = 120
+            timer = create_timer()
+            while timeout > timer.elapsed(False):
+                if service.is_service_inactive("guestregister"):
+                    break
+                time.sleep(1)
         output = self._node.execute(
             "zypper --non-interactive --gpg-auto-import-keys refresh", sudo=True
         ).stdout
