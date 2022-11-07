@@ -512,13 +512,17 @@ class DpdkTestpmd(Tool):
             self.node.log.info(
                 "Installing dpdk and dev package from package manager..."
             )
+            if not node.os.is_package_in_repo("dpdk"):
+                    raise SkippedException(MissingPackagesException(["dpdk"]))
             if isinstance(node.os, Debian):
                 node.os.install_packages(
                     ["dpdk", "dpdk-dev"],
                     extra_args=self._debian_backports_args,
                 )
             elif isinstance(node.os, Fedora):
+                
                 node.os.install_packages(["dpdk", "dpdk-devel"])
+                
             else:
                 raise NotImplementedError(
                     "Dpdk package names are missing in dpdktestpmd.install"
