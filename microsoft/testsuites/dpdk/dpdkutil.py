@@ -15,6 +15,7 @@ from lisa import (
     RemoteNode,
     SkippedException,
     UnsupportedDistroException,
+    UnsupportedKernelException,
     constants,
 )
 from lisa.base_tools.uname import Uname
@@ -237,11 +238,9 @@ def enable_uio_hv_generic_for_nic(node: Node, nic: NicInfo) -> None:
     # check if kernel config for Hyper-V VMBus is enabled
     config = "CONFIG_UIO_HV_GENERIC"
     if not kconfig.is_enabled(config):
-        kversion = uname.get_linux_information().kernel_version_raw
-        if kversion < "4.10":
-            raise SkippedException(
-                f"The kernel config {config} found in Linux kernels >= 4.10"
-            )
+        kversion = uname.get_linux_information().kernel_version
+        if kversion < "4.10.0":
+            raise UnsupportedKernelException(node.os)
         else:
             raise LisaException(
                 f"The kernel config {config} is not set in kernel version {kversion}."
