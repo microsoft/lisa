@@ -81,6 +81,7 @@ class KVMPerformance(TestSuite):  # noqa
         with single l1 data disk attached to the l2 VM.
         """,
         priority=3,
+        use_new_environment=True,
         timeout=_TIME_OUT,
         requirement=simple_requirement(
             disk=schema.DiskOptionSettings(
@@ -106,6 +107,7 @@ class KVMPerformance(TestSuite):  # noqa
         configuration of 6 l1 data disk attached to the l2 VM.
         """,
         priority=3,
+        use_new_environment=True,
         timeout=_TIME_OUT,
         requirement=simple_requirement(
             disk=schema.DiskOptionSettings(
@@ -131,6 +133,7 @@ class KVMPerformance(TestSuite):  # noqa
         using fio tool with single l1 data disk attached to the l2 VM.
         """,
         priority=3,
+        use_new_environment=True,
         timeout=_TIME_OUT,
         requirement=simple_requirement(
             supported_os=[Windows],
@@ -158,6 +161,7 @@ class KVMPerformance(TestSuite):  # noqa
         configuration of 6 l1 data disk attached to the l2 VM.
         """,
         priority=3,
+        use_new_environment=True,
         timeout=_TIME_OUT,
         requirement=simple_requirement(
             supported_os=[Windows],
@@ -185,6 +189,7 @@ class KVMPerformance(TestSuite):  # noqa
         connected with private bridge
         """,
         priority=3,
+        use_new_environment=True,
         timeout=_TIME_OUT,
         requirement=simple_requirement(
             min_core_count=16,
@@ -287,6 +292,7 @@ class KVMPerformance(TestSuite):  # noqa
         connected with NAT
         """,
         priority=3,
+        use_new_environment=True,
         timeout=_TIME_OUT,
         requirement=simple_requirement(
             min_count=2,
@@ -373,6 +379,7 @@ class KVMPerformance(TestSuite):  # noqa
         connected with NAT
         """,
         priority=3,
+        use_new_environment=True,
         timeout=_TIME_OUT,
         requirement=simple_requirement(
             min_count=2,
@@ -450,6 +457,7 @@ class KVMPerformance(TestSuite):  # noqa
         connected with NAT
         """,
         priority=3,
+        use_new_environment=True,
         timeout=_TIME_OUT,
         requirement=simple_requirement(
             min_count=2,

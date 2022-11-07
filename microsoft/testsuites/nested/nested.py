@@ -45,6 +45,7 @@ class Nested(TestSuite):
         3. Verify that files from internet can be downloaded to L2 VM.
         """,
         priority=1,
+        use_new_environment=True,
         requirement=simple_requirement(
             disk=schema.DiskOptionSettings(
                 data_disk_count=search_space.IntRange(min=1),
