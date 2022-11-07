@@ -85,6 +85,8 @@ class Qemu(Tool):
                 added_taps.append(f"tap{self.interface_count}")
                 self.interface_count += 1
 
+
+
         # Add data disks
         if disks:
             for i, disk in enumerate(disks):
@@ -111,7 +113,7 @@ class Qemu(Tool):
             expected_exit_code=0,
             expected_exit_code_failure_message=f"Unable to start VM {guest_image_path}",
         )
-
+        self.node.tools[Ip].run("link")
         # if bridge is specified, attach the created taps to the bridge
         if bridge:
             for tap in added_taps:
