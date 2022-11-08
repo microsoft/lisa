@@ -356,6 +356,9 @@ class Disk(AwsFeatureMixin, features.Disk):
 @dataclass()
 class AwsDiskOptionSettings(schema.DiskOptionSettings):
     def __eq__(self, o: object) -> bool:
+        if not super().__eq__(o):
+            return False
+
         assert isinstance(o, AwsDiskOptionSettings), f"actual: {type(o)}"
         return super().__eq__(o)
 

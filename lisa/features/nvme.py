@@ -98,6 +98,9 @@ class NvmeSettings(FeatureSettings):
     )
 
     def __eq__(self, o: object) -> bool:
+        if not super().__eq__(o):
+            return False
+
         assert isinstance(o, NvmeSettings), f"actual: {type(o)}"
         return self.type == o.type and self.disk_count == o.disk_count
 
