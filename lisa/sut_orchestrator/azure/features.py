@@ -886,6 +886,9 @@ class AzureDiskOptionSettings(schema.DiskOptionSettings):
         return f"has_resource_disk: {self.has_resource_disk},{super().__repr__()}"
 
     def __eq__(self, o: object) -> bool:
+        if not super().__eq__(o):
+            return False
+
         assert isinstance(o, AzureDiskOptionSettings), f"actual: {type(o)}"
         return self.has_resource_disk == o.has_resource_disk and super().__eq__(o)
 
@@ -1832,6 +1835,9 @@ class VhdGenerationSettings(schema.FeatureSettings):
     )
 
     def __eq__(self, o: object) -> bool:
+        if not super().__eq__(o):
+            return False
+
         assert isinstance(o, VhdGenerationSettings), f"actual: {type(o)}"
         return self.type == o.type and self.gen == o.gen
 

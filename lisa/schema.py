@@ -474,6 +474,9 @@ class DiskOptionSettings(FeatureSettings):
     )
 
     def __eq__(self, o: object) -> bool:
+        if not super().__eq__(o):
+            return False
+
         assert isinstance(o, DiskOptionSettings), f"actual: {type(o)}"
         return (
             self.type == o.type
@@ -616,6 +619,9 @@ class NetworkInterfaceOptionSettings(FeatureSettings):
     )
 
     def __eq__(self, o: object) -> bool:
+        if not super().__eq__(o):
+            return False
+
         assert isinstance(o, NetworkInterfaceOptionSettings), f"actual: {type(o)}"
         return (
             self.type == o.type
@@ -757,6 +763,9 @@ class NodeSpace(search_space.RequirementMixin, TypedSchema, ExtendableSchemaMixi
         self._excluded_features: Optional[search_space.SetSpace[FeatureSettings]]
 
     def __eq__(self, o: object) -> bool:
+        if not super().__eq__(o):
+            return False
+
         assert isinstance(o, NodeSpace), f"actual: {type(o)}"
         return (
             self.type == o.type
