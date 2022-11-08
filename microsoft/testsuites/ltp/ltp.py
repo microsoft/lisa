@@ -23,7 +23,6 @@ from lisa.tools import (
     Ls,
     Make,
     Mkdir,
-    Nproc,
     Rm,
     Swap,
     Sysctl,
@@ -50,7 +49,7 @@ class Ltp(Tool):
     _RESULT_LTP_ARCH_REGEX = re.compile(r"Machine Architecture: (.*)\s+")
 
     LTP_DIR_NAME = "ltp"
-    LTP_TESTS_GIT_TAG = "20190930"
+    LTP_TESTS_GIT_TAG = "20200930"
     LTP_GIT_URL = "https://github.com/linux-test-project/ltp.git"
     BUILD_REQUIRED_DISK_SIZE_IN_GB = 2
     LTP_RESULT_PATH = "/opt/ltp/ltp-results.log"
@@ -122,7 +121,13 @@ class Ltp(Tool):
             self.node.tools[Swap].create_swap()
 
         # run ltp tests
-        self.run(parameters, sudo=True, force_run=True, timeout=12000)
+        command = f"{self.command} {parameters}"
+        self.node.execute(
+            f"echo y | {command}",
+            sudo=True,
+            timeout=12000,
+            shell=True,
+        )
 
         # to avoid no permission issue when copying back files
         self.node.tools[Chmod].update_folder("/opt", "a+rwX", sudo=True)
@@ -192,7 +197,15 @@ class Ltp(Tool):
         # install distro specific dependencies
         if isinstance(self.node.os, Fedora):
             self.node.os.install_packages(
-                ["libaio-devel", "libattr", "libcap-devel", "libdb"]
+                [
+                    "libaio-devel",
+                    "libattr",
+                    "libcap-devel",
+                    "libdb",
+                    "pkgconf",
+                    "kernel-headers",
+                    "glibc-headers",
+                ]
             )
 
             # db4-utils and ntp are not available in Redhat >= 8.0
@@ -220,9 +233,21 @@ class Ltp(Tool):
                     "genisoimage",
                     "db-util",
                     "unzip",
-                    "exfat-utils",
+                    "pkgconf",
+                    "libc6-dev",
                 ]
             )
+
+            # install "exfat-utils"
+            # Note: Package has been renamed to exfatprogs
+            try:
+                self.node.os.install_packages(["exfat-utils"])
+            except Exception as e:
+                self._log.debug(
+                    f"Failed to install exfat-utils: {e}, "
+                    "Trying alternative package: exfatprogs"
+                )
+                self.node.os.install_packages(["exfatprogs"])
         elif isinstance(self.node.os, Suse):
             self.node.os.install_packages(
                 [
@@ -234,6 +259,9 @@ class Ltp(Tool):
                     "libcap-progs",
                     "libdb-4_8",
                     "perl-BerkeleyDB",
+                    "pkg-config",
+                    "linux-glibc-devel",
+                    "glibc-devel",
                 ]
             )
         elif isinstance(self.node.os, CBLMariner):
@@ -315,12 +343,14 @@ class Ltp(Tool):
         # build ltp in /opt/ltp since this path is used by some
         # tests, e.g, block_dev test
         make = self.node.tools[Make]
-        nprocs = self.node.tools[Nproc].get_num_procs()
         self.node.execute("autoreconf -f", cwd=ltp_path, sudo=True)
         make.make("autotools", cwd=ltp_path, sudo=True)
         self.node.execute("./configure --prefix=/opt/ltp", cwd=ltp_path, sudo=True)
-        make.make(f"-j {nprocs} all", cwd=ltp_path, sudo=True)
-        make.make(f"-j {nprocs} install SKIP_IDCHECK=1", cwd=ltp_path, sudo=True)
+        make.make("all", cwd=ltp_path, sudo=True)
+
+        # Specify SKIP_IDCHECK=1 since we don't want to modify /etc/{group,passwd}
+        # on the remote system's sysroot
+        make.make_install(ltp_path, "SKIP_IDCHECK=1", sudo=True)
 
         return self._check_exists()
 
