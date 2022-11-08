@@ -15,12 +15,24 @@ from lisa import (
     RemoteNode,
     SkippedException,
     UnsupportedDistroException,
+    UnsupportedKernelException,
     constants,
 )
+from lisa.base_tools.uname import Uname
 from lisa.features import NetworkInterface
 from lisa.nic import NicInfo
 from lisa.operating_system import OperatingSystem, Ubuntu
-from lisa.tools import Dmesg, Echo, Free, Lscpu, Lsmod, Lspci, Modprobe, Mount
+from lisa.tools import (
+    Dmesg,
+    Echo,
+    Free,
+    KernelConfig,
+    Lscpu,
+    Lsmod,
+    Lspci,
+    Modprobe,
+    Mount,
+)
 from lisa.tools.mkfs import FileSystem
 from lisa.util.parallel import TaskManager, run_in_parallel, run_in_parallel_async
 from microsoft.testsuites.dpdk.common import DPDK_STABLE_GIT_REPO, check_dpdk_support
@@ -220,6 +232,20 @@ def enable_uio_hv_generic_for_nic(node: Node, nic: NicInfo) -> None:
     echo = node.tools[Echo]
     lsmod = node.tools[Lsmod]
     modprobe = node.tools[Modprobe]
+    kconfig = node.tools[KernelConfig]
+    uname = node.tools[Uname]
+
+    # check if kernel config for Hyper-V VMBus is enabled
+    config = "CONFIG_UIO_HV_GENERIC"
+    if not kconfig.is_enabled(config):
+        kversion = uname.get_linux_information().kernel_version
+        if kversion < "4.10.0":
+            raise UnsupportedKernelException(node.os)
+        else:
+            raise LisaException(
+                f"The kernel config {config} is not set in kernel version {kversion}."
+            )
+
     # enable if it is not already enabled
     if not lsmod.module_exists("uio_hv_generic", force_run=True):
         modprobe.load("uio_hv_generic")
