@@ -1,6 +1,7 @@
 # Copyright (c) Microsoft Corporation.
 # Licensed under the MIT license.
 import re
+import time
 from typing import Any, Pattern
 
 from assertpy.assertpy import assert_that
@@ -26,6 +27,7 @@ from lisa.sut_orchestrator.azure.features import AzureDiskOptionSettings
 from lisa.sut_orchestrator.azure.tools import Waagent
 from lisa.tools import Blkid, Cat, Dmesg, Echo, Lsblk, NFSClient, Swap
 from lisa.util import BadEnvironmentStateException, LisaException, get_matched_str
+from lisa.util.perf_timer import create_timer
 
 from .common import get_resource_disk_mount_point
 
@@ -474,13 +476,20 @@ class Storage(TestSuite):
 
         # verify that partition count is increased by disks_to_add
         # and the size of partition is correct
-        partitons_after_adding_disks = lsblk.get_disks(force_run=True)
-        added_partitions = [
-            item
-            for item in partitons_after_adding_disks
-            if item not in partitions_before_adding_disks
-        ]
-        log.debug(f"added_partitions: {added_partitions}")
+        timeout = 30
+        timer = create_timer()
+        while timeout > timer.elapsed(False):
+            partitons_after_adding_disks = lsblk.get_disks(force_run=True)
+            added_partitions = [
+                item
+                for item in partitons_after_adding_disks
+                if item not in partitions_before_adding_disks
+            ]
+            if len(added_partitions) == disks_to_add:
+                break
+            else:
+                log.debug(f"added disks count: {len(added_partitions)}")
+                time.sleep(1)
         assert_that(
             added_partitions, f"{disks_to_add} disks should be added"
         ).is_length(disks_to_add)
