@@ -54,17 +54,30 @@ def _call_with_retry_and_timeout(
     test_kwargs: Dict[str, Any],
 ) -> None:
     try:
-        retry_call(
-            func_timeout,
-            fkwargs={
-                "timeout": timeout,
-                "func": method,
-                "kwargs": test_kwargs,
-            },
-            exceptions=Exception,
-            tries=retries + 1,
-            logger=log,
-        )
+        # if timeout is greater than 0, then wrap the timeout method. but if
+        # it's zero or negative, not wrap the timeout. The reason is the timeout
+        # will raise exception, if the timeout value is greater than 7 days. So
+        # not to call it, if timeout is not a positive value.
+        if timeout > 0:
+            retry_call(
+                func_timeout,
+                fkwargs={
+                    "timeout": timeout,
+                    "func": method,
+                    "kwargs": test_kwargs,
+                },
+                exceptions=Exception,
+                tries=retries + 1,
+                logger=log,
+            )
+        else:
+            retry_call(
+                f=method,
+                fkwargs=test_kwargs,
+                exceptions=Exception,
+                tries=retries + 1,
+                logger=log,
+            )
     except FunctionTimedOut:
         # FunctionTimedOut is a special exception. If it's not captured
         # explicitly, it will make the whole program exit.
