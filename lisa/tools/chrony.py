@@ -5,12 +5,12 @@ from typing import cast
 
 from retry import retry
 
+from lisa.base_tools import Service
 from lisa.executable import Tool
 from lisa.operating_system import CBLMariner, Debian, Posix, Redhat, Suse
 from lisa.util import LisaException
 
 from .echo import Echo
-from .service import Service
 
 
 class Chrony(Tool):

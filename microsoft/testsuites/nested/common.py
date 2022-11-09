@@ -7,7 +7,7 @@ from lisa import RemoteNode, schema
 from lisa.features.network_interface import Synthetic
 from lisa.operating_system import Debian, Fedora, Suse
 from lisa.schema import Node
-from lisa.tools import HyperV, Lscpu, Qemu, Wget
+from lisa.tools import Aria, HyperV, Lscpu, Qemu, Wget
 from lisa.tools.rm import Rm
 from lisa.util import SkippedException, fields_to_dict
 from lisa.util.logger import Logger
@@ -60,7 +60,7 @@ def qemu_connect_nested_vm(
 
     image_folder_path = host.find_partition_with_freespace(image_size)
 
-    host.tools[Wget].get(
+    host.tools[Aria].get(
         url=guest_image_url,
         file_path=image_folder_path,
         filename=image_name,

@@ -2,9 +2,21 @@
 # Licensed under the MIT license.
 
 
-from lisa.base_tools import Cat, Rpm, Sed, Uname, Wget, YumConfigManager
+from lisa.base_tools import (
+    Cat,
+    Mv,
+    Rpm,
+    Sed,
+    Service,
+    ServiceInternal,
+    Uname,
+    Wget,
+    YumConfigManager,
+)
 
+from .aria import Aria
 from .blkid import Blkid
+from .bzip2 import Bzip2
 from .chmod import Chmod
 from .chown import Chown
 from .chrony import Chrony
@@ -75,7 +87,6 @@ from .qemu_img import QemuImg
 from .reboot import Reboot
 from .rm import Rm
 from .sar import Sar
-from .service import Service
 from .ssh import Ssh
 from .sshpass import Sshpass
 from .start_configuration import StartConfiguration
@@ -98,7 +109,9 @@ from .who import Who
 from .whoami import Whoami
 
 __all__ = [
+    "Aria",
     "Blkid",
+    "Bzip2",
     "Cat",
     "Chmod",
     "Chown",
@@ -157,6 +170,7 @@ __all__ = [
     "Modinfo",
     "Modprobe",
     "Mount",
+    "Mv",
     "Netperf",
     "NFSClient",
     "NFSServer",
@@ -183,6 +197,7 @@ __all__ = [
     "Sar",
     "Sed",
     "Service",
+    "ServiceInternal",
     "Ssh",
     "Sshpass",
     "StartConfiguration",

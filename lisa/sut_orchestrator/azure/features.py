@@ -1456,13 +1456,23 @@ class SecurityProfile(AzureFeatureMixin, features.SecurityProfile):
         cls, *args: Any, **kwargs: Any
     ) -> Optional[schema.FeatureSettings]:
         raw_capabilities: Any = kwargs.get("raw_capabilities")
+        resource_sku: Any = kwargs.get("resource_sku")
         capabilities: List[SecurityProfileType] = [SecurityProfileType.Standard]
 
         gen_value = raw_capabilities.get("HyperVGenerations", None)
         cvm_value = raw_capabilities.get("ConfidentialComputingType", None)
-        if gen_value and "V2" in str(gen_value):
+        # https://learn.microsoft.com/en-us/azure/virtual-machines/trusted-launch#how-can-i-find-vm-sizes-that-support-trusted-launch
+        # # noqa: E501
+        tvm_disable_value = raw_capabilities.get("TrustedLaunchDisabled", "False")
+        if gen_value and ("V2" in str(gen_value)) and (not eval(tvm_disable_value)):
             capabilities.append(SecurityProfileType.SecureBoot)
-        if cvm_value:
+        # https://learn.microsoft.com/en-us/azure/confidential-computing/confidential-vm-overview # noqa: E501
+        if cvm_value and resource_sku.family in [
+            "standardDCASv5Family",
+            "standardDCADSv5Family",
+            "standardECASv5Family",
+            "standardECADSv5Family",
+        ]:
             capabilities.append(SecurityProfileType.CVM)
 
         return SecurityProfileSettings(

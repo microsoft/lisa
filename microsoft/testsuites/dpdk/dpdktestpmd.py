@@ -8,6 +8,7 @@ from typing import Any, List, Pattern, Tuple, Type, Union
 from assertpy import assert_that, fail
 from semver import VersionInfo
 
+from lisa.base_tools import Mv
 from lisa.executable import Tool
 from lisa.nic import NicInfo
 from lisa.operating_system import Debian, Fedora, Ubuntu
@@ -811,15 +812,8 @@ class DpdkTestpmd(Tool):
             ),
         )
         if node.shell.exists(node.get_pure_path("/usr/bin/meson")):
-            node.execute(
-                "mv /usr/bin/meson /usr/bin/meson.bak",
-                cwd=cwd,
-                sudo=True,
-                expected_exit_code=0,
-                expected_exit_code_failure_message=(
-                    "renaming previous meson binary or link in /usr/bin/meson"
-                    " failed."
-                ),
+            node.tools[Mv].move(
+                "/usr/bin/meson", "/usr/bin/meson.bak", overwrite=True, sudo=True
             )
         node.execute(
             "ln -s /usr/local/bin/meson /usr/bin/meson",
@@ -843,15 +837,7 @@ class DpdkTestpmd(Tool):
             dest_dir=str(cwd),
             sudo=True,
         )
-        node.execute(
-            "mv ninja /usr/bin/ninja",
-            cwd=cwd,
-            sudo=True,
-            expected_exit_code=0,
-            expected_exit_code_failure_message=(
-                "Could not move latest ninja script after unzip into /usr/bin."
-            ),
-        )
+        node.tools[Mv].move(f"{cwd}/ninja", "/usr/bin/ninja", overwrite=True, sudo=True)
         node.execute(
             "pip3 install --upgrade pyelftools",
             sudo=True,

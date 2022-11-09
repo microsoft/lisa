@@ -8,12 +8,11 @@ from typing import TYPE_CHECKING, Any, List, Type
 
 from semver import VersionInfo
 
-from lisa.base_tools import Cat, Sed, Wget
+from lisa.base_tools import Cat, Sed, Service, Wget
 from lisa.executable import Tool
 from lisa.operating_system import CBLMariner, Debian, Oracle, Posix, Redhat, Suse
 from lisa.tools import Find, Gcc
 from lisa.tools.make import Make
-from lisa.tools.service import Service
 from lisa.tools.sysctl import Sysctl
 from lisa.tools.tar import Tar
 from lisa.util import LisaException, UnsupportedDistroException

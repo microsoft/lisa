@@ -6,7 +6,7 @@ from typing import TYPE_CHECKING, Dict, Optional, cast
 
 from lisa.executable import Tool
 from lisa.operating_system import Posix
-from lisa.tools import Gcc
+from lisa.tools.gcc import Gcc
 from lisa.tools.lscpu import Lscpu
 
 if TYPE_CHECKING:
