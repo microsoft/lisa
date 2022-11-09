@@ -8,7 +8,15 @@ from typing import Any, Dict, List, Type, cast
 from lisa import notifier
 from lisa.executable import Tool
 from lisa.messages import SubTestMessage, TestStatus, create_test_result_message
-from lisa.operating_system import CBLMariner, Debian, Posix, Redhat, Suse, Ubuntu
+from lisa.operating_system import (
+    CBLMariner,
+    Debian,
+    Oracle,
+    Posix,
+    Redhat,
+    Suse,
+    Ubuntu,
+)
 from lisa.testsuite import TestResult
 from lisa.tools import Cat, Echo
 from lisa.tools.git import Git
@@ -197,11 +205,14 @@ class Xfstests(Tool):
             isinstance(self.node.os, Redhat)
             and self.node.os.information.version < "8.0.0"
         ):
-            posix_os.install_packages(packages="centos-release-scl")
-            posix_os.install_packages(
-                "http://mirror.centos.org/centos/7/os/x86_64/Packages/"
-                "xfsprogs-devel-4.5.0-22.el7.x86_64.rpm"
-            )
+            if isinstance(self.node.os, Oracle):
+                posix_os.install_packages("oracle-softwarecollection-release-el7")
+            else:
+                posix_os.install_packages(packages="centos-release-scl")
+                posix_os.install_packages(
+                    "http://mirror.centos.org/centos/7/os/x86_64/Packages/"
+                    "xfsprogs-devel-4.5.0-22.el7.x86_64.rpm"
+                )
             posix_os.install_packages(
                 packages="devtoolset-7-gcc*", extra_args=["--skip-broken"]
             )

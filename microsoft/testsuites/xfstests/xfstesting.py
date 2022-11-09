@@ -18,7 +18,7 @@ from lisa import (
     simple_requirement,
 )
 from lisa.features import Disk, Nvme
-from lisa.operating_system import CBLMariner, Redhat
+from lisa.operating_system import CBLMariner, Oracle, Redhat
 from lisa.sut_orchestrator import AZURE
 from lisa.sut_orchestrator.azure.common import (
     check_or_create_storage_account,
