@@ -47,6 +47,18 @@ class StressNg(Tool):
             cmd += f" --timeout {timeout_in_seconds} "
         self.run(cmd, force_run=True)
 
+    def launch_cpu(
+        self, num_cores: int = 0, timeout_in_seconds: int = 0
+    ) -> None:
+        # --cpu N, start N CPU workers
+        # --timeout T, timeout after T seconds
+        cmd = ""
+        if num_cores:
+            cmd += f" --cpu {num_cores} "
+        if timeout_in_seconds:
+            cmd += f" --timeout {timeout_in_seconds} "
+            self.run(cmd, force_run=True, timeout=timeout_in_seconds)
+			
     def _install_from_src(self) -> bool:
         tool_path = self.get_tool_path()
         git = self.node.tools[Git]
