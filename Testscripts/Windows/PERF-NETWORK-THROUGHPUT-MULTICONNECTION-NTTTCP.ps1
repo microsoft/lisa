@@ -77,11 +77,11 @@ function Main {
                     -password $password -command $setSystemdConfig -runAsSudo | Out-Null
 
         # Restart VM to apply systemd setting
-        if (-not $TestProvider.RestartAllDeployments($allVMData)) {
-            Write-LogErr "Unable to connect to VM after restart!"
-            $currentTestResult.TestResult = "ABORTED"
-            return $currentTestResult
-        }
+        # if (-not $TestProvider.RestartAllDeployments($allVMData)) {
+        #     Write-LogErr "Unable to connect to VM after restart!"
+        #     $currentTestResult.TestResult = "ABORTED"
+        #     return $currentTestResult
+        # }
 
         Write-LogInfo "Getting Active NIC Name."
         if ($TestPlatform -eq "HyperV") {
