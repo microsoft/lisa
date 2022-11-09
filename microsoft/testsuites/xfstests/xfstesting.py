@@ -120,6 +120,10 @@ class Xfstesting(TestSuite):
     #    and leaf block)
     # 3. 8dd27fecede55 (ext4: check for out-of-order index extents in
     #    ext4_valid_extent_entries())
+    # TODO: will include ext4/058 once the kernel contains below fix.
+    # Regression test for commit a08f789d2ab5 ext4: fix bug_on ext4_mb_use_inode_pa
+    # TODO: will include ext4/059 once the kernel contains below fix.
+    # A regression test for b55c3cd102a6 ("ext4: add reserved GDT blocks check")
     # TODO: will figure out the detailed reason of every excluded case.
     EXCLUDED_TESTS = (
         "generic/211 generic/430 generic/431 generic/434 /xfs/438 xfs/490"
@@ -127,7 +131,7 @@ class Xfstesting(TestSuite):
         + " xfs/030 xfs/032 xfs/050 xfs/052 xfs/106 xfs/107 xfs/122 xfs/132 xfs/138"
         + " xfs/144 xfs/148 xfs/175 xfs/191-input-validation xfs/289 xfs/293 xfs/424"
         + " xfs/432 xfs/500 xfs/508 xfs/512 xfs/514 xfs/515 xfs/516 xfs/518 xfs/521"
-        + " xfs/528 xfs/544 ext4/054"
+        + " xfs/528 xfs/544 ext4/054 ext4/058 ext4/059"
     )
 
     @TestCaseMetadata(
@@ -545,6 +549,17 @@ class Xfstesting(TestSuite):
         # xfs/081 case will hung for long time
         if isinstance(node.os, CBLMariner):
             excluded_tests += " xfs/081"
+
+        # ext4/056 will trigger OOPS, reboot the VM, miss below kernel patch
+        # commit b1489186cc8391e0c1e342f9fbc3eedf6b944c61
+        # ext4: add check to prevent attempting to resize an fs with sparse_super2
+        if isinstance(node.os, Oracle) and node.os.information.version < "8.0.0":
+            excluded_tests += " ext4/056"
+        if (isinstance(node.os, Redhat) and not isinstance(node.os, Oracle)) and (
+            node.os.information.version < "9.0.0"
+        ):
+            excluded_tests += " ext4/056"
+
         # prepare data disk when xfstesting target is data disk
         if data_disk:
             _prepare_data_disk(
