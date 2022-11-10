@@ -46,6 +46,44 @@ _all_suites: Dict[str, TestSuiteMetadata] = {}
 _all_cases: Dict[str, TestCaseMetadata] = {}
 
 
+def _call_with_retry_and_timeout(
+    method: Callable[..., Any],
+    retries: int,
+    timeout: int,
+    log: Logger,
+    test_kwargs: Dict[str, Any],
+) -> None:
+    try:
+        # if timeout is greater than 0, then wrap the timeout method. but if
+        # it's zero or negative, not wrap the timeout. The reason is the timeout
+        # will raise exception, if the timeout value is greater than 7 days. So
+        # not to call it, if timeout is not a positive value.
+        if timeout > 0:
+            retry_call(
+                func_timeout,
+                fkwargs={
+                    "timeout": timeout,
+                    "func": method,
+                    "kwargs": test_kwargs,
+                },
+                exceptions=Exception,
+                tries=retries + 1,
+                logger=log,
+            )
+        else:
+            retry_call(
+                f=method,
+                fkwargs=test_kwargs,
+                exceptions=Exception,
+                tries=retries + 1,
+                logger=log,
+            )
+    except FunctionTimedOut:
+        # FunctionTimedOut is a special exception. If it's not captured
+        # explicitly, it will make the whole program exit.
+        raise TimeoutError(f"time out in {timeout} seconds.")
+
+
 @dataclass
 class TestResult:
     # id is used to identify the unique test result
@@ -652,7 +690,7 @@ class TestSuite:
         method_name = method.__name__
         stacktrace: Optional[str] = None
         try:
-            self.__call_with_retry_and_timeout(
+            _call_with_retry_and_timeout(
                 method,
                 retries=0,
                 timeout=3600,
@@ -677,7 +715,7 @@ class TestSuite:
 
         timer = create_timer()
         try:
-            self.__call_with_retry_and_timeout(
+            _call_with_retry_and_timeout(
                 self.before_case,
                 retries=case_result.runtime_data.retry,
                 timeout=timeout,
@@ -726,7 +764,7 @@ class TestSuite:
         test_method = getattr(self, case_name)
 
         try:
-            self.__call_with_retry_and_timeout(
+            _call_with_retry_and_timeout(
                 test_method,
                 retries=case_result.runtime_data.retry,
                 timeout=timeout,
@@ -737,31 +775,6 @@ class TestSuite:
         except Exception as identifier:
             case_result.handle_exception(exception=identifier, log=log)
         log.debug(f"case end in {timer}")
-
-    def __call_with_retry_and_timeout(
-        self,
-        method: Callable[..., Any],
-        retries: int,
-        timeout: int,
-        log: Logger,
-        test_kwargs: Dict[str, Any],
-    ) -> None:
-        try:
-            retry_call(
-                func_timeout,
-                fkwargs={
-                    "timeout": timeout,
-                    "func": method,
-                    "kwargs": test_kwargs,
-                },
-                exceptions=Exception,
-                tries=retries + 1,
-                logger=log,
-            )
-        except FunctionTimedOut:
-            # FunctionTimedOut is a special exception. If it's not captured
-            # explicitly, it will make the whole program exit.
-            raise TimeoutError(f"time out in {timeout} seconds.")
 
 
 def get_suites_metadata() -> Dict[str, TestSuiteMetadata]:
