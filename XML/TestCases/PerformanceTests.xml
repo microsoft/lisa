@@ -70,7 +70,7 @@
       <param>testType=udp</param>
       <param>bufferLength=1024</param>
       <param>testConnections=NTTTCP_UDP_CONNECTIONS</param>
-      <param>ntttcpVersion=NTTTCP_VERSION</param>
+      <param>ntttcpVersion=master</param>
       <param>lagscopeVersion=LAGSCOPE_VERSION</param>
     </TestParameters>
     <Platform>Azure,HyperV</Platform>
