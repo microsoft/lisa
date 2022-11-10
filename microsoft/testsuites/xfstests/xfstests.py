@@ -153,16 +153,15 @@ class Xfstests(Tool):
     def dependencies(self) -> List[Type[Tool]]:
         return [Git, Make]
 
-    def run_test(self, test_type: str, timeout: int = 14400) -> str:
-        cmd_result = self.run(
-            f"-g {test_type}/quick -E exclude.txt",
+    def run_test(self, test_type: str, timeout: int = 14400) -> None:
+        self.run(
+            f"-g {test_type}/quick -E exclude.txt  > xfstest.log 2>&1",
             sudo=True,
             shell=True,
             force_run=True,
             cwd=self.get_xfstests_path(),
             timeout=timeout,
         )
-        return cmd_result.stdout
 
     def _initialize(self, *args: Any, **kwargs: Any) -> None:
         super()._initialize(*args, **kwargs)
@@ -361,14 +360,25 @@ class Xfstests(Tool):
 
     def check_test_results(
         self,
-        raw_message: str,
         log_path: Path,
         test_type: str,
         result: TestResult,
         data_disk: str = "",
     ) -> None:
-        self.create_send_subtest_msg(result, raw_message, test_type, data_disk)
         xfstests_path = self.get_xfstests_path()
+        console_log_results_path = xfstests_path / "xfstest.log"
+        if not self.node.shell.exists(console_log_results_path):
+            raise LisaException(
+                f"Console log path {console_log_results_path} doesn't exist, please"
+                " check testing runs well or not."
+            )
+        log_result = self.node.tools[Cat].run(
+            str(console_log_results_path), force_run=True, sudo=True
+        )
+        log_result.assert_exit_code()
+        raw_message = log_result.stdout
+        self.create_send_subtest_msg(result, raw_message, test_type, data_disk)
+
         results_path = xfstests_path / "results/check.log"
         if not self.node.shell.exists(results_path):
             raise LisaException(
