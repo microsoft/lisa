@@ -65,7 +65,12 @@ class Ssh(Tool):
         sed = self.node.tools[Sed]
         sed.append(f"MaxSessions {count}", config_path, sudo=True)
         service = self.node.tools[Service]
-        service.restart_service("sshd")
+        if service.check_service_exists("sshd"):
+            service.restart_service("sshd")
+        elif service.check_service_exists("ssh"):
+            service.restart_service("ssh")
+        else:
+            raise LisaException("could not find ssh or sshd service")
 
         # The above changes take effect only for *new* connections. So,
         # close the current connection.
