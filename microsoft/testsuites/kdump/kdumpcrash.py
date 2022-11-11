@@ -295,8 +295,12 @@ class KdumpCrash(TestSuite):
             sudo=True,
         )
 
-        # Reboot system to make kdump take effect
-        node.reboot()
+        try:
+            # Reboot system to make kdump take effect
+            node.reboot()
+        except Exception as identifier:
+            serial_console = node.features[SerialConsole]
+            serial_console.get_console_log(saved_path=log_path, force_run=True)
 
         # Confirm that the kernel dump mechanism is enabled
         kdump.check_crashkernel_loaded(self.crash_kernel)
@@ -409,6 +413,9 @@ class KdumpCrash(TestSuite):
                     else:
                         retries = retries + 1
                         if retries >= max_retries:
+                            serial_console.get_console_log(
+                                saved_path=log_path, force_run=True
+                            )
                             raise LisaException(
                                 "The vmcore file is incomplete with file size"
                                 f" {round(incomplete_file_size/1024/1024, 2)}MB"
@@ -416,17 +423,26 @@ class KdumpCrash(TestSuite):
                 else:
                     retries = retries + 1
                     if retries >= max_retries:
+                        serial_console.get_console_log(
+                            saved_path=log_path, force_run=True
+                        )
                         raise LisaException(
                             "No vmcore or vmcore-incomplete is found under "
                             f"{kdump.dump_path} with file size greater than 10M."
                         )
                 if timer.elapsed(False) > self.timeout_of_dump_crash:
+                    serial_console.get_console_log(
+                        saved_path=log_path, force_run=True
+                    )
                     raise LisaException(
                         "Timeout to dump vmcore file. The size of vmcore-incomplete is"
                         f" {round(incomplete_file_size/1024/1024, 2)}MB"
                     )
                 time.sleep(5)
         if system_disconnected:
+            serial_console.get_console_log(
+                saved_path=log_path, force_run=True
+            )
             raise LisaException("Timeout to connect the VM after triggering kdump.")
 
     def _trigger_kdump_on_specified_cpu(
