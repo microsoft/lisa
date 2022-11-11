@@ -265,7 +265,28 @@ class KdumpCrash(TestSuite):
         free = node.tools[Free]
         total_memory = free.get_total_memory()
 
-        if "T" in total_memory and float(total_memory.strip("T")) > 1:
+        # Ubuntu, Redhat and Suse have different proposed crashkernel settings
+        # Please see below refrences:
+        # Ubuntu: https://ubuntu.com/server/docs/kernel-crash-dump
+        # Redhat: https://access.redhat.com/documentation/en-us/red_hat_enterprise_
+        #         linux/7/html/kernel_administration_guide/kernel_crash_dump_guide
+        # SUSE: https://www.suse.com/support/kb/doc/?id=000016171
+        # We combine their configuration to set an empirical value
+        if (
+            "G" in total_memory
+            and float(total_memory.strip("G")) < 1
+            or "M" in total_memory
+            and float(total_memory.strip("M")) < 1024
+        ):
+            self.crash_kernel = "64M"
+        elif (
+            "G" in total_memory
+            and float(total_memory.strip("G")) < 2
+            or "M" in total_memory
+            and float(total_memory.strip("M")) < 2048
+        ):
+            self.crash_kernel = "128M"
+        elif "T" in total_memory and float(total_memory.strip("T")) > 1:
             # System memory is more than 1T, need to change the dump path
             # and set crashkernel=2G
             kdump.config_resource_disk_dump_path(
