@@ -409,6 +409,7 @@ class Xfstests(Tool):
         self.save_xfstests_log(fail_cases.split(), log_path, test_type)
         results_folder = xfstests_path / "results/"
         self.node.execute(f"rm -rf {results_folder}", sudo=True)
+        self.node.execute(f"rm -f {console_log_results_path}", sudo=True)
         raise LisaException(
             f"Fail {fail_count} cases of total {total_count}, fail cases"
             f" {fail_cases}, details {fail_info}, please investigate."
@@ -423,6 +424,10 @@ class Xfstests(Tool):
         self.node.shell.copy_back(
             xfstests_path / "results/check.log",
             log_path / "xfstests/check.log",
+        )
+        self.node.shell.copy_back(
+            xfstests_path / "xfstest.log",
+            log_path / "xfstests/xfstest.log",
         )
         for fail_case in fail_cases:
             file_name = f"results/{test_type}/{fail_case}.out.bad"
