@@ -1,3 +1,4 @@
+from .apt_add_repository import AptAddRepository
 from .cat import Cat
 from .mv import Mv
 from .rpm import Rpm
@@ -18,4 +19,5 @@ __all__ = [
     "ServiceInternal",
     "Mv",
     "Systemctl",
+    "AptAddRepository",
 ]
