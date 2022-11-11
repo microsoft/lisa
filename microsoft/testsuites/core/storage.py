@@ -348,7 +348,8 @@ class Storage(TestSuite):
 
     @TestCaseMetadata(
         description="""
-        This test case will verify mount azure nfs on guest successfully.
+        This test case will verify mount azure nfs 4.1 on guest successfully.
+        Refer to https://learn.microsoft.com/en-us/azure/storage/files/files-nfs-protocol#features # noqa: E501
         """,
         timeout=TIME_OUT,
         requirement=simple_requirement(supported_features=[Nfs]),
@@ -367,6 +368,7 @@ class Storage(TestSuite):
                 mount_nfs,
                 server_shared_dir,
                 mount_dir,
+                options="vers=4,minorversion=1,sec=sys",
             )
         except Exception as identifier:
             raise LisaException(
