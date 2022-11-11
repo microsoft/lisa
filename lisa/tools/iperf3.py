@@ -95,12 +95,19 @@ class Iperf3(Tool):
         return [Git, Make]
 
     def help(self) -> ExecutableResult:
-        return self.run("-h")
+        return self.run("-h", force_run=True)
 
     def install(self) -> bool:
         posix_os: Posix = cast(Posix, self.node.os)
         posix_os.install_packages("iperf3")
-        if not self._check_exists():
+        install_from_src = False
+        if self._check_exists():
+            help = self.help()
+            if "--logfile" not in help.stdout:
+                install_from_src = True
+        else:
+            install_from_src = True
+        if install_from_src:
             self._install_from_src()
         return self._check_exists()
 
@@ -229,10 +236,9 @@ class Iperf3(Tool):
             if self.node.shell.exists(self.node.get_pure_path(log_file)):
                 self.node.shell.remove(self.node.get_pure_path(log_file))
             help = self.help()
-            if "--logfile" in help.stdout:
-                cmd += f" --logfile {log_file}"
-            else:
-                cmd += f" > {log_file} 2>&1"
+            if "--logfile" not in help.stdout:
+                self._install_from_src()
+            cmd += f" --logfile {log_file}"
 
         process = self.node.execute_async(
             f"{self.command} {cmd}", shell=True, sudo=True
@@ -444,7 +450,7 @@ class Iperf3(Tool):
         make.make_install(code_path)
         self.node.execute("ldconfig", sudo=True, cwd=code_path).assert_exit_code()
         self.node.execute(
-            "ln -s /usr/local/bin/iperf3 /usr/bin/iperf3", sudo=True, cwd=code_path
+            "ln -fs /usr/local/bin/iperf3 /usr/bin/iperf3", sudo=True, cwd=code_path
         ).assert_exit_code()
 
     def _get_bandwidth(self, result: str, pattern: Pattern[str]) -> Decimal:
