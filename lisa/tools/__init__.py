@@ -3,6 +3,7 @@
 
 
 from lisa.base_tools import (
+    AptAddRepository,
     Cat,
     Mv,
     Rpm,
@@ -108,6 +109,7 @@ from .who import Who
 from .whoami import Whoami
 
 __all__ = [
+    "AptAddRepository",
     "Aria",
     "Blkid",
     "Bzip2",

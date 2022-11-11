@@ -24,7 +24,15 @@ from assertpy import assert_that
 from retry import retry
 from semver import VersionInfo
 
-from lisa.base_tools import Cat, Sed, Service, Uname, Wget, YumConfigManager
+from lisa.base_tools import (
+    AptAddRepository,
+    Cat,
+    Sed,
+    Service,
+    Uname,
+    Wget,
+    YumConfigManager,
+)
 from lisa.executable import Tool
 from lisa.util import (
     BaseClassMixin,
@@ -766,12 +774,8 @@ class Debian(Linux):
         # This command will trigger apt update too, so it doesn't need to update
         # repos again.
 
-        self._node.execute(
-            cmd=f'apt-add-repository -y "{repo}"',
-            sudo=True,
-            expected_exit_code=0,
-            expected_exit_code_failure_message="fail to add repository",
-        )
+        aptaddrepository = self._node.tools[AptAddRepository]
+        aptaddrepository.add_repository(repo)
 
         # apt update will not be triggered on Debian during add repo
         if type(self._node.os) == Debian:
