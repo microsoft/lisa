@@ -18,7 +18,7 @@ from lisa import (
     simple_requirement,
 )
 from lisa.features import Disk, Nvme
-from lisa.operating_system import CBLMariner, Oracle, Redhat
+from lisa.operating_system import Redhat
 from lisa.sut_orchestrator import AZURE
 from lisa.sut_orchestrator.azure.common import (
     check_or_create_storage_account,
@@ -29,8 +29,8 @@ from lisa.sut_orchestrator.azure.common import (
 )
 from lisa.sut_orchestrator.azure.platform_ import AzurePlatform
 from lisa.testsuite import TestResult
-from lisa.tools import Echo, Fdisk, FileSystem, KernelConfig, Mkfs, Mount, Parted
-from lisa.util import generate_random_chars
+from lisa.tools import Echo, FileSystem, KernelConfig, Mkfs, Mount, Parted
+from lisa.util import BadEnvironmentStateException, generate_random_chars
 from microsoft.testsuites.xfstests.xfstests import Xfstests
 
 _scratch_folder = "/root/scratch"
@@ -44,12 +44,10 @@ def _prepare_data_disk(
     file_system: FileSystem = FileSystem.xfs,
 ) -> None:
     mount = node.tools[Mount]
-    fdisk = node.tools[Fdisk]
     parted = node.tools[Parted]
     mkfs = node.tools[Mkfs]
-    fdisk.delete_partitions(disk_name)
+
     for disk, mount_point in disk_mount.items():
-        node.execute(f"rm -r {mount_point}", sudo=True)
         mount.umount(disk, mount_point)
 
     parted.make_label(disk_name)
@@ -124,6 +122,13 @@ class Xfstesting(TestSuite):
     # Regression test for commit a08f789d2ab5 ext4: fix bug_on ext4_mb_use_inode_pa
     # TODO: will include ext4/059 once the kernel contains below fix.
     # A regression test for b55c3cd102a6 ("ext4: add reserved GDT blocks check")
+    # xfs/081 case will hung for long time
+    # a1de97fe296c ("xfs: Fix the free logic of state in xfs_attr_node_hasname")
+    # ext4/056 will trigger OOPS, reboot the VM, miss below kernel patch
+    # commit b1489186cc8391e0c1e342f9fbc3eedf6b944c61
+    # ext4: add check to prevent attempting to resize an fs with sparse_super2
+    # VM will hung during running case xfs/520
+    # commit d0c7feaf8767 ("xfs: add agf freeblocks verify in xfs_agf_verify")
     # TODO: will figure out the detailed reason of every excluded case.
     EXCLUDED_TESTS = (
         "generic/211 generic/430 generic/431 generic/434 /xfs/438 xfs/490"
@@ -131,7 +136,7 @@ class Xfstesting(TestSuite):
         + " xfs/030 xfs/032 xfs/050 xfs/052 xfs/106 xfs/107 xfs/122 xfs/132 xfs/138"
         + " xfs/144 xfs/148 xfs/175 xfs/191-input-validation xfs/289 xfs/293 xfs/424"
         + " xfs/432 xfs/500 xfs/508 xfs/512 xfs/514 xfs/515 xfs/516 xfs/518 xfs/521"
-        + " xfs/528 xfs/544 ext4/054 ext4/058 ext4/059"
+        + " xfs/528 xfs/544 ext4/054 ext4/056 ext4/058 ext4/059 xfs/081 xfs/520"
     )
 
     @TestCaseMetadata(
@@ -509,14 +514,19 @@ class Xfstesting(TestSuite):
             node.execute("cp -f /etc/fstab_cifs /etc/fstab", sudo=True)
 
     def after_case(self, log: Logger, **kwargs: Any) -> None:
-        node: Node = kwargs.pop("node")
-        for path in [
-            "/dev/mapper/delay-test",
-            "/dev/mapper/huge-test",
-            "/dev/mapper/huge-test-zero",
-        ]:
-            if 0 == node.execute(f"ls -lt {path}", sudo=True).exit_code:
-                node.execute(f"dmsetup remove {path}", sudo=True)
+        try:
+            node: Node = kwargs.pop("node")
+            for path in [
+                "/dev/mapper/delay-test",
+                "/dev/mapper/huge-test",
+                "/dev/mapper/huge-test-zero",
+            ]:
+                if 0 == node.execute(f"ls -lt {path}", sudo=True).exit_code:
+                    node.execute(f"dmsetup remove {path}", sudo=True)
+            for mount_point in [_scratch_folder, _test_folder]:
+                node.tools[Mount].umount("", mount_point, erase=False)
+        except Exception as identifier:
+            raise BadEnvironmentStateException(f"after case, {identifier}")
 
     def _execute_xfstests(
         self,
@@ -546,20 +556,6 @@ class Xfstesting(TestSuite):
         ):
             excluded_tests += " generic/641"
 
-        # xfs/081 case will hung for long time
-        if isinstance(node.os, CBLMariner):
-            excluded_tests += " xfs/081"
-
-        # ext4/056 will trigger OOPS, reboot the VM, miss below kernel patch
-        # commit b1489186cc8391e0c1e342f9fbc3eedf6b944c61
-        # ext4: add check to prevent attempting to resize an fs with sparse_super2
-        if isinstance(node.os, Oracle) and node.os.information.version < "8.0.0":
-            excluded_tests += " ext4/056"
-        if (isinstance(node.os, Redhat) and not isinstance(node.os, Oracle)) and (
-            node.os.information.version < "9.0.0"
-        ):
-            excluded_tests += " ext4/056"
-
         # prepare data disk when xfstesting target is data disk
         if data_disk:
             _prepare_data_disk(
@@ -578,8 +574,8 @@ class Xfstesting(TestSuite):
             mount_opts,
         )
         xfstests.set_excluded_tests(excluded_tests)
-        output = xfstests.run_test(test_type, self.TIME_OUT)
-        xfstests.check_test_results(output, log_path, test_type, result, data_disk)
+        xfstests.run_test(test_type, self.TIME_OUT)
+        xfstests.check_test_results(log_path, test_type, result, data_disk)
 
     def _install_xfstests(self, node: Node) -> Xfstests:
         try:
