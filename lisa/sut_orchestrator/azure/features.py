@@ -1309,7 +1309,7 @@ class Resize(AzureFeatureMixin, features.Resize):
         node_context = get_node_context(self._node)
         node_runbook = self._node.capability.get_extended_runbook(AzureNodeSchema)
 
-        # Get list of vm sizes that the current sku can resize to
+        # Get list of vm sizes that the current resource group can use
         available_sizes = compute_client.virtual_machines.list_available_sizes(
             node_context.resource_group_name, node_context.vm_name
         )
