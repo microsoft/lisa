@@ -4,6 +4,8 @@ import re
 from typing import Optional
 
 from lisa.executable import Tool
+from lisa.operating_system import Debian
+from lisa.util import UnsupportedDistroException
 from lisa.util.process import Process
 
 INTERNET_PING_ADDRESS = "8.8.8.8"
@@ -19,6 +21,19 @@ class Ping(Tool):
     @property
     def command(self) -> str:
         return "ping"
+
+    @property
+    def can_install(self) -> bool:
+        return True
+
+    def install(self) -> bool:
+        if isinstance(self.node.os, Debian):
+            package_name = "inetutils-ping"
+        else:
+            raise UnsupportedDistroException(self.node.os)
+
+        self.node.os.install_packages(package_name)
+        return self._check_exists()
 
     def ping_async(
         self,
