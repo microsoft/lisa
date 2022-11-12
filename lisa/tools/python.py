@@ -61,7 +61,7 @@ class Pip(Tool):
                 sudo=True,
             )
         assert_that(
-            cmd_result.exit_code, "fail to install {packages_name}"
+            cmd_result.exit_code, f"fail to install {packages_name}"
         ).is_equal_to(0)
 
     def exists_package(self, package_name: str) -> bool:
