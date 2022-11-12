@@ -80,6 +80,7 @@ class VmHotResize(TestSuite):
                     or "OperationNotAllowed" in str(identifier)
                     or "Allocation failed" in str(identifier)
                     or "AllocationFailed" in str(identifier)
+                    or "PropertyChangeNotAllowed" in str(identifier)
                     or "cannot boot Hypervisor Generation" in str(identifier)
                     or "due to different CPU Architectures" in str(identifier)
                     or "An existing connection was forcibly closed by the remote host"
