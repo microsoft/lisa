@@ -23,7 +23,7 @@ from .chrony import Chrony
 from .date import Date
 from .df import Df
 from .dhclient import Dhclient
-from .dmesg import Dmesg
+from .dmesg import Dmesg, LogLevel
 from .dnsmasq import Dnsmasq
 from .docker import Docker
 from .docker_compose import DockerCompose
@@ -119,6 +119,7 @@ __all__ = [
     "Df",
     "Dhclient",
     "Dmesg",
+    "LogLevel",
     "Dnsmasq",
     "Docker",
     "DockerCompose",

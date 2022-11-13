@@ -848,7 +848,7 @@ class AzureImageStandard(TestSuite):
     )
     def verify_boot_error_fail_warnings_dmesg(self, node: Node) -> None:
         dmesg = node.tools[Dmesg]
-        log_output = dmesg.get_output(force_run=True, log_level=LogLevel.WARN)
+        log_output = dmesg.get_output(force_run=True, log_level=LogLevel.WARNING)
         found_results = self._process_log_lines(log_output)
         assert_that(found_results).described_as(
             "unexpected error/failure/warnings shown up in bootup log of distro"
@@ -871,20 +871,17 @@ class AzureImageStandard(TestSuite):
         priority=1,
         requirement=simple_requirement(supported_platform_type=[AZURE, READY]),
     )
-    def verify_boot_error_fail_warnings_syslog(self, node: Node) -> None:
-        cat = node.tools[Cat]
-        log_output = ""
-        if node.shell.exists(node.get_pure_path("/var/log/syslog")):
-            log_output += cat.read("/var/log/syslog", force_run=True, sudo=True)
-        if node.shell.exists(node.get_pure_path("/var/log/messages")):
-            log_output += cat.read("/var/log/messages", force_run=True, sudo=True)
-
-        found_results = self._process_log_lines(log_output)
-
-        assert_that(found_results).described_as(
-            "unexpected error/failure/warnings shown up in bootup log of distro"
-            f" {node.os.name} {node.os.information.version}"
-        ).is_empty()
+    def verify_call_trace_dmesg(self, node: Node) -> None:
+        dmesg = node.tools[Dmesg]
+        log_output = dmesg.get_output(force_run=True)
+        found_call_trace_times = 0
+        for line in log_output.splitlines():
+            if ("Call Trace" in line) and ("initcall " not in line):
+                found_call_trace_times += 1
+        if found_call_trace_times > 0:
+            raise LisaException(
+                f"found {found_call_trace_times} times call trace in dmesg"
+            )
 
     @TestCaseMetadata(
         description="""
