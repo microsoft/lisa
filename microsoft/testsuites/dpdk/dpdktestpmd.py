@@ -11,7 +11,7 @@ from semver import VersionInfo
 from lisa.base_tools import Mv
 from lisa.executable import Tool
 from lisa.nic import NicInfo
-from lisa.operating_system import Debian, Fedora, Ubuntu
+from lisa.operating_system import Debian, Fedora, Suse, Ubuntu
 from lisa.tools import (
     Echo,
     Git,
@@ -115,6 +115,14 @@ class DpdkTestpmd(Tool):
         "kernel-modules-extra",
         "kernel-headers",
     ]
+    _suse_packages = [
+        "psmisc",
+        "libnuma-devel",
+        "numactl",
+        "librdmacm1",
+        "rdma-core-devel",
+        "libmnl-devel meson",
+    ]
     _rte_target = "x86_64-native-linuxapp-gcc"
     _ninja_url = (
         "https://github.com/ninja-build/ninja/releases/"
@@ -131,7 +139,7 @@ class DpdkTestpmd(Tool):
 
     @property
     def can_install(self) -> bool:
-        for _os in [Debian, Fedora]:
+        for _os in [Debian, Fedora, Suse]:
             if isinstance(self.node.os, _os):
                 return True
         return False
@@ -517,7 +525,7 @@ class DpdkTestpmd(Tool):
                     ["dpdk", "dpdk-dev"],
                     extra_args=self._debian_backports_args,
                 )
-            elif isinstance(node.os, Fedora):
+            elif isinstance(node.os, (Fedora, Suse)):
                 node.os.install_packages(["dpdk", "dpdk-devel"])
             else:
                 raise NotImplementedError(
@@ -660,7 +668,7 @@ class DpdkTestpmd(Tool):
         else:
             mellanox_drivers = ["mlx5_core", "mlx5_ib"]
         modprobe = self.node.tools[Modprobe]
-        if isinstance(self.node.os, Ubuntu):
+        if isinstance(self.node.os, (Ubuntu, Suse)):
             # Ubuntu shouldn't need any special casing, skip to loading rdma/ib
             pass
         elif isinstance(self.node.os, Debian):
@@ -716,10 +724,31 @@ class DpdkTestpmd(Tool):
             )
         elif isinstance(node.os, Fedora):
             self._install_fedora_dependencies()
+        elif isinstance(node.os, Suse):
+            self._install_suse_dependencies()
         else:
             raise UnsupportedDistroException(
                 node.os, "This OS does not have dpdk installation implemented yet."
             )
+
+    def _install_suse_dependencies(self) -> None:
+        node = self.node
+        suse = node.os
+        if not isinstance(suse, Suse):
+            fail(
+                "_install_suse_dependencies was called on node "
+                f"which was not suse: {node.os.information.full_version}"
+            )
+            return  # appease the type checker
+        if suse.information.version < "15.0.0":
+            raise SkippedException(
+                f"Suse {str(suse.information.version)} is not supported. "
+                "Minimum documented version for DPDK support is >= SLES15"
+            )
+        else:
+            suse.install_packages(self._suse_packages)
+            if not self.use_package_manager_install():
+                self._install_ninja_and_meson()
 
     def _install_ubuntu_dependencies(self) -> None:
         node = self.node
