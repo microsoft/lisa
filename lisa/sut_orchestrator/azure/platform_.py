@@ -1154,7 +1154,7 @@ class AzurePlatform(Platform):
         runbook = capability.get_extended_runbook(AzureNodeSchema, type_name=AZURE)
         arm_parameters = AzureNodeArmParameter.from_node_runbook(runbook)
 
-        os_disk_size = 30
+        os_disk_size = 128
         if arm_parameters.vhd:
             # vhd is higher priority
             arm_parameters.vhd = self._get_deployable_vhd_path(
