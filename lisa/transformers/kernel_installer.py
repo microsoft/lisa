@@ -212,13 +212,7 @@ class RepoInstaller(BaseInstaller):
             f"deb {self.repo_url} {version_name} "
             f"restricted main multiverse universe"
         )
-        ubuntu.wait_running_package_process()
-        result = node.execute(f'add-apt-repository -y "{repo_entry}"', sudo=True)
-
-        result.assert_exit_code(
-            0, "failed on add repo\n\n".join(ubuntu.get_apt_error(result.stdout))
-        )
-
+        ubuntu.add_repository(repo_entry)
         full_package_name = f"{runbook.source}/{version_name}"
         self._log.info(f"installing kernel package: {full_package_name}")
         ubuntu.install_packages(full_package_name)
