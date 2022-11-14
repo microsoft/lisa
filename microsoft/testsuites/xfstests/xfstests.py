@@ -153,7 +153,14 @@ class Xfstests(Tool):
     def dependencies(self) -> List[Type[Tool]]:
         return [Git, Make]
 
-    def run_test(self, test_type: str, timeout: int = 14400) -> None:
+    def run_test(
+        self,
+        test_type: str,
+        log_path: Path,
+        result: TestResult,
+        data_disk: str = "",
+        timeout: int = 14400,
+    ) -> None:
         self.run(
             f"-g {test_type}/quick -E exclude.txt  > xfstest.log 2>&1",
             sudo=True,
@@ -161,6 +168,9 @@ class Xfstests(Tool):
             force_run=True,
             cwd=self.get_xfstests_path(),
             timeout=timeout,
+        )
+        self.check_test_results(
+            log_path=log_path, test_type=test_type, result=result, data_disk=data_disk
         )
 
     def _initialize(self, *args: Any, **kwargs: Any) -> None:
@@ -376,7 +386,8 @@ class Xfstests(Tool):
             str(console_log_results_path), force_run=True, sudo=True
         )
         log_result.assert_exit_code()
-        raw_message = log_result.stdout
+        ansi_escape = re.compile(r"\x1B(?:[@-Z\\-_]|\[[0-?]*[ -/]*[@-~])")
+        raw_message = ansi_escape.sub("", log_result.stdout)
         self.create_send_subtest_msg(result, raw_message, test_type, data_disk)
 
         results_path = xfstests_path / "results/check.log"
