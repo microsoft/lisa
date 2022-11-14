@@ -9,7 +9,7 @@ from assertpy import assert_that
 
 from lisa.base_tools import Cat, Sed, Service, Uname, Wget
 from lisa.feature import Feature
-from lisa.operating_system import CentOs, Redhat, Ubuntu
+from lisa.operating_system import CentOs, Oracle, Redhat, Ubuntu
 from lisa.tools import Firewall, Ls, Lspci, Make
 from lisa.tools.tar import Tar
 from lisa.util import (
@@ -164,8 +164,9 @@ class Infiniband(Feature):
         cat = self._node.tools[Cat]
         return cat.read(f"/sys/class/infiniband/{ib_device_name}/ports/1/pkeys/0")
 
-    def setup_rdma(self) -> None:
+    def setup_rdma(self) -> None:  # noqa: C901
         node = self._node
+        os_version = node.os.information.release.split(".")
         # Dependencies
         kernel = node.tools[Uname].get_linux_information().kernel_version_raw
         ubuntu_required_packages = [
@@ -251,14 +252,23 @@ class Infiniband(Feature):
                 if node.os.is_package_in_repo(package):
                     redhat_required_packages.append(package)
             node.os.install_packages(redhat_required_packages)
-
-            try:
-                node.os.install_packages("kernel-devel-$(uname -r)")
-            except MissingPackagesException:
-                node.log.debug(
-                    "kernel-devel-$(uname -r) not found. Trying kernel-devel"
+            # enable olX_UEKRY repo when it is uek kernel
+            # then install uek kernel source code
+            if isinstance(node.os, Oracle) and "uek" in kernel:
+                node.execute(
+                    "yum-config-manager --enable "
+                    f"ol{os_version[0]}_UEKR{os_version[1]}",
+                    sudo=True,
                 )
-                node.os.install_packages("kernel-devel")
+                node.os.install_packages("kernel-uek-devel-$(uname -r)")
+            else:
+                try:
+                    node.os.install_packages("kernel-devel-$(uname -r)")
+                except MissingPackagesException:
+                    node.log.debug(
+                        "kernel-devel-$(uname -r) not found. Trying kernel-devel"
+                    )
+                    node.os.install_packages("kernel-devel")
         elif isinstance(node.os, Ubuntu) and node.os.information.version >= "18.4.0":
             node.os.install_packages(ubuntu_required_packages)
         else:
@@ -283,12 +293,13 @@ class Infiniband(Feature):
 
         # Install OFED
         mofed_version = self._get_mofed_version()
-        if isinstance(node.os, Redhat):
+        if isinstance(node.os, Oracle):
+            os_class = "ol"
+        elif isinstance(node.os, Redhat):
             os_class = "rhel"
         else:
             os_class = node.os.name.lower()
 
-        os_version = node.os.information.release.split(".")
         mofed_folder = (
             f"MLNX_OFED_LINUX-{mofed_version}-{os_class}"
             f"{os_version[0]}."
