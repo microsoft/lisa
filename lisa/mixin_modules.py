@@ -53,3 +53,4 @@ import lisa.transformers.dump_variables  # noqa: F401
 import lisa.transformers.kernel_source_installer  # noqa: F401
 import lisa.transformers.script_transformer  # noqa: F401
 import lisa.transformers.to_list  # noqa: F401
+import lisa.transformers.upgrade_packages  # noqa: F401
