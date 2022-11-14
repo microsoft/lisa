@@ -1552,6 +1552,20 @@ class Suse(Linux):
     )
     # Warning: There are no enabled repositories defined.
     _no_repo_defined = re.compile("There are no enabled repositories defined.", re.M)
+    # Name           : dpdk
+    # Version        : 19.11.10-150400.4.7.1
+    _suse_package_information_regex = re.compile(
+        r"Name\s+: (?P<package_name>[a-zA-Z0-9:_\-\.]+)\r?\n"
+        r"Version\s+: (?P<package_version>[a-zA-Z0-9:_\-\.~+]+)\r?\n"
+    )
+    _suse_version_splitter_regex = re.compile(
+        r"([0-9]+:)?"  # some examples have a mystery number followed by a ':' (git)
+        r"(?P<major>[0-9]+)\."  # major
+        r"(?P<minor>[0-9]+)\."  # minor
+        r"(?P<patch>[0-9]+)"  # patch
+        r"-(?P<build>[a-zA-Z0-9-_\.~+]+)"  # build
+    )
+    _ansi_escape = re.compile(r"\x1B(?:[@-Z\\-_]|\[[0-?]*[ -/]*[@-~])")
 
     @classmethod
     def name_pattern(cls) -> Pattern[str]:
@@ -1671,6 +1685,36 @@ class Suse(Linux):
         command = f"zypper search -s --match-exact {package}"
         result = self._node.execute(command, sudo=True, shell=True)
         return 0 == result.exit_code
+
+    def _get_package_information(self, package_name: str) -> VersionInfo:
+        # run update of package info
+        zypper_info = self._node.execute(
+            f"zypper info {package_name}",
+            expected_exit_code=0,
+            expected_exit_code_failure_message=(
+                f"Could not find package information for package {package_name}"
+            ),
+        )
+        output = self._ansi_escape.sub("", zypper_info.stdout)
+        match = self._suse_package_information_regex.search(output)
+        if not match:
+            raise LisaException(
+                "Package information parsing could not find regex match "
+                f" for {package_name} using regex "
+                f"{self._suse_package_information_regex.pattern}"
+            )
+        version_str = match.group("package_version")
+        match = self._suse_version_splitter_regex.search(version_str)
+        if not match:
+            raise LisaException(
+                f"Could not parse version info: {version_str} "
+                "for package {package_name}"
+            )
+        self._node.log.debug(f"Attempting to parse version string: {version_str}")
+        version_info = self._get_version_info_from_named_regex_match(
+            package_name, match
+        )
+        return self._cache_and_return_version_info(package_name, version_info)
 
 
 class SLES(Suse):
