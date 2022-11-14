@@ -3,6 +3,7 @@
 
 import re
 from pathlib import Path
+from typing import List
 
 from assertpy import assert_that
 
@@ -21,6 +22,7 @@ from lisa.features import Gpu, GpuEnabled, SerialConsole, StartStop
 from lisa.features.gpu import ComputeSDK
 from lisa.operating_system import AlmaLinux, Debian, Oracle, Suse
 from lisa.tools import Lspci, NvidiaSmi, Pip, Python, Reboot, Service, Tar, Wget
+from lisa.tools.lspci import PciDevice
 from lisa.util import get_matched_str
 
 _cudnn_location = (
@@ -80,11 +82,8 @@ class GpuTestSuite(TestSuite):
     )
     def verify_gpu_provision(self, node: Node, log: Logger) -> None:
         start_stop = node.features[StartStop]
-        lspci = node.tools[Lspci]
 
-        init_pci_gpu = lspci.get_devices_by_type(
-            constants.DEVICE_TYPE_GPU, force_run=True
-        )
+        init_pci_gpu = _get_pci_devices(node)
         log.debug(f"Initial GPU count {len(init_pci_gpu)}")
         assert_that(len(init_pci_gpu)).described_as(
             "Number of GPU PCI device is not greater than 0"
@@ -93,9 +92,7 @@ class GpuTestSuite(TestSuite):
         start_stop.stop()
         start_stop.start()
 
-        curr_pci_gpu = lspci.get_devices_by_type(
-            constants.DEVICE_TYPE_GPU, force_run=True
-        )
+        curr_pci_gpu = _get_pci_devices(node)
         log.debug(f"GPU count after reboot {len(curr_pci_gpu)}")
         assert_that(len(curr_pci_gpu)).described_as(
             "GPU PCI device count should be same after restart"
@@ -120,22 +117,17 @@ class GpuTestSuite(TestSuite):
     )
     def verify_max_gpu_provision(self, node: Node, log: Logger) -> None:
         start_stop = node.features[StartStop]
-        lspci = node.tools[Lspci]
 
-        init_pci_gpu = lspci.get_devices_by_type(
-            constants.DEVICE_TYPE_GPU, force_run=True
-        )
+        init_pci_gpu = _get_pci_devices(node)
         log.debug(f"Initial GPU count {len(init_pci_gpu)}")
         assert_that(len(init_pci_gpu)).described_as(
-            "Number of GPU PCI device is not greater than 0"
-        ).is_greater_than(0)
+            "Number of GPU PCI device is greater than 8"
+        ).is_greater_than_or_equal_to(8)
 
         start_stop.stop()
         start_stop.start()
 
-        curr_pci_gpu = lspci.get_devices_by_type(
-            constants.DEVICE_TYPE_GPU, force_run=True
-        )
+        curr_pci_gpu = _get_pci_devices(node)
         log.debug(f"GPU count after reboot {len(curr_pci_gpu)}")
         assert_that(len(curr_pci_gpu)).described_as(
             "GPU PCI device count should be same after restart"
@@ -332,3 +324,12 @@ def _ensure_driver_installed(
     reboot_tool.reboot_and_check_panic(log_path)
 
     _check_driver_installed(node)
+
+
+def _get_pci_devices(node: Node) -> List[PciDevice]:
+    lspci = node.tools[Lspci]
+
+    pci_gpu_devices = lspci.get_devices_by_type(
+        constants.DEVICE_TYPE_GPU, force_run=True
+    )
+    return pci_gpu_devices
