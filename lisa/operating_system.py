@@ -749,6 +749,7 @@ class Debian(Linux):
         repo_name: Optional[str] = None,
         keys_location: Optional[List[str]] = None,
     ) -> None:
+        self._initialize_package_installation()
         if keys_location:
             for key_location in keys_location:
                 wget = self._node.tools[Wget]
