@@ -17,7 +17,7 @@ from lisa import (
 )
 from lisa.messages import SubTestMessage, TestStatus, create_test_result_message
 from lisa.testsuite import TestResult
-from lisa.tools import Dmesg, Free, Ls, Lscpu, QemuImg, Ssh, Wget
+from lisa.tools import Cp, Dmesg, Free, Ls, Lscpu, QemuImg, Rm, Ssh, Wget
 from lisa.util import SkippedException
 from microsoft.testsuites.mshv.cloud_hypervisor_tool import CloudHypervisor
 
@@ -136,7 +136,7 @@ class MshvHostTestSuite(TestSuite):
             f"MSHV stress VM create: times={times}, cpus_per_vm={cpus_per_vm}, mem_per_vm_mb={mem_per_vm_mb}"  # noqa: E501
         )
         hypervisor_fw_path = str(node.get_working_path() / self.HYPERVISOR_FW_NAME)
-        disk_img_path = str(node.get_working_path() / self.DISK_IMG_NAME)
+        disk_img_path = node.get_working_path() / self.DISK_IMG_NAME
         cores = node.tools[Lscpu].get_core_count()
         vm_count = int(cores / cpus_per_vm)
         failures = 0
@@ -145,13 +145,14 @@ class MshvHostTestSuite(TestSuite):
             node.tools[Free].log_memory_stats_mb()
             procs = []
             for i in range(vm_count):
+                vm_disk_img_path = node.working_path / f"VM{i}_{self.DISK_IMG_NAME}"
+                node.tools[Cp].copy(disk_img_path, vm_disk_img_path)
                 log.info(f"Starting VM {i}")
                 p = node.tools[CloudHypervisor].start_vm_async(
                     kernel=hypervisor_fw_path,
                     cpus=cpus_per_vm,
                     memory_mb=mem_per_vm_mb,
-                    disk_path=disk_img_path,
-                    disk_readonly=True,
+                    disk_path=str(vm_disk_img_path),
                 )
                 assert_that(p).described_as(f"Failed to create VM {i}").is_not_none()
                 procs.append(p)
@@ -166,13 +167,17 @@ class MshvHostTestSuite(TestSuite):
             for i in range(len(procs)):
                 p = procs[i]
                 if not p.is_running():
-                    log.info(f"VM {i} was not running (OOM killed?)")
+                    log.info(f"VM {i} was not running")
                     failures += 1
                     continue
                 log.info(f"Killing VM {i}")
                 p.kill()
 
             node.tools[Free].log_memory_stats_mb()
+
+        for i in range(vm_count):
+            disk_img_file = node.working_path / f"VM{i}_{self.DISK_IMG_NAME}"
+            node.tools[Rm].remove_file(str(disk_img_file))
 
         dmesg_str = node.tools[Dmesg].get_output()
         dmesg_path = log_path / f"dmesg_{times}_{cpus_per_vm}_{mem_per_vm_mb}"

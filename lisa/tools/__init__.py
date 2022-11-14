@@ -20,6 +20,7 @@ from .bzip2 import Bzip2
 from .chmod import Chmod
 from .chown import Chown
 from .chrony import Chrony
+from .cp import Cp
 from .date import Date
 from .df import Df
 from .dhclient import Dhclient
@@ -115,6 +116,7 @@ __all__ = [
     "Chmod",
     "Chown",
     "Chrony",
+    "Cp",
     "Date",
     "Df",
     "Dhclient",
