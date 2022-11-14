@@ -18,7 +18,17 @@ from lisa import (
 from lisa.operating_system import Redhat
 from lisa.sut_orchestrator.azure.platform_ import AzurePlatform
 from lisa.sut_orchestrator.azure.tools import LisDriver
-from lisa.tools import Find, KernelConfig, Lsinitrd, Lsmod, Modinfo, Modprobe, Uname
+from lisa.tools import (
+    Cat,
+    Find,
+    KernelConfig,
+    Lsinitrd,
+    Lsmod,
+    Modinfo,
+    Modprobe,
+    Uname,
+    Pgrep,
+)
 from lisa.util import SkippedException
 
 
@@ -234,7 +244,7 @@ class HvModule(TestSuite):
                 "kernel and therefore can not be reloaded"
             )
 
-        result = node.execute(
+        node.execute(
             ("for i in $(seq 1 %i); do " % loop_count)
             + f"modprobe -r -v {module}; modprobe -v {module}; "
             "done; sleep 1; "
@@ -243,16 +253,20 @@ class HvModule(TestSuite):
             shell=True,
             nohup=True,
         )
+        pgrep = node.tools[Pgrep]
+        while pgrep.get_processes("nohup"):
+            pass
+        output = node.tools[Cat].read("nohup.out", force_run=True, sudo=True)
 
-        if "is in use" in result.stdout:
+        if "is in use" in output:
             raise SkippedException(
                 f"Module {module} is in use so it cannot be reloaded"
             )
 
-        assert_that(result.stdout.count("rmmod")).described_as(
+        assert_that(output.count("rmmod")).described_as(
             f"Expected {module} to be removed {loop_count} times"
         ).is_equal_to(loop_count)
-        assert_that(result.stdout.count("insmod")).described_as(
+        assert_that(output.count("insmod")).described_as(
             f"Expected {module} to be inserted {loop_count} times"
         ).is_equal_to(loop_count)
 
