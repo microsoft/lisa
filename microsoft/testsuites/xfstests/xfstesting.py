@@ -574,8 +574,7 @@ class Xfstesting(TestSuite):
             mount_opts,
         )
         xfstests.set_excluded_tests(excluded_tests)
-        xfstests.run_test(test_type, self.TIME_OUT)
-        xfstests.check_test_results(log_path, test_type, result, data_disk)
+        xfstests.run_test(test_type, log_path, result, data_disk, self.TIME_OUT)
 
     def _install_xfstests(self, node: Node) -> Xfstests:
         try:
