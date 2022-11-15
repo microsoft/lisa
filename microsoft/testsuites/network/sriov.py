@@ -63,6 +63,9 @@ class Sriov(TestSuite):
         environment: Environment = kwargs.pop("environment")
         for node in environment.nodes.list():
             node.tools[Firewall].stop()
+            node.features[NetworkInterface].switch_sriov(
+                enable=True, wait=True, reset_connections=True
+            )
 
     @TestCaseMetadata(
         description="""
