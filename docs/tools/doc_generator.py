@@ -90,38 +90,44 @@ def extract_metadata(nodes: Set[Any]) -> List[Dict[str, str]]:
     Returns:
         List[Dict[str, str]]: formatted metadata
     """
-    metadata: Dict[str, str] = {}
+
     all_metadata = []
     for node in nodes:
-        metadata["name"] = node.name
+        metadata: Dict[str, str] = {"name": node.name}
+
         for deco in node.decorator_list:
             for param in deco.keywords:
-                field = param.arg
 
                 if isinstance(param.value, ast.Call):  # requirement
                     for req in param.value.keywords:
                         val = req.arg
                         if isinstance(req.value, ast.Attribute):  # may be wrong
-                            val = req.value.value.id + "."  # type: ignore
-                            val += req.value.attr  # type: ignore
+                            val = (
+                                f"{req.value.value.id}.{req.value.attr}"  # type: ignore
+                            )
                         elif isinstance(req.value, ast.Constant):
-                            val = req.arg + "=" + str(req.value.value)  # type: ignore
+                            val = f"{req.arg}={req.value.value}"
                         elif isinstance(req.value, ast.List):
                             for r in req.value.elts:
                                 if isinstance(r, ast.Name):
                                     val = add_req(val, r.id)  # type: ignore
+
                 elif isinstance(param.value, ast.Constant):
                     val = param.value.value
+
                 elif isinstance(param.value, ast.Name):
                     val = param.value.id
+
+                elif isinstance(param.value, ast.Attribute):
+                    val = f"{param.value.value.id}.{param.value.attr}"  # type: ignore
+
                 else:
-                    raise Exception(
+                    raise ValueError(
                         f"param.value is unsupported type '{type(param.value)}'"
                     )
 
-                metadata[field] = val  # type: ignore
+                metadata[param.arg] = val  # type: ignore
         all_metadata.append(metadata)
-        metadata = {}  # re-initialize
     return all_metadata
 
 
