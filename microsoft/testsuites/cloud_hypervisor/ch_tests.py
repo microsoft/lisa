@@ -51,6 +51,7 @@ class CloudHypervisorTestSuite(TestSuite):
             Runs cloud-hypervisor integration tests.
         """,
         priority=3,
+        timeout=CloudHypervisorTests.TIME_OUT,
         requirement=node_requirement(
             node=schema.NodeSpace(
                 core_count=search_space.IntRange(min=16),
@@ -76,6 +77,7 @@ class CloudHypervisorTestSuite(TestSuite):
             Runs cloud-hypervisor live migration tests.
         """,
         priority=3,
+        timeout=CloudHypervisorTests.TIME_OUT,
         requirement=node_requirement(
             node=schema.NodeSpace(
                 core_count=search_space.IntRange(min=16),
@@ -101,6 +103,7 @@ class CloudHypervisorTestSuite(TestSuite):
             Runs cloud-hypervisor performance metrics tests.
         """,
         priority=3,
+        timeout=CloudHypervisorTests.TIME_OUT,
     )
     def verify_cloud_hypervisor_performance_metrics_tests(
         self,
