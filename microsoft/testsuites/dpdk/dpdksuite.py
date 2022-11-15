@@ -661,14 +661,17 @@ class Dpdk(TestSuite):
     def after_case(self, log: Logger, **kwargs: Any) -> None:
         environment: Environment = kwargs.pop("environment")
         for node in environment.nodes.list():
+
+            # reset SRIOV to enabled if left disabled
             interface = node.features[NetworkInterface]
             if not interface.is_enabled_sriov():
                 log.debug("DPDK detected SRIOV was left disabled during cleanup.")
                 interface.switch_sriov(enable=True, wait=False, reset_connections=True)
-            modprobe = node.tools[Modprobe]
+
             # cleanup driver changes
+            modprobe = node.tools[Modprobe]
             if modprobe.module_exists("uio_hv_generic"):
                 node.tools[Service].stop_service("vpp")
                 modprobe.remove(["uio_hv_generic"])
+                node.close()
                 modprobe.reload(["hv_netvsc"])
-            # reset SRIOV to enabled if left disabled
