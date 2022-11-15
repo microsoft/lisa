@@ -18,7 +18,7 @@ from lisa.operating_system import (
     Ubuntu,
 )
 from lisa.testsuite import TestResult
-from lisa.tools import Cat, Echo
+from lisa.tools import Cat, Chmod, Echo
 from lisa.tools.git import Git
 from lisa.tools.make import Make
 from lisa.util import LisaException, UnsupportedDistroException, find_patterns_in_lines
@@ -432,6 +432,7 @@ class Xfstests(Tool):
         if "generic" == test_type:
             test_type = "xfs"
         xfstests_path = self.get_xfstests_path()
+        self.node.tools[Chmod].update_folder(str(xfstests_path), "a+rwx", sudo=True)
         self.node.shell.copy_back(
             xfstests_path / "results/check.log",
             log_path / "xfstests/check.log",
