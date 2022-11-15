@@ -83,10 +83,7 @@ class Ip(Tool):
 
     def restart_device(self, nic_name: str) -> None:
         self.node.execute(
-            (
-                f"ip link set dev {nic_name} down;ip link set dev {nic_name} up;"
-                "dhclient -r;dhclient"
-            ),
+            (f"ip link set dev {nic_name} down;ip link set dev {nic_name} up;"),
             shell=True,
             sudo=True,
             nohup=True,

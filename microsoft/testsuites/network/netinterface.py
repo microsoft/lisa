@@ -101,6 +101,7 @@ class NetInterface(TestSuite):
         while test_count < self.NET_INTERFACE_RELOAD_TEST_COUNT:
             test_count += 1
             ip.restart_device(default_nic)
+            node.tools[Dhclient].renew(default_nic)
             if not node_nic_info.default_nic:
                 # Add default route if missing after running ip link down/up
                 node.execute(f"ip route add {default_route}", shell=True, sudo=True)
