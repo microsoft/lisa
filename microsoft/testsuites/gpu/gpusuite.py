@@ -3,7 +3,6 @@
 
 import re
 from pathlib import Path
-from typing import List
 
 from assertpy import assert_that
 
@@ -22,7 +21,6 @@ from lisa.features import Gpu, GpuEnabled, SerialConsole, StartStop
 from lisa.features.gpu import ComputeSDK
 from lisa.operating_system import AlmaLinux, Debian, Oracle, Suse
 from lisa.tools import Lspci, NvidiaSmi, Pip, Python, Reboot, Service, Tar, Wget
-from lisa.tools.lspci import PciDevice
 from lisa.util import get_matched_str
 
 _cudnn_location = (
@@ -71,9 +69,10 @@ class GpuTestSuite(TestSuite):
             This test case verifies if gpu is detected as PCI device
 
             Steps:
-            1. Verify if GPU is detected as PCI Device
-            2. Reboot VM
-            3. Verify if PCI GPU device count is same as earlier
+            1. Boot VM with at least 1 GPU
+            2. Verify if GPU is detected as PCI Device
+            3. Stop-Start VM
+            4. Verify if PCI GPU device count is same as earlier
 
         """,
         timeout=TIMEOUT,
@@ -81,22 +80,7 @@ class GpuTestSuite(TestSuite):
         priority=1,
     )
     def verify_gpu_provision(self, node: Node, log: Logger) -> None:
-        start_stop = node.features[StartStop]
-
-        init_pci_gpu = _get_pci_devices(node)
-        log.debug(f"Initial GPU count {len(init_pci_gpu)}")
-        assert_that(len(init_pci_gpu)).described_as(
-            "Number of GPU PCI device is not greater than 0"
-        ).is_greater_than(0)
-
-        start_stop.stop()
-        start_stop.start()
-
-        curr_pci_gpu = _get_pci_devices(node)
-        log.debug(f"GPU count after reboot {len(curr_pci_gpu)}")
-        assert_that(len(curr_pci_gpu)).described_as(
-            "GPU PCI device count should be same after restart"
-        ).is_equal_to(len(init_pci_gpu))
+        _gpu_provision_check(1, node, log)
 
     @TestCaseMetadata(
         description="""
@@ -105,7 +89,7 @@ class GpuTestSuite(TestSuite):
             Steps:
             1. Boot VM with multiple GPUs
             2. Verify if GPUs are detected as PCI Devices
-            3. Reboot VM
+            3. Stop-Start VM
             4. Verify if PCI GPU device count is same as earlier
 
         """,
@@ -116,22 +100,7 @@ class GpuTestSuite(TestSuite):
         priority=3,
     )
     def verify_max_gpu_provision(self, node: Node, log: Logger) -> None:
-        start_stop = node.features[StartStop]
-
-        init_pci_gpu = _get_pci_devices(node)
-        log.debug(f"Initial GPU count {len(init_pci_gpu)}")
-        assert_that(len(init_pci_gpu)).described_as(
-            "Number of GPU PCI device is greater than 8"
-        ).is_greater_than_or_equal_to(8)
-
-        start_stop.stop()
-        start_stop.start()
-
-        curr_pci_gpu = _get_pci_devices(node)
-        log.debug(f"GPU count after reboot {len(curr_pci_gpu)}")
-        assert_that(len(curr_pci_gpu)).described_as(
-            "GPU PCI device count should be same after restart"
-        ).is_equal_to(len(init_pci_gpu))
+        _gpu_provision_check(8, node, log)
 
     @TestCaseMetadata(
         description="""
@@ -326,10 +295,21 @@ def _ensure_driver_installed(
     _check_driver_installed(node)
 
 
-def _get_pci_devices(node: Node) -> List[PciDevice]:
+def _gpu_provision_check(min_pci_count: int, node: Node, log: Logger) -> None:
     lspci = node.tools[Lspci]
+    start_stop = node.features[StartStop]
 
-    pci_gpu_devices = lspci.get_devices_by_type(
-        constants.DEVICE_TYPE_GPU, force_run=True
-    )
-    return pci_gpu_devices
+    init_gpu = lspci.get_devices_by_type(constants.DEVICE_TYPE_GPU, force_run=True)
+    log.debug(f"Initial GPU count {len(init_gpu)}")
+    assert_that(len(init_gpu)).described_as(
+        "Number of GPU PCI device is not greater than 0"
+    ).is_greater_than_or_equal_to(min_pci_count)
+
+    start_stop.stop()
+    start_stop.start()
+
+    curr_gpu = lspci.get_devices_by_type(constants.DEVICE_TYPE_GPU, force_run=True)
+    log.debug(f"GPU count after reboot {len(curr_gpu)}")
+    assert_that(len(curr_gpu)).described_as(
+        "GPU PCI device count should be same after stop-start"
+    ).is_equal_to(len(init_gpu))
