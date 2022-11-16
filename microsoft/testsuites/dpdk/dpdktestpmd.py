@@ -11,7 +11,7 @@ from semver import VersionInfo
 from lisa.base_tools import Mv
 from lisa.executable import Tool
 from lisa.nic import NicInfo
-from lisa.operating_system import Debian, Fedora, Suse, Ubuntu
+from lisa.operating_system import Debian, Fedora, Redhat, Suse, Ubuntu
 from lisa.tools import (
     Echo,
     Git,
@@ -791,6 +791,10 @@ class DpdkTestpmd(Tool):
         # update to latest kernel before instaling dependencies
         rhel.install_packages("kernel")
         node.reboot()
+        if isinstance(node.os, Redhat):
+            # rhel is not guaranteed to have a DPDK package in the default
+            # repos, add EPEL to get a DPDK version in the pkg manager.
+            node.os.install_epel()
 
         if rhel.information.version.major == 7:
             # Add packages for rhel7
