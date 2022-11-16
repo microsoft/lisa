@@ -1152,18 +1152,18 @@ class AzurePlatform(Platform):
         runbook = capability.get_extended_runbook(AzureNodeSchema, type_name=AZURE)
         arm_parameters = AzureNodeArmParameter.from_node_runbook(runbook)
 
-        os_disk_size = 30
         if arm_parameters.vhd:
             # vhd is higher priority
             arm_parameters.vhd = self._get_deployable_vhd_path(
                 arm_parameters.vhd, arm_parameters.location, log
             )
-            os_disk_size = max(
-                os_disk_size, self._get_vhd_os_disk_size(arm_parameters.vhd)
+            arm_parameters.osdisk_size_in_gb = max(
+                arm_parameters.osdisk_size_in_gb,
+                self._get_vhd_os_disk_size(arm_parameters.vhd),
             )
         elif arm_parameters.shared_gallery:
-            os_disk_size = max(
-                os_disk_size,
+            arm_parameters.osdisk_size_in_gb = max(
+                arm_parameters.osdisk_size_in_gb,
                 self._get_sig_os_disk_size(arm_parameters.shared_gallery),
             )
         else:
@@ -1173,8 +1173,9 @@ class AzurePlatform(Platform):
             image_info = self._get_image_info(
                 arm_parameters.location, arm_parameters.marketplace
             )
-            os_disk_size = max(
-                os_disk_size, image_info.os_disk_image.additional_properties["sizeInGb"]
+            arm_parameters.osdisk_size_in_gb = max(
+                arm_parameters.osdisk_size_in_gb,
+                image_info.os_disk_image.additional_properties["sizeInGb"],
             )
             if not arm_parameters.purchase_plan and image_info.plan:
                 # expand values for lru cache
@@ -1188,7 +1189,6 @@ class AzurePlatform(Platform):
                     plan_product=plan_product,
                     plan_publisher=plan_publisher,
                 )
-        arm_parameters.osdisk_size_in_gb = os_disk_size
 
         # Set disk type
         assert capability.disk, "node space must have disk defined."

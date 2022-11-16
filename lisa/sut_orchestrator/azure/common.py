@@ -118,6 +118,10 @@ class AzureNodeSchema:
     # It decides the real computer name. It cannot be too long.
     short_name: str = ""
     vm_size: str = ""
+    # Specifies the minimum OS disk size. The size of the disk that gets provisioned
+    # may be larger than this depending on other requirements set by VHD, marketplace
+    # image etc but it will never be smaller.
+    osdisk_size_in_gb: int = 30
     # Force to maximize capability of the vm size. It bypass requirements on
     # test cases, and uses to force run performance tests on any vm size.
     maximize_capability: bool = False
@@ -324,7 +328,6 @@ class AzureNodeArmParameter(AzureNodeSchema):
     nic_count: int = 1
     enable_sriov: bool = False
     disk_type: str = ""
-    osdisk_size_in_gb: int = 30
 
     @classmethod
     def from_node_runbook(cls, runbook: AzureNodeSchema) -> "AzureNodeArmParameter":
