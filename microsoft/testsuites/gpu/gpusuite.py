@@ -110,10 +110,10 @@ class GpuTestSuite(TestSuite):
 
         """,
         timeout=TIMEOUT,
-        # min_gpu_count is 8 since it is currently the max GPU count supported
-        # in Azure, 'Standard_ND96asr_v4'
+        # min_gpu_count is 8 since it is current
+        # max GPU count available in Azure
         requirement=simple_requirement(min_gpu_count=8),
-        priority=1,
+        priority=3,
     )
     def verify_max_gpu_provision(self, node: Node, log: Logger) -> None:
         start_stop = node.features[StartStop]
