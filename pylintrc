@@ -1,0 +1,117 @@
+[FORMAT]
+
+# Regexp for a line that is allowed to be longer than the limit.
+# URLs and pure strings
+ignore-long-lines=^\s*(# )?<?https?://\S+>?$|^\s*[f|r]?b?[\"\'\`].+[\"\'\`]$
+
+
+[MESSAGES CONTROL]
+
+# Disable the message, report, category or checker with the given id(s). You
+# can either give multiple identifiers separated by comma (,) or put this
+# option multiple times (only on the command line, not in the configuration
+# file where it should appear only once). You can also use "--disable=all" to
+# disable everything first and then re-enable specific checks. For example, if
+# you want to run only the similarities checker, you can use "--disable=all
+# --enable=similarities". If you want to run only the classes checker, but have
+# no Warning level messages displayed, use "--disable=all --enable=classes
+# --disable=W".
+disable=
+
+    # Docstrings
+    missing-class-docstring,
+    missing-function-docstring,
+    missing-module-docstring,
+
+    # Imports
+    consider-using-from-import,
+    deprecated-module,
+    import-outside-toplevel,
+    unused-import,
+    wrong-import-position,
+
+    # Potential bugs
+    abstract-method,
+    broad-except,
+    cell-var-from-loop,
+    cyclic-import,
+    eval-used,
+    expression-not-assigned,
+    global-variable-not-assigned,
+    implicit-str-concat,
+    inconsistent-return-statements,
+    invalid-overridden-method,
+    keyword-arg-before-vararg,
+    missing-timeout,
+    modified-iterating-list,
+    no-member,
+    pointless-statement,
+    pointless-string-statement,
+    redefined-argument-from-local,
+    redefined-builtin,
+    redefined-outer-name,
+    super-init-not-called,
+    unbalanced-tuple-unpacking,
+    undefined-loop-variable,
+    unspecified-encoding,
+    unsubscriptable-object,
+    used-before-assignment,
+
+    # Syntax / Logic
+    chained-comparison,
+    consider-iterating-dictionary,
+    consider-merging-isinstance,
+    consider-using-dict-items,
+    consider-using-enumerate,
+    consider-using-f-string,
+    consider-using-generator,
+    consider-using-in,
+    consider-using-set-comprehension,
+    consider-using-with,
+    global-statement,
+    line-too-long,
+    logging-fstring-interpolation,
+    no-else-break,
+    no-else-raise,
+    no-else-return,
+    raise-missing-from,
+    simplifiable-if-expression,
+    simplifiable-if-statement,
+    unidiomatic-typecheck,
+    unnecessary-comprehension,
+    unnecessary-ellipsis,
+    unnecessary-pass,
+    use-a-generator,
+    use-dict-literal,
+    useless-else-on-loop,
+    useless-object-inheritance,
+    useless-parent-delegation,
+    useless-return,
+
+    # Refactoring
+    attribute-defined-outside-init,
+    duplicate-code,
+    invalid-name,
+    protected-access,
+    too-few-public-methods,
+    too-many-arguments,
+    too-many-boolean-expressions,
+    too-many-branches,
+    too-many-function-args,
+    too-many-instance-attributes,
+    too-many-lines,
+    too-many-locals,
+    too-many-nested-blocks,
+    too-many-public-methods,
+    too-many-statements,
+    unused-argument,
+
+    # Ignore
+    fixme,
+
+[REPORTS]
+
+# Set the output format. Available formats are text, parseable, colorized, json
+# and msvs (visual studio). You can also give a reporter class, e.g.
+# mypackage.mymodule.MyReporterClass.
+output-format=colorized
