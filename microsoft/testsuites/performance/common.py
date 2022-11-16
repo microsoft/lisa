@@ -103,7 +103,7 @@ def get_nic_datapath(node: Node) -> str:
     assert (
         node.capability.network_interface
         and node.capability.network_interface.data_path
-    )
+    ), "nic datapath not available"
     if isinstance(node.capability.network_interface.data_path, NetworkDataPath):
         data_path = node.capability.network_interface.data_path.value
     return data_path
