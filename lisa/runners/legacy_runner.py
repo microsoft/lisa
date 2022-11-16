@@ -30,6 +30,7 @@ from lisa.util.process import Process
 
 # uses to prevent read conflict on log files
 if platform.system() == "Windows":
+    # pylint: disable=import-error
     import msvcrt
 
     try:

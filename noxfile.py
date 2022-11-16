@@ -91,6 +91,33 @@ def flake8(session: nox.Session) -> None:
     session.run("flake8")
 
 
+@nox.session(python=CURRENT_PYTHON, tags=["lint", "all"])
+def pylint(session: nox.Session) -> None:
+    """Run pylint"""
+    session.install(
+        *DEPENDENCIES,
+        *NOX_DEPENDENCIES,
+        *OPTIONAL_DEPENDENCIES["aws"],
+        *OPTIONAL_DEPENDENCIES["azure"],
+        *OPTIONAL_DEPENDENCIES["libvirt"],
+        *OPTIONAL_DEPENDENCIES["typing"],
+        "pylint",
+    )
+    session.run(
+        "pylint",
+        "lisa",
+        "microsoft",
+        "examples",
+        "selftests",
+        "docs/tools",
+        "docs",
+        "noxfile.py",
+    )
+
+
+# --- Typing ---
+
+
 @nox.session(python=CURRENT_PYTHON, tags=["typing", "all"])
 def mypy(session: nox.Session) -> None:
     """Run mypy"""
@@ -192,6 +219,7 @@ def dev(session: nox.Session) -> None:
         "mypy",
         "black",
         "isort",
+        "pylint",
         *OPTIONAL_DEPENDENCIES["flake8"],
         *OPTIONAL_DEPENDENCIES["typing"],
         *NOX_DEPENDENCIES,
