@@ -99,7 +99,7 @@ def mypy(session: nox.Session) -> None:
         *OPTIONAL_DEPENDENCIES["azure"],
         *OPTIONAL_DEPENDENCIES["typing"],
         *NOX_DEPENDENCIES,
-        "mypy == 0.942",
+        "mypy",
     )
 
     session.run("mypy", "-p", "lisa")
