@@ -84,6 +84,7 @@ class DpdkVpp(Tool):
         vpp_detected_interface = (
             "GigabitEthernet" in vpp_interface_output
             or "VirtualFunctionEthernet" in vpp_interface_output
+            or "NetVSC" in vpp_interface_output
         )
         assert_that(vpp_detected_interface).described_as(
             "VPP did not detect the dpdk VF or Gigabit network interface"
@@ -115,7 +116,18 @@ class DpdkVpp(Tool):
                 "Could not install vpp with fdio provided installer"
             ),
         )
-        node.os.update_packages("")
+        node.os.get_repositories()
+        package_available = node.os.is_package_in_repo("vpp")
+        if not package_available:
+            raise SkippedException(
+                UnsupportedDistroException(
+                    node.os,
+                    "VPP package was not available in repository after adding "
+                    "VPP repo. This OS is likely not supported without a "
+                    "source build.",
+                )
+            )
+
         self._install_from_package_manager()
         return True
 
