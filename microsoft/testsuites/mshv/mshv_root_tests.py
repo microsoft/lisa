@@ -32,7 +32,7 @@ from microsoft.testsuites.mshv.cloud_hypervisor_tool import CloudHypervisor
 )
 class MshvHostTestSuite(TestSuite):
     CONFIG_VARIABLE = "mshv_vm_create_stress_configs"
-    DEFAULT_ITERS = 25
+    DEFAULT_ITERS = 15
     DEFAULT_CPUS_PER_VM = 1
     DEFAULT_MEM_PER_VM_MB = 1024
 
@@ -72,6 +72,7 @@ class MshvHostTestSuite(TestSuite):
         "mshv_vm_create_stress_configs" in the runbook.
         """,
         priority=4,
+        timeout=10800,  # 3 hours
     )
     def verify_mshv_stress_vm_create(
         self,
