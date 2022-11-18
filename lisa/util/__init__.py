@@ -164,9 +164,7 @@ class UnsupportedKernelException(LisaException):
         self.version = os.information.full_version
         self.kernel_version = ""
         if hasattr(os, "get_kernel_information"):
-            self.kernel_version = (
-                os.get_kernel_information().raw_version  # type: ignore
-            )
+            self.kernel_version = os.get_kernel_information().raw_version
         self._extended_message = message
 
     def __str__(self) -> str:
@@ -516,18 +514,8 @@ def find_group_in_lines(
 
 
 def deep_update_dict(src: Dict[str, Any], dest: Dict[str, Any]) -> Dict[str, Any]:
-    if (
-        dest is None
-        or isinstance(dest, int)
-        or isinstance(dest, bool)
-        or isinstance(dest, float)
-        or isinstance(dest, str)
-    ):
-        result = dest
-    else:
+    if isinstance(dest, dict):
         result = dest.copy()
-
-    if isinstance(result, dict):
         for key, value in src.items():
             if isinstance(value, dict) and key in dest:
                 value = deep_update_dict(value, dest[key])

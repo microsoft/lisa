@@ -737,7 +737,7 @@ def quick_connect(
 class NodeHookSpec:
     @hookspec
     def get_node_information(self, node: Node) -> Dict[str, str]:
-        ...
+        raise NotImplementedError
 
 
 class NodeHookImpl:

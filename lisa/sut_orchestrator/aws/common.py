@@ -1,7 +1,7 @@
 # Copyright (c) Microsoft Corporation.
 # Licensed under the MIT license.
 
-from dataclasses import InitVar, dataclass, field
+from dataclasses import dataclass, field
 from typing import Dict, List, Optional
 
 from dataclasses_json import dataclass_json
@@ -67,16 +67,13 @@ class AwsNodeSchema:
     data_disk_size: int = 32
     disk_type: str = ""
 
-    # for marketplace image, which need to accept terms
-    _marketplace: InitVar[Optional[AwsVmMarketplaceSchema]] = None
+    def __post_init__(self) -> None:
+        # Caching for marketplace image
+        self._marketplace: Optional[AwsVmMarketplaceSchema] = None
 
     @property
     def marketplace(self) -> AwsVmMarketplaceSchema:
-        # this is a safe guard and prevent mypy error on typing
-        if not hasattr(self, "_marketplace"):
-            self._marketplace: Optional[AwsVmMarketplaceSchema] = None
-
-        if not self._marketplace:
+        if self._marketplace is None:
             assert isinstance(
                 self.marketplace_raw, str
             ), f"actual: {type(self.marketplace_raw)}"

@@ -493,15 +493,13 @@ def load_environments(
 class EnvironmentHookSpec:
     @hookspec
     def get_environment_information(self, environment: Environment) -> Dict[str, str]:
-        ...
+        raise NotImplementedError
 
 
 class EnvironmentHookImpl:
     @hookimpl
     def get_environment_information(self, environment: Environment) -> Dict[str, str]:
-        information: Dict[str, str] = {}
-        information["name"] = environment.name
-
+        information: Dict[str, str] = {"name": environment.name}
         if environment.nodes:
             node = environment.default_node
             try:

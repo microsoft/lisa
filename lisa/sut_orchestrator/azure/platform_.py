@@ -9,7 +9,7 @@ import os
 import re
 import sys
 from copy import deepcopy
-from dataclasses import InitVar, dataclass, field
+from dataclasses import dataclass, field
 from datetime import datetime
 from difflib import SequenceMatcher
 from functools import lru_cache, partial
@@ -265,7 +265,6 @@ class AzurePlatformSchema:
     cloud_raw: Optional[Union[Dict[str, Any], str]] = field(
         default=None, metadata=field_metadata(data_key="cloud")
     )
-    _cloud: InitVar[Cloud] = None
 
     shared_resource_group_name: str = AZURE_SHARED_RG_NAME
     resource_group_name: str = field(default="")
@@ -315,6 +314,8 @@ class AzurePlatformSchema:
     azcopy_path: str = field(default="")
 
     def __post_init__(self, *args: Any, **kwargs: Any) -> None:
+        self._cloud: Optional[Cloud] = None
+
         strip_strs(
             self,
             [
@@ -352,61 +353,59 @@ class AzurePlatformSchema:
 
     @property
     def cloud(self) -> Cloud:
-        # this is a safe guard and prevent mypy error on typing
-        if not hasattr(self, "_cloud"):
-            self._cloud: Cloud = None
-        cloud: Cloud = self._cloud
-        if not cloud:
-            # if pass str into cloud, it should be one of below values, case insensitive
-            #  azurecloud
-            #  azurechinacloud
-            #  azuregermancloud
-            #  azureusgovernment
-            # example
-            #   cloud: AzureCloud
-            if isinstance(self.cloud_raw, str):
-                cloud = CLOUD.get(self.cloud_raw.lower(), None)
-                assert cloud, (
-                    f"cannot find cloud type {self.cloud_raw},"
-                    f" current support list is {list(CLOUD.keys())}"
-                )
-            # if pass dict to construct a cloud instance, the full example is
-            #   cloud:
-            #     name: AzureCloud
-            #     endpoints:
-            #       management: https://management.core.windows.net/
-            #       resource_manager: https://management.azure.com/
-            #       sql_management: https://management.core.windows.net:8443/
-            #       batch_resource_id: https://batch.core.windows.net/
-            #       gallery: https://gallery.azure.com/
-            #       active_directory: https://login.microsoftonline.com
-            #       active_directory_resource_id: https://management.core.windows.net/
-            #       active_directory_graph_resource_id: https://graph.windows.net/
-            #       microsoft_graph_resource_id: https://graph.microsoft.com/
-            #     suffixes:
-            #       storage_endpoint: core.windows.net
-            #       keyvault_dns: .vault.azure.net
-            #       sql_server_hostname: .database.windows.net
-            #       azure_datalake_store_file_system_endpoint: azuredatalakestore.net
-            #       azure_datalake_analytics_catalog_and_job_endpoint: azuredatalakeanalytics.net  # noqa: E501
-            elif isinstance(self.cloud_raw, dict):
-                cloudschema = schema.load_by_type(CloudSchema, self.cloud_raw)
-                cloud = Cloud(
-                    cloudschema.name, cloudschema.endpoints, cloudschema.suffixes
-                )
-            else:
-                # by default use azure public cloud
-                cloud = AZURE_PUBLIC_CLOUD
-            self._cloud = cloud
+        if self._cloud is not None:
+            return self._cloud
+
+        # if pass str into cloud, it should be one of below values, case insensitive
+        #  azurecloud
+        #  azurechinacloud
+        #  azuregermancloud
+        #  azureusgovernment
+        # example
+        #   cloud: AzureCloud
+        if isinstance(self.cloud_raw, str):
+            cloud = CLOUD.get(self.cloud_raw.lower(), None)
+            assert cloud, (
+                f"cannot find cloud type {self.cloud_raw},"
+                f" current support list is {list(CLOUD.keys())}"
+            )
+        # if pass dict to construct a cloud instance, the full example is
+        #   cloud:
+        #     name: AzureCloud
+        #     endpoints:
+        #       management: https://management.core.windows.net/
+        #       resource_manager: https://management.azure.com/
+        #       sql_management: https://management.core.windows.net:8443/
+        #       batch_resource_id: https://batch.core.windows.net/
+        #       gallery: https://gallery.azure.com/
+        #       active_directory: https://login.microsoftonline.com
+        #       active_directory_resource_id: https://management.core.windows.net/
+        #       active_directory_graph_resource_id: https://graph.windows.net/
+        #       microsoft_graph_resource_id: https://graph.microsoft.com/
+        #     suffixes:
+        #       storage_endpoint: core.windows.net
+        #       keyvault_dns: .vault.azure.net
+        #       sql_server_hostname: .database.windows.net
+        #       azure_datalake_store_file_system_endpoint: azuredatalakestore.net
+        #       azure_datalake_analytics_catalog_and_job_endpoint: azuredatalakeanalytics.net  # noqa: E501
+
+        elif isinstance(self.cloud_raw, dict):
+            cloudschema = schema.load_by_type(CloudSchema, self.cloud_raw)
+            cloud = Cloud(cloudschema.name, cloudschema.endpoints, cloudschema.suffixes)
+
+        else:
+            # by default use azure public cloud
+            cloud = AZURE_PUBLIC_CLOUD
+
+        self._cloud = cloud
         return cloud
 
     @cloud.setter
     def cloud(self, value: Optional[CloudSchema]) -> None:
         self._cloud = value
-        if value is None:
-            self.cloud_raw = None
-        else:
-            self.cloud_raw = value.to_dict()  # type: ignore
+        self.cloud_raw = (
+            None if value is None else value.to_dict()  # type: ignore[attr-defined]
+        )
 
 
 class AzurePlatform(Platform):
@@ -2168,7 +2167,7 @@ class AzurePlatform(Platform):
         assert properties.size, f"fail to get blob size of {blob_url}"
         # Azure requires only megabyte alignment of vhds, round size up
         # for cases where the size is megabyte aligned
-        return math.ceil(properties.size / 1024 / 1024 / 1024)
+        return int(math.ceil(properties.size / 1024 / 1024 / 1024))
 
     def _get_sig_info(
         self, shared_image: SharedImageGallerySchema

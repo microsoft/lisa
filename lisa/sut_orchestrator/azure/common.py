@@ -4,7 +4,7 @@
 import os
 import re
 import sys
-from dataclasses import InitVar, dataclass, field
+from dataclasses import dataclass, field
 from datetime import datetime, timedelta, timezone
 from functools import lru_cache
 from pathlib import Path
@@ -225,13 +225,12 @@ class AzureNodeSchema:
     # image.
     is_linux: Optional[bool] = None
 
-    _marketplace: InitVar[Optional[AzureVmMarketplaceSchema]] = None
+    def __post_init__(self) -> None:
+        # Caching
+        self._marketplace: Optional[AzureVmMarketplaceSchema] = None
+        self._shared_gallery: Optional[SharedImageGallerySchema] = None
+        self._vhd: Optional[VhdSchema] = None
 
-    _shared_gallery: InitVar[Optional[SharedImageGallerySchema]] = None
-
-    _vhd: InitVar[Optional[VhdSchema]] = None
-
-    def __post_init__(self, *args: Any, **kwargs: Any) -> None:
         # trim whitespace of values.
         strip_strs(
             self,
@@ -254,109 +253,96 @@ class AzureNodeSchema:
 
     @property
     def marketplace(self) -> Optional[AzureVmMarketplaceSchema]:
-        # this is a safe guard and prevent mypy error on typing
-        if not hasattr(self, "_marketplace"):
-            self._marketplace: Optional[AzureVmMarketplaceSchema] = None
-        marketplace: Optional[AzureVmMarketplaceSchema] = self._marketplace
-        if not marketplace:
-            if isinstance(self.marketplace_raw, dict):
+        if self._marketplace is not None:
+            return self._marketplace
+
+        if isinstance(self.marketplace_raw, dict):
+            # Users decide the cases of image names,
+            # inconsistent cases cause a mismatch error in notifiers.
+            # lower() normalizes the image names, it has no impact on deployment
+            self.marketplace_raw = {
+                k: v.lower() for k, v in self.marketplace_raw.items()
+            }
+            self._marketplace = schema.load_by_type(
+                AzureVmMarketplaceSchema, self.marketplace_raw
+            )
+            # Validated marketplace_raw and filter out any unwanted content
+            self.marketplace_raw = self._marketplace.to_dict()  # type: ignore
+
+        elif self.marketplace_raw:
+            assert isinstance(
+                self.marketplace_raw, str
+            ), f"actual: {type(self.marketplace_raw)}"
+
+            self.marketplace_raw = self.marketplace_raw.strip()
+
+            if self.marketplace_raw:
                 # Users decide the cases of image names,
-                #  the inconsistent cases cause the mismatched error in notifiers.
-                # The lower() normalizes the image names,
-                #  it has no impact on deployment.
-                self.marketplace_raw = dict(
-                    (k, v.lower()) for k, v in self.marketplace_raw.items()
-                )
-                marketplace = schema.load_by_type(
-                    AzureVmMarketplaceSchema, self.marketplace_raw
-                )
-                # this step makes marketplace_raw is validated, and
-                # filter out any unwanted content.
-                self.marketplace_raw = marketplace.to_dict()  # type: ignore
-            elif self.marketplace_raw:
-                assert isinstance(
-                    self.marketplace_raw, str
-                ), f"actual: {type(self.marketplace_raw)}"
+                # inconsistent cases cause a mismatch error in notifiers.
+                # lower() normalizes the image names, it has no impact on deployment
+                marketplace_strings = re.split(r"[:\s]+", self.marketplace_raw.lower())
 
-                self.marketplace_raw = self.marketplace_raw.strip()
-
-                if self.marketplace_raw:
-                    # Users decide the cases of image names,
-                    #  the inconsistent cases cause the mismatched error in notifiers.
-                    # The lower() normalizes the image names,
-                    #  it has no impact on deployment.
-                    marketplace_strings = re.split(
-                        r"[:\s]+", self.marketplace_raw.lower()
+                if len(marketplace_strings) != 4:
+                    raise LisaException(
+                        "Invalid value for the provided marketplace "
+                        f"parameter: '{self.marketplace_raw}'."
+                        "The marketplace parameter should be in the format: "
+                        "'<Publisher> <Offer> <Sku> <Version>' "
+                        "or '<Publisher>:<Offer>:<Sku>:<Version>'"
                     )
+                self._marketplace = AzureVmMarketplaceSchema(*marketplace_strings)
+                # marketplace_raw is used
+                self.marketplace_raw = (
+                    self._marketplace.to_dict()  # type: ignore [attr-defined]
+                )
 
-                    if len(marketplace_strings) == 4:
-                        marketplace = AzureVmMarketplaceSchema(*marketplace_strings)
-                        # marketplace_raw is used
-                        self.marketplace_raw = marketplace.to_dict()  # type: ignore
-                    else:
-                        raise LisaException(
-                            f"Invalid value for the provided marketplace "
-                            f"parameter: '{self.marketplace_raw}'."
-                            f"The marketplace parameter should be in the format: "
-                            f"'<Publisher> <Offer> <Sku> <Version>' "
-                            f"or '<Publisher>:<Offer>:<Sku>:<Version>'"
-                        )
-            self._marketplace = marketplace
-        return marketplace
+        return self._marketplace
 
     @marketplace.setter
     def marketplace(self, value: Optional[AzureVmMarketplaceSchema]) -> None:
         self._marketplace = value
-        if value is None:
-            self.marketplace_raw = None
-        else:
-            self.marketplace_raw = value.to_dict()  # type: ignore
+        # dataclass_json doesn't use a protocol return type, so to_dict() is unknown
+        self.marketplace_raw = (
+            None if value is None else value.to_dict()  # type: ignore [attr-defined]
+        )
 
     @property
     def shared_gallery(self) -> Optional[SharedImageGallerySchema]:
-        # this is a safe guard and prevent mypy error on typing
-        if not hasattr(self, "_shared_gallery"):
-            self._shared_gallery: Optional[SharedImageGallerySchema] = None
-        shared_gallery: Optional[SharedImageGallerySchema] = self._shared_gallery
-        if shared_gallery:
-            return shared_gallery
+        if self._shared_gallery is not None:
+            return self._shared_gallery
+
         if isinstance(self.shared_gallery_raw, dict):
             # Users decide the cases of image names,
-            #  the inconsistent cases cause the mismatched error in notifiers.
-            # The lower() normalizes the image names,
-            #  it has no impact on deployment.
-            self.shared_gallery_raw = dict(
-                (k, v.lower()) for k, v in self.shared_gallery_raw.items()
-            )
-            shared_gallery = schema.load_by_type(
+            # inconsistent cases cause a mismatch error in notifiers.
+            # lower() normalizes the image names, it has no impact on deployment
+            self.shared_gallery_raw = {
+                k: v.lower() for k, v in self.shared_gallery_raw.items()
+            }
+
+            self._shared_gallery = schema.load_by_type(
                 SharedImageGallerySchema, self.shared_gallery_raw
             )
-            if not shared_gallery.subscription_id:
-                shared_gallery.subscription_id = self.subscription_id
-            # this step makes shared_gallery_raw is validated, and
-            # filter out any unwanted content.
-            self.shared_gallery_raw = shared_gallery.to_dict()  # type: ignore
+            if not self._shared_gallery.subscription_id:
+                self._shared_gallery.subscription_id = self.subscription_id
+            # Validated shared_gallery_raw and filter out any unwanted content
+            self.shared_gallery_raw = self._shared_gallery.to_dict()  # type: ignore
+
         elif self.shared_gallery_raw:
             assert isinstance(
                 self.shared_gallery_raw, str
             ), f"actual: {type(self.shared_gallery_raw)}"
             # Users decide the cases of image names,
-            #  the inconsistent cases cause the mismatched error in notifiers.
-            # The lower() normalizes the image names,
-            #  it has no impact on deployment.
+            # inconsistent cases cause a mismatch error in notifiers.
+            # lower() normalizes the image names, it has no impact on deployment
             shared_gallery_strings = re.split(
                 r"[/]+", self.shared_gallery_raw.strip().lower()
             )
             if len(shared_gallery_strings) == 5:
-                shared_gallery = SharedImageGallerySchema(*shared_gallery_strings)
-                # shared_gallery_raw is used
-                self.shared_gallery_raw = shared_gallery.to_dict()  # type: ignore
+                self._shared_gallery = SharedImageGallerySchema(*shared_gallery_strings)
             elif len(shared_gallery_strings) == 3:
-                shared_gallery = SharedImageGallerySchema(
+                self._shared_gallery = SharedImageGallerySchema(
                     self.subscription_id, None, *shared_gallery_strings
                 )
-                # shared_gallery_raw is used
-                self.shared_gallery_raw = shared_gallery.to_dict()  # type: ignore
             else:
                 raise LisaException(
                     f"Invalid value for the provided shared gallery "
@@ -366,51 +352,43 @@ class AzureNodeSchema:
                     f"<image_definition>/<image_version>' or '<image_gallery>/"
                     f"<image_definition>/<image_version>'"
                 )
-        self._shared_gallery = shared_gallery
-        return shared_gallery
+            self.shared_gallery_raw = self._shared_gallery.to_dict()  # type: ignore
+
+        return self._shared_gallery
 
     @shared_gallery.setter
     def shared_gallery(self, value: Optional[SharedImageGallerySchema]) -> None:
         self._shared_gallery = value
-        if value is None:
-            self.shared_gallery_raw = None
-        else:
-            self.shared_gallery_raw = value.to_dict()  # type: ignore
+        # dataclass_json doesn't use a protocol return type, so to_dict() is unknown
+        self.shared_gallery_raw = (
+            None if value is None else value.to_dict()  # type: ignore [attr-defined]
+        )
 
     @property
     def vhd(self) -> Optional[VhdSchema]:
-        # this is a safe guard and prevent mypy error on typing
-        if not hasattr(self, "_vhd"):
-            self._vhd: Optional[VhdSchema] = None
-        vhd: Optional[VhdSchema] = self._vhd
-        if vhd:
-            return vhd
+        if self._vhd is not None:
+            return self._vhd
+
         if isinstance(self.vhd_raw, dict):
-            vhd = schema.load_by_type(VhdSchema, self.vhd_raw)
-            add_secret(vhd.vhd_path, PATTERN_URL)
-            if vhd.vmgs_path:
-                add_secret(vhd.vmgs_path, PATTERN_URL)
-            # this step makes vhd_raw is validated, and
-            # filter out any unwanted content.
-            self.vhd_raw = vhd.to_dict()  # type: ignore
+            self._vhd = schema.load_by_type(VhdSchema, self.vhd_raw)
+            add_secret(self._vhd.vhd_path, PATTERN_URL)
+            if self._vhd.vmgs_path:
+                add_secret(self._vhd.vmgs_path, PATTERN_URL)
+            # Validated vhd_raw and filter out any unwanted content
+            self.vhd_raw = self._vhd.to_dict()  # type: ignore
+
         elif self.vhd_raw is not None:
             assert isinstance(self.vhd_raw, str), f"actual: {type(self.vhd_raw)}"
-            vhd = VhdSchema(self.vhd_raw)
-            add_secret(vhd.vhd_path, PATTERN_URL)
-            self.vhd_raw = vhd.to_dict()  # type: ignore
-        self._vhd = vhd
-        if vhd:
-            return vhd
-        else:
-            return None
+            self._vhd = VhdSchema(self.vhd_raw)
+            add_secret(self._vhd.vhd_path, PATTERN_URL)
+            self.vhd_raw = self._vhd.to_dict()  # type: ignore
+
+        return self._vhd
 
     @vhd.setter
     def vhd(self, value: Optional[VhdSchema]) -> None:
         self._vhd = value
-        if value is None:
-            self.vhd_raw = None
-        else:
-            self.vhd_raw = self._vhd.to_dict()  # type: ignore
+        self.vhd_raw = None if value is None else self._vhd.to_dict()  # type: ignore
 
     def get_image_name(self) -> str:
         result = ""
@@ -421,7 +399,7 @@ class AzureNodeSchema:
                 self.shared_gallery_raw, dict
             ), f"actual type: {type(self.shared_gallery_raw)}"
             if self.shared_gallery.resource_group_name:
-                result = "/".join([x for x in self.shared_gallery_raw.values()])
+                result = "/".join(self.shared_gallery_raw.values())
             else:
                 result = (
                     f"{self.shared_gallery.image_gallery}/"
@@ -432,7 +410,7 @@ class AzureNodeSchema:
             assert isinstance(
                 self.marketplace_raw, dict
             ), f"actual type: {type(self.marketplace_raw)}"
-            result = " ".join([x for x in self.marketplace_raw.values()])
+            result = " ".join(self.marketplace_raw.values())
         return result
 
 
@@ -457,9 +435,7 @@ class AzureNodeArmParameter(AzureNodeSchema):
             parameters["vhd_raw"] = parameters["vhd"]
             del parameters["vhd"]
 
-        arm_parameters = AzureNodeArmParameter(**parameters)
-
-        return arm_parameters
+        return AzureNodeArmParameter(**parameters)
 
 
 class DataDiskCreateOption:
