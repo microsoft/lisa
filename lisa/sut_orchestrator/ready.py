@@ -3,6 +3,7 @@
 
 from typing import List, Type
 
+from lisa import features
 from lisa.environment import Environment
 from lisa.feature import Feature
 from lisa.platform_ import Platform
@@ -18,7 +19,17 @@ class ReadyPlatform(Platform):
 
     @classmethod
     def supported_features(cls) -> List[Type[Feature]]:
-        return []
+        return [
+            features.Disk,
+            features.Gpu,
+            features.Nvme,
+            features.NestedVirtualization,
+            features.NetworkInterface,
+            features.Infiniband,
+            features.Hibernation,
+            features.IsolatedResource,
+            features.Nfs,
+        ]
 
     def _prepare_environment(self, environment: Environment, log: Logger) -> bool:
         if environment.runbook.nodes_requirement:
