@@ -786,7 +786,7 @@ class Debian(Linux):
     def _initialize_package_installation(self) -> None:
         # wait running system package process.
         self.wait_running_package_process()
-        result = self._node.execute("apt-get update", sudo=True)
+        result = self._node.execute("apt-get update", sudo=True, timeout=1800)
         if self._repo_not_exist_pattern.search(result.stdout):
             raise RepoNotExistException(self._node.os)
         result.assert_exit_code(message="\n".join(self.get_apt_error(result.stdout)))
