@@ -189,6 +189,11 @@ class StoragePerformance(TestSuite):
         This test case uses fio to test data disk performance.
         This will give flexibility to run FIO by runbook param.
         If nothing is passed, it will run FIO with default param.
+
+        There is no system resource info on FIO-Man-page, FIO-readdocs.
+        We have faced OOM with 512 MB memory.
+        We deploy host azure VM with 64 GB in pipeline.
+        So, Keeping memory need as 2 GB.
         """,
         priority=3,
         timeout=TIME_OUT,
