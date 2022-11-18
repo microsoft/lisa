@@ -3,7 +3,7 @@
 
 import re
 import sys
-from dataclasses import InitVar, dataclass, field
+from dataclasses import dataclass, field
 from datetime import datetime, timedelta
 from threading import Lock
 from time import sleep
@@ -145,11 +145,12 @@ class AzureNodeSchema:
     # image.
     is_linux: Optional[bool] = None
 
-    _marketplace: InitVar[Optional[AzureVmMarketplaceSchema]] = None
+    def __post_init__(self) -> None:
 
-    _shared_gallery: InitVar[Optional[SharedImageGallerySchema]] = None
+        # Caching
+        self._marketplace: Optional[AzureVmMarketplaceSchema] = None
+        self._shared_gallery: Optional[SharedImageGallerySchema] = None
 
-    def __post_init__(self, *args: Any, **kwargs: Any) -> None:
         # trim whitespace of values.
         strip_strs(
             self,
@@ -171,80 +172,78 @@ class AzureNodeSchema:
 
     @property
     def marketplace(self) -> Optional[AzureVmMarketplaceSchema]:
-        # this is a safe guard and prevent mypy error on typing
-        if not hasattr(self, "_marketplace"):
-            self._marketplace: Optional[AzureVmMarketplaceSchema] = None
-        marketplace: Optional[AzureVmMarketplaceSchema] = self._marketplace
-        if not marketplace:
-            if isinstance(self.marketplace_raw, dict):
+
+        if self._marketplace is not None:
+            return self._marketplace
+
+        if isinstance(self.marketplace_raw, dict):
+            # Users decide the cases of image names,
+            #  the inconsistent cases cause the mismatched error in notifiers.
+            # The lower() normalizes the image names,
+            #  it has no impact on deployment.
+            self.marketplace_raw = {
+                k: v.lower() for k, v in self.marketplace_raw.items()
+            }
+            self._marketplace = schema.load_by_type(
+                AzureVmMarketplaceSchema, self.marketplace_raw
+            )
+            # This step makes sure marketplace_raw is validated, and
+            # filters out any unwanted content.
+            self.marketplace_raw = self._marketplace.to_dict()  # type: ignore
+
+        elif self.marketplace_raw:
+            assert isinstance(
+                self.marketplace_raw, str
+            ), f"actual: {type(self.marketplace_raw)}"
+
+            self.marketplace_raw = self.marketplace_raw.strip()
+
+            if self.marketplace_raw:
                 # Users decide the cases of image names,
                 #  the inconsistent cases cause the mismatched error in notifiers.
                 # The lower() normalizes the image names,
                 #  it has no impact on deployment.
-                self.marketplace_raw = dict(
-                    (k, v.lower()) for k, v in self.marketplace_raw.items()
-                )
-                marketplace = schema.load_by_type(
-                    AzureVmMarketplaceSchema, self.marketplace_raw
-                )
-                # this step makes marketplace_raw is validated, and
-                # filter out any unwanted content.
-                self.marketplace_raw = marketplace.to_dict()  # type: ignore
-            elif self.marketplace_raw:
-                assert isinstance(
-                    self.marketplace_raw, str
-                ), f"actual: {type(self.marketplace_raw)}"
+                marketplace_strings = re.split(r"[:\s]+", self.marketplace_raw.lower())
 
-                self.marketplace_raw = self.marketplace_raw.strip()
-
-                if self.marketplace_raw:
-                    # Users decide the cases of image names,
-                    #  the inconsistent cases cause the mismatched error in notifiers.
-                    # The lower() normalizes the image names,
-                    #  it has no impact on deployment.
-                    marketplace_strings = re.split(
-                        r"[:\s]+", self.marketplace_raw.lower()
+                if len(marketplace_strings) != 4:
+                    raise LisaException(
+                        "Invalid value for the provided marketplace "
+                        f"parameter: '{self.marketplace_raw}'."
+                        "The marketplace parameter should be in the format: "
+                        "'<Publisher> <Offer> <Sku> <Version>' "
+                        "or '<Publisher>:<Offer>:<Sku>:<Version>'"
                     )
+                self._marketplace = AzureVmMarketplaceSchema(*marketplace_strings)
+                # marketplace_raw is used
+                self.marketplace_raw = (
+                    self._marketplace.to_dict()  # type: ignore [attr-defined]
+                )
 
-                    if len(marketplace_strings) == 4:
-                        marketplace = AzureVmMarketplaceSchema(*marketplace_strings)
-                        # marketplace_raw is used
-                        self.marketplace_raw = marketplace.to_dict()  # type: ignore
-                    else:
-                        raise LisaException(
-                            f"Invalid value for the provided marketplace "
-                            f"parameter: '{self.marketplace_raw}'."
-                            f"The marketplace parameter should be in the format: "
-                            f"'<Publisher> <Offer> <Sku> <Version>' "
-                            f"or '<Publisher>:<Offer>:<Sku>:<Version>'"
-                        )
-            self._marketplace = marketplace
-        return marketplace
+        return self._marketplace
 
     @marketplace.setter
     def marketplace(self, value: Optional[AzureVmMarketplaceSchema]) -> None:
         self._marketplace = value
-        if value is None:
-            self.marketplace_raw = None
-        else:
-            self.marketplace_raw = value.to_dict()  # type: ignore
+        # dataclass_json doesn't use a protocol return type, so to_dict() is unknown
+        self.marketplace_raw = (
+            None if value is None else value.to_dict()  # type: ignore [attr-defined]
+        )
 
     @property
     def shared_gallery(self) -> Optional[SharedImageGallerySchema]:
-        # this is a safe guard and prevent mypy error on typing
-        if not hasattr(self, "_shared_gallery"):
-            self._shared_gallery: Optional[SharedImageGallerySchema] = None
-        shared_gallery: Optional[SharedImageGallerySchema] = self._shared_gallery
-        if shared_gallery:
-            return shared_gallery
+
+        if self._shared_gallery is not None:
+            return self._shared_gallery
+
         if isinstance(self.shared_gallery_raw, dict):
             # Users decide the cases of image names,
             #  the inconsistent cases cause the mismatched error in notifiers.
             # The lower() normalizes the image names,
             #  it has no impact on deployment.
-            self.shared_gallery_raw = dict(
-                (k, v.lower()) for k, v in self.shared_gallery_raw.items()
-            )
+            self.shared_gallery_raw = {
+                k: v.lower() for k, v in self.shared_gallery_raw.items()
+            }
+
             shared_gallery = schema.load_by_type(
                 SharedImageGallerySchema, self.shared_gallery_raw
             )
@@ -253,6 +252,8 @@ class AzureNodeSchema:
             # this step makes shared_gallery_raw is validated, and
             # filter out any unwanted content.
             self.shared_gallery_raw = shared_gallery.to_dict()  # type: ignore
+            self._shared_gallery = shared_gallery
+
         elif self.shared_gallery_raw:
             assert isinstance(
                 self.shared_gallery_raw, str
@@ -269,11 +270,12 @@ class AzureNodeSchema:
                 # shared_gallery_raw is used
                 self.shared_gallery_raw = shared_gallery.to_dict()  # type: ignore
             elif len(shared_gallery_strings) == 3:
-                shared_gallery = SharedImageGallerySchema(
+                self._shared_gallery = SharedImageGallerySchema(
                     self.subscription_id, None, *shared_gallery_strings
                 )
                 # shared_gallery_raw is used
-                self.shared_gallery_raw = shared_gallery.to_dict()  # type: ignore
+                self.shared_gallery_raw = self._shared_gallery.to_dict()  # type: ignore
+
             else:
                 raise LisaException(
                     f"Invalid value for the provided shared gallery "
@@ -283,16 +285,16 @@ class AzureNodeSchema:
                     f"<image_definition>/<image_version>' or '<image_gallery>/"
                     f"<image_definition>/<image_version>'"
                 )
-        self._shared_gallery = shared_gallery
-        return shared_gallery
+
+        return self._shared_gallery
 
     @shared_gallery.setter
     def shared_gallery(self, value: Optional[SharedImageGallerySchema]) -> None:
         self._shared_gallery = value
-        if value is None:
-            self.shared_gallery_raw = None
-        else:
-            self.shared_gallery_raw = value.to_dict()  # type: ignore
+        # dataclass_json doesn't use a protocol return type, so to_dict() is unknown
+        self.shared_gallery_raw = (
+            None if value is None else value.to_dict()  # type: ignore [attr-defined]
+        )
 
     def get_image_name(self) -> str:
         result = ""
@@ -336,9 +338,7 @@ class AzureNodeArmParameter(AzureNodeSchema):
             parameters["shared_gallery_raw"] = parameters["shared_gallery"]
             del parameters["shared_gallery"]
 
-        arm_parameters = AzureNodeArmParameter(**parameters)
-
-        return arm_parameters
+        return AzureNodeArmParameter(**parameters)
 
 
 class DataDiskCreateOption:
