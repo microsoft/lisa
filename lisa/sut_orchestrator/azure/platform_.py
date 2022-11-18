@@ -1962,9 +1962,9 @@ class AzurePlatform(Platform):
         blob_name = matched.group("blob")
         storage_client = get_storage_client(self.credential, self.subscription_id)
         sc = [x for x in storage_client.storage_accounts.list() if x.name == sc_name]
-        assert sc[
-            0
-        ], f"fail to get storage account {sc_name} from {self.subscription_id}"
+        assert (
+            sc
+        ), f"storage account {sc_name} not found in subscription {self.subscription_id}"
         rg = get_matched_str(sc[0].id, RESOURCE_GROUP_PATTERN)
         return {
             "location": sc[0].location,
