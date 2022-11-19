@@ -61,9 +61,15 @@ class Dhclient(Tool):
                 f"-r {interface} && dhclient {interface}",
                 shell=True,
                 sudo=True,
+                force_run=True,
             )
         else:
-            result = self.run("-r && dhclient", shell=True, sudo=True)
+            result = self.run(
+                "-r && dhclient",
+                shell=True,
+                sudo=True,
+                force_run=True,
+            )
         result.assert_exit_code(
             0, f"dhclient renew return non-zero exit code: {result.stdout}"
         )
