@@ -64,14 +64,14 @@ if it exists.
 
 .. code:: bash
 
-   echo $PATH | grep --color=always "$HOME/\.local/bin\|$
+   echo $PATH | grep --color=always "$HOME/\.local/bin\|$"
 
 Ideally, this section is at the beginning of your ``$PATH``. If not, you can add the following to
 the bottom of your ``~/.profile`` or ``~.bash_profile`` files.
 
 .. code:: bash
 
-   export PATH="$HOME/.local/bin:$PATH
+   export PATH="$HOME/.local/bin:$PATH"
 
 
 Clone code
@@ -91,7 +91,7 @@ To install system-wide, preface the command with ``sudo``.
 
 .. code:: bash
 
-   python3 -m pip install .[azure, libvirt]
+   python3 -m pip install .[azure,libvirt]
 
 
 
