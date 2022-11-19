@@ -81,9 +81,12 @@ class Ip(Tool):
                 f"ip addr add {ip} dev {nic_name}"
             )
 
-    def restart_device(self, nic_name: str) -> None:
+    def restart_device(self, nic_name: str, run_dhclient: bool = False) -> None:
+        cmd = f"ip link set dev {nic_name} down;ip link set dev {nic_name} up;"
+        if run_dhclient:
+            cmd += f"dhclient -r {nic_name};dhclient {nic_name}"
         self.node.execute(
-            (f"ip link set dev {nic_name} down;ip link set dev {nic_name} up;"),
+            cmd,
             shell=True,
             sudo=True,
             nohup=True,
