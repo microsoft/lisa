@@ -663,7 +663,10 @@ class Dpdk(TestSuite):
         for node in environment.nodes.list():
             modprobe = node.tools[Modprobe]
             if modprobe.module_exists("uio_hv_generic"):
-                node.tools[Service].stop_service("vpp")
+                # stop_service can assert if service doesn't exist
+                if node.tools[Service].check_service_exists("vpp"):
+                    node.tools[Service].stop_service("vpp")
+
                 modprobe.remove(["uio_hv_generic"])
                 node.close()
                 modprobe.reload(["hv_netvsc"])
