@@ -230,11 +230,15 @@ class Lscpu(Tool):
         result = self.run("--extended=cpu,node,socket,cache").stdout
         mappings_with_header = result.splitlines(keepends=False)
         mappings = mappings_with_header[1:]
-        assert len(mappings) > 0
+        assert_that(mappings).described_as(
+            f"lscpu output should contain atleast one entry, but got {mappings}"
+        ).is_not_empty()
         output: List[CPUInfo] = []
         for item in mappings:
             match_result = self._core_numa_mappings.fullmatch(item)
-            assert match_result
+            assert (
+                match_result
+            ), f"lscpu NUMA node mapping is not in expected format: {item}"
             output.append(
                 CPUInfo(
                     cpu=match_result.group("cpu"),
