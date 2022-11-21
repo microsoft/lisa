@@ -1566,6 +1566,7 @@ class AzurePlatform(Platform):
             node_space.network_interface.max_nic_count, int
         ):
             node_space.network_interface.max_nic_count = 1
+            node_space.network_interface.nic_count = search_space.IntRange(min=1, max=1)
 
         # some vm size do not have resource disk present
         # https://docs.microsoft.com/en-us/azure/virtual-machines/azure-vms-no-temp-disk
