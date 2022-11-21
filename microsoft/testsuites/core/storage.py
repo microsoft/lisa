@@ -70,9 +70,18 @@ class Storage(TestSuite):
         disks = node.features[Disk].get_all_disks()
         root_device_timeout_from_waagent = node.tools[Waagent].get_root_device_timeout()
         for disk in disks:
-            device_timeout_from_distro = int(
-                node.tools[Cat].run(f"/sys/block/{disk}/device/timeout").stdout
-            )
+            timeout = 60
+            timer = create_timer()
+            while timeout > timer.elapsed(False):
+                device_timeout_from_distro = int(
+                    node.tools[Cat]
+                    .run(f"/sys/block/{disk}/device/timeout", force_run=True)
+                    .stdout
+                )
+                if root_device_timeout_from_waagent == device_timeout_from_distro:
+                    break
+                else:
+                    time.sleep(1)
             assert_that(
                 root_device_timeout_from_waagent,
                 f"device {disk} timeout from waagent.conf and distro should match",
