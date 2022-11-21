@@ -125,7 +125,7 @@ class Ltp(Tool):
         self.run(parameters, sudo=True, force_run=True, timeout=12000)
 
         # to avoid no permission issue when copying back files
-        self.node.tools[Chmod].update_folder("/opt/ltp", "a+rwX", sudo=True)
+        self.node.tools[Chmod].update_folder("/opt", "a+rwX", sudo=True)
 
         # write output to log path
         self.node.shell.copy_back(
