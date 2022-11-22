@@ -180,6 +180,9 @@ def dev(session: nox.Session) -> None:
         "install",
         "--editable",
         f".[{extras}]",
+        # Workaround for non-package directories (microsoft, examples)
+        "--config-settings",
+        "editable_mode=compat",
         external=True,
     )
 
