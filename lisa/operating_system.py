@@ -1370,14 +1370,15 @@ class Redhat(Fedora):
             )
         else:
             self.install_packages("yum-utils")
-            self._node.execute("yum-config-manager --enable extras", sudo=True, expected_exit_code=0, expected_exit_code_failure_message="Error enabling extras with yum-config-manager")
-            
+            self._node.execute(
+                "yum-config-manager --enable extras",
+                sudo=True,
+                expected_exit_code=0,
+                expected_exit_code_failure_message="Error enabling extras with yum-config-manager",
+            )
 
     def is_rhel(self) -> bool:
         return self._node.os.information.vendor == "Red Hat"
-
-    def install_extras(self) -> None:
-
 
     @retry(tries=10, delay=5)
     def _initialize_package_installation(self) -> None:
