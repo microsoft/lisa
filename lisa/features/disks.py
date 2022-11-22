@@ -61,6 +61,9 @@ class Disk(Feature):
     def _initialize(self, *args: Any, **kwargs: Any) -> None:
         self.disks: List[str] = []
 
+    def get_resource_disk_mount_point(self) -> str:
+        raise NotImplementedError
+
 
 DiskEphemeral = partial(schema.DiskOptionSettings, disk_type=schema.DiskType.Ephemeral)
 DiskPremiumSSDLRS = partial(

@@ -1,7 +1,7 @@
 # Copyright (c) Microsoft Corporation.
 # Licensed under the MIT license.
 import time
-from pathlib import Path, PurePosixPath
+from pathlib import Path
 from random import randint
 from typing import cast
 
@@ -19,9 +19,8 @@ from lisa import (
     schema,
     search_space,
 )
-from lisa.features import SerialConsole
+from lisa.features import Disk, SerialConsole
 from lisa.operating_system import Redhat
-from lisa.sut_orchestrator.azure.tools import Waagent
 from lisa.tools import Dmesg, Echo, KdumpBase, KernelConfig, Lscpu, Stat
 from lisa.tools.free import Free
 from lisa.util.perf_timer import create_timer
@@ -238,13 +237,7 @@ class KdumpCrash(TestSuite):
                 raise SkippedException("crashkernel=auto doesn't work for the distro.")
 
     def _get_resource_disk_dump_path(self, node: Node) -> str:
-        if node.shell.exists(
-            PurePosixPath("/var/log/cloud-init.log")
-        ) and node.shell.exists(PurePosixPath("/var/lib/cloud/instance")):
-            mount_point = "/mnt"
-        else:
-            mount_point = node.tools[Waagent].get_resource_disk_mount_point()
-
+        mount_point = node.features[Disk].get_resource_disk_mount_point()
         dump_path = mount_point + "/crash"
         node.execute(
             f"mkdir -p {dump_path}",

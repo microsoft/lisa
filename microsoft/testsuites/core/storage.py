@@ -29,8 +29,6 @@ from lisa.tools import Blkid, Cat, Dmesg, Echo, Lsblk, NFSClient, Swap
 from lisa.util import BadEnvironmentStateException, LisaException, get_matched_str
 from lisa.util.perf_timer import create_timer
 
-from .common import get_resource_disk_mount_point
-
 
 @TestSuiteMetadata(
     area="storage",
@@ -97,8 +95,8 @@ class Storage(TestSuite):
             supported_platform_type=[AZURE],
         ),
     )
-    def verify_resource_disk_mtab_entry(self, log: Logger, node: RemoteNode) -> None:
-        resource_disk_mount_point = get_resource_disk_mount_point(log, node)
+    def verify_resource_disk_mtab_entry(self, node: RemoteNode) -> None:
+        resource_disk_mount_point = node.features[Disk].get_resource_disk_mount_point()
         # os disk(root disk) is the entry with mount point `/' in the output
         # of `mount` command
         os_disk = (
@@ -154,8 +152,8 @@ class Storage(TestSuite):
             supported_platform_type=[AZURE],
         ),
     )
-    def verify_resource_disk_io(self, log: Logger, node: RemoteNode) -> None:
-        resource_disk_mount_point = get_resource_disk_mount_point(log, node)
+    def verify_resource_disk_io(self, node: RemoteNode) -> None:
+        resource_disk_mount_point = node.features[Disk].get_resource_disk_mount_point()
 
         # verify that resource disk is mounted
         # function returns successfully if disk matching mount point is present
