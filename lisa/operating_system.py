@@ -1359,6 +1359,26 @@ class Redhat(Fedora):
             saved_path / "redhat-release.txt",
         )
 
+    def enable_extras(self) -> None:
+        if self.is_rhel():
+            version = self.information.version.major
+            self._node.execute(
+                "subscription-manager repos "
+                f"--enable rhel-{version}-server-optional-rpms "
+                f"--enable rhel-{version}-server-extras-rpms",
+                sudo=True,
+            )
+        else:
+            self.install_packages("yum-utils")
+            self._node.execute("yum-config-manager --enable extras", sudo=True, expected_exit_code=0, expected_exit_code_failure_message="Error enabling extras with yum-config-manager")
+            
+
+    def is_rhel(self) -> bool:
+        return self._node.os.information.vendor == "Red Hat"
+
+    def install_extras(self) -> None:
+
+
     @retry(tries=10, delay=5)
     def _initialize_package_installation(self) -> None:
         information = self._get_information()
