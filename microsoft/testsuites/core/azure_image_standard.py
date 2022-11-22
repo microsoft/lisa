@@ -8,7 +8,6 @@ from typing import List, Pattern, cast
 from assertpy.assertpy import assert_that
 
 from lisa import (
-    Logger,
     Node,
     RemoteNode,
     TestCaseMetadata,
@@ -44,8 +43,6 @@ from lisa.util import (
     find_patterns_in_lines,
     get_matched_str,
 )
-
-from .common import get_resource_disk_mount_point
 
 
 @TestSuiteMetadata(
@@ -932,8 +929,8 @@ class AzureImageStandard(TestSuite):
             supported_platform_type=[AZURE],
         ),
     )
-    def verify_resource_disk_readme_file(self, log: Logger, node: RemoteNode) -> None:
-        resource_disk_mount_point = get_resource_disk_mount_point(log, node)
+    def verify_resource_disk_readme_file(self, node: RemoteNode) -> None:
+        resource_disk_mount_point = node.features[Disk].get_resource_disk_mount_point()
 
         # verify that resource disk is mounted
         # function returns successfully if disk matching mount point is present
@@ -973,8 +970,8 @@ class AzureImageStandard(TestSuite):
             supported_platform_type=[AZURE],
         ),
     )
-    def verify_resource_disk_file_system(self, log: Logger, node: RemoteNode) -> None:
-        resource_disk_mount_point = get_resource_disk_mount_point(log, node)
+    def verify_resource_disk_file_system(self, node: RemoteNode) -> None:
+        resource_disk_mount_point = node.features[Disk].get_resource_disk_mount_point()
         node.features[Disk].get_partition_with_mount_point(resource_disk_mount_point)
         disk_info = node.tools[Lsblk].find_disk_by_mountpoint(resource_disk_mount_point)
         for partition in disk_info.partitions:

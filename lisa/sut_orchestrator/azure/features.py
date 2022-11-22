@@ -41,7 +41,7 @@ from lisa.features.gpu import ComputeSDK
 from lisa.features.resize import ResizeAction
 from lisa.features.security_profile import SecurityProfileSettings, SecurityProfileType
 from lisa.node import Node, RemoteNode
-from lisa.operating_system import Redhat, Suse, Ubuntu
+from lisa.operating_system import CentOs, Redhat, Suse, Ubuntu
 from lisa.search_space import RequirementMethod
 from lisa.tools import Dmesg, Lspci, Modprobe
 from lisa.util import (
@@ -86,6 +86,7 @@ from .common import (
     save_console_log,
     wait_operation,
 )
+from .tools import Waagent
 
 
 class AzureFeatureMixin:
@@ -1220,6 +1221,26 @@ class Disk(AzureFeatureMixin, features.Disk):
         self.disks = [name for name in self.disks if name not in names]
         self._node.capability.disk.data_disk_count -= len(names)
         self._node.close()
+
+    def get_resource_disk_mount_point(self) -> str:
+        # by default, cloudinit will use /mnt as mount point of resource disk
+        # in CentOS, cloud.cfg.d/91-azure_datasource.cfg customize mount point as
+        # /mnt/resource
+        if (
+            not isinstance(self._node.os, CentOs)
+            and self._node.shell.exists(
+                self._node.get_pure_path("/var/log/cloud-init.log")
+            )
+            and self._node.shell.exists(
+                self._node.get_pure_path("/var/lib/cloud/instance")
+            )
+        ):
+            self._log.debug("Disk handled by cloud-init.")
+            mount_point = "/mnt"
+        else:
+            self._log.debug("Disk handled by waagent.")
+            mount_point = self._node.tools[Waagent].get_resource_disk_mount_point()
+        return mount_point
 
 
 def get_azure_disk_type(disk_type: schema.DiskType) -> str:
