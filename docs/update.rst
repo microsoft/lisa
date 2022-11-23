@@ -15,7 +15,7 @@ If you installed LISA, reinstall to get the latest version.
 
 .. code:: bash
 
-   python3 -m pip install .[azure, libvirt]
+   python3 -m pip install .[azure,libvirt]
 
 
 If you're using a virtual environment, recreate the virtual environment.
