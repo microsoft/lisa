@@ -37,8 +37,8 @@ Documents
 ---------
 
 -  `Quick start <https://mslisa.rtfd.io/en/main/quick_start.html>`__
--  `Development Setup <https://mslisa.readthedocs.io/en/main/write_test/dev_setup.html>`__
 -  `Run tests <https://mslisa.rtfd.io/en/main/run_test/run.html>`__
+-  `Development Setup <https://mslisa.readthedocs.io/en/main/write_test/dev_setup.html>`__
 -  `Microsoft tests <https://mslisa.rtfd.io/en/main/run_test/microsoft_tests.html>`__
 -  `Write test cases in LISA <https://mslisa.rtfd.io/en/main/write_test/write_case.html>`__
 -  `Command line reference <https://mslisa.rtfd.io/en/main/run_test/command_line.html>`__
