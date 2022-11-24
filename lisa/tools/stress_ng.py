@@ -66,10 +66,13 @@ class StressNg(Tool):
         class_name: str,
         num_workers: int = 0,
         timeout_secs: int = 60,
+        verbose: bool = True,
         sudo: bool = False,
     ) -> Process:
+        v_flag = "-v" if verbose else ""
         return self.run_async(
-            f"--sequential {num_workers} --class {class_name} --timeout {timeout_secs}",
+            f"{v_flag} --sequential {num_workers} --class {class_name} "
+            f"--timeout {timeout_secs}",
             sudo=sudo,
         )
 
