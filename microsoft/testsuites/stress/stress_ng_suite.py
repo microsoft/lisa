@@ -140,7 +140,7 @@ class StressNgTestSuite(TestSuite):
             test_msg = repr(e)
         finally:
             self._send_subtest_msg(
-                test_result.id_,
+                test_result,
                 environment,
                 job_file_name,
                 test_status,
@@ -154,7 +154,7 @@ class StressNgTestSuite(TestSuite):
 
     def _send_subtest_msg(
         self,
-        test_id: str,
+        test_result: TestResult,
         environment: Environment,
         test_name: str,
         test_status: TestStatus,
@@ -162,7 +162,7 @@ class StressNgTestSuite(TestSuite):
     ) -> None:
         subtest_msg = create_test_result_message(
             SubTestMessage,
-            test_id,
+            test_result,
             environment,
             test_name,
             test_status,

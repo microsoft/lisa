@@ -84,7 +84,7 @@ class KvmUnitTests(Tool):
                 failed_tests.append(result.name)
             subtest_message = create_test_result_message(
                 SubTestMessage,
-                test_result.id_,
+                test_result,
                 environment,
                 result.name,
                 result.status,

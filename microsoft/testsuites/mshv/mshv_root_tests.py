@@ -111,7 +111,7 @@ class MshvHostTestSuite(TestSuite):
                     log_path,
                 )
                 self._send_subtest_msg(
-                    result.id_,
+                    result,
                     environment,
                     test_name,
                     TestStatus.PASSED,
@@ -119,7 +119,7 @@ class MshvHostTestSuite(TestSuite):
             except Exception as e:
                 failures += 1
                 self._send_subtest_msg(
-                    result.id_, environment, test_name, TestStatus.FAILED, repr(e)
+                    result, environment, test_name, TestStatus.FAILED, repr(e)
                 )
         assert_that(failures).is_equal_to(0)
         return
@@ -188,7 +188,7 @@ class MshvHostTestSuite(TestSuite):
 
     def _send_subtest_msg(
         self,
-        test_id: str,
+        test_result: TestResult,
         environment: Environment,
         test_name: str,
         test_status: TestStatus,

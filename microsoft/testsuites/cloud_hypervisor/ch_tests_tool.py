@@ -73,7 +73,7 @@ class CloudHypervisorTests(Tool):
 
         for r in results:
             self._send_subtest_msg(
-                test_result.id_,
+                test_result,
                 environment,
                 r.name,
                 r.status,
@@ -125,7 +125,7 @@ class CloudHypervisorTests(Tool):
 
             msg = metrics if status == TestStatus.PASSED else trace
             self._send_subtest_msg(
-                test_id=test_result.id_,
+                test_id=test_result,
                 environment=environment,
                 test_name=testcase,
                 test_status=status,
@@ -205,14 +205,19 @@ class CloudHypervisorTests(Tool):
 
     def _send_subtest_msg(
         self,
-        test_id: str,
+        test_result: TestResult,
         environment: Environment,
         test_name: str,
         test_status: TestStatus,
         test_message: str = "",
     ) -> None:
         subtest_msg = create_test_result_message(
-            SubTestMessage, test_id, environment, test_name, test_status, test_message
+            SubTestMessage,
+            test_result,
+            environment,
+            test_name,
+            test_status,
+            test_message,
         )
 
         notifier.notify(subtest_msg)
