@@ -1,6 +1,8 @@
 # Copyright (c) Microsoft Corporation.
 # Licensed under the MIT license.
 
+from pathlib import PurePath
+
 from lisa.executable import Tool
 
 
@@ -46,6 +48,19 @@ class Sed(Tool):
         text = text.replace('"', '\\"')
         result = self.run(
             f"-i.bak '$a{text}' {file}",
+            force_run=True,
+            no_error_log=True,
+            no_info_log=True,
+            sudo=sudo,
+            shell=True,
+        )
+        result.assert_exit_code(message=result.stdout)
+
+    def delete_lines(self, pattern: str, file: PurePath, sudo: bool = False) -> None:
+        expression = f"/{pattern}/d"
+        cmd = f'-i.bak "{expression}" {file}'
+        result = self.run(
+            cmd,
             force_run=True,
             no_error_log=True,
             no_info_log=True,

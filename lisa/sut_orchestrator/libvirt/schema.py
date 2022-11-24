@@ -47,6 +47,8 @@ class BaseLibvirtPlatformSchema:
     # Specified in seconds. Default: 30s.
     network_boot_timeout: Optional[float] = None
 
+    capture_libvirt_debug_logs: bool = False
+
 
 # Possible disk image formats
 class DiskImageFormat(Enum):

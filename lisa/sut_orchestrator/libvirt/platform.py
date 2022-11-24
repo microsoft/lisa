@@ -12,7 +12,7 @@ import sys
 import tempfile
 import time
 import xml.etree.ElementTree as ET  # noqa: N817
-from pathlib import Path
+from pathlib import Path, PurePosixPath
 from threading import Lock, Timer
 from typing import Any, Dict, List, Optional, Tuple, Type, cast
 
@@ -26,9 +26,22 @@ from lisa.feature import Feature
 from lisa.node import Node, RemoteNode, local_node_connect
 from lisa.operating_system import CBLMariner
 from lisa.platform_ import Platform
-from lisa.tools import Chmod, Dmesg, Iptables, Journalctl, Ls, QemuImg, Uname
+from lisa.tools import (
+    Chmod,
+    Chown,
+    Cp,
+    Dmesg,
+    Iptables,
+    Journalctl,
+    Ls,
+    QemuImg,
+    Sed,
+    Service,
+    Uname,
+    Whoami,
+)
 from lisa.util import LisaException, constants, get_public_key_data
-from lisa.util.logger import Logger, filter_ansi_escape
+from lisa.util.logger import Logger, filter_ansi_escape, get_logger
 
 from . import libvirt_events_thread
 from .console_logger import QemuConsoleLogger
@@ -63,6 +76,13 @@ class _HostCapabilities:
 
 
 class BaseLibvirtPlatform(Platform, IBaseLibvirtPlatform):
+    LIBVIRTD_CONF_PATH = PurePosixPath("/etc/libvirt/libvirtd.conf")
+    LIBVIRT_DEBUG_LOG_PATH = PurePosixPath("/var/log/libvirt/libvirtd.log")
+    # A marker that identifies lines added by lisa in a config file. This can be
+    # appended as a comment and then used to identify the line to delete during
+    # cleanup.
+    CONFIG_FILE_MARKER = "lisa-libvirt-platform"
+
     _supported_features: List[Type[Feature]] = [
         SerialConsole,
         StartStop,
@@ -114,15 +134,8 @@ class BaseLibvirtPlatform(Platform, IBaseLibvirtPlatform):
             self.__platform_runbook_type(), type_name=type(self).type_name()
         )
 
-        self.__init_libvirt_conn_string()
-        self.libvirt_conn = libvirt.open(self.libvirt_conn_str)
-
-    def _prepare_environment(self, environment: Environment, log: Logger) -> bool:
-        # Ensure environment log directory is created before connecting to any nodes.
-        _ = environment.log_path
-
         if len(self.platform_runbook.hosts) > 1:
-            log.warning(
+            self._log.warning(
                 "Multiple hosts are currently not supported. "
                 "Only the first host will be used."
             )
@@ -139,8 +152,7 @@ class BaseLibvirtPlatform(Platform, IBaseLibvirtPlatform):
                 runbook=schema.Node(name="libvirt-host"),
                 index=-1,
                 logger_name="libvirt-host",
-                base_part_path=environment.environment_part_path,
-                parent_logger=log,
+                parent_logger=get_logger("libvirt-platform"),
             )
 
             self.host_node.set_connection_info(
@@ -151,9 +163,18 @@ class BaseLibvirtPlatform(Platform, IBaseLibvirtPlatform):
         else:
             self.host_node = local_node_connect(
                 name="libvirt-host",
-                base_part_path=environment.environment_part_path,
-                parent_logger=log,
+                parent_logger=get_logger("libvirt-platform"),
             )
+
+        if self.platform_runbook.capture_libvirt_debug_logs:
+            self._enable_libvirt_debug_log()
+
+        self.__init_libvirt_conn_string()
+        self.libvirt_conn = libvirt.open(self.libvirt_conn_str)
+
+    def _prepare_environment(self, environment: Environment, log: Logger) -> bool:
+        # Ensure environment log directory is created before connecting to any nodes.
+        _ = environment.log_path
 
         self._configure_environment(environment, log)
 
@@ -168,12 +189,11 @@ class BaseLibvirtPlatform(Platform, IBaseLibvirtPlatform):
         if self.host_node.is_remote:
             self._stop_port_forwarding(environment, log)
 
-        libvirt_log = self.host_node.tools[Journalctl].logs_for_unit(
-            "libvirtd", sudo=self.host_node.is_remote
-        )
-        libvirt_log_path = self.host_node.local_log_path / "libvirtd.log"
-        with open(str(libvirt_log_path), "w") as f:
-            f.write(libvirt_log)
+        self._capture_libvirt_logs()
+
+    def _cleanup(self) -> None:
+        if self.platform_runbook.capture_libvirt_debug_logs:
+            self._disable_libvirt_debug_log()
 
         dmesg_output = self.host_node.tools[Dmesg].get_output(force_run=True)
         dmesg_path = self.host_node.local_log_path / "dmesg.txt"
@@ -1192,3 +1212,44 @@ class BaseLibvirtPlatform(Platform, IBaseLibvirtPlatform):
                     node.log.exception(f"error on get {key}.", exc_info=identifier)
 
         return information
+
+    def _enable_libvirt_debug_log(self) -> None:
+        sed = self.host_node.tools[Sed]
+        sed.append(
+            f'log_outputs="1:file:{self.LIBVIRT_DEBUG_LOG_PATH} 3:syslog:libvirtd" '
+            f"# {self.CONFIG_FILE_MARKER}",
+            str(self.LIBVIRTD_CONF_PATH),
+            sudo=True,
+        )
+
+        self.host_node.tools[Service].restart_service("libvirtd")
+
+    def _disable_libvirt_debug_log(self) -> None:
+        self.host_node.tools[Sed].delete_lines(
+            self.CONFIG_FILE_MARKER,
+            self.LIBVIRTD_CONF_PATH,
+            sudo=True,
+        )
+
+    def _capture_libvirt_logs(self) -> None:
+        libvirt_log_local_path = self.host_node.local_log_path / "libvirtd.log"
+
+        if self.platform_runbook.capture_libvirt_debug_logs:
+            libvirt_log_temp_path = self.host_node.working_path / "libvirtd.log"
+
+            # Copy the log file to working_path, change ownership and then copy_back
+            # to the local machine.
+            self.host_node.tools[Cp].copy(
+                self.LIBVIRT_DEBUG_LOG_PATH, libvirt_log_temp_path, sudo=True
+            )
+            user = self.host_node.tools[Whoami].get_username()
+            self.host_node.tools[Chown].change_owner(libvirt_log_temp_path, user)
+            self.host_node.shell.copy_back(
+                libvirt_log_temp_path, libvirt_log_local_path
+            )
+        else:
+            libvirt_log = self.host_node.tools[Journalctl].logs_for_unit(
+                "libvirtd", sudo=self.host_node.is_remote
+            )
+            with open(str(libvirt_log_local_path), "w") as f:
+                f.write(libvirt_log)
