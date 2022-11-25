@@ -63,7 +63,7 @@ docs = [
 ]
 
 flake8 = [
-    "flake8 >= 4.0.1",
+    "flake8 ~= 5.0.4",
     "Flake8-pyproject",
     "flake8-black >= 0.3.2",
     "flake8-bugbear >= 22.3.23",
