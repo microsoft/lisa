@@ -4,7 +4,7 @@
 import xml.etree.ElementTree as ET  # noqa: N817
 from dataclasses import dataclass
 from pathlib import Path
-from typing import IO, Any, Dict, List, Optional, Type, Union, cast
+from typing import IO, Any, Dict, List, Optional, Type, cast
 
 from dataclasses_json import dataclass_json
 
@@ -243,7 +243,7 @@ class JUnit(Notifier):
                 # The active sub-test is not the same as the one that just completed.
                 # Report the problem.
                 raise LisaException(
-                    f"Completed sub-test is not the same as the active sub-test."
+                    "Completed sub-test is not the same as the active sub-test."
                 )
 
             testcase_info.active_subtest_name = None
@@ -272,7 +272,7 @@ class JUnit(Notifier):
     ) -> None:
         testsuite_info = self._testsuites_info.get(suite_full_name)
         if not testsuite_info:
-            raise LisaException(f"Test suite not started.")
+            raise LisaException("Test suite not started.")
 
         testcase = ET.SubElement(testsuite_info.xml, "testcase")
         testcase.attrib["name"] = message.name

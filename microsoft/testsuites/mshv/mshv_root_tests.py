@@ -196,7 +196,7 @@ class MshvHostTestSuite(TestSuite):
     ) -> None:
         subtest_msg = create_test_result_message(
             SubTestMessage,
-            test_id,
+            test_result,
             environment,
             test_name,
             test_status,
