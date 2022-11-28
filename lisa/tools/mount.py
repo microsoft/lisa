@@ -68,7 +68,7 @@ class Mount(Tool):
     def can_install(self) -> bool:
         return True
 
-    @retry(tries=10, delay=5)
+    @retry(tries=24, delay=5)
     def mount(
         self,
         name: str,
