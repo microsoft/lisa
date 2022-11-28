@@ -354,6 +354,8 @@ class LisaRunner(BaseRunner):
                 f"because after test case '{test_result.name}', "
                 f"node(s) cannot be accessible."
             )
+            # check panic when node(s) in bad status
+            environment.nodes.check_kernel_panics()
         environment.nodes.close()
 
         # keep failed environment, not to delete
