@@ -1089,6 +1089,18 @@ class FreeBSD(BSD):
         result = self._node.execute("pkg update", sudo=True)
         result.assert_exit_code(message="fail to run pkg update")
 
+    def _update_packages(self, packages: Optional[List[str]] = None) -> None:
+        command = "env ASSUME_ALWAYS_YES=yes pkg upgrade -y "
+        if packages:
+            command += " ".join(packages)
+        self._node.execute(
+            command,
+            sudo=True,
+            timeout=3600,
+            expected_exit_code=0,
+            expected_exit_code_failure_message=f"fail to run {command}",
+        )
+
 
 class OpenBSD(BSD):
     ...
