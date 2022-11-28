@@ -125,11 +125,11 @@ class CloudHypervisorTests(Tool):
 
             msg = metrics if status == TestStatus.PASSED else trace
             self._send_subtest_msg(
-                test_id=test_result,
-                environment=environment,
-                test_name=testcase,
-                test_status=status,
-                test_message=msg,
+                test_result,
+                environment,
+                testcase,
+                status,
+                msg,
             )
 
             # Write stdout of testcase to log as per given requirement
