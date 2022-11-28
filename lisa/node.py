@@ -362,6 +362,15 @@ class Node(subclasses.BaseClassWithRunbookMixin, ContextMixin, InitializableMixi
             self.log.debug(f"cannot access VM {self.name}, error is {identifier}")
         return False
 
+    def check_kernel_panic(self) -> None:
+        from lisa.features import SerialConsole
+
+        if self.features.is_supported(SerialConsole):
+            serial_console = self.features[SerialConsole]
+            serial_console.check_panic(
+                saved_path=None, stage="after_case", force_run=True
+            )
+
     def _initialize(self, *args: Any, **kwargs: Any) -> None:
         if not hasattr(self, "_log_handler"):
             self._log_handler = create_file_handler(
@@ -642,6 +651,9 @@ class Nodes:
 
     def test_connections(self) -> bool:
         return all(run_in_parallel([x.test_connection for x in self._list]))
+
+    def check_kernel_panics(self) -> None:
+        run_in_parallel([x.check_kernel_panic for x in self._list])
 
 
 def local_node_connect(
