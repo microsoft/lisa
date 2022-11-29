@@ -157,20 +157,20 @@ class SourceInstaller(BaseInstaller):
             result = node.execute(
                 "make kernelrelease 2>/dev/null",
                 cwd=code_path,
-                shell=True
+                shell=True,
             )
 
             kernel_version = result.stdout
             result.assert_exit_code(
                 0,
-                f"failed on get kernel version: {kernel_version}"
+                f"failed on get kernel version: {kernel_version}",
             )
 
             # copy current config back to system folder.
             result = node.execute(
                 f"cp .config /boot/config-{kernel_version}",
                 cwd=code_path,
-                sudo=True
+                sudo=True,
             )
             result.assert_exit_code()
 
