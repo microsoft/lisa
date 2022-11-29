@@ -1,6 +1,6 @@
 # Copyright (c) Microsoft Corporation.
 # Licensed under the MIT license.
-
+import uuid
 from dataclasses import dataclass, field
 from pathlib import PurePath
 from typing import Any, List, Optional, Type, cast
@@ -10,8 +10,8 @@ from dataclasses_json import dataclass_json
 from lisa import schema
 from lisa.base_tools import Mv
 from lisa.node import Node
-from lisa.operating_system import Redhat, Ubuntu
-from lisa.tools import Echo, Git, Make, Sed, Uname
+from lisa.operating_system import CBLMariner, Redhat, Ubuntu
+from lisa.tools import Cp, Echo, Git, Ls, Make, Sed, Uname
 from lisa.util import LisaException, field_metadata, subclasses
 from lisa.util.logger import Logger, get_logger
 
@@ -37,6 +37,12 @@ class LocalLocationSchema(BaseLocationSchema):
         default="",
         metadata=field_metadata(
             required=True,
+        ),
+    )
+    config_type: str = field(
+        default="",
+        metadata=field_metadata(
+            required=False,
         ),
     )
 
@@ -114,22 +120,59 @@ class SourceInstaller(BaseInstaller):
         # modify code
         self._modify_code(node=node, code_path=code_path)
 
-        self._build_code(node=node, code_path=code_path)
+        config_type = source.get_config_type()
+        self._build_code(node=node, code_path=code_path, config_type=config_type)
 
         self._install_build(node=node, code_path=code_path)
 
-        result = node.execute(
-            "make kernelrelease 2>/dev/null", cwd=code_path, shell=True
-        )
+        kernel_version = ""
+        if self.__is_dom0(node) and config_type == "dom0":
+            # If it is dom0,
+            # Name of the current kernel should be vmlinuz-<kernel version>
+            uname = node.tools[Uname]
+            current_kernel = uname.get_linux_information().kernel_version_raw
+            current_kernel_binary = f"vmlinuz-{current_kernel}"
 
-        kernel_version = result.stdout
-        result.assert_exit_code(0, f"failed on get kernel version: {kernel_version}")
+            # Copy the binary to /boot/efi from : arch/x86/boot/bzImage
+            source_path = code_path.joinpath("arch/x86/boot/bzImage")
+            new_kernel_binary = "vmlinuz-%s" % str(uuid.uuid4())
+            destination_path = f"/boot/efi/{new_kernel_binary}"
+            cp = node.tools[Cp]
+            cp.copy(
+                src=PurePath(source_path),
+                dest=PurePath(destination_path),
+                sudo=True
+            )
 
-        # copy current config back to system folder.
-        result = node.execute(
-            f"cp .config /boot/config-{kernel_version}", cwd=code_path, sudo=True
-        )
-        result.assert_exit_code()
+            # Modify the linuxloader.conf to point new kernel binary
+            ll_conf_file = "/boot/efi/linuxloader.conf"
+            sed = self._node.tools[Sed]
+            sed.substitute(
+                regexp=current_kernel_binary,
+                replacement=new_kernel_binary,
+                file=ll_conf_file,
+                sudo=True,
+            )
+        else:
+            result = node.execute(
+                "make kernelrelease 2>/dev/null",
+                cwd=code_path,
+                shell=True
+            )
+
+            kernel_version = result.stdout
+            result.assert_exit_code(
+                0,
+                f"failed on get kernel version: {kernel_version}"
+            )
+
+            # copy current config back to system folder.
+            result = node.execute(
+                f"cp .config /boot/config-{kernel_version}",
+                cwd=code_path,
+                sudo=True
+            )
+            result.assert_exit_code()
 
         return kernel_version
 
@@ -171,17 +214,24 @@ class SourceInstaller(BaseInstaller):
             self._log.debug(f"modifying code by {modifier.type_name()}")
             modifier.modify()
 
-    def _build_code(self, node: Node, code_path: PurePath) -> None:
+    def _build_code(self, node: Node, code_path: PurePath, config_type: str) -> None:
         self._log.info("building code...")
 
         uname = node.tools[Uname]
         kernel_information = uname.get_linux_information()
 
-        result = node.execute(
-            f"cp /boot/config-{kernel_information.kernel_version_raw} .config",
-            cwd=code_path,
-        )
-        result.assert_exit_code()
+        if self.__is_dom0(node) and config_type == "dom0":
+            result = node.execute(
+                "cp arch/x86/configs/mshv_defconfig .config",
+                cwd=code_path,
+            )
+            result.assert_exit_code()
+        else:
+            result = node.execute(
+                f"cp /boot/config-{kernel_information.kernel_version_raw} .config",
+                cwd=code_path,
+            )
+            result.assert_exit_code()
 
         config_path = code_path.joinpath(".config")
         sed = self._node.tools[Sed]
@@ -269,11 +319,37 @@ class SourceInstaller(BaseInstaller):
                     "ccache",
                 ]
             )
+        elif isinstance(os, CBLMariner):
+            os.install_packages(
+                [
+                    "build-essential",
+                    "bison",
+                    "flex",
+                    "bc",
+                    "ccache",
+                    "elfutils-libelf",
+                    "elfutils-libelf-devel",
+                    "ncurses-libs",
+                    "ncurses-compat",
+                    "xz",
+                    "xz-devel",
+                    "xz-libs",
+                    "openssl-libs",
+                    "openssl-devel",
+                ]
+            )
         else:
             raise LisaException(
                 f"os '{os.name}' doesn't support in {self.type_name()}. "
                 f"Implement its build dependencies installation there."
             )
+
+    def __is_dom0(self, node: Node) -> bool:
+        if isinstance(node.os, CBLMariner):
+            mshv_exists = node.tools[Ls].path_exists(path="/dev/mshv", sudo=True)
+            if mshv_exists:
+                return True
+        return False
 
 
 class BaseLocation(subclasses.BaseClassWithRunbookMixin):
@@ -290,6 +366,9 @@ class BaseLocation(subclasses.BaseClassWithRunbookMixin):
         self._log = get_logger("kernel_builder", parent=parent_log)
 
     def get_source_code(self) -> PurePath:
+        raise NotImplementedError()
+
+    def get_config_type(self) -> str:
         raise NotImplementedError()
 
 
@@ -336,6 +415,10 @@ class RepoLocation(BaseLocation):
 
         return code_path
 
+    def get_config_type(self) -> str:
+        runbook: RepoLocationSchema = self.runbook
+        return runbook.config_type
+
 
 class LocalLocation(BaseLocation):
     @classmethod
@@ -349,6 +432,10 @@ class LocalLocation(BaseLocation):
     def get_source_code(self) -> PurePath:
         runbook: LocalLocationSchema = self.runbook
         return self._node.get_pure_path(runbook.path)
+
+    def get_config_type(self) -> str:
+        runbook: LocalLocationSchema = self.runbook
+        return runbook.config_type
 
 
 class BaseModifier(subclasses.BaseClassWithRunbookMixin):
