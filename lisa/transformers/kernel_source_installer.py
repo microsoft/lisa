@@ -139,7 +139,7 @@ class SourceInstaller(BaseInstaller):
             destination_path = f"/boot/efi/{new_kernel_binary}"
             cp = node.tools[Cp]
             cp.copy(
-                src=PurePath(source_path),
+                src=source_path,
                 dest=PurePath(destination_path),
                 sudo=True
             )
