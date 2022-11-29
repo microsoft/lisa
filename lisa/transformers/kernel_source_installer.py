@@ -1,6 +1,5 @@
 # Copyright (c) Microsoft Corporation.
 # Licensed under the MIT license.
-import uuid
 from dataclasses import dataclass, field
 from pathlib import PurePath
 from typing import Any, List, Optional, Type, cast
@@ -11,7 +10,7 @@ from lisa import schema
 from lisa.base_tools import Mv
 from lisa.node import Node
 from lisa.operating_system import CBLMariner, Redhat, Ubuntu
-from lisa.tools import Cp, Echo, Git, Ls, Make, Sed, Uname
+from lisa.tools import Cp, Echo, Git, Make, Sed, Uname
 from lisa.util import LisaException, field_metadata, subclasses
 from lisa.util.logger import Logger, get_logger
 
@@ -39,7 +38,7 @@ class LocalLocationSchema(BaseLocationSchema):
             required=True,
         ),
     )
-    config_type: str = field(
+    config_path: str = field(
         default="",
         metadata=field_metadata(
             required=False,
@@ -120,22 +119,41 @@ class SourceInstaller(BaseInstaller):
         # modify code
         self._modify_code(node=node, code_path=code_path)
 
-        config_type = source.get_config_type()
-        self._build_code(node=node, code_path=code_path, config_type=config_type)
+        config_path = source.get_config_path()
+        self._build_code(node=node, code_path=code_path, kconfig_path=config_path)
 
         self._install_build(node=node, code_path=code_path)
 
-        kernel_version = ""
-        if self.__is_dom0(node) and config_type == "dom0":
+        result = node.execute(
+            "make kernelrelease 2>/dev/null",
+            cwd=code_path,
+            shell=True,
+        )
+
+        kernel_version = result.stdout
+        result.assert_exit_code(
+            0,
+            f"failed on get kernel version: {kernel_version}",
+        )
+
+        # copy current config back to system folder.
+        result = node.execute(
+            f"cp .config /boot/config-{kernel_version}",
+            cwd=code_path,
+            sudo=True,
+        )
+        result.assert_exit_code()
+
+        if config_path and len(config_path) > 0:
             # If it is dom0,
             # Name of the current kernel should be vmlinuz-<kernel version>
             uname = node.tools[Uname]
             current_kernel = uname.get_linux_information().kernel_version_raw
-            current_kernel_binary = f"vmlinuz-{current_kernel}"
+            current_kernel_binary = f"KERNEL_PATH=vmlinuz-{current_kernel}"
 
             # Copy the binary to /boot/efi from : arch/x86/boot/bzImage
             source_path = code_path.joinpath("arch/x86/boot/bzImage")
-            new_kernel_binary = "vmlinuz-%s" % str(uuid.uuid4())
+            new_kernel_binary = f"KERNEL_PATH=vmlinuz-{kernel_version}"
             destination_path = f"/boot/efi/{new_kernel_binary}"
             cp = node.tools[Cp]
             cp.copy(
@@ -153,26 +171,6 @@ class SourceInstaller(BaseInstaller):
                 file=ll_conf_file,
                 sudo=True,
             )
-        else:
-            result = node.execute(
-                "make kernelrelease 2>/dev/null",
-                cwd=code_path,
-                shell=True,
-            )
-
-            kernel_version = result.stdout
-            result.assert_exit_code(
-                0,
-                f"failed on get kernel version: {kernel_version}",
-            )
-
-            # copy current config back to system folder.
-            result = node.execute(
-                f"cp .config /boot/config-{kernel_version}",
-                cwd=code_path,
-                sudo=True,
-            )
-            result.assert_exit_code()
 
         return kernel_version
 
@@ -214,15 +212,18 @@ class SourceInstaller(BaseInstaller):
             self._log.debug(f"modifying code by {modifier.type_name()}")
             modifier.modify()
 
-    def _build_code(self, node: Node, code_path: PurePath, config_type: str) -> None:
+    def _build_code(self, node: Node, code_path: PurePath, kconfig_path: str) -> None:
         self._log.info("building code...")
 
         uname = node.tools[Uname]
         kernel_information = uname.get_linux_information()
 
-        if self.__is_dom0(node) and config_type == "dom0":
+        if kconfig_path and len(kconfig_path) > 0:
+            kernel_config = code_path.joinpath(kconfig_path)
+            err_msg = f"cannot find config path: {kernel_config}"
+            assert node.shell.exists(kernel_config), err_msg
             result = node.execute(
-                "cp arch/x86/configs/mshv_defconfig .config",
+                f"cp {kconfig_path} .config",
                 cwd=code_path,
             )
             result.assert_exit_code()
@@ -344,13 +345,6 @@ class SourceInstaller(BaseInstaller):
                 f"Implement its build dependencies installation there."
             )
 
-    def __is_dom0(self, node: Node) -> bool:
-        if isinstance(node.os, CBLMariner):
-            mshv_exists = node.tools[Ls].path_exists(path="/dev/mshv", sudo=True)
-            if mshv_exists:
-                return True
-        return False
-
 
 class BaseLocation(subclasses.BaseClassWithRunbookMixin):
     def __init__(
@@ -368,7 +362,7 @@ class BaseLocation(subclasses.BaseClassWithRunbookMixin):
     def get_source_code(self) -> PurePath:
         raise NotImplementedError()
 
-    def get_config_type(self) -> str:
+    def get_config_path(self) -> str:
         raise NotImplementedError()
 
 
@@ -415,9 +409,9 @@ class RepoLocation(BaseLocation):
 
         return code_path
 
-    def get_config_type(self) -> str:
+    def get_config_path(self) -> str:
         runbook: RepoLocationSchema = self.runbook
-        return runbook.config_type
+        return runbook.config_path
 
 
 class LocalLocation(BaseLocation):
@@ -433,9 +427,9 @@ class LocalLocation(BaseLocation):
         runbook: LocalLocationSchema = self.runbook
         return self._node.get_pure_path(runbook.path)
 
-    def get_config_type(self) -> str:
+    def get_config_path(self) -> str:
         runbook: LocalLocationSchema = self.runbook
-        return runbook.config_type
+        return runbook.config_path
 
 
 class BaseModifier(subclasses.BaseClassWithRunbookMixin):
