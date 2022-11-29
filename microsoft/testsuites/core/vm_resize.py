@@ -14,19 +14,19 @@ from lisa import (
     TestSuiteMetadata,
     simple_requirement,
 )
-from lisa.features import Resize, ResizeAction
+from lisa.features import Resize, ResizeAction, StartStop
 from lisa.schema import NodeSpace
 from lisa.tools import Lscpu
 
 
 @TestSuiteMetadata(
-    area="vm_hot_resize",
+    area="vm_resize",
     category="functional",
     description="""
-    This test suite tests vm behavior upon resizing without shutting down
+    This test suite tests vm behavior upon resizing
     """,
 )
-class VmHotResize(TestSuite):
+class VmResize(TestSuite):
     @TestCaseMetadata(
         description="""
         This test case resizes the node and checks if it has the expected capabilities
@@ -42,7 +42,7 @@ class VmHotResize(TestSuite):
         ),
     )
     def verify_vm_hot_resize(self, log: Logger, node: Node) -> None:
-        self._verify_vm_hot_resize(node)
+        self._verify_vm_resize(node)
 
     @TestCaseMetadata(
         description="""
@@ -59,12 +59,54 @@ class VmHotResize(TestSuite):
         ),
     )
     def verify_vm_hot_resize_decrease(self, log: Logger, node: Node) -> None:
-        self._verify_vm_hot_resize(node, ResizeAction.DecreaseCoreCount)
+        self._verify_vm_resize(node, ResizeAction.DecreaseCoreCount)
 
-    def _verify_vm_hot_resize(
-        self, node: Node, resize_action: ResizeAction = ResizeAction.IncreaseCoreCount
+    @TestCaseMetadata(
+        description="""
+        This test case stops VM resizes the node, starts VM and checks if it has
+        the expected capabilities (memory size and core count) after the resize
+
+        Steps:
+        1. Resize vm into larger vm size
+        2. Check the node's core count and memory size against their expected values
+        """,
+        priority=1,
+        requirement=simple_requirement(
+            supported_features=[Resize, StartStop],
+        ),
+    )
+    def verify_vm_resize_increase(self, node: Node) -> None:
+        self._verify_vm_resize(node=node, hot_resize=False)
+
+    @TestCaseMetadata(
+        description="""
+        This test case stops VM resizes the node, starts VM and checks if it has
+        the expected capabilities (memory size and core count) after the resize
+
+        Steps:
+        1. Resize vm into smaller vm size
+        2. Check the node's core count and memory size against their expected values
+        """,
+        priority=1,
+        requirement=simple_requirement(
+            supported_features=[Resize, StartStop],
+        ),
+    )
+    def verify_vm_resize_decrease(self, node: Node) -> None:
+        self._verify_vm_resize(
+            node=node, resize_action=ResizeAction.DecreaseCoreCount, hot_resize=False
+        )
+
+    def _verify_vm_resize(
+        self,
+        node: Node,
+        resize_action: ResizeAction = ResizeAction.IncreaseCoreCount,
+        hot_resize: bool = True,
     ) -> None:
         resize = node.features[Resize]
+        if not hot_resize:
+            start_stop = node.features[StartStop]
+            start_stop.stop()
         retry = 1
         maxretry = 20
         while retry < maxretry:
@@ -93,6 +135,8 @@ class VmHotResize(TestSuite):
                     raise identifier
                 time.sleep(1)
         assert expected_vm_capability, "fail to find proper vm size"
+        if not hot_resize:
+            start_stop.start()
         self._verify_core_count(node, expected_vm_capability)
 
     def _verify_core_count(self, node: Node, expected_vm_capability: NodeSpace) -> None:
