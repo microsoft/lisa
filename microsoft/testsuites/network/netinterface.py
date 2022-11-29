@@ -1,6 +1,7 @@
 # Copyright (c) Microsoft Corporation.
 # Licensed under the MIT license.
 import time
+from typing import cast
 
 from assertpy import assert_that
 from randmac import RandMac  # type: ignore
@@ -16,9 +17,13 @@ from lisa import (
     schema,
     simple_requirement,
 )
-from lisa.features import NetworkInterface, Synthetic
+from lisa.environment import Environment
+from lisa.features import NetworkInterface, StartStop, Synthetic
 from lisa.nic import Nics
+from lisa.node import RemoteNode
 from lisa.tools import Dhclient, Ip, KernelConfig, Wget
+from lisa.tools.iperf3 import Iperf3
+from lisa.tools.kill import Kill
 from lisa.util import perf_timer
 
 from .common import restore_extra_nics_per_node
@@ -186,6 +191,52 @@ class NetInterface(TestSuite):
                 restore_extra_nics_per_node(node)
                 node_nic_info = Nics(node)
                 node_nic_info.initialize()
+
+    @TestCaseMetadata(
+        description="""
+        This test case check IP is assigned to Physical Function (PF)
+
+        Steps:
+         1. Generate traffic in VM using iperf3
+         2. Verify IP is assigned to PF in client VM
+         2. Stop-Start VM
+         3. Verify IP is assigned to PF in client VM
+
+        """,
+        priority=1,
+        requirement=simple_requirement(supported_features=[StartStop], min_count=2),
+    )
+    def verify_pf_ip(self, environment: Environment, log: Logger) -> None:
+        server = cast(RemoteNode, environment.nodes[0])
+        client = cast(RemoteNode, environment.nodes[1])
+        try:
+            # Run traffic in the VM
+            server.tools[Iperf3].run_as_server_async()
+            client_iperf_process = client.tools[Iperf3].run_as_client_async(
+                server.internal_address
+            )
+
+            assert_that(
+                client_iperf_process.is_running(), "Network workload is not running"
+            ).is_true()
+
+            # Check if IP is assigned to client eth interface
+            start_stop = client.features[StartStop]
+            client_nic_info = Nics(client)
+            client_nic_info.initialize()
+            for _, node_nic in client_nic_info.nics.items():
+                assert_that(node_nic.ip_addr).described_as(
+                    f"This interface {node_nic.upper} does not have a IP address."
+                ).is_not_empty()
+            start_stop.stop()
+            start_stop.start()
+            for _, node_nic in client_nic_info.nics.items():
+                assert_that(node_nic.ip_addr).described_as(
+                    f"This interface {node_nic.upper} does not have a IP address."
+                ).is_not_empty()
+        finally:
+            server.tools[Kill].by_name("iperf3", ignore_not_exist=True)
+            client.tools[Kill].by_name("iperf3", ignore_not_exist=True)
 
     def _validate_netvsc_built_in(self, node: Node) -> None:
         if node.tools[KernelConfig].is_built_in("CONFIG_HYPERV_NET"):
