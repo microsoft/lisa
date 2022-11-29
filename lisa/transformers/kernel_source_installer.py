@@ -141,7 +141,7 @@ class SourceInstaller(BaseInstaller):
             cp.copy(
                 src=source_path,
                 dest=PurePath(destination_path),
-                sudo=True
+                sudo=True,
             )
 
             # Modify the linuxloader.conf to point new kernel binary
