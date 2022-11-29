@@ -164,12 +164,23 @@ class Tool(InitializableMixin):
             windows_tool = cls._windows_tool()
             if windows_tool:
                 tool_cls = windows_tool
+        elif "FreeBSD" in node.os.name:
+            freebsd_tool = cls._freebsd_tool()
+            if freebsd_tool:
+                tool_cls = freebsd_tool
         return tool_cls(node, *args, **kwargs)
 
     @classmethod
     def _windows_tool(cls) -> Optional[Type[Tool]]:
         """
         return a windows version tool class, if it's needed
+        """
+        return None
+
+    @classmethod
+    def _freebsd_tool(cls) -> Optional[Type[Tool]]:
+        """
+        return a freebsd version tool class, if it's needed
         """
         return None
 

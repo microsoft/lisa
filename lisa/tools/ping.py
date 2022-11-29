@@ -1,7 +1,7 @@
 # Copyright (c) Microsoft Corporation.
 # Licensed under the MIT license.
 import re
-from typing import Optional
+from typing import Optional, Type
 
 from lisa.executable import Tool
 from lisa.operating_system import Debian
@@ -95,3 +95,36 @@ class Ping(Tool):
             )
         # return ping passed or not.
         return result.exit_code == 0
+
+    @classmethod
+    def _freebsd_tool(cls) -> Optional[Type[Tool]]:
+        return FreeBSDPing
+
+
+class FreeBSDPing(Ping):
+    def ping_async(
+        self,
+        target: str = "",
+        nic_name: str = "",
+        count: int = 5,
+        interval: float = 0.2,
+        package_size: Optional[int] = None,
+        sudo: bool = False,
+    ) -> Process:
+        if not target:
+            target = INTERNET_PING_ADDRESS
+        args: str = ""
+        # ping with '-O' in FreeBSD has issue, so remove '-O'
+        # run 'ping -c 5 -i 0.2 bing.com' without sudo, will encounter below issue
+        # ping: -i interval too short: Operation not permitted
+        # either run ping under sudo, there is no minimal value bar for interval value
+        # or without sudo, set interval >= 1
+        if interval < 1 and not sudo:
+            sudo = True
+        args = f"-c {count} -i {interval} {target}"
+        if nic_name:
+            args += f" -I {nic_name}"
+        if package_size:
+            args += f" -s {package_size}"
+
+        return self.run_async(args, force_run=True, sudo=sudo)
