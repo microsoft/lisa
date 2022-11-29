@@ -3,7 +3,9 @@
 import time
 from pathlib import Path, PurePosixPath
 from random import randint
-from typing import cast
+from typing import Any, cast
+
+from func_timeout import FunctionTimedOut, func_set_timeout  # type: ignore
 
 from lisa import (
     LisaException,
@@ -203,6 +205,12 @@ class KdumpCrash(TestSuite):
         self.crash_kernel = "auto"
         self._kdump_test(node, log_path, log)
 
+    # This method might stuck after triggering crash,
+    # so use timeout to recycle it faster.
+    @func_set_timeout(5)  # type: ignore
+    def _try_connect(self, remote_node: RemoteNode) -> Any:
+        return try_connect(remote_node._connection_info)
+
     def _check_supported(self, node: Node) -> None:
         # Check the kernel config for kdump supported
         kdump = node.tools[KdumpBase]
@@ -356,10 +364,22 @@ class KdumpCrash(TestSuite):
         timer = create_timer()
         remote_node = cast(RemoteNode, node)
         system_disconnected = True
+        timeout_times: int = 0
         serial_console = node.features[SerialConsole]
         while system_disconnected and timer.elapsed(False) < self.timeout_of_dump_crash:
             try:
-                try_connect(remote_node._connection_info)
+                self._try_connect(remote_node)
+            except FunctionTimedOut as identifier:
+                # The FunctionTimedOut must be caught separated, or the process
+                # will exit.
+                timeout_times += 1
+                log.debug(f"ignorable timeout exception: {identifier}")
+                if timeout_times == 10:
+                    serial_console.check_initramfs(
+                        saved_path=log_path, stage="after_trigger_crash", force_run=True
+                    )
+                system_disconnected = True
+                continue
             except Exception as identifier:
                 log.debug(
                     "Fail to connect SSH "
