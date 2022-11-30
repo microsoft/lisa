@@ -43,7 +43,7 @@ class LocalLocationSchema(BaseLocationSchema):
             required=True,
         ),
     )
-    
+
 
 @dataclass_json()
 @dataclass
