@@ -218,7 +218,7 @@ class SourceInstaller(BaseInstaller):
         uname = node.tools[Uname]
         kernel_information = uname.get_linux_information()
 
-        if kconfig_path and len(kconfig_path) > 0:
+        if kconfig_path:
             kernel_config = code_path.joinpath(kconfig_path)
             err_msg = f"cannot find config path: {kernel_config}"
             assert node.shell.exists(kernel_config), err_msg
