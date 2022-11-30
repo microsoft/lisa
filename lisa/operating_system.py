@@ -1086,7 +1086,7 @@ class FreeBSD(BSD):
 
     @retry(tries=10, delay=5)
     def _initialize_package_installation(self) -> None:
-        result = self._node.execute("pkg update", sudo=True)
+        result = self._node.execute("env ASSUME_ALWAYS_YES=yes pkg update", sudo=True)
         result.assert_exit_code(message="fail to run pkg update")
 
     def _update_packages(self, packages: Optional[List[str]] = None) -> None:
