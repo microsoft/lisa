@@ -8,12 +8,10 @@ import string
 from dataclasses import dataclass, field
 from enum import Enum
 from functools import partial
-from os import unlink
 from pathlib import Path
 from random import randint
 from typing import TYPE_CHECKING, Any, Dict, List, Optional, Tuple, Type, Union, cast
 
-import requests
 import websockets
 from assertpy import assert_that
 from azure.core.exceptions import (
@@ -36,7 +34,6 @@ from azure.mgmt.serialconsole import MicrosoftSerialConsoleClient  # type: ignor
 from azure.mgmt.serialconsole.models import SerialPort, SerialPortState  # type: ignore
 from azure.mgmt.serialconsole.operations import SerialPortsOperations  # type: ignore
 from dataclasses_json import dataclass_json
-from PIL import Image, UnidentifiedImageError
 from retry import retry
 
 from lisa import Environment, Logger, features, schema, search_space
@@ -87,6 +84,7 @@ from .common import (
     get_virtual_networks,
     get_vm,
     global_credential_access_lock,
+    save_console_log,
     wait_operation,
 )
 
@@ -345,35 +343,13 @@ class SerialConsole(AzureFeatureMixin, features.SerialConsole):
 
     def _get_console_log(self, saved_path: Optional[Path]) -> bytes:
         platform: AzurePlatform = self._platform  # type: ignore
-        compute_client = get_compute_client(platform)
-        with global_credential_access_lock:
-            diagnostic_data = (
-                compute_client.virtual_machines.retrieve_boot_diagnostics_data(
-                    resource_group_name=self._resource_group_name, vm_name=self._vm_name
-                )
-            )
-        if saved_path:
-            screenshot_raw_name = saved_path.joinpath("serial_console.bmp")
-            screenshot_name = saved_path.joinpath("serial_console.png")
-            screenshot_response = requests.get(
-                diagnostic_data.console_screenshot_blob_uri
-            )
-            with open(screenshot_raw_name, mode="wb") as f:
-                f.write(screenshot_response.content)
-            try:
-
-                with Image.open(screenshot_raw_name) as image:
-                    image.save(screenshot_name, "PNG", optimize=True)
-            except UnidentifiedImageError:
-                self._log.debug(
-                    "The screenshot is not generated. "
-                    "The reason may be the VM is not started."
-                )
-            unlink(screenshot_raw_name)
-
-        log_response = requests.get(diagnostic_data.serial_console_log_blob_uri)
-
-        return log_response.content
+        return save_console_log(
+            resource_group_name=self._resource_group_name,
+            vm_name=self._vm_name,
+            platform=platform,
+            log=self._log,
+            saved_path=saved_path,
+        )
 
     def _get_connection_string(self) -> str:
         # setup connection string
