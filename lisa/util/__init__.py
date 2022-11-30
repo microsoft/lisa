@@ -243,6 +243,12 @@ class TcpConnectionException(LisaException):
         return format_str
 
 
+class LisaTimeoutException(LisaException):
+    """
+    This exception is used to indicate a timeout exception.
+    """
+
+
 class ContextMixin:
     def get_context(self, context_type: Type[T]) -> T:
         if not hasattr(self, "_context"):
