@@ -67,8 +67,10 @@ class VmResize(TestSuite):
         the expected capabilities (memory size and core count) after the resize
 
         Steps:
-        1. Resize vm into larger vm size
-        2. Check the node's core count and memory size against their expected values
+        1. Stop VM
+        2. Resize vm into larger vm size
+        3. Start VM
+        4.. Check the node's core count and memory size against their expected values
         """,
         priority=1,
         requirement=simple_requirement(
@@ -84,8 +86,10 @@ class VmResize(TestSuite):
         the expected capabilities (memory size and core count) after the resize
 
         Steps:
-        1. Resize vm into smaller vm size
-        2. Check the node's core count and memory size against their expected values
+        1. Stop VM
+        2. Resize vm into smaller vm size
+        3. Start VM
+        4. Check the node's core count and memory size against their expected values
         """,
         priority=1,
         requirement=simple_requirement(
