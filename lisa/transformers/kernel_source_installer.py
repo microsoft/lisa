@@ -26,7 +26,12 @@ class BaseModifierSchema(schema.TypedSchema, schema.ExtendableSchemaMixin):
 @dataclass_json()
 @dataclass
 class BaseLocationSchema(schema.TypedSchema, schema.ExtendableSchemaMixin):
-    ...
+    kernel_config_file: str = field(
+        default="",
+        metadata=field_metadata(
+            required=False,
+        ),
+    )
 
 
 @dataclass_json()
@@ -38,13 +43,7 @@ class LocalLocationSchema(BaseLocationSchema):
             required=True,
         ),
     )
-    config_path: str = field(
-        default="",
-        metadata=field_metadata(
-            required=False,
-        ),
-    )
-
+    
 
 @dataclass_json()
 @dataclass
@@ -119,8 +118,8 @@ class SourceInstaller(BaseInstaller):
         # modify code
         self._modify_code(node=node, code_path=code_path)
 
-        config_path = source.get_config_path()
-        self._build_code(node=node, code_path=code_path, kconfig_path=config_path)
+        kconfig_file = source.get_kconfig_file()
+        self._build_code(node=node, code_path=code_path, kconfig_file=kconfig_file)
 
         self._install_build(node=node, code_path=code_path)
 
@@ -144,7 +143,7 @@ class SourceInstaller(BaseInstaller):
         )
         result.assert_exit_code()
 
-        if config_path:
+        if kconfig_file:
             # If it is dom0,
             # Name of the current kernel should be vmlinuz-<kernel version>
             uname = node.tools[Uname]
@@ -212,18 +211,18 @@ class SourceInstaller(BaseInstaller):
             self._log.debug(f"modifying code by {modifier.type_name()}")
             modifier.modify()
 
-    def _build_code(self, node: Node, code_path: PurePath, kconfig_path: str) -> None:
+    def _build_code(self, node: Node, code_path: PurePath, kconfig_file: str) -> None:
         self._log.info("building code...")
 
         uname = node.tools[Uname]
         kernel_information = uname.get_linux_information()
 
-        if kconfig_path:
-            kernel_config = code_path.joinpath(kconfig_path)
+        if kconfig_file:
+            kernel_config = code_path.joinpath(kconfig_file)
             err_msg = f"cannot find config path: {kernel_config}"
             assert node.shell.exists(kernel_config), err_msg
             result = node.execute(
-                f"cp {kconfig_path} .config",
+                f"cp {kconfig_file} .config",
                 cwd=code_path,
             )
             result.assert_exit_code()
@@ -362,7 +361,7 @@ class BaseLocation(subclasses.BaseClassWithRunbookMixin):
     def get_source_code(self) -> PurePath:
         raise NotImplementedError()
 
-    def get_config_path(self) -> str:
+    def get_kconfig_file(self) -> str:
         raise NotImplementedError()
 
 
@@ -409,9 +408,9 @@ class RepoLocation(BaseLocation):
 
         return code_path
 
-    def get_config_path(self) -> str:
+    def get_kconfig_file(self) -> str:
         runbook: RepoLocationSchema = self.runbook
-        return runbook.config_path
+        return runbook.kernel_config_file
 
 
 class LocalLocation(BaseLocation):
@@ -427,9 +426,9 @@ class LocalLocation(BaseLocation):
         runbook: LocalLocationSchema = self.runbook
         return self._node.get_pure_path(runbook.path)
 
-    def get_config_path(self) -> str:
+    def get_kconfig_file(self) -> str:
         runbook: LocalLocationSchema = self.runbook
-        return runbook.config_path
+        return runbook.kernel_config_file
 
 
 class BaseModifier(subclasses.BaseClassWithRunbookMixin):
