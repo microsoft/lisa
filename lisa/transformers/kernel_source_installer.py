@@ -144,7 +144,7 @@ class SourceInstaller(BaseInstaller):
         )
         result.assert_exit_code()
 
-        if config_path and len(config_path) > 0:
+        if config_path:
             # If it is dom0,
             # Name of the current kernel should be vmlinuz-<kernel version>
             uname = node.tools[Uname]
