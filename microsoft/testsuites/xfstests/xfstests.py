@@ -358,7 +358,7 @@ class Xfstests(Tool):
             info["information"]["data_disk"] = data_disk
             subtest_message = create_test_result_message(
                 SubTestMessage,
-                test_result.id_,
+                test_result,
                 environment,
                 result.name,
                 result.status,

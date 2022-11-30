@@ -162,7 +162,7 @@ class Ltp(Tool):
             info["information"]["exit_value"] = result.exit_value
             subtest_message = create_test_result_message(
                 SubTestMessage,
-                test_result.id_,
+                test_result,
                 environment,
                 result.name,
                 result.status,

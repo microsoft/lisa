@@ -71,7 +71,12 @@ class TestResultMessageBase(MessageBase):
     name: str = ""
     status: TestStatus = TestStatus.QUEUED
     message: str = ""
+    stacktrace: Optional[str] = None
     information: Dict[str, str] = field(default_factory=dict)
+
+    @property
+    def is_completed(self) -> bool:
+        return _is_completed_status(self.status)
 
 
 @dataclass
@@ -81,11 +86,6 @@ class TestResultMessage(TestResultMessageBase):
     suite_name: str = ""
     suite_full_name: str = ""
     log_file: str = ""
-    stacktrace: Optional[str] = None
-
-    @property
-    def is_completed(self) -> bool:
-        return _is_completed_status(self.status)
 
 
 @dataclass
@@ -271,7 +271,7 @@ TestResultMessageType = TypeVar("TestResultMessageType", bound=TestResultMessage
 
 def create_test_result_message(
     message_type: Type[TestResultMessageType],
-    id: str,
+    test_result: "TestResult",
     environment: "Environment",
     test_case_name: str = "",
     test_status: TestStatus = TestStatus.QUEUED,
@@ -280,10 +280,11 @@ def create_test_result_message(
 ) -> TestResultMessageType:
     message = message_type()
     dict_to_fields(environment.get_information(), message)
-    message.id_ = id
+    message.id_ = test_result.id_
     message.name = test_case_name
     message.status = test_status
     message.message = test_message
+    message.elapsed = test_result.get_elapsed()
     if other_fields:
         dict_to_fields(other_fields, message)
     return message

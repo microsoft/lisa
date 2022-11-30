@@ -220,9 +220,14 @@ class TestResult:
                 self.check_results = check_result
         return check_result.result
 
+    def get_elapsed(self) -> float:
+        if not hasattr(self, "_timer"):
+            return 0.0
+
+        return self._timer.elapsed(False)
+
     def _send_result_message(self, stacktrace: Optional[str] = None) -> None:
-        if hasattr(self, "_timer"):
-            self.elapsed = self._timer.elapsed(False)
+        self.elapsed = self.get_elapsed()
 
         fields = ["status", "elapsed", "id_", "log_file"]
         result_message = TestResultMessage()

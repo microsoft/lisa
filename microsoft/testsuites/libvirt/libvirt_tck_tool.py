@@ -98,7 +98,7 @@ class LibvirtTck(Tool):
 
         for r in results:
             self._send_subtest_msg(
-                test_result.id_,
+                test_result,
                 environment,
                 r.name,
                 r.status,
@@ -238,14 +238,14 @@ class LibvirtTck(Tool):
 
     def _send_subtest_msg(
         self,
-        test_id: str,
+        test_result: TestResult,
         environment: Environment,
         test_name: str,
         test_status: TestStatus,
     ) -> None:
         subtest_msg = create_test_result_message(
             SubTestMessage,
-            test_id,
+            test_result,
             environment,
             test_name,
             test_status,
