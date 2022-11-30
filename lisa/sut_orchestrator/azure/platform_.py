@@ -51,12 +51,14 @@ from lisa.secret import PATTERN_GUID, add_secret
 from lisa.tools import Dmesg, Hostname, Modinfo, Whoami
 from lisa.util import (
     LisaException,
+    LisaTimeoutException,
     NotMeetRequirementException,
     ResourceAwaitableException,
     constants,
     dump_file,
     field_metadata,
     generate_random_chars,
+    get_datetime_path,
     get_matched_str,
     get_public_key_data,
     is_unittest,
@@ -94,6 +96,7 @@ from .common import (
     get_storage_account_name,
     get_storage_client,
     global_credential_access_lock,
+    save_console_log,
     wait_copy_blob,
     wait_operation,
 )
@@ -477,7 +480,7 @@ class AzurePlatform(Platform):
 
                 if self._azure_runbook.deploy:
                     self._validate_template(deployment_parameters, log)
-                    self._deploy(location, deployment_parameters, log)
+                    self._deploy(location, deployment_parameters, log, environment)
 
                 # Even skipped deploy, try best to initialize nodes
                 self.initialize_environment(environment, log)
@@ -534,6 +537,25 @@ class AzurePlatform(Platform):
                 )
             else:
                 log.debug("not wait deleting")
+
+    def _save_console_log(
+        self, resource_group_name: str, environment: Environment, log: Logger
+    ) -> None:
+        compute_client = get_compute_client(self)
+        vms = compute_client.virtual_machines.list(resource_group_name)
+        saved_path = environment.log_path / f"{get_datetime_path()}_serial_log"
+        saved_path.mkdir(parents=True, exist_ok=True)
+        for vm in vms:
+            log_response_content = save_console_log(
+                resource_group_name,
+                vm.name,
+                self,
+                log,
+                saved_path,
+                screenshot_file_name=f"{vm.name}_serial_console",
+            )
+            log_file_name = saved_path / f"{vm.name}_serial_console.log"
+            log_file_name.write_bytes(log_response_content)
 
     def _delete_boot_diagnostic_container(
         self, resource_group_name: str, log: Logger
@@ -1235,7 +1257,11 @@ class AzurePlatform(Platform):
             raise LisaException(error_message)
 
     def _deploy(
-        self, location: str, deployment_parameters: Dict[str, Any], log: Logger
+        self,
+        location: str,
+        deployment_parameters: Dict[str, Any],
+        log: Logger,
+        environment: Environment,
     ) -> None:
         resource_group_name = deployment_parameters[AZURE_RG_NAME_KEY]
         storage_account_name = get_storage_account_name(self.subscription_id, location)
@@ -1255,7 +1281,15 @@ class AzurePlatform(Platform):
             deployment_operation = deployments.begin_create_or_update(
                 **deployment_parameters
             )
-            wait_operation(deployment_operation, failure_identity="deploy")
+            while True:
+                try:
+                    wait_operation(
+                        deployment_operation, time_out=300, failure_identity="deploy"
+                    )
+                except LisaTimeoutException:
+                    self._save_console_log(resource_group_name, environment, log)
+                    continue
+                break
         except HttpResponseError as identifier:
             # Some errors happens underlying, so there is no detail errors from API.
             # For example,
