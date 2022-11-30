@@ -64,7 +64,13 @@ if it exists.
 
 .. code:: bash
 
-   echo $PATH | grep --color=always "$HOME/\.local/bin\|$"
+   echo $PATH | grep --color=always "$HOME/\.local/bin"
+
+.. note::
+
+   For some distributions, such as Ubuntu, ``$HOME/\.local/bin`` will be
+   added to the ``$PATH`` at login if it exists. In this case, log out and
+   log back in after installing LISA if your path doesn't currently include it.
 
 Ideally, this section is at the beginning of your ``$PATH``. If not, you can add the following to
 the bottom of your ``~/.profile`` or ``~.bash_profile`` files.
@@ -86,12 +92,19 @@ Clone code
 Directly install LISA (Option 1)
 --------------------------------
 
-This will install LISA directly for the invoking user.
+Direct installation requires pip 22.2.2 or higher. If the version of pip provided
+by your installation is older than this, a newer version should be installed.
+
+.. code:: bash
+
+   python3 -m pip install --upgrade pip
+
+The example below will install LISA directly for the invoking user.
 To install system-wide, preface the command with ``sudo``.
 
 .. code:: bash
 
-   python3 -m pip install .[azure,libvirt]
+   python3 -m pip install --editable .[azure,libvirt] --config-settings editable_mode=compat
 
 
 
