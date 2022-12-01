@@ -357,7 +357,7 @@ class Dom0Installer(SourceInstaller):
         # Name of the current kernel should be vmlinuz-<kernel version>
         uname = node.tools[Uname]
         current_kernel = uname.get_linux_information().kernel_version_raw
-        
+
         # Copy the kernel to /boot/efi from : arch/x86/boot/bzImage
         current_kernel_binary = f"vmlinuz-{current_kernel}"
         new_kernel_binary = f"vmlinuz-{kernel_version}"
@@ -393,7 +393,7 @@ class Dom0Installer(SourceInstaller):
             file=ll_conf_file,
             sudo=True,
         )
-        
+
         # Modify the linuxloader.conf to point new initrd binary
         sed.substitute(
             regexp=f"INITRD_PATH={current_initrd_binary}",
