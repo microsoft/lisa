@@ -17,7 +17,7 @@ from lisa import (
 )
 from lisa.messages import SubTestMessage, TestStatus, create_test_result_message
 from lisa.testsuite import TestResult
-from lisa.tools import Cp, Dmesg, Free, Ls, Lscpu, QemuImg, Rm, Ssh, Wget
+from lisa.tools import Cp, Dmesg, Free, Ls, Lscpu, QemuImg, Rm, Ssh, Usermod, Wget
 from lisa.util import SkippedException
 from microsoft.testsuites.mshv.cloud_hypervisor_tool import CloudHypervisor
 
@@ -43,6 +43,9 @@ class MshvHostTestSuite(TestSuite):
         node = kwargs["node"]
         if not node.tools[Ls].path_exists("/dev/mshv", sudo=True):
             raise SkippedException("This suite is for MSHV root partition only")
+
+        # add user to mshv group for access to /dev/mshv
+        node.tools[Usermod].add_user_to_group("mshv", sudo=True)
 
         working_path = node.get_working_path()
         node.tools[Wget].get(

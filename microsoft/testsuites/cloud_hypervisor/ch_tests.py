@@ -16,7 +16,7 @@ from lisa import (
 )
 from lisa.operating_system import CBLMariner, Ubuntu
 from lisa.testsuite import TestResult
-from lisa.tools import Ls, Lscpu, Modprobe
+from lisa.tools import Ls, Lscpu, Modprobe, Usermod
 from lisa.util import SkippedException
 from microsoft.testsuites.cloud_hypervisor.ch_tests_tool import CloudHypervisorTests
 
@@ -123,6 +123,9 @@ class CloudHypervisorTestSuite(TestSuite):
         mshv_exists = node.tools[Ls].path_exists(path="/dev/mshv", sudo=True)
         if not virtualization_enabled and not mshv_exists:
             raise SkippedException("Virtualization is not enabled in hardware")
+        # add user to mshv group for access to /dev/mshv
+        if mshv_exists:
+            node.tools[Usermod].add_user_to_group("mshv", sudo=True)
 
     def _get_hypervisor_param(self, node: Node) -> str:
         mshv_exists = node.tools[Ls].path_exists(path="/dev/mshv", sudo=True)
