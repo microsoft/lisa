@@ -198,20 +198,23 @@ class SourceInstaller(BaseInstaller):
         uname = node.tools[Uname]
         kernel_information = uname.get_linux_information()
 
+        cp = node.tools[Cp]
         if kconfig_file:
             err_msg = f"cannot find config path: {kconfig_file}"
             assert node.shell.exists(node.get_pure_path(kconfig_file)), err_msg
-            result = node.execute(
-                f"cp {kconfig_file} .config",
+            cp.copy(
+                src=node.get_pure_path(kconfig_file),
+                dest=PurePath(".config"),
                 cwd=code_path,
             )
-            result.assert_exit_code()
         else:
-            result = node.execute(
-                f"cp /boot/config-{kernel_information.kernel_version_raw} .config",
+            cp.copy(
+                src=node.get_pure_path(
+                    f"/boot/config-{kernel_information.kernel_version_raw}"
+                ),
+                dest=PurePath(".config"),
                 cwd=code_path,
             )
-            result.assert_exit_code()
 
         config_path = code_path.joinpath(".config")
         sed = self._node.tools[Sed]
@@ -362,7 +365,7 @@ class Dom0Installer(SourceInstaller):
         current_kernel_binary = f"vmlinuz-{current_kernel}"
         new_kernel_binary = f"vmlinuz-{kernel_version}"
         source_path = code_path.joinpath("arch/x86/boot/bzImage")
-        destination_path = self._node.get_pure_path(f"/boot/efi/{new_kernel_binary}")
+        destination_path = node.get_pure_path(f"/boot/efi/{new_kernel_binary}")
         cp = node.tools[Cp]
         cp.copy(
             src=source_path,
@@ -374,8 +377,8 @@ class Dom0Installer(SourceInstaller):
         # Here previous step will create new initrd binary at /boot
         current_initrd_binary = f"initrd.img-{current_kernel}"
         new_initrd_binary = f"initrd.img-{kernel_version}"
-        source_path = self._node.get_pure_path(f"/boot/{new_initrd_binary}")
-        destination_path = self._node.get_pure_path(f"/boot/efi/{new_initrd_binary}")
+        source_path = node.get_pure_path(f"/boot/{new_initrd_binary}")
+        destination_path = node.get_pure_path(f"/boot/efi/{new_initrd_binary}")
         cp = node.tools[Cp]
         cp.copy(
             src=source_path,
@@ -384,7 +387,7 @@ class Dom0Installer(SourceInstaller):
         )
 
         ll_conf_file = "/boot/efi/linuxloader.conf"
-        sed = self._node.tools[Sed]
+        sed = node.tools[Sed]
 
         # Modify the linuxloader.conf to point new kernel binary
         sed.substitute(
