@@ -1570,28 +1570,11 @@ class AzurePlatform(Platform):
 
         # some vm size do not have resource disk present
         # https://docs.microsoft.com/en-us/azure/virtual-machines/azure-vms-no-temp-disk
-        if resource_sku.family in [
-            "standardDv4Family",
-            "standardDSv4Family",
-            "standardEv4Family",
-            "standardESv4Family",
-            "standardEASv4Family",
-            "standardDv5Family",
-            "standardEASv5Family",
-            "standardESv5Family",
-            "standardEADSv5Family",
-            "standardDASv5Family",
-            "standardDSv5Family",
-            "standardFSv2Family",
-            "standardNCFamily",
-            "standardESv3Family",
-            "standardDPSv5Family",
-            "standardEBSv5Family",
-            "standardEv5Family",
-        ]:
-            node_space.disk.has_resource_disk = False
-        else:
+        resource_disk_size = azure_raw_capabilities.get("MaxResourceVolumeMB", None)
+        if resource_disk_size and int(resource_disk_size) > 0:
             node_space.disk.has_resource_disk = True
+        else:
+            node_space.disk.has_resource_disk = False
 
         for supported_feature in self.supported_features():
             if supported_feature.name() in [
