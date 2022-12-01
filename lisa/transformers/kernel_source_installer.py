@@ -26,12 +26,7 @@ class BaseModifierSchema(schema.TypedSchema, schema.ExtendableSchemaMixin):
 @dataclass_json()
 @dataclass
 class BaseLocationSchema(schema.TypedSchema, schema.ExtendableSchemaMixin):
-    kernel_config_file: str = field(
-        default="",
-        metadata=field_metadata(
-            required=False,
-        ),
-    )
+    ...
 
 
 @dataclass_json()
@@ -81,6 +76,20 @@ class SourceInstallerSchema(BaseInstallerSchema):
     # Steps to modify code by patches and others.
     modifier: List[BaseModifierSchema] = field(default_factory=list)
 
+    # This is absolute path where kernel config file is located
+    kernel_config_file: str = field(
+        default="",
+        metadata=field_metadata(
+            required=False,
+        ),
+    )
+
+
+@dataclass_json()
+@dataclass
+class Dom0InstallerSchema(SourceInstallerSchema):
+    ...
+
 
 class SourceInstaller(BaseInstaller):
     @classmethod
@@ -118,7 +127,7 @@ class SourceInstaller(BaseInstaller):
         # modify code
         self._modify_code(node=node, code_path=code_path)
 
-        kconfig_file = source.get_kconfig_file()
+        kconfig_file = runbook.kernel_config_file
         self._build_code(node=node, code_path=code_path, kconfig_file=kconfig_file)
 
         self._install_build(node=node, code_path=code_path)
@@ -142,34 +151,6 @@ class SourceInstaller(BaseInstaller):
             sudo=True,
         )
         result.assert_exit_code()
-
-        if kconfig_file:
-            # If it is dom0,
-            # Name of the current kernel should be vmlinuz-<kernel version>
-            uname = node.tools[Uname]
-            current_kernel = uname.get_linux_information().kernel_version_raw
-            current_kernel_binary = f"KERNEL_PATH=vmlinuz-{current_kernel}"
-
-            # Copy the binary to /boot/efi from : arch/x86/boot/bzImage
-            source_path = code_path.joinpath("arch/x86/boot/bzImage")
-            new_kernel_binary = f"KERNEL_PATH=vmlinuz-{kernel_version}"
-            destination_path = f"/boot/efi/{new_kernel_binary}"
-            cp = node.tools[Cp]
-            cp.copy(
-                src=source_path,
-                dest=PurePath(destination_path),
-                sudo=True,
-            )
-
-            # Modify the linuxloader.conf to point new kernel binary
-            ll_conf_file = "/boot/efi/linuxloader.conf"
-            sed = self._node.tools[Sed]
-            sed.substitute(
-                regexp=current_kernel_binary,
-                replacement=new_kernel_binary,
-                file=ll_conf_file,
-                sudo=True,
-            )
 
         return kernel_version
 
@@ -218,9 +199,8 @@ class SourceInstaller(BaseInstaller):
         kernel_information = uname.get_linux_information()
 
         if kconfig_file:
-            kernel_config = code_path.joinpath(kconfig_file)
-            err_msg = f"cannot find config path: {kernel_config}"
-            assert node.shell.exists(kernel_config), err_msg
+            err_msg = f"cannot find config path: {kconfig_file}"
+            assert node.shell.exists(node.get_pure_path(kconfig_file)), err_msg
             result = node.execute(
                 f"cp {kconfig_file} .config",
                 cwd=code_path,
@@ -345,6 +325,86 @@ class SourceInstaller(BaseInstaller):
             )
 
 
+class Dom0Installer(SourceInstaller):
+    @classmethod
+    def type_name(cls) -> str:
+        return "dom0"
+
+    @classmethod
+    def type_schema(cls) -> Type[schema.TypedSchema]:
+        return Dom0InstallerSchema
+
+    @property
+    def _output_names(self) -> List[str]:
+        return []
+
+    def install(self) -> str:
+        node = self._node
+        runbook: Dom0InstallerSchema = self.runbook
+        assert runbook.location, "the repo must be defined."
+
+        kernel_version = super().install()
+
+        factory = subclasses.Factory[BaseLocation](BaseLocation)
+        source = factory.create_by_runbook(
+            runbook=runbook.location, node=node, parent_log=self._log
+        )
+
+        code_path = source.get_source_code()
+        assert node.shell.exists(code_path), f"cannot find code path: {code_path}"
+
+        # If it is dom0,
+        # Name of the current kernel should be vmlinuz-<kernel version>
+        uname = node.tools[Uname]
+        current_kernel = uname.get_linux_information().kernel_version_raw
+        
+        # Copy the kernel to /boot/efi from : arch/x86/boot/bzImage
+        current_kernel_binary = f"vmlinuz-{current_kernel}"
+        new_kernel_binary = f"vmlinuz-{kernel_version}"
+        source_path = code_path.joinpath("arch/x86/boot/bzImage")
+        destination_path = self._node.get_pure_path(f"/boot/efi/{new_kernel_binary}")
+        cp = node.tools[Cp]
+        cp.copy(
+            src=source_path,
+            dest=destination_path,
+            sudo=True,
+        )
+
+        # Copy the new initrd to /boot/efi from /boot
+        # Here previous step will create new initrd binary at /boot
+        current_initrd_binary = f"initrd.img-{current_kernel}"
+        new_initrd_binary = f"initrd.img-{kernel_version}"
+        source_path = self._node.get_pure_path(f"/boot/{new_initrd_binary}")
+        destination_path = self._node.get_pure_path(f"/boot/efi/{new_initrd_binary}")
+        cp = node.tools[Cp]
+        cp.copy(
+            src=source_path,
+            dest=destination_path,
+            sudo=True,
+        )
+
+        ll_conf_file = "/boot/efi/linuxloader.conf"
+        sed = self._node.tools[Sed]
+
+        # Modify the linuxloader.conf to point new kernel binary
+        sed.substitute(
+            regexp=f"KERNEL_PATH={current_kernel_binary}",
+            replacement=f"KERNEL_PATH={new_kernel_binary}",
+            file=ll_conf_file,
+            sudo=True,
+        )
+        
+        # Modify the linuxloader.conf to point new initrd binary
+        sed.substitute(
+            regexp=f"INITRD_PATH={current_initrd_binary}",
+            replacement=f"INITRD_PATH={new_initrd_binary}",
+            file=ll_conf_file,
+            sudo=True,
+        )
+
+        return kernel_version
+
+
 class BaseLocation(subclasses.BaseClassWithRunbookMixin):
     def __init__(
         self,
@@ -359,9 +419,6 @@ class BaseLocation(subclasses.BaseClassWithRunbookMixin):
         self._log = get_logger("kernel_builder", parent=parent_log)
 
     def get_source_code(self) -> PurePath:
-        raise NotImplementedError()
-
-    def get_kconfig_file(self) -> str:
         raise NotImplementedError()
 
 
@@ -408,10 +465,6 @@ class RepoLocation(BaseLocation):
 
         return code_path
 
-    def get_kconfig_file(self) -> str:
-        runbook: RepoLocationSchema = self.runbook
-        return runbook.kernel_config_file
-
 
 class LocalLocation(BaseLocation):
     @classmethod
@@ -425,10 +478,6 @@ class LocalLocation(BaseLocation):
     def get_source_code(self) -> PurePath:
         runbook: LocalLocationSchema = self.runbook
         return self._node.get_pure_path(runbook.path)
-
-    def get_kconfig_file(self) -> str:
-        runbook: LocalLocationSchema = self.runbook
-        return runbook.kernel_config_file
 
 
 class BaseModifier(subclasses.BaseClassWithRunbookMixin):
