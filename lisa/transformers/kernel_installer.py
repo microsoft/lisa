@@ -177,7 +177,9 @@ class RepoInstaller(BaseInstaller):
         **kwargs: Any,
     ) -> None:
         super().__init__(runbook, node, parent_log, *args, **kwargs)
-        self.repo_url = "http://archive.ubuntu.com/ubuntu/"
+        self.repo_url = (
+            "https://ppa.launchpadcontent.net/canonical-kernel-team/proposed2/ubuntu"
+        )
 
     @classmethod
     def type_name(cls) -> str:
@@ -208,12 +210,9 @@ class RepoInstaller(BaseInstaller):
             version_name = f"{release}-proposed"
         else:
             version_name = release
-        repo_entry = (
-            f"deb {self.repo_url} {version_name} "
-            f"restricted main multiverse universe"
-        )
+        repo_entry = f"deb {self.repo_url} {version_name} main"
         ubuntu.add_repository(repo_entry)
-        full_package_name = f"{runbook.source}/{version_name}"
+        full_package_name = runbook.source
         self._log.info(f"installing kernel package: {full_package_name}")
         ubuntu.install_packages(full_package_name)
 
