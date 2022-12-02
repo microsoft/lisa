@@ -33,7 +33,7 @@ class WaAgentBvt(TestSuite):
         # Use the extension to create a unique file on the test machine.
         test_file = "/tmp/{0}".format(uuid4())
         script = "touch {0} && echo Created {0}".format(test_file)
-        settings = {"commandToExecute": script }
+        settings = {"commandToExecute": script}
         extension = node.features[AzureExtension]
         result = extension.create_or_update(
             name="CustomScript",
@@ -47,9 +47,9 @@ class WaAgentBvt(TestSuite):
         assert_that(result['provisioning_state']).is_equal_to("Succeeded")
 
         # Double-check that the file was actually created.
-        failure_message = "File {0} was not created on the test machine".format(test_file)
+        message = "File {0} was not created on the test machine".format(test_file)
         node.execute(
             "ls '{0}'".format(test_file),
             shell=True,
             expected_exit_code=0,
-            expected_exit_code_failure_message=failure_message)
+            expected_exit_code_failure_message=message)
