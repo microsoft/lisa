@@ -44,7 +44,8 @@ class WaAgentBvt(TestSuite):
             settings=settings,
             force_update_tag=test_file,
         )
-        assert_that(result['provisioning_state']).\
+        provisioning_state = result["provisioning_state"]
+        assert_that(provisioning_state).\
             described_as("Expected the extension to succeed").\
             is_equal_to("Succeeded")
 
