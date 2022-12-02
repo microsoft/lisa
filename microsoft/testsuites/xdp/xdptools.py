@@ -63,7 +63,9 @@ class XdpTool(Tool):
         """
         run full test of xdp tools repo
         """
-        result = self.node.execute("make test", sudo=True, cwd=self._code_path)
+        result = self.node.execute(
+            "make test", sudo=True, cwd=self._code_path, timeout=800
+        )
 
         abnormal_results: Dict[str, str] = {}
         for item in find_groups_in_lines(
@@ -100,13 +102,17 @@ class XdpTool(Tool):
                     ),
                     keys_location=["https://apt.llvm.org/llvm-snapshot.gpg.key"],
                 )
-
-            self.node.os.install_packages(
-                "clang-10 llvm libelf-dev libpcap-dev gcc-multilib build-essential "
+            package_list = [
+                "llvm libelf-dev libpcap-dev gcc-multilib build-essential "
                 "pkg-config m4 tshark"
-            )
-
-            config_envs.update({"CLANG": "clang-10", "LLC": "llc-10"})
+            ]
+            if self.node.os.information.version >= "22.10.0":
+                package_list.append("clang-11")
+                config_envs.update({"CLANG": "clang-11", "LLC": "llc-11"})
+            else:
+                package_list.append("clang-10")
+                config_envs.update({"CLANG": "clang-10", "LLC": "llc-10"})
+            self.node.os.install_packages(package_list)
 
         elif isinstance(self.node.os, Fedora):
             if self.node.os.information.version >= "9.0.0":
