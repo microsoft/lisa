@@ -44,10 +44,9 @@ class WaAgentBvt(TestSuite):
             settings=settings,
             force_update_tag=test_file,
         )
-        provisioning_state = result["provisioning_state"]
-        assert_that(provisioning_state).\
-            described_as("Expected the extension to succeed").\
-            is_equal_to("Succeeded")
+        assert_that(result["provisioning_state"]).described_as(
+            "Expected the extension to succeed"
+        ).is_equal_to("Succeeded")
 
         # Double-check that the file was actually created.
         message = "File {0} was not created on the test machine".format(test_file)
@@ -55,4 +54,5 @@ class WaAgentBvt(TestSuite):
             "ls '{0}'".format(test_file),
             shell=True,
             expected_exit_code=0,
-            expected_exit_code_failure_message=message)
+            expected_exit_code_failure_message=message,
+        )
