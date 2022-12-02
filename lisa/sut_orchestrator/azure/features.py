@@ -6,7 +6,6 @@ import json
 import re
 import string
 from dataclasses import dataclass, field
-from enum import Enum
 from functools import partial
 from pathlib import Path
 from random import randint
@@ -1728,10 +1727,6 @@ class Nfs(AzureFeatureMixin, features.Nfs):
         )
 
 
-class ExtensionNames(str, Enum):
-    custom_script = "CustomScript"
-
-
 class AzureExtension(AzureFeatureMixin, Feature):
     @classmethod
     def create_setting(
@@ -1741,7 +1736,7 @@ class AzureExtension(AzureFeatureMixin, Feature):
 
     def create_or_update(
         self,
-        type: ExtensionNames,
+        type: str,
         name: str = "",
         tags: Optional[Dict[str, str]] = None,
         publisher: str = "Microsoft.Azure.Extensions",
@@ -1749,7 +1744,7 @@ class AzureExtension(AzureFeatureMixin, Feature):
         auto_upgrade_minor_version: Optional[bool] = None,
         enable_automatic_upgrade: Optional[bool] = None,
         force_update_tag: Optional[str] = None,
-        settings: Any = None,
+        settings: Optional[Dict[str, Any]] = None,
         protected_settings: Any = None,
         suppress_failures: Optional[bool] = None,
     ) -> Any:
