@@ -364,7 +364,7 @@ class Dom0Installer(SourceInstaller):
         # Copy the kernel to /boot/efi from : arch/x86/boot/bzImage
         current_kernel_binary = f"vmlinuz-{current_kernel}"
         new_kernel_binary = f"vmlinuz-{kernel_version}"
-        source_path = code_path.joinpath("arch/x86/boot/bzImage")
+        source_path = node.get_pure_path(f"/boot/{new_kernel_binary}")
         destination_path = node.get_pure_path(f"/boot/efi/{new_kernel_binary}")
         cp = node.tools[Cp]
         cp.copy(
