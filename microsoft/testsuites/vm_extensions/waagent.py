@@ -13,7 +13,7 @@ from lisa import (
     TestSuiteMetadata,
     simple_requirement,
 )
-from lisa.sut_orchestrator.azure.features import AzureExtension, ExtensionNames
+from lisa.sut_orchestrator.azure.features import AzureExtension
 
 
 @TestSuiteMetadata(
@@ -33,14 +33,15 @@ class WaAgentBvt(TestSuite):
     def verify_vm_agent(self, log: Logger, node: Node) -> None:
         # Any extension will do, use CustomScript for convenience.
         # Use the extension to create a unique file on the test machine.
-        test_file = "/tmp/{0}".format(uuid.uuid4())
-        script = "touch {0} && echo Created {0}".format(test_file)
+        unique_name = str(uuid.uuid4())
+        test_file = f"/tmp/{unique_name}"
+        script = f"touch {test_file} && echo Created {test_file}"
         settings = {"commandToExecute": script}
         extension = node.features[AzureExtension]
         result = extension.create_or_update(
             name="CustomScript",
             publisher="Microsoft.Azure.Extensions",
-            type=ExtensionNames.custom_script,
+            type="CustomScript",
             type_handler_version="2.0",
             auto_upgrade_minor_version=True,
             settings=settings,
@@ -51,9 +52,9 @@ class WaAgentBvt(TestSuite):
         ).is_equal_to("Succeeded")
 
         # Double-check that the file was actually created.
-        message = "File {0} was not created on the test machine".format(test_file)
+        message = f"File {test_file} was not created on the test machine"
         node.execute(
-            "ls '{0}'".format(test_file),
+            f"ls '{test_file}'",
             shell=True,
             expected_exit_code=0,
             expected_exit_code_failure_message=message,
