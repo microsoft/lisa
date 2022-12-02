@@ -32,7 +32,8 @@ class WaAgentBvt(TestSuite):
         # Any extension will do, use CustomScript for convenience.
         # Use the extension to create a unique file on the test machine.
         test_file = "/tmp/{0}".format(uuid4())
-        settings = { "commandToExecute": "touch {0} && echo Created {0}".format(test_file) }
+        script = "touch {0} && echo Created {0}".format(test_file)
+        settings = {"commandToExecute": script }
         extension = node.features[AzureExtension]
         result = extension.create_or_update(
             name="CustomScript",
