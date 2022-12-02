@@ -1,5 +1,6 @@
 # Copyright (c) Microsoft Corporation.
 # Licensed under the MIT license.
+
 from assertpy import assert_that
 from uuid import uuid4
 
@@ -42,7 +43,7 @@ class WaAgentBvt(TestSuite):
             type_handler_version="2.0",
             auto_upgrade_minor_version=True,
             settings=settings,
-            force_update_tag=test_file
+            force_update_tag=test_file,
         )
         assert_that(result['provisioning_state']).is_equal_to("Succeeded")
 
