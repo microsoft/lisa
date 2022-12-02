@@ -1,9 +1,9 @@
 # Copyright (c) Microsoft Corporation.
 # Licensed under the MIT license.
 
-from assertpy import assert_that
+import uuid
 
-from uuid import uuid4
+from assertpy import assert_that
 
 from lisa import (
     Logger,
@@ -33,7 +33,7 @@ class WaAgentBvt(TestSuite):
     def verify_vm_agent(self, log: Logger, node: Node) -> None:
         # Any extension will do, use CustomScript for convenience.
         # Use the extension to create a unique file on the test machine.
-        test_file = "/tmp/{0}".format(uuid4())
+        test_file = "/tmp/{0}".format(uuid.uuid4())
         script = "touch {0} && echo Created {0}".format(test_file)
         settings = {"commandToExecute": script}
         extension = node.features[AzureExtension]
