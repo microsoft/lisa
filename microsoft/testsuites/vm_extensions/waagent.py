@@ -1,3 +1,5 @@
+# Copyright (c) Microsoft Corporation.
+# Licensed under the MIT license.
 from assertpy import assert_that
 from uuid import uuid4
 
@@ -49,4 +51,5 @@ class WaAgentBvt(TestSuite):
             "ls '{0}'".format(test_file),
             shell=True,
             expected_exit_code=0,
-            expected_exit_code_failure_message="File {0} was not created on the test machine".format(test_file))
+            expected_exit_code_failure_message=
+                "File {0} was not created on the test machine".format(test_file))
