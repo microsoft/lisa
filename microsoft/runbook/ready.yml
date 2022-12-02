@@ -1,11 +1,15 @@
 name: ready default
 include:
-  - path: ./tiers/tier.yml
+  - path: ./debug.yml
 variable:
   - name: user_name
     value: "lisatest"
   - name: public_port
     value: 22
+  - name: origin
+    value: tiers/tier.yml
+  - name: case
+    value: cpu_count_check
 notifier:
   - type: html
 environment:
@@ -16,5 +20,9 @@ environment:
           public_port: $(public_port)
           username: $(user_name)
           private_key_file: $(admin_private_key_file)
+          capability:
+            disk:
+              data_disk_count:
+                min: 1
 platform:
   - type: ready
