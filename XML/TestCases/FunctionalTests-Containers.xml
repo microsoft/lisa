@@ -47,20 +47,4 @@
       <SetupType>OneVM</SetupType>
     </SetupConfig>
   </test>
-  <test>
-    <testName>DOCKER-COMPOSE-WORDPRESS-MYSQL-APP</testName>
-    <testScript>docker_compose_wordpress_mysql_app.sh</testScript>
-    <files>.\Testscripts\Linux\docker_compose_wordpress_mysql_app.sh,.\Testscripts\Linux\utils.sh,.\Testscripts\Linux\containers_utils.sh</files>
-    <TestParameters>
-    </TestParameters>
-    <Timeout>600</Timeout>
-    <Platform>Azure</Platform>
-    <Category>Functional</Category>
-    <Area>CONTAINER</Area>
-    <Tags>docker</Tags>
-    <Priority>0</Priority>
-    <SetupConfig>
-      <SetupType>OneVM80</SetupType>
-    </SetupConfig>
-  </test>
 </TestCases>
