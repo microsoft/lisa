@@ -50,6 +50,12 @@ class RepoLocationSchema(LocalLocationSchema):
     # fail the run if code exists
     fail_on_code_exists: bool = False
     cleanup_code: bool = False
+    auth_token: Optional[str] = field(
+        default=None,
+        metadata=field_metadata(
+            required=False,
+        ),
+    )
 
 
 @dataclass_json()
@@ -455,7 +461,10 @@ class RepoLocation(BaseLocation):
         self._log.info(f"cloning code from {runbook.repo} to {code_path}...")
         git = self._node.tools[Git]
         code_path = git.clone(
-            url=runbook.repo, cwd=code_path, fail_on_exists=runbook.fail_on_code_exists
+            url=runbook.repo,
+            cwd=code_path,
+            fail_on_exists=runbook.fail_on_code_exists,
+            auth_token=runbook.auth_token,
         )
 
         git.fetch(cwd=code_path)
