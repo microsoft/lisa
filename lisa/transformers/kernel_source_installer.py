@@ -91,12 +91,6 @@ class SourceInstallerSchema(BaseInstallerSchema):
     )
 
 
-@dataclass_json()
-@dataclass
-class Dom0InstallerSchema(SourceInstallerSchema):
-    ...
-
-
 class SourceInstaller(BaseInstaller):
     @classmethod
     def type_name(cls) -> str:
@@ -342,7 +336,7 @@ class Dom0Installer(SourceInstaller):
 
     @classmethod
     def type_schema(cls) -> Type[schema.TypedSchema]:
-        return Dom0InstallerSchema
+        return SourceInstallerSchema
 
     @property
     def _output_names(self) -> List[str]:
@@ -350,7 +344,7 @@ class Dom0Installer(SourceInstaller):
 
     def install(self) -> str:
         node = self._node
-        runbook: Dom0InstallerSchema = self.runbook
+        runbook: SourceInstallerSchema = self.runbook
         assert runbook.location, "the repo must be defined."
 
         kernel_version = super().install()
