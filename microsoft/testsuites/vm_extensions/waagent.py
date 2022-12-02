@@ -1,6 +1,8 @@
 # Copyright (c) Microsoft Corporation.
 # Licensed under the MIT license.
+
 from assertpy import assert_that
+
 from uuid import uuid4
 
 from lisa import (
