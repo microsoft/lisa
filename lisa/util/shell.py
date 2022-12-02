@@ -192,6 +192,7 @@ class SshShell(InitializableMixin):
         self._inner_shell: Optional[spur.SshShell] = None
         self._jump_boxes: List[Any] = []
         self._jump_box_sock: Any = None
+        self._log = get_logger("SshShell")
 
         paramiko_logger = logging.getLogger("paramiko")
         paramiko_logger.setLevel(logging.WARN)
@@ -291,24 +292,43 @@ class SshShell(InitializableMixin):
         self.initialize()
         assert self._inner_shell
 
-        try:
-            process: spur.ssh.SshProcess = _spawn_ssh_process(
-                self._inner_shell,
-                command=command,
-                update_env=update_env,
-                store_pid=store_pid,
-                cwd=cwd,
-                stdout=stdout,
-                stderr=stderr,
-                encoding=encoding,
-                use_pty=use_pty,
-                allow_error=allow_error,
-            )
-        except FunctionTimedOut:
-            raise LisaException(
-                f"The remote node is timeout on execute {command}. "
-                f"It may be caused by paramiko/spur not support the shell of node."
-            )
+        MAX_TRIES = 3
+        tries = 0
+
+        while tries < MAX_TRIES:
+            try:
+                tries += 1
+                process: spur.ssh.SshProcess = _spawn_ssh_process(
+                    self._inner_shell,
+                    command=command,
+                    update_env=update_env,
+                    store_pid=store_pid,
+                    cwd=cwd,
+                    stdout=stdout,
+                    stderr=stderr,
+                    encoding=encoding,
+                    use_pty=use_pty,
+                    allow_error=allow_error,
+                )
+
+                break
+            except FunctionTimedOut:
+                if tries == MAX_TRIES:
+                    self._log.error(
+                        f"Failed to spawn ssh process for {command} "
+                        f"even after {MAX_TRIES} tries."
+                    )
+
+                    raise LisaException(
+                        f"The remote node is timeout on execute {command}. "
+                        f"It may be caused by paramiko/spur not support the shell of node."
+                    )
+                else:
+                    self._log.debug(
+                        f"Try {tries}/{MAX_TRIES}: "
+                        f"Timed out while spawning ssh process for {command}. "
+                    )
+
         return process
 
     def mkdir(
