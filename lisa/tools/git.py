@@ -109,6 +109,9 @@ class Git(Tool):
             # create a temp branch to checkout tag or commit.
             checkout_branch = f"{constants.RUN_ID}"
 
+        # mark directory safe
+        self._mark_safe(cwd)
+
         # force run to make sure checkout among branches correctly.
         result = self.run(
             f"checkout {ref} -b {checkout_branch}",
@@ -272,4 +275,4 @@ class Git(Tool):
         return VersionInfo.parse(version_str)
 
     def _mark_safe(self, cwd: pathlib.PurePath) -> None:
-        self.run(f"config --global --add safe.directory {cwd}", cwd=cwd)
+        self.run(f"config --global --add safe.directory {cwd}", cwd=cwd, force_run=True)
