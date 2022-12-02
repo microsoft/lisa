@@ -61,7 +61,7 @@ class Git(Tool):
         self.node.shell.mkdir(cwd, exist_ok=True)
         auth_flag = ""
         if auth_token:
-            auth_flag = f'-c http.extraheader="AUTHORIZATION: bearer {auth_token}'
+            auth_flag = f'-c http.extraheader="AUTHORIZATION: bearer {auth_token}"'
 
         cmd = f"clone {auth_flag} {url} {dir_name} --recurse-submodules"
 
