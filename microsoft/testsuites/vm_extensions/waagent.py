@@ -1,6 +1,5 @@
 # Copyright (c) Microsoft Corporation.
 # Licensed under the MIT license.
-
 from assertpy import assert_that
 from uuid import uuid4
 
@@ -45,7 +44,9 @@ class WaAgentBvt(TestSuite):
             settings=settings,
             force_update_tag=test_file,
         )
-        assert_that(result['provisioning_state']).is_equal_to("Succeeded")
+        assert_that(result['provisioning_state']).\
+            described_as("Expected the extension to succeed").\
+            is_equal_to("Succeeded")
 
         # Double-check that the file was actually created.
         message = "File {0} was not created on the test machine".format(test_file)
