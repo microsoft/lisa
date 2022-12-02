@@ -76,7 +76,7 @@ class SourceInstallerSchema(BaseInstallerSchema):
     # Steps to modify code by patches and others.
     modifier: List[BaseModifierSchema] = field(default_factory=list)
 
-    # This is absolute path where kernel config file is located
+    # This is relative path where kernel source code is located
     kernel_config_file: str = field(
         default="",
         metadata=field_metadata(
@@ -200,10 +200,11 @@ class SourceInstaller(BaseInstaller):
 
         cp = node.tools[Cp]
         if kconfig_file:
-            err_msg = f"cannot find config path: {kconfig_file}"
-            assert node.shell.exists(node.get_pure_path(kconfig_file)), err_msg
+            kernel_config = code_path.joinpath(kconfig_file)
+            err_msg = f"cannot find kernel config path: {kernel_config}"
+            assert node.shell.exists(kernel_config), err_msg
             cp.copy(
-                src=node.get_pure_path(kconfig_file),
+                src=kernel_config,
                 dest=PurePath(".config"),
                 cwd=code_path,
             )
