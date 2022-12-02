@@ -781,6 +781,7 @@ class Debian(Linux):
         # apt update will not be triggered on Debian during add repo
         if type(self._node.os) == Debian:
             self._node.execute("apt-get update", sudo=True)
+            self._node.execute("apt --fix-broken -y install", sudo=True)
 
     @retry(tries=10, delay=5)
     def _initialize_package_installation(self) -> None:
@@ -825,6 +826,13 @@ class Debian(Linux):
         install_result = self._node.execute(
             command, shell=True, sudo=True, timeout=timeout
         )
+        self._node.execute(
+            "apt --fix-broken -y install", shell=True, sudo=True, timeout=timeout
+        )
+        if install_result.exit_code != 0:
+            install_result = self._node.execute(
+                command, shell=True, sudo=True, timeout=timeout
+            )
         # get error lines.
         install_result.assert_exit_code(
             0,
