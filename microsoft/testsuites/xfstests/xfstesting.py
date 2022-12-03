@@ -450,84 +450,85 @@ class Xfstesting(TestSuite):
         file_share_name = f"lisa{random_str}fs"
         scratch_name = f"lisa{random_str}scratch"
         fs_url_dict: Dict[str, str] = {file_share_name: "", scratch_name: ""}
-        try:
-            check_or_create_storage_account(
+        # try:
+        check_or_create_storage_account(
+            credential=platform.credential,
+            subscription_id=platform.subscription_id,
+            account_name=storage_account_name,
+            resource_group_name=resource_group_name,
+            location=location,
+            log=log,
+        )
+        for share_name, _ in fs_url_dict.items():
+            fs_url_dict[share_name] = get_or_create_file_share(
                 credential=platform.credential,
                 subscription_id=platform.subscription_id,
                 account_name=storage_account_name,
-                resource_group_name=resource_group_name,
-                location=location,
-                log=log,
-            )
-            for share_name, _ in fs_url_dict.items():
-                fs_url_dict[share_name] = get_or_create_file_share(
-                    credential=platform.credential,
-                    subscription_id=platform.subscription_id,
-                    account_name=storage_account_name,
-                    file_share_name=share_name,
-                    resource_group_name=resource_group_name,
-                    log=log,
-                )
-            account_credential = get_storage_credential(
-                credential=platform.credential,
-                subscription_id=platform.subscription_id,
-                account_name=storage_account_name,
-                resource_group_name=resource_group_name,
-            )
-            _prepare_azure_file_share(
-                node,
-                account_credential,
-                {
-                    _test_folder: fs_url_dict[file_share_name],
-                    _scratch_folder: fs_url_dict[scratch_name],
-                },
-                fstab_info,
-            )
-            time.sleep(300)
-            self._execute_xfstests(
-                log_path,
-                xfstests,
-                result,
-                test_dev=fs_url_dict[file_share_name],
-                scratch_dev=fs_url_dict[scratch_name],
-                excluded_tests=self.EXCLUDED_TESTS,
-                mount_opts=mount_opts,
-            )
-        finally:
-            # clean up resources after testing.
-            for share_name in [file_share_name, scratch_name]:
-                delete_file_share(
-                    credential=platform.credential,
-                    subscription_id=platform.subscription_id,
-                    account_name=storage_account_name,
-                    file_share_name=share_name,
-                    resource_group_name=resource_group_name,
-                    log=log,
-                )
-            delete_storage_account(
-                credential=platform.credential,
-                subscription_id=platform.subscription_id,
-                account_name=storage_account_name,
+                file_share_name=share_name,
                 resource_group_name=resource_group_name,
                 log=log,
             )
-            # revert file into original status after testing.
-            node.execute("cp -f /etc/fstab_cifs /etc/fstab", sudo=True)
+        account_credential = get_storage_credential(
+            credential=platform.credential,
+            subscription_id=platform.subscription_id,
+            account_name=storage_account_name,
+            resource_group_name=resource_group_name,
+        )
+        _prepare_azure_file_share(
+            node,
+            account_credential,
+            {
+                _test_folder: fs_url_dict[file_share_name],
+                _scratch_folder: fs_url_dict[scratch_name],
+            },
+            fstab_info,
+        )
+        time.sleep(300)
+        self._execute_xfstests(
+            log_path,
+            xfstests,
+            result,
+            test_dev=fs_url_dict[file_share_name],
+            scratch_dev=fs_url_dict[scratch_name],
+            excluded_tests=self.EXCLUDED_TESTS,
+            mount_opts=mount_opts,
+        )
 
-    def after_case(self, log: Logger, **kwargs: Any) -> None:
-        try:
-            node: Node = kwargs.pop("node")
-            for path in [
-                "/dev/mapper/delay-test",
-                "/dev/mapper/huge-test",
-                "/dev/mapper/huge-test-zero",
-            ]:
-                if 0 == node.execute(f"ls -lt {path}", sudo=True).exit_code:
-                    node.execute(f"dmsetup remove {path}", sudo=True)
-            for mount_point in [_scratch_folder, _test_folder]:
-                node.tools[Mount].umount("", mount_point, erase=False)
-        except Exception as identifier:
-            raise BadEnvironmentStateException(f"after case, {identifier}")
+    #     finally:
+    #         # clean up resources after testing.
+    #         for share_name in [file_share_name, scratch_name]:
+    #             delete_file_share(
+    #                 credential=platform.credential,
+    #                 subscription_id=platform.subscription_id,
+    #                 account_name=storage_account_name,
+    #                 file_share_name=share_name,
+    #                 resource_group_name=resource_group_name,
+    #                 log=log,
+    #             )
+    #         delete_storage_account(
+    #             credential=platform.credential,
+    #             subscription_id=platform.subscription_id,
+    #             account_name=storage_account_name,
+    #             resource_group_name=resource_group_name,
+    #             log=log,
+    #         )
+    #         # revert file into original status after testing.
+    #         node.execute("cp -f /etc/fstab_cifs /etc/fstab", sudo=True)
+
+    # def after_case(self, log: Logger, **kwargs: Any) -> None:
+    #     try:
+    #         node: Node = kwargs.pop("node")
+    #         for path in [
+    #             "/dev/mapper/delay-test",
+    #             "/dev/mapper/huge-test",
+    #             "/dev/mapper/huge-test-zero",
+    #         ]:
+    #             if 0 == node.execute(f"ls -lt {path}", sudo=True).exit_code:
+    #                 node.execute(f"dmsetup remove {path}", sudo=True)
+    #         for mount_point in [_scratch_folder, _test_folder]:
+    #             node.tools[Mount].umount("", mount_point, erase=False)
+    #     except Exception as identifier:
+    #         raise BadEnvironmentStateException(f"after case, {identifier}")
 
     def _execute_xfstests(
         self,
