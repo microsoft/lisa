@@ -1,6 +1,7 @@
 # Copyright (c) Microsoft Corporation.
 # Licensed under the MIT license.
 import string
+import time
 from pathlib import Path
 from typing import Any, Dict, cast
 
@@ -482,7 +483,7 @@ class Xfstesting(TestSuite):
                 },
                 fstab_info,
             )
-
+            time.sleep(300)
             self._execute_xfstests(
                 log_path,
                 xfstests,
