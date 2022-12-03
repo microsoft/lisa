@@ -24,7 +24,7 @@ from microsoft.testsuites.performance.common import perf_disk
     """,
 )
 class NvmePerformace(TestSuite):
-    TIME_OUT = 5000
+    TIME_OUT = 7200
 
     @TestCaseMetadata(
         description="""
