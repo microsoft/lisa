@@ -106,7 +106,7 @@ class XdpTool(Tool):
                 "llvm libelf-dev libpcap-dev gcc-multilib build-essential "
                 "pkg-config m4 tshark"
             ]
-            if self.node.os.information.version >= "22.04.0":
+            if self.node.os.information.version >= "22.10.0":
                 package_list.append("clang-11")
                 config_envs.update({"CLANG": "clang-11", "LLC": "llc-11"})
             else:
