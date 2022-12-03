@@ -5,10 +5,12 @@ import re
 import sys
 from dataclasses import InitVar, dataclass, field
 from datetime import datetime, timedelta
+from pathlib import Path
 from threading import Lock
 from time import sleep
 from typing import TYPE_CHECKING, Any, Dict, List, Optional, Union
 
+import requests
 from azure.mgmt.compute import ComputeManagementClient  # type: ignore
 from azure.mgmt.marketplaceordering import MarketplaceOrderingAgreements  # type: ignore
 from azure.mgmt.network import NetworkManagementClient  # type: ignore
@@ -44,13 +46,20 @@ from azure.storage.blob import (
 from azure.storage.fileshare import ShareServiceClient  # type: ignore
 from dataclasses_json import dataclass_json
 from marshmallow import validate
+from PIL import Image, UnidentifiedImageError
 
 from lisa import schema
 from lisa.environment import Environment, load_environments
 from lisa.feature import Features
 from lisa.node import Node, RemoteNode
 from lisa.secret import PATTERN_HEADTAIL, PATTERN_URL, add_secret
-from lisa.util import LisaException, constants, field_metadata, strip_strs
+from lisa.util import (
+    LisaException,
+    LisaTimeoutException,
+    constants,
+    field_metadata,
+    strip_strs,
+)
 from lisa.util.logger import Logger
 from lisa.util.parallel import check_cancelled
 from lisa.util.perf_timer import create_timer
@@ -783,7 +792,9 @@ def wait_operation(
         if wait_result:
             raise LisaException(f"{failure_identity} {wait_result}")
     if time_out < timer.elapsed():
-        raise Exception(f"{failure_identity} timeout after {time_out} seconds.")
+        raise LisaTimeoutException(
+            f"{failure_identity} timeout after {time_out} seconds."
+        )
     result = operation.result()
     if result:
         result = result.as_dict()
@@ -1034,6 +1045,46 @@ def delete_file_share(
     )
     log.debug(f"deleting file share {file_share_name}")
     share_service_client.delete_share(file_share_name)
+
+
+def save_console_log(
+    resource_group_name: str,
+    vm_name: str,
+    platform: "AzurePlatform",
+    log: Logger,
+    saved_path: Optional[Path],
+    screenshot_file_name: str = "serial_console",
+) -> bytes:
+    compute_client = get_compute_client(platform)
+    with global_credential_access_lock:
+        diagnostic_data = (
+            compute_client.virtual_machines.retrieve_boot_diagnostics_data(
+                resource_group_name=resource_group_name, vm_name=vm_name
+            )
+        )
+    if saved_path:
+        screenshot_raw_name = saved_path / f"{screenshot_file_name}.bmp"
+        screenshot_response = requests.get(diagnostic_data.console_screenshot_blob_uri)
+        screenshot_raw_name.write_bytes(screenshot_response.content)
+        try:
+            with Image.open(screenshot_raw_name) as image:
+                image.save(
+                    saved_path / f"{screenshot_file_name}.png", "PNG", optimize=True
+                )
+        except UnidentifiedImageError:
+            log.debug(
+                "The screenshot is not generated. "
+                "The reason may be the VM is not started."
+            )
+        screenshot_raw_name.unlink()
+
+    log_response = requests.get(diagnostic_data.serial_console_log_blob_uri)
+    if log_response.status_code == 404:
+        log.debug(
+            "The serial console is not generated. "
+            "The reason may be the VM is not started."
+        )
+    return log_response.content
 
 
 def load_environment(
