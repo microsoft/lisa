@@ -36,7 +36,7 @@ class CloudHypervisorTestSuite(TestSuite):
 
     def after_suite(self, log: Logger, **kwargs: Any) -> None:
         node = kwargs["node"]
-        node.tools[Modprobe].remove("openvswitch")
+        node.tools[Modprobe].remove(["openvswitch"])
 
     def before_case(self, log: Logger, **kwargs: Any) -> None:
         node = kwargs["node"]
