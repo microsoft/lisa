@@ -69,7 +69,7 @@ class CloudHypervisorTestSuite(TestSuite):
     ) -> None:
         hypervisor = self._get_hypervisor_param(node)
         node.tools[CloudHypervisorTests].run_tests(
-            result, environment, "integration", hypervisor
+            result, environment, "integration", hypervisor, log_path
         )
 
     @TestCaseMetadata(
@@ -95,7 +95,7 @@ class CloudHypervisorTestSuite(TestSuite):
     ) -> None:
         hypervisor = self._get_hypervisor_param(node)
         node.tools[CloudHypervisorTests].run_tests(
-            result, environment, "integration-live-migration", hypervisor
+            result, environment, "integration-live-migration", hypervisor, log_path
         )
 
     @TestCaseMetadata(
