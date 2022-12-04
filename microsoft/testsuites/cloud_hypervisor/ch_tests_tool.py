@@ -13,7 +13,7 @@ from lisa.executable import Tool
 from lisa.messages import SubTestMessage, TestStatus, create_test_result_message
 from lisa.operating_system import CBLMariner
 from lisa.testsuite import TestResult
-from lisa.tools import Docker, Echo, Git, Whoami
+from lisa.tools import Dmesg, Docker, Echo, Git, Whoami
 
 
 @dataclass
@@ -48,6 +48,7 @@ class CloudHypervisorTests(Tool):
         environment: Environment,
         test_type: str,
         hypervisor: str,
+        log_path: Path,
         skip: Optional[List[str]] = None,
     ) -> None:
 
@@ -66,10 +67,10 @@ class CloudHypervisorTests(Tool):
             shell=True,
         )
 
+        # Report subtest results and collect logs before doing any
+        # assertions.
         results = self._extract_test_results(result.stdout)
         failures = [r.name for r in results if r.status == TestStatus.FAILED]
-        if not failures:
-            result.assert_exit_code()
 
         for r in results:
             self._send_subtest_msg(
@@ -79,7 +80,13 @@ class CloudHypervisorTests(Tool):
                 r.status,
             )
 
+        self._save_dmesg_logs(log_path)
+
         assert_that(failures, f"Unexpected failures: {failures}").is_empty()
+
+        # The command could have failed before starting test case execution.
+        # So, check the exit code too.
+        result.assert_exit_code()
 
     def run_metrics_tests(
         self,
@@ -135,6 +142,8 @@ class CloudHypervisorTests(Tool):
             # Write stdout of testcase to log as per given requirement
             with open(testcase_log_file, "w") as f:
                 f.write(result.stdout)
+
+        self._save_dmesg_logs(log_path)
 
         assert_that(
             failed_testcases, f"Failed Testcases: {failed_testcases}"
@@ -275,3 +284,9 @@ class CloudHypervisorTests(Tool):
         if result:
             return result.group(0)
         return ""
+
+    def _save_dmesg_logs(self, log_path: Path) -> None:
+        dmesg_str = self.node.tools[Dmesg].get_output(force_run=True)
+        dmesg_path = log_path / "dmesg"
+        with open(str(dmesg_path), "w") as f:
+            f.write(dmesg_str)
