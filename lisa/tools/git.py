@@ -3,7 +3,7 @@
 
 import pathlib
 import re
-from typing import List
+from typing import List, Optional
 
 from assertpy import assert_that
 from semver import VersionInfo
@@ -56,10 +56,15 @@ class Git(Tool):
         ref: str = "",
         dir_name: str = "",
         fail_on_exists: bool = True,
+        auth_token: Optional[str] = None,
     ) -> pathlib.PurePath:
         self.node.shell.mkdir(cwd, exist_ok=True)
+        auth_flag = ""
+        if auth_token:
+            auth_flag = f'-c http.extraheader="AUTHORIZATION: bearer {auth_token}"'
 
-        cmd = f"clone {url} {dir_name} --recurse-submodules"
+        cmd = f"clone {auth_flag} {url} {dir_name} --recurse-submodules"
+
         # git print to stderr for normal info, so set no_error_log to True.
         result = self.run(cmd, cwd=cwd, no_error_log=True)
         if get_matched_str(result.stdout, self.CERTIFICATE_ISSUE_PATTERN):

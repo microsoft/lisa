@@ -1,6 +1,5 @@
 # Copyright (c) Microsoft Corporation.
 # Licensed under the MIT license.
-
 from dataclasses import dataclass, field
 from pathlib import PurePath
 from typing import Any, List, Optional, Type, cast
@@ -10,8 +9,8 @@ from dataclasses_json import dataclass_json
 from lisa import schema
 from lisa.base_tools import Mv
 from lisa.node import Node
-from lisa.operating_system import Redhat, Ubuntu
-from lisa.tools import Echo, Git, Make, Sed, Uname
+from lisa.operating_system import CBLMariner, Redhat, Ubuntu
+from lisa.tools import Cp, Echo, Git, Make, Sed, Uname
 from lisa.util import LisaException, field_metadata, subclasses
 from lisa.util.logger import Logger, get_logger
 
@@ -51,6 +50,12 @@ class RepoLocationSchema(LocalLocationSchema):
     # fail the run if code exists
     fail_on_code_exists: bool = False
     cleanup_code: bool = False
+    auth_token: Optional[str] = field(
+        default=None,
+        metadata=field_metadata(
+            required=False,
+        ),
+    )
 
 
 @dataclass_json()
@@ -76,6 +81,14 @@ class SourceInstallerSchema(BaseInstallerSchema):
 
     # Steps to modify code by patches and others.
     modifier: List[BaseModifierSchema] = field(default_factory=list)
+
+    # This is relative path where kernel source code is located
+    kernel_config_file: str = field(
+        default="",
+        metadata=field_metadata(
+            required=False,
+        ),
+    )
 
 
 class SourceInstaller(BaseInstaller):
@@ -114,20 +127,28 @@ class SourceInstaller(BaseInstaller):
         # modify code
         self._modify_code(node=node, code_path=code_path)
 
-        self._build_code(node=node, code_path=code_path)
+        kconfig_file = runbook.kernel_config_file
+        self._build_code(node=node, code_path=code_path, kconfig_file=kconfig_file)
 
         self._install_build(node=node, code_path=code_path)
 
         result = node.execute(
-            "make kernelrelease 2>/dev/null", cwd=code_path, shell=True
+            "make kernelrelease 2>/dev/null",
+            cwd=code_path,
+            shell=True,
         )
 
         kernel_version = result.stdout
-        result.assert_exit_code(0, f"failed on get kernel version: {kernel_version}")
+        result.assert_exit_code(
+            0,
+            f"failed on get kernel version: {kernel_version}",
+        )
 
         # copy current config back to system folder.
         result = node.execute(
-            f"cp .config /boot/config-{kernel_version}", cwd=code_path, sudo=True
+            f"cp .config /boot/config-{kernel_version}",
+            cwd=code_path,
+            sudo=True,
         )
         result.assert_exit_code()
 
@@ -171,17 +192,30 @@ class SourceInstaller(BaseInstaller):
             self._log.debug(f"modifying code by {modifier.type_name()}")
             modifier.modify()
 
-    def _build_code(self, node: Node, code_path: PurePath) -> None:
+    def _build_code(self, node: Node, code_path: PurePath, kconfig_file: str) -> None:
         self._log.info("building code...")
 
         uname = node.tools[Uname]
         kernel_information = uname.get_linux_information()
 
-        result = node.execute(
-            f"cp /boot/config-{kernel_information.kernel_version_raw} .config",
-            cwd=code_path,
-        )
-        result.assert_exit_code()
+        cp = node.tools[Cp]
+        if kconfig_file:
+            kernel_config = code_path.joinpath(kconfig_file)
+            err_msg = f"cannot find kernel config path: {kernel_config}"
+            assert node.shell.exists(kernel_config), err_msg
+            cp.copy(
+                src=kernel_config,
+                dest=PurePath(".config"),
+                cwd=code_path,
+            )
+        else:
+            cp.copy(
+                src=node.get_pure_path(
+                    f"/boot/config-{kernel_information.kernel_version_raw}"
+                ),
+                dest=PurePath(".config"),
+                cwd=code_path,
+            )
 
         config_path = code_path.joinpath(".config")
         sed = self._node.tools[Sed]
@@ -269,11 +303,110 @@ class SourceInstaller(BaseInstaller):
                     "ccache",
                 ]
             )
+        elif isinstance(os, CBLMariner):
+            os.install_packages(
+                [
+                    "build-essential",
+                    "bison",
+                    "flex",
+                    "bc",
+                    "ccache",
+                    "elfutils-libelf",
+                    "elfutils-libelf-devel",
+                    "ncurses-libs",
+                    "ncurses-compat",
+                    "xz",
+                    "xz-devel",
+                    "xz-libs",
+                    "openssl-libs",
+                    "openssl-devel",
+                ]
+            )
         else:
             raise LisaException(
                 f"os '{os.name}' doesn't support in {self.type_name()}. "
                 f"Implement its build dependencies installation there."
             )
+
+
+class Dom0Installer(SourceInstaller):
+    @classmethod
+    def type_name(cls) -> str:
+        return "dom0"
+
+    @classmethod
+    def type_schema(cls) -> Type[schema.TypedSchema]:
+        return SourceInstallerSchema
+
+    @property
+    def _output_names(self) -> List[str]:
+        return []
+
+    def install(self) -> str:
+        node = self._node
+        runbook: SourceInstallerSchema = self.runbook
+        assert runbook.location, "the repo must be defined."
+
+        kernel_version = super().install()
+
+        factory = subclasses.Factory[BaseLocation](BaseLocation)
+        source = factory.create_by_runbook(
+            runbook=runbook.location, node=node, parent_log=self._log
+        )
+
+        code_path = source.get_source_code()
+        assert node.shell.exists(code_path), f"cannot find code path: {code_path}"
+
+        # If it is dom0,
+        # Name of the current kernel should be vmlinuz-<kernel version>
+        uname = node.tools[Uname]
+        current_kernel = uname.get_linux_information().kernel_version_raw
+
+        # Copy the kernel to /boot/efi from : arch/x86/boot/bzImage
+        current_kernel_binary = f"vmlinuz-{current_kernel}"
+        new_kernel_binary = f"vmlinuz-{kernel_version}"
+        source_path = node.get_pure_path(f"/boot/{new_kernel_binary}")
+        destination_path = node.get_pure_path(f"/boot/efi/{new_kernel_binary}")
+        cp = node.tools[Cp]
+        cp.copy(
+            src=source_path,
+            dest=destination_path,
+            sudo=True,
+        )
+
+        # Copy the new initrd to /boot/efi from /boot
+        # Here previous step will create new initrd binary at /boot
+        current_initrd_binary = f"initrd.img-{current_kernel}"
+        new_initrd_binary = f"initrd.img-{kernel_version}"
+        source_path = node.get_pure_path(f"/boot/{new_initrd_binary}")
+        destination_path = node.get_pure_path(f"/boot/efi/{new_initrd_binary}")
+        cp = node.tools[Cp]
+        cp.copy(
+            src=source_path,
+            dest=destination_path,
+            sudo=True,
+        )
+
+        ll_conf_file = "/boot/efi/linuxloader.conf"
+        sed = node.tools[Sed]
+
+        # Modify the linuxloader.conf to point new kernel binary
+        sed.substitute(
+            regexp=f"KERNEL_PATH={current_kernel_binary}",
+            replacement=f"KERNEL_PATH={new_kernel_binary}",
+            file=ll_conf_file,
+            sudo=True,
+        )
+
+        # Modify the linuxloader.conf to point new initrd binary
+        sed.substitute(
+            regexp=f"INITRD_PATH={current_initrd_binary}",
+            replacement=f"INITRD_PATH={new_initrd_binary}",
+            file=ll_conf_file,
+            sudo=True,
+        )
+
+        return kernel_version
 
 
 class BaseLocation(subclasses.BaseClassWithRunbookMixin):
@@ -322,7 +455,10 @@ class RepoLocation(BaseLocation):
         self._log.info(f"cloning code from {runbook.repo} to {code_path}...")
         git = self._node.tools[Git]
         code_path = git.clone(
-            url=runbook.repo, cwd=code_path, fail_on_exists=runbook.fail_on_code_exists
+            url=runbook.repo,
+            cwd=code_path,
+            fail_on_exists=runbook.fail_on_code_exists,
+            auth_token=runbook.auth_token,
         )
 
         git.fetch(cwd=code_path)
