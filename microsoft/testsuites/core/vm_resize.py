@@ -23,18 +23,19 @@ from lisa.tools import Lscpu
     area="vm_resize",
     category="functional",
     description="""
-    This test suite tests vm behavior upon resizing
+    This test suite tests VM behavior upon resizing
     """,
 )
 class VmResize(TestSuite):
     @TestCaseMetadata(
         description="""
-        This test case resizes the node and checks if it has the expected capabilities
-        (memory size and core count) after the resize
+        This test case hot resizes the VM and checks if it has the expected capabilities
+        (memory size and core count) after the hot resize
 
         Steps:
-        1. Resize vm into larger vm size
-        2. Check the node's core count and memory size against their expected values
+        1. Resize VM into larger VM size
+        2. Check the VM's core count and memory size after hot resize
+            against their expected values
         """,
         priority=1,
         requirement=simple_requirement(
@@ -46,12 +47,13 @@ class VmResize(TestSuite):
 
     @TestCaseMetadata(
         description="""
-        This test case resizes the node and checks if it has the expected capabilities
+        This test case hot resizes the VM and checks if it has the expected capabilities
         (memory size and core count) after the resize
 
         Steps:
-        1. Resize vm into smaller vm size
-        2. Check the node's core count and memory size against their expected values
+        1. Resize VM into smaller VM size
+        2. Check the VM's core count and memory size after hot resize
+            against their expected values
         """,
         priority=1,
         requirement=simple_requirement(
@@ -63,14 +65,14 @@ class VmResize(TestSuite):
 
     @TestCaseMetadata(
         description="""
-        This test case stops VM resizes the node, starts VM and checks if it has
+        This test case stops VM resizes the VM, starts VM and checks if it has
         the expected capabilities (memory size and core count) after the resize
 
         Steps:
         1. Stop VM
-        2. Resize vm into larger vm size
+        2. Resize VM into larger VM size
         3. Start VM
-        4.. Check the node's core count and memory size against their expected values
+        4. Check the VM's core count and memory size against their expected values
         """,
         priority=1,
         requirement=simple_requirement(
@@ -82,14 +84,14 @@ class VmResize(TestSuite):
 
     @TestCaseMetadata(
         description="""
-        This test case stops VM resizes the node, starts VM and checks if it has
+        This test case stops VM resizes the VM, starts VM and checks if it has
         the expected capabilities (memory size and core count) after the resize
 
         Steps:
         1. Stop VM
-        2. Resize vm into smaller vm size
+        2. Resize VM into smaller VM size
         3. Start VM
-        4. Check the node's core count and memory size against their expected values
+        4. Check the VM's core count and memory size against their expected values
         """,
         priority=1,
         requirement=simple_requirement(
