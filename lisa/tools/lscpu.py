@@ -227,7 +227,9 @@ class Lscpu(Tool):
         # CPU NODE SOCKET L1d:L1i:L2:L3
         # 0    0        0 0:0:0:0
         # 1    0        0 0:0:0:0
-        result = self.run("--extended=cpu,node,socket,cache").stdout
+        result = self.run(
+            "--extended=cpu,node,socket,cache", expected_exit_code=0
+        ).stdout
         mappings_with_header = result.splitlines(keepends=False)
         mappings = mappings_with_header[1:]
         assert_that(mappings).described_as(
