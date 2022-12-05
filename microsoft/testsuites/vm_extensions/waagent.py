@@ -17,7 +17,7 @@ from lisa.sut_orchestrator.azure.features import AzureExtension
 
 
 @TestSuiteMetadata(
-    area="azure",
+    area="vm_extension",
     category="functional",
     description="BVT for VM Agent",
     requirement=simple_requirement(unsupported_os=[]),
@@ -25,7 +25,8 @@ from lisa.sut_orchestrator.azure.features import AzureExtension
 class WaAgentBvt(TestSuite):
     @TestCaseMetadata(
         description="""
-        Runs an extension and verifies it executed on the remote machine.
+        Runs the custom script extension and verifies it executed on the 
+        remote machine.
         """,
         priority=1,
         requirement=simple_requirement(supported_features=[AzureExtension]),
