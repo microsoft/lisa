@@ -152,10 +152,10 @@ class Infiniband(Feature):
         default = "5.4-3.0.3.0"
         if self._is_legacy_device():
             return "4.9-5.1.0.0"
-        if (
-            isinstance(node.os, Ubuntu) and node.os.information.version >= "20.4.0"
-        ) or (isinstance(node.os, Redhat) and node.os.information.version >= "8.2.0"):
+        if isinstance(node.os, Ubuntu) and node.os.information.version >= "20.4.0":
             return "5.7-1.0.2.0"
+        if isinstance(node.os, Redhat) and node.os.information.version >= "8.2.0":
+            return "5.8-1.1.2.1"
 
         return default
 
