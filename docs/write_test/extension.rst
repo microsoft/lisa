@@ -106,10 +106,12 @@ Learn more about how to use the tool from `helloworld.py
 CustomScript
 ------------
 
-The ``CustomScript`` is like a lightweight tool. However, **please avoid
-using it** unless there are serious performance issues or other reasons,
-because it will return the original results to the test case. You can
-also package custom scripts as tools.
+The ``CustomScript`` is like a lightweight tool, which is composited by one or
+more script files. However, **please avoid using it** unless there are serious
+performance concerns, compatible with existing test cases or other reasons,
+because it doesn't leverage all advantages of LISA. For example, the script runs
+on nodes, the output may not be dumped into LISA log. The distro-agnostic
+modules of tools cannot be leveraged.
 
 The base class is the :class:`CustomScript` in ``executable``.
 
