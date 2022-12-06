@@ -85,12 +85,19 @@ Clone code
 Directly install LISA (Option 1)
 --------------------------------
 
-This will install LISA directly for the invoking user.
+Direct installation requires pip 22.2.2 or higher. If the version of pip provided
+by your installation is older than this, a newer version should be installed.
+
+.. code:: bash
+
+   python3 -m pip install --upgrade pip
+
+The example below will install LISA directly for the invoking user.
 To install system-wide, run from and Administrator console.
 
 .. code:: bash
 
-   pip3 install .[azure]
+    python3 -m pip install --editable .[azure] --config-settings editable_mode=compat
 
 
 
