@@ -1,13 +1,13 @@
 # Copyright (c) Microsoft Corporation.
 # Licensed under the MIT license.
 import time
-from typing import Optional
+from typing import Optional, cast
 
 from assertpy import assert_that
 
 from lisa import (
-    Logger,
     Node,
+    RemoteNode,
     SkippedException,
     TestCaseMetadata,
     TestSuite,
@@ -16,6 +16,7 @@ from lisa import (
 )
 from lisa.features import Resize, ResizeAction, StartStop
 from lisa.schema import NodeSpace
+from lisa.testsuite import TestResult
 from lisa.tools import Lscpu
 
 
@@ -42,8 +43,10 @@ class VmResize(TestSuite):
             supported_features=[Resize],
         ),
     )
-    def verify_vm_hot_resize(self, log: Logger, node: Node) -> None:
-        self._verify_vm_resize(node)
+    def verify_vm_hot_resize(self, result: TestResult) -> None:
+        self._verify_vm_resize(
+            test_result=result,
+        )
 
     @TestCaseMetadata(
         description="""
@@ -60,8 +63,10 @@ class VmResize(TestSuite):
             supported_features=[Resize],
         ),
     )
-    def verify_vm_hot_resize_decrease(self, log: Logger, node: Node) -> None:
-        self._verify_vm_resize(node, ResizeAction.DecreaseCoreCount)
+    def verify_vm_hot_resize_decrease(self, result: TestResult) -> None:
+        self._verify_vm_resize(
+            test_result=result, resize_action=ResizeAction.DecreaseCoreCount
+        )
 
     @TestCaseMetadata(
         description="""
@@ -79,8 +84,8 @@ class VmResize(TestSuite):
             supported_features=[Resize, StartStop],
         ),
     )
-    def verify_vm_resize_increase(self, node: Node) -> None:
-        self._verify_vm_resize(node=node, hot_resize=False)
+    def verify_vm_resize_increase(self, result: TestResult) -> None:
+        self._verify_vm_resize(test_result=result, hot_resize=False)
 
     @TestCaseMetadata(
         description="""
@@ -98,17 +103,23 @@ class VmResize(TestSuite):
             supported_features=[Resize, StartStop],
         ),
     )
-    def verify_vm_resize_decrease(self, node: Node) -> None:
+    def verify_vm_resize_decrease(self, result: TestResult) -> None:
         self._verify_vm_resize(
-            node=node, resize_action=ResizeAction.DecreaseCoreCount, hot_resize=False
+            test_result=result,
+            resize_action=ResizeAction.DecreaseCoreCount,
+            hot_resize=False,
         )
 
     def _verify_vm_resize(
         self,
-        node: Node,
+        test_result: TestResult,
         resize_action: ResizeAction = ResizeAction.IncreaseCoreCount,
         hot_resize: bool = True,
     ) -> None:
+        environment = test_result.environment
+        assert environment, "fail to get environment from testresult"
+        node = cast(RemoteNode, environment.nodes[0])
+
         resize = node.features[Resize]
         if not hot_resize:
             start_stop = node.features[StartStop]
@@ -118,7 +129,9 @@ class VmResize(TestSuite):
         while retry < maxretry:
             try:
                 expected_vm_capability: Optional[NodeSpace] = None
-                expected_vm_capability = resize.resize(resize_action)
+                expected_vm_capability, origin_vm_size, final_vm_size = resize.resize(
+                    resize_action
+                )
                 break
             except Exception as identifier:
                 if "no available size for resizing" in str(identifier):
@@ -143,6 +156,9 @@ class VmResize(TestSuite):
         assert expected_vm_capability, "fail to find proper vm size"
         if not hot_resize:
             start_stop.start()
+
+        test_result.information["final_vm_size"] = final_vm_size
+        test_result.information["origin_vm_size"] = origin_vm_size
         self._verify_core_count(node, expected_vm_capability)
 
     def _verify_core_count(self, node: Node, expected_vm_capability: NodeSpace) -> None:

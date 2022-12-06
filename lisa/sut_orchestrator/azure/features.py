@@ -1272,11 +1272,11 @@ class Resize(AzureFeatureMixin, features.Resize):
 
     def resize(
         self, resize_action: ResizeAction = ResizeAction.IncreaseCoreCount
-    ) -> schema.NodeSpace:
+    ) -> Tuple[schema.NodeSpace, str, str]:
         platform: AzurePlatform = self._platform  # type: ignore
         compute_client = get_compute_client(platform)
         node_context = get_node_context(self._node)
-        new_vm_size_info = self._select_vm_size(resize_action)
+        origin_vm_size, new_vm_size_info = self._select_vm_size(resize_action)
 
         # Creating parameter for VM Operations API call
         hardware_profile = HardwareProfile(vm_size=new_vm_size_info.vm_size)
@@ -1295,11 +1295,11 @@ class Resize(AzureFeatureMixin, features.Resize):
         self._node.close()
         new_capability = copy.deepcopy(new_vm_size_info.capability)
         self._node.capability = cast(schema.Capability, new_capability)
-        return new_capability
+        return new_capability, origin_vm_size, new_vm_size_info.vm_size
 
     def _select_vm_size(
         self, resize_action: ResizeAction = ResizeAction.IncreaseCoreCount
-    ) -> "AzureCapability":
+    ) -> Tuple[str, "AzureCapability"]:
         platform: AzurePlatform = self._platform  # type: ignore
         compute_client = get_compute_client(platform)
         node_context = get_node_context(self._node)
@@ -1387,9 +1387,13 @@ class Resize(AzureFeatureMixin, features.Resize):
 
         # Choose random size from the list to resize to
         index = randint(0, len(avail_eligible_intersect) - 1)
-        resize_vm_size = avail_eligible_intersect[index]
-        self._log.info(f"New vm size: {resize_vm_size.vm_size}")
-        return resize_vm_size
+        resize_vm_size_info = avail_eligible_intersect[index]
+        origin_vm_size = node_runbook.vm_size
+        node_runbook.vm_size = resize_vm_size_info.vm_size
+        node_runbook.location = resize_vm_size_info.location
+        resize_vm_size_info.capability.set_extended_runbook(node_runbook)
+        self._log.info(f"New vm size: {resize_vm_size_info.vm_size}")
+        return origin_vm_size, resize_vm_size_info
 
 
 class Hibernation(AzureFeatureMixin, features.Hibernation):
