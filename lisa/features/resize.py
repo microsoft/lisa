@@ -2,6 +2,7 @@
 # Licensed under the MIT license.
 
 from enum import Enum
+from typing import Tuple
 
 from lisa.feature import Feature
 from lisa.schema import NodeSpace
@@ -31,5 +32,5 @@ class Resize(Feature):
 
     def resize(
         self, resize_action: ResizeAction = ResizeAction.IncreaseCoreCount
-    ) -> NodeSpace:
+    ) -> Tuple[NodeSpace, str, str]:
         raise NotImplementedError()
