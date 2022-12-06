@@ -25,7 +25,7 @@ from lisa.sut_orchestrator.azure.features import AzureExtension
 class WaAgentBvt(TestSuite):
     @TestCaseMetadata(
         description="""
-        Runs the custom script extension and verifies it executed on the 
+        Runs the custom script extension and verifies it executed on the
         remote machine.
         """,
         priority=1,
