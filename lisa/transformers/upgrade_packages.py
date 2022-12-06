@@ -15,22 +15,26 @@ from lisa.util.logger import Logger, get_logger
 @dataclass_json()
 @dataclass
 class UpgradeInstallerSchema(schema.TypedSchema, schema.ExtendableSchemaMixin):
-    ...
+    repo_url: str = field(
+        default="http://azure.archive.ubuntu.com/ubuntu/",
+        metadata=field_metadata(required=True),
+    )
+
+    proposed: bool = field(
+        default=True,
+        metadata=field_metadata(required=True),
+    )
 
 
 @dataclass_json
 @dataclass
-class UpgradeInstallerTransformerSchema(schema.Transformer):
+class UpgradeTransformerSchema(schema.Transformer):
     # SSH connection information to the node
     connection: Optional[schema.RemoteNode] = field(
         default=None, metadata=field_metadata(required=True)
     )
-    repo_updater: Optional[UpgradeInstallerSchema] = field(
-        default=None, metadata=field_metadata(required=False)
-    )
-    # installer's parameters.
     installer: Optional[UpgradeInstallerSchema] = field(
-        default=None, metadata=field_metadata(required=False)
+        default=None, metadata=field_metadata(required=True)
     )
 
 
@@ -54,21 +58,21 @@ class UpgradeInstaller(subclasses.BaseClassWithRunbookMixin):
         raise NotImplementedError()
 
 
-class UpgradeInstallerTransformer(Transformer):
+class UpgradeTransformer(Transformer):
     @classmethod
     def type_name(cls) -> str:
-        return "upgrade_installer"
+        return "upgrade"
 
     @classmethod
     def type_schema(cls) -> Type[schema.TypedSchema]:
-        return UpgradeInstallerTransformerSchema
+        return UpgradeTransformerSchema
 
     @property
     def _output_names(self) -> List[str]:
         return []
 
     def _internal_run(self) -> Dict[str, Any]:
-        runbook: UpgradeInstallerTransformerSchema = self.runbook
+        runbook: UpgradeTransformerSchema = self.runbook
         assert runbook.connection, "connection must be defined."
         assert runbook.installer, "installer must be defined."
 
@@ -79,19 +83,12 @@ class UpgradeInstallerTransformer(Transformer):
             f"kernel version before install: {uname.get_linux_information()}"
         )
         factory = subclasses.Factory[UpgradeInstaller](UpgradeInstaller)
-        if runbook.repo_updater:
-            repo_updater = factory.create_by_runbook(
-                runbook=runbook.repo_updater, node=node, parent_log=self._log
-            )
-            repo_updater.validate()
-            repo_updater.install()
 
-        if runbook.installer:
-            installer = factory.create_by_runbook(
-                runbook=runbook.installer, node=node, parent_log=self._log
-            )
-            installer.validate()
-            installer.install()
+        installer = factory.create_by_runbook(
+            runbook=runbook.installer, node=node, parent_log=self._log
+        )
+        installer.validate()
+        installer.install()
 
         return {}
 
@@ -122,6 +119,31 @@ class UnattendedUpgradeInstaller(UpgradeInstaller):
         )
 
     def install(self) -> None:
+        self._update_repo()
+        self._update_packages()
+
+    def _update_repo(self) -> None:
+        node: Node = self._node
+        runbook: UpgradeInstallerSchema = self.runbook
+        repo_url = runbook.repo_url
+        assert isinstance(node.os, Ubuntu)
+        release = node.os.information.codename
+
+        assert (
+            release
+        ), f"cannot find codename from the os version: {node.os.information}"
+
+        if runbook.proposed:
+            version_name = f"{release}-proposed"
+        else:
+            version_name = release
+
+        repo_entry = (
+            f"deb {repo_url} {version_name} " f"restricted main multiverse universe"
+        )
+        node.os.add_repository(repo_entry)
+
+    def _update_packages(self) -> None:
         node: Node = self._node
         assert isinstance(node.os, Debian)
 
@@ -169,47 +191,3 @@ class UnattendedUpgradeInstaller(UpgradeInstaller):
         )
 
         self._log.debug(f"Packages updated: {result.stdout}")
-
-
-class AddProposedRepoInstaller(UpgradeInstaller):
-    def __init__(
-        self,
-        runbook: Any,
-        node: Node,
-        parent_log: Logger,
-        *args: Any,
-        **kwargs: Any,
-    ) -> None:
-        super().__init__(runbook, node, parent_log, *args, **kwargs)
-        self.repo_url = "http://azure.archive.ubuntu.com/ubuntu/"
-
-    @classmethod
-    def type_name(cls) -> str:
-        return "add_proposed_repo"
-
-    @classmethod
-    def type_schema(cls) -> Type[schema.TypedSchema]:
-        return UpgradeInstallerSchema
-
-    def validate(self) -> None:
-        assert isinstance(self._node.os, Ubuntu), (
-            f"The '{self.type_name()}' installer only supports Ubuntu family. "
-            f"The current os is {self._node.os.name}"
-        )
-
-    def install(self) -> None:
-        node: Node = self._node
-        assert isinstance(node.os, Ubuntu)
-        release = node.os.information.codename
-
-        assert (
-            release
-        ), f"cannot find codename from the os version: {node.os.information}"
-
-        version_name = f"{release}-proposed"
-
-        repo_entry = (
-            f"deb {self.repo_url} {version_name} "
-            f"restricted main multiverse universe"
-        )
-        node.os.add_repository(repo_entry)
