@@ -1,7 +1,7 @@
 # Copyright (c) Microsoft Corporation.
 # Licensed under the MIT license.
 
-from typing import TYPE_CHECKING, cast
+from typing import TYPE_CHECKING
 
 from lisa.executable import Tool
 
@@ -19,7 +19,7 @@ class AptAddRepository(Tool):
         return True
 
     def install(self) -> bool:
-        ubuntu_os: Ubuntu = cast(Ubuntu, self.node.os)
+        ubuntu_os: Ubuntu = self.node.os  # type: ignore
         package_name = "software-properties-common"
         ubuntu_os.install_packages(package_name)
         return self._check_exists()
