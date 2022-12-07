@@ -342,6 +342,47 @@ class KdumpCrash(TestSuite):
         # We should clean up the vmcore file since the test is passed
         node.execute(f"rm -rf {kdump.dump_path}/*", shell=True, sudo=True)
 
+    def _is_system_connected(self, node: Node, log: Logger) -> bool:
+        remote_node = cast(RemoteNode, node)
+        try:
+            self._try_connect(remote_node)
+        except FunctionTimedOut as identifier:
+            # The FunctionTimedOut must be caught separated, or the process will exit.
+            log.debug(f"ignorable timeout exception: {identifier}")
+            return False
+        except Exception as identifier:
+            log.debug(
+                "Fail to connect SSH "
+                f"{remote_node._connection_info.address}:"
+                f"{remote_node._connection_info.port}. "
+                f"{identifier.__class__.__name__}: {identifier}. Retry..."
+            )
+            return False
+        return True
+
+    def _is_dump_file_generated(self, node: Node, kdump: KdumpBase) -> bool:
+        result = node.execute(
+            f"find {kdump.dump_path} -type f -size +10M "
+            "\\( -name vmcore -o -name dump.* -o -name vmcore.* \\) "
+            "-exec ls -lh {} \\;",
+            shell=True,
+            sudo=True,
+        )
+        if result.stdout:
+            return True
+        return False
+
+    def _check_incomplete_dump_file_generated(
+        self, node: Node, kdump: KdumpBase
+    ) -> str:
+        # Check if has dump incomplete file
+        result = node.execute(
+            f"find {kdump.dump_path} -name '*incomplete*'",
+            shell=True,
+            sudo=True,
+        )
+        return result.stdout
+
     def _check_kdump_result(
         self, node: Node, log_path: Path, log: Logger, kdump: KdumpBase
     ) -> None:
@@ -362,67 +403,34 @@ class KdumpCrash(TestSuite):
         #    We need to catch the exception, and retry to connect the VM. Then follow
         #    the same steps to check.
         timer = create_timer()
-        remote_node = cast(RemoteNode, node)
-        system_disconnected = True
-        timeout_times: int = 0
+        has_checked_console_log = False
         serial_console = node.features[SerialConsole]
-        while system_disconnected and timer.elapsed(False) < self.timeout_of_dump_crash:
-            try:
-                self._try_connect(remote_node)
-            except FunctionTimedOut as identifier:
-                # The FunctionTimedOut must be caught separated, or the process
-                # will exit.
-                timeout_times += 1
-                log.debug(f"ignorable timeout exception: {identifier}")
-                if timeout_times == 10:
+        while timer.elapsed(False) < self.timeout_of_dump_crash:
+            if not self._is_system_connected(node, log):
+                if not has_checked_console_log and timer.elapsed(False) > 60:
                     serial_console.check_initramfs(
                         saved_path=log_path, stage="after_trigger_crash", force_run=True
                     )
-                system_disconnected = True
+                    has_checked_console_log = True
                 continue
-            except Exception as identifier:
-                log.debug(
-                    "Fail to connect SSH "
-                    f"{remote_node._connection_info.address}:"
-                    f"{remote_node._connection_info.port}. "
-                    f"{identifier.__class__.__name__}: {identifier}. Retry..."
-                )
-                serial_console.check_initramfs(
-                    saved_path=log_path, stage="after_trigger_crash", force_run=True
-                )
-                system_disconnected = True
-                continue
-
-            # If there is no exception, then the system is connected
-            system_disconnected = False
 
             # After trigger kdump, the VM will reboot. We need to close the node
             node.close()
             saved_dumpfile_size = 0
-            max_retries = 10
-            retries = 0
+            max_tries = 20
+            check_incomplete_file_tries = 0
+            check_dump_file_tries = 0
             # Check in this loop until the dump file is generated or incomplete file
             # doesn't grow or timeout
             while True:
                 try:
-                    # The exit code of this command is always 0. Check the stdout
-                    result = node.execute(
-                        f"find {kdump.dump_path} -type f -size +10M "
-                        "\\( -name vmcore -o -name dump.* -o -name vmcore.* \\) "
-                        "-exec ls -lh {} \\;",
-                        shell=True,
-                        sudo=True,
+                    if self._is_dump_file_generated(node, kdump):
+                        return
+                    incomplete_file = self._check_incomplete_dump_file_generated(
+                        node=node, kdump=kdump
                     )
-                    if result.stdout:
-                        break
-                    # Check if has dump incomplete file
-                    result = node.execute(
-                        f"find {kdump.dump_path} -name '*incomplete*'",
-                        shell=True,
-                        sudo=True,
-                    )
-                    if result.stdout:
-                        incomplete_file = result.stdout
+                    if incomplete_file:
+                        check_dump_file_tries = 0
                         stat = node.tools[Stat]
                         incomplete_file_size = stat.get_total_size(incomplete_file)
                 except Exception as identifier:
@@ -431,15 +439,16 @@ class KdumpCrash(TestSuite):
                         " reboot after dumping vmcore."
                         f"{identifier.__class__.__name__}: {identifier}. Retry..."
                     )
-                    system_disconnected = True
+                    # Hit exception, break this loop and re-try to connect the system
                     break
-                if result.stdout:
+                if incomplete_file:
+                    # If the incomplete file doesn't grow in 100s, then raise exception
                     if incomplete_file_size > saved_dumpfile_size:
                         saved_dumpfile_size = incomplete_file_size
-                        retries = 0
+                        check_incomplete_file_tries = 0
                     else:
-                        retries = retries + 1
-                        if retries >= max_retries:
+                        check_incomplete_file_tries += 1
+                        if check_incomplete_file_tries >= max_tries:
                             serial_console.get_console_log(
                                 saved_path=log_path, force_run=True
                             )
@@ -448,8 +457,9 @@ class KdumpCrash(TestSuite):
                                 f" {round(incomplete_file_size/1024/1024, 2)}MB"
                             )
                 else:
-                    retries = retries + 1
-                    if retries >= max_retries:
+                    # If there is no any dump file in 100s, then raise exception
+                    check_dump_file_tries += 1
+                    if check_dump_file_tries >= max_tries:
                         serial_console.get_console_log(
                             saved_path=log_path, force_run=True
                         )
@@ -459,14 +469,10 @@ class KdumpCrash(TestSuite):
                         )
                 if timer.elapsed(False) > self.timeout_of_dump_crash:
                     serial_console.get_console_log(saved_path=log_path, force_run=True)
-                    raise LisaException(
-                        "Timeout to dump vmcore file. The size of vmcore-incomplete is"
-                        f" {round(incomplete_file_size/1024/1024, 2)}MB"
-                    )
+                    raise LisaException("Timeout to dump vmcore file.")
                 time.sleep(5)
-        if system_disconnected:
-            serial_console.get_console_log(saved_path=log_path, force_run=True)
-            raise LisaException("Timeout to connect the VM after triggering kdump.")
+        serial_console.get_console_log(saved_path=log_path, force_run=True)
+        raise LisaException("Timeout to connect the VM after triggering kdump.")
 
     def _trigger_kdump_on_specified_cpu(
         self, cpu_num: int, node: Node, log_path: Path, log: Logger
