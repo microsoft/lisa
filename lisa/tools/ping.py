@@ -4,7 +4,7 @@ import re
 from typing import Optional, Type
 
 from lisa.executable import Tool
-from lisa.operating_system import Debian
+from lisa.operating_system import Debian, Ubuntu
 from lisa.util import UnsupportedDistroException
 from lisa.util.process import Process
 
@@ -27,7 +27,7 @@ class Ping(Tool):
         return True
 
     def install(self) -> bool:
-        if isinstance(self.node.os, Debian):
+        if isinstance(self.node.os, Ubuntu) or isinstance(self.node.os, Debian):
             package_name = "inetutils-ping"
         else:
             raise UnsupportedDistroException(self.node.os)
