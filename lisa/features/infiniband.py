@@ -13,6 +13,7 @@ from lisa.operating_system import CentOs, Oracle, Redhat, Ubuntu
 from lisa.tools import Firewall, Ls, Lspci, Make
 from lisa.tools.tar import Tar
 from lisa.util import (
+    LisaException,
     MissingPackagesException,
     UnsupportedDistroException,
     UnsupportedKernelException,
@@ -155,7 +156,7 @@ class Infiniband(Feature):
         if (
             isinstance(node.os, Ubuntu) and node.os.information.version >= "20.4.0"
         ) or (isinstance(node.os, Redhat) and node.os.information.version >= "8.2.0"):
-            return "5.7-1.0.2.0"
+            return "5.8-1.1.2.1"
 
         return default
 
@@ -179,7 +180,6 @@ class Infiniband(Feature):
             "libxml2-dev",
             "m4",
             "byacc",
-            "python-dev",
             "python-setuptools",
             "tcl",
             "environment-modules",
@@ -204,7 +204,6 @@ class Infiniband(Feature):
             "python-setuptools",
             "g++",
             "libc6-i386",
-            "lib32gcc-8-dev",
         ]
         redhat_required_packages = [
             "git",
@@ -270,6 +269,10 @@ class Infiniband(Feature):
                     )
                     node.os.install_packages("kernel-devel")
         elif isinstance(node.os, Ubuntu) and node.os.information.version >= "18.4.0":
+            if node.os.information.version >= "22.10.0":
+                ubuntu_required_packages.append("lib32gcc-9-dev python3-dev")
+            else:
+                ubuntu_required_packages.append("lib32gcc-8-dev python-dev")
             node.os.install_packages(ubuntu_required_packages)
         else:
             raise UnsupportedDistroException(
@@ -307,11 +310,18 @@ class Infiniband(Feature):
         )
         tarball_name = f"{mofed_folder}.tgz"
         mlnx_ofed_download_url = (
-            f"https://partnerpipelineshare.blob.core.windows.net/ofed/{tarball_name}"
+            f"https://content.mellanox.com/ofed/MLNX_OFED-{mofed_version}"
+            f"/{tarball_name}"
         )
 
         wget = node.tools[Wget]
-        wget.get(url=mlnx_ofed_download_url, file_path=".", filename=tarball_name)
+        try:
+            wget.get(url=mlnx_ofed_download_url, file_path=".", filename=tarball_name)
+        except LisaException as identifier:
+            if "404: Not Found." in str(identifier):
+                raise UnsupportedDistroException(
+                    node.os, f"{mlnx_ofed_download_url} doesn't exist."
+                )
         tar = node.tools[Tar]
         tar.extract(file=tarball_name, dest_dir=".", gzip=True)
 
