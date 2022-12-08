@@ -10,6 +10,7 @@ Coding guidelines
 -  `Assertion <#assertion>`__
 -  `Troubleshooting excellence <#troubleshooting-excellence>`__
 -  `Document excellence <#document-excellence>`__
+-  `Tips for writing code <#tips-for-writing-code>`__
 -  `Tips for non-native English speakers by non-native English
    speakers <#tips-for-non-native-english-speakers-by-non-native-english-speakers>`__
 
@@ -268,6 +269,19 @@ The documentation is the opportunity to make things clear and easy to
 maintain. A longer document is not always a better document. Each kind
 of documentation has its own purpose. Good technical documentation
 should be *useful and accurate*.
+
+Tips for writing code
+--------------------------
+
+f-strings is brought since Python 3.6, f-strings are string literals that have an f at
+the beginning and curly braces containing expressions that will be replaced with their
+values. f-strings are a great new way to format strings. Not only are they
+more readable, more concise, and less prone to error than other ways of formatting, but
+they are also faster.
+
+``print(f"Hello, {name}. You are {age}.")``
+
+Learn more from `f-strings document <https://docs.python.org/3/reference/lexical_analysis.html#f-strings>`__.
 
 Tips for non-native English speakers by non-native English speakers
 -------------------------------------------------------------------
