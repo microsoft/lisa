@@ -124,6 +124,7 @@ class MshvHostTestSuite(TestSuite):
                 self._send_subtest_msg(
                     result, environment, test_name, TestStatus.FAILED, repr(e)
                 )
+        self._save_dmesg_logs(node, log_path)
         assert_that(failures).is_equal_to(0)
         return
 
@@ -183,10 +184,6 @@ class MshvHostTestSuite(TestSuite):
             disk_img_file = node.working_path / f"VM{i}_{self.DISK_IMG_NAME}"
             node.tools[Rm].remove_file(str(disk_img_file))
 
-        dmesg_str = node.tools[Dmesg].get_output()
-        dmesg_path = log_path / f"dmesg_{times}_{cpus_per_vm}_{mem_per_vm_mb}"
-        with open(str(dmesg_path), "w") as f:
-            f.write(dmesg_str)
         assert_that(failures).is_equal_to(0)
 
     def _send_subtest_msg(
@@ -207,3 +204,9 @@ class MshvHostTestSuite(TestSuite):
         )
 
         notifier.notify(subtest_msg)
+
+    def _save_dmesg_logs(self, node: Node, log_path: Path) -> None:
+        dmesg_str = node.tools[Dmesg].get_output()
+        dmesg_path = log_path / "dmesg"
+        with open(str(dmesg_path), "w") as f:
+            f.write(dmesg_str)
