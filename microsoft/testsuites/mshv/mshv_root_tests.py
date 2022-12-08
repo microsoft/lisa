@@ -1,7 +1,7 @@
 # Copyright (c) Microsoft Corporation.
 # Licensed under the MIT license.
 import time
-from pathlib import Path
+from pathlib import Path, PurePath
 from typing import Any, Dict
 
 from assertpy import assert_that
@@ -142,6 +142,7 @@ class MshvHostTestSuite(TestSuite):
         )
         hypervisor_fw_path = str(node.get_working_path() / self.HYPERVISOR_FW_NAME)
         disk_img_path = node.get_working_path() / self.DISK_IMG_NAME
+        disk_img_copy_path = self._get_disk_img_copy_path(node)
         cores = node.tools[Lscpu].get_core_count()
         vm_count = int(cores / cpus_per_vm)
         failures = 0
@@ -150,14 +151,15 @@ class MshvHostTestSuite(TestSuite):
             node.tools[Free].log_memory_stats_mb()
             procs = []
             for i in range(vm_count):
-                vm_disk_img_path = node.working_path / f"VM{i}_{self.DISK_IMG_NAME}"
-                node.tools[Cp].copy(disk_img_path, vm_disk_img_path)
+                vm_disk_img_path = disk_img_copy_path / f"VM{i}_{self.DISK_IMG_NAME}"
+                node.tools[Cp].copy(disk_img_path, vm_disk_img_path, sudo=True)
                 log.info(f"Starting VM {i}")
                 p = node.tools[CloudHypervisor].start_vm_async(
                     kernel=hypervisor_fw_path,
                     cpus=cpus_per_vm,
                     memory_mb=mem_per_vm_mb,
                     disk_path=str(vm_disk_img_path),
+                    sudo=True,
                 )
                 assert_that(p).described_as(f"Failed to create VM {i}").is_not_none()
                 procs.append(p)
@@ -181,10 +183,18 @@ class MshvHostTestSuite(TestSuite):
             node.tools[Free].log_memory_stats_mb()
 
         for i in range(vm_count):
-            disk_img_file = node.working_path / f"VM{i}_{self.DISK_IMG_NAME}"
-            node.tools[Rm].remove_file(str(disk_img_file))
+            disk_img_file = disk_img_copy_path / f"VM{i}_{self.DISK_IMG_NAME}"
+            node.tools[Rm].remove_file(str(disk_img_file), sudo=True)
 
         assert_that(failures).is_equal_to(0)
+
+    def _get_disk_img_copy_path(self, node: Node) -> PurePath:
+        # Azure temporary disk is mounted at /mnt. It has more space then OS
+        # disk. Use it for storing copies of the disk image if it exists.
+        if node.tools[Ls].path_exists("/mnt"):
+            return PurePath("/mnt")
+        else:
+            return node.working_path
 
     def _send_subtest_msg(
         self,
