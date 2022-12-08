@@ -22,10 +22,12 @@ class CloudHypervisor(Tool):
         memory_mb: int,
         disk_path: str,
         disk_readonly: bool = False,
+        sudo: bool = False,
     ) -> Process:
         opt_disk_readonly = "on" if disk_readonly else "off"
         return self.run_async(
             f'--kernel {kernel} --cpus boot={cpus} --memory size={memory_mb}M --disk "path={disk_path},readonly={opt_disk_readonly}" --net "tap=,mac=,ip=,mask="',  # noqa: E501
             force_run=True,
             shell=True,
+            sudo=sudo,
         )
