@@ -20,22 +20,21 @@ import lisa.sut_orchestrator.ready  # noqa: F401
 
 try:
     import lisa.runners.legacy_runner  # noqa: F401
-except ModuleNotFoundError:
-    print("win32 package is not installed, legacy runner is not supported.")
+except ModuleNotFoundError as e:
+    print(f"win32 package is not installed, legacy runner is not supported. [{e}]")
 
 # Azure modules
 try:
     import lisa.sut_orchestrator.azure.hooks  # noqa: F401
     import lisa.sut_orchestrator.azure.transformers  # noqa: F401
-except ModuleNotFoundError:
-    print("azure package is not installed.")
+except ModuleNotFoundError as e:
+    print(f"azure package is not installed. [{e}]")
 
 # Aws modules
 try:
     import lisa.sut_orchestrator.aws.platform_  # noqa: F401
-except ModuleNotFoundError:
-    print("aws package is not installed.")
-
+except ModuleNotFoundError as e:
+    print(f"aws package is not installed. [{e}]")
 
 if platform.system() == "Linux":
     # libvirt modules
@@ -46,8 +45,8 @@ if platform.system() == "Linux":
         import lisa.sut_orchestrator.libvirt.qemu_platform  # noqa: F401
         import lisa.sut_orchestrator.libvirt.schema  # noqa: F401
         import lisa.sut_orchestrator.libvirt.transformers  # noqa: F401
-    except ModuleNotFoundError:
-        print("libvirt package is not installed")
+    except ModuleNotFoundError as e:
+        print(f"libvirt package is not installed. [{e}]")
 
 import lisa.transformers.dump_variables  # noqa: F401
 import lisa.transformers.kernel_source_installer  # noqa: F401
