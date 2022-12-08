@@ -42,7 +42,7 @@ def test(session: nox.Session) -> None:
 @nox.session(python=CURRENT_PYTHON, tags=["test", "all"])
 def example(session: nox.Session) -> None:
     """Run example"""
-    session.install(".")
+    session.install("--editable", ".", "--config-settings", "editable_mode=compat")
     session.run("lisa", "--debug")
 
 
