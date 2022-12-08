@@ -100,7 +100,7 @@ from .common import (
     wait_copy_blob,
     wait_operation,
 )
-from .tools import VmGeneration, Waagent
+from .tools import Uname, VmGeneration, Waagent
 
 # used by azure
 AZURE_DEPLOYMENT_NAME = "lisa_default_deployment_script"
@@ -162,6 +162,7 @@ KEY_VM_GENERATION = "vm_generation"
 KEY_KERNEL_VERSION = "kernel_version"
 KEY_WALA_VERSION = "wala_version"
 KEY_WALA_DISTRO_VERSION = "wala_distro"
+KEY_HARDWARE_PLATFORM = "hardware_platform"
 ATTRIBUTE_FEATURES = "features"
 
 # https://abcdefg.blob.core.windows.net/abcdefg?sv=2020-08-04&
@@ -331,6 +332,7 @@ class AzurePlatform(Platform):
             KEY_KERNEL_VERSION: self._get_kernel_version,
             KEY_WALA_VERSION: self._get_wala_version,
             KEY_WALA_DISTRO_VERSION: self._get_wala_distro_version,
+            KEY_HARDWARE_PLATFORM: self._get_hardware_platform,
         }
 
     @classmethod
@@ -649,6 +651,21 @@ class AzurePlatform(Platform):
             node.log.debug("detecting host version from serial log...")
             serial_console = node.features[features.SerialConsole]
             result = serial_console.get_matched_str(HOST_VERSION_PATTERN)
+
+        return result
+
+    def _get_hardware_platform(self, node: Node) -> str:
+        result: str = "Unknown"
+
+        try:
+            if node.is_connected and node.is_posix:
+                node.log.debug("detecting hardware platform from uname...")
+                uname_tool = node.tools[Uname]
+                result = uname_tool.get_linux_information().hardware_platform
+        except Exception as identifier:
+            # it happens on some error vms. Those error should be caught earlier in
+            # test cases not here. So ignore any error here to collect information only.
+            node.log.debug(f"error on run uname: {identifier}")
 
         return result
 
