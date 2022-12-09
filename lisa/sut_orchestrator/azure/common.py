@@ -119,6 +119,14 @@ class SharedImageGallerySchema:
     image_definition: str = ""
     image_version: str = ""
 
+    def __hash__(self) -> int:
+        return hash(
+            f"/subscriptions/{self.subscription_id}/resourceGroups/"
+            f"{self.resource_group_name}/providers/Microsoft.Compute/galleries/"
+            f"{self.image_gallery}/images/{self.image_definition}/versions/"
+            f"{self.image_version}"
+        )
+
 
 @dataclass_json()
 @dataclass

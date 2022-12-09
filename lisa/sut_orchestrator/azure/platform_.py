@@ -21,6 +21,7 @@ from typing import Any, Dict, List, Optional, Set, Tuple, Type, Union, cast
 from azure.core.exceptions import HttpResponseError
 from azure.identity import DefaultAzureCredential
 from azure.mgmt.compute.models import (  # type: ignore
+    GalleryImage,
     GalleryImageVersion,
     PurchasePlan,
     ResourceSku,
@@ -1178,6 +1179,15 @@ class AzurePlatform(Platform):
                     azure_node_runbook.is_linux = False
                 else:
                     azure_node_runbook.is_linux = True
+        elif azure_node_runbook.shared_gallery:
+            azure_node_runbook.hyperv_generation = _get_gallery_image_generation(
+                self._get_detailed_sig(azure_node_runbook.shared_gallery)
+            )
+        else:
+            log.debug(
+                "there is no way to detect vhd generation, unless user provides it"
+                f"current vhd generation is {azure_node_runbook.hyperv_generation}"
+            )
 
         if azure_node_runbook.is_linux is None:
             # fill it default value
@@ -1707,6 +1717,7 @@ class AzurePlatform(Platform):
             new_marketplace.version = versioned_images[-1].name
         return new_marketplace
 
+    @lru_cache(maxsize=10)  # noqa: B019
     def _parse_shared_gallery_image(
         self, location: str, shared_image: SharedImageGallerySchema
     ) -> SharedImageGallerySchema:
@@ -1747,6 +1758,7 @@ class AzurePlatform(Platform):
                 )
                 if not time:
                     time = gallery_image.publishing_profile.published_date
+                    new_shared_image.image_version = image.name
                 if gallery_image.publishing_profile.published_date > time:
                     time = gallery_image.publishing_profile.published_date
                     new_shared_image.image_version = image.name
@@ -2151,6 +2163,15 @@ class AzurePlatform(Platform):
             expand="ReplicationStatus",
         )
 
+    @lru_cache(maxsize=10)  # noqa: B019
+    def _get_detailed_sig(self, shared_image: SharedImageGallerySchema) -> GalleryImage:
+        compute_client = get_compute_client(self)
+        return compute_client.gallery_images.get(
+            resource_group_name=shared_image.resource_group_name,
+            gallery_name=shared_image.image_gallery,
+            gallery_image_name=shared_image.image_definition,
+        )
+
     def _get_sig_os_disk_size(self, shared_image: SharedImageGallerySchema) -> int:
         found_image = self._get_sig_info(shared_image)
         assert found_image.storage_profile.os_disk_image.size_in_gb
@@ -2457,6 +2478,18 @@ class AzurePlatform(Platform):
 
             generation = _get_vhd_generation(image_info)
             node_space.features.add(features.VhdGenerationSettings(gen=generation))
+        elif azure_runbook.shared_gallery:
+            azure_runbook.shared_gallery = self._parse_shared_gallery_image(
+                azure_runbook.location, azure_runbook.shared_gallery
+            )
+            generation = _get_gallery_image_generation(
+                self._get_detailed_sig(azure_runbook.shared_gallery)
+            )
+            node_space.features.add(features.VhdGenerationSettings(gen=generation))
+        else:
+            node_space.features.add(
+                features.VhdGenerationSettings(gen=azure_runbook.hyperv_generation)
+            )
 
     def _load_image_features(self, node_space: schema.NodeSpace) -> None:
         # This method does the same thing as _convert_to_azure_node_space
@@ -2537,3 +2570,10 @@ def _get_vhd_generation(image_info: VirtualMachineImage) -> int:
         vhd_gen = int(image_info.hyper_v_generation.strip("V"))
 
     return vhd_gen
+
+
+def _get_gallery_image_generation(shared_image: GalleryImage) -> int:
+    assert (
+        shared_image.hyper_v_generation
+    ), f"no hyper_v_generation property for image {shared_image.name}"
+    return int(shared_image.hyper_v_generation.strip("V"))
