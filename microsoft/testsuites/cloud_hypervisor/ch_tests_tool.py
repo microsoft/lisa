@@ -6,7 +6,7 @@ from dataclasses import dataclass
 from pathlib import Path, PurePath
 from typing import Any, List, Optional, Type
 
-from assertpy.assertpy import assert_that
+from assertpy.assertpy import assert_that, fail
 
 from lisa import Environment, notifier
 from lisa.executable import Tool
@@ -23,7 +23,10 @@ class CloudHypervisorTestResult:
 
 
 class CloudHypervisorTests(Tool):
-    TIME_OUT = 7200
+    CMD_TIME_OUT = 7200
+    # Slightly higher case timeout to give the case a window to extract
+    # sub test results from stdout and report them.
+    CASE_TIME_OUT = CMD_TIME_OUT + 300
 
     repo = "https://github.com/cloud-hypervisor/cloud-hypervisor.git"
 
@@ -60,7 +63,7 @@ class CloudHypervisorTests(Tool):
         result = self.run(
             f"tests --hypervisor {hypervisor} --{test_type} -- -- {skip_args}"
             " -Z unstable-options --format json",
-            timeout=self.TIME_OUT,
+            timeout=self.CMD_TIME_OUT,
             force_run=True,
             cwd=self.repo_root,
             no_info_log=False,  # print out result of each test
@@ -82,11 +85,20 @@ class CloudHypervisorTests(Tool):
 
         self._save_dmesg_logs(log_path)
 
-        assert_that(failures, f"Unexpected failures: {failures}").is_empty()
-
-        # The command could have failed before starting test case execution.
-        # So, check the exit code too.
-        result.assert_exit_code()
+        has_failures = len(failures) > 0
+        if result.is_timeout and has_failures:
+            fail(
+                f"Timed out after {result.elapsed:.2f}s "
+                f"with unexpected failures: {failures}"
+            )
+        elif result.is_timeout:
+            fail(f"Timed out after {result.elapsed:.2f}s")
+        elif has_failures:
+            fail(f"Unexpected failures: {failures}")
+        else:
+            # The command could have failed before starting test case execution.
+            # So, check the exit code too.
+            result.assert_exit_code()
 
     def run_metrics_tests(
         self,
@@ -109,7 +121,7 @@ class CloudHypervisorTests(Tool):
                 result = self.run(
                     f"tests --hypervisor {hypervisor} --metrics -- -- \
                         --test-filter {testcase}",
-                    timeout=self.TIME_OUT,
+                    timeout=self.CMD_TIME_OUT,
                     force_run=True,
                     cwd=self.repo_root,
                     no_info_log=False,  # print out result of each test
@@ -236,7 +248,7 @@ class CloudHypervisorTests(Tool):
         tests_list = []
         result = self.run(
             f"tests --hypervisor {hypervisor} --metrics -- -- --list-tests",
-            timeout=self.TIME_OUT,
+            timeout=self.CMD_TIME_OUT,
             force_run=True,
             cwd=self.repo_root,
             shell=True,
