@@ -160,6 +160,7 @@ class LisaRunner(BaseRunner):
         if hasattr(self, "environments") and self.environments:
             for environment in self.environments:
                 self._delete_environment_task(environment, [])
+        self.platform.cleanup()
         super().close()
 
     def _dispatch_test_result(

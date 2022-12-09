@@ -97,6 +97,13 @@ class Platform(subclasses.BaseClassWithRunbookMixin, InitializableMixin):
     def _get_environment_information(self, environment: Environment) -> Dict[str, str]:
         return {}
 
+    def _cleanup(self) -> None:
+        """
+        Called when the platform is being discarded.
+        Perform any platform level cleanup work here.
+        """
+        pass
+
     @hookimpl
     def get_environment_information(self, environment: Environment) -> Dict[str, str]:
         assert environment.platform
@@ -192,6 +199,9 @@ class Platform(subclasses.BaseClassWithRunbookMixin, InitializableMixin):
         else:
             log.debug("deleting")
             self._delete_environment(environment, log)
+
+    def cleanup(self) -> None:
+        self._cleanup()
 
 
 def load_platform(platforms_runbook: List[schema.Platform]) -> Platform:
