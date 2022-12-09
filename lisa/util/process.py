@@ -85,7 +85,8 @@ class Process:
         # add a string stream handler to the logger
         self._log_buffer = io.StringIO()
         self._log_handler = logging.StreamHandler(self._log_buffer)
-        add_handler(self._log_handler, self._log)
+        msg_only_format = logging.Formatter(fmt="%(message)s", datefmt="")
+        add_handler(self._log_handler, self._log, msg_only_format)
 
     def start(
         self,
@@ -235,7 +236,10 @@ class Process:
             assert self._process
             if is_timeout:
                 process_result = spur.results.result(
-                    return_code=1, allow_error=True, output="", stderr_output=""
+                    return_code=1,
+                    allow_error=True,
+                    output=self._log_buffer.getvalue(),
+                    stderr_output="",
                 )
             else:
                 process_result = self._process.wait_for_result()
