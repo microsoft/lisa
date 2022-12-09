@@ -1,7 +1,7 @@
 # Copyright (c) Microsoft Corporation.
 # Licensed under the MIT license.
 import time
-from typing import Optional, cast
+from typing import Any, Optional, cast
 
 from assertpy import assert_that
 
@@ -18,6 +18,7 @@ from lisa.features import Resize, ResizeAction, StartStop
 from lisa.schema import NodeSpace
 from lisa.testsuite import TestResult
 from lisa.tools import Lscpu
+from lisa.util.logger import Logger
 
 
 @TestSuiteMetadata(
@@ -170,3 +171,9 @@ class VmResize(TestSuite):
             f"incorrect. Expected {expected_core_count} cores but actually had "
             f"{actual_core_count} cores"
         ).is_equal_to(expected_core_count)
+
+    def after_case(self, log: Logger, **kwargs: Any) -> None:
+        # resize cases will change vm size
+        # therefore we mark the node dirty to prevent future testing on this environment
+        node = kwargs["node"]
+        node.mark_dirty()
