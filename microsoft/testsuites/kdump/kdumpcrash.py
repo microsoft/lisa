@@ -482,3 +482,9 @@ class KdumpCrash(TestSuite):
                 "The cpu count can't meet the test case's requirement. "
                 f"Expected more than {cpu_num} cpus, actual {cpu_count}"
             )
+
+    def after_case(self, log: Logger, **kwargs: Any) -> None:
+        # kdump cases will trigger crash
+        # therefore we mark the node dirty to prevent future testing on this environment
+        # to aviod detecting the panic call trace wrongly
+        kwargs["node"].mark_dirty()
