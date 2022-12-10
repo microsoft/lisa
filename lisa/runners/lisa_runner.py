@@ -354,8 +354,16 @@ class LisaRunner(BaseRunner):
                 f"because after test case '{test_result.name}', "
                 f"node(s) cannot be accessible."
             )
-            # check panic when node(s) in bad status
-            environment.nodes.check_kernel_panics()
+            try:
+                # check panic when node(s) in bad status
+                environment.nodes.check_kernel_panics()
+            except LisaException as identifier:
+                # not throw exception here, since it will cancel all tasks
+                # just print log here
+                self._log.debug(
+                    "found kernel panic from the node(s) of "
+                    f"'{environment.name}': {identifier}"
+                )
         environment.nodes.close()
 
         # keep failed environment, not to delete
