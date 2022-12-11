@@ -2486,10 +2486,12 @@ class AzurePlatform(Platform):
                 self._get_detailed_sig(azure_runbook.shared_gallery)
             )
             node_space.features.add(features.VhdGenerationSettings(gen=generation))
-        else:
+        elif azure_runbook.vhd:
             node_space.features.add(
                 features.VhdGenerationSettings(gen=azure_runbook.hyperv_generation)
             )
+        else:
+            ...
 
     def _load_image_features(self, node_space: schema.NodeSpace) -> None:
         # This method does the same thing as _convert_to_azure_node_space
