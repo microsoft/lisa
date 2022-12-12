@@ -29,6 +29,7 @@ class ExecutableResult:
     exit_code: Optional[int]
     cmd: Union[str, List[str]]
     elapsed: float
+    is_timeout: bool = False
 
     def __str__(self) -> str:
         return self.stdout
@@ -262,6 +263,7 @@ class Process:
                 process_result.return_code,
                 self._cmd,
                 self._timer.elapsed(),
+                is_timeout,
             )
 
             self._recycle_resource()
