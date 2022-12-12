@@ -189,10 +189,10 @@ class Process:
                 split_command = ["cmd", "/c", command]
             else:
                 split_command = []
-                if nohup:
-                    split_command += ["nohup"]
                 if sudo:
                     split_command += ["sudo"]
+                if nohup:
+                    split_command += ["nohup"]
                 envs = _create_exports(update_envs=update_envs)
                 if envs:
                     command = f"{envs} {command}"
