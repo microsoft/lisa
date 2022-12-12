@@ -1153,7 +1153,7 @@ class AzurePlatform(Platform):
         elif azure_node_runbook.shared_gallery:
             azure_node_runbook.marketplace = None
             azure_node_runbook.shared_gallery = self._parse_shared_gallery_image(
-                azure_node_runbook.location, azure_node_runbook.shared_gallery
+                azure_node_runbook.shared_gallery
             )
         elif not azure_node_runbook.marketplace:
             # set to default marketplace, if nothing specified
@@ -1719,7 +1719,7 @@ class AzurePlatform(Platform):
 
     @lru_cache(maxsize=10)  # noqa: B019
     def _parse_shared_gallery_image(
-        self, location: str, shared_image: SharedImageGallerySchema
+        self, shared_image: SharedImageGallerySchema
     ) -> SharedImageGallerySchema:
         new_shared_image = copy.copy(shared_image)
         compute_client = get_compute_client(self)
@@ -2480,7 +2480,7 @@ class AzurePlatform(Platform):
             node_space.features.add(features.VhdGenerationSettings(gen=generation))
         elif azure_runbook.shared_gallery:
             azure_runbook.shared_gallery = self._parse_shared_gallery_image(
-                azure_runbook.location, azure_runbook.shared_gallery
+                azure_runbook.shared_gallery
             )
             generation = _get_gallery_image_generation(
                 self._get_detailed_sig(azure_runbook.shared_gallery)
