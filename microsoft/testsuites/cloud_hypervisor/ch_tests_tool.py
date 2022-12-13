@@ -126,6 +126,7 @@ class CloudHypervisorTests(Tool):
                     cwd=self.repo_root,
                     no_info_log=False,  # print out result of each test
                     shell=True,
+                    update_envs={"RUST_BACKTRACE": "full"},
                 )
 
                 if result.exit_code == 0:
