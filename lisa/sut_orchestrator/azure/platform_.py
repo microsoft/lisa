@@ -358,6 +358,7 @@ class AzurePlatform(Platform):
             features.ACC,
             features.IsolatedResource,
             features.VhdGeneration,
+            features.Architecture,
             features.Nfs,
         ]
 
@@ -2478,14 +2479,19 @@ class AzurePlatform(Platform):
 
             generation = _get_vhd_generation(image_info)
             node_space.features.add(features.VhdGenerationSettings(gen=generation))
+            node_space.features.add(
+                features.ArchitectureSettings(arch=image_info.architecture)
+            )
         elif azure_runbook.shared_gallery:
             azure_runbook.shared_gallery = self._parse_shared_gallery_image(
                 azure_runbook.shared_gallery
             )
-            generation = _get_gallery_image_generation(
-                self._get_detailed_sig(azure_runbook.shared_gallery)
-            )
+            sig = self._get_detailed_sig(azure_runbook.shared_gallery)
+            generation = _get_gallery_image_generation(sig)
             node_space.features.add(features.VhdGenerationSettings(gen=generation))
+            node_space.features.add(
+                features.ArchitectureSettings(arch=sig.architecture)
+            )
         elif azure_runbook.vhd:
             node_space.features.add(
                 features.VhdGenerationSettings(gen=azure_runbook.hyperv_generation)
