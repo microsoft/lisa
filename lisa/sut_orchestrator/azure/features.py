@@ -33,6 +33,7 @@ from azure.mgmt.serialconsole import MicrosoftSerialConsoleClient  # type: ignor
 from azure.mgmt.serialconsole.models import SerialPort, SerialPortState  # type: ignore
 from azure.mgmt.serialconsole.operations import SerialPortsOperations  # type: ignore
 from dataclasses_json import dataclass_json
+from marshmallow import validate
 from retry import retry
 
 from lisa import Environment, Logger, features, schema, search_space
@@ -1898,6 +1899,85 @@ class VhdGeneration(AzureFeatureMixin, Feature):
     @classmethod
     def settings_type(cls) -> Type[schema.FeatureSettings]:
         return VhdGenerationSettings
+
+    @classmethod
+    def can_disable(cls) -> bool:
+        return True
+
+    def enabled(self) -> bool:
+        return True
+
+
+@dataclass_json()
+@dataclass()
+class ArchitectureSettings(schema.FeatureSettings):
+    type: str = "Architecture"
+    # Architecture in hyper-v
+    arch: str = field(
+        default="x64",
+        metadata=field_metadata(
+            validate=validate.OneOf(["x64", "Arm64"]),
+        ),
+    )
+
+    def __eq__(self, o: object) -> bool:
+        if not super().__eq__(o):
+            return False
+
+        assert isinstance(o, ArchitectureSettings), f"actual: {type(o)}"
+        return self.type == o.type and self.arch == o.arch
+
+    def __repr__(self) -> str:
+        return f"arch:{self.arch}"
+
+    def __str__(self) -> str:
+        return self.__repr__()
+
+    def __hash__(self) -> int:
+        return super().__hash__()
+
+    def _get_key(self) -> str:
+        return f"{super()._get_key()}/{self.arch}"
+
+    def check(self, capability: Any) -> search_space.ResultReason:
+        assert isinstance(
+            capability, ArchitectureSettings
+        ), f"actual: {type(capability)}"
+        result = super().check(capability)
+
+        result.merge(
+            search_space.check_setspace(self.arch, capability.arch),
+            "vhd Architecture",
+        )
+
+        return result
+
+    def _call_requirement_method(self, method_name: str, capability: Any) -> Any:
+        assert isinstance(
+            capability, ArchitectureSettings
+        ), f"actual: {type(capability)}"
+
+        value = ArchitectureSettings()
+        if self.arch or capability.arch:
+            value.arch = getattr(search_space, f"{method_name}_setspace_by_priority")(
+                self.arch, capability.arch, ["x64", "Arm64"]
+            )
+        return value
+
+
+class Architecture(AzureFeatureMixin, Feature):
+    @classmethod
+    def create_setting(
+        cls, *args: Any, **kwargs: Any
+    ) -> Optional[schema.FeatureSettings]:
+        raw_capabilities: Any = kwargs.get("raw_capabilities")
+        return ArchitectureSettings(
+            arch=raw_capabilities.get("CpuArchitectureType", "x64")
+        )
+
+    @classmethod
+    def settings_type(cls) -> Type[schema.FeatureSettings]:
+        return ArchitectureSettings
 
     @classmethod
     def can_disable(cls) -> bool:
