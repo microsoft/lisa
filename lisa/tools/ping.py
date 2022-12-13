@@ -28,7 +28,7 @@ class Ping(Tool):
 
     def install(self) -> bool:
         if isinstance(self.node.os, Debian):
-            package_name = "inetutils-ping"
+            package_name = "iputils-ping"
         else:
             raise UnsupportedDistroException(self.node.os)
 
