@@ -158,7 +158,9 @@ class SourceInstaller(BaseInstaller):
         make = node.tools[Make]
         make.make(arguments="modules", cwd=code_path, sudo=True)
 
-        make.make(arguments="modules_install", cwd=code_path, sudo=True)
+        make.make(
+            arguments="INSTALL_MOD_STRIP=1 modules_install", cwd=code_path, sudo=True
+        )
 
         make.make(arguments="install", cwd=code_path, sudo=True)
 
