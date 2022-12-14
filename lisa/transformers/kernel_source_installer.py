@@ -347,8 +347,6 @@ class Dom0Installer(SourceInstaller):
         runbook: SourceInstallerSchema = self.runbook
         assert runbook.location, "the repo must be defined."
 
-        kernel_version = super().install()
-
         factory = subclasses.Factory[BaseLocation](BaseLocation)
         source = factory.create_by_runbook(
             runbook=runbook.location, node=node, parent_log=self._log
@@ -356,6 +354,8 @@ class Dom0Installer(SourceInstaller):
 
         code_path = source.get_source_code()
         assert node.shell.exists(code_path), f"cannot find code path: {code_path}"
+
+        kernel_version = super().install()
 
         # If it is dom0,
         # Name of the current kernel should be vmlinuz-<kernel version>
