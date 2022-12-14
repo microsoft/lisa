@@ -47,4 +47,4 @@ class Find(Tool):
         cmd += " -print0"
 
         result = self.run(cmd, sudo=sudo, expected_exit_code=0)
-        return result.stdout.split("\x00")
+        return list(filter(None, result.stdout.split("\x00")))
