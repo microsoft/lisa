@@ -1514,12 +1514,12 @@ class SecurityProfile(AzureFeatureMixin, features.SecurityProfile):
                 "DiskWithVMGuestState" if settings.encrypt_disk else "VMGuestStateOnly"
             )
 
-            virtual_machines["properties"]["storageProfile"]["osDisk"][
+            template["functions"][0]["members"]["getOSImage"]["output"]["value"][
                 "managedDisk"
             ] = (
-                "[if(not(equals(parameters('nodes')[copyIndex('vmCopy')]['disk_type'], "
+                "[if(not(equals(parameters('node')['disk_type'], "
                 "'Ephemeral')), json(concat('{\"storageAccountType\": \"',parameters"
-                "('nodes')[copyIndex('vmCopy')]['disk_type'],'\",\"securityProfile\":{"
+                "('node')['disk_type'],'\",\"securityProfile\":{"
                 f'"securityEncryptionType": "{security_encryption_type}"'
                 "}}')), json('null'))]"
             )
