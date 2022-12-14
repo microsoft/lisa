@@ -25,8 +25,9 @@ class Find(Tool):
         type: str = "",
         ignore_case: bool = False,
         sudo: bool = False,
+        ignore_not_exist: bool = False,
     ) -> List[str]:
-        if not self.node.shell.exists(start_path):
+        if not ignore_not_exist and not self.node.shell.exists(start_path):
             raise LisaException(f"Path {start_path} does not exist.")
 
         cmd = str(start_path)
