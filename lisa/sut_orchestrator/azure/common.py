@@ -163,6 +163,7 @@ class AzureNodeSchema:
         default=None, metadata=field_metadata(data_key="shared_gallery")
     )
     vhd: str = ""
+    vmgs: str = ""
     hyperv_generation: int = field(
         default=1,
         metadata=field_metadata(validate=validate.OneOf([1, 2])),
@@ -192,12 +193,14 @@ class AzureNodeSchema:
                 "marketplace_raw",
                 "shared_gallery_raw",
                 "vhd",
+                "vmgs",
                 "data_disk_caching_type",
                 "disk_type",
             ],
         )
         # If vhd contains sas token, need add mask
         add_secret(self.vhd, PATTERN_URL)
+        add_secret(self.vmgs, PATTERN_URL)
 
     @property
     def marketplace(self) -> Optional[AzureVmMarketplaceSchema]:
@@ -425,6 +428,7 @@ class DataDiskSchema:
 @dataclass
 class AzureArmParameter:
     storage_name: str = ""
+    vhd_storage_name: str = ""
     location: str = ""
     admin_username: str = ""
     admin_password: str = ""

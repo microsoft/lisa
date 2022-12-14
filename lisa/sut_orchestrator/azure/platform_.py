@@ -774,6 +774,8 @@ class AzurePlatform(Platform):
             information["location"] = node_runbook.location
             information["vmsize"] = node_runbook.vm_size
             information["image"] = node_runbook.get_image_name()
+            if node_runbook.vmgs:
+                information["vmgs"] = node_runbook.vmgs
 
         return information
 
@@ -1053,6 +1055,9 @@ class AzurePlatform(Platform):
         arm_parameters.storage_name = get_storage_account_name(
             self.subscription_id, arm_parameters.location
         )
+        arm_parameters.vhd_storage_name = get_storage_account_name(
+            self.subscription_id, arm_parameters.location, "t"
+        )
 
         if (
             self._azure_runbook.availability_set_properties
@@ -1152,6 +1157,10 @@ class AzurePlatform(Platform):
             azure_node_runbook.vhd = self._get_deployable_vhd_path(
                 azure_node_runbook.vhd, azure_node_runbook.location, log
             )
+            if azure_node_runbook.vmgs:
+                azure_node_runbook.vmgs = self._get_deployable_vhd_path(
+                    azure_node_runbook.vmgs, azure_node_runbook.location, log
+                )
             azure_node_runbook.marketplace = None
             azure_node_runbook.shared_gallery = None
         elif azure_node_runbook.shared_gallery:
@@ -1210,6 +1219,10 @@ class AzurePlatform(Platform):
             arm_parameters.vhd = self._get_deployable_vhd_path(
                 arm_parameters.vhd, arm_parameters.location, log
             )
+            if arm_parameters.vmgs:
+                arm_parameters.vmgs = self._get_deployable_vhd_path(
+                    arm_parameters.vmgs, arm_parameters.location, log
+                )
             arm_parameters.osdisk_size_in_gb = max(
                 arm_parameters.osdisk_size_in_gb,
                 self._get_vhd_os_disk_size(arm_parameters.vhd),
