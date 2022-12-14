@@ -448,6 +448,7 @@ class RepoLocation(BaseLocation):
             cwd=code_path,
             fail_on_exists=runbook.fail_on_code_exists,
             auth_token=runbook.auth_token,
+            timeout=1800,
         )
 
         git.fetch(cwd=code_path)
