@@ -26,6 +26,7 @@ from lisa.runner import BaseRunner
 from lisa.testselector import select_testcases
 from lisa.testsuite import TestCaseRequirement, TestResult, TestSuite
 from lisa.util import (
+    KernelPanicException,
     LisaException,
     NotMeetRequirementException,
     constants,
@@ -358,9 +359,10 @@ class LisaRunner(BaseRunner):
             try:
                 # check panic when node(s) in bad status
                 environment.nodes.check_kernel_panics()
-            except LisaException as identifier:
+            except KernelPanicException as identifier:
                 # not throw exception here, since it will cancel all tasks
-                # just print log here
+                # just print log here and set test result status as failed
+                test_result.set_status(TestStatus.FAILED, str(identifier))
                 self._log.debug(
                     "found kernel panic from the node(s) of "
                     f"'{environment.name}': {identifier}"
