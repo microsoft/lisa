@@ -5,7 +5,7 @@ import time
 from dataclasses import dataclass
 from enum import Enum
 from functools import partial
-from pathlib import Path
+from pathlib import Path, PurePosixPath
 from typing import (
     TYPE_CHECKING,
     Any,
@@ -381,13 +381,24 @@ class Posix(OperatingSystem, BaseClassMixin):
         self._node.execute("modinfo hv_netvsc").save_stdout_to_file(
             saved_path / "modinfo-hv_netvsc.txt"
         )
-        try:
-            self._node.shell.copy_back(
-                self._node.get_pure_path("/etc/os-release"),
-                saved_path / "os-release.txt",
-            )
-        except FileNotFoundError:
-            self._log.debug("File /etc/os-release doesn't exist.")
+        from lisa.tools import Chmod, Find
+
+        find_tool = self._node.tools[Find]
+        file_list = find_tool.find_files(
+            PurePosixPath("/var/log/azure/"), type="f", sudo=True, ignore_not_exist=True
+        )
+        self._node.tools[Chmod].update_folder("/var/log/azure/", "a+rwX", sudo=True)
+        file_list.append("/etc/os-release")
+        file_list.append("/var/log/waagent.log")
+        for file in file_list:
+            try:
+                file_name = file.split("/")[-1]
+                self._node.shell.copy_back(
+                    self._node.get_pure_path(file),
+                    saved_path / f"{file_name}.txt",
+                )
+            except FileNotFoundError:
+                self._log.debug(f"File {file} doesn't exist.")
 
     def get_package_information(
         self, package_name: str, use_cached: bool = True

@@ -57,6 +57,7 @@ class Git(Tool):
         dir_name: str = "",
         fail_on_exists: bool = True,
         auth_token: Optional[str] = None,
+        timeout: int = 600,
     ) -> pathlib.PurePath:
         self.node.shell.mkdir(cwd, exist_ok=True)
         auth_flag = ""
@@ -66,10 +67,16 @@ class Git(Tool):
         cmd = f"clone {auth_flag} {url} {dir_name} --recurse-submodules"
 
         # git print to stderr for normal info, so set no_error_log to True.
-        result = self.run(cmd, cwd=cwd, no_error_log=True)
+        result = self.run(cmd, cwd=cwd, no_error_log=True, timeout=timeout)
         if get_matched_str(result.stdout, self.CERTIFICATE_ISSUE_PATTERN):
             self.run("config --global http.sslverify false")
-            result = self.run(cmd, cwd=cwd, no_error_log=True, force_run=True)
+            result = self.run(
+                cmd,
+                cwd=cwd,
+                no_error_log=True,
+                force_run=True,
+                timeout=timeout,
+            )
 
         # mark directory safe
         self._mark_safe(cwd)

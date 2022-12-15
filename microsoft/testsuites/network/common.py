@@ -8,7 +8,7 @@ from retry import retry
 from lisa import Environment, Node, RemoteNode, constants
 from lisa.features import NetworkInterface
 from lisa.nic import NicInfo, Nics
-from lisa.tools import Cat, KernelConfig, Kill, Lsmod, Lspci, Modprobe, Ssh
+from lisa.tools import Cat, KernelConfig, Kill, Lsmod, Lspci, Modprobe, Ping, Ssh
 
 # ConnectX-3 uses mlx4_core
 # mlx4_en and mlx4_ib depends on mlx4_core
@@ -169,18 +169,19 @@ def sriov_vf_connection_test(
 
         # check the connectivity between source and dest machine using ping
         for _ in range(max_retry_times):
-            cmd_result = source_node.execute(
-                f"ping -c 1 {dest_ip} -I {source_synthetic_nic}", sudo=True
+            ping = source_node.tools[Ping]
+            ping_result = ping.ping(
+                target=dest_ip, nic_name=source_synthetic_nic, count=1, sudo=True
             )
-            if cmd_result.exit_code == 0:
+            if ping_result:
                 break
-        cmd_result.assert_exit_code(
-            message=f"fail to ping {dest_ip} from {source_node.name} to "
+        assert ping_result, (
+            f"fail to ping {dest_ip} from {source_node.name} to "
             f"{dest_node.name} after retry {max_retry_times}"
         )
 
         # copy 200 Mb file from source ip to dest ip
-        cmd_result = source_node.execute(
+        source_node.execute(
             f"scp -o BindAddress={source_ip} -i ~/.ssh/id_rsa -o"
             f" StrictHostKeyChecking=no large_file "
             f"$USER@{dest_ip}:/tmp/large_file",

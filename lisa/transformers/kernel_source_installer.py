@@ -344,18 +344,7 @@ class Dom0Installer(SourceInstaller):
 
     def install(self) -> str:
         node = self._node
-        runbook: SourceInstallerSchema = self.runbook
-        assert runbook.location, "the repo must be defined."
-
         kernel_version = super().install()
-
-        factory = subclasses.Factory[BaseLocation](BaseLocation)
-        source = factory.create_by_runbook(
-            runbook=runbook.location, node=node, parent_log=self._log
-        )
-
-        code_path = source.get_source_code()
-        assert node.shell.exists(code_path), f"cannot find code path: {code_path}"
 
         # If it is dom0,
         # Name of the current kernel should be vmlinuz-<kernel version>
@@ -459,6 +448,7 @@ class RepoLocation(BaseLocation):
             cwd=code_path,
             fail_on_exists=runbook.fail_on_code_exists,
             auth_token=runbook.auth_token,
+            timeout=1800,
         )
 
         git.fetch(cwd=code_path)

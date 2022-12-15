@@ -10,6 +10,7 @@ from assertpy.assertpy import assert_that, fail
 
 from lisa import Environment, notifier
 from lisa.executable import Tool
+from lisa.features import SerialConsole
 from lisa.messages import SubTestMessage, TestStatus, create_test_result_message
 from lisa.operating_system import CBLMariner
 from lisa.testsuite import TestResult
@@ -83,7 +84,7 @@ class CloudHypervisorTests(Tool):
                 r.status,
             )
 
-        self._save_dmesg_logs(log_path)
+        self._save_kernel_logs(log_path)
 
         has_failures = len(failures) > 0
         if result.is_timeout and has_failures:
@@ -126,6 +127,7 @@ class CloudHypervisorTests(Tool):
                     cwd=self.repo_root,
                     no_info_log=False,  # print out result of each test
                     shell=True,
+                    update_envs={"RUST_BACKTRACE": "full"},
                 )
 
                 if result.exit_code == 0:
@@ -155,7 +157,7 @@ class CloudHypervisorTests(Tool):
             with open(testcase_log_file, "w") as f:
                 f.write(result.stdout)
 
-        self._save_dmesg_logs(log_path)
+        self._save_kernel_logs(log_path)
 
         assert_that(
             failed_testcases, f"Failed Testcases: {failed_testcases}"
@@ -297,8 +299,15 @@ class CloudHypervisorTests(Tool):
             return result.group(0)
         return ""
 
-    def _save_dmesg_logs(self, log_path: Path) -> None:
-        dmesg_str = self.node.tools[Dmesg].get_output(force_run=True)
-        dmesg_path = log_path / "dmesg"
-        with open(str(dmesg_path), "w") as f:
-            f.write(dmesg_str)
+    def _save_kernel_logs(self, log_path: Path) -> None:
+        # Use serial console if available. Serial console logs can be obtained
+        # even if the node goes down (hung, panicked etc.). Whereas, dmesg
+        # can only be used if node is up and LISA is able to connect via SSH.
+        if self.node.features.is_supported(SerialConsole):
+            serial_console = self.node.features[SerialConsole]
+            serial_console.get_console_log(log_path, force_run=True)
+        else:
+            dmesg_str = self.node.tools[Dmesg].get_output(force_run=True)
+            dmesg_path = log_path / "dmesg"
+            with open(str(dmesg_path), "w") as f:
+                f.write(dmesg_str)
