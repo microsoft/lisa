@@ -140,7 +140,7 @@ def _install_osu_bench(node: Node) -> str:
     )
     tar.extract(download_path, dest_dir=str(path))
     assert isinstance(node.os, Posix)
-    node.os.install_packages("python3.8-dev")
+    node.os.install_packages("python3.8-dev python3.8-distutils")
     node.execute(
         "curl https://bootstrap.pypa.io/get-pip.py -o get-pip.py",
         shell=True,
