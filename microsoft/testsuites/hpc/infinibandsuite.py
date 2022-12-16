@@ -30,7 +30,7 @@ from lisa.util.parallel import run_in_parallel
     Tests the functionality of infiniband.
     """,
 )
-class InfinibandSuit(TestSuite):
+class InfinibandSuite(TestSuite):
     @TestCaseMetadata(
         description="""
         This test case will
