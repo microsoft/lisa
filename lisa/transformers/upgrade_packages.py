@@ -6,7 +6,7 @@ from dataclasses_json import dataclass_json
 from lisa import schema
 from lisa.node import Node, quick_connect
 from lisa.operating_system import Debian, Ubuntu
-from lisa.tools import Uname
+from lisa.tools import Sed, Uname
 from lisa.transformer import Transformer
 from lisa.util import field_metadata, subclasses
 from lisa.util.logger import Logger, get_logger
@@ -16,12 +16,12 @@ from lisa.util.logger import Logger, get_logger
 @dataclass
 class UpgradeInstallerSchema(schema.TypedSchema, schema.ExtendableSchemaMixin):
     repo_url: str = field(
-        default="http://azure.archive.ubuntu.com/ubuntu/",
+        default="",
         metadata=field_metadata(required=True),
     )
 
     proposed: bool = field(
-        default=True,
+        default=False,
         metadata=field_metadata(required=True),
     )
 
@@ -119,7 +119,9 @@ class UnattendedUpgradeInstaller(UpgradeInstaller):
         )
 
     def install(self) -> None:
-        self._update_repo()
+        if self.runbook.repo_url.strip():
+            self._update_repo()
+
         self._update_packages()
 
     def _update_repo(self) -> None:
@@ -133,6 +135,15 @@ class UnattendedUpgradeInstaller(UpgradeInstaller):
             release
         ), f"cannot find codename from the os version: {node.os.information}"
 
+        sed = node.tools[Sed]
+        sed.run(
+            f"-E '/{release} main/!s/(.*)/#\\1/' -i /etc/apt/sources.list",
+            shell=True,
+            sudo=True,
+            expected_exit_code=0,
+            expected_exit_code_failure_message="fail to comment out other repo sources",
+        )
+
         if runbook.proposed:
             version_name = f"{release}-proposed"
         else:
@@ -143,30 +154,10 @@ class UnattendedUpgradeInstaller(UpgradeInstaller):
         )
         node.os.add_repository(repo_entry)
 
-    def _update_packages(self) -> None:
+    def _update_packages(self) -> List[str]:
         node: Node = self._node
         assert isinstance(node.os, Debian)
 
-        cmd_result = node.execute(
-            "which unattended-upgrade",
-            sudo=True,
-            shell=True,
-        )
-        if 0 != cmd_result.exit_code:
-            node.os.install_packages("unattended-upgrades")
-        if type(node.os) == Debian:
-            if node.os.information.version >= "10.0.0":
-                node.execute(
-                    "mkdir -p /var/cache/apt/archives/partial",
-                    sudo=True,
-                    shell=True,
-                    expected_exit_code=0,
-                    expected_exit_code_failure_message=(
-                        "fail to make folder /var/cache/apt/archives/partial"
-                    ),
-                )
-            else:
-                node.os.install_packages(["debian-keyring", "debian-archive-keyring"])
         node.execute(
             "apt update",
             sudo=True,
@@ -175,19 +166,17 @@ class UnattendedUpgradeInstaller(UpgradeInstaller):
             expected_exit_code_failure_message="fail to run apt-update",
         )
         result = node.execute(
-            "apt list --upgradable",
+            "apt list --upgradable | awk '{printf(\"%s %s\\n\",$1,$2)}'",
             sudo=True,
             shell=True,
             expected_exit_code=0,
             expected_exit_code_failure_message="fail to get upgrade-package list",
         )
-        node.execute(
-            "unattended-upgrade -d -v",
-            sudo=True,
-            shell=True,
-            expected_exit_code=0,
-            expected_exit_code_failure_message="fail to run unattended-upgrade",
-            timeout=2400,
-        )
+        node.os.update_packages("")
 
-        self._log.debug(f"Packages updated: {result.stdout}")
+        # Some of the beginning output is not packages eg. "Warning..." "Listing..."
+        packages = result.stdout.split("\n")
+        while len(packages[0].split()) != 2:
+            packages = packages[1:]
+
+        return packages
