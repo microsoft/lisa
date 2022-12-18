@@ -5,7 +5,7 @@ import time
 from dataclasses import dataclass
 from enum import Enum
 from functools import partial
-from pathlib import Path, PurePosixPath
+from pathlib import Path
 from typing import (
     TYPE_CHECKING,
     Any,
@@ -385,9 +385,13 @@ class Posix(OperatingSystem, BaseClassMixin):
 
         find_tool = self._node.tools[Find]
         file_list = find_tool.find_files(
-            PurePosixPath("/var/log/azure/"), type="f", sudo=True, ignore_not_exist=True
+            self._node.get_pure_path("/var/log/azure/"),
+            type="f",
+            sudo=True,
+            ignore_not_exist=True,
         )
-        self._node.tools[Chmod].update_folder("/var/log/azure/", "a+rwX", sudo=True)
+        if len(file_list) > 0:
+            self._node.tools[Chmod].update_folder("/var/log/azure/", "a+rwX", sudo=True)
         file_list.append("/etc/os-release")
         file_list.append("/var/log/waagent.log")
         for file in file_list:
