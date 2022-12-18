@@ -7,6 +7,8 @@ from typing import List
 from lisa.executable import Tool
 from lisa.util import LisaException
 
+from .ls import Ls
+
 
 class Find(Tool):
     @property
@@ -27,8 +29,11 @@ class Find(Tool):
         sudo: bool = False,
         ignore_not_exist: bool = False,
     ) -> List[str]:
-        if not ignore_not_exist and not self.node.shell.exists(start_path):
-            raise LisaException(f"Path {start_path} does not exist.")
+        if not self.node.tools[Ls].path_exists(str(start_path), sudo=True):
+            if ignore_not_exist:
+                return []
+            else:
+                raise LisaException(f"Path {start_path} does not exist.")
 
         cmd = str(start_path)
         if name_pattern:
@@ -47,5 +52,9 @@ class Find(Tool):
         # for possibility of newline character in the file/folder name.
         cmd += " -print0"
 
-        result = self.run(cmd, sudo=sudo, expected_exit_code=0)
+        result = self.run(cmd, sudo=sudo)
+        if ignore_not_exist and "No such file or directory" in result.stdout:
+            return []
+        else:
+            result.assert_exit_code()
         return list(filter(None, result.stdout.split("\x00")))
