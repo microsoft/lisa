@@ -73,7 +73,7 @@ class CloudHypervisorTests(Tool):
 
         # Report subtest results and collect logs before doing any
         # assertions.
-        results = self._extract_test_results(result.stdout)
+        results = self._extract_test_results(result.stdout, log_path)
         failures = [r.name for r in results if r.status == TestStatus.FAILED]
 
         for r in results:
@@ -190,7 +190,9 @@ class CloudHypervisorTests(Tool):
 
         return self._check_exists()
 
-    def _extract_test_results(self, output: str) -> List[CloudHypervisorTestResult]:
+    def _extract_test_results(
+        self, output: str, log_path: Path
+    ) -> List[CloudHypervisorTestResult]:
         results: List[CloudHypervisorTestResult] = []
 
         # Cargo will output test status for each test separately in JSON format. Parse
@@ -223,6 +225,15 @@ class CloudHypervisorTests(Tool):
                     status=status,
                 )
             )
+
+            # store stdout of failed subtests
+            if status == TestStatus.FAILED:
+                # test case names have ':'s in them (e.g. "integration::test_vfio").
+                #  ':'s are not allowed in file names in Windows.
+                testcase = result["name"].replace(":", "-")
+                testcase_log_file = log_path / f"{testcase}.log"
+                with open(testcase_log_file, "w") as f:
+                    f.write(result["stdout"])
 
         return results
 
