@@ -61,7 +61,7 @@ class NvmeTestSuite(TestSuite):
         """,
         priority=1,
         requirement=simple_requirement(
-            supported_features=[Nvme],
+            #supported_features=[Nvme],
         ),
     )
     def nvme_basic_validation(self, environment: Environment, node: Node) -> None:
@@ -93,7 +93,7 @@ class NvmeTestSuite(TestSuite):
         """,
         priority=2,
         requirement=simple_requirement(
-            supported_features=[Nvme],
+            #supported_features=[Nvme],
         ),
     )
     def nvme_function_validation(self, node: Node) -> None:
@@ -180,7 +180,7 @@ class NvmeTestSuite(TestSuite):
         """,
         priority=3,
         requirement=simple_requirement(
-            supported_features=[Nvme],
+            #supported_features=[Nvme],
         ),
     )
     def nvme_fstrim_validation(self, node: Node) -> None:
@@ -251,7 +251,7 @@ class NvmeTestSuite(TestSuite):
         """,
         priority=3,
         requirement=simple_requirement(
-            supported_features=[Nvme],
+            #supported_features=[Nvme],
         ),
     )
     def nvme_blkdiscard_validation(self, node: Node) -> None:
@@ -309,7 +309,7 @@ class NvmeTestSuite(TestSuite):
         """,
         priority=3,
         requirement=simple_requirement(
-            supported_features=[Nvme],
+            #supported_features=[Nvme],
         ),
     )
     def nvme_manage_ns_validation(self, node: Node) -> None:
@@ -354,7 +354,7 @@ class NvmeTestSuite(TestSuite):
         """,
         priority=2,
         requirement=simple_requirement(
-            supported_features=[Nvme],
+            #supported_features=[Nvme],
         ),
     )
     def nvme_rescind_validation(self, node: Node) -> None:
@@ -376,7 +376,7 @@ class NvmeTestSuite(TestSuite):
         priority=2,
         requirement=simple_requirement(
             network_interface=Sriov(),
-            supported_features=[Nvme],
+            #supported_features=[Nvme],
         ),
     )
     def nvme_sriov_rescind_validation(self, node: Node) -> None:
