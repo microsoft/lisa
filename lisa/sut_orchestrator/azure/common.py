@@ -139,6 +139,13 @@ class SharedImageGallerySchema:
 
 @dataclass_json()
 @dataclass
+class VhdSchema:
+    vhd: str = ""
+    vmgs: Optional[str] = None
+
+
+@dataclass_json()
+@dataclass
 class AzureNodeSchema:
     name: str = ""
     # It decides the real computer name. It cannot be too long.
@@ -162,8 +169,12 @@ class AzureNodeSchema:
     shared_gallery_raw: Optional[Union[Dict[Any, Any], str]] = field(
         default=None, metadata=field_metadata(data_key="shared_gallery")
     )
-    vhd: str = ""
-    vmgs: str = ""
+    vhd_raw: Optional[Union[Dict[Any, Any], str]] = field(
+        default=None, metadata=field_metadata(data_key="vhd")
+    )
+    vmgs_raw: Optional[str] = field(
+        default=None, metadata=field_metadata(data_key="vmgs")
+    )
     hyperv_generation: int = field(
         default=1,
         metadata=field_metadata(validate=validate.OneOf([1, 2])),
@@ -180,6 +191,8 @@ class AzureNodeSchema:
 
     _shared_gallery: InitVar[Optional[SharedImageGallerySchema]] = None
 
+    _vhd: InitVar[Optional[VhdSchema]] = None
+
     def __post_init__(self, *args: Any, **kwargs: Any) -> None:
         # trim whitespace of values.
         strip_strs(
@@ -192,15 +205,17 @@ class AzureNodeSchema:
                 "subscription_id",
                 "marketplace_raw",
                 "shared_gallery_raw",
-                "vhd",
-                "vmgs",
+                "vhd_raw",
+                "vms_raw",
                 "data_disk_caching_type",
                 "disk_type",
             ],
         )
         # If vhd contains sas token, need add mask
-        add_secret(self.vhd, PATTERN_URL)
-        add_secret(self.vmgs, PATTERN_URL)
+        if isinstance(self.vhd_raw, str):
+            add_secret(self.vhd_raw, PATTERN_URL)
+        if isinstance(self.vmgs_raw, str):
+            add_secret(self.vmgs_raw, PATTERN_URL)
 
     @property
     def marketplace(self) -> Optional[AzureVmMarketplaceSchema]:
@@ -327,6 +342,86 @@ class AzureNodeSchema:
         else:
             self.shared_gallery_raw = value.to_dict()  # type: ignore
 
+    @property
+    def vhd(self) -> Optional[str]:
+        # this is a safe guard and prevent mypy error on typing
+        if not hasattr(self, "_vhd"):
+            self._vhd: Optional[VhdSchema] = None
+        vhd: Optional[VhdSchema] = self._vhd
+        if vhd:
+            return vhd.vhd
+        if isinstance(self.vhd_raw, dict):
+            vhd = schema.load_by_type(VhdSchema, self.vhd_raw)
+            add_secret(vhd.vhd, PATTERN_URL)
+            if vhd.vmgs:
+                add_secret(vhd.vmgs, PATTERN_URL)
+            # this step makes vhd_raw is validated, and
+            # filter out any unwanted content.
+            self.vhd_raw = vhd.to_dict()  # type: ignore
+            self.vmgs_raw = vhd.vmgs
+        elif self.vhd_raw:
+            assert isinstance(self.vhd_raw, str), f"actual: {type(self.vhd_raw)}"
+            vhd = VhdSchema(self.vhd_raw, self.vmgs_raw)
+            add_secret(vhd.vhd, PATTERN_URL)
+            if vhd.vmgs:
+                add_secret(vhd.vmgs, PATTERN_URL)
+            self.vhd_raw = vhd.to_dict()
+            self.vmgs_raw = vhd.vmgs
+        else:
+            raise LisaException(
+                f"Invalid value for the provided vhd "
+                f"parameter: '{self.vhd_raw}'."
+                f"The vhd parameter should be a string or "
+                f"a dictionary with a vhd and vmgs."
+            )
+        self._vhd = vhd
+        if vhd:
+            return vhd
+        else:
+            return None
+
+    @vhd.setter
+    def vhd(self, value: Optional[str]) -> None:
+        if not hasattr(self, "_vhd"):
+            self._vhd: Optional[VhdSchema] = None
+        if value is None:
+            self._vhd = None
+            self.vhd_raw = None
+            self.vmgs_raw = None
+        elif self._vhd:
+            self._vhd.vhd = value
+            self.vhd_raw = value  # type: ignore
+        else:
+            self._vhd = VhdSchema(value, self.vmgs_raw)
+
+    @property
+    def vmgs(self) -> Optional[str]:
+        # this is a safe guard and prevent mypy error on typing
+        if not hasattr(self, "_vhd"):
+            self._vhd: Optional[VhdSchema] = None
+
+        if self._vhd:
+            assert isinstance(self._vhd, VhdSchema)
+            if self._vhd.vmgs:
+                return self._vhd.vmgs
+            elif self.vmgs_raw:
+                self._vhd.vmgs = self.vmgs_raw
+                return self.vmgs_raw
+        else:
+            return None
+
+    @vmgs.setter
+    def vmgs(self, value: Optional[str]) -> None:
+        # this is a safe guard and prevent mypy error on typing
+        if not hasattr(self, "_vhd"):
+            self._vhd: Optional[VhdSchema] = None
+
+        self.vmgs_raw = value
+        if self._vhd:
+            self._vhd.vmgs = value
+        else:
+            raise LisaException("Tried to set vmgs when vhd is undefined")
+
     def get_image_name(self) -> str:
         result = ""
         if self.vhd:
@@ -367,6 +462,12 @@ class AzureNodeArmParameter(AzureNodeSchema):
         if "shared_gallery" in parameters:
             parameters["shared_gallery_raw"] = parameters["shared_gallery"]
             del parameters["shared_gallery"]
+        if "vhd" in parameters:
+            parameters["vhd_raw"] = parameters["vhd"]
+            del parameters["vhd"]
+        if "vmgs" in parameters:
+            parameters["vmgs_raw"] = parameters["vmgs"]
+            del parameters["vmgs"]
 
         arm_parameters = AzureNodeArmParameter(**parameters)
 
