@@ -41,3 +41,11 @@ class YumConfigManager(Tool):
             expected_exit_code=0,
             expected_exit_code_failure_message=f"fail to set opts {opts}",
         )
+
+    def enable_extras(self) -> None:
+        self.run(
+            "--enable extras",
+            sudo=True,
+            expected_exit_code=0,
+            expected_exit_code_failure_message="Error enabling extras repos",
+        )
