@@ -18,6 +18,7 @@ from lisa.base_tools import (
 from .aria import Aria
 from .blkid import Blkid
 from .bzip2 import Bzip2
+from .cargo import Cargo
 from .chmod import Chmod
 from .chown import Chown
 from .chrony import Chrony
@@ -114,6 +115,7 @@ __all__ = [
     "Aria",
     "Blkid",
     "Bzip2",
+    "Cargo",
     "Cat",
     "Chmod",
     "Chown",
