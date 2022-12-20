@@ -1359,6 +1359,9 @@ class Redhat(Fedora):
             saved_path / "redhat-release.txt",
         )
 
+    def is_rhel(self) -> bool:
+        return self._node.os.information.vendor == "Red Hat"
+
     def enable_extras(self) -> None:
         if self.is_rhel():
             version = self.information.version.major
@@ -1371,9 +1374,6 @@ class Redhat(Fedora):
         else:
             self.install_packages("yum-utils")
             self._node.tools[YumConfigManager].enable_extras()
-
-    def is_rhel(self) -> bool:
-        return self._node.os.information.vendor == "Red Hat"
 
     @retry(tries=10, delay=5)
     def _initialize_package_installation(self) -> None:

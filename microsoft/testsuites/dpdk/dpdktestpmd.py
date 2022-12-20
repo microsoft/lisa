@@ -793,8 +793,8 @@ class DpdkTestpmd(Tool):
         node.reboot()
         if isinstance(node.os, Redhat):
             # rhel is not guaranteed to have a DPDK package in the default
-            # repos, add EPEL to get a DPDK version in the pkg manager.
-            node.os.install_epel()
+            # repos, enable extras to get a DPDK version in the pkg manager.
+            node.os.enable_extras()
 
         if rhel.information.version.major == 7:
             # Add packages for rhel7
