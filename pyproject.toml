@@ -114,9 +114,9 @@ target-version = ['py38']
 [tool.coverage.report]
 skip_empty = true
 include = [
-    "lisa*",
-    "examples*",
-    "microsoft/testsuites*",
+    "lisa/*",
+    "examples/*",
+    "microsoft/testsuites/*",
 ]
 omit = [
     "lisa/tests/*",
