@@ -357,23 +357,16 @@ class AzureNodeSchema:
                 add_secret(vhd.vmgs, PATTERN_URL)
             # this step makes vhd_raw is validated, and
             # filter out any unwanted content.
-            self.vhd_raw = vhd.to_dict()  # type: ignore
+            self.vhd_raw = vhd.vhd
             self.vmgs_raw = vhd.vmgs
-        elif self.vhd_raw:
+        elif self.vhd_raw is not None:
             assert isinstance(self.vhd_raw, str), f"actual: {type(self.vhd_raw)}"
             vhd = VhdSchema(self.vhd_raw, self.vmgs_raw)
             add_secret(vhd.vhd, PATTERN_URL)
             if vhd.vmgs:
                 add_secret(vhd.vmgs, PATTERN_URL)
-            self.vhd_raw = vhd.to_dict()
+            self.vhd_raw = vhd.vhd
             self.vmgs_raw = vhd.vmgs
-        else:
-            raise LisaException(
-                f"Invalid value for the provided vhd "
-                f"parameter: '{self.vhd_raw}'."
-                f"The vhd parameter should be a string or "
-                f"a dictionary with a vhd and vmgs."
-            )
         self._vhd = vhd
         if vhd:
             return vhd
@@ -390,7 +383,7 @@ class AzureNodeSchema:
             self.vmgs_raw = None
         elif self._vhd:
             self._vhd.vhd = value
-            self.vhd_raw = value  # type: ignore
+            self.vhd_raw = value
         else:
             self._vhd = VhdSchema(value, self.vmgs_raw)
 
