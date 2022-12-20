@@ -1152,7 +1152,7 @@ class AzurePlatform(Platform):
                 "hyperv_generation need value 1 or 2, "
                 f"but {azure_node_runbook.hyperv_generation}",
             )
-        if azure_node_runbook.vhd:
+        if azure_node_runbook.vhd and len(azure_node_runbook.vhd) > 0:
             # vhd is higher priority
             azure_node_runbook.vhd = self._get_deployable_vhd_path(
                 azure_node_runbook.vhd, azure_node_runbook.location, log
@@ -1214,7 +1214,7 @@ class AzurePlatform(Platform):
         runbook = capability.get_extended_runbook(AzureNodeSchema, type_name=AZURE)
         arm_parameters = AzureNodeArmParameter.from_node_runbook(runbook)
 
-        if arm_parameters.vhd:
+        if arm_parameters.vhd and len(arm_parameters.vhd) > 0:
             # vhd is higher priority
             arm_parameters.vhd = self._get_deployable_vhd_path(
                 arm_parameters.vhd, arm_parameters.location, log
