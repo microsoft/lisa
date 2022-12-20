@@ -182,7 +182,8 @@ class DpdkTestpmd(Tool):
                 f" with id: '{branch_identifier}' using regex: '{matcher.pattern}'"
             )
         else:
-            major, minor = map(int, [match.group("major"), match.group("minor")])
+            major, minor = map(
+                int, [match.group("major"), match.group("minor")])
             self._dpdk_version_info: VersionInfo = VersionInfo(major, minor)
 
     def generate_testpmd_include(
@@ -546,7 +547,8 @@ class DpdkTestpmd(Tool):
         # otherwise install from source tarball or git
         self.node.log.info(f"Installing dpdk from source: {self._dpdk_source}")
         self._dpdk_repo_path_name = "dpdk"
-        self.dpdk_path = self.node.working_path.joinpath(self._dpdk_repo_path_name)
+        self.dpdk_path = self.node.working_path.joinpath(
+            self._dpdk_repo_path_name)
 
         if self.find_testpmd_binary(
             assert_on_fail=False, check_path="/usr/local/bin"
@@ -662,7 +664,8 @@ class DpdkTestpmd(Tool):
         return True
 
     def _load_drivers_for_dpdk(self) -> None:
-        self.node.log.info("Loading drivers for infiniband, rdma, and mellanox hw...")
+        self.node.log.info(
+            "Loading drivers for infiniband, rdma, and mellanox hw...")
         if self.is_connect_x3:
             mellanox_drivers = ["mlx4_core", "mlx4_ib"]
         else:
@@ -730,6 +733,13 @@ class DpdkTestpmd(Tool):
             raise UnsupportedDistroException(
                 node.os, "This OS does not have dpdk installation implemented yet."
             )
+        if self.use_package_manager_install() and not node.os.is_package_in_repo("dpdk"):
+            raise SkippedException(
+                UnsupportedDistroException(node.os,
+                                           ("This distribution does not package a "
+                                            "compatible version of DPDK in any repositories.")
+                                           )
+            )
 
     def _install_suse_dependencies(self) -> None:
         node = self.node
@@ -793,8 +803,9 @@ class DpdkTestpmd(Tool):
         node.reboot()
         if isinstance(node.os, Redhat):
             # rhel is not guaranteed to have a DPDK package in the default
-            # repos, enable extras to get a DPDK version in the pkg manager.
+            # repos, enable extras and epel to get a DPDK version in the pkg manager.
             node.os.enable_extras()
+            node.os.install_epel()
 
         if rhel.information.version.major == 7:
             # Add packages for rhel7
@@ -803,7 +814,8 @@ class DpdkTestpmd(Tool):
         try:
             rhel.install_packages("kernel-devel-$(uname -r)")
         except MissingPackagesException:
-            node.log.debug("kernel-devel-$(uname -r) not found. Trying kernel-devel")
+            node.log.debug(
+                "kernel-devel-$(uname -r) not found. Trying kernel-devel")
             rhel.install_packages("kernel-devel")
 
         # RHEL 8 doesn't require special cases for installed packages.
@@ -870,7 +882,8 @@ class DpdkTestpmd(Tool):
             dest_dir=str(cwd),
             sudo=True,
         )
-        node.tools[Mv].move(f"{cwd}/ninja", "/usr/bin/ninja", overwrite=True, sudo=True)
+        node.tools[Mv].move(
+            f"{cwd}/ninja", "/usr/bin/ninja", overwrite=True, sudo=True)
         node.execute(
             "pip3 install --upgrade pyelftools",
             sudo=True,
@@ -896,7 +909,8 @@ class DpdkTestpmd(Tool):
                 self._testpmd_install_path = result.stdout.strip()
                 break
         found_path = PurePosixPath(self._testpmd_install_path)
-        path_check = bool(self._testpmd_install_path) and node.shell.exists(found_path)
+        path_check = bool(
+            self._testpmd_install_path) and node.shell.exists(found_path)
         if assert_on_fail and not path_check:
             fail("Could not locate testpmd binary after installation!")
         elif not path_check:
@@ -919,13 +933,15 @@ class DpdkTestpmd(Tool):
         hotplug_match = self._search_hotplug_regex.finditer(after_rescind)
         matches_list = list(hotplug_match)
         if not list(matches_list):
-            hotplug_alt_match = self._search_hotplug_regex_alt.finditer(after_rescind)
+            hotplug_alt_match = self._search_hotplug_regex_alt.finditer(
+                after_rescind)
             if hotplug_alt_match:
                 matches_list = list(hotplug_alt_match)
             else:
                 command_dumped = "timeout: the monitored command dumped core"
                 if command_dumped in self._last_run_output:
-                    raise LisaException("Testpmd crashed after device removal.")
+                    raise LisaException(
+                        "Testpmd crashed after device removal.")
 
         # pick the last match
 
@@ -941,7 +957,7 @@ class DpdkTestpmd(Tool):
         self.node.log.info(f"Identified hotplug event: {last_match.group(0)}")
 
         before_reenable = after_rescind[: last_match.start()]
-        after_reenable = after_rescind[last_match.end() :]
+        after_reenable = after_rescind[last_match.end():]
         self._testpmd_output_during_rescind = before_reenable
         self._testpmd_output_after_reenable = after_reenable
 

@@ -1364,6 +1364,7 @@ class Redhat(Fedora):
 
     def enable_extras(self) -> None:
         if self.is_rhel():
+            # attempt subscription enablement
             version = self.information.version.major
             self._node.execute(
                 "subscription-manager repos "
