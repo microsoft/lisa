@@ -121,6 +121,8 @@
             "type": "Microsoft.Network/virtualNetworks",
             "name": "[variables('virtual_network_name')]",
             "location": "[parameters('location')]",
+	    "dependsOn": [
+	    ],
             "properties": {
                 "addressSpace": {
                     "addressPrefixes": [
