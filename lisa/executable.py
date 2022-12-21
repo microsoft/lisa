@@ -184,7 +184,11 @@ class Tool(InitializableMixin):
         """
         return None
 
-    def command_exists(self, command: str) -> Tuple[bool, bool]:
+    def command_exists(
+        self,
+        command: str,
+        update_envs: Optional[Dict[str, str]] = None,
+    ) -> Tuple[bool, bool]:
         exists = False
         use_sudo = False
         if self.node.is_posix:
@@ -192,7 +196,12 @@ class Tool(InitializableMixin):
         else:
             where_command = "where"
         where_command = f"{where_command} {command}"
-        result = self.node.execute(where_command, shell=True, no_info_log=True)
+        result = self.node.execute(
+            where_command,
+            shell=True,
+            no_info_log=True,
+            update_envs=update_envs,
+        )
         if result.exit_code == 0:
             exists = True
             use_sudo = False
@@ -202,6 +211,7 @@ class Tool(InitializableMixin):
                 shell=True,
                 no_info_log=True,
                 sudo=True,
+                update_envs=update_envs,
             )
             if result.exit_code == 0:
                 self._log.debug(
@@ -332,13 +342,19 @@ class Tool(InitializableMixin):
         """
         ...
 
-    def _check_exists(self) -> bool:
+    def _check_exists(
+        self,
+        update_envs: Optional[Dict[str, str]] = None,
+    ) -> bool:
         """
         Default implementation to check if a tool exists. This method is called by
         isInstalled, and cached result. Builtin tools can override it can return True
         directly to save time.
         """
-        exists, self._use_sudo = self.command_exists(self.command)
+        exists, self._use_sudo = self.command_exists(
+            self.command,
+            update_envs=update_envs,
+        )
         return exists
 
 

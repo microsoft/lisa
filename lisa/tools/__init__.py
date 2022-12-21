@@ -23,6 +23,7 @@ from .chmod import Chmod
 from .chown import Chown
 from .chrony import Chrony
 from .cp import Cp
+from .curl import Curl
 from .date import Date
 from .df import Df
 from .dhclient import Dhclient
@@ -121,6 +122,7 @@ __all__ = [
     "Chown",
     "Chrony",
     "Cp",
+    "Curl",
     "Date",
     "Df",
     "Dhclient",
