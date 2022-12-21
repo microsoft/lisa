@@ -7,6 +7,7 @@ from typing import Any, List, Optional, Pattern
 
 from lisa.feature import Feature
 from lisa.util import (
+    KernelPanicException,
     LisaException,
     find_patterns_in_lines,
     get_datetime_path,
@@ -152,7 +153,7 @@ class SerialConsole(Feature):
         ]
 
         if panics:
-            raise LisaException(f"{stage} found panic in serial log: {panics}")
+            raise KernelPanicException(stage, panics)
 
     def check_initramfs(
         self, saved_path: Optional[Path], stage: str = "", force_run: bool = False
