@@ -249,6 +249,22 @@ class LisaTimeoutException(LisaException):
     """
 
 
+class KernelPanicException(LisaException):
+    """
+    This exception is used to indicate kernel panic exception.
+    """
+
+    def __init__(
+        self, stage: str, panics: List[Any], source: str = "serial log"
+    ) -> None:
+        self.stage = stage
+        self.panics = panics
+        self.source = source
+
+    def __str__(self) -> str:
+        return f"{self.stage} found panic in {self.source}: {self.panics}"
+
+
 class ContextMixin:
     def get_context(self, context_type: Type[T]) -> T:
         if not hasattr(self, "_context"):
