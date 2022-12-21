@@ -8,6 +8,7 @@ from lisa.operating_system import Posix
 from lisa.tools.curl import Curl
 from lisa.tools.echo import Echo
 from lisa.tools.gcc import Gcc
+from lisa.tools.ln import Ln
 from lisa.util.process import ExecutableResult
 
 
@@ -48,14 +49,21 @@ class Cargo(Tool):
             self._log.debug(f"failed to install cargo: {e}")
 
         echo = self.node.tools[Echo]
-        original_path = echo.run(
-            "$PATH",
+        home_dir = echo.run(
+            "$HOME",
             shell=True,
             expected_exit_code=0,
             expected_exit_code_failure_message="failure to grab $PATH via echo",
         ).stdout
-        new_path = f"$HOME/.cargo/bin:{original_path}"
-        return self._check_exists(update_envs={"PATH": new_path})
+
+        ln = self.node.tools[Ln]
+        ln.create_link(
+            is_symbolic=True,
+            target=f"{home_dir}/.cargo/bin/cargo",
+            link="/usr/local/bin/cargo",
+        )
+
+        return self._check_exists()
 
     def build(
         self,
