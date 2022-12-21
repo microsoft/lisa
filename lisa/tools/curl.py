@@ -1,14 +1,23 @@
 # Copyright (c) Microsoft Corporation.
 # Licensed under the MIT license.
+import re
 from pathlib import PurePath
 from typing import Optional, cast
 
+from semver import VersionInfo
+
 from lisa.executable import Tool
 from lisa.operating_system import Posix
+from lisa.util import LisaException
 from lisa.util.process import ExecutableResult
 
 
 class Curl(Tool):
+    # curl 7.68.0 (x86_64-pc-linux-gnu)
+    _version_pattern = re.compile(
+        r"curl (?P<major>\d+).(?P<minor>(\d+)).(?P<patch>(\d+)) ", re.M
+    )
+
     @property
     def command(self) -> str:
         return "curl"
@@ -53,14 +62,22 @@ class Curl(Tool):
         sudo: bool = False,
         shell: bool = False,
         cwd: Optional[PurePath] = None,
-    ) -> ExecutableResult:
+    ) -> VersionInfo:
+
         err_msg = "curl get_version failed"
-        result = self.run(
+        output = self.run(
             " --version",
             expected_exit_code=0,
             expected_exit_code_failure_message=err_msg,
             sudo=sudo,
             cwd=cwd,
             shell=shell,
-        )
-        return result
+        ).stdout
+
+        matched_version = self._version_pattern.match(output)
+        if matched_version:
+            major = matched_version.group("major")
+            minor = matched_version.group("minor")
+            patch = matched_version.group("patch")
+            return VersionInfo(int(major), int(minor), int(patch))
+        raise LisaException("fail to get curl version")
