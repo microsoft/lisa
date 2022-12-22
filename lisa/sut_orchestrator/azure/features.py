@@ -1950,11 +1950,12 @@ class ArchitectureSettings(schema.FeatureSettings):
             capability, ArchitectureSettings
         ), f"actual: {type(capability)}"
         result = super().check(capability)
-
-        result.merge(
-            search_space.check_setspace(self.arch, capability.arch),
-            "vhd Architecture",
-        )
+        if self.arch != capability.arch:
+            result.result = False
+            result.reasons.append(
+                f"image arch {self.arch} should be consistent with"
+                f" vm size arch {capability.arch}"
+            )
 
         return result
 
@@ -1963,11 +1964,12 @@ class ArchitectureSettings(schema.FeatureSettings):
             capability, ArchitectureSettings
         ), f"actual: {type(capability)}"
 
+        assert_that(self.arch).described_as(
+            "req and capability should be the same"
+        ).is_equal_to(capability.arch)
+
         value = ArchitectureSettings()
-        if self.arch or capability.arch:
-            value.arch = getattr(search_space, f"{method_name}_setspace_by_priority")(
-                self.arch, capability.arch, ["x64", "Arm64"]
-            )
+        value.arch = self.arch
         return value
 
 
