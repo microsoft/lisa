@@ -77,6 +77,9 @@ class VhdTransformerSchema(schema.Transformer):
     storage_account_name: str = ""
     container_name: str = DEFAULT_EXPORTED_VHD_CONTAINER_NAME
     file_name_part: str = ""
+    # Users may want to export VHD with the name they defined. For example,
+    # OpenLogic-CentOS-7.9-20221227.vhd, or OpenLogic/CentOS/7.9/20221227.vhd
+    custom_blob_name: str = ""
 
     # restore environment or not
     restore: bool = False
@@ -194,7 +197,10 @@ class VhdTransformer(Transformer):
             resource_group_name=runbook.shared_resource_group_name,
         )
 
-        path = _generate_vhd_path(container_client, runbook.file_name_part)
+        if runbook.custom_blob_name:
+            path = runbook.custom_blob_name
+        else:
+            path = _generate_vhd_path(container_client, runbook.file_name_part)
         vhd_path = f"{container_client.url}/{path}"
         blob_client = container_client.get_blob_client(path)
         blob_client.start_copy_from_url(sas_url, metadata=None, incremental_copy=False)
