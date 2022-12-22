@@ -77,6 +77,8 @@ class VhdTransformerSchema(schema.Transformer):
     storage_account_name: str = ""
     container_name: str = DEFAULT_EXPORTED_VHD_CONTAINER_NAME
     file_name_part: str = ""
+    # Users can define the blob full name
+    custom_blob_full_name: str = ""
 
     # restore environment or not
     restore: bool = False
@@ -194,7 +196,10 @@ class VhdTransformer(Transformer):
             resource_group_name=runbook.shared_resource_group_name,
         )
 
-        path = _generate_vhd_path(container_client, runbook.file_name_part)
+        if not runbook.custom_blob_full_name:
+            path = _generate_vhd_path(container_client, runbook.file_name_part)
+        else:
+            path = runbook.custom_blob_full_name
         vhd_path = f"{container_client.url}/{path}"
         blob_client = container_client.get_blob_client(path)
         blob_client.start_copy_from_url(sas_url, metadata=None, incremental_copy=False)
