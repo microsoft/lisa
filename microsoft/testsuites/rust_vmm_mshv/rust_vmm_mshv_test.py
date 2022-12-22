@@ -2,6 +2,7 @@
 # Licensed under the MIT license.
 import re
 from pathlib import Path
+from typing import Any
 
 from assertpy.assertpy import assert_that
 
@@ -16,7 +17,8 @@ from lisa import (
 )
 from lisa.messages import SubTestMessage, TestStatus, create_test_result_message
 from lisa.testsuite import TestResult
-from lisa.tools import Cargo, Git
+from lisa.tools import Cargo, Git, Ls
+from lisa.util import SkippedException
 from lisa.util.process import ExecutableResult
 
 
@@ -28,6 +30,14 @@ from lisa.util.process import ExecutableResult
     """,
 )
 class RustVmmTestSuite(TestSuite):
+    def before_case(self, log: Logger, **kwargs: Any) -> None:
+        node = kwargs["node"]
+        mshv_exists = node.tools[Ls].path_exists(path="/dev/mshv", sudo=True)
+        if not mshv_exists:
+            raise SkippedException(
+                "Rust Vmm MSHV test can be run with MSHV wrapper (/dev/mshv) only."
+            )
+
     @TestCaseMetadata(
         description="""
             Runs rust-vmm/mshv tests
@@ -46,7 +56,7 @@ class RustVmmTestSuite(TestSuite):
         repo = "https://github.com/rust-vmm/mshv.git"
         git = node.tools[Git]
         repo_root = git.clone(repo, node.get_working_path())
-        testcase_log = log_path.joinpath("rust_vmm_mshv.log")
+        testcase_log = log_path / "rust_vmm_mshv.log"
         cargo = node.tools[Cargo]
         test_result: ExecutableResult = cargo.test(cwd=repo_root, sudo=True)
         with open(testcase_log, "w") as f:
