@@ -47,7 +47,7 @@ class Cargo(Tool):
                 "$HOME",
                 shell=True,
                 expected_exit_code=0,
-                expected_exit_code_failure_message="failure to grab $PATH via echo",
+                expected_exit_code_failure_message="failure to grab $HOME path",
             ).stdout
 
             ln = self.node.tools[Ln]
@@ -68,11 +68,11 @@ class Cargo(Tool):
 
         gcc = self.node.tools[Gcc]
         gcc_version_info = gcc.get_version()
-        self.node.log.info(f"Gcc Version: {gcc_version_info}")
+        self.node.log.debug(f"Gcc Version: {gcc_version_info}")
 
         curl = self.node.tools[Curl]
         curl_version_info = curl.get_version()
-        self.node.log.info(f"Curl Version: {curl_version_info}")
+        self.node.log.debug(f"Curl Version: {curl_version_info}")
 
     def build(
         self,
@@ -87,7 +87,13 @@ class Cargo(Tool):
             expected_exit_code=0,
             expected_exit_code_failure_message="failure to grab $PATH via echo",
         ).stdout
-        new_path = f"$HOME/.cargo/bin:{original_path}"
+        home_path = echo.run(
+            "$HOME",
+            shell=True,
+            expected_exit_code=0,
+            expected_exit_code_failure_message="failure to grab $HOME path",
+        ).stdout
+        new_path = f"{home_path}/.cargo/bin:{original_path}"
         result = self.run(
             "build",
             expected_exit_code=0,
@@ -110,7 +116,13 @@ class Cargo(Tool):
             expected_exit_code=0,
             expected_exit_code_failure_message="failure to grab $PATH via echo",
         ).stdout
-        new_path = f"$HOME/.cargo/bin:{original_path}"
+        home_path = echo.run(
+            "$HOME",
+            shell=True,
+            expected_exit_code=0,
+            expected_exit_code_failure_message="failure to grab $HOME path",
+        ).stdout
+        new_path = f"{home_path}/.cargo/bin:{original_path}"
         result = self.run(
             "test",
             sudo=sudo,
