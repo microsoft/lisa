@@ -9,7 +9,7 @@ from lisa.tools.curl import Curl
 from lisa.tools.echo import Echo
 from lisa.tools.gcc import Gcc
 from lisa.tools.ln import Ln
-from lisa.util import LisaException
+from lisa.util import UnsupportedDistroException
 from lisa.util.process import ExecutableResult
 
 
@@ -29,41 +29,35 @@ class Cargo(Tool):
     def _install(self) -> bool:
         os = self.node.os
         cargo_source_url = "https://sh.rustup.rs"
-        try:
-            if isinstance(os, CBLMariner) or isinstance(os, Ubuntu):
-                self.__install_dependencies()
+        if isinstance(os, CBLMariner) or isinstance(os, Ubuntu):
+            self.__install_dependencies()
 
-                # install cargo/rust
-                curl = self.node.tools[Curl]
-                result = curl.fetch(
-                    arg="-sSf",
-                    url=cargo_source_url,
-                    execute_arg="-s -- -y",
-                    shell=True,
-                )
-                result.assert_exit_code()
+            # install cargo/rust
+            curl = self.node.tools[Curl]
+            result = curl.fetch(
+                arg="-sSf",
+                url=cargo_source_url,
+                execute_arg="-s -- -y",
+                shell=True,
+            )
+            result.assert_exit_code()
 
-                echo = self.node.tools[Echo]
-                home_dir = echo.run(
-                    "$HOME",
-                    shell=True,
-                    expected_exit_code=0,
-                    expected_exit_code_failure_message="failure to grab $PATH via echo",
-                ).stdout
+            echo = self.node.tools[Echo]
+            home_dir = echo.run(
+                "$HOME",
+                shell=True,
+                expected_exit_code=0,
+                expected_exit_code_failure_message="failure to grab $PATH via echo",
+            ).stdout
 
-                ln = self.node.tools[Ln]
-                ln.create_link(
-                    is_symbolic=True,
-                    target=f"{home_dir}/.cargo/bin/cargo",
-                    link="/usr/local/bin/cargo",
-                )
-            else:
-                raise LisaException(
-                    f"os '{os.name}' doesn't support cargo installation."
-                )
-        except Exception as e:
-            self._log.debug(f"failed to install cargo: {e}")
-
+            ln = self.node.tools[Ln]
+            ln.create_link(
+                is_symbolic=True,
+                target=f"{home_dir}/.cargo/bin/cargo",
+                link="/usr/local/bin/cargo",
+            )
+        else:
+            raise UnsupportedDistroException(os)
         return self._check_exists()
 
     def __install_dependencies(self) -> None:
