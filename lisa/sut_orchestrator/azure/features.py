@@ -1465,11 +1465,17 @@ class SecurityProfile(AzureFeatureMixin, features.SecurityProfile):
 
         gen_value = raw_capabilities.get("HyperVGenerations", None)
         cvm_value = raw_capabilities.get("ConfidentialComputingType", None)
-        # https://learn.microsoft.com/en-us/azure/virtual-machines/trusted-launch#how-can-i-find-vm-sizes-that-support-trusted-launch
-        # # noqa: E501
-        tvm_disable_value = raw_capabilities.get("TrustedLaunchDisabled", "False")
-        if gen_value and ("V2" in str(gen_value)) and (not eval(tvm_disable_value)):
-            capabilities.append(SecurityProfileType.SecureBoot)
+        # https://learn.microsoft.com/en-us/azure/virtual-machines/trusted-launch#limitations # noqa: E501
+        if resource_sku.family not in [
+            "standardMSFamily",
+            "standardMDSMediumMemoryv2Family",
+            "standardMSMediumMemoryv2Family",
+            "standardMSv2Family",
+        ]:
+            # https://learn.microsoft.com/en-us/azure/virtual-machines/trusted-launch#how-can-i-find-vm-sizes-that-support-trusted-launch # noqa: E501
+            tvm_disable_value = raw_capabilities.get("TrustedLaunchDisabled", "False")
+            if gen_value and ("V2" in str(gen_value)) and (not eval(tvm_disable_value)):
+                capabilities.append(SecurityProfileType.SecureBoot)
         # https://learn.microsoft.com/en-us/azure/confidential-computing/confidential-vm-overview # noqa: E501
         if cvm_value and resource_sku.family in [
             "standardDCASv5Family",
