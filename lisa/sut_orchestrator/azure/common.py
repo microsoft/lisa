@@ -993,7 +993,7 @@ def wait_copy_blob(
     if timeout_timer.elapsed() >= timeout:
         raise LisaException(f"wait copying VHD timeout: {vhd_path}")
 
-    log.debug("vhd copied")
+    log.info("vhd copied")
 
 
 def get_share_service_client(
