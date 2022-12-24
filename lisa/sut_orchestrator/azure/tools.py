@@ -45,7 +45,12 @@ class Waagent(Tool):
         return False
 
     def _initialize(self, *args: Any, **kwargs: Any) -> None:
-        self._command = "waagent"
+        if isinstance(self.node.os, CoreOs):
+            self._command = (
+                "/usr/share/oem/python/bin/python /usr/share/oem/bin/waagent"
+            )
+        else:
+            self._command = "waagent"
         self._distro_version: Optional[str] = None
 
     def get_version(self) -> str:
