@@ -147,10 +147,15 @@ class VhdTransformer(Transformer):
         if not runbook.public_address:
             runbook.public_address = node.public_address
 
-        # prepare vm for exporting
-        wa = node.tools[Waagent]
-        node.execute("export HISTSIZE=0", shell=True)
-        wa.deprovision()
+        try:
+            # prepare vm for exporting
+            wa = node.tools[Waagent]
+            node.execute("export HISTSIZE=0", shell=True)
+            wa.deprovision()
+        except Exception as identifier:
+            # It happens on some VMs. This error should be caught in test cases
+            # not here. So ignore any error here and collect information only.
+            node.log.debug(f"error on run waagent deprovision : {identifier}")
 
         # stop the vm
         startstop = node.features[StartStop]
