@@ -20,8 +20,8 @@ from typing import Any, Dict, List, Optional, Set, Tuple, Type, Union, cast
 
 from azure.core.exceptions import HttpResponseError
 from azure.identity import DefaultAzureCredential
-from azure.mgmt.compute.models import (  # type: ignore
-    GalleryImage,
+from azure.mgmt.compute.models import (
+    GalleryImage,  # type: ignore
     GalleryImageVersion,
     PurchasePlan,
     ResourceSku,
@@ -33,8 +33,8 @@ from azure.mgmt.compute.models import (  # type: ignore
 from azure.mgmt.marketplaceordering.models import AgreementTerms  # type: ignore
 from azure.mgmt.network.models import NetworkInterface  # type: ignore
 from azure.mgmt.resource import SubscriptionClient  # type: ignore
-from azure.mgmt.resource.resources.models import (  # type: ignore
-    Deployment,
+from azure.mgmt.resource.resources.models import (
+    Deployment,  # type: ignore
     DeploymentMode,
     DeploymentProperties,
 )
@@ -489,7 +489,7 @@ class AzurePlatform(Platform):
                 # Even skipped deploy, try best to initialize nodes
                 self.initialize_environment(environment, log)
             except Exception as identifier:
-                self._delete_environment(environment, log)
+                # self._delete_environment(environment, log)
                 raise identifier
 
     def _delete_environment(self, environment: Environment, log: Logger) -> None:
