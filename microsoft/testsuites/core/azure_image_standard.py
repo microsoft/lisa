@@ -881,33 +881,70 @@ class AzureImageStandard(TestSuite):
         Steps:
         1. Exclude current user from all users' list.
         2. Fail the case if the password of any above user existing.
+        3. Fail the case if the key of any user existing.
         """,
         priority=1,
         requirement=simple_requirement(supported_platform_type=[AZURE, READY]),
     )
     def verify_no_pre_exist_users(self, node: Node) -> None:
+        key_pattern = re.compile(
+            r"command=\"echo \'Please login as the user \\\".*\\\" rather than the user"
+            r" \\\"root\\\".\';echo;sleep .*\"",
+            re.M,
+        )
         current_user = node.tools[Whoami].get_username()
         cat = node.tools[Cat]
         if isinstance(node.os, FreeBSD):
             shadow_file = "/etc/master.passwd"
         else:
             shadow_file = "/etc/shadow"
-        passwd_outputs = cat.read_with_filter(
+        shadow_file_outputs = cat.read_with_filter(
             shadow_file, current_user, True, True, True
         )
-        for passwd_raw_output in passwd_outputs.splitlines():
+        for shadow_raw_output in shadow_file_outputs.splitlines():
             # remove comments
             # # $FreeBSD$
-            if passwd_raw_output.strip().startswith("#"):
+            if shadow_raw_output.strip().startswith("#"):
                 continue
             # sample line of /etc/shadow
             # root:x:0:0:root:/root:/bin/bash
             # sshd:!:19161::::::
             # systemd-coredump:!*:19178::::::
             # get first two columns of /etc/shadow
-            user_name, user_passwd = passwd_raw_output.split(":")[0:2]
-            if not ("*" in user_passwd or "!" in user_passwd or "x" == user_passwd):
+            shadow_matches = re.split(":", shadow_raw_output)
+            user_name, user_passwd = shadow_matches[0], shadow_matches[1]
+            if not (
+                "*" in user_passwd
+                or "!" in user_passwd
+                or "x" == user_passwd
+                or "" == user_passwd
+            ):
                 raise LisaException(f"password of user {user_name} should be deleted.")
+        passwd_file = "/etc/passwd"
+        passwd_file_outputs = cat.read_with_filter(
+            passwd_file, current_user, True, True, True
+        )
+        for passwd_raw_output in passwd_file_outputs.splitlines():
+            if (
+                passwd_raw_output.strip().startswith("#")
+                or "nologin" in passwd_raw_output.strip()
+            ):
+                continue
+            # sample line of /etc/passwd
+            # centos:x:1000:1000::/home/centos:/bin/bash
+            passwd_matches = re.split(":", passwd_raw_output)
+            file_path = f"{passwd_matches[5]}/.ssh/authorized_keys"
+            file_exists = node.tools[Ls].path_exists(file_path, sudo=True)
+            if file_exists:
+                # if content of authorized_keys matches below pattern
+                # then it is harmless, otherwise fail the case
+                # command="echo 'Please login as the user \"USERNAME\" rather than the user \"root\".';echo;sleep 10;exit 142"  # noqa: E501
+                key_content = node.tools[Cat].read(file_path, sudo=True)
+                key_match = key_pattern.findall(key_content)
+                if not (key_match and key_match[0]):
+                    assert_that(
+                        file_exists, f"{file_path} should not be present"
+                    ).is_false()
 
     @TestCaseMetadata(
         description="""
