@@ -13,6 +13,7 @@ from lisa import (
 )
 from lisa.operating_system import Debian, Posix
 from lisa.tools import Ping
+from lisa.util import PassedException, ReleaseEndOfLifeException
 
 
 @TestSuiteMetadata(
@@ -39,7 +40,32 @@ class Dns(TestSuite):
         priority=1,
     )
     def verify_dns_name_resolution_after_upgrade(self, node: Node) -> None:
+        is_passed_exception = False
         self._check_dns_name_resolution(node)
+        try:
+            self._upgrade_system(node)
+        except ReleaseEndOfLifeException as identifier:
+            # If the release is end of life, skip the step of upgrading system.
+            # Continue the following test
+            node.log.debug(identifier)
+            is_passed_exception = True
+            exception_identifier = identifier
+        self._check_dns_name_resolution(node)
+        node.reboot()
+        self._check_dns_name_resolution(node)
+        if is_passed_exception:
+            raise PassedException(exception_identifier)
+
+    @retry(tries=10, delay=0.5)
+    def _check_dns_name_resolution(self, node: Node) -> None:
+        ping = node.tools[Ping]
+        ping.ping(target="bing.com")
+
+    def _upgrade_system(self, node: Node) -> None:
+        if not isinstance(node.os, Posix):
+            raise UnsupportedDistroException(node.os)
+
+        node.os.update_packages("")
         if isinstance(node.os, Debian):
             cmd_result = node.execute(
                 "which unattended-upgrade",
@@ -71,15 +97,3 @@ class Dns(TestSuite):
                 expected_exit_code_failure_message="fail to run unattended-upgrade",
                 timeout=2400,
             )
-        elif isinstance(node.os, Posix):
-            node.os.update_packages("")
-        else:
-            raise UnsupportedDistroException(node.os)
-        self._check_dns_name_resolution(node)
-        node.reboot()
-        self._check_dns_name_resolution(node)
-
-    @retry(tries=10, delay=0.5)
-    def _check_dns_name_resolution(self, node: Node) -> None:
-        ping = node.tools[Ping]
-        ping.ping(target="bing.com")

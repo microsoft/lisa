@@ -132,6 +132,23 @@ class RepoNotExistException(LisaException):
         return message
 
 
+class ReleaseEndOfLifeException(LisaException):
+    """
+    This exception is used to indicate that a release is end of life
+    """
+
+    def __init__(self, os: "OperatingSystem", message: str = "") -> None:
+        self.name = os.name
+        self.version = os.information.full_version
+        self._extended_message = message
+
+    def __str__(self) -> str:
+        message = f"The release '{self.version}' is end of life"
+        if self._extended_message:
+            message = f"{message}. {self._extended_message}"
+        return message
+
+
 class UnsupportedKernelException(LisaException):
     """
     This exception is used to indicate that a test case does not support the testing

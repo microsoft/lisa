@@ -38,6 +38,7 @@ from lisa.util import (
     BaseClassMixin,
     LisaException,
     MissingPackagesException,
+    ReleaseEndOfLifeException,
     RepoNotExistException,
     filter_ansi_escape,
     find_group_in_lines,
@@ -678,8 +679,15 @@ class Debian(Linux):
     _package_candidate_pattern = re.compile(
         r"([\w\W]*?)(Candidate: \(none\)|Unable to locate package.*)", re.M
     )
+    # E: The repository 'http://azure.archive.ubuntu.com/ubuntu impish-backports Release' does not have a Release file # noqa: E501
     # E: The repository 'http://azure.archive.ubuntu.com/ubuntu groovy Release' no longer has a Release file. # noqa: E501
-    _repo_not_exist_pattern = re.compile("does not have a Release file", re.M)
+    # E: The repository 'http://security.ubuntu.com/ubuntu zesty-security Release' does no longer have a Release file. # noqa: E501
+    _repo_not_exist_patterns: List[Pattern[str]] = [
+        re.compile("does not have a Release file", re.M),
+        re.compile("no longer has a Release file", re.M),
+        re.compile("does no longer have a Release file", re.M),
+    ]
+    end_of_life_releases: List[str] = []
 
     @classmethod
     def name_pattern(cls) -> Pattern[str]:
@@ -797,13 +805,20 @@ class Debian(Linux):
         if type(self._node.os) == Debian:
             self._node.execute("apt-get update", sudo=True)
 
+    def is_end_of_life_release(self) -> bool:
+        return self.information.full_version in self.end_of_life_releases
+
     @retry(tries=10, delay=5)
     def _initialize_package_installation(self) -> None:
         # wait running system package process.
         self.wait_running_package_process()
         result = self._node.execute("apt-get update", sudo=True, timeout=1800)
-        if self._repo_not_exist_pattern.search(result.stdout):
-            raise RepoNotExistException(self._node.os)
+        for pattern in self._repo_not_exist_patterns:
+            if pattern.search(result.stdout):
+                if self.is_end_of_life_release():
+                    raise ReleaseEndOfLifeException(self._node.os)
+                else:
+                    raise RepoNotExistException(self._node.os)
         result.assert_exit_code(message="\n".join(self.get_apt_error(result.stdout)))
 
     @retry(tries=10, delay=5)
@@ -947,6 +962,20 @@ class Ubuntu(Debian):
     __menu_id_parts_pattern = re.compile(
         r"^(?P<prefix>.*?)-.*-(?P<postfix>.*?-.*?-.*?-.*?-.*?-.*?)?$"
     )
+
+    # The end of life releases come from
+    # https://wiki.ubuntu.com/Releases?_ga=2.7226034.1862489468.1672129506-282537095.1659934740 # noqa: E501
+    end_of_life_releases: List[str] = [
+        "Ubuntu 21.10",
+        "Ubuntu 21.04",
+        "Ubuntu 20.10",
+        "Ubuntu 19.10",
+        "Ubuntu 19.04",
+        "Ubuntu 18.10",
+        "Ubuntu 17.10",
+        "Ubuntu 17.04",
+        "Ubuntu 16.10",
+    ]
 
     @classmethod
     def name_pattern(cls) -> Pattern[str]:
